@@ -173,9 +173,7 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 // parseAndValidateConfig parses and validates the plugin configuration
 func (p *Plugin) parseAndValidateConfig(config map[string]interface{}) (*Config, error) {
 	cfg := DefaultConfig()
-	if err := parseConfig(config, cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse configuration: %w", err)
-	}
+	parseConfig(config, cfg)
 
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
@@ -451,80 +449,94 @@ func (c *Config) Validate() error {
 }
 
 // parseConfig parses a map[string]interface{} into a Config struct.
-func parseConfig(input map[string]interface{}, output *Config) error {
-	// Helper function to get string values
-	getString := func(key string, defaultVal string) string {
-		if val, ok := input[key]; ok {
-			if str, ok := val.(string); ok {
-				return str
-			}
+func parseConfig(input map[string]interface{}, output *Config) {
+	parseStringFields(input, output)
+	parseTLSFields(input, output)
+	parseTimingFields(input, output)
+	parseFeatureFlags(input, output)
+}
+
+// parseStringFields parses string configuration fields.
+func parseStringFields(input map[string]interface{}, output *Config) {
+	output.AAIURL = getStringValue(input, "aaiUrl", output.AAIURL)
+	output.DMaaPURL = getStringValue(input, "dmaapUrl", output.DMaaPURL)
+	output.SOURL = getStringValue(input, "soUrl", output.SOURL)
+	output.SDNCURL = getStringValue(input, "sdncUrl", output.SDNCURL)
+	output.Username = getStringValue(input, "username", output.Username)
+	output.Password = getStringValue(input, "password", output.Password)
+}
+
+// parseTLSFields parses TLS configuration fields.
+func parseTLSFields(input map[string]interface{}, output *Config) {
+	output.TLSEnabled = getBoolValue(input, "tlsEnabled", output.TLSEnabled)
+	output.TLSCertFile = getStringValue(input, "tlsCertFile", output.TLSCertFile)
+	output.TLSKeyFile = getStringValue(input, "tlsKeyFile", output.TLSKeyFile)
+	output.TLSCAFile = getStringValue(input, "tlsCAFile", output.TLSCAFile)
+	output.TLSInsecureSkipVerify = getBoolValue(input, "tlsInsecureSkipVerify", output.TLSInsecureSkipVerify)
+}
+
+// parseTimingFields parses timing and retry configuration fields.
+func parseTimingFields(input map[string]interface{}, output *Config) {
+	output.InventorySyncInterval = getDurationValue(input, "inventorySyncInterval", output.InventorySyncInterval)
+	output.EventPublishBatchSize = getIntValue(input, "eventPublishBatchSize", output.EventPublishBatchSize)
+	output.RequestTimeout = getDurationValue(input, "requestTimeout", output.RequestTimeout)
+	output.MaxRetries = getIntValue(input, "maxRetries", output.MaxRetries)
+}
+
+// parseFeatureFlags parses feature flag configuration fields.
+func parseFeatureFlags(input map[string]interface{}, output *Config) {
+	output.EnableInventorySync = getBoolValue(input, "enableInventorySync", output.EnableInventorySync)
+	output.EnableEventPublishing = getBoolValue(input, "enableEventPublishing", output.EnableEventPublishing)
+	output.EnableDMSBackend = getBoolValue(input, "enableDmsBackend", output.EnableDMSBackend)
+	output.EnableSDNC = getBoolValue(input, "enableSdnc", output.EnableSDNC)
+}
+
+// getStringValue retrieves a string value from config map with default fallback.
+func getStringValue(input map[string]interface{}, key, defaultVal string) string {
+	if val, ok := input[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
 		}
-		return defaultVal
 	}
+	return defaultVal
+}
 
-	// Helper function to get bool values
-	getBool := func(key string, defaultVal bool) bool {
-		if val, ok := input[key]; ok {
-			if b, ok := val.(bool); ok {
-				return b
-			}
+// getBoolValue retrieves a bool value from config map with default fallback.
+func getBoolValue(input map[string]interface{}, key string, defaultVal bool) bool {
+	if val, ok := input[key]; ok {
+		if b, ok := val.(bool); ok {
+			return b
 		}
-		return defaultVal
 	}
+	return defaultVal
+}
 
-	// Helper function to get int values
-	getInt := func(key string, defaultVal int) int {
-		if val, ok := input[key]; ok {
-			switch v := val.(type) {
-			case int:
-				return v
-			case int64:
-				return int(v)
-			case float64:
-				return int(v)
-			}
+// getIntValue retrieves an int value from config map with default fallback.
+func getIntValue(input map[string]interface{}, key string, defaultVal int) int {
+	if val, ok := input[key]; ok {
+		switch v := val.(type) {
+		case int:
+			return v
+		case int64:
+			return int(v)
+		case float64:
+			return int(v)
 		}
-		return defaultVal
 	}
+	return defaultVal
+}
 
-	// Helper function to get duration values
-	getDuration := func(key string, defaultVal time.Duration) time.Duration {
-		if val, ok := input[key]; ok {
-			switch v := val.(type) {
-			case string:
-				if d, err := time.ParseDuration(v); err == nil {
-					return d
-				}
-			case time.Duration:
-				return v
+// getDurationValue retrieves a duration value from config map with default fallback.
+func getDurationValue(input map[string]interface{}, key string, defaultVal time.Duration) time.Duration {
+	if val, ok := input[key]; ok {
+		switch v := val.(type) {
+		case string:
+			if d, err := time.ParseDuration(v); err == nil {
+				return d
 			}
+		case time.Duration:
+			return v
 		}
-		return defaultVal
 	}
-
-	// Parse all configuration fields
-	output.AAIURL = getString("aaiUrl", output.AAIURL)
-	output.DMaaPURL = getString("dmaapUrl", output.DMaaPURL)
-	output.SOURL = getString("soUrl", output.SOURL)
-	output.SDNCURL = getString("sdncUrl", output.SDNCURL)
-	output.Username = getString("username", output.Username)
-	output.Password = getString("password", output.Password)
-
-	output.TLSEnabled = getBool("tlsEnabled", output.TLSEnabled)
-	output.TLSCertFile = getString("tlsCertFile", output.TLSCertFile)
-	output.TLSKeyFile = getString("tlsKeyFile", output.TLSKeyFile)
-	output.TLSCAFile = getString("tlsCAFile", output.TLSCAFile)
-	output.TLSInsecureSkipVerify = getBool("tlsInsecureSkipVerify", output.TLSInsecureSkipVerify)
-
-	output.InventorySyncInterval = getDuration("inventorySyncInterval", output.InventorySyncInterval)
-	output.EventPublishBatchSize = getInt("eventPublishBatchSize", output.EventPublishBatchSize)
-	output.RequestTimeout = getDuration("requestTimeout", output.RequestTimeout)
-	output.MaxRetries = getInt("maxRetries", output.MaxRetries)
-
-	output.EnableInventorySync = getBool("enableInventorySync", output.EnableInventorySync)
-	output.EnableEventPublishing = getBool("enableEventPublishing", output.EnableEventPublishing)
-	output.EnableDMSBackend = getBool("enableDmsBackend", output.EnableDMSBackend)
-	output.EnableSDNC = getBool("enableSdnc", output.EnableSDNC)
-
-	return nil
+	return defaultVal
 }
