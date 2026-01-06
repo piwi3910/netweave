@@ -262,8 +262,8 @@ func TestFlavorExtraSpecs(t *testing.T) {
 
 	t.Run("flavor with extra specs", func(t *testing.T) {
 		flavor := &flavors.Flavor{
-			ID:   "spec-flavor",
-			Name: "with-specs",
+			ID:    "spec-flavor",
+			Name:  "with-specs",
 			VCPUs: 4,
 			RAM:   8192,
 			Disk:  100,
