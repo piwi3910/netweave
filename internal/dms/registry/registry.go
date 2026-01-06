@@ -12,6 +12,15 @@ import (
 	"go.uber.org/zap"
 )
 
+// Default configuration values for the registry.
+const (
+	// DefaultHealthCheckInterval is the default interval between health checks.
+	DefaultHealthCheckInterval = 30 * time.Second
+
+	// DefaultHealthCheckTimeout is the default timeout for each health check.
+	DefaultHealthCheckTimeout = 5 * time.Second
+)
+
 // PluginMetadata contains metadata about a registered DMS plugin.
 type PluginMetadata struct {
 	// Name is the unique identifier for this plugin.
@@ -79,10 +88,10 @@ func NewRegistry(logger *zap.Logger, config *Config) *Registry {
 		config = &Config{}
 	}
 	if config.HealthCheckInterval == 0 {
-		config.HealthCheckInterval = 30 * time.Second
+		config.HealthCheckInterval = DefaultHealthCheckInterval
 	}
 	if config.HealthCheckTimeout == 0 {
-		config.HealthCheckTimeout = 5 * time.Second
+		config.HealthCheckTimeout = DefaultHealthCheckTimeout
 	}
 
 	return &Registry{
@@ -233,9 +242,34 @@ func (r *Registry) GetMetadata(name string) *PluginMetadata {
 		return nil
 	}
 
-	// Return a copy to prevent data races.
-	metaCopy := *meta
-	return &metaCopy
+	// Return a deep copy to prevent data races and external mutations.
+	metaCopy := &PluginMetadata{
+		Name:            meta.Name,
+		Type:            meta.Type,
+		Version:         meta.Version,
+		Enabled:         meta.Enabled,
+		Default:         meta.Default,
+		RegisteredAt:    meta.RegisteredAt,
+		LastHealthCheck: meta.LastHealthCheck,
+		Healthy:         meta.Healthy,
+		HealthError:     meta.HealthError,
+	}
+
+	// Deep copy Capabilities slice.
+	if meta.Capabilities != nil {
+		metaCopy.Capabilities = make([]adapter.Capability, len(meta.Capabilities))
+		copy(metaCopy.Capabilities, meta.Capabilities)
+	}
+
+	// Deep copy Config map.
+	if meta.Config != nil {
+		metaCopy.Config = make(map[string]interface{}, len(meta.Config))
+		for k, v := range meta.Config {
+			metaCopy.Config[k] = v
+		}
+	}
+
+	return metaCopy
 }
 
 // List returns all registered DMS plugins.

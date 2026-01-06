@@ -5,7 +5,10 @@ package handlers
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,6 +18,15 @@ import (
 	"github.com/piwi3910/netweave/internal/dms/registry"
 	"github.com/piwi3910/netweave/internal/dms/storage"
 	"go.uber.org/zap"
+)
+
+// Pagination constants.
+const (
+	// MaxPaginationLimit is the maximum number of items that can be returned in a list request.
+	MaxPaginationLimit = 1000
+
+	// DefaultPaginationLimit is the default number of items returned if not specified.
+	DefaultPaginationLimit = 100
 )
 
 // Handler provides HTTP handlers for O2-DMS API endpoints.
@@ -61,6 +73,108 @@ func (h *Handler) errorResponse(c *gin.Context, code int, errType, message strin
 	})
 }
 
+// validateCallbackURL validates a webhook callback URL for security.
+// It ensures:
+// - The URL is properly formatted
+// - HTTPS is used (required for production)
+// - The host is not an internal/private IP address
+func validateCallbackURL(callbackURL string) error {
+	parsed, err := url.Parse(callbackURL)
+	if err != nil {
+		return errors.New("invalid URL format")
+	}
+
+	// Enforce HTTPS for webhook callbacks.
+	if parsed.Scheme != "https" {
+		return errors.New("callback URL must use HTTPS")
+	}
+
+	// Extract host without port.
+	host := parsed.Hostname()
+	if host == "" {
+		return errors.New("callback URL must have a valid host")
+	}
+
+	// Block localhost and loopback addresses.
+	if host == "localhost" || strings.HasPrefix(host, "127.") || host == "::1" {
+		return errors.New("callback URL cannot point to localhost")
+	}
+
+	// Resolve the hostname and check if it's a private IP.
+	ips, err := net.LookupIP(host)
+	if err == nil {
+		for _, ip := range ips {
+			if isPrivateIP(ip) {
+				return errors.New("callback URL cannot point to private IP addresses")
+			}
+		}
+	}
+
+	return nil
+}
+
+// isPrivateIP checks if an IP address is in a private range.
+func isPrivateIP(ip net.IP) bool {
+	// Check for loopback.
+	if ip.IsLoopback() {
+		return true
+	}
+
+	// Check for link-local addresses.
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+
+	// Private IPv4 ranges.
+	privateBlocks := []string{
+		"10.0.0.0/8",     // Class A private
+		"172.16.0.0/12",  // Class B private
+		"192.168.0.0/16", // Class C private
+		"169.254.0.0/16", // Link-local
+	}
+
+	for _, block := range privateBlocks {
+		_, cidr, err := net.ParseCIDR(block)
+		if err != nil {
+			continue
+		}
+		if cidr.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// redactURL redacts sensitive parts of a URL for logging.
+func redactURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "[invalid-url]"
+	}
+
+	// Remove query parameters (may contain secrets).
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+
+	// Remove user info if present.
+	parsed.User = nil
+
+	return parsed.String()
+}
+
+// validatePaginationLimit validates and normalizes the pagination limit.
+// Returns the validated limit value.
+func validatePaginationLimit(limit int) int {
+	if limit <= 0 {
+		return DefaultPaginationLimit
+	}
+	if limit > MaxPaginationLimit {
+		return MaxPaginationLimit
+	}
+	return limit
+}
+
 // NF Deployment Handlers
 
 // ListNFDeployments lists all NF deployments.
@@ -80,10 +194,10 @@ func (h *Handler) ListNFDeployments(c *gin.Context) {
 		return
 	}
 
-	// Build adapter filter.
+	// Build adapter filter with validated pagination.
 	adapterFilter := &adapter.Filter{
 		Namespace: filter.Namespace,
-		Limit:     filter.Limit,
+		Limit:     validatePaginationLimit(filter.Limit),
 		Offset:    filter.Offset,
 	}
 	if filter.Status != "" {
@@ -124,7 +238,7 @@ func (h *Handler) GetNFDeployment(c *gin.Context) {
 	deployment, err := adp.GetDeployment(c.Request.Context(), nfDeploymentID)
 	if err != nil {
 		h.logger.Error("failed to get NF deployment", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found: "+nfDeploymentID)
+		h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
 		return
 	}
 
@@ -161,7 +275,7 @@ func (h *Handler) CreateNFDeployment(c *gin.Context) {
 	deployment, err := adp.CreateDeployment(c.Request.Context(), deployReq)
 	if err != nil {
 		h.logger.Error("failed to create NF deployment", zap.Error(err))
-		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to create NF deployment: "+err.Error())
+		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to create NF deployment")
 		return
 	}
 
@@ -199,7 +313,7 @@ func (h *Handler) UpdateNFDeployment(c *gin.Context) {
 	deployment, err := adp.UpdateDeployment(c.Request.Context(), nfDeploymentID, update)
 	if err != nil {
 		h.logger.Error("failed to update NF deployment", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to update NF deployment: "+err.Error())
+		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to update NF deployment")
 		return
 	}
 
@@ -222,7 +336,7 @@ func (h *Handler) DeleteNFDeployment(c *gin.Context) {
 
 	if err := adp.DeleteDeployment(c.Request.Context(), nfDeploymentID); err != nil {
 		h.logger.Error("failed to delete NF deployment", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to delete NF deployment: "+err.Error())
+		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to delete NF deployment")
 		return
 	}
 
@@ -257,7 +371,7 @@ func (h *Handler) ScaleNFDeployment(c *gin.Context) {
 
 	if err := adp.ScaleDeployment(c.Request.Context(), nfDeploymentID, req.Replicas); err != nil {
 		h.logger.Error("failed to scale NF deployment", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to scale NF deployment: "+err.Error())
+		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to scale NF deployment")
 		return
 	}
 
@@ -303,7 +417,7 @@ func (h *Handler) RollbackNFDeployment(c *gin.Context) {
 
 	if err := adp.RollbackDeployment(c.Request.Context(), nfDeploymentID, targetRevision); err != nil {
 		h.logger.Error("failed to rollback NF deployment", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to rollback NF deployment: "+err.Error())
+		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to rollback NF deployment")
 		return
 	}
 
@@ -333,7 +447,7 @@ func (h *Handler) GetNFDeploymentStatus(c *gin.Context) {
 	status, err := adp.GetDeploymentStatus(c.Request.Context(), nfDeploymentID)
 	if err != nil {
 		h.logger.Error("failed to get NF deployment status", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found: "+nfDeploymentID)
+		h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
 		return
 	}
 
@@ -355,7 +469,7 @@ func (h *Handler) GetNFDeploymentHistory(c *gin.Context) {
 	history, err := adp.GetDeploymentHistory(c.Request.Context(), nfDeploymentID)
 	if err != nil {
 		h.logger.Error("failed to get NF deployment history", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found: "+nfDeploymentID)
+		h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
 		return
 	}
 
@@ -381,8 +495,9 @@ func (h *Handler) ListNFDeploymentDescriptors(c *gin.Context) {
 		return
 	}
 
+	// Build adapter filter with validated pagination.
 	adapterFilter := &adapter.Filter{
-		Limit:  filter.Limit,
+		Limit:  validatePaginationLimit(filter.Limit),
 		Offset: filter.Offset,
 	}
 
@@ -419,7 +534,7 @@ func (h *Handler) GetNFDeploymentDescriptor(c *gin.Context) {
 	pkg, err := adp.GetDeploymentPackage(c.Request.Context(), descriptorID)
 	if err != nil {
 		h.logger.Error("failed to get NF deployment descriptor", zap.String("id", descriptorID), zap.Error(err))
-		h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment descriptor not found: "+descriptorID)
+		h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment descriptor not found")
 		return
 	}
 
@@ -455,7 +570,7 @@ func (h *Handler) CreateNFDeploymentDescriptor(c *gin.Context) {
 	pkg, err := adp.UploadDeploymentPackage(c.Request.Context(), pkgUpload)
 	if err != nil {
 		h.logger.Error("failed to create NF deployment descriptor", zap.Error(err))
-		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to create NF deployment descriptor: "+err.Error())
+		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to create NF deployment descriptor")
 		return
 	}
 
@@ -480,7 +595,7 @@ func (h *Handler) DeleteNFDeploymentDescriptor(c *gin.Context) {
 
 	if err := adp.DeleteDeploymentPackage(c.Request.Context(), descriptorID); err != nil {
 		h.logger.Error("failed to delete NF deployment descriptor", zap.String("id", descriptorID), zap.Error(err))
-		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to delete NF deployment descriptor: "+err.Error())
+		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to delete NF deployment descriptor")
 		return
 	}
 
@@ -527,7 +642,7 @@ func (h *Handler) GetDMSSubscription(c *gin.Context) {
 	sub, err := h.store.Get(c.Request.Context(), subscriptionID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
-			h.errorResponse(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
+			h.errorResponse(c, http.StatusNotFound, "NotFound", "Subscription not found")
 			return
 		}
 		h.logger.Error("failed to get DMS subscription", zap.Error(err))
@@ -550,7 +665,16 @@ func (h *Handler) CreateDMSSubscription(c *gin.Context) {
 
 	var req models.CreateDMSSubscriptionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.errorResponse(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
+		h.errorResponse(c, http.StatusBadRequest, "BadRequest", "Invalid request body")
+		return
+	}
+
+	// Validate callback URL for security.
+	if err := validateCallbackURL(req.Callback); err != nil {
+		h.logger.Warn("invalid callback URL",
+			zap.String("callback", redactURL(req.Callback)),
+			zap.Error(err))
+		h.errorResponse(c, http.StatusBadRequest, "BadRequest", "Invalid callback URL: "+err.Error())
 		return
 	}
 
@@ -572,7 +696,7 @@ func (h *Handler) CreateDMSSubscription(c *gin.Context) {
 
 	h.logger.Info("DMS subscription created",
 		zap.String("subscription_id", sub.SubscriptionID),
-		zap.String("callback", sub.Callback))
+		zap.String("callback", redactURL(sub.Callback)))
 
 	c.JSON(http.StatusCreated, sub)
 }
@@ -590,7 +714,7 @@ func (h *Handler) DeleteDMSSubscription(c *gin.Context) {
 
 	if err := h.store.Delete(c.Request.Context(), subscriptionID); err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
-			h.errorResponse(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
+			h.errorResponse(c, http.StatusNotFound, "NotFound", "Subscription not found")
 			return
 		}
 		h.logger.Error("failed to delete DMS subscription", zap.Error(err))

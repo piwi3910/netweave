@@ -324,6 +324,16 @@ curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
 
 See [docs/api-mapping.md](docs/api-mapping.md) for O2-IMS ↔ Kubernetes resource mappings.
 
+## O2-DMS API Coverage
+
+| Resource | List | Get | Create | Update | Delete | Scale | Rollback |
+|----------|------|-----|--------|--------|--------|-------|----------|
+| NF Deployments | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| NF Deployment Descriptors | ✅ | ✅ | ✅ | ❌ | ✅ | N/A | N/A |
+| DMS Subscriptions | ✅ | ✅ | ✅ | ❌ | ✅ | N/A | N/A |
+
+See [docs/o2dms-api-mapping.md](docs/o2dms-api-mapping.md) for O2-DMS ↔ Kubernetes/Helm/ArgoCD mappings.
+
 ## Development
 
 ### Setup Development Environment
