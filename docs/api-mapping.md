@@ -8,12 +8,15 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Deployment Manager](#deployment-manager)
-3. [Resource Pools](#resource-pools)
-4. [Resources](#resources)
-5. [Resource Types](#resource-types)
-6. [Subscriptions](#subscriptions)
-7. [Data Transformation Examples](#data-transformation-examples)
+2. [Multi-Backend Adapter Routing](#multi-backend-adapter-routing)
+3. [API Versioning and Evolution](#api-versioning-and-evolution)
+4. [Deployment Manager](#deployment-manager)
+5. [Resource Pools](#resource-pools)
+6. [Resources](#resources)
+7. [Resource Types](#resource-types)
+8. [Subscriptions](#subscriptions)
+9. [Data Transformation Examples](#data-transformation-examples)
+10. [Backend-Specific Mappings](#backend-specific-mappings)
 
 ---
 
@@ -41,6 +44,526 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 | Resource | Node / Machine | ✅ Full | CRUD |
 | Resource Type | StorageClass, Machine Types | ✅ Full | R |
 | Subscription | Redis (O2-IMS specific) | ✅ Full | CRUD |
+
+---
+
+## Multi-Backend Adapter Routing
+
+### Architecture Overview
+
+The netweave gateway uses a **pluggable adapter pattern** that allows routing O2-IMS requests to different backend systems based on configuration rules. This enables:
+
+1. **Multi-Technology Support**: Kubernetes, Dell DTIAS, AWS, OpenStack, etc.
+2. **Hybrid Deployments**: Different resource pools can be managed by different backends
+3. **Migration Paths**: Gradually move from legacy systems to Kubernetes
+4. **Vendor Flexibility**: Avoid lock-in by supporting multiple infrastructure providers
+
+### Adapter Interface
+
+All backends implement the same `Adapter` interface:
+
+```go
+// internal/adapter/adapter.go
+package adapter
+
+type Adapter interface {
+    // Metadata
+    Name() string                    // "kubernetes", "dtias", "aws"
+    Version() string                 // Backend version
+    Capabilities() []Capability      // Supported operations
+
+    // Resource Pools
+    ListResourcePools(ctx context.Context, filter *Filter) ([]*ResourcePool, error)
+    GetResourcePool(ctx context.Context, id string) (*ResourcePool, error)
+    CreateResourcePool(ctx context.Context, pool *ResourcePool) (*ResourcePool, error)
+    UpdateResourcePool(ctx context.Context, id string, pool *ResourcePool) (*ResourcePool, error)
+    DeleteResourcePool(ctx context.Context, id string) error
+
+    // Resources (Nodes/Machines)
+    ListResources(ctx context.Context, filter *Filter) ([]*Resource, error)
+    GetResource(ctx context.Context, id string) (*Resource, error)
+    CreateResource(ctx context.Context, resource *Resource) (*Resource, error)
+    DeleteResource(ctx context.Context, id string) error
+
+    // Resource Types
+    ListResourceTypes(ctx context.Context, filter *Filter) ([]*ResourceType, error)
+    GetResourceType(ctx context.Context, id string) (*ResourceType, error)
+
+    // Lifecycle
+    Health(ctx context.Context) error
+    Close() error
+}
+```
+
+### Routing Configuration
+
+Routing rules determine which adapter handles which requests:
+
+```yaml
+# config/routing.yaml
+routing:
+  # Default adapter for requests not matching any rule
+  default: kubernetes
+
+  # Routing rules (evaluated in priority order)
+  rules:
+    # Rule 1: Bare-metal pools → Dell DTIAS
+    - name: bare-metal-to-dtias
+      priority: 100
+      adapter: dtias
+      resourceType: resourcePool
+      conditions:
+        labels:
+          infrastructure.type: bare-metal
+        location:
+          prefix: dc-
+
+    # Rule 2: Cloud pools → AWS adapter
+    - name: cloud-to-aws
+      priority: 90
+      adapter: aws
+      resourceType: resourcePool
+      conditions:
+        labels:
+          infrastructure.type: cloud
+        location:
+          prefix: aws-
+
+    # Rule 3: GPU resources → Kubernetes (with GPU support)
+    - name: gpu-to-kubernetes
+      priority: 80
+      adapter: kubernetes
+      resourceType: resource
+      conditions:
+        extensions:
+          gpuType: "*"  # Any GPU type
+
+    # Rule 4: Everything else → Kubernetes (default)
+    - name: default-to-kubernetes
+      priority: 1
+      adapter: kubernetes
+      resourceType: "*"
+```
+
+### Request Routing Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ O2-IMS API Request                                          │
+│ GET /o2ims/v1/resourcePools?location=dc-dallas             │
+└───────────────────┬─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Gateway Router                                              │
+│ 1. Parse request (resource type, filters, params)          │
+│ 2. Query Adapter Registry                                  │
+└───────────────────┬─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Adapter Registry                                            │
+│ 1. Evaluate routing rules by priority                      │
+│ 2. Match conditions (location=dc-* → rule "bare-metal")    │
+│ 3. Return adapter: "dtias"                                 │
+└───────────────────┬─────────────────────────────────────────┘
+                    │
+        ┌───────────┴───────────┬─────────────────┐
+        ▼                       ▼                 ▼
+┌──────────────┐    ┌──────────────────┐   ┌─────────────┐
+│ Kubernetes   │    │ Dell DTIAS       │   │ AWS EKS     │
+│ Adapter      │    │ Adapter ◄────────┼───┤ Adapter     │
+└──────────────┘    └──────────────────┘   └─────────────┘
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │ DTIAS REST API   │
+                    │ - List pools     │
+                    │ - Transform to   │
+                    │   O2-IMS format  │
+                    └──────────────────┘
+```
+
+### Adapter Registry Implementation
+
+```go
+// internal/adapter/registry.go
+package adapter
+
+type Registry struct {
+    mu       sync.RWMutex
+    adapters map[string]Adapter
+    routes   []RoutingRule
+    default  string
+}
+
+// Route determines which adapter to use
+func (r *Registry) Route(
+    resourceType string,
+    filter *Filter,
+) (Adapter, error) {
+    r.mu.RLock()
+    defer r.mu.RUnlock()
+
+    // Evaluate rules by priority (highest first)
+    for _, rule := range r.sortedRules() {
+        if rule.Matches(resourceType, filter) {
+            if adapter, ok := r.adapters[rule.AdapterName]; ok {
+                return adapter, nil
+            }
+        }
+    }
+
+    // Fallback to default
+    if adapter, ok := r.adapters[r.default]; ok {
+        return adapter, nil
+    }
+
+    return nil, fmt.Errorf("no adapter available for %s", resourceType)
+}
+
+// RoutingRule defines when to use a specific adapter
+type RoutingRule struct {
+    Name         string            `yaml:"name"`
+    Priority     int               `yaml:"priority"`
+    AdapterName  string            `yaml:"adapter"`
+    ResourceType string            `yaml:"resourceType"`  // "resourcePool", "resource", "*"
+    Conditions   RuleConditions    `yaml:"conditions"`
+}
+
+type RuleConditions struct {
+    Labels     map[string]string  `yaml:"labels"`      // Key-value matches
+    Location   LocationMatch      `yaml:"location"`    // Location prefix/regex
+    Extensions map[string]string  `yaml:"extensions"`  // Extension field matches
+}
+
+func (r *RoutingRule) Matches(resourceType string, filter *Filter) bool {
+    // Match resource type
+    if r.ResourceType != "*" && r.ResourceType != resourceType {
+        return false
+    }
+
+    // Match location
+    if r.Conditions.Location.Prefix != "" {
+        if !strings.HasPrefix(filter.Location, r.Conditions.Location.Prefix) {
+            return false
+        }
+    }
+
+    // Match labels
+    for key, value := range r.Conditions.Labels {
+        if filter.Labels[key] != value {
+            return false
+        }
+    }
+
+    // Match extensions
+    for key, pattern := range r.Conditions.Extensions {
+        extValue, ok := filter.Extensions[key]
+        if !ok {
+            return false
+        }
+        if pattern != "*" && extValue != pattern {
+            return false
+        }
+    }
+
+    return true
+}
+```
+
+### Multi-Backend Aggregation
+
+For `List` operations, results can be **aggregated from multiple backends**:
+
+```go
+// internal/handlers/resource_pools.go
+func (h *Handler) ListResourcePools(ctx context.Context, filter *Filter) ([]*ResourcePool, error) {
+    var allPools []*ResourcePool
+    var mu sync.Mutex
+    var wg sync.WaitGroup
+
+    // Get all relevant adapters
+    adapters := h.registry.GetAdaptersForOperation("resourcePool", "list", filter)
+
+    // Query each adapter in parallel
+    for _, adapter := range adapters {
+        wg.Add(1)
+        go func(a Adapter) {
+            defer wg.Done()
+
+            pools, err := a.ListResourcePools(ctx, filter)
+            if err != nil {
+                log.Error("adapter failed", "adapter", a.Name(), "error", err)
+                return
+            }
+
+            mu.Lock()
+            allPools = append(allPools, pools...)
+            mu.Unlock()
+        }(adapter)
+    }
+
+    wg.Wait()
+
+    // Deduplicate and sort results
+    return deduplicateAndSort(allPools), nil
+}
+```
+
+**Aggregation Strategies**:
+
+| Strategy | Description | Use Case |
+|----------|-------------|----------|
+| **Merge** | Combine results from all adapters | List all pools across all backends |
+| **First** | Return first successful response | Fallback chain (try primary, then backup) |
+| **Fanout** | Send to all, wait for all | Ensure consistency across backends |
+| **Priority** | Query highest-priority adapter only | Single source of truth per resource type |
+
+### Routing Examples
+
+**Example 1: Bare-Metal Pool → Dell DTIAS**
+
+```bash
+# Request
+curl -X GET 'https://netweave.example.com/o2ims/v1/resourcePools?location=dc-dallas'
+
+# Routing Decision
+location=dc-dallas → prefix match "dc-" → route to "dtias" adapter
+
+# Backend Call
+DTIAS Adapter → GET https://dtias.example.com/api/v1/infrastructure/pools
+                → Transform DTIAS response to O2-IMS format
+```
+
+**Example 2: Cloud Pool → AWS**
+
+```bash
+# Request
+curl -X POST https://netweave.example.com/o2ims/v1/resourcePools \
+  -d '{
+    "name": "Production EKS Pool",
+    "location": "aws-us-west-2",
+    "extensions": {"instanceType": "m5.2xlarge"}
+  }'
+
+# Routing Decision
+location=aws-us-west-2 → prefix match "aws-" → route to "aws" adapter
+
+# Backend Call
+AWS Adapter → Create EKS NodeGroup via AWS SDK
+            → Transform AWS response to O2-IMS format
+```
+
+**Example 3: GPU Resource → Kubernetes**
+
+```bash
+# Request
+curl -X GET 'https://netweave.example.com/o2ims/v1/resources?extensions.gpuType=A100'
+
+# Routing Decision
+extensions.gpuType=A100 → match GPU rule → route to "kubernetes" adapter
+
+# Backend Call
+Kubernetes Adapter → List Nodes with label nvidia.com/gpu=A100
+                   → Transform Node to O2-IMS Resource
+```
+
+---
+
+## API Versioning and Evolution
+
+### Versioning Strategy
+
+The netweave gateway supports **multiple simultaneous API versions** to enable evolution without breaking existing clients:
+
+- **URL-Based Versioning**: `/o2ims/v1/...`, `/o2ims/v2/...`, `/o2ims/v3/...`
+- **Parallel Support**: Multiple versions active simultaneously
+- **Independent Evolution**: Each version has its own handlers and response formats
+- **Deprecation Policy**: 12-month grace period before sunset
+
+### Version Differences and Mappings
+
+#### v1 (Current Stable)
+
+**Base O2-IMS Specification**:
+- Simple resource representations
+- Basic filtering (location, labels)
+- Standard CRUD operations
+- Basic error responses
+
+**Example**: Resource Pool in v1
+```json
+{
+  "resourcePoolId": "pool-1",
+  "name": "Production Pool",
+  "location": "us-east-1a",
+  "oCloudId": "ocloud-1"
+}
+```
+
+**Adapter Mapping (v1)**:
+```go
+// v1 handler
+func (h *HandlerV1) GetResourcePool(ctx context.Context, id string) (*v1.ResourcePool, error) {
+    adapter, err := h.registry.Route("resourcePool", &Filter{ResourcePoolID: id})
+    if err != nil {
+        return nil, err
+    }
+
+    // Get from adapter
+    pool, err := adapter.GetResourcePool(ctx, id)
+    if err != nil {
+        return nil, err
+    }
+
+    // Transform to v1 format (simple)
+    return &v1.ResourcePool{
+        ResourcePoolID: pool.ResourcePoolID,
+        Name:           pool.Name,
+        Location:       pool.Location,
+        OCloudID:       pool.OCloudID,
+    }, nil
+}
+```
+
+#### v2 (Enhanced Features)
+
+**Enhanced Specification**:
+- **Additional fields**: `health`, `metrics`, `usage`
+- **Enhanced filtering**: Complex queries, field selection
+- **Batch operations**: Create/update multiple resources
+- **Pagination**: Cursor-based pagination
+- **Rich error responses**: Error details, suggestions
+
+**Example**: Resource Pool in v2
+```json
+{
+  "resourcePoolId": "pool-1",
+  "name": "Production Pool",
+  "location": "us-east-1a",
+  "oCloudId": "ocloud-1",
+  "health": {
+    "status": "healthy",
+    "lastChecked": "2026-01-06T10:30:00Z"
+  },
+  "metrics": {
+    "totalCapacity": 100,
+    "usedCapacity": 75,
+    "utilizationPercent": 75.0
+  },
+  "usage": {
+    "activeResources": 15,
+    "totalResources": 20
+  }
+}
+```
+
+**Adapter Mapping (v2)**:
+```go
+// v2 handler with enhanced data
+func (h *HandlerV2) GetResourcePool(ctx context.Context, id string) (*v2.ResourcePool, error) {
+    adapter, err := h.registry.Route("resourcePool", &Filter{ResourcePoolID: id})
+    if err != nil {
+        return nil, err
+    }
+
+    // Get base data from adapter
+    pool, err := adapter.GetResourcePool(ctx, id)
+    if err != nil {
+        return nil, err
+    }
+
+    // v2 enhancement: Add health metrics
+    health, err := h.computePoolHealth(ctx, pool)
+    if err != nil {
+        log.Warn("failed to compute health", "error", err)
+        health = &v2.Health{Status: "unknown"}
+    }
+
+    // v2 enhancement: Add usage metrics
+    metrics, err := h.computePoolMetrics(ctx, pool)
+    if err != nil {
+        log.Warn("failed to compute metrics", "error", err)
+    }
+
+    // Transform to v2 format (enhanced)
+    return &v2.ResourcePool{
+        ResourcePoolID: pool.ResourcePoolID,
+        Name:           pool.Name,
+        Location:       pool.Location,
+        OCloudID:       pool.OCloudID,
+        Health:         health,      // NEW in v2
+        Metrics:        metrics,     // NEW in v2
+        Usage:          computeUsage(pool),  // NEW in v2
+    }, nil
+}
+```
+
+### Version-Specific Routing
+
+Different API versions can route to different adapters or use different routing rules:
+
+```yaml
+# config/routing-v2.yaml
+versioning:
+  v1:
+    # v1 uses simple routing
+    default: kubernetes
+    rules:
+      - name: bare-metal
+        adapter: dtias
+        conditions:
+          location:
+            prefix: dc-
+
+  v2:
+    # v2 adds enhanced routing with capability checks
+    default: kubernetes
+    rules:
+      - name: bare-metal-with-metrics
+        adapter: dtias-v2  # Enhanced DTIAS adapter with metrics support
+        conditions:
+          location:
+            prefix: dc-
+          capabilities:
+            - metrics
+            - health-check
+
+      - name: cloud-with-auto-scaling
+        adapter: aws-v2
+        conditions:
+          location:
+            prefix: aws-
+          features:
+            - auto-scaling
+```
+
+### Deprecation Headers
+
+When a version is deprecated, include deprecation headers:
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+X-API-Deprecated: true
+X-API-Deprecation-Date: 2026-07-01
+X-API-Sunset-Date: 2027-01-01
+X-API-Migration-Guide: https://docs.netweave.io/migration/v1-to-v2
+
+{
+  "resourcePoolId": "pool-1",
+  ...
+}
+```
+
+### Version Support Matrix
+
+| Version | Status | Supported Until | Recommended |
+|---------|--------|-----------------|-------------|
+| v1 | Stable | 2027-01-01 | Yes (current) |
+| v2 | Beta | N/A (not released) | No (testing only) |
+| v3 | Alpha | N/A (not released) | No (development) |
 
 ---
 
@@ -846,14 +1369,313 @@ redis.Publish(ctx, "subscriptions:created", subID)
 
 ---
 
-## Summary
+---
+
+## Backend-Specific Mappings
+
+This section shows how different backend adapters map their native resources to O2-IMS concepts.
+
+### Kubernetes Adapter Mappings
+
+| O2-IMS Resource | Kubernetes Resource | Transformation Notes |
+|-----------------|---------------------|----------------------|
+| Deployment Manager | O2DeploymentManager CRD or ConfigMap | Static cluster metadata |
+| Resource Pool | MachineSet | 1:1 mapping with replicas |
+| Resource | Node (runtime) + Machine (lifecycle) | Node for current state, Machine for CRUD |
+| Resource Type | Aggregated from Nodes + StorageClasses | Dynamic aggregation based on instance types |
+| Subscription | Redis + K8s Informers | Subscriptions stored in Redis, events from K8s |
+
+**Example Transformation: MachineSet → ResourcePool**
+
+```go
+func transformMachineSetToResourcePool(ms *machinev1beta1.MachineSet) *models.ResourcePool {
+    // Extract AWS provider config
+    providerConfig := parseAWSProviderConfig(ms.Spec.Template.Spec.ProviderSpec.Value)
+
+    return &models.ResourcePool{
+        ResourcePoolID: ms.Name,
+        Name:           ms.Annotations["o2ims.oran.org/name"],
+        Description:    ms.Annotations["o2ims.oran.org/description"],
+        Location:       providerConfig.Placement.AvailabilityZone,
+        OCloudID:       ms.Labels["o2ims.oran.org/o-cloud-id"],
+        Extensions: map[string]interface{}{
+            "machineType": providerConfig.InstanceType,
+            "replicas":    *ms.Spec.Replicas,
+            "volumeSize":  providerConfig.BlockDevices[0].EBS.VolumeSize,
+            "zone":        providerConfig.Placement.AvailabilityZone,
+        },
+    }
+}
+```
+
+### Dell DTIAS Adapter Mappings
+
+**DTIAS** (Dell Telecom Infrastructure Automation Service) uses a different data model:
+
+| O2-IMS Resource | DTIAS Resource | API Endpoint | Transformation Notes |
+|-----------------|----------------|--------------|----------------------|
+| Deployment Manager | Infrastructure Site | `GET /api/v1/sites/{id}` | DTIAS site metadata |
+| Resource Pool | Server Pool | `GET /api/v1/server-pools` | DTIAS pool with bare-metal servers |
+| Resource | Physical Server | `GET /api/v1/servers` | Individual bare-metal server |
+| Resource Type | Server Profile | `GET /api/v1/profiles` | Hardware profile (CPU, RAM, storage) |
+
+**Example Transformation: DTIAS Server Pool → O2-IMS ResourcePool**
+
+```go
+func (a *DTIASAdapter) transformServerPoolToResourcePool(
+    pool *dtias.ServerPool,
+) *models.ResourcePool {
+    return &models.ResourcePool{
+        ResourcePoolID: fmt.Sprintf("dtias-pool-%s", pool.ID),
+        Name:           pool.Name,
+        Description:    pool.Description,
+        Location:       pool.DataCenter.Location,
+        OCloudID:       a.oCloudID,
+        GlobalLocationID: fmt.Sprintf("geo:%s,%s",
+            pool.DataCenter.Latitude,
+            pool.DataCenter.Longitude,
+        ),
+        Extensions: map[string]interface{}{
+            "infrastructure": "bare-metal",
+            "vendor":         "Dell",
+            "serverCount":    pool.ServerCount,
+            "availableServers": pool.AvailableCount,
+            "profiles":       pool.SupportedProfiles,
+            "datacenter":     pool.DataCenter.Name,
+            "rackRange":      pool.RackRange,
+        },
+    }
+}
+```
+
+**Example Transformation: DTIAS Server → O2-IMS Resource**
+
+```go
+func (a *DTIASAdapter) transformServerToResource(
+    server *dtias.Server,
+) *models.Resource {
+    return &models.Resource{
+        ResourceID:     fmt.Sprintf("dtias-server-%s", server.SerialNumber),
+        ResourceTypeID: fmt.Sprintf("dtias-profile-%s", server.ProfileID),
+        ResourcePoolID: fmt.Sprintf("dtias-pool-%s", server.PoolID),
+        GlobalAssetID:  fmt.Sprintf("urn:dtias:server:%s", server.SerialNumber),
+        Description:    fmt.Sprintf("Dell bare-metal server %s", server.Model),
+        Extensions: map[string]interface{}{
+            "infrastructure": "bare-metal",
+            "vendor":         "Dell",
+            "model":          server.Model,
+            "serialNumber":   server.SerialNumber,
+            "serviceTag":     server.ServiceTag,
+            "cpu": map[string]interface{}{
+                "model":  server.CPU.Model,
+                "cores":  server.CPU.Cores,
+                "threads": server.CPU.Threads,
+                "speed":  server.CPU.SpeedGHz,
+            },
+            "memory": map[string]interface{}{
+                "total":  server.Memory.TotalGB,
+                "type":   server.Memory.Type,
+                "speed":  server.Memory.SpeedMHz,
+            },
+            "storage": server.Storage,  // Array of disks
+            "network": server.NICs,     // Array of network interfaces
+            "status":  server.Status,   // "available", "in-use", "maintenance"
+            "power":   server.PowerState, // "on", "off"
+        },
+    }
+}
+```
+
+**DTIAS API Flow Example**:
+
+```
+1. O2-IMS Request:
+   POST /o2ims/v1/resources
+   { "resourcePoolId": "dtias-pool-123", ... }
+
+2. Routing:
+   location=dc-dallas → route to "dtias" adapter
+
+3. DTIAS Adapter:
+   → Transform O2-IMS request to DTIAS format
+   → POST https://dtias.example.com/api/v1/servers/provision
+     {
+       "pool_id": "123",
+       "profile_id": "high-memory-profile",
+       "network_config": {...}
+     }
+   → Wait for provisioning (async)
+   → Poll GET /api/v1/servers/{id}/status
+   → Transform DTIAS response to O2-IMS Resource
+   → Return to client
+
+4. O2-IMS Response:
+   HTTP 201 Created
+   { "resourceId": "dtias-server-ABC123", ... }
+```
+
+### AWS EKS Adapter Mappings
+
+For AWS cloud deployments, the adapter uses AWS SDK to manage infrastructure:
+
+| O2-IMS Resource | AWS Resource | AWS API | Transformation Notes |
+|-----------------|--------------|---------|----------------------|
+| Deployment Manager | EKS Cluster | `DescribeCluster` | Cluster metadata |
+| Resource Pool | EKS NodeGroup | `DescribeNodegroup` | Auto Scaling Group wrapper |
+| Resource | EC2 Instance | `DescribeInstances` | Individual EC2 instance in NodeGroup |
+| Resource Type | EC2 Instance Type | `DescribeInstanceTypes` | m5.2xlarge, c5.4xlarge, etc. |
+
+**Example Transformation: AWS NodeGroup → O2-IMS ResourcePool**
+
+```go
+func (a *AWSAdapter) transformNodeGroupToResourcePool(
+    ng *eks.Nodegroup,
+) *models.ResourcePool {
+    return &models.ResourcePool{
+        ResourcePoolID: fmt.Sprintf("aws-nodegroup-%s", *ng.NodegroupName),
+        Name:           *ng.NodegroupName,
+        Description:    fmt.Sprintf("EKS NodeGroup in %s", *ng.ClusterName),
+        Location:       *ng.Subnets[0],  // Primary subnet AZ
+        OCloudID:       a.oCloudID,
+        Extensions: map[string]interface{}{
+            "infrastructure":  "cloud",
+            "provider":        "AWS",
+            "clusterName":     *ng.ClusterName,
+            "instanceTypes":   ng.InstanceTypes,  // Can be multiple types
+            "amiType":         *ng.AmiType,
+            "diskSize":        *ng.DiskSize,
+            "capacityType":    *ng.CapacityType,  // ON_DEMAND or SPOT
+            "scalingConfig": map[string]interface{}{
+                "minSize":     *ng.ScalingConfig.MinSize,
+                "maxSize":     *ng.ScalingConfig.MaxSize,
+                "desiredSize": *ng.ScalingConfig.DesiredSize,
+            },
+            "subnets":     ng.Subnets,
+            "labels":      ng.Labels,
+            "taints":      ng.Taints,
+            "launchTemplate": ng.LaunchTemplate,
+        },
+    }
+}
+```
+
+**Example Transformation: EC2 Instance → O2-IMS Resource**
+
+```go
+func (a *AWSAdapter) transformEC2InstanceToResource(
+    instance *ec2.Instance,
+    nodegroupName string,
+) *models.Resource {
+    return &models.Resource{
+        ResourceID:     fmt.Sprintf("aws-instance-%s", *instance.InstanceId),
+        ResourceTypeID: fmt.Sprintf("aws-instance-type-%s", *instance.InstanceType),
+        ResourcePoolID: fmt.Sprintf("aws-nodegroup-%s", nodegroupName),
+        GlobalAssetID:  fmt.Sprintf("urn:aws:ec2:%s:%s", *instance.Placement.AvailabilityZone, *instance.InstanceId),
+        Description:    fmt.Sprintf("EC2 instance %s", *instance.InstanceType),
+        Extensions: map[string]interface{}{
+            "infrastructure":  "cloud",
+            "provider":        "AWS",
+            "instanceId":      *instance.InstanceId,
+            "instanceType":    *instance.InstanceType,
+            "availabilityZone": *instance.Placement.AvailabilityZone,
+            "state":           *instance.State.Name,  // running, stopped, etc.
+            "privateIp":       *instance.PrivateIpAddress,
+            "publicIp":        getPublicIP(instance),
+            "vpcId":           *instance.VpcId,
+            "subnetId":        *instance.SubnetId,
+            "architecture":    *instance.Architecture,  // x86_64, arm64
+            "virtualizationType": *instance.VirtualizationType,
+            "platform":        instance.Platform,  // windows or nil for linux
+            "launchTime":      *instance.LaunchTime,
+        },
+    }
+}
+```
+
+### Comparison: Multi-Backend Resource Pool Creation
+
+**Same O2-IMS Request, Different Backend Actions**:
+
+```json
+POST /o2ims/v1/resourcePools
+{
+  "name": "Production Pool",
+  "description": "High-performance compute nodes",
+  "location": "us-east-1a",  // or "dc-dallas" for bare-metal
+  "oCloudId": "ocloud-1",
+  "extensions": {
+    "replicas": 5
+  }
+}
+```
+
+#### Kubernetes Adapter
+```go
+// Creates a MachineSet
+k8sClient.Create(ctx, &machinev1beta1.MachineSet{
+    ObjectMeta: metav1.ObjectMeta{
+        Name:      "production-pool",
+        Namespace: "openshift-machine-api",
+    },
+    Spec: machinev1beta1.MachineSetSpec{
+        Replicas: ptr.To(int32(5)),
+        Template: machinev1beta1.MachineTemplateSpec{
+            Spec: machinev1beta1.MachineSpec{
+                ProviderSpec: awsProviderSpec,  // AWS, GCP, Azure, etc.
+            },
+        },
+    },
+})
+```
+
+#### Dell DTIAS Adapter
+```go
+// Calls DTIAS API to create server pool
+dtiasClient.CreateServerPool(ctx, &dtias.CreatePoolRequest{
+    Name:        "Production Pool",
+    Description: "High-performance compute nodes",
+    DataCenter:  "dc-dallas",
+    ProfileID:   "high-performance-profile",
+    ServerCount: 5,
+    RackRange:   "A01-A05",
+    NetworkVLANs: []string{"vlan-100", "vlan-200"},
+})
+```
+
+#### AWS Adapter
+```go
+// Creates an EKS NodeGroup
+eksClient.CreateNodegroup(ctx, &eks.CreateNodegroupInput{
+    ClusterName:   aws.String("production-cluster"),
+    NodegroupName: aws.String("production-pool"),
+    Subnets:       []string{"subnet-123", "subnet-456"},
+    InstanceTypes: []string{"m5.2xlarge"},
+    ScalingConfig: &eks.NodegroupScalingConfig{
+        MinSize:     aws.Int64(3),
+        MaxSize:     aws.Int64(10),
+        DesiredSize: aws.Int64(5),
+    },
+    DiskSize:     aws.Int64(100),
+    AmiType:      aws.String("AL2_x86_64"),
+    CapacityType: aws.String("ON_DEMAND"),
+})
+```
+
+### Summary
+
+**Adapter Pattern Benefits**:
+1. ✅ **Unified O2-IMS API**: SMO sees consistent interface regardless of backend
+2. ✅ **Backend Flexibility**: Add/remove backends without API changes
+3. ✅ **Technology Migration**: Gradually migrate between backends
+4. ✅ **Vendor Independence**: Avoid lock-in to single infrastructure provider
+5. ✅ **Hybrid Deployments**: Mix cloud and bare-metal in single O-Cloud
 
 **Mapping Completeness**:
 - ✅ Deployment Manager → Custom Resource (metadata)
-- ✅ Resource Pool → MachineSet (full CRUD)
-- ✅ Resource → Node/Machine (full CRUD)
-- ✅ Resource Type → Aggregated from Nodes + StorageClasses
-- ✅ Subscription → Redis + K8s Informers (full CRUD + webhooks)
+- ✅ Resource Pool → MachineSet / DTIAS Pool / AWS NodeGroup (full CRUD)
+- ✅ Resource → Node/Machine / DTIAS Server / EC2 Instance (full CRUD)
+- ✅ Resource Type → Aggregated from Nodes + StorageClasses + Provider Catalogs
+- ✅ Subscription → Redis + K8s Informers / DTIAS Webhooks / AWS EventBridge (full CRUD + webhooks)
 
 **Key Principles**:
 1. Use native K8s resources where possible
@@ -861,9 +1683,13 @@ redis.Publish(ctx, "subscriptions:created", subID)
 3. Transform bidirectionally (read and write)
 4. Preserve semantic meaning across translation
 5. Handle errors gracefully with proper O2-IMS error responses
+6. **Route intelligently based on resource characteristics**
+7. **Support multiple backends simultaneously**
+8. **Abstract backend complexity from SMO clients**
 
 **Future Extensions**:
-- Additional resource types (network, accelerators)
+- Additional adapters (OpenStack, VMware, Azure)
 - Advanced filtering (complex queries)
 - Batch operations
 - Custom resource definitions for all O2-IMS types
+- Cross-backend resource migration

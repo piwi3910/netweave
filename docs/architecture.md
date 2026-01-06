@@ -344,42 +344,686 @@ func (c *SubscriptionController) Run(ctx context.Context) {
    - Retry with exponential backoff (3 attempts)
    - Update subscription status
 
-### Kubernetes Adapter
+### Adapter Architecture (Multi-Backend Support)
 
-**Responsibility**: Translate O2-IMS operations to Kubernetes API calls
+**Responsibility**: Provide pluggable backend abstraction for O2-IMS operations
+
+The adapter architecture enables the gateway to support multiple infrastructure backends through a unified interface. This allows netweave to manage resources across Kubernetes, bare-metal systems (Dell DTIAS), cloud providers (AWS, Azure), and any future backend implementations.
+
+#### Adapter Interface
+
+All backend implementations must satisfy the `Adapter` interface:
 
 ```go
+// internal/adapter/adapter.go
+
+package adapter
+
+// Adapter is the pluggable backend interface
+type Adapter interface {
+    // Metadata
+    Name() string
+    Version() string
+    Capabilities() []Capability
+
+    // Deployment Managers
+    ListDeploymentManagers(ctx context.Context, filter *Filter) ([]*DeploymentManager, error)
+    GetDeploymentManager(ctx context.Context, id string) (*DeploymentManager, error)
+
+    // Resource Pools
+    ListResourcePools(ctx context.Context, filter *Filter) ([]*ResourcePool, error)
+    GetResourcePool(ctx context.Context, id string) (*ResourcePool, error)
+    CreateResourcePool(ctx context.Context, pool *ResourcePool) (*ResourcePool, error)
+    UpdateResourcePool(ctx context.Context, id string, pool *ResourcePool) (*ResourcePool, error)
+    DeleteResourcePool(ctx context.Context, id string) error
+
+    // Resources
+    ListResources(ctx context.Context, filter *Filter) ([]*Resource, error)
+    GetResource(ctx context.Context, id string) (*Resource, error)
+    CreateResource(ctx context.Context, resource *Resource) (*Resource, error)
+    DeleteResource(ctx context.Context, id string) error
+
+    // Resource Types
+    ListResourceTypes(ctx context.Context, filter *Filter) ([]*ResourceType, error)
+    GetResourceType(ctx context.Context, id string) (*ResourceType, error)
+
+    // Subscriptions (backend may or may not support)
+    SupportsSubscriptions() bool
+    Subscribe(ctx context.Context, sub *Subscription) error
+    Unsubscribe(ctx context.Context, id string) error
+
+    // Health and lifecycle
+    Health(ctx context.Context) error
+    Close() error
+}
+
+// Capability describes what operations a backend supports
+type Capability string
+
+const (
+    CapResourcePoolCreate   Capability = "resource-pool-create"
+    CapResourcePoolUpdate   Capability = "resource-pool-update"
+    CapResourcePoolDelete   Capability = "resource-pool-delete"
+    CapResourceCreate       Capability = "resource-create"
+    CapResourceDelete       Capability = "resource-delete"
+    CapSubscriptions        Capability = "subscriptions"
+    CapRealTimeEvents       Capability = "real-time-events"
+)
+```
+
+#### Adapter Registry
+
+The `Registry` manages multiple adapter instances and routes requests to appropriate backends:
+
+```go
+// internal/adapter/registry.go
+
+type Registry struct {
+    mu       sync.RWMutex
+    adapters map[string]Adapter
+    routes   map[string]RoutingRule
+    default  string  // Default adapter name
+}
+
+// RoutingRule determines which backend to use
+type RoutingRule struct {
+    ResourceType string      // "ResourcePool", "Resource", etc.
+    Filter       *Filter     // Optional filter criteria
+    AdapterName  string      // Which adapter to route to
+    Priority     int         // For fallback scenarios
+}
+
+// Route determines which adapter to use for a request
+func (r *Registry) Route(resourceType string, filter *Filter) (Adapter, error) {
+    r.mu.RLock()
+    defer r.mu.RUnlock()
+
+    // Check routing rules first (highest priority first)
+    for _, rule := range r.sortedRules() {
+        if rule.ResourceType == resourceType && rule.MatchesFilter(filter) {
+            if adapter, ok := r.adapters[rule.AdapterName]; ok {
+                return adapter, nil
+            }
+        }
+    }
+
+    // Fallback to default adapter
+    if adapter, ok := r.adapters[r.default]; ok {
+        return adapter, nil
+    }
+
+    return nil, fmt.Errorf("no adapter found for resource type %s", resourceType)
+}
+```
+
+#### Backend Implementations
+
+**Directory Structure:**
+
+```
+internal/adapters/
+├── k8s/               # Kubernetes backend (primary)
+│   ├── adapter.go
+│   ├── resourcepools.go
+│   ├── resources.go
+│   ├── resourcetypes.go
+│   └── client.go
+├── dtias/             # Dell DTIAS backend
+│   ├── adapter.go
+│   ├── resourcepools.go
+│   ├── resources.go
+│   └── client.go
+├── aws/               # AWS EKS/EC2 backend
+│   ├── adapter.go
+│   └── ...
+├── openstack/         # OpenStack backend
+│   ├── adapter.go
+│   └── ...
+└── mock/              # Mock for testing
+    ├── adapter.go
+    └── ...
+```
+
+#### Kubernetes Adapter (Primary Implementation)
+
+```go
+// internal/adapters/k8s/adapter.go
+
+package k8s
+
+import (
+    "context"
+    "github.com/yourorg/netweave/internal/adapter"
+    "sigs.k8s.io/controller-runtime/pkg/client"
+)
+
 type KubernetesAdapter struct {
     client    client.Client
     clientset *kubernetes.Clientset
+    config    *Config
+}
+
+func NewAdapter(config *Config) (*KubernetesAdapter, error) {
+    client, err := createK8sClient(config)
+    if err != nil {
+        return nil, err
+    }
+
+    return &KubernetesAdapter{
+        client: client,
+        config: config,
+    }, nil
+}
+
+func (a *KubernetesAdapter) Name() string {
+    return "kubernetes"
+}
+
+func (a *KubernetesAdapter) Capabilities() []adapter.Capability {
+    return []adapter.Capability{
+        adapter.CapResourcePoolCreate,
+        adapter.CapResourcePoolUpdate,
+        adapter.CapResourcePoolDelete,
+        adapter.CapResourceCreate,
+        adapter.CapResourceDelete,
+        adapter.CapSubscriptions,
+        adapter.CapRealTimeEvents,
+    }
 }
 
 // Example: List Resource Pools → List MachineSets
 func (a *KubernetesAdapter) ListResourcePools(
     ctx context.Context,
-    dmID string,
-    filter *Filter,
-) ([]models.ResourcePool, error) {
+    filter *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
     // 1. List Kubernetes MachineSets
     machineSets := &machinev1beta1.MachineSetList{}
-    err := a.client.List(ctx, machineSets)
-
-    // 2. Transform to O2-IMS ResourcePool
-    pools := make([]models.ResourcePool, len(machineSets.Items))
-    for i, ms := range machineSets.Items {
-        pools[i] = transformMachineSetToResourcePool(&ms)
+    if err := a.client.List(ctx, machineSets); err != nil {
+        return nil, fmt.Errorf("failed to list machinesets: %w", err)
     }
 
-    // 3. Apply filters
-    return applyFilters(pools, filter), nil
+    // 2. Transform to O2-IMS ResourcePool
+    pools := make([]*adapter.ResourcePool, 0, len(machineSets.Items))
+    for i := range machineSets.Items {
+        pool := a.transformMachineSetToResourcePool(&machineSets.Items[i])
+        if filter.Matches(pool) {
+            pools = append(pools, pool)
+        }
+    }
+
+    return pools, nil
+}
+
+// Transform MachineSet → O2-IMS ResourcePool
+func (a *KubernetesAdapter) transformMachineSetToResourcePool(ms *machinev1beta1.MachineSet) *adapter.ResourcePool {
+    return &adapter.ResourcePool{
+        ResourcePoolID: string(ms.UID),
+        Name:          ms.Name,
+        Description:   ms.Annotations["description"],
+        Location:      ms.Spec.Template.Spec.ProviderSpec.Value.Zone,
+        OCloudID:      a.config.OCloudID,
+        Extensions: map[string]interface{}{
+            "k8s.machineset.name":       ms.Name,
+            "k8s.machineset.namespace":  ms.Namespace,
+            "k8s.machineset.replicas":   *ms.Spec.Replicas,
+            "k8s.instanceType":          ms.Spec.Template.Spec.ProviderSpec.Value.InstanceType,
+        },
+    }
 }
 ```
 
-**Mappings** (see [api-mapping.md](api-mapping.md) for details):
-- DeploymentManager → Cluster metadata (custom)
-- ResourcePool → MachineSet / NodePool
-- Resource → Node / Machine
-- ResourceType → StorageClass, Machine flavors
+#### Dell DTIAS Adapter Example
+
+```go
+// internal/adapters/dtias/adapter.go
+
+package dtias
+
+import (
+    "context"
+    "github.com/yourorg/netweave/internal/adapter"
+    "github.com/yourorg/netweave/pkg/dtias-client"
+)
+
+type DTIASAdapter struct {
+    client *dtias.Client
+    config *Config
+}
+
+func NewAdapter(config *Config) (*DTIASAdapter, error) {
+    client, err := dtias.NewClient(config.Endpoint, config.APIKey)
+    if err != nil {
+        return nil, err
+    }
+
+    return &DTIASAdapter{
+        client: client,
+        config: config,
+    }, nil
+}
+
+func (a *DTIASAdapter) Name() string {
+    return "dtias"
+}
+
+func (a *DTIASAdapter) Capabilities() []adapter.Capability {
+    return []adapter.Capability{
+        adapter.CapResourcePoolCreate,
+        adapter.CapResourceCreate,
+        // DTIAS doesn't support subscriptions
+    }
+}
+
+func (a *DTIASAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+    // 1. Call DTIAS API
+    dtiasGroups, err := a.client.ListResourceGroups(ctx)
+    if err != nil {
+        return nil, fmt.Errorf("dtias api error: %w", err)
+    }
+
+    // 2. Transform DTIAS ResourceGroup → O2-IMS ResourcePool
+    pools := make([]*adapter.ResourcePool, 0, len(dtiasGroups))
+    for _, group := range dtiasGroups {
+        pool := a.transformToDTIASResourcePool(group)
+        if filter.Matches(pool) {
+            pools = append(pools, pool)
+        }
+    }
+
+    return pools, nil
+}
+
+// Transform DTIAS ResourceGroup → O2-IMS ResourcePool
+func (a *DTIASAdapter) transformToDTIASResourcePool(group *dtias.ResourceGroup) *adapter.ResourcePool {
+    return &adapter.ResourcePool{
+        ResourcePoolID: group.ID,
+        Name:          group.Name,
+        Description:   group.Description,
+        Location:      group.DataCenter,
+        OCloudID:      a.config.OCloudID,
+        Extensions: map[string]interface{}{
+            "dtias.resourceGroupType": group.Type,
+            "dtias.provisioningState": group.State,
+            "dtias.bareMetalCount":    group.ServerCount,
+        },
+    }
+}
+```
+
+#### Configuration-Driven Routing
+
+Backend selection and routing are configured via YAML:
+
+```yaml
+# config/gateway.yaml
+
+adapters:
+  # Kubernetes adapter (default)
+  - name: kubernetes
+    type: k8s
+    enabled: true
+    default: true
+    config:
+      kubeconfig: /etc/kubernetes/admin.conf
+      namespace: default
+      ocloudId: ocloud-kubernetes-1
+
+  # Dell DTIAS adapter
+  - name: dtias
+    type: dtias
+    enabled: true
+    config:
+      endpoint: https://dtias.dell.com/api
+      apiKey: ${DTIAS_API_KEY}
+      timeout: 30s
+      ocloudId: ocloud-dtias-1
+
+  # AWS adapter (disabled for now)
+  - name: aws
+    type: aws
+    enabled: false
+    config:
+      region: us-east-1
+      credentials: ~/.aws/credentials
+      ocloudId: ocloud-aws-1
+
+# Routing rules: which backend for which resource type
+routing:
+  rules:
+    # All bare-metal resource pools go to DTIAS
+    - resourceType: ResourcePool
+      filter:
+        extensions.type: "bare-metal"
+      adapter: dtias
+      priority: 10
+
+    # Cloud resource pools go to AWS
+    - resourceType: ResourcePool
+      filter:
+        extensions.type: "cloud"
+      adapter: aws
+      priority: 10
+
+    # GPU resources go to Kubernetes
+    - resourceType: Resource
+      filter:
+        extensions.hasGPU: true
+      adapter: kubernetes
+      priority: 10
+
+    # Everything else goes to Kubernetes (default)
+    - resourceType: "*"
+      adapter: kubernetes
+      priority: 1
+```
+
+#### Multi-Backend Aggregation
+
+For scenarios requiring results from multiple backends:
+
+```go
+// internal/adapter/aggregator.go
+
+type AggregatingAdapter struct {
+    adapters []Adapter
+    strategy AggregationStrategy
+}
+
+type AggregationStrategy string
+
+const (
+    StrategyMerge    AggregationStrategy = "merge"     // Combine all results
+    StrategyFirst    AggregationStrategy = "first"     // First successful response
+    StrategyFallback AggregationStrategy = "fallback"  // Try in order until success
+)
+
+func (a *AggregatingAdapter) ListResourcePools(ctx context.Context, filter *Filter) ([]*ResourcePool, error) {
+    switch a.strategy {
+    case StrategyMerge:
+        return a.mergeListResourcePools(ctx, filter)
+    case StrategyFirst:
+        return a.firstListResourcePools(ctx, filter)
+    case StrategyFallback:
+        return a.fallbackListResourcePools(ctx, filter)
+    }
+}
+
+// Merge results from all backends
+func (a *AggregatingAdapter) mergeListResourcePools(ctx context.Context, filter *Filter) ([]*ResourcePool, error) {
+    var allPools []*ResourcePool
+
+    // Query all adapters in parallel
+    results := make(chan []*ResourcePool, len(a.adapters))
+    errors := make(chan error, len(a.adapters))
+
+    for _, adapter := range a.adapters {
+        go func(adp Adapter) {
+            pools, err := adp.ListResourcePools(ctx, filter)
+            if err != nil {
+                errors <- err
+                return
+            }
+            results <- pools
+        }(adapter)
+    }
+
+    // Collect results
+    for i := 0; i < len(a.adapters); i++ {
+        select {
+        case pools := <-results:
+            allPools = append(allPools, pools...)
+        case err := <-errors:
+            // Log error but continue (partial results OK)
+            log.Warn("adapter failed", "error", err)
+        case <-ctx.Done():
+            return nil, ctx.Err()
+        }
+    }
+
+    return allPools, nil
+}
+```
+
+#### Benefits of Adapter Architecture
+
+1. **Easy Extension**: Add new backends by implementing `Adapter` interface
+2. **Hot Swappable**: Change backends via configuration without code changes
+3. **Intelligent Routing**: Route requests based on resource type, filters, or capabilities
+4. **Multi-Backend Aggregation**: Combine results from multiple sources
+5. **Testability**: Use mock adapter for testing without real infrastructure
+6. **Vendor Independence**: Abstract vendor-specific APIs behind standard interface
+
+**Adapter Mappings** (see [api-mapping.md](api-mapping.md) for details):
+- DeploymentManager → Cluster metadata (Kubernetes ConfigMap or CRD)
+- ResourcePool → MachineSet/NodePool (K8s), ResourceGroup (DTIAS), ASG (AWS)
+- Resource → Node/Machine (K8s), Server (DTIAS), EC2 Instance (AWS)
+- ResourceType → StorageClass/Machine flavors (K8s), Server Types (DTIAS), Instance Types (AWS)
+
+### API Versioning Strategy
+
+**Responsibility**: Provide stable, evolvable O2-IMS API with backwards compatibility
+
+The gateway supports multiple API versions simultaneously, allowing clients to upgrade at their own pace while enabling new features and improvements without breaking existing integrations.
+
+#### Version URL Structure
+
+```
+/o2ims/v1/resourcePools       # API v1 (current, stable)
+/o2ims/v2/resourcePools       # API v2 (future, with enhancements)
+/o2ims/v3/resourcePools       # API v3 (future)
+```
+
+#### Router Configuration
+
+```go
+// internal/server/router.go
+
+func (s *Server) setupRoutes() {
+    // API v1 (current stable version)
+    v1 := s.router.Group("/o2ims/v1")
+    {
+        v1.Use(s.authMiddleware())
+        v1.Use(s.metricsMiddleware())
+
+        // Deployment Managers
+        v1.GET("/deploymentManagers", s.handleListDeploymentManagersV1)
+        v1.GET("/deploymentManagers/:id", s.handleGetDeploymentManagerV1)
+
+        // Resource Pools
+        v1.GET("/resourcePools", s.handleListResourcePoolsV1)
+        v1.GET("/resourcePools/:id", s.handleGetResourcePoolV1)
+        v1.POST("/resourcePools", s.handleCreateResourcePoolV1)
+        v1.PUT("/resourcePools/:id", s.handleUpdateResourcePoolV1)
+        v1.DELETE("/resourcePools/:id", s.handleDeleteResourcePoolV1)
+
+        // Resources
+        v1.GET("/resources", s.handleListResourcesV1)
+        v1.GET("/resources/:id", s.handleGetResourceV1)
+        v1.POST("/resources", s.handleCreateResourceV1)
+        v1.DELETE("/resources/:id", s.handleDeleteResourceV1)
+
+        // Resource Types
+        v1.GET("/resourceTypes", s.handleListResourceTypesV1)
+        v1.GET("/resourceTypes/:id", s.handleGetResourceTypeV1)
+
+        // Subscriptions
+        v1.GET("/subscriptions", s.handleListSubscriptionsV1)
+        v1.GET("/subscriptions/:id", s.handleGetSubscriptionV1)
+        v1.POST("/subscriptions", s.handleCreateSubscriptionV1)
+        v1.PUT("/subscriptions/:id", s.handleUpdateSubscriptionV1)
+        v1.DELETE("/subscriptions/:id", s.handleDeleteSubscriptionV1)
+    }
+
+    // API v2 (future - enhanced features)
+    v2 := s.router.Group("/o2ims/v2")
+    {
+        v2.Use(s.authMiddleware())
+        v2.Use(s.metricsMiddleware())
+
+        // Enhanced Resource Pools with additional fields
+        v2.GET("/resourcePools", s.handleListResourcePoolsV2)
+        v2.GET("/resourcePools/:id", s.handleGetResourcePoolV2)
+        v2.POST("/resourcePools", s.handleCreateResourcePoolV2)
+        v2.PUT("/resourcePools/:id", s.handleUpdateResourcePoolV2)
+        v2.DELETE("/resourcePools/:id", s.handleDeleteResourcePoolV2)
+
+        // New endpoints in v2
+        v2.GET("/resourcePools/:id/metrics", s.handleGetResourcePoolMetrics)
+        v2.GET("/resourcePools/:id/events", s.handleGetResourcePoolEvents)
+
+        // Enhanced filtering and pagination
+        v2.GET("/resources", s.handleListResourcesV2)
+    }
+}
+```
+
+#### Version-Specific Handlers
+
+```go
+// V1 handler - original implementation
+func (s *Server) handleListResourcePoolsV1(c *gin.Context) {
+    // Parse v1 query parameters
+    filter := parseFilterV1(c)
+
+    // Route to appropriate backend
+    adapter, err := s.registry.Route("ResourcePool", filter)
+    if err != nil {
+        c.JSON(500, gin.H{"error": "adapter routing failed"})
+        return
+    }
+
+    pools, err := adapter.ListResourcePools(c.Request.Context(), filter)
+    if err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    // Return v1 response format
+    c.JSON(200, marshalResourcePoolsV1(pools))
+}
+
+// V2 handler - enhanced with new fields and capabilities
+func (s *Server) handleListResourcePoolsV2(c *gin.Context) {
+    // Parse v2 query parameters (enhanced filtering)
+    filter := parseFilterV2(c)
+
+    // Route to appropriate backend
+    adapter, err := s.registry.Route("ResourcePool", filter)
+    if err != nil {
+        c.JSON(500, gin.H{"error": "adapter routing failed"})
+        return
+    }
+
+    pools, err := adapter.ListResourcePools(c.Request.Context(), filter)
+    if err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    // Return v2 response format (with additional fields)
+    c.JSON(200, marshalResourcePoolsV2(pools))
+}
+```
+
+#### Response Format Evolution
+
+**V1 Response** (current):
+```json
+{
+  "items": [
+    {
+      "resourcePoolId": "pool-123",
+      "name": "Compute Pool",
+      "description": "High-performance compute",
+      "location": "us-east-1a",
+      "oCloudId": "ocloud-1"
+    }
+  ]
+}
+```
+
+**V2 Response** (enhanced):
+```json
+{
+  "items": [
+    {
+      "resourcePoolId": "pool-123",
+      "name": "Compute Pool",
+      "description": "High-performance compute",
+      "location": "us-east-1a",
+      "oCloudId": "ocloud-1",
+      "health": {
+        "status": "healthy",
+        "availableCapacity": 80,
+        "utilization": 65.5
+      },
+      "metrics": {
+        "cpuUsagePercent": 45.2,
+        "memoryUsagePercent": 72.1,
+        "nodeCount": 10,
+        "healthyNodeCount": 10
+      },
+      "tags": ["production", "gpu-enabled"],
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-06T10:30:00Z"
+    }
+  ],
+  "pagination": {
+    "totalCount": 42,
+    "pageSize": 20,
+    "nextPage": "/o2ims/v2/resourcePools?page=2"
+  }
+}
+```
+
+#### Version Negotiation
+
+Clients specify their desired API version via URL path:
+
+```bash
+# Client uses v1 (stable)
+curl https://netweave.example.com/o2ims/v1/resourcePools \
+  --cert client.crt --key client.key --cacert ca.crt
+
+# Client uses v2 (enhanced)
+curl https://netweave.example.com/o2ims/v2/resourcePools \
+  --cert client.crt --key client.key --cacert ca.crt
+```
+
+#### Deprecation Policy
+
+1. **Announce Deprecation**: At least 6 months before removal
+2. **Mark as Deprecated**: Add `X-API-Deprecated: true` header to responses
+3. **Provide Migration Guide**: Document changes and migration path
+4. **Grace Period**: Minimum 12 months from deprecation announcement
+5. **Final Removal**: Remove deprecated version after grace period
+
+Example deprecation header:
+
+```http
+HTTP/1.1 200 OK
+X-API-Deprecated: true
+X-API-Deprecation-Date: 2026-07-01
+X-API-Sunset-Date: 2027-01-01
+X-API-Migration-Guide: https://docs.netweave.io/migration/v1-to-v2
+Content-Type: application/json
+```
+
+#### Version Support Matrix
+
+| Version | Status | Release Date | Deprecation Date | Sunset Date |
+|---------|--------|--------------|------------------|-------------|
+| v1 | Stable | 2026-01-01 | - | - |
+| v2 | Planned | 2026-07-01 | - | - |
+| v3 | Future | TBD | - | - |
+
+#### Benefits of Versioning Strategy
+
+1. **Backwards Compatibility**: Existing clients continue working without changes
+2. **Incremental Adoption**: Clients upgrade at their own pace
+3. **Innovation**: New features can be added without breaking existing APIs
+4. **Clear Migration Path**: Documented upgrade process for each version
+5. **Production Stability**: No surprise breaking changes
 
 ### TLS and Certificate Management
 
@@ -445,6 +1089,305 @@ func (a *KubernetesAdapter) ListResourcePools(
        }
    }
    ```
+
+### RBAC and Multi-Tenancy
+
+**Responsibility**: Secure multi-tenant access control and resource isolation
+
+**Implementation**: Built-in from the start
+
+netweave is designed as an **enterprise multi-tenant platform** with comprehensive RBAC from day one. This enables multiple SMO systems (tenants) to securely share the same gateway while maintaining strict resource isolation.
+
+#### Multi-Tenancy Architecture
+
+**Tenant Model**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    netweave O2-IMS Gateway                  │
+│                                                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │  Tenant A    │  │  Tenant B    │  │  Tenant C    │     │
+│  │  (SMO-Alpha) │  │  (SMO-Beta)  │  │  (SMO-Gamma) │     │
+│  │              │  │              │  │              │     │
+│  │ • Users      │  │ • Users      │  │ • Users      │     │
+│  │ • Roles      │  │ • Roles      │  │ • Roles      │     │
+│  │ • Resources  │  │ • Resources  │  │ • Resources  │     │
+│  │ • Quotas     │  │ • Quotas     │  │ • Quotas     │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Tenant Identification** (via client certificate):
+```go
+// Extract tenant from client certificate CN
+// CN format: "user-id.tenant-id.o2ims.example.com"
+func extractTenantFromCert(cert *x509.Certificate) (string, string, error) {
+    cn := cert.Subject.CommonName
+    parts := strings.Split(cn, ".")
+
+    if len(parts) < 2 {
+        return "", "", fmt.Errorf("invalid CN format")
+    }
+
+    return parts[0], parts[1], nil // userID, tenantID
+}
+```
+
+**Tenant Middleware**:
+```go
+// Extracts and validates tenant for every request
+func (m *TenantMiddleware) ExtractTenant() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        // 1. Extract tenant ID from certificate CN
+        tenantID := extractTenantFromCert(c.Request.TLS.PeerCertificates[0])
+
+        // 2. Load and validate tenant
+        tenant, err := m.store.Get(c.Request.Context(), tenantID)
+        if err != nil || tenant.Status != "active" {
+            c.AbortWithStatusJSON(403, gin.H{"error": "invalid tenant"})
+            return
+        }
+
+        // 3. Store in context
+        c.Set("tenant", tenant)
+        c.Set("tenantId", tenantID)
+        c.Next()
+    }
+}
+```
+
+#### RBAC Model
+
+**Role Hierarchy**:
+```
+System Roles (cross-tenant):
+├─ PlatformAdmin   - Full system access
+├─ TenantAdmin     - Create/manage tenants
+└─ Auditor         - Read-only audit access
+
+Tenant Roles (scoped to specific tenant):
+├─ Owner           - Full tenant access
+├─ Admin           - Manage users, resources, policies
+├─ Operator        - CRUD on resources
+├─ Viewer          - Read-only access
+└─ Custom Roles    - User-defined permissions
+```
+
+**Permission Model**:
+```go
+type Permission struct {
+    Resource string   // "ResourcePool", "Resource", "Subscription"
+    Action   Action   // "create", "read", "update", "delete", "list", "manage"
+    Scope    Scope    // "tenant", "shared", "all"
+}
+
+// Example: Operator role permissions
+operatorRole := &Role{
+    Name: "Operator",
+    Permissions: []Permission{
+        {Resource: "ResourcePool", Action: "manage", Scope: "tenant"},
+        {Resource: "Resource", Action: "manage", Scope: "tenant"},
+        {Resource: "Subscription", Action: "manage", Scope: "tenant"},
+    },
+}
+```
+
+**Authorization Enforcement**:
+```go
+// Every API endpoint is protected
+v1.POST("/resourcePools",
+    tenantMiddleware.ExtractTenant(),
+    authzMiddleware.RequirePermission("ResourcePool", "create"),
+    handleCreateResourcePool)
+
+// Authorization check
+func (a *Authorizer) Authorize(
+    userID, tenantID, resource string,
+    action Action,
+) (bool, error) {
+    // 1. Get user's role bindings
+    bindings := a.getUserBindings(userID, tenantID)
+
+    // 2. Collect permissions from all roles
+    permissions := a.collectPermissions(bindings)
+
+    // 3. Check if any permission allows the action
+    return a.matchPermission(permissions, resource, action, tenantID)
+}
+```
+
+#### Tenant Isolation
+
+**Resource Filtering**:
+All list operations automatically filter by tenant:
+
+```go
+func (h *Handler) ListResourcePools(c *gin.Context) {
+    tenantID := c.GetString("tenantId")
+
+    // Tenant filter is ALWAYS applied
+    filter := &adapter.Filter{
+        TenantID: tenantID,  // CRITICAL: prevent cross-tenant access
+    }
+
+    pools, _ := adapter.ListResourcePools(ctx, filter)
+    c.JSON(200, pools)
+}
+```
+
+**Kubernetes Label Strategy**:
+All Kubernetes resources MUST be labeled with tenant ID:
+
+```yaml
+apiVersion: machine.openshift.io/v1beta1
+kind: MachineSet
+metadata:
+  name: production-pool
+  labels:
+    # Tenant isolation label (REQUIRED)
+    o2ims.oran.org/tenant: smo-alpha
+
+    # O2-IMS resource labels
+    o2ims.oran.org/resource-pool-id: pool-123
+spec:
+  replicas: 5
+  template:
+    metadata:
+      labels:
+        o2ims.oran.org/tenant: smo-alpha
+```
+
+**Backend Enforcement**:
+```go
+// Kubernetes adapter filters by tenant label
+func (a *KubernetesAdapter) ListResourcePools(
+    ctx context.Context,
+    filter *adapter.Filter,
+) ([]*ResourcePool, error) {
+    // Label selector for tenant isolation
+    listOpts := &client.ListOptions{
+        LabelSelector: labels.SelectorFromSet(labels.Set{
+            "o2ims.oran.org/tenant": filter.TenantID,
+        }),
+    }
+
+    machineSets := &machinev1beta1.MachineSetList{}
+    a.client.List(ctx, machineSets, listOpts)
+
+    // Double-check tenant isolation
+    for _, pool := range pools {
+        if pool.TenantID != filter.TenantID {
+            continue // Skip other tenant's resources
+        }
+    }
+
+    return pools, nil
+}
+```
+
+#### Tenant Quotas
+
+**Resource Limits**:
+```go
+type ResourceQuotas struct {
+    MaxResourcePools     int `json:"maxResourcePools"`
+    MaxResources         int `json:"maxResources"`
+    MaxSubscriptions     int `json:"maxSubscriptions"`
+    MaxCPUCores          int `json:"maxCpuCores"`
+    MaxMemoryGB          int `json:"maxMemoryGb"`
+}
+
+// Enforce quota before creation
+func (h *Handler) CreateResourcePool(c *gin.Context) {
+    tenant := c.MustGet("tenant").(*tenant.Tenant)
+
+    // Check current usage
+    current := h.quotaManager.GetUsage(ctx, tenant.TenantID)
+    if current.ResourcePools >= tenant.Quotas.MaxResourcePools {
+        c.JSON(429, gin.H{"error": "resource pool quota exceeded"})
+        return
+    }
+
+    // Proceed with creation
+    pool, _ := adapter.CreateResourcePool(ctx, pool)
+    c.JSON(201, pool)
+}
+```
+
+#### Audit Logging
+
+**Every operation is logged with tenant context**:
+```go
+type AuditEntry struct {
+    Timestamp   time.Time `json:"timestamp"`
+    TenantID    string    `json:"tenantId"`
+    UserID      string    `json:"userId"`
+    Action      string    `json:"action"`
+    Resource    string    `json:"resource"`
+    ResourceID  string    `json:"resourceId,omitempty"`
+    Result      string    `json:"result"` // "success", "denied", "error"
+    IPAddress   string    `json:"ipAddress"`
+}
+
+// Audit middleware logs all operations
+func (m *AuditMiddleware) LogOperation() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        start := time.Now()
+        c.Next() // Process request
+
+        m.logger.LogEntry(&AuditEntry{
+            Timestamp:  start,
+            TenantID:   c.GetString("tenantId"),
+            UserID:     c.GetString("userId"),
+            Action:     c.Request.Method,
+            Resource:   c.Request.URL.Path,
+            Result:     getResult(c.Writer.Status()),
+            IPAddress:  c.ClientIP(),
+        })
+    }
+}
+```
+
+#### API Design for Multi-Tenancy
+
+**Admin API** (platform-level, requires system role):
+```
+POST   /admin/v1/tenants                    # Create tenant
+GET    /admin/v1/tenants                    # List all tenants
+GET    /admin/v1/tenants/:id                # Get tenant
+PUT    /admin/v1/tenants/:id                # Update tenant
+DELETE /admin/v1/tenants/:id                # Delete tenant
+
+GET    /admin/v1/tenants/:id/users          # List tenant users
+POST   /admin/v1/tenants/:id/users          # Create user
+GET    /admin/v1/audit                      # Query audit logs
+```
+
+**O2-IMS API** (automatically tenant-scoped):
+```
+# All requests automatically scoped to authenticated tenant
+GET    /o2ims/v1/resourcePools              # List (tenant's only)
+POST   /o2ims/v1/resourcePools              # Create (in tenant)
+GET    /o2ims/v1/resourcePools/:id          # Get (tenant check)
+DELETE /o2ims/v1/resourcePools/:id          # Delete (tenant check)
+```
+
+#### Security Considerations
+
+**Defense in Depth**:
+1. ✅ Tenant filtering at API layer (middleware)
+2. ✅ Tenant filtering at adapter layer (backend queries)
+3. ✅ Kubernetes RBAC for backend isolation
+4. ✅ Network policies for pod-level isolation
+
+**Threat Mitigation**:
+- **Cross-Tenant Data Access**: Label-based filtering + tenant verification on all ops
+- **Privilege Escalation**: Immutable system roles, role binding validation
+- **Resource Exhaustion**: Per-tenant quotas, rate limiting
+- **Audit Trail**: All operations logged with tenant context
+
+**For complete RBAC and multi-tenancy documentation, see [docs/rbac-multitenancy.md](rbac-multitenancy.md).**
 
 ---
 
