@@ -359,12 +359,21 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully shuts down the HTTP server.
 // It waits for active requests to complete or until the shutdown timeout expires.
+// It also stops SMO health checks and closes the SMO registry.
 //
 // Returns an error if the shutdown fails.
 func (s *Server) Shutdown() error {
 	s.logger.Info("initiating graceful shutdown",
 		zap.Duration("timeout", s.config.Server.ShutdownTimeout),
 	)
+
+	// Stop SMO health checks and close registry
+	if s.smoRegistry != nil {
+		s.logger.Info("stopping SMO plugin health checks")
+		if err := s.smoRegistry.Close(); err != nil {
+			s.logger.Warn("error closing SMO registry", zap.Error(err))
+		}
+	}
 
 	// Create shutdown context with timeout
 	ctx, cancel := context.WithTimeout(
@@ -398,10 +407,14 @@ func (s *Server) SetHealthChecker(hc *observability.HealthChecker) {
 // SetSMORegistry sets the SMO plugin registry and configures SMO API routes.
 // This enables the O2-SMO API endpoints for workflow orchestration, service modeling,
 // policy management, and infrastructure synchronization.
+// It also starts periodic health checks for registered plugins.
 func (s *Server) SetSMORegistry(registry *smo.Registry) {
 	s.smoRegistry = registry
 	s.smoHandler = NewSMOHandler(registry, s.logger)
 	s.setupSMORoutes(s.smoHandler)
+
+	// Start periodic health checks for SMO plugins
+	registry.StartHealthChecks(context.Background())
 
 	s.logger.Info("SMO registry configured",
 		zap.Int("plugin_count", registry.Count()),

@@ -4,13 +4,119 @@ package server
 
 import (
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/piwi3910/netweave/internal/smo"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
 )
+
+// SMO Prometheus metrics.
+var (
+	smoWorkflowExecutions = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "o2ims",
+			Subsystem: "smo",
+			Name:      "workflow_executions_total",
+			Help:      "Total number of workflow execution requests",
+		},
+		[]string{"workflow_name", "plugin", "status"},
+	)
+
+	smoAPIRequestDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "o2ims",
+			Subsystem: "smo",
+			Name:      "api_request_duration_seconds",
+			Help:      "Duration of SMO API requests in seconds",
+			Buckets:   prometheus.DefBuckets,
+		},
+		[]string{"endpoint", "method", "status"},
+	)
+
+	smoPluginHealth = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "o2ims",
+			Subsystem: "smo",
+			Name:      "plugin_health",
+			Help:      "Health status of SMO plugins (1=healthy, 0=unhealthy)",
+		},
+		[]string{"plugin_name"},
+	)
+
+	smoServiceModelsTotal = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "o2ims",
+			Subsystem: "smo",
+			Name:      "service_models_total",
+			Help:      "Total number of service models",
+		},
+		[]string{"plugin"},
+	)
+
+	smoPoliciesTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "o2ims",
+			Subsystem: "smo",
+			Name:      "policies_applied_total",
+			Help:      "Total number of policies applied",
+		},
+		[]string{"policy_type", "status"},
+	)
+
+	smoEventsPublished = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "o2ims",
+			Subsystem: "smo",
+			Name:      "events_published_total",
+			Help:      "Total number of events published",
+		},
+		[]string{"event_type", "status"},
+	)
+)
+
+// uuidPattern matches valid UUID v4 format.
+var uuidPattern = regexp.MustCompile(`^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[89aAbB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$`)
+
+// isValidUUID checks if a string is a valid UUID v4.
+func isValidUUID(s string) bool {
+	return uuidPattern.MatchString(s)
+}
+
+// isValidIdentifier checks if a string is a valid non-empty identifier.
+// Accepts UUIDs and simple alphanumeric identifiers with hyphens/underscores.
+func isValidIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	// Accept UUIDs
+	if isValidUUID(s) {
+		return true
+	}
+	// Accept alphanumeric identifiers with hyphens and underscores (1-256 chars)
+	matched, _ := regexp.MatchString(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,255}$`, s)
+	return matched
+}
+
+// SMOErrorResponse represents a standardized error response.
+type SMOErrorResponse struct {
+	Error   string `json:"error"`
+	Message string `json:"message"`
+	Code    int    `json:"code"`
+}
+
+// respondWithError sends a standardized error response.
+func respondWithError(c *gin.Context, code int, errorType, message string) {
+	c.JSON(code, SMOErrorResponse{
+		Error:   errorType,
+		Message: message,
+		Code:    code,
+	})
+}
 
 // SMOHandler handles O2-SMO API requests.
 // It provides endpoints for workflow orchestration, service modeling,
@@ -135,33 +241,32 @@ type WorkflowRequest struct {
 // handleExecuteWorkflow executes a workflow.
 // POST /o2smo/v1/workflows
 func (h *SMOHandler) handleExecuteWorkflow(c *gin.Context) {
+	start := time.Now()
 	h.logger.Info("executing workflow")
 
 	var req WorkflowRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
+		smoAPIRequestDuration.WithLabelValues("workflows", "POST", "400").Observe(time.Since(start).Seconds())
 		return
 	}
 
 	// Get plugin
 	var plugin smo.Plugin
 	var err error
-	if req.PluginName != "" {
-		plugin, err = h.registry.Get(req.PluginName)
+	pluginName := req.PluginName
+	if pluginName != "" {
+		plugin, err = h.registry.Get(pluginName)
 	} else {
 		plugin, err = h.registry.GetDefault()
+		if plugin != nil {
+			pluginName = plugin.Metadata().Name
+		}
 	}
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + err.Error(),
-			"code":    http.StatusNotFound,
-		})
+		respondWithError(c, http.StatusNotFound, "NotFound", "Plugin not found: "+err.Error())
+		smoAPIRequestDuration.WithLabelValues("workflows", "POST", "404").Observe(time.Since(start).Seconds())
 		return
 	}
 
@@ -184,11 +289,9 @@ func (h *SMOHandler) handleExecuteWorkflow(c *gin.Context) {
 	execution, err := plugin.ExecuteWorkflow(c.Request.Context(), workflowReq)
 	if err != nil {
 		h.logger.Error("failed to execute workflow", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to execute workflow: " + err.Error(),
-			"code":    http.StatusInternalServerError,
-		})
+		respondWithError(c, http.StatusInternalServerError, "InternalError", "Failed to execute workflow: "+err.Error())
+		smoWorkflowExecutions.WithLabelValues(req.WorkflowName, pluginName, "error").Inc()
+		smoAPIRequestDuration.WithLabelValues("workflows", "POST", "500").Observe(time.Since(start).Seconds())
 		return
 	}
 
@@ -196,6 +299,10 @@ func (h *SMOHandler) handleExecuteWorkflow(c *gin.Context) {
 		zap.String("execution_id", execution.ExecutionID),
 		zap.String("workflow_name", execution.WorkflowName),
 	)
+
+	// Record metrics
+	smoWorkflowExecutions.WithLabelValues(req.WorkflowName, pluginName, "success").Inc()
+	smoAPIRequestDuration.WithLabelValues("workflows", "POST", "202").Observe(time.Since(start).Seconds())
 
 	c.JSON(http.StatusAccepted, execution)
 }
@@ -205,6 +312,13 @@ func (h *SMOHandler) handleExecuteWorkflow(c *gin.Context) {
 func (h *SMOHandler) handleGetWorkflowStatus(c *gin.Context) {
 	executionID := c.Param("executionId")
 	pluginName := c.Query("plugin")
+
+	// Validate execution ID
+	if !isValidIdentifier(executionID) {
+		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid execution ID format")
+		return
+	}
+
 	h.logger.Info("getting workflow status", zap.String("execution_id", executionID))
 
 	// Get plugin
@@ -217,11 +331,7 @@ func (h *SMOHandler) handleGetWorkflowStatus(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + err.Error(),
-			"code":    http.StatusNotFound,
-		})
+		respondWithError(c, http.StatusNotFound, "NotFound", "Plugin not found: "+err.Error())
 		return
 	}
 
@@ -229,11 +339,7 @@ func (h *SMOHandler) handleGetWorkflowStatus(c *gin.Context) {
 	status, err := plugin.GetWorkflowStatus(c.Request.Context(), executionID)
 	if err != nil {
 		h.logger.Error("failed to get workflow status", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Workflow execution not found: " + executionID,
-			"code":    http.StatusNotFound,
-		})
+		respondWithError(c, http.StatusNotFound, "NotFound", "Workflow execution not found: "+executionID)
 		return
 	}
 
@@ -245,6 +351,13 @@ func (h *SMOHandler) handleGetWorkflowStatus(c *gin.Context) {
 func (h *SMOHandler) handleCancelWorkflow(c *gin.Context) {
 	executionID := c.Param("executionId")
 	pluginName := c.Query("plugin")
+
+	// Validate execution ID
+	if !isValidIdentifier(executionID) {
+		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid execution ID format")
+		return
+	}
+
 	h.logger.Info("cancelling workflow", zap.String("execution_id", executionID))
 
 	// Get plugin
@@ -257,22 +370,14 @@ func (h *SMOHandler) handleCancelWorkflow(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + err.Error(),
-			"code":    http.StatusNotFound,
-		})
+		respondWithError(c, http.StatusNotFound, "NotFound", "Plugin not found: "+err.Error())
 		return
 	}
 
 	// Cancel workflow
 	if err := plugin.CancelWorkflow(c.Request.Context(), executionID); err != nil {
 		h.logger.Error("failed to cancel workflow", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to cancel workflow: " + err.Error(),
-			"code":    http.StatusInternalServerError,
-		})
+		respondWithError(c, http.StatusInternalServerError, "InternalError", "Failed to cancel workflow: "+err.Error())
 		return
 	}
 
@@ -402,6 +507,13 @@ func (h *SMOHandler) handleCreateServiceModel(c *gin.Context) {
 func (h *SMOHandler) handleGetServiceModel(c *gin.Context) {
 	modelID := c.Param("modelId")
 	pluginName := c.Query("plugin")
+
+	// Validate model ID
+	if !isValidIdentifier(modelID) {
+		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid model ID format")
+		return
+	}
+
 	h.logger.Info("getting service model", zap.String("model_id", modelID))
 
 	// Get plugin
@@ -414,11 +526,7 @@ func (h *SMOHandler) handleGetServiceModel(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + err.Error(),
-			"code":    http.StatusNotFound,
-		})
+		respondWithError(c, http.StatusNotFound, "NotFound", "Plugin not found: "+err.Error())
 		return
 	}
 
@@ -426,11 +534,7 @@ func (h *SMOHandler) handleGetServiceModel(c *gin.Context) {
 	model, err := plugin.GetServiceModel(c.Request.Context(), modelID)
 	if err != nil {
 		h.logger.Error("failed to get service model", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Service model not found: " + modelID,
-			"code":    http.StatusNotFound,
-		})
+		respondWithError(c, http.StatusNotFound, "NotFound", "Service model not found: "+modelID)
 		return
 	}
 
@@ -441,34 +545,19 @@ func (h *SMOHandler) handleGetServiceModel(c *gin.Context) {
 // DELETE /o2smo/v1/serviceModels/:modelId
 func (h *SMOHandler) handleDeleteServiceModel(c *gin.Context) {
 	modelID := c.Param("modelId")
-	pluginName := c.Query("plugin")
-	h.logger.Info("deleting service model", zap.String("model_id", modelID))
 
-	// Get plugin
-	var plugin smo.Plugin
-	var err error
-	if pluginName != "" {
-		plugin, err = h.registry.Get(pluginName)
-	} else {
-		plugin, err = h.registry.GetDefault()
-	}
-
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + err.Error(),
-			"code":    http.StatusNotFound,
-		})
+	// Validate model ID
+	if !isValidIdentifier(modelID) {
+		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid model ID format")
 		return
 	}
 
-	// For plugins that support deletion, we would call a DeleteServiceModel method
-	// For now, we just return success since the interface doesn't have this method
-	_ = plugin
-	_ = modelID
+	h.logger.Info("delete service model requested", zap.String("model_id", modelID))
 
-	h.logger.Info("service model deleted", zap.String("model_id", modelID))
-	c.Status(http.StatusNoContent)
+	// Service model deletion is not implemented in the smo.Plugin interface
+	// Return 501 Not Implemented until the interface is extended
+	respondWithError(c, http.StatusNotImplemented, "NotImplemented",
+		"Service model deletion is not supported by the current plugin interface")
 }
 
 // === Policy Management Handlers ===
@@ -557,6 +646,13 @@ func (h *SMOHandler) handleApplyPolicy(c *gin.Context) {
 func (h *SMOHandler) handleGetPolicyStatus(c *gin.Context) {
 	policyID := c.Param("policyId")
 	pluginName := c.Query("plugin")
+
+	// Validate policy ID
+	if !isValidIdentifier(policyID) {
+		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid policy ID format")
+		return
+	}
+
 	h.logger.Info("getting policy status", zap.String("policy_id", policyID))
 
 	// Get plugin
@@ -569,11 +665,7 @@ func (h *SMOHandler) handleGetPolicyStatus(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + err.Error(),
-			"code":    http.StatusNotFound,
-		})
+		respondWithError(c, http.StatusNotFound, "NotFound", "Plugin not found: "+err.Error())
 		return
 	}
 
@@ -581,11 +673,7 @@ func (h *SMOHandler) handleGetPolicyStatus(c *gin.Context) {
 	status, err := plugin.GetPolicyStatus(c.Request.Context(), policyID)
 	if err != nil {
 		h.logger.Error("failed to get policy status", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Policy not found: " + policyID,
-			"code":    http.StatusNotFound,
-		})
+		respondWithError(c, http.StatusNotFound, "NotFound", "Policy not found: "+policyID)
 		return
 	}
 
@@ -864,11 +952,15 @@ func (h *SMOHandler) handleSMOHealth(c *gin.Context) {
 		}
 		pluginStatus = append(pluginStatus, status)
 
+		// Update Prometheus health metric
+		healthValue := 0.0
 		if plugin.Healthy {
 			healthy++
+			healthValue = 1.0
 		} else {
 			unhealthy++
 		}
+		smoPluginHealth.WithLabelValues(plugin.Name).Set(healthValue)
 	}
 
 	overallStatus := "healthy"

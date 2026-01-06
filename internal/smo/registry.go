@@ -295,31 +295,36 @@ func (r *Registry) checkAllPluginsHealth(ctx context.Context) {
 	r.mu.RUnlock()
 
 	for name, plugin := range plugins {
-		checkCtx, cancel := context.WithTimeout(ctx, r.healthCheckTimeout)
-		health := plugin.Health(checkCtx)
-		cancel()
+		// Use anonymous function to ensure cancel is always called via defer
+		func() {
+			checkCtx, cancel := context.WithTimeout(ctx, r.healthCheckTimeout)
+			defer cancel()
 
-		r.mu.Lock()
-		if info, exists := r.pluginInfo[name]; exists {
-			wasHealthy := info.Healthy
-			info.Healthy = health.Healthy
-			info.LastHealthAt = time.Now()
+			health := plugin.Health(checkCtx)
 
-			// Log health status changes
-			if wasHealthy != health.Healthy {
-				if health.Healthy {
-					r.logger.Info("SMO plugin became healthy",
-						zap.String("name", name),
-					)
-				} else {
-					r.logger.Warn("SMO plugin became unhealthy",
-						zap.String("name", name),
-						zap.String("message", health.Message),
-					)
+			r.mu.Lock()
+			defer r.mu.Unlock()
+
+			if info, exists := r.pluginInfo[name]; exists {
+				wasHealthy := info.Healthy
+				info.Healthy = health.Healthy
+				info.LastHealthAt = time.Now()
+
+				// Log health status changes
+				if wasHealthy != health.Healthy {
+					if health.Healthy {
+						r.logger.Info("SMO plugin became healthy",
+							zap.String("name", name),
+						)
+					} else {
+						r.logger.Warn("SMO plugin became unhealthy",
+							zap.String("name", name),
+							zap.String("message", health.Message),
+						)
+					}
 				}
 			}
-		}
-		r.mu.Unlock()
+		}()
 	}
 }
 

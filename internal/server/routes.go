@@ -126,11 +126,11 @@ func (s *Server) handleMetrics(c *gin.Context) {
 // handleRoot returns basic API information.
 func (s *Server) handleRoot(c *gin.Context) {
 	endpoints := gin.H{
-		"health":       "/health",
-		"ready":        "/ready",
-		"metrics":      s.config.Observability.Metrics.Path,
-		"o2ims_base":   "/o2ims/v1",
-		"o2smo_base":   "/o2smo/v1",
+		"health":     "/health",
+		"ready":      "/ready",
+		"metrics":    s.config.Observability.Metrics.Path,
+		"o2ims_base": "/o2ims/v1",
+		"o2smo_base": "/o2smo/v1",
 	}
 
 	c.JSON(http.StatusOK, gin.H{

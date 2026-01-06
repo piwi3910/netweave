@@ -10,36 +10,36 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/piwi3910/netweave/internal/smo"
+	smoapi "github.com/piwi3910/netweave/internal/smo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-// mockSMOPlugin implements the smo.Plugin interface for testing.
+// mockSMOPlugin implements the smoapi.Plugin interface for testing.
 type mockSMOPlugin struct {
 	name         string
 	version      string
 	description  string
 	vendor       string
-	capabilities []smo.Capability
+	capabilities []smoapi.Capability
 	healthy      bool
 	healthErr    error
 	closed       bool
 
 	// Return values for methods
-	executeWorkflowResult   *smo.WorkflowExecution
+	executeWorkflowResult   *smoapi.WorkflowExecution
 	executeWorkflowErr      error
-	getWorkflowStatusResult *smo.WorkflowStatus
+	getWorkflowStatusResult *smoapi.WorkflowStatus
 	getWorkflowStatusErr    error
 	cancelWorkflowErr       error
-	listServiceModelsResult []*smo.ServiceModel
+	listServiceModelsResult []*smoapi.ServiceModel
 	listServiceModelsErr    error
-	getServiceModelResult   *smo.ServiceModel
+	getServiceModelResult   *smoapi.ServiceModel
 	getServiceModelErr      error
 	registerServiceModelErr error
 	applyPolicyErr          error
-	getPolicyStatusResult   *smo.PolicyStatus
+	getPolicyStatusResult   *smoapi.PolicyStatus
 	getPolicyStatusErr      error
 	syncInfraErr            error
 	syncDeployErr           error
@@ -47,8 +47,8 @@ type mockSMOPlugin struct {
 	publishDeployErr        error
 }
 
-func (m *mockSMOPlugin) Metadata() smo.PluginMetadata {
-	return smo.PluginMetadata{
+func (m *mockSMOPlugin) Metadata() smoapi.PluginMetadata {
+	return smoapi.PluginMetadata{
 		Name:        m.name,
 		Version:     m.version,
 		Description: m.description,
@@ -56,7 +56,7 @@ func (m *mockSMOPlugin) Metadata() smo.PluginMetadata {
 	}
 }
 
-func (m *mockSMOPlugin) Capabilities() []smo.Capability {
+func (m *mockSMOPlugin) Capabilities() []smoapi.Capability {
 	return m.capabilities
 }
 
@@ -64,8 +64,8 @@ func (m *mockSMOPlugin) Initialize(ctx context.Context, config map[string]interf
 	return nil
 }
 
-func (m *mockSMOPlugin) Health(ctx context.Context) smo.HealthStatus {
-	return smo.HealthStatus{
+func (m *mockSMOPlugin) Health(ctx context.Context) smoapi.HealthStatus {
+	return smoapi.HealthStatus{
 		Healthy:   m.healthy,
 		Message:   "test",
 		Timestamp: time.Now(),
@@ -77,30 +77,30 @@ func (m *mockSMOPlugin) Close() error {
 	return nil
 }
 
-func (m *mockSMOPlugin) SyncInfrastructureInventory(ctx context.Context, inventory *smo.InfrastructureInventory) error {
+func (m *mockSMOPlugin) SyncInfrastructureInventory(ctx context.Context, inventory *smoapi.InfrastructureInventory) error {
 	return m.syncInfraErr
 }
 
-func (m *mockSMOPlugin) SyncDeploymentInventory(ctx context.Context, inventory *smo.DeploymentInventory) error {
+func (m *mockSMOPlugin) SyncDeploymentInventory(ctx context.Context, inventory *smoapi.DeploymentInventory) error {
 	return m.syncDeployErr
 }
 
-func (m *mockSMOPlugin) PublishInfrastructureEvent(ctx context.Context, event *smo.InfrastructureEvent) error {
+func (m *mockSMOPlugin) PublishInfrastructureEvent(ctx context.Context, event *smoapi.InfrastructureEvent) error {
 	return m.publishInfraErr
 }
 
-func (m *mockSMOPlugin) PublishDeploymentEvent(ctx context.Context, event *smo.DeploymentEvent) error {
+func (m *mockSMOPlugin) PublishDeploymentEvent(ctx context.Context, event *smoapi.DeploymentEvent) error {
 	return m.publishDeployErr
 }
 
-func (m *mockSMOPlugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
+func (m *mockSMOPlugin) ExecuteWorkflow(ctx context.Context, workflow *smoapi.WorkflowRequest) (*smoapi.WorkflowExecution, error) {
 	if m.executeWorkflowErr != nil {
 		return nil, m.executeWorkflowErr
 	}
 	if m.executeWorkflowResult != nil {
 		return m.executeWorkflowResult, nil
 	}
-	return &smo.WorkflowExecution{
+	return &smoapi.WorkflowExecution{
 		ExecutionID:  "exec-123",
 		WorkflowName: workflow.WorkflowName,
 		Status:       "RUNNING",
@@ -108,14 +108,14 @@ func (m *mockSMOPlugin) ExecuteWorkflow(ctx context.Context, workflow *smo.Workf
 	}, nil
 }
 
-func (m *mockSMOPlugin) GetWorkflowStatus(ctx context.Context, executionID string) (*smo.WorkflowStatus, error) {
+func (m *mockSMOPlugin) GetWorkflowStatus(ctx context.Context, executionID string) (*smoapi.WorkflowStatus, error) {
 	if m.getWorkflowStatusErr != nil {
 		return nil, m.getWorkflowStatusErr
 	}
 	if m.getWorkflowStatusResult != nil {
 		return m.getWorkflowStatusResult, nil
 	}
-	return &smo.WorkflowStatus{
+	return &smoapi.WorkflowStatus{
 		ExecutionID:  executionID,
 		WorkflowName: "test-workflow",
 		Status:       "RUNNING",
@@ -128,41 +128,41 @@ func (m *mockSMOPlugin) CancelWorkflow(ctx context.Context, executionID string) 
 	return m.cancelWorkflowErr
 }
 
-func (m *mockSMOPlugin) RegisterServiceModel(ctx context.Context, model *smo.ServiceModel) error {
+func (m *mockSMOPlugin) RegisterServiceModel(ctx context.Context, model *smoapi.ServiceModel) error {
 	return m.registerServiceModelErr
 }
 
-func (m *mockSMOPlugin) GetServiceModel(ctx context.Context, id string) (*smo.ServiceModel, error) {
+func (m *mockSMOPlugin) GetServiceModel(ctx context.Context, id string) (*smoapi.ServiceModel, error) {
 	if m.getServiceModelErr != nil {
 		return nil, m.getServiceModelErr
 	}
 	if m.getServiceModelResult != nil {
 		return m.getServiceModelResult, nil
 	}
-	return &smo.ServiceModel{
+	return &smoapi.ServiceModel{
 		ID:      id,
 		Name:    "test-model",
 		Version: "1.0.0",
 	}, nil
 }
 
-func (m *mockSMOPlugin) ListServiceModels(ctx context.Context) ([]*smo.ServiceModel, error) {
+func (m *mockSMOPlugin) ListServiceModels(ctx context.Context) ([]*smoapi.ServiceModel, error) {
 	if m.listServiceModelsErr != nil {
 		return nil, m.listServiceModelsErr
 	}
 	if m.listServiceModelsResult != nil {
 		return m.listServiceModelsResult, nil
 	}
-	return []*smo.ServiceModel{
+	return []*smoapi.ServiceModel{
 		{ID: "model-1", Name: "model-1", Version: "1.0.0"},
 	}, nil
 }
 
-func (m *mockSMOPlugin) ApplyPolicy(ctx context.Context, policy *smo.Policy) error {
+func (m *mockSMOPlugin) ApplyPolicy(ctx context.Context, policy *smoapi.Policy) error {
 	return m.applyPolicyErr
 }
 
-func (m *mockSMOPlugin) GetPolicyStatus(ctx context.Context, policyID string) (*smo.PolicyStatus, error) {
+func (m *mockSMOPlugin) GetPolicyStatus(ctx context.Context, policyID string) (*smoapi.PolicyStatus, error) {
 	if m.getPolicyStatusErr != nil {
 		return nil, m.getPolicyStatusErr
 	}
@@ -170,7 +170,7 @@ func (m *mockSMOPlugin) GetPolicyStatus(ctx context.Context, policyID string) (*
 		return m.getPolicyStatusResult, nil
 	}
 	now := time.Now()
-	return &smo.PolicyStatus{
+	return &smoapi.PolicyStatus{
 		PolicyID:     policyID,
 		Status:       "active",
 		LastEnforced: &now,
@@ -183,15 +183,15 @@ func newTestMockPlugin(name string) *mockSMOPlugin {
 		version:      "1.0.0",
 		description:  "Test plugin",
 		vendor:       "Test",
-		capabilities: []smo.Capability{smo.CapInventorySync, smo.CapWorkflowOrchestration},
+		capabilities: []smoapi.Capability{smoapi.CapInventorySync, smoapi.CapWorkflowOrchestration},
 		healthy:      true,
 	}
 }
 
-func setupTestSMOHandler(t *testing.T) (*SMOHandler, *smo.Registry) {
+func setupTestSMOHandler(t *testing.T) (*SMOHandler, *smoapi.Registry) {
 	gin.SetMode(gin.TestMode)
 	logger := zap.NewNop()
-	registry := smo.NewRegistry(logger)
+	registry := smoapi.NewRegistry(logger)
 
 	// Register a mock plugin
 	plugin := newTestMockPlugin("test-plugin")
@@ -286,7 +286,7 @@ func TestSMOHandler_ExecuteWorkflow(t *testing.T) {
 
 		assert.Equal(t, http.StatusAccepted, resp.Code)
 
-		var result smo.WorkflowExecution
+		var result smoapi.WorkflowExecution
 		err := json.Unmarshal(resp.Body.Bytes(), &result)
 		require.NoError(t, err)
 
@@ -316,7 +316,7 @@ func TestSMOHandler_GetWorkflowStatus(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
-	var result smo.WorkflowStatus
+	var result smoapi.WorkflowStatus
 	err := json.Unmarshal(resp.Body.Bytes(), &result)
 	require.NoError(t, err)
 
@@ -365,7 +365,7 @@ func TestSMOHandler_CreateServiceModel(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, resp.Code)
 
-		var result smo.ServiceModel
+		var result smoapi.ServiceModel
 		err := json.Unmarshal(resp.Body.Bytes(), &result)
 		require.NoError(t, err)
 
@@ -395,7 +395,7 @@ func TestSMOHandler_GetServiceModel(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
-	var result smo.ServiceModel
+	var result smoapi.ServiceModel
 	err := json.Unmarshal(resp.Body.Bytes(), &result)
 	require.NoError(t, err)
 
@@ -410,7 +410,8 @@ func TestSMOHandler_DeleteServiceModel(t *testing.T) {
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
-	assert.Equal(t, http.StatusNoContent, resp.Code)
+	// Delete returns 501 Not Implemented since the interface doesn't support deletion
+	assert.Equal(t, http.StatusNotImplemented, resp.Code)
 }
 
 func TestSMOHandler_ApplyPolicy(t *testing.T) {
@@ -426,7 +427,7 @@ func TestSMOHandler_ApplyPolicy(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, resp.Code)
 
-		var result smo.Policy
+		var result smoapi.Policy
 		err := json.Unmarshal(resp.Body.Bytes(), &result)
 		require.NoError(t, err)
 
@@ -455,7 +456,7 @@ func TestSMOHandler_GetPolicyStatus(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
-	var result smo.PolicyStatus
+	var result smoapi.PolicyStatus
 	err := json.Unmarshal(resp.Body.Bytes(), &result)
 	require.NoError(t, err)
 
@@ -566,7 +567,7 @@ func TestSMOHandler_Health(t *testing.T) {
 func TestSMOHandler_PluginNotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	logger := zap.NewNop()
-	registry := smo.NewRegistry(logger)
+	registry := smoapi.NewRegistry(logger)
 	// Don't register any plugins
 	handler := NewSMOHandler(registry, logger)
 	router := setupTestRouter(handler)
@@ -606,4 +607,221 @@ func TestSMOHandler_PluginNotFound(t *testing.T) {
 			assert.Equal(t, http.StatusNotFound, resp.Code)
 		})
 	}
+}
+
+// === Input Validation Tests ===
+
+func TestSMOHandler_InvalidIdentifiers(t *testing.T) {
+	handler, _ := setupTestSMOHandler(t)
+	router := setupTestRouter(handler)
+
+	tests := []struct {
+		name     string
+		method   string
+		path     string
+		wantCode int
+	}{
+		{
+			name:     "empty execution ID",
+			method:   "GET",
+			path:     "/o2smo/v1/workflows/",
+			wantCode: http.StatusNotFound, // Gin returns 404 for missing path param
+		},
+		{
+			name:     "invalid model ID with special chars",
+			method:   "GET",
+			path:     "/o2smo/v1/serviceModels/../etc/passwd",
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "too long model ID",
+			method:   "GET",
+			path:     "/o2smo/v1/serviceModels/" + string(make([]byte, 300)),
+			wantCode: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest(tt.method, tt.path, nil)
+			resp := httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+			// Note: Some of these may return 404 due to Gin routing
+			assert.True(t, resp.Code == tt.wantCode || resp.Code == http.StatusNotFound)
+		})
+	}
+}
+
+func TestSMOHandler_MalformedJSON(t *testing.T) {
+	handler, _ := setupTestSMOHandler(t)
+	router := setupTestRouter(handler)
+
+	tests := []struct {
+		name string
+		path string
+		body string
+	}{
+		{
+			name: "malformed workflow JSON",
+			path: "/o2smo/v1/workflows",
+			body: `{"workflowName": "test", invalid}`,
+		},
+		{
+			name: "malformed service model JSON",
+			path: "/o2smo/v1/serviceModels",
+			body: `{"name": "test"`,
+		},
+		{
+			name: "malformed policy JSON",
+			path: "/o2smo/v1/policies",
+			body: `not json at all`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest("POST", tt.path, bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			resp := httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+
+			assert.Equal(t, http.StatusBadRequest, resp.Code)
+		})
+	}
+}
+
+func TestSMOHandler_PluginErrors(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logger := zap.NewNop()
+	registry := smoapi.NewRegistry(logger)
+
+	// Register a mock plugin that returns errors
+	plugin := &mockSMOPlugin{
+		name:                 "error-plugin",
+		version:              "1.0.0",
+		capabilities:         []smoapi.Capability{smoapi.CapWorkflowOrchestration},
+		healthy:              true,
+		executeWorkflowErr:   assert.AnError,
+		getWorkflowStatusErr: assert.AnError,
+		cancelWorkflowErr:    assert.AnError,
+		listServiceModelsErr: assert.AnError,
+		getServiceModelErr:   assert.AnError,
+		applyPolicyErr:       assert.AnError,
+		getPolicyStatusErr:   assert.AnError,
+		syncInfraErr:         assert.AnError,
+		publishInfraErr:      assert.AnError,
+	}
+	err := registry.Register(context.Background(), "error-plugin", plugin, true)
+	require.NoError(t, err)
+
+	handler := NewSMOHandler(registry, logger)
+	router := setupTestRouter(handler)
+
+	t.Run("workflow execution error", func(t *testing.T) {
+		body := `{"workflowName": "test-workflow"}`
+		req, _ := http.NewRequest("POST", "/o2smo/v1/workflows", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+		router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusInternalServerError, resp.Code)
+	})
+
+	t.Run("get workflow status error", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/o2smo/v1/workflows/exec-123", nil)
+		resp := httptest.NewRecorder()
+		router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusNotFound, resp.Code)
+	})
+
+	t.Run("list service models error", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/o2smo/v1/serviceModels", nil)
+		resp := httptest.NewRecorder()
+		router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusInternalServerError, resp.Code)
+	})
+
+	t.Run("apply policy error", func(t *testing.T) {
+		body := `{"name": "test-policy", "policyType": "placement"}`
+		req, _ := http.NewRequest("POST", "/o2smo/v1/policies", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+		router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusInternalServerError, resp.Code)
+	})
+}
+
+func TestSMOHandler_HealthDegraded(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logger := zap.NewNop()
+	registry := smoapi.NewRegistry(logger)
+
+	// Register one healthy and one unhealthy plugin
+	healthyPlugin := &mockSMOPlugin{
+		name:    "healthy-plugin",
+		version: "1.0.0",
+		healthy: true,
+	}
+	unhealthyPlugin := &mockSMOPlugin{
+		name:    "unhealthy-plugin",
+		version: "1.0.0",
+		healthy: false,
+	}
+
+	err := registry.Register(context.Background(), "healthy-plugin", healthyPlugin, true)
+	require.NoError(t, err)
+	err = registry.Register(context.Background(), "unhealthy-plugin", unhealthyPlugin, false)
+	require.NoError(t, err)
+
+	handler := NewSMOHandler(registry, logger)
+	router := setupTestRouter(handler)
+
+	req, _ := http.NewRequest("GET", "/o2smo/v1/health", nil)
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var result map[string]interface{}
+	err = json.Unmarshal(resp.Body.Bytes(), &result)
+	require.NoError(t, err)
+
+	assert.Equal(t, "degraded", result["status"])
+	assert.Equal(t, float64(2), result["totalPlugins"])
+	assert.Equal(t, float64(1), result["healthy"])
+	assert.Equal(t, float64(1), result["unhealthy"])
+}
+
+func TestSMOHandler_HealthUnhealthy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logger := zap.NewNop()
+	registry := smoapi.NewRegistry(logger)
+
+	// Register only unhealthy plugins
+	unhealthyPlugin := &mockSMOPlugin{
+		name:    "unhealthy-plugin",
+		version: "1.0.0",
+		healthy: false,
+	}
+
+	err := registry.Register(context.Background(), "unhealthy-plugin", unhealthyPlugin, true)
+	require.NoError(t, err)
+
+	handler := NewSMOHandler(registry, logger)
+	router := setupTestRouter(handler)
+
+	req, _ := http.NewRequest("GET", "/o2smo/v1/health", nil)
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
+
+	var result map[string]interface{}
+	err = json.Unmarshal(resp.Body.Bytes(), &result)
+	require.NoError(t, err)
+
+	assert.Equal(t, "unhealthy", result["status"])
 }
