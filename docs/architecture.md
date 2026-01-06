@@ -1663,21 +1663,26 @@ netweave is designed as an **enterprise multi-tenant platform** with comprehensi
 #### Multi-Tenancy Architecture
 
 **Tenant Model**:
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    netweave O2-IMS Gateway                  │
-│                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │  Tenant A    │  │  Tenant B    │  │  Tenant C    │     │
-│  │  (SMO-Alpha) │  │  (SMO-Beta)  │  │  (SMO-Gamma) │     │
-│  │              │  │              │  │              │     │
-│  │ • Users      │  │ • Users      │  │ • Users      │     │
-│  │ • Roles      │  │ • Roles      │  │ • Roles      │     │
-│  │ • Resources  │  │ • Resources  │  │ • Resources  │     │
-│  │ • Quotas     │  │ • Quotas     │  │ • Quotas     │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Gateway [netweave O2-IMS Gateway]
+        subgraph TenantA [Tenant A - SMO-Alpha]
+            UA[• Users<br/>• Roles<br/>• Resources<br/>• Quotas]
+        end
+
+        subgraph TenantB [Tenant B - SMO-Beta]
+            UB[• Users<br/>• Roles<br/>• Resources<br/>• Quotas]
+        end
+
+        subgraph TenantC [Tenant C - SMO-Gamma]
+            UC[• Users<br/>• Roles<br/>• Resources<br/>• Quotas]
+        end
+    end
+
+    style Gateway fill:#fff4e6
+    style TenantA fill:#e1f5ff
+    style TenantB fill:#e8f5e9
+    style TenantC fill:#ffe6f0
 ```
 
 **Tenant Identification** (via client certificate):
@@ -1959,22 +1964,26 @@ DELETE /o2ims/v1/resourcePools/:id          # Delete (tenant check)
 
 netweave implements a **unified plugin architecture** that extends beyond basic infrastructure management to provide comprehensive O-RAN stack support:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                  netweave Plugin Ecosystem                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐      │
-│  │   O2-IMS      │  │   O2-DMS      │  │   O2-SMO      │      │
-│  │   Plugins     │  │   Plugins     │  │   Plugins     │      │
-│  │               │  │               │  │               │      │
-│  │ Infrastructure│  │  Deployment   │  │ Orchestration │      │
-│  │  Management   │  │  Management   │  │  Integration  │      │
-│  │               │  │               │  │               │      │
-│  │  10+ Backends │  │  7+ Backends  │  │  5+ Backends  │      │
-│  └───────────────┘  └───────────────┘  └───────────────┘      │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Ecosystem [netweave Plugin Ecosystem]
+        subgraph IMS [O2-IMS Plugins]
+            IMS_DESC[Infrastructure<br/>Management<br/><br/>10+ Backends]
+        end
+
+        subgraph DMS [O2-DMS Plugins]
+            DMS_DESC[Deployment<br/>Management<br/><br/>7+ Backends]
+        end
+
+        subgraph SMO [O2-SMO Plugins]
+            SMO_DESC[Orchestration<br/>Integration<br/><br/>5+ Backends]
+        end
+    end
+
+    style Ecosystem fill:#fff4e6
+    style IMS fill:#e8f5e9
+    style DMS fill:#f3e5f5
+    style SMO fill:#fce4ec
 ```
 
 ### Plugin Categories
@@ -2424,30 +2433,21 @@ Gateway never modifies K8s state directly in Redis - Redis is only for:
 
 #### North-Bound (SMO → Gateway)
 
-```
-┌──────────┐
-│   SMO    │
-└────┬─────┘
-     │ 1. mTLS Handshake
-     │    Client Certificate
-     ▼
-┌────────────────┐
-│ K8s Ingress    │
-│ • TLS accept   │
-│ • Forward      │
-└────┬───────────┘
-     │ 2. TLS connection to pod
-     ▼
-┌────────────────┐
-│ Gateway Pod    │
-│ (Go TLS 1.3)   │
-│ • Verify cert  │
-│ • Check CN/SAN │
-│ • Validate CA  │
-│ • Extract CN   │
-│ • Map to roles │
-│ • Authorize    │
-└────────────────┘
+```mermaid
+sequenceDiagram
+    participant SMO as SMO Client
+    participant Ingress as K8s Ingress
+    participant Gateway as Gateway Pod<br/>(Go TLS 1.3)
+
+    SMO->>+Ingress: 1. mTLS Handshake<br/>Present Client Certificate
+    Note over Ingress: • TLS accept<br/>• Validate client cert<br/>• Forward request
+
+    Ingress->>+Gateway: 2. TLS connection to pod
+    Note over Gateway: Authentication Flow:<br/>• Verify cert<br/>• Check CN/SAN<br/>• Validate CA
+    Note over Gateway: Authorization Flow:<br/>• Extract CN<br/>• Map to roles<br/>• Authorize request
+
+    Gateway-->>-Ingress: Response (if authorized)
+    Ingress-->>-SMO: Response
 ```
 
 **Certificate Requirements**:
@@ -2476,18 +2476,21 @@ func authorize(clientCN string, requiredPerm Permission) bool {
 
 #### South-Bound (Gateway → Kubernetes)
 
-```
-┌────────────────┐
-│ Gateway Pod    │
-└────┬───────────┘
-     │ 1. Use ServiceAccount token
-     │    Mounted at /var/run/secrets/kubernetes.io/serviceaccount
-     ▼
-┌────────────────┐
-│ Kubernetes API │
-│ • Verify token │
-│ • Check RBAC   │
-└────────────────┘
+```mermaid
+sequenceDiagram
+    participant Gateway as Gateway Pod
+    participant K8s as Kubernetes API
+
+    Note over Gateway: ServiceAccount token<br/>mounted at:<br/>/var/run/secrets/<br/>kubernetes.io/serviceaccount
+
+    Gateway->>+K8s: API Request with ServiceAccount token
+    Note over K8s: • Verify token<br/>• Check RBAC permissions<br/>• Least privilege enforcement
+
+    alt Authorized
+        K8s-->>Gateway: API Response
+    else Not Authorized
+        K8s-->>-Gateway: 403 Forbidden
+    end
 ```
 
 **ServiceAccount Permissions** (RBAC):
