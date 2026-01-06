@@ -446,52 +446,52 @@ func TestRouter_matchesLocation(t *testing.T) {
 	defer func() { _ = reg.Close() }()
 
 	tests := []struct {
-		name        string
-		locCond     *LocationCondition
-		location    string
-		expected    bool
+		name     string
+		locCond  *LocationCondition
+		location string
+		expected bool
 	}{
 		{
-			name:        "prefix match",
-			locCond:     &LocationCondition{Prefix: "dc-"},
-			location:    "dc-dallas-1",
-			expected:    true,
+			name:     "prefix match",
+			locCond:  &LocationCondition{Prefix: "dc-"},
+			location: "dc-dallas-1",
+			expected: true,
 		},
 		{
-			name:        "prefix no match",
-			locCond:     &LocationCondition{Prefix: "dc-"},
-			location:    "aws-us-east-1",
-			expected:    false,
+			name:     "prefix no match",
+			locCond:  &LocationCondition{Prefix: "dc-"},
+			location: "aws-us-east-1",
+			expected: false,
 		},
 		{
-			name:        "suffix match",
-			locCond:     &LocationCondition{Suffix: "-1"},
-			location:    "dc-dallas-1",
-			expected:    true,
+			name:     "suffix match",
+			locCond:  &LocationCondition{Suffix: "-1"},
+			location: "dc-dallas-1",
+			expected: true,
 		},
 		{
-			name:        "contains match",
-			locCond:     &LocationCondition{Contains: "dallas"},
-			location:    "dc-dallas-1",
-			expected:    true,
+			name:     "contains match",
+			locCond:  &LocationCondition{Contains: "dallas"},
+			location: "dc-dallas-1",
+			expected: true,
 		},
 		{
-			name:        "exact match",
-			locCond:     &LocationCondition{Exact: "dc-dallas-1"},
-			location:    "dc-dallas-1",
-			expected:    true,
+			name:     "exact match",
+			locCond:  &LocationCondition{Exact: "dc-dallas-1"},
+			location: "dc-dallas-1",
+			expected: true,
 		},
 		{
-			name:        "exact no match",
-			locCond:     &LocationCondition{Exact: "dc-dallas-1"},
-			location:    "dc-dallas-2",
-			expected:    false,
+			name:     "exact no match",
+			locCond:  &LocationCondition{Exact: "dc-dallas-1"},
+			location: "dc-dallas-2",
+			expected: false,
 		},
 		{
-			name:        "empty location",
-			locCond:     &LocationCondition{Prefix: "dc-"},
-			location:    "",
-			expected:    false,
+			name:     "empty location",
+			locCond:  &LocationCondition{Prefix: "dc-"},
+			location: "",
+			expected: false,
 		},
 	}
 
