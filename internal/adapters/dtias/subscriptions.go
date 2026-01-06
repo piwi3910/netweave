@@ -13,7 +13,10 @@ import (
 // NOTE: DTIAS does not have a native event/subscription system.
 // This implementation returns an error indicating that subscriptions must be
 // implemented at a higher layer using polling or an external event system.
-func (a *DTIASAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *DTIASAdapter) CreateSubscription(
+	ctx context.Context,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback))
 
@@ -23,7 +26,10 @@ func (a *DTIASAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subs
 	// 2. External event system (e.g., Redis Pub/Sub, Kafka)
 	// 3. Kubernetes informers if DTIAS servers are represented as CRDs
 
-	return nil, fmt.Errorf("DTIAS adapter does not support native subscriptions - subscriptions must be implemented at the gateway layer using polling or external event system")
+	return nil, fmt.Errorf(
+		"DTIAS adapter does not support native subscriptions - " +
+			"subscriptions must be implemented at the gateway layer using polling or external event system",
+	)
 }
 
 // GetSubscription retrieves a specific subscription by ID.

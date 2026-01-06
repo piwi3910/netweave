@@ -12,7 +12,10 @@ import (
 
 // ListResourceTypes retrieves all OpenStack flavors and transforms them to O2-IMS Resource Types.
 // Flavors in OpenStack define the compute, memory, and storage capacity of instances.
-func (a *OpenStackAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (a *OpenStackAdapter) ListResourceTypes(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourceType, error) {
 	a.logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 

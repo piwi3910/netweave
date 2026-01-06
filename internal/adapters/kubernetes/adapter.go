@@ -170,7 +170,10 @@ func (a *KubernetesAdapter) GetDeploymentManager(ctx context.Context, id string)
 
 // ListResourcePools retrieves all resource pools matching the provided filter.
 // Implementation will list MachineSets and transform them to O2-IMS ResourcePools.
-func (a *KubernetesAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *KubernetesAdapter) ListResourcePools(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
 	a.logger.Debug("ListResourcePools called",
 		zap.Any("filter", filter))
 
@@ -203,7 +206,11 @@ func (a *KubernetesAdapter) CreateResourcePool(ctx context.Context, pool *adapte
 
 // UpdateResourcePool updates an existing resource pool.
 // Implementation will update the corresponding MachineSet.
-func (a *KubernetesAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *KubernetesAdapter) UpdateResourcePool(
+	ctx context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	a.logger.Debug("UpdateResourcePool called",
 		zap.String("id", id),
 		zap.String("name", pool.Name))
@@ -270,7 +277,10 @@ func (a *KubernetesAdapter) DeleteResource(ctx context.Context, id string) error
 
 // ListResourceTypes retrieves all resource types matching the provided filter.
 // Implementation will aggregate from Nodes and StorageClasses.
-func (a *KubernetesAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (a *KubernetesAdapter) ListResourceTypes(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourceType, error) {
 	a.logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
@@ -292,7 +302,10 @@ func (a *KubernetesAdapter) GetResourceType(ctx context.Context, id string) (*ad
 
 // CreateSubscription creates a new event subscription.
 // Implementation will store subscription in Redis and start watching K8s resources.
-func (a *KubernetesAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *KubernetesAdapter) CreateSubscription(
+	ctx context.Context,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback))
 

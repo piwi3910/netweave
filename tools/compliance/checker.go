@@ -28,10 +28,14 @@ type SpecVersion struct {
 // ComplianceLevel represents the level of compliance with a specification.
 type ComplianceLevel string
 
+// Compliance level constants.
 const (
-	ComplianceFull    ComplianceLevel = "full"    // 100% compliant
-	CompliancePartial ComplianceLevel = "partial" // Partially compliant (>= 80%)
-	ComplianceNone    ComplianceLevel = "none"    // Not compliant (< 80%)
+	// ComplianceFull indicates 100% compliance.
+	ComplianceFull ComplianceLevel = "full"
+	// CompliancePartial indicates partial compliance (>= 80%).
+	CompliancePartial ComplianceLevel = "partial"
+	// ComplianceNone indicates non-compliance (< 80%).
+	ComplianceNone ComplianceLevel = "none"
 )
 
 // ComplianceResult represents the result of compliance validation.
@@ -332,12 +336,12 @@ func replacePlaceholders(path string) string {
 }
 
 // replaceAll is a simple string replacement helper.
-func replaceAll(s, old, new string) string {
+func replaceAll(s, old, replacement string) string {
 	// Simple implementation - in production use strings.ReplaceAll
 	result := ""
 	for i := 0; i < len(s); {
 		if i+len(old) <= len(s) && s[i:i+len(old)] == old {
-			result += new
+			result += replacement
 			i += len(old)
 		} else {
 			result += string(s[i])

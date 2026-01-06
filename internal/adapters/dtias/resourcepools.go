@@ -71,7 +71,10 @@ func (a *DTIASAdapter) fetchServerPools(ctx context.Context, path string) ([]Ser
 }
 
 // transformAndFilterPools transforms server pools and applies client-side filtering.
-func (a *DTIASAdapter) transformAndFilterPools(serverPools []ServerPool, filter *adapter.Filter) []*adapter.ResourcePool {
+func (a *DTIASAdapter) transformAndFilterPools(
+	serverPools []ServerPool,
+	filter *adapter.Filter,
+) []*adapter.ResourcePool {
 	resourcePools := make([]*adapter.ResourcePool, 0, len(serverPools))
 	for i := range serverPools {
 		pool := a.transformServerPoolToResourcePool(&serverPools[i])
@@ -89,22 +92,11 @@ func (a *DTIASAdapter) GetResourcePool(ctx context.Context, id string) (*adapter
 	a.logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
-	// Query DTIAS API
+	// Query and parse DTIAS API
 	path := fmt.Sprintf("/server-pools/%s", id)
-	resp, err := a.client.doRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get server pool: %w", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			a.logger.Warn("failed to close response body", zap.Error(closeErr))
-		}
-	}()
-
-	// Parse response
 	var serverPool ServerPool
-	if err := a.client.parseResponse(resp, &serverPool); err != nil {
-		return nil, fmt.Errorf("failed to parse server pool response: %w", err)
+	if err := a.getAndParseResource(ctx, path, &serverPool, "server pool"); err != nil {
+		return nil, err
 	}
 
 	// Transform to O2-IMS resource pool
@@ -119,7 +111,10 @@ func (a *DTIASAdapter) GetResourcePool(ctx context.Context, id string) (*adapter
 
 // CreateResourcePool creates a new server pool.
 // Maps an O2-IMS ResourcePool to a DTIAS server pool and creates it.
-func (a *DTIASAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *DTIASAdapter) CreateResourcePool(
+	ctx context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	a.logger.Debug("CreateResourcePool called",
 		zap.String("name", pool.Name))
 
@@ -176,7 +171,11 @@ func (a *DTIASAdapter) CreateResourcePool(ctx context.Context, pool *adapter.Res
 
 // UpdateResourcePool updates an existing server pool.
 // Maps O2-IMS ResourcePool updates to DTIAS server pool updates.
-func (a *DTIASAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *DTIASAdapter) UpdateResourcePool(
+	ctx context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	a.logger.Debug("UpdateResourcePool called",
 		zap.String("id", id),
 		zap.String("name", pool.Name))

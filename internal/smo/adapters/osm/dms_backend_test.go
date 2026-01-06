@@ -19,7 +19,7 @@ func TestInstantiateNS(t *testing.T) {
 			req: &DeploymentRequest{
 				NSName:        "test-ns-1",
 				NSDId:         "nsd-123",
-				VIMAccountId:  "vim-456",
+				VIMAccountID:  "vim-456",
 				NSDescription: "Test network service",
 				AdditionalParams: map[string]interface{}{
 					"param1": "value1",
@@ -37,7 +37,7 @@ func TestInstantiateNS(t *testing.T) {
 			name: "missing NS name",
 			req: &DeploymentRequest{
 				NSDId:        "nsd-123",
-				VIMAccountId: "vim-456",
+				VIMAccountID: "vim-456",
 			},
 			wantErr: true,
 			errMsg:  "ns name is required",
@@ -46,7 +46,7 @@ func TestInstantiateNS(t *testing.T) {
 			name: "missing NSD ID",
 			req: &DeploymentRequest{
 				NSName:       "test-ns",
-				VIMAccountId: "vim-456",
+				VIMAccountID: "vim-456",
 			},
 			wantErr: true,
 			errMsg:  "nsd id is required",
@@ -244,7 +244,7 @@ func TestNSHealRequest(t *testing.T) {
 			name: "valid heal request",
 			nsID: "ns-123",
 			healReq: &NSHealRequest{
-				VNFInstanceId: "vnf-456",
+				VNFInstanceID: "vnf-456",
 				Cause:         "VNF failure detected",
 			},
 			wantErr: false,
@@ -252,7 +252,7 @@ func TestNSHealRequest(t *testing.T) {
 		{
 			name:        "empty NS ID",
 			nsID:        "",
-			healReq:     &NSHealRequest{VNFInstanceId: "vnf-456"},
+			healReq:     &NSHealRequest{VNFInstanceID: "vnf-456"},
 			wantErr:     true,
 			errContains: "ns instance id is required",
 		},
@@ -371,7 +371,7 @@ func (p *Plugin) validateDeploymentRequest(req *DeploymentRequest) error {
 	if req.NSDId == "" {
 		return fmt.Errorf("nsd id is required")
 	}
-	if req.VIMAccountId == "" {
+	if req.VIMAccountID == "" {
 		return fmt.Errorf("vim account id is required")
 	}
 	return nil
@@ -397,7 +397,7 @@ func (p *Plugin) validateHealRequest(nsInstanceID string, healReq *NSHealRequest
 	if healReq == nil {
 		return fmt.Errorf("heal request cannot be nil")
 	}
-	if healReq.VNFInstanceId == "" {
+	if healReq.VNFInstanceID == "" {
 		return fmt.Errorf("vnf instance id is required")
 	}
 	return nil

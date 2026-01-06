@@ -133,11 +133,11 @@ type RequestDetails struct {
 // ModelInfo contains service model information.
 type ModelInfo struct {
 	ModelType            string `json:"modelType"`
-	ModelInvariantId     string `json:"modelInvariantId"`
-	ModelVersionId       string `json:"modelVersionId"`
+	ModelInvariantID     string `json:"modelInvariantId"`
+	ModelVersionID       string `json:"modelVersionId"`
 	ModelName            string `json:"modelName"`
 	ModelVersion         string `json:"modelVersion,omitempty"`
-	ModelCustomizationId string `json:"modelCustomizationId,omitempty"`
+	ModelCustomizationID string `json:"modelCustomizationId,omitempty"`
 }
 
 // CloudConfiguration contains cloud region and tenant information.

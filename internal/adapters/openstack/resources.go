@@ -22,10 +22,8 @@ func (a *OpenStackAdapter) ListResources(ctx context.Context, filter *adapter.Fi
 	}
 
 	// Apply resource pool filter if specified
-	if filter != nil && filter.ResourcePoolID != "" {
-		// Extract availability zone from resource pool ID if needed
-		// For now, we list all and filter in memory
-	}
+	// For now, we list all and filter in memory
+	_ = filter // TODO: implement resource pool filtering
 
 	// Query all servers from Nova
 	allPages, err := servers.List(a.compute, listOpts).AllPages()
@@ -159,7 +157,11 @@ func (a *OpenStackAdapter) extractRequiredParams(resource *adapter.Resource) (fl
 }
 
 // buildCreateOptions builds OpenStack server create options from resource specification.
-func (a *OpenStackAdapter) buildCreateOptions(ctx context.Context, resource *adapter.Resource, flavorID, imageID string) (servers.CreateOpts, error) {
+func (a *OpenStackAdapter) buildCreateOptions(
+	ctx context.Context,
+	resource *adapter.Resource,
+	flavorID, imageID string,
+) (servers.CreateOpts, error) {
 	// Extract optional name parameter
 	name := "openstack-instance"
 	if n, ok := resource.Extensions["openstack.name"].(string); ok && n != "" {

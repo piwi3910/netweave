@@ -422,7 +422,11 @@ func initializeKubernetesAdapter(cfg *config.Config, logger *zap.Logger) (*kuber
 }
 
 // initializeHealthChecker creates and configures the health checker.
-func initializeHealthChecker(store *storage.RedisStore, adapter *kubernetes.KubernetesAdapter, logger *zap.Logger) *observability.HealthChecker {
+func initializeHealthChecker(
+	store *storage.RedisStore,
+	adapter *kubernetes.KubernetesAdapter,
+	logger *zap.Logger,
+) *observability.HealthChecker {
 	healthChecker := observability.NewHealthChecker(Version)
 
 	// Set health check timeout
@@ -442,13 +446,15 @@ func initializeHealthChecker(store *storage.RedisStore, adapter *kubernetes.Kube
 	)
 
 	// Register the same checks for readiness
-	healthChecker.RegisterReadinessCheck("redis", observability.RedisHealthCheck(func(ctx context.Context) error {
-		return store.Ping(ctx)
-	}))
+	healthChecker.RegisterReadinessCheck("redis",
+		observability.RedisHealthCheck(func(ctx context.Context) error {
+			return store.Ping(ctx)
+		}))
 
-	healthChecker.RegisterReadinessCheck("kubernetes", observability.KubernetesHealthCheck(func(ctx context.Context) error {
-		return adapter.Health(ctx)
-	}))
+	healthChecker.RegisterReadinessCheck("kubernetes",
+		observability.KubernetesHealthCheck(func(ctx context.Context) error {
+			return adapter.Health(ctx)
+		}))
 
 	logger.Info("health checks registered",
 		zap.Int("health_checks", 2),

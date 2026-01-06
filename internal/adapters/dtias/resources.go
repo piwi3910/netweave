@@ -95,22 +95,11 @@ func (a *DTIASAdapter) GetResource(ctx context.Context, id string) (*adapter.Res
 	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
-	// Query DTIAS API
+	// Query and parse DTIAS API
 	path := fmt.Sprintf("/servers/%s", id)
-	resp, err := a.client.doRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get server: %w", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			a.logger.Warn("failed to close response body", zap.Error(closeErr))
-		}
-	}()
-
-	// Parse response
 	var server Server
-	if err := a.client.parseResponse(resp, &server); err != nil {
-		return nil, fmt.Errorf("failed to parse server response: %w", err)
+	if err := a.getAndParseResource(ctx, path, &server, "server"); err != nil {
+		return nil, err
 	}
 
 	// Transform to O2-IMS resource

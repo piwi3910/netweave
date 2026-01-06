@@ -29,8 +29,8 @@ type DeploymentRequest struct {
 	// NSDId is the ID of the NSD (Network Service Descriptor)
 	NSDId string `json:"nsdId"`
 
-	// VIMAccountId is the ID of the VIM account to deploy to
-	VIMAccountId string `json:"vimAccountId"`
+	// VIMAccountID is the ID of the VIM account to deploy to
+	VIMAccountID string `json:"vimAccountId"`
 
 	// NSDescription provides context about this deployment
 	NSDescription string `json:"nsDescription,omitempty"`
@@ -47,8 +47,8 @@ type VNFParams struct {
 	// MemberVnfIndex identifies which VNF in the NS
 	MemberVnfIndex string `json:"member-vnf-index"`
 
-	// VIMAccountId can override the NS-level VIM account
-	VIMAccountId string `json:"vimAccountId,omitempty"`
+	// VIMAccountID can override the NS-level VIM account
+	VIMAccountID string `json:"vimAccountId,omitempty"`
 
 	// AdditionalParams contains VNF-specific parameters
 	AdditionalParams map[string]interface{} `json:"additionalParamsForVnf,omitempty"`
@@ -142,8 +142,8 @@ type ScaleByStepData struct {
 
 // NSHealRequest represents a request to heal an NS (Day-2 operation).
 type NSHealRequest struct {
-	// VNFInstanceId identifies which VNF to heal
-	VNFInstanceId string `json:"vnfInstanceId"`
+	// VNFInstanceID identifies which VNF to heal
+	VNFInstanceID string `json:"vnfInstanceId"`
 
 	// Cause describes why healing is needed
 	Cause string `json:"cause,omitempty"`
@@ -237,7 +237,7 @@ func (p *Plugin) InstantiateNS(ctx context.Context, req *DeploymentRequest) (str
 	if req.NSDId == "" {
 		return "", fmt.Errorf("nsd id is required")
 	}
-	if req.VIMAccountId == "" {
+	if req.VIMAccountID == "" {
 		return "", fmt.Errorf("vim account id is required")
 	}
 
@@ -393,7 +393,7 @@ func (p *Plugin) HealNS(ctx context.Context, nsInstanceID string, healReq *NSHea
 	}
 
 	// Validate heal request
-	if healReq.VNFInstanceId == "" {
+	if healReq.VNFInstanceID == "" {
 		return fmt.Errorf("vnf instance id is required")
 	}
 
