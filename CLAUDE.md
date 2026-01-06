@@ -2,6 +2,30 @@
 
 This file provides development guidelines for Claude Code when working on the O2-IMS Gateway project.
 
+## CRITICAL RULE: ALWAYS VERIFY, NEVER ASSUME
+
+**NEVER assume a fix will work. ALWAYS verify fixes are actually working before considering them complete.**
+
+This rule applies to:
+- ✅ **MUST run tests locally** after every fix before pushing
+- ✅ **MUST wait for CI to complete** and check actual results after pushing
+- ✅ **MUST investigate ALL failing jobs** in CI pipeline, not just the first one
+- ✅ **MUST verify the exact error** is fixed, not just that tests run
+- ❌ **NEVER say "should work"** or "expected to pass" - verify it actually works
+- ❌ **NEVER assume CI passed** without checking gh run list and logs
+- ❌ **NEVER consider a task done** until CI shows all green checkmarks
+
+**Verification Checklist (MANDATORY):**
+1. Run affected tests locally: `go test -race ./path/to/package`
+2. Run full test suite: `make test`
+3. Run linters: `make lint` or `gofmt -s -l .`
+4. Commit and push changes
+5. **Wait for CI to complete** (do not move on)
+6. Check CI status: `gh run list --limit 1`
+7. If CI fails, check logs: `gh run view <id> --log | grep "FAIL\|ERROR"`
+8. Fix ALL failures found, repeat from step 1
+9. Only mark complete when `gh run list` shows "success"
+
 ## Project Overview
 
 **O2-IMS Gateway** is a production-grade ORAN O2-IMS compliant API gateway that translates O2-IMS requests to Kubernetes API calls, enabling disaggregation of backend infrastructure components.
