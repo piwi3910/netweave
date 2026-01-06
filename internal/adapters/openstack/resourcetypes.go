@@ -94,8 +94,9 @@ func (a *OpenStackAdapter) transformFlavorToResourceType(flavor *flavors.Flavor)
 	resourceTypeID := generateFlavorID(flavor)
 
 	// Determine resource class based on flavor characteristics
+	// Default to compute unless it's clearly a storage-focused flavor
 	resourceClass := "compute"
-	if flavor.RAM == 0 && flavor.VCPUs == 0 {
+	if flavor.RAM == 0 && flavor.VCPUs == 0 && flavor.Disk > 0 {
 		resourceClass = "storage"
 	}
 
