@@ -72,6 +72,7 @@ func TestRecordHTTPRequest(t *testing.T) {
 			prometheus.CounterOpts{
 				Namespace: "test",
 				Name:      "http_requests_total",
+				Help:      "Total number of HTTP requests",
 			},
 			[]string{"method", "path", "status"},
 		),
@@ -79,6 +80,7 @@ func TestRecordHTTPRequest(t *testing.T) {
 			prometheus.HistogramOpts{
 				Namespace: "test",
 				Name:      "http_request_duration_seconds",
+				Help:      "HTTP request duration in seconds",
 				Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 			},
 			[]string{"method", "path", "status"},
@@ -87,6 +89,7 @@ func TestRecordHTTPRequest(t *testing.T) {
 			prometheus.HistogramOpts{
 				Namespace: "test",
 				Name:      "http_response_size_bytes",
+				Help:      "HTTP response size in bytes",
 				Buckets:   prometheus.ExponentialBuckets(100, 10, 8),
 			},
 			[]string{"method", "path"},
@@ -114,6 +117,7 @@ func TestRecordAdapterOperation(t *testing.T) {
 			prometheus.CounterOpts{
 				Namespace: "test",
 				Name:      "adapter_operations_total",
+				Help:      "Total number of adapter operations",
 			},
 			[]string{"adapter", "operation", "status"},
 		),
@@ -121,6 +125,7 @@ func TestRecordAdapterOperation(t *testing.T) {
 			prometheus.HistogramOpts{
 				Namespace: "test",
 				Name:      "adapter_operation_duration_seconds",
+				Help:      "Adapter operation duration in seconds",
 				Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5},
 			},
 			[]string{"adapter", "operation"},
@@ -129,6 +134,7 @@ func TestRecordAdapterOperation(t *testing.T) {
 			prometheus.CounterOpts{
 				Namespace: "test",
 				Name:      "adapter_errors_total",
+				Help:      "Total number of adapter errors",
 			},
 			[]string{"adapter", "operation", "error_type"},
 		),
@@ -163,6 +169,7 @@ func TestRecordSubscriptionEvent(t *testing.T) {
 			prometheus.CounterOpts{
 				Namespace: "test",
 				Name:      "subscription_events_total",
+				Help:      "Total number of subscription events",
 			},
 			[]string{"event_type", "resource_type"},
 		),
@@ -185,6 +192,7 @@ func TestRecordWebhookDelivery(t *testing.T) {
 			prometheus.HistogramOpts{
 				Namespace: "test",
 				Name:      "webhook_delivery_duration_seconds",
+				Help:      "Webhook delivery duration in seconds",
 				Buckets:   []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 30},
 			},
 			[]string{"status"},
@@ -193,6 +201,7 @@ func TestRecordWebhookDelivery(t *testing.T) {
 			prometheus.CounterOpts{
 				Namespace: "test",
 				Name:      "webhook_delivery_total",
+				Help:      "Total number of webhook deliveries",
 			},
 			[]string{"status", "http_status"},
 		),
@@ -226,6 +235,7 @@ func TestRecordRedisOperation(t *testing.T) {
 			prometheus.CounterOpts{
 				Namespace: "test",
 				Name:      "redis_operations_total",
+				Help:      "Total number of Redis operations",
 			},
 			[]string{"operation", "status"},
 		),
@@ -233,6 +243,7 @@ func TestRecordRedisOperation(t *testing.T) {
 			prometheus.HistogramOpts{
 				Namespace: "test",
 				Name:      "redis_operation_duration_seconds",
+				Help:      "Redis operation duration in seconds",
 				Buckets:   []float64{.0001, .0005, .001, .005, .01, .025, .05, .1, .25},
 			},
 			[]string{"operation"},
@@ -241,6 +252,7 @@ func TestRecordRedisOperation(t *testing.T) {
 			prometheus.CounterOpts{
 				Namespace: "test",
 				Name:      "redis_errors_total",
+				Help:      "Total number of Redis errors",
 			},
 			[]string{"operation", "error_type"},
 		),
@@ -270,6 +282,7 @@ func TestRecordK8sOperation(t *testing.T) {
 			prometheus.CounterOpts{
 				Namespace: "test",
 				Name:      "k8s_operations_total",
+				Help:      "Total number of Kubernetes operations",
 			},
 			[]string{"operation", "resource", "status"},
 		),
@@ -277,6 +290,7 @@ func TestRecordK8sOperation(t *testing.T) {
 			prometheus.HistogramOpts{
 				Namespace: "test",
 				Name:      "k8s_operation_duration_seconds",
+				Help:      "Kubernetes operation duration in seconds",
 				Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5},
 			},
 			[]string{"operation", "resource"},
@@ -285,6 +299,7 @@ func TestRecordK8sOperation(t *testing.T) {
 			prometheus.CounterOpts{
 				Namespace: "test",
 				Name:      "k8s_errors_total",
+				Help:      "Total number of Kubernetes errors",
 			},
 			[]string{"operation", "resource", "error_type"},
 		),
@@ -314,6 +329,7 @@ func TestSetSubscriptionCount(t *testing.T) {
 			prometheus.GaugeOpts{
 				Namespace: "test",
 				Name:      "subscriptions_total",
+				Help:      "Total number of active subscriptions",
 			},
 		),
 	}
@@ -334,6 +350,7 @@ func TestSetRedisConnectionsActive(t *testing.T) {
 			prometheus.GaugeOpts{
 				Namespace: "test",
 				Name:      "redis_connections_active",
+				Help:      "Number of active Redis connections",
 			},
 		),
 	}
@@ -354,6 +371,7 @@ func TestSetK8sResourceCacheSize(t *testing.T) {
 			prometheus.GaugeOpts{
 				Namespace: "test",
 				Name:      "k8s_resource_cache_size",
+				Help:      "Size of Kubernetes resource cache",
 			},
 			[]string{"resource_type"},
 		),
@@ -375,6 +393,7 @@ func TestHTTPInFlightInc(t *testing.T) {
 			prometheus.GaugeOpts{
 				Namespace: "test",
 				Name:      "http_requests_in_flight",
+				Help:      "Number of HTTP requests currently being processed",
 			},
 		),
 	}
@@ -399,6 +418,7 @@ func TestHTTPInFlightDec(t *testing.T) {
 			prometheus.GaugeOpts{
 				Namespace: "test",
 				Name:      "http_requests_in_flight",
+				Help:      "Number of HTTP requests currently being processed",
 			},
 		),
 	}
