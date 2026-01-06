@@ -494,3 +494,231 @@ func TestRegistry_ConfigDefaults(t *testing.T) {
 	assert.Equal(t, 30*time.Second, reg.healthCheckInterval)
 	assert.Equal(t, 5*time.Second, reg.healthCheckTimeout)
 }
+
+func TestRegistry_GetDefaultName(t *testing.T) {
+	logger := zap.NewNop()
+	reg := NewRegistry(logger, nil)
+	defer reg.Close()
+
+	// No default set.
+	assert.Equal(t, "", reg.GetDefaultName())
+
+	// Register a default adapter.
+	mockAdp := newMockDMSAdapter("default-adapter")
+	err := reg.Register(context.Background(), "default-adapter", "mock", mockAdp, nil, true)
+	require.NoError(t, err)
+
+	assert.Equal(t, "default-adapter", reg.GetDefaultName())
+}
+
+func TestRegistry_StartStopHealthChecks(t *testing.T) {
+	logger := zap.NewNop()
+	config := &Config{
+		HealthCheckInterval: 50 * time.Millisecond,
+		HealthCheckTimeout:  10 * time.Millisecond,
+	}
+
+	reg := NewRegistry(logger, config)
+	defer reg.Close()
+
+	mockAdp := newMockDMSAdapter("test-adapter")
+	err := reg.Register(context.Background(), "test-adapter", "mock", mockAdp, nil, true)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start health checks.
+	reg.StartHealthChecks(ctx)
+
+	// Wait for at least one health check cycle.
+	time.Sleep(100 * time.Millisecond)
+
+	// Stop health checks.
+	reg.StopHealthChecks()
+
+	// Calling stop again should be safe (no-op).
+	reg.StopHealthChecks()
+}
+
+func TestRegistry_HealthCheckWithUnhealthyAdapter(t *testing.T) {
+	logger := zap.NewNop()
+	config := &Config{
+		HealthCheckInterval: 50 * time.Millisecond,
+		HealthCheckTimeout:  10 * time.Millisecond,
+	}
+
+	reg := NewRegistry(logger, config)
+	defer reg.Close()
+
+	// Register an initially unhealthy adapter.
+	unhealthyAdp := newMockDMSAdapter("unhealthy-adapter")
+	unhealthyAdp.healthy = false
+	unhealthyAdp.healthErr = errors.New("connection failed")
+
+	err := reg.Register(context.Background(), "unhealthy-adapter", "mock", unhealthyAdp, nil, true)
+	require.NoError(t, err)
+
+	// Verify it was registered as unhealthy.
+	meta := reg.GetMetadata("unhealthy-adapter")
+	assert.False(t, meta.Healthy)
+	assert.NotNil(t, meta.HealthError)
+}
+
+func TestRegistry_HealthCheckStateChanges(t *testing.T) {
+	logger := zap.NewNop()
+	config := &Config{
+		HealthCheckInterval: 50 * time.Millisecond,
+		HealthCheckTimeout:  10 * time.Millisecond,
+	}
+
+	reg := NewRegistry(logger, config)
+	defer reg.Close()
+
+	mockAdp := newMockDMSAdapter("state-change-adapter")
+	err := reg.Register(context.Background(), "state-change-adapter", "mock", mockAdp, nil, true)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	reg.StartHealthChecks(ctx)
+
+	// Wait for a health check.
+	time.Sleep(100 * time.Millisecond)
+
+	// Make the adapter unhealthy.
+	mockAdp.healthy = false
+	mockAdp.healthErr = errors.New("now unhealthy")
+
+	// Wait for health check to detect the change.
+	time.Sleep(100 * time.Millisecond)
+
+	meta := reg.GetMetadata("state-change-adapter")
+	assert.False(t, meta.Healthy)
+
+	// Make it healthy again.
+	mockAdp.healthy = true
+	mockAdp.healthErr = nil
+
+	// Wait for health check to detect recovery.
+	time.Sleep(100 * time.Millisecond)
+
+	meta = reg.GetMetadata("state-change-adapter")
+	assert.True(t, meta.Healthy)
+
+	reg.StopHealthChecks()
+}
+
+func TestRegistry_UnregisterDefault(t *testing.T) {
+	logger := zap.NewNop()
+	reg := NewRegistry(logger, nil)
+	defer reg.Close()
+
+	mockAdp := newMockDMSAdapter("default-adapter")
+	err := reg.Register(context.Background(), "default-adapter", "mock", mockAdp, nil, true)
+	require.NoError(t, err)
+
+	// Verify it's the default.
+	assert.Equal(t, "default-adapter", reg.GetDefaultName())
+
+	// Unregister it.
+	err = reg.Unregister("default-adapter")
+	require.NoError(t, err)
+
+	// Default should be cleared.
+	assert.Equal(t, "", reg.GetDefaultName())
+	assert.Nil(t, reg.GetDefault())
+}
+
+func TestRegistry_FindByCapabilityWithDisabled(t *testing.T) {
+	logger := zap.NewNop()
+	reg := NewRegistry(logger, nil)
+	defer reg.Close()
+
+	// Register adapter with capability.
+	mockAdp := newMockDMSAdapter("rollback-adapter")
+	mockAdp.capabilities = []adapter.Capability{adapter.CapabilityRollback}
+	err := reg.Register(context.Background(), "rollback-adapter", "mock", mockAdp, nil, false)
+	require.NoError(t, err)
+
+	// Initially should find it.
+	adapters := reg.FindByCapability(adapter.CapabilityRollback)
+	assert.Len(t, adapters, 1)
+
+	// Disable the adapter.
+	err = reg.Disable("rollback-adapter")
+	require.NoError(t, err)
+
+	// Now should not find it.
+	adapters = reg.FindByCapability(adapter.CapabilityRollback)
+	assert.Len(t, adapters, 0)
+}
+
+func TestRegistry_FindByCapabilityWithUnhealthy(t *testing.T) {
+	logger := zap.NewNop()
+	reg := NewRegistry(logger, nil)
+	defer reg.Close()
+
+	// Register an unhealthy adapter with capability.
+	unhealthyAdp := newMockDMSAdapter("unhealthy-rollback")
+	unhealthyAdp.capabilities = []adapter.Capability{adapter.CapabilityRollback}
+	unhealthyAdp.healthy = false
+	unhealthyAdp.healthErr = errors.New("unhealthy")
+
+	err := reg.Register(context.Background(), "unhealthy-rollback", "mock", unhealthyAdp, nil, false)
+	require.NoError(t, err)
+
+	// Should not find unhealthy adapter.
+	adapters := reg.FindByCapability(adapter.CapabilityRollback)
+	assert.Len(t, adapters, 0)
+}
+
+func TestRegistry_FindByTypeDisabled(t *testing.T) {
+	logger := zap.NewNop()
+	reg := NewRegistry(logger, nil)
+	defer reg.Close()
+
+	mockAdp := newMockDMSAdapter("helm-adapter")
+	err := reg.Register(context.Background(), "helm-adapter", "helm", mockAdp, nil, false)
+	require.NoError(t, err)
+
+	// Initially should find it.
+	adapters := reg.FindByType("helm")
+	assert.Len(t, adapters, 1)
+
+	// Disable the adapter.
+	err = reg.Disable("helm-adapter")
+	require.NoError(t, err)
+
+	// Should not find disabled adapter.
+	adapters = reg.FindByType("helm")
+	assert.Len(t, adapters, 0)
+}
+
+func TestRegistry_HealthCheckContextCancellation(t *testing.T) {
+	logger := zap.NewNop()
+	config := &Config{
+		HealthCheckInterval: 1 * time.Second,
+		HealthCheckTimeout:  100 * time.Millisecond,
+	}
+
+	reg := NewRegistry(logger, config)
+	defer reg.Close()
+
+	mockAdp := newMockDMSAdapter("context-adapter")
+	err := reg.Register(context.Background(), "context-adapter", "mock", mockAdp, nil, true)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	reg.StartHealthChecks(ctx)
+
+	// Cancel the context to stop health checks.
+	cancel()
+
+	// Give it time to stop.
+	time.Sleep(50 * time.Millisecond)
+
+	// Should be able to close without issues.
+	reg.StopHealthChecks()
+}
