@@ -219,19 +219,8 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request, result interf
 	var lastErr error
 
 	for attempt := 0; attempt <= c.config.MaxRetries; attempt++ {
-		if attempt > 0 {
-			// Calculate retry delay with exponential backoff
-			delay := time.Duration(float64(c.config.RetryDelay) * float64(attempt) * c.config.RetryMultiplier)
-			if delay > c.config.RetryMaxDelay {
-				delay = c.config.RetryMaxDelay
-			}
-
-			select {
-			case <-time.After(delay):
-				// Continue with retry
-			case <-ctx.Done():
-				return ctx.Err()
-			}
+		if err := c.waitForRetry(ctx, attempt); err != nil {
+			return err
 		}
 
 		resp, err := c.httpClient.Do(req)
@@ -240,48 +229,100 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request, result interf
 			continue
 		}
 
-		// Handle response based on status code
-		switch resp.StatusCode {
-		case http.StatusOK, http.StatusCreated, http.StatusAccepted, http.StatusNoContent:
-			// Success - parse response if result is provided
-			if result != nil && resp.StatusCode != http.StatusNoContent {
-				if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-					resp.Body.Close()
-					return fmt.Errorf("failed to decode response: %w", err)
-				}
+		if err := c.handleResponse(ctx, req, resp, result, &lastErr); err != nil {
+			if err == errRetryable {
+				continue
 			}
-			resp.Body.Close()
-			return nil
-
-		case http.StatusUnauthorized:
-			// Token expired - refresh and retry
-			resp.Body.Close()
-			if err := c.Authenticate(ctx); err != nil {
-				return fmt.Errorf("failed to refresh authentication: %w", err)
-			}
-			// Update request with new token
-			c.mu.RLock()
-			req.Header.Set("Authorization", "Bearer "+c.token)
-			c.mu.RUnlock()
-			lastErr = fmt.Errorf("authentication expired, retrying")
-			continue
-
-		case http.StatusTooManyRequests, http.StatusServiceUnavailable:
-			// Rate limited or service unavailable - retry
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			lastErr = fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(body))
-			continue
-
-		default:
-			// Non-retryable error
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			return fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(body))
+			return err
 		}
+		return nil
 	}
 
 	return fmt.Errorf("request failed after %d attempts: %w", c.config.MaxRetries+1, lastErr)
+}
+
+// errRetryable is a sentinel error indicating the request should be retried.
+var errRetryable = fmt.Errorf("retryable error")
+
+// waitForRetry implements exponential backoff for retry attempts.
+func (c *Client) waitForRetry(ctx context.Context, attempt int) error {
+	if attempt == 0 {
+		return nil
+	}
+
+	delay := time.Duration(float64(c.config.RetryDelay) * float64(attempt) * c.config.RetryMultiplier)
+	if delay > c.config.RetryMaxDelay {
+		delay = c.config.RetryMaxDelay
+	}
+
+	select {
+	case <-time.After(delay):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// handleResponse processes the HTTP response based on status code.
+func (c *Client) handleResponse(ctx context.Context, req *http.Request, resp *http.Response, result interface{}, lastErr *error) error {
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusCreated, http.StatusAccepted, http.StatusNoContent:
+		return c.handleSuccessResponse(resp, result)
+
+	case http.StatusUnauthorized:
+		return c.handleUnauthorized(ctx, req, resp, lastErr)
+
+	case http.StatusTooManyRequests, http.StatusServiceUnavailable:
+		return c.handleRetryableError(resp, lastErr)
+
+	default:
+		return c.handleNonRetryableError(resp)
+	}
+}
+
+// handleSuccessResponse processes successful HTTP responses.
+func (c *Client) handleSuccessResponse(resp *http.Response, result interface{}) error {
+	defer resp.Body.Close()
+
+	if result != nil && resp.StatusCode != http.StatusNoContent {
+		if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+			return fmt.Errorf("failed to decode response: %w", err)
+		}
+	}
+	return nil
+}
+
+// handleUnauthorized handles 401 responses by refreshing authentication.
+func (c *Client) handleUnauthorized(ctx context.Context, req *http.Request, resp *http.Response, lastErr *error) error {
+	resp.Body.Close()
+
+	if err := c.Authenticate(ctx); err != nil {
+		return fmt.Errorf("failed to refresh authentication: %w", err)
+	}
+
+	c.mu.RLock()
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	c.mu.RUnlock()
+
+	*lastErr = fmt.Errorf("authentication expired, retrying")
+	return errRetryable
+}
+
+// handleRetryableError handles retryable HTTP errors (rate limiting, service unavailable).
+func (c *Client) handleRetryableError(resp *http.Response, lastErr *error) error {
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	*lastErr = fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(body))
+	return errRetryable
+}
+
+// handleNonRetryableError handles non-retryable HTTP errors.
+func (c *Client) handleNonRetryableError(resp *http.Response) error {
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	return fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(body))
 }
 
 // get performs a GET request to the specified path.
