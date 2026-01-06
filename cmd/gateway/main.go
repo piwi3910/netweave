@@ -492,11 +492,10 @@ func gracefulShutdown(_ context.Context, srv *server.Server, cfg *config.Config,
 	// Channel to signal shutdown completion
 	shutdownComplete := make(chan error, 1)
 
-	// Perform shutdown in a goroutine
-	//nolint:contextcheck // srv.Shutdown() uses shutdownCtx from parent scope internally
+	// Perform shutdown in a goroutine with the shutdown context
 	go func() {
-		// Shutdown HTTP server
-		if err := srv.Shutdown(); err != nil {
+		// Shutdown HTTP server using the shutdown context
+		if err := srv.ShutdownWithContext(shutdownCtx); err != nil {
 			shutdownComplete <- fmt.Errorf("server shutdown failed: %w", err)
 			return
 		}

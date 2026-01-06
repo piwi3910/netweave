@@ -360,16 +360,23 @@ func (s *Server) Start() error {
 //
 // Returns an error if the shutdown fails.
 func (s *Server) Shutdown() error {
-	s.logger.Info("initiating graceful shutdown",
-		zap.Duration("timeout", s.config.Server.ShutdownTimeout),
-	)
-
-	// Create shutdown context with timeout
+	// Create shutdown context with timeout from config
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
 		s.config.Server.ShutdownTimeout,
 	)
 	defer cancel()
+
+	return s.ShutdownWithContext(ctx)
+}
+
+// ShutdownWithContext gracefully shuts down the server using the provided context.
+// The context controls how long to wait for active requests to complete.
+// This method is preferred when the caller wants to manage the shutdown context.
+//
+// Returns an error if the shutdown fails.
+func (s *Server) ShutdownWithContext(ctx context.Context) error {
+	s.logger.Info("initiating graceful shutdown")
 
 	// Shutdown HTTP server
 	if err := s.httpServer.Shutdown(ctx); err != nil {

@@ -20,13 +20,14 @@ import (
 	"github.com/piwi3910/netweave/tests/integration/helpers"
 )
 
-// TestDocsEndpoints_OpenAPIYAML tests the OpenAPI YAML endpoint.
-func TestDocsEndpoints_OpenAPIYAML(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+// expectedCDNResourceCount is the number of CDN resources used by Swagger UI.
+// This includes: CSS stylesheet, bundle JS, and standalone preset JS.
+const expectedCDNResourceCount = 3
 
-	env := helpers.SetupTestEnvironment(t)
+// createDocsTestServer creates a test server configured for documentation endpoint testing.
+// It sets up Redis storage and Kubernetes adapter with standard test configuration.
+func createDocsTestServer(t *testing.T, env *helpers.TestEnvironment) *helpers.TestServer {
+	t.Helper()
 
 	redisStore := storage.NewRedisStore(&storage.RedisConfig{
 		Addr:         env.Redis.Addr(),
@@ -36,12 +37,22 @@ func TestDocsEndpoints_OpenAPIYAML(t *testing.T) {
 		WriteTimeout: 3 * time.Second,
 		PoolSize:     10,
 	})
-	defer redisStore.Close()
+	t.Cleanup(func() { redisStore.Close() })
 
 	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
+	t.Cleanup(func() { k8sAdapter.Close() })
 
-	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
+	return helpers.NewTestServer(t, k8sAdapter, redisStore)
+}
+
+// TestDocsEndpoints_OpenAPIYAML tests the OpenAPI YAML endpoint.
+func TestDocsEndpoints_OpenAPIYAML(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	env := helpers.SetupTestEnvironment(t)
+	ts := createDocsTestServer(t, env)
 
 	// Test /docs/openapi.yaml endpoint
 	t.Run("DocsOpenAPIYAML", func(t *testing.T) {
@@ -75,21 +86,7 @@ func TestDocsEndpoints_SwaggerUI(t *testing.T) {
 	}
 
 	env := helpers.SetupTestEnvironment(t)
-
-	redisStore := storage.NewRedisStore(&storage.RedisConfig{
-		Addr:         env.Redis.Addr(),
-		MaxRetries:   3,
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 3 * time.Second,
-		PoolSize:     10,
-	})
-	defer redisStore.Close()
-
-	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
-
-	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
+	ts := createDocsTestServer(t, env)
 
 	// Test /docs/ endpoint (Swagger UI)
 	t.Run("SwaggerUI", func(t *testing.T) {
@@ -151,21 +148,7 @@ func TestDocsEndpoints_SecurityHeaders(t *testing.T) {
 	}
 
 	env := helpers.SetupTestEnvironment(t)
-
-	redisStore := storage.NewRedisStore(&storage.RedisConfig{
-		Addr:         env.Redis.Addr(),
-		MaxRetries:   3,
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 3 * time.Second,
-		PoolSize:     10,
-	})
-	defer redisStore.Close()
-
-	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
-
-	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
+	ts := createDocsTestServer(t, env)
 
 	resp, err := http.Get(ts.URL() + "/docs/")
 	require.NoError(t, err)
@@ -197,21 +180,7 @@ func TestDocsEndpoints_SRIHashes(t *testing.T) {
 	}
 
 	env := helpers.SetupTestEnvironment(t)
-
-	redisStore := storage.NewRedisStore(&storage.RedisConfig{
-		Addr:         env.Redis.Addr(),
-		MaxRetries:   3,
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 3 * time.Second,
-		PoolSize:     10,
-	})
-	defer redisStore.Close()
-
-	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
-
-	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
+	ts := createDocsTestServer(t, env)
 
 	resp, err := http.Get(ts.URL() + "/docs/")
 	require.NoError(t, err)
@@ -235,11 +204,11 @@ func TestDocsEndpoints_SRIHashes(t *testing.T) {
 
 	// Count total integrity attributes
 	integrityCount := strings.Count(bodyStr, `integrity="sha384-`)
-	assert.Equal(t, 3, integrityCount, "Should have exactly 3 integrity hashes (CSS, bundle JS, preset JS)")
+	assert.Equal(t, expectedCDNResourceCount, integrityCount, "Should have exactly 3 integrity hashes (CSS, bundle JS, preset JS)")
 
 	// Verify crossorigin attribute on all CDN resources
 	crossoriginCount := strings.Count(bodyStr, `crossorigin="anonymous"`)
-	assert.Equal(t, 3, crossoriginCount, "Should have crossorigin attribute on all 3 CDN resources")
+	assert.Equal(t, expectedCDNResourceCount, crossoriginCount, "Should have crossorigin attribute on all 3 CDN resources")
 }
 
 // TestDocsEndpoints_CacheHeaders tests cache control headers on OpenAPI endpoints.
@@ -249,21 +218,7 @@ func TestDocsEndpoints_CacheHeaders(t *testing.T) {
 	}
 
 	env := helpers.SetupTestEnvironment(t)
-
-	redisStore := storage.NewRedisStore(&storage.RedisConfig{
-		Addr:         env.Redis.Addr(),
-		MaxRetries:   3,
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 3 * time.Second,
-		PoolSize:     10,
-	})
-	defer redisStore.Close()
-
-	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
-
-	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
+	ts := createDocsTestServer(t, env)
 
 	// Note: Since no spec is loaded, we won't get cache headers on 404 responses
 	// This test documents expected behavior when spec IS loaded
