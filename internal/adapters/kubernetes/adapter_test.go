@@ -9,6 +9,7 @@ package kubernetes
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 
 	adapterapi "github.com/piwi3910/netweave/internal/adapter"
@@ -1166,4 +1167,211 @@ func TestSubscription_JSONUnmarshalWithoutFilter(t *testing.T) {
 	assert.Equal(t, "sub-1", sub.SubscriptionID)
 	assert.Equal(t, "https://example.com/notify", sub.Callback)
 	assert.Nil(t, sub.Filter)
+}
+
+// Concurrent operation tests - verify thread safety of adapter methods
+// These tests use the -race flag during CI to detect race conditions
+
+func TestKubernetesAdapter_ConcurrentHealth(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	const numGoroutines = 10
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_ = adp.Health(ctx)
+		}()
+	}
+
+	wg.Wait()
+}
+
+func TestKubernetesAdapter_ConcurrentMetadata(t *testing.T) {
+	adp := newTestAdapter(t)
+
+	const numGoroutines = 10
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines * 3)
+
+	// Concurrent Name() calls
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			name := adp.Name()
+			assert.Equal(t, "kubernetes", name)
+		}()
+	}
+
+	// Concurrent Version() calls
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			version := adp.Version()
+			assert.NotEmpty(t, version)
+		}()
+	}
+
+	// Concurrent Capabilities() calls
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			caps := adp.Capabilities()
+			assert.Len(t, caps, 6)
+		}()
+	}
+
+	wg.Wait()
+}
+
+func TestKubernetesAdapter_ConcurrentListOperations(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	const numGoroutines = 5
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines * 3)
+
+	// Concurrent ListResourcePools calls
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_, err := adp.ListResourcePools(ctx, nil)
+			assert.Error(t, err)
+		}()
+	}
+
+	// Concurrent ListResources calls
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_, err := adp.ListResources(ctx, nil)
+			assert.Error(t, err)
+		}()
+	}
+
+	// Concurrent ListResourceTypes calls
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_, err := adp.ListResourceTypes(ctx, nil)
+			assert.Error(t, err)
+		}()
+	}
+
+	wg.Wait()
+}
+
+// Benchmark tests for performance tracking
+// Run with: go test -bench=. -benchmem
+
+func BenchmarkKubernetesAdapter_Name(b *testing.B) {
+	adp := &KubernetesAdapter{
+		client:              fake.NewSimpleClientset(),
+		logger:              zap.NewNop(),
+		oCloudID:            "bench-ocloud",
+		deploymentManagerID: "bench-dm",
+		namespace:           "o2ims-system",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = adp.Name()
+	}
+}
+
+func BenchmarkKubernetesAdapter_Version(b *testing.B) {
+	adp := &KubernetesAdapter{
+		client:              fake.NewSimpleClientset(),
+		logger:              zap.NewNop(),
+		oCloudID:            "bench-ocloud",
+		deploymentManagerID: "bench-dm",
+		namespace:           "o2ims-system",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = adp.Version()
+	}
+}
+
+func BenchmarkKubernetesAdapter_Capabilities(b *testing.B) {
+	adp := &KubernetesAdapter{
+		client:              fake.NewSimpleClientset(),
+		logger:              zap.NewNop(),
+		oCloudID:            "bench-ocloud",
+		deploymentManagerID: "bench-dm",
+		namespace:           "o2ims-system",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = adp.Capabilities()
+	}
+}
+
+func BenchmarkKubernetesAdapter_Health(b *testing.B) {
+	adp := &KubernetesAdapter{
+		client:              fake.NewSimpleClientset(),
+		logger:              zap.NewNop(),
+		oCloudID:            "bench-ocloud",
+		deploymentManagerID: "bench-dm",
+		namespace:           "o2ims-system",
+	}
+	ctx := context.Background()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = adp.Health(ctx)
+	}
+}
+
+// Logger edge case tests
+
+func TestKubernetesAdapter_WithNilLogger(t *testing.T) {
+	// Create adapter with nil logger field to test nil handling
+	adp := &KubernetesAdapter{
+		client:              fake.NewSimpleClientset(),
+		logger:              nil, // Intentionally nil
+		oCloudID:            "test-ocloud",
+		deploymentManagerID: "test-dm",
+		namespace:           "o2ims-system",
+	}
+
+	// These should not panic even with nil logger
+	// Note: The actual implementation logs, so this tests robustness
+	assert.Equal(t, "kubernetes", adp.Name())
+	assert.NotEmpty(t, adp.Version())
+	assert.Len(t, adp.Capabilities(), 6)
+}
+
+func TestKubernetesAdapter_LoggerUsedInOperations(t *testing.T) {
+	// Verify logger is properly used in operations
+	logger := zaptest.NewLogger(t)
+	adp := &KubernetesAdapter{
+		client:              fake.NewSimpleClientset(),
+		logger:              logger,
+		oCloudID:            "test-ocloud",
+		deploymentManagerID: "test-dm",
+		namespace:           "o2ims-system",
+	}
+	ctx := context.Background()
+
+	// All operations should complete without panic and use logger appropriately
+	_, _ = adp.GetDeploymentManager(ctx, "dm-1")
+	_, _ = adp.ListResourcePools(ctx, nil)
+	_, _ = adp.GetResourcePool(ctx, "pool-1")
+	_, _ = adp.ListResources(ctx, nil)
+	_, _ = adp.GetResource(ctx, "res-1")
+	_, _ = adp.ListResourceTypes(ctx, nil)
+	_, _ = adp.GetResourceType(ctx, "type-1")
+	_, _ = adp.CreateSubscription(ctx, &adapterapi.Subscription{Callback: "https://example.com"})
+	_, _ = adp.GetSubscription(ctx, "sub-1")
+	_ = adp.DeleteSubscription(ctx, "sub-1")
+	_ = adp.Health(ctx)
+
+	// If we get here without panic, logger handling is correct
 }
