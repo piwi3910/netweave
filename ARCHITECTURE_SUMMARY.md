@@ -36,6 +36,29 @@ The **netweave O2-IMS Gateway** architecture and project foundation are now full
 - ✅ Resource Type aggregation logic
 - ✅ Subscription implementation
 - ✅ Detailed transformation examples with code
+- ✅ Multi-backend adapter routing (Kubernetes, DTIAS, AWS)
+- ✅ API versioning and evolution strategy (v1/v2/v3)
+- ✅ Backend-specific transformations
+
+#### [docs/o2dms-o2smo-extension.md](docs/o2dms-o2smo-extension.md)
+- ✅ O2-DMS (Deployment Management Services) architecture
+- ✅ DMS adapter interface specification
+- ✅ Helm adapter implementation (CNF deployment)
+- ✅ ArgoCD adapter implementation (GitOps deployment)
+- ✅ Unified subscription system (IMS + DMS events)
+- ✅ O2-SMO integration patterns
+- ✅ End-to-end use cases (deploy vDU, scale, rollback)
+- ✅ Implementation roadmap (5 phases, 12 weeks)
+
+#### [docs/rbac-multitenancy.md](docs/rbac-multitenancy.md)
+- ✅ Enterprise multi-tenancy architecture (built-in from day 1)
+- ✅ RBAC model (system roles + tenant roles)
+- ✅ Permission-based access control (resource, action, scope)
+- ✅ Tenant isolation enforcement (multi-layer defense)
+- ✅ Certificate-based tenant identification (mTLS CN)
+- ✅ Resource quotas per tenant
+- ✅ Comprehensive audit logging
+- ✅ Admin API for tenant/user/role management
 
 ### 2. Project Foundation & Governance
 
@@ -77,10 +100,12 @@ O2 SMO → K8s Ingress (mTLS) → Gateway Pods (3+, stateless, native Go TLS)
 | **Web Framework** | Gin | Fast, simple, good middleware |
 | **Storage** | Redis (always) | Subscriptions, cache, pub/sub |
 | **State Sync** | Redis Sentinel | HA failover, cross-cluster replication |
+| **Backend Pattern** | Pluggable Adapter Pattern | Multi-backend support, vendor flexibility |
 | **K8s Mapping** | MachineSet → ResourcePool | Natural fit, full lifecycle |
 | **TLS** | Native Go TLS 1.3 + cert-manager | Simpler, full control, no service mesh overhead |
 | **Deployment** | Helm + Custom Operator | Simpler than GitOps, familiar tooling |
 | **Scaling** | Stateless gateway | Horizontal scaling, no coordination |
+| **API Versioning** | URL-based (/v1, /v2) | Parallel version support, gradual migration |
 
 ### Technology Stack Summary
 
@@ -186,6 +211,230 @@ Multi-Cluster:
   - Active-active DR
   - Redis cross-cluster replication
 ```
+
+## Multi-Backend Adapter Architecture
+
+### Pluggable Backend Support
+
+The netweave gateway supports **multiple backend technologies** through a pluggable adapter pattern:
+
+```
+O2-IMS API → Adapter Registry → Route by config → Kubernetes Adapter
+                                                 → Dell DTIAS Adapter
+                                                 → AWS EKS Adapter
+                                                 → OpenStack Adapter
+```
+
+**Key Features**:
+- ✅ **Unified O2-IMS API**: Same frontend regardless of backend
+- ✅ **Configuration-Driven Routing**: Route requests based on location, labels, extensions
+- ✅ **Multi-Backend Aggregation**: Combine results from multiple backends
+- ✅ **Vendor Independence**: Avoid lock-in to single infrastructure provider
+- ✅ **Hybrid Deployments**: Mix cloud (AWS/Azure) and bare-metal (DTIAS) in single O-Cloud
+
+### Supported Backends
+
+| Backend | Status | Resource Pools | Resources | Use Case |
+|---------|--------|---------------|-----------|----------|
+| **Kubernetes** | ✅ Production | MachineSet | Node/Machine | Default, cloud-native |
+| **Dell DTIAS** | 🔄 Planned (v1.1) | Server Pool | Physical Server | Bare-metal infrastructure |
+| **AWS EKS** | 🔄 Planned (v1.1) | NodeGroup | EC2 Instance | AWS cloud deployments |
+| **OpenStack** | 🔮 Future | Host Aggregate | Nova Instance | Private cloud |
+
+### Routing Example
+
+```yaml
+# Route bare-metal to DTIAS, cloud to AWS, default to Kubernetes
+routing:
+  default: kubernetes
+  rules:
+    - name: bare-metal-to-dtias
+      priority: 100
+      adapter: dtias
+      conditions:
+        location:
+          prefix: dc-  # dc-dallas, dc-chicago
+
+    - name: cloud-to-aws
+      priority: 90
+      adapter: aws
+      conditions:
+        location:
+          prefix: aws-  # aws-us-west-2, aws-eu-west-1
+```
+
+## API Versioning Strategy
+
+### Multi-Version Support
+
+The gateway supports **parallel API versions** to enable evolution without breaking clients:
+
+- **v1 (Current)**: Base O2-IMS specification, simple resource format
+- **v2 (Future)**: Enhanced features - health metrics, batch operations, rich filtering
+- **v3 (Future)**: Advanced features - multi-tenancy, RBAC, custom resource types
+
+**Versioning Approach**:
+- URL-based versioning: `/o2ims/v1/...`, `/o2ims/v2/...`
+- Independent handlers for each version
+- Deprecation policy: 12-month grace period
+- Deprecation headers: `X-API-Deprecated`, `X-API-Sunset-Date`
+
+**Version Comparison**:
+```
+v1: Simple     → { resourcePoolId, name, location }
+v2: Enhanced   → { resourcePoolId, name, location, health, metrics, usage }
+v3: Advanced   → + Enhanced RBAC, advanced multi-tenancy, custom types
+```
+
+## RBAC and Multi-Tenancy (Built-in from Day 1)
+
+### Enterprise Multi-Tenancy
+
+The netweave gateway is designed as a **multi-tenant platform from the ground up**, enabling multiple SMO systems to securely share infrastructure while maintaining strict resource isolation.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              netweave O2-IMS Gateway                    │
+│                                                         │
+│  Tenant A        Tenant B        Tenant C              │
+│  (SMO-Alpha)     (SMO-Beta)      (SMO-Gamma)           │
+│  • Users         • Users         • Users               │
+│  • Roles         • Roles         • Roles               │
+│  • Resources     • Resources     • Resources           │
+│  • Quotas        • Quotas        • Quotas              │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Key Features**:
+- ✅ **Tenant Isolation**: Strict boundaries preventing cross-tenant data access
+- ✅ **Role-Based Access Control**: Fine-grained permissions per tenant
+- ✅ **Resource Quotas**: Per-tenant limits on resources, CPU, memory, storage
+- ✅ **Audit Logging**: All operations logged with tenant and user context
+- ✅ **Certificate-Based Tenancy**: Tenant ID embedded in client certificate CN
+
+### RBAC Model
+
+**Role Hierarchy**:
+```
+System Roles (cross-tenant):
+├─ PlatformAdmin   - Full system access
+├─ TenantAdmin     - Create/manage tenants
+└─ Auditor         - Read-only audit access
+
+Tenant Roles (scoped to specific tenant):
+├─ Owner           - Full tenant access
+├─ Admin           - Manage users, resources, policies
+├─ Operator        - CRUD on resources
+├─ Viewer          - Read-only access
+└─ Custom Roles    - User-defined permissions
+```
+
+**Permission Model**:
+- **Resource**: ResourcePool, Resource, Subscription, Deployment, etc.
+- **Action**: create, read, update, delete, list, manage, execute
+- **Scope**: tenant (own resources), shared (cross-tenant), all (system admin)
+
+**Example Authorization**:
+```
+User: operator-1@smo-alpha
+Role: Operator (tenant: smo-alpha)
+Permissions:
+  - ResourcePool: manage (scope: tenant)
+  - Resource: manage (scope: tenant)
+  - Subscription: manage (scope: tenant)
+
+Result: Can CRUD resource pools ONLY within smo-alpha tenant
+```
+
+### Tenant Isolation Enforcement
+
+**Multi-Layer Isolation**:
+1. **API Layer**: Tenant middleware extracts and validates tenant from client cert
+2. **Handler Layer**: All list operations auto-filter by tenant
+3. **Adapter Layer**: Backend queries include tenant label selector
+4. **Kubernetes Layer**: All resources labeled with `o2ims.oran.org/tenant`
+
+**Kubernetes Label Strategy**:
+```yaml
+apiVersion: machine.openshift.io/v1beta1
+kind: MachineSet
+metadata:
+  labels:
+    o2ims.oran.org/tenant: smo-alpha  # REQUIRED for isolation
+    o2ims.oran.org/resource-pool-id: pool-123
+```
+
+### Tenant Quotas
+
+**Resource Limits**:
+- Max Resource Pools per tenant
+- Max Resources per tenant
+- Max Subscriptions per tenant
+- Max CPU cores (aggregate)
+- Max Memory GB (aggregate)
+- Max Storage GB (aggregate)
+
+**Enforcement**: Quotas checked before resource creation, 429 error if exceeded.
+
+### API Design
+
+**Admin API** (system-level, requires PlatformAdmin or TenantAdmin role):
+```
+POST   /admin/v1/tenants           # Create tenant
+GET    /admin/v1/tenants           # List tenants
+GET    /admin/v1/tenants/:id/users # Manage tenant users
+GET    /admin/v1/audit             # Query audit logs
+```
+
+**O2-IMS API** (automatically tenant-scoped):
+```
+GET    /o2ims/v1/resourcePools     # Lists ONLY tenant's pools
+POST   /o2ims/v1/resourcePools     # Creates in tenant's namespace
+GET    /o2ims/v1/resourcePools/:id # Validates tenant ownership
+```
+
+**For complete RBAC and multi-tenancy documentation, see [docs/rbac-multitenancy.md](docs/rbac-multitenancy.md).**
+
+## O2-DMS Extension (Deployment Management Services)
+
+### DMS Architecture Overview
+
+The netweave gateway can be extended to support **O2-DMS** (Deployment Management Services) alongside O2-IMS, enabling full lifecycle management of CNF deployments:
+
+```
+O2-SMO (Orchestrator)
+    ├─→ O2-IMS API (netweave) → Infrastructure Management
+    │                            (Resource Pools, Nodes)
+    └─→ O2-DMS API (netweave) → Deployment Management
+                                 (Helm Charts, CNF Instances)
+```
+
+**Key Capabilities**:
+- ✅ **Deployment Package Management**: Upload, store, version Helm charts and CNF packages
+- ✅ **CNF Lifecycle**: Deploy, scale, upgrade, rollback CNF instances
+- ✅ **Multi-Backend Support**: Helm, ArgoCD, custom deployment engines
+- ✅ **Unified Subscriptions**: Single webhook system for both infrastructure and deployment events
+- ✅ **End-to-End Workflows**: Infrastructure provisioning + CNF deployment in one API
+
+### DMS Adapters
+
+| Backend | Status | Deployments | Packages | Use Case |
+|---------|--------|------------|----------|----------|
+| **Helm** | 🔮 Future (v2.0) | Helm Releases | Helm Charts | Direct deployment control |
+| **ArgoCD** | 🔮 Future (v2.0) | Application | Git Repo | GitOps-based deployment |
+
+### Use Case: Deploy 5G vDU
+
+```
+1. SMO → O2-IMS: Create Resource Pool (infrastructure)
+2. SMO → O2-IMS: Subscribe to pool events
+3. SMO ← Webhook: Pool ready
+4. SMO → O2-DMS: Upload vDU CNF package (Helm chart)
+5. SMO → O2-DMS: Deploy vDU on infrastructure
+6. SMO ← Webhook: Deployment ready, vDU operational
+```
+
+**See [docs/o2dms-o2smo-extension.md](docs/o2dms-o2smo-extension.md) for complete DMS architecture, adapter interfaces, and implementation guide.**
 
 ## O2-IMS API Coverage
 
@@ -295,7 +544,9 @@ netweave/
 └── docs/
     ├── architecture.md          # ✅ Architecture (Part 1)
     ├── architecture-part2.md    # ✅ Architecture (Part 2)
-    └── api-mapping.md           # ✅ O2-IMS ↔ K8s mappings
+    ├── api-mapping.md           # ✅ O2-IMS ↔ K8s mappings
+    ├── o2dms-o2smo-extension.md # ✅ O2-DMS & O2-SMO integration
+    └── rbac-multitenancy.md     # ✅ RBAC & Multi-Tenancy design
 ```
 
 ## Next Steps - Implementation Phase
@@ -440,13 +691,28 @@ Target: 10 weeks to v1.0
 
 The **netweave O2-IMS Gateway** is fully architected and ready for implementation:
 
-✅ **Complete architecture** (100+ pages of documentation)
+✅ **Complete architecture** (150+ pages of documentation)
 ✅ **Production-grade foundation** (code quality, security, CI/CD)
 ✅ **Clear O2-IMS ↔ K8s mappings** (detailed transformations)
+✅ **Multi-backend adapter pattern** (Kubernetes, DTIAS, AWS, extensible)
+✅ **API versioning strategy** (v1/v2/v3, parallel support, graceful deprecation)
+✅ **O2-DMS extension design** (deployment management, CNF lifecycle)
+✅ **Enterprise multi-tenancy** (built-in from day 1, production-grade)
+✅ **Comprehensive RBAC** (system + tenant roles, fine-grained permissions)
 ✅ **High availability design** (99.9% uptime)
-✅ **Scalability model** (1000s req/s, multi-cluster)
-✅ **Security-first** (mTLS everywhere, zero-trust)
-✅ **Comprehensive documentation** (architecture, APIs, operations)
+✅ **Scalability model** (1000s req/s, multi-cluster, multi-tenant)
+✅ **Security-first** (mTLS everywhere, zero-trust, tenant isolation)
+✅ **Comprehensive documentation** (architecture, APIs, operations, RBAC)
+
+**Key Architecture Benefits**:
+- **Extensible Frontend**: Easy to evolve O2-IMS API with versioning
+- **Pluggable Backend**: Add new backends without frontend changes
+- **Vendor Independence**: Avoid lock-in through adapter abstraction
+- **Hybrid Deployments**: Mix cloud and bare-metal seamlessly
+- **Full Stack Coverage**: Infrastructure (O2-IMS) + Deployment (O2-DMS) in unified gateway
+- **Enterprise Multi-Tenancy**: Multiple SMO systems on single gateway with strict isolation
+- **Production RBAC**: Fine-grained access control from day 1
+- **SMO Integration Ready**: Support complete orchestration workflows
 
 **Ready to proceed with implementation!** 🚀
 
@@ -457,5 +723,7 @@ The **netweave O2-IMS Gateway** is fully architected and ready for implementatio
 For questions or clarifications, refer to:
 - Architecture: [docs/architecture.md](docs/architecture.md)
 - API Mappings: [docs/api-mapping.md](docs/api-mapping.md)
+- O2-DMS Extension: [docs/o2dms-o2smo-extension.md](docs/o2dms-o2smo-extension.md)
+- RBAC & Multi-Tenancy: [docs/rbac-multitenancy.md](docs/rbac-multitenancy.md)
 - Development: [CLAUDE.md](CLAUDE.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)

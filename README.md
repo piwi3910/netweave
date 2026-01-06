@@ -15,9 +15,11 @@
 
 - ✅ **O2-IMS Compliant**: Full implementation of O-RAN O2 Infrastructure Management Services specification
 - ✅ **Kubernetes Native**: Translates O2-IMS requests to native Kubernetes API operations
+- ✅ **Enterprise Multi-Tenancy**: Built-in from day 1 - support multiple SMO systems with strict resource isolation
+- ✅ **Comprehensive RBAC**: Fine-grained role-based access control with system and tenant roles
 - ✅ **Multi-Cluster Ready**: Deploy across single or multiple Kubernetes clusters with Redis-based state synchronization
 - ✅ **High Availability**: Stateless gateway pods with automatic failover (99.9% uptime)
-- ✅ **Production Security**: mTLS everywhere, zero-trust networking, comprehensive audit logging
+- ✅ **Production Security**: mTLS everywhere, zero-trust networking, tenant isolation, comprehensive audit logging
 - ✅ **Real-Time Notifications**: Webhook-based subscriptions for infrastructure change events
 - ✅ **Extensible Architecture**: Plugin-based adapter system for future backend integrations
 - ✅ **Enterprise Observability**: Prometheus metrics, Jaeger tracing, structured logging
@@ -25,9 +27,11 @@
 ### Use Cases
 
 1. **Telecom RAN Management**: Manage O-Cloud infrastructure for 5G RAN workloads via standard O2-IMS APIs
-2. **Multi-Vendor Disaggregation**: Abstract vendor-specific APIs behind O2-IMS standard interface
-3. **Cloud-Native Infrastructure**: Leverage Kubernetes for infrastructure lifecycle management
-4. **Subscription-Based Monitoring**: Real-time notifications of infrastructure changes to SMO systems
+2. **Multi-SMO Environments**: Single gateway supporting multiple SMO systems with isolated resources and quotas
+3. **Multi-Vendor Disaggregation**: Abstract vendor-specific APIs behind O2-IMS standard interface
+4. **Cloud-Native Infrastructure**: Leverage Kubernetes for infrastructure lifecycle management
+5. **Subscription-Based Monitoring**: Real-time notifications of infrastructure changes to SMO systems
+6. **Enterprise Access Control**: Fine-grained RBAC for different user roles across tenant boundaries
 
 ## Architecture
 
@@ -331,6 +335,8 @@ make quality
 
 - **[Architecture](docs/architecture.md)**: Comprehensive architecture documentation
 - **[API Mapping](docs/api-mapping.md)**: O2-IMS ↔ Kubernetes resource mappings
+- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)**: Enterprise multi-tenancy and access control
+- **[O2-DMS Extension](docs/o2dms-o2smo-extension.md)**: Deployment management services integration
 - **[Deployment Guide](docs/deployment.md)**: Single and multi-cluster deployment
 - **[Security](docs/security.md)**: Security architecture and mTLS configuration
 - **[Operations](docs/operations.md)**: Operational runbooks and procedures
