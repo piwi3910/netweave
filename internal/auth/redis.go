@@ -31,6 +31,133 @@ const (
 	auditEventTTL = 30 * 24 * time.Hour
 )
 
+// Lua script for atomic quota check and increment.
+// KEYS[1] = tenant key
+// ARGV[1] = usage type (subscriptions, resourcePools, deployments, users)
+// Returns: 1 if incremented successfully, 0 if quota exceeded, -1 if tenant not found.
+var incrementUsageScript = redis.NewScript(`
+local tenantData = redis.call('GET', KEYS[1])
+if not tenantData then
+    return -1
+end
+
+local tenant = cjson.decode(tenantData)
+local usageType = ARGV[1]
+local usage = tenant.usage or {}
+local quota = tenant.quota or {}
+
+local currentUsage = 0
+local maxQuota = 0
+
+if usageType == "subscriptions" then
+    currentUsage = usage.subscriptions or 0
+    maxQuota = quota.maxSubscriptions or 0
+elseif usageType == "resourcePools" then
+    currentUsage = usage.resourcePools or 0
+    maxQuota = quota.maxResourcePools or 0
+elseif usageType == "deployments" then
+    currentUsage = usage.deployments or 0
+    maxQuota = quota.maxDeployments or 0
+elseif usageType == "users" then
+    currentUsage = usage.users or 0
+    maxQuota = quota.maxUsers or 0
+else
+    return -2
+end
+
+if currentUsage >= maxQuota then
+    return 0
+end
+
+-- Increment usage
+if usageType == "subscriptions" then
+    tenant.usage.subscriptions = currentUsage + 1
+elseif usageType == "resourcePools" then
+    tenant.usage.resourcePools = currentUsage + 1
+elseif usageType == "deployments" then
+    tenant.usage.deployments = currentUsage + 1
+elseif usageType == "users" then
+    tenant.usage.users = currentUsage + 1
+end
+
+-- Update timestamp
+tenant.updatedAt = ARGV[2]
+
+redis.call('SET', KEYS[1], cjson.encode(tenant))
+return 1
+`)
+
+// Lua script for atomic user creation.
+// KEYS[1] = user key, KEYS[2] = subject index key, KEYS[3] = tenant user set key
+// ARGV[1] = user data JSON, ARGV[2] = user ID
+// Returns: 1 if created successfully, 0 if user ID exists, -1 if subject exists.
+var createUserScript = redis.NewScript(`
+local userKey = KEYS[1]
+local subjectKey = KEYS[2]
+local tenantSetKey = KEYS[3]
+local userData = ARGV[1]
+local userID = ARGV[2]
+
+-- Check if user ID already exists
+if redis.call('EXISTS', userKey) == 1 then
+    return 0
+end
+
+-- Check if subject already exists
+local existingID = redis.call('GET', subjectKey)
+if existingID and existingID ~= '' then
+    return -1
+end
+
+-- Create user atomically
+redis.call('SET', userKey, userData)
+redis.call('SET', subjectKey, userID)
+redis.call('SADD', tenantSetKey, userID)
+
+return 1
+`)
+
+// Lua script for atomic decrement.
+// KEYS[1] = tenant key
+// ARGV[1] = usage type
+// Returns: 1 if decremented successfully, -1 if tenant not found.
+var decrementUsageScript = redis.NewScript(`
+local tenantData = redis.call('GET', KEYS[1])
+if not tenantData then
+    return -1
+end
+
+local tenant = cjson.decode(tenantData)
+local usageType = ARGV[1]
+local usage = tenant.usage or {}
+
+if usageType == "subscriptions" then
+    if (usage.subscriptions or 0) > 0 then
+        tenant.usage.subscriptions = (usage.subscriptions or 0) - 1
+    end
+elseif usageType == "resourcePools" then
+    if (usage.resourcePools or 0) > 0 then
+        tenant.usage.resourcePools = (usage.resourcePools or 0) - 1
+    end
+elseif usageType == "deployments" then
+    if (usage.deployments or 0) > 0 then
+        tenant.usage.deployments = (usage.deployments or 0) - 1
+    end
+elseif usageType == "users" then
+    if (usage.users or 0) > 0 then
+        tenant.usage.users = (usage.users or 0) - 1
+    end
+else
+    return -2
+end
+
+-- Update timestamp
+tenant.updatedAt = ARGV[2]
+
+redis.call('SET', KEYS[1], cjson.encode(tenant))
+return 1
+`)
+
 // RedisConfig holds configuration for Redis connection.
 type RedisConfig struct {
 	// Addr is the Redis server address (host:port) for standalone mode.
@@ -150,6 +277,7 @@ func (r *RedisStore) Ping(ctx context.Context) error {
 }
 
 // CreateTenant creates a new tenant in Redis.
+// Uses SetNX for atomic creation to prevent race conditions.
 func (r *RedisStore) CreateTenant(ctx context.Context, tenant *Tenant) error {
 	if tenant.ID == "" {
 		return ErrInvalidTenantID
@@ -161,25 +289,24 @@ func (r *RedisStore) CreateTenant(ctx context.Context, tenant *Tenant) error {
 
 	key := tenantKeyPrefix + tenant.ID
 
-	// Check if tenant already exists.
-	exists, err := r.client.Exists(ctx, key).Result()
-	if err != nil {
-		return fmt.Errorf("failed to check tenant existence: %w", err)
-	}
-	if exists > 0 {
-		return ErrTenantExists
-	}
-
 	data, err := json.Marshal(tenant)
 	if err != nil {
 		return fmt.Errorf("failed to marshal tenant: %w", err)
 	}
 
-	pipe := r.client.Pipeline()
-	pipe.Set(ctx, key, data, 0)
-	pipe.SAdd(ctx, tenantSetKey, tenant.ID)
+	// Use SetNX for atomic creation - only sets if key doesn't exist.
+	wasSet, err := r.client.SetNX(ctx, key, data, 0).Result()
+	if err != nil {
+		return fmt.Errorf("failed to create tenant: %w", err)
+	}
+	if !wasSet {
+		return ErrTenantExists
+	}
 
-	if _, err := pipe.Exec(ctx); err != nil {
+	// Add to tenant set (this is idempotent, so safe even if there was a prior failure).
+	if err := r.client.SAdd(ctx, tenantSetKey, tenant.ID).Err(); err != nil {
+		// Rollback: delete the tenant key if we can't add to set.
+		r.client.Del(ctx, key)
 		return fmt.Errorf("failed to create tenant: %w", err)
 	}
 
@@ -297,81 +424,79 @@ func (r *RedisStore) ListTenants(ctx context.Context) ([]*Tenant, error) {
 }
 
 // IncrementUsage atomically increments a usage counter.
+// Uses a Lua script to ensure atomicity and prevent race conditions.
 func (r *RedisStore) IncrementUsage(ctx context.Context, tenantID, usageType string) error {
 	if tenantID == "" {
 		return ErrInvalidTenantID
 	}
 
-	tenant, err := r.GetTenant(ctx, tenantID)
-	if err != nil {
-		return err
-	}
-
-	// Check quota before incrementing.
+	// Validate usage type.
 	switch usageType {
-	case "subscriptions":
-		if tenant.Usage.Subscriptions >= tenant.Quota.MaxSubscriptions {
-			return ErrQuotaExceeded
-		}
-		tenant.Usage.Subscriptions++
-	case "resourcePools":
-		if tenant.Usage.ResourcePools >= tenant.Quota.MaxResourcePools {
-			return ErrQuotaExceeded
-		}
-		tenant.Usage.ResourcePools++
-	case "deployments":
-		if tenant.Usage.Deployments >= tenant.Quota.MaxDeployments {
-			return ErrQuotaExceeded
-		}
-		tenant.Usage.Deployments++
-	case "users":
-		if tenant.Usage.Users >= tenant.Quota.MaxUsers {
-			return ErrQuotaExceeded
-		}
-		tenant.Usage.Users++
+	case "subscriptions", "resourcePools", "deployments", "users":
+		// Valid usage type.
 	default:
 		return fmt.Errorf("unknown usage type: %s", usageType)
 	}
 
-	return r.UpdateTenant(ctx, tenant)
+	key := tenantKeyPrefix + tenantID
+	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
+
+	result, err := incrementUsageScript.Run(ctx, r.client, []string{key}, usageType, timestamp).Int()
+	if err != nil {
+		return fmt.Errorf("failed to increment usage: %w", err)
+	}
+
+	switch result {
+	case 1:
+		return nil
+	case 0:
+		return ErrQuotaExceeded
+	case -1:
+		return ErrTenantNotFound
+	case -2:
+		return fmt.Errorf("unknown usage type: %s", usageType)
+	default:
+		return fmt.Errorf("unexpected result from increment script: %d", result)
+	}
 }
 
 // DecrementUsage atomically decrements a usage counter.
+// Uses a Lua script to ensure atomicity and prevent race conditions.
 func (r *RedisStore) DecrementUsage(ctx context.Context, tenantID, usageType string) error {
 	if tenantID == "" {
 		return ErrInvalidTenantID
 	}
 
-	tenant, err := r.GetTenant(ctx, tenantID)
-	if err != nil {
-		return err
-	}
-
+	// Validate usage type.
 	switch usageType {
-	case "subscriptions":
-		if tenant.Usage.Subscriptions > 0 {
-			tenant.Usage.Subscriptions--
-		}
-	case "resourcePools":
-		if tenant.Usage.ResourcePools > 0 {
-			tenant.Usage.ResourcePools--
-		}
-	case "deployments":
-		if tenant.Usage.Deployments > 0 {
-			tenant.Usage.Deployments--
-		}
-	case "users":
-		if tenant.Usage.Users > 0 {
-			tenant.Usage.Users--
-		}
+	case "subscriptions", "resourcePools", "deployments", "users":
+		// Valid usage type.
 	default:
 		return fmt.Errorf("unknown usage type: %s", usageType)
 	}
 
-	return r.UpdateTenant(ctx, tenant)
+	key := tenantKeyPrefix + tenantID
+	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
+
+	result, err := decrementUsageScript.Run(ctx, r.client, []string{key}, usageType, timestamp).Int()
+	if err != nil {
+		return fmt.Errorf("failed to decrement usage: %w", err)
+	}
+
+	switch result {
+	case 1:
+		return nil
+	case -1:
+		return ErrTenantNotFound
+	case -2:
+		return fmt.Errorf("unknown usage type: %s", usageType)
+	default:
+		return fmt.Errorf("unexpected result from decrement script: %d", result)
+	}
 }
 
 // CreateUser creates a new user.
+// Uses a Lua script for atomic creation to prevent race conditions.
 func (r *RedisStore) CreateUser(ctx context.Context, user *TenantUser) error {
 	if user.ID == "" {
 		return ErrInvalidUserID
@@ -381,38 +506,33 @@ func (r *RedisStore) CreateUser(ctx context.Context, user *TenantUser) error {
 	user.CreatedAt = now
 	user.UpdatedAt = now
 
-	key := userKeyPrefix + user.ID
-
-	exists, err := r.client.Exists(ctx, key).Result()
-	if err != nil {
-		return fmt.Errorf("failed to check user existence: %w", err)
-	}
-	if exists > 0 {
-		return ErrUserExists
-	}
-
-	// Check if subject is already registered.
-	subjectKey := userSubjectIndex + user.Subject
-	existingID, err := r.client.Get(ctx, subjectKey).Result()
-	if err == nil && existingID != "" {
-		return ErrUserExists
-	}
-
 	data, err := json.Marshal(user)
 	if err != nil {
 		return fmt.Errorf("failed to marshal user: %w", err)
 	}
 
-	pipe := r.client.Pipeline()
-	pipe.Set(ctx, key, data, 0)
-	pipe.Set(ctx, subjectKey, user.ID, 0)
-	pipe.SAdd(ctx, userTenantIndex+user.TenantID, user.ID)
+	userKey := userKeyPrefix + user.ID
+	subjectKey := userSubjectIndex + user.Subject
+	tenantSetKey := userTenantIndex + user.TenantID
 
-	if _, err := pipe.Exec(ctx); err != nil {
+	result, err := createUserScript.Run(ctx, r.client,
+		[]string{userKey, subjectKey, tenantSetKey},
+		string(data), user.ID,
+	).Int()
+	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	return nil
+	switch result {
+	case 1:
+		return nil
+	case 0:
+		return ErrUserExists
+	case -1:
+		return ErrUserExists // Subject already exists
+	default:
+		return fmt.Errorf("unexpected result from create user script: %d", result)
+	}
 }
 
 // GetUser retrieves a user by ID.
@@ -569,6 +689,7 @@ func (r *RedisStore) UpdateLastLogin(ctx context.Context, userID string) error {
 }
 
 // CreateRole creates a new role.
+// Uses SetNX for atomic creation to prevent race conditions.
 func (r *RedisStore) CreateRole(ctx context.Context, role *Role) error {
 	if role.ID == "" {
 		return ErrInvalidRoleID
@@ -580,21 +701,22 @@ func (r *RedisStore) CreateRole(ctx context.Context, role *Role) error {
 
 	key := roleKeyPrefix + role.ID
 
-	exists, err := r.client.Exists(ctx, key).Result()
-	if err != nil {
-		return fmt.Errorf("failed to check role existence: %w", err)
-	}
-	if exists > 0 {
-		return ErrRoleExists
-	}
-
 	data, err := json.Marshal(role)
 	if err != nil {
 		return fmt.Errorf("failed to marshal role: %w", err)
 	}
 
-	pipe := r.client.Pipeline()
-	pipe.Set(ctx, key, data, 0)
+	// Use SetNX for atomic creation - only sets if key doesn't exist.
+	wasSet, err := r.client.SetNX(ctx, key, data, 0).Result()
+	if err != nil {
+		return fmt.Errorf("failed to create role: %w", err)
+	}
+	if !wasSet {
+		return ErrRoleExists
+	}
+
+	// Add to indices (these are idempotent operations).
+	pipe := r.client.TxPipeline()
 	pipe.SAdd(ctx, roleSetKey, role.ID)
 	pipe.Set(ctx, roleNameIndex+string(role.Name), role.ID, 0)
 
@@ -603,6 +725,8 @@ func (r *RedisStore) CreateRole(ctx context.Context, role *Role) error {
 	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
+		// Rollback: delete the role key if we can't add indices.
+		r.client.Del(ctx, key)
 		return fmt.Errorf("failed to create role: %w", err)
 	}
 
@@ -773,6 +897,7 @@ func (r *RedisStore) InitializeDefaultRoles(ctx context.Context) error {
 }
 
 // LogEvent creates a new audit event.
+// Uses sorted sets with timestamp scores for consistent TTL behavior.
 func (r *RedisStore) LogEvent(ctx context.Context, event *AuditEvent) error {
 	if event.ID == "" {
 		return fmt.Errorf("event ID is required")
@@ -788,24 +913,33 @@ func (r *RedisStore) LogEvent(ctx context.Context, event *AuditEvent) error {
 	}
 
 	key := auditKeyPrefix + event.ID
+	score := float64(event.Timestamp.UnixNano())
+	// Calculate expiration cutoff for cleanup (events older than TTL).
+	expirationCutoff := float64(time.Now().Add(-auditEventTTL).UnixNano())
 
-	pipe := r.client.Pipeline()
+	pipe := r.client.TxPipeline()
+
+	// Store the event with TTL.
 	pipe.Set(ctx, key, data, auditEventTTL)
-	pipe.LPush(ctx, auditListKey, event.ID)
-	pipe.LTrim(ctx, auditListKey, 0, 9999) // Keep last 10000 events.
+
+	// Use sorted sets with timestamp scores for better time-based queries.
+	pipe.ZAdd(ctx, auditListKey, redis.Z{Score: score, Member: event.ID})
+
+	// Cleanup old entries from sorted sets (older than TTL).
+	pipe.ZRemRangeByScore(ctx, auditListKey, "-inf", fmt.Sprintf("%f", expirationCutoff))
 
 	if event.TenantID != "" {
-		pipe.LPush(ctx, auditTenantIndex+event.TenantID, event.ID)
-		pipe.LTrim(ctx, auditTenantIndex+event.TenantID, 0, 999)
+		pipe.ZAdd(ctx, auditTenantIndex+event.TenantID, redis.Z{Score: score, Member: event.ID})
+		pipe.ZRemRangeByScore(ctx, auditTenantIndex+event.TenantID, "-inf", fmt.Sprintf("%f", expirationCutoff))
 	}
 
 	if event.UserID != "" {
-		pipe.LPush(ctx, auditUserIndex+event.UserID, event.ID)
-		pipe.LTrim(ctx, auditUserIndex+event.UserID, 0, 999)
+		pipe.ZAdd(ctx, auditUserIndex+event.UserID, redis.Z{Score: score, Member: event.ID})
+		pipe.ZRemRangeByScore(ctx, auditUserIndex+event.UserID, "-inf", fmt.Sprintf("%f", expirationCutoff))
 	}
 
-	pipe.LPush(ctx, auditTypeIndex+string(event.Type), event.ID)
-	pipe.LTrim(ctx, auditTypeIndex+string(event.Type), 0, 999)
+	pipe.ZAdd(ctx, auditTypeIndex+string(event.Type), redis.Z{Score: score, Member: event.ID})
+	pipe.ZRemRangeByScore(ctx, auditTypeIndex+string(event.Type), "-inf", fmt.Sprintf("%f", expirationCutoff))
 
 	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("failed to log audit event: %w", err)
@@ -815,6 +949,7 @@ func (r *RedisStore) LogEvent(ctx context.Context, event *AuditEvent) error {
 }
 
 // ListEvents retrieves audit events with optional filtering.
+// Uses ZREVRANGE on sorted sets for most recent events first.
 func (r *RedisStore) ListEvents(ctx context.Context, tenantID string, limit, offset int) ([]*AuditEvent, error) {
 	if limit <= 0 {
 		limit = 50
@@ -830,7 +965,8 @@ func (r *RedisStore) ListEvents(ctx context.Context, tenantID string, limit, off
 		listKey = auditListKey
 	}
 
-	ids, err := r.client.LRange(ctx, listKey, int64(offset), int64(offset+limit-1)).Result()
+	// Use ZREVRANGE to get most recent events first (highest scores).
+	ids, err := r.client.ZRevRange(ctx, listKey, int64(offset), int64(offset+limit-1)).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list audit event IDs: %w", err)
 	}
@@ -843,6 +979,7 @@ func (r *RedisStore) ListEvents(ctx context.Context, tenantID string, limit, off
 	for _, id := range ids {
 		event, err := r.getAuditEvent(ctx, id)
 		if err != nil {
+			// Skip events that have expired (their data no longer exists).
 			continue
 		}
 		events = append(events, event)
@@ -852,6 +989,7 @@ func (r *RedisStore) ListEvents(ctx context.Context, tenantID string, limit, off
 }
 
 // ListEventsByType retrieves audit events of a specific type.
+// Uses ZREVRANGE on sorted sets for most recent events first.
 func (r *RedisStore) ListEventsByType(ctx context.Context, eventType AuditEventType, limit int) ([]*AuditEvent, error) {
 	if limit <= 0 {
 		limit = 50
@@ -861,7 +999,7 @@ func (r *RedisStore) ListEventsByType(ctx context.Context, eventType AuditEventT
 	}
 
 	listKey := auditTypeIndex + string(eventType)
-	ids, err := r.client.LRange(ctx, listKey, 0, int64(limit-1)).Result()
+	ids, err := r.client.ZRevRange(ctx, listKey, 0, int64(limit-1)).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list audit events by type: %w", err)
 	}
@@ -874,6 +1012,7 @@ func (r *RedisStore) ListEventsByType(ctx context.Context, eventType AuditEventT
 	for _, id := range ids {
 		event, err := r.getAuditEvent(ctx, id)
 		if err != nil {
+			// Skip events that have expired.
 			continue
 		}
 		events = append(events, event)
@@ -883,6 +1022,7 @@ func (r *RedisStore) ListEventsByType(ctx context.Context, eventType AuditEventT
 }
 
 // ListEventsByUser retrieves audit events for a specific user.
+// Uses ZREVRANGE on sorted sets for most recent events first.
 func (r *RedisStore) ListEventsByUser(ctx context.Context, userID string, limit int) ([]*AuditEvent, error) {
 	if limit <= 0 {
 		limit = 50
@@ -892,7 +1032,7 @@ func (r *RedisStore) ListEventsByUser(ctx context.Context, userID string, limit 
 	}
 
 	listKey := auditUserIndex + userID
-	ids, err := r.client.LRange(ctx, listKey, 0, int64(limit-1)).Result()
+	ids, err := r.client.ZRevRange(ctx, listKey, 0, int64(limit-1)).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list audit events by user: %w", err)
 	}
@@ -905,6 +1045,7 @@ func (r *RedisStore) ListEventsByUser(ctx context.Context, userID string, limit 
 	for _, id := range ids {
 		event, err := r.getAuditEvent(ctx, id)
 		if err != nil {
+			// Skip events that have expired.
 			continue
 		}
 		events = append(events, event)

@@ -88,7 +88,7 @@ func (h *TenantHandler) CreateTenant(c *gin.Context) {
 		h.logger.Warn("invalid request body", zap.Error(err))
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
-			Message: "Invalid request body: " + err.Error(),
+			Message: "Invalid request body",
 			Code:    http.StatusBadRequest,
 		})
 		return
@@ -162,7 +162,7 @@ func (h *TenantHandler) GetTenant(c *gin.Context) {
 		if errors.Is(err, auth.ErrTenantNotFound) {
 			c.JSON(http.StatusNotFound, models.ErrorResponse{
 				Error:   "NotFound",
-				Message: "Tenant not found: " + tenantID,
+				Message: "Tenant not found",
 				Code:    http.StatusNotFound,
 			})
 			return
@@ -203,7 +203,7 @@ func (h *TenantHandler) UpdateTenant(c *gin.Context) {
 		h.logger.Warn("invalid request body", zap.Error(err))
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
-			Message: "Invalid request body: " + err.Error(),
+			Message: "Invalid request body",
 			Code:    http.StatusBadRequest,
 		})
 		return
@@ -215,7 +215,7 @@ func (h *TenantHandler) UpdateTenant(c *gin.Context) {
 		if errors.Is(err, auth.ErrTenantNotFound) {
 			c.JSON(http.StatusNotFound, models.ErrorResponse{
 				Error:   "NotFound",
-				Message: "Tenant not found: " + tenantID,
+				Message: "Tenant not found",
 				Code:    http.StatusNotFound,
 			})
 			return
@@ -295,7 +295,7 @@ func (h *TenantHandler) DeleteTenant(c *gin.Context) {
 		if errors.Is(err, auth.ErrTenantNotFound) {
 			c.JSON(http.StatusNotFound, models.ErrorResponse{
 				Error:   "NotFound",
-				Message: "Tenant not found: " + tenantID,
+				Message: "Tenant not found",
 				Code:    http.StatusNotFound,
 			})
 			return

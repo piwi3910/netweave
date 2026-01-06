@@ -1,14 +1,22 @@
 package auth
 
 import (
-	"fmt"
+	"context"
 	"net/http"
 	"strings"
+	"time"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
+
+// maxDNLength is the maximum allowed length for a DN string.
+const maxDNLength = 2048
+
+// maxDNValueLength is the maximum allowed length for a single DN attribute value.
+const maxDNValueLength = 256
 
 // MiddlewareConfig holds configuration for authentication middleware.
 type MiddlewareConfig struct {
@@ -91,6 +99,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 				)
 
 				m.logAuthFailure(c, "", "no client certificate")
+				RecordAuthenticationAttempt("failed", "mtls")
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 					"error":   "Unauthorized",
 					"message": "Client certificate required",
@@ -123,6 +132,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 				)
 
 				m.logAuthFailure(c, subject, "user not found")
+				RecordAuthenticationAttempt("failed", "mtls")
 				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 					"error":   "Forbidden",
 					"message": "User not registered in the system",
@@ -246,10 +256,14 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 		c.Request = c.Request.WithContext(ctx)
 
 		// Update last login timestamp (async, non-blocking).
+		// Use a new context with timeout since the request context may be cancelled.
+		userID := user.ID
 		go func() {
-			if err := m.store.UpdateLastLogin(c.Request.Context(), user.ID); err != nil {
+			asyncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := m.store.UpdateLastLogin(asyncCtx, userID); err != nil {
 				m.logger.Warn("failed to update last login",
-					zap.String("user_id", user.ID),
+					zap.String("user_id", userID),
 					zap.Error(err),
 				)
 			}
@@ -262,6 +276,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 			zap.String("request_id", requestID),
 		)
 
+		RecordAuthenticationAttempt("success", "mtls")
 		c.Next()
 	}
 }
@@ -297,13 +312,16 @@ func (m *Middleware) RequirePermission(permission Permission) gin.HandlerFunc {
 			)
 
 			m.logAccessDenied(c, user, permission)
+			RecordAuthorizationCheck("denied", permission)
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"error":   "Forbidden",
-				"message": fmt.Sprintf("Permission denied: %s", permission),
+				"message": "Insufficient permissions for this operation",
 				"code":    http.StatusForbidden,
 			})
 			return
 		}
+
+		RecordAuthorizationCheck("allowed", permission)
 
 		c.Next()
 	}
@@ -517,6 +535,18 @@ func (m *Middleware) parseXFCCHeader(xfcc string) *CertificateInfo {
 
 // parseDNHeader parses a DN (Distinguished Name) string.
 func (m *Middleware) parseDNHeader(dn string) *CertificateInfo {
+	// Validate DN length.
+	if len(dn) == 0 || len(dn) > maxDNLength {
+		m.logger.Warn("invalid DN length", zap.Int("length", len(dn)))
+		return nil
+	}
+
+	// Check for null bytes or other control characters.
+	if !isValidDNString(dn) {
+		m.logger.Warn("invalid characters in DN string")
+		return nil
+	}
+
 	cert := &CertificateInfo{
 		Subject: CertificateSubject{},
 	}
@@ -532,6 +562,17 @@ func (m *Middleware) parseDNHeader(dn string) *CertificateInfo {
 
 		key := strings.TrimSpace(kv[0])
 		value := strings.TrimSpace(kv[1])
+
+		// Validate key format (should be short attribute name).
+		if len(key) == 0 || len(key) > 20 || !isValidDNKey(key) {
+			continue
+		}
+
+		// Validate and sanitize value.
+		value = sanitizeDNValue(value)
+		if len(value) == 0 || len(value) > maxDNValueLength {
+			continue
+		}
 
 		switch strings.ToUpper(key) {
 		case "CN":
@@ -557,6 +598,39 @@ func (m *Middleware) parseDNHeader(dn string) *CertificateInfo {
 	}
 
 	return cert
+}
+
+// isValidDNString checks if the DN string contains only valid characters.
+func isValidDNString(s string) bool {
+	for _, r := range s {
+		// Reject control characters except for common whitespace.
+		if unicode.IsControl(r) && r != '\t' && r != ' ' {
+			return false
+		}
+	}
+	return true
+}
+
+// isValidDNKey checks if the DN attribute key is valid.
+func isValidDNKey(key string) bool {
+	for _, r := range key {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// sanitizeDNValue sanitizes a DN attribute value.
+func sanitizeDNValue(value string) string {
+	// Remove any control characters.
+	var result strings.Builder
+	for _, r := range value {
+		if !unicode.IsControl(r) || r == ' ' {
+			result.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(result.String())
 }
 
 // extractEmail returns the first email from the list.

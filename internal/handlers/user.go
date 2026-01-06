@@ -110,7 +110,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		h.logger.Warn("invalid request body", zap.Error(err))
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
-			Message: "Invalid request body: " + err.Error(),
+			Message: "Invalid request body",
 			Code:    http.StatusBadRequest,
 		})
 		return
@@ -132,7 +132,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		if errors.Is(err, auth.ErrRoleNotFound) {
 			c.JSON(http.StatusBadRequest, models.ErrorResponse{
 				Error:   "BadRequest",
-				Message: "Invalid role ID: " + req.RoleID,
+				Message: "Invalid role ID",
 				Code:    http.StatusBadRequest,
 			})
 			return
@@ -232,7 +232,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		if errors.Is(err, auth.ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, models.ErrorResponse{
 				Error:   "NotFound",
-				Message: "User not found: " + userID,
+				Message: "User not found",
 				Code:    http.StatusNotFound,
 			})
 			return
@@ -284,7 +284,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		h.logger.Warn("invalid request body", zap.Error(err))
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
-			Message: "Invalid request body: " + err.Error(),
+			Message: "Invalid request body",
 			Code:    http.StatusBadRequest,
 		})
 		return
@@ -296,7 +296,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		if errors.Is(err, auth.ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, models.ErrorResponse{
 				Error:   "NotFound",
-				Message: "User not found: " + userID,
+				Message: "User not found",
 				Code:    http.StatusNotFound,
 			})
 			return
@@ -332,7 +332,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 			if errors.Is(err, auth.ErrRoleNotFound) {
 				c.JSON(http.StatusBadRequest, models.ErrorResponse{
 					Error:   "BadRequest",
-					Message: "Invalid role ID: " + req.RoleID,
+					Message: "Invalid role ID",
 					Code:    http.StatusBadRequest,
 				})
 				return
@@ -419,7 +419,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		if errors.Is(err, auth.ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, models.ErrorResponse{
 				Error:   "NotFound",
-				Message: "User not found: " + userID,
+				Message: "User not found",
 				Code:    http.StatusNotFound,
 			})
 			return
