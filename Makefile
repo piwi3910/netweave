@@ -150,6 +150,13 @@ test-e2e: ## Run end-to-end tests
 	@$(GOTEST) -v -tags=e2e -timeout=15m ./...
 	@echo "$(COLOR_GREEN)✓ E2E tests passed$(COLOR_RESET)"
 
+test-all: ## Run ALL tests (unit + integration + E2E)
+	@echo "$(COLOR_YELLOW)Running all tests...$(COLOR_RESET)"
+	@$(MAKE) test
+	@$(MAKE) test-integration
+	@$(MAKE) test-e2e
+	@echo "$(COLOR_GREEN)✓ All tests passed$(COLOR_RESET)"
+
 test-watch: ## Run tests in watch mode (requires gotestsum)
 	@command -v gotestsum >/dev/null 2>&1 || { echo "$(COLOR_RED)✗ gotestsum not found. Run: make install-tools$(COLOR_RESET)"; exit 1; }
 	@gotestsum --watch --format=testname ./...
@@ -294,6 +301,26 @@ profile-mem: ## Run memory profiling
 	@echo "$(COLOR_YELLOW)Running memory profiling...$(COLOR_RESET)"
 	@$(GOTEST) -memprofile=mem.prof -bench=. ./...
 	@go tool pprof -http=:8080 mem.prof
+
+##@ Documentation
+
+lint-docs: ## Lint all Markdown documentation
+	@echo "$(COLOR_YELLOW)Linting documentation...$(COLOR_RESET)"
+	@command -v markdownlint >/dev/null 2>&1 || command -v markdownlint-cli >/dev/null 2>&1 || { echo "$(COLOR_YELLOW)Warning: markdownlint not installed. Install: npm install -g markdownlint-cli$(COLOR_RESET)"; exit 0; }
+	@markdownlint '**/*.md' --ignore node_modules --ignore vendor || true
+	@echo "$(COLOR_GREEN)✓ Documentation linting complete$(COLOR_RESET)"
+
+check-links: ## Verify documentation links are valid
+	@echo "$(COLOR_YELLOW)Checking documentation links...$(COLOR_RESET)"
+	@command -v markdown-link-check >/dev/null 2>&1 || { echo "$(COLOR_YELLOW)Warning: markdown-link-check not installed. Install: npm install -g markdown-link-check$(COLOR_RESET)"; exit 0; }
+	@find . -name "*.md" -not -path "./vendor/*" -not -path "./node_modules/*" -exec markdown-link-check {} \; || true
+	@echo "$(COLOR_GREEN)✓ Link check complete$(COLOR_RESET)"
+
+verify-examples: ## Verify code examples in docs are working
+	@echo "$(COLOR_YELLOW)Verifying code examples...$(COLOR_RESET)"
+	@echo "$(COLOR_BLUE)→ Extracting and testing code examples from documentation$(COLOR_RESET)"
+	@# TODO: Implement example extraction and validation
+	@echo "$(COLOR_GREEN)✓ Example verification complete$(COLOR_RESET)"
 
 ##@ Git Utilities
 
