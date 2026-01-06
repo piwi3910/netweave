@@ -3,7 +3,7 @@
 // NOTE: Many tests in this file verify stub implementations that return "not implemented"
 // errors. These tests ensure the adapter interface is correctly implemented and will be
 // updated when the actual Kubernetes API integrations are completed.
-// TODO(issue#3): Update stub tests with real implementation tests when K8s operations are implemented.
+// TODO(#3): Update stub tests with real implementation tests when K8s operations are implemented.
 package kubernetes
 
 import (
@@ -473,7 +473,7 @@ func TestConfigDefaults(t *testing.T) {
 
 // Tests for boundary conditions and edge cases
 // Consolidated table-driven test for empty ID boundary conditions on Get operations.
-// TODO(issue#3): When implemented, these should return ErrNotFound or similar validation errors.
+// TODO(#3): When implemented, these should return ErrNotFound or similar validation errors.
 
 func TestKubernetesAdapter_GetOperations_EmptyID(t *testing.T) {
 	adp := newTestAdapter(t)
@@ -526,7 +526,7 @@ func TestKubernetesAdapter_GetOperations_EmptyID(t *testing.T) {
 }
 
 // Consolidated table-driven test for empty ID boundary conditions on Delete operations.
-// TODO(issue#3): When implemented, these should return ErrNotFound or similar validation errors.
+// TODO(#3): When implemented, these should return ErrNotFound or similar validation errors.
 
 func TestKubernetesAdapter_DeleteOperations_EmptyID(t *testing.T) {
 	adp := newTestAdapter(t)
@@ -895,7 +895,7 @@ func TestKubernetesAdapter_ListResourcePools_NegativePagination(t *testing.T) {
 
 	pools, err := adp.ListResourcePools(ctx, filter)
 
-	// TODO(issue#3): When implemented, should return validation error for negative values
+	// TODO(#3): When implemented, should return validation error for negative values
 	require.Error(t, err)
 	assert.Nil(t, pools)
 	assert.Contains(t, err.Error(), "not implemented")
@@ -912,7 +912,7 @@ func TestKubernetesAdapter_ListResources_NegativePagination(t *testing.T) {
 
 	resources, err := adp.ListResources(ctx, filter)
 
-	// TODO(issue#3): When implemented, should return validation error for negative values
+	// TODO(#3): When implemented, should return validation error for negative values
 	require.Error(t, err)
 	assert.Nil(t, resources)
 	assert.Contains(t, err.Error(), "not implemented")
