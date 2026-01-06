@@ -195,16 +195,16 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*applicationC
 	)
 
 	// Load OpenAPI specification for documentation endpoints
-	if spec, err := loadOpenAPISpec(logger); err != nil {
-		logger.Warn("failed to load OpenAPI specification, docs will be unavailable",
-			zap.Error(err),
-		)
-	} else {
-		srv.SetOpenAPISpec(spec)
-		logger.Info("OpenAPI specification loaded",
-			zap.Int("size", len(spec)),
-		)
+	// This is fail-fast - server won't start without a valid OpenAPI spec
+	spec, err := loadOpenAPISpec(logger)
+	if err != nil {
+		logger.Error("failed to load OpenAPI specification", zap.Error(err))
+		return nil, fmt.Errorf("failed to load OpenAPI specification: %w", err)
 	}
+	srv.SetOpenAPISpec(spec)
+	logger.Info("OpenAPI specification loaded",
+		zap.Int("size", len(spec)),
+	)
 
 	return &applicationComponents{
 		store:         store,

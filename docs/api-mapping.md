@@ -8,16 +8,16 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Request Validation](#request-validation)
-3. [Multi-Backend Adapter Routing](#multi-backend-adapter-routing)
-4. [API Versioning and Evolution](#api-versioning-and-evolution)
-5. [Deployment Manager](#deployment-manager)
-6. [Resource Pools](#resource-pools)
-7. [Resources](#resources)
-8. [Resource Types](#resource-types)
-9. [Subscriptions](#subscriptions)
-10. [Data Transformation Examples](#data-transformation-examples)
-11. [Backend-Specific Mappings](#backend-specific-mappings)
+2. [Multi-Backend Adapter Routing](#multi-backend-adapter-routing)
+3. [API Versioning and Evolution](#api-versioning-and-evolution)
+4. [Deployment Manager](#deployment-manager)
+5. [Resource Pools](#resource-pools)
+6. [Resources](#resources)
+7. [Resource Types](#resource-types)
+8. [Subscriptions](#subscriptions)
+9. [Data Transformation Examples](#data-transformation-examples)
+10. [Backend-Specific Mappings](#backend-specific-mappings)
+11. [API Documentation Endpoints](#api-documentation-endpoints)
 
 ---
 
@@ -47,152 +47,6 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 | Subscription | Redis (O2-IMS specific) | ✅ Full | CRUD |
 
 ---
-
-## Request Validation
-
-All API requests are validated against the OpenAPI 3.0 specification before being processed by handlers. This ensures O2-IMS compliance and provides clear error messages for invalid requests.
-
-### Validation Rules
-
-**Request Body Validation**:
-- All required fields must be present
-- Field types must match schema definitions (string, integer, object, etc.)
-- String formats are validated (URI for callbacks, UUID for IDs)
-- Nested objects are recursively validated
-
-**Parameter Validation**:
-- Path parameters (e.g., `/subscriptions/{subscriptionId}`) must be valid
-- Query parameters are type-checked and validated
-- Required parameters must be provided
-
-**Body Size Limits**:
-- Maximum request body size: **1MB** (configurable)
-- Requests exceeding this limit are rejected with `413 Payload Too Large`
-
-### Excluded Paths
-
-The following paths are excluded from validation (health/monitoring):
-- `/health` - Health check endpoint
-- `/ready` - Readiness probe
-- `/metrics` - Prometheus metrics
-- `/debug/*` - Debug endpoints
-
-### Error Response Format
-
-Validation errors return a standardized JSON response:
-
-```json
-{
-  "error": "ValidationError",
-  "message": "Request body validation failed: missing required field",
-  "code": 400
-}
-```
-
-**Common Validation Errors**:
-
-| Error Message | Cause | Solution |
-|---------------|-------|----------|
-| `missing required field` | Required field not provided | Add the missing field to request body |
-| `invalid field type` | Wrong data type (e.g., string instead of number) | Check field type in API spec |
-| `Invalid parameter 'X'` | Invalid path/query parameter | Verify parameter format |
-| `Request body too large` | Body exceeds size limit | Reduce payload size or check configuration |
-
-### Validation Examples
-
-**Valid Request**:
-```bash
-curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "callback": "https://smo.example.com/notify",
-    "consumerSubscriptionId": "smo-sub-123"
-  }'
-# Response: 201 Created
-```
-
-**Invalid Request (Missing Required Field)**:
-```bash
-curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "consumerSubscriptionId": "smo-sub-123"
-  }'
-# Response: 400 Bad Request
-# {"error":"ValidationError","message":"Request body validation failed: missing required field","code":400}
-```
-
-**Invalid Request (Wrong Type)**:
-```bash
-curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "callback": 12345,
-    "consumerSubscriptionId": "smo-sub-123"
-  }'
-# Response: 400 Bad Request
-# {"error":"ValidationError","message":"Request body validation failed: invalid field type","code":400}
-```
-
-### Configuration
-
-Validation behavior can be configured via environment variables or config file:
-
-```yaml
-# config.yaml
-validation:
-  enabled: true              # Enable/disable request validation
-  validate_response: false   # Response validation (dev/test only)
-  max_body_size: 1048576     # Max body size in bytes (1MB)
-```
-
-**Environment Variables**:
-- `VALIDATION_ENABLED=true` - Enable request validation
-- `VALIDATION_RESPONSE=false` - Enable response validation
-- `VALIDATION_MAX_BODY_SIZE=1048576` - Maximum body size
-
-### Troubleshooting
-
-**Problem**: All requests return 400 validation errors
-- **Check**: Verify `Content-Type: application/json` header is set
-- **Check**: Ensure request body is valid JSON
-
-**Problem**: Request body too large errors
-- **Check**: Review payload size
-- **Solution**: Increase `max_body_size` configuration if needed
-
-**Problem**: Missing required field errors
-- **Check**: Review OpenAPI spec at `api/openapi/o2ims.yaml`
-- **Solution**: Add all required fields to request
-
-**Problem**: Validation not working (requests pass without validation)
-- **Check**: Ensure `validation.enabled: true` in config
-- **Check**: Verify OpenAPI spec is loaded (check startup logs)
-
-### Memory Implications
-
-**Request Body Buffering**:
-- Request bodies up to `max_body_size` (default 1MB) are buffered in memory for validation
-- Each concurrent request with a body consumes memory proportional to its size
-- With 100 concurrent requests of 1MB each, peak memory usage could reach 100MB+ just for request bodies
-
-**Recommendations**:
-- **Production sizing**: Plan for `max_body_size × max_concurrent_requests` additional memory
-- **Reduce max_body_size**: If your API payloads are small, reduce the limit (e.g., 64KB for subscriptions)
-- **Monitor memory**: Use Prometheus metrics to track memory usage patterns
-- **Response validation**: Only enable `validate_response: true` in development - it doubles memory usage per request
-
-**Example Memory Planning**:
-```
-Scenario: 50 concurrent requests, 1MB max body size
-Request body memory: 50 × 1MB = 50MB
-Safety margin: 2x for GC overhead
-Recommended additional memory: 100MB
-
-For high-throughput scenarios:
-- Consider reducing max_body_size to 256KB
-- Use streaming for large payloads (bypass validation)
-```
 
 ## Multi-Backend Adapter Routing
 
@@ -1753,101 +1607,6 @@ func (a *AWSAdapter) transformEC2InstanceToResource(
 }
 ```
 
-### Azure Adapter Mappings
-
-For Azure cloud deployments, the adapter uses Azure SDK to manage infrastructure:
-
-| O2-IMS Resource | Azure Resource | Azure API | Transformation Notes |
-|-----------------|----------------|-----------|----------------------|
-| Deployment Manager | Resource Group | `ResourceGroups.Get` | Resource group metadata |
-| Resource Pool | VM Scale Set | `VirtualMachineScaleSets` | Auto-scaling VM group |
-| Resource | Virtual Machine | `VirtualMachines` | Individual VM in scale set |
-| Resource Type | VM Size | `VirtualMachineSizes` | Standard_D4s_v3, etc. |
-
-**Example Transformation: Azure VMSS → O2-IMS ResourcePool**
-
-```go
-func (a *AzureAdapter) vmssToResourcePool(vmss *armcompute.VirtualMachineScaleSet) *adapter.ResourcePool {
-    return &adapter.ResourcePool{
-        ResourcePoolID: fmt.Sprintf("azure-vmss-%s", *vmss.Name),
-        Name:           *vmss.Name,
-        Description:    fmt.Sprintf("Azure VM Scale Set in %s", *vmss.Location),
-        Location:       *vmss.Location,
-        OCloudID:       a.oCloudID,
-        Extensions: map[string]interface{}{
-            "azure.resourceGroup":  a.resourceGroup,
-            "azure.vmSize":         *vmss.Properties.VirtualMachineProfile.HardwareProfile.VMSize,
-            "azure.capacity":       *vmss.SKU.Capacity,
-            "azure.provisioningState": *vmss.Properties.ProvisioningState,
-        },
-    }
-}
-```
-
-### GCP Adapter Mappings
-
-For Google Cloud deployments, the adapter uses GCP Compute Engine API:
-
-| O2-IMS Resource | GCP Resource | GCP API | Transformation Notes |
-|-----------------|--------------|---------|----------------------|
-| Deployment Manager | Project | `Projects.Get` | Project metadata |
-| Resource Pool | Instance Group | `InstanceGroupManagers` | Managed instance group |
-| Resource | Compute Instance | `Instances` | Individual VM in group |
-| Resource Type | Machine Type | `MachineTypes` | n2-standard-4, etc. |
-
-**Example Transformation: GCP Instance Group → O2-IMS ResourcePool**
-
-```go
-func (a *GCPAdapter) instanceGroupToResourcePool(ig *compute.InstanceGroupManager) *adapter.ResourcePool {
-    return &adapter.ResourcePool{
-        ResourcePoolID: fmt.Sprintf("gcp-mig-%s", ig.Name),
-        Name:           ig.Name,
-        Description:    fmt.Sprintf("GCP Managed Instance Group in %s", ig.Zone),
-        Location:       ig.Zone,
-        OCloudID:       a.oCloudID,
-        Extensions: map[string]interface{}{
-            "gcp.project":       a.projectID,
-            "gcp.zone":          ig.Zone,
-            "gcp.targetSize":    ig.TargetSize,
-            "gcp.instanceTemplate": ig.InstanceTemplate,
-            "gcp.status":        ig.Status,
-        },
-    }
-}
-```
-
-### VMware vSphere Adapter Mappings
-
-For VMware vSphere deployments, the adapter uses govmomi client:
-
-| O2-IMS Resource | VMware Resource | VMware API | Transformation Notes |
-|-----------------|-----------------|------------|----------------------|
-| Deployment Manager | vCenter | `ServiceContent` | vCenter metadata |
-| Resource Pool | Resource Pool | `ResourcePool` | vSphere resource pool |
-| Resource | Virtual Machine | `VirtualMachine` | VM within resource pool |
-| Resource Type | VM Configuration | `VirtualMachineConfigInfo` | CPU/memory specifications |
-
-**Example Transformation: VMware ResourcePool → O2-IMS ResourcePool**
-
-```go
-func (a *VMwareAdapter) vspherePoolToResourcePool(pool *object.ResourcePool) *adapter.ResourcePool {
-    return &adapter.ResourcePool{
-        ResourcePoolID: fmt.Sprintf("vmware-pool-%s", pool.Reference().Value),
-        Name:           pool.Name(),
-        Description:    fmt.Sprintf("VMware Resource Pool %s", pool.Name()),
-        Location:       a.datacenter,
-        OCloudID:       a.oCloudID,
-        Extensions: map[string]interface{}{
-            "vmware.moRef":       pool.Reference().Value,
-            "vmware.datacenter":  a.datacenter,
-            "vmware.cluster":     a.cluster,
-            "vmware.cpuLimit":    pool.Config.CpuAllocation.Limit,
-            "vmware.memoryLimit": pool.Config.MemoryAllocation.Limit,
-        },
-    }
-}
-```
-
 ### Comparison: Multi-Backend Resource Pool Creation
 
 **Same O2-IMS Request, Different Backend Actions**:
@@ -1928,10 +1687,10 @@ eksClient.CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 
 **Mapping Completeness**:
 - ✅ Deployment Manager → Custom Resource (metadata)
-- ✅ Resource Pool → MachineSet / DTIAS Pool / AWS NodeGroup / Azure VMSS / GCP MIG / VMware Pool (full CRUD)
-- ✅ Resource → Node/Machine / DTIAS Server / EC2 Instance / Azure VM / GCP Instance / VMware VM (full CRUD)
-- ✅ Resource Type → Aggregated from Nodes + StorageClasses + Provider Catalogs + Cloud Instance Types
-- ✅ Subscription → Redis + K8s Informers / DTIAS Webhooks / Cloud Events (full CRUD + webhooks)
+- ✅ Resource Pool → MachineSet / DTIAS Pool / AWS NodeGroup (full CRUD)
+- ✅ Resource → Node/Machine / DTIAS Server / EC2 Instance (full CRUD)
+- ✅ Resource Type → Aggregated from Nodes + StorageClasses + Provider Catalogs
+- ✅ Subscription → Redis + K8s Informers / DTIAS Webhooks / AWS EventBridge (full CRUD + webhooks)
 
 **Key Principles**:
 1. Use native K8s resources where possible
@@ -1944,8 +1703,161 @@ eksClient.CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 8. **Abstract backend complexity from SMO clients**
 
 **Future Extensions**:
+- Additional adapters (OpenStack, VMware, Azure)
 - Advanced filtering (complex queries)
 - Batch operations
 - Custom resource definitions for all O2-IMS types
 - Cross-backend resource migration
-- Additional cloud providers (Oracle Cloud, IBM Cloud, Alibaba Cloud)
+
+---
+
+## API Documentation Endpoints
+
+The netweave gateway provides interactive API documentation through Swagger UI and OpenAPI specifications.
+
+### Available Endpoints
+
+| Endpoint | Method | Description | Content-Type |
+|----------|--------|-------------|--------------|
+| `/docs/` | GET | Swagger UI interactive documentation | `text/html` |
+| `/docs/openapi.yaml` | GET | OpenAPI 3.0 specification (YAML) | `application/x-yaml` |
+| `/docs/openapi.json` | GET | OpenAPI 3.0 specification (YAML) | `application/x-yaml` |
+| `/openapi.yaml` | GET | OpenAPI 3.0 specification (root path) | `application/x-yaml` |
+| `/openapi.json` | GET | OpenAPI 3.0 specification (root path) | `application/x-yaml` |
+
+### Swagger UI
+
+The interactive Swagger UI is available at `/docs/` and provides:
+
+- **Interactive API exploration**: Try out API endpoints directly from the browser
+- **Request/response examples**: View example payloads for all endpoints
+- **Authentication support**: Configure API credentials for testing
+- **Schema visualization**: Explore data models and their relationships
+
+**Security Features**:
+- Pinned Swagger UI version (5.11.0) for reproducibility
+- Subresource Integrity (SRI) hashes for all CDN resources
+- Content Security Policy (CSP) headers to restrict resource loading
+- X-Content-Type-Options, X-Frame-Options, and Referrer-Policy headers
+
+### OpenAPI Specification
+
+The OpenAPI 3.0 specification covers all O2-IMS API endpoints:
+
+```yaml
+openapi: 3.0.3
+info:
+  title: O2-IMS API
+  version: 1.0.0
+  description: O-RAN O2 Interface Management Services API
+
+paths:
+  /o2ims/v1/deploymentManagers:
+    get:
+      summary: List deployment managers
+      tags: [Deployment Managers]
+
+  /o2ims/v1/resourcePools:
+    get:
+      summary: List resource pools
+      tags: [Resource Pools]
+    post:
+      summary: Create resource pool
+      tags: [Resource Pools]
+
+  /o2ims/v1/resources:
+    get:
+      summary: List resources
+      tags: [Resources]
+
+  /o2ims/v1/resourceTypes:
+    get:
+      summary: List resource types
+      tags: [Resource Types]
+
+  /o2ims/v1/subscriptions:
+    get:
+      summary: List subscriptions
+      tags: [Subscriptions]
+    post:
+      summary: Create subscription
+      tags: [Subscriptions]
+
+  /o2ims/v1/oCloudInfrastructure:
+    get:
+      summary: Get O-Cloud infrastructure info
+      tags: [Infrastructure]
+```
+
+### Usage Examples
+
+**Access Swagger UI**:
+```bash
+# Open in browser
+open https://netweave.example.com/docs/
+
+# Or with curl
+curl -X GET https://netweave.example.com/docs/ \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt
+```
+
+**Fetch OpenAPI Specification**:
+```bash
+# YAML format
+curl -X GET https://netweave.example.com/docs/openapi.yaml \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt \
+  -H "Accept: application/x-yaml"
+
+# Also available at root path
+curl -X GET https://netweave.example.com/openapi.yaml \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt
+```
+
+**Import into API Tools**:
+```bash
+# Postman import
+curl -s https://netweave.example.com/openapi.yaml | \
+  pbcopy  # Copy to clipboard for import
+
+# Generate client SDK
+openapi-generator generate \
+  -i https://netweave.example.com/openapi.yaml \
+  -g python \
+  -o ./generated-client
+```
+
+### Response Headers
+
+Documentation endpoints include security-focused response headers:
+
+| Header | Value | Purpose |
+|--------|-------|---------|
+| `Content-Type` | `text/html; charset=utf-8` | Response content type |
+| `Content-Security-Policy` | Restricted policy | Prevent XSS and injection attacks |
+| `X-Content-Type-Options` | `nosniff` | Prevent MIME type sniffing |
+| `X-Frame-Options` | `DENY` | Prevent clickjacking |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Control referrer information |
+| `Cache-Control` | `public, max-age=3600` | Cache OpenAPI spec for 1 hour |
+
+### Error Responses
+
+| Status | Description | Response |
+|--------|-------------|----------|
+| 200 | Success | Documentation content |
+| 301 | Redirect | Redirects `/docs` to `/docs/` |
+| 404 | Not Found | OpenAPI specification not loaded |
+
+**404 Response Example**:
+```json
+{
+  "error": "NotFound",
+  "message": "OpenAPI specification not loaded",
+  "code": 404
+}
+```

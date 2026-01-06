@@ -248,3 +248,70 @@ func TestSwaggerUIVersionPinning(t *testing.T) {
 	assert.Contains(t, swaggerUIBundleURL, swaggerUIVersion)
 	assert.Contains(t, swaggerUIPresetURL, swaggerUIVersion)
 }
+
+func TestSwaggerUISecurityHeaders(t *testing.T) {
+	// Set Gin to test mode
+	gin.SetMode(gin.TestMode)
+
+	srv := createTestServer()
+	srv.router.GET("/docs/", srv.handleSwaggerUI)
+
+	req := httptest.NewRequest(http.MethodGet, "/docs/", nil)
+	w := httptest.NewRecorder()
+	srv.router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Verify security headers
+	assert.Equal(t, "text/html; charset=utf-8", w.Header().Get("Content-Type"))
+	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+	assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
+	assert.Equal(t, "strict-origin-when-cross-origin", w.Header().Get("Referrer-Policy"))
+
+	// Verify CSP is set and contains required directives
+	csp := w.Header().Get("Content-Security-Policy")
+	assert.NotEmpty(t, csp)
+	assert.Contains(t, csp, "default-src 'self'")
+	assert.Contains(t, csp, "script-src")
+	assert.Contains(t, csp, "style-src")
+	assert.Contains(t, csp, "https://unpkg.com")
+}
+
+func TestSwaggerUISRIHashes(t *testing.T) {
+	// Set Gin to test mode
+	gin.SetMode(gin.TestMode)
+
+	srv := createTestServer()
+	srv.router.GET("/docs/", srv.handleSwaggerUI)
+
+	req := httptest.NewRequest(http.MethodGet, "/docs/", nil)
+	w := httptest.NewRecorder()
+	srv.router.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Verify SRI hashes are present
+	assert.Contains(t, body, swaggerUICSSSRI)
+	assert.Contains(t, body, swaggerUIBundleSRI)
+	assert.Contains(t, body, swaggerUIPresetSRI)
+
+	// Verify integrity attributes are properly formatted
+	assert.Contains(t, body, `integrity="`+swaggerUICSSSRI+`"`)
+	assert.Contains(t, body, `integrity="`+swaggerUIBundleSRI+`"`)
+	assert.Contains(t, body, `integrity="`+swaggerUIPresetSRI+`"`)
+
+	// Verify crossorigin attributes
+	assert.Equal(t, 3, strings.Count(body, `crossorigin="anonymous"`))
+}
+
+func TestSwaggerUICSPConstants(t *testing.T) {
+	// Verify CSP constant is properly defined
+	assert.NotEmpty(t, swaggerUICSP)
+	assert.Contains(t, swaggerUICSP, "default-src 'self'")
+	assert.Contains(t, swaggerUICSP, "script-src")
+	assert.Contains(t, swaggerUICSP, "style-src")
+	assert.Contains(t, swaggerUICSP, "img-src")
+	assert.Contains(t, swaggerUICSP, "font-src")
+	assert.Contains(t, swaggerUICSP, "connect-src 'self'")
+	assert.Contains(t, swaggerUICSP, "https://unpkg.com")
+}
