@@ -117,50 +117,47 @@ graph TB
 
 ### System Context
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                     External Systems                             │
-│                                                                  │
-│  ┌──────────────┐      ┌──────────────┐      ┌──────────────┐  │
-│  │   O2 SMO     │      │ Monitoring   │      │  Logging     │  │
-│  │   (Client)   │      │ (Prometheus) │      │  (ELK/Loki)  │  │
-│  └──────────────┘      └──────────────┘      └──────────────┘  │
-│         │                      │                      │         │
-└─────────┼──────────────────────┼──────────────────────┼─────────┘
-          │ O2-IMS               │ Metrics              │ Logs
-          │ (HTTPS/mTLS)         │ (Prometheus)         │ (JSON)
-          ▼                      ▼                      ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                    netweave O2-IMS Gateway                       │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  Gateway Layer                                             │ │
-│  │  • O2-IMS API Implementation                              │ │
-│  │  • Request Validation (OpenAPI)                           │ │
-│  │  • Authentication/Authorization                           │ │
-│  │  • Rate Limiting                                          │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  Translation Layer                                         │ │
-│  │  • O2-IMS ↔ Kubernetes Mapping                           │ │
-│  │  • Data Transformation                                     │ │
-│  │  • Error Translation                                       │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  Adapter Layer                                             │ │
-│  │  • Kubernetes Adapter (active)                            │ │
-│  │  • Future Adapters (Dell DTIAS, etc.)                     │ │
-│  └────────────────────────────────────────────────────────────┘ │
-└──────────────┬───────────────────────────────┬──────────────────┘
-               │                               │
-               │ K8s API                       │ Redis Protocol
-               │ (gRPC/HTTPS)                  │ (RESP)
-               ▼                               ▼
-┌──────────────────────────┐    ┌──────────────────────────┐
-│  Kubernetes Cluster      │    │  Redis Sentinel Cluster  │
-│  • Nodes                 │    │  • Master + Replicas     │
-│  • Workloads             │    │  • Automatic Failover    │
-│  • Storage               │    │  • Persistence (AOF+RDB) │
-└──────────────────────────┘    └──────────────────────────┘
+```mermaid
+graph TB
+    subgraph External [External Systems]
+        SMO[O2 SMO Client]
+        Prom[Prometheus<br/>Monitoring]
+        Logging[ELK/Loki<br/>Logging]
+    end
+
+    subgraph Gateway [netweave O2-IMS Gateway]
+        subgraph GWLayer [Gateway Layer]
+            API[O2-IMS API Implementation<br/>Request Validation OpenAPI<br/>Auth/AuthZ<br/>Rate Limiting]
+        end
+        subgraph TransLayer [Translation Layer]
+            Trans[O2-IMS ↔ Kubernetes Mapping<br/>Data Transformation<br/>Error Translation]
+        end
+        subgraph AdapterLayer [Adapter Layer]
+            Adapters[Kubernetes Adapter active<br/>Future Adapters DTIAS, etc.]
+        end
+    end
+
+    subgraph Backend [Backend Systems]
+        K8s[Kubernetes Cluster<br/>• Nodes<br/>• Workloads<br/>• Storage]
+        Redis[Redis Sentinel Cluster<br/>• Master + Replicas<br/>• Automatic Failover<br/>• Persistence AOF+RDB]
+    end
+
+    SMO -->|O2-IMS API<br/>HTTPS/mTLS| GWLayer
+    Prom -->|Metrics<br/>Prometheus scrape| GWLayer
+    Logging -->|Logs<br/>JSON structured| GWLayer
+
+    GWLayer --> TransLayer
+    TransLayer --> AdapterLayer
+
+    AdapterLayer -->|K8s API<br/>gRPC/HTTPS| K8s
+    AdapterLayer -->|Redis Protocol<br/>RESP| Redis
+
+    style External fill:#e1f5ff
+    style Gateway fill:#fff4e6
+    style Backend fill:#e8f5e9
+    style GWLayer fill:#fff9e6
+    style TransLayer fill:#fff9e6
+    style AdapterLayer fill:#fff9e6
 ```
 
 ---

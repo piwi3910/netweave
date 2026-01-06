@@ -40,43 +40,57 @@
 
 ## Architecture
 
-```
-┌─────────────┐
-│   O2 SMO    │ (Service Management & Orchestration)
-└──────┬──────┘
-       │ O2-IMS API (HTTPS/mTLS)
-       ▼
-┌──────────────────────────────────────┐
-│    netweave O2-IMS Gateway           │
-│  ┌────────────────────────────────┐  │
-│  │  Gateway Pods (Stateless)      │  │
-│  │  • O2-IMS API Implementation   │  │
-│  │  • Request Validation          │  │
-│  │  • Resource Translation        │  │
-│  └────────────────────────────────┘  │
-│  ┌────────────────────────────────┐  │
-│  │  Redis (State & Cache)         │  │
-│  │  • Subscriptions               │  │
-│  │  • Performance Cache           │  │
-│  │  • Pub/Sub Coordination        │  │
-│  └────────────────────────────────┘  │
-│  ┌────────────────────────────────┐  │
-│  │  Subscription Controller       │  │
-│  │  • Watches K8s Resources       │  │
-│  │  • Sends Webhook Notifications │  │
-│  └────────────────────────────────┘  │
-└──────┬────────────────────────────────┘
-       │ Kubernetes API
-       ▼
-┌──────────────────────────────────────┐
-│    Kubernetes Cluster                │
-│  • Nodes (Resources)                 │
-│  • MachineSets (Resource Pools)      │
-│  • StorageClasses (Resource Types)   │
-└──────────────────────────────────────┘
+```mermaid
+graph TB
+    SMO[O2 SMO<br/>Service Management & Orchestration]
+
+    subgraph Gateway [netweave O2-IMS Gateway]
+        GW[Gateway Pods Stateless<br/>• O2-IMS API Implementation<br/>• Request Validation<br/>• Resource Translation]
+        Redis[Redis State & Cache<br/>• Subscriptions<br/>• Performance Cache<br/>• Pub/Sub Coordination]
+        CTRL[Subscription Controller<br/>• Watches K8s Resources<br/>• Sends Webhook Notifications]
+    end
+
+    K8s[Kubernetes Cluster<br/>• Nodes Resources<br/>• MachineSets Resource Pools<br/>• StorageClasses Resource Types]
+
+    SMO -->|O2-IMS API<br/>HTTPS/mTLS| GW
+    GW --> Redis
+    GW --> K8s
+    CTRL --> Redis
+    CTRL --> K8s
+    CTRL -->|Webhooks| SMO
+
+    style SMO fill:#e1f5ff
+    style Gateway fill:#fff4e6
+    style K8s fill:#e8f5e9
 ```
 
-See [docs/architecture.md](docs/architecture.md) for detailed architecture documentation.
+### Documentation
+
+📚 **Comprehensive Documentation with Visual Diagrams:**
+- **[Architecture Overview](docs/architecture.md)** - Complete system architecture with Mermaid diagrams
+  - System architecture and components
+  - Data flow diagrams (read, write, subscriptions)
+  - Plugin architecture (25+ backend adapters)
+  - Storage architecture and Redis data model
+- **[Architecture Part 2](docs/architecture-part2.md)** - HA, scalability, and deployment
+  - High availability and disaster recovery
+  - Scalability patterns and multi-cluster
+  - Deployment architecture and strategies
+- **[API Mapping](docs/api-mapping.md)** - O2-IMS ↔ Kubernetes mappings
+  - Complete resource transformation examples
+  - Backend adapter routing
+- **[O2-DMS & O2-SMO Extension](docs/o2dms-o2smo-extension.md)** - Deployment and orchestration
+  - O2-DMS for CNF deployment lifecycle
+  - O2-SMO integration (ONAP, OSM)
+  - Unified subscription system
+- **[Backend Plugins](docs/backend-plugins.md)** - Multi-backend adapter specifications
+  - 10+ O2-IMS infrastructure plugins (Kubernetes, OpenStack, DTIAS, AWS, Azure, etc.)
+  - 7+ O2-DMS deployment plugins (Helm, ArgoCD, Flux, ONAP-LCM, etc.)
+  - 5+ O2-SMO orchestration plugins (ONAP, OSM, etc.)
+- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)** - Enterprise security and isolation
+  - Role-based access control
+  - Multi-tenant architecture
+  - Resource quotas and isolation
 
 ## Quick Start
 
