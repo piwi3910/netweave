@@ -542,50 +542,40 @@ func (r *Registry) Route(resourceType string, filter *Filter) (Adapter, error) {
 
 **Directory Structure:**
 
-```
-internal/adapters/
-├── k8s/               # Kubernetes backend (primary)
-│   ├── adapter.go
-│   ├── resourcepools.go
-│   ├── resources.go
-│   ├── resourcetypes.go
-│   └── client.go
-├── mock/              # Mock backend for testing
-│   ├── adapter.go
-│   ├── resourcepools.go
-│   └── storage.go
-├── openstack/         # OpenStack NFVi backend
-│   ├── adapter.go
-│   ├── resourcepools.go
-│   ├── resources.go
-│   ├── resourcetypes.go
-│   └── client.go
-├── dtias/             # Dell DTIAS bare-metal backend
-│   ├── adapter.go
-│   ├── resourcepools.go
-│   ├── resources.go
-│   └── client.go
-├── vsphere/           # VMware vSphere backend
-│   ├── adapter.go
-│   ├── resourcepools.go
-│   ├── resources.go
-│   └── client.go
-├── aws/               # AWS EKS/EC2 backend
-│   ├── adapter.go
-│   ├── resourcepools.go
-│   ├── resources.go
-│   └── client.go
-├── azure/             # Azure AKS backend
-│   ├── adapter.go
-│   ├── resourcepools.go
-│   ├── resources.go
-│   └── client.go
-├── gke/               # Google GKE backend
-│   ├── adapter.go
-│   └── ...
-└── equinix/           # Equinix Metal backend
-    ├── adapter.go
-    └── ...
+```mermaid
+graph TB
+    root[internal/adapters/]
+
+    root --> k8s[k8s/<br/>Kubernetes backend - primary]
+    root --> mock[mock/<br/>Mock backend for testing]
+    root --> openstack[openstack/<br/>OpenStack NFVi backend]
+    root --> dtias[dtias/<br/>Dell DTIAS bare-metal]
+    root --> vsphere[vsphere/<br/>VMware vSphere backend]
+    root --> aws[aws/<br/>AWS EKS/EC2 backend]
+    root --> azure[azure/<br/>Azure AKS backend]
+    root --> gke[gke/<br/>Google GKE backend]
+    root --> equinix[equinix/<br/>Equinix Metal backend]
+
+    k8s --> k8s_files[adapter.go<br/>resourcepools.go<br/>resources.go<br/>resourcetypes.go<br/>client.go]
+    mock --> mock_files[adapter.go<br/>resourcepools.go<br/>storage.go]
+    openstack --> os_files[adapter.go<br/>resourcepools.go<br/>resources.go<br/>resourcetypes.go<br/>client.go]
+    dtias --> dtias_files[adapter.go<br/>resourcepools.go<br/>resources.go<br/>client.go]
+    vsphere --> vs_files[adapter.go<br/>resourcepools.go<br/>resources.go<br/>client.go]
+    aws --> aws_files[adapter.go<br/>resourcepools.go<br/>resources.go<br/>client.go]
+    azure --> azure_files[adapter.go<br/>resourcepools.go<br/>resources.go<br/>client.go]
+    gke --> gke_files[adapter.go<br/>...]
+    equinix --> eq_files[adapter.go<br/>...]
+
+    style root fill:#fff4e6
+    style k8s fill:#e8f5e9
+    style mock fill:#f3e5f5
+    style openstack fill:#e1f5ff
+    style dtias fill:#ffe6f0
+    style vsphere fill:#fff9e6
+    style aws fill:#ffe8cc
+    style azure fill:#e6f3ff
+    style gke fill:#f0ffe6
+    style equinix fill:#ffe6e6
 ```
 
 #### Kubernetes Adapter (Primary Implementation)
@@ -1727,18 +1717,32 @@ func (m *TenantMiddleware) ExtractTenant() gin.HandlerFunc {
 #### RBAC Model
 
 **Role Hierarchy**:
-```
-System Roles (cross-tenant):
-├─ PlatformAdmin   - Full system access
-├─ TenantAdmin     - Create/manage tenants
-└─ Auditor         - Read-only audit access
+```mermaid
+graph TB
+    subgraph System[System Roles - Cross-Tenant]
+        PlatformAdmin[PlatformAdmin<br/>Full system access]
+        TenantAdmin[TenantAdmin<br/>Create/manage tenants]
+        Auditor[Auditor<br/>Read-only audit access]
+    end
 
-Tenant Roles (scoped to specific tenant):
-├─ Owner           - Full tenant access
-├─ Admin           - Manage users, resources, policies
-├─ Operator        - CRUD on resources
-├─ Viewer          - Read-only access
-└─ Custom Roles    - User-defined permissions
+    subgraph Tenant[Tenant Roles - Scoped to Specific Tenant]
+        Owner[Owner<br/>Full tenant access]
+        Admin[Admin<br/>Manage users, resources, policies]
+        Operator[Operator<br/>CRUD on resources]
+        Viewer[Viewer<br/>Read-only access]
+        Custom[Custom Roles<br/>User-defined permissions]
+    end
+
+    style System fill:#ffe6f0
+    style Tenant fill:#e1f5ff
+    style PlatformAdmin fill:#ffcccc
+    style TenantAdmin fill:#ffd9b3
+    style Auditor fill:#d9f2d9
+    style Owner fill:#cce5ff
+    style Admin fill:#d9b3ff
+    style Operator fill:#b3d9ff
+    style Viewer fill:#d9f2d9
+    style Custom fill:#f2f2f2
 ```
 
 **Permission Model**:
@@ -2517,50 +2521,82 @@ rules:
 
 #### Certificate Hierarchy
 
-```
-Root CA (cert-manager ClusterIssuer)
-  │
-  ├─ Server CA (for gateway pods)
-  │   ├─ Gateway pod server certs (TLS)
-  │   ├─ Redis TLS certs
-  │   └─ Internal service certs
-  │
-  ├─ Client CA (for external clients)
-  │   ├─ SMO client certs (issued externally or via cert-manager)
-  │   └─ Trusted client certificates
-  │
-  └─ Webhook CA
-      └─ Outbound webhook client certs (for calling SMO)
+```mermaid
+graph TB
+    Root[Root CA<br/>cert-manager ClusterIssuer]
+
+    Root --> ServerCA[Server CA<br/>for gateway pods]
+    Root --> ClientCA[Client CA<br/>for external clients]
+    Root --> WebhookCA[Webhook CA]
+
+    ServerCA --> GatewayCert[Gateway pod server certs - TLS]
+    ServerCA --> RedisCert[Redis TLS certs]
+    ServerCA --> ServiceCert[Internal service certs]
+
+    ClientCA --> SMOCert[SMO client certs<br/>issued externally or via cert-manager]
+    ClientCA --> TrustedCert[Trusted client certificates]
+
+    WebhookCA --> WebhookCert[Outbound webhook client certs<br/>for calling SMO]
+
+    style Root fill:#ffe6f0
+    style ServerCA fill:#e8f5e9
+    style ClientCA fill:#e1f5ff
+    style WebhookCA fill:#fff4e6
+    style GatewayCert fill:#f0f8ff
+    style RedisCert fill:#f0f8ff
+    style ServiceCert fill:#f0f8ff
+    style SMOCert fill:#e6f7ff
+    style TrustedCert fill:#e6f7ff
+    style WebhookCert fill:#fff9e6
 ```
 
 #### mTLS Flows
 
 **External (SMO → Gateway)**:
-```
-[SMO] ──TLS 1.3 (mTLS)──> [K8s Ingress] ──TLS passthrough──> [Gateway Pod]
-  │                             │                                  │
-  Client Cert            Passthrough/SNI               Go TLS 1.3 Server
-  (external)                                           • Validate client cert
-                                                       • Check CN against CA
-                                                       • Authorize based on CN
+```mermaid
+sequenceDiagram
+    participant SMO as SMO
+    participant Ingress as K8s Ingress
+    participant Gateway as Gateway Pod
+
+    SMO->>+Ingress: TLS 1.3 (mTLS)<br/>Present Client Cert (external)
+    Note over Ingress: Passthrough/SNI
+
+    Ingress->>+Gateway: TLS passthrough
+    Note over Gateway: Go TLS 1.3 Server<br/>• Validate client cert<br/>• Check CN against CA<br/>• Authorize based on CN
+
+    Gateway-->>-Ingress: Response
+    Ingress-->>-SMO: Response
 ```
 
 **Internal (Gateway → Redis)**:
-```
-[Gateway Pod] ──TLS 1.3──> [Redis]
-      │                       │
-   Optional mTLS         Server Cert
-   (cert-manager)        (cert-manager)
+```mermaid
+sequenceDiagram
+    participant Gateway as Gateway Pod
+    participant Redis as Redis
 
-Note: Redis TLS optional but recommended
+    Note over Gateway: Optional mTLS<br/>(cert-manager)
+
+    Gateway->>+Redis: TLS 1.3
+    Note over Redis: Server Cert<br/>(cert-manager)
+
+    Redis-->>-Gateway: Response
+
+    Note over Gateway,Redis: Redis TLS optional but recommended
 ```
 
 **Outbound (Controller → SMO Webhook)**:
-```
-[Subscription Controller] ──TLS 1.3──> [SMO Webhook Endpoint]
-            │                                   │
-       Client Cert                         Validate cert
-    (webhook CA, optional)                 (SMO's CA)
+```mermaid
+sequenceDiagram
+    participant Controller as Subscription Controller
+    participant SMO as SMO Webhook Endpoint
+
+    Note over Controller: Client Cert<br/>(webhook CA, optional)
+
+    Controller->>+SMO: TLS 1.3
+    Note over SMO: Validate cert<br/>(SMO's CA)
+
+    SMO-->>-Controller: Response
 ```
 
 ### Secrets Management
