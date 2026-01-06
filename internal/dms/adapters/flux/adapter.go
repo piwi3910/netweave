@@ -73,11 +73,17 @@ const (
 	// HelmRepositoryResource is the Flux HelmRepository resource name.
 	HelmRepositoryResource = "helmrepositories"
 
-	// Progress constants for deployment status.
-	progressDeployed  = 100
+	// progressDeployed indicates a fully deployed and healthy deployment (100%).
+	progressDeployed = 100
+
+	// progressDeploying indicates an in-progress deployment (50%).
 	progressDeploying = 50
-	progressPending   = 25
-	progressFailed    = 0
+
+	// progressPending indicates a deployment waiting to start (25%).
+	progressPending = 25
+
+	// progressFailed indicates a failed deployment (0%).
+	progressFailed = 0
 )
 
 // GVR definitions for Flux resources.
@@ -384,7 +390,7 @@ func (f *FluxAdapter) UploadDeploymentPackage(ctx context.Context, pkg *adapter.
 // DeleteDeploymentPackage is not directly supported in Flux.
 // Source resources should be managed directly in the cluster.
 func (f *FluxAdapter) DeleteDeploymentPackage(ctx context.Context, id string) error {
-	return fmt.Errorf("flux does not support package deletion through this adapter - manage source resources directly")
+	return fmt.Errorf("Flux does not support package deletion through this adapter - manage source resources directly")
 }
 
 // ListDeployments retrieves all Flux deployments (HelmReleases and Kustomizations).
