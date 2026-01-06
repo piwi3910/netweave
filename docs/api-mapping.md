@@ -1721,9 +1721,9 @@ The netweave gateway provides interactive API documentation through Swagger UI a
 |----------|--------|-------------|--------------|
 | `/docs/` | GET | Swagger UI interactive documentation | `text/html` |
 | `/docs/openapi.yaml` | GET | OpenAPI 3.0 specification (YAML) | `application/x-yaml` |
-| `/docs/openapi.json` | GET | OpenAPI 3.0 specification (YAML) | `application/x-yaml` |
+| `/docs/openapi.json` | GET | Redirects to `/docs/openapi.yaml` | N/A (308 redirect) |
 | `/openapi.yaml` | GET | OpenAPI 3.0 specification (root path) | `application/x-yaml` |
-| `/openapi.json` | GET | OpenAPI 3.0 specification (root path) | `application/x-yaml` |
+| `/openapi.json` | GET | Redirects to `/docs/openapi.yaml` | N/A (308 redirect) |
 
 ### Swagger UI
 

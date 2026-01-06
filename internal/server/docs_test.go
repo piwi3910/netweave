@@ -58,31 +58,17 @@ paths: {}`)
 		assert.Contains(t, w.Body.String(), "OpenAPI specification not loaded")
 	})
 
-	t.Run("handleOpenAPIJSON with spec loaded", func(t *testing.T) {
+	t.Run("handleOpenAPIJSON redirects to YAML", func(t *testing.T) {
 		srv := createTestServer()
-		srv.SetOpenAPISpec(testSpec)
 		srv.router.GET("/openapi.json", srv.handleOpenAPIJSON)
 
 		req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
 		w := httptest.NewRecorder()
 		srv.router.ServeHTTP(w, req)
 
-		// Should return YAML content (Swagger UI supports it)
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, "application/x-yaml", w.Header().Get("Content-Type"))
-	})
-
-	t.Run("handleOpenAPIJSON without spec loaded", func(t *testing.T) {
-		srv := createTestServer()
-		// Don't set OpenAPISpec
-		srv.router.GET("/openapi.json", srv.handleOpenAPIJSON)
-
-		req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
-		w := httptest.NewRecorder()
-		srv.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-		assert.Contains(t, w.Body.String(), "OpenAPI specification not loaded")
+		// Should redirect to YAML endpoint
+		assert.Equal(t, http.StatusPermanentRedirect, w.Code)
+		assert.Equal(t, "/docs/openapi.yaml", w.Header().Get("Location"))
 	})
 
 	t.Run("handleSwaggerUIRedirect", func(t *testing.T) {
@@ -167,12 +153,9 @@ info:
 			},
 		},
 		{
-			name:           "openapi json returns yaml content",
+			name:           "openapi json redirects to yaml",
 			path:           "/openapi.json",
-			expectedStatus: http.StatusOK,
-			checkBody: func(t *testing.T, body string) {
-				assert.Contains(t, body, "openapi:")
-			},
+			expectedStatus: http.StatusPermanentRedirect,
 		},
 	}
 

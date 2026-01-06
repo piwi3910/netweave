@@ -69,23 +69,13 @@ func (s *Server) handleOpenAPIYAML(c *gin.Context) {
 	c.Data(http.StatusOK, "application/x-yaml", s.openAPISpec)
 }
 
-// handleOpenAPIJSON serves the OpenAPI specification in JSON format.
-// Note: Returns YAML content as Swagger UI supports YAML natively.
-// For true JSON output, consider using a YAML-to-JSON converter library.
+// handleOpenAPIJSON redirects to the YAML endpoint.
+// The OpenAPI specification is maintained in YAML format only.
+// Swagger UI and most tools support YAML natively.
 func (s *Server) handleOpenAPIJSON(c *gin.Context) {
-	if len(s.openAPISpec) == 0 {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "OpenAPI specification not loaded",
-			"code":    http.StatusNotFound,
-		})
-		return
-	}
-	// Swagger UI supports YAML natively, so we serve YAML content
-	// with proper content-type negotiation
-	c.Header("Content-Type", "application/x-yaml")
-	c.Header("Cache-Control", "public, max-age=3600")
-	c.Data(http.StatusOK, "application/x-yaml", s.openAPISpec)
+	// Redirect to YAML endpoint - JSON conversion not implemented
+	// Most OpenAPI tools (including Swagger UI) support YAML natively
+	c.Redirect(http.StatusPermanentRedirect, "/docs/openapi.yaml")
 }
 
 // handleSwaggerUIRedirect redirects to the Swagger UI with trailing slash.
