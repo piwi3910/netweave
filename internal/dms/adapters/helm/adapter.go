@@ -604,9 +604,9 @@ func (h *HelmAdapter) transformHelmStatus(helmStatus release.Status) adapter.Dep
 		return adapter.DeploymentStatusDeployed
 	case release.StatusFailed:
 		return adapter.DeploymentStatusFailed
-	case release.StatusPendingRollback, release.StatusUninstalling:
+	case release.StatusPendingRollback:
 		return adapter.DeploymentStatusRollingBack
-	case release.StatusUninstalled:
+	case release.StatusUninstalling, release.StatusUninstalled:
 		return adapter.DeploymentStatusDeleting
 	case release.StatusSuperseded, release.StatusUnknown:
 		return adapter.DeploymentStatusFailed
