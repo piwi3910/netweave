@@ -499,10 +499,12 @@ func TestClose(t *testing.T) {
 // TestConfigValidation tests configuration validation.
 func TestConfigValidation(t *testing.T) {
 	t.Run("valid config with all fields", func(t *testing.T) {
+		// NOTE: These are AWS documentation example credentials, NOT real credentials.
+		// See: https://docs.aws.amazon.com/IAM/latest/UserGuide/security-creds.html
 		config := &Config{
 			Region:              "us-east-1",
-			AccessKeyID:         "AKIAIOSFODNN7EXAMPLE",
-			SecretAccessKey:     "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+			AccessKeyID:         "AKIAIOSFODNN7EXAMPLE",                     // Example key from AWS docs
+			SecretAccessKey:     "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", // Example secret from AWS docs
 			SessionToken:        "session-token",
 			OCloudID:            "ocloud-test",
 			DeploymentManagerID: "dm-test",

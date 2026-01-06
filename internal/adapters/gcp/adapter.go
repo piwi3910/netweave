@@ -61,6 +61,8 @@ type GCPAdapter struct {
 	region string
 
 	// subscriptions holds active O2-IMS subscriptions (polling-based fallback).
+	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
+	// For production use, consider implementing persistent storage via Redis.
 	subscriptions map[string]*adapter.Subscription
 
 	// subscriptionsMu protects the subscriptions map.
@@ -271,14 +273,18 @@ func (a *GCPAdapter) Capabilities() []adapter.Capability {
 func (a *GCPAdapter) Health(ctx context.Context) error {
 	a.logger.Debug("health check called")
 
+	// Use a timeout to prevent indefinite blocking
+	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	// Check by getting the region
-	_, err := a.regionsClient.Get(ctx, &computepb.GetRegionRequest{
+	_, err := a.regionsClient.Get(healthCtx, &computepb.GetRegionRequest{
 		Project: a.projectID,
 		Region:  a.region,
 	})
 	if err != nil {
 		a.logger.Error("GCP health check failed", zap.Error(err))
-		return fmt.Errorf("GCP API unreachable: %w", err)
+		return fmt.Errorf("gcp API unreachable: %w", err)
 	}
 
 	a.logger.Debug("health check passed")

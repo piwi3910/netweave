@@ -59,6 +59,8 @@ type VMwareAdapter struct {
 	datacenterName string
 
 	// subscriptions holds active O2-IMS subscriptions (polling-based fallback).
+	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
+	// For production use, consider implementing persistent storage via Redis.
 	subscriptions map[string]*adapter.Subscription
 
 	// subscriptionsMu protects the subscriptions map.
@@ -273,11 +275,15 @@ func (a *VMwareAdapter) Capabilities() []adapter.Capability {
 func (a *VMwareAdapter) Health(ctx context.Context) error {
 	a.logger.Debug("health check called")
 
+	// Use a timeout to prevent indefinite blocking
+	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	// Check if we can retrieve the datacenter
-	_, err := a.finder.Datacenter(ctx, a.datacenterName)
+	_, err := a.finder.Datacenter(healthCtx, a.datacenterName)
 	if err != nil {
 		a.logger.Error("vSphere health check failed", zap.Error(err))
-		return fmt.Errorf("vCenter API unreachable: %w", err)
+		return fmt.Errorf("vcenter API unreachable: %w", err)
 	}
 
 	a.logger.Debug("health check passed")

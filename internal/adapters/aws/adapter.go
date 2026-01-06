@@ -51,10 +51,9 @@ type AWSAdapter struct {
 	// region is the AWS region this adapter manages.
 	region string
 
-	// accountID is the AWS account ID.
-	accountID string
-
 	// subscriptions holds active subscriptions (polling-based fallback).
+	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
+	// For production use, consider implementing persistent storage via Redis.
 	subscriptions map[string]*adapter.Subscription
 
 	// subscriptionsMu protects the subscriptions map.
@@ -247,23 +246,28 @@ func (a *AWSAdapter) Capabilities() []adapter.Capability {
 
 // Health performs a health check on the AWS backend.
 // It verifies connectivity to EC2 and Auto Scaling services.
+// The check uses a 10-second timeout to prevent indefinite blocking.
 func (a *AWSAdapter) Health(ctx context.Context) error {
 	a.logger.Debug("health check called")
 
+	// Use a timeout to prevent indefinite blocking
+	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	// Check EC2 service by describing regions
-	_, err := a.ec2Client.DescribeRegions(ctx, &ec2.DescribeRegionsInput{
+	_, err := a.ec2Client.DescribeRegions(healthCtx, &ec2.DescribeRegionsInput{
 		RegionNames: []string{a.region},
 	})
 	if err != nil {
 		a.logger.Error("EC2 health check failed", zap.Error(err))
-		return fmt.Errorf("EC2 API unreachable: %w", err)
+		return fmt.Errorf("ec2 API unreachable: %w", err)
 	}
 
 	// Check Auto Scaling service by describing account limits
-	_, err = a.asgClient.DescribeAccountLimits(ctx, &autoscaling.DescribeAccountLimitsInput{})
+	_, err = a.asgClient.DescribeAccountLimits(healthCtx, &autoscaling.DescribeAccountLimitsInput{})
 	if err != nil {
 		a.logger.Error("Auto Scaling health check failed", zap.Error(err))
-		return fmt.Errorf("Auto Scaling API unreachable: %w", err)
+		return fmt.Errorf("auto scaling API unreachable: %w", err)
 	}
 
 	a.logger.Debug("health check passed")

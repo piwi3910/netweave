@@ -60,6 +60,8 @@ type AzureAdapter struct {
 	location string
 
 	// subscriptions holds active O2-IMS subscriptions (polling-based fallback).
+	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
+	// For production use, consider implementing persistent storage via Redis.
 	subscriptions map[string]*adapter.Subscription
 
 	// subscriptionsMu protects the subscriptions map.
@@ -281,12 +283,16 @@ func (a *AzureAdapter) Capabilities() []adapter.Capability {
 func (a *AzureAdapter) Health(ctx context.Context) error {
 	a.logger.Debug("health check called")
 
+	// Use a timeout to prevent indefinite blocking
+	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	// Check VM Sizes service (lightweight API call)
 	pager := a.vmSizeClient.NewListPager(a.location, nil)
-	_, err := pager.NextPage(ctx)
+	_, err := pager.NextPage(healthCtx)
 	if err != nil {
 		a.logger.Error("Azure health check failed", zap.Error(err))
-		return fmt.Errorf("Azure API unreachable: %w", err)
+		return fmt.Errorf("azure API unreachable: %w", err)
 	}
 
 	a.logger.Debug("health check passed")
