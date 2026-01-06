@@ -31,12 +31,45 @@ This rule applies to:
 **O2-IMS Gateway** is a production-grade ORAN O2-IMS compliant API gateway that translates O2-IMS requests to Kubernetes API calls, enabling disaggregation of backend infrastructure components.
 
 **Technology Stack:**
-- Language: Go 1.23+
+- Language: Go 1.25.0+ (toolchain auto-managed)
 - Framework: Gin (HTTP)
 - Storage: Redis OSS 7.4+ (Sentinel)
 - Container Orchestration: Kubernetes 1.30+
 - TLS: Native Go TLS 1.3 + cert-manager 1.15+
 - Deployment: Helm 3.x + Custom Operator
+
+**Critical Dependency Versions (DO NOT DOWNGRADE):**
+
+⚠️ **WARNING: These dependency versions are locked to resolve critical compatibility issues. DO NOT change without thorough testing.**
+
+```go
+// go.mod - Required versions
+go 1.25.0
+
+require (
+    k8s.io/client-go v0.35.0
+    k8s.io/api v0.35.0
+    k8s.io/apimachinery v0.35.0
+    k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
+    sigs.k8s.io/structured-merge-diff/v6 v6.3.0
+)
+```
+
+**Why these versions:**
+- **Go 1.25.0+**: Required by k8s.io/client-go v0.35.0 and later
+- **k8s.io v0.35.0**: Resolves yaml.v3 module path conflict between `gopkg.in/yaml.v3` and `go.yaml.in/yaml/v3`
+- **structured-merge-diff v6**: K8s v0.35+ migrated from v4 to v6 to fix incompatibilities
+- **kube-openapi (2025-09-10 commit)**: Latest version compatible with Go 1.25 and structured-merge-diff v6
+
+**Known Issues with Earlier Versions:**
+- **k8s.io v0.31-v0.34 + Go 1.24**: Build fails with yaml.v3 type mismatch errors (`cannot use *"go.yaml.in/yaml/v3".Node as *"gopkg.in/yaml.v3".Node`)
+- **k8s.io v0.34 + Go 1.23**: Dependency `golang.org/x/net@v0.47.0` requires Go 1.24+
+- **k8s.io v0.31 + kube-openapi (older)**: Incompatible structured-merge-diff versions (v4 vs v6 conflict)
+
+**Toolchain Behavior:**
+- Local installation: Go 1.24.11 via Homebrew (`go@1.24`)
+- Project runtime: Go 1.25.0+ (auto-downloaded when `GOTOOLCHAIN=auto`)
+- Linter: golangci-lint v2.7.2+ (built with Go 1.25, fully compatible)
 
 **Architecture:**
 - Stateless gateway pods (3+ replicas)
