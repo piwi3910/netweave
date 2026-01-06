@@ -181,7 +181,7 @@ func (p *Plugin) Initialize(ctx context.Context) error {
 
 	// Start inventory sync loop if enabled
 	if p.config.EnableInventorySync {
-		go p.inventorySyncLoop()
+		go p.inventorySyncLoop() //nolint:contextcheck // Background goroutine manages its own context
 	}
 
 	p.running = true
