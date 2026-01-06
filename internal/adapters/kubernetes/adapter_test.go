@@ -472,90 +472,97 @@ func TestConfigDefaults(t *testing.T) {
 }
 
 // Tests for boundary conditions and edge cases
+// Consolidated table-driven test for empty ID boundary conditions on Get operations.
+// TODO(issue#3): When implemented, these should return ErrNotFound or similar validation errors.
 
-func TestKubernetesAdapter_GetDeploymentManager_EmptyID(t *testing.T) {
+func TestKubernetesAdapter_GetOperations_EmptyID(t *testing.T) {
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
-	dm, err := adp.GetDeploymentManager(ctx, "")
+	tests := []struct {
+		name     string
+		testFunc func() (interface{}, error)
+	}{
+		{
+			name: "GetDeploymentManager with empty ID",
+			testFunc: func() (interface{}, error) {
+				return adp.GetDeploymentManager(ctx, "")
+			},
+		},
+		{
+			name: "GetResourcePool with empty ID",
+			testFunc: func() (interface{}, error) {
+				return adp.GetResourcePool(ctx, "")
+			},
+		},
+		{
+			name: "GetResource with empty ID",
+			testFunc: func() (interface{}, error) {
+				return adp.GetResource(ctx, "")
+			},
+		},
+		{
+			name: "GetResourceType with empty ID",
+			testFunc: func() (interface{}, error) {
+				return adp.GetResourceType(ctx, "")
+			},
+		},
+		{
+			name: "GetSubscription with empty ID",
+			testFunc: func() (interface{}, error) {
+				return adp.GetSubscription(ctx, "")
+			},
+		},
+	}
 
-	require.Error(t, err)
-	assert.Nil(t, dm)
-	assert.Contains(t, err.Error(), "not implemented")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := tt.testFunc()
+			require.Error(t, err)
+			assert.Nil(t, result)
+			assert.Contains(t, err.Error(), "not implemented")
+		})
+	}
 }
 
-func TestKubernetesAdapter_GetResourcePool_EmptyID(t *testing.T) {
+// Consolidated table-driven test for empty ID boundary conditions on Delete operations.
+// TODO(issue#3): When implemented, these should return ErrNotFound or similar validation errors.
+
+func TestKubernetesAdapter_DeleteOperations_EmptyID(t *testing.T) {
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
-	pool, err := adp.GetResourcePool(ctx, "")
+	tests := []struct {
+		name     string
+		testFunc func() error
+	}{
+		{
+			name: "DeleteResourcePool with empty ID",
+			testFunc: func() error {
+				return adp.DeleteResourcePool(ctx, "")
+			},
+		},
+		{
+			name: "DeleteResource with empty ID",
+			testFunc: func() error {
+				return adp.DeleteResource(ctx, "")
+			},
+		},
+		{
+			name: "DeleteSubscription with empty ID",
+			testFunc: func() error {
+				return adp.DeleteSubscription(ctx, "")
+			},
+		},
+	}
 
-	require.Error(t, err)
-	assert.Nil(t, pool)
-	assert.Contains(t, err.Error(), "not implemented")
-}
-
-func TestKubernetesAdapter_GetResource_EmptyID(t *testing.T) {
-	adp := newTestAdapter(t)
-	ctx := context.Background()
-
-	resource, err := adp.GetResource(ctx, "")
-
-	require.Error(t, err)
-	assert.Nil(t, resource)
-	assert.Contains(t, err.Error(), "not implemented")
-}
-
-func TestKubernetesAdapter_GetResourceType_EmptyID(t *testing.T) {
-	adp := newTestAdapter(t)
-	ctx := context.Background()
-
-	rt, err := adp.GetResourceType(ctx, "")
-
-	require.Error(t, err)
-	assert.Nil(t, rt)
-	assert.Contains(t, err.Error(), "not implemented")
-}
-
-func TestKubernetesAdapter_GetSubscription_EmptyID(t *testing.T) {
-	adp := newTestAdapter(t)
-	ctx := context.Background()
-
-	sub, err := adp.GetSubscription(ctx, "")
-
-	require.Error(t, err)
-	assert.Nil(t, sub)
-	assert.Contains(t, err.Error(), "not implemented")
-}
-
-func TestKubernetesAdapter_DeleteResourcePool_EmptyID(t *testing.T) {
-	adp := newTestAdapter(t)
-	ctx := context.Background()
-
-	err := adp.DeleteResourcePool(ctx, "")
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
-}
-
-func TestKubernetesAdapter_DeleteResource_EmptyID(t *testing.T) {
-	adp := newTestAdapter(t)
-	ctx := context.Background()
-
-	err := adp.DeleteResource(ctx, "")
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
-}
-
-func TestKubernetesAdapter_DeleteSubscription_EmptyID(t *testing.T) {
-	adp := newTestAdapter(t)
-	ctx := context.Background()
-
-	err := adp.DeleteSubscription(ctx, "")
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.testFunc()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "not implemented")
+		})
+	}
 }
 
 func TestKubernetesAdapter_CreateSubscription_EmptyCallback(t *testing.T) {

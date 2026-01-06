@@ -60,30 +60,65 @@ func TestCapabilityConstants(t *testing.T) {
 
 func TestFilterCreation(t *testing.T) {
 	tests := []struct {
-		name   string
-		filter *Filter
+		name           string
+		filter         *Filter
+		expectedPoolID string
+		expectedTypeID string
+		expectedLoc    string
+		expectedLimit  int
+		expectedOffset int
+		hasLabels      bool
+		hasExtensions  bool
 	}{
 		{
-			name:   "empty filter",
-			filter: &Filter{},
+			name:           "empty filter",
+			filter:         &Filter{},
+			expectedPoolID: "",
+			expectedTypeID: "",
+			expectedLoc:    "",
+			expectedLimit:  0,
+			expectedOffset: 0,
+			hasLabels:      false,
+			hasExtensions:  false,
 		},
 		{
 			name: "filter with resource pool ID",
 			filter: &Filter{
 				ResourcePoolID: "pool-123",
 			},
+			expectedPoolID: "pool-123",
+			expectedTypeID: "",
+			expectedLoc:    "",
+			expectedLimit:  0,
+			expectedOffset: 0,
+			hasLabels:      false,
+			hasExtensions:  false,
 		},
 		{
 			name: "filter with resource type ID",
 			filter: &Filter{
 				ResourceTypeID: "type-compute",
 			},
+			expectedPoolID: "",
+			expectedTypeID: "type-compute",
+			expectedLoc:    "",
+			expectedLimit:  0,
+			expectedOffset: 0,
+			hasLabels:      false,
+			hasExtensions:  false,
 		},
 		{
 			name: "filter with location",
 			filter: &Filter{
 				Location: "dc-west-1",
 			},
+			expectedPoolID: "",
+			expectedTypeID: "",
+			expectedLoc:    "dc-west-1",
+			expectedLimit:  0,
+			expectedOffset: 0,
+			hasLabels:      false,
+			hasExtensions:  false,
 		},
 		{
 			name: "filter with labels",
@@ -93,6 +128,13 @@ func TestFilterCreation(t *testing.T) {
 					"tier":        "backend",
 				},
 			},
+			expectedPoolID: "",
+			expectedTypeID: "",
+			expectedLoc:    "",
+			expectedLimit:  0,
+			expectedOffset: 0,
+			hasLabels:      true,
+			hasExtensions:  false,
 		},
 		{
 			name: "filter with extensions",
@@ -101,6 +143,13 @@ func TestFilterCreation(t *testing.T) {
 					"vendor.customField": "value",
 				},
 			},
+			expectedPoolID: "",
+			expectedTypeID: "",
+			expectedLoc:    "",
+			expectedLimit:  0,
+			expectedOffset: 0,
+			hasLabels:      false,
+			hasExtensions:  true,
 		},
 		{
 			name: "filter with pagination",
@@ -108,6 +157,13 @@ func TestFilterCreation(t *testing.T) {
 				Limit:  100,
 				Offset: 50,
 			},
+			expectedPoolID: "",
+			expectedTypeID: "",
+			expectedLoc:    "",
+			expectedLimit:  100,
+			expectedOffset: 50,
+			hasLabels:      false,
+			hasExtensions:  false,
 		},
 		{
 			name: "complete filter with all fields",
@@ -124,12 +180,38 @@ func TestFilterCreation(t *testing.T) {
 				Limit:  25,
 				Offset: 0,
 			},
+			expectedPoolID: "pool-456",
+			expectedTypeID: "type-storage",
+			expectedLoc:    "dc-east-2",
+			expectedLimit:  25,
+			expectedOffset: 0,
+			hasLabels:      true,
+			hasExtensions:  true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.NotNil(t, tt.filter)
+			assert.Equal(t, tt.expectedPoolID, tt.filter.ResourcePoolID)
+			assert.Equal(t, tt.expectedTypeID, tt.filter.ResourceTypeID)
+			assert.Equal(t, tt.expectedLoc, tt.filter.Location)
+			assert.Equal(t, tt.expectedLimit, tt.filter.Limit)
+			assert.Equal(t, tt.expectedOffset, tt.filter.Offset)
+
+			if tt.hasLabels {
+				assert.NotNil(t, tt.filter.Labels)
+				assert.NotEmpty(t, tt.filter.Labels)
+			} else {
+				assert.Nil(t, tt.filter.Labels)
+			}
+
+			if tt.hasExtensions {
+				assert.NotNil(t, tt.filter.Extensions)
+				assert.NotEmpty(t, tt.filter.Extensions)
+			} else {
+				assert.Nil(t, tt.filter.Extensions)
+			}
 		})
 	}
 }
@@ -352,30 +434,45 @@ func TestSubscriptionModel(t *testing.T) {
 
 func TestSubscriptionFilterModel(t *testing.T) {
 	tests := []struct {
-		name   string
-		filter *SubscriptionFilter
+		name           string
+		filter         *SubscriptionFilter
+		expectedPoolID string
+		expectedTypeID string
+		expectedResID  string
 	}{
 		{
-			name:   "empty filter",
-			filter: &SubscriptionFilter{},
+			name:           "empty filter",
+			filter:         &SubscriptionFilter{},
+			expectedPoolID: "",
+			expectedTypeID: "",
+			expectedResID:  "",
 		},
 		{
 			name: "filter by resource pool",
 			filter: &SubscriptionFilter{
 				ResourcePoolID: "pool-1",
 			},
+			expectedPoolID: "pool-1",
+			expectedTypeID: "",
+			expectedResID:  "",
 		},
 		{
 			name: "filter by resource type",
 			filter: &SubscriptionFilter{
 				ResourceTypeID: "type-compute",
 			},
+			expectedPoolID: "",
+			expectedTypeID: "type-compute",
+			expectedResID:  "",
 		},
 		{
 			name: "filter by resource",
 			filter: &SubscriptionFilter{
 				ResourceID: "res-123",
 			},
+			expectedPoolID: "",
+			expectedTypeID: "",
+			expectedResID:  "res-123",
 		},
 		{
 			name: "combined filter",
@@ -384,12 +481,18 @@ func TestSubscriptionFilterModel(t *testing.T) {
 				ResourceTypeID: "type-compute",
 				ResourceID:     "res-456",
 			},
+			expectedPoolID: "pool-1",
+			expectedTypeID: "type-compute",
+			expectedResID:  "res-456",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.NotNil(t, tt.filter)
+			assert.Equal(t, tt.expectedPoolID, tt.filter.ResourcePoolID)
+			assert.Equal(t, tt.expectedTypeID, tt.filter.ResourceTypeID)
+			assert.Equal(t, tt.expectedResID, tt.filter.ResourceID)
 		})
 	}
 }
