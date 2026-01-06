@@ -2,10 +2,10 @@
 
 **Complete O-RAN O2 Gateway (IMS + DMS + SMO) for Cloud-Native Infrastructure**
 
-[![CI Status](https://github.com/yourorg/netweave/workflows/CI%20Pipeline/badge.svg)](https://github.com/yourorg/netweave/actions)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/yourorg/netweave)](https://go.dev/)
-[![License](https://img.shields.io/github/license/yourorg/netweave)](LICENSE)
-[![Coverage](https://codecov.io/gh/yourorg/netweave/branch/main/graph/badge.svg)](https://codecov.io/gh/yourorg/netweave)
+[![CI Status](https://github.com/piwi3910/netweave/workflows/CI%20Pipeline/badge.svg)](https://github.com/piwi3910/netweave/actions)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/piwi3910/netweave)](https://go.dev/)
+[![License](https://img.shields.io/github/license/piwi3910/netweave)](LICENSE)
+[![Coverage](https://codecov.io/gh/piwi3910/netweave/branch/main/graph/badge.svg)](https://codecov.io/gh/piwi3910/netweave)
 
 ## What is netweave?
 
@@ -141,7 +141,7 @@ graph TB
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourorg/netweave.git
+git clone https://github.com/piwi3910/netweave.git
 cd netweave
 
 # Install development tools
@@ -303,7 +303,7 @@ See [docs/api-mapping.md](docs/api-mapping.md) for O2-IMS ↔ Kubernetes resourc
 
 ```bash
 # 1. Clone and install tools
-git clone https://github.com/yourorg/netweave.git
+git clone https://github.com/piwi3910/netweave.git
 cd netweave
 make install-tools
 make install-hooks
@@ -514,8 +514,8 @@ netweave/
 ## Support
 
 - **Documentation**: [docs/](docs/)
-- **Issues**: [GitHub Issues](https://github.com/yourorg/netweave/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourorg/netweave/discussions)
+- **Issues**: [GitHub Issues](https://github.com/piwi3910/netweave/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/piwi3910/netweave/discussions)
 - **Security**: security@example.com (private disclosure)
 
 ## License
@@ -532,4 +532,4 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 **Built with ❤️ for the telecom industry**
 
-For questions or feedback, please [open an issue](https://github.com/yourorg/netweave/issues/new).
+For questions or feedback, please [open an issue](https://github.com/piwi3910/netweave/issues/new).
