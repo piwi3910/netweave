@@ -1,0 +1,539 @@
+package gcp
+
+import (
+	"context"
+	"testing"
+
+	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+)
+
+// TestNew tests the creation of a new GCPAdapter.
+func TestNew(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  *Config
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "nil config",
+			config:  nil,
+			wantErr: true,
+			errMsg:  "config cannot be nil",
+		},
+		{
+			name: "missing projectID",
+			config: &Config{
+				Region:   "us-central1",
+				OCloudID: "ocloud-1",
+			},
+			wantErr: true,
+			errMsg:  "projectID is required",
+		},
+		{
+			name: "missing region",
+			config: &Config{
+				ProjectID: "my-project",
+				OCloudID:  "ocloud-1",
+			},
+			wantErr: true,
+			errMsg:  "region is required",
+		},
+		{
+			name: "missing oCloudID",
+			config: &Config{
+				ProjectID: "my-project",
+				Region:    "us-central1",
+			},
+			wantErr: true,
+			errMsg:  "oCloudID is required",
+		},
+		{
+			name: "invalid pool mode",
+			config: &Config{
+				ProjectID: "my-project",
+				Region:    "us-central1",
+				OCloudID:  "ocloud-1",
+				PoolMode:  "invalid",
+			},
+			wantErr: true,
+			errMsg:  "poolMode must be 'zone' or 'ig'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := New(tt.config)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+				assert.Nil(t, adp)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, adp)
+				if adp != nil {
+					defer adp.Close()
+				}
+			}
+		})
+	}
+}
+
+// TestMetadata tests metadata methods.
+func TestMetadata(t *testing.T) {
+	adp := &GCPAdapter{
+		logger: zap.NewNop(),
+	}
+
+	t.Run("Name", func(t *testing.T) {
+		assert.Equal(t, "gcp", adp.Name())
+	})
+
+	t.Run("Version", func(t *testing.T) {
+		assert.NotEmpty(t, adp.Version())
+		assert.Equal(t, "compute-v1", adp.Version())
+	})
+
+	t.Run("Capabilities", func(t *testing.T) {
+		caps := adp.Capabilities()
+		assert.NotEmpty(t, caps)
+		assert.Len(t, caps, 6)
+
+		// Verify specific capabilities
+		assert.Contains(t, caps, adapter.CapabilityResourcePools)
+		assert.Contains(t, caps, adapter.CapabilityResources)
+		assert.Contains(t, caps, adapter.CapabilityResourceTypes)
+		assert.Contains(t, caps, adapter.CapabilityDeploymentManagers)
+		assert.Contains(t, caps, adapter.CapabilitySubscriptions)
+		assert.Contains(t, caps, adapter.CapabilityHealthChecks)
+	})
+}
+
+// TestMatchesFilter tests the filter matching logic.
+func TestMatchesFilter(t *testing.T) {
+	adp := &GCPAdapter{
+		logger: zap.NewNop(),
+	}
+
+	tests := []struct {
+		name           string
+		filter         *adapter.Filter
+		resourcePoolID string
+		resourceTypeID string
+		location       string
+		labels         map[string]string
+		want           bool
+	}{
+		{
+			name:           "nil filter matches all",
+			filter:         nil,
+			resourcePoolID: "pool-1",
+			want:           true,
+		},
+		{
+			name: "resource pool filter matches",
+			filter: &adapter.Filter{
+				ResourcePoolID: "pool-1",
+			},
+			resourcePoolID: "pool-1",
+			want:           true,
+		},
+		{
+			name: "resource pool filter doesn't match",
+			filter: &adapter.Filter{
+				ResourcePoolID: "pool-1",
+			},
+			resourcePoolID: "pool-2",
+			want:           false,
+		},
+		{
+			name: "resource type filter matches",
+			filter: &adapter.Filter{
+				ResourceTypeID: "type-1",
+			},
+			resourceTypeID: "type-1",
+			want:           true,
+		},
+		{
+			name: "location filter matches",
+			filter: &adapter.Filter{
+				Location: "us-central1-a",
+			},
+			location: "us-central1-a",
+			want:     true,
+		},
+		{
+			name: "location filter doesn't match",
+			filter: &adapter.Filter{
+				Location: "us-central1-a",
+			},
+			location: "us-central1-b",
+			want:     false,
+		},
+		{
+			name: "labels filter matches",
+			filter: &adapter.Filter{
+				Labels: map[string]string{
+					"env": "prod",
+				},
+			},
+			labels: map[string]string{
+				"env": "prod",
+				"app": "web",
+			},
+			want: true,
+		},
+		{
+			name: "labels filter doesn't match",
+			filter: &adapter.Filter{
+				Labels: map[string]string{
+					"env": "prod",
+				},
+			},
+			labels: map[string]string{
+				"env": "dev",
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adp.matchesFilter(
+				tt.filter,
+				tt.resourcePoolID,
+				tt.resourceTypeID,
+				tt.location,
+				tt.labels,
+			)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestApplyPagination tests the pagination logic.
+func TestApplyPagination(t *testing.T) {
+	items := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
+
+	tests := []struct {
+		name   string
+		limit  int
+		offset int
+		want   []string
+	}{
+		{
+			name:   "no pagination",
+			limit:  0,
+			offset: 0,
+			want:   items,
+		},
+		{
+			name:   "limit only",
+			limit:  3,
+			offset: 0,
+			want:   []string{"a", "b", "c"},
+		},
+		{
+			name:   "offset only",
+			limit:  0,
+			offset: 3,
+			want:   []string{"d", "e", "f", "g", "h", "i", "j"},
+		},
+		{
+			name:   "limit and offset",
+			limit:  3,
+			offset: 2,
+			want:   []string{"c", "d", "e"},
+		},
+		{
+			name:   "offset beyond items",
+			limit:  3,
+			offset: 20,
+			want:   []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := applyPagination(items, tt.limit, tt.offset)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestGenerateIDs tests ID generation functions.
+func TestGenerateIDs(t *testing.T) {
+	t.Run("generateMachineTypeID", func(t *testing.T) {
+		tests := []struct {
+			machineType string
+			want        string
+		}{
+			{"n1-standard-1", "gcp-machine-type-n1-standard-1"},
+			{"e2-micro", "gcp-machine-type-e2-micro"},
+			{"", "gcp-machine-type-"},
+		}
+
+		for _, tt := range tests {
+			got := generateMachineTypeID(tt.machineType)
+			assert.Equal(t, tt.want, got)
+		}
+	})
+
+	t.Run("generateInstanceID", func(t *testing.T) {
+		tests := []struct {
+			instanceName string
+			zone         string
+			want         string
+		}{
+			{"my-instance", "us-central1-a", "gcp-instance-us-central1-a-my-instance"},
+			{"vm1", "europe-west1-b", "gcp-instance-europe-west1-b-vm1"},
+		}
+
+		for _, tt := range tests {
+			got := generateInstanceID(tt.instanceName, tt.zone)
+			assert.Equal(t, tt.want, got)
+		}
+	})
+
+	t.Run("generateZonePoolID", func(t *testing.T) {
+		tests := []struct {
+			zone string
+			want string
+		}{
+			{"us-central1-a", "gcp-zone-us-central1-a"},
+			{"europe-west1-b", "gcp-zone-europe-west1-b"},
+		}
+
+		for _, tt := range tests {
+			got := generateZonePoolID(tt.zone)
+			assert.Equal(t, tt.want, got)
+		}
+	})
+
+	t.Run("generateIGPoolID", func(t *testing.T) {
+		tests := []struct {
+			igName string
+			zone   string
+			want   string
+		}{
+			{"my-ig", "us-central1-a", "gcp-ig-us-central1-a-my-ig"},
+			{"prod-ig", "europe-west1-b", "gcp-ig-europe-west1-b-prod-ig"},
+		}
+
+		for _, tt := range tests {
+			got := generateIGPoolID(tt.igName, tt.zone)
+			assert.Equal(t, tt.want, got)
+		}
+	})
+}
+
+// TestExtractMachineFamily tests machine family extraction.
+func TestExtractMachineFamily(t *testing.T) {
+	tests := []struct {
+		machineType string
+		want        string
+	}{
+		{"n1-standard-1", "n1"},
+		{"e2-micro", "e2"},
+		{"c2-standard-4", "c2"},
+		{"m1-megamem-96", "m1"},
+		{"a2-highgpu-1g", "a2"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.machineType, func(t *testing.T) {
+			got := extractMachineFamily(tt.machineType)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestExtractMachineTypeName tests machine type name extraction from URL.
+func TestExtractMachineTypeName(t *testing.T) {
+	tests := []struct {
+		url  string
+		want string
+	}{
+		{
+			url:  "zones/us-central1-a/machineTypes/n1-standard-1",
+			want: "n1-standard-1",
+		},
+		{
+			url:  "https://compute.googleapis.com/compute/v1/projects/my-project/zones/us-central1-a/machineTypes/e2-micro",
+			want: "e2-micro",
+		},
+		{
+			url:  "n1-standard-1",
+			want: "n1-standard-1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			got := extractMachineTypeName(tt.url)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestExtractZoneName tests zone name extraction from URL.
+func TestExtractZoneName(t *testing.T) {
+	tests := []struct {
+		url  string
+		want string
+	}{
+		{
+			url:  "https://compute.googleapis.com/compute/v1/projects/my-project/zones/us-central1-a",
+			want: "us-central1-a",
+		},
+		{
+			url:  "zones/europe-west1-b",
+			want: "europe-west1-b",
+		},
+		{
+			url:  "us-central1-a",
+			want: "us-central1-a",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			got := extractZoneName(tt.url)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestSubscriptions tests subscription CRUD operations.
+func TestSubscriptions(t *testing.T) {
+	adp := &GCPAdapter{
+		logger:        zap.NewNop(),
+		subscriptions: make(map[string]*adapter.Subscription),
+	}
+	ctx := context.Background()
+
+	t.Run("CreateSubscription", func(t *testing.T) {
+		sub := &adapter.Subscription{
+			Callback:               "https://example.com/callback",
+			ConsumerSubscriptionID: "consumer-sub-1",
+		}
+
+		created, err := adp.CreateSubscription(ctx, sub)
+		require.NoError(t, err)
+		require.NotNil(t, created)
+		assert.NotEmpty(t, created.SubscriptionID)
+		assert.Equal(t, "https://example.com/callback", created.Callback)
+		assert.Equal(t, "consumer-sub-1", created.ConsumerSubscriptionID)
+	})
+
+	t.Run("CreateSubscription with ID", func(t *testing.T) {
+		sub := &adapter.Subscription{
+			SubscriptionID: "my-custom-id",
+			Callback:       "https://example.com/callback2",
+		}
+
+		created, err := adp.CreateSubscription(ctx, sub)
+		require.NoError(t, err)
+		require.NotNil(t, created)
+		assert.Equal(t, "my-custom-id", created.SubscriptionID)
+	})
+
+	t.Run("CreateSubscription without callback", func(t *testing.T) {
+		sub := &adapter.Subscription{}
+
+		_, err := adp.CreateSubscription(ctx, sub)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "callback URL is required")
+	})
+
+	t.Run("GetSubscription", func(t *testing.T) {
+		sub, err := adp.GetSubscription(ctx, "my-custom-id")
+		require.NoError(t, err)
+		require.NotNil(t, sub)
+		assert.Equal(t, "my-custom-id", sub.SubscriptionID)
+	})
+
+	t.Run("GetSubscription not found", func(t *testing.T) {
+		_, err := adp.GetSubscription(ctx, "nonexistent")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "subscription not found")
+	})
+
+	t.Run("ListSubscriptions", func(t *testing.T) {
+		subs := adp.ListSubscriptions()
+		assert.Len(t, subs, 2)
+	})
+
+	t.Run("DeleteSubscription", func(t *testing.T) {
+		err := adp.DeleteSubscription(ctx, "my-custom-id")
+		require.NoError(t, err)
+
+		_, err = adp.GetSubscription(ctx, "my-custom-id")
+		require.Error(t, err)
+	})
+
+	t.Run("DeleteSubscription not found", func(t *testing.T) {
+		err := adp.DeleteSubscription(ctx, "nonexistent")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "subscription not found")
+	})
+}
+
+// TestPtrHelpers tests pointer helper functions.
+func TestPtrHelpers(t *testing.T) {
+	t.Run("ptrToString", func(t *testing.T) {
+		s := "hello"
+		assert.Equal(t, "hello", ptrToString(&s))
+		assert.Equal(t, "", ptrToString(nil))
+	})
+
+	t.Run("ptrToInt64", func(t *testing.T) {
+		i := int64(42)
+		assert.Equal(t, int64(42), ptrToInt64(&i))
+		assert.Equal(t, int64(0), ptrToInt64(nil))
+	})
+
+	t.Run("ptrToInt32", func(t *testing.T) {
+		i := int32(42)
+		assert.Equal(t, int32(42), ptrToInt32(&i))
+		assert.Equal(t, int32(0), ptrToInt32(nil))
+	})
+
+	t.Run("ptrToBool", func(t *testing.T) {
+		b := true
+		assert.Equal(t, true, ptrToBool(&b))
+		assert.Equal(t, false, ptrToBool(nil))
+	})
+}
+
+// BenchmarkMatchesFilter benchmarks the filter matching logic.
+func BenchmarkMatchesFilter(b *testing.B) {
+	adp := &GCPAdapter{
+		logger: zap.NewNop(),
+	}
+
+	filter := &adapter.Filter{
+		ResourcePoolID: "pool-1",
+		ResourceTypeID: "type-1",
+		Location:       "us-central1-a",
+		Labels: map[string]string{
+			"env": "prod",
+			"app": "web",
+		},
+	}
+
+	labels := map[string]string{
+		"env":     "prod",
+		"app":     "web",
+		"version": "1.0",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		adp.matchesFilter(filter, "pool-1", "type-1", "us-central1-a", labels)
+	}
+}

@@ -1,0 +1,312 @@
+package aws
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/piwi3910/netweave/internal/adapter"
+	"go.uber.org/zap"
+)
+
+// ListResources retrieves all resources (EC2 instances) matching the provided filter.
+func (a *AWSAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+	a.logger.Debug("ListResources called",
+		zap.Any("filter", filter))
+
+	// Build EC2 filters
+	var ec2Filters []ec2Types.Filter
+
+	// Filter by availability zone if location is specified
+	if filter != nil && filter.Location != "" {
+		ec2Filters = append(ec2Filters, ec2Types.Filter{
+			Name:   aws.String("availability-zone"),
+			Values: []string{filter.Location},
+		})
+	}
+
+	// Only get running instances by default
+	ec2Filters = append(ec2Filters, ec2Types.Filter{
+		Name:   aws.String("instance-state-name"),
+		Values: []string{"running", "pending", "stopping", "stopped"},
+	})
+
+	// Get EC2 instances
+	var resources []*adapter.Resource
+	paginator := ec2.NewDescribeInstancesPaginator(a.ec2Client, &ec2.DescribeInstancesInput{
+		Filters: ec2Filters,
+	})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to describe instances: %w", err)
+		}
+
+		for _, reservation := range page.Reservations {
+			for _, instance := range reservation.Instances {
+				resource := a.instanceToResource(&instance)
+
+				// Apply additional filters
+				labels := tagsToMap(instance.Tags)
+				if !a.matchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, extractTagValue(instance.Tags, "Location"), labels) {
+					continue
+				}
+
+				resources = append(resources, resource)
+			}
+		}
+	}
+
+	// Apply pagination
+	if filter != nil {
+		resources = applyPagination(resources, filter.Limit, filter.Offset)
+	}
+
+	a.logger.Info("listed resources",
+		zap.Int("count", len(resources)))
+
+	return resources, nil
+}
+
+// GetResource retrieves a specific resource (EC2 instance) by ID.
+func (a *AWSAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+	a.logger.Debug("GetResource called",
+		zap.String("id", id))
+
+	// Extract the actual EC2 instance ID from the O2-IMS resource ID
+	instanceID := strings.TrimPrefix(id, "aws-instance-")
+	if instanceID == id {
+		// ID doesn't have the prefix, assume it's the raw instance ID
+		instanceID = id
+	}
+
+	output, err := a.ec2Client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
+		InstanceIds: []string{instanceID},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to describe instance: %w", err)
+	}
+
+	if len(output.Reservations) == 0 || len(output.Reservations[0].Instances) == 0 {
+		return nil, fmt.Errorf("resource not found: %s", id)
+	}
+
+	resource := a.instanceToResource(&output.Reservations[0].Instances[0])
+
+	a.logger.Info("retrieved resource",
+		zap.String("resourceId", resource.ResourceID))
+
+	return resource, nil
+}
+
+// CreateResource creates a new resource (launches an EC2 instance).
+func (a *AWSAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+	a.logger.Debug("CreateResource called",
+		zap.String("resourceTypeId", resource.ResourceTypeID))
+
+	// Extract instance type from resource type ID
+	instanceType := strings.TrimPrefix(resource.ResourceTypeID, "aws-instance-type-")
+	if instanceType == resource.ResourceTypeID {
+		instanceType = resource.ResourceTypeID
+	}
+
+	// Get required AMI from extensions
+	var amiID string
+	if resource.Extensions != nil {
+		if ami, ok := resource.Extensions["aws.imageId"].(string); ok {
+			amiID = ami
+		}
+	}
+	if amiID == "" {
+		return nil, fmt.Errorf("aws.imageId is required in extensions")
+	}
+
+	// Get optional parameters from extensions
+	var subnetID string
+	var securityGroupIDs []string
+	var keyName string
+
+	if resource.Extensions != nil {
+		if subnet, ok := resource.Extensions["aws.subnetId"].(string); ok {
+			subnetID = subnet
+		}
+		if sgs, ok := resource.Extensions["aws.securityGroupIds"].([]string); ok {
+			securityGroupIDs = sgs
+		}
+		if key, ok := resource.Extensions["aws.keyName"].(string); ok {
+			keyName = key
+		}
+	}
+
+	// Build run instance input
+	input := &ec2.RunInstancesInput{
+		ImageId:      aws.String(amiID),
+		InstanceType: ec2Types.InstanceType(instanceType),
+		MinCount:     aws.Int32(1),
+		MaxCount:     aws.Int32(1),
+	}
+
+	if subnetID != "" {
+		input.SubnetId = aws.String(subnetID)
+	}
+
+	if len(securityGroupIDs) > 0 {
+		input.SecurityGroupIds = securityGroupIDs
+	}
+
+	if keyName != "" {
+		input.KeyName = aws.String(keyName)
+	}
+
+	// Add name tag if description is provided
+	if resource.Description != "" {
+		input.TagSpecifications = []ec2Types.TagSpecification{
+			{
+				ResourceType: ec2Types.ResourceTypeInstance,
+				Tags: []ec2Types.Tag{
+					{
+						Key:   aws.String("Name"),
+						Value: aws.String(resource.Description),
+					},
+				},
+			},
+		}
+	}
+
+	// Launch the instance
+	output, err := a.ec2Client.RunInstances(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to launch instance: %w", err)
+	}
+
+	if len(output.Instances) == 0 {
+		return nil, fmt.Errorf("no instance was launched")
+	}
+
+	createdResource := a.instanceToResource(&output.Instances[0])
+
+	a.logger.Info("created resource",
+		zap.String("resourceId", createdResource.ResourceID),
+		zap.String("instanceId", aws.ToString(output.Instances[0].InstanceId)))
+
+	return createdResource, nil
+}
+
+// DeleteResource deletes a resource (terminates an EC2 instance) by ID.
+func (a *AWSAdapter) DeleteResource(ctx context.Context, id string) error {
+	a.logger.Debug("DeleteResource called",
+		zap.String("id", id))
+
+	// Extract the actual EC2 instance ID from the O2-IMS resource ID
+	instanceID := strings.TrimPrefix(id, "aws-instance-")
+	if instanceID == id {
+		instanceID = id
+	}
+
+	_, err := a.ec2Client.TerminateInstances(ctx, &ec2.TerminateInstancesInput{
+		InstanceIds: []string{instanceID},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to terminate instance: %w", err)
+	}
+
+	a.logger.Info("deleted resource",
+		zap.String("resourceId", id),
+		zap.String("instanceId", instanceID))
+
+	return nil
+}
+
+// instanceToResource converts an EC2 instance to an O2-IMS Resource.
+func (a *AWSAdapter) instanceToResource(instance *ec2Types.Instance) *adapter.Resource {
+	instanceID := aws.ToString(instance.InstanceId)
+	resourceID := generateInstanceID(instanceID)
+	resourceTypeID := generateInstanceTypeID(string(instance.InstanceType))
+
+	// Determine resource pool ID based on pool mode
+	var resourcePoolID string
+	if a.poolMode == "az" {
+		resourcePoolID = generateAZPoolID(aws.ToString(instance.Placement.AvailabilityZone))
+	} else {
+		// In ASG mode, we would need to look up which ASG this instance belongs to
+		// For now, use the AZ as fallback
+		resourcePoolID = generateAZPoolID(aws.ToString(instance.Placement.AvailabilityZone))
+	}
+
+	// Get instance name from tags
+	name := extractTagValue(instance.Tags, "Name")
+	if name == "" {
+		name = instanceID
+	}
+
+	// Build extensions with EC2 instance details
+	extensions := map[string]interface{}{
+		"aws.instanceId":       instanceID,
+		"aws.instanceType":     string(instance.InstanceType),
+		"aws.availabilityZone": aws.ToString(instance.Placement.AvailabilityZone),
+		"aws.state":            string(instance.State.Name),
+		"aws.stateCode":        aws.ToInt32(instance.State.Code),
+		"aws.imageId":          aws.ToString(instance.ImageId),
+		"aws.privateIp":        aws.ToString(instance.PrivateIpAddress),
+		"aws.publicIp":         aws.ToString(instance.PublicIpAddress),
+		"aws.privateDns":       aws.ToString(instance.PrivateDnsName),
+		"aws.publicDns":        aws.ToString(instance.PublicDnsName),
+		"aws.vpcId":            aws.ToString(instance.VpcId),
+		"aws.subnetId":         aws.ToString(instance.SubnetId),
+		"aws.architecture":     string(instance.Architecture),
+		"aws.platform":         aws.ToString(instance.PlatformDetails),
+		"aws.launchTime":       instance.LaunchTime,
+		"aws.tags":             tagsToMap(instance.Tags),
+	}
+
+	// Add EBS volume information
+	if len(instance.BlockDeviceMappings) > 0 {
+		volumes := make([]map[string]interface{}, 0, len(instance.BlockDeviceMappings))
+		for _, bdm := range instance.BlockDeviceMappings {
+			if bdm.Ebs != nil {
+				volume := map[string]interface{}{
+					"deviceName": aws.ToString(bdm.DeviceName),
+					"volumeId":   aws.ToString(bdm.Ebs.VolumeId),
+					"status":     string(bdm.Ebs.Status),
+				}
+				volumes = append(volumes, volume)
+			}
+		}
+		extensions["aws.volumes"] = volumes
+	}
+
+	// Add network interface information
+	if len(instance.NetworkInterfaces) > 0 {
+		interfaces := make([]map[string]interface{}, 0, len(instance.NetworkInterfaces))
+		for _, eni := range instance.NetworkInterfaces {
+			iface := map[string]interface{}{
+				"interfaceId": aws.ToString(eni.NetworkInterfaceId),
+				"subnetId":    aws.ToString(eni.SubnetId),
+				"privateIp":   aws.ToString(eni.PrivateIpAddress),
+				"macAddress":  aws.ToString(eni.MacAddress),
+				"status":      string(eni.Status),
+			}
+			interfaces = append(interfaces, iface)
+		}
+		extensions["aws.networkInterfaces"] = interfaces
+	}
+
+	// Add CPU and memory information if available
+	if instance.CpuOptions != nil {
+		extensions["aws.cpuCoreCount"] = aws.ToInt32(instance.CpuOptions.CoreCount)
+		extensions["aws.cpuThreadsPerCore"] = aws.ToInt32(instance.CpuOptions.ThreadsPerCore)
+	}
+
+	return &adapter.Resource{
+		ResourceID:     resourceID,
+		ResourceTypeID: resourceTypeID,
+		ResourcePoolID: resourcePoolID,
+		GlobalAssetID:  fmt.Sprintf("urn:aws:ec2:%s:%s", a.region, instanceID),
+		Description:    name,
+		Extensions:     extensions,
+	}
+}
