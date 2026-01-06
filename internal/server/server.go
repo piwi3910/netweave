@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -65,6 +66,7 @@ type Server struct {
 	openAPIValidator *middleware.OpenAPIValidator
 	smoRegistry      *smo.Registry
 	smoHandler       *SMOHandler
+	shutdownOnce     sync.Once // Ensures shutdown logic runs only once
 }
 
 // Metrics holds Prometheus metrics for the server.
@@ -360,36 +362,43 @@ func (s *Server) Start() error {
 // Shutdown gracefully shuts down the HTTP server.
 // It waits for active requests to complete or until the shutdown timeout expires.
 // It also stops SMO health checks and closes the SMO registry.
+// This method is safe to call multiple times - only the first call will execute.
 //
 // Returns an error if the shutdown fails.
 func (s *Server) Shutdown() error {
-	s.logger.Info("initiating graceful shutdown",
-		zap.Duration("timeout", s.config.Server.ShutdownTimeout),
-	)
+	var shutdownErr error
 
-	// Stop SMO health checks and close registry
-	if s.smoRegistry != nil {
-		s.logger.Info("stopping SMO plugin health checks")
-		if err := s.smoRegistry.Close(); err != nil {
-			s.logger.Warn("error closing SMO registry", zap.Error(err))
+	s.shutdownOnce.Do(func() {
+		s.logger.Info("initiating graceful shutdown",
+			zap.Duration("timeout", s.config.Server.ShutdownTimeout),
+		)
+
+		// Stop SMO health checks and close registry
+		if s.smoRegistry != nil {
+			s.logger.Info("stopping SMO plugin health checks")
+			if err := s.smoRegistry.Close(); err != nil {
+				s.logger.Warn("error closing SMO registry", zap.Error(err))
+			}
 		}
-	}
 
-	// Create shutdown context with timeout
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		s.config.Server.ShutdownTimeout,
-	)
-	defer cancel()
+		// Create shutdown context with timeout
+		ctx, cancel := context.WithTimeout(
+			context.Background(),
+			s.config.Server.ShutdownTimeout,
+		)
+		defer cancel()
 
-	// Shutdown HTTP server
-	if err := s.httpServer.Shutdown(ctx); err != nil {
-		s.logger.Error("error during shutdown", zap.Error(err))
-		return fmt.Errorf("server shutdown failed: %w", err)
-	}
+		// Shutdown HTTP server
+		if err := s.httpServer.Shutdown(ctx); err != nil {
+			s.logger.Error("error during shutdown", zap.Error(err))
+			shutdownErr = fmt.Errorf("server shutdown failed: %w", err)
+			return
+		}
 
-	s.logger.Info("server shutdown complete")
-	return nil
+		s.logger.Info("server shutdown complete")
+	})
+
+	return shutdownErr
 }
 
 // Router returns the underlying Gin router.

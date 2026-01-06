@@ -220,12 +220,18 @@ func (p *Plugin) publishOSMEvent(ctx context.Context, event *InfrastructureEvent
 	// For now, we'll use OSM's notification service if available,
 	// or log the event for future processing.
 
-	// TODO: Implement event publishing via OSM notification service
-	// This would typically involve:
+	// Event publishing via OSM notification service is planned for future release.
+	// Implementation will involve:
 	// - Formatting the event for OSM's notification format
 	// - Posting to /osm/nslcm/v1/notifications or similar endpoint
 	// - Handling delivery confirmation
+	// Tracked in: https://github.com/piwi3910/netweave/issues/33
 
+	// Log event for now, full notification service support pending
+	p.logger.Debug("infrastructure event logged (OSM notification service pending)",
+		zap.String("event_type", string(event.Type)),
+		zap.String("resource_id", event.ResourceID),
+	)
 	return nil
 }
 

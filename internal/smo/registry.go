@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -38,22 +39,52 @@ type Registry struct {
 	healthCheckTimeout  time.Duration
 	stopHealthCheck     chan struct{}
 	healthCheckWg       sync.WaitGroup
+	healthCheckRunning  atomic.Bool // Prevents duplicate health check loops
+}
+
+// RegistryOption is a functional option for configuring Registry.
+type RegistryOption func(*Registry)
+
+// WithHealthCheckInterval sets the health check interval.
+func WithHealthCheckInterval(interval time.Duration) RegistryOption {
+	return func(r *Registry) {
+		if interval > 0 {
+			r.healthCheckInterval = interval
+		}
+	}
+}
+
+// WithHealthCheckTimeout sets the health check timeout.
+func WithHealthCheckTimeout(timeout time.Duration) RegistryOption {
+	return func(r *Registry) {
+		if timeout > 0 {
+			r.healthCheckTimeout = timeout
+		}
+	}
 }
 
 // NewRegistry creates a new SMO plugin registry with the provided logger.
-func NewRegistry(logger *zap.Logger) *Registry {
+// Optional RegistryOption functions can be provided to configure health check intervals.
+func NewRegistry(logger *zap.Logger, opts ...RegistryOption) *Registry {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 
-	return &Registry{
+	r := &Registry{
 		plugins:             make(map[string]Plugin),
 		pluginInfo:          make(map[string]*PluginInfo),
 		logger:              logger,
-		healthCheckInterval: 30 * time.Second,
-		healthCheckTimeout:  5 * time.Second,
+		healthCheckInterval: 30 * time.Second, // Default: 30 seconds
+		healthCheckTimeout:  5 * time.Second,  // Default: 5 seconds
 		stopHealthCheck:     make(chan struct{}),
 	}
+
+	// Apply optional configurations
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	return r
 }
 
 // Register registers a new SMO plugin with the registry.
@@ -201,14 +232,20 @@ func (r *Registry) SetDefault(name string) error {
 }
 
 // List returns information about all registered plugins.
+// Returns deep copies to prevent external modification of internal state.
 func (r *Registry) List() []*PluginInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	result := make([]*PluginInfo, 0, len(r.pluginInfo))
 	for _, info := range r.pluginInfo {
-		// Create a copy to avoid exposing internal state
+		// Create a deep copy to avoid exposing internal state
 		infoCopy := *info
+		// Deep copy the Capabilities slice to prevent external modification
+		if info.Capabilities != nil {
+			infoCopy.Capabilities = make([]Capability, len(info.Capabilities))
+			copy(infoCopy.Capabilities, info.Capabilities)
+		}
 		result = append(result, &infoCopy)
 	}
 
@@ -255,15 +292,27 @@ func (r *Registry) GetHealthy() []Plugin {
 }
 
 // StartHealthChecks starts periodic health checking for all registered plugins.
+// This function is idempotent - multiple calls will not spawn duplicate goroutines.
 func (r *Registry) StartHealthChecks(ctx context.Context) {
+	// Use atomic.Bool to prevent duplicate health check loops
+	if !r.healthCheckRunning.CompareAndSwap(false, true) {
+		r.logger.Debug("health check loop already running, skipping")
+		return
+	}
+
 	r.healthCheckWg.Add(1)
 	go r.healthCheckLoop(ctx)
 }
 
 // StopHealthChecks stops the periodic health check loop.
 func (r *Registry) StopHealthChecks() {
+	if !r.healthCheckRunning.Load() {
+		return // Not running, nothing to stop
+	}
+
 	close(r.stopHealthCheck)
 	r.healthCheckWg.Wait()
+	r.healthCheckRunning.Store(false)
 }
 
 // healthCheckLoop periodically checks health of all registered plugins.

@@ -15,6 +15,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// identifierPattern matches valid alphanumeric identifiers.
+var identifierPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,255}$`)
+
 // SMO Prometheus metrics.
 var (
 	smoWorkflowExecutions = promauto.NewCounterVec(
@@ -77,14 +80,22 @@ var (
 		},
 		[]string{"event_type", "status"},
 	)
+
+	smoPluginsRegistered = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "o2ims",
+			Subsystem: "smo",
+			Name:      "plugins_registered_total",
+			Help:      "Total number of registered SMO plugins",
+		},
+	)
 )
 
-// uuidPattern matches valid UUID v4 format.
-var uuidPattern = regexp.MustCompile(`^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[89aAbB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$`)
-
-// isValidUUID checks if a string is a valid UUID v4.
+// isValidUUID checks if a string is a valid UUID (any version).
+// Uses google/uuid library for proper parsing which handles all UUID versions.
 func isValidUUID(s string) bool {
-	return uuidPattern.MatchString(s)
+	_, err := uuid.Parse(s)
+	return err == nil
 }
 
 // isValidIdentifier checks if a string is a valid non-empty identifier.
@@ -93,13 +104,12 @@ func isValidIdentifier(s string) bool {
 	if s == "" {
 		return false
 	}
-	// Accept UUIDs
+	// Accept UUIDs (any version)
 	if isValidUUID(s) {
 		return true
 	}
 	// Accept alphanumeric identifiers with hyphens and underscores (1-256 chars)
-	matched, _ := regexp.MatchString(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,255}$`, s)
-	return matched
+	return identifierPattern.MatchString(s)
 }
 
 // SMOErrorResponse represents a standardized error response.
@@ -110,12 +120,48 @@ type SMOErrorResponse struct {
 }
 
 // respondWithError sends a standardized error response.
+// Use this for errors that should be shown to external clients.
 func respondWithError(c *gin.Context, code int, errorType, message string) {
 	c.JSON(code, SMOErrorResponse{
 		Error:   errorType,
 		Message: message,
 		Code:    code,
 	})
+}
+
+// respondWithInternalError logs detailed error internally and returns generic message to client.
+// This prevents information disclosure of internal implementation details.
+func (h *SMOHandler) respondWithInternalError(c *gin.Context, operation string, err error) {
+	// Log detailed error internally for debugging
+	h.logger.Error("internal error during SMO operation",
+		zap.String("operation", operation),
+		zap.String("path", c.Request.URL.Path),
+		zap.Error(err),
+	)
+
+	// Return generic error to client
+	respondWithError(c, http.StatusInternalServerError, "InternalError",
+		"An internal error occurred while processing the request")
+}
+
+// respondWithBadRequest logs the validation error and returns a safe message.
+func (h *SMOHandler) respondWithBadRequest(c *gin.Context, operation string, err error) {
+	h.logger.Warn("bad request during SMO operation",
+		zap.String("operation", operation),
+		zap.String("path", c.Request.URL.Path),
+		zap.Error(err),
+	)
+	respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid request format")
+}
+
+// respondWithNotFound logs the not found error and returns a safe message.
+func (h *SMOHandler) respondWithNotFound(c *gin.Context, resourceType string, err error) {
+	h.logger.Debug("resource not found",
+		zap.String("resource_type", resourceType),
+		zap.String("path", c.Request.URL.Path),
+		zap.Error(err),
+	)
+	respondWithError(c, http.StatusNotFound, "NotFound", resourceType+" not found")
 }
 
 // SMOHandler handles O2-SMO API requests.
@@ -246,7 +292,7 @@ func (h *SMOHandler) handleExecuteWorkflow(c *gin.Context) {
 
 	var req WorkflowRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
+		h.respondWithBadRequest(c, "executeWorkflow", err)
 		smoAPIRequestDuration.WithLabelValues("workflows", "POST", "400").Observe(time.Since(start).Seconds())
 		return
 	}
@@ -265,7 +311,7 @@ func (h *SMOHandler) handleExecuteWorkflow(c *gin.Context) {
 	}
 
 	if err != nil {
-		respondWithError(c, http.StatusNotFound, "NotFound", "Plugin not found: "+err.Error())
+		h.respondWithNotFound(c, "Plugin", err)
 		smoAPIRequestDuration.WithLabelValues("workflows", "POST", "404").Observe(time.Since(start).Seconds())
 		return
 	}
@@ -288,8 +334,7 @@ func (h *SMOHandler) handleExecuteWorkflow(c *gin.Context) {
 	// Execute workflow
 	execution, err := plugin.ExecuteWorkflow(c.Request.Context(), workflowReq)
 	if err != nil {
-		h.logger.Error("failed to execute workflow", zap.Error(err))
-		respondWithError(c, http.StatusInternalServerError, "InternalError", "Failed to execute workflow: "+err.Error())
+		h.respondWithInternalError(c, "executeWorkflow", err)
 		smoWorkflowExecutions.WithLabelValues(req.WorkflowName, pluginName, "error").Inc()
 		smoAPIRequestDuration.WithLabelValues("workflows", "POST", "500").Observe(time.Since(start).Seconds())
 		return
@@ -331,15 +376,15 @@ func (h *SMOHandler) handleGetWorkflowStatus(c *gin.Context) {
 	}
 
 	if err != nil {
-		respondWithError(c, http.StatusNotFound, "NotFound", "Plugin not found: "+err.Error())
+		h.respondWithNotFound(c, "Plugin", err)
 		return
 	}
 
 	// Get workflow status
 	status, err := plugin.GetWorkflowStatus(c.Request.Context(), executionID)
 	if err != nil {
-		h.logger.Error("failed to get workflow status", zap.Error(err))
-		respondWithError(c, http.StatusNotFound, "NotFound", "Workflow execution not found: "+executionID)
+		h.logger.Error("failed to get workflow status", zap.String("execution_id", executionID), zap.Error(err))
+		respondWithError(c, http.StatusNotFound, "NotFound", "Workflow execution not found")
 		return
 	}
 
@@ -370,14 +415,13 @@ func (h *SMOHandler) handleCancelWorkflow(c *gin.Context) {
 	}
 
 	if err != nil {
-		respondWithError(c, http.StatusNotFound, "NotFound", "Plugin not found: "+err.Error())
+		h.respondWithNotFound(c, "Plugin", err)
 		return
 	}
 
 	// Cancel workflow
 	if err := plugin.CancelWorkflow(c.Request.Context(), executionID); err != nil {
-		h.logger.Error("failed to cancel workflow", zap.Error(err))
-		respondWithError(c, http.StatusInternalServerError, "InternalError", "Failed to cancel workflow: "+err.Error())
+		h.respondWithInternalError(c, "cancelWorkflow", err)
 		return
 	}
 
@@ -414,23 +458,14 @@ func (h *SMOHandler) handleListServiceModels(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + err.Error(),
-			"code":    http.StatusNotFound,
-		})
+		h.respondWithNotFound(c, "Plugin", err)
 		return
 	}
 
 	// List service models
 	models, err := plugin.ListServiceModels(c.Request.Context())
 	if err != nil {
-		h.logger.Error("failed to list service models", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to list service models: " + err.Error(),
-			"code":    http.StatusInternalServerError,
-		})
+		h.respondWithInternalError(c, "listServiceModels", err)
 		return
 	}
 
@@ -447,11 +482,7 @@ func (h *SMOHandler) handleCreateServiceModel(c *gin.Context) {
 
 	var req ServiceModelRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		h.respondWithBadRequest(c, "createServiceModel", err)
 		return
 	}
 
@@ -465,11 +496,7 @@ func (h *SMOHandler) handleCreateServiceModel(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + err.Error(),
-			"code":    http.StatusNotFound,
-		})
+		h.respondWithNotFound(c, "Plugin", err)
 		return
 	}
 
@@ -485,12 +512,7 @@ func (h *SMOHandler) handleCreateServiceModel(c *gin.Context) {
 	}
 
 	if err := plugin.RegisterServiceModel(c.Request.Context(), model); err != nil {
-		h.logger.Error("failed to create service model", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to create service model: " + err.Error(),
-			"code":    http.StatusInternalServerError,
-		})
+		h.respondWithInternalError(c, "createServiceModel", err)
 		return
 	}
 
@@ -526,15 +548,15 @@ func (h *SMOHandler) handleGetServiceModel(c *gin.Context) {
 	}
 
 	if err != nil {
-		respondWithError(c, http.StatusNotFound, "NotFound", "Plugin not found: "+err.Error())
+		h.respondWithNotFound(c, "Plugin", err)
 		return
 	}
 
 	// Get service model
 	model, err := plugin.GetServiceModel(c.Request.Context(), modelID)
 	if err != nil {
-		h.logger.Error("failed to get service model", zap.Error(err))
-		respondWithError(c, http.StatusNotFound, "NotFound", "Service model not found: "+modelID)
+		h.logger.Error("failed to get service model", zap.String("model_id", modelID), zap.Error(err))
+		respondWithError(c, http.StatusNotFound, "NotFound", "Service model not found")
 		return
 	}
 
@@ -581,11 +603,7 @@ func (h *SMOHandler) handleApplyPolicy(c *gin.Context) {
 
 	var req PolicyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		h.respondWithBadRequest(c, "applyPolicy", err)
 		return
 	}
 
@@ -599,11 +617,7 @@ func (h *SMOHandler) handleApplyPolicy(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + err.Error(),
-			"code":    http.StatusNotFound,
-		})
+		h.respondWithNotFound(c, "Plugin", err)
 		return
 	}
 
@@ -624,12 +638,7 @@ func (h *SMOHandler) handleApplyPolicy(c *gin.Context) {
 	}
 
 	if err := plugin.ApplyPolicy(c.Request.Context(), policy); err != nil {
-		h.logger.Error("failed to apply policy", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to apply policy: " + err.Error(),
-			"code":    http.StatusInternalServerError,
-		})
+		h.respondWithInternalError(c, "applyPolicy", err)
 		return
 	}
 
@@ -665,15 +674,15 @@ func (h *SMOHandler) handleGetPolicyStatus(c *gin.Context) {
 	}
 
 	if err != nil {
-		respondWithError(c, http.StatusNotFound, "NotFound", "Plugin not found: "+err.Error())
+		h.respondWithNotFound(c, "Plugin", err)
 		return
 	}
 
 	// Get policy status
 	status, err := plugin.GetPolicyStatus(c.Request.Context(), policyID)
 	if err != nil {
-		h.logger.Error("failed to get policy status", zap.Error(err))
-		respondWithError(c, http.StatusNotFound, "NotFound", "Policy not found: "+policyID)
+		h.logger.Error("failed to get policy status", zap.String("policy_id", policyID), zap.Error(err))
+		respondWithError(c, http.StatusNotFound, "NotFound", "Policy not found")
 		return
 	}
 
@@ -690,11 +699,7 @@ func (h *SMOHandler) handleSyncInfrastructure(c *gin.Context) {
 
 	var inventory smo.InfrastructureInventory
 	if err := c.ShouldBindJSON(&inventory); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		h.respondWithBadRequest(c, "syncInfrastructure", err)
 		return
 	}
 
@@ -708,22 +713,13 @@ func (h *SMOHandler) handleSyncInfrastructure(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + err.Error(),
-			"code":    http.StatusNotFound,
-		})
+		h.respondWithNotFound(c, "Plugin", err)
 		return
 	}
 
 	// Sync inventory
 	if err := plugin.SyncInfrastructureInventory(c.Request.Context(), &inventory); err != nil {
-		h.logger.Error("failed to sync infrastructure inventory", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to sync infrastructure: " + err.Error(),
-			"code":    http.StatusInternalServerError,
-		})
+		h.respondWithInternalError(c, "syncInfrastructure", err)
 		return
 	}
 
@@ -747,11 +743,7 @@ func (h *SMOHandler) handleSyncDeployments(c *gin.Context) {
 
 	var inventory smo.DeploymentInventory
 	if err := c.ShouldBindJSON(&inventory); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		h.respondWithBadRequest(c, "syncDeployments", err)
 		return
 	}
 
@@ -765,22 +757,13 @@ func (h *SMOHandler) handleSyncDeployments(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + err.Error(),
-			"code":    http.StatusNotFound,
-		})
+		h.respondWithNotFound(c, "Plugin", err)
 		return
 	}
 
 	// Sync deployments
 	if err := plugin.SyncDeploymentInventory(c.Request.Context(), &inventory); err != nil {
-		h.logger.Error("failed to sync deployment inventory", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to sync deployments: " + err.Error(),
-			"code":    http.StatusInternalServerError,
-		})
+		h.respondWithInternalError(c, "syncDeployments", err)
 		return
 	}
 
@@ -805,11 +788,7 @@ func (h *SMOHandler) handlePublishInfrastructureEvent(c *gin.Context) {
 
 	var event smo.InfrastructureEvent
 	if err := c.ShouldBindJSON(&event); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		h.respondWithBadRequest(c, "publishInfrastructureEvent", err)
 		return
 	}
 
@@ -833,22 +812,13 @@ func (h *SMOHandler) handlePublishInfrastructureEvent(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + err.Error(),
-			"code":    http.StatusNotFound,
-		})
+		h.respondWithNotFound(c, "Plugin", err)
 		return
 	}
 
 	// Publish event
 	if err := plugin.PublishInfrastructureEvent(c.Request.Context(), &event); err != nil {
-		h.logger.Error("failed to publish infrastructure event", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to publish event: " + err.Error(),
-			"code":    http.StatusInternalServerError,
-		})
+		h.respondWithInternalError(c, "publishInfrastructureEvent", err)
 		return
 	}
 
@@ -871,11 +841,7 @@ func (h *SMOHandler) handlePublishDeploymentEvent(c *gin.Context) {
 
 	var event smo.DeploymentEvent
 	if err := c.ShouldBindJSON(&event); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		h.respondWithBadRequest(c, "publishDeploymentEvent", err)
 		return
 	}
 
@@ -899,22 +865,13 @@ func (h *SMOHandler) handlePublishDeploymentEvent(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + err.Error(),
-			"code":    http.StatusNotFound,
-		})
+		h.respondWithNotFound(c, "Plugin", err)
 		return
 	}
 
 	// Publish event
 	if err := plugin.PublishDeploymentEvent(c.Request.Context(), &event); err != nil {
-		h.logger.Error("failed to publish deployment event", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to publish event: " + err.Error(),
-			"code":    http.StatusInternalServerError,
-		})
+		h.respondWithInternalError(c, "publishDeploymentEvent", err)
 		return
 	}
 
@@ -962,6 +919,9 @@ func (h *SMOHandler) handleSMOHealth(c *gin.Context) {
 		}
 		smoPluginHealth.WithLabelValues(plugin.Name).Set(healthValue)
 	}
+
+	// Update registry size metric
+	smoPluginsRegistered.Set(float64(len(plugins)))
 
 	overallStatus := "healthy"
 	statusCode := http.StatusOK
