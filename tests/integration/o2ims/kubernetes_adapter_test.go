@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -18,8 +17,6 @@ import (
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/adapters/kubernetes"
-	"github.com/piwi3910/netweave/internal/config"
-	"github.com/piwi3910/netweave/internal/server"
 	"github.com/piwi3910/netweave/internal/storage"
 	"github.com/piwi3910/netweave/tests/integration/helpers"
 )
@@ -97,7 +94,7 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		body, _ := json.Marshal(poolData)
 
 		createResp, err := http.Post(
-			ts.URL+"/o2ims-infrastructureInventory/v1/resourcePools",
+			ts.O2IMSURL()+"/resourcePools",
 			"application/json",
 			bytes.NewReader(body),
 		)
@@ -110,7 +107,7 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 
 		// Get the pool
 		getResp, err := http.Get(
-			ts.URL + "/o2ims-infrastructureInventory/v1/resourcePools/" + poolID,
+			ts.O2IMSURL() + "/resourcePools/" + poolID,
 		)
 		require.NoError(t, err)
 		defer getResp.Body.Close()
@@ -128,7 +125,7 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 	// Test 3: List resource pools
 	t.Run("ListResourcePools", func(t *testing.T) {
 		resp, err := http.Get(
-			ts.URL + "/o2ims-infrastructureInventory/v1/resourcePools",
+			ts.O2IMSURL() + "/resourcePools",
 		)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -150,7 +147,7 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		body, _ := json.Marshal(poolData)
 
 		createResp, err := http.Post(
-			ts.URL+"/o2ims-infrastructureInventory/v1/resourcePools",
+			ts.O2IMSURL()+"/resourcePools",
 			"application/json",
 			bytes.NewReader(body),
 		)
@@ -170,7 +167,7 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 
 		req, _ := http.NewRequest(
 			http.MethodPut,
-			ts.URL+"/o2ims-infrastructureInventory/v1/resourcePools/"+poolID,
+			ts.O2IMSURL()+"/resourcePools/"+poolID,
 			bytes.NewReader(updateBody),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -197,7 +194,7 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		body, _ := json.Marshal(poolData)
 
 		createResp, err := http.Post(
-			ts.URL+"/o2ims-infrastructureInventory/v1/resourcePools",
+			ts.O2IMSURL()+"/resourcePools",
 			"application/json",
 			bytes.NewReader(body),
 		)
@@ -211,7 +208,7 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		// Delete the pool
 		req, _ := http.NewRequest(
 			http.MethodDelete,
-			ts.URL+"/o2ims-infrastructureInventory/v1/resourcePools/"+poolID,
+			ts.O2IMSURL()+"/resourcePools/"+poolID,
 			nil,
 		)
 
@@ -224,7 +221,7 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 
 		// Verify deletion - GET should return 404
 		getResp, _ := http.Get(
-			ts.URL + "/o2ims-infrastructureInventory/v1/resourcePools/" + poolID,
+			ts.O2IMSURL() + "/resourcePools/" + poolID,
 		)
 		defer getResp.Body.Close()
 		assert.Equal(t, http.StatusNotFound, getResp.StatusCode)
@@ -238,7 +235,6 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 	}
 
 	env := helpers.SetupTestEnvironment(t)
-	ctx := env.Context()
 
 	redisStore := storage.NewRedisStore(&storage.RedisConfig{
 		Addr:       env.Redis.Addr(),
@@ -250,19 +246,13 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 	k8sAdapter := kubernetes.NewMockAdapter()
 	defer k8sAdapter.Close()
 
-	cfg := &config.Config{}
-	srv := server.New(cfg)
-	srv.SetAdapter(k8sAdapter)
-	srv.SetStorage(redisStore)
-
-	ts := httptest.NewServer(srv.Handler())
-	defer ts.Close()
+	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
 	// First create a resource pool and resource type
 	poolData := helpers.TestResourcePool("resource-test-pool")
 	poolBody, _ := json.Marshal(poolData)
 	poolResp, _ := http.Post(
-		ts.URL+"/o2ims-infrastructureInventory/v1/resourcePools",
+		ts.O2IMSURL()+"/resourcePools",
 		"application/json",
 		bytes.NewReader(poolBody),
 	)
@@ -279,7 +269,7 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		require.NoError(t, err)
 
 		resp, err := http.Post(
-			ts.URL+"/o2ims-infrastructureInventory/v1/resources",
+			ts.O2IMSURL()+"/resources",
 			"application/json",
 			bytes.NewReader(body),
 		)
@@ -303,7 +293,7 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		body, _ := json.Marshal(resourceData)
 
 		createResp, err := http.Post(
-			ts.URL+"/o2ims-infrastructureInventory/v1/resources",
+			ts.O2IMSURL()+"/resources",
 			"application/json",
 			bytes.NewReader(body),
 		)
@@ -316,7 +306,7 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 
 		// Get the resource
 		getResp, err := http.Get(
-			ts.URL + "/o2ims-infrastructureInventory/v1/resources/" + resourceID,
+			ts.O2IMSURL() + "/resources/" + resourceID,
 		)
 		require.NoError(t, err)
 		defer getResp.Body.Close()
@@ -337,7 +327,7 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 			resourceData := helpers.TestResource(poolID, "compute-node")
 			body, _ := json.Marshal(resourceData)
 			resp, _ := http.Post(
-				ts.URL+"/o2ims-infrastructureInventory/v1/resources",
+				ts.O2IMSURL()+"/resources",
 				"application/json",
 				bytes.NewReader(body),
 			)
@@ -346,7 +336,7 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 
 		// List with pool filter
 		resp, err := http.Get(
-			ts.URL + "/o2ims-infrastructureInventory/v1/resources?resourcePoolId=" + poolID,
+			ts.O2IMSURL() + "/resources?resourcePoolId=" + poolID,
 		)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -371,7 +361,7 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		body, _ := json.Marshal(resourceData)
 
 		createResp, err := http.Post(
-			ts.URL+"/o2ims-infrastructureInventory/v1/resources",
+			ts.O2IMSURL()+"/resources",
 			"application/json",
 			bytes.NewReader(body),
 		)
@@ -385,7 +375,7 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		// Delete the resource
 		req, _ := http.NewRequest(
 			http.MethodDelete,
-			ts.URL+"/o2ims-infrastructureInventory/v1/resources/"+resourceID,
+			ts.O2IMSURL()+"/resources/"+resourceID,
 			nil,
 		)
 
@@ -398,7 +388,7 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 
 		// Verify deletion
 		getResp, _ := http.Get(
-			ts.URL + "/o2ims-infrastructureInventory/v1/resources/" + resourceID,
+			ts.O2IMSURL() + "/resources/" + resourceID,
 		)
 		defer getResp.Body.Close()
 		assert.Equal(t, http.StatusNotFound, getResp.StatusCode)
@@ -422,17 +412,11 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 	k8sAdapter := kubernetes.NewMockAdapter()
 	defer k8sAdapter.Close()
 
-	cfg := &config.Config{}
-	srv := server.New(cfg)
-	srv.SetAdapter(k8sAdapter)
-	srv.SetStorage(redisStore)
-
-	ts := httptest.NewServer(srv.Handler())
-	defer ts.Close()
+	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
 	t.Run("GetNonExistentResourcePool", func(t *testing.T) {
 		resp, err := http.Get(
-			ts.URL + "/o2ims-infrastructureInventory/v1/resourcePools/nonexistent-pool",
+			ts.O2IMSURL() + "/resourcePools/nonexistent-pool",
 		)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -447,7 +431,7 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 		body, _ := json.Marshal(invalidData)
 
 		resp, err := http.Post(
-			ts.URL+"/o2ims-infrastructureInventory/v1/resourcePools",
+			ts.O2IMSURL()+"/resourcePools",
 			"application/json",
 			bytes.NewReader(body),
 		)
@@ -460,7 +444,7 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 	t.Run("DeleteNonExistentResource", func(t *testing.T) {
 		req, _ := http.NewRequest(
 			http.MethodDelete,
-			ts.URL+"/o2ims-infrastructureInventory/v1/resources/nonexistent-resource",
+			ts.O2IMSURL()+"/resources/nonexistent-resource",
 			nil,
 		)
 
@@ -476,7 +460,7 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 		invalidJSON := []byte(`{"invalid": json}`)
 
 		resp, err := http.Post(
-			ts.URL+"/o2ims-infrastructureInventory/v1/resourcePools",
+			ts.O2IMSURL()+"/resourcePools",
 			"application/json",
 			bytes.NewReader(invalidJSON),
 		)

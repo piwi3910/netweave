@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -17,8 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/piwi3910/netweave/internal/adapters/kubernetes"
-	"github.com/piwi3910/netweave/internal/config"
-	"github.com/piwi3910/netweave/internal/server"
 	"github.com/piwi3910/netweave/internal/storage"
 	"github.com/piwi3910/netweave/tests/integration/helpers"
 )
@@ -55,13 +52,7 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 	k8sAdapter := kubernetes.NewMockAdapter()
 	defer k8sAdapter.Close()
 
-	cfg := &config.Config{}
-	srv := server.New(cfg)
-	srv.SetAdapter(k8sAdapter)
-	srv.SetStorage(redisStore)
-
-	ts := httptest.NewServer(srv.Handler())
-	defer ts.Close()
+	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
 	// Step 1: Create subscription
 	t.Log("Step 1: Creating subscription...")
@@ -70,7 +61,7 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 	require.NoError(t, err)
 
 	subResp, err := http.Post(
-		ts.URL+"/o2ims-infrastructureInventory/v1/subscriptions",
+		ts.O2IMSURL()+"/subscriptions",
 		"application/json",
 		bytes.NewReader(subBody),
 	)
@@ -99,7 +90,7 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 	require.NoError(t, err)
 
 	poolResp, err := http.Post(
-		ts.URL+"/o2ims-infrastructureInventory/v1/resourcePools",
+		ts.O2IMSURL()+"/resourcePools",
 		"application/json",
 		bytes.NewReader(poolBody),
 	)
@@ -138,7 +129,6 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 	}
 
 	env := helpers.SetupTestEnvironment(t)
-	ctx := env.Context()
 
 	redisStore := storage.NewRedisStore(&storage.RedisConfig{
 		Addr:     env.Redis.Addr(),
@@ -152,19 +142,13 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 	k8sAdapter := kubernetes.NewMockAdapter()
 	defer k8sAdapter.Close()
 
-	cfg := &config.Config{}
-	srv := server.New(cfg)
-	srv.SetAdapter(k8sAdapter)
-	srv.SetStorage(redisStore)
-
-	ts := httptest.NewServer(srv.Handler())
-	defer ts.Close()
+	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
 	// Create a resource pool first
 	poolData := helpers.TestResourcePool("filter-test-pool")
 	poolBody, _ := json.Marshal(poolData)
 	poolResp, _ := http.Post(
-		ts.URL+"/o2ims-infrastructureInventory/v1/resourcePools",
+		ts.O2IMSURL()+"/resourcePools",
 		"application/json",
 		bytes.NewReader(poolBody),
 	)
@@ -183,7 +167,7 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 		subBody, _ := json.Marshal(subData)
 
 		subResp, err := http.Post(
-			ts.URL+"/o2ims-infrastructureInventory/v1/subscriptions",
+			ts.O2IMSURL()+"/subscriptions",
 			"application/json",
 			bytes.NewReader(subBody),
 		)
@@ -199,7 +183,7 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 		resBody, _ := json.Marshal(resourceData)
 
 		resResp, err := http.Post(
-			ts.URL+"/o2ims-infrastructureInventory/v1/resources",
+			ts.O2IMSURL()+"/resources",
 			"application/json",
 			bytes.NewReader(resBody),
 		)
@@ -221,7 +205,7 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 		subBody, _ := json.Marshal(subData)
 
 		subResp, err := http.Post(
-			ts.URL+"/o2ims-infrastructureInventory/v1/subscriptions",
+			ts.O2IMSURL()+"/subscriptions",
 			"application/json",
 			bytes.NewReader(subBody),
 		)
@@ -233,7 +217,7 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 		resBody, _ := json.Marshal(resourceData)
 
 		resResp, err := http.Post(
-			ts.URL+"/o2ims-infrastructureInventory/v1/resources",
+			ts.O2IMSURL()+"/resources",
 			"application/json",
 			bytes.NewReader(resBody),
 		)
@@ -266,13 +250,7 @@ func TestSubscriptionWorkflow_MultipleSubscriptions(t *testing.T) {
 	k8sAdapter := kubernetes.NewMockAdapter()
 	defer k8sAdapter.Close()
 
-	cfg := &config.Config{}
-	srv := server.New(cfg)
-	srv.SetAdapter(k8sAdapter)
-	srv.SetStorage(redisStore)
-
-	ts := httptest.NewServer(srv.Handler())
-	defer ts.Close()
+	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
 	// Create multiple subscriptions
 	numSubscriptions := 3
@@ -283,7 +261,7 @@ func TestSubscriptionWorkflow_MultipleSubscriptions(t *testing.T) {
 		subBody, _ := json.Marshal(subData)
 
 		subResp, err := http.Post(
-			ts.URL+"/o2ims-infrastructureInventory/v1/subscriptions",
+			ts.O2IMSURL()+"/subscriptions",
 			"application/json",
 			bytes.NewReader(subBody),
 		)
@@ -302,7 +280,7 @@ func TestSubscriptionWorkflow_MultipleSubscriptions(t *testing.T) {
 	poolBody, _ := json.Marshal(poolData)
 
 	poolResp, err := http.Post(
-		ts.URL+"/o2ims-infrastructureInventory/v1/resourcePools",
+		ts.O2IMSURL()+"/resourcePools",
 		"application/json",
 		bytes.NewReader(poolBody),
 	)
@@ -346,20 +324,14 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	k8sAdapter := kubernetes.NewMockAdapter()
 	defer k8sAdapter.Close()
 
-	cfg := &config.Config{}
-	srv := server.New(cfg)
-	srv.SetAdapter(k8sAdapter)
-	srv.SetStorage(redisStore)
-
-	ts := httptest.NewServer(srv.Handler())
-	defer ts.Close()
+	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
 	// Create subscription
 	subData := helpers.TestSubscription(webhookServer.URL())
 	subBody, _ := json.Marshal(subData)
 
 	subResp, err := http.Post(
-		ts.URL+"/o2ims-infrastructureInventory/v1/subscriptions",
+		ts.O2IMSURL()+"/subscriptions",
 		"application/json",
 		bytes.NewReader(subBody),
 	)
@@ -377,7 +349,7 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	// Delete subscription
 	req, _ := http.NewRequest(
 		http.MethodDelete,
-		ts.URL+"/o2ims-infrastructureInventory/v1/subscriptions/"+subscriptionID,
+		ts.O2IMSURL()+"/subscriptions/"+subscriptionID,
 		nil,
 	)
 
@@ -398,7 +370,7 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	poolBody, _ := json.Marshal(poolData)
 
 	poolResp, err := http.Post(
-		ts.URL+"/o2ims-infrastructureInventory/v1/resourcePools",
+		ts.O2IMSURL()+"/resourcePools",
 		"application/json",
 		bytes.NewReader(poolBody),
 	)
