@@ -151,7 +151,7 @@ func New(cfg *Config) (*OpenStackAdapter, error) {
 	return adapter, nil
 }
 
-// validateConfig validates required configuration fields
+// validateConfig validates required configuration fields.
 func validateConfig(cfg *Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config cannot be nil")
@@ -175,7 +175,7 @@ func validateConfig(cfg *Config) error {
 	return nil
 }
 
-// applyDefaults applies default values to optional configuration fields
+// applyDefaults applies default values to optional configuration fields.
 func applyDefaults(cfg *Config) (domainName string, deploymentManagerID string, timeout time.Duration, logger *zap.Logger) {
 	domainName = cfg.DomainName
 	if domainName == "" {
@@ -205,7 +205,7 @@ func applyDefaults(cfg *Config) (domainName string, deploymentManagerID string, 
 	return domainName, deploymentManagerID, timeout, logger
 }
 
-// authenticateOpenStack authenticates with OpenStack and returns a provider client
+// authenticateOpenStack authenticates with OpenStack and returns a provider clien.
 func authenticateOpenStack(cfg *Config, domainName string, timeout time.Duration, logger *zap.Logger) (*gophercloud.ProviderClient, error) {
 	logger.Info("initializing OpenStack adapter",
 		zap.String("authURL", cfg.AuthURL),
@@ -237,14 +237,14 @@ func authenticateOpenStack(cfg *Config, domainName string, timeout time.Duration
 	return provider, nil
 }
 
-// serviceClients holds OpenStack service clients
+// serviceClients holds OpenStack service clients.
 type serviceClients struct {
 	compute   *gophercloud.ServiceClient
 	placement *gophercloud.ServiceClient
 	identity  *gophercloud.ServiceClient
 }
 
-// initializeServiceClients initializes all required OpenStack service clients
+// initializeServiceClients initializes all required OpenStack service clients.
 func initializeServiceClients(provider *gophercloud.ProviderClient, region string, logger *zap.Logger) (*serviceClients, error) {
 	endpointOpts := gophercloud.EndpointOpts{Region: region}
 
@@ -369,19 +369,19 @@ func (a *OpenStackAdapter) Health(ctx context.Context) error {
 	// Check Nova compute service
 	if err := a.checkNovaHealth(ctx); err != nil {
 		a.logger.Error("Nova health check failed", zap.Error(err))
-		return fmt.Errorf("Nova API unreachable: %w", err)
+		return fmt.Errorf("nova API unreachable: %w", err)
 	}
 
 	// Check Placement service
 	if err := a.checkPlacementHealth(ctx); err != nil {
 		a.logger.Error("Placement health check failed", zap.Error(err))
-		return fmt.Errorf("Placement API unreachable: %w", err)
+		return fmt.Errorf("placement API unreachable: %w", err)
 	}
 
 	// Check Keystone identity service
 	if err := a.checkKeystoneHealth(ctx); err != nil {
 		a.logger.Error("Keystone health check failed", zap.Error(err))
-		return fmt.Errorf("Keystone API unreachable: %w", err)
+		return fmt.Errorf("keystone API unreachable: %w", err)
 	}
 
 	a.logger.Debug("health check passed")
@@ -444,30 +444,34 @@ func (a *OpenStackAdapter) matchesFilter(filter *adapter.Filter, resourcePoolID,
 		return true
 	}
 
-	// Check ResourcePoolID filter
-	if filter.ResourcePoolID != "" && filter.ResourcePoolID != resourcePoolID {
-		return false
-	}
+	return matchesResourcePoolID(filter, resourcePoolID) &&
+		matchesResourceTypeID(filter, resourceTypeID) &&
+		matchesLocation(filter, location) &&
+		matchesLabels(filter, labels)
+}
 
-	// Check ResourceTypeID filter
-	if filter.ResourceTypeID != "" && filter.ResourceTypeID != resourceTypeID {
-		return false
-	}
+// matchesResourcePoolID checks if resource pool ID matches filter.
+func matchesResourcePoolID(filter *adapter.Filter, resourcePoolID string) bool {
+	return filter.ResourcePoolID == "" || filter.ResourcePoolID == resourcePoolID
+}
 
-	// Check Location filter
-	if filter.Location != "" && filter.Location != location {
-		return false
-	}
+// matchesResourceTypeID checks if resource type ID matches filter.
+func matchesResourceTypeID(filter *adapter.Filter, resourceTypeID string) bool {
+	return filter.ResourceTypeID == "" || filter.ResourceTypeID == resourceTypeID
+}
 
-	// Check Labels filter
-	if len(filter.Labels) > 0 {
-		for key, value := range filter.Labels {
-			if labels[key] != value {
-				return false
-			}
+// matchesLocation checks if location matches filter.
+func matchesLocation(filter *adapter.Filter, location string) bool {
+	return filter.Location == "" || filter.Location == location
+}
+
+// matchesLabels checks if all filter labels match the resource labels.
+func matchesLabels(filter *adapter.Filter, labels map[string]string) bool {
+	for key, value := range filter.Labels {
+		if labels[key] != value {
+			return false
 		}
 	}
-
 	return true
 }
 

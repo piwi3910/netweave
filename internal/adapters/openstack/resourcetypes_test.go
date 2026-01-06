@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// TestTransformFlavorToResourceType tests the transformation from OpenStack flavor to O2-IMS resource type
+// TestTransformFlavorToResourceType tests the transformation from OpenStack flavor to O2-IMS resource type.
 func TestTransformFlavorToResourceType(t *testing.T) {
 	adapter := &OpenStackAdapter{
 		logger: zap.NewNop(),
@@ -59,7 +59,7 @@ func TestTransformFlavorToResourceType(t *testing.T) {
 	assert.False(t, ok, "extra specs require separate API calls and are not in basic transformation")
 }
 
-// TestTransformFlavorToResourceTypeMinimal tests transformation with minimal data
+// TestTransformFlavorToResourceTypeMinimal tests transformation with minimal data.
 func TestTransformFlavorToResourceTypeMinimal(t *testing.T) {
 	adapter := &OpenStackAdapter{
 		logger: zap.NewNop(),
@@ -78,7 +78,7 @@ func TestTransformFlavorToResourceTypeMinimal(t *testing.T) {
 	assert.Equal(t, "virtual", resourceType.ResourceKind)
 }
 
-// TestTransformFlavorToResourceTypeStorageClass tests resource class determination
+// TestTransformFlavorToResourceTypeStorageClass tests resource class determination.
 func TestTransformFlavorToResourceTypeStorageClass(t *testing.T) {
 	adapter := &OpenStackAdapter{
 		logger: zap.NewNop(),
@@ -128,7 +128,7 @@ func TestTransformFlavorToResourceTypeStorageClass(t *testing.T) {
 	}
 }
 
-// TestResourceTypeIDGeneration tests resource type ID generation
+// TestResourceTypeIDGeneration tests resource type ID generation.
 func TestResourceTypeIDGeneration(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -166,7 +166,7 @@ func TestResourceTypeIDGeneration(t *testing.T) {
 	}
 }
 
-// TestResourceTypeIDParsing tests parsing resource type IDs
+// TestResourceTypeIDParsing tests parsing resource type IDs.
 func TestResourceTypeIDParsing(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -214,7 +214,7 @@ func TestResourceTypeIDParsing(t *testing.T) {
 	}
 }
 
-// TestFlavorDescriptionGeneration tests description generation
+// TestFlavorDescriptionGeneration tests description generation.
 func TestFlavorDescriptionGeneration(t *testing.T) {
 	adapter := &OpenStackAdapter{
 		logger: zap.NewNop(),
@@ -254,7 +254,7 @@ func TestFlavorDescriptionGeneration(t *testing.T) {
 	}
 }
 
-// TestFlavorExtraSpecs tests extra specs handling
+// TestFlavorExtraSpecs tests extra specs handling.
 func TestFlavorExtraSpecs(t *testing.T) {
 	adapter := &OpenStackAdapter{
 		logger: zap.NewNop(),
@@ -309,7 +309,7 @@ func TestFlavorExtraSpecs(t *testing.T) {
 	})
 }
 
-// BenchmarkTransformFlavorToResourceType benchmarks the transformation
+// BenchmarkTransformFlavorToResourceType benchmarks the transformation.
 func BenchmarkTransformFlavorToResourceType(b *testing.B) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",
@@ -334,7 +334,7 @@ func BenchmarkTransformFlavorToResourceType(b *testing.B) {
 	}
 }
 
-// BenchmarkGenerateFlavorID benchmarks flavor ID generation
+// BenchmarkGenerateFlavorID benchmarks flavor ID generation.
 func BenchmarkGenerateFlavorID(b *testing.B) {
 	flavor := &flavors.Flavor{
 		ID: "m1.small",

@@ -170,7 +170,7 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 	return nil
 }
 
-// parseAndValidateConfig parses and validates the plugin configuration
+// parseAndValidateConfig parses and validates the plugin configuration.
 func (p *Plugin) parseAndValidateConfig(config map[string]interface{}) (*Config, error) {
 	cfg := DefaultConfig()
 	parseConfig(config, cfg)
@@ -182,7 +182,7 @@ func (p *Plugin) parseAndValidateConfig(config map[string]interface{}) (*Config,
 	return cfg, nil
 }
 
-// logInitialization logs the plugin initialization details
+// logInitialization logs the plugin initialization details.
 func (p *Plugin) logInitialization(cfg *Config) {
 	p.logger.Info("Initializing ONAP plugin",
 		zap.String("aaiUrl", cfg.AAIURL),
@@ -196,7 +196,7 @@ func (p *Plugin) logInitialization(cfg *Config) {
 	)
 }
 
-// initializeClients initializes all enabled ONAP clients
+// initializeClients initializes all enabled ONAP clients.
 func (p *Plugin) initializeClients(cfg *Config) error {
 	// Initialize northbound clients
 	if err := p.initializeNorthboundClients(cfg); err != nil {
@@ -211,7 +211,7 @@ func (p *Plugin) initializeClients(cfg *Config) error {
 	return nil
 }
 
-// initializeNorthboundClients initializes A&AI and DMaaP clients
+// initializeNorthboundClients initializes A&AI and DMaaP clients.
 func (p *Plugin) initializeNorthboundClients(cfg *Config) error {
 	if cfg.EnableInventorySync && cfg.AAIURL != "" {
 		p.logger.Info("Initializing A&AI client", zap.String("url", cfg.AAIURL))
@@ -234,7 +234,7 @@ func (p *Plugin) initializeNorthboundClients(cfg *Config) error {
 	return nil
 }
 
-// initializeDMSClients initializes SO and SDNC clients for DMS backend
+// initializeDMSClients initializes SO and SDNC clients for DMS backend.
 func (p *Plugin) initializeDMSClients(cfg *Config) error {
 	if cfg.EnableDMSBackend && cfg.SOURL != "" {
 		p.logger.Info("Initializing SO client", zap.String("url", cfg.SOURL))
@@ -257,7 +257,7 @@ func (p *Plugin) initializeDMSClients(cfg *Config) error {
 	return nil
 }
 
-// performHealthCheck performs initial health check and logs the result
+// performHealthCheck performs initial health check and logs the resul.
 func (p *Plugin) performHealthCheck(ctx context.Context) {
 	health := p.Health(ctx)
 	if !health.Healthy {
@@ -378,32 +378,7 @@ func (p *Plugin) Close() error {
 
 	p.logger.Info("Closing ONAP plugin")
 
-	var errs []error
-
-	// Close all clients
-	if p.aaiClient != nil {
-		if err := p.aaiClient.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close A&AI client: %w", err))
-		}
-	}
-
-	if p.dmaapClient != nil {
-		if err := p.dmaapClient.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close DMaaP client: %w", err))
-		}
-	}
-
-	if p.soClient != nil {
-		if err := p.soClient.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close SO client: %w", err))
-		}
-	}
-
-	if p.sdncClient != nil {
-		if err := p.sdncClient.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close SDNC client: %w", err))
-		}
-	}
+	errs := p.closeAllClients()
 
 	p.closed = true
 
@@ -415,36 +390,72 @@ func (p *Plugin) Close() error {
 	return nil
 }
 
+// closeAllClients closes all ONAP clients and collects any errors.
+func (p *Plugin) closeAllClients() []error {
+	var errs []error
+
+	errs = p.closeClient(p.aaiClient, "A&AI", errs)
+	errs = p.closeClient(p.dmaapClient, "DMaaP", errs)
+	errs = p.closeClient(p.soClient, "SO", errs)
+	errs = p.closeClient(p.sdncClient, "SDNC", errs)
+
+	return errs
+}
+
+// closeClient closes a single client and appends any error to the error slice.
+func (p *Plugin) closeClient(client interface{ Close() error }, name string, errs []error) []error {
+	if client != nil {
+		if err := client.Close(); err != nil {
+			return append(errs, fmt.Errorf("failed to close %s client: %w", name, err))
+		}
+	}
+	return errs
+}
+
 // Validate validates the configuration.
 func (c *Config) Validate() error {
+	if err := c.validateURLs(); err != nil {
+		return err
+	}
+	if err := c.validateAuth(); err != nil {
+		return err
+	}
+	return c.validateTuning()
+}
+
+// validateURLs validates URL configuration fields.
+func (c *Config) validateURLs() error {
 	if c.EnableInventorySync && c.AAIURL == "" {
 		return fmt.Errorf("aaiUrl is required when inventory sync is enabled")
 	}
-
 	if c.EnableEventPublishing && c.DMaaPURL == "" {
 		return fmt.Errorf("dmaapUrl is required when event publishing is enabled")
 	}
-
 	if c.EnableDMSBackend && c.SOURL == "" {
 		return fmt.Errorf("soUrl is required when DMS backend is enabled")
 	}
+	return nil
+}
 
+// validateAuth validates authentication configuration.
+func (c *Config) validateAuth() error {
 	if c.Username == "" || c.Password == "" {
 		return fmt.Errorf("username and password are required")
 	}
+	return nil
+}
 
+// validateTuning validates tuning parameters.
+func (c *Config) validateTuning() error {
 	if c.RequestTimeout <= 0 {
 		return fmt.Errorf("requestTimeout must be positive")
 	}
-
 	if c.MaxRetries < 0 {
 		return fmt.Errorf("maxRetries cannot be negative")
 	}
-
 	if c.EventPublishBatchSize <= 0 {
 		return fmt.Errorf("eventPublishBatchSize must be positive")
 	}
-
 	return nil
 }
 

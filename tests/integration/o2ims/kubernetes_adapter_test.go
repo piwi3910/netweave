@@ -44,7 +44,11 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		WriteTimeout: 3 * time.Second,
 		PoolSize:     10,
 	})
-	defer redisStore.Close()
+	defer func() {
+		if err := redisStore.Close(); err != nil {
+			t.Logf("Failed to close Redis store: %v", err)
+		}
+	}()
 
 	// Verify Redis connection
 	err := redisStore.Ping(ctx)
@@ -53,7 +57,11 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 	// Initialize Kubernetes adapter (mock mode for CI)
 	// In real environment, this would connect to actual K8s cluster
 	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
+	defer func() {
+		if err := k8sAdapter.Close(); err != nil {
+			t.Logf("Failed to close Kubernetes adapter: %v", err)
+		}
+	}()
 
 	// Verify adapter capabilities
 	capabilities := k8sAdapter.Capabilities()
@@ -77,7 +85,11 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 			bytes.NewReader(body),
 		)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
@@ -102,10 +114,16 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 			bytes.NewReader(body),
 		)
 		require.NoError(t, err)
-		defer createResp.Body.Close()
+		defer func() {
+			if err := createResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var created map[string]interface{}
-		json.NewDecoder(createResp.Body).Decode(&created)
+		if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+			t.Logf("Failed to decode response: %v", err)
+		}
 		poolID := created["resourcePoolId"].(string)
 
 		// Get the pool
@@ -113,7 +131,11 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 			ts.O2IMSURL() + "/resourcePools/" + poolID,
 		)
 		require.NoError(t, err)
-		defer getResp.Body.Close()
+		defer func() {
+			if err := getResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusOK, getResp.StatusCode)
 
@@ -131,7 +153,11 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 			ts.O2IMSURL() + "/resourcePools",
 		)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -155,10 +181,16 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 			bytes.NewReader(body),
 		)
 		require.NoError(t, err)
-		defer createResp.Body.Close()
+		defer func() {
+			if err := createResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var created map[string]interface{}
-		json.NewDecoder(createResp.Body).Decode(&created)
+		if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+			t.Logf("Failed to decode response: %v", err)
+		}
 		poolID := created["resourcePoolId"].(string)
 
 		// Update the pool
@@ -178,7 +210,11 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		client := &http.Client{}
 		updateResp, err := client.Do(req)
 		require.NoError(t, err)
-		defer updateResp.Body.Close()
+		defer func() {
+			if err := updateResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusOK, updateResp.StatusCode)
 
@@ -202,10 +238,16 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 			bytes.NewReader(body),
 		)
 		require.NoError(t, err)
-		defer createResp.Body.Close()
+		defer func() {
+			if err := createResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var created map[string]interface{}
-		json.NewDecoder(createResp.Body).Decode(&created)
+		if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+			t.Logf("Failed to decode response: %v", err)
+		}
 		poolID := created["resourcePoolId"].(string)
 
 		// Delete the pool
@@ -218,7 +260,11 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		client := &http.Client{}
 		deleteResp, err := client.Do(req)
 		require.NoError(t, err)
-		defer deleteResp.Body.Close()
+		defer func() {
+			if err := deleteResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusNoContent, deleteResp.StatusCode)
 
@@ -226,7 +272,11 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		getResp, _ := http.Get(
 			ts.O2IMSURL() + "/resourcePools/" + poolID,
 		)
-		defer getResp.Body.Close()
+		defer func() {
+			if err := getResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 		assert.Equal(t, http.StatusNotFound, getResp.StatusCode)
 	})
 }
@@ -245,10 +295,18 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		MaxRetries: 3,
 		PoolSize:   10,
 	})
-	defer redisStore.Close()
+	defer func() {
+		if err := redisStore.Close(); err != nil {
+			t.Logf("Failed to close Redis store: %v", err)
+		}
+	}()
 
 	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
+	defer func() {
+		if err := k8sAdapter.Close(); err != nil {
+			t.Logf("Failed to close Kubernetes adapter: %v", err)
+		}
+	}()
 
 	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
@@ -260,10 +318,16 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		"application/json",
 		bytes.NewReader(poolBody),
 	)
-	defer poolResp.Body.Close()
+	defer func() {
+		if err := poolResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	var pool map[string]interface{}
-	json.NewDecoder(poolResp.Body).Decode(&pool)
+	if err := json.NewDecoder(poolResp.Body).Decode(&pool); err != nil {
+		t.Logf("Failed to decode response: %v", err)
+	}
 	poolID := pool["resourcePoolId"].(string)
 
 	// Test 1: Create resource
@@ -278,7 +342,11 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 			bytes.NewReader(body),
 		)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
@@ -302,10 +370,16 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 			bytes.NewReader(body),
 		)
 		require.NoError(t, err)
-		defer createResp.Body.Close()
+		defer func() {
+			if err := createResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var created map[string]interface{}
-		json.NewDecoder(createResp.Body).Decode(&created)
+		if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+			t.Logf("Failed to decode response: %v", err)
+		}
 		resourceID := created["resourceId"].(string)
 
 		// Get the resource
@@ -313,7 +387,11 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 			ts.O2IMSURL() + "/resources/" + resourceID,
 		)
 		require.NoError(t, err)
-		defer getResp.Body.Close()
+		defer func() {
+			if err := getResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusOK, getResp.StatusCode)
 
@@ -335,7 +413,9 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 				"application/json",
 				bytes.NewReader(body),
 			)
-			resp.Body.Close()
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
 		}
 
 		// List with pool filter
@@ -343,7 +423,11 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 			ts.O2IMSURL() + "/resources?resourcePoolId=" + poolID,
 		)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -370,10 +454,16 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 			bytes.NewReader(body),
 		)
 		require.NoError(t, err)
-		defer createResp.Body.Close()
+		defer func() {
+			if err := createResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var created map[string]interface{}
-		json.NewDecoder(createResp.Body).Decode(&created)
+		if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+			t.Logf("Failed to decode response: %v", err)
+		}
 		resourceID := created["resourceId"].(string)
 
 		// Delete the resource
@@ -386,7 +476,11 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		client := &http.Client{}
 		deleteResp, err := client.Do(req)
 		require.NoError(t, err)
-		defer deleteResp.Body.Close()
+		defer func() {
+			if err := deleteResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusNoContent, deleteResp.StatusCode)
 
@@ -394,7 +488,11 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		getResp, _ := http.Get(
 			ts.O2IMSURL() + "/resources/" + resourceID,
 		)
-		defer getResp.Body.Close()
+		defer func() {
+			if err := getResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 		assert.Equal(t, http.StatusNotFound, getResp.StatusCode)
 	})
 }
@@ -411,10 +509,18 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 		Addr:     env.Redis.Addr(),
 		PoolSize: 10,
 	})
-	defer redisStore.Close()
+	defer func() {
+		if err := redisStore.Close(); err != nil {
+			t.Logf("Failed to close Redis store: %v", err)
+		}
+	}()
 
 	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
+	defer func() {
+		if err := k8sAdapter.Close(); err != nil {
+			t.Logf("Failed to close Kubernetes adapter: %v", err)
+		}
+	}()
 
 	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
@@ -423,7 +529,11 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 			ts.O2IMSURL() + "/resourcePools/nonexistent-pool",
 		)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
@@ -440,7 +550,11 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 			bytes.NewReader(body),
 		)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
@@ -455,7 +569,11 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
@@ -469,7 +587,11 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 			bytes.NewReader(invalidJSON),
 		)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})

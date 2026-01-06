@@ -9,21 +9,21 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// Logger is a wrapper around zap.Logger with additional convenience methods
+// Logger is a wrapper around zap.Logger with additional convenience methods.
 type Logger struct {
 	*zap.Logger
 }
 
-// loggerContextKey is the context key for storing logger instances
+// loggerContextKey is the context key for storing logger instances.
 type loggerContextKey struct{}
 
 var (
-	// globalLogger is the default logger instance
+	// globalLogger is the default logger instance.
 	globalLogger *Logger
 )
 
 // InitLogger initializes the global logger with the specified environment
-// Valid environments: development, test, staging, production
+// Valid environments: development, test, staging, production.
 func InitLogger(env string) (*Logger, error) {
 	var config zap.Config
 
@@ -64,7 +64,7 @@ func InitLogger(env string) (*Logger, error) {
 }
 
 // GetLogger returns the global logger instance
-// Panics if InitLogger has not been called
+// Panics if InitLogger has not been called.
 func GetLogger() *Logger {
 	if globalLogger == nil {
 		panic("logger not initialized - call InitLogger first")
@@ -72,7 +72,7 @@ func GetLogger() *Logger {
 	return globalLogger
 }
 
-// WithContext creates a new logger with fields from context
+// WithContext creates a new logger with fields from contex.
 func (l *Logger) WithContext(ctx context.Context) *Logger {
 	// Extract request ID, trace ID, or other contextual information
 	fields := extractContextFields(ctx)
@@ -82,28 +82,28 @@ func (l *Logger) WithContext(ctx context.Context) *Logger {
 	return l
 }
 
-// WithFields creates a new logger with additional fields
+// WithFields creates a new logger with additional fields.
 func (l *Logger) WithFields(fields ...zap.Field) *Logger {
 	return &Logger{Logger: l.With(fields...)}
 }
 
-// WithError adds an error field to the logger
+// WithError adds an error field to the logger.
 func (l *Logger) WithError(err error) *Logger {
 	return &Logger{Logger: l.With(zap.Error(err))}
 }
 
-// WithComponent adds a component field to the logger
+// WithComponent adds a component field to the logger.
 func (l *Logger) WithComponent(component string) *Logger {
 	return &Logger{Logger: l.With(zap.String("component", component))}
 }
 
-// ContextWithLogger adds the logger to the context
+// ContextWithLogger adds the logger to the contex.
 func ContextWithLogger(ctx context.Context, logger *Logger) context.Context {
 	return context.WithValue(ctx, loggerContextKey{}, logger)
 }
 
 // LoggerFromContext retrieves the logger from context
-// Returns the global logger if not found in context
+// Returns the global logger if not found in contex.
 func LoggerFromContext(ctx context.Context) *Logger {
 	if logger, ok := ctx.Value(loggerContextKey{}).(*Logger); ok {
 		return logger
@@ -130,15 +130,18 @@ func extractContextFields(ctx context.Context) []zap.Field {
 	return fields
 }
 
-// Sync flushes any buffered log entries
-// Should be called before application shutdown
+// Sync flushes any buffered log entries.
+// Should be called before application shutdown.
 func (l *Logger) Sync() error {
-	return l.Logger.Sync()
+	if err := l.Logger.Sync(); err != nil {
+		return fmt.Errorf("failed to sync logger: %w", err)
+	}
+	return nil
 }
 
 // Helper methods for common logging patterns
 
-// LogRequest logs an HTTP request
+// LogRequest logs an HTTP reques.
 func (l *Logger) LogRequest(method, path string, statusCode int, duration float64) {
 	l.Info("http request",
 		zap.String("method", method),
@@ -148,7 +151,7 @@ func (l *Logger) LogRequest(method, path string, statusCode int, duration float6
 	)
 }
 
-// LogAdapterOperation logs an adapter operation
+// LogAdapterOperation logs an adapter operation.
 func (l *Logger) LogAdapterOperation(operation, adapterType string, resourceID string, err error) {
 	if err != nil {
 		l.Error("adapter operation failed",
@@ -166,7 +169,7 @@ func (l *Logger) LogAdapterOperation(operation, adapterType string, resourceID s
 	}
 }
 
-// LogSubscriptionEvent logs a subscription-related event
+// LogSubscriptionEvent logs a subscription-related even.
 func (l *Logger) LogSubscriptionEvent(eventType, subscriptionID string, details map[string]interface{}) {
 	fields := []zap.Field{
 		zap.String("event", eventType),
@@ -181,7 +184,7 @@ func (l *Logger) LogSubscriptionEvent(eventType, subscriptionID string, details 
 	l.Info("subscription event", fields...)
 }
 
-// LogRedisOperation logs a Redis operation
+// LogRedisOperation logs a Redis operation.
 func (l *Logger) LogRedisOperation(operation string, key string, err error) {
 	if err != nil {
 		l.Error("redis operation failed",
@@ -197,7 +200,7 @@ func (l *Logger) LogRedisOperation(operation string, key string, err error) {
 	}
 }
 
-// LogKubernetesOperation logs a Kubernetes API operation
+// LogKubernetesOperation logs a Kubernetes API operation.
 func (l *Logger) LogKubernetesOperation(operation, resource, namespace, name string, err error) {
 	if err != nil {
 		l.Error("kubernetes operation failed",

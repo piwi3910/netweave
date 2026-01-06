@@ -123,11 +123,12 @@ func (p *Plugin) GetWorkflowStatus(ctx context.Context, executionID string) (*sm
 		status.CompletedAt = orchestrationStatus.FinishTime
 	}
 
-	if orchestrationStatus.RequestState == "COMPLETE" {
+	switch orchestrationStatus.RequestState {
+	case "COMPLETE":
 		status.Result = map[string]interface{}{
 			"serviceInstanceId": orchestrationStatus.ServiceInstanceID,
 		}
-	} else if orchestrationStatus.RequestState == "FAILED" {
+	case "FAILED":
 		status.Error = orchestrationStatus.StatusMessage
 	}
 

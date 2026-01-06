@@ -4,6 +4,7 @@ package storage
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -55,12 +56,19 @@ type SubscriptionFilter struct {
 
 // MarshalBinary implements encoding.BinaryMarshaler for Redis storage.
 func (s *Subscription) MarshalBinary() ([]byte, error) {
-	return json.Marshal(s)
+	data, err := json.Marshal(s)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal subscription: %w", err)
+	}
+	return data, nil
 }
 
 // UnmarshalBinary implements encoding.BinaryUnmarshaler for Redis storage.
 func (s *Subscription) UnmarshalBinary(data []byte) error {
-	return json.Unmarshal(data, s)
+	if err := json.Unmarshal(data, s); err != nil {
+		return fmt.Errorf("failed to unmarshal subscription: %w", err)
+	}
+	return nil
 }
 
 // MatchesFilter checks if a resource matches the subscription filter.

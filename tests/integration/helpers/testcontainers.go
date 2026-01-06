@@ -71,7 +71,9 @@ func (r *RedisContainer) Addr() string {
 // Cleanup terminates the Redis container.
 func (r *RedisContainer) Cleanup(ctx context.Context) error {
 	if r.Container != nil {
-		return r.Container.Terminate(ctx)
+		if err := r.Container.Terminate(ctx); err != nil {
+			return fmt.Errorf("failed to terminate Redis container: %w", err)
+		}
 	}
 	return nil
 }
@@ -141,7 +143,9 @@ func (m *MinioContainer) Endpoint() string {
 // Cleanup terminates the MinIO container.
 func (m *MinioContainer) Cleanup(ctx context.Context) error {
 	if m.Container != nil {
-		return m.Container.Terminate(ctx)
+		if err := m.Container.Terminate(ctx); err != nil {
+			return fmt.Errorf("failed to terminate MinIO container: %w", err)
+		}
 	}
 	return nil
 }

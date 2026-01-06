@@ -21,16 +21,8 @@ func (p *Plugin) SyncInfrastructureInventory(ctx context.Context, inventory *smo
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.closed {
-		return fmt.Errorf("plugin is closed")
-	}
-
-	if !p.config.EnableInventorySync {
-		return fmt.Errorf("inventory sync is not enabled")
-	}
-
-	if p.aaiClient == nil {
-		return fmt.Errorf("A&AI client is not initialized")
+	if err := p.validateInventorySync(); err != nil {
+		return err
 	}
 
 	p.logger.Info("Syncing infrastructure inventory to ONAP A&AI",
@@ -40,63 +32,10 @@ func (p *Plugin) SyncInfrastructureInventory(ctx context.Context, inventory *smo
 		zap.Int("resourceTypes", len(inventory.ResourceTypes)),
 	)
 
-	// Transform netweave inventory to ONAP A&AI format
 	aaiInventory := p.transformToAAIInventory(inventory)
 
-	// Sync cloud regions (from deployment managers)
-	for _, cloudRegion := range aaiInventory.CloudRegions {
-		if err := p.aaiClient.CreateOrUpdateCloudRegion(ctx, cloudRegion); err != nil {
-			p.logger.Error("Failed to sync cloud region to A&AI",
-				zap.String("cloudRegionId", cloudRegion.CloudRegionID),
-				zap.Error(err),
-			)
-			return fmt.Errorf("failed to sync cloud region %s: %w", cloudRegion.CloudRegionID, err)
-		}
-		p.logger.Debug("Synced cloud region to A&AI",
-			zap.String("cloudRegionId", cloudRegion.CloudRegionID),
-		)
-	}
-
-	// Sync tenants (from resource pools)
-	for _, tenant := range aaiInventory.Tenants {
-		if err := p.aaiClient.CreateOrUpdateTenant(ctx, tenant); err != nil {
-			p.logger.Error("Failed to sync tenant to A&AI",
-				zap.String("tenantId", tenant.TenantID),
-				zap.Error(err),
-			)
-			return fmt.Errorf("failed to sync tenant %s: %w", tenant.TenantID, err)
-		}
-		p.logger.Debug("Synced tenant to A&AI",
-			zap.String("tenantId", tenant.TenantID),
-		)
-	}
-
-	// Sync PNFs (physical network functions from physical resources)
-	for _, pnf := range aaiInventory.PNFs {
-		if err := p.aaiClient.CreateOrUpdatePNF(ctx, pnf); err != nil {
-			p.logger.Error("Failed to sync PNF to A&AI",
-				zap.String("pnfName", pnf.PNFName),
-				zap.Error(err),
-			)
-			return fmt.Errorf("failed to sync PNF %s: %w", pnf.PNFName, err)
-		}
-		p.logger.Debug("Synced PNF to A&AI",
-			zap.String("pnfName", pnf.PNFName),
-		)
-	}
-
-	// Sync VNFs (virtual network functions from virtual resources)
-	for _, vnf := range aaiInventory.VNFs {
-		if err := p.aaiClient.CreateOrUpdateVNF(ctx, vnf); err != nil {
-			p.logger.Error("Failed to sync VNF to A&AI",
-				zap.String("vnfId", vnf.VNFID),
-				zap.Error(err),
-			)
-			return fmt.Errorf("failed to sync VNF %s: %w", vnf.VNFID, err)
-		}
-		p.logger.Debug("Synced VNF to A&AI",
-			zap.String("vnfId", vnf.VNFID),
-		)
+	if err := p.syncAAIInventory(ctx, aaiInventory); err != nil {
+		return err
 	}
 
 	p.logger.Info("Successfully synced infrastructure inventory to ONAP A&AI",
@@ -106,6 +45,94 @@ func (p *Plugin) SyncInfrastructureInventory(ctx context.Context, inventory *smo
 		zap.Int("vnfs", len(aaiInventory.VNFs)),
 	)
 
+	return nil
+}
+
+// validateInventorySync validates prerequisites for inventory synchronization.
+func (p *Plugin) validateInventorySync() error {
+	if p.closed {
+		return fmt.Errorf("plugin is closed")
+	}
+	if !p.config.EnableInventorySync {
+		return fmt.Errorf("inventory sync is not enabled")
+	}
+	if p.aaiClient == nil {
+		return fmt.Errorf("A&AI client is not initialized")
+	}
+	return nil
+}
+
+// syncAAIInventory synchronizes all A&AI inventory items.
+func (p *Plugin) syncAAIInventory(ctx context.Context, aaiInventory *AAIInventory) error {
+	if err := p.syncCloudRegions(ctx, aaiInventory.CloudRegions); err != nil {
+		return err
+	}
+	if err := p.syncTenants(ctx, aaiInventory.Tenants); err != nil {
+		return err
+	}
+	if err := p.syncPNFs(ctx, aaiInventory.PNFs); err != nil {
+		return err
+	}
+	return p.syncVNFs(ctx, aaiInventory.VNFs)
+}
+
+// syncCloudRegions synchronizes cloud regions to A&AI.
+func (p *Plugin) syncCloudRegions(ctx context.Context, cloudRegions []*CloudRegion) error {
+	for _, cloudRegion := range cloudRegions {
+		if err := p.aaiClient.CreateOrUpdateCloudRegion(ctx, cloudRegion); err != nil {
+			p.logger.Error("Failed to sync cloud region to A&AI",
+				zap.String("cloudRegionId", cloudRegion.CloudRegionID),
+				zap.Error(err),
+			)
+			return fmt.Errorf("failed to sync cloud region %s: %w", cloudRegion.CloudRegionID, err)
+		}
+		p.logger.Debug("Synced cloud region to A&AI", zap.String("cloudRegionId", cloudRegion.CloudRegionID))
+	}
+	return nil
+}
+
+// syncTenants synchronizes tenants to A&AI.
+func (p *Plugin) syncTenants(ctx context.Context, tenants []*Tenant) error {
+	for _, tenant := range tenants {
+		if err := p.aaiClient.CreateOrUpdateTenant(ctx, tenant); err != nil {
+			p.logger.Error("Failed to sync tenant to A&AI",
+				zap.String("tenantId", tenant.TenantID),
+				zap.Error(err),
+			)
+			return fmt.Errorf("failed to sync tenant %s: %w", tenant.TenantID, err)
+		}
+		p.logger.Debug("Synced tenant to A&AI", zap.String("tenantId", tenant.TenantID))
+	}
+	return nil
+}
+
+// syncPNFs synchronizes PNFs (physical network functions) to A&AI.
+func (p *Plugin) syncPNFs(ctx context.Context, pnfs []*PNF) error {
+	for _, pnf := range pnfs {
+		if err := p.aaiClient.CreateOrUpdatePNF(ctx, pnf); err != nil {
+			p.logger.Error("Failed to sync PNF to A&AI",
+				zap.String("pnfName", pnf.PNFName),
+				zap.Error(err),
+			)
+			return fmt.Errorf("failed to sync PNF %s: %w", pnf.PNFName, err)
+		}
+		p.logger.Debug("Synced PNF to A&AI", zap.String("pnfName", pnf.PNFName))
+	}
+	return nil
+}
+
+// syncVNFs synchronizes VNFs (virtual network functions) to A&AI.
+func (p *Plugin) syncVNFs(ctx context.Context, vnfs []*VNF) error {
+	for _, vnf := range vnfs {
+		if err := p.aaiClient.CreateOrUpdateVNF(ctx, vnf); err != nil {
+			p.logger.Error("Failed to sync VNF to A&AI",
+				zap.String("vnfId", vnf.VNFID),
+				zap.Error(err),
+			)
+			return fmt.Errorf("failed to sync VNF %s: %w", vnf.VNFID, err)
+		}
+		p.logger.Debug("Synced VNF to A&AI", zap.String("vnfId", vnf.VNFID))
+	}
 	return nil
 }
 

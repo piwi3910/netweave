@@ -342,22 +342,44 @@ func (a *ArgoCDAdapter) CreateDeployment(ctx context.Context, req *adapter.Deplo
 		return nil, err
 	}
 
-	if req == nil {
-		return nil, fmt.Errorf("deployment request cannot be nil")
-	}
-	if req.Name == "" {
-		return nil, fmt.Errorf("deployment name is required")
+	if err := validateDeploymentRequest(req); err != nil {
+		return nil, err
 	}
 
-	// Extract source configuration from PackageID or extensions
+	app, err := a.buildApplicationManifest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := a.dynamicClient.Resource(applicationGVR).Namespace(a.config.Namespace).Create(ctx, app, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ArgoCD Application: %w", err)
+	}
+
+	return a.transformApplicationToDeployment(result), nil
+}
+
+// validateDeploymentRequest validates the deployment request.
+func validateDeploymentRequest(req *adapter.DeploymentRequest) error {
+	if req == nil {
+		return fmt.Errorf("deployment request cannot be nil")
+	}
+	if req.Name == "" {
+		return fmt.Errorf("deployment name is required")
+	}
+	repoURL, _ := req.Extensions["argocd.repoURL"].(string)
+	if repoURL == "" {
+		return fmt.Errorf("argocd.repoURL extension is required")
+	}
+	return nil
+}
+
+// buildApplicationManifest builds the ArgoCD Application manifest from the request.
+func (a *ArgoCDAdapter) buildApplicationManifest(req *adapter.DeploymentRequest) (*unstructured.Unstructured, error) {
 	repoURL, _ := req.Extensions["argocd.repoURL"].(string)
 	path, _ := req.Extensions["argocd.path"].(string)
 	targetRevision, _ := req.Extensions["argocd.targetRevision"].(string)
 	chart, _ := req.Extensions["argocd.chart"].(string)
-
-	if repoURL == "" {
-		return nil, fmt.Errorf("argocd.repoURL extension is required")
-	}
 
 	if targetRevision == "" {
 		targetRevision = "HEAD"
@@ -368,7 +390,6 @@ func (a *ArgoCDAdapter) CreateDeployment(ctx context.Context, req *adapter.Deplo
 		destNamespace = "default"
 	}
 
-	// Build ArgoCD Application manifest
 	app := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": fmt.Sprintf("%s/%s", ApplicationGroup, ApplicationVersion),
@@ -393,36 +414,48 @@ func (a *ArgoCDAdapter) CreateDeployment(ctx context.Context, req *adapter.Deplo
 		},
 	}
 
-	// Add sync policy if auto-sync is enabled
-	if a.config.AutoSync {
-		syncPolicy := map[string]interface{}{
-			"automated": map[string]interface{}{
-				"prune":    a.config.Prune,
-				"selfHeal": a.config.SelfHeal,
-			},
-		}
-		if err := unstructured.SetNestedField(app.Object, syncPolicy, "spec", "syncPolicy"); err != nil {
-			return nil, fmt.Errorf("failed to set sync policy: %w", err)
-		}
+	if err := a.addSyncPolicy(app); err != nil {
+		return nil, err
 	}
 
-	// Add Helm values if provided
-	if len(req.Values) > 0 && chart != "" {
-		helmParams := map[string]interface{}{
-			"values": mustMarshalYAML(req.Values),
-		}
-		if err := unstructured.SetNestedField(app.Object, helmParams, "spec", "source", "helm"); err != nil {
-			return nil, fmt.Errorf("failed to set helm values: %w", err)
-		}
+	if err := a.addHelmValues(app, req, chart); err != nil {
+		return nil, err
 	}
 
-	// Create the Application
-	result, err := a.dynamicClient.Resource(applicationGVR).Namespace(a.config.Namespace).Create(ctx, app, metav1.CreateOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ArgoCD Application: %w", err)
+	return app, nil
+}
+
+// addSyncPolicy adds sync policy to the application if auto-sync is enabled.
+func (a *ArgoCDAdapter) addSyncPolicy(app *unstructured.Unstructured) error {
+	if !a.config.AutoSync {
+		return nil
 	}
 
-	return a.transformApplicationToDeployment(result), nil
+	syncPolicy := map[string]interface{}{
+		"automated": map[string]interface{}{
+			"prune":    a.config.Prune,
+			"selfHeal": a.config.SelfHeal,
+		},
+	}
+	if err := unstructured.SetNestedField(app.Object, syncPolicy, "spec", "syncPolicy"); err != nil {
+		return fmt.Errorf("failed to set sync policy: %w", err)
+	}
+	return nil
+}
+
+// addHelmValues adds Helm values to the application if provided.
+func (a *ArgoCDAdapter) addHelmValues(app *unstructured.Unstructured, req *adapter.DeploymentRequest, chart string) error {
+	if len(req.Values) == 0 || chart == "" {
+		return nil
+	}
+
+	helmParams := map[string]interface{}{
+		"values": mustMarshalYAML(req.Values),
+	}
+	if err := unstructured.SetNestedField(app.Object, helmParams, "spec", "source", "helm"); err != nil {
+		return fmt.Errorf("failed to set helm values: %w", err)
+	}
+	return nil
 }
 
 // UpdateDeployment updates an existing ArgoCD Application.
@@ -703,7 +736,11 @@ func (a *ArgoCDAdapter) listApplications(ctx context.Context, filter *adapter.Fi
 
 // getApplication retrieves a single ArgoCD Application by name.
 func (a *ArgoCDAdapter) getApplication(ctx context.Context, name string) (*unstructured.Unstructured, error) {
-	return a.dynamicClient.Resource(applicationGVR).Namespace(a.config.Namespace).Get(ctx, name, metav1.GetOptions{})
+	app, err := a.dynamicClient.Resource(applicationGVR).Namespace(a.config.Namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ArgoCD application %s: %w", name, err)
+	}
+	return app, nil
 }
 
 // transformApplicationToDeployment converts an ArgoCD Application to a Deployment.

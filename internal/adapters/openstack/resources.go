@@ -137,7 +137,7 @@ func (a *OpenStackAdapter) CreateResource(ctx context.Context, resource *adapter
 	return createdResource, nil
 }
 
-// extractRequiredParams extracts and validates required parameters from resource
+// extractRequiredParams extracts and validates required parameters from resource.
 func (a *OpenStackAdapter) extractRequiredParams(resource *adapter.Resource) (flavorID, imageID string, err error) {
 	if resource.ResourceTypeID == "" {
 		return "", "", fmt.Errorf("resourceTypeID is required")
@@ -158,7 +158,7 @@ func (a *OpenStackAdapter) extractRequiredParams(resource *adapter.Resource) (fl
 	return flavorID, imageID, nil
 }
 
-// buildCreateOptions builds OpenStack server create options from resource specification
+// buildCreateOptions builds OpenStack server create options from resource specification.
 func (a *OpenStackAdapter) buildCreateOptions(ctx context.Context, resource *adapter.Resource, flavorID, imageID string) (servers.CreateOpts, error) {
 	// Extract optional name parameter
 	name := "openstack-instance"
@@ -185,7 +185,7 @@ func (a *OpenStackAdapter) buildCreateOptions(ctx context.Context, resource *ada
 	return createOpts, nil
 }
 
-// getAvailabilityZone retrieves availability zone from resource pool
+// getAvailabilityZone retrieves availability zone from resource pool.
 func (a *OpenStackAdapter) getAvailabilityZone(ctx context.Context, resourcePoolID string) string {
 	if resourcePoolID == "" {
 		return ""
@@ -202,7 +202,7 @@ func (a *OpenStackAdapter) getAvailabilityZone(ctx context.Context, resourcePool
 	return pool.Location
 }
 
-// addNetworkConfig adds network configuration to create options if specified
+// addNetworkConfig adds network configuration to create options if specified.
 func (a *OpenStackAdapter) addNetworkConfig(opts *servers.CreateOpts, extensions map[string]interface{}) {
 	networks, ok := extensions["openstack.networks"].([]string)
 	if !ok || len(networks) == 0 {
@@ -216,7 +216,7 @@ func (a *OpenStackAdapter) addNetworkConfig(opts *servers.CreateOpts, extensions
 	opts.Networks = networksSlice
 }
 
-// addSecurityGroups adds security groups to create options if specified
+// addSecurityGroups adds security groups to create options if specified.
 func (a *OpenStackAdapter) addSecurityGroups(opts *servers.CreateOpts, extensions map[string]interface{}) {
 	securityGroups, ok := extensions["openstack.securityGroups"].([]string)
 	if ok && len(securityGroups) > 0 {
@@ -224,7 +224,7 @@ func (a *OpenStackAdapter) addSecurityGroups(opts *servers.CreateOpts, extension
 	}
 }
 
-// createOpenStackServer creates a server in OpenStack and handles errors
+// createOpenStackServer creates a server in OpenStack and handles errors.
 func (a *OpenStackAdapter) createOpenStackServer(createOpts servers.CreateOpts) (*servers.Server, error) {
 	osServer, err := servers.Create(a.compute, createOpts).Extract()
 	if err != nil {

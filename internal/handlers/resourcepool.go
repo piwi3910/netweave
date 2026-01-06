@@ -42,7 +42,7 @@ func NewResourcePoolHandler(adp adapter.Adapter, logger *zap.Logger) *ResourcePo
 //   - offset: Pagination offset
 //   - limit: Maximum number of items to return
 //
-// Response: 200 OK with array of ResourcePool objects
+// Response: 200 OK with array of ResourcePool objects.
 func (h *ResourcePoolHandler) ListResourcePools(c *gin.Context) {
 	ctx := c.Request.Context()
 

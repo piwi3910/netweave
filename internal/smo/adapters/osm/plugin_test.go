@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+const (
+	testAdminUser = "admin"
+)
+
 // TestNewPlugin tests the creation of a new OSM plugin.
 func TestNewPlugin(t *testing.T) {
 	tests := []struct {
@@ -383,8 +387,8 @@ func TestTransformVIMAccount(t *testing.T) {
 	if vim.VIMURL != "https://openstack.example.com:5000/v3" {
 		t.Errorf("VIM URL = %v, want expected URL", vim.VIMURL)
 	}
-	if vim.VIMUser != "admin" {
-		t.Errorf("VIM User = %v, want %v", vim.VIMUser, "admin")
+	if vim.VIMUser != testAdminUser {
+		t.Errorf("VIM User = %v, want %v", vim.VIMUser, testAdminUser)
 	}
 	if vim.VIMPassword != "secret" {
 		t.Errorf("VIM Password = %v, want %v", vim.VIMPassword, "secret")

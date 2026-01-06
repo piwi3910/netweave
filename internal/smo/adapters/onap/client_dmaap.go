@@ -70,7 +70,7 @@ func (c *DMaaPClient) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("health check request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check returned status %d", resp.StatusCode)
@@ -95,62 +95,90 @@ func (c *DMaaPClient) PublishEvents(ctx context.Context, topic string, events []
 		zap.Int("eventCount", len(events)),
 	)
 
-	// DMaaP accepts an array of events
 	body, err := json.Marshal(events)
 	if err != nil {
 		return fmt.Errorf("failed to marshal events: %w", err)
 	}
 
 	url := fmt.Sprintf("%s/events/%s", c.baseURL, topic)
+	return c.publishWithRetry(ctx, url, body, topic, len(events))
+}
 
+// publishWithRetry attempts to publish events with retry logic.
+func (c *DMaaPClient) publishWithRetry(ctx context.Context, url string, body []byte, topic string, eventCount int) error {
 	var lastErr error
 	for attempt := 0; attempt <= c.config.MaxRetries; attempt++ {
 		if attempt > 0 {
-			c.logger.Debug("Retrying DMaaP publish",
-				zap.String("topic", topic),
-				zap.Int("attempt", attempt),
-			)
-			// Exponential backoff
-			time.Sleep(time.Duration(attempt) * time.Second)
+			c.waitBeforeRetryDMaaP(attempt, topic)
 		}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-		if err != nil {
-			lastErr = fmt.Errorf("failed to create request: %w", err)
-			continue
-		}
-
-		req.SetBasicAuth(c.username, c.password)
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Accept", "application/json")
-
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			lastErr = fmt.Errorf("request failed: %w", err)
-			continue
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusAccepted {
-			c.logger.Info("Successfully published events to DMaaP",
-				zap.String("topic", topic),
-				zap.Int("eventCount", len(events)),
-				zap.Int("statusCode", resp.StatusCode),
-			)
+		if err := c.executePublishRequest(ctx, url, body, topic, eventCount, &lastErr); err == nil {
 			return nil
 		}
 
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		lastErr = fmt.Errorf("DMaaP returned status %d: %s", resp.StatusCode, string(bodyBytes))
-
-		// Don't retry on client errors (4xx except 429)
-		if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != http.StatusTooManyRequests {
+		if c.shouldStopRetryingDMaaP(lastErr) {
 			break
 		}
 	}
 
 	return fmt.Errorf("failed to publish events to DMaaP after %d attempts: %w",
 		c.config.MaxRetries+1, lastErr)
+}
+
+// waitBeforeRetryDMaaP implements exponential backoff for DMaaP retries.
+func (c *DMaaPClient) waitBeforeRetryDMaaP(attempt int, topic string) {
+	c.logger.Debug("Retrying DMaaP publish",
+		zap.String("topic", topic),
+		zap.Int("attempt", attempt),
+	)
+	time.Sleep(time.Duration(attempt) * time.Second)
+}
+
+// executePublishRequest executes a single publish request to DMaaP.
+func (c *DMaaPClient) executePublishRequest(ctx context.Context, url string, body []byte, topic string, eventCount int, lastErr *error) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		*lastErr = fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	req.SetBasicAuth(c.username, c.password)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		*lastErr = fmt.Errorf("request failed: %w", err)
+		return fmt.Errorf("failed to execute HTTP request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	return c.handlePublishResponse(resp, topic, eventCount, lastErr)
+}
+
+// handlePublishResponse processes the response from a publish request.
+func (c *DMaaPClient) handlePublishResponse(resp *http.Response, topic string, eventCount int, lastErr *error) error {
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusAccepted {
+		c.logger.Info("Successfully published events to DMaaP",
+			zap.String("topic", topic),
+			zap.Int("eventCount", eventCount),
+			zap.Int("statusCode", resp.StatusCode),
+		)
+		return nil
+	}
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	*lastErr = fmt.Errorf("DMaaP returned status %d: %s", resp.StatusCode, string(bodyBytes))
+	return *lastErr
+}
+
+// shouldStopRetryingDMaaP determines if DMaaP retries should be stopped.
+func (c *DMaaPClient) shouldStopRetryingDMaaP(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "status 4") && !strings.Contains(errMsg, "status 429")
 }
 
 // SubscribeTopic subscribes to a DMaaP topic for consuming messages.
@@ -170,7 +198,7 @@ func (c *DMaaPClient) SubscribeTopic(ctx context.Context, topic string, consumer
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -221,7 +249,7 @@ func (c *DMaaPClient) CreateTopic(ctx context.Context, topic string, partitions 
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		bodyBytes, _ := io.ReadAll(resp.Body)

@@ -619,7 +619,7 @@ func TestConfig_Defaults(t *testing.T) {
 	}
 }
 
-// Benchmark tests
+// Benchmark tests.
 func BenchmarkHelmAdapter_TransformReleaseToDeployment(b *testing.B) {
 	adapter, err := NewAdapter(&Config{
 		Namespace: "test",

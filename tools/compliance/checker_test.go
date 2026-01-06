@@ -11,38 +11,40 @@ import (
 	"go.uber.org/zap"
 )
 
+type mockEndpoint struct {
+	statusCode int
+	response   string
+}
+
+// mockO2IMSHandler returns a mock HTTP handler for O2-IMS endpoints.
+func mockO2IMSHandler() http.HandlerFunc {
+	// Map of endpoints to responses
+	endpoints := map[string]mockEndpoint{
+		"GET:/o2ims/v1/subscriptions":        {http.StatusOK, `{"subscriptions": [], "total": 0}`},
+		"POST:/o2ims/v1/subscriptions":       {http.StatusCreated, `{"subscriptionId": "test-sub-123"}`},
+		"GET:/o2ims/v1/resourcePools":        {http.StatusOK, `{"resourcePools": [], "total": 0}`},
+		"GET:/o2ims/v1/resources":            {http.StatusOK, `{"resources": [], "total": 0}`},
+		"GET:/o2ims/v1/resourceTypes":        {http.StatusOK, `{"resourceTypes": [], "total": 0}`},
+		"GET:/o2ims/v1/deploymentManagers":   {http.StatusOK, `{"deploymentManagers": [], "total": 1}`},
+		"GET:/o2ims/v1/oCloudInfrastructure": {http.StatusOK, `{"oCloudId": "test-ocloud"}`},
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		key := r.Method + ":" + r.URL.Path
+		if endpoint, ok := endpoints[key]; ok {
+			w.WriteHeader(endpoint.statusCode)
+			_, _ = w.Write([]byte(endpoint.response))
+			return
+		}
+		// Return 404 for parameterized endpoints
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error": "NotFound"}`))
+	}
+}
+
 func TestChecker_CheckO2IMS(t *testing.T) {
 	// Create mock gateway server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Mock O2-IMS endpoints
-		switch {
-		case r.URL.Path == "/o2ims/v1/subscriptions" && r.Method == "GET":
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"subscriptions": [], "total": 0}`))
-		case r.URL.Path == "/o2ims/v1/subscriptions" && r.Method == "POST":
-			w.WriteHeader(http.StatusCreated)
-			w.Write([]byte(`{"subscriptionId": "test-sub-123"}`))
-		case r.URL.Path == "/o2ims/v1/resourcePools" && r.Method == "GET":
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"resourcePools": [], "total": 0}`))
-		case r.URL.Path == "/o2ims/v1/resources" && r.Method == "GET":
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"resources": [], "total": 0}`))
-		case r.URL.Path == "/o2ims/v1/resourceTypes" && r.Method == "GET":
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"resourceTypes": [], "total": 0}`))
-		case r.URL.Path == "/o2ims/v1/deploymentManagers" && r.Method == "GET":
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"deploymentManagers": [], "total": 1}`))
-		case r.URL.Path == "/o2ims/v1/oCloudInfrastructure" && r.Method == "GET":
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"oCloudId": "test-ocloud"}`))
-		default:
-			// Return 404 for parameterized endpoints (simulating endpoints exist but resource not found)
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(`{"error": "NotFound"}`))
-		}
-	}))
+	server := httptest.NewServer(mockO2IMSHandler())
 	defer server.Close()
 
 	checker := NewChecker(server.URL, zap.NewNop())
@@ -68,7 +70,7 @@ func TestChecker_CheckO2DMS(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Return 404 for all O2-DMS endpoints (not implemented)
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error": "NotFound"}`))
+		_, _ = w.Write([]byte(`{"error": "NotFound"}`))
 	}))
 	defer server.Close()
 
@@ -93,14 +95,14 @@ func TestChecker_CheckAll(t *testing.T) {
 	// Create mock gateway server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Mock O2-IMS endpoints (implemented)
-		if r.URL.Path[:8] == "/o2ims/v" {
+		if len(r.URL.Path) >= 8 && r.URL.Path[:8] == "/o2ims/v" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{}`))
+			_, _ = w.Write([]byte(`{}`))
 			return
 		}
 
 		// O2-DMS endpoints (not implemented)
-		if r.URL.Path[:8] == "/o2dms/v" {
+		if len(r.URL.Path) >= 8 && r.URL.Path[:8] == "/o2dms/v" {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}

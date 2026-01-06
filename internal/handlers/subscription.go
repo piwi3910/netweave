@@ -47,7 +47,7 @@ func NewSubscriptionHandler(store storage.Store, logger *zap.Logger) *Subscripti
 //   - offset: Pagination offset
 //   - limit: Maximum number of items to return
 //
-// Response: 200 OK with array of Subscription objects
+// Response: 200 OK with array of Subscription objects.
 func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -171,7 +171,7 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 	c.JSON(http.StatusCreated, response)
 }
 
-// parseAndValidateRequest parses and validates the subscription creation request
+// parseAndValidateRequest parses and validates the subscription creation reques.
 func (h *SubscriptionHandler) parseAndValidateRequest(c *gin.Context) (*models.Subscription, error) {
 	var sub models.Subscription
 
@@ -183,7 +183,7 @@ func (h *SubscriptionHandler) parseAndValidateRequest(c *gin.Context) (*models.S
 			Message: "Invalid request body: " + err.Error(),
 			Code:    http.StatusBadRequest,
 		})
-		return nil, err
+		return nil, fmt.Errorf("failed to bind JSON: %w", err)
 	}
 
 	// Validate callback URL
@@ -194,7 +194,7 @@ func (h *SubscriptionHandler) parseAndValidateRequest(c *gin.Context) (*models.S
 	return &sub, nil
 }
 
-// validateCallbackURL validates the callback URL format
+// validateCallbackURL validates the callback URL forma.
 func (h *SubscriptionHandler) validateCallbackURL(c *gin.Context, callback string) error {
 	if callback == "" {
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
@@ -222,16 +222,16 @@ func (h *SubscriptionHandler) validateCallbackURL(c *gin.Context, callback strin
 	return nil
 }
 
-// convertToStorageSubscription converts models.Subscription to storage.Subscription
+// convertToStorageSubscription converts models.Subscription to storage.Subscription.
 func (h *SubscriptionHandler) convertToStorageSubscription(sub *models.Subscription, subscriptionID string) *storage.Subscription {
 	storageFilter := storage.SubscriptionFilter{}
-	if sub.Filter.ResourcePoolID != nil && len(sub.Filter.ResourcePoolID) > 0 {
+	if len(sub.Filter.ResourcePoolID) > 0 {
 		storageFilter.ResourcePoolID = sub.Filter.ResourcePoolID[0]
 	}
-	if sub.Filter.ResourceTypeID != nil && len(sub.Filter.ResourceTypeID) > 0 {
+	if len(sub.Filter.ResourceTypeID) > 0 {
 		storageFilter.ResourceTypeID = sub.Filter.ResourceTypeID[0]
 	}
-	if sub.Filter.ResourceID != nil && len(sub.Filter.ResourceID) > 0 {
+	if len(sub.Filter.ResourceID) > 0 {
 		storageFilter.ResourceID = sub.Filter.ResourceID[0]
 	}
 
@@ -244,7 +244,7 @@ func (h *SubscriptionHandler) convertToStorageSubscription(sub *models.Subscript
 	}
 }
 
-// storeSubscription stores the subscription and handles errors
+// storeSubscription stores the subscription and handles errors.
 func (h *SubscriptionHandler) storeSubscription(ctx context.Context, c *gin.Context, storageSub *storage.Subscription) error {
 	err := h.store.Create(ctx, storageSub)
 	if err != nil {
@@ -257,7 +257,7 @@ func (h *SubscriptionHandler) storeSubscription(ctx context.Context, c *gin.Cont
 				Message: "Subscription already exists",
 				Code:    http.StatusConflict,
 			})
-			return err
+			return fmt.Errorf("subscription already exists: %w", err)
 		}
 
 		h.logger.Error("failed to create subscription", zap.Error(err))
@@ -266,13 +266,13 @@ func (h *SubscriptionHandler) storeSubscription(ctx context.Context, c *gin.Cont
 			Message: "Failed to create subscription",
 			Code:    http.StatusInternalServerError,
 		})
-		return err
+		return fmt.Errorf("failed to create subscription in storage: %w", err)
 	}
 
 	return nil
 }
 
-// buildSubscriptionResponse builds the subscription response object
+// buildSubscriptionResponse builds the subscription response objec.
 func (h *SubscriptionHandler) buildSubscriptionResponse(subscriptionID string, storageSub *storage.Subscription) models.Subscription {
 	return models.Subscription{
 		SubscriptionID:         subscriptionID,

@@ -8,7 +8,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-// Metrics holds all Prometheus metrics for the O2-IMS Gateway
+const (
+	// Metric status labels
+	statusSuccess = "success"
+	statusError   = "error"
+)
+
+// Metrics holds all Prometheus metrics for the O2-IMS Gateway.
 type Metrics struct {
 	// HTTP metrics
 	HTTPRequestsTotal     *prometheus.CounterVec
@@ -41,11 +47,11 @@ type Metrics struct {
 }
 
 var (
-	// globalMetrics is the singleton metrics instance
+	// globalMetrics is the singleton metrics instance.
 	globalMetrics *Metrics
 )
 
-// InitMetrics initializes and registers all Prometheus metrics
+// InitMetrics initializes and registers all Prometheus metrics.
 func InitMetrics(namespace string) *Metrics {
 	if namespace == "" {
 		namespace = "o2ims"
@@ -236,7 +242,7 @@ func InitMetrics(namespace string) *Metrics {
 	return m
 }
 
-// GetMetrics returns the global metrics instance
+// GetMetrics returns the global metrics instance.
 func GetMetrics() *Metrics {
 	if globalMetrics == nil {
 		panic("metrics not initialized - call InitMetrics first")
@@ -244,7 +250,7 @@ func GetMetrics() *Metrics {
 	return globalMetrics
 }
 
-// RecordHTTPRequest records HTTP request metrics
+// RecordHTTPRequest records HTTP request metrics.
 func (m *Metrics) RecordHTTPRequest(method, path string, statusCode int, duration time.Duration, responseSize int) {
 	status := strconv.Itoa(statusCode)
 	m.HTTPRequestsTotal.WithLabelValues(method, path, status).Inc()
@@ -252,36 +258,36 @@ func (m *Metrics) RecordHTTPRequest(method, path string, statusCode int, duratio
 	m.HTTPResponseSizeBytes.WithLabelValues(method, path).Observe(float64(responseSize))
 }
 
-// RecordAdapterOperation records adapter operation metrics
+// RecordAdapterOperation records adapter operation metrics.
 func (m *Metrics) RecordAdapterOperation(adapter, operation string, duration time.Duration, err error) {
-	status := "success"
+	status := statusSuccess
 	if err != nil {
-		status = "error"
+		status = statusError
 		m.AdapterErrorsTotal.WithLabelValues(adapter, operation, "general").Inc()
 	}
 	m.AdapterOperationsTotal.WithLabelValues(adapter, operation, status).Inc()
 	m.AdapterOperationDuration.WithLabelValues(adapter, operation).Observe(duration.Seconds())
 }
 
-// RecordSubscriptionEvent records subscription event metrics
+// RecordSubscriptionEvent records subscription event metrics.
 func (m *Metrics) RecordSubscriptionEvent(eventType, resourceType string) {
 	m.SubscriptionEventsTotal.WithLabelValues(eventType, resourceType).Inc()
 }
 
-// RecordWebhookDelivery records webhook delivery metrics
+// RecordWebhookDelivery records webhook delivery metrics.
 func (m *Metrics) RecordWebhookDelivery(duration time.Duration, httpStatusCode int, err error) {
-	status := "success"
+	status := statusSuccess
 	httpStatus := strconv.Itoa(httpStatusCode)
 
 	if err != nil || httpStatusCode >= 400 {
-		status = "error"
+		status = statusError
 	}
 
 	m.WebhookDeliveryDuration.WithLabelValues(status).Observe(duration.Seconds())
 	m.WebhookDeliveryTotal.WithLabelValues(status, httpStatus).Inc()
 }
 
-// RecordRedisOperation records Redis operation metrics
+// RecordRedisOperation records Redis operation metrics.
 func (m *Metrics) RecordRedisOperation(operation string, duration time.Duration, err error) {
 	status := "success"
 	if err != nil {
@@ -292,7 +298,7 @@ func (m *Metrics) RecordRedisOperation(operation string, duration time.Duration,
 	m.RedisOperationDuration.WithLabelValues(operation).Observe(duration.Seconds())
 }
 
-// RecordK8sOperation records Kubernetes API operation metrics
+// RecordK8sOperation records Kubernetes API operation metrics.
 func (m *Metrics) RecordK8sOperation(operation, resource string, duration time.Duration, err error) {
 	status := "success"
 	if err != nil {
@@ -303,27 +309,27 @@ func (m *Metrics) RecordK8sOperation(operation, resource string, duration time.D
 	m.K8sOperationDuration.WithLabelValues(operation, resource).Observe(duration.Seconds())
 }
 
-// SetSubscriptionCount sets the current subscription count
+// SetSubscriptionCount sets the current subscription coun.
 func (m *Metrics) SetSubscriptionCount(count int) {
 	m.SubscriptionsTotal.Set(float64(count))
 }
 
-// SetRedisConnectionsActive sets the number of active Redis connections
+// SetRedisConnectionsActive sets the number of active Redis connections.
 func (m *Metrics) SetRedisConnectionsActive(count int) {
 	m.RedisConnectionsActive.Set(float64(count))
 }
 
-// SetK8sResourceCacheSize sets the cache size for a specific resource type
+// SetK8sResourceCacheSize sets the cache size for a specific resource type.
 func (m *Metrics) SetK8sResourceCacheSize(resourceType string, size int) {
 	m.K8sResourceCacheSize.WithLabelValues(resourceType).Set(float64(size))
 }
 
-// HTTPInFlightInc increments the in-flight HTTP request counter
+// HTTPInFlightInc increments the in-flight HTTP request counter.
 func (m *Metrics) HTTPInFlightInc() {
 	m.HTTPRequestsInFlight.Inc()
 }
 
-// HTTPInFlightDec decrements the in-flight HTTP request counter
+// HTTPInFlightDec decrements the in-flight HTTP request counter.
 func (m *Metrics) HTTPInFlightDec() {
 	m.HTTPRequestsInFlight.Dec()
 }

@@ -65,8 +65,8 @@ func TestInitLoggerWithLogLevel(t *testing.T) {
 	globalLogger = nil
 
 	// Set log level via environment variable
-	os.Setenv("LOG_LEVEL", "warn")
-	defer os.Unsetenv("LOG_LEVEL")
+	_ = os.Setenv("LOG_LEVEL", "warn")
+	defer func() { _ = os.Unsetenv("LOG_LEVEL") }()
 
 	logger, err := InitLogger("production")
 	require.NoError(t, err)
@@ -81,8 +81,8 @@ func TestInitLoggerInvalidLogLevel(t *testing.T) {
 	globalLogger = nil
 
 	// Set invalid log level
-	os.Setenv("LOG_LEVEL", "invalid")
-	defer os.Unsetenv("LOG_LEVEL")
+	_ = os.Setenv("LOG_LEVEL", "invalid")
+	defer func() { _ = os.Unsetenv("LOG_LEVEL") }()
 
 	logger, err := InitLogger("production")
 	require.Error(t, err)
@@ -95,7 +95,7 @@ func TestGetLogger(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Get logger
 	retrieved := GetLogger()
@@ -116,7 +116,7 @@ func TestLoggerWithContext(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	ctx := context.Background()
 	contextLogger := logger.WithContext(ctx)
@@ -127,7 +127,7 @@ func TestLoggerWithFields(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	fieldsLogger := logger.WithFields(
 		zap.String("key1", "value1"),
@@ -141,7 +141,7 @@ func TestLoggerWithError(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	testErr := assert.AnError
 	errorLogger := logger.WithError(testErr)
@@ -152,7 +152,7 @@ func TestLoggerWithComponent(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	componentLogger := logger.WithComponent("test-component")
 	require.NotNil(t, componentLogger)
@@ -162,7 +162,7 @@ func TestContextWithLogger(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	ctx := context.Background()
 	ctxWithLogger := ContextWithLogger(ctx, logger)
@@ -178,7 +178,7 @@ func TestLoggerFromContextFallsBackToGlobal(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Context without logger
 	ctx := context.Background()
@@ -191,7 +191,7 @@ func TestLogRequest(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// This should not panic
 	logger.LogRequest("GET", "/api/v1/subscriptions", 200, 15.5)
@@ -201,7 +201,7 @@ func TestLogAdapterOperation(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Success case
 	logger.LogAdapterOperation("GetResourcePool", "k8s", "pool-123", nil)
@@ -214,7 +214,7 @@ func TestLogSubscriptionEvent(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	details := map[string]interface{}{
 		"resourceID": "pool-123",
@@ -228,7 +228,7 @@ func TestLogRedisOperation(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Success case
 	logger.LogRedisOperation("SET", "subscription:123", nil)
@@ -241,7 +241,7 @@ func TestLogKubernetesOperation(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Success case
 	logger.LogKubernetesOperation("Get", "Node", "default", "node-1", nil)
@@ -254,7 +254,7 @@ func TestLogLevels(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Test all log levels
 	logger.Debug("debug message", zap.String("level", "debug"))
@@ -269,7 +269,7 @@ func TestLoggerConfigDevelopment(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("development")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Development logger should use console encoding
 	assert.NotNil(t, logger)
@@ -279,7 +279,7 @@ func TestLoggerConfigProduction(t *testing.T) {
 	globalLogger = nil
 	logger, err := InitLogger("production")
 	require.NoError(t, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Production logger should use JSON encoding
 	assert.NotNil(t, logger)
@@ -304,12 +304,12 @@ func TestLoggerSync(t *testing.T) {
 	_ = logger.Sync()
 }
 
-// Benchmark tests for performance validation
+// Benchmark tests for performance validation.
 func BenchmarkLoggerInfo(b *testing.B) {
 	globalLogger = nil
 	logger, err := InitLogger("production")
 	require.NoError(b, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -324,7 +324,7 @@ func BenchmarkLoggerWithFields(b *testing.B) {
 	globalLogger = nil
 	logger, err := InitLogger("production")
 	require.NoError(b, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -340,7 +340,7 @@ func BenchmarkLogRequest(b *testing.B) {
 	globalLogger = nil
 	logger, err := InitLogger("production")
 	require.NoError(b, err)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
