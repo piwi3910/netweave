@@ -228,6 +228,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request, result interf
 			lastErr = fmt.Errorf("request failed: %w", err)
 			continue
 		}
+		defer resp.Body.Close()
 
 		if err := c.handleResponse(ctx, req, resp, result, &lastErr); err != nil {
 			if err == errRetryable {
@@ -281,9 +282,8 @@ func (c *Client) handleResponse(ctx context.Context, req *http.Request, resp *ht
 }
 
 // handleSuccessResponse processes successful HTTP responses.
+// Note: resp.Body is closed by caller's defer.
 func (c *Client) handleSuccessResponse(resp *http.Response, result interface{}) error {
-	defer resp.Body.Close()
-
 	if result != nil && resp.StatusCode != http.StatusNoContent {
 		if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
 			return fmt.Errorf("failed to decode response: %w", err)
@@ -293,9 +293,8 @@ func (c *Client) handleSuccessResponse(resp *http.Response, result interface{}) 
 }
 
 // handleUnauthorized handles 401 responses by refreshing authentication.
+// Note: resp.Body is closed by caller's defer.
 func (c *Client) handleUnauthorized(ctx context.Context, req *http.Request, resp *http.Response, lastErr *error) error {
-	resp.Body.Close()
-
 	if err := c.Authenticate(ctx); err != nil {
 		return fmt.Errorf("failed to refresh authentication: %w", err)
 	}
@@ -309,19 +308,17 @@ func (c *Client) handleUnauthorized(ctx context.Context, req *http.Request, resp
 }
 
 // handleRetryableError handles retryable HTTP errors (rate limiting, service unavailable).
+// Note: resp.Body is closed by caller's defer.
 func (c *Client) handleRetryableError(resp *http.Response, lastErr *error) error {
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
-
 	*lastErr = fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(body))
 	return errRetryable
 }
 
 // handleNonRetryableError handles non-retryable HTTP errors.
+// Note: resp.Body is closed by caller's defer.
 func (c *Client) handleNonRetryableError(resp *http.Response) error {
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
-
 	return fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(body))
 }
 
