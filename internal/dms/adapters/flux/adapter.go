@@ -72,6 +72,12 @@ const (
 
 	// HelmRepositoryResource is the Flux HelmRepository resource name.
 	HelmRepositoryResource = "helmrepositories"
+
+	// Progress constants for deployment status.
+	progressDeployed  = 100
+	progressDeploying = 50
+	progressPending   = 25
+	progressFailed    = 0
 )
 
 // GVR definitions for Flux resources.
@@ -173,6 +179,17 @@ func NewAdapter(config *Config) (*FluxAdapter, error) {
 	}, nil
 }
 
+// checkContext checks if the context has been cancelled and returns an error if so.
+// This should be called at the beginning of operations to fail fast on cancelled contexts.
+func checkContext(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return nil
+	}
+}
+
 // Initialize performs lazy initialization of the Kubernetes dynamic client.
 // This allows the adapter to be created without requiring immediate Kubernetes connectivity.
 // This method is thread-safe and ensures initialization happens exactly once.
@@ -229,6 +246,9 @@ func (f *FluxAdapter) Capabilities() []adapter.Capability {
 // ListDeploymentPackages retrieves deployment packages from Flux sources.
 // In Flux, packages are GitRepositories and HelmRepositories.
 func (f *FluxAdapter) ListDeploymentPackages(ctx context.Context, filter *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -259,6 +279,9 @@ func (f *FluxAdapter) ListDeploymentPackages(ctx context.Context, filter *adapte
 // GetDeploymentPackage retrieves a specific deployment package by ID.
 // The ID format is "{type}-{sanitized-url}" (e.g., "git-https-github-com-example-repo").
 func (f *FluxAdapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -322,6 +345,9 @@ func (f *FluxAdapter) GetDeploymentPackage(ctx context.Context, id string) (*ada
 // UploadDeploymentPackage creates a reference to a Flux source.
 // Flux uses Git and Helm repositories as package sources.
 func (f *FluxAdapter) UploadDeploymentPackage(ctx context.Context, pkg *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -363,6 +389,9 @@ func (f *FluxAdapter) DeleteDeploymentPackage(ctx context.Context, id string) er
 
 // ListDeployments retrieves all Flux deployments (HelmReleases and Kustomizations).
 func (f *FluxAdapter) ListDeployments(ctx context.Context, filter *adapter.Filter) ([]*adapter.Deployment, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -405,6 +434,9 @@ func (f *FluxAdapter) ListDeployments(ctx context.Context, filter *adapter.Filte
 
 // GetDeployment retrieves a specific Flux deployment by ID.
 func (f *FluxAdapter) GetDeployment(ctx context.Context, id string) (*adapter.Deployment, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -426,6 +458,9 @@ func (f *FluxAdapter) GetDeployment(ctx context.Context, id string) (*adapter.De
 
 // CreateDeployment creates a new Flux HelmRelease or Kustomization.
 func (f *FluxAdapter) CreateDeployment(ctx context.Context, req *adapter.DeploymentRequest) (*adapter.Deployment, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -455,6 +490,9 @@ func (f *FluxAdapter) CreateDeployment(ctx context.Context, req *adapter.Deploym
 
 // UpdateDeployment updates an existing Flux deployment.
 func (f *FluxAdapter) UpdateDeployment(ctx context.Context, id string, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -480,6 +518,9 @@ func (f *FluxAdapter) UpdateDeployment(ctx context.Context, id string, update *a
 
 // DeleteDeployment deletes a Flux deployment.
 func (f *FluxAdapter) DeleteDeployment(ctx context.Context, id string) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return err
 	}
@@ -508,6 +549,9 @@ func (f *FluxAdapter) DeleteDeployment(ctx context.Context, id string) error {
 // ScaleDeployment scales a deployment by updating the values.
 // Flux doesn't directly support scaling, but we can update values.
 func (f *FluxAdapter) ScaleDeployment(ctx context.Context, id string, replicas int) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return err
 	}
@@ -529,6 +573,9 @@ func (f *FluxAdapter) ScaleDeployment(ctx context.Context, id string, replicas i
 // RollbackDeployment triggers a rollback by forcing reconciliation.
 // For Flux, this means reverting to a previous Git revision.
 func (f *FluxAdapter) RollbackDeployment(ctx context.Context, id string, revision int) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return err
 	}
@@ -582,6 +629,9 @@ func (f *FluxAdapter) RollbackDeployment(ctx context.Context, id string, revisio
 
 // GetDeploymentStatus retrieves detailed status for a Flux deployment.
 func (f *FluxAdapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.DeploymentStatusDetail, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -603,6 +653,9 @@ func (f *FluxAdapter) GetDeploymentStatus(ctx context.Context, id string) (*adap
 
 // GetDeploymentHistory retrieves the revision history for a Flux deployment.
 func (f *FluxAdapter) GetDeploymentHistory(ctx context.Context, id string) (*adapter.DeploymentHistory, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -625,6 +678,9 @@ func (f *FluxAdapter) GetDeploymentHistory(ctx context.Context, id string) (*ada
 // GetDeploymentLogs retrieves status information for a Flux deployment.
 // Note: Flux doesn't provide direct log access, this returns status information.
 func (f *FluxAdapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapter.LogOptions) ([]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -671,6 +727,9 @@ func (f *FluxAdapter) SupportsGitOps() bool {
 
 // Health performs a health check on the Flux backend.
 func (f *FluxAdapter) Health(ctx context.Context) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
 	if err := f.Initialize(ctx); err != nil {
 		return fmt.Errorf("flux adapter not healthy: %w", err)
 	}
@@ -1167,52 +1226,17 @@ func (f *FluxAdapter) transformHelmReleaseToStatus(hr *unstructured.Unstructured
 
 	conditions, _, _ := unstructured.NestedSlice(hr.Object, "status", "conditions")
 	status, message := f.extractFluxStatus(conditions)
-
-	var updatedAt time.Time
-	dmsConditions := make([]adapter.DeploymentCondition, 0)
-
-	for _, c := range conditions {
-		cond, ok := c.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		condType, _, _ := unstructured.NestedString(cond, "type")
-		condStatus, _, _ := unstructured.NestedString(cond, "status")
-		condReason, _, _ := unstructured.NestedString(cond, "reason")
-		condMessage, _, _ := unstructured.NestedString(cond, "message")
-		condTime, _, _ := unstructured.NestedString(cond, "lastTransitionTime")
-
-		var transitionTime time.Time
-		if condTime != "" {
-			if parsed, err := time.Parse(time.RFC3339, condTime); err == nil {
-				transitionTime = parsed
-				if transitionTime.After(updatedAt) {
-					updatedAt = transitionTime
-				}
-			}
-		}
-
-		dmsConditions = append(dmsConditions, adapter.DeploymentCondition{
-			Type:               condType,
-			Status:             condStatus,
-			Reason:             condReason,
-			Message:            condMessage,
-			LastTransitionTime: transitionTime,
-		})
-	}
+	dmsConditions, updatedAt := f.parseConditions(conditions)
 
 	if updatedAt.IsZero() {
 		updatedAt = time.Now()
 	}
 
-	progress := f.calculateProgress(status)
-
 	return &adapter.DeploymentStatusDetail{
 		DeploymentID: name,
 		Status:       status,
 		Message:      message,
-		Progress:     progress,
+		Progress:     f.calculateProgress(status),
 		Conditions:   dmsConditions,
 		UpdatedAt:    updatedAt,
 		Extensions: map[string]interface{}{
@@ -1227,11 +1251,33 @@ func (f *FluxAdapter) transformKustomizationToStatus(ks *unstructured.Unstructur
 
 	conditions, _, _ := unstructured.NestedSlice(ks.Object, "status", "conditions")
 	status, message := f.extractFluxStatus(conditions)
+	dmsConditions, updatedAt := f.parseConditions(conditions)
 
 	lastAppliedRevision, _, _ := unstructured.NestedString(ks.Object, "status", "lastAppliedRevision")
 
-	var updatedAt time.Time
-	dmsConditions := make([]adapter.DeploymentCondition, 0)
+	if updatedAt.IsZero() {
+		updatedAt = time.Now()
+	}
+
+	return &adapter.DeploymentStatusDetail{
+		DeploymentID: name,
+		Status:       status,
+		Message:      message,
+		Progress:     f.calculateProgress(status),
+		Conditions:   dmsConditions,
+		UpdatedAt:    updatedAt,
+		Extensions: map[string]interface{}{
+			"flux.type":                "kustomization",
+			"flux.lastAppliedRevision": lastAppliedRevision,
+		},
+	}
+}
+
+// parseConditions converts Flux conditions to DMS conditions and returns the latest update time.
+// This is a shared helper to avoid code duplication between HelmRelease and Kustomization status extraction.
+func (f *FluxAdapter) parseConditions(conditions []interface{}) ([]adapter.DeploymentCondition, time.Time) {
+	dmsConditions := make([]adapter.DeploymentCondition, 0, len(conditions))
+	var latestUpdate time.Time
 
 	for _, c := range conditions {
 		cond, ok := c.(map[string]interface{})
@@ -1249,8 +1295,8 @@ func (f *FluxAdapter) transformKustomizationToStatus(ks *unstructured.Unstructur
 		if condTime != "" {
 			if parsed, err := time.Parse(time.RFC3339, condTime); err == nil {
 				transitionTime = parsed
-				if transitionTime.After(updatedAt) {
-					updatedAt = transitionTime
+				if transitionTime.After(latestUpdate) {
+					latestUpdate = transitionTime
 				}
 			}
 		}
@@ -1264,24 +1310,7 @@ func (f *FluxAdapter) transformKustomizationToStatus(ks *unstructured.Unstructur
 		})
 	}
 
-	if updatedAt.IsZero() {
-		updatedAt = time.Now()
-	}
-
-	progress := f.calculateProgress(status)
-
-	return &adapter.DeploymentStatusDetail{
-		DeploymentID: name,
-		Status:       status,
-		Message:      message,
-		Progress:     progress,
-		Conditions:   dmsConditions,
-		UpdatedAt:    updatedAt,
-		Extensions: map[string]interface{}{
-			"flux.type":                "kustomization",
-			"flux.lastAppliedRevision": lastAppliedRevision,
-		},
-	}
+	return dmsConditions, latestUpdate
 }
 
 // extractFluxStatus extracts status and message from Flux conditions.
@@ -1383,15 +1412,15 @@ func (f *FluxAdapter) extractKustomizationHistory(id string, ks *unstructured.Un
 func (f *FluxAdapter) calculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
-		return 100
+		return progressDeployed
 	case adapter.DeploymentStatusDeploying:
-		return 50
+		return progressDeploying
 	case adapter.DeploymentStatusPending:
-		return 25
+		return progressPending
 	case adapter.DeploymentStatusFailed:
-		return 0
+		return progressFailed
 	default:
-		return 0
+		return progressFailed
 	}
 }
 

@@ -1477,6 +1477,97 @@ func BenchmarkListDeployments(b *testing.B) {
 	}
 }
 
+// TestConcurrentInitialization tests that adapter initialization is thread-safe.
+func TestConcurrentInitialization(t *testing.T) {
+	adp := createFakeAdapter(t)
+
+	// Run multiple goroutines that all try to initialize the adapter
+	const numGoroutines = 100
+	done := make(chan struct{})
+	errors := make(chan error, numGoroutines)
+
+	ctx := context.Background()
+
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			<-done // Wait for all goroutines to be ready
+			// Each goroutine calls a method that triggers initialization
+			_, err := adp.ListDeployments(ctx, nil)
+			errors <- err
+		}()
+	}
+
+	// Release all goroutines at once
+	close(done)
+
+	// Collect all errors
+	for i := 0; i < numGoroutines; i++ {
+		err := <-errors
+		require.NoError(t, err, "concurrent initialization should not cause errors")
+	}
+
+	// Verify the adapter is still usable after concurrent access
+	deployments, err := adp.ListDeployments(ctx, nil)
+	require.NoError(t, err)
+	require.NotNil(t, deployments)
+}
+
+// TestContextCancellation tests that adapter methods respect context cancellation.
+func TestContextCancellation(t *testing.T) {
+	adp := createFakeAdapter(t)
+
+	// Create a cancelled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	tests := []struct {
+		name string
+		fn   func() error
+	}{
+		{
+			name: "ListDeployments",
+			fn: func() error {
+				_, err := adp.ListDeployments(ctx, nil)
+				return err
+			},
+		},
+		{
+			name: "GetDeployment",
+			fn: func() error {
+				_, err := adp.GetDeployment(ctx, "test")
+				return err
+			},
+		},
+		{
+			name: "CreateDeployment",
+			fn: func() error {
+				_, err := adp.CreateDeployment(ctx, &dmsadapter.DeploymentRequest{
+					Name: "test",
+					Extensions: map[string]interface{}{
+						"flux.chart":     "nginx",
+						"flux.sourceRef": "bitnami",
+					},
+				})
+				return err
+			},
+		},
+		{
+			name: "Health",
+			fn: func() error {
+				return adp.Health(ctx)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.fn()
+			require.Error(t, err)
+			assert.ErrorIs(t, err, context.Canceled)
+		})
+	}
+}
+
 // TestGetDeploymentPackage tests getting a specific package.
 func TestGetDeploymentPackage(t *testing.T) {
 	gitRepo := createTestGitRepository("infra-repo", "flux-system", "https://github.com/example/infra", "main")
