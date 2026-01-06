@@ -3,7 +3,17 @@ module github.com/piwi3910/netweave
 go 1.25.0
 
 require (
+	cloud.google.com/go/compute v1.25.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.2
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 	github.com/alicebob/miniredis/v2 v2.35.0
+	github.com/aws/aws-sdk-go-v2 v1.36.3
+	github.com/aws/aws-sdk-go-v2/config v1.29.9
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.62
+	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.51.10
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.211.2
 	github.com/gin-gonic/gin v1.11.0
 	github.com/google/uuid v1.6.0
 	github.com/gophercloud/gophercloud v1.14.1
@@ -12,7 +22,9 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.33.0
+	github.com/vmware/govmomi v0.50.0
 	go.uber.org/zap v1.27.1
+	google.golang.org/api v0.222.0
 	helm.sh/helm/v3 v3.16.4
 	k8s.io/client-go v0.35.0
 )
