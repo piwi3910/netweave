@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 // mockAdapter is a test implementation of the adapter interface.
 type mockAdapter struct {
+	mu           sync.RWMutex
 	name         string
 	version      string
 	capabilities []adapter.Capability
@@ -36,6 +38,9 @@ func (m *mockAdapter) Capabilities() []adapter.Capability {
 }
 
 func (m *mockAdapter) Health(ctx context.Context) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	if m.healthError != nil {
 		return m.healthError
 	}
@@ -48,6 +53,14 @@ func (m *mockAdapter) Health(ctx context.Context) error {
 func (m *mockAdapter) Close() error {
 	m.closed = true
 	return nil
+}
+
+// SetHealth safely sets the health status with proper locking
+func (m *mockAdapter) SetHealth(healthy bool, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.healthy = healthy
+	m.healthError = err
 }
 
 // Implement remaining adapter.Adapter methods.
@@ -556,8 +569,7 @@ func TestRegistry_HealthChecks(t *testing.T) {
 	assert.True(t, meta.Healthy)
 
 	// Make plugin unhealthy
-	mock.healthy = false
-	mock.healthError = errors.New("health check failed")
+	mock.SetHealth(false, errors.New("health check failed"))
 
 	// Wait for another health check cycle
 	time.Sleep(150 * time.Millisecond)

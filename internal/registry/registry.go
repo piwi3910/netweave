@@ -221,7 +221,14 @@ func (r *Registry) GetMetadata(name string) *PluginMetadata {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	return r.meta[name]
+	meta := r.meta[name]
+	if meta == nil {
+		return nil
+	}
+
+	// Return a copy to prevent data races
+	metaCopy := *meta
+	return &metaCopy
 }
 
 // List returns all registered plugins.
