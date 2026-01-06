@@ -11,31 +11,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// createTestServer creates a minimal server for testing documentation handlers.
+func createTestServer() *Server {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	return &Server{
+		router: router,
+	}
+}
+
 func TestDocsHandlers(t *testing.T) {
 	// Set Gin to test mode
 	gin.SetMode(gin.TestMode)
 
-	// Set up test OpenAPI spec
 	testSpec := []byte(`openapi: 3.0.3
 info:
   title: Test API
   version: 1.0.0
 paths: {}`)
 
-	// Save original spec and restore after test
-	originalSpec := OpenAPISpec
-	defer func() { OpenAPISpec = originalSpec }()
-
 	t.Run("handleOpenAPIYAML with spec loaded", func(t *testing.T) {
-		OpenAPISpec = testSpec
-
-		router := gin.New()
-		srv := &Server{router: router}
-		router.GET("/openapi.yaml", srv.handleOpenAPIYAML)
+		srv := createTestServer()
+		srv.SetOpenAPISpec(testSpec)
+		srv.router.GET("/openapi.yaml", srv.handleOpenAPIYAML)
 
 		req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
 		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		srv.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "application/x-yaml", w.Header().Get("Content-Type"))
@@ -44,71 +46,64 @@ paths: {}`)
 	})
 
 	t.Run("handleOpenAPIYAML without spec loaded", func(t *testing.T) {
-		OpenAPISpec = nil
-
-		router := gin.New()
-		srv := &Server{router: router}
-		router.GET("/openapi.yaml", srv.handleOpenAPIYAML)
+		srv := createTestServer()
+		// Don't set OpenAPISpec
+		srv.router.GET("/openapi.yaml", srv.handleOpenAPIYAML)
 
 		req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
 		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		srv.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 		assert.Contains(t, w.Body.String(), "OpenAPI specification not loaded")
 	})
 
-	t.Run("handleOpenAPIJSON redirects to YAML", func(t *testing.T) {
-		OpenAPISpec = testSpec
-
-		router := gin.New()
-		srv := &Server{router: router}
-		router.GET("/openapi.json", srv.handleOpenAPIJSON)
+	t.Run("handleOpenAPIJSON with spec loaded", func(t *testing.T) {
+		srv := createTestServer()
+		srv.SetOpenAPISpec(testSpec)
+		srv.router.GET("/openapi.json", srv.handleOpenAPIJSON)
 
 		req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
 		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		srv.router.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusTemporaryRedirect, w.Code)
-		assert.Equal(t, "/docs/openapi.yaml", w.Header().Get("Location"))
+		// Should return YAML content (Swagger UI supports it)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "application/x-yaml", w.Header().Get("Content-Type"))
 	})
 
 	t.Run("handleOpenAPIJSON without spec loaded", func(t *testing.T) {
-		OpenAPISpec = nil
-
-		router := gin.New()
-		srv := &Server{router: router}
-		router.GET("/openapi.json", srv.handleOpenAPIJSON)
+		srv := createTestServer()
+		// Don't set OpenAPISpec
+		srv.router.GET("/openapi.json", srv.handleOpenAPIJSON)
 
 		req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
 		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		srv.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 		assert.Contains(t, w.Body.String(), "OpenAPI specification not loaded")
 	})
 
 	t.Run("handleSwaggerUIRedirect", func(t *testing.T) {
-		router := gin.New()
-		srv := &Server{router: router}
-		router.GET("/docs", srv.handleSwaggerUIRedirect)
+		srv := createTestServer()
+		srv.router.GET("/docs", srv.handleSwaggerUIRedirect)
 
 		req := httptest.NewRequest(http.MethodGet, "/docs", nil)
 		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		srv.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusMovedPermanently, w.Code)
 		assert.Equal(t, "/docs/", w.Header().Get("Location"))
 	})
 
 	t.Run("handleSwaggerUI returns HTML page", func(t *testing.T) {
-		router := gin.New()
-		srv := &Server{router: router}
-		router.GET("/docs/", srv.handleSwaggerUI)
+		srv := createTestServer()
+		srv.router.GET("/docs/", srv.handleSwaggerUI)
 
 		req := httptest.NewRequest(http.MethodGet, "/docs/", nil)
 		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		srv.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "text/html; charset=utf-8", w.Header().Get("Content-Type"))
@@ -118,6 +113,8 @@ paths: {}`)
 		assert.Contains(t, body, "O2-IMS API Documentation")
 		assert.Contains(t, body, "swagger-ui")
 		assert.Contains(t, body, "/docs/openapi.yaml")
+		// Verify pinned version is used
+		assert.Contains(t, body, "swagger-ui-dist@5.11.0")
 	})
 }
 
@@ -125,18 +122,13 @@ func TestSetupDocsRoutes(t *testing.T) {
 	// Set Gin to test mode
 	gin.SetMode(gin.TestMode)
 
-	// Set up test OpenAPI spec
 	testSpec := []byte(`openapi: 3.0.3
 info:
   title: Test API
   version: 1.0.0`)
-	originalSpec := OpenAPISpec
-	defer func() { OpenAPISpec = originalSpec }()
-	OpenAPISpec = testSpec
 
-	// Create a minimal server for testing routes
-	router := gin.New()
-	srv := &Server{router: router}
+	srv := createTestServer()
+	srv.SetOpenAPISpec(testSpec)
 	srv.setupDocsRoutes()
 
 	tests := []struct {
@@ -175,9 +167,12 @@ info:
 			},
 		},
 		{
-			name:           "openapi json redirects to yaml",
+			name:           "openapi json returns yaml content",
 			path:           "/openapi.json",
-			expectedStatus: http.StatusTemporaryRedirect,
+			expectedStatus: http.StatusOK,
+			checkBody: func(t *testing.T, body string) {
+				assert.Contains(t, body, "openapi:")
+			},
 		},
 	}
 
@@ -185,7 +180,7 @@ info:
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
 			w := httptest.NewRecorder()
-			router.ServeHTTP(w, req)
+			srv.router.ServeHTTP(w, req)
 
 			assert.Equal(t, tc.expectedStatus, w.Code)
 
@@ -217,17 +212,13 @@ components:
     Subscription:
       type: object`
 
-	originalSpec := OpenAPISpec
-	defer func() { OpenAPISpec = originalSpec }()
-	OpenAPISpec = []byte(testSpec)
-
-	router := gin.New()
-	srv := &Server{router: router}
-	router.GET("/openapi.yaml", srv.handleOpenAPIYAML)
+	srv := createTestServer()
+	srv.SetOpenAPISpec([]byte(testSpec))
+	srv.router.GET("/openapi.yaml", srv.handleOpenAPIYAML)
 
 	req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	srv.router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 
@@ -236,4 +227,24 @@ components:
 	assert.True(t, strings.Contains(body, "/subscriptions"))
 	assert.True(t, strings.Contains(body, "/resourcePools"))
 	assert.True(t, strings.Contains(body, "O2-IMS API"))
+}
+
+func TestGetOpenAPISpec(t *testing.T) {
+	srv := createTestServer()
+
+	// Initially nil
+	assert.Nil(t, srv.GetOpenAPISpec())
+
+	// After setting
+	testSpec := []byte("test spec")
+	srv.SetOpenAPISpec(testSpec)
+	assert.Equal(t, testSpec, srv.GetOpenAPISpec())
+}
+
+func TestSwaggerUIVersionPinning(t *testing.T) {
+	// Verify that version constants are properly defined
+	assert.Equal(t, "5.11.0", swaggerUIVersion)
+	assert.Contains(t, swaggerUICSSURL, swaggerUIVersion)
+	assert.Contains(t, swaggerUIBundleURL, swaggerUIVersion)
+	assert.Contains(t, swaggerUIPresetURL, swaggerUIVersion)
 }

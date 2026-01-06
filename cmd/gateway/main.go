@@ -185,15 +185,6 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*applicationC
 	healthChecker := initializeHealthChecker(store, k8sAdapter, logger)
 	logger.Info("health checker initialized")
 
-	// Load OpenAPI specification for documentation endpoints
-	if err := loadOpenAPISpec(logger); err != nil {
-		logger.Warn("failed to load OpenAPI specification, docs will be unavailable",
-			zap.Error(err),
-		)
-	} else {
-		logger.Info("OpenAPI specification loaded")
-	}
-
 	// Create and configure HTTP server
 	srv := server.New(cfg, logger, k8sAdapter, store)
 	srv.SetHealthChecker(healthChecker)
@@ -202,6 +193,18 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*applicationC
 		zap.Int("port", cfg.Server.Port),
 		zap.String("mode", cfg.Server.GinMode),
 	)
+
+	// Load OpenAPI specification for documentation endpoints
+	if spec, err := loadOpenAPISpec(logger); err != nil {
+		logger.Warn("failed to load OpenAPI specification, docs will be unavailable",
+			zap.Error(err),
+		)
+	} else {
+		srv.SetOpenAPISpec(spec)
+		logger.Info("OpenAPI specification loaded",
+			zap.Int("size", len(spec)),
+		)
+	}
 
 	return &applicationComponents{
 		store:         store,
@@ -519,7 +522,8 @@ func gracefulShutdown(_ context.Context, srv *server.Server, cfg *config.Config,
 
 // loadOpenAPISpec loads the OpenAPI specification from the api/openapi directory.
 // The spec is loaded from multiple possible locations to support different deployment scenarios.
-func loadOpenAPISpec(logger *zap.Logger) error {
+// Returns the spec data or an error if not found.
+func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 	// Possible locations for the OpenAPI spec file
 	specPaths := []string{
 		"api/openapi/o2ims.yaml",      // Local development
@@ -531,14 +535,13 @@ func loadOpenAPISpec(logger *zap.Logger) error {
 	for _, path := range specPaths {
 		data, err := os.ReadFile(path)
 		if err == nil {
-			server.OpenAPISpec = data
 			logger.Debug("loaded OpenAPI spec",
 				zap.String("path", path),
 				zap.Int("size", len(data)),
 			)
-			return nil
+			return data, nil
 		}
 	}
 
-	return fmt.Errorf("OpenAPI specification not found in any of the expected locations")
+	return nil, fmt.Errorf("OpenAPI specification not found in any of the expected locations")
 }

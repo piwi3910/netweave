@@ -62,6 +62,7 @@ type Server struct {
 	store            storage.Store
 	healthCheck      *observability.HealthChecker
 	openAPIValidator *middleware.OpenAPIValidator
+	openAPISpec      []byte // OpenAPI specification content for documentation endpoints
 }
 
 // Metrics holds Prometheus metrics for the server.
@@ -390,6 +391,18 @@ func (s *Server) Router() *gin.Engine {
 // This allows the main application to configure health checks after server creation.
 func (s *Server) SetHealthChecker(hc *observability.HealthChecker) {
 	s.healthCheck = hc
+}
+
+// SetOpenAPISpec sets the OpenAPI specification for the documentation endpoints.
+// This should be called before starting the server to enable API documentation.
+func (s *Server) SetOpenAPISpec(spec []byte) {
+	s.openAPISpec = spec
+}
+
+// GetOpenAPISpec returns the OpenAPI specification.
+// Returns nil if no specification has been loaded.
+func (s *Server) GetOpenAPISpec() []byte {
+	return s.openAPISpec
 }
 
 // recoveryMiddleware recovers from panics and logs the error.

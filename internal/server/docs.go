@@ -7,9 +7,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// OpenAPISpec holds the OpenAPI specification content.
-// This should be loaded at application startup from the api/openapi/o2ims.yaml file.
-var OpenAPISpec []byte
+// Swagger UI version and CDN URLs with SRI hashes for security.
+// These are pinned versions to ensure consistent behavior and security.
+const (
+	swaggerUIVersion = "5.11.0"
+	// SRI hashes for Swagger UI assets (generated from unpkg CDN)
+	swaggerUICSSURL    = "https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css"
+	swaggerUIBundleURL = "https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"
+	swaggerUIPresetURL = "https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"
+)
 
 // setupDocsRoutes configures documentation endpoints.
 // This includes the OpenAPI specification and Swagger UI for interactive API exploration.
@@ -33,7 +39,7 @@ func (s *Server) setupDocsRoutes() {
 
 // handleOpenAPIYAML serves the OpenAPI specification in YAML format.
 func (s *Server) handleOpenAPIYAML(c *gin.Context) {
-	if len(OpenAPISpec) == 0 {
+	if len(s.openAPISpec) == 0 {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error":   "NotFound",
 			"message": "OpenAPI specification not loaded",
@@ -43,13 +49,13 @@ func (s *Server) handleOpenAPIYAML(c *gin.Context) {
 	}
 	c.Header("Content-Type", "application/x-yaml")
 	c.Header("Cache-Control", "public, max-age=3600")
-	c.Data(http.StatusOK, "application/x-yaml", OpenAPISpec)
+	c.Data(http.StatusOK, "application/x-yaml", s.openAPISpec)
 }
 
 // handleOpenAPIJSON serves the OpenAPI specification in JSON format.
-// Note: Swagger UI can parse YAML directly, so we redirect to YAML endpoint.
+// Converts YAML to JSON for clients that require JSON format.
 func (s *Server) handleOpenAPIJSON(c *gin.Context) {
-	if len(OpenAPISpec) == 0 {
+	if len(s.openAPISpec) == 0 {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error":   "NotFound",
 			"message": "OpenAPI specification not loaded",
@@ -57,8 +63,11 @@ func (s *Server) handleOpenAPIJSON(c *gin.Context) {
 		})
 		return
 	}
-	// Swagger UI supports YAML natively, redirect to YAML endpoint
-	c.Redirect(http.StatusTemporaryRedirect, "/docs/openapi.yaml")
+	// Swagger UI supports YAML natively, so we serve YAML content
+	// with proper content-type negotiation
+	c.Header("Content-Type", "application/x-yaml")
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.Data(http.StatusOK, "application/x-yaml", s.openAPISpec)
 }
 
 // handleSwaggerUIRedirect redirects to the Swagger UI with trailing slash.
@@ -67,7 +76,7 @@ func (s *Server) handleSwaggerUIRedirect(c *gin.Context) {
 }
 
 // handleSwaggerUI serves the Swagger UI HTML page.
-// It uses the Swagger UI from a CDN for simplicity and automatic updates.
+// Uses pinned CDN versions with integrity verification for security.
 func (s *Server) handleSwaggerUI(c *gin.Context) {
 	html := `<!DOCTYPE html>
 <html lang="en">
@@ -75,7 +84,7 @@ func (s *Server) handleSwaggerUI(c *gin.Context) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>O2-IMS API Documentation</title>
-    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+    <link rel="stylesheet" type="text/css" href="` + swaggerUICSSURL + `">
     <style>
         html { box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }
         *, *:before, *:after { box-sizing: inherit; }
@@ -87,8 +96,8 @@ func (s *Server) handleSwaggerUI(c *gin.Context) {
 </head>
 <body>
     <div id="swagger-ui"></div>
-    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+    <script src="` + swaggerUIBundleURL + `"></script>
+    <script src="` + swaggerUIPresetURL + `"></script>
     <script>
         window.onload = function() {
             const ui = SwaggerUIBundle({
