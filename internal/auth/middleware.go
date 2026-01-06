@@ -135,7 +135,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 				RecordAuthenticationAttempt("failed", "mtls")
 				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 					"error":   "Forbidden",
-					"message": "User not registered in the system",
+					"message": "Authentication failed",
 					"code":    http.StatusForbidden,
 				})
 				return
@@ -165,7 +165,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 			m.logAuthFailure(c, subject, "user inactive")
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"error":   "Forbidden",
-				"message": "User account is disabled",
+				"message": "Authentication failed",
 				"code":    http.StatusForbidden,
 			})
 			return
@@ -182,7 +182,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 			)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 				"error":   "InternalError",
-				"message": "Failed to retrieve user role",
+				"message": "Authentication service temporarily unavailable",
 				"code":    http.StatusInternalServerError,
 			})
 			return
@@ -199,7 +199,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 				)
 				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 					"error":   "Forbidden",
-					"message": "Tenant not found",
+					"message": "Authentication failed",
 					"code":    http.StatusForbidden,
 				})
 				return
@@ -212,7 +212,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 			)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 				"error":   "InternalError",
-				"message": "Failed to retrieve tenant",
+				"message": "Authentication service temporarily unavailable",
 				"code":    http.StatusInternalServerError,
 			})
 			return
@@ -515,7 +515,6 @@ func (m *Middleware) buildSubject(cert *CertificateInfo) string {
 // parseXFCCHeader parses the X-Forwarded-Client-Cert header.
 func (m *Middleware) parseXFCCHeader(xfcc string) *CertificateInfo {
 	// XFCC format: By=spiffe://..;Hash=...;Subject="CN=...,O=...";URI=spiffe://...
-	cert := &CertificateInfo{}
 
 	// Extract Subject field.
 	subjectStart := strings.Index(xfcc, "Subject=\"")

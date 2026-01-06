@@ -2,12 +2,23 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
+
+// sanitizeSubjectKey creates a safe Redis key from a certificate subject.
+// This prevents NoSQL injection attacks by hashing the subject to create
+// a fixed-length, safe key without special characters.
+func sanitizeSubjectKey(subject string) string {
+	hash := sha256.Sum256([]byte(subject))
+	return hex.EncodeToString(hash[:])
+}
 
 const (
 	// Redis key prefixes for auth data.
@@ -213,6 +224,7 @@ func DefaultRedisConfig() *RedisConfig {
 type RedisStore struct {
 	client redis.UniversalClient
 	config *RedisConfig
+	logger *zap.Logger
 }
 
 // NewRedisStore creates a new RedisStore instance.
@@ -251,6 +263,7 @@ func NewRedisStore(cfg *RedisConfig) *RedisStore {
 	return &RedisStore{
 		client: client,
 		config: cfg,
+		logger: zap.L().Named("redis-store"),
 	}
 }
 
@@ -260,6 +273,7 @@ func NewRedisStoreWithClient(client redis.UniversalClient) *RedisStore {
 	return &RedisStore{
 		client: client,
 		config: DefaultRedisConfig(),
+		logger: zap.L().Named("redis-store"),
 	}
 }
 
@@ -401,6 +415,7 @@ func (r *RedisStore) DeleteTenant(ctx context.Context, id string) error {
 }
 
 // ListTenants retrieves all tenants.
+// Uses MGET for efficient batch retrieval instead of N+1 queries.
 func (r *RedisStore) ListTenants(ctx context.Context) ([]*Tenant, error) {
 	ids, err := r.client.SMembers(ctx, tenantSetKey).Result()
 	if err != nil {
@@ -411,13 +426,45 @@ func (r *RedisStore) ListTenants(ctx context.Context) ([]*Tenant, error) {
 		return []*Tenant{}, nil
 	}
 
+	// Build keys for batch retrieval.
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = tenantKeyPrefix + id
+	}
+
+	// Use MGET for efficient batch retrieval.
+	results, err := r.client.MGet(ctx, keys...).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch get tenants: %w", err)
+	}
+
 	tenants := make([]*Tenant, 0, len(ids))
-	for _, id := range ids {
-		tenant, err := r.GetTenant(ctx, id)
-		if err != nil {
+	for i, result := range results {
+		if result == nil {
+			r.logger.Warn("tenant data not found during list operation",
+				zap.String("tenant_id", ids[i]),
+			)
 			continue
 		}
-		tenants = append(tenants, tenant)
+
+		data, ok := result.(string)
+		if !ok {
+			r.logger.Warn("unexpected tenant data type during list operation",
+				zap.String("tenant_id", ids[i]),
+			)
+			continue
+		}
+
+		var tenant Tenant
+		if err := json.Unmarshal([]byte(data), &tenant); err != nil {
+			r.logger.Warn("failed to unmarshal tenant during list operation",
+				zap.String("tenant_id", ids[i]),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		tenants = append(tenants, &tenant)
 	}
 
 	return tenants, nil
@@ -512,7 +559,7 @@ func (r *RedisStore) CreateUser(ctx context.Context, user *TenantUser) error {
 	}
 
 	userKey := userKeyPrefix + user.ID
-	subjectKey := userSubjectIndex + user.Subject
+	subjectKey := userSubjectIndex + sanitizeSubjectKey(user.Subject)
 	tenantSetKey := userTenantIndex + user.TenantID
 
 	result, err := createUserScript.Run(ctx, r.client,
@@ -564,7 +611,7 @@ func (r *RedisStore) GetUserBySubject(ctx context.Context, subject string) (*Ten
 		return nil, ErrUserNotFound
 	}
 
-	subjectKey := userSubjectIndex + subject
+	subjectKey := userSubjectIndex + sanitizeSubjectKey(subject)
 	userID, err := r.client.Get(ctx, subjectKey).Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -610,8 +657,8 @@ func (r *RedisStore) UpdateUser(ctx context.Context, user *TenantUser) error {
 
 	// Update subject index if changed.
 	if existing.Subject != user.Subject {
-		pipe.Del(ctx, userSubjectIndex+existing.Subject)
-		pipe.Set(ctx, userSubjectIndex+user.Subject, user.ID, 0)
+		pipe.Del(ctx, userSubjectIndex+sanitizeSubjectKey(existing.Subject))
+		pipe.Set(ctx, userSubjectIndex+sanitizeSubjectKey(user.Subject), user.ID, 0)
 	}
 
 	// Update tenant index if changed.
@@ -640,7 +687,7 @@ func (r *RedisStore) DeleteUser(ctx context.Context, id string) error {
 
 	pipe := r.client.Pipeline()
 	pipe.Del(ctx, userKeyPrefix+id)
-	pipe.Del(ctx, userSubjectIndex+user.Subject)
+	pipe.Del(ctx, userSubjectIndex+sanitizeSubjectKey(user.Subject))
 	pipe.SRem(ctx, userTenantIndex+user.TenantID, id)
 
 	if _, err := pipe.Exec(ctx); err != nil {
@@ -651,6 +698,7 @@ func (r *RedisStore) DeleteUser(ctx context.Context, id string) error {
 }
 
 // ListUsersByTenant retrieves all users for a tenant.
+// Uses MGET for efficient batch retrieval instead of N+1 queries.
 func (r *RedisStore) ListUsersByTenant(ctx context.Context, tenantID string) ([]*TenantUser, error) {
 	if tenantID == "" {
 		return []*TenantUser{}, nil
@@ -665,13 +713,48 @@ func (r *RedisStore) ListUsersByTenant(ctx context.Context, tenantID string) ([]
 		return []*TenantUser{}, nil
 	}
 
+	// Build keys for batch retrieval.
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = userKeyPrefix + id
+	}
+
+	// Use MGET for efficient batch retrieval.
+	results, err := r.client.MGet(ctx, keys...).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch get users: %w", err)
+	}
+
 	users := make([]*TenantUser, 0, len(ids))
-	for _, id := range ids {
-		user, err := r.GetUser(ctx, id)
-		if err != nil {
+	for i, result := range results {
+		if result == nil {
+			r.logger.Warn("user data not found during list operation",
+				zap.String("user_id", ids[i]),
+				zap.String("tenant_id", tenantID),
+			)
 			continue
 		}
-		users = append(users, user)
+
+		data, ok := result.(string)
+		if !ok {
+			r.logger.Warn("unexpected user data type during list operation",
+				zap.String("user_id", ids[i]),
+				zap.String("tenant_id", tenantID),
+			)
+			continue
+		}
+
+		var user TenantUser
+		if err := json.Unmarshal([]byte(data), &user); err != nil {
+			r.logger.Warn("failed to unmarshal user during list operation",
+				zap.String("user_id", ids[i]),
+				zap.String("tenant_id", tenantID),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		users = append(users, &user)
 	}
 
 	return users, nil
@@ -843,6 +926,7 @@ func (r *RedisStore) DeleteRole(ctx context.Context, id string) error {
 }
 
 // ListRoles retrieves all roles.
+// Uses MGET for efficient batch retrieval instead of N+1 queries.
 func (r *RedisStore) ListRoles(ctx context.Context) ([]*Role, error) {
 	ids, err := r.client.SMembers(ctx, roleSetKey).Result()
 	if err != nil {
@@ -853,13 +937,45 @@ func (r *RedisStore) ListRoles(ctx context.Context) ([]*Role, error) {
 		return []*Role{}, nil
 	}
 
+	// Build keys for batch retrieval.
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = roleKeyPrefix + id
+	}
+
+	// Use MGET for efficient batch retrieval.
+	results, err := r.client.MGet(ctx, keys...).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch get roles: %w", err)
+	}
+
 	roles := make([]*Role, 0, len(ids))
-	for _, id := range ids {
-		role, err := r.GetRole(ctx, id)
-		if err != nil {
+	for i, result := range results {
+		if result == nil {
+			r.logger.Warn("role data not found during list operation",
+				zap.String("role_id", ids[i]),
+			)
 			continue
 		}
-		roles = append(roles, role)
+
+		data, ok := result.(string)
+		if !ok {
+			r.logger.Warn("unexpected role data type during list operation",
+				zap.String("role_id", ids[i]),
+			)
+			continue
+		}
+
+		var role Role
+		if err := json.Unmarshal([]byte(data), &role); err != nil {
+			r.logger.Warn("failed to unmarshal role during list operation",
+				zap.String("role_id", ids[i]),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		roles = append(roles, &role)
 	}
 
 	return roles, nil
@@ -979,7 +1095,11 @@ func (r *RedisStore) ListEvents(ctx context.Context, tenantID string, limit, off
 	for _, id := range ids {
 		event, err := r.getAuditEvent(ctx, id)
 		if err != nil {
-			// Skip events that have expired (their data no longer exists).
+			// Log at debug level since event expiration is expected behavior.
+			r.logger.Debug("skipping audit event (likely expired)",
+				zap.String("event_id", id),
+				zap.Error(err),
+			)
 			continue
 		}
 		events = append(events, event)
@@ -1012,7 +1132,12 @@ func (r *RedisStore) ListEventsByType(ctx context.Context, eventType AuditEventT
 	for _, id := range ids {
 		event, err := r.getAuditEvent(ctx, id)
 		if err != nil {
-			// Skip events that have expired.
+			// Log at debug level since event expiration is expected behavior.
+			r.logger.Debug("skipping audit event (likely expired)",
+				zap.String("event_id", id),
+				zap.String("event_type", string(eventType)),
+				zap.Error(err),
+			)
 			continue
 		}
 		events = append(events, event)
@@ -1045,7 +1170,12 @@ func (r *RedisStore) ListEventsByUser(ctx context.Context, userID string, limit 
 	for _, id := range ids {
 		event, err := r.getAuditEvent(ctx, id)
 		if err != nil {
-			// Skip events that have expired.
+			// Log at debug level since event expiration is expected behavior.
+			r.logger.Debug("skipping audit event (likely expired)",
+				zap.String("event_id", id),
+				zap.String("user_id", userID),
+				zap.Error(err),
+			)
 			continue
 		}
 		events = append(events, event)
