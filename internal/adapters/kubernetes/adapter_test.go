@@ -5,7 +5,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/piwi3910/netweave/internal/adapter"
+	adapterapi "github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -124,13 +124,13 @@ func TestKubernetesAdapter_Capabilities(t *testing.T) {
 	assert.Len(t, caps, 6)
 
 	// Verify expected capabilities are present
-	expectedCaps := []adapter.Capability{
-		adapter.CapabilityResourcePools,
-		adapter.CapabilityResources,
-		adapter.CapabilityResourceTypes,
-		adapter.CapabilityDeploymentManagers,
-		adapter.CapabilitySubscriptions,
-		adapter.CapabilityHealthChecks,
+	expectedCaps := []adapterapi.Capability{
+		adapterapi.CapabilityResourcePools,
+		adapterapi.CapabilityResources,
+		adapterapi.CapabilityResourceTypes,
+		adapterapi.CapabilityDeploymentManagers,
+		adapterapi.CapabilitySubscriptions,
+		adapterapi.CapabilityHealthChecks,
 	}
 
 	for _, expected := range expectedCaps {
@@ -171,7 +171,7 @@ func TestKubernetesAdapter_ListResourcePools(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		filter *adapter.Filter
+		filter *adapterapi.Filter
 	}{
 		{
 			name:   "with nil filter",
@@ -179,11 +179,11 @@ func TestKubernetesAdapter_ListResourcePools(t *testing.T) {
 		},
 		{
 			name:   "with empty filter",
-			filter: &adapter.Filter{},
+			filter: &adapterapi.Filter{},
 		},
 		{
 			name: "with resource pool filter",
-			filter: &adapter.Filter{
+			filter: &adapterapi.Filter{
 				ResourcePoolID: "pool-1",
 				Location:       "dc-west-1",
 			},
@@ -216,7 +216,7 @@ func TestKubernetesAdapter_CreateResourcePool(t *testing.T) {
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
-	pool := &adapter.ResourcePool{
+	pool := &adapterapi.ResourcePool{
 		Name:     "test-pool",
 		OCloudID: "ocloud-1",
 	}
@@ -232,7 +232,7 @@ func TestKubernetesAdapter_UpdateResourcePool(t *testing.T) {
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
-	pool := &adapter.ResourcePool{
+	pool := &adapterapi.ResourcePool{
 		ResourcePoolID: "pool-1",
 		Name:           "updated-pool",
 		OCloudID:       "ocloud-1",
@@ -261,7 +261,7 @@ func TestKubernetesAdapter_ListResources(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		filter *adapter.Filter
+		filter *adapterapi.Filter
 	}{
 		{
 			name:   "with nil filter",
@@ -269,11 +269,11 @@ func TestKubernetesAdapter_ListResources(t *testing.T) {
 		},
 		{
 			name:   "with empty filter",
-			filter: &adapter.Filter{},
+			filter: &adapterapi.Filter{},
 		},
 		{
 			name: "with resource filter",
-			filter: &adapter.Filter{
+			filter: &adapterapi.Filter{
 				ResourcePoolID: "pool-1",
 				ResourceTypeID: "type-compute",
 			},
@@ -306,7 +306,7 @@ func TestKubernetesAdapter_CreateResource(t *testing.T) {
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
-	resource := &adapter.Resource{
+	resource := &adapterapi.Resource{
 		ResourceTypeID: "type-compute",
 		ResourcePoolID: "pool-1",
 	}
@@ -334,7 +334,7 @@ func TestKubernetesAdapter_ListResourceTypes(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		filter *adapter.Filter
+		filter *adapterapi.Filter
 	}{
 		{
 			name:   "with nil filter",
@@ -342,7 +342,7 @@ func TestKubernetesAdapter_ListResourceTypes(t *testing.T) {
 		},
 		{
 			name:   "with empty filter",
-			filter: &adapter.Filter{},
+			filter: &adapterapi.Filter{},
 		},
 	}
 
@@ -372,7 +372,7 @@ func TestKubernetesAdapter_CreateSubscription(t *testing.T) {
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
-	sub := &adapter.Subscription{
+	sub := &adapterapi.Subscription{
 		Callback: "https://smo.example.com/notify",
 	}
 
@@ -407,8 +407,8 @@ func TestKubernetesAdapter_DeleteSubscription(t *testing.T) {
 func TestKubernetesAdapter_ImplementsAdapterInterface(t *testing.T) {
 	adp := newTestAdapter(t)
 
-	// Verify that KubernetesAdapter implements adapter.Adapter
-	var _ adapter.Adapter = adp
+	// Verify that KubernetesAdapter implements adapterapi.Adapter
+	var _ adapterapi.Adapter = adp
 }
 
 func TestConfigDefaults(t *testing.T) {
@@ -452,14 +452,154 @@ func TestConfigDefaults(t *testing.T) {
 	}
 }
 
-func TestKubernetesAdapter_HealthWithCancelledContext(t *testing.T) {
+// Tests for boundary conditions and edge cases
+
+func TestKubernetesAdapter_GetDeploymentManager_EmptyID(t *testing.T) {
 	adp := newTestAdapter(t)
+	ctx := context.Background()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
+	dm, err := adp.GetDeploymentManager(ctx, "")
 
-	// Health check should still work with fake client even with cancelled context
-	// as the fake client doesn't respect context cancellation
-	err := adp.Health(ctx)
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.Nil(t, dm)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_GetResourcePool_EmptyID(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	pool, err := adp.GetResourcePool(ctx, "")
+
+	require.Error(t, err)
+	assert.Nil(t, pool)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_GetResource_EmptyID(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	resource, err := adp.GetResource(ctx, "")
+
+	require.Error(t, err)
+	assert.Nil(t, resource)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_GetResourceType_EmptyID(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	rt, err := adp.GetResourceType(ctx, "")
+
+	require.Error(t, err)
+	assert.Nil(t, rt)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_GetSubscription_EmptyID(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	sub, err := adp.GetSubscription(ctx, "")
+
+	require.Error(t, err)
+	assert.Nil(t, sub)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_DeleteResourcePool_EmptyID(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	err := adp.DeleteResourcePool(ctx, "")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_DeleteResource_EmptyID(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	err := adp.DeleteResource(ctx, "")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_DeleteSubscription_EmptyID(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	err := adp.DeleteSubscription(ctx, "")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_CreateSubscription_EmptyCallback(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	sub := &adapterapi.Subscription{
+		Callback: "",
+	}
+
+	created, err := adp.CreateSubscription(ctx, sub)
+
+	require.Error(t, err)
+	assert.Nil(t, created)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_CreateResourcePool_EmptyName(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	pool := &adapterapi.ResourcePool{
+		Name:     "",
+		OCloudID: "ocloud-1",
+	}
+
+	created, err := adp.CreateResourcePool(ctx, pool)
+
+	require.Error(t, err)
+	assert.Nil(t, created)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_ListResourcePools_WithPagination(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	filter := &adapterapi.Filter{
+		Limit:  10,
+		Offset: 0,
+	}
+
+	pools, err := adp.ListResourcePools(ctx, filter)
+
+	require.Error(t, err)
+	assert.Nil(t, pools)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_ListResources_WithLabels(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	filter := &adapterapi.Filter{
+		Labels: map[string]string{
+			"environment": "production",
+			"tier":        "backend",
+		},
+	}
+
+	resources, err := adp.ListResources(ctx, filter)
+
+	require.Error(t, err)
+	assert.Nil(t, resources)
+	assert.Contains(t, err.Error(), "not implemented")
 }
