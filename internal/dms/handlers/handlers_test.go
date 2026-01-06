@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -1325,4 +1326,331 @@ func TestHandler_CreateSubscriptionWithFilter(t *testing.T) {
 	assert.NotNil(t, subscription.Filter)
 	assert.Equal(t, "production", subscription.Filter.Namespace)
 	assert.Len(t, subscription.Filter.NFDeploymentIDs, 2)
+}
+
+// Security Function Tests
+
+func TestValidateCallbackURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		callbackURL string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:        "valid HTTPS URL",
+			callbackURL: "https://example.com/webhook",
+			wantErr:     false,
+		},
+		{
+			name:        "valid HTTPS URL with port",
+			callbackURL: "https://example.com:8443/webhook",
+			wantErr:     false,
+		},
+		{
+			name:        "valid HTTPS URL with path",
+			callbackURL: "https://smo.example.com/api/v1/notifications",
+			wantErr:     false,
+		},
+		{
+			name:        "HTTP URL rejected",
+			callbackURL: "http://example.com/webhook",
+			wantErr:     true,
+			errContains: "must use HTTPS",
+		},
+		{
+			name:        "localhost rejected",
+			callbackURL: "https://localhost/webhook",
+			wantErr:     true,
+			errContains: "cannot point to localhost",
+		},
+		{
+			name:        "localhost with port rejected",
+			callbackURL: "https://localhost:8443/webhook",
+			wantErr:     true,
+			errContains: "cannot point to localhost",
+		},
+		{
+			name:        "127.0.0.1 rejected",
+			callbackURL: "https://127.0.0.1/webhook",
+			wantErr:     true,
+			errContains: "cannot point to localhost",
+		},
+		{
+			name:        "127.x.x.x rejected",
+			callbackURL: "https://127.0.1.1/webhook",
+			wantErr:     true,
+			errContains: "cannot point to localhost",
+		},
+		{
+			name:        "IPv6 loopback rejected",
+			callbackURL: "https://[::1]/webhook",
+			wantErr:     true,
+			errContains: "cannot point to localhost",
+		},
+		{
+			name:        "invalid URL format",
+			callbackURL: "not-a-url",
+			wantErr:     true,
+			errContains: "must use HTTPS",
+		},
+		{
+			name:        "empty URL",
+			callbackURL: "",
+			wantErr:     true,
+			errContains: "must have a valid host",
+		},
+		{
+			name:        "URL with no host",
+			callbackURL: "https:///webhook",
+			wantErr:     true,
+			errContains: "must have a valid host",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateCallbackURL(tt.callbackURL)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestIsPrivateIP(t *testing.T) {
+	tests := []struct {
+		name      string
+		ip        string
+		isPrivate bool
+	}{
+		// Public IPs.
+		{"public IP 8.8.8.8", "8.8.8.8", false},
+		{"public IP 1.1.1.1", "1.1.1.1", false},
+		{"public IP 203.0.113.1", "203.0.113.1", false},
+
+		// Private Class A (10.0.0.0/8).
+		{"private 10.0.0.1", "10.0.0.1", true},
+		{"private 10.255.255.255", "10.255.255.255", true},
+
+		// Private Class B (172.16.0.0/12).
+		{"private 172.16.0.1", "172.16.0.1", true},
+		{"private 172.31.255.255", "172.31.255.255", true},
+		{"public 172.32.0.1", "172.32.0.1", false}, // Not in 172.16/12.
+
+		// Private Class C (192.168.0.0/16).
+		{"private 192.168.0.1", "192.168.0.1", true},
+		{"private 192.168.255.255", "192.168.255.255", true},
+
+		// Loopback.
+		{"loopback 127.0.0.1", "127.0.0.1", true},
+		{"loopback 127.255.255.255", "127.255.255.255", true},
+
+		// Link-local (169.254.0.0/16).
+		{"link-local 169.254.0.1", "169.254.0.1", true},
+		{"link-local 169.254.255.255", "169.254.255.255", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ip := net.ParseIP(tt.ip)
+			require.NotNil(t, ip, "failed to parse IP: %s", tt.ip)
+			result := isPrivateIP(ip)
+			assert.Equal(t, tt.isPrivate, result)
+		})
+	}
+}
+
+func TestRedactURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "simple URL unchanged",
+			input:    "https://example.com/webhook",
+			expected: "https://example.com/webhook",
+		},
+		{
+			name:     "query params removed",
+			input:    "https://example.com/webhook?token=secret&key=apikey",
+			expected: "https://example.com/webhook",
+		},
+		{
+			name:     "user info removed",
+			input:    "https://user:password@example.com/webhook",
+			expected: "https://example.com/webhook",
+		},
+		{
+			name:     "fragment removed",
+			input:    "https://example.com/webhook#section",
+			expected: "https://example.com/webhook",
+		},
+		{
+			name:     "all sensitive parts removed",
+			input:    "https://user:pass@example.com/webhook?token=secret#section",
+			expected: "https://example.com/webhook",
+		},
+		{
+			name:     "invalid URL returns placeholder",
+			input:    "://invalid",
+			expected: "[invalid-url]",
+		},
+		{
+			name:     "port preserved",
+			input:    "https://example.com:8443/webhook?secret=value",
+			expected: "https://example.com:8443/webhook",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := redactURL(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestValidatePaginationLimit(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    int
+		expected int
+	}{
+		{
+			name:     "zero returns default",
+			input:    0,
+			expected: DefaultPaginationLimit,
+		},
+		{
+			name:     "negative returns default",
+			input:    -1,
+			expected: DefaultPaginationLimit,
+		},
+		{
+			name:     "within range unchanged",
+			input:    50,
+			expected: 50,
+		},
+		{
+			name:     "at max unchanged",
+			input:    MaxPaginationLimit,
+			expected: MaxPaginationLimit,
+		},
+		{
+			name:     "exceeds max capped",
+			input:    MaxPaginationLimit + 1,
+			expected: MaxPaginationLimit,
+		},
+		{
+			name:     "very large capped",
+			input:    10000,
+			expected: MaxPaginationLimit,
+		},
+		{
+			name:     "one is valid",
+			input:    1,
+			expected: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validatePaginationLimit(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// Callback URL validation integration tests
+
+func TestCreateDMSSubscription_HTTPCallbackRejected(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	createReq := models.CreateDMSSubscriptionRequest{
+		Callback: "http://example.com/webhook", // HTTP, not HTTPS.
+	}
+
+	body, err := json.Marshal(createReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/subscriptions", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var apiErr models.APIError
+	err = json.Unmarshal(w.Body.Bytes(), &apiErr)
+	require.NoError(t, err)
+	assert.Contains(t, apiErr.Message, "HTTPS")
+}
+
+func TestCreateDMSSubscription_LocalhostCallbackRejected(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	createReq := models.CreateDMSSubscriptionRequest{
+		Callback: "https://localhost/webhook",
+	}
+
+	body, err := json.Marshal(createReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/subscriptions", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var apiErr models.APIError
+	err = json.Unmarshal(w.Body.Bytes(), &apiErr)
+	require.NoError(t, err)
+	assert.Contains(t, apiErr.Message, "localhost")
+}
+
+func TestCreateDMSSubscription_LoopbackIPRejected(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	createReq := models.CreateDMSSubscriptionRequest{
+		Callback: "https://127.0.0.1/webhook",
+	}
+
+	body, err := json.Marshal(createReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/subscriptions", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreateDMSSubscription_InvalidCallbackBody(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Missing callback URL entirely - test binding validation.
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/subscriptions", bytes.NewReader([]byte("{}")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	// Should fail because callback is required.
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }

@@ -722,3 +722,78 @@ func TestRegistry_HealthCheckContextCancellation(t *testing.T) {
 	// Should be able to close without issues.
 	reg.StopHealthChecks()
 }
+
+func TestRegistry_GetMetadataDeepCopy(t *testing.T) {
+	logger := zap.NewNop()
+	reg := NewRegistry(logger, nil)
+	defer reg.Close()
+
+	mockAdp := newMockDMSAdapter("deep-copy-adapter")
+	mockAdp.capabilities = []adapter.Capability{
+		adapter.CapabilityDeploymentLifecycle,
+		adapter.CapabilityRollback,
+	}
+
+	config := map[string]interface{}{
+		"key1": "value1",
+		"key2": "value2",
+	}
+	err := reg.Register(context.Background(), "deep-copy-adapter", "mock", mockAdp, config, true)
+	require.NoError(t, err)
+
+	// Get metadata copy.
+	meta1 := reg.GetMetadata("deep-copy-adapter")
+	require.NotNil(t, meta1)
+
+	// Verify initial values.
+	assert.Len(t, meta1.Capabilities, 2)
+	assert.Equal(t, "value1", meta1.Config["key1"])
+
+	// Modify the returned metadata.
+	meta1.Capabilities = append(meta1.Capabilities, adapter.CapabilityScaling)
+	meta1.Config["key1"] = "modified"
+	meta1.Config["key3"] = "added"
+	meta1.Name = "modified-name"
+
+	// Get a fresh copy and verify original data is unchanged.
+	meta2 := reg.GetMetadata("deep-copy-adapter")
+	require.NotNil(t, meta2)
+
+	// Capabilities should still have only 2 items.
+	assert.Len(t, meta2.Capabilities, 2)
+	assert.Contains(t, meta2.Capabilities, adapter.CapabilityDeploymentLifecycle)
+	assert.Contains(t, meta2.Capabilities, adapter.CapabilityRollback)
+	assert.NotContains(t, meta2.Capabilities, adapter.CapabilityScaling)
+
+	// Config should be unchanged.
+	assert.Equal(t, "value1", meta2.Config["key1"])
+	assert.Equal(t, "value2", meta2.Config["key2"])
+	_, exists := meta2.Config["key3"]
+	assert.False(t, exists, "key3 should not exist in original config")
+
+	// Name should be unchanged.
+	assert.Equal(t, "deep-copy-adapter", meta2.Name)
+}
+
+func TestRegistry_GetMetadataDeepCopy_NilFields(t *testing.T) {
+	logger := zap.NewNop()
+	reg := NewRegistry(logger, nil)
+	defer reg.Close()
+
+	mockAdp := newMockDMSAdapter("nil-fields-adapter")
+	mockAdp.capabilities = nil // Explicitly set nil capabilities.
+
+	// Register with nil config.
+	err := reg.Register(context.Background(), "nil-fields-adapter", "mock", mockAdp, nil, true)
+	require.NoError(t, err)
+
+	// Get metadata copy.
+	meta := reg.GetMetadata("nil-fields-adapter")
+	require.NotNil(t, meta)
+
+	// Capabilities should be nil (not panic).
+	assert.Nil(t, meta.Capabilities)
+
+	// Config should be nil (not panic).
+	assert.Nil(t, meta.Config)
+}
