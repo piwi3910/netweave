@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+
 	"github.com/piwi3910/netweave/internal/adapter"
 )
 

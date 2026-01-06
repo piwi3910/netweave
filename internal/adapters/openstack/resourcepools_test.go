@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/aggregates"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // TestTransformHostAggregateToResourcePool tests the transformation from OpenStack host aggregate to O2-IMS resource pool

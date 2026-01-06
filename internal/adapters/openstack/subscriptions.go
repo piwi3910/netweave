@@ -6,8 +6,9 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // subscriptionStore is a thread-safe in-memory store for subscriptions.

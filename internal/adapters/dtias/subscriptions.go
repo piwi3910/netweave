@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // CreateSubscription creates a new event subscription.

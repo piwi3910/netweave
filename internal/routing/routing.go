@@ -9,9 +9,10 @@ import (
 	"strings"
 	"sync"
 
+	"go.uber.org/zap"
+
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/registry"
-	"go.uber.org/zap"
 )
 
 // Rule represents a routing rule for adapter selection.

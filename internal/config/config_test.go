@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/piwi3910/netweave/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/piwi3910/netweave/internal/config"
 )
 
 // TestLoad tests the Load function with various scenarios.

@@ -108,7 +108,7 @@ golangci-lint:
 #### Linting Rules - ABSOLUTE REQUIREMENTS:
 
 **❌ NEVER ALLOWED:**
-- Disabling linters via `//nolint` comments
+- Disabling linters via `//nolint` comments (ANY linter: cyclop, gosec, etc.)
 - Using `//golangci-lint:disable` directives
 - Committing code with linting errors
 - Ignoring security warnings from gosec
@@ -117,10 +117,130 @@ golangci-lint:
 
 **✅ ALWAYS REQUIRED:**
 - Run `make lint` before every commit
-- Fix ALL linting issues (no exceptions)
-- If a linting rule is triggered, FIX THE CODE, not the rule
-- Document why if a specific pattern is required (rare)
+- Fix ALL linting issues by refactoring code (no exceptions)
+- If a linting rule is triggered, **FIX THE CODE, NOT THE RULE**
+- Document why if a specific pattern is required (extremely rare, requires team approval)
 - Use strongly-typed interfaces and structs
+
+**CRITICAL: Fixing Cyclomatic Complexity (cyclop) Violations**
+
+When golangci-lint reports cyclomatic complexity > 10, **NEVER use `//nolint:cyclop`**. Instead, refactor:
+
+1. **Extract Helper Functions**: Move complex logic into separate, focused functions
+   ```go
+   // ❌ BAD: Complexity 15
+   func processRequest(req Request) error {
+       if req.Type == "A" {
+           if req.Valid {
+               // ... 20 lines of logic
+           } else {
+               // ... error handling
+           }
+       } else if req.Type == "B" {
+           // ... more complex logic
+       }
+       return nil
+   }
+
+   // ✅ GOOD: Complexity 3
+   func processRequest(req Request) error {
+       if req.Type == "A" {
+           return processTypeA(req)
+       } else if req.Type == "B" {
+           return processTypeB(req)
+       }
+       return nil
+   }
+
+   func processTypeA(req Request) error {
+       if !req.Valid {
+           return ErrInvalidRequest
+       }
+       // ... focused logic
+       return nil
+   }
+   ```
+
+2. **Use Early Returns**: Reduce nesting with guard clauses
+   ```go
+   // ❌ BAD: Deep nesting increases complexity
+   func validate(data Data) error {
+       if data != nil {
+           if data.Valid {
+               if data.ID != "" {
+                   return nil
+               }
+           }
+       }
+       return ErrInvalid
+   }
+
+   // ✅ GOOD: Early returns reduce complexity
+   func validate(data Data) error {
+       if data == nil {
+           return ErrInvalid
+       }
+       if !data.Valid {
+           return ErrInvalid
+       }
+       if data.ID == "" {
+           return ErrInvalid
+       }
+       return nil
+   }
+   ```
+
+3. **Replace Switch/If-Else Chains**: Use maps or strategy patterns
+   ```go
+   // ❌ BAD: Long switch increases complexity
+   func handle(eventType string) error {
+       switch eventType {
+       case "create": // ... logic
+       case "update": // ... logic
+       case "delete": // ... logic
+       // ... 10 more cases
+       }
+   }
+
+   // ✅ GOOD: Map of handlers
+   var handlers = map[string]func() error{
+       "create": handleCreate,
+       "update": handleUpdate,
+       "delete": handleDelete,
+   }
+
+   func handle(eventType string) error {
+       handler, ok := handlers[eventType]
+       if !ok {
+           return ErrUnknownEvent
+       }
+       return handler()
+   }
+   ```
+
+4. **Simplify Boolean Logic**: Extract complex conditions
+   ```go
+   // ❌ BAD: Complex boolean expressions
+   if (user.IsAdmin || user.IsModerator) && user.Active && !user.Banned &&
+      (user.Verified || user.TrustedDomain) {
+       // ... logic
+   }
+
+   // ✅ GOOD: Extract to helper
+   func canPerformAction(user User) bool {
+       hasPermission := user.IsAdmin || user.IsModerator
+       isAllowed := user.Active && !user.Banned
+       isTrusted := user.Verified || user.TrustedDomain
+       return hasPermission && isAllowed && isTrusted
+   }
+   ```
+
+**If you encounter cyclomatic complexity violations:**
+1. Read the function and understand what it does
+2. Identify logical sections that can be extracted
+3. Extract helper functions with clear names
+4. Verify tests still pass after refactoring
+5. Run `make lint` to confirm complexity is now ≤10
 
 #### Running Linters:
 

@@ -6,8 +6,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/piwi3910/netweave/internal/smo"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/smo"
 )
 
 // === SOUTHBOUND MODE: SMO → netweave ===

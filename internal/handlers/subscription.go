@@ -8,10 +8,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
+
 	internalmodels "github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
 	"github.com/piwi3910/netweave/internal/storage"
-	"go.uber.org/zap"
 )
 
 // SubscriptionHandler handles Subscription API endpoints.

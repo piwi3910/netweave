@@ -99,7 +99,7 @@ func TestBadgeGenerator_GenerateMarkdownBadge(t *testing.T) {
 	// Verify markdown format
 	assert.True(t, strings.HasPrefix(markdown, "[!["))
 	assert.Contains(t, markdown, "](https://img.shields.io/badge/")
-	assert.Contains(t, markdown, "](https://specifications.o-ran.org/o2ims)"))
+	assert.Contains(t, markdown, "](https://specifications.o-ran.org/o2ims)")
 }
 
 func TestBadgeGenerator_GenerateBadgeSection(t *testing.T) {

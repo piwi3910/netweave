@@ -36,47 +36,72 @@ import (
 	"os"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/tools/compliance"
-	"go.uber.org/zap"
 )
 
 var (
-	baseURL       = flag.String("url", "http://localhost:8080", "Gateway base URL")
-	outputFormat  = flag.String("output", "text", "Output format: text, json, badges")
-	updateReadme  = flag.Bool("update-readme", false, "Update README.md with compliance badges")
-	readmePath    = flag.String("readme", "README.md", "Path to README.md file")
-	verbose       = flag.Bool("v", false, "Verbose output")
+	baseURL      = flag.String("url", "http://localhost:8080", "Gateway base URL")
+	outputFormat = flag.String("output", "text", "Output format: text, json, badges")
+	updateReadme = flag.Bool("update-readme", false, "Update README.md with compliance badges")
+	readmePath   = flag.String("readme", "README.md", "Path to README.md file")
+	verbose      = flag.Bool("v", false, "Verbose output")
 )
 
 func main() {
 	flag.Parse()
 
-	// Initialize logger
-	logger, err := observability.InitLogger("development")
+	logger := initializeLogger()
+	defer logger.Sync()
+
+	// Create compliance checker and run checks
+	checker := compliance.NewChecker(*baseURL, logger.Logger)
+	ctx := context.Background()
+	results, err := checker.CheckAll(ctx)
+	if err != nil {
+		logger.Logger.Error("compliance check failed", zap.Error(err))
+		os.Exit(1)
+	}
+
+	// Generate output in requested format
+	if err := generateOutput(results); err != nil {
+		logger.Logger.Error("output generation failed", zap.Error(err))
+		os.Exit(1)
+	}
+
+	// Update README if requested
+	if *updateReadme {
+		if err := updateReadmeFile(*readmePath, results, logger.Logger); err != nil {
+			logger.Logger.Error("failed to update README", zap.Error(err))
+			os.Exit(1)
+		}
+		logger.Logger.Info("README.md updated with compliance badges", zap.String("path", *readmePath))
+	}
+
+	// Exit with error if any spec is not compliant
+	os.Exit(determineExitCode(results))
+}
+
+// initializeLogger initializes and configures the logger based on verbosity setting
+func initializeLogger() *observability.Logger {
+	obsLogger, err := observability.InitLogger("development")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
 
-	// Set log level
+	// Adjust log level based on verbosity
 	if !*verbose {
-		logger = logger.WithOptions(zap.IncreaseLevel(zap.InfoLevel))
+		obsLogger.Logger = obsLogger.Logger.WithOptions(zap.IncreaseLevel(zap.InfoLevel))
 	}
 
-	// Create compliance checker
-	checker := compliance.NewChecker(*baseURL, logger)
+	return obsLogger
+}
 
-	// Run compliance checks
-	ctx := context.Background()
-	results, err := checker.CheckAll(ctx)
-	if err != nil {
-		logger.Error("compliance check failed", zap.Error(err))
-		os.Exit(1)
-	}
-
-	// Generate output based on format
+// generateOutput generates output in the requested format
+func generateOutput(results []compliance.ComplianceResult) error {
 	switch *outputFormat {
 	case "json":
 		outputJSON(results)
@@ -85,25 +110,19 @@ func main() {
 	case "text":
 		outputText(results)
 	default:
-		logger.Error("invalid output format", zap.String("format", *outputFormat))
-		os.Exit(1)
+		return fmt.Errorf("invalid output format: %s", *outputFormat)
 	}
+	return nil
+}
 
-	// Update README if requested
-	if *updateReadme {
-		if err := updateReadmeFile(*readmePath, results, logger); err != nil {
-			logger.Error("failed to update README", zap.Error(err))
-			os.Exit(1)
-		}
-		logger.Info("README.md updated with compliance badges", zap.String("path", *readmePath))
-	}
-
-	// Exit with error if any spec is not compliant
+// determineExitCode returns 1 if any spec is not compliant, 0 otherwise
+func determineExitCode(results []compliance.ComplianceResult) int {
 	for _, result := range results {
 		if result.ComplianceLevel == compliance.ComplianceNone {
-			os.Exit(1)
+			return 1
 		}
 	}
+	return 0
 }
 
 // outputJSON outputs results as JSON
