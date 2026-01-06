@@ -412,7 +412,7 @@ netweave/
 │   │   ├── adapter/          # DMS adapter interface
 │   │   └── adapters/         # DMS backend adapters
 │   │       ├── helm/         # Helm 3 adapter
-│   │       └── argocd/       # ArgoCD GitOps adapter (WIP)
+│   │       └── argocd/       # ArgoCD GitOps adapter
 │   ├── smo/                  # O2-SMO (Service Management & Orchestration)
 │   │   ├── adapter/          # SMO adapter interface
 │   │   └── adapters/         # SMO backend adapters
@@ -496,7 +496,7 @@ netweave/
 ### v1.1 (Q1 2026) - **IN PROGRESS**
 - ✅ O2-DMS support (Deployment Management Services)
   - ✅ Helm 3 adapter for CNF/VNF deployment
-  - 🔄 ArgoCD adapter for GitOps deployments (WIP)
+  - ✅ ArgoCD adapter for GitOps deployments
 - ✅ O2-SMO integration (Service Management & Orchestration)
   - ✅ ONAP adapter
   - ✅ OSM (Open Source MANO) adapter

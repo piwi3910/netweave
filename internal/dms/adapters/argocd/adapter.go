@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,7 +65,8 @@ var applicationGVR = schema.GroupVersionResource{
 type ArgoCDAdapter struct {
 	config        *Config
 	dynamicClient dynamic.Interface
-	initialized   bool
+	initOnce      sync.Once
+	initError     error
 }
 
 // Config contains configuration for the ArgoCD adapter.
@@ -123,36 +125,37 @@ func NewAdapter(config *Config) (*ArgoCDAdapter, error) {
 
 // Initialize performs lazy initialization of the Kubernetes dynamic client.
 // This allows the adapter to be created without requiring immediate Kubernetes connectivity.
+// This method is thread-safe and ensures initialization happens exactly once.
 func (a *ArgoCDAdapter) Initialize(ctx context.Context) error {
-	if a.initialized {
-		return nil
-	}
+	a.initOnce.Do(func() {
+		var restConfig *rest.Config
+		var err error
 
-	var restConfig *rest.Config
-	var err error
-
-	if a.config.Kubeconfig != "" {
-		// Use kubeconfig file
-		restConfig, err = clientcmd.BuildConfigFromFlags("", a.config.Kubeconfig)
-		if err != nil {
-			return fmt.Errorf("failed to build config from kubeconfig: %w", err)
+		if a.config.Kubeconfig != "" {
+			// Use kubeconfig file
+			restConfig, err = clientcmd.BuildConfigFromFlags("", a.config.Kubeconfig)
+			if err != nil {
+				a.initError = fmt.Errorf("failed to build config from kubeconfig: %w", err)
+				return
+			}
+		} else {
+			// Use in-cluster config
+			restConfig, err = rest.InClusterConfig()
+			if err != nil {
+				a.initError = fmt.Errorf("failed to get in-cluster config: %w", err)
+				return
+			}
 		}
-	} else {
-		// Use in-cluster config
-		restConfig, err = rest.InClusterConfig()
+
+		// Create dynamic client
+		a.dynamicClient, err = dynamic.NewForConfig(restConfig)
 		if err != nil {
-			return fmt.Errorf("failed to get in-cluster config: %w", err)
+			a.initError = fmt.Errorf("failed to create dynamic client: %w", err)
+			return
 		}
-	}
+	})
 
-	// Create dynamic client
-	a.dynamicClient, err = dynamic.NewForConfig(restConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create dynamic client: %w", err)
-	}
-
-	a.initialized = true
-	return nil
+	return a.initError
 }
 
 // Name returns the adapter name.
@@ -666,8 +669,9 @@ func (a *ArgoCDAdapter) Health(ctx context.Context) error {
 }
 
 // Close cleanly shuts down the adapter.
+// Note: Due to sync.Once semantics, calling Initialize after Close will not re-initialize.
+// Create a new adapter instance if re-initialization is needed.
 func (a *ArgoCDAdapter) Close() error {
-	a.initialized = false
 	a.dynamicClient = nil
 	return nil
 }

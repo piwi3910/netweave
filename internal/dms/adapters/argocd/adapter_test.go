@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
@@ -119,6 +120,25 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *ArgoCDAdapter {
 
 	scheme := runtime.NewScheme()
 
+	// Register ArgoCD Application CRD kinds with the scheme
+	// This is required for the fake dynamic client to properly handle list operations
+	scheme.AddKnownTypeWithName(
+		schema.GroupVersionKind{
+			Group:   "argoproj.io",
+			Version: "v1alpha1",
+			Kind:    "Application",
+		},
+		&unstructured.Unstructured{},
+	)
+	scheme.AddKnownTypeWithName(
+		schema.GroupVersionKind{
+			Group:   "argoproj.io",
+			Version: "v1alpha1",
+			Kind:    "ApplicationList",
+		},
+		&unstructured.UnstructuredList{},
+	)
+
 	// Create fake dynamic client
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
@@ -127,8 +147,12 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *ArgoCDAdapter {
 	})
 	require.NoError(t, err)
 
+	// Set up fake client and mark as initialized
 	adp.dynamicClient = client
-	adp.initialized = true
+	// Trigger the Once to prevent actual initialization attempts
+	adp.initOnce.Do(func() {
+		// Already initialized with fake client above
+	})
 
 	return adp
 }
@@ -721,7 +745,6 @@ func TestClose(t *testing.T) {
 
 	err := adp.Close()
 	require.NoError(t, err)
-	assert.False(t, adp.initialized)
 	assert.Nil(t, adp.dynamicClient)
 }
 
@@ -1147,11 +1170,29 @@ func BenchmarkListDeployments(b *testing.B) {
 	}
 
 	scheme := runtime.NewScheme()
+
+	// Register ArgoCD Application CRD kinds with the scheme
+	// This is required for the fake dynamic client to properly handle list operations
+	scheme.AddKnownTypeWithName(
+		schema.GroupVersionKind{
+			Group:   "argoproj.io",
+			Version: "v1alpha1",
+			Kind:    "Application",
+		},
+		&unstructured.Unstructured{},
+	)
+	scheme.AddKnownTypeWithName(
+		schema.GroupVersionKind{
+			Group:   "argoproj.io",
+			Version: "v1alpha1",
+			Kind:    "ApplicationList",
+		},
+		&unstructured.UnstructuredList{},
+	)
 	client := dynamicfake.NewSimpleDynamicClient(scheme, apps...)
 
 	adp, _ := NewAdapter(&Config{Namespace: "argocd"})
 	adp.dynamicClient = client
-	adp.initialized = true
 
 	ctx := context.Background()
 
