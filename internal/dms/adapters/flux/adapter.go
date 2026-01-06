@@ -257,19 +257,62 @@ func (f *FluxAdapter) ListDeploymentPackages(ctx context.Context, filter *adapte
 }
 
 // GetDeploymentPackage retrieves a specific deployment package by ID.
+// The ID format is "{type}-{sanitized-url}" (e.g., "git-https-github-com-example-repo").
 func (f *FluxAdapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
 	if err := f.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	packages, err := f.ListDeploymentPackages(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
+	// Determine package type from ID prefix for more efficient lookup
+	var gitRepos, helmRepos []*unstructured.Unstructured
+	var err error
 
-	for _, pkg := range packages {
-		if pkg.ID == id {
-			return pkg, nil
+	if strings.HasPrefix(id, "git-") {
+		// Only search GitRepositories
+		gitRepos, err = f.listGitRepositories(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+		for _, repo := range gitRepos {
+			pkg := f.transformGitRepoToPackage(repo)
+			if pkg.ID == id {
+				return pkg, nil
+			}
+		}
+	} else if strings.HasPrefix(id, "helm-") {
+		// Only search HelmRepositories
+		helmRepos, err = f.listHelmRepositories(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+		for _, repo := range helmRepos {
+			pkg := f.transformHelmRepoToPackage(repo)
+			if pkg.ID == id {
+				return pkg, nil
+			}
+		}
+	} else {
+		// Unknown prefix, search both
+		gitRepos, err = f.listGitRepositories(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+		for _, repo := range gitRepos {
+			pkg := f.transformGitRepoToPackage(repo)
+			if pkg.ID == id {
+				return pkg, nil
+			}
+		}
+
+		helmRepos, err = f.listHelmRepositories(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+		for _, repo := range helmRepos {
+			pkg := f.transformHelmRepoToPackage(repo)
+			if pkg.ID == id {
+				return pkg, nil
+			}
 		}
 	}
 
@@ -315,7 +358,7 @@ func (f *FluxAdapter) UploadDeploymentPackage(ctx context.Context, pkg *adapter.
 // DeleteDeploymentPackage is not directly supported in Flux.
 // Source resources should be managed directly in the cluster.
 func (f *FluxAdapter) DeleteDeploymentPackage(ctx context.Context, id string) error {
-	return fmt.Errorf("Flux does not support package deletion through this adapter - manage source resources directly")
+	return fmt.Errorf("flux does not support package deletion through this adapter - manage source resources directly")
 }
 
 // ListDeployments retrieves all Flux deployments (HelmReleases and Kustomizations).

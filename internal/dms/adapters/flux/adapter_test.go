@@ -1480,8 +1480,9 @@ func BenchmarkListDeployments(b *testing.B) {
 // TestGetDeploymentPackage tests getting a specific package.
 func TestGetDeploymentPackage(t *testing.T) {
 	gitRepo := createTestGitRepository("infra-repo", "flux-system", "https://github.com/example/infra", "main")
+	helmRepo := createTestHelmRepository("bitnami", "flux-system", "https://charts.bitnami.com/bitnami")
 
-	t.Run("package found", func(t *testing.T) {
+	t.Run("git package found", func(t *testing.T) {
 		adp := createFakeAdapter(t, gitRepo)
 		pkg, err := adp.GetDeploymentPackage(context.Background(), "git-https-github-com-example-infra")
 		require.NoError(t, err)
@@ -1489,7 +1490,29 @@ func TestGetDeploymentPackage(t *testing.T) {
 		assert.Equal(t, "flux-git", pkg.PackageType)
 	})
 
-	t.Run("package not found", func(t *testing.T) {
+	t.Run("helm package found", func(t *testing.T) {
+		adp := createFakeAdapter(t, helmRepo)
+		pkg, err := adp.GetDeploymentPackage(context.Background(), "helm-https-charts-bitnami-com-bitnami")
+		require.NoError(t, err)
+		require.NotNil(t, pkg)
+		assert.Equal(t, "flux-helm", pkg.PackageType)
+	})
+
+	t.Run("package not found with git prefix", func(t *testing.T) {
+		adp := createFakeAdapter(t)
+		_, err := adp.GetDeploymentPackage(context.Background(), "git-nonexistent")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("package not found with helm prefix", func(t *testing.T) {
+		adp := createFakeAdapter(t)
+		_, err := adp.GetDeploymentPackage(context.Background(), "helm-nonexistent")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("package not found without prefix", func(t *testing.T) {
 		adp := createFakeAdapter(t)
 		_, err := adp.GetDeploymentPackage(context.Background(), "nonexistent")
 		require.Error(t, err)
