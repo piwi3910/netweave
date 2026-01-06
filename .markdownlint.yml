@@ -1,0 +1,43 @@
+# Markdownlint configuration for netweave documentation
+
+# MD013/line-length - Line length
+MD013:
+  # Allow longer lines for code blocks and tables
+  line_length: 120
+  heading_line_length: 120
+  code_block_line_length: 120
+  code_blocks: false
+  tables: false
+  headings: true
+
+# MD024/no-duplicate-heading - Multiple headings with the same content
+MD024:
+  siblings_only: true
+
+# MD033/no-inline-html - Inline HTML
+MD033:
+  allowed_elements:
+    - br
+    - details
+    - summary
+    - kbd
+    - sub
+    - sup
+
+# MD034/no-bare-urls - Bare URL used
+MD034: false
+
+# MD041/first-line-heading - First line in file should be a top level heading
+MD041: false
+
+# MD046/code-block-style - Code block style
+MD046:
+  style: fenced
+
+# MD049/emphasis-style - Emphasis style should be consistent
+MD049:
+  style: asterisk
+
+# MD050/strong-style - Strong style should be consistent
+MD050:
+  style: asterisk

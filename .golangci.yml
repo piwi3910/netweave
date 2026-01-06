@@ -1,0 +1,371 @@
+# golangci-lint configuration for netweave O2-IMS Gateway
+# Version: 1.61+
+# Zero-tolerance linting - ALL issues must be fixed
+
+run:
+  timeout: 5m
+  tests: true
+  build-tags:
+    - integration
+    - e2e
+  skip-dirs:
+    - vendor
+    - third_party
+  skip-files:
+    - ".*\\.pb\\.go$"
+    - ".*\\.gen\\.go$"
+  modules-download-mode: readonly
+
+output:
+  formats:
+    - format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  uniq-by-line: true
+  sort-results: true
+
+linters:
+  enable-all: false
+  disable-all: true
+  enable:
+    # Enabled linters (comprehensive set)
+    - errcheck        # Check for unchecked errors
+    - gosimple        # Simplify code
+    - govet           # Go vet
+    - ineffassign     # Detect ineffectual assignments
+    - staticcheck     # Static analysis
+    - unused          # Check for unused constants, variables, functions
+    - asasalint       # Check for pass []any as any in variadic func
+    - asciicheck      # Check for non-ASCII identifiers
+    - bidichk         # Check for dangerous unicode character sequences
+    - bodyclose       # Check whether HTTP response body is closed successfully
+    - contextcheck    # Check context is passed correctly
+    - cyclop          # Check cyclomatic complexity
+    - dupl            # Check for duplicate code
+    - durationcheck   # Check for two durations multiplied together
+    - errname         # Check error naming conventions
+    - errorlint       # Error wrapping best practices
+    - exhaustive      # Check exhaustiveness of enum switch statements
+    - exportloopref   # Check for exported loop variables
+    - forbidigo       # Forbid specific identifiers
+    - gci             # Control Go import order
+    - gochecknoinits  # Check for init functions
+    - gocognit        # Compute cognitive complexity
+    - goconst         # Find repeated strings that could be constants
+    - gocritic        # Comprehensive Go code checks
+    - gocyclo         # Cyclomatic complexity
+    - godot           # Check comments end with period
+    - gofmt           # Check code formatting
+    - gofumpt         # Stricter gofmt
+    - goimports       # Check import formatting
+    - gomnd           # Detect magic numbers
+    - gomoddirectives # Manage go.mod directives
+    - gomodguard      # Block direct use of certain modules
+    - goprintffuncname # Check printf-like function names
+    - gosec           # Security issues
+    - grouper         # Group declarations
+    - importas        # Enforce import aliases
+    - interfacebloat  # Check for bloated interfaces
+    - ireturn         # Accept interfaces, return concrete types
+    - lll             # Line length limit
+    - loggercheck     # Check logger usage
+    - maintidx        # Measure maintainability index
+    - makezero        # Find slice declarations with non-zero initial length
+    - misspell        # Fix commonly misspelled English words
+    - nakedret        # Find naked returns
+    - nestif          # Check deeply nested if statements
+    - nilerr          # Find code returning nil even if error is not nil
+    - nilnil          # Check simultaneous return of nil error and invalid value
+    - noctx           # Find HTTP requests without context
+    - nolintlint      # Check nolint directives
+    - nonamedreturns  # Check for named returns
+    - nosprintfhostport # Check for sprintf on host:port
+    - predeclared     # Find code that shadows predeclared identifiers
+    - promlinter      # Check Prometheus metrics naming
+    - reassign        # Check for reassigning variables
+    - revive          # Replacement for golint
+    - stylecheck      # Stylecheck
+    - tenv            # Detect using os.Setenv instead of t.Setenv
+    - testableexamples # Check examples are testable
+    - testpackage     # Check tests are in _test package
+    - thelper         # Detect test helpers without t.Helper()
+    - tparallel       # Detect inappropriate usage of t.Parallel()
+    - unconvert       # Remove unnecessary type conversions
+    - unparam         # Find unused function parameters
+    - usestdlibvars   # Use standard library constants
+    - wastedassign    # Find wasted assignment statements
+    - whitespace      # Check for unnecessary whitespace
+    - wrapcheck       # Check error wrapping
+    - zerologlint     # Detect zerolog usage issues
+
+  # Disabled linters (with reasons)
+  disable:
+    - depguard        # Too restrictive for initial development
+    - exhaustruct     # Too strict for this project
+    - funlen          # Function length checked by gocyclo/gocognit
+    - gochecknoglobals # Globals needed for metrics
+    - godox           # TODO/FIXME allowed with GitHub issues
+    - goerr113        # Dynamic errors acceptable in some cases
+    - nlreturn        # Overly strict whitespace rules
+    - paralleltest    # Not all tests can be parallel
+    - tagliatelle     # JSON/YAML tags don't match Go conventions
+    - varnamelen      # Short names acceptable in limited scopes
+    - wsl             # Overly strict whitespace rules
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+    exclude-functions:
+      - (*github.com/redis/go-redis/v9.Client).Close
+      - (*github.com/gin-gonic/gin.Context).Error
+
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment # Premature optimization
+    settings:
+      shadow:
+        strict: true
+
+  gocyclo:
+    min-complexity: 15
+
+  cyclop:
+    max-complexity: 15
+    package-average: 10.0
+    skip-tests: true
+
+  gocognit:
+    min-complexity: 20
+
+  dupl:
+    threshold: 100
+
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+    ignore-tests: true
+
+  misspell:
+    locale: US
+    ignore-words:
+      - oran
+      - kubernetes
+
+  lll:
+    line-length: 120
+    tab-width: 4
+
+  gomnd:
+    ignored-numbers:
+      - '0'
+      - '1'
+      - '2'
+      - '10'
+      - '100'
+      - '1000'
+    ignored-functions:
+      - 'make'
+      - 'time.Duration'
+      - 'time.Minute'
+      - 'time.Second'
+      - 'time.Millisecond'
+
+  nakedret:
+    max-func-lines: 30
+
+  nestif:
+    min-complexity: 4
+
+  gosec:
+    severity: medium
+    confidence: medium
+    excludes:
+      - G104 # Checked by errcheck
+    includes:
+      - G101 # Look for hardcoded credentials
+      - G102 # Bind to all interfaces
+      - G103 # Audit use of unsafe
+      - G104 # Audit errors not checked
+      - G106 # Audit use of ssh.InsecureIgnoreHostKey
+      - G107 # Url provided to HTTP request as taint input
+      - G108 # Profiling endpoint exposed
+      - G109 # Potential Integer overflow
+      - G110 # Decompression bomb
+      - G201 # SQL injection
+      - G202 # SQL injection
+      - G203 # HTML template injection
+      - G204 # Command injection
+      - G301 # Poor file permissions
+      - G302 # Poor file permissions
+      - G303 # Creating tempfile with poor permissions
+      - G304 # File path injection
+      - G305 # File traversal
+      - G306 # Poor file permissions
+      - G307 # Deferring unsafe method
+      - G401 # Weak crypto
+      - G402 # TLS InsecureSkipVerify
+      - G403 # Weak crypto
+      - G404 # Weak random number
+      - G501 # Blocklisted import MD5
+      - G502 # Blocklisted import DES
+      - G503 # Blocklisted import RC4
+      - G504 # Blocklisted import CGI
+      - G505 # Blocklisted import SHA1
+      - G601 # Implicit memory aliasing
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - whyNoLint # nolint directives forbidden anyway
+      - unnamedResult # Named returns checked separately
+
+  revive:
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unused-parameter
+      - name: unreachable-code
+      - name: redefines-builtin-id
+      - name: waitgroup-by-value
+      - name: unconditional-recursion
+      - name: struct-tag
+      - name: string-format
+      - name: string-of-int
+      - name: range-val-in-closure
+      - name: range-val-address
+      - name: modifies-value-receiver
+      - name: modifies-parameter
+      - name: early-return
+      - name: defer
+      - name: constant-logical-expr
+      - name: confusing-naming
+      - name: confusing-results
+      - name: bool-literal-in-expr
+      - name: atomic
+
+  stylecheck:
+    checks:
+      - all
+      - -ST1000 # Package comment not required for internal packages
+      - -ST1003 # MixedCaps for names
+
+  goimports:
+    local-prefixes: github.com/yourorg/netweave
+
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(github.com/yourorg/netweave)
+    custom-order: true
+
+  importas:
+    no-unaliased: true
+    alias:
+      # Kubernetes
+      - pkg: k8s.io/api/core/v1
+        alias: corev1
+      - pkg: k8s.io/apimachinery/pkg/apis/meta/v1
+        alias: metav1
+      - pkg: k8s.io/client-go/kubernetes
+        alias: kubernetes
+      # Istio
+      - pkg: istio.io/api/networking/v1beta1
+        alias: istiov1beta1
+      # Redis
+      - pkg: github.com/redis/go-redis/v9
+        alias: redis
+
+  forbidigo:
+    forbid:
+      - ^print.*$
+      - ^panic$
+      - ^fmt\.Print.*$
+      - p: ^fmt\.Errorf.*$ # Use errors.New or custom errors
+        msg: Use errors.New or custom error types with wrapping
+      - p: ^os\.Exit$
+        msg: Use proper error handling and return errors
+      - p: ^http\.DefaultClient$
+        msg: Use custom HTTP client with timeout and configuration
+
+  wrapcheck:
+    ignorePackageGlobs:
+      - github.com/yourorg/netweave/*
+
+  nolintlint:
+    allow-unused: false
+    allow-no-explanation: []
+    require-explanation: true
+    require-specific: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
+
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+        - goconst
+        - gomnd
+
+    # Exclude known false positives
+    - text: "G404: Use of weak random number generator"
+      linters:
+        - gosec
+      path: _test\.go
+
+    # Exclude shadow check for err variable (common pattern)
+    - text: "shadow: declaration of \"err\""
+      linters:
+        - govet
+
+    # Exclude lll for lines with long strings
+    - source: "^//go:generate "
+      linters:
+        - lll
+
+  # Show all issues
+  exclude-use-default: false
+
+severity:
+  default-severity: error
+  rules:
+    - linters:
+        - gosec
+      severity: error
+    - linters:
+        - errcheck
+        - govet
+      severity: error
