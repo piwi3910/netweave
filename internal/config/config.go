@@ -47,6 +47,7 @@ type Config struct {
 	TLS           TLSConfig           `mapstructure:"tls"`
 	Observability ObservabilityConfig `mapstructure:"observability"`
 	Security      SecurityConfig      `mapstructure:"security"`
+	Validation    ValidationConfig    `mapstructure:"validation"`
 }
 
 // ServerConfig contains HTTP server configuration.
@@ -284,6 +285,19 @@ type SecurityConfig struct {
 	RateLimitWindow time.Duration `mapstructure:"rate_limit_window"`
 }
 
+// ValidationConfig contains OpenAPI request/response validation configuration.
+type ValidationConfig struct {
+	// Enabled enables OpenAPI request validation
+	Enabled bool `mapstructure:"enabled"`
+
+	// ValidateResponse enables OpenAPI response validation (use only in development/testing)
+	ValidateResponse bool `mapstructure:"validate_response"`
+
+	// SpecPath is the path to a custom OpenAPI specification file
+	// If empty, the embedded spec will be used
+	SpecPath string `mapstructure:"spec_path"`
+}
+
 // Load loads configuration from the specified file path and environment variables.
 // Environment variables override file values and should be prefixed with NETWEAVE_
 // (e.g., NETWEAVE_SERVER_PORT=8080).
@@ -409,6 +423,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("security.rate_limit_enabled", true)
 	v.SetDefault("security.rate_limit_requests", 100)
 	v.SetDefault("security.rate_limit_window", "1m")
+
+	// Validation defaults
+	v.SetDefault("validation.enabled", true)
+	v.SetDefault("validation.validate_response", false)
+	v.SetDefault("validation.spec_path", "")
 }
 
 // Validate validates the configuration and returns an error if any values are invalid.
