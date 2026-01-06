@@ -1,0 +1,428 @@
+// Package models contains the O2-IMS data models for the netweave gateway.
+package models
+
+import (
+	"net/url"
+	"strconv"
+	"strings"
+)
+
+// Filter represents query parameters for filtering and paginating O2-IMS resources.
+// This is used across all O2-IMS list operations (ListResourcePools, ListResources, etc.).
+//
+// Example:
+//
+//	filter := &Filter{
+//	    ResourcePoolID: []string{"pool-1", "pool-2"},
+//	    Location:       "us-east-1a",
+//	    Labels: map[string]string{
+//	        "env": "production",
+//	    },
+//	    Limit:  100,
+//	    Offset: 0,
+//	}
+type Filter struct {
+	// ResourcePoolID filters resources by resource pool IDs.
+	// Multiple values are combined with OR logic (match any).
+	ResourcePoolID []string `json:"resourcePoolId,omitempty" yaml:"resourcePoolId,omitempty"`
+
+	// ResourceTypeID filters resources by resource type IDs.
+	// Multiple values are combined with OR logic (match any).
+	ResourceTypeID []string `json:"resourceTypeId,omitempty" yaml:"resourceTypeId,omitempty"`
+
+	// ResourceID filters by specific resource IDs.
+	// Multiple values are combined with OR logic (match any).
+	ResourceID []string `json:"resourceId,omitempty" yaml:"resourceId,omitempty"`
+
+	// Location filters resources by physical or logical location.
+	// Supports prefix matching (e.g., "us-east" matches "us-east-1a", "us-east-1b").
+	Location string `json:"location,omitempty" yaml:"location,omitempty"`
+
+	// OCloudID filters resources by O-Cloud identifier.
+	OCloudID string `json:"oCloudId,omitempty" yaml:"oCloudId,omitempty"`
+
+	// Labels filters resources by Kubernetes labels.
+	// All specified labels must match (AND logic).
+	Labels map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+
+	// ResourceClass filters resource types by class (e.g., "compute", "storage", "network").
+	ResourceClass string `json:"resourceClass,omitempty" yaml:"resourceClass,omitempty"`
+
+	// ResourceKind filters resource types by kind (e.g., "physical", "virtual", "logical").
+	ResourceKind string `json:"resourceKind,omitempty" yaml:"resourceKind,omitempty"`
+
+	// Vendor filters resource types by vendor/manufacturer.
+	Vendor string `json:"vendor,omitempty" yaml:"vendor,omitempty"`
+
+	// Model filters resource types by model identifier.
+	Model string `json:"model,omitempty" yaml:"model,omitempty"`
+
+	// Limit is the maximum number of results to return.
+	// Default and maximum values are defined by server configuration.
+	Limit int `json:"limit,omitempty" yaml:"limit,omitempty"`
+
+	// Offset is the number of results to skip (for pagination).
+	// Used with Limit to implement offset-based pagination.
+	Offset int `json:"offset,omitempty" yaml:"offset,omitempty"`
+
+	// SortBy specifies the field to sort results by.
+	// Valid values depend on the resource type (e.g., "name", "createdAt", "location").
+	SortBy string `json:"sortBy,omitempty" yaml:"sortBy,omitempty"`
+
+	// SortOrder specifies the sort direction.
+	// Valid values: "asc" (ascending), "desc" (descending). Default: "asc".
+	SortOrder string `json:"sortOrder,omitempty" yaml:"sortOrder,omitempty"`
+
+	// Extensions contains additional filter criteria for backend-specific fields.
+	Extensions map[string]interface{} `json:"extensions,omitempty" yaml:"extensions,omitempty"`
+}
+
+// ParseQueryParams parses HTTP query parameters into a Filter.
+// This is used by API handlers to convert URL query strings into structured filters.
+//
+// Example:
+//
+//	// URL: /resourcePools?location=us-east&limit=50&labels=env:prod,tier:gold
+//	filter := ParseQueryParams(r.URL.Query())
+func ParseQueryParams(params url.Values) *Filter {
+	filter := &Filter{
+		Labels:     make(map[string]string),
+		Extensions: make(map[string]interface{}),
+	}
+
+	// Parse resource pool IDs (supports multiple values)
+	if poolIDs := params["resourcePoolId"]; len(poolIDs) > 0 {
+		filter.ResourcePoolID = poolIDs
+	}
+
+	// Parse resource type IDs (supports multiple values)
+	if typeIDs := params["resourceTypeId"]; len(typeIDs) > 0 {
+		filter.ResourceTypeID = typeIDs
+	}
+
+	// Parse resource IDs (supports multiple values)
+	if resourceIDs := params["resourceId"]; len(resourceIDs) > 0 {
+		filter.ResourceID = resourceIDs
+	}
+
+	// Parse location (single value)
+	if location := params.Get("location"); location != "" {
+		filter.Location = location
+	}
+
+	// Parse O-Cloud ID (single value)
+	if oCloudID := params.Get("oCloudId"); oCloudID != "" {
+		filter.OCloudID = oCloudID
+	}
+
+	// Parse resource class (single value)
+	if resourceClass := params.Get("resourceClass"); resourceClass != "" {
+		filter.ResourceClass = resourceClass
+	}
+
+	// Parse resource kind (single value)
+	if resourceKind := params.Get("resourceKind"); resourceKind != "" {
+		filter.ResourceKind = resourceKind
+	}
+
+	// Parse vendor (single value)
+	if vendor := params.Get("vendor"); vendor != "" {
+		filter.Vendor = vendor
+	}
+
+	// Parse model (single value)
+	if model := params.Get("model"); model != "" {
+		filter.Model = model
+	}
+
+	// Parse labels (format: "key1:value1,key2:value2")
+	if labelsParam := params.Get("labels"); labelsParam != "" {
+		for _, pair := range strings.Split(labelsParam, ",") {
+			parts := strings.SplitN(pair, ":", 2)
+			if len(parts) == 2 {
+				key := strings.TrimSpace(parts[0])
+				value := strings.TrimSpace(parts[1])
+				filter.Labels[key] = value
+			}
+		}
+	}
+
+	// Parse limit (default: 100, max: 1000)
+	if limitStr := params.Get("limit"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 {
+			filter.Limit = limit
+		}
+	}
+	if filter.Limit == 0 {
+		filter.Limit = 100 // Default limit
+	}
+	if filter.Limit > 1000 {
+		filter.Limit = 1000 // Max limit
+	}
+
+	// Parse offset (default: 0)
+	if offsetStr := params.Get("offset"); offsetStr != "" {
+		if offset, err := strconv.Atoi(offsetStr); err == nil && offset >= 0 {
+			filter.Offset = offset
+		}
+	}
+
+	// Parse sort by (default: none)
+	if sortBy := params.Get("sortBy"); sortBy != "" {
+		filter.SortBy = sortBy
+	}
+
+	// Parse sort order (default: asc)
+	if sortOrder := params.Get("sortOrder"); sortOrder != "" {
+		if sortOrder == "asc" || sortOrder == "desc" {
+			filter.SortOrder = sortOrder
+		}
+	}
+	if filter.SortOrder == "" {
+		filter.SortOrder = "asc"
+	}
+
+	return filter
+}
+
+// ToQueryParams converts a Filter back to URL query parameters.
+// This is used for generating URLs for pagination or API requests to backend systems.
+//
+// Example:
+//
+//	filter := &Filter{Location: "us-east", Limit: 50}
+//	params := filter.ToQueryParams()
+//	// Returns: "location=us-east&limit=50"
+func (f *Filter) ToQueryParams() url.Values {
+	params := url.Values{}
+
+	// Add resource pool IDs
+	for _, poolID := range f.ResourcePoolID {
+		params.Add("resourcePoolId", poolID)
+	}
+
+	// Add resource type IDs
+	for _, typeID := range f.ResourceTypeID {
+		params.Add("resourceTypeId", typeID)
+	}
+
+	// Add resource IDs
+	for _, resourceID := range f.ResourceID {
+		params.Add("resourceId", resourceID)
+	}
+
+	// Add location
+	if f.Location != "" {
+		params.Set("location", f.Location)
+	}
+
+	// Add O-Cloud ID
+	if f.OCloudID != "" {
+		params.Set("oCloudId", f.OCloudID)
+	}
+
+	// Add resource class
+	if f.ResourceClass != "" {
+		params.Set("resourceClass", f.ResourceClass)
+	}
+
+	// Add resource kind
+	if f.ResourceKind != "" {
+		params.Set("resourceKind", f.ResourceKind)
+	}
+
+	// Add vendor
+	if f.Vendor != "" {
+		params.Set("vendor", f.Vendor)
+	}
+
+	// Add model
+	if f.Model != "" {
+		params.Set("model", f.Model)
+	}
+
+	// Add labels (format: "key1:value1,key2:value2")
+	if len(f.Labels) > 0 {
+		var labelPairs []string
+		for key, value := range f.Labels {
+			labelPairs = append(labelPairs, key+":"+value)
+		}
+		params.Set("labels", strings.Join(labelPairs, ","))
+	}
+
+	// Add pagination
+	if f.Limit > 0 {
+		params.Set("limit", strconv.Itoa(f.Limit))
+	}
+	if f.Offset > 0 {
+		params.Set("offset", strconv.Itoa(f.Offset))
+	}
+
+	// Add sorting
+	if f.SortBy != "" {
+		params.Set("sortBy", f.SortBy)
+	}
+	if f.SortOrder != "" {
+		params.Set("sortOrder", f.SortOrder)
+	}
+
+	return params
+}
+
+// MatchesResourcePool checks if a ResourcePool matches this filter's criteria.
+// Returns true if the pool matches all specified filter conditions.
+func (f *Filter) MatchesResourcePool(pool *ResourcePool) bool {
+	// Check resource pool ID
+	if len(f.ResourcePoolID) > 0 && !contains(f.ResourcePoolID, pool.ResourcePoolID) {
+		return false
+	}
+
+	// Check location (prefix match)
+	if f.Location != "" && !strings.HasPrefix(pool.Location, f.Location) {
+		return false
+	}
+
+	// Check O-Cloud ID
+	if f.OCloudID != "" && pool.OCloudID != f.OCloudID {
+		return false
+	}
+
+	// All conditions matched
+	return true
+}
+
+// MatchesResource checks if a Resource matches this filter's criteria.
+// Returns true if the resource matches all specified filter conditions.
+func (f *Filter) MatchesResource(resource *Resource) bool {
+	// Check resource ID
+	if len(f.ResourceID) > 0 && !contains(f.ResourceID, resource.ResourceID) {
+		return false
+	}
+
+	// Check resource type ID
+	if len(f.ResourceTypeID) > 0 && !contains(f.ResourceTypeID, resource.ResourceTypeID) {
+		return false
+	}
+
+	// Check resource pool ID
+	if len(f.ResourcePoolID) > 0 && !contains(f.ResourcePoolID, resource.ResourcePoolID) {
+		return false
+	}
+
+	// All conditions matched
+	return true
+}
+
+// MatchesResourceType checks if a ResourceType matches this filter's criteria.
+// Returns true if the resource type matches all specified filter conditions.
+func (f *Filter) MatchesResourceType(rt *ResourceType) bool {
+	// Check resource type ID
+	if len(f.ResourceTypeID) > 0 && !contains(f.ResourceTypeID, rt.ResourceTypeID) {
+		return false
+	}
+
+	// Check resource class
+	if f.ResourceClass != "" && rt.ResourceClass != f.ResourceClass {
+		return false
+	}
+
+	// Check resource kind
+	if f.ResourceKind != "" && rt.ResourceKind != f.ResourceKind {
+		return false
+	}
+
+	// Check vendor
+	if f.Vendor != "" && rt.Vendor != f.Vendor {
+		return false
+	}
+
+	// Check model
+	if f.Model != "" && rt.Model != f.Model {
+		return false
+	}
+
+	// All conditions matched
+	return true
+}
+
+// MatchesSubscription checks if a Subscription matches this filter's criteria.
+// This is used for filtering subscription lists.
+func (f *Filter) MatchesSubscription(sub *Subscription) bool {
+	// If filter specifies resource pool IDs, check if subscription filters for them
+	if len(f.ResourcePoolID) > 0 && sub.Filter != nil {
+		if len(sub.Filter.ResourcePoolID) > 0 {
+			hasMatch := false
+			for _, filterPoolID := range f.ResourcePoolID {
+				if contains(sub.Filter.ResourcePoolID, filterPoolID) {
+					hasMatch = true
+					break
+				}
+			}
+			if !hasMatch {
+				return false
+			}
+		}
+	}
+
+	// All conditions matched
+	return true
+}
+
+// IsEmpty returns true if the filter has no criteria set (will match everything).
+func (f *Filter) IsEmpty() bool {
+	return len(f.ResourcePoolID) == 0 &&
+		len(f.ResourceTypeID) == 0 &&
+		len(f.ResourceID) == 0 &&
+		f.Location == "" &&
+		f.OCloudID == "" &&
+		len(f.Labels) == 0 &&
+		f.ResourceClass == "" &&
+		f.ResourceKind == "" &&
+		f.Vendor == "" &&
+		f.Model == ""
+}
+
+// Clone creates a deep copy of the filter.
+func (f *Filter) Clone() *Filter {
+	clone := &Filter{
+		ResourcePoolID: make([]string, len(f.ResourcePoolID)),
+		ResourceTypeID: make([]string, len(f.ResourceTypeID)),
+		ResourceID:     make([]string, len(f.ResourceID)),
+		Location:       f.Location,
+		OCloudID:       f.OCloudID,
+		Labels:         make(map[string]string),
+		ResourceClass:  f.ResourceClass,
+		ResourceKind:   f.ResourceKind,
+		Vendor:         f.Vendor,
+		Model:          f.Model,
+		Limit:          f.Limit,
+		Offset:         f.Offset,
+		SortBy:         f.SortBy,
+		SortOrder:      f.SortOrder,
+		Extensions:     make(map[string]interface{}),
+	}
+
+	copy(clone.ResourcePoolID, f.ResourcePoolID)
+	copy(clone.ResourceTypeID, f.ResourceTypeID)
+	copy(clone.ResourceID, f.ResourceID)
+
+	for k, v := range f.Labels {
+		clone.Labels[k] = v
+	}
+
+	for k, v := range f.Extensions {
+		clone.Extensions[k] = v
+	}
+
+	return clone
+}
+
+// contains is a helper function to check if a slice contains a string.
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}

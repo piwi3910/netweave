@@ -1,0 +1,253 @@
+# O2-IMS Gateway Configuration
+# This is an example configuration file with all available options.
+# Copy this file to config.yaml and customize for your environment.
+
+# Server Configuration
+server:
+  # Network interface to bind to (0.0.0.0 = all interfaces)
+  host: 0.0.0.0
+
+  # HTTP server port
+  port: 8080
+
+  # Maximum duration for reading the entire request, including body
+  read_timeout: 30s
+
+  # Maximum duration before timing out writes of the response
+  write_timeout: 30s
+
+  # Maximum duration to wait for the next request when keep-alives are enabled
+  idle_timeout: 120s
+
+  # Maximum duration to wait for graceful shutdown
+  shutdown_timeout: 30s
+
+  # Maximum size of request headers (in bytes)
+  max_header_bytes: 1048576  # 1MB
+
+  # Gin framework mode: "debug", "release", or "test"
+  # Use "debug" for development, "release" for production
+  gin_mode: release
+
+# Redis Configuration
+redis:
+  # Deployment mode: "standalone", "sentinel", or "cluster"
+  mode: standalone
+
+  # Redis server addresses
+  # Standalone: Single address
+  # Sentinel: List of sentinel addresses
+  # Cluster: List of cluster node addresses
+  addresses:
+    - localhost:6379
+
+  # Master name (required for Sentinel mode)
+  # master_name: mymaster
+
+  # Password for Redis authentication (optional)
+  # password: ""
+
+  # Redis database number (0-15, only for standalone/sentinel)
+  db: 0
+
+  # Maximum number of socket connections
+  pool_size: 10
+
+  # Minimum number of idle connections
+  min_idle_conns: 5
+
+  # Maximum number of retries before giving up
+  max_retries: 3
+
+  # Timeout for establishing new connections
+  dial_timeout: 5s
+
+  # Timeout for socket reads
+  read_timeout: 3s
+
+  # Timeout for socket writes
+  write_timeout: 3s
+
+  # Timeout when all connections are busy
+  pool_timeout: 4s
+
+  # Amount of time after which client closes idle connections
+  idle_timeout: 5m
+
+  # Enable TLS for Redis connections
+  enable_tls: false
+
+  # Skip TLS certificate verification (ONLY for testing!)
+  tls_insecure_skip_verify: false
+
+# Kubernetes Configuration
+kubernetes:
+  # Path to kubeconfig file
+  # Leave empty to use in-cluster config when running in a pod
+  config_path: ""
+
+  # Kubeconfig context to use (optional)
+  # context: ""
+
+  # Default namespace for operations
+  # Leave empty to use all namespaces
+  namespace: ""
+
+  # Maximum queries per second to the Kubernetes API
+  qps: 50.0
+
+  # Maximum burst for throttle
+  burst: 100
+
+  # Timeout for Kubernetes API requests
+  timeout: 30s
+
+  # Enable Kubernetes watch for real-time updates
+  enable_watch: true
+
+  # Resync period for watch cache
+  watch_resync: 10m
+
+# TLS/mTLS Configuration
+tls:
+  # Enable TLS for the HTTP server
+  enabled: false
+
+  # Path to the TLS certificate file
+  # cert_file: /etc/netweave/tls/tls.crt
+
+  # Path to the TLS private key file
+  # key_file: /etc/netweave/tls/tls.key
+
+  # Path to the CA certificate file for client verification
+  # ca_file: /etc/netweave/tls/ca.crt
+
+  # Client authentication mode:
+  # - "none": No client certificate required
+  # - "request": Request client certificate (optional)
+  # - "require": Require client certificate (no verification)
+  # - "verify": Verify client certificate if provided
+  # - "require-and-verify": Require AND verify client certificate (mTLS)
+  client_auth: none
+
+  # Minimum TLS version: "1.2" or "1.3"
+  # TLS 1.3 is recommended for production
+  min_version: "1.3"
+
+  # Enabled cipher suites (optional, empty = use secure defaults)
+  # cipher_suites: []
+
+# Observability Configuration
+observability:
+  # Logging Configuration
+  logging:
+    # Log level: "debug", "info", "warn", "error", "fatal"
+    level: info
+
+    # Log format: "json" (production) or "console" (development)
+    format: json
+
+    # Output destinations
+    output_paths:
+      - stdout
+
+    # Error output destinations
+    error_output_paths:
+      - stderr
+
+    # Add caller information to log entries
+    enable_caller: true
+
+    # Add stacktrace on errors
+    enable_stacktrace: false
+
+    # Enable development mode (more verbose, console format)
+    development: false
+
+  # Metrics Configuration (Prometheus)
+  metrics:
+    # Enable metrics collection
+    enabled: true
+
+    # HTTP path for metrics endpoint
+    path: /metrics
+
+    # Port for metrics server (0 = use main server port)
+    port: 0
+
+    # Prometheus metrics namespace
+    namespace: netweave
+
+    # Prometheus metrics subsystem
+    subsystem: gateway
+
+    # Enable Go runtime metrics
+    enable_go_metrics: true
+
+    # Enable process metrics (CPU, memory, etc.)
+    enable_process_metrics: true
+
+  # Tracing Configuration (OpenTelemetry)
+  tracing:
+    # Enable distributed tracing
+    enabled: false
+
+    # Tracing provider: "jaeger", "zipkin", or "otlp"
+    provider: otlp
+
+    # Tracing collector endpoint
+    # endpoint: http://localhost:4318
+
+    # Service name for tracing
+    service_name: netweave-gateway
+
+    # Sampling rate (0.0 to 1.0)
+    # 0.1 = 10% of requests, 1.0 = 100% of requests
+    sampling_rate: 0.1
+
+    # Enable batch span export
+    enable_batching: true
+
+    # Timeout for batch export
+    batch_timeout: 5s
+
+# Security Configuration
+security:
+  # Enable CORS support
+  enable_cors: false
+
+  # Allowed CORS origins
+  # allowed_origins:
+  #   - https://smo.example.com
+  #   - https://dashboard.example.com
+
+  # Allowed HTTP methods
+  allowed_methods:
+    - GET
+    - POST
+    - PUT
+    - PATCH
+    - DELETE
+
+  # Allowed HTTP headers
+  # allowed_headers:
+  #   - Content-Type
+  #   - Authorization
+
+  # Enable rate limiting
+  rate_limit_enabled: true
+
+  # Maximum requests per window
+  rate_limit_requests: 100
+
+  # Rate limit time window
+  rate_limit_window: 1m
+
+# Environment-specific configurations can override values above
+# using environment variables with NETWEAVE_ prefix:
+#
+# Examples:
+#   NETWEAVE_SERVER_PORT=9090
+#   NETWEAVE_REDIS_ADDRESSES=redis1:6379,redis2:6379
+#   NETWEAVE_OBSERVABILITY_LOGGING_LEVEL=debug
+#   NETWEAVE_TLS_ENABLED=true
