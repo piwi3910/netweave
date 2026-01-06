@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
-	"github.com/piwi3910/netweave/internal/dms/adapter"
+	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
 )
 
 // TestNewAdapter tests adapter creation with various configurations.
@@ -54,24 +54,24 @@ func TestNewAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := NewAdapter(tt.config)
+			adp, err := NewAdapter(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Nil(t, adapter)
+				assert.Nil(t, adp)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, adapter)
+				require.NotNil(t, adp)
 
 				// Verify defaults are applied
 				if tt.config.Namespace == "" {
-					assert.Equal(t, DefaultNamespace, adapter.config.Namespace)
+					assert.Equal(t, DefaultNamespace, adp.config.Namespace)
 				}
 				if tt.config.DefaultProject == "" {
-					assert.Equal(t, "default", adapter.config.DefaultProject)
+					assert.Equal(t, "default", adp.config.DefaultProject)
 				}
 				if tt.config.SyncTimeout == 0 {
-					assert.Equal(t, DefaultSyncTimeout, adapter.config.SyncTimeout)
+					assert.Equal(t, DefaultSyncTimeout, adp.config.SyncTimeout)
 				}
 			}
 		})
@@ -80,36 +80,36 @@ func TestNewAdapter(t *testing.T) {
 
 // TestAdapterMetadata tests adapter metadata methods.
 func TestAdapterMetadata(t *testing.T) {
-	adapter, err := NewAdapter(&Config{})
+	adp, err := NewAdapter(&Config{})
 	require.NoError(t, err)
 
 	t.Run("Name", func(t *testing.T) {
-		assert.Equal(t, AdapterName, adapter.Name())
+		assert.Equal(t, AdapterName, adp.Name())
 	})
 
 	t.Run("Version", func(t *testing.T) {
-		assert.Equal(t, AdapterVersion, adapter.Version())
+		assert.Equal(t, AdapterVersion, adp.Version())
 	})
 
 	t.Run("Capabilities", func(t *testing.T) {
-		caps := adapter.Capabilities()
+		caps := adp.Capabilities()
 		require.NotEmpty(t, caps)
-		assert.Contains(t, caps, adapter.CapabilityDeploymentLifecycle)
-		assert.Contains(t, caps, adapter.CapabilityGitOps)
-		assert.Contains(t, caps, adapter.CapabilityRollback)
-		assert.Contains(t, caps, adapter.CapabilityHealthChecks)
+		assert.Contains(t, caps, dmsadapter.CapabilityDeploymentLifecycle)
+		assert.Contains(t, caps, dmsadapter.CapabilityGitOps)
+		assert.Contains(t, caps, dmsadapter.CapabilityRollback)
+		assert.Contains(t, caps, dmsadapter.CapabilityHealthChecks)
 	})
 
 	t.Run("SupportsRollback", func(t *testing.T) {
-		assert.True(t, adapter.SupportsRollback())
+		assert.True(t, adp.SupportsRollback())
 	})
 
 	t.Run("SupportsScaling", func(t *testing.T) {
-		assert.True(t, adapter.SupportsScaling())
+		assert.True(t, adp.SupportsScaling())
 	})
 
 	t.Run("SupportsGitOps", func(t *testing.T) {
-		assert.True(t, adapter.SupportsGitOps())
+		assert.True(t, adp.SupportsGitOps())
 	})
 }
 
@@ -122,15 +122,15 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *ArgoCDAdapter {
 	// Create fake dynamic client
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adapter, err := NewAdapter(&Config{
+	adp, err := NewAdapter(&Config{
 		Namespace: "argocd",
 	})
 	require.NoError(t, err)
 
-	adapter.dynamicClient = client
-	adapter.initialized = true
+	adp.dynamicClient = client
+	adp.initialized = true
 
-	return adapter
+	return adp
 }
 
 // createTestApplication creates a test ArgoCD Application unstructured object.
@@ -182,7 +182,7 @@ func TestListDeployments(t *testing.T) {
 	tests := []struct {
 		name        string
 		apps        []*unstructured.Unstructured
-		filter      *adapter.Filter
+		filter      *dmsadapter.Filter
 		wantCount   int
 		wantErr     bool
 		errContains string
@@ -203,7 +203,7 @@ func TestListDeployments(t *testing.T) {
 				createTestApplication("app1", "argocd", "https://github.com/example/repo", "app1", "Healthy", "Synced"),
 				createTestApplication("app2", "argocd", "https://github.com/example/repo", "app2", "Progressing", "OutOfSync"),
 			},
-			filter:    &adapter.Filter{Status: adapter.DeploymentStatusDeployed},
+			filter:    &dmsadapter.Filter{Status: dmsadapter.DeploymentStatusDeployed},
 			wantCount: 1,
 			wantErr:   false,
 		},
@@ -221,7 +221,7 @@ func TestListDeployments(t *testing.T) {
 				createTestApplication("app2", "argocd", "https://github.com/example/repo", "app2", "Healthy", "Synced"),
 				createTestApplication("app3", "argocd", "https://github.com/example/repo", "app3", "Healthy", "Synced"),
 			},
-			filter:    &adapter.Filter{Limit: 2},
+			filter:    &dmsadapter.Filter{Limit: 2},
 			wantCount: 2,
 			wantErr:   false,
 		},
@@ -232,7 +232,7 @@ func TestListDeployments(t *testing.T) {
 				createTestApplication("app2", "argocd", "https://github.com/example/repo", "app2", "Healthy", "Synced"),
 				createTestApplication("app3", "argocd", "https://github.com/example/repo", "app3", "Healthy", "Synced"),
 			},
-			filter:    &adapter.Filter{Offset: 1, Limit: 10},
+			filter:    &dmsadapter.Filter{Offset: 1, Limit: 10},
 			wantCount: 2,
 			wantErr:   false,
 		},
@@ -246,8 +246,8 @@ func TestListDeployments(t *testing.T) {
 				objects[i] = app
 			}
 
-			adapter := createFakeAdapter(t, objects...)
-			deployments, err := adapter.ListDeployments(context.Background(), tt.filter)
+			adp := createFakeAdapter(t, objects...)
+			deployments, err := adp.ListDeployments(context.Background(), tt.filter)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -295,8 +295,8 @@ func TestGetDeployment(t *testing.T) {
 				objects[i] = app
 			}
 
-			adapter := createFakeAdapter(t, objects...)
-			deployment, err := adapter.GetDeployment(context.Background(), tt.deployID)
+			adp := createFakeAdapter(t, objects...)
+			deployment, err := adp.GetDeployment(context.Background(), tt.deployID)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -317,13 +317,13 @@ func TestGetDeployment(t *testing.T) {
 func TestCreateDeployment(t *testing.T) {
 	tests := []struct {
 		name        string
-		request     *adapter.DeploymentRequest
+		request     *dmsadapter.DeploymentRequest
 		wantErr     bool
 		errContains string
 	}{
 		{
 			name: "create valid deployment",
-			request: &adapter.DeploymentRequest{
+			request: &dmsadapter.DeploymentRequest{
 				Name:      "new-app",
 				Namespace: "production",
 				Extensions: map[string]interface{}{
@@ -342,7 +342,7 @@ func TestCreateDeployment(t *testing.T) {
 		},
 		{
 			name: "missing name",
-			request: &adapter.DeploymentRequest{
+			request: &dmsadapter.DeploymentRequest{
 				Extensions: map[string]interface{}{
 					"argocd.repoURL": "https://github.com/example/repo",
 				},
@@ -352,7 +352,7 @@ func TestCreateDeployment(t *testing.T) {
 		},
 		{
 			name: "missing repoURL",
-			request: &adapter.DeploymentRequest{
+			request: &dmsadapter.DeploymentRequest{
 				Name:       "app",
 				Extensions: map[string]interface{}{},
 			},
@@ -363,8 +363,8 @@ func TestCreateDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter := createFakeAdapter(t)
-			deployment, err := adapter.CreateDeployment(context.Background(), tt.request)
+			adp := createFakeAdapter(t)
+			deployment, err := adp.CreateDeployment(context.Background(), tt.request)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -388,14 +388,14 @@ func TestUpdateDeployment(t *testing.T) {
 	tests := []struct {
 		name        string
 		deployID    string
-		update      *adapter.DeploymentUpdate
+		update      *dmsadapter.DeploymentUpdate
 		wantErr     bool
 		errContains string
 	}{
 		{
 			name:     "update values",
 			deployID: "existing-app",
-			update: &adapter.DeploymentUpdate{
+			update: &dmsadapter.DeploymentUpdate{
 				Values: map[string]interface{}{
 					"replicaCount": 3,
 				},
@@ -405,7 +405,7 @@ func TestUpdateDeployment(t *testing.T) {
 		{
 			name:     "update target revision",
 			deployID: "existing-app",
-			update: &adapter.DeploymentUpdate{
+			update: &dmsadapter.DeploymentUpdate{
 				Extensions: map[string]interface{}{
 					"argocd.targetRevision": "v1.0.0",
 				},
@@ -422,7 +422,7 @@ func TestUpdateDeployment(t *testing.T) {
 		{
 			name:     "deployment not found",
 			deployID: "nonexistent",
-			update: &adapter.DeploymentUpdate{
+			update: &dmsadapter.DeploymentUpdate{
 				Values: map[string]interface{}{},
 			},
 			wantErr:     true,
@@ -432,8 +432,8 @@ func TestUpdateDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter := createFakeAdapter(t, existingApp)
-			deployment, err := adapter.UpdateDeployment(context.Background(), tt.deployID, tt.update)
+			adp := createFakeAdapter(t, existingApp)
+			deployment, err := adp.UpdateDeployment(context.Background(), tt.deployID, tt.update)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -474,8 +474,8 @@ func TestDeleteDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter := createFakeAdapter(t, existingApp)
-			err := adapter.DeleteDeployment(context.Background(), tt.deployID)
+			adp := createFakeAdapter(t, existingApp)
+			err := adp.DeleteDeployment(context.Background(), tt.deployID)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -530,8 +530,8 @@ func TestScaleDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter := createFakeAdapter(t, existingApp)
-			err := adapter.ScaleDeployment(context.Background(), tt.deployID, tt.replicas)
+			adp := createFakeAdapter(t, existingApp)
+			err := adp.ScaleDeployment(context.Background(), tt.deployID, tt.replicas)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -554,7 +554,7 @@ func TestGetDeploymentStatus(t *testing.T) {
 		name         string
 		apps         []*unstructured.Unstructured
 		deployID     string
-		wantStatus   adapter.DeploymentStatus
+		wantStatus   dmsadapter.DeploymentStatus
 		wantProgress int
 		wantErr      bool
 		errContains  string
@@ -563,7 +563,7 @@ func TestGetDeploymentStatus(t *testing.T) {
 			name:         "healthy deployment",
 			apps:         []*unstructured.Unstructured{healthyApp},
 			deployID:     "healthy-app",
-			wantStatus:   adapter.DeploymentStatusDeployed,
+			wantStatus:   dmsadapter.DeploymentStatusDeployed,
 			wantProgress: 100,
 			wantErr:      false,
 		},
@@ -571,7 +571,7 @@ func TestGetDeploymentStatus(t *testing.T) {
 			name:         "progressing deployment",
 			apps:         []*unstructured.Unstructured{progressingApp},
 			deployID:     "progressing-app",
-			wantStatus:   adapter.DeploymentStatusDeploying,
+			wantStatus:   dmsadapter.DeploymentStatusDeploying,
 			wantProgress: 50,
 			wantErr:      false,
 		},
@@ -591,8 +591,8 @@ func TestGetDeploymentStatus(t *testing.T) {
 				objects[i] = app
 			}
 
-			adapter := createFakeAdapter(t, objects...)
-			status, err := adapter.GetDeploymentStatus(context.Background(), tt.deployID)
+			adp := createFakeAdapter(t, objects...)
+			status, err := adp.GetDeploymentStatus(context.Background(), tt.deployID)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -636,8 +636,8 @@ func TestGetDeploymentHistory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter := createFakeAdapter(t, appWithHistory)
-			history, err := adapter.GetDeploymentHistory(context.Background(), tt.deployID)
+			adp := createFakeAdapter(t, appWithHistory)
+			history, err := adp.GetDeploymentHistory(context.Background(), tt.deployID)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -661,7 +661,7 @@ func TestGetDeploymentLogs(t *testing.T) {
 	tests := []struct {
 		name        string
 		deployID    string
-		opts        *adapter.LogOptions
+		opts        *dmsadapter.LogOptions
 		wantErr     bool
 		errContains string
 	}{
@@ -682,8 +682,8 @@ func TestGetDeploymentLogs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter := createFakeAdapter(t, app)
-			logs, err := adapter.GetDeploymentLogs(context.Background(), tt.deployID, tt.opts)
+			adp := createFakeAdapter(t, app)
+			logs, err := adp.GetDeploymentLogs(context.Background(), tt.deployID, tt.opts)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -702,86 +702,86 @@ func TestGetDeploymentLogs(t *testing.T) {
 func TestHealth(t *testing.T) {
 	t.Run("healthy adapter", func(t *testing.T) {
 		app := createTestApplication("test-app", "argocd", "https://github.com/example/repo", "apps/test", "Healthy", "Synced")
-		adapter := createFakeAdapter(t, app)
+		adp := createFakeAdapter(t, app)
 
-		err := adapter.Health(context.Background())
+		err := adp.Health(context.Background())
 		require.NoError(t, err)
 	})
 
 	t.Run("healthy with empty namespace", func(t *testing.T) {
-		adapter := createFakeAdapter(t)
-		err := adapter.Health(context.Background())
+		adp := createFakeAdapter(t)
+		err := adp.Health(context.Background())
 		require.NoError(t, err)
 	})
 }
 
 // TestClose tests the adapter close functionality.
 func TestClose(t *testing.T) {
-	adapter := createFakeAdapter(t)
+	adp := createFakeAdapter(t)
 
-	err := adapter.Close()
+	err := adp.Close()
 	require.NoError(t, err)
-	assert.False(t, adapter.initialized)
-	assert.Nil(t, adapter.dynamicClient)
+	assert.False(t, adp.initialized)
+	assert.Nil(t, adp.dynamicClient)
 }
 
 // TestTransformArgoCDStatus tests status transformation logic.
 func TestTransformArgoCDStatus(t *testing.T) {
-	adapter, _ := NewAdapter(&Config{})
+	adp, _ := NewAdapter(&Config{})
 
 	tests := []struct {
 		name         string
 		healthStatus string
 		syncStatus   string
-		want         adapter.DeploymentStatus
+		want         dmsadapter.DeploymentStatus
 	}{
 		{
 			name:         "healthy and synced",
 			healthStatus: "Healthy",
 			syncStatus:   "Synced",
-			want:         adapter.DeploymentStatusDeployed,
+			want:         dmsadapter.DeploymentStatusDeployed,
 		},
 		{
 			name:         "healthy but out of sync",
 			healthStatus: "Healthy",
 			syncStatus:   "OutOfSync",
-			want:         adapter.DeploymentStatusDeploying,
+			want:         dmsadapter.DeploymentStatusDeploying,
 		},
 		{
 			name:         "progressing",
 			healthStatus: "Progressing",
 			syncStatus:   "OutOfSync",
-			want:         adapter.DeploymentStatusDeploying,
+			want:         dmsadapter.DeploymentStatusDeploying,
 		},
 		{
 			name:         "degraded",
 			healthStatus: "Degraded",
 			syncStatus:   "Synced",
-			want:         adapter.DeploymentStatusFailed,
+			want:         dmsadapter.DeploymentStatusFailed,
 		},
 		{
 			name:         "missing",
 			healthStatus: "Missing",
 			syncStatus:   "Unknown",
-			want:         adapter.DeploymentStatusFailed,
+			want:         dmsadapter.DeploymentStatusFailed,
 		},
 		{
 			name:         "suspended",
 			healthStatus: "Suspended",
 			syncStatus:   "Synced",
-			want:         adapter.DeploymentStatusPending,
+			want:         dmsadapter.DeploymentStatusPending,
 		},
 		{
 			name:         "unknown with out of sync",
 			healthStatus: "Unknown",
 			syncStatus:   "OutOfSync",
-			want:         adapter.DeploymentStatusDeploying,
+			want:         dmsadapter.DeploymentStatusDeploying,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := adapter.transformArgoCDStatus(tt.healthStatus, tt.syncStatus)
+			got := adp.transformArgoCDStatus(tt.healthStatus, tt.syncStatus)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -789,7 +789,7 @@ func TestTransformArgoCDStatus(t *testing.T) {
 
 // TestCalculateProgress tests progress calculation.
 func TestCalculateProgress(t *testing.T) {
-	adapter, _ := NewAdapter(&Config{})
+	adp, _ := NewAdapter(&Config{})
 
 	tests := []struct {
 		name         string
@@ -807,7 +807,7 @@ func TestCalculateProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := adapter.calculateProgress(tt.healthStatus, tt.syncStatus)
+			got := adp.calculateProgress(tt.healthStatus, tt.syncStatus)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -881,9 +881,9 @@ func TestBuildLabelSelector(t *testing.T) {
 
 // TestApplyPagination tests pagination logic.
 func TestApplyPagination(t *testing.T) {
-	adapter, _ := NewAdapter(&Config{})
+	adp, _ := NewAdapter(&Config{})
 
-	deployments := []*adapter.Deployment{
+	deployments := []*dmsadapter.Deployment{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
 	}
 
@@ -933,7 +933,7 @@ func TestApplyPagination(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := adapter.applyPagination(deployments, tt.limit, tt.offset)
+			result := adp.applyPagination(deployments, tt.limit, tt.offset)
 			assert.Len(t, result, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, tt.wantFirst, result[0].ID)
@@ -955,9 +955,9 @@ func TestListDeploymentPackages(t *testing.T) {
 		objects[i] = app
 	}
 
-	adapter := createFakeAdapter(t, objects...)
+	adp := createFakeAdapter(t, objects...)
 
-	packages, err := adapter.ListDeploymentPackages(context.Background(), nil)
+	packages, err := adp.ListDeploymentPackages(context.Background(), nil)
 	require.NoError(t, err)
 
 	// Should have unique packages based on repo+path combinations
@@ -974,13 +974,13 @@ func TestListDeploymentPackages(t *testing.T) {
 func TestUploadDeploymentPackage(t *testing.T) {
 	tests := []struct {
 		name        string
-		pkg         *adapter.DeploymentPackageUpload
+		pkg         *dmsadapter.DeploymentPackageUpload
 		wantErr     bool
 		errContains string
 	}{
 		{
 			name: "valid package",
-			pkg: &adapter.DeploymentPackageUpload{
+			pkg: &dmsadapter.DeploymentPackageUpload{
 				Name:    "my-package",
 				Version: "v1.0.0",
 				Extensions: map[string]interface{}{
@@ -998,7 +998,7 @@ func TestUploadDeploymentPackage(t *testing.T) {
 		},
 		{
 			name: "missing repoURL",
-			pkg: &adapter.DeploymentPackageUpload{
+			pkg: &dmsadapter.DeploymentPackageUpload{
 				Name:       "my-package",
 				Extensions: map[string]interface{}{},
 			},
@@ -1009,8 +1009,8 @@ func TestUploadDeploymentPackage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter := createFakeAdapter(t)
-			pkg, err := adapter.UploadDeploymentPackage(context.Background(), tt.pkg)
+			adp := createFakeAdapter(t)
+			pkg, err := adp.UploadDeploymentPackage(context.Background(), tt.pkg)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -1029,8 +1029,8 @@ func TestUploadDeploymentPackage(t *testing.T) {
 
 // TestDeleteDeploymentPackage tests that package deletion is not supported.
 func TestDeleteDeploymentPackage(t *testing.T) {
-	adapter := createFakeAdapter(t)
-	err := adapter.DeleteDeploymentPackage(context.Background(), "any-id")
+	adp := createFakeAdapter(t)
+	err := adp.DeleteDeploymentPackage(context.Background(), "any-id")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "does not support package deletion")
 }
@@ -1077,8 +1077,8 @@ func TestRollbackDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter := createFakeAdapter(t, appWithHistory)
-			err := adapter.RollbackDeployment(context.Background(), tt.deployID, tt.revision)
+			adp := createFakeAdapter(t, appWithHistory)
+			err := adp.RollbackDeployment(context.Background(), tt.deployID, tt.revision)
 
 			if tt.wantErr {
 				require.Error(t, err)

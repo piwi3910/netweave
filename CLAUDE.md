@@ -527,6 +527,44 @@ make test-watch
 - **Constants:** PascalCase (not SCREAMING_CASE)
 - **Interfaces:** `-er` suffix for single-method (e.g., `Storer`, `Cacher`)
 
+#### Import Aliases and Variable Naming (CRITICAL):
+
+**NEVER use local variable names that match imported package names.** This causes ambiguity in the code and leads to compilation errors.
+
+```go
+// ❌ BAD: Local variable shadows the imported package
+import "github.com/example/adapter"
+
+func TestSomething(t *testing.T) {
+    adapter := NewAdapter()  // SHADOWS the package!
+    // adapter.CapabilityX now refers to the local variable, not the package
+}
+
+// ✅ GOOD: Use import alias when variable name matches package
+import dmsadapter "github.com/example/adapter"
+
+func TestSomething(t *testing.T) {
+    adp := NewAdapter()  // Clear, no shadowing
+    caps := adp.Capabilities()
+    assert.Contains(t, caps, dmsadapter.CapabilityX)  // Unambiguous reference
+}
+
+// ✅ GOOD: Alternative - rename the variable
+import "github.com/example/adapter"
+
+func TestSomething(t *testing.T) {
+    adp := NewAdapter()  // Variable doesn't shadow package
+    assert.Contains(t, adp.Capabilities(), adapter.CapabilityX)
+}
+```
+
+**Common patterns that trigger this issue:**
+- Test files where the test variable is named after the package being tested
+- Handler functions where a local variable shadows an imported handler package
+- Adapter implementations where `adapter` is used as both package and variable
+
+**Best Practice:** When writing tests for a package, use abbreviated variable names (`adp`, `hdl`, `svc`) or import aliases to avoid shadowing.
+
 #### Code Organization:
 
 ```
@@ -1323,6 +1361,7 @@ gh pr create --title "feat(subscription): add resource type filter" \
 ❌ Outdated code examples in documentation
 ❌ Missing GoDoc comments on exported functions
 ❌ Markdown linting failures in documentation
+❌ Local variable names that shadow imported package names (causes compilation errors)
 
 ### Quality Gates (MUST PASS):
 
