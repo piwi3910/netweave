@@ -212,55 +212,171 @@ Multi-Cluster:
   - Redis cross-cluster replication
 ```
 
-## Multi-Backend Adapter Architecture
+## Comprehensive Plugin Ecosystem (25+ Backends)
 
-### Pluggable Backend Support
+### Unified Plugin Architecture
 
-The netweave gateway supports **multiple backend technologies** through a pluggable adapter pattern:
+The netweave gateway implements a **comprehensive plugin architecture** spanning the entire O-RAN stack:
 
 ```
-O2-IMS API → Adapter Registry → Route by config → Kubernetes Adapter
-                                                 → Dell DTIAS Adapter
-                                                 → AWS EKS Adapter
-                                                 → OpenStack Adapter
+┌─────────────────────────────────────────────────────────────────┐
+│                  netweave Plugin Ecosystem                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐      │
+│  │   O2-IMS      │  │   O2-DMS      │  │   O2-SMO      │      │
+│  │   Plugins     │  │   Plugins     │  │   Plugins     │      │
+│  │               │  │               │  │               │      │
+│  │ Infrastructure│  │  Deployment   │  │ Orchestration │      │
+│  │  Management   │  │  Management   │  │  Integration  │      │
+│  │               │  │               │  │               │      │
+│  │  10+ Backends │  │  7+ Backends  │  │  5+ Backends  │      │
+│  └───────────────┘  └───────────────┘  └───────────────┘      │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 **Key Features**:
-- ✅ **Unified O2-IMS API**: Same frontend regardless of backend
-- ✅ **Configuration-Driven Routing**: Route requests based on location, labels, extensions
+- ✅ **O2-IMS Multi-Backend**: 10+ infrastructure backends (K8s, OpenStack, VMware, AWS, Azure, etc.)
+- ✅ **O2-DMS Deployment**: 7+ deployment engines (Helm, ArgoCD, Flux, ONAP-LCM, OSM-LCM)
+- ✅ **O2-SMO Integration**: Dual-mode ONAP/OSM integration (northbound + DMS backend)
+- ✅ **Configuration-Driven Routing**: Intelligent request routing based on rules
 - ✅ **Multi-Backend Aggregation**: Combine results from multiple backends
-- ✅ **Vendor Independence**: Avoid lock-in to single infrastructure provider
-- ✅ **Hybrid Deployments**: Mix cloud (AWS/Azure) and bare-metal (DTIAS) in single O-Cloud
+- ✅ **Vendor Independence**: Avoid lock-in to single infrastructure or deployment tool
+- ✅ **Hybrid Deployments**: Mix cloud, on-prem, bare-metal, and GitOps seamlessly
 
-### Supported Backends
+### O2-IMS Infrastructure Plugins (10+ Backends)
 
-| Backend | Status | Resource Pools | Resources | Use Case |
-|---------|--------|---------------|-----------|----------|
-| **Kubernetes** | ✅ Production | MachineSet | Node/Machine | Default, cloud-native |
-| **Dell DTIAS** | 🔄 Planned (v1.1) | Server Pool | Physical Server | Bare-metal infrastructure |
-| **AWS EKS** | 🔄 Planned (v1.1) | NodeGroup | EC2 Instance | AWS cloud deployments |
-| **OpenStack** | 🔮 Future | Host Aggregate | Nova Instance | Private cloud |
+| Plugin | Status | Resource Pools | Resources | Use Case | Priority |
+|--------|--------|---------------|-----------|----------|----------|
+| **Kubernetes** | ✅ Spec Complete | MachineSet | Node/Machine | Cloud-native infrastructure | Core |
+| **OpenStack** | 📋 Spec Complete | Host Aggregate | Nova Instance | NFVi migration, private cloud | **Highest** |
+| **Dell DTIAS** | 📋 Spec Complete | Server Pool | Physical Server | Bare-metal edge deployments | High |
+| **VMware vSphere** | 📋 Spec Complete | Resource Pool | ESXi Host/VM | Enterprise telco infrastructure | Medium-High |
+| **AWS EKS** | 📋 Spec Complete | Node Group | EC2 Instance | AWS cloud deployments | Medium |
+| **Azure AKS** | 📋 Spec Complete | Node Pool | Azure VM | Azure cloud deployments | Medium |
+| **Google GKE** | 📋 Spec Complete | Node Pool | GCE Instance | GCP cloud, Anthos | Low-Medium |
+| **Equinix Metal** | 📋 Spec Complete | Metal Pool | Bare-Metal | Edge-as-a-Service | Low |
+| **Red Hat OpenShift** | 📋 Spec Complete | MachineSet | Node/Machine | Enterprise Kubernetes | Medium |
+| **Mock** | ✅ Spec Complete | In-Memory | In-Memory | Testing, development, demos | Testing |
+
+### O2-DMS Deployment Plugins (7+ Backends)
+
+| Plugin | Status | Package Format | Deployment Target | GitOps | Priority |
+|--------|--------|---------------|-------------------|--------|----------|
+| **Helm** | 📋 Spec Complete | Helm Chart | Kubernetes | No | **Highest** |
+| **ArgoCD** | 📋 Spec Complete | Git Repo | Kubernetes | Yes | **Highest** |
+| **Flux CD** | 📋 Spec Complete | Git Repo | Kubernetes | Yes | Medium |
+| **ONAP-LCM** | 📋 Spec Complete | ONAP Package | Multi-Cloud | No | High |
+| **OSM-LCM** | 📋 Spec Complete | OSM Package | Multi-Cloud | No | Medium |
+| **Kustomize** | 📋 Spec Complete | Git Repo | Kubernetes | Partial | Low-Medium |
+| **Crossplane** | 📋 Spec Complete | Crossplane XR | Multi-Cloud | Partial | Low |
+
+### O2-SMO Integration Plugins (5+ Backends)
+
+| Plugin | Status | Northbound | DMS Backend | Workflow Engine | Priority |
+|--------|--------|------------|-------------|-----------------|----------|
+| **ONAP** | 📋 Spec Complete | A&AI, DMaaP | SO, SDNC | Camunda | **Highest** |
+| **OSM** | 📋 Spec Complete | VIM Sync | NS/VNF LCM | Native | High |
+| **Custom SMO** | 📋 Spec Complete | Configurable | Configurable | Optional | Medium |
+| **Cloudify** | 📋 Spec Complete | No | TOSCA | Yes | Low |
+| **Camunda** | 📋 Spec Complete | No | No (Workflow only) | Yes | Low |
+
+**SMO Dual-Mode Operation**:
+- **Northbound**: netweave → SMO (inventory sync, event publishing to ONAP A&AI/DMaaP)
+- **DMS Backend**: SMO → netweave O2-DMS API → ONAP SO or OSM LCM (orchestrated deployments)
 
 ### Routing Example
 
 ```yaml
-# Route bare-metal to DTIAS, cloud to AWS, default to Kubernetes
+# Intelligent multi-backend routing based on location, labels, and capabilities
 routing:
-  default: kubernetes
+  default: kubernetes  # Fallback to Kubernetes
+
   rules:
-    - name: bare-metal-to-dtias
+    # OpenStack for legacy NFV infrastructure
+    - name: openstack-nfv
       priority: 100
+      adapter: openstack
+      conditions:
+        labels:
+          infrastructure.type: openstack
+        location:
+          prefix: os-  # os-production, os-staging
+
+    # Bare-metal edge sites to DTIAS
+    - name: bare-metal-edge
+      priority: 95
       adapter: dtias
       conditions:
+        labels:
+          infrastructure.type: bare-metal
         location:
           prefix: dc-  # dc-dallas, dc-chicago
 
-    - name: cloud-to-aws
+    # VMware for enterprise telecom
+    - name: vmware-enterprise
       priority: 90
+      adapter: vsphere
+      conditions:
+        labels:
+          infrastructure.type: vmware
+        location:
+          prefix: vc-  # vc-datacenter1
+
+    # AWS cloud deployments
+    - name: aws-cloud
+      priority: 85
       adapter: aws
       conditions:
         location:
-          prefix: aws-  # aws-us-west-2, aws-eu-west-1
+          prefix: aws-  # aws-us-west-2
+
+    # Azure cloud deployments
+    - name: azure-cloud
+      priority: 85
+      adapter: azure
+      conditions:
+        location:
+          prefix: azure-  # azure-eastus
+
+    # Everything else → Kubernetes
+    - name: default-kubernetes
+      priority: 1
+      adapter: kubernetes
+      resourceType: "*"
+```
+
+**For complete plugin specifications, implementation code examples, interface definitions, and configuration guides, see [docs/backend-plugins.md](docs/backend-plugins.md).**
+
+### End-to-End Use Case: Deploy 5G vDU
+
+**Scenario**: Deploy a 5G virtual Distributed Unit (vDU) CNF using the complete O-RAN stack
+
+```
+1. Infrastructure Provisioning (O2-IMS):
+   SMO → netweave O2-IMS API → OpenStack Plugin
+   → Provision compute nodes in OpenStack NFVi
+
+2. Subscribe to Events (O2-IMS):
+   SMO → netweave O2-IMS API → Create subscription
+   ← Webhook when infrastructure ready
+
+3. Upload CNF Package (O2-DMS):
+   SMO → netweave O2-DMS API → Helm Plugin
+   → Upload vDU Helm chart to repository
+
+4. Deploy CNF (O2-DMS via ONAP):
+   SMO → ONAP SO → netweave O2-DMS API → ONAP-LCM Plugin
+   → Deploy vDU via ONAP orchestration
+
+5. Monitor Deployment (O2-DMS + O2-SMO):
+   netweave → ONAP DMaaP → Publish deployment events
+   SMO ← Receives deployment status updates
+
+6. Verify Deployment (O2-DMS):
+   SMO → netweave O2-DMS API → Query deployment status
+   ← vDU operational, ready for traffic
 ```
 
 ## API Versioning Strategy

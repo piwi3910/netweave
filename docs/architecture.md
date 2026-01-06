@@ -344,11 +344,25 @@ func (c *SubscriptionController) Run(ctx context.Context) {
    - Retry with exponential backoff (3 attempts)
    - Update subscription status
 
-### Adapter Architecture (Multi-Backend Support)
+### Plugin Architecture (Multi-Backend Support)
 
-**Responsibility**: Provide pluggable backend abstraction for O2-IMS operations
+**Responsibility**: Provide comprehensive pluggable backend system for O2-IMS, O2-DMS, and O2-SMO operations
 
-The adapter architecture enables the gateway to support multiple infrastructure backends through a unified interface. This allows netweave to manage resources across Kubernetes, bare-metal systems (Dell DTIAS), cloud providers (AWS, Azure), and any future backend implementations.
+The netweave gateway implements a **unified plugin architecture** supporting three distinct plugin ecosystems:
+
+1. **O2-IMS Plugins**: Infrastructure resource management (10+ backends)
+2. **O2-DMS Plugins**: CNF/VNF deployment lifecycle management (7+ backends)
+3. **O2-SMO Plugins**: SMO integration and orchestration (5+ backends)
+
+This architecture enables netweave to manage resources across Kubernetes, OpenStack NFVi, bare-metal systems (Dell DTIAS), cloud providers (AWS, Azure, GKE), VMware vSphere, and any future infrastructure backends. Additionally, it provides deployment management through Helm, ArgoCD, Flux, ONAP-LCM, OSM-LCM, and integrates with ONAP and OSM SMO frameworks.
+
+**For complete plugin specifications, see [docs/backend-plugins.md](backend-plugins.md).**
+
+#### Legacy Adapter Interface (O2-IMS Only)
+
+**Note**: This section documents the original adapter interface for O2-IMS. The new plugin architecture extends this to cover O2-DMS and O2-SMO as well.
+
+All O2-IMS backend implementations must satisfy the `Adapter` interface (now `ims.IMSPlugin`):
 
 #### Adapter Interface
 
@@ -468,18 +482,40 @@ internal/adapters/
 │   ├── resources.go
 │   ├── resourcetypes.go
 │   └── client.go
-├── dtias/             # Dell DTIAS backend
+├── mock/              # Mock backend for testing
+│   ├── adapter.go
+│   ├── resourcepools.go
+│   └── storage.go
+├── openstack/         # OpenStack NFVi backend
+│   ├── adapter.go
+│   ├── resourcepools.go
+│   ├── resources.go
+│   ├── resourcetypes.go
+│   └── client.go
+├── dtias/             # Dell DTIAS bare-metal backend
+│   ├── adapter.go
+│   ├── resourcepools.go
+│   ├── resources.go
+│   └── client.go
+├── vsphere/           # VMware vSphere backend
 │   ├── adapter.go
 │   ├── resourcepools.go
 │   ├── resources.go
 │   └── client.go
 ├── aws/               # AWS EKS/EC2 backend
 │   ├── adapter.go
-│   └── ...
-├── openstack/         # OpenStack backend
+│   ├── resourcepools.go
+│   ├── resources.go
+│   └── client.go
+├── azure/             # Azure AKS backend
+│   ├── adapter.go
+│   ├── resourcepools.go
+│   ├── resources.go
+│   └── client.go
+├── gke/               # Google GKE backend
 │   ├── adapter.go
 │   └── ...
-└── mock/              # Mock for testing
+└── equinix/           # Equinix Metal backend
     ├── adapter.go
     └── ...
 ```
@@ -647,6 +683,464 @@ func (a *DTIASAdapter) transformToDTIASResourcePool(group *dtias.ResourceGroup) 
             "dtias.bareMetalCount":    group.ServerCount,
         },
     }
+}
+```
+
+#### OpenStack Adapter Example (NFVi Migration Path)
+
+```go
+// internal/adapters/openstack/adapter.go
+
+package openstack
+
+import (
+    "context"
+    "github.com/yourorg/netweave/internal/adapter"
+    "github.com/gophercloud/gophercloud"
+    "github.com/gophercloud/gophercloud/openstack"
+    "github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+    "github.com/gophercloud/gophercloud/openstack/placement/v1/aggregates"
+)
+
+type OpenStackAdapter struct {
+    provider *gophercloud.ProviderClient
+    compute  *gophercloud.ServiceClient
+    placement *gophercloud.ServiceClient
+    config   *Config
+}
+
+func NewAdapter(config *Config) (*OpenStackAdapter, error) {
+    provider, err := openstack.AuthenticatedClient(gophercloud.AuthOptions{
+        IdentityEndpoint: config.AuthURL,
+        Username:         config.Username,
+        Password:         config.Password,
+        TenantName:       config.ProjectName,
+        DomainName:       config.DomainName,
+    })
+    if err != nil {
+        return nil, err
+    }
+
+    compute, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
+        Region: config.Region,
+    })
+    if err != nil {
+        return nil, err
+    }
+
+    placement, err := openstack.NewPlacementV1(provider, gophercloud.EndpointOpts{
+        Region: config.Region,
+    })
+    if err != nil {
+        return nil, err
+    }
+
+    return &OpenStackAdapter{
+        provider:  provider,
+        compute:   compute,
+        placement: placement,
+        config:    config,
+    }, nil
+}
+
+func (a *OpenStackAdapter) Name() string {
+    return "openstack"
+}
+
+func (a *OpenStackAdapter) Capabilities() []adapter.Capability {
+    return []adapter.Capability{
+        adapter.CapResourcePoolCreate,
+        adapter.CapResourcePoolUpdate,
+        adapter.CapResourcePoolDelete,
+        adapter.CapResourceCreate,
+        adapter.CapResourceDelete,
+        // OpenStack doesn't natively support subscriptions
+    }
+}
+
+// List Resource Pools → List OpenStack Host Aggregates
+func (a *OpenStackAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+    // 1. List OpenStack host aggregates
+    allPages, err := aggregates.List(a.placement).AllPages()
+    if err != nil {
+        return nil, fmt.Errorf("failed to list host aggregates: %w", err)
+    }
+
+    osAggregates, err := aggregates.ExtractAggregates(allPages)
+    if err != nil {
+        return nil, err
+    }
+
+    // 2. Transform to O2-IMS ResourcePool
+    pools := make([]*adapter.ResourcePool, 0, len(osAggregates))
+    for _, agg := range osAggregates {
+        pool := a.transformHostAggregateToResourcePool(&agg)
+        if filter.Matches(pool) {
+            pools = append(pools, pool)
+        }
+    }
+
+    return pools, nil
+}
+
+// Transform OpenStack Host Aggregate → O2-IMS ResourcePool
+func (a *OpenStackAdapter) transformHostAggregateToResourcePool(agg *aggregates.Aggregate) *adapter.ResourcePool {
+    return &adapter.ResourcePool{
+        ResourcePoolID: fmt.Sprintf("os-aggregate-%d", agg.ID),
+        Name:          agg.Name,
+        Description:   fmt.Sprintf("OpenStack host aggregate: %s", agg.Name),
+        Location:      agg.AvailabilityZone,
+        OCloudID:      a.config.OCloudID,
+        Extensions: map[string]interface{}{
+            "openstack.aggregateId":      agg.ID,
+            "openstack.availabilityZone": agg.AvailabilityZone,
+            "openstack.metadata":         agg.Metadata,
+            "openstack.hostCount":        len(agg.Hosts),
+            "openstack.hosts":            agg.Hosts,
+        },
+    }
+}
+
+// List Resources → List Nova Instances
+func (a *OpenStackAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+    // 1. List Nova instances
+    allPages, err := servers.List(a.compute, servers.ListOpts{}).AllPages()
+    if err != nil {
+        return nil, fmt.Errorf("failed to list instances: %w", err)
+    }
+
+    instances, err := servers.ExtractServers(allPages)
+    if err != nil {
+        return nil, err
+    }
+
+    // 2. Transform to O2-IMS Resource
+    resources := make([]*adapter.Resource, 0, len(instances))
+    for _, instance := range instances {
+        resource := a.transformNovaInstanceToResource(&instance)
+        if filter.Matches(resource) {
+            resources = append(resources, resource)
+        }
+    }
+
+    return resources, nil
+}
+
+// Transform Nova Instance → O2-IMS Resource
+func (a *OpenStackAdapter) transformNovaInstanceToResource(instance *servers.Server) *adapter.Resource {
+    return &adapter.Resource{
+        ResourceID:     instance.ID,
+        Name:          instance.Name,
+        Description:   fmt.Sprintf("OpenStack instance: %s", instance.Name),
+        ResourceTypeID: fmt.Sprintf("os-flavor-%s", instance.Flavor["id"]),
+        ResourcePoolID: a.getResourcePoolIDFromInstance(instance),
+        OCloudID:      a.config.OCloudID,
+        Extensions: map[string]interface{}{
+            "openstack.instanceId":   instance.ID,
+            "openstack.flavorId":     instance.Flavor["id"],
+            "openstack.imageId":      instance.Image["id"],
+            "openstack.status":       instance.Status,
+            "openstack.hostId":       instance.HostID,
+            "openstack.availabilityZone": instance.AvailabilityZone,
+            "openstack.addresses":    instance.Addresses,
+        },
+    }
+}
+```
+
+#### VMware vSphere Adapter Example
+
+```go
+// internal/adapters/vsphere/adapter.go
+
+package vsphere
+
+import (
+    "context"
+    "github.com/yourorg/netweave/internal/adapter"
+    "github.com/vmware/govmomi"
+    "github.com/vmware/govmomi/find"
+    "github.com/vmware/govmomi/object"
+)
+
+type VSphereAdapter struct {
+    client *govmomi.Client
+    finder *find.Finder
+    config *Config
+}
+
+func NewAdapter(config *Config) (*VSphereAdapter, error) {
+    ctx := context.Background()
+
+    // Connect to vSphere
+    client, err := govmomi.NewClient(ctx, config.URL, true)
+    if err != nil {
+        return nil, err
+    }
+
+    // Login
+    if err := client.Login(ctx, config.User, config.Password); err != nil {
+        return nil, err
+    }
+
+    finder := find.NewFinder(client.Client, true)
+
+    return &VSphereAdapter{
+        client: client,
+        finder: finder,
+        config: config,
+    }, nil
+}
+
+func (a *VSphereAdapter) Name() string {
+    return "vsphere"
+}
+
+func (a *VSphereAdapter) Capabilities() []adapter.Capability {
+    return []adapter.Capability{
+        adapter.CapResourcePoolCreate,
+        adapter.CapResourceCreate,
+        adapter.CapResourceDelete,
+        // vSphere doesn't support subscriptions natively
+    }
+}
+
+// List Resource Pools → List vSphere Resource Pools / Clusters
+func (a *VSphereAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+    // 1. Find all resource pools
+    pools, err := a.finder.ResourcePoolList(ctx, "*")
+    if err != nil {
+        return nil, fmt.Errorf("failed to list vSphere resource pools: %w", err)
+    }
+
+    // 2. Transform to O2-IMS ResourcePool
+    o2Pools := make([]*adapter.ResourcePool, 0, len(pools))
+    for _, pool := range pools {
+        o2Pool := a.transformVSphereResourcePool(ctx, pool)
+        if filter.Matches(o2Pool) {
+            o2Pools = append(o2Pools, o2Pool)
+        }
+    }
+
+    return o2Pools, nil
+}
+
+// Transform vSphere ResourcePool → O2-IMS ResourcePool
+func (a *VSphereAdapter) transformVSphereResourcePool(ctx context.Context, pool *object.ResourcePool) *adapter.ResourcePool {
+    props, _ := pool.Properties(ctx, pool.Reference(), []string{"name", "config", "summary"})
+
+    return &adapter.ResourcePool{
+        ResourcePoolID: pool.Reference().Value,
+        Name:          props.Name,
+        Description:   fmt.Sprintf("vSphere resource pool: %s", props.Name),
+        Location:      a.config.Datacenter,
+        OCloudID:      a.config.OCloudID,
+        Extensions: map[string]interface{}{
+            "vsphere.resourcePoolId": pool.Reference().Value,
+            "vsphere.cpuLimit":       props.Config.CpuAllocation.Limit,
+            "vsphere.memoryLimit":    props.Config.MemoryAllocation.Limit,
+            "vsphere.cpuReservation": props.Config.CpuAllocation.Reservation,
+            "vsphere.memoryReservation": props.Config.MemoryAllocation.Reservation,
+        },
+    }
+}
+
+// List Resources → List ESXi Hosts / VMs
+func (a *VSphereAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+    // List ESXi hosts
+    hosts, err := a.finder.HostSystemList(ctx, "*")
+    if err != nil {
+        return nil, fmt.Errorf("failed to list hosts: %w", err)
+    }
+
+    resources := make([]*adapter.Resource, 0, len(hosts))
+    for _, host := range hosts {
+        resource := a.transformHostToResource(ctx, host)
+        if filter.Matches(resource) {
+            resources = append(resources, resource)
+        }
+    }
+
+    return resources, nil
+}
+
+// Transform ESXi Host → O2-IMS Resource
+func (a *VSphereAdapter) transformHostToResource(ctx context.Context, host *object.HostSystem) *adapter.Resource {
+    props, _ := host.Properties(ctx, host.Reference(), []string{"name", "hardware", "summary"})
+
+    return &adapter.Resource{
+        ResourceID:     host.Reference().Value,
+        Name:          props.Name,
+        Description:   fmt.Sprintf("ESXi host: %s", props.Name),
+        ResourceTypeID: "esxi-host",
+        OCloudID:      a.config.OCloudID,
+        Extensions: map[string]interface{}{
+            "vsphere.hostId":        host.Reference().Value,
+            "vsphere.cpuCores":      props.Hardware.CpuInfo.NumCpuCores,
+            "vsphere.cpuThreads":    props.Hardware.CpuInfo.NumCpuThreads,
+            "vsphere.memorySize":    props.Hardware.MemorySize,
+            "vsphere.connectionState": props.Summary.Runtime.ConnectionState,
+            "vsphere.powerState":    props.Summary.Runtime.PowerState,
+        },
+    }
+}
+```
+
+#### Mock Adapter Example (Testing)
+
+```go
+// internal/adapters/mock/adapter.go
+
+package mock
+
+import (
+    "context"
+    "sync"
+    "github.com/yourorg/netweave/internal/adapter"
+    "github.com/google/uuid"
+)
+
+// MockAdapter provides an in-memory backend for testing
+type MockAdapter struct {
+    mu             sync.RWMutex
+    resourcePools  map[string]*adapter.ResourcePool
+    resources      map[string]*adapter.Resource
+    resourceTypes  map[string]*adapter.ResourceType
+    config         *Config
+}
+
+func NewAdapter(config *Config) (*MockAdapter, error) {
+    a := &MockAdapter{
+        resourcePools: make(map[string]*adapter.ResourcePool),
+        resources:     make(map[string]*adapter.Resource),
+        resourceTypes: make(map[string]*adapter.ResourceType),
+        config:        config,
+    }
+
+    // Pre-populate with mock data
+    a.initializeMockData()
+
+    return a, nil
+}
+
+func (a *MockAdapter) Name() string {
+    return "mock"
+}
+
+func (a *MockAdapter) Capabilities() []adapter.Capability {
+    // Mock supports everything for testing
+    return []adapter.Capability{
+        adapter.CapResourcePoolCreate,
+        adapter.CapResourcePoolUpdate,
+        adapter.CapResourcePoolDelete,
+        adapter.CapResourceCreate,
+        adapter.CapResourceDelete,
+        adapter.CapSubscriptions,
+        adapter.CapRealTimeEvents,
+    }
+}
+
+// Initialize with sample data for testing
+func (a *MockAdapter) initializeMockData() {
+    // Create sample resource pools
+    a.resourcePools["pool-compute-1"] = &adapter.ResourcePool{
+        ResourcePoolID: "pool-compute-1",
+        Name:          "Mock Compute Pool 1",
+        Description:   "High-performance compute pool for testing",
+        Location:      "mock-us-east-1a",
+        OCloudID:      a.config.OCloudID,
+        Extensions: map[string]interface{}{
+            "mock.type":     "compute",
+            "mock.capacity": 100,
+        },
+    }
+
+    // Create sample resources
+    a.resources["node-mock-001"] = &adapter.Resource{
+        ResourceID:     "node-mock-001",
+        Name:          "Mock Node 001",
+        Description:   "Mock compute node for testing",
+        ResourceTypeID: "type-compute-large",
+        ResourcePoolID: "pool-compute-1",
+        OCloudID:      a.config.OCloudID,
+        Extensions: map[string]interface{}{
+            "mock.cpuCores":  32,
+            "mock.memoryGB":  128,
+            "mock.gpuCount":  2,
+        },
+    }
+
+    // Create sample resource types
+    a.resourceTypes["type-compute-large"] = &adapter.ResourceType{
+        ResourceTypeID: "type-compute-large",
+        Name:          "Mock Compute Large",
+        Description:   "32 CPU, 128GB RAM, 2 GPU",
+        OCloudID:      a.config.OCloudID,
+        Extensions: map[string]interface{}{
+            "mock.cpu":    32,
+            "mock.memory": 128,
+            "mock.gpu":    2,
+        },
+    }
+}
+
+// CRUD operations work on in-memory storage
+func (a *MockAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+    a.mu.RLock()
+    defer a.mu.RUnlock()
+
+    pools := make([]*adapter.ResourcePool, 0, len(a.resourcePools))
+    for _, pool := range a.resourcePools {
+        if filter.Matches(pool) {
+            pools = append(pools, pool)
+        }
+    }
+
+    return pools, nil
+}
+
+func (a *MockAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+    a.mu.Lock()
+    defer a.mu.Unlock()
+
+    if pool.ResourcePoolID == "" {
+        pool.ResourcePoolID = uuid.New().String()
+    }
+
+    a.resourcePools[pool.ResourcePoolID] = pool
+    return pool, nil
+}
+
+func (a *MockAdapter) DeleteResourcePool(ctx context.Context, id string) error {
+    a.mu.Lock()
+    defer a.mu.Unlock()
+
+    delete(a.resourcePools, id)
+    return nil
+}
+
+func (a *MockAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+    a.mu.RLock()
+    defer a.mu.RUnlock()
+
+    resources := make([]*adapter.Resource, 0, len(a.resources))
+    for _, resource := range a.resources {
+        if filter.Matches(resource) {
+            resources = append(resources, resource)
+        }
+    }
+
+    return resources, nil
+}
+
+// Mock adapter supports subscriptions for testing
+func (a *MockAdapter) SupportsSubscriptions() bool {
+    return true
+}
+
+func (a *MockAdapter) Subscribe(ctx context.Context, sub *adapter.Subscription) error {
+    // In mock mode, subscriptions are just stored (no actual watching)
+    return nil
 }
 ```
 
@@ -1388,6 +1882,227 @@ DELETE /o2ims/v1/resourcePools/:id          # Delete (tenant check)
 - **Audit Trail**: All operations logged with tenant context
 
 **For complete RBAC and multi-tenancy documentation, see [docs/rbac-multitenancy.md](rbac-multitenancy.md).**
+
+---
+
+## Comprehensive Plugin Ecosystem
+
+### Overview
+
+netweave implements a **unified plugin architecture** that extends beyond basic infrastructure management to provide comprehensive O-RAN stack support:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  netweave Plugin Ecosystem                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐      │
+│  │   O2-IMS      │  │   O2-DMS      │  │   O2-SMO      │      │
+│  │   Plugins     │  │   Plugins     │  │   Plugins     │      │
+│  │               │  │               │  │               │      │
+│  │ Infrastructure│  │  Deployment   │  │ Orchestration │      │
+│  │  Management   │  │  Management   │  │  Integration  │      │
+│  │               │  │               │  │               │      │
+│  │  10+ Backends │  │  7+ Backends  │  │  5+ Backends  │      │
+│  └───────────────┘  └───────────────┘  └───────────────┘      │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Plugin Categories
+
+#### 1. O2-IMS Infrastructure Plugins (10+ Backends)
+
+**Purpose**: Manage heterogeneous infrastructure resources through standardized O2-IMS API
+
+| Plugin | Priority | Resource Pools | Resources | Use Case |
+|--------|----------|---------------|-----------|----------|
+| **Kubernetes** | Core ✅ | MachineSet | Node/Machine | Cloud-native infrastructure |
+| **OpenStack** | Highest 📋 | Host Aggregate | Nova Instance | NFVi migration, private cloud |
+| **Dell DTIAS** | High 📋 | Server Pool | Physical Server | Bare-metal edge deployments |
+| **VMware vSphere** | Medium-High 📋 | Resource Pool | ESXi Host/VM | Enterprise telco infrastructure |
+| **AWS EKS** | Medium 📋 | Node Group | EC2 Instance | AWS cloud deployments |
+| **Azure AKS** | Medium 📋 | Node Pool | Azure VM | Azure cloud deployments |
+| **Google GKE** | Low-Medium 📋 | Node Pool | GCE Instance | GCP cloud, Anthos |
+| **Equinix Metal** | Low 📋 | Metal Pool | Bare-Metal | Edge-as-a-Service |
+| **Red Hat OpenShift** | Medium 📋 | MachineSet | Node/Machine | Enterprise Kubernetes |
+| **Mock** | Testing ✅ | In-Memory | In-Memory | Development, testing, demos |
+
+**Key Benefits**:
+- **Hybrid Infrastructure**: Mix cloud (AWS/Azure/GCP) and on-prem (OpenStack/VMware/bare-metal)
+- **Vendor Independence**: Single O2-IMS API across all backends
+- **NFVi Migration**: Gradual transition from OpenStack NFVi to cloud-native
+- **Multi-Cloud**: Deploy across multiple cloud providers transparently
+
+#### 2. O2-DMS Deployment Plugins (7+ Backends)
+
+**Purpose**: CNF/VNF lifecycle management through O2-DMS API
+
+| Plugin | Priority | Package Format | Deployment Target | GitOps |
+|--------|----------|---------------|-------------------|--------|
+| **Helm** | Highest 📋 | Helm Chart | Kubernetes | No |
+| **ArgoCD** | Highest 📋 | Git Repo | Kubernetes | Yes |
+| **Flux CD** | Medium 📋 | Git Repo | Kubernetes | Yes |
+| **ONAP-LCM** | High 📋 | ONAP Package | Multi-Cloud | No |
+| **OSM-LCM** | Medium 📋 | OSM Package | Multi-Cloud | No |
+| **Kustomize** | Low-Medium 📋 | Git Repo | Kubernetes | Partial |
+| **Crossplane** | Low 📋 | Crossplane XR | Multi-Cloud | Partial |
+
+**Key Benefits**:
+- **Unified Deployment API**: Single interface for all deployment technologies
+- **GitOps Support**: Native ArgoCD/Flux integration for declarative deployments
+- **MANO Integration**: ONAP and OSM for telco-grade orchestration
+- **Flexibility**: Choose deployment tool per workload (Helm for simple, ArgoCD for complex)
+
+#### 3. O2-SMO Integration Plugins (5+ Backends)
+
+**Purpose**: Bidirectional SMO integration (northbound inventory sync + southbound orchestration)
+
+| Plugin | Priority | Northbound | DMS Backend | Workflow Engine |
+|--------|----------|------------|-------------|-----------------|
+| **ONAP** | Highest 📋 | A&AI, DMaaP | SO, SDNC | Camunda |
+| **OSM** | High 📋 | VIM Sync | NS/VNF LCM | Native |
+| **Custom SMO** | Medium 📋 | Configurable | Configurable | Optional |
+| **Cloudify** | Low 📋 | No | TOSCA | Yes |
+| **Camunda** | Low 📋 | No | No | Yes (standalone) |
+
+**Dual-Mode Operation**:
+
+**Northbound Mode** (netweave → SMO):
+- Sync infrastructure inventory to SMO (ONAP A&AI, OSM VIM)
+- Publish infrastructure events to SMO (DMaaP, message bus)
+- Enable SMO visibility into O-Cloud resources
+
+**DMS Backend Mode** (SMO → netweave → Deployment):
+- SMO orchestrates CNF deployments through netweave O2-DMS API
+- netweave routes to ONAP SO or OSM LCM for execution
+- Complete closed-loop orchestration
+
+**Key Benefits**:
+- **Complete O-RAN Stack**: IMS + DMS + SMO in single gateway
+- **ONAP/OSM Native**: Direct integration with major SMO frameworks
+- **Bidirectional**: Both inventory sync AND orchestration
+- **Flexible**: Support custom SMO frameworks
+
+### Plugin Routing & Configuration
+
+**Configuration-Driven Routing**:
+
+```yaml
+routing:
+  ims:
+    rules:
+      # OpenStack for legacy NFV infrastructure
+      - name: openstack-nfv
+        priority: 100
+        plugin: openstack-nfv
+        conditions:
+          labels:
+            infrastructure.type: openstack
+
+      # Bare-metal edge to DTIAS
+      - name: bare-metal-edge
+        priority: 95
+        plugin: dtias-edge
+        conditions:
+          labels:
+            infrastructure.type: bare-metal
+
+      # Default to Kubernetes
+      - name: default-k8s
+        priority: 1
+        plugin: kubernetes
+
+  dms:
+    rules:
+      # GitOps to ArgoCD
+      - name: gitops-deployments
+        priority: 100
+        plugin: argocd-gitops
+        conditions:
+          gitOps: true
+
+      # ONAP service models to ONAP LCM
+      - name: onap-services
+        priority: 95
+        plugin: onap-lcm
+        packageType: onap-service
+
+      # Default to Helm
+      - name: default-helm
+        priority: 1
+        plugin: helm-deployer
+```
+
+**Multi-Backend Aggregation**:
+
+netweave can aggregate results from multiple backends in a single response:
+
+```
+SMO Request: GET /o2ims/v1/resources
+
+netweave Routes to:
+  → Kubernetes Plugin    → 100 nodes
+  → OpenStack Plugin     → 50 VMs
+  → DTIAS Plugin         → 20 bare-metal servers
+
+Aggregated Response:
+  → 170 total resources (merged, deduplicated)
+```
+
+### End-to-End Use Case: Deploy 5G vDU
+
+**Scenario**: Deploy a 5G virtual Distributed Unit (vDU) CNF on hybrid infrastructure
+
+```
+1. Infrastructure Provisioning (O2-IMS):
+   SMO → netweave O2-IMS API → OpenStack Plugin
+   → Provision compute nodes in OpenStack NFVi
+
+2. Subscribe to Events (O2-IMS):
+   SMO → netweave O2-IMS API → Create subscription
+   ← Webhook when infrastructure ready
+
+3. Upload CNF Package (O2-DMS):
+   SMO → netweave O2-DMS API → Helm Plugin
+   → Upload vDU Helm chart to repository
+
+4. Deploy CNF (O2-DMS via ONAP):
+   SMO → ONAP SO → netweave O2-DMS API → ONAP-LCM Plugin
+   → Deploy vDU via ONAP orchestration
+
+5. Monitor Deployment (O2-DMS + O2-SMO):
+   netweave → ONAP DMaaP → Publish deployment events
+   SMO ← Receives deployment status updates
+
+6. Verify Deployment (O2-DMS):
+   SMO → netweave O2-DMS API → Query deployment status
+   ← vDU operational, ready for traffic
+```
+
+### Implementation Status
+
+**Phase 1: Core (Production Ready)**
+- ✅ Kubernetes IMS Plugin
+- ✅ Mock IMS Plugin
+
+**Phase 2: Multi-Backend IMS (Specification Complete)**
+- 📋 OpenStack NFVi Plugin ⭐ **Highest Priority**
+- 📋 Dell DTIAS Plugin
+- 📋 VMware vSphere Plugin
+- 📋 AWS/Azure/GKE Plugins
+
+**Phase 3: O2-DMS Core (Specification Complete)**
+- 📋 Helm Plugin ⭐ **Critical for DMS**
+- 📋 ArgoCD GitOps Plugin
+- 📋 Flux CD Plugin
+
+**Phase 4: O2-SMO Integration (Specification Complete)**
+- 📋 ONAP Integration Plugin ⭐ **Complete O-RAN Stack**
+- 📋 OSM Integration Plugin
+- 📋 Custom SMO Plugin
+
+**For complete plugin specifications, implementation details, and code examples, see [docs/backend-plugins.md](backend-plugins.md).**
 
 ---
 
