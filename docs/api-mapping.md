@@ -1375,6 +1375,20 @@ redis.Publish(ctx, "subscriptions:created", subID)
 
 This section shows how different backend adapters map their native resources to O2-IMS concepts.
 
+### Complete Plugin Ecosystem
+
+netweave supports **25+ backend plugins** across three categories:
+
+| Category | Backends | Documentation |
+|----------|----------|---------------|
+| **O2-IMS Plugins** | 10+ (Kubernetes, OpenStack, DTIAS, VMware, AWS, Azure, GKE, Equinix, etc.) | Infrastructure management |
+| **O2-DMS Plugins** | 7+ (Helm, ArgoCD, Flux, ONAP-LCM, OSM-LCM, Kustomize, Crossplane) | Deployment management |
+| **O2-SMO Plugins** | 5+ (ONAP, OSM, Custom SMO, Cloudify, Camunda) | SMO integration & orchestration |
+
+**For complete plugin specifications, implementation code, interfaces, and configuration examples, see [docs/backend-plugins.md](backend-plugins.md).**
+
+This section provides detailed transformation examples for key backends.
+
 ### Kubernetes Adapter Mappings
 
 | O2-IMS Resource | Kubernetes Resource | Transformation Notes |
