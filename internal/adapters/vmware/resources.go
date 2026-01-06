@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/vmware/govmomi/vim25/mo"
@@ -12,7 +13,10 @@ import (
 )
 
 // ListResources retrieves all resources (VMs) matching the provided filter.
-func (a *VMwareAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (a *VMwareAdapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("vmware", "ListResources", start, err) }()
+
 	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
@@ -22,7 +26,6 @@ func (a *VMwareAdapter) ListResources(ctx context.Context, filter *adapter.Filte
 		return nil, fmt.Errorf("failed to list VMs: %w", err)
 	}
 
-	var resources []*adapter.Resource
 	for _, vm := range vms {
 		vmName := vm.Name()
 
@@ -64,7 +67,10 @@ func (a *VMwareAdapter) ListResources(ctx context.Context, filter *adapter.Filte
 }
 
 // GetResource retrieves a specific resource (VM) by ID.
-func (a *VMwareAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+func (a *VMwareAdapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("vmware", "GetResource", start, err) }()
+
 	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
@@ -80,9 +86,9 @@ func (a *VMwareAdapter) GetResource(ctx context.Context, id string) (*adapter.Re
 		return nil, err
 	}
 
-	for _, resource := range resources {
-		if resource.ResourceID == id {
-			return resource, nil
+	for _, res := range resources {
+		if res.ResourceID == id {
+			return res, nil
 		}
 	}
 
@@ -90,7 +96,10 @@ func (a *VMwareAdapter) GetResource(ctx context.Context, id string) (*adapter.Re
 }
 
 // CreateResource creates a new resource (VM).
-func (a *VMwareAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+func (a *VMwareAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("vmware", "CreateResource", start, err) }()
+
 	a.logger.Debug("CreateResource called",
 		zap.String("resourceTypeId", resource.ResourceTypeID))
 
@@ -99,7 +108,10 @@ func (a *VMwareAdapter) CreateResource(ctx context.Context, resource *adapter.Re
 }
 
 // DeleteResource deletes a resource (VM) by ID.
-func (a *VMwareAdapter) DeleteResource(ctx context.Context, id string) error {
+func (a *VMwareAdapter) DeleteResource(ctx context.Context, id string) (err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("vmware", "DeleteResource", start, err) }()
+
 	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 

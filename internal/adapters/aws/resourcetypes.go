@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -13,12 +14,14 @@ import (
 )
 
 // ListResourceTypes retrieves all resource types (EC2 instance types) matching the provided filter.
-func (a *AWSAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (a *AWSAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "ListResourceTypes", start, err) }()
+
 	a.logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
 	// Get EC2 instance types
-	var resourceTypes []*adapter.ResourceType
 	paginator := ec2.NewDescribeInstanceTypesPaginator(a.ec2Client, &ec2.DescribeInstanceTypesInput{})
 
 	for paginator.HasMorePages() {
@@ -51,7 +54,10 @@ func (a *AWSAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filt
 }
 
 // GetResourceType retrieves a specific resource type (EC2 instance type) by ID.
-func (a *AWSAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
+func (a *AWSAdapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "GetResourceType", start, err) }()
+
 	a.logger.Debug("GetResourceType called",
 		zap.String("id", id))
 
@@ -72,7 +78,7 @@ func (a *AWSAdapter) GetResourceType(ctx context.Context, id string) (*adapter.R
 		return nil, fmt.Errorf("resource type not found: %s", id)
 	}
 
-	resourceType := a.instanceTypeToResourceType(&output.InstanceTypes[0])
+	resourceType = a.instanceTypeToResourceType(&output.InstanceTypes[0])
 
 	a.logger.Info("retrieved resource type",
 		zap.String("resourceTypeId", resourceType.ResourceTypeID))

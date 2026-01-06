@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
@@ -11,7 +12,10 @@ import (
 // ListResourcePools retrieves all resource pools matching the provided filter.
 // In "rg" mode, it lists Resource Groups.
 // In "az" mode, it lists Availability Zones.
-func (a *AzureAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *AzureAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) (pools []*adapter.ResourcePool, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("azure", "ListResourcePools", start, err) }()
+
 	a.logger.Debug("ListResourcePools called",
 		zap.Any("filter", filter),
 		zap.String("poolMode", a.poolMode))
@@ -126,7 +130,10 @@ func (a *AzureAdapter) listAZPools(ctx context.Context, filter *adapter.Filter) 
 }
 
 // GetResourcePool retrieves a specific resource pool by ID.
-func (a *AzureAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+func (a *AzureAdapter) GetResourcePool(ctx context.Context, id string) (pool *adapter.ResourcePool, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("azure", "GetResourcePool", start, err) }()
+
 	a.logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
@@ -171,7 +178,10 @@ func (a *AzureAdapter) getAZPool(ctx context.Context, id string) (*adapter.Resou
 // CreateResourcePool creates a new resource pool.
 // In "rg" mode, this creates a new Resource Group.
 // In "az" mode, this operation is not supported (AZs are Azure-managed).
-func (a *AzureAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *AzureAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("azure", "CreateResourcePool", start, err) }()
+
 	a.logger.Debug("CreateResourcePool called",
 		zap.String("name", pool.Name))
 
@@ -185,7 +195,10 @@ func (a *AzureAdapter) CreateResourcePool(ctx context.Context, pool *adapter.Res
 }
 
 // UpdateResourcePool updates an existing resource pool.
-func (a *AzureAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *AzureAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("azure", "UpdateResourcePool", start, err) }()
+
 	a.logger.Debug("UpdateResourcePool called",
 		zap.String("id", id),
 		zap.String("name", pool.Name))
@@ -198,7 +211,10 @@ func (a *AzureAdapter) UpdateResourcePool(ctx context.Context, id string, pool *
 }
 
 // DeleteResourcePool deletes a resource pool by ID.
-func (a *AzureAdapter) DeleteResourcePool(ctx context.Context, id string) error {
+func (a *AzureAdapter) DeleteResourcePool(ctx context.Context, id string) (err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("azure", "DeleteResourcePool", start, err) }()
+
 	a.logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 

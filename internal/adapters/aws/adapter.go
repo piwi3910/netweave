@@ -247,7 +247,10 @@ func (a *AWSAdapter) Capabilities() []adapter.Capability {
 // Health performs a health check on the AWS backend.
 // It verifies connectivity to EC2 and Auto Scaling services.
 // The check uses a 10-second timeout to prevent indefinite blocking.
-func (a *AWSAdapter) Health(ctx context.Context) error {
+func (a *AWSAdapter) Health(ctx context.Context) (err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveHealthCheck("aws", start, err) }()
+
 	a.logger.Debug("health check called")
 
 	// Use a timeout to prevent indefinite blocking
@@ -255,7 +258,7 @@ func (a *AWSAdapter) Health(ctx context.Context) error {
 	defer cancel()
 
 	// Check EC2 service by describing regions
-	_, err := a.ec2Client.DescribeRegions(healthCtx, &ec2.DescribeRegionsInput{
+	_, err = a.ec2Client.DescribeRegions(healthCtx, &ec2.DescribeRegionsInput{
 		RegionNames: []string{a.region},
 	})
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/piwi3910/netweave/internal/adapter"
@@ -12,11 +13,13 @@ import (
 )
 
 // ListResourceTypes retrieves all resource types (GCP machine types) matching the provided filter.
-func (a *GCPAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (a *GCPAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("gcp", "ListResourceTypes", start, err) }()
+
 	a.logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
-	var resourceTypes []*adapter.ResourceType
 	seen := make(map[string]bool)
 
 	// Get the first zone in the region to list machine types
@@ -90,7 +93,10 @@ func (a *GCPAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filt
 }
 
 // GetResourceType retrieves a specific resource type (GCP machine type) by ID.
-func (a *GCPAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
+func (a *GCPAdapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("gcp", "GetResourceType", start, err) }()
+
 	a.logger.Debug("GetResourceType called",
 		zap.String("id", id))
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -13,7 +14,10 @@ import (
 )
 
 // ListResources retrieves all resources (EC2 instances) matching the provided filter.
-func (a *AWSAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (a *AWSAdapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "ListResources", start, err) }()
+
 	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
@@ -35,7 +39,6 @@ func (a *AWSAdapter) ListResources(ctx context.Context, filter *adapter.Filter) 
 	})
 
 	// Get EC2 instances
-	var resources []*adapter.Resource
 	paginator := ec2.NewDescribeInstancesPaginator(a.ec2Client, &ec2.DescribeInstancesInput{
 		Filters: ec2Filters,
 	})
@@ -73,7 +76,10 @@ func (a *AWSAdapter) ListResources(ctx context.Context, filter *adapter.Filter) 
 }
 
 // GetResource retrieves a specific resource (EC2 instance) by ID.
-func (a *AWSAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+func (a *AWSAdapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "GetResource", start, err) }()
+
 	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
@@ -95,7 +101,7 @@ func (a *AWSAdapter) GetResource(ctx context.Context, id string) (*adapter.Resou
 		return nil, fmt.Errorf("resource not found: %s", id)
 	}
 
-	resource := a.instanceToResource(&output.Reservations[0].Instances[0])
+	resource = a.instanceToResource(&output.Reservations[0].Instances[0])
 
 	a.logger.Info("retrieved resource",
 		zap.String("resourceId", resource.ResourceID))
@@ -104,7 +110,10 @@ func (a *AWSAdapter) GetResource(ctx context.Context, id string) (*adapter.Resou
 }
 
 // CreateResource creates a new resource (launches an EC2 instance).
-func (a *AWSAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+func (a *AWSAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (created *adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "CreateResource", start, err) }()
+
 	a.logger.Debug("CreateResource called",
 		zap.String("resourceTypeId", resource.ResourceTypeID))
 
@@ -187,17 +196,20 @@ func (a *AWSAdapter) CreateResource(ctx context.Context, resource *adapter.Resou
 		return nil, fmt.Errorf("no instance was launched")
 	}
 
-	createdResource := a.instanceToResource(&output.Instances[0])
+	created = a.instanceToResource(&output.Instances[0])
 
 	a.logger.Info("created resource",
-		zap.String("resourceId", createdResource.ResourceID),
+		zap.String("resourceId", created.ResourceID),
 		zap.String("instanceId", aws.ToString(output.Instances[0].InstanceId)))
 
-	return createdResource, nil
+	return created, nil
 }
 
 // DeleteResource deletes a resource (terminates an EC2 instance) by ID.
-func (a *AWSAdapter) DeleteResource(ctx context.Context, id string) error {
+func (a *AWSAdapter) DeleteResource(ctx context.Context, id string) (err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "DeleteResource", start, err) }()
+
 	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 

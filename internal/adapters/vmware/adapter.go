@@ -272,7 +272,10 @@ func (a *VMwareAdapter) Capabilities() []adapter.Capability {
 
 // Health performs a health check on the vSphere backend.
 // It verifies connectivity to vCenter.
-func (a *VMwareAdapter) Health(ctx context.Context) error {
+func (a *VMwareAdapter) Health(ctx context.Context) (err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveHealthCheck("vmware", start, err) }()
+
 	a.logger.Debug("health check called")
 
 	// Use a timeout to prevent indefinite blocking
@@ -280,7 +283,7 @@ func (a *VMwareAdapter) Health(ctx context.Context) error {
 	defer cancel()
 
 	// Check if we can retrieve the datacenter
-	_, err := a.finder.Datacenter(healthCtx, a.datacenterName)
+	_, err = a.finder.Datacenter(healthCtx, a.datacenterName)
 	if err != nil {
 		a.logger.Error("vSphere health check failed", zap.Error(err))
 		return fmt.Errorf("vcenter API unreachable: %w", err)

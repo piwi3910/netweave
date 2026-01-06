@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/piwi3910/netweave/internal/adapter"
@@ -12,11 +13,12 @@ import (
 )
 
 // ListResources retrieves all resources (GCP instances) matching the provided filter.
-func (a *GCPAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (a *GCPAdapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("gcp", "ListResources", start, err) }()
+
 	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
-
-	var resources []*adapter.Resource
 
 	// List zones in the region first
 	zoneIt := a.zonesClient.List(ctx, &computepb.ListZonesRequest{
@@ -79,7 +81,10 @@ func (a *GCPAdapter) ListResources(ctx context.Context, filter *adapter.Filter) 
 }
 
 // GetResource retrieves a specific resource (GCP instance) by ID.
-func (a *GCPAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+func (a *GCPAdapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("gcp", "GetResource", start, err) }()
+
 	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
@@ -114,7 +119,10 @@ func (a *GCPAdapter) GetResource(ctx context.Context, id string) (*adapter.Resou
 }
 
 // CreateResource creates a new resource (GCP instance).
-func (a *GCPAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+func (a *GCPAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("gcp", "CreateResource", start, err) }()
+
 	a.logger.Debug("CreateResource called",
 		zap.String("resourceTypeId", resource.ResourceTypeID))
 
@@ -123,7 +131,10 @@ func (a *GCPAdapter) CreateResource(ctx context.Context, resource *adapter.Resou
 }
 
 // DeleteResource deletes a resource (GCP instance) by ID.
-func (a *GCPAdapter) DeleteResource(ctx context.Context, id string) error {
+func (a *GCPAdapter) DeleteResource(ctx context.Context, id string) (err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("gcp", "DeleteResource", start, err) }()
+
 	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 

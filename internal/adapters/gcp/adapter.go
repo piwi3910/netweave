@@ -270,7 +270,10 @@ func (a *GCPAdapter) Capabilities() []adapter.Capability {
 
 // Health performs a health check on the GCP backend.
 // It verifies connectivity to GCP services.
-func (a *GCPAdapter) Health(ctx context.Context) error {
+func (a *GCPAdapter) Health(ctx context.Context) (err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveHealthCheck("gcp", start, err) }()
+
 	a.logger.Debug("health check called")
 
 	// Use a timeout to prevent indefinite blocking
@@ -278,7 +281,7 @@ func (a *GCPAdapter) Health(ctx context.Context) error {
 	defer cancel()
 
 	// Check by getting the region
-	_, err := a.regionsClient.Get(healthCtx, &computepb.GetRegionRequest{
+	_, err = a.regionsClient.Get(healthCtx, &computepb.GetRegionRequest{
 		Project: a.projectID,
 		Region:  a.region,
 	})

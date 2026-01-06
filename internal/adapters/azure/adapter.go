@@ -280,7 +280,10 @@ func (a *AzureAdapter) Capabilities() []adapter.Capability {
 
 // Health performs a health check on the Azure backend.
 // It verifies connectivity to Azure services.
-func (a *AzureAdapter) Health(ctx context.Context) error {
+func (a *AzureAdapter) Health(ctx context.Context) (err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveHealthCheck("azure", start, err) }()
+
 	a.logger.Debug("health check called")
 
 	// Use a timeout to prevent indefinite blocking
@@ -289,7 +292,7 @@ func (a *AzureAdapter) Health(ctx context.Context) error {
 
 	// Check VM Sizes service (lightweight API call)
 	pager := a.vmSizeClient.NewListPager(a.location, nil)
-	_, err := pager.NextPage(healthCtx)
+	_, err = pager.NextPage(healthCtx)
 	if err != nil {
 		a.logger.Error("Azure health check failed", zap.Error(err))
 		return fmt.Errorf("azure API unreachable: %w", err)

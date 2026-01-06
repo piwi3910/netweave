@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/piwi3910/netweave/internal/adapter"
@@ -11,11 +12,12 @@ import (
 )
 
 // ListResources retrieves all resources (Azure VMs) matching the provided filter.
-func (a *AzureAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (a *AzureAdapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("azure", "ListResources", start, err) }()
+
 	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
-
-	var resources []*adapter.Resource
 
 	// List all VMs in the subscription
 	pager := a.vmClient.NewListAllPager(nil)
@@ -58,7 +60,10 @@ func (a *AzureAdapter) ListResources(ctx context.Context, filter *adapter.Filter
 }
 
 // GetResource retrieves a specific resource (Azure VM) by ID.
-func (a *AzureAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+func (a *AzureAdapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("azure", "GetResource", start, err) }()
+
 	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
@@ -83,7 +88,7 @@ func (a *AzureAdapter) GetResource(ctx context.Context, id string) (*adapter.Res
 		return nil, fmt.Errorf("failed to get VM: %w", err)
 	}
 
-	resource := a.vmToResource(&vm.VirtualMachine)
+	resource = a.vmToResource(&vm.VirtualMachine)
 
 	a.logger.Info("retrieved resource",
 		zap.String("resourceId", resource.ResourceID))
@@ -92,7 +97,10 @@ func (a *AzureAdapter) GetResource(ctx context.Context, id string) (*adapter.Res
 }
 
 // CreateResource creates a new resource (Azure VM).
-func (a *AzureAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+func (a *AzureAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("azure", "CreateResource", start, err) }()
+
 	a.logger.Debug("CreateResource called",
 		zap.String("resourceTypeId", resource.ResourceTypeID))
 
@@ -101,7 +109,10 @@ func (a *AzureAdapter) CreateResource(ctx context.Context, resource *adapter.Res
 }
 
 // DeleteResource deletes a resource (Azure VM) by ID.
-func (a *AzureAdapter) DeleteResource(ctx context.Context, id string) error {
+func (a *AzureAdapter) DeleteResource(ctx context.Context, id string) (err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("azure", "DeleteResource", start, err) }()
+
 	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 

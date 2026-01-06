@@ -3,6 +3,7 @@ package gcp
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/piwi3910/netweave/internal/adapter"
@@ -12,7 +13,10 @@ import (
 // CreateSubscription creates a new event subscription.
 // GCP adapter uses polling-based subscriptions since Pub/Sub
 // integration would require additional GCP infrastructure setup.
-func (a *GCPAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *GCPAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("gcp", "CreateSubscription", start, err) }()
+
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback))
 
@@ -38,7 +42,11 @@ func (a *GCPAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscr
 	// Store in memory
 	a.subscriptionsMu.Lock()
 	a.subscriptions[subscriptionID] = newSub
+	count := len(a.subscriptions)
 	a.subscriptionsMu.Unlock()
+
+	// Update subscription count metric
+	adapter.UpdateSubscriptionCount("gcp", count)
 
 	a.logger.Info("created subscription",
 		zap.String("subscriptionId", subscriptionID),
@@ -48,7 +56,10 @@ func (a *GCPAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscr
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *GCPAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
+func (a *GCPAdapter) GetSubscription(ctx context.Context, id string) (sub *adapter.Subscription, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("gcp", "GetSubscription", start, err) }()
+
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
@@ -64,18 +75,25 @@ func (a *GCPAdapter) GetSubscription(ctx context.Context, id string) (*adapter.S
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *GCPAdapter) DeleteSubscription(ctx context.Context, id string) error {
+func (a *GCPAdapter) DeleteSubscription(ctx context.Context, id string) (err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("gcp", "DeleteSubscription", start, err) }()
+
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
 	a.subscriptionsMu.Lock()
-	defer a.subscriptionsMu.Unlock()
-
 	if _, exists := a.subscriptions[id]; !exists {
+		a.subscriptionsMu.Unlock()
 		return fmt.Errorf("subscription not found: %s", id)
 	}
 
 	delete(a.subscriptions, id)
+	count := len(a.subscriptions)
+	a.subscriptionsMu.Unlock()
+
+	// Update subscription count metric
+	adapter.UpdateSubscriptionCount("gcp", count)
 
 	a.logger.Info("deleted subscription",
 		zap.String("subscriptionId", id))

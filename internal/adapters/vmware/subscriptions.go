@@ -3,6 +3,7 @@ package vmware
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/piwi3910/netweave/internal/adapter"
@@ -12,7 +13,10 @@ import (
 // CreateSubscription creates a new event subscription.
 // VMware adapter uses polling-based subscriptions since vSphere Event
 // integration would require additional configuration.
-func (a *VMwareAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *VMwareAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("vmware", "CreateSubscription", start, err) }()
+
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback))
 
@@ -38,7 +42,11 @@ func (a *VMwareAdapter) CreateSubscription(ctx context.Context, sub *adapter.Sub
 	// Store in memory
 	a.subscriptionsMu.Lock()
 	a.subscriptions[subscriptionID] = newSub
+	count := len(a.subscriptions)
 	a.subscriptionsMu.Unlock()
+
+	// Update subscription count metric
+	adapter.UpdateSubscriptionCount("vmware", count)
 
 	a.logger.Info("created subscription",
 		zap.String("subscriptionId", subscriptionID),
@@ -48,34 +56,44 @@ func (a *VMwareAdapter) CreateSubscription(ctx context.Context, sub *adapter.Sub
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *VMwareAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
+func (a *VMwareAdapter) GetSubscription(ctx context.Context, id string) (sub *adapter.Subscription, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("vmware", "GetSubscription", start, err) }()
+
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
 	a.subscriptionsMu.RLock()
-	sub, exists := a.subscriptions[id]
+	subscription, exists := a.subscriptions[id]
 	a.subscriptionsMu.RUnlock()
 
 	if !exists {
 		return nil, fmt.Errorf("subscription not found: %s", id)
 	}
 
-	return sub, nil
+	return subscription, nil
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *VMwareAdapter) DeleteSubscription(ctx context.Context, id string) error {
+func (a *VMwareAdapter) DeleteSubscription(ctx context.Context, id string) (err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("vmware", "DeleteSubscription", start, err) }()
+
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
 	a.subscriptionsMu.Lock()
-	defer a.subscriptionsMu.Unlock()
-
 	if _, exists := a.subscriptions[id]; !exists {
+		a.subscriptionsMu.Unlock()
 		return fmt.Errorf("subscription not found: %s", id)
 	}
 
 	delete(a.subscriptions, id)
+	count := len(a.subscriptions)
+	a.subscriptionsMu.Unlock()
+
+	// Update subscription count metric
+	adapter.UpdateSubscriptionCount("vmware", count)
 
 	a.logger.Info("deleted subscription",
 		zap.String("subscriptionId", id))

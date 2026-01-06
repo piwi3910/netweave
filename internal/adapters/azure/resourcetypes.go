@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/piwi3910/netweave/internal/adapter"
@@ -11,11 +12,12 @@ import (
 )
 
 // ListResourceTypes retrieves all resource types (Azure VM sizes) matching the provided filter.
-func (a *AzureAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (a *AzureAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("azure", "ListResourceTypes", start, err) }()
+
 	a.logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
-
-	var resourceTypes []*adapter.ResourceType
 
 	// List VM sizes for the configured location
 	pager := a.vmSizeClient.NewListPager(a.location, nil)
@@ -49,7 +51,10 @@ func (a *AzureAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Fi
 }
 
 // GetResourceType retrieves a specific resource type (Azure VM size) by ID.
-func (a *AzureAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
+func (a *AzureAdapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("azure", "GetResourceType", start, err) }()
+
 	a.logger.Debug("GetResourceType called",
 		zap.String("id", id))
 

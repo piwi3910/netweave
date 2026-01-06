@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/piwi3910/netweave/internal/adapter"
@@ -12,7 +13,10 @@ import (
 // CreateSubscription creates a new event subscription.
 // AWS adapter uses polling-based subscriptions since CloudWatch Events
 // integration would require additional AWS infrastructure setup.
-func (a *AWSAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *AWSAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (created *adapter.Subscription, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "CreateSubscription", start, err) }()
+
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback))
 
@@ -38,7 +42,11 @@ func (a *AWSAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscr
 	// Store in memory
 	a.subscriptionsMu.Lock()
 	a.subscriptions[subscriptionID] = newSub
+	subscriptionCount := len(a.subscriptions)
 	a.subscriptionsMu.Unlock()
+
+	// Update subscription count metric
+	adapter.UpdateSubscriptionCount("aws", subscriptionCount)
 
 	a.logger.Info("created subscription",
 		zap.String("subscriptionId", subscriptionID),
@@ -48,7 +56,10 @@ func (a *AWSAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscr
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *AWSAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
+func (a *AWSAdapter) GetSubscription(ctx context.Context, id string) (sub *adapter.Subscription, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "GetSubscription", start, err) }()
+
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
@@ -64,18 +75,25 @@ func (a *AWSAdapter) GetSubscription(ctx context.Context, id string) (*adapter.S
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *AWSAdapter) DeleteSubscription(ctx context.Context, id string) error {
+func (a *AWSAdapter) DeleteSubscription(ctx context.Context, id string) (err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "DeleteSubscription", start, err) }()
+
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
 	a.subscriptionsMu.Lock()
-	defer a.subscriptionsMu.Unlock()
-
 	if _, exists := a.subscriptions[id]; !exists {
+		a.subscriptionsMu.Unlock()
 		return fmt.Errorf("subscription not found: %s", id)
 	}
 
 	delete(a.subscriptions, id)
+	subscriptionCount := len(a.subscriptions)
+	a.subscriptionsMu.Unlock()
+
+	// Update subscription count metric
+	adapter.UpdateSubscriptionCount("aws", subscriptionCount)
 
 	a.logger.Info("deleted subscription",
 		zap.String("subscriptionId", id))
