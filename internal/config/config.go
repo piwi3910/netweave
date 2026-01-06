@@ -296,6 +296,11 @@ type ValidationConfig struct {
 	// SpecPath is the path to a custom OpenAPI specification file
 	// If empty, the embedded spec will be used
 	SpecPath string `mapstructure:"spec_path"`
+
+	// MaxBodySize is the maximum allowed request body size in bytes
+	// Requests exceeding this limit are rejected with 413 Payload Too Large
+	// Default: 1048576 (1MB)
+	MaxBodySize int64 `mapstructure:"max_body_size"`
 }
 
 // Load loads configuration from the specified file path and environment variables.
@@ -428,6 +433,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("validation.enabled", true)
 	v.SetDefault("validation.validate_response", false)
 	v.SetDefault("validation.spec_path", "")
+	v.SetDefault("validation.max_body_size", 1048576) // 1MB default
 }
 
 // Validate validates the configuration and returns an error if any values are invalid.

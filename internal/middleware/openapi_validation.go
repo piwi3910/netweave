@@ -474,15 +474,3 @@ func extractSchemaError(errStr string) string {
 
 	return "schema validation failed"
 }
-
-// ValidationError represents an OpenAPI validation error.
-type ValidationError struct {
-	Field   string `json:"field,omitempty"`
-	Message string `json:"message"`
-	Value   string `json:"value,omitempty"`
-}
-
-// ValidationErrors is a collection of validation errors.
-type ValidationErrors struct {
-	Errors []ValidationError `json:"errors"`
-}
