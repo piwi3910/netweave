@@ -150,17 +150,42 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 		return fmt.Errorf("plugin is closed")
 	}
 
-	// Parse configuration
-	cfg := DefaultConfig()
-	if err := parseConfig(config, cfg); err != nil {
-		return fmt.Errorf("failed to parse configuration: %w", err)
-	}
-
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("invalid configuration: %w", err)
+	// Parse and validate configuration
+	cfg, err := p.parseAndValidateConfig(config)
+	if err != nil {
+		return err
 	}
 
 	p.config = cfg
+	p.logInitialization(cfg)
+
+	// Initialize all ONAP clients
+	if err := p.initializeClients(cfg); err != nil {
+		return err
+	}
+
+	// Perform initial health check and log status
+	p.performHealthCheck(ctx)
+
+	return nil
+}
+
+// parseAndValidateConfig parses and validates the plugin configuration
+func (p *Plugin) parseAndValidateConfig(config map[string]interface{}) (*Config, error) {
+	cfg := DefaultConfig()
+	if err := parseConfig(config, cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse configuration: %w", err)
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	return cfg, nil
+}
+
+// logInitialization logs the plugin initialization details
+func (p *Plugin) logInitialization(cfg *Config) {
 	p.logger.Info("Initializing ONAP plugin",
 		zap.String("aaiUrl", cfg.AAIURL),
 		zap.String("dmaapUrl", cfg.DMaaPURL),
@@ -171,8 +196,25 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 		zap.Bool("enableDmsBackend", cfg.EnableDMSBackend),
 		zap.Bool("enableSdnc", cfg.EnableSDNC),
 	)
+}
 
+// initializeClients initializes all enabled ONAP clients
+func (p *Plugin) initializeClients(cfg *Config) error {
 	// Initialize northbound clients
+	if err := p.initializeNorthboundClients(cfg); err != nil {
+		return err
+	}
+
+	// Initialize DMS backend clients
+	if err := p.initializeDMSClients(cfg); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// initializeNorthboundClients initializes A&AI and DMaaP clients
+func (p *Plugin) initializeNorthboundClients(cfg *Config) error {
 	if cfg.EnableInventorySync && cfg.AAIURL != "" {
 		p.logger.Info("Initializing A&AI client", zap.String("url", cfg.AAIURL))
 		aaiClient, err := NewAAIClient(cfg, p.logger)
@@ -191,7 +233,11 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 		p.dmaapClient = dmaapClient
 	}
 
-	// Initialize DMS backend clients
+	return nil
+}
+
+// initializeDMSClients initializes SO and SDNC clients for DMS backend
+func (p *Plugin) initializeDMSClients(cfg *Config) error {
 	if cfg.EnableDMSBackend && cfg.SOURL != "" {
 		p.logger.Info("Initializing SO client", zap.String("url", cfg.SOURL))
 		soClient, err := NewSOClient(cfg, p.logger)
@@ -210,7 +256,11 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 		p.sdncClient = sdncClient
 	}
 
-	// Perform initial health check
+	return nil
+}
+
+// performHealthCheck performs initial health check and logs the result
+func (p *Plugin) performHealthCheck(ctx context.Context) {
 	health := p.Health(ctx)
 	if !health.Healthy {
 		p.logger.Warn("ONAP plugin initialized but some components are unhealthy",
@@ -219,8 +269,6 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 	} else {
 		p.logger.Info("ONAP plugin initialized successfully")
 	}
-
-	return nil
 }
 
 // Health checks the health status of all ONAP component connections.
