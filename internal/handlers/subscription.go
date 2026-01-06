@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -139,56 +141,89 @@ func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
 //   - 409 Conflict: Subscription with same consumer ID already exists
 func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 	ctx := c.Request.Context()
-	var sub models.Subscription
 
 	h.logger.Info("creating subscription",
 		zap.String("request_id", c.GetString("request_id")),
 	)
 
+	// Parse and validate request
+	sub, err := h.parseAndValidateRequest(c)
+	if err != nil {
+		return // Error response already sent
+	}
+
+	// Create and store subscription
+	subscriptionID := uuid.New().String()
+	storageSub := h.convertToStorageSubscription(sub, subscriptionID)
+
+	if err := h.storeSubscription(ctx, c, storageSub); err != nil {
+		return // Error response already sent
+	}
+
+	// Build and send response
+	response := h.buildSubscriptionResponse(subscriptionID, storageSub)
+
+	h.logger.Info("subscription created",
+		zap.String("subscription_id", subscriptionID),
+		zap.String("callback", sub.Callback),
+	)
+
+	c.JSON(http.StatusCreated, response)
+}
+
+// parseAndValidateRequest parses and validates the subscription creation request
+func (h *SubscriptionHandler) parseAndValidateRequest(c *gin.Context) (*models.Subscription, error) {
+	var sub models.Subscription
+
 	// Parse request body
 	if err := c.ShouldBindJSON(&sub); err != nil {
-		h.logger.Warn("invalid request body",
-			zap.Error(err),
-		)
-
+		h.logger.Warn("invalid request body", zap.Error(err))
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
 			Message: "Invalid request body: " + err.Error(),
 			Code:    http.StatusBadRequest,
 		})
-		return
+		return nil, err
 	}
 
-	// Validate required fields
-	if sub.Callback == "" {
+	// Validate callback URL
+	if err := h.validateCallbackURL(c, sub.Callback); err != nil {
+		return nil, err
+	}
+
+	return &sub, nil
+}
+
+// validateCallbackURL validates the callback URL format
+func (h *SubscriptionHandler) validateCallbackURL(c *gin.Context, callback string) error {
+	if callback == "" {
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
 			Message: "Callback URL is required",
 			Code:    http.StatusBadRequest,
 		})
-		return
+		return fmt.Errorf("callback URL is required")
 	}
 
-	// Validate callback URL format
-	callbackURL, err := url.Parse(sub.Callback)
+	callbackURL, err := url.Parse(callback)
 	if err != nil || (callbackURL.Scheme != "http" && callbackURL.Scheme != "https") {
 		h.logger.Warn("invalid callback URL",
-			zap.String("callback", sub.Callback),
+			zap.String("callback", callback),
 			zap.Error(err),
 		)
-
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
 			Message: "Invalid callback URL: must be a valid HTTP or HTTPS URL",
 			Code:    http.StatusBadRequest,
 		})
-		return
+		return fmt.Errorf("invalid callback URL")
 	}
 
-	// Generate subscription ID
-	subscriptionID := uuid.New().String()
+	return nil
+}
 
-	// Convert models.Subscription to storage.Subscription
+// convertToStorageSubscription converts models.Subscription to storage.Subscription
+func (h *SubscriptionHandler) convertToStorageSubscription(sub *models.Subscription, subscriptionID string) *storage.Subscription {
 	storageFilter := storage.SubscriptionFilter{}
 	if sub.Filter.ResourcePoolID != nil && len(sub.Filter.ResourcePoolID) > 0 {
 		storageFilter.ResourcePoolID = sub.Filter.ResourcePoolID[0]
@@ -200,61 +235,56 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 		storageFilter.ResourceID = sub.Filter.ResourceID[0]
 	}
 
-	storageSub := &storage.Subscription{
+	return &storage.Subscription{
 		ID:                     subscriptionID,
 		Callback:               sub.Callback,
 		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
 		Filter:                 storageFilter,
 		CreatedAt:              time.Now(),
 	}
+}
 
-	// Store subscription
-	err = h.store.Create(ctx, storageSub)
+// storeSubscription stores the subscription and handles errors
+func (h *SubscriptionHandler) storeSubscription(ctx context.Context, c *gin.Context, storageSub *storage.Subscription) error {
+	err := h.store.Create(ctx, storageSub)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionExists) {
 			h.logger.Warn("subscription already exists",
-				zap.String("consumer_subscription_id", sub.ConsumerSubscriptionID),
+				zap.String("consumer_subscription_id", storageSub.ConsumerSubscriptionID),
 			)
-
 			c.JSON(http.StatusConflict, models.ErrorResponse{
 				Error:   "Conflict",
 				Message: "Subscription already exists",
 				Code:    http.StatusConflict,
 			})
-			return
+			return err
 		}
 
-		h.logger.Error("failed to create subscription",
-			zap.Error(err),
-		)
-
+		h.logger.Error("failed to create subscription", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 			Error:   "InternalError",
 			Message: "Failed to create subscription",
 			Code:    http.StatusInternalServerError,
 		})
-		return
+		return err
 	}
 
-	// Convert back to models.Subscription for response
-	response := models.Subscription{
+	return nil
+}
+
+// buildSubscriptionResponse builds the subscription response object
+func (h *SubscriptionHandler) buildSubscriptionResponse(subscriptionID string, storageSub *storage.Subscription) models.Subscription {
+	return models.Subscription{
 		SubscriptionID:         subscriptionID,
 		Callback:               storageSub.Callback,
 		ConsumerSubscriptionID: storageSub.ConsumerSubscriptionID,
 		Filter: models.SubscriptionFilter{
-			ResourcePoolID: []string{storageFilter.ResourcePoolID},
-			ResourceTypeID: []string{storageFilter.ResourceTypeID},
-			ResourceID:     []string{storageFilter.ResourceID},
+			ResourcePoolID: []string{storageSub.Filter.ResourcePoolID},
+			ResourceTypeID: []string{storageSub.Filter.ResourceTypeID},
+			ResourceID:     []string{storageSub.Filter.ResourceID},
 		},
 		CreatedAt: storageSub.CreatedAt,
 	}
-
-	h.logger.Info("subscription created",
-		zap.String("subscription_id", subscriptionID),
-		zap.String("callback", sub.Callback),
-	)
-
-	c.JSON(http.StatusCreated, response)
 }
 
 // GetSubscription handles GET /o2ims/v1/subscriptions/:subscriptionId.
