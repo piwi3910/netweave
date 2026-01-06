@@ -42,7 +42,11 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 		WriteTimeout: 3 * time.Second,
 		PoolSize:     10,
 	})
-	defer redisStore.Close()
+	defer func() {
+		if err := redisStore.Close(); err != nil {
+			t.Logf("Failed to close Redis store: %v", err)
+		}
+	}()
 
 	// Setup webhook server to receive notifications
 	webhookServer := helpers.NewWebhookServer(t)
@@ -50,7 +54,11 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 
 	// Setup gateway server
 	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
+	defer func() {
+		if err := k8sAdapter.Close(); err != nil {
+			t.Logf("Failed to close Kubernetes adapter: %v", err)
+		}
+	}()
 
 	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
@@ -66,7 +74,11 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 		bytes.NewReader(subBody),
 	)
 	require.NoError(t, err)
-	defer subResp.Body.Close()
+	defer func() {
+		if err := subResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	assert.Equal(t, http.StatusCreated, subResp.StatusCode)
 
@@ -95,12 +107,18 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 		bytes.NewReader(poolBody),
 	)
 	require.NoError(t, err)
-	defer poolResp.Body.Close()
+	defer func() {
+		if err := poolResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	assert.Equal(t, http.StatusCreated, poolResp.StatusCode)
 
 	var pool map[string]interface{}
-	json.NewDecoder(poolResp.Body).Decode(&pool)
+	if err := json.NewDecoder(poolResp.Body).Decode(&pool); err != nil {
+		t.Logf("Failed to decode response: %v", err)
+	}
 	poolID := pool["resourcePoolId"].(string)
 
 	// Step 3: Wait for webhook notification
@@ -134,13 +152,21 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 		Addr:     env.Redis.Addr(),
 		PoolSize: 10,
 	})
-	defer redisStore.Close()
+	defer func() {
+		if err := redisStore.Close(); err != nil {
+			t.Logf("Failed to close Redis store: %v", err)
+		}
+	}()
 
 	webhookServer := helpers.NewWebhookServer(t)
 	defer webhookServer.Close()
 
 	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
+	defer func() {
+		if err := k8sAdapter.Close(); err != nil {
+			t.Logf("Failed to close Kubernetes adapter: %v", err)
+		}
+	}()
 
 	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
@@ -152,10 +178,16 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 		"application/json",
 		bytes.NewReader(poolBody),
 	)
-	defer poolResp.Body.Close()
+	defer func() {
+		if err := poolResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	var pool map[string]interface{}
-	json.NewDecoder(poolResp.Body).Decode(&pool)
+	if err := json.NewDecoder(poolResp.Body).Decode(&pool); err != nil {
+		t.Logf("Failed to decode response: %v", err)
+	}
 	poolID := pool["resourcePoolId"].(string)
 
 	// Test 1: Subscription with pool filter (should match)
@@ -172,10 +204,16 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 			bytes.NewReader(subBody),
 		)
 		require.NoError(t, err)
-		defer subResp.Body.Close()
+		defer func() {
+			if err := subResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var subscription map[string]interface{}
-		json.NewDecoder(subResp.Body).Decode(&subscription)
+		if err := json.NewDecoder(subResp.Body).Decode(&subscription); err != nil {
+			t.Logf("Failed to decode response: %v", err)
+		}
 		subscriptionID := subscription["subscriptionId"].(string)
 
 		// Create resource in the matching pool
@@ -188,7 +226,11 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 			bytes.NewReader(resBody),
 		)
 		require.NoError(t, err)
-		defer resResp.Body.Close()
+		defer func() {
+			if err := resResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		// Should receive notification
 		notification := webhookServer.WaitForNotification(5 * time.Second)
@@ -210,7 +252,11 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 			bytes.NewReader(subBody),
 		)
 		require.NoError(t, err)
-		defer subResp.Body.Close()
+		defer func() {
+			if err := subResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		// Create resource in original pool (not matching subscription filter)
 		resourceData := helpers.TestResource(poolID, "compute-node")
@@ -222,7 +268,11 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 			bytes.NewReader(resBody),
 		)
 		require.NoError(t, err)
-		defer resResp.Body.Close()
+		defer func() {
+			if err := resResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		// Should NOT receive notification
 		notification := webhookServer.WaitForNotification(2 * time.Second)
@@ -242,13 +292,21 @@ func TestSubscriptionWorkflow_MultipleSubscriptions(t *testing.T) {
 		Addr:     env.Redis.Addr(),
 		PoolSize: 10,
 	})
-	defer redisStore.Close()
+	defer func() {
+		if err := redisStore.Close(); err != nil {
+			t.Logf("Failed to close Redis store: %v", err)
+		}
+	}()
 
 	webhookServer := helpers.NewWebhookServer(t)
 	defer webhookServer.Close()
 
 	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
+	defer func() {
+		if err := k8sAdapter.Close(); err != nil {
+			t.Logf("Failed to close Kubernetes adapter: %v", err)
+		}
+	}()
 
 	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
@@ -266,10 +324,16 @@ func TestSubscriptionWorkflow_MultipleSubscriptions(t *testing.T) {
 			bytes.NewReader(subBody),
 		)
 		require.NoError(t, err)
-		defer subResp.Body.Close()
+		defer func() {
+			if err := subResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var subscription map[string]interface{}
-		json.NewDecoder(subResp.Body).Decode(&subscription)
+		if err := json.NewDecoder(subResp.Body).Decode(&subscription); err != nil {
+			t.Logf("Failed to decode response: %v", err)
+		}
 		subscriptionIDs[i] = subscription["subscriptionId"].(string)
 
 		t.Logf("Created subscription %d: %s", i+1, subscriptionIDs[i])
@@ -285,7 +349,11 @@ func TestSubscriptionWorkflow_MultipleSubscriptions(t *testing.T) {
 		bytes.NewReader(poolBody),
 	)
 	require.NoError(t, err)
-	defer poolResp.Body.Close()
+	defer func() {
+		if err := poolResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	// Wait for all notifications
 	notifications := webhookServer.WaitForNotifications(numSubscriptions, 10*time.Second)
@@ -316,13 +384,21 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 		Addr:     env.Redis.Addr(),
 		PoolSize: 10,
 	})
-	defer redisStore.Close()
+	defer func() {
+		if err := redisStore.Close(); err != nil {
+			t.Logf("Failed to close Redis store: %v", err)
+		}
+	}()
 
 	webhookServer := helpers.NewWebhookServer(t)
 	defer webhookServer.Close()
 
 	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
+	defer func() {
+		if err := k8sAdapter.Close(); err != nil {
+			t.Logf("Failed to close Kubernetes adapter: %v", err)
+		}
+	}()
 
 	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
@@ -336,7 +412,11 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 		bytes.NewReader(subBody),
 	)
 	require.NoError(t, err)
-	defer subResp.Body.Close()
+	defer func() {
+		if err := subResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	var subscription map[string]interface{}
 	json.NewDecoder(subResp.Body).Decode(&subscription)
@@ -356,7 +436,11 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	client := &http.Client{}
 	delResp, err := client.Do(req)
 	require.NoError(t, err)
-	defer delResp.Body.Close()
+	defer func() {
+		if err := delResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	assert.Equal(t, http.StatusNoContent, delResp.StatusCode)
 
@@ -375,7 +459,11 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 		bytes.NewReader(poolBody),
 	)
 	require.NoError(t, err)
-	defer poolResp.Body.Close()
+	defer func() {
+		if err := poolResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	// Should NOT receive notification after deletion
 	notification := webhookServer.WaitForNotification(2 * time.Second)

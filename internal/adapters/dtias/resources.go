@@ -14,10 +14,23 @@ import (
 // ListResources retrieves all physical servers matching the provided filter.
 // Maps DTIAS servers to O2-IMS Resources.
 func (a *DTIASAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
-	a.logger.Debug("ListResources called",
-		zap.Any("filter", filter))
+	a.logger.Debug("ListResources called", zap.Any("filter", filter))
 
-	// Build query parameters
+	path := buildServersPath(filter)
+
+	servers, err := a.fetchServers(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+
+	resources := a.transformAndFilterResources(servers, filter)
+
+	a.logger.Debug("listed resources", zap.Int("count", len(resources)))
+	return resources, nil
+}
+
+// buildServersPath builds the API path with query parameters for servers.
+func buildServersPath(filter *adapter.Filter) string {
 	queryParams := url.Values{}
 	if filter != nil {
 		if filter.ResourcePoolID != "" {
@@ -37,40 +50,43 @@ func (a *DTIASAdapter) ListResources(ctx context.Context, filter *adapter.Filter
 		}
 	}
 
-	// Query DTIAS API
 	path := "/servers"
 	if len(queryParams) > 0 {
 		path += "?" + queryParams.Encode()
 	}
+	return path
+}
 
+// fetchServers retrieves servers from DTIAS API.
+func (a *DTIASAdapter) fetchServers(ctx context.Context, path string) ([]Server, error) {
 	resp, err := a.client.doRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list servers: %w", err)
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
-	// Parse response
 	var servers []Server
 	if err := a.client.parseResponse(resp, &servers); err != nil {
 		return nil, fmt.Errorf("failed to parse servers response: %w", err)
 	}
+	return servers, nil
+}
 
-	// Transform DTIAS servers to O2-IMS resources
+// transformAndFilterResources transforms servers and applies client-side filtering.
+func (a *DTIASAdapter) transformAndFilterResources(servers []Server, filter *adapter.Filter) []*adapter.Resource {
 	resources := make([]*adapter.Resource, 0, len(servers))
-	for _, srv := range servers {
-		resource := a.transformServerToResource(&srv)
-
-		// Apply client-side filtering
+	for i := range servers {
+		resource := a.transformServerToResource(&servers[i])
 		if filter != nil && !a.matchesResourceFilter(resource, filter) {
 			continue
 		}
-
 		resources = append(resources, resource)
 	}
-
-	a.logger.Debug("listed resources",
-		zap.Int("count", len(resources)))
-
-	return resources, nil
+	return resources
 }
 
 // GetResource retrieves a specific physical server by ID.
@@ -85,6 +101,11 @@ func (a *DTIASAdapter) GetResource(ctx context.Context, id string) (*adapter.Res
 	if err != nil {
 		return nil, fmt.Errorf("failed to get server: %w", err)
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Parse response
 	var server Server
@@ -137,6 +158,11 @@ func (a *DTIASAdapter) CreateResource(ctx context.Context, resource *adapter.Res
 	if err != nil {
 		return nil, fmt.Errorf("failed to provision server: %w", err)
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Parse response
 	var server Server
@@ -167,7 +193,7 @@ func (a *DTIASAdapter) DeleteResource(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("failed to decommission server: %w", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	a.logger.Info("decommissioned resource",
 		zap.String("id", id))
@@ -310,7 +336,7 @@ func (a *DTIASAdapter) PowerControl(ctx context.Context, serverID string, operat
 	if err != nil {
 		return fmt.Errorf("failed to perform power operation: %w", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	a.logger.Info("executed power control",
 		zap.String("serverId", serverID),
@@ -331,6 +357,11 @@ func (a *DTIASAdapter) GetHealthMetrics(ctx context.Context, serverID string) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to get health metrics: %w", err)
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Parse response
 	var metrics HealthMetrics

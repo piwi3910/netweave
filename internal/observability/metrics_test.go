@@ -415,7 +415,7 @@ func TestHTTPInFlightDec(t *testing.T) {
 	assert.Equal(t, float64(1), count)
 }
 
-// Benchmark tests for performance validation
+// Benchmark tests for performance validation.
 func BenchmarkRecordHTTPRequest(b *testing.B) {
 	globalMetrics = nil
 	metrics := InitMetrics("bench_o2ims")

@@ -97,7 +97,7 @@ func (c *Client) Authenticate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("auth request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
@@ -148,7 +148,7 @@ func (c *Client) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("health check request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("health check failed (status %d)", resp.StatusCode)
@@ -228,7 +228,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request, result interf
 			lastErr = fmt.Errorf("request failed: %w", err)
 			continue
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if err := c.handleResponse(ctx, req, resp, result, &lastErr); err != nil {
 			if err == errRetryable {
@@ -260,7 +260,7 @@ func (c *Client) waitForRetry(ctx context.Context, attempt int) error {
 	case <-time.After(delay):
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("context cancelled during retry wait: %w", ctx.Err())
 	}
 }
 
@@ -334,15 +334,6 @@ func (c *Client) get(ctx context.Context, path string, result interface{}) error
 // post performs a POST request to the specified path with the given body.
 func (c *Client) post(ctx context.Context, path string, body interface{}, result interface{}) error {
 	req, err := c.newRequest(ctx, http.MethodPost, path, body)
-	if err != nil {
-		return err
-	}
-	return c.doRequest(ctx, req, result)
-}
-
-// put performs a PUT request to the specified path with the given body.
-func (c *Client) put(ctx context.Context, path string, body interface{}, result interface{}) error {
-	req, err := c.newRequest(ctx, http.MethodPut, path, body)
 	if err != nil {
 		return err
 	}

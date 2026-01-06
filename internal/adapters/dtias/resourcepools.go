@@ -14,10 +14,23 @@ import (
 // ListResourcePools retrieves all server pools matching the provided filter.
 // Maps DTIAS server pools to O2-IMS ResourcePools.
 func (a *DTIASAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
-	a.logger.Debug("ListResourcePools called",
-		zap.Any("filter", filter))
+	a.logger.Debug("ListResourcePools called", zap.Any("filter", filter))
 
-	// Build query parameters
+	path := buildServerPoolsPath(filter)
+
+	serverPools, err := a.fetchServerPools(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+
+	resourcePools := a.transformAndFilterPools(serverPools, filter)
+
+	a.logger.Debug("listed resource pools", zap.Int("count", len(resourcePools)))
+	return resourcePools, nil
+}
+
+// buildServerPoolsPath builds the API path with query parameters.
+func buildServerPoolsPath(filter *adapter.Filter) string {
 	queryParams := url.Values{}
 	if filter != nil {
 		if filter.Location != "" {
@@ -31,40 +44,43 @@ func (a *DTIASAdapter) ListResourcePools(ctx context.Context, filter *adapter.Fi
 		}
 	}
 
-	// Query DTIAS API
 	path := "/server-pools"
 	if len(queryParams) > 0 {
 		path += "?" + queryParams.Encode()
 	}
+	return path
+}
 
+// fetchServerPools retrieves server pools from DTIAS API.
+func (a *DTIASAdapter) fetchServerPools(ctx context.Context, path string) ([]ServerPool, error) {
 	resp, err := a.client.doRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list server pools: %w", err)
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
-	// Parse response
 	var serverPools []ServerPool
 	if err := a.client.parseResponse(resp, &serverPools); err != nil {
 		return nil, fmt.Errorf("failed to parse server pools response: %w", err)
 	}
+	return serverPools, nil
+}
 
-	// Transform DTIAS server pools to O2-IMS resource pools
+// transformAndFilterPools transforms server pools and applies client-side filtering.
+func (a *DTIASAdapter) transformAndFilterPools(serverPools []ServerPool, filter *adapter.Filter) []*adapter.ResourcePool {
 	resourcePools := make([]*adapter.ResourcePool, 0, len(serverPools))
-	for _, sp := range serverPools {
-		pool := a.transformServerPoolToResourcePool(&sp)
-
-		// Apply client-side filtering
+	for i := range serverPools {
+		pool := a.transformServerPoolToResourcePool(&serverPools[i])
 		if filter != nil && !a.matchesFilter(pool, filter) {
 			continue
 		}
-
 		resourcePools = append(resourcePools, pool)
 	}
-
-	a.logger.Debug("listed resource pools",
-		zap.Int("count", len(resourcePools)))
-
-	return resourcePools, nil
+	return resourcePools
 }
 
 // GetResourcePool retrieves a specific server pool by ID.
@@ -79,6 +95,11 @@ func (a *DTIASAdapter) GetResourcePool(ctx context.Context, id string) (*adapter
 	if err != nil {
 		return nil, fmt.Errorf("failed to get server pool: %w", err)
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Parse response
 	var serverPool ServerPool
@@ -131,6 +152,11 @@ func (a *DTIASAdapter) CreateResourcePool(ctx context.Context, pool *adapter.Res
 	if err != nil {
 		return nil, fmt.Errorf("failed to create server pool: %w", err)
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Parse response
 	var serverPool ServerPool
@@ -175,6 +201,11 @@ func (a *DTIASAdapter) UpdateResourcePool(ctx context.Context, id string, pool *
 	if err != nil {
 		return nil, fmt.Errorf("failed to update server pool: %w", err)
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Parse response
 	var serverPool ServerPool
@@ -203,7 +234,7 @@ func (a *DTIASAdapter) DeleteResourcePool(ctx context.Context, id string) error 
 	if err != nil {
 		return fmt.Errorf("failed to delete server pool: %w", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	a.logger.Info("deleted resource pool",
 		zap.String("id", id))

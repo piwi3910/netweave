@@ -17,6 +17,9 @@ package osm
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
+	"os"
 	"sync"
 	"time"
 )
@@ -260,8 +263,9 @@ func (p *Plugin) inventorySyncLoop() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			if err := p.syncInventory(ctx); err != nil {
 				// Log error but continue syncing
-				// In production, this would use structured logging
-				fmt.Printf("inventory sync error: %v\n", err)
+				var logOut io.Writer = os.Stderr
+				logger := log.New(logOut, "[osm-sync] ", log.LstdFlags)
+				logger.Printf("inventory sync error: %v", err)
 			}
 			cancel()
 

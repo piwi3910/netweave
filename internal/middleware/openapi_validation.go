@@ -264,7 +264,7 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 				"message": "Failed to read request body",
 				"code":    http.StatusInternalServerError,
 			})
-			return err
+			return fmt.Errorf("failed to read request body: %w", err)
 		}
 
 		// Double check actual bytes read (for chunked encoding where ContentLength may be -1)
@@ -298,7 +298,7 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 			"message": errorMessage,
 			"code":    http.StatusBadRequest,
 		})
-		return err
+		return fmt.Errorf("request validation failed: %w", err)
 	}
 
 	c.Next()
@@ -314,8 +314,14 @@ type responseRecorder struct {
 
 // Write captures the response body.
 func (r *responseRecorder) Write(b []byte) (int, error) {
-	r.body.Write(b)
-	return r.ResponseWriter.Write(b)
+	if _, err := r.body.Write(b); err != nil {
+		return 0, fmt.Errorf("failed to write to response buffer: %w", err)
+	}
+	n, err := r.ResponseWriter.Write(b)
+	if err != nil {
+		return n, fmt.Errorf("failed to write response: %w", err)
+	}
+	return n, nil
 }
 
 // WriteHeader captures the status code.

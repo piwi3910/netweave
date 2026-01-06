@@ -160,7 +160,7 @@ components:
           type: string
 `
 
-func setupTestRouter(t *testing.T, cfg *ValidationConfig) (*gin.Engine, *OpenAPIValidator) {
+func setupTestRouter(t *testing.T, cfg *ValidationConfig) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -181,7 +181,7 @@ func setupTestRouter(t *testing.T, cfg *ValidationConfig) (*gin.Engine, *OpenAPI
 
 	router.Use(validator.Middleware())
 
-	return router, validator
+	return router
 }
 
 func TestNewOpenAPIValidator(t *testing.T) {
@@ -236,7 +236,7 @@ func TestOpenAPIValidator_LoadSpec(t *testing.T) {
 
 func TestOpenAPIValidator_Middleware(t *testing.T) {
 	t.Run("validates valid GET request", func(t *testing.T) {
-		router, _ := setupTestRouter(t, nil)
+		router := setupTestRouter(t, nil)
 
 		router.GET("/o2ims/v1/subscriptions", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"subscriptions": []interface{}{}})
@@ -251,7 +251,7 @@ func TestOpenAPIValidator_Middleware(t *testing.T) {
 	})
 
 	t.Run("validates valid POST request with body", func(t *testing.T) {
-		router, _ := setupTestRouter(t, nil)
+		router := setupTestRouter(t, nil)
 
 		router.POST("/o2ims/v1/subscriptions", func(c *gin.Context) {
 			c.JSON(http.StatusCreated, gin.H{
@@ -276,7 +276,7 @@ func TestOpenAPIValidator_Middleware(t *testing.T) {
 	})
 
 	t.Run("rejects POST request with missing required field", func(t *testing.T) {
-		router, _ := setupTestRouter(t, nil)
+		router := setupTestRouter(t, nil)
 
 		router.POST("/o2ims/v1/subscriptions", func(c *gin.Context) {
 			c.JSON(http.StatusCreated, gin.H{"subscriptionId": "test-123"})
@@ -303,7 +303,7 @@ func TestOpenAPIValidator_Middleware(t *testing.T) {
 	})
 
 	t.Run("rejects POST request with invalid JSON", func(t *testing.T) {
-		router, _ := setupTestRouter(t, nil)
+		router := setupTestRouter(t, nil)
 
 		router.POST("/o2ims/v1/subscriptions", func(c *gin.Context) {
 			c.JSON(http.StatusCreated, gin.H{"subscriptionId": "test-123"})
@@ -321,7 +321,7 @@ func TestOpenAPIValidator_Middleware(t *testing.T) {
 	t.Run("allows request to excluded paths", func(t *testing.T) {
 		cfg := DefaultValidationConfig()
 		cfg.ExcludePaths = []string{"/health", "/metrics"}
-		router, _ := setupTestRouter(t, cfg)
+		router := setupTestRouter(t, cfg)
 
 		router.GET("/health", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "healthy"})
@@ -336,7 +336,7 @@ func TestOpenAPIValidator_Middleware(t *testing.T) {
 	})
 
 	t.Run("allows request to paths not in spec", func(t *testing.T) {
-		router, _ := setupTestRouter(t, nil)
+		router := setupTestRouter(t, nil)
 
 		router.GET("/unknown/path", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"message": "ok"})
@@ -351,7 +351,7 @@ func TestOpenAPIValidator_Middleware(t *testing.T) {
 	})
 
 	t.Run("validates path parameters", func(t *testing.T) {
-		router, _ := setupTestRouter(t, nil)
+		router := setupTestRouter(t, nil)
 
 		router.GET("/o2ims/v1/subscriptions/:subscriptionId", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
@@ -375,7 +375,7 @@ func TestOpenAPIValidator_DisabledValidation(t *testing.T) {
 			ValidateRequest:  false,
 			ValidateResponse: false,
 		}
-		router, _ := setupTestRouter(t, cfg)
+		router := setupTestRouter(t, cfg)
 
 		router.POST("/o2ims/v1/subscriptions", func(c *gin.Context) {
 			c.JSON(http.StatusCreated, gin.H{"subscriptionId": "test-123"})
@@ -511,7 +511,7 @@ func TestOpenAPIValidator_IsExcludedPath(t *testing.T) {
 }
 
 func TestOpenAPIValidator_ConcurrentAccess(t *testing.T) {
-	router, _ := setupTestRouter(t, nil)
+	router := setupTestRouter(t, nil)
 
 	router.GET("/o2ims/v1/subscriptions", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"subscriptions": []interface{}{}})
@@ -541,7 +541,7 @@ func TestOpenAPIValidator_MaxBodySize(t *testing.T) {
 			ValidateRequest: true,
 			MaxBodySize:     100, // 100 bytes limit
 		}
-		router, _ := setupTestRouter(t, cfg)
+		router := setupTestRouter(t, cfg)
 
 		router.POST("/o2ims/v1/subscriptions", func(c *gin.Context) {
 			c.JSON(http.StatusCreated, gin.H{"subscriptionId": "test-123"})
@@ -572,7 +572,7 @@ func TestOpenAPIValidator_MaxBodySize(t *testing.T) {
 			ValidateRequest: true,
 			MaxBodySize:     1024, // 1KB limit
 		}
-		router, _ := setupTestRouter(t, cfg)
+		router := setupTestRouter(t, cfg)
 
 		router.POST("/o2ims/v1/subscriptions", func(c *gin.Context) {
 			c.JSON(http.StatusCreated, gin.H{
@@ -615,7 +615,7 @@ func TestOpenAPIValidator_LoadSpecFromFile(t *testing.T) {
 		// Create a temp file with the test spec
 		tmpFile, err := os.CreateTemp("", "openapi-*.yaml")
 		require.NoError(t, err)
-		defer os.Remove(tmpFile.Name())
+		defer func() { _ = os.Remove(tmpFile.Name()) }()
 
 		_, err = tmpFile.WriteString(testOpenAPISpec)
 		require.NoError(t, err)
@@ -677,7 +677,7 @@ func TestOpenAPIValidator_ResponseValidation(t *testing.T) {
 			ValidateRequest:  true,
 			ValidateResponse: true,
 		}
-		router, _ := setupTestRouter(t, cfg)
+		router := setupTestRouter(t, cfg)
 
 		// Handler returns a valid response
 		router.GET("/o2ims/v1/subscriptions/:subscriptionId", func(c *gin.Context) {
@@ -701,7 +701,7 @@ func TestOpenAPIValidator_ResponseValidation(t *testing.T) {
 			ValidateRequest:  true,
 			ValidateResponse: true,
 		}
-		router, _ := setupTestRouter(t, cfg)
+		router := setupTestRouter(t, cfg)
 
 		// Handler returns an invalid response (missing required callback field)
 		router.GET("/o2ims/v1/subscriptions/:subscriptionId", func(c *gin.Context) {
@@ -726,7 +726,7 @@ func TestOpenAPIValidator_ResponseValidation(t *testing.T) {
 			ValidateRequest:  true,
 			ValidateResponse: false, // Disabled
 		}
-		router, _ := setupTestRouter(t, cfg)
+		router := setupTestRouter(t, cfg)
 
 		router.GET("/o2ims/v1/subscriptions/:subscriptionId", func(c *gin.Context) {
 			// Return invalid response - should not trigger any validation

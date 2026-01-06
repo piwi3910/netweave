@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// SpecVersion represents an O-RAN specification version
+// SpecVersion represents an O-RAN specification version.
 type SpecVersion struct {
 	Name        string    // e.g., "O2-IMS"
 	Version     string    // e.g., "v3.0.0"
@@ -25,7 +25,7 @@ type SpecVersion struct {
 	ReleaseDate time.Time // When this version was released
 }
 
-// ComplianceLevel represents the level of compliance with a specification
+// ComplianceLevel represents the level of compliance with a specification.
 type ComplianceLevel string
 
 const (
@@ -34,7 +34,7 @@ const (
 	ComplianceNone    ComplianceLevel = "none"    // Not compliant (< 80%)
 )
 
-// ComplianceResult represents the result of compliance validation
+// ComplianceResult represents the result of compliance validation.
 type ComplianceResult struct {
 	SpecName        string          `json:"specName"`
 	SpecVersion     string          `json:"specVersion"`
@@ -48,7 +48,7 @@ type ComplianceResult struct {
 	TestedAt        time.Time       `json:"testedAt"`
 }
 
-// Checker performs O-RAN API compliance validation
+// Checker performs O-RAN API compliance validation.
 type Checker struct {
 	baseURL    string        // Gateway base URL (e.g., http://localhost:8080)
 	httpClient *http.Client  // HTTP client for API calls
@@ -56,7 +56,7 @@ type Checker struct {
 	specs      []SpecVersion // O-RAN specifications to validate against
 }
 
-// NewChecker creates a new compliance checker
+// NewChecker creates a new compliance checker.
 func NewChecker(baseURL string, logger *zap.Logger) *Checker {
 	return &Checker{
 		baseURL: baseURL,
@@ -68,7 +68,7 @@ func NewChecker(baseURL string, logger *zap.Logger) *Checker {
 	}
 }
 
-// getORANSpecifications returns the list of O-RAN specifications
+// getORANSpecifications returns the list of O-RAN specifications.
 func getORANSpecifications() []SpecVersion {
 	return []SpecVersion{
 		{
@@ -92,7 +92,7 @@ func getORANSpecifications() []SpecVersion {
 	}
 }
 
-// CheckAll validates compliance with all O-RAN specifications
+// CheckAll validates compliance with all O-RAN specifications.
 func (c *Checker) CheckAll(ctx context.Context) ([]ComplianceResult, error) {
 	results := make([]ComplianceResult, 0, len(c.specs))
 
@@ -125,7 +125,7 @@ func (c *Checker) CheckAll(ctx context.Context) ([]ComplianceResult, error) {
 	return results, nil
 }
 
-// checkO2IMS validates O2-IMS API compliance
+// checkO2IMS validates O2-IMS API compliance.
 func (c *Checker) checkO2IMS(ctx context.Context, spec SpecVersion) (ComplianceResult, error) {
 	c.logger.Info("validating O2-IMS API endpoints")
 
@@ -161,7 +161,7 @@ func (c *Checker) checkO2IMS(ctx context.Context, spec SpecVersion) (ComplianceR
 	return c.validateEndpoints(ctx, spec, endpoints)
 }
 
-// checkO2DMS validates O2-DMS API compliance
+// checkO2DMS validates O2-DMS API compliance.
 func (c *Checker) checkO2DMS(ctx context.Context, spec SpecVersion) (ComplianceResult, error) {
 	c.logger.Info("validating O2-DMS API endpoints")
 
@@ -193,7 +193,7 @@ func (c *Checker) checkO2DMS(ctx context.Context, spec SpecVersion) (ComplianceR
 	return c.validateEndpoints(ctx, spec, endpoints)
 }
 
-// checkO2SMO validates O2-SMO integration compliance
+// checkO2SMO validates O2-SMO integration compliance.
 func (c *Checker) checkO2SMO(ctx context.Context, spec SpecVersion) (ComplianceResult, error) {
 	c.logger.Info("validating O2-SMO integration")
 
@@ -214,7 +214,7 @@ func (c *Checker) checkO2SMO(ctx context.Context, spec SpecVersion) (ComplianceR
 	return c.validateEndpoints(ctx, spec, endpoints)
 }
 
-// EndpointTest represents an API endpoint test
+// EndpointTest represents an API endpoint test.
 type EndpointTest struct {
 	Method         string // HTTP method (GET, POST, PUT, DELETE)
 	Path           string // API path
@@ -222,7 +222,7 @@ type EndpointTest struct {
 	Body           string // Optional request body for POST/PUT
 }
 
-// validateEndpoints tests a list of API endpoints
+// validateEndpoints tests a list of API endpoints.
 func (c *Checker) validateEndpoints(ctx context.Context, spec SpecVersion, endpoints []EndpointTest) (ComplianceResult, error) {
 	totalEndpoints := len(endpoints)
 	passedEndpoints := 0
@@ -274,7 +274,7 @@ func (c *Checker) validateEndpoints(ctx context.Context, spec SpecVersion, endpo
 	}, nil
 }
 
-// testEndpoint tests a single API endpoint
+// testEndpoint tests a single API endpoint.
 func (c *Checker) testEndpoint(ctx context.Context, test EndpointTest) (bool, error) {
 	// For parameterized paths, replace with test values
 	path := replacePlaceholders(test.Path)
@@ -293,13 +293,13 @@ func (c *Checker) testEndpoint(ctx context.Context, test EndpointTest) (bool, er
 		// Endpoint not reachable = not implemented
 		return false, nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check status code
 	// Accept both the required status and 404 (endpoint exists but resource not found)
 	// This distinguishes between "endpoint implemented" vs "endpoint missing"
 	passed := resp.StatusCode == test.RequiredStatus ||
-		(test.Method == "GET" && resp.StatusCode == http.StatusNotFound)
+		(test.Method == http.MethodGet && resp.StatusCode == http.StatusNotFound)
 
 	c.logger.Debug("endpoint tested",
 		zap.String("method", test.Method),
@@ -310,7 +310,7 @@ func (c *Checker) testEndpoint(ctx context.Context, test EndpointTest) (bool, er
 	return passed, nil
 }
 
-// replacePlaceholders replaces {param} with test values
+// replacePlaceholders replaces {param} with test values.
 func replacePlaceholders(path string) string {
 	// Replace common placeholders with test values
 	replacements := map[string]string{
@@ -331,7 +331,7 @@ func replacePlaceholders(path string) string {
 	return result
 }
 
-// replaceAll is a simple string replacement helper
+// replaceAll is a simple string replacement helper.
 func replaceAll(s, old, new string) string {
 	// Simple implementation - in production use strings.ReplaceAll
 	result := ""

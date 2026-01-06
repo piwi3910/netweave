@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+const (
+	// OSM operational status values
+	osmStatusRunning = "running"
+)
+
 // DeploymentPackage represents a deployment package (NSD or VNFD) in OSM.
 type DeploymentPackage struct {
 	ID          string                 `json:"_id,omitempty"`
@@ -318,17 +323,14 @@ func (p *Plugin) GetNSStatus(ctx context.Context, nsInstanceID string) (*Deploym
 
 	// Query VNF statuses if available
 	if len(deployment.ConstituentVNFRIds) > 0 {
-		vnfStatuses, err := p.getVNFStatuses(ctx, deployment.ConstituentVNFRIds)
-		if err == nil {
-			status.VNFStatuses = vnfStatuses
-		}
+		status.VNFStatuses = p.getVNFStatuses(ctx, deployment.ConstituentVNFRIds)
 	}
 
 	return status, nil
 }
 
 // getVNFStatuses retrieves status information for multiple VNFs.
-func (p *Plugin) getVNFStatuses(ctx context.Context, vnfIDs []string) ([]VNFStatus, error) {
+func (p *Plugin) getVNFStatuses(ctx context.Context, vnfIDs []string) []VNFStatus {
 	statuses := make([]VNFStatus, 0, len(vnfIDs))
 
 	for _, vnfID := range vnfIDs {
@@ -352,7 +354,7 @@ func (p *Plugin) getVNFStatuses(ctx context.Context, vnfIDs []string) ([]VNFStat
 		})
 	}
 
-	return statuses, nil
+	return statuses
 }
 
 // ==== Day-2 Operations ====
@@ -408,7 +410,7 @@ func (p *Plugin) mapOSMStatus(osmStatus string) string {
 	switch osmStatus {
 	case "init", "building":
 		return "BUILDING"
-	case "running":
+	case osmStatusRunning:
 		return "ACTIVE"
 	case "scaling":
 		return "SCALING"
@@ -439,7 +441,7 @@ func (p *Plugin) WaitForNSReady(ctx context.Context, nsInstanceID string, timeou
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("context cancelled while waiting for NS ready: %w", ctx.Err())
 		case <-ticker.C:
 			if time.Now().After(deadline) {
 				return fmt.Errorf("timeout waiting for NS to become ready")
@@ -452,7 +454,7 @@ func (p *Plugin) WaitForNSReady(ctx context.Context, nsInstanceID string, timeou
 
 			// Check if NS is in a stable state
 			switch deployment.OperationalStatus {
-			case "running":
+			case osmStatusRunning:
 				return nil // Success
 			case "failed", "error", "terminated":
 				return fmt.Errorf("NS entered failed state: %s", deployment.DetailedStatus)

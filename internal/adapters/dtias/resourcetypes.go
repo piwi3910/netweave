@@ -38,6 +38,11 @@ func (a *DTIASAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Fi
 	if err != nil {
 		return nil, fmt.Errorf("failed to list server types: %w", err)
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Parse response
 	var serverTypes []ServerType
@@ -70,6 +75,11 @@ func (a *DTIASAdapter) GetResourceType(ctx context.Context, id string) (*adapter
 	if err != nil {
 		return nil, fmt.Errorf("failed to get server type: %w", err)
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Parse response
 	var serverType ServerType

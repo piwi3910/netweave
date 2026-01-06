@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/stretchr/testify/require"
 )
 
 // setupTestRedis creates a miniredis instance for testing.
@@ -96,8 +97,8 @@ func TestRedisStore_Create(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store, mr := setupTestRedis(t)
-			defer mr.Close()
-			defer store.Close()
+			t.Cleanup(func() { mr.Close() })
+			t.Cleanup(func() { require.NoError(t, store.Close()) })
 
 			ctx := context.Background()
 			err := store.Create(ctx, tt.sub)
@@ -145,8 +146,8 @@ func TestRedisStore_Create(t *testing.T) {
 
 func TestRedisStore_Create_Duplicate(t *testing.T) {
 	store, mr := setupTestRedis(t)
-	defer mr.Close()
-	defer store.Close()
+	t.Cleanup(func() { mr.Close() })
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
 	ctx := context.Background()
 
@@ -163,15 +164,15 @@ func TestRedisStore_Create_Duplicate(t *testing.T) {
 
 	// Attempt duplicate
 	err = store.Create(ctx, sub)
-	if err != ErrSubscriptionExists {
+	if !errors.Is(err, ErrSubscriptionExists) {
 		t.Errorf("expected ErrSubscriptionExists, got %v", err)
 	}
 }
 
 func TestRedisStore_Get(t *testing.T) {
 	store, mr := setupTestRedis(t)
-	defer mr.Close()
-	defer store.Close()
+	t.Cleanup(func() { mr.Close() })
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
 	ctx := context.Background()
 
@@ -238,8 +239,8 @@ func TestRedisStore_Get(t *testing.T) {
 
 func TestRedisStore_Update(t *testing.T) {
 	store, mr := setupTestRedis(t)
-	defer mr.Close()
-	defer store.Close()
+	t.Cleanup(func() { mr.Close() })
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
 	ctx := context.Background()
 
@@ -334,8 +335,8 @@ func TestRedisStore_Update(t *testing.T) {
 
 func TestRedisStore_Delete(t *testing.T) {
 	store, mr := setupTestRedis(t)
-	defer mr.Close()
-	defer store.Close()
+	t.Cleanup(func() { mr.Close() })
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
 	ctx := context.Background()
 
@@ -396,7 +397,7 @@ func TestRedisStore_Delete(t *testing.T) {
 
 			// Verify deletion
 			_, err = store.Get(ctx, tt.id)
-			if err != ErrSubscriptionNotFound {
+			if !errors.Is(err, ErrSubscriptionNotFound) {
 				t.Errorf("expected ErrSubscriptionNotFound after delete, got %v", err)
 			}
 		})
@@ -405,8 +406,8 @@ func TestRedisStore_Delete(t *testing.T) {
 
 func TestRedisStore_List(t *testing.T) {
 	store, mr := setupTestRedis(t)
-	defer mr.Close()
-	defer store.Close()
+	t.Cleanup(func() { mr.Close() })
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
 	ctx := context.Background()
 
@@ -458,8 +459,8 @@ func TestRedisStore_List(t *testing.T) {
 
 func TestRedisStore_List_Empty(t *testing.T) {
 	store, mr := setupTestRedis(t)
-	defer mr.Close()
-	defer store.Close()
+	t.Cleanup(func() { mr.Close() })
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
 	ctx := context.Background()
 
@@ -475,8 +476,8 @@ func TestRedisStore_List_Empty(t *testing.T) {
 
 func TestRedisStore_ListByResourcePool(t *testing.T) {
 	store, mr := setupTestRedis(t)
-	defer mr.Close()
-	defer store.Close()
+	t.Cleanup(func() { mr.Close() })
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
 	ctx := context.Background()
 
@@ -577,8 +578,8 @@ func TestRedisStore_ListByResourcePool(t *testing.T) {
 
 func TestRedisStore_ListByResourceType(t *testing.T) {
 	store, mr := setupTestRedis(t)
-	defer mr.Close()
-	defer store.Close()
+	t.Cleanup(func() { mr.Close() })
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
 	ctx := context.Background()
 
@@ -668,8 +669,8 @@ func TestRedisStore_ListByResourceType(t *testing.T) {
 
 func TestRedisStore_Ping(t *testing.T) {
 	store, mr := setupTestRedis(t)
-	defer mr.Close()
-	defer store.Close()
+	t.Cleanup(func() { mr.Close() })
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
 	ctx := context.Background()
 
@@ -692,7 +693,7 @@ func TestRedisStore_Ping(t *testing.T) {
 
 func TestRedisStore_Close(t *testing.T) {
 	store, mr := setupTestRedis(t)
-	defer mr.Close()
+	t.Cleanup(func() { mr.Close() })
 
 	err := store.Close()
 	if err != nil {

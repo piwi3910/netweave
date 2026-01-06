@@ -14,7 +14,7 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 )
 
-// TestTransformServerToResource tests the transformation from OpenStack server to O2-IMS resource
+// TestTransformServerToResource tests the transformation from OpenStack server to O2-IMS resource.
 func TestTransformServerToResource(t *testing.T) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",
@@ -89,7 +89,7 @@ func TestTransformServerToResource(t *testing.T) {
 	assert.Equal(t, "web", metadata["app"])
 }
 
-// TestTransformServerToResourceMinimal tests transformation with minimal data
+// TestTransformServerToResourceMinimal tests transformation with minimal data.
 func TestTransformServerToResourceMinimal(t *testing.T) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",
@@ -111,7 +111,7 @@ func TestTransformServerToResourceMinimal(t *testing.T) {
 	assert.NotNil(t, resource.Extensions)
 }
 
-// TestResourceIDParsing tests parsing resource IDs
+// TestResourceIDParsing tests parsing resource IDs.
 func TestResourceIDParsing(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -166,7 +166,7 @@ func TestResourceIDParsing(t *testing.T) {
 	}
 }
 
-// TestListResourcesFilter tests filtering logic for ListResources
+// TestListResourcesFilter tests filtering logic for ListResources.
 func TestListResourcesFilter(t *testing.T) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",
@@ -223,7 +223,7 @@ func TestListResourcesFilter(t *testing.T) {
 	})
 }
 
-// TestCreateResourceValidation tests validation for CreateResource
+// TestCreateResourceValidation tests validation for CreateResource.
 func TestCreateResourceValidation(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger: zap.NewNop(),
@@ -279,7 +279,7 @@ func TestCreateResourceValidation(t *testing.T) {
 	}
 }
 
-// TestGetResourcePoolIDFromServer tests resource pool ID derivation
+// TestGetResourcePoolIDFromServer tests resource pool ID derivation.
 func TestGetResourcePoolIDFromServer(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger: zap.NewNop(),
@@ -314,7 +314,7 @@ func TestGetResourcePoolIDFromServer(t *testing.T) {
 	}
 }
 
-// BenchmarkTransformServerToResource benchmarks the transformation
+// BenchmarkTransformServerToResource benchmarks the transformation.
 func BenchmarkTransformServerToResource(b *testing.B) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",

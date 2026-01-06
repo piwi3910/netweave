@@ -514,7 +514,7 @@ func (s *Server) corsMiddleware() gin.HandlerFunc {
 		}
 
 		// Handle preflight requests
-		if c.Request.Method == "OPTIONS" {
+		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
@@ -524,7 +524,7 @@ func (s *Server) corsMiddleware() gin.HandlerFunc {
 }
 
 // rateLimitMiddleware implements rate limiting for HTTP requests.
-// TODO: Implement Redis-based distributed rate limiting
+// TODO: Implement Redis-based distributed rate limiting.
 func (s *Server) rateLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// TODO: Implement rate limiting logic

@@ -56,7 +56,7 @@ func (m *mockAdapter) Close() error {
 	return nil
 }
 
-// SetHealth safely sets the health status with proper locking
+// SetHealth safely sets the health status with proper locking.
 func (m *mockAdapter) SetHealth(healthy bool, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -64,65 +64,68 @@ func (m *mockAdapter) SetHealth(healthy bool, err error) {
 	m.healthError = err
 }
 
+// errNotImplemented is returned by stub methods not used in tests.
+var errNotImplemented = errors.New("method not implemented in mock")
+
 // Implement remaining adapter.Adapter methods.
 func (m *mockAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockAdapter) DeleteResourcePool(ctx context.Context, id string) error {
-	return nil
+	return errNotImplemented
 }
 
 func (m *mockAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockAdapter) DeleteResource(ctx context.Context, id string) error {
-	return nil
+	return errNotImplemented
 }
 
 func (m *mockAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockAdapter) DeleteSubscription(ctx context.Context, id string) error {
-	return nil
+	return errNotImplemented
 }
 
 func TestNewRegistry(t *testing.T) {

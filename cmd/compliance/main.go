@@ -54,37 +54,41 @@ func main() {
 	flag.Parse()
 
 	logger := initializeLogger()
-	defer logger.Sync()
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to sync logger: %v\n", err)
+		}
+	}()
 
 	// Create compliance checker and run checks
 	checker := compliance.NewChecker(*baseURL, logger.Logger)
 	ctx := context.Background()
 	results, err := checker.CheckAll(ctx)
 	if err != nil {
-		logger.Logger.Error("compliance check failed", zap.Error(err))
+		logger.Error("compliance check failed", zap.Error(err))
 		os.Exit(1)
 	}
 
 	// Generate output in requested format
 	if err := generateOutput(results); err != nil {
-		logger.Logger.Error("output generation failed", zap.Error(err))
+		logger.Error("output generation failed", zap.Error(err))
 		os.Exit(1)
 	}
 
 	// Update README if requested
 	if *updateReadme {
 		if err := updateReadmeFile(*readmePath, results, logger.Logger); err != nil {
-			logger.Logger.Error("failed to update README", zap.Error(err))
+			logger.Error("failed to update README", zap.Error(err))
 			os.Exit(1)
 		}
-		logger.Logger.Info("README.md updated with compliance badges", zap.String("path", *readmePath))
+		logger.Info("README.md updated with compliance badges", zap.String("path", *readmePath))
 	}
 
 	// Exit with error if any spec is not compliant
 	os.Exit(determineExitCode(results))
 }
 
-// initializeLogger initializes and configures the logger based on verbosity setting
+// initializeLogger initializes and configures the logger based on verbosity setting.
 func initializeLogger() *observability.Logger {
 	obsLogger, err := observability.InitLogger("development")
 	if err != nil {
@@ -94,13 +98,13 @@ func initializeLogger() *observability.Logger {
 
 	// Adjust log level based on verbosity
 	if !*verbose {
-		obsLogger.Logger = obsLogger.Logger.WithOptions(zap.IncreaseLevel(zap.InfoLevel))
+		obsLogger.Logger = obsLogger.WithOptions(zap.IncreaseLevel(zap.InfoLevel))
 	}
 
 	return obsLogger
 }
 
-// generateOutput generates output in the requested format
+// generateOutput generates output in the requested format.
 func generateOutput(results []compliance.ComplianceResult) error {
 	switch *outputFormat {
 	case "json":
@@ -115,7 +119,7 @@ func generateOutput(results []compliance.ComplianceResult) error {
 	return nil
 }
 
-// determineExitCode returns 1 if any spec is not compliant, 0 otherwise
+// determineExitCode returns 1 if any spec is not compliant, 0 otherwise.
 func determineExitCode(results []compliance.ComplianceResult) int {
 	for _, result := range results {
 		if result.ComplianceLevel == compliance.ComplianceNone {
@@ -125,7 +129,7 @@ func determineExitCode(results []compliance.ComplianceResult) int {
 	return 0
 }
 
-// outputJSON outputs results as JSON
+// outputJSON outputs results as JSON.
 func outputJSON(results []compliance.ComplianceResult) {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
@@ -135,21 +139,27 @@ func outputJSON(results []compliance.ComplianceResult) {
 	}
 }
 
-// outputBadges outputs badge markdown
+// outputBadges outputs badge markdown.
 func outputBadges(results []compliance.ComplianceResult) {
 	generator := compliance.NewBadgeGenerator()
 	badgeSection := generator.GenerateBadgeSection(results)
-	fmt.Print(badgeSection)
+	if _, err := fmt.Fprint(os.Stdout, badgeSection); err != nil {
+		// Error writing to stdout is generally fatal
+		panic(err)
+	}
 }
 
-// outputText outputs human-readable report
+// outputText outputs human-readable report.
 func outputText(results []compliance.ComplianceResult) {
 	generator := compliance.NewBadgeGenerator()
 	report := generator.GenerateComplianceReport(results)
-	fmt.Print(report)
+	if _, err := fmt.Fprint(os.Stdout, report); err != nil {
+		// Error writing to stdout is generally fatal
+		panic(err)
+	}
 }
 
-// updateReadmeFile updates README.md with compliance badge section
+// updateReadmeFile updates README.md with compliance badge section.
 func updateReadmeFile(path string, results []compliance.ComplianceResult, logger *zap.Logger) error {
 	// Read current README
 	content, err := os.ReadFile(path)

@@ -5,11 +5,14 @@ package helm
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"log"
+	"os"
 	"time"
 
 	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/release"
@@ -114,11 +117,13 @@ func (h *HelmAdapter) Initialize(ctx context.Context) error {
 	// Initialize action configuration
 	actionCfg := new(action.Configuration)
 
-	// Use a simple logger that respects debug flag
+	// Setup debug logger that respects debug flag
+	var debugOut io.Writer = io.Discard
+	if h.config.Debug {
+		debugOut = os.Stderr
+	}
 	debugLog := func(format string, v ...interface{}) {
-		if h.config.Debug {
-			fmt.Printf(format+"\n", v...)
-		}
+		log.New(debugOut, "[helm] ", log.LstdFlags).Printf(format, v...)
 	}
 
 	// Initialize with Kubernetes backend
@@ -231,8 +236,22 @@ func (h *HelmAdapter) ListDeployments(ctx context.Context, filter *adapter.Filte
 		return nil, err
 	}
 
-	// Note: Namespace filtering in Helm v3 requires re-initializing action config
-	// For now, list all and filter in code if needed
+	releases, err := h.fetchAllReleases()
+	if err != nil {
+		return nil, err
+	}
+
+	deployments := h.filterAndTransformReleases(releases, filter)
+
+	if filter != nil {
+		deployments = h.applyPagination(deployments, filter.Limit, filter.Offset)
+	}
+
+	return deployments, nil
+}
+
+// fetchAllReleases retrieves all Helm releases.
+func (h *HelmAdapter) fetchAllReleases() ([]*release.Release, error) {
 	client := action.NewList(h.actionCfg)
 	client.All = true
 	client.AllNamespaces = true
@@ -241,33 +260,36 @@ func (h *HelmAdapter) ListDeployments(ctx context.Context, filter *adapter.Filte
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Helm releases: %w", err)
 	}
+	return releases, nil
+}
 
+// filterAndTransformReleases transforms releases and applies filters.
+func (h *HelmAdapter) filterAndTransformReleases(releases []*release.Release, filter *adapter.Filter) []*adapter.Deployment {
 	deployments := make([]*adapter.Deployment, 0, len(releases))
 	for _, rel := range releases {
 		deployment := h.transformReleaseToDeployment(rel)
-
-		// Apply filters
-		if filter != nil {
-			if filter.Namespace != "" && rel.Namespace != filter.Namespace {
-				continue
-			}
-			if filter.Status != "" && deployment.Status != filter.Status {
-				continue
-			}
-			if !h.matchesLabels(deployment, filter.Labels) {
-				continue
-			}
+		if h.matchesDeploymentFilter(rel, deployment, filter) {
+			deployments = append(deployments, deployment)
 		}
-
-		deployments = append(deployments, deployment)
 	}
+	return deployments
+}
 
-	// Apply pagination
-	if filter != nil {
-		deployments = h.applyPagination(deployments, filter.Limit, filter.Offset)
+// matchesDeploymentFilter checks if a release matches the filter criteria.
+func (h *HelmAdapter) matchesDeploymentFilter(rel *release.Release, deployment *adapter.Deployment, filter *adapter.Filter) bool {
+	if filter == nil {
+		return true
 	}
-
-	return deployments, nil
+	if filter.Namespace != "" && rel.Namespace != filter.Namespace {
+		return false
+	}
+	if filter.Status != "" && deployment.Status != filter.Status {
+		return false
+	}
+	if !h.matchesLabels(deployment, filter.Labels) {
+		return false
+	}
+	return true
 }
 
 // GetDeployment retrieves a specific Helm release by ID.
@@ -279,7 +301,7 @@ func (h *HelmAdapter) GetDeployment(ctx context.Context, id string) (*adapter.De
 	client := action.NewGet(h.actionCfg)
 	rel, err := client.Run(id)
 	if err != nil {
-		if err == driver.ErrReleaseNotFound {
+		if errors.Is(err, driver.ErrReleaseNotFound) {
 			return nil, fmt.Errorf("deployment not found: %s", id)
 		}
 		return nil, fmt.Errorf("failed to get Helm release: %w", err)
@@ -315,7 +337,7 @@ func (h *HelmAdapter) CreateDeployment(ctx context.Context, req *adapter.Deploym
 	client.CreateNamespace = true
 
 	// Load chart
-	chartPath, err := client.ChartPathOptions.LocateChart(req.PackageID, h.settings)
+	chartPath, err := client.LocateChart(req.PackageID, h.settings)
 	if err != nil {
 		return nil, fmt.Errorf("failed to locate chart %s: %w", req.PackageID, err)
 	}
@@ -377,7 +399,7 @@ func (h *HelmAdapter) DeleteDeployment(ctx context.Context, id string) error {
 
 	_, err := client.Run(id)
 	if err != nil {
-		if err == driver.ErrReleaseNotFound {
+		if errors.Is(err, driver.ErrReleaseNotFound) {
 			return fmt.Errorf("deployment not found: %s", id)
 		}
 		return fmt.Errorf("helm uninstall failed: %w", err)
@@ -684,22 +706,4 @@ func (h *HelmAdapter) applyPagination(deployments []*adapter.Deployment, limit, 
 	}
 
 	return deployments[start:end]
-}
-
-// loadChart loads a Helm chart from various sources.
-func (h *HelmAdapter) loadChart(chartRef string) (*chart.Chart, error) {
-	// Locate the chart (can be a path, URL, or repo reference)
-	chartPathOpts := action.ChartPathOptions{}
-	cp, err := chartPathOpts.LocateChart(chartRef, h.settings)
-	if err != nil {
-		return nil, fmt.Errorf("failed to locate chart: %w", err)
-	}
-
-	// Load the chart
-	chartRequested, err := loader.Load(cp)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load chart: %w", err)
-	}
-
-	return chartRequested, nil
 }

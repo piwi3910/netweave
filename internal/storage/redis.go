@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -11,14 +12,14 @@ import (
 )
 
 const (
-	// Redis key prefixes
+	// Redis key prefixes.
 	subscriptionKeyPrefix       = "subscription:"
 	subscriptionSetKey          = "subscriptions:active"
 	subscriptionPoolIndexPrefix = "subscriptions:pool:"
 	subscriptionTypeIndexPrefix = "subscriptions:type:"
 	subscriptionEventChannel    = "subscriptions:events"
 
-	// Default TTL for subscription keys (0 = no expiration)
+	// Default TTL for subscription keys (0 = no expiration).
 	subscriptionTTL = 0
 )
 
@@ -154,7 +155,7 @@ func (r *RedisStore) Create(ctx context.Context, sub *Subscription) error {
 		return ErrInvalidID
 	}
 	if err := validateCallbackURL(sub.Callback); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidCallback, err)
+		return fmt.Errorf("%w: %w", ErrInvalidCallback, err)
 	}
 
 	// Set timestamps
@@ -228,7 +229,7 @@ func (r *RedisStore) Get(ctx context.Context, id string) (*Subscription, error) 
 
 	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, ErrSubscriptionNotFound
 		}
 		return nil, fmt.Errorf("failed to get subscription: %w", err)
@@ -283,7 +284,7 @@ func (r *RedisStore) validateUpdate(ctx context.Context, sub *Subscription) erro
 		return ErrInvalidID
 	}
 	if err := validateCallbackURL(sub.Callback); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidCallback, err)
+		return fmt.Errorf("%w: %w", ErrInvalidCallback, err)
 	}
 
 	key := subscriptionKeyPrefix + sub.ID
@@ -492,14 +493,17 @@ func (r *RedisStore) ListByResourceType(ctx context.Context, resourceTypeID stri
 
 // Close closes the Redis connection and releases resources.
 func (r *RedisStore) Close() error {
-	return r.client.Close()
+	if err := r.client.Close(); err != nil {
+		return fmt.Errorf("failed to close Redis client: %w", err)
+	}
+	return nil
 }
 
 // Ping checks if Redis is available.
 // Returns ErrStorageUnavailable if Redis cannot be reached.
 func (r *RedisStore) Ping(ctx context.Context) error {
 	if err := r.client.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("%w: %v", ErrStorageUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrStorageUnavailable, err)
 	}
 	return nil
 }

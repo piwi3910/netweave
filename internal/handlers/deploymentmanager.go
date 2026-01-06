@@ -42,7 +42,7 @@ func NewDeploymentManagerHandler(adp adapter.Adapter, logger *zap.Logger) *Deplo
 //   - offset: Pagination offset
 //   - limit: Maximum number of items to return
 //
-// Response: 200 OK with array of DeploymentManager objects
+// Response: 200 OK with array of DeploymentManager objects.
 func (h *DeploymentManagerHandler) ListDeploymentManagers(c *gin.Context) {
 	ctx := c.Request.Context()
 

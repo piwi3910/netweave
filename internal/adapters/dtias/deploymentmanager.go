@@ -93,6 +93,11 @@ func (a *DTIASAdapter) getDatacenterInfo(ctx context.Context, datacenterID strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to get datacenter info: %w", err)
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Parse response
 	var datacenterInfo DatacenterInfo

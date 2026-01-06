@@ -70,7 +70,7 @@ func (c *SDNCClient) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("health check request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check returned status %d", resp.StatusCode)
@@ -191,70 +191,97 @@ func (c *SDNCClient) executeSDNCOperation(ctx context.Context, operation string,
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// SDNC operations go through the generic RESTCONF API
 	url := fmt.Sprintf("%s/restconf/operations/SLI-API:execute-graph", c.baseURL)
+	return c.executeWithRetry(ctx, url, body, operation)
+}
 
+// executeWithRetry executes an SDNC operation with retry logic.
+func (c *SDNCClient) executeWithRetry(ctx context.Context, url string, body []byte, operation string) (*SDNCResponse, error) {
 	var lastErr error
 	for attempt := 0; attempt <= c.config.MaxRetries; attempt++ {
 		if attempt > 0 {
-			c.logger.Debug("Retrying SDNC operation",
-				zap.String("operation", operation),
-				zap.Int("attempt", attempt),
-			)
-			// Exponential backoff
-			time.Sleep(time.Duration(attempt) * time.Second)
+			c.waitBeforeRetrySDNC(attempt, operation)
 		}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-		if err != nil {
-			lastErr = fmt.Errorf("failed to create request: %w", err)
-			continue
+		response, err := c.executeSDNCRequest(ctx, url, body, operation, &lastErr)
+		if err == nil {
+			return response, nil
 		}
 
-		req.SetBasicAuth(c.username, c.password)
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Accept", "application/json")
-
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			lastErr = fmt.Errorf("request failed: %w", err)
-			continue
+		if c.shouldStopRetryingSDNC(lastErr) {
+			break
 		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			bodyBytes, _ := io.ReadAll(resp.Body)
-			lastErr = fmt.Errorf("SDNC returned status %d: %s", resp.StatusCode, string(bodyBytes))
-
-			// Don't retry on client errors (4xx except 429)
-			if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != http.StatusTooManyRequests {
-				break
-			}
-			continue
-		}
-
-		var response SDNCResponse
-		if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-			lastErr = fmt.Errorf("failed to decode response: %w", err)
-			continue
-		}
-
-		// Check SDNC response code
-		if response.Output.ResponseCode != "200" {
-			lastErr = fmt.Errorf("SDNC operation failed: %s", response.Output.ResponseMessage)
-			continue
-		}
-
-		c.logger.Info("SDNC operation completed successfully",
-			zap.String("operation", operation),
-			zap.String("responseCode", response.Output.ResponseCode),
-		)
-
-		return &response, nil
 	}
 
 	return nil, fmt.Errorf("failed to execute SDNC operation %s after %d attempts: %w",
 		operation, c.config.MaxRetries+1, lastErr)
+}
+
+// waitBeforeRetrySDNC implements exponential backoff for SDNC retries.
+func (c *SDNCClient) waitBeforeRetrySDNC(attempt int, operation string) {
+	c.logger.Debug("Retrying SDNC operation",
+		zap.String("operation", operation),
+		zap.Int("attempt", attempt),
+	)
+	time.Sleep(time.Duration(attempt) * time.Second)
+}
+
+// executeSDNCRequest executes a single SDNC request.
+func (c *SDNCClient) executeSDNCRequest(ctx context.Context, url string, body []byte, operation string, lastErr *error) (*SDNCResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		*lastErr = fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	req.SetBasicAuth(c.username, c.password)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		*lastErr = fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf("failed to execute HTTP request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	return c.processSDNCResponse(resp, operation, lastErr)
+}
+
+// processSDNCResponse processes the SDNC response.
+func (c *SDNCClient) processSDNCResponse(resp *http.Response, operation string, lastErr *error) (*SDNCResponse, error) {
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		*lastErr = fmt.Errorf("SDNC returned status %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, *lastErr
+	}
+
+	var response SDNCResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		*lastErr = fmt.Errorf("failed to decode response: %w", err)
+		return nil, fmt.Errorf("failed to decode SDNC response: %w", err)
+	}
+
+	if response.Output.ResponseCode != "200" {
+		*lastErr = fmt.Errorf("SDNC operation failed: %s", response.Output.ResponseMessage)
+		return nil, *lastErr
+	}
+
+	c.logger.Info("SDNC operation completed successfully",
+		zap.String("operation", operation),
+		zap.String("responseCode", response.Output.ResponseCode),
+	)
+
+	return &response, nil
+}
+
+// shouldStopRetryingSDNC determines if SDNC retries should be stopped.
+func (c *SDNCClient) shouldStopRetryingSDNC(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "status 4") && !strings.Contains(errMsg, "status 429")
 }
 
 // Close closes the SDNC client and releases resources.

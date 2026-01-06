@@ -227,7 +227,7 @@ func TestHealthHandler(t *testing.T) {
 	})
 
 	handler := hc.HealthHandler()
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 
 	handler(w, req)
@@ -250,7 +250,7 @@ func TestHealthHandlerUnhealthy(t *testing.T) {
 	})
 
 	handler := hc.HealthHandler()
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 
 	handler(w, req)
@@ -271,7 +271,7 @@ func TestReadinessHandler(t *testing.T) {
 	})
 
 	handler := hc.ReadinessHandler()
-	req := httptest.NewRequest("GET", "/ready", nil)
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	w := httptest.NewRecorder()
 
 	handler(w, req)
@@ -293,7 +293,7 @@ func TestReadinessHandlerNotReady(t *testing.T) {
 	})
 
 	handler := hc.ReadinessHandler()
-	req := httptest.NewRequest("GET", "/ready", nil)
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	w := httptest.NewRecorder()
 
 	handler(w, req)
@@ -309,7 +309,7 @@ func TestReadinessHandlerNotReady(t *testing.T) {
 
 func TestLivenessHandler(t *testing.T) {
 	handler := LivenessHandler()
-	req := httptest.NewRequest("GET", "/live", nil)
+	req := httptest.NewRequest(http.MethodGet, "/live", nil)
 	w := httptest.NewRecorder()
 
 	handler(w, req)
@@ -474,7 +474,7 @@ func TestReadinessResponseStructure(t *testing.T) {
 	assert.Len(t, response.Components, 1)
 }
 
-// Benchmark tests for performance validation
+// Benchmark tests for performance validation.
 func BenchmarkHealthCheckExecution(b *testing.B) {
 	hc := NewHealthChecker("v1.0.0")
 	hc.RegisterHealthCheck("test", func(ctx context.Context) error {
@@ -510,7 +510,7 @@ func BenchmarkHealthHandlerExecution(b *testing.B) {
 	})
 
 	handler := hc.HealthHandler()
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 
 	b.ResetTimer()
 
