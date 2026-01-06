@@ -8,15 +8,16 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Multi-Backend Adapter Routing](#multi-backend-adapter-routing)
-3. [API Versioning and Evolution](#api-versioning-and-evolution)
-4. [Deployment Manager](#deployment-manager)
-5. [Resource Pools](#resource-pools)
-6. [Resources](#resources)
-7. [Resource Types](#resource-types)
-8. [Subscriptions](#subscriptions)
-9. [Data Transformation Examples](#data-transformation-examples)
-10. [Backend-Specific Mappings](#backend-specific-mappings)
+2. [Request Validation](#request-validation)
+3. [Multi-Backend Adapter Routing](#multi-backend-adapter-routing)
+4. [API Versioning and Evolution](#api-versioning-and-evolution)
+5. [Deployment Manager](#deployment-manager)
+6. [Resource Pools](#resource-pools)
+7. [Resources](#resources)
+8. [Resource Types](#resource-types)
+9. [Subscriptions](#subscriptions)
+10. [Data Transformation Examples](#data-transformation-examples)
+11. [Backend-Specific Mappings](#backend-specific-mappings)
 
 ---
 
@@ -46,6 +47,152 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 | Subscription | Redis (O2-IMS specific) | ✅ Full | CRUD |
 
 ---
+
+## Request Validation
+
+All API requests are validated against the OpenAPI 3.0 specification before being processed by handlers. This ensures O2-IMS compliance and provides clear error messages for invalid requests.
+
+### Validation Rules
+
+**Request Body Validation**:
+- All required fields must be present
+- Field types must match schema definitions (string, integer, object, etc.)
+- String formats are validated (URI for callbacks, UUID for IDs)
+- Nested objects are recursively validated
+
+**Parameter Validation**:
+- Path parameters (e.g., `/subscriptions/{subscriptionId}`) must be valid
+- Query parameters are type-checked and validated
+- Required parameters must be provided
+
+**Body Size Limits**:
+- Maximum request body size: **1MB** (configurable)
+- Requests exceeding this limit are rejected with `413 Payload Too Large`
+
+### Excluded Paths
+
+The following paths are excluded from validation (health/monitoring):
+- `/health` - Health check endpoint
+- `/ready` - Readiness probe
+- `/metrics` - Prometheus metrics
+- `/debug/*` - Debug endpoints
+
+### Error Response Format
+
+Validation errors return a standardized JSON response:
+
+```json
+{
+  "error": "ValidationError",
+  "message": "Request body validation failed: missing required field",
+  "code": 400
+}
+```
+
+**Common Validation Errors**:
+
+| Error Message | Cause | Solution |
+|---------------|-------|----------|
+| `missing required field` | Required field not provided | Add the missing field to request body |
+| `invalid field type` | Wrong data type (e.g., string instead of number) | Check field type in API spec |
+| `Invalid parameter 'X'` | Invalid path/query parameter | Verify parameter format |
+| `Request body too large` | Body exceeds size limit | Reduce payload size or check configuration |
+
+### Validation Examples
+
+**Valid Request**:
+```bash
+curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "callback": "https://smo.example.com/notify",
+    "consumerSubscriptionId": "smo-sub-123"
+  }'
+# Response: 201 Created
+```
+
+**Invalid Request (Missing Required Field)**:
+```bash
+curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "consumerSubscriptionId": "smo-sub-123"
+  }'
+# Response: 400 Bad Request
+# {"error":"ValidationError","message":"Request body validation failed: missing required field","code":400}
+```
+
+**Invalid Request (Wrong Type)**:
+```bash
+curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "callback": 12345,
+    "consumerSubscriptionId": "smo-sub-123"
+  }'
+# Response: 400 Bad Request
+# {"error":"ValidationError","message":"Request body validation failed: invalid field type","code":400}
+```
+
+### Configuration
+
+Validation behavior can be configured via environment variables or config file:
+
+```yaml
+# config.yaml
+validation:
+  enabled: true              # Enable/disable request validation
+  validate_response: false   # Response validation (dev/test only)
+  max_body_size: 1048576     # Max body size in bytes (1MB)
+```
+
+**Environment Variables**:
+- `VALIDATION_ENABLED=true` - Enable request validation
+- `VALIDATION_RESPONSE=false` - Enable response validation
+- `VALIDATION_MAX_BODY_SIZE=1048576` - Maximum body size
+
+### Troubleshooting
+
+**Problem**: All requests return 400 validation errors
+- **Check**: Verify `Content-Type: application/json` header is set
+- **Check**: Ensure request body is valid JSON
+
+**Problem**: Request body too large errors
+- **Check**: Review payload size
+- **Solution**: Increase `max_body_size` configuration if needed
+
+**Problem**: Missing required field errors
+- **Check**: Review OpenAPI spec at `api/openapi/o2ims.yaml`
+- **Solution**: Add all required fields to request
+
+**Problem**: Validation not working (requests pass without validation)
+- **Check**: Ensure `validation.enabled: true` in config
+- **Check**: Verify OpenAPI spec is loaded (check startup logs)
+
+### Memory Implications
+
+**Request Body Buffering**:
+- Request bodies up to `max_body_size` (default 1MB) are buffered in memory for validation
+- Each concurrent request with a body consumes memory proportional to its size
+- With 100 concurrent requests of 1MB each, peak memory usage could reach 100MB+ just for request bodies
+
+**Recommendations**:
+- **Production sizing**: Plan for `max_body_size × max_concurrent_requests` additional memory
+- **Reduce max_body_size**: If your API payloads are small, reduce the limit (e.g., 64KB for subscriptions)
+- **Monitor memory**: Use Prometheus metrics to track memory usage patterns
+- **Response validation**: Only enable `validate_response: true` in development - it doubles memory usage per request
+
+**Example Memory Planning**:
+```
+Scenario: 50 concurrent requests, 1MB max body size
+Request body memory: 50 × 1MB = 50MB
+Safety margin: 2x for GC overhead
+Recommended additional memory: 100MB
+
+For high-throughput scenarios:
+- Consider reducing max_body_size to 256KB
+- Use streaming for large payloads (bypass validation)
+```
 
 ## Multi-Backend Adapter Routing
 
