@@ -23,12 +23,12 @@ var (
 )
 
 // InitLogger initializes the global logger with the specified environment
-// Valid environments: development, staging, production
+// Valid environments: development, test, staging, production
 func InitLogger(env string) (*Logger, error) {
 	var config zap.Config
 
 	switch env {
-	case "development":
+	case "development", "test":
 		config = zap.NewDevelopmentConfig()
 		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	case "production", "staging":
@@ -36,7 +36,7 @@ func InitLogger(env string) (*Logger, error) {
 		config.EncoderConfig.TimeKey = "timestamp"
 		config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	default:
-		return nil, fmt.Errorf("invalid environment: %s (must be development, staging, or production)", env)
+		return nil, fmt.Errorf("invalid environment: %s (must be development, test, staging, or production)", env)
 	}
 
 	// Set log level from environment variable if provided
