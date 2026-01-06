@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // ListResourceTypes retrieves all server types matching the provided filter.

@@ -14,13 +14,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
+
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/config"
 	"github.com/piwi3910/netweave/internal/middleware"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/storage"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
 )
 
 // o2imsOpenAPISpec embeds the O2-IMS OpenAPI specification.

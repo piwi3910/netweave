@@ -29,9 +29,9 @@ type SpecVersion struct {
 type ComplianceLevel string
 
 const (
-	ComplianceFull    ComplianceLevel = "full"     // 100% compliant
-	CompliancePartial ComplianceLevel = "partial"  // Partially compliant (>= 80%)
-	ComplianceNone    ComplianceLevel = "none"     // Not compliant (< 80%)
+	ComplianceFull    ComplianceLevel = "full"    // 100% compliant
+	CompliancePartial ComplianceLevel = "partial" // Partially compliant (>= 80%)
+	ComplianceNone    ComplianceLevel = "none"    // Not compliant (< 80%)
 )
 
 // ComplianceResult represents the result of compliance validation
@@ -314,13 +314,13 @@ func (c *Checker) testEndpoint(ctx context.Context, test EndpointTest) (bool, er
 func replacePlaceholders(path string) string {
 	// Replace common placeholders with test values
 	replacements := map[string]string{
-		"{subscriptionId}":       "test-subscription-id",
-		"{resourcePoolId}":       "test-pool-id",
-		"{resourceId}":           "test-resource-id",
-		"{resourceTypeId}":       "test-type-id",
-		"{deploymentManagerId}":  "test-dm-id",
-		"{packageId}":            "test-package-id",
-		"{deploymentId}":         "test-deployment-id",
+		"{subscriptionId}":      "test-subscription-id",
+		"{resourcePoolId}":      "test-pool-id",
+		"{resourceId}":          "test-resource-id",
+		"{resourceTypeId}":      "test-type-id",
+		"{deploymentManagerId}": "test-dm-id",
+		"{packageId}":           "test-package-id",
+		"{deploymentId}":        "test-deployment-id",
 	}
 
 	result := path

@@ -14,8 +14,9 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/regions"
 	"github.com/gophercloud/gophercloud/openstack/placement/v1/resourceproviders"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // OpenStackAdapter implements the adapter.Adapter interface for OpenStack NFVi backends.
@@ -110,123 +111,30 @@ type Config struct {
 //	    OCloudID:    "ocloud-openstack-1",
 //	})
 func New(cfg *Config) (*OpenStackAdapter, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config cannot be nil")
+	if err := validateConfig(cfg); err != nil {
+		return nil, err
 	}
 
-	// Validate required configuration
-	if cfg.AuthURL == "" {
-		return nil, fmt.Errorf("authURL is required")
-	}
-	if cfg.Username == "" {
-		return nil, fmt.Errorf("username is required")
-	}
-	if cfg.Password == "" {
-		return nil, fmt.Errorf("password is required")
-	}
-	if cfg.ProjectName == "" {
-		return nil, fmt.Errorf("projectName is required")
-	}
-	if cfg.Region == "" {
-		return nil, fmt.Errorf("region is required")
-	}
-	if cfg.OCloudID == "" {
-		return nil, fmt.Errorf("oCloudID is required")
-	}
-
-	// Set defaults
-	domainName := cfg.DomainName
-	if domainName == "" {
-		domainName = "Default"
-	}
-
-	deploymentManagerID := cfg.DeploymentManagerID
-	if deploymentManagerID == "" {
-		deploymentManagerID = fmt.Sprintf("ocloud-openstack-%s", cfg.Region)
-	}
-
-	timeout := cfg.Timeout
-	if timeout == 0 {
-		timeout = 30 * time.Second
-	}
-
-	// Initialize logger
-	logger := cfg.Logger
-	if logger == nil {
-		var err error
-		logger, err = zap.NewProduction()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create logger: %w", err)
-		}
-	}
-
-	logger.Info("initializing OpenStack adapter",
-		zap.String("authURL", cfg.AuthURL),
-		zap.String("username", cfg.Username),
-		zap.String("projectName", cfg.ProjectName),
-		zap.String("domainName", domainName),
-		zap.String("region", cfg.Region),
-		zap.String("oCloudID", cfg.OCloudID))
+	// Apply defaults to configuration
+	domainName, deploymentManagerID, timeout, logger := applyDefaults(cfg)
 
 	// Authenticate with OpenStack
-	authOpts := gophercloud.AuthOptions{
-		IdentityEndpoint: cfg.AuthURL,
-		Username:         cfg.Username,
-		Password:         cfg.Password,
-		TenantName:       cfg.ProjectName,
-		DomainName:       domainName,
-		AllowReauth:      true,
-	}
-
-	provider, err := openstack.AuthenticatedClient(authOpts)
+	provider, err := authenticateOpenStack(cfg, domainName, timeout, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to authenticate with OpenStack: %w", err)
+		return nil, err
 	}
 
-	// Set timeout for all API requests
-	provider.HTTPClient.Timeout = timeout
-
-	logger.Info("authenticated with OpenStack",
-		zap.String("projectName", cfg.ProjectName))
-
-	// Initialize Nova compute service client
-	computeClient, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
-		Region: cfg.Region,
-	})
+	// Initialize OpenStack service clients
+	clients, err := initializeServiceClients(provider, cfg.Region, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Nova compute client: %w", err)
+		return nil, err
 	}
-
-	logger.Info("initialized Nova compute client",
-		zap.String("region", cfg.Region))
-
-	// Initialize Placement service client
-	placementClient, err := openstack.NewPlacementV1(provider, gophercloud.EndpointOpts{
-		Region: cfg.Region,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Placement client: %w", err)
-	}
-
-	logger.Info("initialized Placement client",
-		zap.String("region", cfg.Region))
-
-	// Initialize Keystone identity service client
-	identityClient, err := openstack.NewIdentityV3(provider, gophercloud.EndpointOpts{
-		Region: cfg.Region,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Keystone identity client: %w", err)
-	}
-
-	logger.Info("initialized Keystone identity client",
-		zap.String("region", cfg.Region))
 
 	adapter := &OpenStackAdapter{
 		provider:            provider,
-		compute:             computeClient,
-		placement:           placementClient,
-		identity:            identityClient,
+		compute:             clients.compute,
+		placement:           clients.placement,
+		identity:            clients.identity,
 		logger:              logger,
 		oCloudID:            cfg.OCloudID,
 		deploymentManagerID: deploymentManagerID,
@@ -241,6 +149,128 @@ func New(cfg *Config) (*OpenStackAdapter, error) {
 		zap.String("region", cfg.Region))
 
 	return adapter, nil
+}
+
+// validateConfig validates required configuration fields
+func validateConfig(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config cannot be nil")
+	}
+
+	requiredFields := map[string]string{
+		"authURL":     cfg.AuthURL,
+		"username":    cfg.Username,
+		"password":    cfg.Password,
+		"projectName": cfg.ProjectName,
+		"region":      cfg.Region,
+		"oCloudID":    cfg.OCloudID,
+	}
+
+	for field, value := range requiredFields {
+		if value == "" {
+			return fmt.Errorf("%s is required", field)
+		}
+	}
+
+	return nil
+}
+
+// applyDefaults applies default values to optional configuration fields
+func applyDefaults(cfg *Config) (domainName string, deploymentManagerID string, timeout time.Duration, logger *zap.Logger) {
+	domainName = cfg.DomainName
+	if domainName == "" {
+		domainName = "Default"
+	}
+
+	deploymentManagerID = cfg.DeploymentManagerID
+	if deploymentManagerID == "" {
+		deploymentManagerID = fmt.Sprintf("ocloud-openstack-%s", cfg.Region)
+	}
+
+	timeout = cfg.Timeout
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
+
+	logger = cfg.Logger
+	if logger == nil {
+		var err error
+		logger, err = zap.NewProduction()
+		if err != nil {
+			// Return a no-op logger as fallback
+			logger = zap.NewNop()
+		}
+	}
+
+	return domainName, deploymentManagerID, timeout, logger
+}
+
+// authenticateOpenStack authenticates with OpenStack and returns a provider client
+func authenticateOpenStack(cfg *Config, domainName string, timeout time.Duration, logger *zap.Logger) (*gophercloud.ProviderClient, error) {
+	logger.Info("initializing OpenStack adapter",
+		zap.String("authURL", cfg.AuthURL),
+		zap.String("username", cfg.Username),
+		zap.String("projectName", cfg.ProjectName),
+		zap.String("domainName", domainName),
+		zap.String("region", cfg.Region),
+		zap.String("oCloudID", cfg.OCloudID))
+
+	authOpts := gophercloud.AuthOptions{
+		IdentityEndpoint: cfg.AuthURL,
+		Username:         cfg.Username,
+		Password:         cfg.Password,
+		TenantName:       cfg.ProjectName,
+		DomainName:       domainName,
+		AllowReauth:      true,
+	}
+
+	provider, err := openstack.AuthenticatedClient(authOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to authenticate with OpenStack: %w", err)
+	}
+
+	provider.HTTPClient.Timeout = timeout
+
+	logger.Info("authenticated with OpenStack",
+		zap.String("projectName", cfg.ProjectName))
+
+	return provider, nil
+}
+
+// serviceClients holds OpenStack service clients
+type serviceClients struct {
+	compute   *gophercloud.ServiceClient
+	placement *gophercloud.ServiceClient
+	identity  *gophercloud.ServiceClient
+}
+
+// initializeServiceClients initializes all required OpenStack service clients
+func initializeServiceClients(provider *gophercloud.ProviderClient, region string, logger *zap.Logger) (*serviceClients, error) {
+	endpointOpts := gophercloud.EndpointOpts{Region: region}
+
+	computeClient, err := openstack.NewComputeV2(provider, endpointOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Nova compute client: %w", err)
+	}
+	logger.Info("initialized Nova compute client", zap.String("region", region))
+
+	placementClient, err := openstack.NewPlacementV1(provider, endpointOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Placement client: %w", err)
+	}
+	logger.Info("initialized Placement client", zap.String("region", region))
+
+	identityClient, err := openstack.NewIdentityV3(provider, endpointOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Keystone identity client: %w", err)
+	}
+	logger.Info("initialized Keystone identity client", zap.String("region", region))
+
+	return &serviceClients{
+		compute:   computeClient,
+		placement: placementClient,
+		identity:  identityClient,
+	}, nil
 }
 
 // Name returns the adapter name.

@@ -6,10 +6,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // TestCreateSubscription tests subscription creation

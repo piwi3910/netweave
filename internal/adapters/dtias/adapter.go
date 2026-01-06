@@ -14,8 +14,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // DTIASAdapter implements the adapter.Adapter interface for Dell DTIAS bare-metal backends.

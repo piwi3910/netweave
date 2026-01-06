@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/piwi3910/netweave/internal/smo"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/smo"
 )
 
 // === NORTHBOUND MODE: netweave → ONAP ===

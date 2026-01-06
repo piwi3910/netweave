@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/piwi3910/netweave/internal/adapter"
-	"github.com/piwi3910/netweave/internal/registry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+
+	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/registry"
 )
 
 // mockAdapter is a test implementation.

@@ -10,11 +10,12 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/piwi3910/netweave/internal/adapter"
-	"github.com/piwi3910/netweave/internal/o2ims/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/o2ims/models"
 )
 
 // mockAdapter is a mock implementation of adapter.Adapter for testing.

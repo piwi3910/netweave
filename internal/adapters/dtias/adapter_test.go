@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 func TestNew(t *testing.T) {

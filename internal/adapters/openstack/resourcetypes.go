@@ -5,8 +5,9 @@ import (
 	"fmt"
 
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/flavors"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // ListResourceTypes retrieves all OpenStack flavors and transforms them to O2-IMS Resource Types.

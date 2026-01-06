@@ -7,11 +7,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // KubernetesAdapter implements the adapter.Adapter interface for Kubernetes backends.

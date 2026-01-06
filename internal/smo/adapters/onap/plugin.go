@@ -10,8 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/piwi3910/netweave/internal/smo"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/smo"
 )
 
 // Plugin implements the SMO Plugin interface for ONAP integration.

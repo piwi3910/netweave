@@ -1,8 +1,6 @@
 module github.com/piwi3910/netweave
 
-go 1.24
-
-toolchain go1.24.7
+go 1.25.0
 
 require (
 	github.com/alicebob/miniredis/v2 v2.35.0
@@ -17,6 +15,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.33.0
 	go.uber.org/zap v1.27.1
 	helm.sh/helm/v3 v3.16.4
+	k8s.io/apimachinery v0.35.0
 	k8s.io/client-go v0.35.0
 )
 
@@ -207,7 +206,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.35.0 // indirect
 	k8s.io/apiextensions-apiserver v0.31.3 // indirect
-	k8s.io/apimachinery v0.35.0 // indirect
 	k8s.io/apiserver v0.31.3 // indirect
 	k8s.io/cli-runtime v0.31.3 // indirect
 	k8s.io/component-base v0.31.3 // indirect
