@@ -71,6 +71,7 @@ type Registry struct {
 	healthCheckTimeout  time.Duration
 	stopHealthCheck     chan struct{}
 	healthCheckWg       sync.WaitGroup
+	stopOnce            sync.Once // Ensures StopHealthChecks only runs once
 }
 
 // Config contains configuration for the DMS registry.
@@ -457,18 +458,13 @@ func (r *Registry) StartHealthChecks(ctx context.Context) {
 }
 
 // StopHealthChecks stops background health checking.
+// This method is safe to call multiple times; subsequent calls are no-ops.
 func (r *Registry) StopHealthChecks() {
-	select {
-	case <-r.stopHealthCheck:
-		// Already stopped.
-		return
-	default:
+	r.stopOnce.Do(func() {
 		close(r.stopHealthCheck)
-	}
-
-	r.healthCheckWg.Wait()
-
-	r.logger.Info("DMS health check stopped")
+		r.healthCheckWg.Wait()
+		r.logger.Info("DMS health check stopped")
+	})
 }
 
 // healthCheckLoop runs periodic health checks on all DMS plugins.

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -31,11 +32,16 @@ type mockAdapter struct {
 	deployments []*adapter.Deployment
 	packages    []*adapter.DeploymentPackage
 
-	createDeploymentErr error
-	updateDeploymentErr error
-	deleteDeploymentErr error
-	scaleDeploymentErr  error
-	rollbackErr         error
+	getDeploymentErr        error
+	createDeploymentErr     error
+	updateDeploymentErr     error
+	deleteDeploymentErr     error
+	scaleDeploymentErr      error
+	rollbackErr             error
+	getDeploymentStatusErr  error
+	getDeploymentHistoryErr error
+	getPackageErr           error
+	deleteDeploymentPkgErr  error
 }
 
 func newMockAdapter() *mockAdapter {
@@ -58,6 +64,9 @@ func (m *mockAdapter) ListDeploymentPackages(_ context.Context, _ *adapter.Filte
 }
 
 func (m *mockAdapter) GetDeploymentPackage(_ context.Context, id string) (*adapter.DeploymentPackage, error) {
+	if m.getPackageErr != nil {
+		return nil, m.getPackageErr
+	}
 	for _, pkg := range m.packages {
 		if pkg.ID == id {
 			return pkg, nil
@@ -80,6 +89,9 @@ func (m *mockAdapter) UploadDeploymentPackage(_ context.Context, pkg *adapter.De
 }
 
 func (m *mockAdapter) DeleteDeploymentPackage(_ context.Context, id string) error {
+	if m.deleteDeploymentPkgErr != nil {
+		return m.deleteDeploymentPkgErr
+	}
 	for i, pkg := range m.packages {
 		if pkg.ID == id {
 			m.packages = append(m.packages[:i], m.packages[i+1:]...)
@@ -94,6 +106,9 @@ func (m *mockAdapter) ListDeployments(_ context.Context, _ *adapter.Filter) ([]*
 }
 
 func (m *mockAdapter) GetDeployment(_ context.Context, id string) (*adapter.Deployment, error) {
+	if m.getDeploymentErr != nil {
+		return nil, m.getDeploymentErr
+	}
 	for _, d := range m.deployments {
 		if d.ID == id {
 			return d, nil
@@ -160,6 +175,9 @@ func (m *mockAdapter) RollbackDeployment(_ context.Context, _ string, _ int) err
 }
 
 func (m *mockAdapter) GetDeploymentStatus(_ context.Context, id string) (*adapter.DeploymentStatusDetail, error) {
+	if m.getDeploymentStatusErr != nil {
+		return nil, m.getDeploymentStatusErr
+	}
 	for _, d := range m.deployments {
 		if d.ID == id {
 			return &adapter.DeploymentStatusDetail{
@@ -175,6 +193,9 @@ func (m *mockAdapter) GetDeploymentStatus(_ context.Context, id string) (*adapte
 }
 
 func (m *mockAdapter) GetDeploymentHistory(_ context.Context, id string) (*adapter.DeploymentHistory, error) {
+	if m.getDeploymentHistoryErr != nil {
+		return nil, m.getDeploymentHistoryErr
+	}
 	for _, d := range m.deployments {
 		if d.ID == id {
 			return &adapter.DeploymentHistory{
@@ -2016,4 +2037,291 @@ func TestUpdateNFDeployment_InvalidBody(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// Error handling differentiation tests (404 vs 500)
+
+func TestGetNFDeployment_InternalError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Set internal error (not ErrDeploymentNotFound).
+	mockAdp.getDeploymentErr = errors.New("database connection failed")
+
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments/any-id", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var apiErr models.APIError
+	err := json.Unmarshal(w.Body.Bytes(), &apiErr)
+	require.NoError(t, err)
+	assert.Equal(t, "InternalError", apiErr.Error)
+}
+
+func TestGetNFDeploymentStatus_InternalError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Set internal error (not ErrDeploymentNotFound).
+	mockAdp.getDeploymentStatusErr = errors.New("backend unavailable")
+
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments/any-id/status", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var apiErr models.APIError
+	err := json.Unmarshal(w.Body.Bytes(), &apiErr)
+	require.NoError(t, err)
+	assert.Equal(t, "InternalError", apiErr.Error)
+}
+
+func TestGetNFDeploymentHistory_InternalError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Set internal error (not ErrDeploymentNotFound).
+	mockAdp.getDeploymentHistoryErr = errors.New("timeout reading history")
+
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments/any-id/history", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var apiErr models.APIError
+	err := json.Unmarshal(w.Body.Bytes(), &apiErr)
+	require.NoError(t, err)
+	assert.Equal(t, "InternalError", apiErr.Error)
+}
+
+func TestGetNFDeploymentDescriptor_InternalError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Set internal error (not ErrPackageNotFound).
+	mockAdp.getPackageErr = errors.New("storage service error")
+
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeploymentDescriptors/any-id", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var apiErr models.APIError
+	err := json.Unmarshal(w.Body.Bytes(), &apiErr)
+	require.NoError(t, err)
+	assert.Equal(t, "InternalError", apiErr.Error)
+}
+
+func TestUpdateNFDeployment_NotFound(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	updateReq := models.UpdateNFDeploymentRequest{
+		Description: "Updated description",
+	}
+	body, err := json.Marshal(updateReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, "/o2dms/v1/nfDeployments/nonexistent", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var apiErr models.APIError
+	err = json.Unmarshal(w.Body.Bytes(), &apiErr)
+	require.NoError(t, err)
+	assert.Equal(t, "NotFound", apiErr.Error)
+}
+
+func TestUpdateNFDeployment_InternalError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Set internal error (not ErrDeploymentNotFound).
+	mockAdp.updateDeploymentErr = errors.New("failed to update in backend")
+
+	updateReq := models.UpdateNFDeploymentRequest{
+		Description: "Updated description",
+	}
+	body, err := json.Marshal(updateReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, "/o2dms/v1/nfDeployments/any-id", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var apiErr models.APIError
+	err = json.Unmarshal(w.Body.Bytes(), &apiErr)
+	require.NoError(t, err)
+	assert.Equal(t, "InternalError", apiErr.Error)
+}
+
+func TestDeleteNFDeployment_NotFound(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/nfDeployments/nonexistent", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var apiErr models.APIError
+	err := json.Unmarshal(w.Body.Bytes(), &apiErr)
+	require.NoError(t, err)
+	assert.Equal(t, "NotFound", apiErr.Error)
+}
+
+func TestDeleteNFDeployment_InternalError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Set internal error (not ErrDeploymentNotFound).
+	mockAdp.deleteDeploymentErr = errors.New("failed to uninstall release")
+
+	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/nfDeployments/any-id", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var apiErr models.APIError
+	err := json.Unmarshal(w.Body.Bytes(), &apiErr)
+	require.NoError(t, err)
+	assert.Equal(t, "InternalError", apiErr.Error)
+}
+
+func TestDeleteNFDeploymentDescriptor_NotFound(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/nfDeploymentDescriptors/nonexistent", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var apiErr models.APIError
+	err := json.Unmarshal(w.Body.Bytes(), &apiErr)
+	require.NoError(t, err)
+	assert.Equal(t, "NotFound", apiErr.Error)
+}
+
+func TestDeleteNFDeploymentDescriptor_InternalError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Set internal error (not ErrPackageNotFound).
+	mockAdp.deleteDeploymentPkgErr = errors.New("failed to delete from repo")
+
+	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/nfDeploymentDescriptors/any-id", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var apiErr models.APIError
+	err := json.Unmarshal(w.Body.Bytes(), &apiErr)
+	require.NoError(t, err)
+	assert.Equal(t, "InternalError", apiErr.Error)
+}
+
+func TestScaleNFDeployment_NotFound(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Set not found error.
+	mockAdp.scaleDeploymentErr = adapter.ErrDeploymentNotFound
+
+	scaleReq := models.ScaleNFDeploymentRequest{Replicas: 3}
+	body, err := json.Marshal(scaleReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments/any-id/scale", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestScaleNFDeployment_InternalError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Set internal error (not ErrDeploymentNotFound).
+	mockAdp.scaleDeploymentErr = errors.New("kubernetes API error")
+
+	scaleReq := models.ScaleNFDeploymentRequest{Replicas: 3}
+	body, err := json.Marshal(scaleReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments/any-id/scale", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestRollbackNFDeployment_NotFound(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Set not found error.
+	mockAdp.rollbackErr = adapter.ErrDeploymentNotFound
+
+	rollbackReq := models.RollbackNFDeploymentRequest{}
+	body, err := json.Marshal(rollbackReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments/any-id/rollback", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestRollbackNFDeployment_InternalError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Set internal error (not ErrDeploymentNotFound).
+	mockAdp.rollbackErr = errors.New("helm rollback failed")
+
+	rollbackReq := models.RollbackNFDeploymentRequest{}
+	body, err := json.Marshal(rollbackReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments/any-id/rollback", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

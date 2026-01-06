@@ -327,7 +327,11 @@ func (h *Handler) GetNFDeployment(c *gin.Context) {
 	deployment, err := adp.GetDeployment(c.Request.Context(), nfDeploymentID)
 	if err != nil {
 		h.logger.Error("failed to get NF deployment", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
+		if errors.Is(err, adapter.ErrDeploymentNotFound) {
+			h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
+		} else {
+			h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to get NF deployment")
+		}
 		return
 	}
 
@@ -408,7 +412,11 @@ func (h *Handler) UpdateNFDeployment(c *gin.Context) {
 	deployment, err := adp.UpdateDeployment(c.Request.Context(), nfDeploymentID, update)
 	if err != nil {
 		h.logger.Error("failed to update NF deployment", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to update NF deployment")
+		if errors.Is(err, adapter.ErrDeploymentNotFound) {
+			h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
+		} else {
+			h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to update NF deployment")
+		}
 		return
 	}
 
@@ -431,7 +439,11 @@ func (h *Handler) DeleteNFDeployment(c *gin.Context) {
 
 	if err := adp.DeleteDeployment(c.Request.Context(), nfDeploymentID); err != nil {
 		h.logger.Error("failed to delete NF deployment", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to delete NF deployment")
+		if errors.Is(err, adapter.ErrDeploymentNotFound) {
+			h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
+		} else {
+			h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to delete NF deployment")
+		}
 		return
 	}
 
@@ -466,7 +478,11 @@ func (h *Handler) ScaleNFDeployment(c *gin.Context) {
 
 	if err := adp.ScaleDeployment(c.Request.Context(), nfDeploymentID, req.Replicas); err != nil {
 		h.logger.Error("failed to scale NF deployment", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to scale NF deployment")
+		if errors.Is(err, adapter.ErrDeploymentNotFound) {
+			h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
+		} else {
+			h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to scale NF deployment")
+		}
 		return
 	}
 
@@ -512,7 +528,11 @@ func (h *Handler) RollbackNFDeployment(c *gin.Context) {
 
 	if err := adp.RollbackDeployment(c.Request.Context(), nfDeploymentID, targetRevision); err != nil {
 		h.logger.Error("failed to rollback NF deployment", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to rollback NF deployment")
+		if errors.Is(err, adapter.ErrDeploymentNotFound) {
+			h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
+		} else {
+			h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to rollback NF deployment")
+		}
 		return
 	}
 
@@ -542,7 +562,11 @@ func (h *Handler) GetNFDeploymentStatus(c *gin.Context) {
 	status, err := adp.GetDeploymentStatus(c.Request.Context(), nfDeploymentID)
 	if err != nil {
 		h.logger.Error("failed to get NF deployment status", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
+		if errors.Is(err, adapter.ErrDeploymentNotFound) {
+			h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
+		} else {
+			h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to get NF deployment status")
+		}
 		return
 	}
 
@@ -564,7 +588,11 @@ func (h *Handler) GetNFDeploymentHistory(c *gin.Context) {
 	history, err := adp.GetDeploymentHistory(c.Request.Context(), nfDeploymentID)
 	if err != nil {
 		h.logger.Error("failed to get NF deployment history", zap.String("id", nfDeploymentID), zap.Error(err))
-		h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
+		if errors.Is(err, adapter.ErrDeploymentNotFound) {
+			h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
+		} else {
+			h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to get NF deployment history")
+		}
 		return
 	}
 
@@ -629,7 +657,11 @@ func (h *Handler) GetNFDeploymentDescriptor(c *gin.Context) {
 	pkg, err := adp.GetDeploymentPackage(c.Request.Context(), descriptorID)
 	if err != nil {
 		h.logger.Error("failed to get NF deployment descriptor", zap.String("id", descriptorID), zap.Error(err))
-		h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment descriptor not found")
+		if errors.Is(err, adapter.ErrPackageNotFound) {
+			h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment descriptor not found")
+		} else {
+			h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to get NF deployment descriptor")
+		}
 		return
 	}
 
@@ -690,7 +722,11 @@ func (h *Handler) DeleteNFDeploymentDescriptor(c *gin.Context) {
 
 	if err := adp.DeleteDeploymentPackage(c.Request.Context(), descriptorID); err != nil {
 		h.logger.Error("failed to delete NF deployment descriptor", zap.String("id", descriptorID), zap.Error(err))
-		h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to delete NF deployment descriptor")
+		if errors.Is(err, adapter.ErrPackageNotFound) {
+			h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment descriptor not found")
+		} else {
+			h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to delete NF deployment descriptor")
+		}
 		return
 	}
 
