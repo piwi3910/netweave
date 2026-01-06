@@ -37,7 +37,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.63
+          version: latest
           args: --timeout=5m --config=.golangci.yml
 
       - name: Check go mod tidy
