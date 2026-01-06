@@ -5,7 +5,6 @@ package middleware
 import (
 	"bytes"
 	"context"
-	"embed"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,10 +19,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// OpenAPISpecs embeds the OpenAPI specification files.
-//
-//go:embed specs/*.yaml
-var OpenAPISpecs embed.FS
+// DefaultMaxBodySize is the default maximum request body size (1MB).
+const DefaultMaxBodySize int64 = 1024 * 1024
 
 // ValidationConfig holds configuration for the OpenAPI validation middleware.
 type ValidationConfig struct {
@@ -42,6 +39,11 @@ type ValidationConfig struct {
 	// Health check endpoints are automatically excluded.
 	ExcludePaths []string
 
+	// MaxBodySize is the maximum request body size in bytes.
+	// Requests with bodies larger than this will be rejected.
+	// Default is 1MB (1048576 bytes).
+	MaxBodySize int64
+
 	// Logger is the logger for validation errors.
 	Logger *zap.Logger
 }
@@ -51,6 +53,7 @@ func DefaultValidationConfig() *ValidationConfig {
 	return &ValidationConfig{
 		ValidateRequest:  true,
 		ValidateResponse: false,
+		MaxBodySize:      DefaultMaxBodySize,
 		ExcludePaths: []string{
 			"/health",
 			"/healthz",
@@ -231,7 +234,28 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 	}
 
 	if c.Request.Body != nil && c.Request.ContentLength > 0 {
-		bodyBytes, err := io.ReadAll(c.Request.Body)
+		// Check content length against max body size
+		maxBodySize := v.config.MaxBodySize
+		if maxBodySize <= 0 {
+			maxBodySize = DefaultMaxBodySize
+		}
+
+		if c.Request.ContentLength > maxBodySize {
+			v.logger.Warn("request body too large",
+				zap.Int64("content_length", c.Request.ContentLength),
+				zap.Int64("max_body_size", maxBodySize),
+			)
+			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{
+				"error":   "RequestEntityTooLarge",
+				"message": fmt.Sprintf("Request body exceeds maximum size of %d bytes", maxBodySize),
+				"code":    http.StatusRequestEntityTooLarge,
+			})
+			return fmt.Errorf("request body too large: %d > %d", c.Request.ContentLength, maxBodySize)
+		}
+
+		// Use LimitReader to prevent reading more than max body size
+		limitedReader := io.LimitReader(c.Request.Body, maxBodySize+1)
+		bodyBytes, err := io.ReadAll(limitedReader)
 		if err != nil {
 			v.logger.Error("failed to read request body", zap.Error(err))
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
@@ -241,6 +265,21 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 			})
 			return err
 		}
+
+		// Double check actual bytes read (for chunked encoding where ContentLength may be -1)
+		if int64(len(bodyBytes)) > maxBodySize {
+			v.logger.Warn("request body too large (chunked)",
+				zap.Int("body_size", len(bodyBytes)),
+				zap.Int64("max_body_size", maxBodySize),
+			)
+			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{
+				"error":   "RequestEntityTooLarge",
+				"message": fmt.Sprintf("Request body exceeds maximum size of %d bytes", maxBodySize),
+				"code":    http.StatusRequestEntityTooLarge,
+			})
+			return fmt.Errorf("request body too large: %d > %d", len(bodyBytes), maxBodySize)
+		}
+
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		requestValidationInput.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	}

@@ -356,6 +356,7 @@ func TestDefaultValidationConfig(t *testing.T) {
 
 	assert.True(t, cfg.ValidateRequest)
 	assert.False(t, cfg.ValidateResponse)
+	assert.Equal(t, DefaultMaxBodySize, cfg.MaxBodySize)
 	assert.Contains(t, cfg.ExcludePaths, "/health")
 	assert.Contains(t, cfg.ExcludePaths, "/metrics")
 }
@@ -466,4 +467,81 @@ func TestOpenAPIValidator_ConcurrentAccess(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		<-done
 	}
+}
+
+func TestOpenAPIValidator_MaxBodySize(t *testing.T) {
+	t.Run("rejects request exceeding max body size", func(t *testing.T) {
+		cfg := &ValidationConfig{
+			ValidateRequest: true,
+			MaxBodySize:     100, // 100 bytes limit
+		}
+		router, _ := setupTestRouter(t, cfg)
+
+		router.POST("/o2ims/v1/subscriptions", func(c *gin.Context) {
+			c.JSON(http.StatusCreated, gin.H{"subscriptionId": "test-123"})
+		})
+
+		// Create a body larger than 100 bytes
+		largeBody := make([]byte, 200)
+		for i := range largeBody {
+			largeBody[i] = 'a'
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/o2ims/v1/subscriptions", bytes.NewReader(largeBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "RequestEntityTooLarge", response["error"])
+	})
+
+	t.Run("accepts request within max body size", func(t *testing.T) {
+		cfg := &ValidationConfig{
+			ValidateRequest: true,
+			MaxBodySize:     1024, // 1KB limit
+		}
+		router, _ := setupTestRouter(t, cfg)
+
+		router.POST("/o2ims/v1/subscriptions", func(c *gin.Context) {
+			c.JSON(http.StatusCreated, gin.H{
+				"subscriptionId": "test-123",
+				"callback":       "https://example.com/callback",
+			})
+		})
+
+		body := map[string]interface{}{
+			"callback": "https://example.com/callback",
+		}
+		bodyBytes, err := json.Marshal(body)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodPost, "/o2ims/v1/subscriptions", bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+
+	t.Run("uses default max body size when not configured", func(t *testing.T) {
+		cfg := DefaultValidationConfig()
+		assert.Equal(t, DefaultMaxBodySize, cfg.MaxBodySize)
+	})
+}
+
+func TestOpenAPIValidator_LoadSpecFromFile(t *testing.T) {
+	t.Run("fails on non-existent file", func(t *testing.T) {
+		validator, err := NewOpenAPIValidator(nil)
+		require.NoError(t, err)
+
+		err = validator.LoadSpecFromFile("/non/existent/path.yaml")
+		require.Error(t, err)
+	})
 }

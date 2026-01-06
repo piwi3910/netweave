@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"net/http"
@@ -21,6 +22,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
+
+// o2imsOpenAPISpec embeds the O2-IMS OpenAPI specification.
+//
+//go:embed ../../api/openapi/o2ims.yaml
+var o2imsOpenAPISpec []byte
 
 // Server represents the HTTP server for the O2-IMS Gateway.
 // It encapsulates the Gin router, configuration, logger, and server state.
@@ -223,9 +229,20 @@ func initOpenAPIValidator(cfg *config.Config, logger *zap.Logger) (*middleware.O
 		return nil, fmt.Errorf("failed to create OpenAPI validator: %w", err)
 	}
 
-	specContent, err := middleware.OpenAPISpecs.ReadFile("specs/o2ims.yaml")
-	if err != nil {
-		return nil, fmt.Errorf("failed to read embedded OpenAPI spec: %w", err)
+	// Use embedded OpenAPI spec or load from custom path
+	var specContent []byte
+	if cfg.Validation.SpecPath != "" {
+		// Load from custom file path if specified
+		if err := validator.LoadSpecFromFile(cfg.Validation.SpecPath); err != nil {
+			return nil, fmt.Errorf("failed to load OpenAPI spec from file: %w", err)
+		}
+		return validator, nil
+	}
+
+	// Use embedded spec
+	specContent = o2imsOpenAPISpec
+	if len(specContent) == 0 {
+		return nil, fmt.Errorf("embedded OpenAPI spec is empty")
 	}
 
 	if err := validator.LoadSpec(specContent); err != nil {
