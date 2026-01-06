@@ -93,15 +93,27 @@ func TestNewWithInvalidKubeconfig(t *testing.T) {
 }
 
 // newTestAdapter creates a KubernetesAdapter with a fake client for testing.
+// It registers a cleanup function to properly close the adapter after the test.
 func newTestAdapter(t *testing.T) *KubernetesAdapter {
 	t.Helper()
-	return &KubernetesAdapter{
+
+	logger := zaptest.NewLogger(t)
+	adp := &KubernetesAdapter{
 		client:              fake.NewSimpleClientset(),
-		logger:              zaptest.NewLogger(t),
+		logger:              logger,
 		oCloudID:            "test-ocloud",
 		deploymentManagerID: "test-dm",
 		namespace:           "o2ims-system",
 	}
+
+	// Register cleanup to close adapter after test
+	t.Cleanup(func() {
+		if err := adp.Close(); err != nil {
+			t.Logf("warning: failed to close adapter during cleanup: %v", err)
+		}
+	})
+
+	return adp
 }
 
 func TestKubernetesAdapter_Name(t *testing.T) {
@@ -601,5 +613,256 @@ func TestKubernetesAdapter_ListResources_WithLabels(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, resources)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+// Tests for context handling
+
+func TestKubernetesAdapter_ListResourcePools_WithTimeout(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+
+	// Even with zero timeout, stub returns "not implemented"
+	pools, err := adp.ListResourcePools(ctx, nil)
+
+	require.Error(t, err)
+	assert.Nil(t, pools)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_ListResources_WithTimeout(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+
+	resources, err := adp.ListResources(ctx, nil)
+
+	require.Error(t, err)
+	assert.Nil(t, resources)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+// Tests for filter with extensions
+
+func TestKubernetesAdapter_ListResourcePools_WithExtensions(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	filter := &adapterapi.Filter{
+		Extensions: map[string]interface{}{
+			"vendor.customField": "customValue",
+			"nested": map[string]interface{}{
+				"key": "value",
+			},
+		},
+	}
+
+	pools, err := adp.ListResourcePools(ctx, filter)
+
+	require.Error(t, err)
+	assert.Nil(t, pools)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_ListResources_WithExtensions(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	filter := &adapterapi.Filter{
+		Extensions: map[string]interface{}{
+			"machineType": "n1-standard-4",
+		},
+	}
+
+	resources, err := adp.ListResources(ctx, filter)
+
+	require.Error(t, err)
+	assert.Nil(t, resources)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+// Tests for configuration validation
+
+func TestConfig_Validation(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     *Config
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "nil config",
+			cfg:     nil,
+			wantErr: true,
+			errMsg:  "config cannot be nil",
+		},
+		{
+			name: "empty OCloudID is allowed",
+			cfg: &Config{
+				OCloudID:            "",
+				DeploymentManagerID: "dm-1",
+				Logger:              zap.NewNop(),
+			},
+			wantErr: true,
+			errMsg:  "in-cluster", // Will fail due to no kubeconfig
+		},
+		{
+			name: "empty DeploymentManagerID is allowed",
+			cfg: &Config{
+				OCloudID:            "ocloud-1",
+				DeploymentManagerID: "",
+				Logger:              zap.NewNop(),
+			},
+			wantErr: true,
+			errMsg:  "in-cluster", // Will fail due to no kubeconfig
+		},
+		{
+			name: "nil logger creates default",
+			cfg: &Config{
+				OCloudID:            "ocloud-1",
+				DeploymentManagerID: "dm-1",
+				Logger:              nil,
+			},
+			wantErr: true,
+			errMsg:  "in-cluster", // Will fail due to no kubeconfig
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := New(tt.cfg)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// Tests for multiple Close calls
+
+func TestKubernetesAdapter_Close_MultipleCallsAreSafe(t *testing.T) {
+	// Create adapter without using newTestAdapter to avoid double close
+	adp := &KubernetesAdapter{
+		client:              fake.NewSimpleClientset(),
+		logger:              zaptest.NewLogger(t),
+		oCloudID:            "test-ocloud",
+		deploymentManagerID: "test-dm",
+		namespace:           "o2ims-system",
+	}
+
+	// First close should succeed
+	err := adp.Close()
+	require.NoError(t, err)
+
+	// Second close should also succeed (idempotent)
+	err = adp.Close()
+	require.NoError(t, err)
+}
+
+// Tests for adapter metadata consistency
+
+func TestKubernetesAdapter_MetadataConsistency(t *testing.T) {
+	adp := newTestAdapter(t)
+
+	// Name should always return the same value
+	name1 := adp.Name()
+	name2 := adp.Name()
+	assert.Equal(t, name1, name2)
+	assert.Equal(t, "kubernetes", name1)
+
+	// Version should always return the same value
+	version1 := adp.Version()
+	version2 := adp.Version()
+	assert.Equal(t, version1, version2)
+
+	// Capabilities should always return the same slice
+	caps1 := adp.Capabilities()
+	caps2 := adp.Capabilities()
+	assert.Equal(t, caps1, caps2)
+	assert.Len(t, caps1, 6)
+}
+
+// Tests for subscription with filter
+
+func TestKubernetesAdapter_CreateSubscription_WithFilter(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	sub := &adapterapi.Subscription{
+		SubscriptionID:         "sub-test",
+		Callback:               "https://smo.example.com/notify",
+		ConsumerSubscriptionID: "consumer-123",
+		Filter: &adapterapi.SubscriptionFilter{
+			ResourcePoolID: "pool-1",
+			ResourceTypeID: "type-compute",
+			ResourceID:     "res-specific",
+		},
+	}
+
+	created, err := adp.CreateSubscription(ctx, sub)
+
+	require.Error(t, err)
+	assert.Nil(t, created)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+// Tests for resource with all extensions
+
+func TestKubernetesAdapter_CreateResource_WithExtensions(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	resource := &adapterapi.Resource{
+		ResourceID:     "res-test",
+		ResourceTypeID: "type-compute",
+		ResourcePoolID: "pool-1",
+		GlobalAssetID:  "urn:o-ran:resource:test-node",
+		Description:    "Test worker node",
+		Extensions: map[string]interface{}{
+			"nodeName": "worker-test",
+			"status":   "Ready",
+			"cpu":      "8",
+			"memory":   "32Gi",
+			"labels": map[string]string{
+				"role": "worker",
+			},
+		},
+	}
+
+	created, err := adp.CreateResource(ctx, resource)
+
+	require.Error(t, err)
+	assert.Nil(t, created)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+// Tests for resource pool with all fields
+
+func TestKubernetesAdapter_CreateResourcePool_WithAllFields(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	pool := &adapterapi.ResourcePool{
+		ResourcePoolID:   "pool-test",
+		Name:             "Production Pool",
+		Description:      "High-performance compute pool",
+		Location:         "dc-west-1",
+		OCloudID:         "ocloud-1",
+		GlobalLocationID: "geo:37.7749,-122.4194",
+		Extensions: map[string]interface{}{
+			"machineType": "n1-standard-4",
+			"replicas":    3,
+			"volumeSize":  "100Gi",
+		},
+	}
+
+	created, err := adp.CreateResourcePool(ctx, pool)
+
+	require.Error(t, err)
+	assert.Nil(t, created)
 	assert.Contains(t, err.Error(), "not implemented")
 }
