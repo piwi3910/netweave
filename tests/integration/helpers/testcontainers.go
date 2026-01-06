@@ -1,6 +1,5 @@
 // Package helpers provides common test utilities for integration tests.
 // This includes testcontainers setup, mock servers, and test fixtures.
-//
 //go:build integration
 // +build integration
 

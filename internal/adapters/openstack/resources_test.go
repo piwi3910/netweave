@@ -271,10 +271,8 @@ func TestCreateResourceValidation(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
-			} else {
-				// Note: This will fail with OpenStack API error in tests
-				// We're just testing validation logic here
 			}
+			// Note: Success cases would require OpenStack API mock
 		})
 	}
 }

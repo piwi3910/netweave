@@ -8,11 +8,16 @@ import (
 // BadgeColor represents badge color based on compliance level.
 type BadgeColor string
 
+// Badge color constants.
 const (
-	BadgeColorGreen  BadgeColor = "brightgreen" // Full compliance
-	BadgeColorYellow BadgeColor = "yellow"      // Partial compliance
-	BadgeColorRed    BadgeColor = "red"         // No compliance
-	BadgeColorGray   BadgeColor = "lightgray"   // Unknown/untested
+	// BadgeColorGreen indicates full compliance.
+	BadgeColorGreen BadgeColor = "brightgreen"
+	// BadgeColorYellow indicates partial compliance.
+	BadgeColorYellow BadgeColor = "yellow"
+	// BadgeColorRed indicates no compliance.
+	BadgeColorRed BadgeColor = "red"
+	// BadgeColorGray indicates unknown or untested compliance.
+	BadgeColorGray BadgeColor = "lightgray"
 )
 
 // BadgeGenerator generates compliance badges for README.

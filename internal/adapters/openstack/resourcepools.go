@@ -12,7 +12,10 @@ import (
 
 // ListResourcePools retrieves all OpenStack host aggregates and transforms them to O2-IMS Resource Pools.
 // Host aggregates in OpenStack are logical groupings of compute hosts, which map naturally to O2-IMS Resource Pools.
-func (a *OpenStackAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *OpenStackAdapter) ListResourcePools(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
 	a.logger.Debug("ListResourcePools called",
 		zap.Any("filter", filter))
 
@@ -88,7 +91,10 @@ func (a *OpenStackAdapter) GetResourcePool(ctx context.Context, id string) (*ada
 }
 
 // CreateResourcePool creates a new OpenStack host aggregate from an O2-IMS Resource Pool.
-func (a *OpenStackAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *OpenStackAdapter) CreateResourcePool(
+	ctx context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	a.logger.Debug("CreateResourcePool called",
 		zap.String("name", pool.Name))
 
@@ -149,7 +155,11 @@ func (a *OpenStackAdapter) CreateResourcePool(ctx context.Context, pool *adapter
 
 // UpdateResourcePool updates an existing OpenStack host aggregate.
 // Note: Only metadata can be updated; name and availability zone are immutable in OpenStack.
-func (a *OpenStackAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *OpenStackAdapter) UpdateResourcePool(
+	ctx context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	a.logger.Debug("UpdateResourcePool called",
 		zap.String("id", id),
 		zap.String("name", pool.Name))

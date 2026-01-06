@@ -176,7 +176,12 @@ func validateConfig(cfg *Config) error {
 }
 
 // applyDefaults applies default values to optional configuration fields.
-func applyDefaults(cfg *Config) (domainName string, deploymentManagerID string, timeout time.Duration, logger *zap.Logger) {
+func applyDefaults(cfg *Config) (
+	domainName string,
+	deploymentManagerID string,
+	timeout time.Duration,
+	logger *zap.Logger,
+) {
 	domainName = cfg.DomainName
 	if domainName == "" {
 		domainName = "Default"
@@ -206,7 +211,12 @@ func applyDefaults(cfg *Config) (domainName string, deploymentManagerID string, 
 }
 
 // authenticateOpenStack authenticates with OpenStack and returns a provider clien.
-func authenticateOpenStack(cfg *Config, domainName string, timeout time.Duration, logger *zap.Logger) (*gophercloud.ProviderClient, error) {
+func authenticateOpenStack(
+	cfg *Config,
+	domainName string,
+	timeout time.Duration,
+	logger *zap.Logger,
+) (*gophercloud.ProviderClient, error) {
 	logger.Info("initializing OpenStack adapter",
 		zap.String("authURL", cfg.AuthURL),
 		zap.String("username", cfg.Username),
@@ -245,7 +255,11 @@ type serviceClients struct {
 }
 
 // initializeServiceClients initializes all required OpenStack service clients.
-func initializeServiceClients(provider *gophercloud.ProviderClient, region string, logger *zap.Logger) (*serviceClients, error) {
+func initializeServiceClients(
+	provider *gophercloud.ProviderClient,
+	region string,
+	logger *zap.Logger,
+) (*serviceClients, error) {
 	endpointOpts := gophercloud.EndpointOpts{Region: region}
 
 	computeClient, err := openstack.NewComputeV2(provider, endpointOpts)
@@ -439,7 +453,11 @@ func (a *OpenStackAdapter) Close() error {
 }
 
 // matchesFilter checks if a resource matches the provided filter criteria.
-func (a *OpenStackAdapter) matchesFilter(filter *adapter.Filter, resourcePoolID, resourceTypeID, location string, labels map[string]string) bool {
+func (a *OpenStackAdapter) matchesFilter(
+	filter *adapter.Filter,
+	resourcePoolID, resourceTypeID, location string,
+	labels map[string]string,
+) bool {
 	if filter == nil {
 		return true
 	}

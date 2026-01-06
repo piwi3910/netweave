@@ -1,5 +1,4 @@
 // Package kubernetes provides Kubernetes-based adapter implementation for O2-IMS.
-//
 //go:build integration
 // +build integration
 

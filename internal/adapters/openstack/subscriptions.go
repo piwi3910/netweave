@@ -21,7 +21,10 @@ var (
 // Note: OpenStack does not natively support event subscriptions, so this implementation
 // uses a polling-based approach. The subscription is stored in memory (or Redis in production)
 // and events are detected by periodic polling of OpenStack resources.
-func (a *OpenStackAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *OpenStackAdapter) CreateSubscription(
+	ctx context.Context,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback))
 
