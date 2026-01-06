@@ -5,7 +5,7 @@
 [![CI Status](https://github.com/piwi3910/netweave/workflows/CI%20Pipeline/badge.svg)](https://github.com/piwi3910/netweave/actions)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/piwi3910/netweave)](https://go.dev/)
 [![License](https://img.shields.io/github/license/piwi3910/netweave)](LICENSE)
-[![Coverage](https://codecov.io/gh/piwi3910/netweave/branch/main/graph/badge.svg)](https://codecov.io/gh/piwi3910/netweave)
+[![codecov](https://codecov.io/github/piwi3910/netweave/graph/badge.svg?token=9GKK97R795)](https://codecov.io/github/piwi3910/netweave)
 
 ## What is netweave?
 
