@@ -1,4 +1,4 @@
-package config
+package config_test
 
 import (
 	"os"
@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/piwi3910/netweave/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +18,7 @@ func TestLoad(t *testing.T) {
 		configYAML string
 		envVars    map[string]string
 		wantErr    bool
-		validate   func(*testing.T, *Config)
+		validate   func(*testing.T, *config.Config)
 	}{
 		{
 			name: "valid minimal config",
@@ -29,7 +30,7 @@ redis:
     - localhost:6379
 `,
 			wantErr: false,
-			validate: func(t *testing.T, cfg *Config) {
+			validate: func(t *testing.T, cfg *config.Config) {
 				assert.Equal(t, 8080, cfg.Server.Port)
 				assert.Equal(t, "0.0.0.0", cfg.Server.Host)
 				assert.Equal(t, []string{"localhost:6379"}, cfg.Redis.Addresses)
@@ -76,7 +77,7 @@ security:
   rate_limit_requests: 1000
 `,
 			wantErr: false,
-			validate: func(t *testing.T, cfg *Config) {
+			validate: func(t *testing.T, cfg *config.Config) {
 				assert.Equal(t, "127.0.0.1", cfg.Server.Host)
 				assert.Equal(t, 9090, cfg.Server.Port)
 				assert.Equal(t, 60*time.Second, cfg.Server.ReadTimeout)
@@ -117,7 +118,7 @@ redis:
 				"NETWEAVE_SECURITY_RATE_LIMIT_REQUESTS": "500",
 			},
 			wantErr: false,
-			validate: func(t *testing.T, cfg *Config) {
+			validate: func(t *testing.T, cfg *config.Config) {
 				assert.Equal(t, 9999, cfg.Server.Port)
 				assert.Equal(t, "debug", cfg.Observability.Logging.Level)
 				assert.Equal(t, "cluster", cfg.Redis.Mode)
@@ -148,7 +149,7 @@ server:
 			}
 
 			// Load configuration
-			cfg, err := Load(configPath)
+			cfg, err := config.Load(configPath)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -171,7 +172,7 @@ func TestLoadWithoutConfigFile(t *testing.T) {
 	t.Setenv("NETWEAVE_SERVER_PORT", "8080")
 	t.Setenv("NETWEAVE_REDIS_ADDRESSES", "redis:6379")
 
-	cfg, err := Load("/nonexistent/config.yaml")
+	cfg, err := config.Load("/nonexistent/config.yaml")
 
 	// Should not error even if file doesn't exist (env vars provide values)
 	require.NoError(t, err)
@@ -186,38 +187,38 @@ func TestLoadWithoutConfigFile(t *testing.T) {
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *config.Config
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "valid config",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    8080,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "standalone",
 					Addresses: []string{"localhost:6379"},
 					DB:        0,
 				},
-				Observability: ObservabilityConfig{
-					Logging: LoggingConfig{
+				Observability: config.ObservabilityConfig{
+					Logging: config.LoggingConfig{
 						Level:  "info",
 						Format: "json",
 					},
-					Metrics: MetricsConfig{
+					Metrics: config.MetricsConfig{
 						Enabled: true,
 						Path:    "/metrics",
 						Port:    0,
 					},
-					Tracing: TracingConfig{
+					Tracing: config.TracingConfig{
 						Enabled:      false,
 						SamplingRate: 0.1,
 					},
 				},
-				Security: SecurityConfig{
+				Security: config.SecurityConfig{
 					RateLimitEnabled:  true,
 					RateLimitRequests: 100,
 					RateLimitWindow:   time.Minute,
@@ -227,12 +228,12 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid server port - too low",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    0,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "standalone",
 					Addresses: []string{"localhost:6379"},
 				},
@@ -242,12 +243,12 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid server port - too high",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    70000,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "standalone",
 					Addresses: []string{"localhost:6379"},
 				},
@@ -257,12 +258,12 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid gin mode",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    8080,
 					GinMode: "invalid",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "standalone",
 					Addresses: []string{"localhost:6379"},
 				},
@@ -272,12 +273,12 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid redis mode",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    8080,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "invalid",
 					Addresses: []string{"localhost:6379"},
 				},
@@ -287,12 +288,12 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "empty redis addresses",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    8080,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "standalone",
 					Addresses: []string{},
 				},
@@ -302,12 +303,12 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "sentinel mode without master name",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    8080,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:       "sentinel",
 					Addresses:  []string{"sentinel:26379"},
 					MasterName: "",
@@ -318,12 +319,12 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid redis db",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    8080,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "standalone",
 					Addresses: []string{"localhost:6379"},
 					DB:        20,
@@ -334,17 +335,17 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid logging level",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    8080,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "standalone",
 					Addresses: []string{"localhost:6379"},
 				},
-				Observability: ObservabilityConfig{
-					Logging: LoggingConfig{
+				Observability: config.ObservabilityConfig{
+					Logging: config.LoggingConfig{
 						Level:  "invalid",
 						Format: "json",
 					},
@@ -355,17 +356,17 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid logging format",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    8080,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "standalone",
 					Addresses: []string{"localhost:6379"},
 				},
-				Observability: ObservabilityConfig{
-					Logging: LoggingConfig{
+				Observability: config.ObservabilityConfig{
+					Logging: config.LoggingConfig{
 						Level:  "info",
 						Format: "xml",
 					},
@@ -376,21 +377,21 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid metrics port",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    8080,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "standalone",
 					Addresses: []string{"localhost:6379"},
 				},
-				Observability: ObservabilityConfig{
-					Logging: LoggingConfig{
+				Observability: config.ObservabilityConfig{
+					Logging: config.LoggingConfig{
 						Level:  "info",
 						Format: "json",
 					},
-					Metrics: MetricsConfig{
+					Metrics: config.MetricsConfig{
 						Enabled: true,
 						Path:    "/metrics",
 						Port:    70000,
@@ -402,21 +403,21 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "tracing enabled without endpoint",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    8080,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "standalone",
 					Addresses: []string{"localhost:6379"},
 				},
-				Observability: ObservabilityConfig{
-					Logging: LoggingConfig{
+				Observability: config.ObservabilityConfig{
+					Logging: config.LoggingConfig{
 						Level:  "info",
 						Format: "json",
 					},
-					Tracing: TracingConfig{
+					Tracing: config.TracingConfig{
 						Enabled:  true,
 						Provider: "otlp",
 						Endpoint: "",
@@ -428,21 +429,21 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid tracing sampling rate",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    8080,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "standalone",
 					Addresses: []string{"localhost:6379"},
 				},
-				Observability: ObservabilityConfig{
-					Logging: LoggingConfig{
+				Observability: config.ObservabilityConfig{
+					Logging: config.LoggingConfig{
 						Level:  "info",
 						Format: "json",
 					},
-					Tracing: TracingConfig{
+					Tracing: config.TracingConfig{
 						Enabled:      true,
 						Provider:     "otlp",
 						Endpoint:     "http://localhost:4318",
@@ -455,22 +456,22 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid rate limit requests",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    8080,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "standalone",
 					Addresses: []string{"localhost:6379"},
 				},
-				Observability: ObservabilityConfig{
-					Logging: LoggingConfig{
+				Observability: config.ObservabilityConfig{
+					Logging: config.LoggingConfig{
 						Level:  "info",
 						Format: "json",
 					},
 				},
-				Security: SecurityConfig{
+				Security: config.SecurityConfig{
 					RateLimitEnabled:  true,
 					RateLimitRequests: 0,
 				},
@@ -480,22 +481,22 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid rate limit window",
-			config: &Config{
-				Server: ServerConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{
 					Port:    8080,
 					GinMode: "release",
 				},
-				Redis: RedisConfig{
+				Redis: config.RedisConfig{
 					Mode:      "standalone",
 					Addresses: []string{"localhost:6379"},
 				},
-				Observability: ObservabilityConfig{
-					Logging: LoggingConfig{
+				Observability: config.ObservabilityConfig{
+					Logging: config.LoggingConfig{
 						Level:  "info",
 						Format: "json",
 					},
 				},
-				Security: SecurityConfig{
+				Security: config.SecurityConfig{
 					RateLimitEnabled:  true,
 					RateLimitRequests: 100,
 					RateLimitWindow:   500 * time.Millisecond,
@@ -537,34 +538,34 @@ func TestValidateTLSConfig(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *config.Config
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "valid TLS config",
-			config: &Config{
-				Server: ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				TLS: TLSConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
+				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
 					KeyFile:    keyFile,
 					ClientAuth: "none",
 					MinVersion: "1.3",
 				},
-				Observability: ObservabilityConfig{
-					Logging: LoggingConfig{Level: "info", Format: "json"},
+				Observability: config.ObservabilityConfig{
+					Logging: config.LoggingConfig{Level: "info", Format: "json"},
 				},
 			},
 			wantErr: false,
 		},
 		{
 			name: "TLS enabled without cert file",
-			config: &Config{
-				Server: ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				TLS: TLSConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
+				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				TLS: config.TLSConfig{
 					Enabled:    true,
 					KeyFile:    keyFile,
 					MinVersion: "1.3",
@@ -575,10 +576,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		},
 		{
 			name: "TLS enabled without key file",
-			config: &Config{
-				Server: ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				TLS: TLSConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
+				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
 					MinVersion: "1.3",
@@ -589,10 +590,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		},
 		{
 			name: "cert file does not exist",
-			config: &Config{
-				Server: ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				TLS: TLSConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
+				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   "/nonexistent/cert.pem",
 					KeyFile:    keyFile,
@@ -604,10 +605,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		},
 		{
 			name: "key file does not exist",
-			config: &Config{
-				Server: ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				TLS: TLSConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
+				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
 					KeyFile:    "/nonexistent/key.pem",
@@ -619,10 +620,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		},
 		{
 			name: "invalid client auth mode",
-			config: &Config{
-				Server: ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				TLS: TLSConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
+				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
 					KeyFile:    keyFile,
@@ -635,10 +636,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		},
 		{
 			name: "client auth enabled without CA file",
-			config: &Config{
-				Server: ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				TLS: TLSConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
+				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
 					KeyFile:    keyFile,
@@ -651,10 +652,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		},
 		{
 			name: "CA file does not exist",
-			config: &Config{
-				Server: ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				TLS: TLSConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
+				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
 					KeyFile:    keyFile,
@@ -668,13 +669,14 @@ func TestValidateTLSConfig(t *testing.T) {
 		},
 		{
 			name: "invalid min TLS version",
-			config: &Config{
-				Server: ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				TLS: TLSConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
+				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
 					KeyFile:    keyFile,
+					ClientAuth: "none",
 					MinVersion: "1.1",
 				},
 			},
@@ -683,10 +685,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		},
 		{
 			name: "valid mTLS config",
-			config: &Config{
-				Server: ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				TLS: TLSConfig{
+			config: &config.Config{
+				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
+				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
 					KeyFile:    keyFile,
@@ -694,8 +696,8 @@ func TestValidateTLSConfig(t *testing.T) {
 					ClientAuth: "require-and-verify",
 					MinVersion: "1.3",
 				},
-				Observability: ObservabilityConfig{
-					Logging: LoggingConfig{Level: "info", Format: "json"},
+				Observability: config.ObservabilityConfig{
+					Logging: config.LoggingConfig{Level: "info", Format: "json"},
 				},
 			},
 			wantErr: false,
@@ -732,7 +734,7 @@ redis:
 	err := os.WriteFile(configPath, []byte(minimalConfig), 0600)
 	require.NoError(t, err)
 
-	cfg, err := Load(configPath)
+	cfg, err := config.Load(configPath)
 	require.NoError(t, err)
 
 	// Verify defaults

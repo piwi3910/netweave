@@ -225,7 +225,7 @@ func (hc *HealthChecker) HealthHandler() http.HandlerFunc {
 		w.WriteHeader(statusCode)
 
 		if err := json.NewEncoder(w).Encode(health); err != nil {
-			GetLogger().Error("failed to encode health response", err)
+			GetLogger().WithError(err).Error("failed to encode health response")
 		}
 	}
 }
@@ -244,7 +244,7 @@ func (hc *HealthChecker) ReadinessHandler() http.HandlerFunc {
 		w.WriteHeader(statusCode)
 
 		if err := json.NewEncoder(w).Encode(readiness); err != nil {
-			GetLogger().Error("failed to encode readiness response", err)
+			GetLogger().WithError(err).Error("failed to encode readiness response")
 		}
 	}
 }
@@ -262,7 +262,7 @@ func LivenessHandler() http.HandlerFunc {
 		}
 
 		if err := json.NewEncoder(w).Encode(response); err != nil {
-			GetLogger().Error("failed to encode liveness response", err)
+			GetLogger().WithError(err).Error("failed to encode liveness response")
 		}
 	}
 }

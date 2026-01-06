@@ -1,0 +1,233 @@
+---
+# Deployment for O2-IMS Gateway
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netweave-gateway
+  namespace: o2ims-system
+  labels:
+    app.kubernetes.io/name: netweave
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: o2ims
+    app.kubernetes.io/version: "v0.1.0"
+  annotations:
+    description: "ORAN O2-IMS compliant API gateway for Kubernetes"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: netweave
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: netweave
+        app.kubernetes.io/component: gateway
+        app.kubernetes.io/part-of: o2ims
+        app.kubernetes.io/version: "v0.1.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Use a dedicated service account with proper RBAC
+      serviceAccountName: netweave-gateway
+
+      # Security context for the pod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      # Anti-affinity to spread pods across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - netweave
+                topologyKey: kubernetes.io/hostname
+
+      # Topology spread constraints for better distribution
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: netweave
+              app.kubernetes.io/component: gateway
+
+      # Init container to wait for Redis
+      initContainers:
+        - name: wait-for-redis
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z -v -w5 redis-master.o2ims-system.svc.cluster.local 6379; do
+                echo "Waiting for Redis..."
+                sleep 2
+              done
+              echo "Redis is ready!"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+
+      containers:
+        - name: gateway
+          image: docker.io/netweave:latest
+          imagePullPolicy: IfNotPresent
+
+          # Security context for the container
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          # Environment variables
+          env:
+            - name: NETWEAVE_SERVER_HOST
+              value: "0.0.0.0"
+            - name: NETWEAVE_SERVER_PORT
+              value: "8080"
+            - name: NETWEAVE_OBSERVABILITY_LOGGING_LEVEL
+              value: "info"
+            - name: NETWEAVE_OBSERVABILITY_LOGGING_FORMAT
+              value: "json"
+            - name: NETWEAVE_OBSERVABILITY_METRICS_ENABLED
+              value: "true"
+            # Redis configuration via environment
+            - name: NETWEAVE_REDIS_MODE
+              value: "standalone"
+            - name: NETWEAVE_REDIS_ADDRESSES
+              value: "redis-master.o2ims-system.svc.cluster.local:6379"
+            # Pod information
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+
+          # Volume mounts
+          volumeMounts:
+            - name: config
+              mountPath: /etc/netweave/config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/netweave
+
+          # Resource requests and limits
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          # Liveness probe - checks if the application is alive
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+
+          # Readiness probe - checks if the application is ready to serve traffic
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+
+          # Startup probe - gives the application time to start
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 12  # Allow 60 seconds for startup
+
+          # Lifecycle hooks
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - sleep 15  # Allow time for graceful shutdown
+
+      # Volumes
+      volumes:
+        - name: config
+          configMap:
+            name: netweave-config
+            defaultMode: 0444
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+
+      # DNS configuration
+      dnsPolicy: ClusterFirst
+
+      # Restart policy
+      restartPolicy: Always
+
+      # Termination grace period
+      terminationGracePeriodSeconds: 30

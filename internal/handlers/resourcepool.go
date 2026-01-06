@@ -2,19 +2,35 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/piwi3910/netweave/internal/adapter"
+	internalmodels "github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
+	"go.uber.org/zap"
 )
 
 // ResourcePoolHandler handles Resource Pool API endpoints.
 type ResourcePoolHandler struct {
-	// TODO: Add dependencies (adapter registry, logger, etc.)
+	adapter adapter.Adapter
+	logger  *zap.Logger
 }
 
 // NewResourcePoolHandler creates a new ResourcePoolHandler.
-func NewResourcePoolHandler() *ResourcePoolHandler {
-	return &ResourcePoolHandler{}
+// It requires an adapter for backend operations and a logger for structured logging.
+func NewResourcePoolHandler(adp adapter.Adapter, logger *zap.Logger) *ResourcePoolHandler {
+	if adp == nil {
+		panic("adapter cannot be nil")
+	}
+	if logger == nil {
+		panic("logger cannot be nil")
+	}
+
+	return &ResourcePoolHandler{
+		adapter: adp,
+		logger:  logger,
+	}
 }
 
 // ListResourcePools handles GET /o2ims/v1/resourcePools.
@@ -27,18 +43,62 @@ func NewResourcePoolHandler() *ResourcePoolHandler {
 //
 // Response: 200 OK with array of ResourcePool objects
 func (h *ResourcePoolHandler) ListResourcePools(c *gin.Context) {
-	// TODO: Implement actual logic
-	// 1. Parse query parameters (filter, offset, limit)
-	// 2. Route to appropriate adapter(s) based on filter
-	// 3. Aggregate results from multiple adapters if needed
-	// 4. Apply pagination
-	// 5. Return response
+	ctx := c.Request.Context()
 
-	// Stub: return empty list
-	response := models.ListResponse{
-		Items:      []models.ResourcePool{},
-		TotalCount: 0,
+	h.logger.Info("listing resource pools",
+		zap.String("request_id", c.GetString("request_id")),
+	)
+
+	// Parse query parameters
+	filter := internalmodels.ParseQueryParams(c.Request.URL.Query())
+
+	// Convert internal filter to adapter filter
+	adapterFilter := &adapter.Filter{
+		ResourcePoolID: strings.Join(filter.ResourcePoolID, ","),
+		Location:       filter.Location,
+		Labels:         filter.Labels,
+		Extensions:     filter.Extensions,
+		Limit:          filter.Limit,
+		Offset:         filter.Offset,
 	}
+
+	// Get resource pools from adapter
+	pools, err := h.adapter.ListResourcePools(ctx, adapterFilter)
+	if err != nil {
+		h.logger.Error("failed to list resource pools",
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to retrieve resource pools",
+			Code:    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Convert adapter.ResourcePool to models.ResourcePool
+	resourcePools := make([]models.ResourcePool, 0, len(pools))
+	for _, pool := range pools {
+		resourcePools = append(resourcePools, models.ResourcePool{
+			ResourcePoolID: pool.ResourcePoolID,
+			Name:           pool.Name,
+			Description:    pool.Description,
+			Location:       pool.Location,
+			OCloudID:       pool.OCloudID,
+			GlobalAssetID:  pool.GlobalLocationID,
+			Extensions:     pool.Extensions,
+		})
+	}
+
+	response := models.ListResponse{
+		Items:      resourcePools,
+		TotalCount: len(resourcePools),
+	}
+
+	h.logger.Info("resource pools retrieved",
+		zap.Int("count", len(resourcePools)),
+	)
 
 	c.JSON(http.StatusOK, response)
 }
@@ -53,21 +113,69 @@ func (h *ResourcePoolHandler) ListResourcePools(c *gin.Context) {
 //   - 200 OK: ResourcePool object
 //   - 404 Not Found: Resource pool does not exist
 func (h *ResourcePoolHandler) GetResourcePool(c *gin.Context) {
+	ctx := c.Request.Context()
 	resourcePoolID := c.Param("resourcePoolId")
 
-	// TODO: Implement actual logic
-	// 1. Validate resourcePoolId parameter
-	// 2. Route to appropriate adapter
-	// 3. Get resource pool from adapter by ID
-	// 4. Return resource pool if found
-	// 5. Return 404 if not found
+	h.logger.Info("getting resource pool",
+		zap.String("resource_pool_id", resourcePoolID),
+		zap.String("request_id", c.GetString("request_id")),
+	)
 
-	// Stub: return 404
-	c.JSON(http.StatusNotFound, models.ErrorResponse{
-		Error:   "NotFound",
-		Message: "Resource pool not found: " + resourcePoolID,
-		Code:    http.StatusNotFound,
-	})
+	// Validate resource pool ID
+	if resourcePoolID == "" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: "Resource pool ID cannot be empty",
+			Code:    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Get resource pool from adapter
+	pool, err := h.adapter.GetResourcePool(ctx, resourcePoolID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			h.logger.Warn("resource pool not found",
+				zap.String("resource_pool_id", resourcePoolID),
+			)
+
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "NotFound",
+				Message: "Resource pool not found: " + resourcePoolID,
+				Code:    http.StatusNotFound,
+			})
+			return
+		}
+
+		h.logger.Error("failed to get resource pool",
+			zap.String("resource_pool_id", resourcePoolID),
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to retrieve resource pool",
+			Code:    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Convert adapter.ResourcePool to models.ResourcePool
+	response := models.ResourcePool{
+		ResourcePoolID: pool.ResourcePoolID,
+		Name:           pool.Name,
+		Description:    pool.Description,
+		Location:       pool.Location,
+		OCloudID:       pool.OCloudID,
+		GlobalAssetID:  pool.GlobalLocationID,
+		Extensions:     pool.Extensions,
+	}
+
+	h.logger.Info("resource pool retrieved",
+		zap.String("resource_pool_id", resourcePoolID),
+	)
+
+	c.JSON(http.StatusOK, response)
 }
 
 // CreateResourcePool handles POST /o2ims/v1/resourcePools.
@@ -80,10 +188,19 @@ func (h *ResourcePoolHandler) GetResourcePool(c *gin.Context) {
 //   - 400 Bad Request: Invalid request body
 //   - 409 Conflict: Resource pool with same ID already exists
 func (h *ResourcePoolHandler) CreateResourcePool(c *gin.Context) {
+	ctx := c.Request.Context()
 	var pool models.ResourcePool
+
+	h.logger.Info("creating resource pool",
+		zap.String("request_id", c.GetString("request_id")),
+	)
 
 	// Parse request body
 	if err := c.ShouldBindJSON(&pool); err != nil {
+		h.logger.Warn("invalid request body",
+			zap.Error(err),
+		)
+
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
 			Message: "Invalid request body: " + err.Error(),
@@ -92,16 +209,73 @@ func (h *ResourcePoolHandler) CreateResourcePool(c *gin.Context) {
 		return
 	}
 
-	// TODO: Implement actual logic
-	// 1. Validate resource pool data
-	// 2. Route to appropriate adapter based on pool metadata
-	// 3. Generate resourcePoolId if not provided
-	// 4. Create resource pool in adapter
-	// 5. Return created resource pool with 201 status
+	// Validate required fields
+	if pool.Name == "" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: "Resource pool name is required",
+			Code:    http.StatusBadRequest,
+		})
+		return
+	}
 
-	// Stub: return 201 with placeholder
-	pool.ResourcePoolID = "pool-placeholder"
-	c.JSON(http.StatusCreated, pool)
+	// Convert models.ResourcePool to adapter.ResourcePool
+	adapterPool := &adapter.ResourcePool{
+		ResourcePoolID:   pool.ResourcePoolID,
+		Name:             pool.Name,
+		Description:      pool.Description,
+		Location:         pool.Location,
+		OCloudID:         pool.OCloudID,
+		GlobalLocationID: pool.GlobalAssetID,
+		Extensions:       pool.Extensions,
+	}
+
+	// Create resource pool via adapter
+	createdPool, err := h.adapter.CreateResourcePool(ctx, adapterPool)
+	if err != nil {
+		if strings.Contains(err.Error(), "already exists") {
+			h.logger.Warn("resource pool already exists",
+				zap.String("name", pool.Name),
+			)
+
+			c.JSON(http.StatusConflict, models.ErrorResponse{
+				Error:   "Conflict",
+				Message: "Resource pool already exists",
+				Code:    http.StatusConflict,
+			})
+			return
+		}
+
+		h.logger.Error("failed to create resource pool",
+			zap.String("name", pool.Name),
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to create resource pool",
+			Code:    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Convert back to models.ResourcePool
+	response := models.ResourcePool{
+		ResourcePoolID: createdPool.ResourcePoolID,
+		Name:           createdPool.Name,
+		Description:    createdPool.Description,
+		Location:       createdPool.Location,
+		OCloudID:       createdPool.OCloudID,
+		GlobalAssetID:  createdPool.GlobalLocationID,
+		Extensions:     createdPool.Extensions,
+	}
+
+	h.logger.Info("resource pool created",
+		zap.String("resource_pool_id", response.ResourcePoolID),
+		zap.String("name", response.Name),
+	)
+
+	c.JSON(http.StatusCreated, response)
 }
 
 // UpdateResourcePool handles PUT /o2ims/v1/resourcePools/:resourcePoolId.
@@ -117,10 +291,30 @@ func (h *ResourcePoolHandler) CreateResourcePool(c *gin.Context) {
 //   - 400 Bad Request: Invalid request body
 //   - 404 Not Found: Resource pool does not exist
 func (h *ResourcePoolHandler) UpdateResourcePool(c *gin.Context) {
+	ctx := c.Request.Context()
 	resourcePoolID := c.Param("resourcePoolId")
+
+	h.logger.Info("updating resource pool",
+		zap.String("resource_pool_id", resourcePoolID),
+		zap.String("request_id", c.GetString("request_id")),
+	)
+
+	// Validate resource pool ID
+	if resourcePoolID == "" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: "Resource pool ID cannot be empty",
+			Code:    http.StatusBadRequest,
+		})
+		return
+	}
 
 	var pool models.ResourcePool
 	if err := c.ShouldBindJSON(&pool); err != nil {
+		h.logger.Warn("invalid request body",
+			zap.Error(err),
+		)
+
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
 			Message: "Invalid request body: " + err.Error(),
@@ -129,20 +323,62 @@ func (h *ResourcePoolHandler) UpdateResourcePool(c *gin.Context) {
 		return
 	}
 
-	// TODO: Implement actual logic
-	// 1. Validate resourcePoolId parameter
-	// 2. Validate resource pool update data
-	// 3. Route to appropriate adapter
-	// 4. Update resource pool in adapter
-	// 5. Return updated resource pool if successful
-	// 6. Return 404 if resource pool not found
+	// Convert models.ResourcePool to adapter.ResourcePool
+	adapterPool := &adapter.ResourcePool{
+		ResourcePoolID:   pool.ResourcePoolID,
+		Name:             pool.Name,
+		Description:      pool.Description,
+		Location:         pool.Location,
+		OCloudID:         pool.OCloudID,
+		GlobalLocationID: pool.GlobalAssetID,
+		Extensions:       pool.Extensions,
+	}
 
-	// Stub: return 404
-	c.JSON(http.StatusNotFound, models.ErrorResponse{
-		Error:   "NotFound",
-		Message: "Resource pool not found: " + resourcePoolID,
-		Code:    http.StatusNotFound,
-	})
+	// Update resource pool via adapter
+	updatedPool, err := h.adapter.UpdateResourcePool(ctx, resourcePoolID, adapterPool)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			h.logger.Warn("resource pool not found",
+				zap.String("resource_pool_id", resourcePoolID),
+			)
+
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "NotFound",
+				Message: "Resource pool not found: " + resourcePoolID,
+				Code:    http.StatusNotFound,
+			})
+			return
+		}
+
+		h.logger.Error("failed to update resource pool",
+			zap.String("resource_pool_id", resourcePoolID),
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to update resource pool",
+			Code:    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Convert back to models.ResourcePool
+	response := models.ResourcePool{
+		ResourcePoolID: updatedPool.ResourcePoolID,
+		Name:           updatedPool.Name,
+		Description:    updatedPool.Description,
+		Location:       updatedPool.Location,
+		OCloudID:       updatedPool.OCloudID,
+		GlobalAssetID:  updatedPool.GlobalLocationID,
+		Extensions:     updatedPool.Extensions,
+	}
+
+	h.logger.Info("resource pool updated",
+		zap.String("resource_pool_id", resourcePoolID),
+	)
+
+	c.JSON(http.StatusOK, response)
 }
 
 // DeleteResourcePool handles DELETE /o2ims/v1/resourcePools/:resourcePoolId.
@@ -156,21 +392,69 @@ func (h *ResourcePoolHandler) UpdateResourcePool(c *gin.Context) {
 //   - 404 Not Found: Resource pool does not exist
 //   - 409 Conflict: Resource pool cannot be deleted (has active resources)
 func (h *ResourcePoolHandler) DeleteResourcePool(c *gin.Context) {
+	ctx := c.Request.Context()
 	resourcePoolID := c.Param("resourcePoolId")
 
-	// TODO: Implement actual logic
-	// 1. Validate resourcePoolId parameter
-	// 2. Route to appropriate adapter
-	// 3. Check if resource pool has active resources
-	// 4. Delete resource pool from adapter
-	// 5. Return 204 if successful
-	// 6. Return 404 if not found
-	// 7. Return 409 if deletion conflicts with active resources
+	h.logger.Info("deleting resource pool",
+		zap.String("resource_pool_id", resourcePoolID),
+		zap.String("request_id", c.GetString("request_id")),
+	)
 
-	// Stub: return 404
-	c.JSON(http.StatusNotFound, models.ErrorResponse{
-		Error:   "NotFound",
-		Message: "Resource pool not found: " + resourcePoolID,
-		Code:    http.StatusNotFound,
-	})
+	// Validate resource pool ID
+	if resourcePoolID == "" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: "Resource pool ID cannot be empty",
+			Code:    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Delete resource pool via adapter
+	err := h.adapter.DeleteResourcePool(ctx, resourcePoolID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			h.logger.Warn("resource pool not found",
+				zap.String("resource_pool_id", resourcePoolID),
+			)
+
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "NotFound",
+				Message: "Resource pool not found: " + resourcePoolID,
+				Code:    http.StatusNotFound,
+			})
+			return
+		}
+
+		if strings.Contains(err.Error(), "has active resources") || strings.Contains(err.Error(), "conflict") {
+			h.logger.Warn("resource pool has active resources",
+				zap.String("resource_pool_id", resourcePoolID),
+			)
+
+			c.JSON(http.StatusConflict, models.ErrorResponse{
+				Error:   "Conflict",
+				Message: "Resource pool cannot be deleted: has active resources",
+				Code:    http.StatusConflict,
+			})
+			return
+		}
+
+		h.logger.Error("failed to delete resource pool",
+			zap.String("resource_pool_id", resourcePoolID),
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to delete resource pool",
+			Code:    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	h.logger.Info("resource pool deleted",
+		zap.String("resource_pool_id", resourcePoolID),
+	)
+
+	c.Status(http.StatusNoContent)
 }

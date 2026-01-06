@@ -1,0 +1,26 @@
+---
+# Service for O2-IMS Gateway
+apiVersion: v1
+kind: Service
+metadata:
+  name: netweave-gateway
+  namespace: o2ims-system
+  labels:
+    app.kubernetes.io/name: netweave
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: o2ims
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: netweave
+    app.kubernetes.io/component: gateway
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: http
+  sessionAffinity: None

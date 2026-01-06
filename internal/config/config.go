@@ -4,12 +4,22 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/spf13/viper"
+)
+
+// TLS client authentication modes.
+const (
+	tlsClientAuthNone             = "none"
+	tlsClientAuthRequest          = "request"
+	tlsClientAuthRequire          = "require"
+	tlsClientAuthVerify           = "verify"
+	tlsClientAuthRequireAndVerify = "require-and-verify"
 )
 
 // Config represents the complete configuration for the O2-IMS Gateway.
@@ -312,7 +322,8 @@ func Load(configPath string) (*Config, error) {
 	// Read configuration file
 	if err := v.ReadInConfig(); err != nil {
 		// Config file is optional if all values come from env vars
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if !errors.As(err, &configFileNotFoundError) && !os.IsNotExist(err) {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
 	}
@@ -413,7 +424,31 @@ func setDefaults(v *viper.Viper) {
 //	    return fmt.Errorf("invalid configuration: %w", err)
 //	}
 func (c *Config) Validate() error {
-	// Validate server config
+	if err := c.validateServer(); err != nil {
+		return err
+	}
+
+	if err := c.validateRedis(); err != nil {
+		return err
+	}
+
+	if err := c.validateTLS(); err != nil {
+		return err
+	}
+
+	if err := c.validateObservability(); err != nil {
+		return err
+	}
+
+	if err := c.validateSecurity(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateServer validates the server configuration.
+func (c *Config) validateServer() error {
 	if c.Server.Port < 1 || c.Server.Port > 65535 {
 		return fmt.Errorf("invalid server port: %d (must be 1-65535)", c.Server.Port)
 	}
@@ -422,7 +457,11 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid gin_mode: %s (must be debug, release, or test)", c.Server.GinMode)
 	}
 
-	// Validate Redis config
+	return nil
+}
+
+// validateRedis validates the Redis configuration.
+func (c *Config) validateRedis() error {
 	if c.Redis.Mode != "standalone" && c.Redis.Mode != "sentinel" && c.Redis.Mode != "cluster" {
 		return fmt.Errorf("invalid redis mode: %s (must be standalone, sentinel, or cluster)", c.Redis.Mode)
 	}
@@ -439,46 +478,99 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid redis db: %d (must be 0-15)", c.Redis.DB)
 	}
 
-	// Validate TLS config
-	if c.TLS.Enabled {
-		if c.TLS.CertFile == "" {
-			return fmt.Errorf("tls cert_file is required when TLS is enabled")
-		}
+	return nil
+}
 
-		if c.TLS.KeyFile == "" {
-			return fmt.Errorf("tls key_file is required when TLS is enabled")
-		}
-
-		if _, err := os.Stat(c.TLS.CertFile); os.IsNotExist(err) {
-			return fmt.Errorf("tls cert_file does not exist: %s", c.TLS.CertFile)
-		}
-
-		if _, err := os.Stat(c.TLS.KeyFile); os.IsNotExist(err) {
-			return fmt.Errorf("tls key_file does not exist: %s", c.TLS.KeyFile)
-		}
-
-		if c.TLS.ClientAuth != "none" && c.TLS.ClientAuth != "request" &&
-			c.TLS.ClientAuth != "require" && c.TLS.ClientAuth != "verify" &&
-			c.TLS.ClientAuth != "require-and-verify" {
-			return fmt.Errorf("invalid tls client_auth: %s", c.TLS.ClientAuth)
-		}
-
-		if c.TLS.ClientAuth != "none" && c.TLS.CAFile == "" {
-			return fmt.Errorf("tls ca_file is required when client authentication is enabled")
-		}
-
-		if c.TLS.ClientAuth != "none" {
-			if _, err := os.Stat(c.TLS.CAFile); os.IsNotExist(err) {
-				return fmt.Errorf("tls ca_file does not exist: %s", c.TLS.CAFile)
-			}
-		}
-
-		if c.TLS.MinVersion != "1.2" && c.TLS.MinVersion != "1.3" {
-			return fmt.Errorf("invalid tls min_version: %s (must be 1.2 or 1.3)", c.TLS.MinVersion)
-		}
+// validateTLS validates the TLS configuration.
+func (c *Config) validateTLS() error {
+	if !c.TLS.Enabled {
+		return nil
 	}
 
-	// Validate logging config
+	if err := c.validateTLSFiles(); err != nil {
+		return err
+	}
+
+	if err := c.validateTLSClientAuth(); err != nil {
+		return err
+	}
+
+	if c.TLS.MinVersion != "1.2" && c.TLS.MinVersion != "1.3" {
+		return fmt.Errorf("invalid tls min_version: %s (must be 1.2 or 1.3)", c.TLS.MinVersion)
+	}
+
+	return nil
+}
+
+// validateTLSFiles validates TLS certificate and key files.
+func (c *Config) validateTLSFiles() error {
+	if c.TLS.CertFile == "" {
+		return fmt.Errorf("tls cert_file is required when TLS is enabled")
+	}
+
+	if c.TLS.KeyFile == "" {
+		return fmt.Errorf("tls key_file is required when TLS is enabled")
+	}
+
+	if _, err := os.Stat(c.TLS.CertFile); os.IsNotExist(err) {
+		return fmt.Errorf("tls cert_file does not exist: %s", c.TLS.CertFile)
+	}
+
+	if _, err := os.Stat(c.TLS.KeyFile); os.IsNotExist(err) {
+		return fmt.Errorf("tls key_file does not exist: %s", c.TLS.KeyFile)
+	}
+
+	return nil
+}
+
+// validateTLSClientAuth validates TLS client authentication settings.
+func (c *Config) validateTLSClientAuth() error {
+	validModes := map[string]bool{
+		tlsClientAuthNone:             true,
+		tlsClientAuthRequest:          true,
+		tlsClientAuthRequire:          true,
+		tlsClientAuthVerify:           true,
+		tlsClientAuthRequireAndVerify: true,
+	}
+
+	if !validModes[c.TLS.ClientAuth] {
+		return fmt.Errorf("invalid tls client_auth: %s", c.TLS.ClientAuth)
+	}
+
+	if c.TLS.ClientAuth == tlsClientAuthNone {
+		return nil
+	}
+
+	if c.TLS.CAFile == "" {
+		return fmt.Errorf("tls ca_file is required when client authentication is enabled")
+	}
+
+	if _, err := os.Stat(c.TLS.CAFile); os.IsNotExist(err) {
+		return fmt.Errorf("tls ca_file does not exist: %s", c.TLS.CAFile)
+	}
+
+	return nil
+}
+
+// validateObservability validates the observability configuration.
+func (c *Config) validateObservability() error {
+	if err := c.validateLogging(); err != nil {
+		return err
+	}
+
+	if err := c.validateMetrics(); err != nil {
+		return err
+	}
+
+	if err := c.validateTracing(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateLogging validates the logging configuration.
+func (c *Config) validateLogging() error {
 	validLogLevels := map[string]bool{
 		"debug": true, "info": true, "warn": true, "error": true, "fatal": true,
 	}
@@ -490,34 +582,50 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid logging format: %s (must be json or console)", c.Observability.Logging.Format)
 	}
 
-	// Validate metrics config
-	if c.Observability.Metrics.Enabled {
-		if c.Observability.Metrics.Path == "" {
-			return fmt.Errorf("metrics path cannot be empty when metrics are enabled")
-		}
+	return nil
+}
 
-		if c.Observability.Metrics.Port < 0 || c.Observability.Metrics.Port > 65535 {
-			return fmt.Errorf("invalid metrics port: %d", c.Observability.Metrics.Port)
-		}
+// validateMetrics validates the metrics configuration.
+func (c *Config) validateMetrics() error {
+	if !c.Observability.Metrics.Enabled {
+		return nil
 	}
 
-	// Validate tracing config
-	if c.Observability.Tracing.Enabled {
-		validProviders := map[string]bool{"jaeger": true, "zipkin": true, "otlp": true}
-		if !validProviders[c.Observability.Tracing.Provider] {
-			return fmt.Errorf("invalid tracing provider: %s", c.Observability.Tracing.Provider)
-		}
-
-		if c.Observability.Tracing.Endpoint == "" {
-			return fmt.Errorf("tracing endpoint is required when tracing is enabled")
-		}
-
-		if c.Observability.Tracing.SamplingRate < 0.0 || c.Observability.Tracing.SamplingRate > 1.0 {
-			return fmt.Errorf("invalid tracing sampling_rate: %f (must be 0.0-1.0)", c.Observability.Tracing.SamplingRate)
-		}
+	if c.Observability.Metrics.Path == "" {
+		return fmt.Errorf("metrics path cannot be empty when metrics are enabled")
 	}
 
-	// Validate security config
+	if c.Observability.Metrics.Port < 0 || c.Observability.Metrics.Port > 65535 {
+		return fmt.Errorf("invalid metrics port: %d", c.Observability.Metrics.Port)
+	}
+
+	return nil
+}
+
+// validateTracing validates the tracing configuration.
+func (c *Config) validateTracing() error {
+	if !c.Observability.Tracing.Enabled {
+		return nil
+	}
+
+	validProviders := map[string]bool{"jaeger": true, "zipkin": true, "otlp": true}
+	if !validProviders[c.Observability.Tracing.Provider] {
+		return fmt.Errorf("invalid tracing provider: %s", c.Observability.Tracing.Provider)
+	}
+
+	if c.Observability.Tracing.Endpoint == "" {
+		return fmt.Errorf("tracing endpoint is required when tracing is enabled")
+	}
+
+	if c.Observability.Tracing.SamplingRate < 0.0 || c.Observability.Tracing.SamplingRate > 1.0 {
+		return fmt.Errorf("invalid tracing sampling_rate: %f (must be 0.0-1.0)", c.Observability.Tracing.SamplingRate)
+	}
+
+	return nil
+}
+
+// validateSecurity validates the security configuration.
+func (c *Config) validateSecurity() error {
 	if c.Security.RateLimitEnabled {
 		if c.Security.RateLimitRequests < 1 {
 			return fmt.Errorf("invalid rate_limit_requests: %d (must be > 0)", c.Security.RateLimitRequests)

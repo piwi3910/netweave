@@ -1,0 +1,52 @@
+---
+# Kustomization for O2-IMS Gateway base resources
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: o2ims-system
+
+# Common labels applied to all resources
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/part-of: o2ims
+
+# Common annotations applied to all resources
+commonAnnotations:
+  documentation: "https://github.com/piwi3910/netweave"
+
+# Resources to include
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+
+# Images to use (can be overridden in overlays)
+images:
+  - name: docker.io/netweave
+    newName: docker.io/netweave
+    newTag: latest
+
+# ConfigMap generator for dynamic config (optional, for advanced use cases)
+# configMapGenerator:
+#   - name: netweave-config
+#     files:
+#       - config.yaml
+
+# Secret generator (for sensitive configuration)
+# secretGenerator:
+#   - name: netweave-secrets
+#     literals:
+#       - redis-password=changeme
+
+# Patches for customization
+# patches:
+#   - target:
+#       kind: Deployment
+#       name: netweave-gateway
+#     patch: |-
+#       - op: replace
+#         path: /spec/replicas
+#         value: 5
