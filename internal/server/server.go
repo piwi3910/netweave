@@ -26,7 +26,7 @@ import (
 
 // o2imsOpenAPISpec embeds the O2-IMS OpenAPI specification.
 //
-//go:embed ../../api/openapi/o2ims.yaml
+//go:embed openapi/o2ims.yaml
 var o2imsOpenAPISpec []byte
 
 // Server represents the HTTP server for the O2-IMS Gateway.
