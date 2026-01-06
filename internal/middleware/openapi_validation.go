@@ -5,6 +5,7 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -368,13 +369,35 @@ func (v *OpenAPIValidator) validateResponseWithCapture(c *gin.Context) {
 }
 
 // formatValidationError formats validation errors for the API response.
+// It uses typed error checking from kin-openapi for more reliable error handling.
 func formatValidationError(err error) string {
 	if err == nil {
 		return ""
 	}
 
-	errStr := err.Error()
+	// Handle typed errors from kin-openapi using errors.As
+	var requestErr *openapi3filter.RequestError
+	if errors.As(err, &requestErr) {
+		return formatRequestError(requestErr)
+	}
 
+	// Handle multiple errors
+	var multiErr openapi3.MultiError
+	if errors.As(err, &multiErr) {
+		if len(multiErr) > 0 {
+			// Format the first error for a cleaner message
+			return formatValidationError(multiErr[0])
+		}
+	}
+
+	// Handle security requirements error
+	var securityErr *openapi3filter.SecurityRequirementsError
+	if errors.As(err, &securityErr) {
+		return "Security validation failed: " + securityErr.Error()
+	}
+
+	// Fallback to string-based matching for other errors
+	errStr := err.Error()
 	if strings.Contains(errStr, "request body has an error") {
 		if strings.Contains(errStr, "doesn't match schema") {
 			return "Request body validation failed: " + extractSchemaError(errStr)
@@ -387,6 +410,46 @@ func formatValidationError(err error) string {
 	}
 
 	return "Request validation failed: " + errStr
+}
+
+// formatRequestError formats a typed RequestError from kin-openapi.
+func formatRequestError(reqErr *openapi3filter.RequestError) string {
+	if reqErr == nil {
+		return ""
+	}
+
+	// Handle parameter errors
+	if reqErr.Parameter != nil {
+		paramName := reqErr.Parameter.Name
+		if reqErr.Reason != "" {
+			return fmt.Sprintf("Invalid parameter '%s': %s", paramName, reqErr.Reason)
+		}
+		if reqErr.Err != nil {
+			return fmt.Sprintf("Invalid parameter '%s': %s", paramName, extractSchemaError(reqErr.Err.Error()))
+		}
+		return fmt.Sprintf("Invalid parameter '%s'", paramName)
+	}
+
+	// Handle request body errors
+	if reqErr.RequestBody != nil {
+		if reqErr.Reason != "" {
+			return "Request body validation failed: " + reqErr.Reason
+		}
+		if reqErr.Err != nil {
+			return "Request body validation failed: " + extractSchemaError(reqErr.Err.Error())
+		}
+		return "Invalid request body"
+	}
+
+	// Generic request error
+	if reqErr.Reason != "" {
+		return "Request validation failed: " + reqErr.Reason
+	}
+	if reqErr.Err != nil {
+		return "Request validation failed: " + reqErr.Err.Error()
+	}
+
+	return "Request validation failed"
 }
 
 // extractSchemaError extracts a human-readable error from schema validation.

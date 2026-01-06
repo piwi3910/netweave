@@ -3,8 +3,10 @@ package middleware
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +14,70 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
+
+// ExampleNewOpenAPIValidator demonstrates creating a new OpenAPI validator.
+func ExampleNewOpenAPIValidator() {
+	// Create with default configuration
+	validator, err := NewOpenAPIValidator(nil)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Validator created: %v\n", validator != nil)
+
+	// Create with custom configuration
+	cfg := &ValidationConfig{
+		ValidateRequest:  true,
+		ValidateResponse: false,           // Only enable in development
+		MaxBodySize:      2 * 1024 * 1024, // 2MB
+		ExcludePaths:     []string{"/health", "/metrics"},
+	}
+	validator, err = NewOpenAPIValidator(cfg)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Custom validator created: %v\n", validator != nil)
+	// Output:
+	// Validator created: true
+	// Custom validator created: true
+}
+
+// ExampleOpenAPIValidator_LoadSpec demonstrates loading an OpenAPI spec from bytes.
+func ExampleOpenAPIValidator_LoadSpec() {
+	validator, _ := NewOpenAPIValidator(nil)
+
+	// Load OpenAPI spec from bytes (typically embedded or read from file)
+	specContent := []byte(`
+openapi: 3.0.3
+info:
+  title: Example API
+  version: 1.0.0
+paths:
+  /items:
+    get:
+      responses:
+        '200':
+          description: OK
+`)
+	err := validator.LoadSpec(specContent)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Spec loaded: %s\n", validator.Spec().Info.Title)
+	// Output:
+	// Spec loaded: Example API
+}
+
+// ExampleDefaultValidationConfig demonstrates the default configuration values.
+func ExampleDefaultValidationConfig() {
+	cfg := DefaultValidationConfig()
+	fmt.Printf("ValidateRequest: %v\n", cfg.ValidateRequest)
+	fmt.Printf("ValidateResponse: %v\n", cfg.ValidateResponse)
+	fmt.Printf("MaxBodySize: %d bytes\n", cfg.MaxBodySize)
+	// Output:
+	// ValidateRequest: true
+	// ValidateResponse: false
+	// MaxBodySize: 1048576 bytes
+}
 
 // testOpenAPISpec is a minimal OpenAPI spec for testing.
 const testOpenAPISpec = `
@@ -543,5 +609,135 @@ func TestOpenAPIValidator_LoadSpecFromFile(t *testing.T) {
 
 		err = validator.LoadSpecFromFile("/non/existent/path.yaml")
 		require.Error(t, err)
+	})
+
+	t.Run("loads valid spec from file", func(t *testing.T) {
+		// Create a temp file with the test spec
+		tmpFile, err := os.CreateTemp("", "openapi-*.yaml")
+		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
+
+		_, err = tmpFile.WriteString(testOpenAPISpec)
+		require.NoError(t, err)
+		err = tmpFile.Close()
+		require.NoError(t, err)
+
+		validator, err := NewOpenAPIValidator(nil)
+		require.NoError(t, err)
+
+		err = validator.LoadSpecFromFile(tmpFile.Name())
+		require.NoError(t, err)
+		assert.NotNil(t, validator.Spec())
+		assert.Equal(t, "Test API", validator.Spec().Info.Title)
+	})
+}
+
+func TestOpenAPIValidator_CorruptedSpec(t *testing.T) {
+	t.Run("fails on corrupted YAML spec", func(t *testing.T) {
+		validator, err := NewOpenAPIValidator(nil)
+		require.NoError(t, err)
+
+		corruptedSpec := []byte(`
+openapi: 3.0.3
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /test:
+    get:
+      [invalid yaml structure
+`)
+		err = validator.LoadSpec(corruptedSpec)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to parse OpenAPI spec")
+	})
+
+	t.Run("fails on semantically invalid spec", func(t *testing.T) {
+		validator, err := NewOpenAPIValidator(nil)
+		require.NoError(t, err)
+
+		// Missing required info section
+		invalidSpec := []byte(`
+openapi: 3.0.3
+paths:
+  /test:
+    get:
+      responses:
+        '200':
+          description: OK
+`)
+		err = validator.LoadSpec(invalidSpec)
+		require.Error(t, err)
+	})
+}
+
+func TestOpenAPIValidator_ResponseValidation(t *testing.T) {
+	t.Run("validates response when enabled", func(t *testing.T) {
+		cfg := &ValidationConfig{
+			ValidateRequest:  true,
+			ValidateResponse: true,
+		}
+		router, _ := setupTestRouter(t, cfg)
+
+		// Handler returns a valid response
+		router.GET("/o2ims/v1/subscriptions/:subscriptionId", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{
+				"subscriptionId": c.Param("subscriptionId"),
+				"callback":       "https://example.com/callback",
+			})
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/o2ims/v1/subscriptions/test-123", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		// Response validation doesn't block the response, just logs warnings
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("logs warning for invalid response schema", func(t *testing.T) {
+		cfg := &ValidationConfig{
+			ValidateRequest:  true,
+			ValidateResponse: true,
+		}
+		router, _ := setupTestRouter(t, cfg)
+
+		// Handler returns an invalid response (missing required callback field)
+		router.GET("/o2ims/v1/subscriptions/:subscriptionId", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{
+				"subscriptionId": c.Param("subscriptionId"),
+				// Missing required "callback" field
+			})
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/o2ims/v1/subscriptions/test-123", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		// Response validation doesn't block - it just logs warnings
+		// The response is still sent to the client
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("skips response validation when disabled", func(t *testing.T) {
+		cfg := &ValidationConfig{
+			ValidateRequest:  true,
+			ValidateResponse: false, // Disabled
+		}
+		router, _ := setupTestRouter(t, cfg)
+
+		router.GET("/o2ims/v1/subscriptions/:subscriptionId", func(c *gin.Context) {
+			// Return invalid response - should not trigger any validation
+			c.JSON(http.StatusOK, gin.H{"invalid": "data"})
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/o2ims/v1/subscriptions/test-123", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }

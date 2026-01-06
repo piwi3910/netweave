@@ -2517,6 +2517,63 @@ rules:
   # NO access to secrets, pods, deployments (least privilege)
 ```
 
+### OpenAPI Request Validation
+
+The gateway implements comprehensive request validation using OpenAPI 3.0 specifications to ensure all API requests conform to the O2-IMS standard before reaching handlers.
+
+```mermaid
+sequenceDiagram
+    participant Client as SMO Client
+    participant Middleware as OpenAPI Validator
+    participant Handler as API Handler
+    participant Backend as Backend Adapter
+
+    Client->>+Middleware: HTTP Request
+    Note over Middleware: 1. Check excluded paths<br/>2. Match route in spec<br/>3. Validate body size<br/>4. Validate request body<br/>5. Validate parameters
+
+    alt Validation Passes
+        Middleware->>+Handler: Valid Request
+        Handler->>+Backend: Process Request
+        Backend-->>-Handler: Response
+        Handler-->>-Middleware: Response
+        Middleware-->>Client: 200/201 Response
+    else Validation Fails
+        Middleware-->>-Client: 400 Bad Request<br/>{error, message, code}
+    end
+```
+
+**Middleware Location**: `internal/middleware/openapi_validation.go`
+
+**Features**:
+- **Request Body Validation**: Schema validation against OpenAPI definitions
+- **Parameter Validation**: Path, query, and header parameter validation
+- **Body Size Limiting**: Configurable max body size (default 1MB) to prevent memory exhaustion
+- **Excluded Paths**: Health check and metrics endpoints excluded from validation
+- **Optional Response Validation**: Enabled in development/testing only
+
+**Configuration**:
+```yaml
+validation:
+  enabled: true                    # Enable request validation
+  validate_response: false         # Response validation (dev only)
+  spec_path: ""                    # Custom spec path (uses embedded if empty)
+```
+
+**Error Response Format**:
+```json
+{
+  "error": "ValidationError",
+  "message": "Request body validation failed: missing required field",
+  "code": 400
+}
+```
+
+**Security Benefits**:
+1. **Input Sanitization**: Rejects malformed requests before handler execution
+2. **DoS Protection**: Body size limits prevent memory exhaustion attacks
+3. **Schema Enforcement**: Ensures O2-IMS compliance at API boundary
+4. **Defense in Depth**: First layer of validation before business logic
+
 ### mTLS Architecture
 
 #### Certificate Hierarchy
