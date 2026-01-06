@@ -1,8 +1,14 @@
 // Package kubernetes provides tests for the Kubernetes adapter implementation.
+//
+// NOTE: Many tests in this file verify stub implementations that return "not implemented"
+// errors. These tests ensure the adapter interface is correctly implemented and will be
+// updated when the actual Kubernetes API integrations are completed.
+// TODO(issue#3): Update stub tests with real implementation tests when K8s operations are implemented.
 package kubernetes
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	adapterapi "github.com/piwi3910/netweave/internal/adapter"
@@ -865,4 +871,299 @@ func TestKubernetesAdapter_CreateResourcePool_WithAllFields(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, created)
 	assert.Contains(t, err.Error(), "not implemented")
+}
+
+// Tests for edge case validation - negative and boundary values
+
+func TestKubernetesAdapter_ListResourcePools_NegativePagination(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	// Test with negative limit - stub returns "not implemented" but validates filter is passed
+	filter := &adapterapi.Filter{
+		Limit:  -1,
+		Offset: -10,
+	}
+
+	pools, err := adp.ListResourcePools(ctx, filter)
+
+	// TODO(issue#3): When implemented, should return validation error for negative values
+	require.Error(t, err)
+	assert.Nil(t, pools)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_ListResources_NegativePagination(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	filter := &adapterapi.Filter{
+		Limit:  -100,
+		Offset: -5,
+	}
+
+	resources, err := adp.ListResources(ctx, filter)
+
+	// TODO(issue#3): When implemented, should return validation error for negative values
+	require.Error(t, err)
+	assert.Nil(t, resources)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_ListResourcePools_ZeroPagination(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	// Zero limit should be valid (use default)
+	filter := &adapterapi.Filter{
+		Limit:  0,
+		Offset: 0,
+	}
+
+	pools, err := adp.ListResourcePools(ctx, filter)
+
+	require.Error(t, err)
+	assert.Nil(t, pools)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestKubernetesAdapter_ListResourcePools_LargePagination(t *testing.T) {
+	adp := newTestAdapter(t)
+	ctx := context.Background()
+
+	// Very large limit value
+	filter := &adapterapi.Filter{
+		Limit:  10000,
+		Offset: 999999,
+	}
+
+	pools, err := adp.ListResourcePools(ctx, filter)
+
+	require.Error(t, err)
+	assert.Nil(t, pools)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+// Tests for JSON marshaling/unmarshaling of adapter types
+
+func TestFilter_JSONMarshal(t *testing.T) {
+	filter := &adapterapi.Filter{
+		ResourcePoolID: "pool-1",
+		ResourceTypeID: "type-compute",
+		Location:       "dc-west-1",
+		Labels: map[string]string{
+			"env": "prod",
+		},
+		Extensions: map[string]interface{}{
+			"custom": "value",
+		},
+		Limit:  100,
+		Offset: 0,
+	}
+
+	// Marshal to JSON
+	data, err := json.Marshal(filter)
+	require.NoError(t, err)
+	assert.NotEmpty(t, data)
+
+	// Unmarshal back
+	var decoded adapterapi.Filter
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
+
+	assert.Equal(t, filter.ResourcePoolID, decoded.ResourcePoolID)
+	assert.Equal(t, filter.ResourceTypeID, decoded.ResourceTypeID)
+	assert.Equal(t, filter.Location, decoded.Location)
+	assert.Equal(t, filter.Limit, decoded.Limit)
+	assert.Equal(t, filter.Offset, decoded.Offset)
+}
+
+func TestResourcePool_JSONMarshal(t *testing.T) {
+	pool := &adapterapi.ResourcePool{
+		ResourcePoolID:   "pool-123",
+		Name:             "Test Pool",
+		Description:      "A test resource pool",
+		Location:         "us-west-2",
+		OCloudID:         "ocloud-1",
+		GlobalLocationID: "geo:37.7749,-122.4194",
+		Extensions: map[string]interface{}{
+			"machineType": "n1-standard-4",
+		},
+	}
+
+	// Marshal to JSON
+	data, err := json.Marshal(pool)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "resourcePoolId")
+	assert.Contains(t, string(data), "pool-123")
+
+	// Unmarshal back
+	var decoded adapterapi.ResourcePool
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
+
+	assert.Equal(t, pool.ResourcePoolID, decoded.ResourcePoolID)
+	assert.Equal(t, pool.Name, decoded.Name)
+	assert.Equal(t, pool.Description, decoded.Description)
+	assert.Equal(t, pool.Location, decoded.Location)
+	assert.Equal(t, pool.OCloudID, decoded.OCloudID)
+	assert.Equal(t, pool.GlobalLocationID, decoded.GlobalLocationID)
+}
+
+func TestResource_JSONMarshal(t *testing.T) {
+	resource := &adapterapi.Resource{
+		ResourceID:     "res-456",
+		ResourceTypeID: "type-compute",
+		ResourcePoolID: "pool-123",
+		GlobalAssetID:  "urn:o-ran:resource:node-01",
+		Description:    "Worker node",
+		Extensions: map[string]interface{}{
+			"cpu":    "8",
+			"memory": "32Gi",
+		},
+	}
+
+	// Marshal to JSON
+	data, err := json.Marshal(resource)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "resourceId")
+	assert.Contains(t, string(data), "res-456")
+
+	// Unmarshal back
+	var decoded adapterapi.Resource
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
+
+	assert.Equal(t, resource.ResourceID, decoded.ResourceID)
+	assert.Equal(t, resource.ResourceTypeID, decoded.ResourceTypeID)
+	assert.Equal(t, resource.ResourcePoolID, decoded.ResourcePoolID)
+	assert.Equal(t, resource.GlobalAssetID, decoded.GlobalAssetID)
+	assert.Equal(t, resource.Description, decoded.Description)
+}
+
+func TestResourceType_JSONMarshal(t *testing.T) {
+	rt := &adapterapi.ResourceType{
+		ResourceTypeID: "type-compute",
+		Name:           "Compute Node",
+		Description:    "High-performance compute node",
+		Vendor:         "Dell",
+		Model:          "PowerEdge R740",
+		Version:        "1.0",
+		ResourceClass:  "compute",
+		ResourceKind:   "physical",
+		Extensions: map[string]interface{}{
+			"cores": 64,
+		},
+	}
+
+	// Marshal to JSON
+	data, err := json.Marshal(rt)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "resourceTypeId")
+
+	// Unmarshal back
+	var decoded adapterapi.ResourceType
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
+
+	assert.Equal(t, rt.ResourceTypeID, decoded.ResourceTypeID)
+	assert.Equal(t, rt.Name, decoded.Name)
+	assert.Equal(t, rt.Vendor, decoded.Vendor)
+	assert.Equal(t, rt.Model, decoded.Model)
+	assert.Equal(t, rt.ResourceClass, decoded.ResourceClass)
+	assert.Equal(t, rt.ResourceKind, decoded.ResourceKind)
+}
+
+func TestSubscription_JSONMarshal(t *testing.T) {
+	sub := &adapterapi.Subscription{
+		SubscriptionID:         "sub-789",
+		Callback:               "https://smo.example.com/notify",
+		ConsumerSubscriptionID: "consumer-123",
+		Filter: &adapterapi.SubscriptionFilter{
+			ResourcePoolID: "pool-1",
+			ResourceTypeID: "type-compute",
+			ResourceID:     "res-specific",
+		},
+	}
+
+	// Marshal to JSON
+	data, err := json.Marshal(sub)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "subscriptionId")
+	assert.Contains(t, string(data), "callback")
+
+	// Unmarshal back
+	var decoded adapterapi.Subscription
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
+
+	assert.Equal(t, sub.SubscriptionID, decoded.SubscriptionID)
+	assert.Equal(t, sub.Callback, decoded.Callback)
+	assert.Equal(t, sub.ConsumerSubscriptionID, decoded.ConsumerSubscriptionID)
+	require.NotNil(t, decoded.Filter)
+	assert.Equal(t, sub.Filter.ResourcePoolID, decoded.Filter.ResourcePoolID)
+	assert.Equal(t, sub.Filter.ResourceTypeID, decoded.Filter.ResourceTypeID)
+	assert.Equal(t, sub.Filter.ResourceID, decoded.Filter.ResourceID)
+}
+
+func TestDeploymentManager_JSONMarshal(t *testing.T) {
+	dm := &adapterapi.DeploymentManager{
+		DeploymentManagerID: "dm-001",
+		Name:                "Production DM",
+		Description:         "Production Kubernetes deployment manager",
+		OCloudID:            "ocloud-1",
+		ServiceURI:          "https://api.example.com/o2ims/v1",
+		SupportedLocations:  []string{"us-west-1", "us-east-1"},
+		Capabilities:        []string{"compute", "storage", "network"},
+		Extensions: map[string]interface{}{
+			"clusterVersion": "1.30.0",
+		},
+	}
+
+	// Marshal to JSON
+	data, err := json.Marshal(dm)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "deploymentManagerId")
+	assert.Contains(t, string(data), "serviceUri")
+
+	// Unmarshal back
+	var decoded adapterapi.DeploymentManager
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
+
+	assert.Equal(t, dm.DeploymentManagerID, decoded.DeploymentManagerID)
+	assert.Equal(t, dm.Name, decoded.Name)
+	assert.Equal(t, dm.Description, decoded.Description)
+	assert.Equal(t, dm.OCloudID, decoded.OCloudID)
+	assert.Equal(t, dm.ServiceURI, decoded.ServiceURI)
+	assert.Equal(t, dm.SupportedLocations, decoded.SupportedLocations)
+	assert.Equal(t, dm.Capabilities, decoded.Capabilities)
+}
+
+// Test for empty JSON unmarshaling
+
+func TestFilter_JSONUnmarshalEmpty(t *testing.T) {
+	var filter adapterapi.Filter
+	err := json.Unmarshal([]byte("{}"), &filter)
+	require.NoError(t, err)
+
+	assert.Empty(t, filter.ResourcePoolID)
+	assert.Empty(t, filter.ResourceTypeID)
+	assert.Empty(t, filter.Location)
+	assert.Nil(t, filter.Labels)
+	assert.Nil(t, filter.Extensions)
+	assert.Equal(t, 0, filter.Limit)
+	assert.Equal(t, 0, filter.Offset)
+}
+
+func TestSubscription_JSONUnmarshalWithoutFilter(t *testing.T) {
+	jsonData := `{"subscriptionId":"sub-1","callback":"https://example.com/notify"}`
+
+	var sub adapterapi.Subscription
+	err := json.Unmarshal([]byte(jsonData), &sub)
+	require.NoError(t, err)
+
+	assert.Equal(t, "sub-1", sub.SubscriptionID)
+	assert.Equal(t, "https://example.com/notify", sub.Callback)
+	assert.Nil(t, sub.Filter)
 }
