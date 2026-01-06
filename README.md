@@ -1,6 +1,6 @@
 # netweave
 
-**ORAN O2-IMS Gateway for Kubernetes**
+**Complete O-RAN O2 Gateway (IMS + DMS + SMO) for Cloud-Native Infrastructure**
 
 [![CI Status](https://github.com/yourorg/netweave/workflows/CI%20Pipeline/badge.svg)](https://github.com/yourorg/netweave/actions)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/yourorg/netweave)](https://go.dev/)
@@ -9,7 +9,7 @@
 
 ## What is netweave?
 
-**netweave** is a production-grade O-RAN O2-IMS compliant API gateway that enables Service Management and Orchestration (SMO) systems to manage Kubernetes-based infrastructure through standardized O2-IMS APIs.
+**netweave** is a production-grade, comprehensive O-RAN O2 API gateway that provides complete infrastructure management, deployment orchestration, and SMO integration capabilities through standardized O2-IMS, O2-DMS, and O2-SMO APIs. It enables Service Management and Orchestration (SMO) systems to manage multi-backend infrastructure, deploy CNF/VNF workloads, and integrate with major orchestration frameworks (ONAP, OSM) through a single, unified gateway.
 
 ### Key Features
 
@@ -42,26 +42,59 @@
 
 ```mermaid
 graph TB
-    SMO[O2 SMO<br/>Service Management & Orchestration]
+    SMO[O2 SMO Systems<br/>Service Management & Orchestration]
 
-    subgraph Gateway [netweave O2-IMS Gateway]
-        GW[Gateway Pods Stateless<br/>• O2-IMS API Implementation<br/>• Request Validation<br/>• Resource Translation]
+    subgraph Gateway [netweave Complete O2 Gateway]
+        subgraph APIs [O2 API Layer]
+            IMS[O2-IMS API<br/>Infrastructure Management]
+            DMS[O2-DMS API<br/>Deployment Management]
+            SMO_API[O2-SMO API<br/>Orchestration Integration]
+        end
+
+        Router[Intelligent Plugin Router<br/>Rule-based Backend Selection]
         Redis[Redis State & Cache<br/>• Subscriptions<br/>• Performance Cache<br/>• Pub/Sub Coordination]
-        CTRL[Subscription Controller<br/>• Watches K8s Resources<br/>• Sends Webhook Notifications]
+        CTRL[Event Controller<br/>• Watches Resources<br/>• Webhook Notifications]
     end
 
-    K8s[Kubernetes Cluster<br/>• Nodes Resources<br/>• MachineSets Resource Pools<br/>• StorageClasses Resource Types]
+    subgraph Backends [Multi-Backend Support 25+ Adapters]
+        subgraph IMS_Backends [IMS: Infrastructure 10+]
+            K8s[Kubernetes]
+            DTIAS[Dell DTIAS]
+            OS[OpenStack]
+        end
 
-    SMO -->|O2-IMS API<br/>HTTPS/mTLS| GW
-    GW --> Redis
-    GW --> K8s
+        subgraph DMS_Backends [DMS: Deployment 7+]
+            Helm[Helm 3]
+            Argo[ArgoCD]
+            ONAP_LCM[ONAP-LCM]
+        end
+
+        subgraph SMO_Backends [SMO: Orchestration 5+]
+            ONAP[ONAP]
+            OSM[OSM]
+        end
+    end
+
+    SMO -->|O2-IMS/DMS/SMO APIs<br/>HTTPS/mTLS| APIs
+    IMS --> Router
+    DMS --> Router
+    SMO_API --> Router
+
+    Router --> Redis
+    Router --> IMS_Backends
+    Router --> DMS_Backends
+    Router --> SMO_Backends
+
     CTRL --> Redis
-    CTRL --> K8s
+    CTRL --> IMS_Backends
     CTRL -->|Webhooks| SMO
 
     style SMO fill:#e1f5ff
     style Gateway fill:#fff4e6
-    style K8s fill:#e8f5e9
+    style Backends fill:#e8f5e9
+    style IMS_Backends fill:#f0f8ff
+    style DMS_Backends fill:#f5f0ff
+    style SMO_Backends fill:#fff5f0
 ```
 
 ### Documentation
