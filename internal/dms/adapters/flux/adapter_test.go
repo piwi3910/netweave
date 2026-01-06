@@ -204,11 +204,10 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *FluxAdapter {
 	})
 	require.NoError(t, err)
 
-	// Set up fake client and mark as initialized
-	adp.dynamicClient = client
-	// Trigger the Once to prevent actual initialization attempts
+	// Use initOnce to set up fake client atomically to prevent race conditions.
+	// Setting the client inside the Do() ensures thread-safe initialization.
 	adp.initOnce.Do(func() {
-		// Already initialized with fake client above
+		adp.dynamicClient = client
 	})
 
 	return adp
