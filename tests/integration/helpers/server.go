@@ -34,23 +34,34 @@ func NewTestServer(t *testing.T, adapter adapter.Adapter, store storage.Store) *
 			Port:    8080,
 			GinMode: "test",
 		},
-		Log: config.LogConfig{
-			Level:  "info",
-			Format: "json",
+		Observability: config.ObservabilityConfig{
+			Logging: config.LoggingConfig{
+				Level:  "info",
+				Format: "json",
+			},
+			Metrics: config.MetricsConfig{
+				Enabled:   false, // Disable metrics in tests
+				Namespace: "netweave",
+				Subsystem: "gateway",
+			},
+		},
+		Security: config.SecurityConfig{
+			EnableCORS:       false,
+			RateLimitEnabled: false,
 		},
 	}
 
-	// Create logger
-	logger, err := observability.NewLogger(&cfg.Log)
+	// Create logger using environment-based initialization
+	obsLogger, err := observability.InitLogger("test")
 	if err != nil {
 		t.Fatalf("failed to create logger: %v", err)
 	}
 
-	// Create server
-	srv := server.New(cfg, logger, adapter, store)
+	// Create server (use the embedded zap.Logger)
+	srv := server.New(cfg, obsLogger.Logger, adapter, store)
 
 	// Create test HTTP server
-	ts := httptest.NewServer(srv.Handler())
+	ts := httptest.NewServer(srv.Router())
 
 	// Register cleanup
 	t.Cleanup(func() {

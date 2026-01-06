@@ -23,14 +23,14 @@ func TestTransformServerToResource(t *testing.T) {
 
 	now := time.Now()
 	osServer := &servers.Server{
-		ID:               "550e8400-e29b-41d4-a716-446655440000",
-		Name:             "test-vm",
-		Status:           "ACTIVE",
-		TenantID:         "project-123",
-		UserID:           "user-456",
-		HostID:           "host-789",
-		Created:          now.Add(-24 * time.Hour),
-		Updated:          now,
+		ID:       "550e8400-e29b-41d4-a716-446655440000",
+		Name:     "test-vm",
+		Status:   "ACTIVE",
+		TenantID: "project-123",
+		UserID:   "user-456",
+		HostID:   "host-789",
+		Created:  now.Add(-24 * time.Hour),
+		Updated:  now,
 		Flavor: map[string]interface{}{
 			"id": "m1.small",
 		},
@@ -291,7 +291,7 @@ func TestGetResourcePoolIDFromServer(t *testing.T) {
 		{
 			name: "server with availability zone",
 			server: &servers.Server{
-				ID:               "server-1",
+				ID: "server-1",
 			},
 			want: "", // Currently returns empty; would need enhancement to map AZ to aggregate
 		},
@@ -322,14 +322,14 @@ func BenchmarkTransformServerToResource(b *testing.B) {
 
 	now := time.Now()
 	osServer := &servers.Server{
-		ID:               "550e8400-e29b-41d4-a716-446655440000",
-		Name:             "test-vm",
-		Status:           "ACTIVE",
-		TenantID:         "project-123",
-		UserID:           "user-456",
-		HostID:           "host-789",
-		Created:          now.Add(-24 * time.Hour),
-		Updated:          now,
+		ID:       "550e8400-e29b-41d4-a716-446655440000",
+		Name:     "test-vm",
+		Status:   "ACTIVE",
+		TenantID: "project-123",
+		UserID:   "user-456",
+		HostID:   "host-789",
+		Created:  now.Add(-24 * time.Hour),
+		Updated:  now,
 		Flavor: map[string]interface{}{
 			"id": "m1.small",
 		},

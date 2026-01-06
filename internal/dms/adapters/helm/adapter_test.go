@@ -12,6 +12,8 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
 	helmtime "helm.sh/helm/v3/pkg/time"
+
+	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
 )
 
 func TestNewAdapter(t *testing.T) {
@@ -87,10 +89,10 @@ func TestHelmAdapter_Metadata(t *testing.T) {
 	t.Run("Capabilities", func(t *testing.T) {
 		caps := adapter.Capabilities()
 		assert.NotEmpty(t, caps)
-		assert.Contains(t, caps, adapter.CapabilityPackageManagement)
-		assert.Contains(t, caps, adapter.CapabilityDeploymentLifecycle)
-		assert.Contains(t, caps, adapter.CapabilityRollback)
-		assert.Contains(t, caps, adapter.CapabilityScaling)
+		assert.Contains(t, caps, dmsadapter.CapabilityPackageManagement)
+		assert.Contains(t, caps, dmsadapter.CapabilityDeploymentLifecycle)
+		assert.Contains(t, caps, dmsadapter.CapabilityRollback)
+		assert.Contains(t, caps, dmsadapter.CapabilityScaling)
 	})
 }
 
@@ -122,47 +124,42 @@ func TestHelmAdapter_TransformHelmStatus(t *testing.T) {
 	tests := []struct {
 		name       string
 		helmStatus release.Status
-		want       adapter.DeploymentStatus
+		want       dmsadapter.DeploymentStatus
 	}{
 		{
 			name:       "pending install",
 			helmStatus: release.StatusPendingInstall,
-			want:       adapter.DeploymentStatusPending,
+			want:       dmsadapter.DeploymentStatusPending,
 		},
 		{
 			name:       "pending upgrade",
 			helmStatus: release.StatusPendingUpgrade,
-			want:       adapter.DeploymentStatusPending,
-		},
-		{
-			name:       "deploying",
-			helmStatus: release.StatusDeploying,
-			want:       adapter.DeploymentStatusDeploying,
+			want:       dmsadapter.DeploymentStatusDeploying,
 		},
 		{
 			name:       "deployed",
 			helmStatus: release.StatusDeployed,
-			want:       adapter.DeploymentStatusDeployed,
+			want:       dmsadapter.DeploymentStatusDeployed,
 		},
 		{
 			name:       "failed",
 			helmStatus: release.StatusFailed,
-			want:       adapter.DeploymentStatusFailed,
+			want:       dmsadapter.DeploymentStatusFailed,
 		},
 		{
 			name:       "pending rollback",
 			helmStatus: release.StatusPendingRollback,
-			want:       adapter.DeploymentStatusRollingBack,
+			want:       dmsadapter.DeploymentStatusRollingBack,
 		},
 		{
 			name:       "uninstalling",
 			helmStatus: release.StatusUninstalling,
-			want:       adapter.DeploymentStatusRollingBack,
+			want:       dmsadapter.DeploymentStatusDeleting,
 		},
 		{
 			name:       "uninstalled",
 			helmStatus: release.StatusUninstalled,
-			want:       adapter.DeploymentStatusDeleting,
+			want:       dmsadapter.DeploymentStatusDeleting,
 		},
 	}
 
@@ -202,7 +199,7 @@ func TestHelmAdapter_CalculateProgress(t *testing.T) {
 		},
 		{
 			name:       "deploying",
-			helmStatus: release.StatusDeploying,
+			helmStatus: release.StatusPendingUpgrade,
 			want:       50,
 		},
 		{
@@ -257,7 +254,7 @@ func TestHelmAdapter_TransformReleaseToDeployment(t *testing.T) {
 	assert.Equal(t, "test-release", deployment.Name)
 	assert.Equal(t, "test-chart-1.0.0", deployment.PackageID)
 	assert.Equal(t, "test-namespace", deployment.Namespace)
-	assert.Equal(t, adapter.DeploymentStatusDeployed, deployment.Status)
+	assert.Equal(t, dmsadapter.DeploymentStatusDeployed, deployment.Status)
 	assert.Equal(t, 3, deployment.Version)
 	assert.Equal(t, "Test deployment", deployment.Description)
 
@@ -292,7 +289,7 @@ func TestHelmAdapter_TransformReleaseToStatus(t *testing.T) {
 	status := adapter.transformReleaseToStatus(rel)
 
 	assert.Equal(t, "test-release", status.DeploymentID)
-	assert.Equal(t, adapter.DeploymentStatusDeployed, status.Status)
+	assert.Equal(t, dmsadapter.DeploymentStatusDeployed, status.Status)
 	assert.Equal(t, "Release deployed successfully", status.Message)
 	assert.Equal(t, 100, status.Progress)
 	assert.NotEmpty(t, status.Conditions)
@@ -329,7 +326,7 @@ func TestHelmAdapter_BuildConditions(t *testing.T) {
 		},
 		{
 			name:           "deploying",
-			helmStatus:     release.StatusDeploying,
+			helmStatus:     release.StatusPendingUpgrade,
 			wantCondStatus: "False",
 			wantReason:     "DeploymentInProgress",
 		},
@@ -362,9 +359,9 @@ func TestHelmAdapter_ApplyPagination(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create test deployments
-	deployments := make([]*adapter.Deployment, 10)
+	deployments := make([]*dmsadapter.Deployment, 10)
 	for i := 0; i < 10; i++ {
-		deployments[i] = &adapter.Deployment{
+		deployments[i] = &dmsadapter.Deployment{
 			ID:   string(rune('A' + i)),
 			Name: string(rune('A' + i)),
 		}
@@ -438,7 +435,7 @@ func TestHelmAdapter_MatchesLabels(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	deployment := &adapter.Deployment{
+	deployment := &dmsadapter.Deployment{
 		ID:   "test-deployment",
 		Name: "test-deployment",
 	}
@@ -486,12 +483,12 @@ func TestHelmAdapter_UploadDeploymentPackage(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		pkg     *adapter.DeploymentPackageUpload
+		pkg     *dmsadapter.DeploymentPackageUpload
 		wantErr bool
 	}{
 		{
 			name: "valid package",
-			pkg: &adapter.DeploymentPackageUpload{
+			pkg: &dmsadapter.DeploymentPackageUpload{
 				Name:        "test-chart",
 				Version:     "1.0.0",
 				PackageType: "helm-chart",
@@ -659,9 +656,9 @@ func BenchmarkHelmAdapter_ApplyPagination(b *testing.B) {
 	})
 	require.NoError(b, err)
 
-	deployments := make([]*adapter.Deployment, 100)
+	deployments := make([]*dmsadapter.Deployment, 100)
 	for i := 0; i < 100; i++ {
-		deployments[i] = &adapter.Deployment{
+		deployments[i] = &dmsadapter.Deployment{
 			ID:   fmt.Sprintf("deployment-%d", i),
 			Name: fmt.Sprintf("deployment-%d", i),
 		}

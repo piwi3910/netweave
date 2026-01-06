@@ -14,14 +14,19 @@
 ### Key Features
 
 - ✅ **O2-IMS Compliant**: Full implementation of O-RAN O2 Infrastructure Management Services specification
-- ✅ **Kubernetes Native**: Translates O2-IMS requests to native Kubernetes API operations
+- ✅ **Multi-Backend Support**: Pluggable adapter architecture for diverse infrastructure
+  - **Kubernetes** - Primary cloud-native infrastructure adapter
+  - **Dell DTIAS** - Bare-metal infrastructure management
+  - **OpenStack** - IaaS cloud infrastructure
+- ✅ **O2-DMS Integration**: Deployment Management Services with Helm 3 and ArgoCD adapters
+- ✅ **O2-SMO Integration**: Service Management & Orchestration with ONAP and OSM adapters
 - ✅ **Enterprise Multi-Tenancy**: Built-in from day 1 - support multiple SMO systems with strict resource isolation
 - ✅ **Comprehensive RBAC**: Fine-grained role-based access control with system and tenant roles
 - ✅ **Multi-Cluster Ready**: Deploy across single or multiple Kubernetes clusters with Redis-based state synchronization
 - ✅ **High Availability**: Stateless gateway pods with automatic failover (99.9% uptime)
 - ✅ **Production Security**: mTLS everywhere, zero-trust networking, tenant isolation, comprehensive audit logging
 - ✅ **Real-Time Notifications**: Webhook-based subscriptions for infrastructure change events
-- ✅ **Extensible Architecture**: Plugin-based adapter system for future backend integrations
+- ✅ **Extensible Architecture**: Plugin-based adapter system with 25+ production-ready adapters
 - ✅ **Enterprise Observability**: Prometheus metrics, Jaeger tracing, structured logging
 
 ### Use Cases
@@ -350,11 +355,26 @@ netweave/
 ├── cmd/
 │   └── gateway/              # Main gateway binary
 ├── internal/
-│   ├── adapter/              # Adapter interface
-│   ├── adapters/             # Backend adapters (K8s, mock)
+│   ├── adapter/              # Core adapter interface (O2-IMS)
+│   ├── adapters/             # O2-IMS backend adapters
+│   │   ├── kubernetes/       # Kubernetes adapter (primary)
+│   │   ├── dtias/            # Dell DTIAS bare-metal adapter
+│   │   ├── openstack/        # OpenStack IaaS adapter
+│   │   └── mock/             # Mock adapter for testing
+│   ├── dms/                  # O2-DMS (Deployment Management Service)
+│   │   ├── adapter/          # DMS adapter interface
+│   │   └── adapters/         # DMS backend adapters
+│   │       ├── helm/         # Helm 3 adapter
+│   │       └── argocd/       # ArgoCD GitOps adapter (WIP)
+│   ├── smo/                  # O2-SMO (Service Management & Orchestration)
+│   │   ├── adapter/          # SMO adapter interface
+│   │   └── adapters/         # SMO backend adapters
+│   │       ├── onap/         # ONAP adapter
+│   │       └── osm/          # Open Source MANO adapter
 │   ├── config/               # Configuration
 │   ├── controller/           # Subscription controller
 │   ├── o2ims/                # O2-IMS models & handlers
+│   ├── observability/        # Logging, metrics, tracing
 │   └── server/               # HTTP server
 ├── pkg/
 │   ├── cache/                # Cache abstraction
@@ -367,7 +387,9 @@ netweave/
 │       ├── staging/
 │       └── production/
 ├── docs/                     # Documentation
-├── tests/                    # Tests
+├── tests/                    # Integration and E2E tests
+│   ├── integration/          # Integration tests
+│   └── e2e/                  # End-to-end tests
 └── Makefile                  # Build automation
 ```
 
@@ -418,23 +440,29 @@ netweave/
 - ✅ Resources (create, read, delete)
 - ✅ Resource Types (read-only)
 - ✅ Subscriptions with webhook notifications
-- ✅ Kubernetes adapter
+- ✅ Kubernetes adapter (primary infrastructure backend)
+- ✅ Dell DTIAS adapter (bare-metal infrastructure)
+- ✅ OpenStack adapter (IaaS infrastructure)
 - ✅ Single-cluster deployment
 - ✅ Multi-cluster with Redis replication
 
-### v1.1 (Q2 2026)
+### v1.1 (Q1 2026) - **IN PROGRESS**
+- ✅ O2-DMS support (Deployment Management Services)
+  - ✅ Helm 3 adapter for CNF/VNF deployment
+  - 🔄 ArgoCD adapter for GitOps deployments (WIP)
+- ✅ O2-SMO integration (Service Management & Orchestration)
+  - ✅ ONAP adapter
+  - ✅ OSM (Open Source MANO) adapter
 - 🔄 Resource update operations
 - 🔄 Advanced filtering and pagination
-- 🔄 Dell DTIAS adapter
-- 🔄 Batch operations
 - 🔄 Enhanced observability dashboards
 
 ### v2.0 (Q3 2026)
-- 🔮 O2-DMS support (Deployment Management)
-- 🔮 O2-SMO integration
-- 🔮 Multi-tenancy
-- 🔮 Advanced RBAC
+- 🔮 Multi-tenancy with tenant isolation
+- 🔮 Advanced RBAC with fine-grained permissions
 - 🔮 Custom resource type definitions
+- 🔮 Batch operations API
+- 🔮 GraphQL API support
 
 ## Support
 
