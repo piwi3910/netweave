@@ -1,0 +1,280 @@
+package onap
+
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
+	"go.uber.org/zap"
+)
+
+// AAIClient provides a client for ONAP A&AI (Active & Available Inventory) REST API.
+// It handles authentication, TLS configuration, and retry logic for A&AI operations.
+type AAIClient struct {
+	baseURL    string
+	httpClient *http.Client
+	username   string
+	password   string
+	logger     *zap.Logger
+	config     *Config
+}
+
+// NewAAIClient creates a new A&AI client with the provided configuration.
+func NewAAIClient(config *Config, logger *zap.Logger) (*AAIClient, error) {
+	// Create TLS configuration
+	tlsConfig, err := createTLSConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create TLS config: %w", err)
+	}
+
+	// Create HTTP client with timeouts and TLS
+	httpClient := &http.Client{
+		Timeout: config.RequestTimeout,
+		Transport: &http.Transport{
+			TLSClientConfig:     tlsConfig,
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
+
+	return &AAIClient{
+		baseURL:    strings.TrimSuffix(config.AAIURL, "/"),
+		httpClient: httpClient,
+		username:   config.Username,
+		password:   config.Password,
+		logger:     logger,
+		config:     config,
+	}, nil
+}
+
+// Health performs a health check on the A&AI service.
+func (c *AAIClient) Health(ctx context.Context) error {
+	url := fmt.Sprintf("%s/aai/util/echo", c.baseURL)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create health check request: %w", err)
+	}
+
+	req.SetBasicAuth(c.username, c.password)
+	req.Header.Set("X-FromAppId", "netweave")
+	req.Header.Set("X-TransactionId", generateTransactionID())
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("health check request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("health check returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// CreateOrUpdateCloudRegion creates or updates a cloud region in A&AI.
+func (c *AAIClient) CreateOrUpdateCloudRegion(ctx context.Context, cloudRegion *CloudRegion) error {
+	url := fmt.Sprintf("%s/aai/v24/cloud-infrastructure/cloud-regions/cloud-region/%s/%s",
+		c.baseURL, cloudRegion.CloudOwner, cloudRegion.CloudRegionID)
+
+	return c.putResource(ctx, url, cloudRegion, "cloud region")
+}
+
+// CreateOrUpdateTenant creates or updates a tenant in A&AI.
+func (c *AAIClient) CreateOrUpdateTenant(ctx context.Context, tenant *Tenant) error {
+	url := fmt.Sprintf("%s/aai/v24/cloud-infrastructure/cloud-regions/cloud-region/%s/%s/tenants/tenant/%s",
+		c.baseURL, tenant.CloudOwner, tenant.CloudRegionID, tenant.TenantID)
+
+	return c.putResource(ctx, url, tenant, "tenant")
+}
+
+// CreateOrUpdatePNF creates or updates a PNF (Physical Network Function) in A&AI.
+func (c *AAIClient) CreateOrUpdatePNF(ctx context.Context, pnf *PNF) error {
+	url := fmt.Sprintf("%s/aai/v24/network/pnfs/pnf/%s", c.baseURL, pnf.PNFName)
+
+	return c.putResource(ctx, url, pnf, "PNF")
+}
+
+// CreateOrUpdateVNF creates or updates a VNF (Virtual Network Function) in A&AI.
+func (c *AAIClient) CreateOrUpdateVNF(ctx context.Context, vnf *VNF) error {
+	url := fmt.Sprintf("%s/aai/v24/network/generic-vnfs/generic-vnf/%s", c.baseURL, vnf.VNFID)
+
+	return c.putResource(ctx, url, vnf, "VNF")
+}
+
+// CreateOrUpdateServiceInstance creates or updates a service instance in A&AI.
+func (c *AAIClient) CreateOrUpdateServiceInstance(ctx context.Context, serviceInstance *ServiceInstance) error {
+	// Service instances are under customers, using a default customer for O2DMS
+	customerID := "netweave-o2dms"
+	serviceType := serviceInstance.ServiceType
+
+	url := fmt.Sprintf("%s/aai/v24/business/customers/customer/%s/service-subscriptions/service-subscription/%s/service-instances/service-instance/%s",
+		c.baseURL, customerID, serviceType, serviceInstance.ServiceInstanceID)
+
+	return c.putResource(ctx, url, serviceInstance, "service instance")
+}
+
+// GetServiceInstance retrieves a service instance from A&AI.
+func (c *AAIClient) GetServiceInstance(ctx context.Context, serviceInstanceID string) (*ServiceInstance, error) {
+	// This is a simplified implementation; in practice, you'd need to know the customer and service type
+	// or perform a search query
+
+	customerID := "netweave-o2dms"
+	serviceType := "netweave-deployment"
+
+	url := fmt.Sprintf("%s/aai/v24/business/customers/customer/%s/service-subscriptions/service-subscription/%s/service-instances/service-instance/%s",
+		c.baseURL, customerID, serviceType, serviceInstanceID)
+
+	var serviceInstance ServiceInstance
+	if err := c.getResource(ctx, url, &serviceInstance, "service instance"); err != nil {
+		return nil, err
+	}
+
+	return &serviceInstance, nil
+}
+
+// putResource is a helper method to PUT a resource to A&AI with retry logic.
+func (c *AAIClient) putResource(ctx context.Context, url string, resource interface{}, resourceType string) error {
+	body, err := json.Marshal(resource)
+	if err != nil {
+		return fmt.Errorf("failed to marshal %s: %w", resourceType, err)
+	}
+
+	var lastErr error
+	for attempt := 0; attempt <= c.config.MaxRetries; attempt++ {
+		if attempt > 0 {
+			c.logger.Debug("Retrying A&AI request",
+				zap.String("resourceType", resourceType),
+				zap.Int("attempt", attempt),
+			)
+			// Exponential backoff
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, strings.NewReader(string(body)))
+		if err != nil {
+			lastErr = fmt.Errorf("failed to create request: %w", err)
+			continue
+		}
+
+		req.SetBasicAuth(c.username, c.password)
+		req.Header.Set("X-FromAppId", "netweave")
+		req.Header.Set("X-TransactionId", generateTransactionID())
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("request failed: %w", err)
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
+			c.logger.Debug("Successfully created/updated resource in A&AI",
+				zap.String("resourceType", resourceType),
+				zap.Int("statusCode", resp.StatusCode),
+			)
+			return nil
+		}
+
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		lastErr = fmt.Errorf("A&AI returned status %d: %s", resp.StatusCode, string(bodyBytes))
+
+		// Don't retry on client errors (4xx except 429)
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != http.StatusTooManyRequests {
+			break
+		}
+	}
+
+	return fmt.Errorf("failed to create/update %s after %d attempts: %w",
+		resourceType, c.config.MaxRetries+1, lastErr)
+}
+
+// getResource is a helper method to GET a resource from A&AI.
+func (c *AAIClient) getResource(ctx context.Context, url string, result interface{}, resourceType string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.SetBasicAuth(c.username, c.password)
+	req.Header.Set("X-FromAppId", "netweave")
+	req.Header.Set("X-TransactionId", generateTransactionID())
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("A&AI returned status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+		return fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return nil
+}
+
+// Close closes the A&AI client and releases resources.
+func (c *AAIClient) Close() error {
+	c.httpClient.CloseIdleConnections()
+	return nil
+}
+
+// createTLSConfig creates a TLS configuration from the plugin config.
+func createTLSConfig(config *Config) (*tls.Config, error) {
+	if !config.TLSEnabled {
+		return nil, nil
+	}
+
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: config.TLSInsecureSkipVerify, // nolint:gosec
+		MinVersion:         tls.VersionTLS12,
+	}
+
+	// Load client certificate if provided
+	if config.TLSCertFile != "" && config.TLSKeyFile != "" {
+		cert, err := tls.LoadX509KeyPair(config.TLSCertFile, config.TLSKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load client certificate: %w", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	// Load CA certificate if provided
+	if config.TLSCAFile != "" {
+		caCert, err := os.ReadFile(config.TLSCAFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read CA certificate: %w", err)
+		}
+
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			return nil, fmt.Errorf("failed to parse CA certificate")
+		}
+		tlsConfig.RootCAs = caCertPool
+	}
+
+	return tlsConfig, nil
+}
+
+// generateTransactionID generates a unique transaction ID for A&AI requests.
+func generateTransactionID() string {
+	return fmt.Sprintf("netweave-%d", time.Now().UnixNano())
+}

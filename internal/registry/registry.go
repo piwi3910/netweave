@@ -51,11 +51,11 @@ type PluginMetadata struct {
 // Registry manages adapter plugins and their lifecycle.
 // It provides thread-safe plugin registration, lookup, and health monitoring.
 type Registry struct {
-	mu              sync.RWMutex
-	plugins         map[string]adapter.Adapter
-	meta            map[string]*PluginMetadata
-	defaultPlugin   string
-	logger          *zap.Logger
+	mu            sync.RWMutex
+	plugins       map[string]adapter.Adapter
+	meta          map[string]*PluginMetadata
+	defaultPlugin string
+	logger        *zap.Logger
 
 	// Health check configuration
 	healthCheckInterval time.Duration
