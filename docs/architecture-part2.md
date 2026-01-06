@@ -107,51 +107,75 @@ spec:
 
 **Deployment**: 1 master + 2 replicas + 3 sentinels
 
-```
-┌─────────────────────────────────────────────┐
-│            Redis Topology                   │
-│                                             │
-│  ┌──────────┐     ┌──────────┐            │
-│  │ Master   │────>│ Replica 1│ (async)    │
-│  │ (writes) │     │ (reads)  │            │
-│  └──────────┘     └──────────┘            │
-│       │                                     │
-│       └──────────> ┌──────────┐            │
-│                    │ Replica 2│ (async)    │
-│                    │ (reads)  │            │
-│                    └──────────┘            │
-│                                             │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐│
-│  │Sentinel 1│  │Sentinel 2│  │Sentinel 3││
-│  │          │  │          │  │          ││
-│  │ Monitor  │  │ Monitor  │  │ Monitor  ││
-│  │ Failover │  │ Failover │  │ Failover ││
-│  └──────────┘  └──────────┘  └──────────┘│
-└─────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Topology[Redis Topology]
+        Master[Master<br/>writes]
+        Replica1[Replica 1<br/>reads]
+        Replica2[Replica 2<br/>reads]
+
+        Master -->|async replication| Replica1
+        Master -->|async replication| Replica2
+
+        subgraph Sentinels[Sentinel Cluster]
+            S1[Sentinel 1<br/>Monitor & Failover]
+            S2[Sentinel 2<br/>Monitor & Failover]
+            S3[Sentinel 3<br/>Monitor & Failover]
+        end
+
+        S1 -.monitor.-> Master
+        S2 -.monitor.-> Master
+        S3 -.monitor.-> Master
+        S1 -.monitor.-> Replica1
+        S2 -.monitor.-> Replica1
+        S3 -.monitor.-> Replica1
+        S1 -.monitor.-> Replica2
+        S2 -.monitor.-> Replica2
+        S3 -.monitor.-> Replica2
+    end
+
+    style Topology fill:#fff4e6
+    style Master fill:#ffcccc
+    style Replica1 fill:#cce5ff
+    style Replica2 fill:#cce5ff
+    style Sentinels fill:#ffe6f0
+    style S1 fill:#e8f5e9
+    style S2 fill:#e8f5e9
+    style S3 fill:#e8f5e9
 ```
 
 **Failover Process**:
+```mermaid
+graph TB
+    T0[t=0s: Master fails]
+    T5[t=5s: Quorum reached]
+    T6[t=6s: Leader election]
+    T7[t=7s: Promote replica]
+    T8[t=8s: Reconfigure clients]
+    T10[t=10s: Resume operations]
+
+    T0 --> D[Sentinels detect<br/>down-after-milliseconds: 5s]
+    D --> T5
+    T5 --> Q[2/3 sentinels agree<br/>master is down]
+    Q --> T6
+    T6 --> E[Sentinels elect leader<br/>to perform failover]
+    E --> T7
+    T7 --> P[Leader sentinel promotes<br/>best replica to master]
+    P --> T8
+    T8 --> N[Sentinels notify gateway pods<br/>of new master]
+    N --> T10
+
+    style T0 fill:#ffcccc
+    style T5 fill:#ffe6cc
+    style T6 fill:#fff4cc
+    style T7 fill:#e6f7cc
+    style T8 fill:#cce6ff
+    style T10 fill:#ccffcc
 ```
-1. Master fails (t=0s)
-   └─> Sentinels detect (down-after-milliseconds: 5s)
 
-2. Quorum reached (t=5s)
-   └─> 2/3 sentinels agree master is down
+Gateway pods reconnect to new master.
 
-3. Leader election (t=6s)
-   └─> Sentinels elect leader to perform failover
-
-4. Promote replica (t=7s)
-   └─> Leader sentinel promotes best replica to master
-
-5. Reconfigure clients (t=8s)
-   └─> Sentinels notify gateway pods of new master
-
-6. Resume operations (t=10s)
-   └─> Gateway pods reconnect to new master
-
-Total downtime: < 30s
-```
+**Total downtime**: < 30s
 
 **Data Durability**:
 ```yaml
@@ -484,33 +508,42 @@ resources:
 | Data Consistency | Strong | Eventual |
 
 **Multi-Cluster Architecture**:
-```
-┌──────────────────────────────────────────────────────────────┐
-│                     Global Load Balancer                     │
-│              (DNS-based, GeoDNS, or Anycast)                 │
-│  • Route to nearest cluster                                  │
-│  • Health-based failover                                     │
-└──────────────┬───────────────────────────┬──────────────────┘
-               │                           │
-    ┌──────────┴─────────┐     ┌──────────┴─────────┐
-    │   Cluster A        │     │   Cluster B        │
-    │   (US-East)        │     │   (US-West)        │
-    │                    │     │                    │
-    │ ┌────────────────┐ │     │ ┌────────────────┐ │
-    │ │Gateway Pods (3)│ │     │ │Gateway Pods (3)│ │
-    │ └────────────────┘ │     │ └────────────────┘ │
-    │         │          │     │         │          │
-    │ ┌────────────────┐ │     │ ┌────────────────┐ │
-    │ │ Redis Sentinel │ │     │ │ Redis Sentinel │ │
-    │ │   (Master)     │─┼─────┼→│  (Replica)     │ │
-    │ └────────────────┘ │     │ └────────────────┘ │
-    │         │          │     │         │          │
-    │ ┌────────────────┐ │     │ ┌────────────────┐ │
-    │ │  K8s API       │ │     │ │  K8s API       │ │
-    │ │  (Local nodes) │ │     │ │  (Local nodes) │ │
-    │ └────────────────┘ │     │ └────────────────┘ │
-    └────────────────────┘     └────────────────────┘
-           Async Redis Replication (subscriptions)
+```mermaid
+graph TB
+    GLB[Global Load Balancer<br/>DNS-based, GeoDNS, or Anycast<br/>• Route to nearest cluster<br/>• Health-based failover]
+
+    GLB --> ClusterA
+    GLB --> ClusterB
+
+    subgraph ClusterA[Cluster A - US-East]
+        GWA[Gateway Pods - 3]
+        RedisA[Redis Sentinel<br/>Master]
+        K8sA[K8s API<br/>Local nodes]
+
+        GWA --> RedisA
+        GWA --> K8sA
+    end
+
+    subgraph ClusterB[Cluster B - US-West]
+        GWB[Gateway Pods - 3]
+        RedisB[Redis Sentinel<br/>Replica]
+        K8sB[K8s API<br/>Local nodes]
+
+        GWB --> RedisB
+        GWB --> K8sB
+    end
+
+    RedisA -.->|Async Redis Replication<br/>subscriptions| RedisB
+
+    style GLB fill:#ffe6f0
+    style ClusterA fill:#e1f5ff
+    style ClusterB fill:#e8f5e9
+    style GWA fill:#fff4e6
+    style GWB fill:#fff4e6
+    style RedisA fill:#ffcccc
+    style RedisB fill:#cce5ff
+    style K8sA fill:#e6f7ff
+    style K8sB fill:#e6f7ff
 ```
 
 **Cross-Cluster Setup**:
@@ -536,93 +569,72 @@ helm install redis bitnami/redis \
 
 ### Deployment Topology
 
-```
-Development → Staging → Production
-    │            │            │
-    ├─ 1 cluster ├─ 1 cluster ├─ 2+ clusters
-    ├─ 1 pod     ├─ 3 pods    ├─ 3+ pods per cluster
-    ├─ No Redis  ├─ Redis     ├─ Redis HA
-    │  Sentinel  │  Sentinel  │  (cross-cluster)
-    ├─ Basic TLS ├─ mTLS      ├─ mTLS + cert rotation
-    └─ Minimal   └─ Full      └─ Full observability
-       observ.      observ.
+```mermaid
+graph LR
+    Dev[Development]
+    Staging[Staging]
+    Prod[Production]
+
+    Dev --> Staging --> Prod
+
+    Dev -.-> DevSpecs[• 1 cluster<br/>• 1 pod<br/>• No Redis Sentinel<br/>• Basic TLS<br/>• Minimal observability]
+    Staging -.-> StagingSpecs[• 1 cluster<br/>• 3 pods<br/>• Redis Sentinel<br/>• mTLS<br/>• Full observability]
+    Prod -.-> ProdSpecs[• 2+ clusters<br/>• 3+ pods per cluster<br/>• Redis HA cross-cluster<br/>• mTLS + cert rotation<br/>• Full observability]
+
+    style Dev fill:#ffe6cc
+    style Staging fill:#e6f3ff
+    style Prod fill:#ccffcc
+    style DevSpecs fill:#fff9e6
+    style StagingSpecs fill:#f0f8ff
+    style ProdSpecs fill:#f0ffe6
 ```
 
 ### Kubernetes Manifests Structure
 
-```
-deployments/kubernetes/
-├── base/                       # Common across environments
-│   ├── kustomization.yaml
-│   ├── namespace.yaml
-│   ├── gateway-deployment.yaml
-│   ├── gateway-service.yaml
-│   ├── gateway-configmap.yaml
-│   ├── gateway-rbac.yaml
-│   ├── controller-deployment.yaml
-│   ├── controller-rbac.yaml
-│   └── networkpolicies.yaml
-│
-├── dev/                        # Development overrides
-│   ├── kustomization.yaml
-│   ├── gateway-patch.yaml      # 1 replica, lower resources
-│   └── configmap-patch.yaml    # Debug logging
-│
-├── staging/                    # Staging overrides
-│   ├── kustomization.yaml
-│   ├── gateway-patch.yaml      # 3 replicas
-│   ├── hpa.yaml                # Auto-scaling
-│   └── istio-gateway.yaml
-│
-└── production/                 # Production overrides
-    ├── kustomization.yaml
-    ├── gateway-patch.yaml      # 3+ replicas, high resources
-    ├── hpa.yaml                # Aggressive auto-scaling
-    ├── pdb.yaml                # Pod disruption budget
-    ├── istio-gateway.yaml
-    ├── certificates.yaml       # cert-manager certificates
-    └── monitoring.yaml         # ServiceMonitor, PrometheusRule
+```mermaid
+graph TB
+    root[deployments/kubernetes/]
+
+    root --> base[base/<br/>Common across environments]
+    root --> dev[dev/<br/>Development overrides]
+    root --> staging[staging/<br/>Staging overrides]
+    root --> prod[production/<br/>Production overrides]
+
+    base --> base_files[kustomization.yaml<br/>namespace.yaml<br/>gateway-deployment.yaml<br/>gateway-service.yaml<br/>gateway-configmap.yaml<br/>gateway-rbac.yaml<br/>controller-deployment.yaml<br/>controller-rbac.yaml<br/>networkpolicies.yaml]
+
+    dev --> dev_files[kustomization.yaml<br/>gateway-patch.yaml<br/>1 replica, lower resources<br/>configmap-patch.yaml<br/>Debug logging]
+
+    staging --> staging_files[kustomization.yaml<br/>gateway-patch.yaml<br/>3 replicas<br/>hpa.yaml<br/>Auto-scaling<br/>istio-gateway.yaml]
+
+    prod --> prod_files[kustomization.yaml<br/>gateway-patch.yaml<br/>3+ replicas, high resources<br/>hpa.yaml<br/>Aggressive auto-scaling<br/>pdb.yaml<br/>Pod disruption budget<br/>istio-gateway.yaml<br/>certificates.yaml<br/>cert-manager certificates<br/>monitoring.yaml<br/>ServiceMonitor, PrometheusRule]
+
+    style root fill:#fff4e6
+    style base fill:#e8f5e9
+    style dev fill:#ffe6cc
+    style staging fill:#e6f3ff
+    style prod fill:#ccffcc
 ```
 
 ### Deployment Workflow (Helm + Operator)
 
-```
-┌──────────────┐
-│  Developer   │
-│  (Local)     │
-└──────┬───────┘
-       │ 1. Update Helm values or CR spec
-       │    Commit to Git
-       ▼
-┌──────────────┐
-│  GitHub      │
-│  Actions     │
-│  (CI)        │
-└──────┬───────┘
-       │ 2. Lint Helm charts
-       │    Run tests
-       │    Build & push Docker image
-       │    Tag release
-       ▼
-┌──────────────┐
-│  Helm        │
-│  or Operator │
-└──────┬───────┘
-       │ 3a. helm upgrade netweave
-       │     OR
-       │ 3b. kubectl apply -f o2ims-gateway.yaml
-       ▼
-┌──────────────┐
-│  Operator    │
-│  (watches CR)│
-└──────┬───────┘
-       │ 4. Reconcile desired state
-       │    Install/upgrade Helm chart
-       ▼
-┌──────────────┐
-│  Kubernetes  │
-│  Cluster     │
-└──────────────┘
+```mermaid
+graph TB
+    Dev[Developer<br/>Local]
+    GitHub[GitHub Actions<br/>CI]
+    Helm[Helm or Operator]
+    Operator[Operator<br/>watches CR]
+    K8s[Kubernetes Cluster]
+
+    Dev -->|1. Update Helm values or CR spec<br/>Commit to Git| GitHub
+    GitHub -->|2. Lint Helm charts<br/>Run tests<br/>Build & push Docker image<br/>Tag release| Helm
+    Helm -->|3a. helm upgrade netweave<br/>OR<br/>3b. kubectl apply -f o2ims-gateway.yaml| Operator
+    Operator -->|4. Reconcile desired state<br/>Install/upgrade Helm chart| K8s
+
+    style Dev fill:#e1f5ff
+    style GitHub fill:#fff4e6
+    style Helm fill:#e8f5e9
+    style Operator fill:#f3e5f5
+    style K8s fill:#ffe6f0
 ```
 
 ### Helm-Based Deployment
