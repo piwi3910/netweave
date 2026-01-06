@@ -814,3 +814,515 @@ func TestGetDeploymentLifecycleInfo(t *testing.T) {
 	assert.Equal(t, "/o2dms/v1", response["basePath"])
 	assert.NotNil(t, response["adapters"])
 }
+
+// Error Handling Tests
+
+func TestHandler_NoDefaultAdapter(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logger := zap.NewNop()
+
+	// Create empty registry with no default adapter.
+	reg := registry.NewRegistry(logger, nil)
+	store := storage.NewMemoryStore()
+	handler := NewHandler(reg, store, logger)
+	router := setupTestRouter(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+
+	var response models.APIError
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "ServiceUnavailable", response.Error)
+}
+
+func TestHandler_AdapterByQueryParam(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	mockAdp.deployments = []*adapter.Deployment{
+		{
+			ID:     "dep-1",
+			Name:   "test-deployment",
+			Status: adapter.DeploymentStatusDeployed,
+		},
+	}
+
+	// Use the adapter name in query param.
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments?adapter=mock", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestHandler_AdapterByQueryParam_NotFound(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments?adapter=nonexistent", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestHandler_InvalidJSONBody(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Send invalid JSON.
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments", bytes.NewReader([]byte("invalid json")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_CreateDeploymentError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Set error on mock adapter.
+	mockAdp.createDeploymentErr = adapter.ErrDeploymentNotFound
+
+	createReq := models.CreateNFDeploymentRequest{
+		Name:                     "test",
+		NFDeploymentDescriptorID: "pkg-1",
+	}
+
+	body, err := json.Marshal(createReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_UpdateDeploymentError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	mockAdp.deployments = []*adapter.Deployment{
+		{ID: "dep-1", Name: "test", Status: adapter.DeploymentStatusDeployed},
+	}
+	mockAdp.updateDeploymentErr = adapter.ErrDeploymentNotFound
+
+	updateReq := models.UpdateNFDeploymentRequest{
+		Description: "Updated",
+	}
+
+	body, err := json.Marshal(updateReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, "/o2dms/v1/nfDeployments/dep-1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_DeleteDeploymentError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	mockAdp.deleteDeploymentErr = adapter.ErrDeploymentNotFound
+
+	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/nfDeployments/dep-1", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_ScaleDeploymentError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	mockAdp.deployments = []*adapter.Deployment{
+		{ID: "dep-1", Name: "test", Status: adapter.DeploymentStatusDeployed},
+	}
+	mockAdp.scaleDeploymentErr = adapter.ErrOperationNotSupported
+
+	scaleReq := models.ScaleNFDeploymentRequest{Replicas: 5}
+	body, err := json.Marshal(scaleReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments/dep-1/scale", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_RollbackDeploymentError(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	mockAdp.deployments = []*adapter.Deployment{
+		{ID: "dep-1", Name: "test", Status: adapter.DeploymentStatusDeployed, Version: 3},
+	}
+	mockAdp.rollbackErr = adapter.ErrOperationNotSupported
+
+	rollbackReq := models.RollbackNFDeploymentRequest{}
+	body, err := json.Marshal(rollbackReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments/dep-1/rollback", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_GetNFDeploymentStatus_NotFound(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments/nonexistent/status", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandler_GetNFDeploymentHistory_NotFound(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments/nonexistent/history", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandler_GetNFDeploymentDescriptor_NotFound(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeploymentDescriptors/nonexistent", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandler_DeleteNFDeploymentDescriptor(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	mockAdp.packages = []*adapter.DeploymentPackage{
+		{
+			ID:      "pkg-1",
+			Name:    "test-chart",
+			Version: "1.0.0",
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/nfDeploymentDescriptors/pkg-1", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
+func TestHandler_DeleteNFDeploymentDescriptor_NotFound(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/nfDeploymentDescriptors/nonexistent", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_DeleteDMSSubscription_NotFound(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/subscriptions/nonexistent", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandler_Health(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+
+	err := handler.Health(context.Background())
+	assert.NoError(t, err)
+}
+
+func TestHandler_Health_NoAdapter(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logger := zap.NewNop()
+
+	// Create empty registry with no adapter.
+	reg := registry.NewRegistry(logger, nil)
+	store := storage.NewMemoryStore()
+	handler := NewHandler(reg, store, logger)
+
+	err := handler.Health(context.Background())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no DMS adapter available")
+}
+
+// Mock adapter that doesn't support scaling/rollback
+
+type noScaleRollbackAdapter struct {
+	*mockAdapter
+}
+
+func (m *noScaleRollbackAdapter) SupportsRollback() bool { return false }
+func (m *noScaleRollbackAdapter) SupportsScaling() bool  { return false }
+
+func TestHandler_ScaleNotSupported(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logger := zap.NewNop()
+
+	reg := registry.NewRegistry(logger, nil)
+	adp := &noScaleRollbackAdapter{mockAdapter: newMockAdapter()}
+
+	err := reg.Register(context.Background(), "no-scale", "mock", adp, nil, true)
+	require.NoError(t, err)
+
+	store := storage.NewMemoryStore()
+	handler := NewHandler(reg, store, logger)
+	router := setupTestRouter(handler)
+
+	scaleReq := models.ScaleNFDeploymentRequest{Replicas: 5}
+	body, err := json.Marshal(scaleReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments/dep-1/scale", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotImplemented, w.Code)
+}
+
+func TestHandler_RollbackNotSupported(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logger := zap.NewNop()
+
+	reg := registry.NewRegistry(logger, nil)
+	adp := &noScaleRollbackAdapter{mockAdapter: newMockAdapter()}
+
+	err := reg.Register(context.Background(), "no-rollback", "mock", adp, nil, true)
+	require.NoError(t, err)
+
+	store := storage.NewMemoryStore()
+	handler := NewHandler(reg, store, logger)
+	router := setupTestRouter(handler)
+
+	rollbackReq := models.RollbackNFDeploymentRequest{}
+	body, err := json.Marshal(rollbackReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments/dep-1/rollback", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotImplemented, w.Code)
+}
+
+func TestHandler_SubscriptionNoStore(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logger := zap.NewNop()
+
+	reg := registry.NewRegistry(logger, nil)
+	mockAdp := newMockAdapter()
+	err := reg.Register(context.Background(), "mock", "mock", mockAdp, nil, true)
+	require.NoError(t, err)
+
+	// Create handler with nil store.
+	handler := NewHandler(reg, nil, logger)
+	router := setupTestRouter(handler)
+
+	// Test list subscriptions with no store.
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/subscriptions", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestHandler_CreateSubscriptionNoStore(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logger := zap.NewNop()
+
+	reg := registry.NewRegistry(logger, nil)
+	mockAdp := newMockAdapter()
+	err := reg.Register(context.Background(), "mock", "mock", mockAdp, nil, true)
+	require.NoError(t, err)
+
+	handler := NewHandler(reg, nil, logger)
+	router := setupTestRouter(handler)
+
+	createReq := models.CreateDMSSubscriptionRequest{
+		Callback: "https://example.com/webhook",
+	}
+	body, err := json.Marshal(createReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/subscriptions", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestHandler_GetSubscriptionNoStore(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logger := zap.NewNop()
+
+	reg := registry.NewRegistry(logger, nil)
+	mockAdp := newMockAdapter()
+	err := reg.Register(context.Background(), "mock", "mock", mockAdp, nil, true)
+	require.NoError(t, err)
+
+	handler := NewHandler(reg, nil, logger)
+	router := setupTestRouter(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/subscriptions/sub-1", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestHandler_DeleteSubscriptionNoStore(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logger := zap.NewNop()
+
+	reg := registry.NewRegistry(logger, nil)
+	mockAdp := newMockAdapter()
+	err := reg.Register(context.Background(), "mock", "mock", mockAdp, nil, true)
+	require.NoError(t, err)
+
+	handler := NewHandler(reg, nil, logger)
+	router := setupTestRouter(handler)
+
+	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/subscriptions/sub-1", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestHandler_ListWithFilter(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	mockAdp.deployments = []*adapter.Deployment{
+		{
+			ID:        "dep-1",
+			Name:      "test-deployment",
+			Namespace: "default",
+			Status:    adapter.DeploymentStatusDeployed,
+		},
+	}
+
+	// Test with namespace filter.
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments?namespace=default&status=deployed&limit=10&offset=0", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestHandler_ListDescriptorsWithFilter(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	mockAdp.packages = []*adapter.DeploymentPackage{
+		{
+			ID:      "pkg-1",
+			Name:    "test-chart",
+			Version: "1.0.0",
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeploymentDescriptors?limit=10&offset=0", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestHandler_CreateSubscriptionWithFilter(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	createReq := models.CreateDMSSubscriptionRequest{
+		Callback:               "https://example.com/webhook",
+		ConsumerSubscriptionID: "consumer-123",
+		Filter: &models.DMSSubscriptionFilter{
+			NFDeploymentIDs:           []string{"nfd-1", "nfd-2"},
+			NFDeploymentDescriptorIDs: []string{"nfdd-1"},
+			Namespace:                 "production",
+			EventTypes:                []models.DMSEventType{models.DMSEventTypeDeploymentCreated},
+		},
+		Extensions: map[string]interface{}{
+			"custom": "value",
+		},
+	}
+
+	body, err := json.Marshal(createReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/subscriptions", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var subscription models.DMSSubscription
+	err = json.Unmarshal(w.Body.Bytes(), &subscription)
+	require.NoError(t, err)
+
+	assert.NotNil(t, subscription.Filter)
+	assert.Equal(t, "production", subscription.Filter.Namespace)
+	assert.Len(t, subscription.Filter.NFDeploymentIDs, 2)
+}
