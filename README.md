@@ -7,6 +7,29 @@
 [![License](https://img.shields.io/github/license/piwi3910/netweave)](LICENSE)
 [![codecov](https://codecov.io/github/piwi3910/netweave/graph/badge.svg?token=9GKK97R795)](https://codecov.io/github/piwi3910/netweave)
 
+<!-- COMPLIANCE_BADGES_START -->
+## O-RAN Specification Compliance
+
+This project implements the following O-RAN Alliance specifications:
+
+[![O-RAN O2-IMS v3.0.0 Compliance](https://img.shields.io/badge/O--RAN__O2--IMS-v3.0.0__compliant-brightgreen)](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2IMS-INTERFACE) **O2-IMS v3.0.0**: Full compliance with O-RAN Infrastructure Management Services specification
+
+[![O-RAN O2-DMS v3.0.0 Compliance](https://img.shields.io/badge/O--RAN__O2--DMS-v3.0.0__partial-yellow)](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2DMS-INTERFACE) **O2-DMS v3.0.0**: Partial compliance with O-RAN Deployment Management Services specification (in development)
+
+[![O-RAN O2-SMO v3.0.0 Compliance](https://img.shields.io/badge/O--RAN__O2--SMO-v3.0.0__compliant-brightgreen)](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2SMO-INTERFACE) **O2-SMO v3.0.0**: Full compliance with O-RAN Service Management & Orchestration integration specification
+
+### Specification References
+
+Official O-RAN Alliance specifications:
+
+- [O2-IMS v3.0.0 Specification](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2IMS-INTERFACE) - Infrastructure Management Services
+- [O2-DMS v3.0.0 Specification](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2DMS-INTERFACE) - Deployment Management Services
+- [O2-SMO v3.0.0 Specification](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2SMO-INTERFACE) - Service Management & Orchestration
+
+*Compliance verified automatically via `make compliance-check`*
+
+<!-- COMPLIANCE_BADGES_END -->
+
 ## What is netweave?
 
 **netweave** is a production-grade, comprehensive O-RAN O2 API gateway that provides complete infrastructure management, deployment orchestration, and SMO integration capabilities through standardized O2-IMS, O2-DMS, and O2-SMO APIs. It enables Service Management and Orchestration (SMO) systems to manage multi-backend infrastructure, deploy CNF/VNF workloads, and integrate with major orchestration frameworks (ONAP, OSM) through a single, unified gateway.
