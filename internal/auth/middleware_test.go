@@ -1,0 +1,1051 @@
+package auth
+
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+)
+
+// mockStore is a mock implementation of auth.Store for testing.
+type mockStore struct {
+	users   map[string]*TenantUser
+	roles   map[string]*Role
+	tenants map[string]*Tenant
+	events  []*AuditEvent
+}
+
+func newMockStore() *mockStore {
+	return &mockStore{
+		users:   make(map[string]*TenantUser),
+		roles:   make(map[string]*Role),
+		tenants: make(map[string]*Tenant),
+		events:  make([]*AuditEvent, 0),
+	}
+}
+
+func (m *mockStore) CreateTenant(_ context.Context, tenant *Tenant) error {
+	m.tenants[tenant.ID] = tenant
+	return nil
+}
+
+func (m *mockStore) GetTenant(_ context.Context, id string) (*Tenant, error) {
+	tenant, ok := m.tenants[id]
+	if !ok {
+		return nil, ErrTenantNotFound
+	}
+	return tenant, nil
+}
+
+func (m *mockStore) UpdateTenant(_ context.Context, tenant *Tenant) error {
+	m.tenants[tenant.ID] = tenant
+	return nil
+}
+
+func (m *mockStore) DeleteTenant(_ context.Context, id string) error {
+	delete(m.tenants, id)
+	return nil
+}
+
+func (m *mockStore) ListTenants(_ context.Context) ([]*Tenant, error) {
+	result := make([]*Tenant, 0, len(m.tenants))
+	for _, t := range m.tenants {
+		result = append(result, t)
+	}
+	return result, nil
+}
+
+func (m *mockStore) IncrementUsage(_ context.Context, _, _ string) error {
+	return nil
+}
+
+func (m *mockStore) DecrementUsage(_ context.Context, _, _ string) error {
+	return nil
+}
+
+func (m *mockStore) CreateUser(_ context.Context, user *TenantUser) error {
+	m.users[user.ID] = user
+	return nil
+}
+
+func (m *mockStore) GetUser(_ context.Context, id string) (*TenantUser, error) {
+	user, ok := m.users[id]
+	if !ok {
+		return nil, ErrUserNotFound
+	}
+	return user, nil
+}
+
+func (m *mockStore) GetUserBySubject(_ context.Context, subject string) (*TenantUser, error) {
+	for _, user := range m.users {
+		if user.Subject == subject {
+			return user, nil
+		}
+	}
+	return nil, ErrUserNotFound
+}
+
+func (m *mockStore) UpdateUser(_ context.Context, user *TenantUser) error {
+	m.users[user.ID] = user
+	return nil
+}
+
+func (m *mockStore) DeleteUser(_ context.Context, id string) error {
+	delete(m.users, id)
+	return nil
+}
+
+func (m *mockStore) ListUsersByTenant(_ context.Context, tenantID string) ([]*TenantUser, error) {
+	result := make([]*TenantUser, 0)
+	for _, user := range m.users {
+		if user.TenantID == tenantID {
+			result = append(result, user)
+		}
+	}
+	return result, nil
+}
+
+func (m *mockStore) UpdateLastLogin(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockStore) CreateRole(_ context.Context, role *Role) error {
+	m.roles[role.ID] = role
+	return nil
+}
+
+func (m *mockStore) GetRole(_ context.Context, id string) (*Role, error) {
+	role, ok := m.roles[id]
+	if !ok {
+		return nil, ErrRoleNotFound
+	}
+	return role, nil
+}
+
+func (m *mockStore) GetRoleByName(_ context.Context, name RoleName) (*Role, error) {
+	for _, role := range m.roles {
+		if role.Name == name {
+			return role, nil
+		}
+	}
+	return nil, ErrRoleNotFound
+}
+
+func (m *mockStore) UpdateRole(_ context.Context, role *Role) error {
+	m.roles[role.ID] = role
+	return nil
+}
+
+func (m *mockStore) DeleteRole(_ context.Context, id string) error {
+	delete(m.roles, id)
+	return nil
+}
+
+func (m *mockStore) ListRoles(_ context.Context) ([]*Role, error) {
+	result := make([]*Role, 0, len(m.roles))
+	for _, r := range m.roles {
+		result = append(result, r)
+	}
+	return result, nil
+}
+
+func (m *mockStore) ListRolesByTenant(_ context.Context, _ string) ([]*Role, error) {
+	return m.ListRoles(context.Background())
+}
+
+func (m *mockStore) InitializeDefaultRoles(_ context.Context) error {
+	return nil
+}
+
+func (m *mockStore) LogEvent(_ context.Context, event *AuditEvent) error {
+	m.events = append(m.events, event)
+	return nil
+}
+
+func (m *mockStore) ListEvents(_ context.Context, _ string, _, _ int) ([]*AuditEvent, error) {
+	return m.events, nil
+}
+
+func (m *mockStore) ListEventsByType(_ context.Context, _ AuditEventType, _ int) ([]*AuditEvent, error) {
+	return m.events, nil
+}
+
+func (m *mockStore) ListEventsByUser(_ context.Context, _ string, _ int) ([]*AuditEvent, error) {
+	return m.events, nil
+}
+
+func (m *mockStore) Ping(_ context.Context) error {
+	return nil
+}
+
+func (m *mockStore) Close() error {
+	return nil
+}
+
+// setupTestMiddleware creates a middleware instance for testing.
+func setupTestMiddleware(t *testing.T, store *mockStore, config *MiddlewareConfig) *Middleware {
+	t.Helper()
+	logger := zap.NewNop()
+	if config == nil {
+		config = DefaultMiddlewareConfig()
+	}
+	return NewMiddleware(store, config, logger)
+}
+
+// TestMiddleware_AuthenticationMiddleware_SkipPaths tests that excluded paths skip auth.
+func TestMiddleware_AuthenticationMiddleware_SkipPaths(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		skipPaths  []string
+		wantStatus int
+	}{
+		{
+			name:       "health endpoint skipped",
+			path:       "/health",
+			skipPaths:  []string{"/health", "/ready"},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "metrics endpoint skipped",
+			path:       "/metrics",
+			skipPaths:  []string{"/metrics"},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "wildcard prefix match",
+			path:       "/api/v1/public/info",
+			skipPaths:  []string{"/api/v1/public/*"},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "protected path requires auth",
+			path:       "/api/v1/subscriptions",
+			skipPaths:  []string{"/health"},
+			wantStatus: http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newMockStore()
+			config := &MiddlewareConfig{
+				Enabled:     true,
+				SkipPaths:   tt.skipPaths,
+				RequireMTLS: true,
+			}
+			mw := setupTestMiddleware(t, store, config)
+
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+			router.Use(mw.AuthenticationMiddleware())
+			router.GET(tt.path, func(c *gin.Context) {
+				c.Status(http.StatusOK)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+		})
+	}
+}
+
+// TestMiddleware_AuthenticationMiddleware_NoCertificate tests behavior without client cert.
+func TestMiddleware_AuthenticationMiddleware_NoCertificate(t *testing.T) {
+	tests := []struct {
+		name        string
+		requireMTLS bool
+		wantStatus  int
+	}{
+		{
+			name:        "mTLS required - returns 401",
+			requireMTLS: true,
+			wantStatus:  http.StatusUnauthorized,
+		},
+		{
+			name:        "mTLS not required - allows through",
+			requireMTLS: false,
+			wantStatus:  http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newMockStore()
+			config := &MiddlewareConfig{
+				Enabled:     true,
+				SkipPaths:   []string{},
+				RequireMTLS: tt.requireMTLS,
+			}
+			mw := setupTestMiddleware(t, store, config)
+
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+			router.Use(mw.AuthenticationMiddleware())
+			router.GET("/test", func(c *gin.Context) {
+				c.Status(http.StatusOK)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+		})
+	}
+}
+
+// TestMiddleware_AuthenticationMiddleware_WithCertificate tests auth with valid cert.
+func TestMiddleware_AuthenticationMiddleware_WithCertificate(t *testing.T) {
+	store := newMockStore()
+
+	// Setup test data.
+	testTenant := &Tenant{
+		ID:     "tenant-1",
+		Name:   "Test Tenant",
+		Status: TenantStatusActive,
+	}
+	store.tenants[testTenant.ID] = testTenant
+
+	testRole := &Role{
+		ID:   "role-1",
+		Name: RoleTenantAdmin,
+		Type: RoleTypeTenant,
+		Permissions: []Permission{
+			PermissionSubscriptionRead,
+			PermissionSubscriptionCreate,
+		},
+	}
+	store.roles[testRole.ID] = testRole
+
+	testUser := &TenantUser{
+		ID:       "user-1",
+		TenantID: testTenant.ID,
+		Subject:  "CN=testuser,O=TestOrg",
+		RoleID:   testRole.ID,
+		IsActive: true,
+	}
+	store.users[testUser.ID] = testUser
+
+	config := &MiddlewareConfig{
+		Enabled:     true,
+		SkipPaths:   []string{},
+		RequireMTLS: true,
+	}
+	mw := setupTestMiddleware(t, store, config)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(mw.AuthenticationMiddleware())
+	router.GET("/test", func(c *gin.Context) {
+		user := UserFromContext(c.Request.Context())
+		if user != nil {
+			c.JSON(http.StatusOK, gin.H{"user_id": user.UserID})
+		} else {
+			c.Status(http.StatusInternalServerError)
+		}
+	})
+
+	// Create request with TLS peer certificate.
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.TLS = &tls.ConnectionState{
+		PeerCertificates: []*x509.Certificate{
+			{
+				Subject: pkix.Name{
+					CommonName:   "testuser",
+					Organization: []string{"TestOrg"},
+				},
+			},
+		},
+	}
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// TestMiddleware_AuthenticationMiddleware_UserNotFound tests behavior when user not in DB.
+func TestMiddleware_AuthenticationMiddleware_UserNotFound(t *testing.T) {
+	store := newMockStore()
+
+	config := &MiddlewareConfig{
+		Enabled:     true,
+		SkipPaths:   []string{},
+		RequireMTLS: true,
+	}
+	mw := setupTestMiddleware(t, store, config)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(mw.AuthenticationMiddleware())
+	router.GET("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.TLS = &tls.ConnectionState{
+		PeerCertificates: []*x509.Certificate{
+			{
+				Subject: pkix.Name{
+					CommonName:   "unknownuser",
+					Organization: []string{"UnknownOrg"},
+				},
+			},
+		},
+	}
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+// TestMiddleware_AuthenticationMiddleware_InactiveUser tests behavior for disabled users.
+func TestMiddleware_AuthenticationMiddleware_InactiveUser(t *testing.T) {
+	store := newMockStore()
+
+	testUser := &TenantUser{
+		ID:       "user-1",
+		TenantID: "tenant-1",
+		Subject:  "CN=inactiveuser,O=TestOrg",
+		RoleID:   "role-1",
+		IsActive: false,
+	}
+	store.users[testUser.ID] = testUser
+
+	config := &MiddlewareConfig{
+		Enabled:     true,
+		SkipPaths:   []string{},
+		RequireMTLS: true,
+	}
+	mw := setupTestMiddleware(t, store, config)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(mw.AuthenticationMiddleware())
+	router.GET("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.TLS = &tls.ConnectionState{
+		PeerCertificates: []*x509.Certificate{
+			{
+				Subject: pkix.Name{
+					CommonName:   "inactiveuser",
+					Organization: []string{"TestOrg"},
+				},
+			},
+		},
+	}
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+// TestMiddleware_RequirePermission tests permission-based authorization.
+func TestMiddleware_RequirePermission(t *testing.T) {
+	tests := []struct {
+		name            string
+		userPermissions []Permission
+		requiredPerm    Permission
+		wantStatus      int
+	}{
+		{
+			name:            "user has permission",
+			userPermissions: []Permission{PermissionSubscriptionRead, PermissionSubscriptionCreate},
+			requiredPerm:    PermissionSubscriptionRead,
+			wantStatus:      http.StatusOK,
+		},
+		{
+			name:            "user lacks permission",
+			userPermissions: []Permission{PermissionSubscriptionRead},
+			requiredPerm:    PermissionSubscriptionCreate,
+			wantStatus:      http.StatusForbidden,
+		},
+		{
+			name:            "user has no permissions",
+			userPermissions: []Permission{},
+			requiredPerm:    PermissionSubscriptionRead,
+			wantStatus:      http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newMockStore()
+			mw := setupTestMiddleware(t, store, nil)
+
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+
+			// Inject authenticated user directly.
+			router.Use(func(c *gin.Context) {
+				user := &AuthenticatedUser{
+					UserID:   "user-1",
+					TenantID: "tenant-1",
+					Role: &Role{
+						ID:          "role-1",
+						Name:        RoleTenantAdmin,
+						Permissions: tt.userPermissions,
+					},
+				}
+				ctx := ContextWithUser(c.Request.Context(), user)
+				c.Request = c.Request.WithContext(ctx)
+				c.Next()
+			})
+			router.Use(mw.RequirePermission(tt.requiredPerm))
+			router.GET("/test", func(c *gin.Context) {
+				c.Status(http.StatusOK)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+		})
+	}
+}
+
+// TestMiddleware_RequirePermission_NoUser tests when no user is in context.
+func TestMiddleware_RequirePermission_NoUser(t *testing.T) {
+	store := newMockStore()
+	mw := setupTestMiddleware(t, store, nil)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(mw.RequirePermission(PermissionSubscriptionRead))
+	router.GET("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// TestMiddleware_RequirePlatformAdmin tests platform admin requirement.
+func TestMiddleware_RequirePlatformAdmin(t *testing.T) {
+	tests := []struct {
+		name            string
+		isPlatformAdmin bool
+		wantStatus      int
+	}{
+		{
+			name:            "platform admin allowed",
+			isPlatformAdmin: true,
+			wantStatus:      http.StatusOK,
+		},
+		{
+			name:            "non-admin denied",
+			isPlatformAdmin: false,
+			wantStatus:      http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newMockStore()
+			mw := setupTestMiddleware(t, store, nil)
+
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+
+			router.Use(func(c *gin.Context) {
+				user := &AuthenticatedUser{
+					UserID:          "user-1",
+					TenantID:        "tenant-1",
+					IsPlatformAdmin: tt.isPlatformAdmin,
+					Role:            &Role{},
+				}
+				ctx := ContextWithUser(c.Request.Context(), user)
+				c.Request = c.Request.WithContext(ctx)
+				c.Next()
+			})
+			router.Use(mw.RequirePlatformAdmin())
+			router.GET("/test", func(c *gin.Context) {
+				c.Status(http.StatusOK)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+		})
+	}
+}
+
+// TestMiddleware_RequireTenantAccess tests tenant access restrictions.
+func TestMiddleware_RequireTenantAccess(t *testing.T) {
+	tests := []struct {
+		name            string
+		userTenantID    string
+		targetTenantID  string
+		isPlatformAdmin bool
+		wantStatus      int
+	}{
+		{
+			name:            "same tenant access allowed",
+			userTenantID:    "tenant-1",
+			targetTenantID:  "tenant-1",
+			isPlatformAdmin: false,
+			wantStatus:      http.StatusOK,
+		},
+		{
+			name:            "cross-tenant access denied",
+			userTenantID:    "tenant-1",
+			targetTenantID:  "tenant-2",
+			isPlatformAdmin: false,
+			wantStatus:      http.StatusForbidden,
+		},
+		{
+			name:            "platform admin cross-tenant allowed",
+			userTenantID:    "tenant-1",
+			targetTenantID:  "tenant-2",
+			isPlatformAdmin: true,
+			wantStatus:      http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newMockStore()
+			mw := setupTestMiddleware(t, store, nil)
+
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+
+			router.Use(func(c *gin.Context) {
+				user := &AuthenticatedUser{
+					UserID:          "user-1",
+					TenantID:        tt.userTenantID,
+					IsPlatformAdmin: tt.isPlatformAdmin,
+					Role:            &Role{},
+				}
+				ctx := ContextWithUser(c.Request.Context(), user)
+				c.Request = c.Request.WithContext(ctx)
+				c.Next()
+			})
+			router.Use(mw.RequireTenantAccess("tenantId"))
+			router.GET("/tenants/:tenantId/resources", func(c *gin.Context) {
+				c.Status(http.StatusOK)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/tenants/"+tt.targetTenantID+"/resources", nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+		})
+	}
+}
+
+// TestMiddleware_RequireAnyPermission tests any permission requirement.
+func TestMiddleware_RequireAnyPermission(t *testing.T) {
+	tests := []struct {
+		name            string
+		userPermissions []Permission
+		requiredPerms   []Permission
+		wantStatus      int
+	}{
+		{
+			name:            "has first permission",
+			userPermissions: []Permission{PermissionSubscriptionRead},
+			requiredPerms:   []Permission{PermissionSubscriptionRead, PermissionSubscriptionCreate},
+			wantStatus:      http.StatusOK,
+		},
+		{
+			name:            "has second permission",
+			userPermissions: []Permission{PermissionSubscriptionCreate},
+			requiredPerms:   []Permission{PermissionSubscriptionRead, PermissionSubscriptionCreate},
+			wantStatus:      http.StatusOK,
+		},
+		{
+			name:            "has neither permission",
+			userPermissions: []Permission{PermissionSubscriptionDelete},
+			requiredPerms:   []Permission{PermissionSubscriptionRead, PermissionSubscriptionCreate},
+			wantStatus:      http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newMockStore()
+			mw := setupTestMiddleware(t, store, nil)
+
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+
+			router.Use(func(c *gin.Context) {
+				user := &AuthenticatedUser{
+					UserID:   "user-1",
+					TenantID: "tenant-1",
+					Role: &Role{
+						ID:          "role-1",
+						Permissions: tt.userPermissions,
+					},
+				}
+				ctx := ContextWithUser(c.Request.Context(), user)
+				c.Request = c.Request.WithContext(ctx)
+				c.Next()
+			})
+			router.Use(mw.RequireAnyPermission(tt.requiredPerms...))
+			router.GET("/test", func(c *gin.Context) {
+				c.Status(http.StatusOK)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+		})
+	}
+}
+
+// TestParseDNHeader tests DN header parsing with various inputs.
+func TestParseDNHeader(t *testing.T) {
+	mw := &Middleware{logger: zap.NewNop()}
+
+	tests := []struct {
+		name    string
+		dn      string
+		wantCN  string
+		wantOrg string
+		wantNil bool
+	}{
+		{
+			name:    "valid DN",
+			dn:      "CN=testuser,O=TestOrg,OU=Engineering",
+			wantCN:  "testuser",
+			wantOrg: "TestOrg",
+			wantNil: false,
+		},
+		{
+			name:    "valid DN with spaces",
+			dn:      "CN=test user, O=Test Org, OU=Engineering",
+			wantCN:  "test user",
+			wantOrg: "Test Org",
+			wantNil: false,
+		},
+		{
+			name:    "empty DN",
+			dn:      "",
+			wantNil: true,
+		},
+		{
+			name:    "DN too long",
+			dn:      string(make([]byte, maxDNLength+1)),
+			wantNil: true,
+		},
+		{
+			name:    "DN with null byte",
+			dn:      "CN=test\x00user,O=TestOrg",
+			wantNil: true,
+		},
+		{
+			name:    "DN missing CN",
+			dn:      "O=TestOrg,OU=Engineering",
+			wantNil: true,
+		},
+		{
+			name:    "DN with only CN",
+			dn:      "CN=testuser",
+			wantCN:  "testuser",
+			wantNil: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := mw.parseDNHeader(tt.dn)
+
+			if tt.wantNil {
+				assert.Nil(t, result)
+			} else {
+				require.NotNil(t, result)
+				assert.Equal(t, tt.wantCN, result.CommonName)
+				if tt.wantOrg != "" {
+					require.NotEmpty(t, result.Subject.Organization)
+					assert.Equal(t, tt.wantOrg, result.Subject.Organization[0])
+				}
+			}
+		})
+	}
+}
+
+// TestIsValidDNString tests DN string validation.
+func TestIsValidDNString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{
+			name:  "valid string",
+			input: "CN=testuser,O=TestOrg",
+			want:  true,
+		},
+		{
+			name:  "string with tab",
+			input: "CN=test\tuser,O=TestOrg",
+			want:  true,
+		},
+		{
+			name:  "string with null byte",
+			input: "CN=test\x00user",
+			want:  false,
+		},
+		{
+			name:  "string with newline",
+			input: "CN=test\nuser",
+			want:  false,
+		},
+		{
+			name:  "string with carriage return",
+			input: "CN=test\ruser",
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isValidDNString(tt.input)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestIsValidDNKey tests DN key validation.
+func TestIsValidDNKey(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{
+			name:  "valid key CN",
+			input: "CN",
+			want:  true,
+		},
+		{
+			name:  "valid key O",
+			input: "O",
+			want:  true,
+		},
+		{
+			name:  "valid key with numbers",
+			input: "OU2",
+			want:  true,
+		},
+		{
+			name:  "invalid key with hyphen",
+			input: "CN-name",
+			want:  false,
+		},
+		{
+			name:  "invalid key with equals",
+			input: "CN=",
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isValidDNKey(tt.input)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestSanitizeDNValue tests DN value sanitization.
+func TestSanitizeDNValue(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "normal value",
+			input: "testuser",
+			want:  "testuser",
+		},
+		{
+			name:  "value with spaces",
+			input: "  test user  ",
+			want:  "test user",
+		},
+		{
+			name:  "value with control chars",
+			input: "test\x00\x01user",
+			want:  "testuser",
+		},
+		{
+			name:  "value with newline",
+			input: "test\nuser",
+			want:  "testuser",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeDNValue(tt.input)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestShouldSkipAuth tests path skip logic.
+func TestShouldSkipAuth(t *testing.T) {
+	mw := &Middleware{
+		config: &MiddlewareConfig{
+			SkipPaths: []string{"/health", "/ready", "/api/v1/public/*"},
+		},
+	}
+
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{
+			name: "exact match health",
+			path: "/health",
+			want: true,
+		},
+		{
+			name: "exact match ready",
+			path: "/ready",
+			want: true,
+		},
+		{
+			name: "wildcard match",
+			path: "/api/v1/public/info",
+			want: true,
+		},
+		{
+			name: "wildcard match deeper path",
+			path: "/api/v1/public/users/123",
+			want: true,
+		},
+		{
+			name: "no match",
+			path: "/api/v1/subscriptions",
+			want: false,
+		},
+		{
+			name: "partial match not allowed",
+			path: "/healthz",
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mw.shouldSkipAuth(tt.path)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestBuildSubject tests subject string building.
+func TestBuildSubject(t *testing.T) {
+	mw := &Middleware{}
+
+	tests := []struct {
+		name string
+		cert *CertificateInfo
+		want string
+	}{
+		{
+			name: "full subject",
+			cert: &CertificateInfo{
+				Subject: CertificateSubject{
+					CommonName:         "testuser",
+					Organization:       []string{"TestOrg"},
+					OrganizationalUnit: []string{"Engineering"},
+				},
+			},
+			want: "CN=testuser,O=TestOrg,OU=Engineering",
+		},
+		{
+			name: "CN only",
+			cert: &CertificateInfo{
+				Subject: CertificateSubject{
+					CommonName: "testuser",
+				},
+			},
+			want: "CN=testuser",
+		},
+		{
+			name: "CN and O",
+			cert: &CertificateInfo{
+				Subject: CertificateSubject{
+					CommonName:   "testuser",
+					Organization: []string{"TestOrg"},
+				},
+			},
+			want: "CN=testuser,O=TestOrg",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mw.buildSubject(tt.cert)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestDefaultMiddlewareConfig tests default configuration.
+func TestDefaultMiddlewareConfig(t *testing.T) {
+	config := DefaultMiddlewareConfig()
+
+	assert.True(t, config.Enabled)
+	assert.True(t, config.RequireMTLS)
+	assert.Contains(t, config.SkipPaths, "/health")
+	assert.Contains(t, config.SkipPaths, "/metrics")
+}
+
+// TestNewMiddleware tests middleware creation.
+func TestNewMiddleware(t *testing.T) {
+	store := newMockStore()
+	logger := zap.NewNop()
+
+	t.Run("with config", func(t *testing.T) {
+		config := &MiddlewareConfig{Enabled: false}
+		mw := NewMiddleware(store, config, logger)
+		assert.NotNil(t, mw)
+		assert.False(t, mw.config.Enabled)
+	})
+
+	t.Run("without config uses defaults", func(t *testing.T) {
+		mw := NewMiddleware(store, nil, logger)
+		assert.NotNil(t, mw)
+		assert.True(t, mw.config.Enabled)
+	})
+}
