@@ -48,65 +48,71 @@
 
 ### High-Level Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                       O2 SMO Systems                            │
-│              (Service Management & Orchestration)               │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │ O2-IMS API (REST/HTTPS)
-                          │ mTLS Authentication
-                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              Kubernetes Ingress / LoadBalancer                  │
-│  • TLS Termination (native)  • Client Cert Validation (Go)     │
-│  • Load Balancing (K8s)      • Rate Limiting (middleware)      │
-│  • Health-based routing      • cert-manager certificates       │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │
-          ┌───────────────┼───────────────┐
-          ▼               ▼               ▼
-    ┌─────────┐     ┌─────────┐     ┌─────────┐
-    │Gateway 1│     │Gateway 2│     │Gateway 3│  (3+ pods)
-    │         │     │         │     │         │
-    │STATELESS│     │STATELESS│     │STATELESS│
-    │All Equal│     │All Equal│     │All Equal│
-    │Native TLS│     │Native TLS│     │Native TLS│
-    └────┬────┘     └────┬────┘     └────┬────┘
-         │               │               │
-         └───────────────┼───────────────┘
-                         ▼
-         ┌───────────────────────────────┐
-         │      Redis (Always Present)   │
-         │  • Subscriptions              │
-         │  • Cache                      │
-         │  • Pub/Sub                    │
-         │  • Session Sync               │
-         └───────┬───────────────────────┘
-                 │
-    ┌────────────┼────────────┐
-    ▼            ▼            ▼
-┌─────────┐  ┌─────────┐  ┌─────────┐
-│Sentinel │  │Sentinel │  │Sentinel │
-│   1     │  │   2     │  │   3     │
-└─────────┘  └─────────┘  └─────────┘
-                 │
-                 ▼
-         ┌───────────────────────────────┐
-         │    Kubernetes API Server      │
-         │  • Nodes (Resources)          │
-         │  • Pods, Deployments          │
-         │  • PersistentVolumes          │
-         │  • MachineSets (Pools)        │
-         │  • StorageClasses (Types)     │
-         └───────────────────────────────┘
-                 ▲
-                 │
-         ┌───────────────────────────────┐
-         │  Subscription Controller      │
-         │  • Watches Redis              │
-         │  • Watches K8s Resources      │
-         │  • Sends Webhooks             │
-         └───────────────────────────────┘
+```mermaid
+graph TB
+    SMO[O2 SMO Systems<br/>Service Management & Orchestration]
+
+    subgraph Ingress [Kubernetes Ingress / LoadBalancer]
+        TLS[TLS Termination Native]
+        LB[Load Balancing K8s]
+        CERT[cert-manager certificates]
+        RATE[Rate Limiting middleware]
+    end
+
+    subgraph Gateway [Gateway Layer - Stateless 3+ Pods]
+        GW1[Gateway Pod 1<br/>Native TLS]
+        GW2[Gateway Pod 2<br/>Native TLS]
+        GW3[Gateway Pod 3<br/>Native TLS]
+    end
+
+    subgraph Redis [Redis Sentinel Cluster]
+        MASTER[Redis Master<br/>Subscriptions, Cache, Pub/Sub]
+        subgraph Sentinels [Sentinel Nodes]
+            S1[Sentinel 1]
+            S2[Sentinel 2]
+            S3[Sentinel 3]
+        end
+    end
+
+    subgraph K8s [Kubernetes Cluster]
+        API[Kubernetes API Server]
+        NODES[Nodes Resources]
+        MACHINES[MachineSets Pools]
+        STORAGE[StorageClasses Types]
+    end
+
+    CTRL[Subscription Controller<br/>Watches Redis & K8s<br/>Sends Webhooks]
+
+    SMO -->|O2-IMS API HTTPS/mTLS| Ingress
+    Ingress --> GW1
+    Ingress --> GW2
+    Ingress --> GW3
+
+    GW1 --> MASTER
+    GW2 --> MASTER
+    GW3 --> MASTER
+
+    MASTER --> S1
+    MASTER --> S2
+    MASTER --> S3
+
+    GW1 --> API
+    GW2 --> API
+    GW3 --> API
+
+    API --> NODES
+    API --> MACHINES
+    API --> STORAGE
+
+    CTRL --> MASTER
+    CTRL --> API
+    CTRL -->|Webhooks| SMO
+
+    style SMO fill:#e1f5ff
+    style Gateway fill:#fff4e6
+    style Redis fill:#ffe6f0
+    style K8s fill:#e8f5e9
+    style CTRL fill:#f3e5f5
 ```
 
 ### System Context
@@ -353,6 +359,71 @@ The netweave gateway implements a **unified plugin architecture** supporting thr
 1. **O2-IMS Plugins**: Infrastructure resource management (10+ backends)
 2. **O2-DMS Plugins**: CNF/VNF deployment lifecycle management (7+ backends)
 3. **O2-SMO Plugins**: SMO integration and orchestration (5+ backends)
+
+```mermaid
+graph TB
+    subgraph API [O2 API Layer]
+        O2IMS[O2-IMS API<br/>Infrastructure]
+        O2DMS[O2-DMS API<br/>Deployment]
+        O2SMO[O2-SMO API<br/>Orchestration]
+    end
+
+    subgraph Registry [Plugin Registry & Router]
+        Router[Intelligent Router<br/>Rule-based routing]
+    end
+
+    subgraph IMS [O2-IMS Plugins - Infrastructure]
+        K8s[Kubernetes]
+        DTIAS[Dell DTIAS<br/>Bare-metal]
+        OpenStack[OpenStack NFVi]
+        VMware[VMware vSphere]
+        AWS[AWS EKS]
+        Azure[Azure AKS]
+        GKE[Google GKE]
+    end
+
+    subgraph DMS [O2-DMS Plugins - Deployment]
+        Helm[Helm 3]
+        ArgoCD[ArgoCD GitOps]
+        Flux[Flux CD]
+        ONAPLCM[ONAP LCM]
+        OSMLCM[OSM LCM]
+    end
+
+    subgraph SMO [O2-SMO Plugins - Orchestration]
+        ONAP[ONAP Integration]
+        OSM[OSM Integration]
+        Custom[Custom SMO]
+    end
+
+    O2IMS --> Router
+    O2DMS --> Router
+    O2SMO --> Router
+
+    Router --> K8s
+    Router --> DTIAS
+    Router --> OpenStack
+    Router --> VMware
+    Router --> AWS
+    Router --> Azure
+    Router --> GKE
+
+    Router --> Helm
+    Router --> ArgoCD
+    Router --> Flux
+    Router --> ONAPLCM
+    Router --> OSMLCM
+
+    Router --> ONAP
+    Router --> OSM
+    Router --> Custom
+
+    style API fill:#e1f5ff
+    style Registry fill:#fff4e6
+    style IMS fill:#e8f5e9
+    style DMS fill:#f3e5f5
+    style SMO fill:#fce4ec
+```
 
 This architecture enables netweave to manage resources across Kubernetes, OpenStack NFVi, bare-metal systems (Dell DTIAS), cloud providers (AWS, Azure, GKE), VMware vSphere, and any future infrastructure backends. Additionally, it provides deployment management through Helm, ArgoCD, Flux, ONAP-LCM, OSM-LCM, and integrates with ONAP and OSM SMO frameworks.
 
@@ -2110,190 +2181,123 @@ Aggregated Response:
 
 ### Request Flow: List Resource Pools
 
-```
-┌─────────┐
-│   SMO   │
-└────┬────┘
-     │ 1. GET /o2ims/v1/resourcePools
-     │    Authorization: mTLS client cert
-     ▼
-┌─────────────────┐
-│ K8s Ingress     │
-│ • TLS handshake │
-│ • Validate cert │
-│ • Route to pod  │
-└────┬────────────┘
-     │ 2. Forward to healthy gateway pod
-     ▼
-┌─────────────────┐
-│  Gateway Pod    │
-│                 │
-│ 3. Middleware:  │
-│    • Auth       │
-│    • Logging    │
-│    • Metrics    │
-└────┬────────────┘
-     │ 4. Check cache (Redis)
-     ▼
-┌─────────────────┐
-│  Redis          │
-│ Key: cache:     │
-│   resourcePools │
-└────┬────────────┘
-     │ 5a. Cache HIT → Return
-     │ 5b. Cache MISS ↓
-     ▼
-┌─────────────────┐
-│ K8s Adapter     │
-│ 6. List         │
-│    MachineSets  │
-└────┬────────────┘
-     │ 7. API call
-     ▼
-┌─────────────────┐
-│ Kubernetes API  │
-│ 8. Return       │
-│    MachineSets  │
-└────┬────────────┘
-     │ 9. Transform to O2-IMS
-     ▼
-┌─────────────────┐
-│ Gateway Pod     │
-│ 10. Cache result│
-│     (Redis)     │
-│ 11. Return JSON │
-└────┬────────────┘
-     │ 12. O2-IMS response
-     ▼
-┌─────────┐
-│   SMO   │
-└─────────┘
+```mermaid
+sequenceDiagram
+    participant SMO as O2 SMO
+    participant Ingress as K8s Ingress
+    participant Gateway as Gateway Pod
+    participant Redis as Redis Cache
+    participant Adapter as K8s Adapter
+    participant K8s as Kubernetes API
 
-Timeline:
-- Redis cache hit: 5-10ms
-- Cache miss + K8s: 50-100ms
+    SMO->>+Ingress: GET /o2ims/v1/resourcePools<br/>(mTLS client cert)
+    Note over Ingress: TLS handshake<br/>Validate cert<br/>Route to healthy pod
+
+    Ingress->>+Gateway: Forward request
+    Note over Gateway: Middleware:<br/>Auth, Logging, Metrics
+
+    Gateway->>+Redis: Check cache<br/>Key: cache:resourcePools
+
+    alt Cache HIT
+        Redis-->>Gateway: Return cached data
+        Note right of Gateway: Response time: 5-10ms
+    else Cache MISS
+        Redis-->>Gateway: Cache miss
+        Gateway->>+Adapter: ListResourcePools()
+        Adapter->>+K8s: List MachineSets<br/>(Kubernetes API call)
+        K8s-->>-Adapter: Return MachineSets
+        Note over Adapter: Transform K8s → O2-IMS
+        Adapter-->>-Gateway: O2-IMS ResourcePools
+        Gateway->>Redis: Cache result<br/>(TTL: 30s)
+        Note right of Gateway: Response time: 50-100ms
+    end
+
+    Gateway-->>-Ingress: O2-IMS JSON response
+    Ingress-->>-SMO: 200 OK + ResourcePools
+
+    Note over SMO,K8s: Timeline: Cache hit 5-10ms, Cache miss 50-100ms
 ```
 
 ### Write Flow: Create Resource Pool
 
-```
-┌─────────┐
-│   SMO   │
-└────┬────┘
-     │ 1. POST /o2ims/v1/resourcePools
-     │    Body: {name, resources, ...}
-     ▼
-┌─────────────────┐
-│ K8s Ingress     │
-└────┬────────────┘
-     │
-     ▼
-┌─────────────────┐
-│  Gateway Pod    │
-│ 2. Validate     │
-│    request body │
-│    (OpenAPI)    │
-└────┬────────────┘
-     │ 3. Transform to MachineSet
-     ▼
-┌─────────────────┐
-│ K8s Adapter     │
-│ 4. Create       │
-│    MachineSet   │
-└────┬────────────┘
-     │ 5. API call (client-go)
-     ▼
-┌─────────────────┐
-│ Kubernetes API  │
-│ 6. Create       │
-│    resource     │
-│ (atomic)        │
-└────┬────────────┘
-     │ 7. Success
-     ▼
-┌─────────────────┐
-│ Gateway Pod     │
-│ 8. Invalidate   │
-│    cache (Redis)│
-└────┬────────────┘
-     │ 9. Publish event
-     ▼
-┌─────────────────┐
-│ Redis Pub/Sub   │
-│ cache:invalidate│
-│ :resourcePools  │
-└────┬────────────┘
-     │ 10. All pods receive
-     ▼
-┌─────────────────┐
-│ All Gateway Pods│
-│ Clear local     │
-│ cache           │
-└─────────────────┘
-     │ 11. Return response
-     ▼
-┌─────────┐
-│   SMO   │
-└─────────┘
+```mermaid
+sequenceDiagram
+    participant SMO as O2 SMO
+    participant Ingress as K8s Ingress
+    participant Gateway as Gateway Pod
+    participant Adapter as K8s Adapter
+    participant K8s as Kubernetes API
+    participant Redis as Redis Pub/Sub
+    participant Pods as All Gateway Pods
 
-Timeline: 100-200ms
+    SMO->>+Ingress: POST /o2ims/v1/resourcePools<br/>Body: {name, resources, ...}
+    Ingress->>+Gateway: Forward request
+
+    Note over Gateway: Validate request body<br/>(OpenAPI schema)
+
+    Gateway->>+Adapter: CreateResourcePool()<br/>(Transform O2-IMS → K8s)
+
+    Adapter->>+K8s: Create MachineSet<br/>(client-go API call)
+    Note over K8s: Atomic operation
+    K8s-->>-Adapter: MachineSet created
+    Adapter-->>-Gateway: O2-IMS ResourcePool
+
+    Gateway->>+Redis: Publish cache:invalidate:resourcePools
+    Redis-->>Pods: Broadcast to all pods
+    Note over Pods: All pods clear<br/>local cache
+
+    Gateway-->>-Ingress: 201 Created + ResourcePool
+    Ingress-->>-SMO: 201 Created
+
+    Note over SMO,K8s: Timeline: 100-200ms
 ```
 
 ### Subscription Notification Flow
 
-```
-┌─────────────────┐
-│ Kubernetes API  │
-│ Node added      │
-└────┬────────────┘
-     │ 1. Event emitted
-     ▼
-┌─────────────────┐
-│ K8s Informer    │
-│ (in controller) │
-│ 2. Detects      │
-│    change       │
-└────┬────────────┘
-     │ 3. Query matching subscriptions
-     ▼
-┌─────────────────┐
-│ Redis           │
-│ subscriptions:  │
-│ node:*          │
-└────┬────────────┘
-     │ 4. Return matching subs
-     ▼
-┌──────────────────┐
-│ Subscription     │
-│ Controller       │
-│ 5. For each sub: │
-│    • Transform   │
-│    • Enqueue     │
-└────┬─────────────┘
-     │ 6. Acquire lock
-     ▼
-┌─────────────────┐
-│ Redis Lock      │
-│ Prevents        │
-│ duplicates      │
-└────┬────────────┘
-     │ 7. Send webhook
-     ▼
-┌─────────────────┐
-│ Webhook Worker  │
-│ 8. POST to      │
-│    callback URL │
-│ (retry 3x)      │
-└────┬────────────┘
-     │ 9. HTTP POST
-     ▼
-┌─────────┐
-│   SMO   │
-│ Webhook │
-│ endpoint│
-└─────────┘
+```mermaid
+sequenceDiagram
+    participant K8s as Kubernetes API
+    participant Informer as K8s Informer<br/>(Controller)
+    participant Redis as Redis<br/>Subscriptions
+    participant Controller as Subscription Controller
+    participant Lock as Redis Lock
+    participant Worker as Webhook Worker
+    participant SMO as O2 SMO<br/>Webhook Endpoint
 
-Timeline: < 1s from K8s event to webhook
+    K8s->>K8s: Node added/updated
+    K8s->>+Informer: Event emitted
+    Note over Informer: Detects change
+
+    Informer->>+Redis: Query matching subscriptions<br/>SMEMBERS subscriptions:node:*
+    Redis-->>-Informer: Return matching subscription IDs
+
+    Informer->>+Controller: Process subscriptions
+    Note over Controller: For each subscription:<br/>• Transform event<br/>• Enqueue webhook
+
+    Controller->>+Lock: Acquire lock<br/>SET lock:webhook:{sub}:{event} NX EX 10
+    alt Lock acquired
+        Lock-->>Controller: Success
+        Controller->>+Worker: Send webhook
+        Note over Worker: Retry up to 3x<br/>Exponential backoff
+
+        Worker->>+SMO: POST {callback_url}<br/>Body: O2-IMS notification
+        alt Webhook success
+            SMO-->>Worker: 200 OK
+            Worker-->>Controller: Success
+        else Webhook failure
+            SMO-->>Worker: 4xx/5xx or timeout
+            Note over Worker: Retry with backoff
+            Worker-->>Controller: Retry or fail
+        end
+    else Lock failed (duplicate)
+        Lock-->>Controller: Already processing
+        Note over Controller: Skip (another pod handling it)
+    end
+
+    Controller-->>-Informer: Processing complete
+    Informer-->>-K8s: Event handled
+
+    Note over K8s,SMO: Timeline: <1s from event to webhook delivery
 ```
 
 ---

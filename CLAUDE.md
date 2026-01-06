@@ -771,6 +771,153 @@ curl -X GET https://netweave.example.com/o2ims/v1/subscriptions \
   -H "Accept: application/json"
 ```
 
+#### 6.3.1 Mermaid Diagram Standards
+
+**All architecture and flow documentation MUST use Mermaid diagrams instead of ASCII art.**
+
+Mermaid provides beautiful, maintainable diagrams that render properly in GitHub, IDEs, and documentation viewers.
+
+**When to Use Mermaid Diagrams:**
+- ✅ System architecture overviews
+- ✅ Component relationships
+- ✅ Data flow sequences
+- ✅ State machines
+- ✅ Deployment topologies
+- ✅ Plugin/adapter architectures
+- ✅ Request/response flows
+
+**Diagram Types and Usage:**
+
+**1. Flowcharts (graph TB/LR)** - Use for architecture and component diagrams:
+```mermaid
+graph TB
+    A[Component A] --> B[Component B]
+    B --> C{Decision}
+    C -->|Yes| D[Success]
+    C -->|No| E[Failure]
+
+    style A fill:#e1f5ff
+    style D fill:#e8f5e9
+    style E fill:#ffebee
+```
+
+**2. Sequence Diagrams** - Use for request/response flows and interactions:
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Gateway
+    participant Redis
+    participant K8s
+
+    Client->>+Gateway: GET /resourcePools
+    Gateway->>+Redis: Check cache
+    alt Cache hit
+        Redis-->>Gateway: Cached data
+    else Cache miss
+        Gateway->>+K8s: List MachineSets
+        K8s-->>-Gateway: MachineSets
+        Gateway->>Redis: Update cache
+    end
+    Gateway-->>-Client: 200 OK + Response
+```
+
+**3. State Diagrams** - Use for lifecycle and state transitions:
+```mermaid
+stateDiagram-v2
+    [*] --> Pending
+    Pending --> Deploying : Start deployment
+    Deploying --> Deployed : Success
+    Deploying --> Failed : Error
+    Deployed --> Updating : Update request
+    Updating --> Deployed : Success
+    Failed --> [*]
+    Deployed --> [*] : Delete
+```
+
+**4. Entity Relationship Diagrams** - Use for data models:
+```mermaid
+erDiagram
+    ResourcePool ||--o{ Resource : contains
+    ResourcePool {
+        string id PK
+        string name
+        string location
+    }
+    Resource {
+        string id PK
+        string poolId FK
+        string type
+    }
+```
+
+**Mermaid Best Practices:**
+
+**✅ DO:**
+- Use subgraphs to group related components
+- Apply consistent color coding (blue for external, green for success, red for errors)
+- Add notes for important details
+- Use meaningful labels on connections
+- Keep diagrams focused (one concept per diagram)
+- Use proper Mermaid syntax (no mixing styles)
+
+**❌ DON'T:**
+- Use ASCII art diagrams (convert to Mermaid)
+- Create overly complex diagrams (split into multiple)
+- Forget to add labels to arrows
+- Use inconsistent naming between diagrams
+- Mix different diagram types in one code block
+
+**Standard Color Scheme:**
+```
+External Systems: #e1f5ff (light blue)
+Gateway/API Layer: #fff4e6 (light orange)
+Storage/Cache: #ffe6f0 (light pink)
+Backend/K8s: #e8f5e9 (light green)
+Controllers: #f3e5f5 (light purple)
+Success/Active: #e8f5e9 (light green)
+Error/Failure: #ffebee (light red)
+```
+
+**Example: Architecture Diagram**
+```markdown
+\`\`\`mermaid
+graph TB
+    subgraph External [External Layer]
+        SMO[O2 SMO]
+    end
+
+    subgraph Gateway [Gateway Layer]
+        GW1[Gateway Pod 1]
+        GW2[Gateway Pod 2]
+    end
+
+    subgraph Storage [Storage Layer]
+        Redis[Redis Sentinel]
+    end
+
+    subgraph Backend [Backend Layer]
+        K8s[Kubernetes API]
+    end
+
+    SMO -->|HTTPS/mTLS| GW1
+    SMO -->|HTTPS/mTLS| GW2
+    GW1 --> Redis
+    GW2 --> Redis
+    GW1 --> K8s
+    GW2 --> K8s
+
+    style External fill:#e1f5ff
+    style Gateway fill:#fff4e6
+    style Storage fill:#ffe6f0
+    style Backend fill:#e8f5e9
+\`\`\`
+```
+
+**Validation:**
+- Preview diagrams in GitHub before committing
+- Ensure diagrams render correctly in VS Code with Mermaid extension
+- Test in documentation viewers (mkdocs, hugo, etc.)
+
 #### 6.4 Documentation Update Workflow
 
 **During Development:**
