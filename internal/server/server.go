@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,11 +16,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/config"
+	"github.com/piwi3910/netweave/internal/middleware"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/storage"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
+
+// o2imsOpenAPISpec embeds the O2-IMS OpenAPI specification.
+//
+//go:embed ../../api/openapi/o2ims.yaml
+var o2imsOpenAPISpec []byte
 
 // Server represents the HTTP server for the O2-IMS Gateway.
 // It encapsulates the Gin router, configuration, logger, and server state.
@@ -45,14 +52,15 @@ import (
 //	    log.Fatal(err)
 //	}
 type Server struct {
-	config      *config.Config
-	logger      *zap.Logger
-	router      *gin.Engine
-	httpServer  *http.Server
-	metrics     *Metrics
-	adapter     adapter.Adapter
-	store       storage.Store
-	healthCheck *observability.HealthChecker
+	config           *config.Config
+	logger           *zap.Logger
+	router           *gin.Engine
+	httpServer       *http.Server
+	metrics          *Metrics
+	adapter          adapter.Adapter
+	store            storage.Store
+	healthCheck      *observability.HealthChecker
+	openAPIValidator *middleware.OpenAPIValidator
 }
 
 // Metrics holds Prometheus metrics for the server.
@@ -100,15 +108,24 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 	// Initialize health checker with adapter and storage checks
 	healthCheck := initHealthChecker(cfg, adp, store)
 
+	// Initialize OpenAPI validator
+	openAPIValidator, err := initOpenAPIValidator(cfg, logger)
+	if err != nil {
+		logger.Warn("failed to initialize OpenAPI validator, validation disabled",
+			zap.Error(err),
+		)
+	}
+
 	// Create server instance
 	srv := &Server{
-		config:      cfg,
-		logger:      logger,
-		router:      router,
-		metrics:     metrics,
-		adapter:     adp,
-		store:       store,
-		healthCheck: healthCheck,
+		config:           cfg,
+		logger:           logger,
+		router:           router,
+		metrics:          metrics,
+		adapter:          adp,
+		store:            store,
+		healthCheck:      healthCheck,
+		openAPIValidator: openAPIValidator,
 	}
 
 	// Setup middleware
@@ -200,6 +217,41 @@ func initMetrics(cfg *config.Config) *Metrics {
 	return metrics
 }
 
+// initOpenAPIValidator initializes the OpenAPI validator with the embedded spec.
+func initOpenAPIValidator(cfg *config.Config, logger *zap.Logger) (*middleware.OpenAPIValidator, error) {
+	validationCfg := middleware.DefaultValidationConfig()
+	validationCfg.Logger = logger
+	validationCfg.ValidateRequest = cfg.Validation.Enabled
+	validationCfg.ValidateResponse = cfg.Validation.ValidateResponse
+
+	validator, err := middleware.NewOpenAPIValidator(validationCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OpenAPI validator: %w", err)
+	}
+
+	// Use embedded OpenAPI spec or load from custom path
+	var specContent []byte
+	if cfg.Validation.SpecPath != "" {
+		// Load from custom file path if specified
+		if err := validator.LoadSpecFromFile(cfg.Validation.SpecPath); err != nil {
+			return nil, fmt.Errorf("failed to load OpenAPI spec from file: %w", err)
+		}
+		return validator, nil
+	}
+
+	// Use embedded spec
+	specContent = o2imsOpenAPISpec
+	if len(specContent) == 0 {
+		return nil, fmt.Errorf("embedded OpenAPI spec is empty")
+	}
+
+	if err := validator.LoadSpec(specContent); err != nil {
+		return nil, fmt.Errorf("failed to load OpenAPI spec: %w", err)
+	}
+
+	return validator, nil
+}
+
 // setupMiddleware configures middleware for the Gin router.
 // Middleware is executed in the order they are added.
 func (s *Server) setupMiddleware() {
@@ -222,6 +274,12 @@ func (s *Server) setupMiddleware() {
 	// Rate limiting middleware (if enabled)
 	if s.config.Security.RateLimitEnabled {
 		s.router.Use(s.rateLimitMiddleware())
+	}
+
+	// OpenAPI validation middleware (if enabled and validator is available)
+	if s.openAPIValidator != nil && s.config.Validation.Enabled {
+		s.router.Use(s.openAPIValidator.Middleware())
+		s.logger.Info("OpenAPI request validation enabled")
 	}
 }
 
