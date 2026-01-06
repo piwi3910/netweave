@@ -88,18 +88,51 @@ func NewPlugin(config *Config) (*Plugin, error) {
 		config = DefaultConfig()
 	}
 
-	// Validate required configuration
-	if config.NBIURL == "" {
-		return nil, fmt.Errorf("nbiUrl is required")
-	}
-	if config.Username == "" {
-		return nil, fmt.Errorf("username is required")
-	}
-	if config.Password == "" {
-		return nil, fmt.Errorf("password is required")
+	if err := validateConfig(config); err != nil {
+		return nil, err
 	}
 
-	// Set defaults for optional fields
+	applyConfigDefaults(config)
+
+	client, err := NewClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OSM client: %w", err)
+	}
+
+	return &Plugin{
+		name:    "osm",
+		version: "1.0.0",
+		config:  config,
+		client:  client,
+		stopCh:  make(chan struct{}),
+		doneCh:  make(chan struct{}),
+		capabilities: []string{
+			"inventory-sync",
+			"workflow-orchestration",
+			"service-modeling", // NS/VNF descriptors
+			"package-management",
+			"deployment-lifecycle",
+			"scaling",
+		},
+	}, nil
+}
+
+// validateConfig validates required configuration fields.
+func validateConfig(config *Config) error {
+	if config.NBIURL == "" {
+		return fmt.Errorf("nbiUrl is required")
+	}
+	if config.Username == "" {
+		return fmt.Errorf("username is required")
+	}
+	if config.Password == "" {
+		return fmt.Errorf("password is required")
+	}
+	return nil
+}
+
+// applyConfigDefaults sets default values for optional configuration fields.
+func applyConfigDefaults(config *Config) {
 	if config.Project == "" {
 		config.Project = "admin"
 	}
@@ -124,29 +157,6 @@ func NewPlugin(config *Config) (*Plugin, error) {
 	if config.RetryMultiplier == 0 {
 		config.RetryMultiplier = 2.0
 	}
-
-	// Create OSM NBI client
-	client, err := NewClient(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create OSM client: %w", err)
-	}
-
-	return &Plugin{
-		name:    "osm",
-		version: "1.0.0",
-		config:  config,
-		client:  client,
-		stopCh:  make(chan struct{}),
-		doneCh:  make(chan struct{}),
-		capabilities: []string{
-			"inventory-sync",
-			"workflow-orchestration",
-			"service-modeling", // NS/VNF descriptors
-			"package-management",
-			"deployment-lifecycle",
-			"scaling",
-		},
-	}, nil
 }
 
 // Name returns the unique name of this plugin.
