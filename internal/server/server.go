@@ -21,6 +21,7 @@ import (
 	"github.com/piwi3910/netweave/internal/config"
 	"github.com/piwi3910/netweave/internal/middleware"
 	"github.com/piwi3910/netweave/internal/observability"
+	"github.com/piwi3910/netweave/internal/smo"
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
@@ -62,6 +63,8 @@ type Server struct {
 	store            storage.Store
 	healthCheck      *observability.HealthChecker
 	openAPIValidator *middleware.OpenAPIValidator
+	smoRegistry      *smo.Registry
+	smoHandler       *SMOHandler
 }
 
 // Metrics holds Prometheus metrics for the server.
@@ -390,6 +393,25 @@ func (s *Server) Router() *gin.Engine {
 // This allows the main application to configure health checks after server creation.
 func (s *Server) SetHealthChecker(hc *observability.HealthChecker) {
 	s.healthCheck = hc
+}
+
+// SetSMORegistry sets the SMO plugin registry and configures SMO API routes.
+// This enables the O2-SMO API endpoints for workflow orchestration, service modeling,
+// policy management, and infrastructure synchronization.
+func (s *Server) SetSMORegistry(registry *smo.Registry) {
+	s.smoRegistry = registry
+	s.smoHandler = NewSMOHandler(registry, s.logger)
+	s.setupSMORoutes(s.smoHandler)
+
+	s.logger.Info("SMO registry configured",
+		zap.Int("plugin_count", registry.Count()),
+	)
+}
+
+// SMORegistry returns the SMO plugin registry.
+// This can be used to register additional plugins after server creation.
+func (s *Server) SMORegistry() *smo.Registry {
+	return s.smoRegistry
 }
 
 // recoveryMiddleware recovers from panics and logs the error.

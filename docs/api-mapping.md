@@ -8,16 +8,15 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Request Validation](#request-validation)
-3. [Multi-Backend Adapter Routing](#multi-backend-adapter-routing)
-4. [API Versioning and Evolution](#api-versioning-and-evolution)
-5. [Deployment Manager](#deployment-manager)
-6. [Resource Pools](#resource-pools)
-7. [Resources](#resources)
-8. [Resource Types](#resource-types)
-9. [Subscriptions](#subscriptions)
-10. [Data Transformation Examples](#data-transformation-examples)
-11. [Backend-Specific Mappings](#backend-specific-mappings)
+2. [Multi-Backend Adapter Routing](#multi-backend-adapter-routing)
+3. [API Versioning and Evolution](#api-versioning-and-evolution)
+4. [Deployment Manager](#deployment-manager)
+5. [Resource Pools](#resource-pools)
+6. [Resources](#resources)
+7. [Resource Types](#resource-types)
+8. [Subscriptions](#subscriptions)
+9. [Data Transformation Examples](#data-transformation-examples)
+10. [Backend-Specific Mappings](#backend-specific-mappings)
 
 ---
 
@@ -47,152 +46,6 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 | Subscription | Redis (O2-IMS specific) | ✅ Full | CRUD |
 
 ---
-
-## Request Validation
-
-All API requests are validated against the OpenAPI 3.0 specification before being processed by handlers. This ensures O2-IMS compliance and provides clear error messages for invalid requests.
-
-### Validation Rules
-
-**Request Body Validation**:
-- All required fields must be present
-- Field types must match schema definitions (string, integer, object, etc.)
-- String formats are validated (URI for callbacks, UUID for IDs)
-- Nested objects are recursively validated
-
-**Parameter Validation**:
-- Path parameters (e.g., `/subscriptions/{subscriptionId}`) must be valid
-- Query parameters are type-checked and validated
-- Required parameters must be provided
-
-**Body Size Limits**:
-- Maximum request body size: **1MB** (configurable)
-- Requests exceeding this limit are rejected with `413 Payload Too Large`
-
-### Excluded Paths
-
-The following paths are excluded from validation (health/monitoring):
-- `/health` - Health check endpoint
-- `/ready` - Readiness probe
-- `/metrics` - Prometheus metrics
-- `/debug/*` - Debug endpoints
-
-### Error Response Format
-
-Validation errors return a standardized JSON response:
-
-```json
-{
-  "error": "ValidationError",
-  "message": "Request body validation failed: missing required field",
-  "code": 400
-}
-```
-
-**Common Validation Errors**:
-
-| Error Message | Cause | Solution |
-|---------------|-------|----------|
-| `missing required field` | Required field not provided | Add the missing field to request body |
-| `invalid field type` | Wrong data type (e.g., string instead of number) | Check field type in API spec |
-| `Invalid parameter 'X'` | Invalid path/query parameter | Verify parameter format |
-| `Request body too large` | Body exceeds size limit | Reduce payload size or check configuration |
-
-### Validation Examples
-
-**Valid Request**:
-```bash
-curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "callback": "https://smo.example.com/notify",
-    "consumerSubscriptionId": "smo-sub-123"
-  }'
-# Response: 201 Created
-```
-
-**Invalid Request (Missing Required Field)**:
-```bash
-curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "consumerSubscriptionId": "smo-sub-123"
-  }'
-# Response: 400 Bad Request
-# {"error":"ValidationError","message":"Request body validation failed: missing required field","code":400}
-```
-
-**Invalid Request (Wrong Type)**:
-```bash
-curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "callback": 12345,
-    "consumerSubscriptionId": "smo-sub-123"
-  }'
-# Response: 400 Bad Request
-# {"error":"ValidationError","message":"Request body validation failed: invalid field type","code":400}
-```
-
-### Configuration
-
-Validation behavior can be configured via environment variables or config file:
-
-```yaml
-# config.yaml
-validation:
-  enabled: true              # Enable/disable request validation
-  validate_response: false   # Response validation (dev/test only)
-  max_body_size: 1048576     # Max body size in bytes (1MB)
-```
-
-**Environment Variables**:
-- `VALIDATION_ENABLED=true` - Enable request validation
-- `VALIDATION_RESPONSE=false` - Enable response validation
-- `VALIDATION_MAX_BODY_SIZE=1048576` - Maximum body size
-
-### Troubleshooting
-
-**Problem**: All requests return 400 validation errors
-- **Check**: Verify `Content-Type: application/json` header is set
-- **Check**: Ensure request body is valid JSON
-
-**Problem**: Request body too large errors
-- **Check**: Review payload size
-- **Solution**: Increase `max_body_size` configuration if needed
-
-**Problem**: Missing required field errors
-- **Check**: Review OpenAPI spec at `api/openapi/o2ims.yaml`
-- **Solution**: Add all required fields to request
-
-**Problem**: Validation not working (requests pass without validation)
-- **Check**: Ensure `validation.enabled: true` in config
-- **Check**: Verify OpenAPI spec is loaded (check startup logs)
-
-### Memory Implications
-
-**Request Body Buffering**:
-- Request bodies up to `max_body_size` (default 1MB) are buffered in memory for validation
-- Each concurrent request with a body consumes memory proportional to its size
-- With 100 concurrent requests of 1MB each, peak memory usage could reach 100MB+ just for request bodies
-
-**Recommendations**:
-- **Production sizing**: Plan for `max_body_size × max_concurrent_requests` additional memory
-- **Reduce max_body_size**: If your API payloads are small, reduce the limit (e.g., 64KB for subscriptions)
-- **Monitor memory**: Use Prometheus metrics to track memory usage patterns
-- **Response validation**: Only enable `validate_response: true` in development - it doubles memory usage per request
-
-**Example Memory Planning**:
-```
-Scenario: 50 concurrent requests, 1MB max body size
-Request body memory: 50 × 1MB = 50MB
-Safety margin: 2x for GC overhead
-Recommended additional memory: 100MB
-
-For high-throughput scenarios:
-- Consider reducing max_body_size to 256KB
-- Use streaming for large payloads (bypass validation)
-```
 
 ## Multi-Backend Adapter Routing
 
@@ -1753,101 +1606,6 @@ func (a *AWSAdapter) transformEC2InstanceToResource(
 }
 ```
 
-### Azure Adapter Mappings
-
-For Azure cloud deployments, the adapter uses Azure SDK to manage infrastructure:
-
-| O2-IMS Resource | Azure Resource | Azure API | Transformation Notes |
-|-----------------|----------------|-----------|----------------------|
-| Deployment Manager | Resource Group | `ResourceGroups.Get` | Resource group metadata |
-| Resource Pool | VM Scale Set | `VirtualMachineScaleSets` | Auto-scaling VM group |
-| Resource | Virtual Machine | `VirtualMachines` | Individual VM in scale set |
-| Resource Type | VM Size | `VirtualMachineSizes` | Standard_D4s_v3, etc. |
-
-**Example Transformation: Azure VMSS → O2-IMS ResourcePool**
-
-```go
-func (a *AzureAdapter) vmssToResourcePool(vmss *armcompute.VirtualMachineScaleSet) *adapter.ResourcePool {
-    return &adapter.ResourcePool{
-        ResourcePoolID: fmt.Sprintf("azure-vmss-%s", *vmss.Name),
-        Name:           *vmss.Name,
-        Description:    fmt.Sprintf("Azure VM Scale Set in %s", *vmss.Location),
-        Location:       *vmss.Location,
-        OCloudID:       a.oCloudID,
-        Extensions: map[string]interface{}{
-            "azure.resourceGroup":  a.resourceGroup,
-            "azure.vmSize":         *vmss.Properties.VirtualMachineProfile.HardwareProfile.VMSize,
-            "azure.capacity":       *vmss.SKU.Capacity,
-            "azure.provisioningState": *vmss.Properties.ProvisioningState,
-        },
-    }
-}
-```
-
-### GCP Adapter Mappings
-
-For Google Cloud deployments, the adapter uses GCP Compute Engine API:
-
-| O2-IMS Resource | GCP Resource | GCP API | Transformation Notes |
-|-----------------|--------------|---------|----------------------|
-| Deployment Manager | Project | `Projects.Get` | Project metadata |
-| Resource Pool | Instance Group | `InstanceGroupManagers` | Managed instance group |
-| Resource | Compute Instance | `Instances` | Individual VM in group |
-| Resource Type | Machine Type | `MachineTypes` | n2-standard-4, etc. |
-
-**Example Transformation: GCP Instance Group → O2-IMS ResourcePool**
-
-```go
-func (a *GCPAdapter) instanceGroupToResourcePool(ig *compute.InstanceGroupManager) *adapter.ResourcePool {
-    return &adapter.ResourcePool{
-        ResourcePoolID: fmt.Sprintf("gcp-mig-%s", ig.Name),
-        Name:           ig.Name,
-        Description:    fmt.Sprintf("GCP Managed Instance Group in %s", ig.Zone),
-        Location:       ig.Zone,
-        OCloudID:       a.oCloudID,
-        Extensions: map[string]interface{}{
-            "gcp.project":       a.projectID,
-            "gcp.zone":          ig.Zone,
-            "gcp.targetSize":    ig.TargetSize,
-            "gcp.instanceTemplate": ig.InstanceTemplate,
-            "gcp.status":        ig.Status,
-        },
-    }
-}
-```
-
-### VMware vSphere Adapter Mappings
-
-For VMware vSphere deployments, the adapter uses govmomi client:
-
-| O2-IMS Resource | VMware Resource | VMware API | Transformation Notes |
-|-----------------|-----------------|------------|----------------------|
-| Deployment Manager | vCenter | `ServiceContent` | vCenter metadata |
-| Resource Pool | Resource Pool | `ResourcePool` | vSphere resource pool |
-| Resource | Virtual Machine | `VirtualMachine` | VM within resource pool |
-| Resource Type | VM Configuration | `VirtualMachineConfigInfo` | CPU/memory specifications |
-
-**Example Transformation: VMware ResourcePool → O2-IMS ResourcePool**
-
-```go
-func (a *VMwareAdapter) vspherePoolToResourcePool(pool *object.ResourcePool) *adapter.ResourcePool {
-    return &adapter.ResourcePool{
-        ResourcePoolID: fmt.Sprintf("vmware-pool-%s", pool.Reference().Value),
-        Name:           pool.Name(),
-        Description:    fmt.Sprintf("VMware Resource Pool %s", pool.Name()),
-        Location:       a.datacenter,
-        OCloudID:       a.oCloudID,
-        Extensions: map[string]interface{}{
-            "vmware.moRef":       pool.Reference().Value,
-            "vmware.datacenter":  a.datacenter,
-            "vmware.cluster":     a.cluster,
-            "vmware.cpuLimit":    pool.Config.CpuAllocation.Limit,
-            "vmware.memoryLimit": pool.Config.MemoryAllocation.Limit,
-        },
-    }
-}
-```
-
 ### Comparison: Multi-Backend Resource Pool Creation
 
 **Same O2-IMS Request, Different Backend Actions**:
@@ -1928,10 +1686,10 @@ eksClient.CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 
 **Mapping Completeness**:
 - ✅ Deployment Manager → Custom Resource (metadata)
-- ✅ Resource Pool → MachineSet / DTIAS Pool / AWS NodeGroup / Azure VMSS / GCP MIG / VMware Pool (full CRUD)
-- ✅ Resource → Node/Machine / DTIAS Server / EC2 Instance / Azure VM / GCP Instance / VMware VM (full CRUD)
-- ✅ Resource Type → Aggregated from Nodes + StorageClasses + Provider Catalogs + Cloud Instance Types
-- ✅ Subscription → Redis + K8s Informers / DTIAS Webhooks / Cloud Events (full CRUD + webhooks)
+- ✅ Resource Pool → MachineSet / DTIAS Pool / AWS NodeGroup (full CRUD)
+- ✅ Resource → Node/Machine / DTIAS Server / EC2 Instance (full CRUD)
+- ✅ Resource Type → Aggregated from Nodes + StorageClasses + Provider Catalogs
+- ✅ Subscription → Redis + K8s Informers / DTIAS Webhooks / AWS EventBridge (full CRUD + webhooks)
 
 **Key Principles**:
 1. Use native K8s resources where possible
@@ -1944,8 +1702,357 @@ eksClient.CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 8. **Abstract backend complexity from SMO clients**
 
 **Future Extensions**:
+- Additional adapters (OpenStack, VMware, Azure)
 - Advanced filtering (complex queries)
 - Batch operations
 - Custom resource definitions for all O2-IMS types
 - Cross-backend resource migration
-- Additional cloud providers (Oracle Cloud, IBM Cloud, Alibaba Cloud)
+
+---
+
+## O2-SMO Northbound API
+
+### Overview
+
+The O2-SMO API provides integration with Service Management and Orchestration (SMO) systems like ONAP and OSM. It enables:
+
+1. **Workflow Orchestration**: Execute and manage SMO-orchestrated workflows
+2. **Service Modeling**: Register and manage service deployment models
+3. **Policy Management**: Apply and monitor infrastructure policies
+4. **Infrastructure Synchronization**: Sync inventory to SMO systems
+5. **Event Publishing**: Publish infrastructure/deployment events to SMO
+
+### API Base Path
+
+```
+/o2smo/v1
+```
+
+### Supported O2-SMO Resources
+
+| O2-SMO Resource | Description | Status | Operations |
+|-----------------|-------------|--------|------------|
+| Plugin | SMO backend plugins (ONAP, OSM) | ✅ Full | List, Get |
+| Workflow | SMO-orchestrated workflows | ✅ Full | Execute, Get Status, Cancel |
+| Service Model | Deployment templates | ✅ Full | CRUD |
+| Policy | Infrastructure/deployment policies | ✅ Full | Apply, Get Status |
+| Sync | Inventory synchronization | ✅ Full | Sync Infrastructure, Sync Deployments |
+| Event | Infrastructure/deployment events | ✅ Full | Publish |
+
+### API Endpoints
+
+#### Plugin Management
+
+```http
+# List all registered SMO plugins
+GET /o2smo/v1/plugins
+
+# Get a specific plugin
+GET /o2smo/v1/plugins/{pluginId}
+```
+
+**Example Response (List Plugins)**:
+```json
+{
+  "plugins": [
+    {
+      "name": "onap",
+      "version": "1.0.0",
+      "description": "ONAP integration plugin",
+      "vendor": "Linux Foundation",
+      "capabilities": ["inventory-sync", "event-publishing", "workflow-orchestration"],
+      "healthy": true,
+      "isDefault": true,
+      "registeredAt": "2026-01-06T10:00:00Z",
+      "lastHealthAt": "2026-01-06T10:05:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+#### Workflow Orchestration
+
+```http
+# Execute a workflow
+POST /o2smo/v1/workflows
+Content-Type: application/json
+
+{
+  "workflowName": "instantiate",
+  "pluginName": "osm",
+  "parameters": {
+    "nsName": "my-network-service",
+    "nsdId": "nsd-5g-core",
+    "vimAccountId": "vim-k8s-cluster"
+  },
+  "timeout": "30m"
+}
+
+# Get workflow execution status
+GET /o2smo/v1/workflows/{executionId}?plugin=osm
+
+# Cancel a running workflow
+DELETE /o2smo/v1/workflows/{executionId}?plugin=osm
+```
+
+**Example Response (Execute Workflow)**:
+```json
+{
+  "executionId": "exec-12345",
+  "workflowName": "instantiate",
+  "status": "RUNNING",
+  "startedAt": "2026-01-06T10:10:00Z",
+  "extensions": {
+    "osm.nsInstanceId": "ns-67890",
+    "osm.operation": "instantiate"
+  }
+}
+```
+
+#### Service Modeling
+
+```http
+# List all service models
+GET /o2smo/v1/serviceModels?plugin=onap
+
+# Create a service model
+POST /o2smo/v1/serviceModels
+Content-Type: application/json
+
+{
+  "name": "5G-Core-Model",
+  "version": "1.0.0",
+  "description": "5G Core Network Service Model",
+  "category": "5G",
+  "pluginName": "onap",
+  "template": { ... }
+}
+
+# Get a specific service model
+GET /o2smo/v1/serviceModels/{modelId}?plugin=onap
+
+# Delete a service model
+DELETE /o2smo/v1/serviceModels/{modelId}?plugin=onap
+```
+
+#### Policy Management
+
+```http
+# Apply a policy
+POST /o2smo/v1/policies
+Content-Type: application/json
+
+{
+  "name": "placement-policy-1",
+  "policyType": "placement",
+  "pluginName": "onap",
+  "scope": {
+    "resourcePoolId": "pool-edge-1"
+  },
+  "rules": {
+    "affinityRules": [...],
+    "antiAffinityRules": [...]
+  },
+  "enabled": true
+}
+
+# Get policy status
+GET /o2smo/v1/policies/{policyId}/status?plugin=onap
+```
+
+**Example Response (Get Policy Status)**:
+```json
+{
+  "policyId": "policy-123",
+  "status": "active",
+  "enforcementCount": 42,
+  "violationCount": 3,
+  "lastEnforced": "2026-01-06T10:00:00Z",
+  "message": "Policy is active and enforcing"
+}
+```
+
+#### Infrastructure Synchronization
+
+```http
+# Sync infrastructure inventory to SMO
+POST /o2smo/v1/sync/infrastructure?plugin=onap
+Content-Type: application/json
+
+{
+  "deploymentManagers": [
+    {
+      "id": "dm-1",
+      "name": "edge-cluster-1",
+      "oCloudId": "ocloud-1",
+      "serviceUri": "https://edge-1.example.com"
+    }
+  ],
+  "resourcePools": [
+    {
+      "id": "pool-1",
+      "name": "edge-compute-pool",
+      "location": "edge-site-1"
+    }
+  ],
+  "resources": [...],
+  "resourceTypes": [...]
+}
+
+# Sync deployment inventory to SMO
+POST /o2smo/v1/sync/deployments?plugin=onap
+Content-Type: application/json
+
+{
+  "packages": [
+    {
+      "id": "pkg-1",
+      "name": "5g-core-helm",
+      "version": "1.0.0",
+      "packageType": "helm"
+    }
+  ],
+  "deployments": [
+    {
+      "id": "deploy-1",
+      "name": "5g-core-edge-1",
+      "packageId": "pkg-1",
+      "status": "deployed"
+    }
+  ]
+}
+```
+
+#### Event Publishing
+
+```http
+# Publish an infrastructure event
+POST /o2smo/v1/events/infrastructure?plugin=onap
+Content-Type: application/json
+
+{
+  "eventType": "ResourceCreated",
+  "resourceType": "compute-node",
+  "resourceId": "node-12345",
+  "payload": {
+    "name": "worker-node-1",
+    "location": "edge-site-1"
+  }
+}
+
+# Publish a deployment event
+POST /o2smo/v1/events/deployment?plugin=onap
+Content-Type: application/json
+
+{
+  "eventType": "DeploymentSucceeded",
+  "deploymentId": "deploy-12345",
+  "payload": {
+    "packageName": "5g-core",
+    "namespace": "5g-system"
+  }
+}
+```
+
+#### Health Check
+
+```http
+# Get SMO components health
+GET /o2smo/v1/health
+```
+
+**Example Response**:
+```json
+{
+  "status": "healthy",
+  "totalPlugins": 2,
+  "healthy": 2,
+  "unhealthy": 0,
+  "plugins": [
+    {
+      "name": "onap",
+      "version": "1.0.0",
+      "healthy": true,
+      "isDefault": true,
+      "capabilities": ["inventory-sync", "workflow-orchestration", "policy-management"]
+    },
+    {
+      "name": "osm",
+      "version": "1.0.0",
+      "healthy": true,
+      "isDefault": false,
+      "capabilities": ["inventory-sync", "service-modeling", "workflow-orchestration"]
+    }
+  ]
+}
+```
+
+### SMO Plugin Architecture
+
+```mermaid
+graph TB
+    subgraph External [External Layer]
+        SMO[O2 SMO]
+    end
+
+    subgraph Gateway [Gateway Layer]
+        API[O2-SMO API]
+        REG[Plugin Registry]
+    end
+
+    subgraph Plugins [Plugin Layer]
+        ONAP[ONAP Plugin]
+        OSM[OSM Plugin]
+    end
+
+    subgraph Backends [SMO Backends]
+        AAI[ONAP A&AI]
+        DMAAP[ONAP DMaaP]
+        SO[ONAP SO]
+        NBI[OSM NBI]
+    end
+
+    SMO -->|HTTPS| API
+    API --> REG
+    REG --> ONAP
+    REG --> OSM
+    ONAP --> AAI
+    ONAP --> DMAAP
+    ONAP --> SO
+    OSM --> NBI
+
+    style External fill:#e1f5ff
+    style Gateway fill:#fff4e6
+    style Plugins fill:#f3e5f5
+    style Backends fill:#e8f5e9
+```
+
+### Plugin Capabilities
+
+| Capability | ONAP | OSM | Description |
+|------------|------|-----|-------------|
+| inventory-sync | ✅ | ✅ | Sync infrastructure/deployment inventory |
+| event-publishing | ✅ | ⚠️ | Publish change events (OSM limited) |
+| workflow-orchestration | ✅ | ✅ | Execute workflows (BPMN/NS lifecycle) |
+| service-modeling | ✅ | ✅ | Service templates (SO models/NSDs) |
+| policy-management | ✅ | ❌ | Policy enforcement (ONAP only) |
+
+### Error Responses
+
+All endpoints return standard error responses:
+
+```json
+{
+  "error": "NotFound",
+  "message": "Plugin not found: invalid-plugin",
+  "code": 404
+}
+```
+
+| HTTP Status | Error Type | Description |
+|------------|------------|-------------|
+| 400 | BadRequest | Invalid request body or parameters |
+| 404 | NotFound | Plugin, workflow, or resource not found |
+| 500 | InternalError | Server-side error during operation |
+| 503 | ServiceUnavailable | All SMO plugins unhealthy |
