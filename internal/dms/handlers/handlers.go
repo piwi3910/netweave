@@ -5,9 +5,11 @@ package handlers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -73,11 +75,14 @@ func (h *Handler) errorResponse(c *gin.Context, code int, errType, message strin
 	})
 }
 
+// DNS lookup timeout for callback URL validation.
+const dnsLookupTimeout = 5 * time.Second
+
 // validateCallbackURL validates a webhook callback URL for security.
 // It ensures:
 // - The URL is properly formatted
 // - HTTPS is used (required for production)
-// - The host is not an internal/private IP address
+// - The host is not an internal/private IP address or cloud metadata endpoint
 func validateCallbackURL(callbackURL string) error {
 	parsed, err := url.Parse(callbackURL)
 	if err != nil {
@@ -100,8 +105,17 @@ func validateCallbackURL(callbackURL string) error {
 		return errors.New("callback URL cannot point to localhost")
 	}
 
-	// Resolve the hostname and check if it's a private IP.
-	ips, err := net.LookupIP(host)
+	// Block cloud metadata endpoints (AWS, GCP, Azure, etc.).
+	if isCloudMetadataEndpoint(host) {
+		return errors.New("callback URL cannot point to cloud metadata endpoints")
+	}
+
+	// Resolve the hostname with timeout and check if it's a private IP.
+	ctx, cancel := context.WithTimeout(context.Background(), dnsLookupTimeout)
+	defer cancel()
+
+	resolver := net.Resolver{}
+	ips, err := resolver.LookupIP(ctx, "ip", host)
 	if err == nil {
 		for _, ip := range ips {
 			if isPrivateIP(ip) {
@@ -111,6 +125,26 @@ func validateCallbackURL(callbackURL string) error {
 	}
 
 	return nil
+}
+
+// isCloudMetadataEndpoint checks if a host is a cloud provider metadata endpoint.
+func isCloudMetadataEndpoint(host string) bool {
+	// AWS, GCP, Azure instance metadata endpoints.
+	metadataEndpoints := []string{
+		"169.254.169.254", // AWS, GCP, Azure metadata
+		"metadata.google.internal",
+		"metadata.goog",
+		"169.254.170.2", // AWS ECS task metadata
+		"fd00:ec2::254", // AWS IPv6 metadata
+	}
+
+	for _, endpoint := range metadataEndpoints {
+		if host == endpoint {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isPrivateIP checks if an IP address is in a private range.
@@ -125,12 +159,32 @@ func isPrivateIP(ip net.IP) bool {
 		return true
 	}
 
-	// Private IPv4 ranges.
+	// Check for private addresses using Go's built-in check.
+	if ip.IsPrivate() {
+		return true
+	}
+
+	// Additional private/reserved ranges not covered by IsPrivate().
 	privateBlocks := []string{
-		"10.0.0.0/8",     // Class A private
-		"172.16.0.0/12",  // Class B private
-		"192.168.0.0/16", // Class C private
-		"169.254.0.0/16", // Link-local
+		// IPv4 reserved ranges.
+		"169.254.0.0/16",  // Link-local (also checked above, but explicit for CIDR matching)
+		"100.64.0.0/10",   // Carrier-grade NAT
+		"192.0.0.0/24",    // IETF Protocol Assignments
+		"192.0.2.0/24",    // Documentation (TEST-NET-1)
+		"198.51.100.0/24", // Documentation (TEST-NET-2)
+		"203.0.113.0/24",  // Documentation (TEST-NET-3)
+		"224.0.0.0/4",     // Multicast
+		"240.0.0.0/4",     // Reserved for future use
+
+		// IPv6 private/reserved ranges.
+		"fc00::/7",      // Unique local addresses (ULA)
+		"fe80::/10",     // Link-local
+		"ff00::/8",      // Multicast
+		"::1/128",       // Loopback
+		"::ffff:0:0/96", // IPv4-mapped IPv6
+		"64:ff9b::/96",  // IPv4/IPv6 translation
+		"100::/64",      // Discard prefix
+		"2001:db8::/32", // Documentation
 	}
 
 	for _, block := range privateBlocks {
@@ -173,6 +227,41 @@ func validatePaginationLimit(limit int) int {
 		return MaxPaginationLimit
 	}
 	return limit
+}
+
+// DNS-1123 validation constants.
+const (
+	// MaxDeploymentNameLength is the maximum length for deployment names (Kubernetes limit).
+	MaxDeploymentNameLength = 63
+
+	// dns1123LabelFmt is the regex format for DNS-1123 labels.
+	dns1123LabelFmt = `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+)
+
+// validateDeploymentName validates that a deployment name is DNS-1123 compliant.
+// Kubernetes requires names to be lowercase alphanumeric with hyphens, starting
+// and ending with alphanumeric characters, max 63 characters.
+func validateDeploymentName(name string) error {
+	if name == "" {
+		return errors.New("deployment name cannot be empty")
+	}
+
+	if len(name) > MaxDeploymentNameLength {
+		return fmt.Errorf("deployment name exceeds maximum length of %d characters", MaxDeploymentNameLength)
+	}
+
+	// Check DNS-1123 label format.
+	matched, err := regexp.MatchString(dns1123LabelFmt, name)
+	if err != nil {
+		return errors.New("failed to validate deployment name format")
+	}
+
+	if !matched {
+		return errors.New("deployment name must be DNS-1123 compliant: lowercase alphanumeric with hyphens, " +
+			"starting and ending with alphanumeric characters")
+	}
+
+	return nil
 }
 
 // NF Deployment Handlers
@@ -259,6 +348,12 @@ func (h *Handler) CreateNFDeployment(c *gin.Context) {
 	var req models.CreateNFDeploymentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.errorResponse(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
+		return
+	}
+
+	// Validate deployment name for DNS-1123 compliance.
+	if err := validateDeploymentName(req.Name); err != nil {
+		h.errorResponse(c, http.StatusBadRequest, "BadRequest", "Invalid deployment name: "+err.Error())
 		return
 	}
 

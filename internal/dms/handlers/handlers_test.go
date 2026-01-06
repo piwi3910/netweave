@@ -1654,3 +1654,366 @@ func TestCreateDMSSubscription_InvalidCallbackBody(t *testing.T) {
 	// Should fail because callback is required.
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
+
+// Cloud metadata endpoint tests
+
+func TestIsCloudMetadataEndpoint(t *testing.T) {
+	tests := []struct {
+		name       string
+		host       string
+		isMetadata bool
+	}{
+		// Cloud metadata endpoints.
+		{"AWS/GCP/Azure metadata", "169.254.169.254", true},
+		{"GCP internal metadata", "metadata.google.internal", true},
+		{"GCP metadata short", "metadata.goog", true},
+		{"AWS ECS metadata", "169.254.170.2", true},
+		{"AWS IPv6 metadata", "fd00:ec2::254", true},
+
+		// Not metadata endpoints.
+		{"regular IP", "8.8.8.8", false},
+		{"regular domain", "example.com", false},
+		{"similar but not metadata", "169.254.169.253", false},
+		{"metadata subdomain", "test.metadata.google.internal", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isCloudMetadataEndpoint(tt.host)
+			assert.Equal(t, tt.isMetadata, result)
+		})
+	}
+}
+
+func TestIsPrivateIP_IPv6(t *testing.T) {
+	tests := []struct {
+		name      string
+		ip        string
+		isPrivate bool
+	}{
+		// IPv6 public addresses.
+		{"public IPv6", "2607:f8b0:4004:800::200e", false},
+
+		// IPv6 private/reserved ranges.
+		{"IPv6 ULA fc00::", "fc00::1", true},
+		{"IPv6 ULA fd00::", "fd00::1", true},
+		{"IPv6 link-local", "fe80::1", true},
+		{"IPv6 multicast", "ff02::1", true},
+		{"IPv6 loopback", "::1", true},
+		{"IPv6 documentation", "2001:db8::1", true},
+
+		// IPv4-mapped IPv6.
+		{"IPv4-mapped private", "::ffff:192.168.1.1", true},
+		{"IPv4-mapped public", "::ffff:8.8.8.8", true}, // This checks the IPv4-mapped range itself.
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ip := net.ParseIP(tt.ip)
+			require.NotNil(t, ip, "failed to parse IP: %s", tt.ip)
+			result := isPrivateIP(ip)
+			assert.Equal(t, tt.isPrivate, result)
+		})
+	}
+}
+
+func TestValidateCallbackURL_CloudMetadata(t *testing.T) {
+	tests := []struct {
+		name        string
+		callbackURL string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:        "AWS metadata endpoint rejected",
+			callbackURL: "https://169.254.169.254/latest/meta-data",
+			wantErr:     true,
+			errContains: "cloud metadata",
+		},
+		{
+			name:        "GCP metadata endpoint rejected",
+			callbackURL: "https://metadata.google.internal/computeMetadata/v1",
+			wantErr:     true,
+			errContains: "cloud metadata",
+		},
+		{
+			name:        "AWS ECS metadata rejected",
+			callbackURL: "https://169.254.170.2/v2/metadata",
+			wantErr:     true,
+			errContains: "cloud metadata",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateCallbackURL(tt.callbackURL)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// Deployment name validation tests
+
+func TestValidateDeploymentName(t *testing.T) {
+	tests := []struct {
+		name        string
+		deployName  string
+		wantErr     bool
+		errContains string
+	}{
+		// Valid names.
+		{
+			name:       "simple lowercase name",
+			deployName: "myapp",
+			wantErr:    false,
+		},
+		{
+			name:       "name with hyphens",
+			deployName: "my-app-v1",
+			wantErr:    false,
+		},
+		{
+			name:       "name with numbers",
+			deployName: "app123",
+			wantErr:    false,
+		},
+		{
+			name:       "single character",
+			deployName: "a",
+			wantErr:    false,
+		},
+		{
+			name:       "two characters",
+			deployName: "ab",
+			wantErr:    false,
+		},
+		{
+			name:       "max length 63 chars",
+			deployName: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			wantErr:    false,
+		},
+
+		// Invalid names.
+		{
+			name:        "empty name",
+			deployName:  "",
+			wantErr:     true,
+			errContains: "cannot be empty",
+		},
+		{
+			name:        "too long (64 chars)",
+			deployName:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			wantErr:     true,
+			errContains: "exceeds maximum length",
+		},
+		{
+			name:        "uppercase letters",
+			deployName:  "MyApp",
+			wantErr:     true,
+			errContains: "DNS-1123",
+		},
+		{
+			name:        "starts with hyphen",
+			deployName:  "-myapp",
+			wantErr:     true,
+			errContains: "DNS-1123",
+		},
+		{
+			name:        "ends with hyphen",
+			deployName:  "myapp-",
+			wantErr:     true,
+			errContains: "DNS-1123",
+		},
+		{
+			name:        "contains underscore",
+			deployName:  "my_app",
+			wantErr:     true,
+			errContains: "DNS-1123",
+		},
+		{
+			name:        "contains dot",
+			deployName:  "my.app",
+			wantErr:     true,
+			errContains: "DNS-1123",
+		},
+		{
+			name:        "contains space",
+			deployName:  "my app",
+			wantErr:     true,
+			errContains: "DNS-1123",
+		},
+		{
+			name:        "special characters",
+			deployName:  "my@app",
+			wantErr:     true,
+			errContains: "DNS-1123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateDeploymentName(tt.deployName)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// Integration tests for deployment name validation
+
+func TestCreateNFDeployment_InvalidName(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	tests := []struct {
+		name        string
+		deployName  string
+		errContains string
+	}{
+		{
+			name:        "empty name",
+			deployName:  "",
+			errContains: "cannot be empty",
+		},
+		{
+			name:        "uppercase name",
+			deployName:  "MyApp",
+			errContains: "DNS-1123",
+		},
+		{
+			name:        "name with underscore",
+			deployName:  "my_app",
+			errContains: "DNS-1123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			createReq := models.CreateNFDeploymentRequest{
+				Name:                     tt.deployName,
+				NFDeploymentDescriptorID: "pkg-1",
+			}
+
+			body, err := json.Marshal(createReq)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+
+			var apiErr models.APIError
+			err = json.Unmarshal(w.Body.Bytes(), &apiErr)
+			require.NoError(t, err)
+			assert.Contains(t, apiErr.Message, tt.errContains)
+		})
+	}
+}
+
+// Edge case tests
+
+func TestScaleNFDeployment_InvalidReplicas(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	mockAdp.deployments = []*adapter.Deployment{
+		{
+			ID:     "dep-1",
+			Name:   "test-deployment",
+			Status: adapter.DeploymentStatusDeployed,
+		},
+	}
+
+	// Test with invalid JSON body.
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments/dep-1/scale", bytes.NewReader([]byte("invalid")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestRollbackNFDeployment_InvalidBody(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	mockAdp.deployments = []*adapter.Deployment{
+		{
+			ID:      "dep-1",
+			Name:    "test-deployment",
+			Status:  adapter.DeploymentStatusDeployed,
+			Version: 3,
+		},
+	}
+
+	// Test with invalid JSON body.
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments/dep-1/rollback", bytes.NewReader([]byte("invalid")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestListNFDeployments_InvalidFilterParams(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Test with invalid limit (string instead of int).
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments?limit=invalid", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreateNFDeploymentDescriptor_InvalidBody(t *testing.T) {
+	handler, _, _ := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	// Test with invalid JSON body.
+	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeploymentDescriptors", bytes.NewReader([]byte("invalid")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestUpdateNFDeployment_InvalidBody(t *testing.T) {
+	handler, _, mockAdp := setupTestHandler(t)
+	router := setupTestRouter(handler)
+
+	mockAdp.deployments = []*adapter.Deployment{
+		{ID: "dep-1", Name: "test", Status: adapter.DeploymentStatusDeployed},
+	}
+
+	// Test with invalid JSON body.
+	req := httptest.NewRequest(http.MethodPut, "/o2dms/v1/nfDeployments/dep-1", bytes.NewReader([]byte("invalid")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}

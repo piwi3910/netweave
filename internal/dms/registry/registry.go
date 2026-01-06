@@ -286,14 +286,41 @@ func (r *Registry) List() []adapter.DMSAdapter {
 }
 
 // ListMetadata returns metadata for all registered DMS plugins.
+// Returns deep copies to prevent data races and external mutations.
 func (r *Registry) ListMetadata() []*PluginMetadata {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	metadata := make([]*PluginMetadata, 0, len(r.meta))
 	for _, m := range r.meta {
-		metaCopy := *m
-		metadata = append(metadata, &metaCopy)
+		// Create a deep copy to prevent data races.
+		metaCopy := &PluginMetadata{
+			Name:            m.Name,
+			Type:            m.Type,
+			Version:         m.Version,
+			Enabled:         m.Enabled,
+			Default:         m.Default,
+			RegisteredAt:    m.RegisteredAt,
+			LastHealthCheck: m.LastHealthCheck,
+			Healthy:         m.Healthy,
+			HealthError:     m.HealthError,
+		}
+
+		// Deep copy Capabilities slice.
+		if m.Capabilities != nil {
+			metaCopy.Capabilities = make([]adapter.Capability, len(m.Capabilities))
+			copy(metaCopy.Capabilities, m.Capabilities)
+		}
+
+		// Deep copy Config map.
+		if m.Config != nil {
+			metaCopy.Config = make(map[string]interface{}, len(m.Config))
+			for k, v := range m.Config {
+				metaCopy.Config[k] = v
+			}
+		}
+
+		metadata = append(metadata, metaCopy)
 	}
 
 	return metadata

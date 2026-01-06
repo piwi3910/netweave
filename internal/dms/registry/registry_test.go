@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -796,4 +797,93 @@ func TestRegistry_GetMetadataDeepCopy_NilFields(t *testing.T) {
 
 	// Config should be nil (not panic).
 	assert.Nil(t, meta.Config)
+}
+
+func TestRegistry_ListMetadataDeepCopy(t *testing.T) {
+	logger := zap.NewNop()
+	reg := NewRegistry(logger, nil)
+	defer reg.Close()
+
+	mockAdp := newMockDMSAdapter("list-copy-adapter")
+	mockAdp.capabilities = []adapter.Capability{
+		adapter.CapabilityDeploymentLifecycle,
+		adapter.CapabilityRollback,
+	}
+
+	config := map[string]interface{}{
+		"key1": "value1",
+		"key2": "value2",
+	}
+	err := reg.Register(context.Background(), "list-copy-adapter", "mock", mockAdp, config, true)
+	require.NoError(t, err)
+
+	// Get metadata list.
+	metaList1 := reg.ListMetadata()
+	require.Len(t, metaList1, 1)
+	meta1 := metaList1[0]
+
+	// Verify initial values.
+	assert.Len(t, meta1.Capabilities, 2)
+	assert.Equal(t, "value1", meta1.Config["key1"])
+
+	// Modify the returned metadata.
+	meta1.Capabilities = append(meta1.Capabilities, adapter.CapabilityScaling)
+	meta1.Config["key1"] = "modified"
+	meta1.Config["key3"] = "added"
+	meta1.Name = "modified-name"
+
+	// Get a fresh list and verify original data is unchanged.
+	metaList2 := reg.ListMetadata()
+	require.Len(t, metaList2, 1)
+	meta2 := metaList2[0]
+
+	// Capabilities should still have only 2 items.
+	assert.Len(t, meta2.Capabilities, 2)
+	assert.Contains(t, meta2.Capabilities, adapter.CapabilityDeploymentLifecycle)
+	assert.Contains(t, meta2.Capabilities, adapter.CapabilityRollback)
+	assert.NotContains(t, meta2.Capabilities, adapter.CapabilityScaling)
+
+	// Config should be unchanged.
+	assert.Equal(t, "value1", meta2.Config["key1"])
+	assert.Equal(t, "value2", meta2.Config["key2"])
+	_, exists := meta2.Config["key3"]
+	assert.False(t, exists, "key3 should not exist in original config")
+
+	// Name should be unchanged.
+	assert.Equal(t, "list-copy-adapter", meta2.Name)
+}
+
+func TestRegistry_ListMetadataDeepCopy_MultipleAdapters(t *testing.T) {
+	logger := zap.NewNop()
+	reg := NewRegistry(logger, nil)
+	defer reg.Close()
+
+	// Register multiple adapters.
+	for i := 0; i < 3; i++ {
+		mockAdp := newMockDMSAdapter(fmt.Sprintf("adapter-%d", i))
+		mockAdp.capabilities = []adapter.Capability{adapter.CapabilityDeploymentLifecycle}
+		config := map[string]interface{}{"index": i}
+		err := reg.Register(context.Background(), mockAdp.name, "mock", mockAdp, config, i == 0)
+		require.NoError(t, err)
+	}
+
+	// Get metadata list.
+	metaList := reg.ListMetadata()
+	require.Len(t, metaList, 3)
+
+	// Modify all returned metadata.
+	for _, meta := range metaList {
+		meta.Capabilities = append(meta.Capabilities, adapter.CapabilityScaling)
+		meta.Config["modified"] = true
+	}
+
+	// Get fresh list and verify originals are unchanged.
+	freshList := reg.ListMetadata()
+	require.Len(t, freshList, 3)
+
+	for _, meta := range freshList {
+		assert.Len(t, meta.Capabilities, 1, "capabilities should not be modified")
+		_, exists := meta.Config["modified"]
+		assert.False(t, exists, "config should not be modified")
+	}
 }
