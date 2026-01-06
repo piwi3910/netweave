@@ -87,18 +87,17 @@ linters:
     - wrapcheck       # Check error wrapping
     - zerologlint     # Detect zerolog usage issues
 
-  # Disabled linters (with reasons)
-  disable:
-    - depguard        # Too restrictive for initial development
-    - exhaustruct     # Too strict for this project
-    - funlen          # Function length checked by gocyclo/gocognit
-    - gochecknoglobals # Globals needed for metrics
-    - godox           # TODO/FIXME allowed with GitHub issues
-    - nlreturn        # Overly strict whitespace rules
-    - paralleltest    # Not all tests can be parallel
-    - tagliatelle     # JSON/YAML tags don't match Go conventions
-    - varnamelen      # Short names acceptable in limited scopes
-    - wsl             # Overly strict whitespace rules
+  # Note: Additional linters are available but not enabled:
+  # - depguard: Too restrictive for initial development
+  # - exhaustruct: Too strict for this project
+  # - funlen: Function length checked by gocyclo/gocognit
+  # - gochecknoglobals: Globals needed for metrics
+  # - godox: TODO/FIXME allowed with GitHub issues
+  # - nlreturn: Overly strict whitespace rules
+  # - paralleltest: Not all tests can be parallel
+  # - tagliatelle: JSON/YAML tags don't match Go conventions
+  # - varnamelen: Short names acceptable in limited scopes
+  # - wsl: Overly strict whitespace rules
 
 linters-settings:
   errcheck:
