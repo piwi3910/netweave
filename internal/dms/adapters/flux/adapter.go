@@ -12,7 +12,9 @@ package flux
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +28,28 @@ import (
 
 	"github.com/piwi3910/netweave/internal/dms/adapter"
 )
+
+// Sentinel errors for Flux adapter operations.
+// These provide typed errors for better error handling by callers.
+var (
+	// ErrDeploymentNotFound is returned when a deployment cannot be found.
+	ErrDeploymentNotFound = errors.New("deployment not found")
+
+	// ErrPackageNotFound is returned when a deployment package cannot be found.
+	ErrPackageNotFound = errors.New("deployment package not found")
+
+	// ErrInvalidName is returned when a resource name fails validation.
+	ErrInvalidName = errors.New("invalid resource name")
+
+	// ErrInvalidPath is returned when a path contains invalid characters or traversal attempts.
+	ErrInvalidPath = errors.New("invalid path")
+
+	// ErrOperationNotSupported is returned for operations not supported by Flux.
+	ErrOperationNotSupported = errors.New("operation not supported")
+)
+
+// dns1123LabelRegex validates DNS-1123 label format for Kubernetes resource names.
+var dns1123LabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
 const (
 	// AdapterName is the unique identifier for the Flux adapter.
@@ -196,11 +220,50 @@ func checkContext(ctx context.Context) error {
 	}
 }
 
+// validateName validates that a resource name conforms to DNS-1123 label format.
+// Kubernetes resource names must be lowercase alphanumeric with hyphens, max 63 chars.
+func validateName(name string) error {
+	if name == "" {
+		return fmt.Errorf("%w: name cannot be empty", ErrInvalidName)
+	}
+	if len(name) > 63 {
+		return fmt.Errorf("%w: name exceeds 63 characters", ErrInvalidName)
+	}
+	if !dns1123LabelRegex.MatchString(name) {
+		return fmt.Errorf("%w: name must be lowercase alphanumeric with hyphens", ErrInvalidName)
+	}
+	return nil
+}
+
+// validatePath validates that a path does not contain directory traversal attempts.
+// This prevents security issues with path manipulation.
+func validatePath(path string) error {
+	if path == "" {
+		return nil // Empty path is allowed (defaults to "./")
+	}
+	// Check for directory traversal attempts
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("%w: path cannot contain '..'", ErrInvalidPath)
+	}
+	// Check for absolute paths (security risk)
+	if strings.HasPrefix(path, "/") {
+		return fmt.Errorf("%w: absolute paths not allowed", ErrInvalidPath)
+	}
+	return nil
+}
+
 // Initialize performs lazy initialization of the Kubernetes dynamic client.
 // This allows the adapter to be created without requiring immediate Kubernetes connectivity.
 // This method is thread-safe and ensures initialization happens exactly once.
+// The context is checked before starting initialization to fail fast on cancelled contexts.
 func (f *FluxAdapter) Initialize(ctx context.Context) error {
 	f.initOnce.Do(func() {
+		// Check context inside Do() to prevent hanging on cancelled contexts
+		if err := checkContext(ctx); err != nil {
+			f.initError = fmt.Errorf("initialization cancelled: %w", err)
+			return
+		}
+
 		var restConfig *rest.Config
 		var err error
 
@@ -345,7 +408,7 @@ func (f *FluxAdapter) GetDeploymentPackage(ctx context.Context, id string) (*ada
 		}
 	}
 
-	return nil, fmt.Errorf("deployment package not found: %s", id)
+	return nil, fmt.Errorf("%w: %s", ErrPackageNotFound, id)
 }
 
 // UploadDeploymentPackage creates a reference to a Flux source.
@@ -390,7 +453,7 @@ func (f *FluxAdapter) UploadDeploymentPackage(ctx context.Context, pkg *adapter.
 // DeleteDeploymentPackage is not directly supported in Flux.
 // Source resources should be managed directly in the cluster.
 func (f *FluxAdapter) DeleteDeploymentPackage(ctx context.Context, id string) error {
-	return fmt.Errorf("Flux does not support package deletion through this adapter - manage source resources directly")
+	return fmt.Errorf("%w: Flux does not support package deletion through this adapter - manage source resources directly", ErrOperationNotSupported)
 }
 
 // ListDeployments retrieves all Flux deployments (HelmReleases and Kustomizations).
@@ -459,7 +522,7 @@ func (f *FluxAdapter) GetDeployment(ctx context.Context, id string) (*adapter.De
 		return f.transformKustomizationToDeployment(ks), nil
 	}
 
-	return nil, fmt.Errorf("deployment not found: %s", id)
+	return nil, fmt.Errorf("%w: %s", ErrDeploymentNotFound, id)
 }
 
 // CreateDeployment creates a new Flux HelmRelease or Kustomization.
@@ -474,8 +537,10 @@ func (f *FluxAdapter) CreateDeployment(ctx context.Context, req *adapter.Deploym
 	if req == nil {
 		return nil, fmt.Errorf("deployment request cannot be nil")
 	}
-	if req.Name == "" {
-		return nil, fmt.Errorf("deployment name is required")
+
+	// Validate deployment name using DNS-1123 label format
+	if err := validateName(req.Name); err != nil {
+		return nil, err
 	}
 
 	// Determine deployment type from extensions
@@ -519,7 +584,7 @@ func (f *FluxAdapter) UpdateDeployment(ctx context.Context, id string, update *a
 		return f.updateKustomization(ctx, ks, update)
 	}
 
-	return nil, fmt.Errorf("deployment not found: %s", id)
+	return nil, fmt.Errorf("%w: %s", ErrDeploymentNotFound, id)
 }
 
 // DeleteDeployment deletes a Flux deployment.
@@ -549,7 +614,7 @@ func (f *FluxAdapter) DeleteDeployment(ctx context.Context, id string) error {
 		return nil
 	}
 
-	return fmt.Errorf("failed to delete Flux deployment: %s", id)
+	return fmt.Errorf("%w: %s", ErrDeploymentNotFound, id)
 }
 
 // ScaleDeployment scales a deployment by updating the values.
@@ -630,7 +695,7 @@ func (f *FluxAdapter) RollbackDeployment(ctx context.Context, id string, revisio
 		return err
 	}
 
-	return fmt.Errorf("deployment not found: %s", id)
+	return fmt.Errorf("%w: %s", ErrDeploymentNotFound, id)
 }
 
 // GetDeploymentStatus retrieves detailed status for a Flux deployment.
@@ -654,7 +719,7 @@ func (f *FluxAdapter) GetDeploymentStatus(ctx context.Context, id string) (*adap
 		return f.transformKustomizationToStatus(ks), nil
 	}
 
-	return nil, fmt.Errorf("deployment not found: %s", id)
+	return nil, fmt.Errorf("%w: %s", ErrDeploymentNotFound, id)
 }
 
 // GetDeploymentHistory retrieves the revision history for a Flux deployment.
@@ -678,7 +743,7 @@ func (f *FluxAdapter) GetDeploymentHistory(ctx context.Context, id string) (*ada
 		return f.extractKustomizationHistory(id, ks), nil
 	}
 
-	return nil, fmt.Errorf("deployment not found: %s", id)
+	return nil, fmt.Errorf("%w: %s", ErrDeploymentNotFound, id)
 }
 
 // GetDeploymentLogs retrieves status information for a Flux deployment.
@@ -713,7 +778,7 @@ func (f *FluxAdapter) GetDeploymentLogs(ctx context.Context, id string, opts *ad
 		return statusJSON, nil
 	}
 
-	return nil, fmt.Errorf("deployment not found: %s", id)
+	return nil, fmt.Errorf("%w: %s", ErrDeploymentNotFound, id)
 }
 
 // SupportsRollback returns true as Flux supports rollback via Git revisions.
@@ -951,6 +1016,10 @@ func (f *FluxAdapter) createKustomization(ctx context.Context, req *adapter.Depl
 	if sourceKind == "" {
 		sourceKind = "GitRepository"
 	}
+	// Validate path to prevent directory traversal attacks
+	if err := validatePath(path); err != nil {
+		return nil, err
+	}
 	if path == "" {
 		path = "./"
 	}
@@ -1031,6 +1100,10 @@ func (f *FluxAdapter) updateHelmRelease(ctx context.Context, hr *unstructured.Un
 func (f *FluxAdapter) updateKustomization(ctx context.Context, ks *unstructured.Unstructured, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
 	// Update path if specified
 	if path, ok := update.Extensions["flux.path"].(string); ok && path != "" {
+		// Validate path to prevent directory traversal attacks
+		if err := validatePath(path); err != nil {
+			return nil, err
+		}
 		if err := unstructured.SetNestedField(ks.Object, path, "spec", "path"); err != nil {
 			return nil, fmt.Errorf("failed to update path: %w", err)
 		}

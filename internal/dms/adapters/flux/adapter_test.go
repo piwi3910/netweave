@@ -551,7 +551,7 @@ func TestCreateDeployment(t *testing.T) {
 				},
 			},
 			wantErr:     true,
-			errContains: "name is required",
+			errContains: "name cannot be empty",
 		},
 		{
 			name: "helmrelease missing chart",
@@ -713,7 +713,7 @@ func TestDeleteDeployment(t *testing.T) {
 			objects:     []runtime.Object{},
 			deployID:    "nonexistent",
 			wantErr:     true,
-			errContains: "failed to delete",
+			errContains: "not found",
 		},
 	}
 
@@ -1608,4 +1608,308 @@ func TestGetDeploymentPackage(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
+}
+
+// TestValidateName tests the name validation function.
+func TestValidateName(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+		errType error
+	}{
+		{
+			name:    "valid simple name",
+			input:   "my-app",
+			wantErr: false,
+		},
+		{
+			name:    "valid name with numbers",
+			input:   "app-123",
+			wantErr: false,
+		},
+		{
+			name:    "valid single char",
+			input:   "a",
+			wantErr: false,
+		},
+		{
+			name:    "valid max length",
+			input:   "a23456789012345678901234567890123456789012345678901234567890123", // 63 chars
+			wantErr: false,
+		},
+		{
+			name:    "empty name",
+			input:   "",
+			wantErr: true,
+			errType: ErrInvalidName,
+		},
+		{
+			name:    "name too long",
+			input:   "a234567890123456789012345678901234567890123456789012345678901234", // 64 chars
+			wantErr: true,
+			errType: ErrInvalidName,
+		},
+		{
+			name:    "uppercase letters",
+			input:   "MyApp",
+			wantErr: true,
+			errType: ErrInvalidName,
+		},
+		{
+			name:    "starts with hyphen",
+			input:   "-myapp",
+			wantErr: true,
+			errType: ErrInvalidName,
+		},
+		{
+			name:    "ends with hyphen",
+			input:   "myapp-",
+			wantErr: true,
+			errType: ErrInvalidName,
+		},
+		{
+			name:    "contains underscore",
+			input:   "my_app",
+			wantErr: true,
+			errType: ErrInvalidName,
+		},
+		{
+			name:    "contains space",
+			input:   "my app",
+			wantErr: true,
+			errType: ErrInvalidName,
+		},
+		{
+			name:    "contains special chars",
+			input:   "my@app",
+			wantErr: true,
+			errType: ErrInvalidName,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateName(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, tt.errType)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidatePath tests the path validation function.
+func TestValidatePath(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+		errType error
+	}{
+		{
+			name:    "valid relative path",
+			input:   "./apps",
+			wantErr: false,
+		},
+		{
+			name:    "valid path without prefix",
+			input:   "apps/production",
+			wantErr: false,
+		},
+		{
+			name:    "empty path is allowed",
+			input:   "",
+			wantErr: false,
+		},
+		{
+			name:    "valid nested path",
+			input:   "clusters/production/apps",
+			wantErr: false,
+		},
+		{
+			name:    "path traversal attack",
+			input:   "../../../etc/passwd",
+			wantErr: true,
+			errType: ErrInvalidPath,
+		},
+		{
+			name:    "path traversal in middle",
+			input:   "apps/../secrets",
+			wantErr: true,
+			errType: ErrInvalidPath,
+		},
+		{
+			name:    "absolute path",
+			input:   "/etc/passwd",
+			wantErr: true,
+			errType: ErrInvalidPath,
+		},
+		{
+			name:    "double dot only",
+			input:   "..",
+			wantErr: true,
+			errType: ErrInvalidPath,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validatePath(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, tt.errType)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestTypedErrors tests that typed errors work with errors.Is.
+func TestTypedErrors(t *testing.T) {
+	t.Run("ErrDeploymentNotFound", func(t *testing.T) {
+		adp := createFakeAdapter(t)
+		_, err := adp.GetDeployment(context.Background(), "nonexistent")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+	})
+
+	t.Run("ErrPackageNotFound", func(t *testing.T) {
+		adp := createFakeAdapter(t)
+		_, err := adp.GetDeploymentPackage(context.Background(), "nonexistent")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrPackageNotFound)
+	})
+
+	t.Run("ErrOperationNotSupported", func(t *testing.T) {
+		adp := createFakeAdapter(t)
+		err := adp.DeleteDeploymentPackage(context.Background(), "any-id")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrOperationNotSupported)
+	})
+
+	t.Run("ErrInvalidName on CreateDeployment", func(t *testing.T) {
+		adp := createFakeAdapter(t)
+		_, err := adp.CreateDeployment(context.Background(), &dmsadapter.DeploymentRequest{
+			Name: "INVALID-NAME", // uppercase
+			Extensions: map[string]interface{}{
+				"flux.chart":     "nginx",
+				"flux.sourceRef": "bitnami",
+			},
+		})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidName)
+	})
+
+	t.Run("ErrInvalidPath on CreateKustomization", func(t *testing.T) {
+		adp := createFakeAdapter(t)
+		_, err := adp.CreateDeployment(context.Background(), &dmsadapter.DeploymentRequest{
+			Name: "valid-name",
+			Extensions: map[string]interface{}{
+				"flux.type":      "kustomization",
+				"flux.path":      "../../../etc/passwd",
+				"flux.sourceRef": "infra-repo",
+			},
+		})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidPath)
+	})
+}
+
+// TestCreateKustomizationPathValidation tests path validation in kustomization creation.
+func TestCreateKustomizationPathValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:    "valid path",
+			path:    "./apps/production",
+			wantErr: false,
+		},
+		{
+			name:        "path traversal blocked",
+			path:        "../../../secret",
+			wantErr:     true,
+			errContains: "cannot contain '..'",
+		},
+		{
+			name:        "absolute path blocked",
+			path:        "/etc/passwd",
+			wantErr:     true,
+			errContains: "absolute paths not allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp := createFakeAdapter(t)
+			_, err := adp.CreateDeployment(context.Background(), &dmsadapter.DeploymentRequest{
+				Name: "test-ks",
+				Extensions: map[string]interface{}{
+					"flux.type":      "kustomization",
+					"flux.path":      tt.path,
+					"flux.sourceRef": "infra-repo",
+				},
+			})
+
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestUpdateKustomizationPathValidation tests path validation in kustomization updates.
+func TestUpdateKustomizationPathValidation(t *testing.T) {
+	existingKS := createTestKustomization("existing-ks", "flux-system", "./apps", "infra-repo", true)
+
+	tests := []struct {
+		name        string
+		path        string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:    "valid path update",
+			path:    "./apps/v2",
+			wantErr: false,
+		},
+		{
+			name:        "path traversal blocked on update",
+			path:        "../../../secret",
+			wantErr:     true,
+			errContains: "cannot contain '..'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp := createFakeAdapter(t, existingKS)
+			_, err := adp.UpdateDeployment(context.Background(), "existing-ks", &dmsadapter.DeploymentUpdate{
+				Extensions: map[string]interface{}{
+					"flux.path": tt.path,
+				},
+			})
+
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
