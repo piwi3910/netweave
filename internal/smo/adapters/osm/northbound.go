@@ -74,16 +74,15 @@ type InfrastructureEvent struct {
 	Data map[string]interface{} `json:"data,omitempty"`
 }
 
-// SyncInfrastructureInventory synchronizes infrastructure inventory to OSM.
-// This is the primary northbound operation - it registers or updates VIM accounts
-// in OSM based on the infrastructure resources managed by netweave.
+// syncOSMInfrastructure synchronizes OSM-specific infrastructure inventory to OSM.
+// This is an internal method for VIM account synchronization.
 //
 // Northbound flow:
 //  1. netweave O2-IMS discovers infrastructure (resource pools, resources)
 //  2. netweave transforms infrastructure to VIM account representation
 //  3. This method syncs VIM accounts to OSM
 //  4. OSM can now deploy NS/VNF to the registered infrastructure
-func (p *Plugin) SyncInfrastructureInventory(ctx context.Context, inventory *InfrastructureInventory) error {
+func (p *Plugin) syncOSMInfrastructure(ctx context.Context, inventory *InfrastructureInventory) error {
 	if inventory == nil {
 		return fmt.Errorf("inventory cannot be nil")
 	}
@@ -197,12 +196,13 @@ func (p *Plugin) DeleteVIMAccount(ctx context.Context, id string) error {
 	return nil
 }
 
-// PublishInfrastructureEvent publishes an infrastructure change event to OSM.
+// publishOSMEvent publishes an infrastructure change event to OSM.
+// This is an internal method for OSM-specific event publishing.
 // OSM doesn't have a native event bus, so this method can be extended to:
 //  1. Store events in OSM's operational state
 //  2. Trigger OSM workflows based on events
 //  3. Forward events to external systems via OSM's notification service
-func (p *Plugin) PublishInfrastructureEvent(_ context.Context, event *InfrastructureEvent) error {
+func (p *Plugin) publishOSMEvent(ctx context.Context, event *InfrastructureEvent) error {
 	if event == nil {
 		return fmt.Errorf("event cannot be nil")
 	}

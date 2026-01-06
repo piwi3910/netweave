@@ -12,9 +12,84 @@ import (
 	"github.com/piwi3910/netweave/internal/smo"
 )
 
-// SyncInfrastructureInventorySMO synchronizes O2-IMS infrastructure inventory to OSM.
-// This transforms netweave inventory to VIM accounts and syncs them to OSM.
-func (p *Plugin) SyncInfrastructureInventorySMO(ctx context.Context, inventory *smo.InfrastructureInventory) error {
+// === SMO Plugin Interface Adapters ===
+// These methods implement the smo.Plugin interface by adapting the OSM Plugin's
+// existing methods to the expected interface signatures.
+
+// Metadata returns the plugin's identifying information.
+// Implements smo.Plugin.Metadata().
+func (p *Plugin) Metadata() smo.PluginMetadata {
+	return smo.PluginMetadata{
+		Name:        p.name,
+		Version:     p.version,
+		Description: "OSM (Open Source MANO) integration plugin for NS/VNF lifecycle management",
+		Vendor:      "ETSI OSM",
+	}
+}
+
+// SMOPluginAdapter wraps the OSM Plugin to implement the smo.Plugin interface.
+// This adapter resolves method signature conflicts between the OSM Plugin's
+// existing DMS interface and the SMO plugin interface.
+type SMOPluginAdapter struct {
+	*Plugin
+}
+
+// NewSMOPluginAdapter creates a new SMO plugin adapter wrapping the OSM Plugin.
+func NewSMOPluginAdapter(plugin *Plugin) *SMOPluginAdapter {
+	return &SMOPluginAdapter{Plugin: plugin}
+}
+
+// Capabilities returns the list of SMO capabilities this plugin supports.
+// Implements smo.Plugin.Capabilities().
+func (a *SMOPluginAdapter) Capabilities() []smo.Capability {
+	return []smo.Capability{
+		smo.CapInventorySync,
+		smo.CapEventPublishing,
+		smo.CapWorkflowOrchestration,
+		smo.CapServiceModeling,
+		// Note: OSM doesn't support CapPolicyManagement
+	}
+}
+
+// Initialize initializes the plugin with the provided configuration.
+// Implements smo.Plugin.Initialize().
+func (a *SMOPluginAdapter) Initialize(ctx context.Context, config map[string]interface{}) error {
+	// The underlying OSM Plugin is already initialized via NewPlugin
+	// This just delegates to the existing Initialize method
+	return a.Plugin.Initialize(ctx)
+}
+
+// Health returns the health status of the plugin.
+// Implements smo.Plugin.Health().
+func (a *SMOPluginAdapter) Health(ctx context.Context) smo.HealthStatus {
+	err := a.Plugin.Health(ctx)
+	if err != nil {
+		return smo.HealthStatus{
+			Healthy:   false,
+			Message:   err.Error(),
+			Timestamp: time.Now(),
+		}
+	}
+
+	return smo.HealthStatus{
+		Healthy:   true,
+		Message:   "OSM NBI connection healthy",
+		Timestamp: time.Now(),
+		Details: map[string]smo.ComponentHealth{
+			"osm-nbi": {
+				Name:    "osm-nbi",
+				Healthy: true,
+				Message: "Connected",
+			},
+		},
+	}
+}
+
+// === Infrastructure Sync Operations ===
+
+// SyncInfrastructureInventory synchronizes O2-IMS infrastructure inventory to OSM.
+// This implements the smo.Plugin interface by transforming netweave inventory to VIM accounts.
+func (p *Plugin) SyncInfrastructureInventory(ctx context.Context, inventory *smo.InfrastructureInventory) error {
 	if inventory == nil {
 		return fmt.Errorf("inventory cannot be nil")
 	}
@@ -62,8 +137,9 @@ func (p *Plugin) SyncDeploymentInventory(ctx context.Context, inventory *smo.Dep
 	return nil
 }
 
-// PublishInfrastructureEventSMO publishes an infrastructure change event to OSM.
-func (p *Plugin) PublishInfrastructureEventSMO(ctx context.Context, event *smo.InfrastructureEvent) error {
+// PublishInfrastructureEvent publishes an infrastructure change event to OSM.
+// This implements the smo.Plugin interface.
+func (p *Plugin) PublishInfrastructureEvent(ctx context.Context, event *smo.InfrastructureEvent) error {
 	if event == nil {
 		return fmt.Errorf("event cannot be nil")
 	}
@@ -72,7 +148,7 @@ func (p *Plugin) PublishInfrastructureEventSMO(ctx context.Context, event *smo.I
 		return nil
 	}
 
-	// Transform to OSM event format and publish
+	// Transform to OSM event format and publish using internal method
 	osmEvent := &InfrastructureEvent{
 		EventType:    event.EventType,
 		ResourceType: event.ResourceType,
@@ -81,7 +157,7 @@ func (p *Plugin) PublishInfrastructureEventSMO(ctx context.Context, event *smo.I
 		Data:         event.Payload,
 	}
 
-	return p.PublishInfrastructureEvent(ctx, osmEvent)
+	return p.publishOSMEvent(ctx, osmEvent)
 }
 
 // PublishDeploymentEvent publishes a deployment change event.
