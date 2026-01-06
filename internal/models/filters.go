@@ -196,77 +196,77 @@ func ParseQueryParams(params url.Values) *Filter {
 func (f *Filter) ToQueryParams() url.Values {
 	params := url.Values{}
 
-	// Add resource pool IDs
+	f.addIDFilters(params)
+	f.addStringFilters(params)
+	f.addLabelsFilter(params)
+	f.addPaginationParams(params)
+	f.addSortingParams(params)
+
+	return params
+}
+
+// addIDFilters adds ID-based filter parameters
+func (f *Filter) addIDFilters(params url.Values) {
 	for _, poolID := range f.ResourcePoolID {
 		params.Add("resourcePoolId", poolID)
 	}
-
-	// Add resource type IDs
 	for _, typeID := range f.ResourceTypeID {
 		params.Add("resourceTypeId", typeID)
 	}
-
-	// Add resource IDs
 	for _, resourceID := range f.ResourceID {
 		params.Add("resourceId", resourceID)
 	}
+}
 
-	// Add location
-	if f.Location != "" {
-		params.Set("location", f.Location)
+// addStringFilters adds string-based filter parameters
+func (f *Filter) addStringFilters(params url.Values) {
+	stringFilters := map[string]string{
+		"location":      f.Location,
+		"oCloudId":      f.OCloudID,
+		"resourceClass": f.ResourceClass,
+		"resourceKind":  f.ResourceKind,
+		"vendor":        f.Vendor,
+		"model":         f.Model,
 	}
 
-	// Add O-Cloud ID
-	if f.OCloudID != "" {
-		params.Set("oCloudId", f.OCloudID)
-	}
-
-	// Add resource class
-	if f.ResourceClass != "" {
-		params.Set("resourceClass", f.ResourceClass)
-	}
-
-	// Add resource kind
-	if f.ResourceKind != "" {
-		params.Set("resourceKind", f.ResourceKind)
-	}
-
-	// Add vendor
-	if f.Vendor != "" {
-		params.Set("vendor", f.Vendor)
-	}
-
-	// Add model
-	if f.Model != "" {
-		params.Set("model", f.Model)
-	}
-
-	// Add labels (format: "key1:value1,key2:value2")
-	if len(f.Labels) > 0 {
-		var labelPairs []string
-		for key, value := range f.Labels {
-			labelPairs = append(labelPairs, key+":"+value)
+	for key, value := range stringFilters {
+		if value != "" {
+			params.Set(key, value)
 		}
-		params.Set("labels", strings.Join(labelPairs, ","))
+	}
+}
+
+// addLabelsFilter adds label-based filter parameters
+func (f *Filter) addLabelsFilter(params url.Values) {
+	if len(f.Labels) == 0 {
+		return
 	}
 
-	// Add pagination
+	labelPairs := make([]string, 0, len(f.Labels))
+	for key, value := range f.Labels {
+		labelPairs = append(labelPairs, key+":"+value)
+	}
+	params.Set("labels", strings.Join(labelPairs, ","))
+}
+
+// addPaginationParams adds pagination parameters
+func (f *Filter) addPaginationParams(params url.Values) {
 	if f.Limit > 0 {
 		params.Set("limit", strconv.Itoa(f.Limit))
 	}
 	if f.Offset > 0 {
 		params.Set("offset", strconv.Itoa(f.Offset))
 	}
+}
 
-	// Add sorting
+// addSortingParams adds sorting parameters
+func (f *Filter) addSortingParams(params url.Values) {
 	if f.SortBy != "" {
 		params.Set("sortBy", f.SortBy)
 	}
 	if f.SortOrder != "" {
 		params.Set("sortOrder", f.SortOrder)
 	}
-
-	return params
 }
 
 // MatchesResourcePool checks if a ResourcePool matches this filter's criteria.
