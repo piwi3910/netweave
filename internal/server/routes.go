@@ -85,6 +85,9 @@ func (s *Server) setupRoutes() {
 	// API information endpoint
 	s.router.GET("/o2ims", s.handleAPIInfo)
 	s.router.GET("/", s.handleRoot)
+
+	// Documentation endpoints (OpenAPI spec and Swagger UI)
+	s.setupDocsRoutes()
 }
 
 // Health check handlers
@@ -134,7 +137,9 @@ func (s *Server) handleRoot(c *gin.Context) {
 			"health":   "/health",
 			"ready":    "/ready",
 			"metrics":  s.config.Observability.Metrics.Path,
-			"api_base": "/o2ims-infrastructureInventory/v1",
+			"api_base": "/o2ims/v1",
+			"docs":     "/docs/",
+			"openapi":  "/openapi.yaml",
 		},
 	})
 }
