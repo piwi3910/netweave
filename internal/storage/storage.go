@@ -79,6 +79,11 @@ type Store interface {
 	// The context is used for timeout and cancellation.
 	ListByResourceType(ctx context.Context, resourceTypeID string) ([]*Subscription, error)
 
+	// ListByTenant retrieves subscriptions filtered by tenant ID.
+	// Returns an empty slice if no matching subscriptions exist.
+	// The context is used for timeout and cancellation.
+	ListByTenant(ctx context.Context, tenantID string) ([]*Subscription, error)
+
 	// Close closes the storage connection and releases resources.
 	// After calling Close, the store should not be used.
 	Close() error
