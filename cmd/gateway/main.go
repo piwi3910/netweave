@@ -413,6 +413,7 @@ func gracefulShutdown(ctx context.Context, srv *server.Server, cfg *config.Confi
 	shutdownComplete := make(chan error, 1)
 
 	// Perform shutdown in a goroutine
+	//nolint:contextcheck // srv.Shutdown() uses shutdownCtx from parent scope internally
 	go func() {
 		// Shutdown HTTP server
 		if err := srv.Shutdown(); err != nil {
