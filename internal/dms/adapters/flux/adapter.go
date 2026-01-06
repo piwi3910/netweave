@@ -322,21 +322,21 @@ func (f *FluxAdapter) ListDeploymentPackages(ctx context.Context, filter *adapte
 		return nil, err
 	}
 
-	packages := make([]*adapter.DeploymentPackage, 0)
-
-	// List GitRepositories
+	// Fetch both lists first to enable preallocation
 	gitRepos, err := f.listGitRepositories(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
-	for _, repo := range gitRepos {
-		packages = append(packages, f.transformGitRepoToPackage(repo))
-	}
-
-	// List HelmRepositories
 	helmRepos, err := f.listHelmRepositories(ctx, filter)
 	if err != nil {
 		return nil, err
+	}
+
+	// Preallocate with combined capacity
+	packages := make([]*adapter.DeploymentPackage, 0, len(gitRepos)+len(helmRepos))
+
+	for _, repo := range gitRepos {
+		packages = append(packages, f.transformGitRepoToPackage(repo))
 	}
 	for _, repo := range helmRepos {
 		packages = append(packages, f.transformHelmRepoToPackage(repo))
@@ -465,25 +465,25 @@ func (f *FluxAdapter) ListDeployments(ctx context.Context, filter *adapter.Filte
 		return nil, err
 	}
 
-	deployments := make([]*adapter.Deployment, 0)
-
-	// List HelmReleases
+	// Fetch both lists first to enable preallocation
 	helmReleases, err := f.listHelmReleases(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
+	kustomizations, err := f.listKustomizations(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	// Preallocate with combined capacity
+	deployments := make([]*adapter.Deployment, 0, len(helmReleases)+len(kustomizations))
+
 	for _, hr := range helmReleases {
 		deployment := f.transformHelmReleaseToDeployment(hr)
 		if filter != nil && filter.Status != "" && deployment.Status != filter.Status {
 			continue
 		}
 		deployments = append(deployments, deployment)
-	}
-
-	// List Kustomizations
-	kustomizations, err := f.listKustomizations(ctx, filter)
-	if err != nil {
-		return nil, err
 	}
 	for _, ks := range kustomizations {
 		deployment := f.transformKustomizationToDeployment(ks)
