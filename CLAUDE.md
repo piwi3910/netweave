@@ -11,14 +11,14 @@ This file provides development guidelines for Claude Code when working on the O2
 - Framework: Gin (HTTP)
 - Storage: Redis OSS 7.4+ (Sentinel)
 - Container Orchestration: Kubernetes 1.30+
-- Service Mesh: Istio 1.23+
-- Certificate Management: cert-manager 1.15+
+- TLS: Native Go TLS 1.3 + cert-manager 1.15+
+- Deployment: Helm 3.x + Custom Operator
 
 **Architecture:**
 - Stateless gateway pods (3+ replicas)
 - Redis for subscriptions, caching, and inter-pod communication
 - Kubernetes API as source of truth for infrastructure resources
-- mTLS everywhere (pod-to-pod, pod-to-external, pod-to-backend)
+- Native Go TLS 1.3 for mTLS (no service mesh overhead)
 - Multi-cluster capable via Redis replication
 
 ## Code Quality Standards - ZERO TOLERANCE
@@ -136,18 +136,53 @@ make security-scan
 
 ### 3. Testing Standards - MANDATORY
 
-**All code MUST have comprehensive tests.**
+**All code MUST have comprehensive tests with ≥80% coverage.**
+
+This project follows a complete testing pyramid with unit tests, integration tests, and functional/E2E tests. **ALL** test types are mandatory for production-grade quality.
 
 #### Test Coverage Requirements:
 
-- **Unit Tests:** ≥80% coverage for all packages
-- **Integration Tests:** All API endpoints
-- **E2E Tests:** Critical user flows (subscriptions, resource queries)
+- **Unit Tests:** ≥80% coverage for all packages (enforced in CI)
+- **Integration Tests:** ALL API endpoints tested with real dependencies
+- **Functional/E2E Tests:** ALL critical user flows tested end-to-end
 
-#### Test Patterns:
+#### Test Framework Setup:
+
+**Required Testing Libraries:**
+```go
+import (
+    "testing"
+    "github.com/stretchr/testify/assert"   // Assertions
+    "github.com/stretchr/testify/require"  // Fatal assertions
+    "github.com/stretchr/testify/mock"     // Mocking
+    "github.com/stretchr/testify/suite"    // Test suites
+    "go.uber.org/mock/gomock"              // Mock generation
+)
+```
+
+**Development Dependencies:**
+- `github.com/stretchr/testify` - Assertion and mocking framework
+- `go.uber.org/mock` - Mock code generation for interfaces
+- `github.com/DATA-DOG/go-sqlmock` - SQL mocking (if using SQL)
+- `github.com/alicebob/miniredis/v2` - Redis mocking for unit tests
+- `github.com/testcontainers/testcontainers-go` - Real containers for integration tests
+
+#### 3.1 Unit Testing
+
+**Purpose:** Test individual functions, methods, and packages in isolation.
+
+**Requirements:**
+- ✅ Every exported function MUST have unit tests
+- ✅ Table-driven tests for multiple scenarios
+- ✅ Mock external dependencies (Redis, Kubernetes, HTTP clients)
+- ✅ Test success cases AND all error paths
+- ✅ Test edge cases and boundary conditions
+- ✅ Fast execution (< 5s for full unit test suite)
+
+**Unit Test Pattern (MANDATORY):**
 
 ```go
-// Table-driven tests (PREFERRED)
+// Table-driven tests (ALWAYS USE THIS PATTERN)
 func TestSubscriptionStore_Create(t *testing.T) {
     tests := []struct {
         name    string
@@ -171,42 +206,315 @@ func TestSubscriptionStore_Create(t *testing.T) {
             wantErr: true,
             errType: ErrSubscriptionExists,
         },
+        {
+            name: "missing callback URL",
+            sub: &O2Subscription{
+                ID: "sub-456",
+            },
+            wantErr: true,
+            errType: ErrInvalidCallback,
+        },
     }
 
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
+            // Setup: Create mocked dependencies
+            mockRedis := miniredis.RunT(t)
+            defer mockRedis.Close()
+
+            store := NewStore(mockRedis.Addr())
+
+            // Execute
             err := store.Create(context.Background(), tt.sub)
+
+            // Assert
             if tt.wantErr {
                 require.Error(t, err)
                 require.ErrorIs(t, err, tt.errType)
             } else {
                 require.NoError(t, err)
+
+                // Verify subscription was actually stored
+                got, err := store.Get(context.Background(), tt.sub.ID)
+                require.NoError(t, err)
+                assert.Equal(t, tt.sub.ID, got.ID)
             }
         })
     }
 }
 ```
 
+**Mocking Best Practices:**
+
+```go
+// Generate mocks using gomock
+//go:generate mockgen -source=adapter.go -destination=mocks/adapter_mock.go -package=mocks
+
+// Use mocks in tests
+func TestHandler_CreateSubscription(t *testing.T) {
+    ctrl := gomock.NewController(t)
+    defer ctrl.Finish()
+
+    mockAdapter := mocks.NewMockAdapter(ctrl)
+    mockAdapter.EXPECT().
+        CreateSubscription(gomock.Any(), gomock.Any()).
+        Return(nil)
+
+    handler := NewHandler(mockAdapter)
+    // ... test logic
+}
+```
+
+#### 3.2 Integration Testing
+
+**Purpose:** Test multiple components working together with real dependencies.
+
+**Requirements:**
+- ✅ Test with REAL Redis (via testcontainers)
+- ✅ Test with REAL Kubernetes API (via envtest or kind)
+- ✅ Test ALL API endpoints end-to-end
+- ✅ Test subscription workflows (create → event → webhook)
+- ✅ Test failure scenarios (Redis down, K8s unavailable)
+- ✅ Cleanup after each test (isolated environments)
+
+**Integration Test Pattern:**
+
+```go
+// tests/integration/subscription_test.go
+func TestSubscriptionIntegration(t *testing.T) {
+    if testing.Short() {
+        t.Skip("Skipping integration test in short mode")
+    }
+
+    // Setup: Start real Redis container
+    ctx := context.Background()
+    redisContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+        ContainerRequest: testcontainers.ContainerRequest{
+            Image:        "redis:7.4-alpine",
+            ExposedPorts: []string{"6379/tcp"},
+            WaitingFor:   wait.ForLog("Ready to accept connections"),
+        },
+        Started: true,
+    })
+    require.NoError(t, err)
+    defer redisContainer.Terminate(ctx)
+
+    // Get Redis connection details
+    redisHost, err := redisContainer.Host(ctx)
+    require.NoError(t, err)
+    redisPort, err := redisContainer.MappedPort(ctx, "6379")
+    require.NoError(t, err)
+
+    // Setup gateway with real Redis
+    cfg := &config.Config{
+        Redis: config.RedisConfig{
+            Addr: fmt.Sprintf("%s:%s", redisHost, redisPort.Port()),
+        },
+    }
+    gateway := server.New(cfg)
+
+    // Test: Create subscription via API
+    req := httptest.NewRequest("POST", "/o2ims/v1/subscriptions",
+        strings.NewReader(`{
+            "callback": "https://smo.example.com/notify",
+            "consumerSubscriptionId": "smo-sub-123"
+        }`))
+    w := httptest.NewRecorder()
+
+    gateway.ServeHTTP(w, req)
+
+    // Assert: Subscription created and stored in Redis
+    assert.Equal(t, http.StatusCreated, w.Code)
+
+    // Verify in Redis
+    client := redis.NewClient(&redis.Options{
+        Addr: fmt.Sprintf("%s:%s", redisHost, redisPort.Port()),
+    })
+    val, err := client.Get(ctx, "subscription:*").Result()
+    require.NoError(t, err)
+    assert.Contains(t, val, "smo-sub-123")
+}
+```
+
+**Running Integration Tests:**
+
+```bash
+# Run integration tests only
+make test-integration
+
+# Run with verbose output
+go test -v ./tests/integration/... -tags=integration
+
+# Run specific integration test
+go test -v ./tests/integration/... -run=TestSubscriptionIntegration
+```
+
+#### 3.3 Functional/E2E Testing
+
+**Purpose:** Test complete user workflows from start to finish as a black box.
+
+**Requirements:**
+- ✅ Test COMPLETE user journeys (not individual operations)
+- ✅ Use real Kubernetes cluster (kind or minikube)
+- ✅ Test subscription notifications end-to-end
+- ✅ Test multi-component interactions
+- ✅ Test failure and recovery scenarios
+- ✅ Measure end-to-end latency and performance
+
+**E2E Test Pattern:**
+
+```go
+// tests/e2e/subscription_workflow_test.go
+func TestE2E_SubscriptionWorkflow(t *testing.T) {
+    if testing.Short() {
+        t.Skip("Skipping E2E test in short mode")
+    }
+
+    // Setup: Deploy full stack (Gateway + Redis + K8s)
+    e2e := setupE2EEnvironment(t)
+    defer e2e.Cleanup()
+
+    // Step 1: Create subscription
+    t.Log("Creating subscription...")
+    subID := e2e.CreateSubscription(&Subscription{
+        Callback: e2e.WebhookServerURL(),
+        Filter: SubscriptionFilter{
+            ResourcePoolID: "pool-test",
+        },
+    })
+
+    // Step 2: Create a resource pool (triggers event)
+    t.Log("Creating resource pool to trigger event...")
+    poolID := e2e.CreateResourcePool(&ResourcePool{
+        Name: "test-pool",
+        Description: "E2E test pool",
+    })
+
+    // Step 3: Wait for webhook notification
+    t.Log("Waiting for webhook notification...")
+    notification := e2e.WaitForWebhook(10 * time.Second)
+
+    // Assert: Webhook received with correct data
+    require.NotNil(t, notification)
+    assert.Equal(t, subID, notification.SubscriptionID)
+    assert.Equal(t, poolID, notification.Resource.ResourcePoolID)
+    assert.Equal(t, "ResourcePoolCreated", notification.EventType)
+
+    // Measure: End-to-end latency
+    latency := notification.ReceivedAt.Sub(notification.Timestamp)
+    assert.Less(t, latency, 1*time.Second, "Webhook latency exceeded 1s SLA")
+
+    t.Logf("E2E test completed in %v", latency)
+}
+```
+
+**E2E Test Utilities:**
+
+```go
+// tests/e2e/helpers.go
+type E2EEnvironment struct {
+    KubeClient    kubernetes.Interface
+    GatewayURL    string
+    WebhookServer *httptest.Server
+    notifications chan *Notification
+}
+
+func setupE2EEnvironment(t *testing.T) *E2EEnvironment {
+    // Start kind cluster
+    cluster := kind.CreateCluster(t)
+
+    // Deploy gateway + Redis via Helm
+    helm.Install(t, "netweave", "./helm/netweave")
+
+    // Start webhook receiver
+    webhookServer := startWebhookServer(t)
+
+    return &E2EEnvironment{
+        KubeClient:    cluster.Client(),
+        GatewayURL:    "http://localhost:8080",
+        WebhookServer: webhookServer,
+        notifications: make(chan *Notification, 100),
+    }
+}
+```
+
+#### Test Organization:
+
+```
+netweave/
+├── internal/
+│   ├── adapter/
+│   │   ├── adapter.go
+│   │   ├── adapter_test.go         # Unit tests
+│   │   └── mocks/
+│   │       └── adapter_mock.go     # Generated mocks
+│   ├── storage/
+│   │   ├── redis.go
+│   │   └── redis_test.go           # Unit tests
+├── tests/
+│   ├── integration/
+│   │   ├── api_test.go             # API integration tests
+│   │   ├── subscription_test.go     # Subscription integration tests
+│   │   └── helpers.go
+│   └── e2e/
+│       ├── subscription_workflow_test.go  # E2E tests
+│       ├── resource_lifecycle_test.go
+│       └── helpers.go
+```
+
 #### Running Tests:
 
 ```bash
-# Run all tests
+# Run ONLY unit tests (fast, for development)
 make test
+go test ./... -short
 
-# Run tests with coverage
+# Run tests with coverage report
 make test-coverage
+go test ./... -coverprofile=coverage.out
+go tool cover -html=coverage.out
 
-# Run integration tests
+# Run integration tests (requires Docker)
 make test-integration
+go test ./tests/integration/... -tags=integration
 
-# Run E2E tests
+# Run E2E tests (requires Kubernetes)
 make test-e2e
+go test ./tests/e2e/... -tags=e2e
 
-# Watch mode (development)
+# Run ALL tests (unit + integration + E2E)
+make test-all
+
+# Watch mode (auto-run tests on file change)
 make test-watch
 ```
 
-**Tests MUST pass before commit. No exceptions.**
+#### Test Enforcement:
+
+**Pre-Commit Checks:**
+- ✅ Unit tests MUST pass (`make test`)
+- ✅ Coverage MUST be ≥80% (`make test-coverage`)
+- ✅ No test files with `t.Skip()` without justification
+
+**CI Pipeline Checks:**
+- ✅ Unit tests (fast feedback)
+- ✅ Integration tests (with testcontainers)
+- ✅ E2E tests (with kind cluster)
+- ✅ Coverage report uploaded to Codecov
+- ✅ ALL must pass before merge
+
+**Coverage Requirements:**
+```bash
+# Coverage MUST be ≥80% for:
+- All packages in internal/
+- All packages in pkg/
+
+# Exceptions (document why):
+- cmd/ (main packages)
+- tests/ (test helpers)
+```
+
+**Tests MUST pass before commit. No exceptions. No skipped tests without documented reasons.**
 
 ### 4. Code Style - Go Best Practices
 
@@ -358,7 +666,166 @@ func (s *Store) Create(ctx context.Context, sub *O2Subscription) error
 - `docs/operations.md` - Operational runbooks (backup, restore, failover)
 - `CONTRIBUTING.md` - How to contribute (PR process, coding standards)
 
-### 6. Git Workflow - MANDATORY
+### 6. Documentation Standards - MANDATORY
+
+**All documentation MUST be kept up-to-date with code changes.**
+
+Documentation is a **first-class requirement** - not an afterthought. Every code change that affects user-facing behavior, APIs, architecture, or deployment MUST include corresponding documentation updates **in the same commit/PR**.
+
+#### 6.1 Documentation Update Requirements
+
+**MANDATORY:** Documentation updates are REQUIRED for these change types:
+
+| Change Type | Required Documentation Updates |
+|------------|-------------------------------|
+| **New API Endpoint** | • [docs/api-mapping.md](docs/api-mapping.md) - Add O2-IMS ↔ K8s mapping<br>• Update OpenAPI spec<br>• Add request/response examples |
+| **API Modification** | • [docs/api-mapping.md](docs/api-mapping.md) - Update mappings<br>• Update OpenAPI spec<br>• Document breaking changes |
+| **Architecture Change** | • [docs/architecture.md](docs/architecture.md) - Update component diagrams<br>• [ARCHITECTURE_SUMMARY.md](ARCHITECTURE_SUMMARY.md) - Update summary<br>• Update data flow diagrams |
+| **Deployment Change** | • [README.md](README.md) - Update quickstart if affected<br>• Update deployment guides<br>• Update Helm values documentation |
+| **Security Change** | • [docs/architecture.md](docs/architecture.md) - Update security section<br>• Document new security controls<br>• Update threat model |
+| **Configuration Change** | • Document new config options<br>• Update example configs<br>• Update environment variable docs |
+| **New Feature** | • [README.md](README.md) - Update features list<br>• Add usage examples<br>• Update architecture if components added |
+| **Breaking Change** | • **ALL relevant docs**<br>• Migration guide<br>• Changelog with clear warnings |
+
+#### 6.2 Documentation Types and Standards
+
+**Architecture Documentation:**
+- **Location:** [docs/architecture.md](docs/architecture.md), [docs/architecture-part2.md](docs/architecture-part2.md)
+- **Content:** Component diagrams, data flows, technology decisions, HA/DR design
+- **Update When:** Architecture changes, new components, technology stack updates
+- **Format:** Markdown with Mermaid diagrams where applicable
+- **Review:** Requires architecture review for major changes
+
+**API Documentation:**
+- **Location:** [docs/api-mapping.md](docs/api-mapping.md), OpenAPI spec
+- **Content:** Complete O2-IMS ↔ Kubernetes mappings with examples
+- **Update When:** Any API endpoint change (new, modified, deprecated)
+- **Format:** Markdown with code examples (request/response JSON)
+- **Testing:** All examples MUST be tested and working
+
+**Code Documentation (GoDoc):**
+```go
+// ✅ REQUIRED: All exported types, functions, methods
+// Subscription represents an O2-IMS subscription for resource change notifications.
+// Subscribers receive webhook callbacks when watched resources are created, updated, or deleted.
+//
+// Example:
+//
+//	sub := &Subscription{
+//	    ID:       uuid.New().String(),
+//	    Callback: "https://smo.example.com/notify",
+//	    Filter: SubscriptionFilter{
+//	        ResourceTypeID: []string{"compute-node"},
+//	    },
+//	}
+type Subscription struct { ... }
+
+// Create creates a new subscription in the store.
+// Returns ErrSubscriptionExists if a subscription with the same ID already exists.
+// Returns ErrInvalidCallback if the callback URL is invalid.
+// The context is used for timeout and cancellation.
+func (s *Store) Create(ctx context.Context, sub *Subscription) error { ... }
+```
+
+**README.md:**
+- **Purpose:** First contact point for users - project overview and quickstart
+- **Update When:**
+  - Feature list changes
+  - Technology stack changes
+  - Installation/setup process changes
+  - Prerequisites change
+- **Must Include:**
+  - Current feature list
+  - Accurate technology stack
+  - Working quickstart commands
+  - Links to detailed documentation
+
+**ARCHITECTURE_SUMMARY.md:**
+- **Purpose:** Executive summary for stakeholders
+- **Update When:**
+  - Major architecture changes
+  - Technology decisions change
+  - Key metrics change (SLAs, performance targets)
+- **Keep Synchronized With:** [docs/architecture.md](docs/architecture.md), [README.md](README.md)
+
+#### 6.3 Documentation Quality Standards
+
+**All Documentation Must:**
+- ✅ Be accurate and current (no outdated information)
+- ✅ Include working code examples (tested, not pseudo-code)
+- ✅ Use proper Markdown formatting (pass markdownlint)
+- ✅ Include diagrams for complex concepts (Mermaid preferred)
+- ✅ Be clear and concise (avoid jargon without explanation)
+- ✅ Include links to related documentation
+
+**Code Examples in Documentation:**
+```bash
+# ❌ BAD: Outdated or non-working example
+curl -X GET http://localhost:8080/api/v1/subscriptions
+
+# ✅ GOOD: Current, working example with full context
+curl -X GET https://netweave.example.com/o2ims/v1/subscriptions \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt \
+  -H "Accept: application/json"
+```
+
+#### 6.4 Documentation Update Workflow
+
+**During Development:**
+1. **Identify Impact:** When making code changes, identify which docs are affected
+2. **Update Docs:** Update documentation in the SAME branch as code changes
+3. **Review Examples:** Ensure all code examples still work
+4. **Check Links:** Verify internal documentation links are valid
+
+**Before Committing:**
+```bash
+# Lint documentation
+make lint-docs
+
+# Verify Markdown formatting
+markdownlint docs/ *.md
+
+# Check for broken links
+make check-links
+
+# Verify examples (if applicable)
+make verify-examples
+```
+
+**In Pull Request:**
+- ✅ Include documentation updates in the SAME PR as code
+- ✅ List documentation changes in PR description
+- ✅ Mark "Documentation updated" checkbox in PR template
+- ✅ Request review from documentation owners (if applicable)
+
+**Example PR Checklist:**
+```markdown
+## Documentation Updates
+
+- [x] Updated docs/api-mapping.md with new subscription filter syntax
+- [x] Updated OpenAPI spec with new filter parameters
+- [x] Added code examples for new filter options
+- [x] Verified all examples are tested and working
+- [x] Updated ARCHITECTURE_SUMMARY.md with new feature
+- [ ] N/A - No user-facing changes
+```
+
+#### 6.5 Documentation Violations (BLOCKING)
+
+**These will BLOCK PR merge:**
+- ❌ API change without updating [docs/api-mapping.md](docs/api-mapping.md)
+- ❌ Architecture change without updating [docs/architecture.md](docs/architecture.md)
+- ❌ New feature without updating [README.md](README.md) features list
+- ❌ Breaking change without migration guide
+- ❌ Code examples that don't work or are outdated
+- ❌ Missing GoDoc comments on exported types/functions
+- ❌ Markdown linting failures
+
+**Documentation is Code - Treat it with the same rigor as implementation.**
+
+### 7. Git Workflow - MANDATORY
 
 #### Branch Protection:
 
@@ -661,20 +1128,34 @@ gh pr create --title "feat(subscription): add resource type filter" \
 
 1. **ALWAYS run linters** after writing code: `make lint`
 2. **NEVER disable linters** - fix the code instead
-3. **ALWAYS write tests** alongside implementation
+3. **ALWAYS write tests** alongside implementation:
+   - Unit tests for all new functions/methods (≥80% coverage)
+   - Integration tests for API endpoints
+   - E2E tests for critical user workflows
 4. **ALWAYS check security** with `gosec` before committing
 5. **ALWAYS use structured logging** with appropriate levels
 6. **ALWAYS add metrics** for critical operations
-7. **ALWAYS document** exported functions and types
+7. **ALWAYS document** exported functions and types with GoDoc
 8. **ALWAYS handle errors** properly (wrap with context)
+9. **ALWAYS update documentation** when making changes:
+   - Update [docs/api-mapping.md](docs/api-mapping.md) for API changes
+   - Update [docs/architecture.md](docs/architecture.md) for architecture changes
+   - Update [README.md](README.md) for feature/tech stack changes
+   - Update code examples to match current implementation
 
 ### When Reviewing Code:
 
 1. Check linting passes: `make lint`
-2. Check tests pass: `make test`
+2. Check ALL tests pass:
+   - `make test` (unit tests with ≥80% coverage)
+   - `make test-integration` (integration tests)
+   - `make test-e2e` (E2E tests for critical flows)
 3. Check coverage: `make test-coverage`
 4. Check security: `make security-scan`
-5. Verify documentation exists
+5. Verify documentation updated:
+   - GoDoc for new exported types/functions
+   - Relevant docs/ files updated
+   - Code examples tested and working
 6. Verify observability (logs, metrics, traces)
 
 ### Common Violations to Avoid:
@@ -683,45 +1164,87 @@ gh pr create --title "feat(subscription): add resource type filter" \
 ❌ Ignoring errors with `_` operator
 ❌ Hardcoding secrets or credentials
 ❌ Using `interface{}` or `any` without justification
-❌ Missing tests for new code
+❌ Missing tests for new code (unit, integration, or E2E)
+❌ Tests with `t.Skip()` without documented justification
+❌ Test coverage below 80%
 ❌ Exposing internal errors to external clients
 ❌ Logging sensitive information
 ❌ Disabling security checks
 ❌ Committing without running quality checks
 ❌ Creating PRs without linking to GitHub issues
+❌ Code changes without documentation updates
+❌ Outdated code examples in documentation
+❌ Missing GoDoc comments on exported functions
+❌ Markdown linting failures in documentation
 
 ### Quality Gates (MUST PASS):
 
 Every commit and PR must pass:
 1. ✅ `make fmt` - Code formatting
 2. ✅ `make lint` - All linters (zero warnings)
-3. ✅ `make test` - All tests pass
-4. ✅ `make test-coverage` - Coverage ≥80%
-5. ✅ `make security-scan` - No security issues
-6. ✅ Pre-commit hooks - All automated checks
-7. ✅ PR review - Minimum 1 approval
-8. ✅ CI pipeline - All checks green
+3. ✅ `make test` - All unit tests pass
+4. ✅ `make test-coverage` - Coverage ≥80% for internal/ and pkg/
+5. ✅ `make test-integration` - All integration tests pass
+6. ✅ `make test-e2e` - All E2E tests pass (for critical flows)
+7. ✅ `make security-scan` - No security vulnerabilities
+8. ✅ `make lint-docs` - Documentation formatting passes
+9. ✅ Pre-commit hooks - All automated checks pass
+10. ✅ Documentation updated - All affected docs synchronized
+11. ✅ PR review - Minimum 1 approval
+12. ✅ CI pipeline - All checks green
 
 ## Makefile Targets
 
 All common operations have Makefile targets:
 
 ```bash
+# Setup and Installation
 make help              # Show all available targets
-make install-tools     # Install development tools
+make install-tools     # Install development tools (golangci-lint, gosec, etc.)
 make install-hooks     # Install git pre-commit hooks
-make fmt               # Format code
-make lint              # Run all linters
-make test              # Run unit tests
-make test-coverage     # Run tests with coverage report
-make test-integration  # Run integration tests
-make test-e2e          # Run E2E tests
-make security-scan     # Run security scanners
-make quality           # Run all quality checks (lint+test+security)
+make verify-setup      # Verify development environment setup
+
+# Code Quality
+make fmt               # Format code (gofmt, goimports)
+make lint              # Run all linters (golangci-lint)
+make lint-fix          # Auto-fix linting issues where possible
+
+# Testing
+make test              # Run unit tests (fast, -short flag)
+make test-coverage     # Run tests with coverage report (≥80% required)
+make test-integration  # Run integration tests (requires Docker)
+make test-e2e          # Run E2E tests (requires Kubernetes)
+make test-all          # Run ALL tests (unit + integration + E2E)
+make test-watch        # Watch mode for development
+
+# Security
+make security-scan     # Run all security scanners (gosec + govulncheck)
+make check-secrets     # Check for committed secrets (gitleaks)
+
+# Documentation
+make lint-docs         # Lint all Markdown documentation
+make check-links       # Verify documentation links are valid
+make verify-examples   # Verify code examples in docs are working
+
+# Quality Gates
+make pre-commit        # Run all pre-commit checks
+make quality           # Run all quality checks (REQUIRED before PR)
+make ci                # Run full CI pipeline locally
+
+# Build
 make build             # Build binary
+make build-all         # Build for all platforms (Linux, Darwin, amd64, arm64)
 make docker-build      # Build Docker image
-make deploy-dev        # Deploy to dev environment
+make docker-scan       # Scan Docker image with Trivy
+
+# Deployment
+make deploy-dev        # Deploy to development environment
+make deploy-staging    # Deploy to staging environment
+make deploy-prod       # Deploy to production (with confirmation)
+
+# Utilities
 make clean             # Clean build artifacts
+make deps-upgrade      # Upgrade Go dependencies
 ```
 
 ## Resources
