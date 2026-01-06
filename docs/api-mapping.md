@@ -8,16 +8,15 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Request Validation](#request-validation)
-3. [Multi-Backend Adapter Routing](#multi-backend-adapter-routing)
-4. [API Versioning and Evolution](#api-versioning-and-evolution)
-5. [Deployment Manager](#deployment-manager)
-6. [Resource Pools](#resource-pools)
-7. [Resources](#resources)
-8. [Resource Types](#resource-types)
-9. [Subscriptions](#subscriptions)
-10. [Data Transformation Examples](#data-transformation-examples)
-11. [Backend-Specific Mappings](#backend-specific-mappings)
+2. [Multi-Backend Adapter Routing](#multi-backend-adapter-routing)
+3. [API Versioning and Evolution](#api-versioning-and-evolution)
+4. [Deployment Manager](#deployment-manager)
+5. [Resource Pools](#resource-pools)
+6. [Resources](#resources)
+7. [Resource Types](#resource-types)
+8. [Subscriptions](#subscriptions)
+9. [Data Transformation Examples](#data-transformation-examples)
+10. [Backend-Specific Mappings](#backend-specific-mappings)
 
 ---
 
@@ -47,152 +46,6 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 | Subscription | Redis (O2-IMS specific) | ✅ Full | CRUD |
 
 ---
-
-## Request Validation
-
-All API requests are validated against the OpenAPI 3.0 specification before being processed by handlers. This ensures O2-IMS compliance and provides clear error messages for invalid requests.
-
-### Validation Rules
-
-**Request Body Validation**:
-- All required fields must be present
-- Field types must match schema definitions (string, integer, object, etc.)
-- String formats are validated (URI for callbacks, UUID for IDs)
-- Nested objects are recursively validated
-
-**Parameter Validation**:
-- Path parameters (e.g., `/subscriptions/{subscriptionId}`) must be valid
-- Query parameters are type-checked and validated
-- Required parameters must be provided
-
-**Body Size Limits**:
-- Maximum request body size: **1MB** (configurable)
-- Requests exceeding this limit are rejected with `413 Payload Too Large`
-
-### Excluded Paths
-
-The following paths are excluded from validation (health/monitoring):
-- `/health` - Health check endpoint
-- `/ready` - Readiness probe
-- `/metrics` - Prometheus metrics
-- `/debug/*` - Debug endpoints
-
-### Error Response Format
-
-Validation errors return a standardized JSON response:
-
-```json
-{
-  "error": "ValidationError",
-  "message": "Request body validation failed: missing required field",
-  "code": 400
-}
-```
-
-**Common Validation Errors**:
-
-| Error Message | Cause | Solution |
-|---------------|-------|----------|
-| `missing required field` | Required field not provided | Add the missing field to request body |
-| `invalid field type` | Wrong data type (e.g., string instead of number) | Check field type in API spec |
-| `Invalid parameter 'X'` | Invalid path/query parameter | Verify parameter format |
-| `Request body too large` | Body exceeds size limit | Reduce payload size or check configuration |
-
-### Validation Examples
-
-**Valid Request**:
-```bash
-curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "callback": "https://smo.example.com/notify",
-    "consumerSubscriptionId": "smo-sub-123"
-  }'
-# Response: 201 Created
-```
-
-**Invalid Request (Missing Required Field)**:
-```bash
-curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "consumerSubscriptionId": "smo-sub-123"
-  }'
-# Response: 400 Bad Request
-# {"error":"ValidationError","message":"Request body validation failed: missing required field","code":400}
-```
-
-**Invalid Request (Wrong Type)**:
-```bash
-curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "callback": 12345,
-    "consumerSubscriptionId": "smo-sub-123"
-  }'
-# Response: 400 Bad Request
-# {"error":"ValidationError","message":"Request body validation failed: invalid field type","code":400}
-```
-
-### Configuration
-
-Validation behavior can be configured via environment variables or config file:
-
-```yaml
-# config.yaml
-validation:
-  enabled: true              # Enable/disable request validation
-  validate_response: false   # Response validation (dev/test only)
-  max_body_size: 1048576     # Max body size in bytes (1MB)
-```
-
-**Environment Variables**:
-- `VALIDATION_ENABLED=true` - Enable request validation
-- `VALIDATION_RESPONSE=false` - Enable response validation
-- `VALIDATION_MAX_BODY_SIZE=1048576` - Maximum body size
-
-### Troubleshooting
-
-**Problem**: All requests return 400 validation errors
-- **Check**: Verify `Content-Type: application/json` header is set
-- **Check**: Ensure request body is valid JSON
-
-**Problem**: Request body too large errors
-- **Check**: Review payload size
-- **Solution**: Increase `max_body_size` configuration if needed
-
-**Problem**: Missing required field errors
-- **Check**: Review OpenAPI spec at `api/openapi/o2ims.yaml`
-- **Solution**: Add all required fields to request
-
-**Problem**: Validation not working (requests pass without validation)
-- **Check**: Ensure `validation.enabled: true` in config
-- **Check**: Verify OpenAPI spec is loaded (check startup logs)
-
-### Memory Implications
-
-**Request Body Buffering**:
-- Request bodies up to `max_body_size` (default 1MB) are buffered in memory for validation
-- Each concurrent request with a body consumes memory proportional to its size
-- With 100 concurrent requests of 1MB each, peak memory usage could reach 100MB+ just for request bodies
-
-**Recommendations**:
-- **Production sizing**: Plan for `max_body_size × max_concurrent_requests` additional memory
-- **Reduce max_body_size**: If your API payloads are small, reduce the limit (e.g., 64KB for subscriptions)
-- **Monitor memory**: Use Prometheus metrics to track memory usage patterns
-- **Response validation**: Only enable `validate_response: true` in development - it doubles memory usage per request
-
-**Example Memory Planning**:
-```
-Scenario: 50 concurrent requests, 1MB max body size
-Request body memory: 50 × 1MB = 50MB
-Safety margin: 2x for GC overhead
-Recommended additional memory: 100MB
-
-For high-throughput scenarios:
-- Consider reducing max_body_size to 256KB
-- Use streaming for large payloads (bypass validation)
-```
 
 ## Multi-Backend Adapter Routing
 
@@ -1753,101 +1606,6 @@ func (a *AWSAdapter) transformEC2InstanceToResource(
 }
 ```
 
-### Azure Adapter Mappings
-
-For Azure cloud deployments, the adapter uses Azure SDK to manage infrastructure:
-
-| O2-IMS Resource | Azure Resource | Azure API | Transformation Notes |
-|-----------------|----------------|-----------|----------------------|
-| Deployment Manager | Resource Group | `ResourceGroups.Get` | Resource group metadata |
-| Resource Pool | VM Scale Set | `VirtualMachineScaleSets` | Auto-scaling VM group |
-| Resource | Virtual Machine | `VirtualMachines` | Individual VM in scale set |
-| Resource Type | VM Size | `VirtualMachineSizes` | Standard_D4s_v3, etc. |
-
-**Example Transformation: Azure VMSS → O2-IMS ResourcePool**
-
-```go
-func (a *AzureAdapter) vmssToResourcePool(vmss *armcompute.VirtualMachineScaleSet) *adapter.ResourcePool {
-    return &adapter.ResourcePool{
-        ResourcePoolID: fmt.Sprintf("azure-vmss-%s", *vmss.Name),
-        Name:           *vmss.Name,
-        Description:    fmt.Sprintf("Azure VM Scale Set in %s", *vmss.Location),
-        Location:       *vmss.Location,
-        OCloudID:       a.oCloudID,
-        Extensions: map[string]interface{}{
-            "azure.resourceGroup":  a.resourceGroup,
-            "azure.vmSize":         *vmss.Properties.VirtualMachineProfile.HardwareProfile.VMSize,
-            "azure.capacity":       *vmss.SKU.Capacity,
-            "azure.provisioningState": *vmss.Properties.ProvisioningState,
-        },
-    }
-}
-```
-
-### GCP Adapter Mappings
-
-For Google Cloud deployments, the adapter uses GCP Compute Engine API:
-
-| O2-IMS Resource | GCP Resource | GCP API | Transformation Notes |
-|-----------------|--------------|---------|----------------------|
-| Deployment Manager | Project | `Projects.Get` | Project metadata |
-| Resource Pool | Instance Group | `InstanceGroupManagers` | Managed instance group |
-| Resource | Compute Instance | `Instances` | Individual VM in group |
-| Resource Type | Machine Type | `MachineTypes` | n2-standard-4, etc. |
-
-**Example Transformation: GCP Instance Group → O2-IMS ResourcePool**
-
-```go
-func (a *GCPAdapter) instanceGroupToResourcePool(ig *compute.InstanceGroupManager) *adapter.ResourcePool {
-    return &adapter.ResourcePool{
-        ResourcePoolID: fmt.Sprintf("gcp-mig-%s", ig.Name),
-        Name:           ig.Name,
-        Description:    fmt.Sprintf("GCP Managed Instance Group in %s", ig.Zone),
-        Location:       ig.Zone,
-        OCloudID:       a.oCloudID,
-        Extensions: map[string]interface{}{
-            "gcp.project":       a.projectID,
-            "gcp.zone":          ig.Zone,
-            "gcp.targetSize":    ig.TargetSize,
-            "gcp.instanceTemplate": ig.InstanceTemplate,
-            "gcp.status":        ig.Status,
-        },
-    }
-}
-```
-
-### VMware vSphere Adapter Mappings
-
-For VMware vSphere deployments, the adapter uses govmomi client:
-
-| O2-IMS Resource | VMware Resource | VMware API | Transformation Notes |
-|-----------------|-----------------|------------|----------------------|
-| Deployment Manager | vCenter | `ServiceContent` | vCenter metadata |
-| Resource Pool | Resource Pool | `ResourcePool` | vSphere resource pool |
-| Resource | Virtual Machine | `VirtualMachine` | VM within resource pool |
-| Resource Type | VM Configuration | `VirtualMachineConfigInfo` | CPU/memory specifications |
-
-**Example Transformation: VMware ResourcePool → O2-IMS ResourcePool**
-
-```go
-func (a *VMwareAdapter) vspherePoolToResourcePool(pool *object.ResourcePool) *adapter.ResourcePool {
-    return &adapter.ResourcePool{
-        ResourcePoolID: fmt.Sprintf("vmware-pool-%s", pool.Reference().Value),
-        Name:           pool.Name(),
-        Description:    fmt.Sprintf("VMware Resource Pool %s", pool.Name()),
-        Location:       a.datacenter,
-        OCloudID:       a.oCloudID,
-        Extensions: map[string]interface{}{
-            "vmware.moRef":       pool.Reference().Value,
-            "vmware.datacenter":  a.datacenter,
-            "vmware.cluster":     a.cluster,
-            "vmware.cpuLimit":    pool.Config.CpuAllocation.Limit,
-            "vmware.memoryLimit": pool.Config.MemoryAllocation.Limit,
-        },
-    }
-}
-```
-
 ### Comparison: Multi-Backend Resource Pool Creation
 
 **Same O2-IMS Request, Different Backend Actions**:
@@ -1928,10 +1686,10 @@ eksClient.CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 
 **Mapping Completeness**:
 - ✅ Deployment Manager → Custom Resource (metadata)
-- ✅ Resource Pool → MachineSet / DTIAS Pool / AWS NodeGroup / Azure VMSS / GCP MIG / VMware Pool (full CRUD)
-- ✅ Resource → Node/Machine / DTIAS Server / EC2 Instance / Azure VM / GCP Instance / VMware VM (full CRUD)
-- ✅ Resource Type → Aggregated from Nodes + StorageClasses + Provider Catalogs + Cloud Instance Types
-- ✅ Subscription → Redis + K8s Informers / DTIAS Webhooks / Cloud Events (full CRUD + webhooks)
+- ✅ Resource Pool → MachineSet / DTIAS Pool / AWS NodeGroup (full CRUD)
+- ✅ Resource → Node/Machine / DTIAS Server / EC2 Instance (full CRUD)
+- ✅ Resource Type → Aggregated from Nodes + StorageClasses + Provider Catalogs
+- ✅ Subscription → Redis + K8s Informers / DTIAS Webhooks / AWS EventBridge (full CRUD + webhooks)
 
 **Key Principles**:
 1. Use native K8s resources where possible
@@ -1943,9 +1701,127 @@ eksClient.CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 7. **Support multiple backends simultaneously**
 8. **Abstract backend complexity from SMO clients**
 
+---
+
+## O2-DMS API Mapping
+
+The O2-DMS (Deployment Management Service) API provides lifecycle management for Network Functions (NFs) deployed on the O-Cloud infrastructure.
+
+### O2-DMS Endpoints
+
+| Endpoint | Method | Description | K8s/Backend Action |
+|----------|--------|-------------|-------------------|
+| `/o2dms/v1/deploymentLifecycle` | GET | Get DMS API information | List registered adapters |
+| `/o2dms/v1/nfDeployments` | GET | List NF deployments | List Helm releases / ArgoCD apps |
+| `/o2dms/v1/nfDeployments` | POST | Create NF deployment | helm install / kubectl apply |
+| `/o2dms/v1/nfDeployments/{id}` | GET | Get NF deployment | Get Helm release / ArgoCD app |
+| `/o2dms/v1/nfDeployments/{id}` | PUT | Update NF deployment | helm upgrade / sync app |
+| `/o2dms/v1/nfDeployments/{id}` | DELETE | Delete NF deployment | helm uninstall / kubectl delete |
+| `/o2dms/v1/nfDeployments/{id}/scale` | POST | Scale NF deployment | Update replicas |
+| `/o2dms/v1/nfDeployments/{id}/rollback` | POST | Rollback NF deployment | helm rollback / sync to revision |
+| `/o2dms/v1/nfDeployments/{id}/status` | GET | Get deployment status | Get release/app status |
+| `/o2dms/v1/nfDeployments/{id}/history` | GET | Get deployment history | List revisions |
+| `/o2dms/v1/nfDeploymentDescriptors` | GET | List NF descriptors | List Helm charts / Git repos |
+| `/o2dms/v1/nfDeploymentDescriptors` | POST | Create NF descriptor | Register chart/repo |
+| `/o2dms/v1/nfDeploymentDescriptors/{id}` | GET | Get NF descriptor | Get chart/repo info |
+| `/o2dms/v1/nfDeploymentDescriptors/{id}` | DELETE | Delete NF descriptor | Unregister chart/repo |
+| `/o2dms/v1/subscriptions` | GET | List DMS subscriptions | List from storage |
+| `/o2dms/v1/subscriptions` | POST | Create DMS subscription | Store + start watching |
+| `/o2dms/v1/subscriptions/{id}` | GET | Get DMS subscription | Get from storage |
+| `/o2dms/v1/subscriptions/{id}` | DELETE | Delete DMS subscription | Delete + stop watching |
+
+### NF Deployment Status Values
+
+| O2-DMS Status | Description | Backend Status |
+|---------------|-------------|----------------|
+| `pending` | Deployment queued | Helm: pending-install, ArgoCD: Unknown |
+| `instantiating` | Deployment in progress | Helm: pending-install/pending-upgrade, ArgoCD: Progressing |
+| `deployed` | Successfully deployed | Helm: deployed, ArgoCD: Healthy+Synced |
+| `failed` | Deployment failed | Helm: failed, ArgoCD: Degraded |
+| `updating` | Update in progress | Helm: pending-upgrade, ArgoCD: Progressing |
+| `scaling` | Scale operation | N/A (internal state) |
+| `terminating` | Being deleted | Helm: uninstalling, ArgoCD: Deleting |
+| `terminated` | Successfully deleted | N/A (resource removed) |
+
+### Backend Adapter Support
+
+| Adapter | Capabilities | Use Case |
+|---------|--------------|----------|
+| **Helm** | Package management, deployments, rollback, scaling | Traditional Helm chart deployments |
+| **ArgoCD** | GitOps, deployments, rollback, health checks, metrics | GitOps-based deployments |
+| Flux (planned) | GitOps, deployments | Flux-based GitOps |
+| ONAP-LCM (planned) | ONAP lifecycle management | ONAP orchestration integration |
+| OSM-LCM (planned) | OSM lifecycle management | OSM orchestration integration |
+
+### Example: Create NF Deployment
+
+**Request**:
+```http
+POST /o2dms/v1/nfDeployments HTTP/1.1
+Content-Type: application/json
+
+{
+  "name": "cu-up-deployment",
+  "description": "CU-UP deployment for cell site A",
+  "nfDeploymentDescriptorId": "cu-up-chart-v1.2.0",
+  "namespace": "ran-namespace",
+  "parameterValues": {
+    "replicas": 3,
+    "resources.cpu": "4",
+    "resources.memory": "8Gi"
+  }
+}
+```
+
+**Response**:
+```http
+HTTP/1.1 201 Created
+Content-Type: application/json
+
+{
+  "nfDeploymentId": "dep-cu-up-deployment",
+  "name": "cu-up-deployment",
+  "description": "CU-UP deployment for cell site A",
+  "nfDeploymentDescriptorId": "cu-up-chart-v1.2.0",
+  "status": "instantiating",
+  "namespace": "ran-namespace",
+  "version": 1,
+  "createdAt": "2026-01-06T12:00:00Z",
+  "updatedAt": "2026-01-06T12:00:00Z"
+}
+```
+
+### Example: Scale NF Deployment
+
+**Request**:
+```http
+POST /o2dms/v1/nfDeployments/dep-cu-up-deployment/scale HTTP/1.1
+Content-Type: application/json
+
+{
+  "replicas": 5
+}
+```
+
+**Response**:
+```http
+HTTP/1.1 202 Accepted
+Content-Type: application/json
+
+{
+  "message": "Scale operation initiated",
+  "nfDeploymentId": "dep-cu-up-deployment",
+  "targetReplicas": 5
+}
+```
+
+---
+
 **Future Extensions**:
+- Additional adapters (OpenStack, VMware, Azure)
 - Advanced filtering (complex queries)
 - Batch operations
 - Custom resource definitions for all O2-IMS types
 - Cross-backend resource migration
-- Additional cloud providers (Oracle Cloud, IBM Cloud, Alibaba Cloud)
+- O2-DMS multi-cluster deployments
+- Canary and blue-green deployment strategies
