@@ -19,6 +19,9 @@ import (
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/config"
+	dmshandlers "github.com/piwi3910/netweave/internal/dms/handlers"
+	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
+	dmsstorage "github.com/piwi3910/netweave/internal/dms/storage"
 	"github.com/piwi3910/netweave/internal/middleware"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/storage"
@@ -62,6 +65,11 @@ type Server struct {
 	store            storage.Store
 	healthCheck      *observability.HealthChecker
 	openAPIValidator *middleware.OpenAPIValidator
+
+	// DMS subsystem.
+	dmsRegistry *dmsregistry.Registry
+	dmsStore    dmsstorage.Store
+	dmsHandler  *dmshandlers.Handler
 }
 
 // Metrics holds Prometheus metrics for the server.
@@ -390,6 +398,30 @@ func (s *Server) Router() *gin.Engine {
 // This allows the main application to configure health checks after server creation.
 func (s *Server) SetHealthChecker(hc *observability.HealthChecker) {
 	s.healthCheck = hc
+}
+
+// SetupDMS initializes the DMS subsystem with the provided registry.
+// This must be called after creating the server to enable O2-DMS API endpoints.
+func (s *Server) SetupDMS(reg *dmsregistry.Registry) {
+	s.dmsRegistry = reg
+	s.dmsStore = dmsstorage.NewMemoryStore()
+	s.dmsHandler = dmshandlers.NewHandler(reg, s.dmsStore, s.logger)
+
+	// Set up DMS routes.
+	s.setupDMSRoutes(s.dmsHandler)
+
+	// Register DMS health check.
+	if s.healthCheck != nil {
+		s.healthCheck.RegisterHealthCheck("dms", s.dmsHandler.Health)
+		s.healthCheck.RegisterReadinessCheck("dms", s.dmsHandler.Health)
+	}
+
+	s.logger.Info("DMS subsystem initialized")
+}
+
+// DMSRegistry returns the DMS adapter registry.
+func (s *Server) DMSRegistry() *dmsregistry.Registry {
+	return s.dmsRegistry
 }
 
 // recoveryMiddleware recovers from panics and logs the error.
