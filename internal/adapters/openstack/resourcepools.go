@@ -39,14 +39,14 @@ func (a *OpenStackAdapter) ListResourcePools(ctx context.Context, filter *adapte
 		pool := a.transformHostAggregateToResourcePool(&osAggregates[i])
 
 		// Apply filter
-		if a.matchesFilter(filter, pool.ResourcePoolID, "", pool.Location, nil) {
+		if adapter.MatchesFilter(filter, pool.ResourcePoolID, "", pool.Location, nil) {
 			pools = append(pools, pool)
 		}
 	}
 
 	// Apply pagination
 	if filter != nil {
-		pools = applyPagination(pools, filter.Limit, filter.Offset)
+		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resource pools",

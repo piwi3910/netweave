@@ -30,8 +30,8 @@ func (a *AWSAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filt
 		for _, instanceType := range page.InstanceTypes {
 			resourceType := a.instanceTypeToResourceType(&instanceType)
 
-			// Apply filter
-			if !a.matchesFilter(filter, "", resourceType.ResourceTypeID, "", nil) {
+			// Apply filter using shared helper
+			if !adapter.MatchesFilter(filter, "", resourceType.ResourceTypeID, "", nil) {
 				continue
 			}
 
@@ -39,9 +39,9 @@ func (a *AWSAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filt
 		}
 	}
 
-	// Apply pagination
+	// Apply pagination using shared helper
 	if filter != nil {
-		resourceTypes = applyPagination(resourceTypes, filter.Limit, filter.Offset)
+		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resource types",

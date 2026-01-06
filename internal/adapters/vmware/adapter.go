@@ -317,54 +317,8 @@ func (a *VMwareAdapter) Close() error {
 	return nil
 }
 
-// matchesFilter checks if a resource matches the provided filter criteria.
-func (a *VMwareAdapter) matchesFilter(filter *adapter.Filter, resourcePoolID, resourceTypeID, location string, labels map[string]string) bool {
-	if filter == nil {
-		return true
-	}
-
-	// Check ResourcePoolID filter
-	if filter.ResourcePoolID != "" && filter.ResourcePoolID != resourcePoolID {
-		return false
-	}
-
-	// Check ResourceTypeID filter
-	if filter.ResourceTypeID != "" && filter.ResourceTypeID != resourceTypeID {
-		return false
-	}
-
-	// Check Location filter
-	if filter.Location != "" && filter.Location != location {
-		return false
-	}
-
-	// Check Labels filter
-	if len(filter.Labels) > 0 {
-		for key, value := range filter.Labels {
-			if labels[key] != value {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
-// applyPagination applies limit and offset to a slice of results.
-func applyPagination[T any](items []T, limit, offset int) []T {
-	if offset >= len(items) {
-		return []T{}
-	}
-
-	start := offset
-	end := len(items)
-
-	if limit > 0 && start+limit < end {
-		end = start + limit
-	}
-
-	return items[start:end]
-}
+// NOTE: Filter matching and pagination use shared helpers from internal/adapter/helpers.go
+// Use adapter.MatchesFilter() and adapter.ApplyPagination() instead of local implementations.
 
 // generateVMProfileID generates a consistent resource type ID for a VM profile.
 func generateVMProfileID(cpus int32, memoryMB int64) string {

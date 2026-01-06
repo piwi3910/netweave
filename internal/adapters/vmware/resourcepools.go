@@ -36,7 +36,7 @@ func (a *VMwareAdapter) listClusterPools(ctx context.Context, filter *adapter.Fi
 		poolID := generateClusterPoolID(clusterName)
 
 		// Apply filter
-		if !a.matchesFilter(filter, poolID, "", clusterName, nil) {
+		if !adapter.MatchesFilter(filter, poolID, "", clusterName, nil) {
 			continue
 		}
 
@@ -81,7 +81,7 @@ func (a *VMwareAdapter) listClusterPools(ctx context.Context, filter *adapter.Fi
 
 	// Apply pagination
 	if filter != nil {
-		pools = applyPagination(pools, filter.Limit, filter.Offset)
+		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resource pools (cluster mode)",
@@ -107,7 +107,7 @@ func (a *VMwareAdapter) listVSpherePools(ctx context.Context, filter *adapter.Fi
 		poolID := generateResourcePoolID(poolName, clusterName)
 
 		// Apply filter
-		if !a.matchesFilter(filter, poolID, "", poolName, nil) {
+		if !adapter.MatchesFilter(filter, poolID, "", poolName, nil) {
 			continue
 		}
 
@@ -155,7 +155,7 @@ func (a *VMwareAdapter) listVSpherePools(ctx context.Context, filter *adapter.Fi
 
 	// Apply pagination
 	if filter != nil {
-		pools = applyPagination(pools, filter.Limit, filter.Offset)
+		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resource pools (resource pool mode)",

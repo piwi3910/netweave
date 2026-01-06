@@ -29,7 +29,7 @@ func (a *AzureAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Fi
 			resourceType := a.vmSizeToResourceType(vmSize)
 
 			// Apply filter
-			if !a.matchesFilter(filter, "", resourceType.ResourceTypeID, "", nil) {
+			if !adapter.MatchesFilter(filter, "", resourceType.ResourceTypeID, "", nil) {
 				continue
 			}
 
@@ -39,7 +39,7 @@ func (a *AzureAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Fi
 
 	// Apply pagination
 	if filter != nil {
-		resourceTypes = applyPagination(resourceTypes, filter.Limit, filter.Offset)
+		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resource types",

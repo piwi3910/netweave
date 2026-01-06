@@ -45,7 +45,7 @@ func (a *VMwareAdapter) ListResources(ctx context.Context, filter *adapter.Filte
 		resource := a.vmToResource(&vmMo, vmName)
 
 		// Apply filter
-		if !a.matchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, vmName, nil) {
+		if !adapter.MatchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, vmName, nil) {
 			continue
 		}
 
@@ -54,7 +54,7 @@ func (a *VMwareAdapter) ListResources(ctx context.Context, filter *adapter.Filte
 
 	// Apply pagination
 	if filter != nil {
-		resources = applyPagination(resources, filter.Limit, filter.Offset)
+		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resources",

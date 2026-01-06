@@ -51,8 +51,8 @@ func (a *AWSAdapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([
 		poolID := generateAZPoolID(aws.ToString(az.ZoneName))
 		location := aws.ToString(az.ZoneName)
 
-		// Apply filter
-		if !a.matchesFilter(filter, poolID, "", location, nil) {
+		// Apply filter using shared helper
+		if !adapter.MatchesFilter(filter, poolID, "", location, nil) {
 			continue
 		}
 
@@ -73,9 +73,9 @@ func (a *AWSAdapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([
 		pools = append(pools, pool)
 	}
 
-	// Apply pagination
+	// Apply pagination using shared helper
 	if filter != nil {
-		pools = applyPagination(pools, filter.Limit, filter.Offset)
+		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resource pools (AZ mode)",
@@ -111,8 +111,8 @@ func (a *AWSAdapter) listASGPools(ctx context.Context, filter *adapter.Filter) (
 				labels[aws.ToString(tag.Key)] = aws.ToString(tag.Value)
 			}
 
-			// Apply filter
-			if !a.matchesFilter(filter, poolID, "", location, labels) {
+			// Apply filter using shared helper
+			if !adapter.MatchesFilter(filter, poolID, "", location, labels) {
 				continue
 			}
 
@@ -141,9 +141,9 @@ func (a *AWSAdapter) listASGPools(ctx context.Context, filter *adapter.Filter) (
 		}
 	}
 
-	// Apply pagination
+	// Apply pagination using shared helper
 	if filter != nil {
-		pools = applyPagination(pools, filter.Limit, filter.Offset)
+		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resource pools (ASG mode)",

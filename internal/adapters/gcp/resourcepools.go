@@ -52,7 +52,7 @@ func (a *GCPAdapter) listZonePools(ctx context.Context, filter *adapter.Filter) 
 		poolID := generateZonePoolID(zoneName)
 
 		// Apply filter
-		if !a.matchesFilter(filter, poolID, "", zoneName, nil) {
+		if !adapter.MatchesFilter(filter, poolID, "", zoneName, nil) {
 			continue
 		}
 
@@ -75,7 +75,7 @@ func (a *GCPAdapter) listZonePools(ctx context.Context, filter *adapter.Filter) 
 
 	// Apply pagination
 	if filter != nil {
-		pools = applyPagination(pools, filter.Limit, filter.Offset)
+		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resource pools (zone mode)",
@@ -126,7 +126,7 @@ func (a *GCPAdapter) listIGPools(ctx context.Context, filter *adapter.Filter) ([
 			poolID := generateIGPoolID(igName, zoneName)
 
 			// Apply filter
-			if !a.matchesFilter(filter, poolID, "", zoneName, nil) {
+			if !adapter.MatchesFilter(filter, poolID, "", zoneName, nil) {
 				continue
 			}
 
@@ -151,7 +151,7 @@ func (a *GCPAdapter) listIGPools(ctx context.Context, filter *adapter.Filter) ([
 
 	// Apply pagination
 	if filter != nil {
-		pools = applyPagination(pools, filter.Limit, filter.Offset)
+		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resource pools (instance group mode)",

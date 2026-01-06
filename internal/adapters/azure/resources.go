@@ -38,7 +38,7 @@ func (a *AzureAdapter) ListResources(ctx context.Context, filter *adapter.Filter
 			labels := tagsToMap(vm.Tags)
 
 			// Apply filter
-			if !a.matchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, location, labels) {
+			if !adapter.MatchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, location, labels) {
 				continue
 			}
 
@@ -48,7 +48,7 @@ func (a *AzureAdapter) ListResources(ctx context.Context, filter *adapter.Filter
 
 	// Apply pagination
 	if filter != nil {
-		resources = applyPagination(resources, filter.Limit, filter.Offset)
+		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resources",

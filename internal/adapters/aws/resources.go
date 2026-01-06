@@ -50,9 +50,9 @@ func (a *AWSAdapter) ListResources(ctx context.Context, filter *adapter.Filter) 
 			for _, instance := range reservation.Instances {
 				resource := a.instanceToResource(&instance)
 
-				// Apply additional filters
+				// Apply additional filters using shared helper
 				labels := tagsToMap(instance.Tags)
-				if !a.matchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, extractTagValue(instance.Tags, "Location"), labels) {
+				if !adapter.MatchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, extractTagValue(instance.Tags, "Location"), labels) {
 					continue
 				}
 
@@ -61,9 +61,9 @@ func (a *AWSAdapter) ListResources(ctx context.Context, filter *adapter.Filter) 
 		}
 	}
 
-	// Apply pagination
+	// Apply pagination using shared helper
 	if filter != nil {
-		resources = applyPagination(resources, filter.Limit, filter.Offset)
+		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resources",

@@ -71,7 +71,7 @@ func (a *GCPAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filt
 		resourceType := a.machineTypeToResourceType(mt)
 
 		// Apply filter
-		if !a.matchesFilter(filter, "", resourceType.ResourceTypeID, "", nil) {
+		if !adapter.MatchesFilter(filter, "", resourceType.ResourceTypeID, "", nil) {
 			continue
 		}
 
@@ -80,7 +80,7 @@ func (a *GCPAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filt
 
 	// Apply pagination
 	if filter != nil {
-		resourceTypes = applyPagination(resourceTypes, filter.Limit, filter.Offset)
+		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resource types",

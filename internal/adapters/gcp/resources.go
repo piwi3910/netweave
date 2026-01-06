@@ -59,7 +59,7 @@ func (a *GCPAdapter) ListResources(ctx context.Context, filter *adapter.Filter) 
 			if labels == nil {
 				labels = make(map[string]string)
 			}
-			if !a.matchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, zoneName, labels) {
+			if !adapter.MatchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, zoneName, labels) {
 				continue
 			}
 
@@ -69,7 +69,7 @@ func (a *GCPAdapter) ListResources(ctx context.Context, filter *adapter.Filter) 
 
 	// Apply pagination
 	if filter != nil {
-		resources = applyPagination(resources, filter.Limit, filter.Offset)
+		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resources",

@@ -47,7 +47,7 @@ func (a *AzureAdapter) listRGPools(ctx context.Context, filter *adapter.Filter) 
 			labels := tagsToMap(rg.Tags)
 
 			// Apply filter
-			if !a.matchesFilter(filter, poolID, "", location, labels) {
+			if !adapter.MatchesFilter(filter, poolID, "", location, labels) {
 				continue
 			}
 
@@ -73,7 +73,7 @@ func (a *AzureAdapter) listRGPools(ctx context.Context, filter *adapter.Filter) 
 
 	// Apply pagination
 	if filter != nil {
-		pools = applyPagination(pools, filter.Limit, filter.Offset)
+		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resource pools (RG mode)",
@@ -94,7 +94,7 @@ func (a *AzureAdapter) listAZPools(ctx context.Context, filter *adapter.Filter) 
 		zoneName := fmt.Sprintf("%s-%s", a.location, zone)
 
 		// Apply filter
-		if !a.matchesFilter(filter, poolID, "", zoneName, nil) {
+		if !adapter.MatchesFilter(filter, poolID, "", zoneName, nil) {
 			continue
 		}
 
@@ -116,7 +116,7 @@ func (a *AzureAdapter) listAZPools(ctx context.Context, filter *adapter.Filter) 
 
 	// Apply pagination
 	if filter != nil {
-		pools = applyPagination(pools, filter.Limit, filter.Offset)
+		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resource pools (AZ mode)",
