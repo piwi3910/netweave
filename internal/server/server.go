@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/config"
+	"github.com/piwi3910/netweave/internal/observability"
+	"github.com/piwi3910/netweave/internal/storage"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -43,11 +45,14 @@ import (
 //	    log.Fatal(err)
 //	}
 type Server struct {
-	config     *config.Config
-	logger     *zap.Logger
-	router     *gin.Engine
-	httpServer *http.Server
-	metrics    *Metrics
+	config      *config.Config
+	logger      *zap.Logger
+	router      *gin.Engine
+	httpServer  *http.Server
+	metrics     *Metrics
+	adapter     adapter.Adapter
+	store       storage.Store
+	healthCheck *observability.HealthChecker
 }
 
 // Metrics holds Prometheus metrics for the server.
@@ -57,7 +62,7 @@ type Metrics struct {
 	ActiveRequests  prometheus.Gauge
 }
 
-// New creates a new Server instance with the given configuration and logger.
+// New creates a new Server instance with the given configuration, logger, adapter, and storage.
 // It initializes the Gin router, sets up middleware, and configures routes.
 //
 // The function will panic if essential dependencies are missing or invalid.
@@ -66,13 +71,21 @@ type Metrics struct {
 //
 //	cfg, _ := config.Load("config/config.yaml")
 //	logger, _ := zap.NewProduction()
-//	srv := server.New(cfg, logger)
-func New(cfg *config.Config, logger *zap.Logger) *Server {
+//	adapter := kubernetes.NewAdapter(cfg, logger)
+//	store := storage.NewRedisStore(&storage.RedisConfig{...})
+//	srv := server.New(cfg, logger, adapter, store)
+func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store storage.Store) *Server {
 	if cfg == nil {
 		panic("config cannot be nil")
 	}
 	if logger == nil {
 		panic("logger cannot be nil")
+	}
+	if adp == nil {
+		panic("adapter cannot be nil")
+	}
+	if store == nil {
+		panic("store cannot be nil")
 	}
 
 	// Set Gin mode based on configuration
@@ -84,12 +97,18 @@ func New(cfg *config.Config, logger *zap.Logger) *Server {
 	// Initialize metrics
 	metrics := initMetrics(cfg)
 
+	// Initialize health checker with adapter and storage checks
+	healthCheck := initHealthChecker(cfg, adp, store)
+
 	// Create server instance
 	srv := &Server{
-		config:  cfg,
-		logger:  logger,
-		router:  router,
-		metrics: metrics,
+		config:      cfg,
+		logger:      logger,
+		router:      router,
+		metrics:     metrics,
+		adapter:     adp,
+		store:       store,
+		healthCheck: healthCheck,
 	}
 
 	// Setup middleware
@@ -99,6 +118,39 @@ func New(cfg *config.Config, logger *zap.Logger) *Server {
 	srv.setupRoutes()
 
 	return srv
+}
+
+// initHealthChecker initializes the health checker with component checks.
+func initHealthChecker(cfg *config.Config, adp adapter.Adapter, store storage.Store) *observability.HealthChecker {
+	checker := observability.NewHealthChecker("1.0.0")
+
+	// Register health checks for critical components
+	if adp != nil {
+		checker.RegisterHealthCheck("adapter", func(ctx context.Context) error {
+			return adp.Health(ctx)
+		})
+	}
+
+	if store != nil {
+		checker.RegisterHealthCheck("storage", func(ctx context.Context) error {
+			return store.Ping(ctx)
+		})
+	}
+
+	// Register readiness checks (same components for now)
+	if adp != nil {
+		checker.RegisterReadinessCheck("adapter", func(ctx context.Context) error {
+			return adp.Health(ctx)
+		})
+	}
+
+	if store != nil {
+		checker.RegisterReadinessCheck("storage", func(ctx context.Context) error {
+			return store.Ping(ctx)
+		})
+	}
+
+	return checker
 }
 
 // initMetrics initializes Prometheus metrics for the server.
@@ -273,6 +325,12 @@ func (s *Server) Shutdown() error {
 // This is useful for testing and adding custom routes.
 func (s *Server) Router() *gin.Engine {
 	return s.router
+}
+
+// SetHealthChecker sets the health checker for the server.
+// This allows the main application to configure health checks after server creation.
+func (s *Server) SetHealthChecker(hc *observability.HealthChecker) {
+	s.healthCheck = hc
 }
 
 // recoveryMiddleware recovers from panics and logs the error.

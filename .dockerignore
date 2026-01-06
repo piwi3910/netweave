@@ -1,0 +1,99 @@
+# .dockerignore - Exclude unnecessary files from Docker build context
+
+# Git
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Build artifacts
+build/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+gateway
+netweave
+
+# Test and coverage
+coverage/
+coverage.out
+*.test
+*.prof
+*.out
+__debug_bin
+.test/
+
+# Documentation
+*.md
+!README.md
+docs/
+examples/
+.markdownlint.yml
+PROJECT_SETUP.md
+ARCHITECTURE_SUMMARY.md
+CONTRIBUTING.md
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-*
+
+# Deployment files (not needed in container)
+deployments/
+helm/
+.kube/
+*.yaml
+!config/config.yaml.example
+
+# Development tools
+.pre-commit-config.yaml
+.golangci.yml
+Makefile
+
+# Logs
+*.log
+logs/
+/var/log/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.cache
+
+# Dependencies (will be downloaded during build)
+vendor/
+
+# Environment files
+.env
+.env.*
+*.env
+
+# Certificates and secrets (NEVER include in image)
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+secrets/
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Node modules (if any)
+node_modules/
+
+# Other
+.cache/
+.local/
+.config/

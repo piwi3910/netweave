@@ -1,6 +1,8 @@
 # golangci-lint configuration for netweave O2-IMS Gateway
-# Version: 1.61+
+# Version: 2.5+
 # Zero-tolerance linting - ALL issues must be fixed
+
+version: "2"
 
 run:
   timeout: 5m
@@ -17,9 +19,6 @@ run:
   modules-download-mode: readonly
 
 output:
-  format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
   uniq-by-line: true
   sort-results: true
 
@@ -27,12 +26,11 @@ linters:
   enable-all: false
   disable-all: true
   enable:
-    # Enabled linters (comprehensive set)
+    # Core linters (always available)
     - errcheck        # Check for unchecked errors
-    - gosimple        # Simplify code
     - govet           # Go vet
     - ineffassign     # Detect ineffectual assignments
-    - staticcheck     # Static analysis
+    - staticcheck     # Static analysis (includes gosimple)
     - unused          # Check for unused constants, variables, functions
     - asasalint       # Check for pass []any as any in variadic func
     - asciicheck      # Check for non-ASCII identifiers
@@ -45,19 +43,13 @@ linters:
     - errname         # Check error naming conventions
     - errorlint       # Error wrapping best practices
     - exhaustive      # Check exhaustiveness of enum switch statements
-    - exportloopref   # Check for exported loop variables
     - forbidigo       # Forbid specific identifiers
-    - gci             # Control Go import order
     - gochecknoinits  # Check for init functions
     - gocognit        # Compute cognitive complexity
     - goconst         # Find repeated strings that could be constants
     - gocritic        # Comprehensive Go code checks
     - gocyclo         # Cyclomatic complexity
     - godot           # Check comments end with period
-    - gofmt           # Check code formatting
-    - gofumpt         # Stricter gofmt
-    - goimports       # Check import formatting
-    - gomnd           # Detect magic numbers
     - gomoddirectives # Manage go.mod directives
     - gomodguard      # Block direct use of certain modules
     - goprintffuncname # Check printf-like function names
@@ -83,8 +75,6 @@ linters:
     - promlinter      # Check Prometheus metrics naming
     - reassign        # Check for reassigning variables
     - revive          # Replacement for golint
-    - stylecheck      # Stylecheck
-    - tenv            # Detect using os.Setenv instead of t.Setenv
     - testableexamples # Check examples are testable
     - testpackage     # Check tests are in _test package
     - thelper         # Detect test helpers without t.Helper()
@@ -104,7 +94,6 @@ linters:
     - funlen          # Function length checked by gocyclo/gocognit
     - gochecknoglobals # Globals needed for metrics
     - godox           # TODO/FIXME allowed with GitHub issues
-    - goerr113        # Dynamic errors acceptable in some cases
     - nlreturn        # Overly strict whitespace rules
     - paralleltest    # Not all tests can be parallel
     - tagliatelle     # JSON/YAML tags don't match Go conventions
@@ -268,14 +257,6 @@ linters-settings:
       - name: bool-literal-in-expr
       - name: atomic
 
-  stylecheck:
-    checks:
-      - all
-      - -ST1000 # Package comment not required for internal packages
-      - -ST1003 # MixedCaps for names
-
-  goimports:
-    local-prefixes: github.com/yourorg/netweave
 
   gci:
     sections:
@@ -360,11 +341,3 @@ issues:
 
 severity:
   default-severity: error
-  rules:
-    - linters:
-        - gosec
-      severity: error
-    - linters:
-        - errcheck
-        - govet
-      severity: error

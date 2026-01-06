@@ -1,0 +1,13 @@
+---
+# Namespace for O2-IMS Gateway components
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: o2ims-system
+  labels:
+    app.kubernetes.io/name: netweave
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: o2ims
+    environment: production
+  annotations:
+    description: "ORAN O2-IMS Gateway system namespace"

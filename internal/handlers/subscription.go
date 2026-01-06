@@ -1,20 +1,39 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
+	"net/url"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	internalmodels "github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
+	"github.com/piwi3910/netweave/internal/storage"
+	"go.uber.org/zap"
 )
 
 // SubscriptionHandler handles Subscription API endpoints.
 type SubscriptionHandler struct {
-	// TODO: Add dependencies (Redis client, subscription controller, logger, etc.)
+	store  storage.Store
+	logger *zap.Logger
 }
 
 // NewSubscriptionHandler creates a new SubscriptionHandler.
-func NewSubscriptionHandler() *SubscriptionHandler {
-	return &SubscriptionHandler{}
+// It requires a storage backend for subscription persistence and a logger for structured logging.
+func NewSubscriptionHandler(store storage.Store, logger *zap.Logger) *SubscriptionHandler {
+	if store == nil {
+		panic("storage cannot be nil")
+	}
+	if logger == nil {
+		panic("logger cannot be nil")
+	}
+
+	return &SubscriptionHandler{
+		store:  store,
+		logger: logger,
+	}
 }
 
 // ListSubscriptions handles GET /o2ims/v1/subscriptions.
@@ -27,17 +46,83 @@ func NewSubscriptionHandler() *SubscriptionHandler {
 //
 // Response: 200 OK with array of Subscription objects
 func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
-	// TODO: Implement actual logic
-	// 1. Parse query parameters (filter, offset, limit)
-	// 2. Get subscriptions from Redis storage
-	// 3. Apply filtering and pagination
-	// 4. Return response
+	ctx := c.Request.Context()
 
-	// Stub: return empty list
-	response := models.ListResponse{
-		Items:      []models.Subscription{},
-		TotalCount: 0,
+	h.logger.Info("listing subscriptions",
+		zap.String("request_id", c.GetString("request_id")),
+	)
+
+	// Parse query parameters
+	filter := internalmodels.ParseQueryParams(c.Request.URL.Query())
+
+	// Get all subscriptions from storage
+	storageSubs, err := h.store.List(ctx)
+	if err != nil {
+		h.logger.Error("failed to list subscriptions",
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to retrieve subscriptions",
+			Code:    http.StatusInternalServerError,
+		})
+		return
 	}
+
+	// Convert storage.Subscription to models.Subscription and apply filtering
+	subscriptions := make([]models.Subscription, 0, len(storageSubs))
+	for _, storageSub := range storageSubs {
+		// Apply filtering if resource pool ID is specified
+		if len(filter.ResourcePoolID) > 0 && storageSub.Filter.ResourcePoolID != "" {
+			found := false
+			for _, poolID := range filter.ResourcePoolID {
+				if storageSub.Filter.ResourcePoolID == poolID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		subscriptions = append(subscriptions, models.Subscription{
+			SubscriptionID:         storageSub.ID,
+			Callback:               storageSub.Callback,
+			ConsumerSubscriptionID: storageSub.ConsumerSubscriptionID,
+			Filter: models.SubscriptionFilter{
+				ResourcePoolID: []string{storageSub.Filter.ResourcePoolID},
+				ResourceTypeID: []string{storageSub.Filter.ResourceTypeID},
+				ResourceID:     []string{storageSub.Filter.ResourceID},
+			},
+			CreatedAt: storageSub.CreatedAt,
+		})
+	}
+
+	// Apply pagination
+	totalCount := len(subscriptions)
+	start := filter.Offset
+	end := start + filter.Limit
+
+	if start > len(subscriptions) {
+		start = len(subscriptions)
+	}
+	if end > len(subscriptions) {
+		end = len(subscriptions)
+	}
+
+	pagedSubscriptions := subscriptions[start:end]
+
+	response := models.ListResponse{
+		Items:      pagedSubscriptions,
+		TotalCount: totalCount,
+	}
+
+	h.logger.Info("subscriptions retrieved",
+		zap.Int("count", len(pagedSubscriptions)),
+		zap.Int("total", totalCount),
+	)
 
 	c.JSON(http.StatusOK, response)
 }
@@ -52,10 +137,19 @@ func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
 //   - 400 Bad Request: Invalid request body or callback URL
 //   - 409 Conflict: Subscription with same consumer ID already exists
 func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
+	ctx := c.Request.Context()
 	var sub models.Subscription
+
+	h.logger.Info("creating subscription",
+		zap.String("request_id", c.GetString("request_id")),
+	)
 
 	// Parse request body
 	if err := c.ShouldBindJSON(&sub); err != nil {
+		h.logger.Warn("invalid request body",
+			zap.Error(err),
+		)
+
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
 			Message: "Invalid request body: " + err.Error(),
@@ -64,16 +158,102 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 		return
 	}
 
-	// TODO: Implement actual logic
-	// 1. Validate subscription data (callback URL, filter)
-	// 2. Generate subscriptionId (UUID)
-	// 3. Store subscription in Redis
-	// 4. Register with subscription controller for event delivery
-	// 5. Return created subscription with 201 status
+	// Validate required fields
+	if sub.Callback == "" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: "Callback URL is required",
+			Code:    http.StatusBadRequest,
+		})
+		return
+	}
 
-	// Stub: return 201 with placeholder
-	sub.SubscriptionID = "sub-placeholder"
-	c.JSON(http.StatusCreated, sub)
+	// Validate callback URL format
+	callbackURL, err := url.Parse(sub.Callback)
+	if err != nil || (callbackURL.Scheme != "http" && callbackURL.Scheme != "https") {
+		h.logger.Warn("invalid callback URL",
+			zap.String("callback", sub.Callback),
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: "Invalid callback URL: must be a valid HTTP or HTTPS URL",
+			Code:    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Generate subscription ID
+	subscriptionID := uuid.New().String()
+
+	// Convert models.Subscription to storage.Subscription
+	storageFilter := storage.SubscriptionFilter{}
+	if sub.Filter.ResourcePoolID != nil && len(sub.Filter.ResourcePoolID) > 0 {
+		storageFilter.ResourcePoolID = sub.Filter.ResourcePoolID[0]
+	}
+	if sub.Filter.ResourceTypeID != nil && len(sub.Filter.ResourceTypeID) > 0 {
+		storageFilter.ResourceTypeID = sub.Filter.ResourceTypeID[0]
+	}
+	if sub.Filter.ResourceID != nil && len(sub.Filter.ResourceID) > 0 {
+		storageFilter.ResourceID = sub.Filter.ResourceID[0]
+	}
+
+	storageSub := &storage.Subscription{
+		ID:                     subscriptionID,
+		Callback:               sub.Callback,
+		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
+		Filter:                 storageFilter,
+		CreatedAt:              time.Now(),
+	}
+
+	// Store subscription
+	err = h.store.Create(ctx, storageSub)
+	if err != nil {
+		if errors.Is(err, storage.ErrSubscriptionExists) {
+			h.logger.Warn("subscription already exists",
+				zap.String("consumer_subscription_id", sub.ConsumerSubscriptionID),
+			)
+
+			c.JSON(http.StatusConflict, models.ErrorResponse{
+				Error:   "Conflict",
+				Message: "Subscription already exists",
+				Code:    http.StatusConflict,
+			})
+			return
+		}
+
+		h.logger.Error("failed to create subscription",
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to create subscription",
+			Code:    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Convert back to models.Subscription for response
+	response := models.Subscription{
+		SubscriptionID:         subscriptionID,
+		Callback:               storageSub.Callback,
+		ConsumerSubscriptionID: storageSub.ConsumerSubscriptionID,
+		Filter: models.SubscriptionFilter{
+			ResourcePoolID: []string{storageFilter.ResourcePoolID},
+			ResourceTypeID: []string{storageFilter.ResourceTypeID},
+			ResourceID:     []string{storageFilter.ResourceID},
+		},
+		CreatedAt: storageSub.CreatedAt,
+	}
+
+	h.logger.Info("subscription created",
+		zap.String("subscription_id", subscriptionID),
+		zap.String("callback", sub.Callback),
+	)
+
+	c.JSON(http.StatusCreated, response)
 }
 
 // GetSubscription handles GET /o2ims/v1/subscriptions/:subscriptionId.
@@ -85,21 +265,73 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 // Response:
 //   - 200 OK: Subscription object
 //   - 404 Not Found: Subscription does not exist
+//   - 500 Internal Server Error: Server error occurred
 func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
+	ctx := c.Request.Context()
 	subscriptionID := c.Param("subscriptionId")
 
-	// TODO: Implement actual logic
-	// 1. Validate subscriptionId parameter
-	// 2. Get subscription from Redis by ID
-	// 3. Return subscription if found
-	// 4. Return 404 if not found
+	h.logger.Info("getting subscription",
+		zap.String("subscription_id", subscriptionID),
+		zap.String("request_id", c.GetString("request_id")),
+	)
 
-	// Stub: return 404
-	c.JSON(http.StatusNotFound, models.ErrorResponse{
-		Error:   "NotFound",
-		Message: "Subscription not found: " + subscriptionID,
-		Code:    http.StatusNotFound,
-	})
+	// Validate subscription ID
+	if subscriptionID == "" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: "Subscription ID cannot be empty",
+			Code:    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Get subscription from storage
+	storageSub, err := h.store.Get(ctx, subscriptionID)
+	if err != nil {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
+			h.logger.Warn("subscription not found",
+				zap.String("subscription_id", subscriptionID),
+			)
+
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "NotFound",
+				Message: "Subscription not found: " + subscriptionID,
+				Code:    http.StatusNotFound,
+			})
+			return
+		}
+
+		h.logger.Error("failed to get subscription",
+			zap.String("subscription_id", subscriptionID),
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to retrieve subscription",
+			Code:    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Convert storage.Subscription to models.Subscription
+	response := models.Subscription{
+		SubscriptionID:         storageSub.ID,
+		Callback:               storageSub.Callback,
+		ConsumerSubscriptionID: storageSub.ConsumerSubscriptionID,
+		Filter: models.SubscriptionFilter{
+			ResourcePoolID: []string{storageSub.Filter.ResourcePoolID},
+			ResourceTypeID: []string{storageSub.Filter.ResourceTypeID},
+			ResourceID:     []string{storageSub.Filter.ResourceID},
+		},
+		CreatedAt: storageSub.CreatedAt,
+	}
+
+	h.logger.Info("subscription retrieved",
+		zap.String("subscription_id", subscriptionID),
+	)
+
+	c.JSON(http.StatusOK, response)
 }
 
 // DeleteSubscription handles DELETE /o2ims/v1/subscriptions/:subscriptionId.
@@ -111,20 +343,58 @@ func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
 // Response:
 //   - 204 No Content: Subscription deleted successfully
 //   - 404 Not Found: Subscription does not exist
+//   - 500 Internal Server Error: Server error occurred
 func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
+	ctx := c.Request.Context()
 	subscriptionID := c.Param("subscriptionId")
 
-	// TODO: Implement actual logic
-	// 1. Validate subscriptionId parameter
-	// 2. Unregister from subscription controller
-	// 3. Delete subscription from Redis
-	// 4. Return 204 if successful
-	// 5. Return 404 if not found
+	h.logger.Info("deleting subscription",
+		zap.String("subscription_id", subscriptionID),
+		zap.String("request_id", c.GetString("request_id")),
+	)
 
-	// Stub: return 404
-	c.JSON(http.StatusNotFound, models.ErrorResponse{
-		Error:   "NotFound",
-		Message: "Subscription not found: " + subscriptionID,
-		Code:    http.StatusNotFound,
-	})
+	// Validate subscription ID
+	if subscriptionID == "" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: "Subscription ID cannot be empty",
+			Code:    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Delete subscription from storage
+	err := h.store.Delete(ctx, subscriptionID)
+	if err != nil {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
+			h.logger.Warn("subscription not found",
+				zap.String("subscription_id", subscriptionID),
+			)
+
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "NotFound",
+				Message: "Subscription not found: " + subscriptionID,
+				Code:    http.StatusNotFound,
+			})
+			return
+		}
+
+		h.logger.Error("failed to delete subscription",
+			zap.String("subscription_id", subscriptionID),
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to delete subscription",
+			Code:    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	h.logger.Info("subscription deleted",
+		zap.String("subscription_id", subscriptionID),
+	)
+
+	c.Status(http.StatusNoContent)
 }
