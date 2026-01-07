@@ -85,9 +85,6 @@ func (s *Server) setupRoutes() {
 	// API information endpoint
 	s.router.GET("/o2ims", s.handleAPIInfo)
 	s.router.GET("/", s.handleRoot)
-
-	// Documentation endpoints (OpenAPI spec and Swagger UI)
-	s.setupDocsRoutes()
 }
 
 // Health check handlers
@@ -128,19 +125,20 @@ func (s *Server) handleMetrics(c *gin.Context) {
 
 // handleRoot returns basic API information.
 func (s *Server) handleRoot(c *gin.Context) {
+	endpoints := gin.H{
+		"health":     "/health",
+		"ready":      "/ready",
+		"metrics":    s.config.Observability.Metrics.Path,
+		"o2ims_base": "/o2ims/v1",
+		"o2smo_base": "/o2smo/v1",
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"name":        "O2-IMS Gateway",
 		"version":     "1.0.0",
-		"description": "ORAN O2-IMS compliant API gateway for Kubernetes",
+		"description": "ORAN O2-IMS/O2-SMO compliant API gateway for Kubernetes",
 		"api_version": "v1",
-		"endpoints": gin.H{
-			"health":   "/health",
-			"ready":    "/ready",
-			"metrics":  s.config.Observability.Metrics.Path,
-			"api_base": "/o2ims/v1",
-			"docs":     "/docs/",
-			"openapi":  "/openapi.yaml",
-		},
+		"endpoints":   endpoints,
 	})
 }
 

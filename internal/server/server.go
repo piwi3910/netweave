@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/piwi3910/netweave/internal/config"
 	"github.com/piwi3910/netweave/internal/middleware"
 	"github.com/piwi3910/netweave/internal/observability"
+	"github.com/piwi3910/netweave/internal/smo"
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
@@ -62,7 +64,25 @@ type Server struct {
 	store            storage.Store
 	healthCheck      *observability.HealthChecker
 	openAPIValidator *middleware.OpenAPIValidator
-	openAPISpec      []byte // OpenAPI specification content for documentation endpoints
+	smoRegistry      *smo.Registry
+	smoHandler       *SMOHandler
+	authStore        AuthStore
+	authMw           AuthMiddleware
+	shutdownOnce     sync.Once // Ensures shutdown logic runs only once
+}
+
+// AuthStore defines the interface for auth storage operations.
+// This allows the server to remain decoupled from the auth package.
+type AuthStore interface {
+	Ping(ctx context.Context) error
+	Close() error
+}
+
+// AuthMiddleware defines the interface for authentication middleware.
+type AuthMiddleware interface {
+	AuthenticationMiddleware() gin.HandlerFunc
+	RequirePermission(permission string) gin.HandlerFunc
+	RequirePlatformAdmin() gin.HandlerFunc
 }
 
 // Metrics holds Prometheus metrics for the server.
@@ -357,35 +377,44 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully shuts down the HTTP server.
 // It waits for active requests to complete or until the shutdown timeout expires.
+// It also stops SMO health checks and closes the SMO registry.
+// This method is safe to call multiple times - only the first call will execute.
 //
 // Returns an error if the shutdown fails.
 func (s *Server) Shutdown() error {
-	// Create shutdown context with timeout from config
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		s.config.Server.ShutdownTimeout,
-	)
-	defer cancel()
+	var shutdownErr error
 
-	return s.ShutdownWithContext(ctx)
-}
+	s.shutdownOnce.Do(func() {
+		s.logger.Info("initiating graceful shutdown",
+			zap.Duration("timeout", s.config.Server.ShutdownTimeout),
+		)
 
-// ShutdownWithContext gracefully shuts down the server using the provided context.
-// The context controls how long to wait for active requests to complete.
-// This method is preferred when the caller wants to manage the shutdown context.
-//
-// Returns an error if the shutdown fails.
-func (s *Server) ShutdownWithContext(ctx context.Context) error {
-	s.logger.Info("initiating graceful shutdown")
+		// Stop SMO health checks and close registry
+		if s.smoRegistry != nil {
+			s.logger.Info("stopping SMO plugin health checks")
+			if err := s.smoRegistry.Close(); err != nil {
+				s.logger.Warn("error closing SMO registry", zap.Error(err))
+			}
+		}
 
-	// Shutdown HTTP server
-	if err := s.httpServer.Shutdown(ctx); err != nil {
-		s.logger.Error("error during shutdown", zap.Error(err))
-		return fmt.Errorf("server shutdown failed: %w", err)
-	}
+		// Create shutdown context with timeout
+		ctx, cancel := context.WithTimeout(
+			context.Background(),
+			s.config.Server.ShutdownTimeout,
+		)
+		defer cancel()
 
-	s.logger.Info("server shutdown complete")
-	return nil
+		// Shutdown HTTP server
+		if err := s.httpServer.Shutdown(ctx); err != nil {
+			s.logger.Error("error during shutdown", zap.Error(err))
+			shutdownErr = fmt.Errorf("server shutdown failed: %w", err)
+			return
+		}
+
+		s.logger.Info("server shutdown complete")
+	})
+
+	return shutdownErr
 }
 
 // Router returns the underlying Gin router.
@@ -400,16 +429,27 @@ func (s *Server) SetHealthChecker(hc *observability.HealthChecker) {
 	s.healthCheck = hc
 }
 
-// SetOpenAPISpec sets the OpenAPI specification for the documentation endpoints.
-// This should be called before starting the server to enable API documentation.
-func (s *Server) SetOpenAPISpec(spec []byte) {
-	s.openAPISpec = spec
+// SetSMORegistry sets the SMO plugin registry and configures SMO API routes.
+// This enables the O2-SMO API endpoints for workflow orchestration, service modeling,
+// policy management, and infrastructure synchronization.
+// It also starts periodic health checks for registered plugins.
+func (s *Server) SetSMORegistry(registry *smo.Registry) {
+	s.smoRegistry = registry
+	s.smoHandler = NewSMOHandler(registry, s.logger)
+	s.setupSMORoutes(s.smoHandler)
+
+	// Start periodic health checks for SMO plugins
+	registry.StartHealthChecks(context.Background())
+
+	s.logger.Info("SMO registry configured",
+		zap.Int("plugin_count", registry.Count()),
+	)
 }
 
-// GetOpenAPISpec returns the OpenAPI specification.
-// Returns nil if no specification has been loaded.
-func (s *Server) GetOpenAPISpec() []byte {
-	return s.openAPISpec
+// SMORegistry returns the SMO plugin registry.
+// This can be used to register additional plugins after server creation.
+func (s *Server) SMORegistry() *smo.Registry {
+	return s.smoRegistry
 }
 
 // recoveryMiddleware recovers from panics and logs the error.

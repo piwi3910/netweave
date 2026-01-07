@@ -45,7 +45,7 @@ Official O-RAN Alliance specifications:
   - **Azure** - Virtual Machines, Resource Groups, VM Sizes
   - **GCP** - Compute Engine instances, Zones, Machine Types
   - **VMware vSphere** - VMs, Clusters, Resource Pools
-- ✅ **O2-DMS Integration**: Deployment Management Services with Helm 3 and ArgoCD adapters
+- ✅ **O2-DMS Integration**: Deployment Management Services with Helm 3, ArgoCD, and Flux CD adapters
 - ✅ **O2-SMO Integration**: Service Management & Orchestration with ONAP and OSM adapters
 - ✅ **Enterprise Multi-Tenancy**: Built-in from day 1 - support multiple SMO systems with strict resource isolation
 - ✅ **Comprehensive RBAC**: Fine-grained role-based access control with system and tenant roles
@@ -94,6 +94,7 @@ graph TB
         subgraph DMS_Backends [DMS: Deployment 7+]
             Helm[Helm 3]
             Argo[ArgoCD]
+            Flux[Flux CD]
             ONAP_LCM[ONAP-LCM]
         end
 
@@ -341,6 +342,31 @@ curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
 
 See [docs/api-mapping.md](docs/api-mapping.md) for O2-IMS ↔ Kubernetes resource mappings.
 
+## O2-SMO API Coverage
+
+The O2-SMO API (`/o2smo/v1/*`) provides integration with Service Management & Orchestration systems:
+
+| Resource | List | Get | Create | Execute | Cancel |
+|----------|------|-----|--------|---------|--------|
+| Plugins | ✅ | ✅ | - | - | - |
+| Workflows | - | ✅ | - | ✅ | ✅ |
+| Service Models | ✅ | ✅ | ✅ | - | - |
+| Policies | - | ✅ | ✅ | - | - |
+| Infrastructure Sync | - | - | ✅ | - | - |
+| Deployment Sync | - | - | ✅ | - | - |
+| Events | - | - | ✅ | - | - |
+| Health | - | ✅ | - | - | - |
+
+**O2-SMO Features:**
+- 🔌 **Plugin System**: Extensible adapter architecture (ONAP, OSM, custom)
+- 🔄 **Workflow Orchestration**: Execute and monitor orchestration workflows
+- 📋 **Service Modeling**: Register and manage service models
+- 📜 **Policy Management**: Apply and monitor policies
+- 🔗 **Infrastructure Sync**: Synchronize infrastructure inventory with SMO
+- 📡 **Event Publishing**: Publish infrastructure and deployment events
+
+See [docs/o2dms-o2smo-extension.md](docs/o2dms-o2smo-extension.md) for detailed O2-SMO integration documentation.
+
 ## Development
 
 ### Setup Development Environment
@@ -459,7 +485,8 @@ netweave/
 │   │   ├── adapter/          # DMS adapter interface
 │   │   └── adapters/         # DMS backend adapters
 │   │       ├── helm/         # Helm 3 adapter
-│   │       └── argocd/       # ArgoCD GitOps adapter
+│   │       ├── argocd/       # ArgoCD GitOps adapter
+│   │       └── flux/         # Flux CD GitOps adapter
 │   ├── smo/                  # O2-SMO (Service Management & Orchestration)
 │   │   ├── adapter/          # SMO adapter interface
 │   │   └── adapters/         # SMO backend adapters
@@ -544,6 +571,7 @@ netweave/
 - ✅ O2-DMS support (Deployment Management Services)
   - ✅ Helm 3 adapter for CNF/VNF deployment
   - ✅ ArgoCD adapter for GitOps deployments
+  - ✅ Flux CD adapter for GitOps deployments
 - ✅ O2-SMO integration (Service Management & Orchestration)
   - ✅ ONAP adapter
   - ✅ OSM (Open Source MANO) adapter

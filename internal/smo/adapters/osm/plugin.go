@@ -17,9 +17,6 @@ package osm
 import (
 	"context"
 	"fmt"
-	"io"
-	"log"
-	"os"
 	"sync"
 	"time"
 )
@@ -91,51 +88,18 @@ func NewPlugin(config *Config) (*Plugin, error) {
 		config = DefaultConfig()
 	}
 
-	if err := validateConfig(config); err != nil {
-		return nil, err
-	}
-
-	applyConfigDefaults(config)
-
-	client, err := NewClient(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create OSM client: %w", err)
-	}
-
-	return &Plugin{
-		name:    "osm",
-		version: "1.0.0",
-		config:  config,
-		client:  client,
-		stopCh:  make(chan struct{}),
-		doneCh:  make(chan struct{}),
-		capabilities: []string{
-			"inventory-sync",
-			"workflow-orchestration",
-			"service-modeling", // NS/VNF descriptors
-			"package-management",
-			"deployment-lifecycle",
-			"scaling",
-		},
-	}, nil
-}
-
-// validateConfig validates required configuration fields.
-func validateConfig(config *Config) error {
+	// Validate required configuration
 	if config.NBIURL == "" {
-		return fmt.Errorf("nbiUrl is required")
+		return nil, fmt.Errorf("nbiUrl is required")
 	}
 	if config.Username == "" {
-		return fmt.Errorf("username is required")
+		return nil, fmt.Errorf("username is required")
 	}
 	if config.Password == "" {
-		return fmt.Errorf("password is required")
+		return nil, fmt.Errorf("password is required")
 	}
-	return nil
-}
 
-// applyConfigDefaults sets default values for optional configuration fields.
-func applyConfigDefaults(config *Config) {
+	// Set defaults for optional fields
 	if config.Project == "" {
 		config.Project = "admin"
 	}
@@ -160,6 +124,29 @@ func applyConfigDefaults(config *Config) {
 	if config.RetryMultiplier == 0 {
 		config.RetryMultiplier = 2.0
 	}
+
+	// Create OSM NBI client
+	client, err := NewClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OSM client: %w", err)
+	}
+
+	return &Plugin{
+		name:    "osm",
+		version: "1.0.0",
+		config:  config,
+		client:  client,
+		stopCh:  make(chan struct{}),
+		doneCh:  make(chan struct{}),
+		capabilities: []string{
+			"inventory-sync",
+			"workflow-orchestration",
+			"service-modeling", // NS/VNF descriptors
+			"package-management",
+			"deployment-lifecycle",
+			"scaling",
+		},
+	}, nil
 }
 
 // Name returns the unique name of this plugin.
@@ -263,9 +250,8 @@ func (p *Plugin) inventorySyncLoop() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			if err := p.syncInventory(ctx); err != nil {
 				// Log error but continue syncing
-				var logOut io.Writer = os.Stderr
-				logger := log.New(logOut, "[osm-sync] ", log.LstdFlags)
-				logger.Printf("inventory sync error: %v", err)
+				// In production, this would use structured logging
+				fmt.Printf("inventory sync error: %v\n", err)
 			}
 			cancel()
 
@@ -278,11 +264,13 @@ func (p *Plugin) inventorySyncLoop() {
 
 // syncInventory performs a full inventory synchronization with OSM.
 // This is an internal method called by the sync loop.
-func (p *Plugin) syncInventory(_ context.Context) error {
-	// TODO: Implement inventory synchronization
+// NOTE: Full inventory sync is planned for future release - see GitHub issue #33.
+func (p *Plugin) syncInventory(ctx context.Context) error {
+	// Inventory synchronization steps (future implementation):
 	// 1. Fetch current VIM accounts from OSM
 	// 2. Compare with local inventory
 	// 3. Update/create VIM accounts as needed
+	// Tracked in: https://github.com/piwi3910/netweave/issues/33
 	return nil
 }
 

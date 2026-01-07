@@ -8,16 +8,16 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Multi-Backend Adapter Routing](#multi-backend-adapter-routing)
-3. [API Versioning and Evolution](#api-versioning-and-evolution)
-4. [Deployment Manager](#deployment-manager)
-5. [Resource Pools](#resource-pools)
-6. [Resources](#resources)
-7. [Resource Types](#resource-types)
-8. [Subscriptions](#subscriptions)
-9. [Data Transformation Examples](#data-transformation-examples)
-10. [Backend-Specific Mappings](#backend-specific-mappings)
-11. [API Documentation Endpoints](#api-documentation-endpoints)
+2. [Multi-Tenancy and RBAC](#multi-tenancy-and-rbac)
+3. [Multi-Backend Adapter Routing](#multi-backend-adapter-routing)
+4. [API Versioning and Evolution](#api-versioning-and-evolution)
+5. [Deployment Manager](#deployment-manager)
+6. [Resource Pools](#resource-pools)
+7. [Resources](#resources)
+8. [Resource Types](#resource-types)
+9. [Subscriptions](#subscriptions)
+10. [Data Transformation Examples](#data-transformation-examples)
+11. [Backend-Specific Mappings](#backend-specific-mappings)
 
 ---
 
@@ -45,6 +45,347 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 | Resource | Node / Machine | ✅ Full | CRUD |
 | Resource Type | StorageClass, Machine Types | ✅ Full | R |
 | Subscription | Redis (O2-IMS specific) | ✅ Full | CRUD |
+
+---
+
+## Multi-Tenancy and RBAC
+
+### Overview
+
+The netweave gateway provides multi-tenancy and Role-Based Access Control (RBAC) to enable secure, isolated access to O2-IMS resources across different organizations or teams.
+
+### Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Tenant** | Isolated organization with its own users, quotas, and resources |
+| **User** | Entity authenticated via mTLS certificate, belonging to a tenant |
+| **Role** | Collection of permissions (platform-level or tenant-scoped) |
+| **Permission** | Granular access right (e.g., `subscription:create`, `resource:read`) |
+
+### Authentication
+
+Authentication is performed via mTLS client certificates. The certificate's Subject DN is used to identify users:
+
+```
+CN=john.doe,O=Tenant A,OU=Engineering
+```
+
+The middleware extracts user identity from the `X-Forwarded-Client-Cert` (XFCC) header when behind a proxy, or directly from the TLS connection.
+
+### Tenant Management API
+
+#### List Tenants (Platform Admin Only)
+
+```http
+GET /admin/tenants HTTP/1.1
+Accept: application/json
+```
+
+**Response:**
+```json
+{
+  "tenants": [
+    {
+      "id": "tenant-123",
+      "name": "Acme Corporation",
+      "description": "Primary production tenant",
+      "status": "active",
+      "contactEmail": "admin@acme.com",
+      "quota": {
+        "maxSubscriptions": 100,
+        "maxResourcePools": 50,
+        "maxDeployments": 200,
+        "maxUsers": 25
+      },
+      "usage": {
+        "subscriptions": 45,
+        "resourcePools": 12,
+        "deployments": 78,
+        "users": 15
+      },
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-05T12:30:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+#### Create Tenant (Platform Admin Only)
+
+```http
+POST /admin/tenants HTTP/1.1
+Content-Type: application/json
+
+{
+  "name": "New Tenant",
+  "description": "Description of the tenant",
+  "contactEmail": "admin@newtenant.com",
+  "quota": {
+    "maxSubscriptions": 50,
+    "maxResourcePools": 25,
+    "maxDeployments": 100,
+    "maxUsers": 10
+  }
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "id": "tenant-456",
+  "name": "New Tenant",
+  "status": "active",
+  ...
+}
+```
+
+#### Get Tenant
+
+```http
+GET /admin/tenants/{tenantId} HTTP/1.1
+```
+
+#### Update Tenant (Platform Admin Only)
+
+```http
+PUT /admin/tenants/{tenantId} HTTP/1.1
+Content-Type: application/json
+
+{
+  "name": "Updated Name",
+  "description": "Updated description",
+  "status": "suspended",
+  "quota": {
+    "maxSubscriptions": 200
+  }
+}
+```
+
+#### Delete Tenant (Platform Admin Only)
+
+```http
+DELETE /admin/tenants/{tenantId} HTTP/1.1
+```
+
+**Note:** Tenants with active resources are marked as `pending_deletion` and resources must be cleaned up first.
+
+### User Management API
+
+#### List Users (Tenant Admin)
+
+```http
+GET /tenant/users HTTP/1.1
+Accept: application/json
+```
+
+**Response:**
+```json
+{
+  "users": [
+    {
+      "id": "user-123",
+      "tenantId": "tenant-456",
+      "subject": "CN=john.doe,O=Acme,OU=Engineering",
+      "commonName": "john.doe",
+      "email": "john.doe@acme.com",
+      "roleId": "role-tenant-admin",
+      "isActive": true,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "lastLoginAt": "2026-01-06T09:15:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+#### Create User (Tenant Admin)
+
+```http
+POST /tenant/users HTTP/1.1
+Content-Type: application/json
+
+{
+  "subject": "CN=jane.smith,O=Acme,OU=Operations",
+  "commonName": "jane.smith",
+  "email": "jane.smith@acme.com",
+  "roleId": "role-tenant-viewer"
+}
+```
+
+#### Update User (Tenant Admin)
+
+```http
+PUT /tenant/users/{userId} HTTP/1.1
+Content-Type: application/json
+
+{
+  "email": "new.email@acme.com",
+  "roleId": "role-tenant-operator",
+  "isActive": false
+}
+```
+
+#### Delete User (Tenant Admin)
+
+```http
+DELETE /tenant/users/{userId} HTTP/1.1
+```
+
+### Role System
+
+#### Platform-Level Roles
+
+| Role | Permissions | Description |
+|------|-------------|-------------|
+| `platform_admin` | All permissions | Full system administration |
+| `platform_operator` | Tenant read, some write | Platform operations |
+| `platform_viewer` | Read-only platform access | Monitoring and auditing |
+
+#### Tenant-Scoped Roles
+
+| Role | Permissions | Description |
+|------|-------------|-------------|
+| `tenant_admin` | Full tenant management | Manage users, quotas, resources within tenant |
+| `tenant_operator` | Create/manage resources | Day-to-day operations |
+| `tenant_viewer` | Read-only tenant access | View resources and status |
+
+#### List Available Roles
+
+```http
+GET /roles HTTP/1.1
+Accept: application/json
+```
+
+**Response:**
+```json
+{
+  "roles": [
+    {
+      "id": "role-tenant-admin",
+      "name": "tenant_admin",
+      "description": "Full tenant management",
+      "type": "tenant",
+      "permissions": [
+        "tenant:read",
+        "tenant:update",
+        "user:create",
+        "user:read",
+        "user:update",
+        "user:delete",
+        "subscription:create",
+        "subscription:read",
+        "subscription:delete",
+        "resource:read"
+      ]
+    }
+  ]
+}
+```
+
+### Permissions
+
+| Permission | Description |
+|------------|-------------|
+| `tenant:create` | Create new tenants (platform admin) |
+| `tenant:read` | View tenant information |
+| `tenant:update` | Modify tenant settings |
+| `tenant:delete` | Delete tenants |
+| `user:create` | Create users within tenant |
+| `user:read` | View user information |
+| `user:update` | Modify user settings |
+| `user:delete` | Remove users |
+| `subscription:create` | Create subscriptions |
+| `subscription:read` | View subscriptions |
+| `subscription:delete` | Remove subscriptions |
+| `resource:read` | View resources |
+| `resource:create` | Create resources |
+| `resource:delete` | Delete resources |
+| `audit:read` | View audit logs |
+
+### Audit Logging
+
+All authentication and authorization events are logged for compliance:
+
+```http
+GET /admin/audit?limit=100&offset=0 HTTP/1.1
+```
+
+**Response:**
+```json
+{
+  "events": [
+    {
+      "id": "event-123",
+      "type": "authentication_success",
+      "tenantId": "tenant-456",
+      "userId": "user-789",
+      "subject": "CN=john.doe,O=Acme",
+      "action": "user_authenticated",
+      "details": {
+        "method": "mtls",
+        "path": "/o2ims/v1/subscriptions"
+      },
+      "clientIp": "10.0.1.100",
+      "userAgent": "curl/7.68.0",
+      "timestamp": "2026-01-06T10:30:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+**Event Types:**
+- `authentication_success` - Successful authentication
+- `authentication_failure` - Failed authentication attempt
+- `authorization_failure` - Permission denied
+- `tenant_created` - New tenant created
+- `tenant_updated` - Tenant modified
+- `tenant_deleted` - Tenant removed
+- `user_created` - New user created
+- `user_updated` - User modified
+- `user_deleted` - User removed
+
+### Quota Enforcement
+
+Tenants have configurable quotas that are enforced atomically:
+
+| Resource | Default Limit | Description |
+|----------|---------------|-------------|
+| `maxSubscriptions` | 100 | Maximum O2-IMS subscriptions |
+| `maxResourcePools` | 50 | Maximum resource pools |
+| `maxDeployments` | 200 | Maximum deployments |
+| `maxUsers` | 25 | Maximum users per tenant |
+
+When a quota is exceeded, the API returns:
+```http
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+
+{
+  "error": "QuotaExceeded",
+  "message": "User quota exceeded for tenant",
+  "code": 403
+}
+```
+
+### Tenant Isolation
+
+All O2-IMS resources are isolated by tenant:
+
+1. **Subscriptions**: Each subscription belongs to a tenant
+2. **Resources**: Resources are scoped to tenant's resource pools
+3. **Audit Logs**: Tenants can only view their own audit events
+4. **Users**: Users can only access their own tenant's data
+
+**Example: Tenant-scoped subscription query**
+```http
+GET /o2ims/v1/subscriptions HTTP/1.1
+X-Tenant-ID: tenant-456
+```
+
+Returns only subscriptions belonging to `tenant-456`.
 
 ---
 
@@ -1708,156 +2049,3 @@ eksClient.CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 - Batch operations
 - Custom resource definitions for all O2-IMS types
 - Cross-backend resource migration
-
----
-
-## API Documentation Endpoints
-
-The netweave gateway provides interactive API documentation through Swagger UI and OpenAPI specifications.
-
-### Available Endpoints
-
-| Endpoint | Method | Description | Content-Type |
-|----------|--------|-------------|--------------|
-| `/docs/` | GET | Swagger UI interactive documentation | `text/html` |
-| `/docs/openapi.yaml` | GET | OpenAPI 3.0 specification (YAML) | `application/x-yaml` |
-| `/docs/openapi.json` | GET | Redirects to `/docs/openapi.yaml` | N/A (308 redirect) |
-| `/openapi.yaml` | GET | OpenAPI 3.0 specification (root path) | `application/x-yaml` |
-| `/openapi.json` | GET | Redirects to `/docs/openapi.yaml` | N/A (308 redirect) |
-
-### Swagger UI
-
-The interactive Swagger UI is available at `/docs/` and provides:
-
-- **Interactive API exploration**: Try out API endpoints directly from the browser
-- **Request/response examples**: View example payloads for all endpoints
-- **Authentication support**: Configure API credentials for testing
-- **Schema visualization**: Explore data models and their relationships
-
-**Security Features**:
-- Pinned Swagger UI version (5.11.0) for reproducibility
-- Subresource Integrity (SRI) hashes for all CDN resources
-- Content Security Policy (CSP) headers to restrict resource loading
-- X-Content-Type-Options, X-Frame-Options, and Referrer-Policy headers
-
-### OpenAPI Specification
-
-The OpenAPI 3.0 specification covers all O2-IMS API endpoints:
-
-```yaml
-openapi: 3.0.3
-info:
-  title: O2-IMS API
-  version: 1.0.0
-  description: O-RAN O2 Interface Management Services API
-
-paths:
-  /o2ims/v1/deploymentManagers:
-    get:
-      summary: List deployment managers
-      tags: [Deployment Managers]
-
-  /o2ims/v1/resourcePools:
-    get:
-      summary: List resource pools
-      tags: [Resource Pools]
-    post:
-      summary: Create resource pool
-      tags: [Resource Pools]
-
-  /o2ims/v1/resources:
-    get:
-      summary: List resources
-      tags: [Resources]
-
-  /o2ims/v1/resourceTypes:
-    get:
-      summary: List resource types
-      tags: [Resource Types]
-
-  /o2ims/v1/subscriptions:
-    get:
-      summary: List subscriptions
-      tags: [Subscriptions]
-    post:
-      summary: Create subscription
-      tags: [Subscriptions]
-
-  /o2ims/v1/oCloudInfrastructure:
-    get:
-      summary: Get O-Cloud infrastructure info
-      tags: [Infrastructure]
-```
-
-### Usage Examples
-
-**Access Swagger UI**:
-```bash
-# Open in browser
-open https://netweave.example.com/docs/
-
-# Or with curl
-curl -X GET https://netweave.example.com/docs/ \
-  --cert client.crt \
-  --key client.key \
-  --cacert ca.crt
-```
-
-**Fetch OpenAPI Specification**:
-```bash
-# YAML format
-curl -X GET https://netweave.example.com/docs/openapi.yaml \
-  --cert client.crt \
-  --key client.key \
-  --cacert ca.crt \
-  -H "Accept: application/x-yaml"
-
-# Also available at root path
-curl -X GET https://netweave.example.com/openapi.yaml \
-  --cert client.crt \
-  --key client.key \
-  --cacert ca.crt
-```
-
-**Import into API Tools**:
-```bash
-# Postman import
-curl -s https://netweave.example.com/openapi.yaml | \
-  pbcopy  # Copy to clipboard for import
-
-# Generate client SDK
-openapi-generator generate \
-  -i https://netweave.example.com/openapi.yaml \
-  -g python \
-  -o ./generated-client
-```
-
-### Response Headers
-
-Documentation endpoints include security-focused response headers:
-
-| Header | Value | Purpose |
-|--------|-------|---------|
-| `Content-Type` | `text/html; charset=utf-8` | Response content type |
-| `Content-Security-Policy` | Restricted policy | Prevent XSS and injection attacks |
-| `X-Content-Type-Options` | `nosniff` | Prevent MIME type sniffing |
-| `X-Frame-Options` | `DENY` | Prevent clickjacking |
-| `Referrer-Policy` | `strict-origin-when-cross-origin` | Control referrer information |
-| `Cache-Control` | `public, max-age=3600` | Cache OpenAPI spec for 1 hour |
-
-### Error Responses
-
-| Status | Description | Response |
-|--------|-------------|----------|
-| 200 | Success | Documentation content |
-| 301 | Redirect | Redirects `/docs` to `/docs/` |
-| 404 | Not Found | OpenAPI specification not loaded |
-
-**404 Response Example**:
-```json
-{
-  "error": "NotFound",
-  "message": "OpenAPI specification not loaded",
-  "code": 404
-}
-```

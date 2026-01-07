@@ -25,6 +25,9 @@ type Subscription struct {
 	// ID is the unique subscription identifier (UUID v4)
 	ID string `json:"subscriptionId"`
 
+	// TenantID is the tenant that owns this subscription (for multi-tenancy)
+	TenantID string `json:"tenantId,omitempty"`
+
 	// Callback is the webhook URL for notifications
 	Callback string `json:"callback"`
 
