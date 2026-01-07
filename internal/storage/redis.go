@@ -12,12 +12,13 @@ import (
 )
 
 const (
-	// Redis key prefixes.
-	subscriptionKeyPrefix       = "subscription:"
-	subscriptionSetKey          = "subscriptions:active"
-	subscriptionPoolIndexPrefix = "subscriptions:pool:"
-	subscriptionTypeIndexPrefix = "subscriptions:type:"
-	subscriptionEventChannel    = "subscriptions:events"
+	// Redis key prefixes
+	subscriptionKeyPrefix         = "subscription:"
+	subscriptionSetKey            = "subscriptions:active"
+	subscriptionPoolIndexPrefix   = "subscriptions:pool:"
+	subscriptionTypeIndexPrefix   = "subscriptions:type:"
+	subscriptionTenantIndexPrefix = "subscriptions:tenant:"
+	subscriptionEventChannel      = "subscriptions:events"
 
 	// Default TTL for subscription keys (0 = no expiration).
 	subscriptionTTL = 0
@@ -199,6 +200,12 @@ func (r *RedisStore) Create(ctx context.Context, sub *Subscription) error {
 	if sub.Filter.ResourceTypeID != "" {
 		typeKey := subscriptionTypeIndexPrefix + sub.Filter.ResourceTypeID
 		pipe.SAdd(ctx, typeKey, sub.ID)
+	}
+
+	// Add to tenant index if tenant ID specified (multi-tenancy)
+	if sub.TenantID != "" {
+		tenantKey := subscriptionTenantIndexPrefix + sub.TenantID
+		pipe.SAdd(ctx, tenantKey, sub.ID)
 	}
 
 	// Publish subscription created event
@@ -395,6 +402,12 @@ func (r *RedisStore) Delete(ctx context.Context, id string) error {
 		pipe.SRem(ctx, typeKey, id)
 	}
 
+	// Remove from tenant index
+	if existing.TenantID != "" {
+		tenantKey := subscriptionTenantIndexPrefix + existing.TenantID
+		pipe.SRem(ctx, tenantKey, id)
+	}
+
 	// Publish subscription deleted event
 	eventData := map[string]interface{}{
 		"event": "deleted",
@@ -484,6 +497,38 @@ func (r *RedisStore) ListByResourceType(ctx context.Context, resourceTypeID stri
 	ids, err := r.client.SMembers(ctx, typeKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list subscriptions by type: %w", err)
+	}
+
+	if len(ids) == 0 {
+		return []*Subscription{}, nil
+	}
+
+	// Retrieve subscriptions
+	subs := make([]*Subscription, 0, len(ids))
+	for _, id := range ids {
+		sub, err := r.Get(ctx, id)
+		if err != nil {
+			continue
+		}
+		subs = append(subs, sub)
+	}
+
+	return subs, nil
+}
+
+// ListByTenant retrieves subscriptions filtered by tenant ID.
+// Returns an empty slice if no matching subscriptions exist.
+func (r *RedisStore) ListByTenant(ctx context.Context, tenantID string) ([]*Subscription, error) {
+	if tenantID == "" {
+		return []*Subscription{}, nil
+	}
+
+	tenantKey := subscriptionTenantIndexPrefix + tenantID
+
+	// Get subscription IDs from tenant index
+	ids, err := r.client.SMembers(ctx, tenantKey).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list subscriptions by tenant: %w", err)
 	}
 
 	if len(ids) == 0 {
