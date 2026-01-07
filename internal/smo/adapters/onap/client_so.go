@@ -69,7 +69,7 @@ func (c *SOClient) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("health check request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check returned status %d", resp.StatusCode)
@@ -79,14 +79,21 @@ func (c *SOClient) Health(ctx context.Context) error {
 }
 
 // CreateServiceInstance creates a new service instance via SO.
-func (c *SOClient) CreateServiceInstance(ctx context.Context, request *ServiceInstanceRequest) (*ServiceInstanceResponse, error) {
+func (c *SOClient) CreateServiceInstance(
+	ctx context.Context,
+	request *ServiceInstanceRequest,
+) (*ServiceInstanceResponse, error) {
 	url := fmt.Sprintf("%s/onap/so/infra/serviceInstantiation/v7/serviceInstances", c.baseURL)
 
 	return c.serviceInstanceOperation(ctx, http.MethodPost, url, request, "create service instance")
 }
 
 // DeleteServiceInstance deletes a service instance via SO.
-func (c *SOClient) DeleteServiceInstance(ctx context.Context, serviceInstanceID string, request *ServiceInstanceRequest) (*ServiceInstanceResponse, error) {
+func (c *SOClient) DeleteServiceInstance(
+	ctx context.Context,
+	serviceInstanceID string,
+	request *ServiceInstanceRequest,
+) (*ServiceInstanceResponse, error) {
 	url := fmt.Sprintf("%s/onap/so/infra/serviceInstantiation/v7/serviceInstances/%s", c.baseURL, serviceInstanceID)
 
 	return c.serviceInstanceOperation(ctx, http.MethodDelete, url, request, "delete service instance")
@@ -110,7 +117,7 @@ func (c *SOClient) GetOrchestrationStatus(ctx context.Context, requestID string)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -149,7 +156,7 @@ func (c *SOClient) CancelOrchestration(ctx context.Context, requestID string) er
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -164,7 +171,11 @@ func (c *SOClient) CancelOrchestration(ctx context.Context, requestID string) er
 }
 
 // ExecuteWorkflow executes a Camunda BPMN workflow via SO.
-func (c *SOClient) ExecuteWorkflow(ctx context.Context, workflowName string, parameters map[string]interface{}) (string, error) {
+func (c *SOClient) ExecuteWorkflow(
+	ctx context.Context,
+	workflowName string,
+	parameters map[string]interface{},
+) (string, error) {
 	// Convert parameters to Camunda variable format
 	variables := make(map[string]interface{})
 	for key, value := range parameters {
@@ -201,7 +212,7 @@ func (c *SOClient) ExecuteWorkflow(ctx context.Context, workflowName string, par
 	if err != nil {
 		return "", fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -245,7 +256,7 @@ func (c *SOClient) RegisterServiceModel(ctx context.Context, model *ServiceModel
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -278,7 +289,7 @@ func (c *SOClient) GetServiceModel(ctx context.Context, modelID string) (*Servic
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -311,7 +322,7 @@ func (c *SOClient) ListServiceModels(ctx context.Context) ([]*ServiceModel, erro
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -327,7 +338,12 @@ func (c *SOClient) ListServiceModels(ctx context.Context) ([]*ServiceModel, erro
 }
 
 // serviceInstanceOperation is a helper for service instance CRUD operations.
-func (c *SOClient) serviceInstanceOperation(ctx context.Context, method, url string, request *ServiceInstanceRequest, operation string) (*ServiceInstanceResponse, error) {
+func (c *SOClient) serviceInstanceOperation(
+	ctx context.Context,
+	method, url string,
+	request *ServiceInstanceRequest,
+	operation string,
+) (*ServiceInstanceResponse, error) {
 	body, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
@@ -348,7 +364,7 @@ func (c *SOClient) serviceInstanceOperation(ctx context.Context, method, url str
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		bodyBytes, _ := io.ReadAll(resp.Body)

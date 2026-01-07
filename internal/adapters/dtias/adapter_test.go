@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 func TestNew(t *testing.T) {
@@ -118,21 +119,27 @@ func TestNew(t *testing.T) {
 
 func TestDTIASAdapter_Name(t *testing.T) {
 	adapter := createTestAdapter(t)
-	defer adapter.Close()
+	t.Cleanup(func() {
+		assert.NoError(t, adapter.Close())
+	})
 
 	assert.Equal(t, "dtias", adapter.Name())
 }
 
 func TestDTIASAdapter_Version(t *testing.T) {
 	adapter := createTestAdapter(t)
-	defer adapter.Close()
+	t.Cleanup(func() {
+		assert.NoError(t, adapter.Close())
+	})
 
 	assert.Equal(t, "1.0.0", adapter.Version())
 }
 
 func TestDTIASAdapter_Capabilities(t *testing.T) {
 	a := createTestAdapter(t)
-	defer a.Close()
+	t.Cleanup(func() {
+		assert.NoError(t, a.Close())
+	})
 
 	capabilities := a.Capabilities()
 
@@ -163,7 +170,9 @@ func TestDTIASAdapter_Close(t *testing.T) {
 
 func TestDTIASAdapter_Health(t *testing.T) {
 	a := createTestAdapter(t)
-	defer a.Close()
+	t.Cleanup(func() {
+		assert.NoError(t, a.Close())
+	})
 
 	// Health check will fail without a real DTIAS backend
 	// This is expected behavior for unit tests

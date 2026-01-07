@@ -4,15 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // CreateSubscription creates a new event subscription.
 // NOTE: DTIAS does not have a native event/subscription system.
 // This implementation returns an error indicating that subscriptions must be
 // implemented at a higher layer using polling or an external event system.
-func (a *DTIASAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *DTIASAdapter) CreateSubscription(
+	_ context.Context,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback))
 
@@ -22,12 +26,15 @@ func (a *DTIASAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subs
 	// 2. External event system (e.g., Redis Pub/Sub, Kafka)
 	// 3. Kubernetes informers if DTIAS servers are represented as CRDs
 
-	return nil, fmt.Errorf("DTIAS adapter does not support native subscriptions - subscriptions must be implemented at the gateway layer using polling or external event system")
+	return nil, fmt.Errorf(
+		"DTIAS adapter does not support native subscriptions - " +
+			"subscriptions must be implemented at the gateway layer using polling or external event system",
+	)
 }
 
 // GetSubscription retrieves a specific subscription by ID.
 // NOTE: DTIAS does not have a native subscription system.
-func (a *DTIASAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
+func (a *DTIASAdapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
@@ -36,7 +43,7 @@ func (a *DTIASAdapter) GetSubscription(ctx context.Context, id string) (*adapter
 
 // DeleteSubscription deletes a subscription by ID.
 // NOTE: DTIAS does not have a native subscription system.
-func (a *DTIASAdapter) DeleteSubscription(ctx context.Context, id string) error {
+func (a *DTIASAdapter) DeleteSubscription(_ context.Context, id string) error {
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 

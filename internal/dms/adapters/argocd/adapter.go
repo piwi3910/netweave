@@ -126,7 +126,7 @@ func NewAdapter(config *Config) (*ArgoCDAdapter, error) {
 // Initialize performs lazy initialization of the Kubernetes dynamic client.
 // This allows the adapter to be created without requiring immediate Kubernetes connectivity.
 // This method is thread-safe and ensures initialization happens exactly once.
-func (a *ArgoCDAdapter) Initialize(ctx context.Context) error {
+func (a *ArgoCDAdapter) Initialize(_ context.Context) error {
 	a.initOnce.Do(func() {
 		var restConfig *rest.Config
 		var err error
@@ -181,7 +181,10 @@ func (a *ArgoCDAdapter) Capabilities() []adapter.Capability {
 
 // ListDeploymentPackages retrieves deployment packages (Git repositories) from ArgoCD.
 // In ArgoCD, packages are Git repositories referenced in Applications.
-func (a *ArgoCDAdapter) ListDeploymentPackages(ctx context.Context, filter *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
+func (a *ArgoCDAdapter) ListDeploymentPackages(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.DeploymentPackage, error) {
 	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -250,7 +253,10 @@ func (a *ArgoCDAdapter) GetDeploymentPackage(ctx context.Context, id string) (*a
 
 // UploadDeploymentPackage is not directly supported in ArgoCD.
 // ArgoCD uses Git repositories as package sources.
-func (a *ArgoCDAdapter) UploadDeploymentPackage(ctx context.Context, pkg *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
+func (a *ArgoCDAdapter) UploadDeploymentPackage(
+	ctx context.Context,
+	pkg *adapter.DeploymentPackageUpload,
+) (*adapter.DeploymentPackage, error) {
 	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -285,7 +291,7 @@ func (a *ArgoCDAdapter) UploadDeploymentPackage(ctx context.Context, pkg *adapte
 
 // DeleteDeploymentPackage is not directly supported in ArgoCD.
 // Packages are Git repositories managed externally.
-func (a *ArgoCDAdapter) DeleteDeploymentPackage(ctx context.Context, id string) error {
+func (a *ArgoCDAdapter) DeleteDeploymentPackage(_ context.Context, _ string) error {
 	// ArgoCD doesn't support deleting packages (Git repos)
 	// This would need to be done in the Git server
 	return fmt.Errorf("ArgoCD does not support package deletion - manage repositories directly")
@@ -337,27 +343,54 @@ func (a *ArgoCDAdapter) GetDeployment(ctx context.Context, id string) (*adapter.
 }
 
 // CreateDeployment creates a new ArgoCD Application.
-func (a *ArgoCDAdapter) CreateDeployment(ctx context.Context, req *adapter.DeploymentRequest) (*adapter.Deployment, error) {
+func (a *ArgoCDAdapter) CreateDeployment(
+	ctx context.Context,
+	req *adapter.DeploymentRequest,
+) (*adapter.Deployment, error) {
 	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	if req == nil {
-		return nil, fmt.Errorf("deployment request cannot be nil")
-	}
-	if req.Name == "" {
-		return nil, fmt.Errorf("deployment name is required")
+	if err := validateDeploymentRequest(req); err != nil {
+		return nil, err
 	}
 
-	// Extract source configuration from PackageID or extensions
+	app, err := a.buildApplicationManifest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := a.dynamicClient.Resource(applicationGVR).
+		Namespace(a.config.Namespace).
+		Create(ctx, app, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ArgoCD Application: %w", err)
+	}
+
+	return a.transformApplicationToDeployment(result), nil
+}
+
+// validateDeploymentRequest validates the deployment request.
+func validateDeploymentRequest(req *adapter.DeploymentRequest) error {
+	if req == nil {
+		return fmt.Errorf("deployment request cannot be nil")
+	}
+	if req.Name == "" {
+		return fmt.Errorf("deployment name is required")
+	}
+	repoURL, _ := req.Extensions["argocd.repoURL"].(string)
+	if repoURL == "" {
+		return fmt.Errorf("argocd.repoURL extension is required")
+	}
+	return nil
+}
+
+// buildApplicationManifest builds the ArgoCD Application manifest from the request.
+func (a *ArgoCDAdapter) buildApplicationManifest(req *adapter.DeploymentRequest) (*unstructured.Unstructured, error) {
 	repoURL, _ := req.Extensions["argocd.repoURL"].(string)
 	path, _ := req.Extensions["argocd.path"].(string)
 	targetRevision, _ := req.Extensions["argocd.targetRevision"].(string)
 	chart, _ := req.Extensions["argocd.chart"].(string)
-
-	if repoURL == "" {
-		return nil, fmt.Errorf("argocd.repoURL extension is required")
-	}
 
 	if targetRevision == "" {
 		targetRevision = "HEAD"
@@ -368,7 +401,6 @@ func (a *ArgoCDAdapter) CreateDeployment(ctx context.Context, req *adapter.Deplo
 		destNamespace = "default"
 	}
 
-	// Build ArgoCD Application manifest
 	app := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": fmt.Sprintf("%s/%s", ApplicationGroup, ApplicationVersion),
@@ -393,40 +425,60 @@ func (a *ArgoCDAdapter) CreateDeployment(ctx context.Context, req *adapter.Deplo
 		},
 	}
 
-	// Add sync policy if auto-sync is enabled
-	if a.config.AutoSync {
-		syncPolicy := map[string]interface{}{
-			"automated": map[string]interface{}{
-				"prune":    a.config.Prune,
-				"selfHeal": a.config.SelfHeal,
-			},
-		}
-		if err := unstructured.SetNestedField(app.Object, syncPolicy, "spec", "syncPolicy"); err != nil {
-			return nil, fmt.Errorf("failed to set sync policy: %w", err)
-		}
+	if err := a.addSyncPolicy(app); err != nil {
+		return nil, err
 	}
 
-	// Add Helm values if provided
-	if len(req.Values) > 0 && chart != "" {
-		helmParams := map[string]interface{}{
-			"values": mustMarshalYAML(req.Values),
-		}
-		if err := unstructured.SetNestedField(app.Object, helmParams, "spec", "source", "helm"); err != nil {
-			return nil, fmt.Errorf("failed to set helm values: %w", err)
-		}
+	if err := a.addHelmValues(app, req, chart); err != nil {
+		return nil, err
 	}
 
-	// Create the Application
-	result, err := a.dynamicClient.Resource(applicationGVR).Namespace(a.config.Namespace).Create(ctx, app, metav1.CreateOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ArgoCD Application: %w", err)
+	return app, nil
+}
+
+// addSyncPolicy adds sync policy to the application if auto-sync is enabled.
+func (a *ArgoCDAdapter) addSyncPolicy(app *unstructured.Unstructured) error {
+	if !a.config.AutoSync {
+		return nil
 	}
 
-	return a.transformApplicationToDeployment(result), nil
+	syncPolicy := map[string]interface{}{
+		"automated": map[string]interface{}{
+			"prune":    a.config.Prune,
+			"selfHeal": a.config.SelfHeal,
+		},
+	}
+	if err := unstructured.SetNestedField(app.Object, syncPolicy, "spec", "syncPolicy"); err != nil {
+		return fmt.Errorf("failed to set sync policy: %w", err)
+	}
+	return nil
+}
+
+// addHelmValues adds Helm values to the application if provided.
+func (a *ArgoCDAdapter) addHelmValues(
+	app *unstructured.Unstructured,
+	req *adapter.DeploymentRequest,
+	chart string,
+) error {
+	if len(req.Values) == 0 || chart == "" {
+		return nil
+	}
+
+	helmParams := map[string]interface{}{
+		"values": mustMarshalYAML(req.Values),
+	}
+	if err := unstructured.SetNestedField(app.Object, helmParams, "spec", "source", "helm"); err != nil {
+		return fmt.Errorf("failed to set helm values: %w", err)
+	}
+	return nil
 }
 
 // UpdateDeployment updates an existing ArgoCD Application.
-func (a *ArgoCDAdapter) UpdateDeployment(ctx context.Context, id string, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+func (a *ArgoCDAdapter) UpdateDeployment(
+	ctx context.Context,
+	id string,
+	update *adapter.DeploymentUpdate,
+) (*adapter.Deployment, error) {
 	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -459,7 +511,9 @@ func (a *ArgoCDAdapter) UpdateDeployment(ctx context.Context, id string, update 
 	}
 
 	// Update the Application
-	result, err := a.dynamicClient.Resource(applicationGVR).Namespace(a.config.Namespace).Update(ctx, app, metav1.UpdateOptions{})
+	result, err := a.dynamicClient.Resource(applicationGVR).
+		Namespace(a.config.Namespace).
+		Update(ctx, app, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update ArgoCD Application: %w", err)
 	}
@@ -546,7 +600,9 @@ func (a *ArgoCDAdapter) RollbackDeployment(ctx context.Context, id string, revis
 	}
 
 	// Update the Application
-	_, err = a.dynamicClient.Resource(applicationGVR).Namespace(a.config.Namespace).Update(ctx, app, metav1.UpdateOptions{})
+	_, err = a.dynamicClient.Resource(applicationGVR).
+		Namespace(a.config.Namespace).
+		Update(ctx, app, metav1.UpdateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to rollback ArgoCD Application: %w", err)
 	}
@@ -615,7 +671,7 @@ func (a *ArgoCDAdapter) GetDeploymentHistory(ctx context.Context, id string) (*a
 
 // GetDeploymentLogs retrieves logs for an ArgoCD Application.
 // Note: ArgoCD doesn't directly provide logs, this returns status information.
-func (a *ArgoCDAdapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapter.LogOptions) ([]byte, error) {
+func (a *ArgoCDAdapter) GetDeploymentLogs(ctx context.Context, id string, _ *adapter.LogOptions) ([]byte, error) {
 	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -677,7 +733,10 @@ func (a *ArgoCDAdapter) Close() error {
 }
 
 // listApplications retrieves ArgoCD Applications with optional filtering.
-func (a *ArgoCDAdapter) listApplications(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, error) {
+func (a *ArgoCDAdapter) listApplications(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*unstructured.Unstructured, error) {
 	namespace := a.config.Namespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
@@ -703,7 +762,11 @@ func (a *ArgoCDAdapter) listApplications(ctx context.Context, filter *adapter.Fi
 
 // getApplication retrieves a single ArgoCD Application by name.
 func (a *ArgoCDAdapter) getApplication(ctx context.Context, name string) (*unstructured.Unstructured, error) {
-	return a.dynamicClient.Resource(applicationGVR).Namespace(a.config.Namespace).Get(ctx, name, metav1.GetOptions{})
+	app, err := a.dynamicClient.Resource(applicationGVR).Namespace(a.config.Namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ArgoCD application %s: %w", name, err)
+	}
+	return app, nil
 }
 
 // transformApplicationToDeployment converts an ArgoCD Application to a Deployment.

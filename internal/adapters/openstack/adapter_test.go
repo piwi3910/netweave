@@ -9,9 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
-// TestNew tests the creation of a new OpenStackAdapter
+// TestNew tests the creation of a new OpenStackAdapter.
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -115,7 +117,7 @@ func TestNew(t *testing.T) {
 	}
 }
 
-// TestNewWithDefaults tests default value initialization
+// TestNewWithDefaults tests default value initialization.
 func TestNewWithDefaults(t *testing.T) {
 	// Skip if no OpenStack credentials available
 	if os.Getenv("OPENSTACK_AUTH_URL") == "" {
@@ -137,7 +139,7 @@ func TestNewWithDefaults(t *testing.T) {
 	adapter, err := New(config)
 	require.NoError(t, err)
 	require.NotNil(t, adapter)
-	defer adapter.Close()
+	t.Cleanup(func() { require.NoError(t, adapter.Close()) })
 
 	// Check defaults
 	assert.Equal(t, "test-ocloud", adapter.oCloudID)
@@ -145,7 +147,7 @@ func TestNewWithDefaults(t *testing.T) {
 	assert.Contains(t, adapter.deploymentManagerID, "ocloud-openstack-")
 }
 
-// TestMetadata tests metadata methods
+// TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
 	a := &OpenStackAdapter{
 		logger: zap.NewNop(),
@@ -170,7 +172,7 @@ func TestMetadata(t *testing.T) {
 // NOTE: TestMatchesFilter and TestApplyPagination tests moved to internal/adapter/helpers_test.go
 // These shared helper functions are now tested in the common adapter package.
 
-// TestGenerateFlavorID tests flavor ID generation
+// TestGenerateFlavorID tests flavor ID generation.
 func TestGenerateFlavorID(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -203,7 +205,7 @@ func TestGenerateFlavorID(t *testing.T) {
 	}
 }
 
-// TestClose tests adapter cleanup
+// TestClose tests adapter cleanup.
 func TestClose(t *testing.T) {
 	adapter := &OpenStackAdapter{
 		logger: zap.NewNop(),
@@ -213,7 +215,7 @@ func TestClose(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestConfigValidation tests configuration validation
+// TestConfigValidation tests configuration validation.
 func TestConfigValidation(t *testing.T) {
 	t.Run("valid config with all fields", func(t *testing.T) {
 		config := &Config{

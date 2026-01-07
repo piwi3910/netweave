@@ -5,10 +5,11 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+
 	"github.com/piwi3910/netweave/internal/adapter"
 	internalmodels "github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
-	"go.uber.org/zap"
 )
 
 // ResourceHandler handles Resource API endpoints.
@@ -43,7 +44,7 @@ func NewResourceHandler(adp adapter.Adapter, logger *zap.Logger) *ResourceHandle
 //   - offset: Pagination offset
 //   - limit: Maximum number of items to return
 //
-// Response: 200 OK with array of Resource objects
+// Response: 200 OK with array of Resource objects.
 func (h *ResourceHandler) ListResources(c *gin.Context) {
 	ctx := c.Request.Context()
 

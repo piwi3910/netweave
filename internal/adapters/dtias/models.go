@@ -351,19 +351,19 @@ type ServerProvisionRequest struct {
 type ServerPowerOperation string
 
 const (
-	// PowerOn powers on the server
+	// PowerOn powers on the server.
 	PowerOn ServerPowerOperation = "on"
 
-	// PowerOff powers off the server (graceful shutdown)
+	// PowerOff powers off the server (graceful shutdown).
 	PowerOff ServerPowerOperation = "off"
 
-	// PowerForceOff forces the server off (hard shutdown)
+	// PowerForceOff forces the server off (hard shutdown).
 	PowerForceOff ServerPowerOperation = "force-off"
 
-	// PowerReset resets the server (hard reset)
+	// PowerReset resets the server (hard reset).
 	PowerReset ServerPowerOperation = "reset"
 
-	// PowerCycle power cycles the server (off then on)
+	// PowerCycle power cycles the server (off then on).
 	PowerCycle ServerPowerOperation = "cycle"
 )
 

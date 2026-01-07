@@ -14,8 +14,9 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/regions"
 	"github.com/gophercloud/gophercloud/openstack/placement/v1/resourceproviders"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // OpenStackAdapter implements the adapter.Adapter interface for OpenStack NFVi backends.
@@ -110,31 +111,72 @@ type Config struct {
 //	    OCloudID:    "ocloud-openstack-1",
 //	})
 func New(cfg *Config) (*OpenStackAdapter, error) {
+	if err := validateConfig(cfg); err != nil {
+		return nil, err
+	}
+
+	// Apply defaults to configuration
+	domainName, deploymentManagerID, timeout, logger := applyDefaults(cfg)
+
+	// Authenticate with OpenStack
+	provider, err := authenticateOpenStack(cfg, domainName, timeout, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize OpenStack service clients
+	clients, err := initializeServiceClients(provider, cfg.Region, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	adapter := &OpenStackAdapter{
+		provider:            provider,
+		compute:             clients.compute,
+		placement:           clients.placement,
+		identity:            clients.identity,
+		logger:              logger,
+		oCloudID:            cfg.OCloudID,
+		deploymentManagerID: deploymentManagerID,
+		region:              cfg.Region,
+		projectName:         cfg.ProjectName,
+		subscriptions:       make(map[string]*adapter.Subscription),
+	}
+
+	logger.Info("OpenStack adapter initialized successfully",
+		zap.String("oCloudID", cfg.OCloudID),
+		zap.String("deploymentManagerID", deploymentManagerID),
+		zap.String("region", cfg.Region))
+
+	return adapter, nil
+}
+
+// validateConfig validates required configuration fields.
+func validateConfig(cfg *Config) error {
 	if cfg == nil {
-		return nil, fmt.Errorf("config cannot be nil")
+		return fmt.Errorf("config cannot be nil")
 	}
 
-	// Validate required configuration
-	if cfg.AuthURL == "" {
-		return nil, fmt.Errorf("authURL is required")
-	}
-	if cfg.Username == "" {
-		return nil, fmt.Errorf("username is required")
-	}
-	if cfg.Password == "" {
-		return nil, fmt.Errorf("password is required")
-	}
-	if cfg.ProjectName == "" {
-		return nil, fmt.Errorf("projectName is required")
-	}
-	if cfg.Region == "" {
-		return nil, fmt.Errorf("region is required")
-	}
-	if cfg.OCloudID == "" {
-		return nil, fmt.Errorf("oCloudID is required")
+	requiredFields := map[string]string{
+		"authURL":     cfg.AuthURL,
+		"username":    cfg.Username,
+		"password":    cfg.Password,
+		"projectName": cfg.ProjectName,
+		"region":      cfg.Region,
+		"oCloudID":    cfg.OCloudID,
 	}
 
-	// Set defaults
+	for field, value := range requiredFields {
+		if value == "" {
+			return fmt.Errorf("%s is required", field)
+		}
+	}
+
+	return nil
+}
+
+// applyDefaults applies default values to optional configuration fields.
+func applyDefaults(cfg *Config) (string, string, time.Duration, *zap.Logger) {
 	domainName := cfg.DomainName
 	if domainName == "" {
 		domainName = "Default"
@@ -150,16 +192,26 @@ func New(cfg *Config) (*OpenStackAdapter, error) {
 		timeout = 30 * time.Second
 	}
 
-	// Initialize logger
 	logger := cfg.Logger
 	if logger == nil {
 		var err error
 		logger, err = zap.NewProduction()
 		if err != nil {
-			return nil, fmt.Errorf("failed to create logger: %w", err)
+			// Return a no-op logger as fallback
+			logger = zap.NewNop()
 		}
 	}
 
+	return domainName, deploymentManagerID, timeout, logger
+}
+
+// authenticateOpenStack authenticates with OpenStack and returns a provider clien.
+func authenticateOpenStack(
+	cfg *Config,
+	domainName string,
+	timeout time.Duration,
+	logger *zap.Logger,
+) (*gophercloud.ProviderClient, error) {
 	logger.Info("initializing OpenStack adapter",
 		zap.String("authURL", cfg.AuthURL),
 		zap.String("username", cfg.Username),
@@ -168,7 +220,6 @@ func New(cfg *Config) (*OpenStackAdapter, error) {
 		zap.String("region", cfg.Region),
 		zap.String("oCloudID", cfg.OCloudID))
 
-	// Authenticate with OpenStack
 	authOpts := gophercloud.AuthOptions{
 		IdentityEndpoint: cfg.AuthURL,
 		Username:         cfg.Username,
@@ -183,64 +234,52 @@ func New(cfg *Config) (*OpenStackAdapter, error) {
 		return nil, fmt.Errorf("failed to authenticate with OpenStack: %w", err)
 	}
 
-	// Set timeout for all API requests
 	provider.HTTPClient.Timeout = timeout
 
 	logger.Info("authenticated with OpenStack",
 		zap.String("projectName", cfg.ProjectName))
 
-	// Initialize Nova compute service client
-	computeClient, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
-		Region: cfg.Region,
-	})
+	return provider, nil
+}
+
+// serviceClients holds OpenStack service clients.
+type serviceClients struct {
+	compute   *gophercloud.ServiceClient
+	placement *gophercloud.ServiceClient
+	identity  *gophercloud.ServiceClient
+}
+
+// initializeServiceClients initializes all required OpenStack service clients.
+func initializeServiceClients(
+	provider *gophercloud.ProviderClient,
+	region string,
+	logger *zap.Logger,
+) (*serviceClients, error) {
+	endpointOpts := gophercloud.EndpointOpts{Region: region}
+
+	computeClient, err := openstack.NewComputeV2(provider, endpointOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Nova compute client: %w", err)
 	}
+	logger.Info("initialized Nova compute client", zap.String("region", region))
 
-	logger.Info("initialized Nova compute client",
-		zap.String("region", cfg.Region))
-
-	// Initialize Placement service client
-	placementClient, err := openstack.NewPlacementV1(provider, gophercloud.EndpointOpts{
-		Region: cfg.Region,
-	})
+	placementClient, err := openstack.NewPlacementV1(provider, endpointOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Placement client: %w", err)
 	}
+	logger.Info("initialized Placement client", zap.String("region", region))
 
-	logger.Info("initialized Placement client",
-		zap.String("region", cfg.Region))
-
-	// Initialize Keystone identity service client
-	identityClient, err := openstack.NewIdentityV3(provider, gophercloud.EndpointOpts{
-		Region: cfg.Region,
-	})
+	identityClient, err := openstack.NewIdentityV3(provider, endpointOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Keystone identity client: %w", err)
 	}
+	logger.Info("initialized Keystone identity client", zap.String("region", region))
 
-	logger.Info("initialized Keystone identity client",
-		zap.String("region", cfg.Region))
-
-	adapter := &OpenStackAdapter{
-		provider:            provider,
-		compute:             computeClient,
-		placement:           placementClient,
-		identity:            identityClient,
-		logger:              logger,
-		oCloudID:            cfg.OCloudID,
-		deploymentManagerID: deploymentManagerID,
-		region:              cfg.Region,
-		projectName:         cfg.ProjectName,
-		subscriptions:       make(map[string]*adapter.Subscription),
-	}
-
-	logger.Info("OpenStack adapter initialized successfully",
-		zap.String("oCloudID", cfg.OCloudID),
-		zap.String("deploymentManagerID", deploymentManagerID),
-		zap.String("region", cfg.Region))
-
-	return adapter, nil
+	return &serviceClients{
+		compute:   computeClient,
+		placement: placementClient,
+		identity:  identityClient,
+	}, nil
 }
 
 // Name returns the adapter name.
@@ -269,7 +308,7 @@ func (a *OpenStackAdapter) Capabilities() []adapter.Capability {
 
 // GetDeploymentManager retrieves metadata about the OpenStack deployment manager.
 // It queries the Keystone region information to construct the deployment manager metadata.
-func (a *OpenStackAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
+func (a *OpenStackAdapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
 	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
@@ -339,19 +378,19 @@ func (a *OpenStackAdapter) Health(ctx context.Context) error {
 	// Check Nova compute service
 	if err := a.checkNovaHealth(ctx); err != nil {
 		a.logger.Error("Nova health check failed", zap.Error(err))
-		return fmt.Errorf("Nova API unreachable: %w", err)
+		return fmt.Errorf("nova API unreachable: %w", err)
 	}
 
 	// Check Placement service
 	if err := a.checkPlacementHealth(ctx); err != nil {
 		a.logger.Error("Placement health check failed", zap.Error(err))
-		return fmt.Errorf("Placement API unreachable: %w", err)
+		return fmt.Errorf("placement API unreachable: %w", err)
 	}
 
 	// Check Keystone identity service
 	if err := a.checkKeystoneHealth(ctx); err != nil {
 		a.logger.Error("Keystone health check failed", zap.Error(err))
-		return fmt.Errorf("Keystone API unreachable: %w", err)
+		return fmt.Errorf("keystone API unreachable: %w", err)
 	}
 
 	a.logger.Debug("health check passed")
@@ -359,7 +398,7 @@ func (a *OpenStackAdapter) Health(ctx context.Context) error {
 }
 
 // checkNovaHealth verifies Nova compute service connectivity.
-func (a *OpenStackAdapter) checkNovaHealth(ctx context.Context) error {
+func (a *OpenStackAdapter) checkNovaHealth(_ context.Context) error {
 	// Query a small number of servers to verify connectivity
 	listOpts := servers.ListOpts{
 		Limit: 1,
@@ -374,7 +413,7 @@ func (a *OpenStackAdapter) checkNovaHealth(ctx context.Context) error {
 }
 
 // checkPlacementHealth verifies Placement service connectivity.
-func (a *OpenStackAdapter) checkPlacementHealth(ctx context.Context) error {
+func (a *OpenStackAdapter) checkPlacementHealth(_ context.Context) error {
 	// Query resource providers to verify connectivity
 	_, err := resourceproviders.List(a.placement, resourceproviders.ListOpts{}).AllPages()
 	if err != nil {
@@ -385,7 +424,7 @@ func (a *OpenStackAdapter) checkPlacementHealth(ctx context.Context) error {
 }
 
 // checkKeystoneHealth verifies Keystone identity service connectivity.
-func (a *OpenStackAdapter) checkKeystoneHealth(ctx context.Context) error {
+func (a *OpenStackAdapter) checkKeystoneHealth(_ context.Context) error {
 	// Query regions to verify connectivity
 	_, err := regions.List(a.identity, nil).AllPages()
 	if err != nil {
@@ -399,11 +438,8 @@ func (a *OpenStackAdapter) checkKeystoneHealth(ctx context.Context) error {
 func (a *OpenStackAdapter) Close() error {
 	a.logger.Info("closing OpenStack adapter")
 
-	// Sync logger before shutdown
-	if err := a.logger.Sync(); err != nil {
-		// Ignore sync errors on stderr/stdout
-		return nil
-	}
+	// Sync logger before shutdown (ignore sync errors on stderr/stdout)
+	_ = a.logger.Sync()
 
 	return nil
 }

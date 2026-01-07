@@ -129,11 +129,7 @@ func convertRuleConfig(config *RuleConfig) (*Rule, error) {
 	// Convert conditions
 	var conditions *Conditions
 	if !isEmptyConditions(&config.Conditions) {
-		cond, err := convertConditions(&config.Conditions)
-		if err != nil {
-			return nil, fmt.Errorf("invalid conditions for rule %s: %w", config.Name, err)
-		}
-		conditions = cond
+		conditions = convertConditions(&config.Conditions)
 	}
 
 	return &Rule{
@@ -147,7 +143,7 @@ func convertRuleConfig(config *RuleConfig) (*Rule, error) {
 }
 
 // convertConditions converts ConditionsConfig to Conditions.
-func convertConditions(config *ConditionsConfig) (*Conditions, error) {
+func convertConditions(config *ConditionsConfig) *Conditions {
 	conditions := &Conditions{
 		Labels:     config.Labels,
 		Extensions: config.Extensions,
@@ -172,7 +168,7 @@ func convertConditions(config *ConditionsConfig) (*Conditions, error) {
 		conditions.Capabilities = capabilities
 	}
 
-	return conditions, nil
+	return conditions
 }
 
 // isEmptyConditions checks if a ConditionsConfig is empty.

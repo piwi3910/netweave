@@ -10,11 +10,12 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/piwi3910/netweave/internal/adapter"
-	"github.com/piwi3910/netweave/internal/o2ims/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/o2ims/models"
 )
 
 // mockAdapter is a mock implementation of adapter.Adapter for testing.
@@ -41,7 +42,10 @@ func (m *mockAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.
 	return nil, errors.New("not found")
 }
 
-func (m *mockAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockAdapter) CreateResourcePool(
+	ctx context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	if m.createResourcePoolFunc != nil {
 		return m.createResourcePoolFunc(ctx, pool)
 	}
@@ -49,7 +53,11 @@ func (m *mockAdapter) CreateResourcePool(ctx context.Context, pool *adapter.Reso
 	return pool, nil
 }
 
-func (m *mockAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockAdapter) UpdateResourcePool(
+	ctx context.Context,
+	_ string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	if m.updateResourcePoolFunc != nil {
 		return m.updateResourcePoolFunc(ctx, pool)
 	}
@@ -63,6 +71,9 @@ func (m *mockAdapter) DeleteResourcePool(ctx context.Context, id string) error {
 	return errors.New("not found")
 }
 
+// errNotImplemented is returned by stub methods that are not used in tests.
+var errNotImplemented = errors.New("method not implemented in mock")
+
 // Stub methods for other adapter.Adapter interface requirements.
 func (m *mockAdapter) Name() string {
 	return "mock-adapter"
@@ -73,37 +84,37 @@ func (m *mockAdapter) Version() string {
 func (m *mockAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{adapter.CapabilityResourcePools}
 }
-func (m *mockAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
-	return nil, nil
+func (m *mockAdapter) GetDeploymentManager(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
+	return nil, errNotImplemented
 }
-func (m *mockAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
-	return nil, nil
+func (m *mockAdapter) ListResources(_ context.Context, _ *adapter.Filter) ([]*adapter.Resource, error) {
+	return nil, errNotImplemented
 }
-func (m *mockAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
-	return nil, nil
+func (m *mockAdapter) GetResource(_ context.Context, _ string) (*adapter.Resource, error) {
+	return nil, errNotImplemented
 }
-func (m *mockAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
-	return nil, nil
+func (m *mockAdapter) CreateResource(_ context.Context, _ *adapter.Resource) (*adapter.Resource, error) {
+	return nil, errNotImplemented
 }
-func (m *mockAdapter) DeleteResource(ctx context.Context, id string) error {
-	return nil
+func (m *mockAdapter) DeleteResource(_ context.Context, _ string) error {
+	return errNotImplemented
 }
-func (m *mockAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
-	return nil, nil
+func (m *mockAdapter) ListResourceTypes(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourceType, error) {
+	return nil, errNotImplemented
 }
-func (m *mockAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
-	return nil, nil
+func (m *mockAdapter) GetResourceType(_ context.Context, _ string) (*adapter.ResourceType, error) {
+	return nil, errNotImplemented
 }
-func (m *mockAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
-	return nil, nil
+func (m *mockAdapter) CreateSubscription(_ context.Context, _ *adapter.Subscription) (*adapter.Subscription, error) {
+	return nil, errNotImplemented
 }
-func (m *mockAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
-	return nil, nil
+func (m *mockAdapter) GetSubscription(_ context.Context, _ string) (*adapter.Subscription, error) {
+	return nil, errNotImplemented
 }
-func (m *mockAdapter) DeleteSubscription(ctx context.Context, id string) error {
-	return nil
+func (m *mockAdapter) DeleteSubscription(_ context.Context, _ string) error {
+	return errNotImplemented
 }
-func (m *mockAdapter) Health(ctx context.Context) error {
+func (m *mockAdapter) Health(_ context.Context) error {
 	return nil
 }
 func (m *mockAdapter) Close() error {
@@ -111,7 +122,7 @@ func (m *mockAdapter) Close() error {
 }
 
 // setupTestRouter creates a test Gin router with the ResourcePoolHandler.
-func setupTestRouter(t *testing.T) (*gin.Engine, *ResourcePoolHandler) {
+func setupTestRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 
 	// Set Gin to test mode
@@ -136,7 +147,7 @@ func setupTestRouter(t *testing.T) (*gin.Engine, *ResourcePoolHandler) {
 	router.PUT("/o2ims/v1/resourcePools/:resourcePoolId", handler.UpdateResourcePool)
 	router.DELETE("/o2ims/v1/resourcePools/:resourcePoolId", handler.DeleteResourcePool)
 
-	return router, handler
+	return router
 }
 
 // TestResourcePoolHandler_ListResourcePools tests listing resource pools.
@@ -152,6 +163,7 @@ func TestResourcePoolHandler_ListResourcePools(t *testing.T) {
 			name:       "list all resource pools",
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ListResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -166,6 +178,7 @@ func TestResourcePoolHandler_ListResourcePools(t *testing.T) {
 			queryParams: "?filter=location:us-east-1",
 			wantStatus:  http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ListResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -177,6 +190,7 @@ func TestResourcePoolHandler_ListResourcePools(t *testing.T) {
 			queryParams: "?offset=10&limit=20",
 			wantStatus:  http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ListResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -187,7 +201,7 @@ func TestResourcePoolHandler_ListResourcePools(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router, _ := setupTestRouter(t)
+			router := setupTestRouter(t)
 
 			// Create request
 			req := httptest.NewRequest(http.MethodGet, "/o2ims/v1/resourcePools"+tt.queryParams, nil)
@@ -226,6 +240,7 @@ func TestResourcePoolHandler_GetResourcePool(t *testing.T) {
 			resourceID: "pool-123",
 			wantStatus: http.StatusNotFound, // Stub returns 404
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -244,6 +259,7 @@ func TestResourcePoolHandler_GetResourcePool(t *testing.T) {
 			resourceID: "pool-abc-123-xyz",
 			wantStatus: http.StatusNotFound, // Stub returns 404
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -254,7 +270,7 @@ func TestResourcePoolHandler_GetResourcePool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router, _ := setupTestRouter(t)
+			router := setupTestRouter(t)
 
 			// Create request
 			url := "/o2ims/v1/resourcePools/" + tt.resourceID
@@ -294,6 +310,7 @@ func TestResourcePoolHandler_CreateResourcePool(t *testing.T) {
 			},
 			wantStatus: http.StatusCreated,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ResourcePool
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -309,6 +326,7 @@ func TestResourcePoolHandler_CreateResourcePool(t *testing.T) {
 			},
 			wantStatus: http.StatusCreated,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ResourcePool
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -320,6 +338,7 @@ func TestResourcePoolHandler_CreateResourcePool(t *testing.T) {
 			requestBody: `{invalid json}`,
 			wantStatus:  http.StatusBadRequest,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -336,7 +355,7 @@ func TestResourcePoolHandler_CreateResourcePool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router, _ := setupTestRouter(t)
+			router := setupTestRouter(t)
 
 			// Prepare request body
 			var body []byte
@@ -389,6 +408,7 @@ func TestResourcePoolHandler_UpdateResourcePool(t *testing.T) {
 			},
 			wantStatus: http.StatusNotFound, // Stub returns 404
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -404,6 +424,7 @@ func TestResourcePoolHandler_UpdateResourcePool(t *testing.T) {
 			},
 			wantStatus: http.StatusNotFound,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -416,6 +437,7 @@ func TestResourcePoolHandler_UpdateResourcePool(t *testing.T) {
 			requestBody: `{invalid json}`,
 			wantStatus:  http.StatusBadRequest,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -432,7 +454,7 @@ func TestResourcePoolHandler_UpdateResourcePool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router, _ := setupTestRouter(t)
+			router := setupTestRouter(t)
 
 			// Prepare request body
 			var body []byte
@@ -481,6 +503,7 @@ func TestResourcePoolHandler_DeleteResourcePool(t *testing.T) {
 			resourceID: "pool-123",
 			wantStatus: http.StatusNotFound, // Stub returns 404
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -493,6 +516,7 @@ func TestResourcePoolHandler_DeleteResourcePool(t *testing.T) {
 			resourceID: "pool-nonexistent",
 			wantStatus: http.StatusNotFound,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -508,7 +532,7 @@ func TestResourcePoolHandler_DeleteResourcePool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router, _ := setupTestRouter(t)
+			router := setupTestRouter(t)
 
 			// Create request
 			url := "/o2ims/v1/resourcePools/" + tt.resourceID
@@ -563,7 +587,7 @@ func TestResourcePoolHandler_ContentTypeHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router, _ := setupTestRouter(t)
+			router := setupTestRouter(t)
 
 			// Prepare request body for POST/PUT
 			var body []byte
@@ -604,7 +628,7 @@ func TestResourcePoolHandler_ContentTypeHandling(t *testing.T) {
 
 // TestResourcePoolHandler_ErrorResponses tests error response formatting.
 func TestResourcePoolHandler_ErrorResponses(t *testing.T) {
-	router, _ := setupTestRouter(t)
+	router := setupTestRouter(t)
 
 	t.Run("404 error format", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/o2ims/v1/resourcePools/nonexistent", nil)

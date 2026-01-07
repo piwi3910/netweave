@@ -3,9 +3,10 @@ package routing
 import (
 	"testing"
 
-	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 func TestLoadRulesFromConfig(t *testing.T) {
@@ -113,6 +114,7 @@ func TestConvertRuleConfig(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, rule *Rule) {
+				t.Helper()
 				assert.Equal(t, "test-rule", rule.Name)
 				assert.Equal(t, 100, rule.Priority)
 				assert.Equal(t, "kubernetes", rule.AdapterName)
@@ -129,6 +131,7 @@ func TestConvertRuleConfig(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, rule *Rule) {
+				t.Helper()
 				assert.Equal(t, 50, rule.Priority, "default priority should be 50")
 			},
 		},
@@ -148,6 +151,7 @@ func TestConvertRuleConfig(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, rule *Rule) {
+				t.Helper()
 				require.NotNil(t, rule.Conditions)
 				assert.Equal(t, "compute", rule.Conditions.Labels["type"])
 				assert.Equal(t, "us-east", rule.Conditions.Labels["location"])
@@ -168,6 +172,7 @@ func TestConvertRuleConfig(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, rule *Rule) {
+				t.Helper()
 				require.NotNil(t, rule.Conditions)
 				require.NotNil(t, rule.Conditions.Location)
 				assert.Equal(t, "dc-", rule.Conditions.Location.Prefix)
@@ -189,6 +194,7 @@ func TestConvertRuleConfig(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, rule *Rule) {
+				t.Helper()
 				require.NotNil(t, rule.Conditions)
 				assert.Len(t, rule.Conditions.Capabilities, 2)
 				assert.Contains(t, rule.Conditions.Capabilities, adapter.Capability("resource-pools"))
@@ -246,6 +252,7 @@ func TestConvertConditions(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, cond *Conditions) {
+				t.Helper()
 				assert.Equal(t, "compute", cond.Labels["type"])
 				assert.Nil(t, cond.Location)
 				assert.Nil(t, cond.Capabilities)
@@ -259,6 +266,7 @@ func TestConvertConditions(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, cond *Conditions) {
+				t.Helper()
 				require.NotNil(t, cond.Location)
 				assert.Equal(t, "dc-", cond.Location.Prefix)
 			},
@@ -271,6 +279,7 @@ func TestConvertConditions(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, cond *Conditions) {
+				t.Helper()
 				require.NotNil(t, cond.Location)
 				assert.Equal(t, "-prod", cond.Location.Suffix)
 			},
@@ -283,6 +292,7 @@ func TestConvertConditions(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, cond *Conditions) {
+				t.Helper()
 				require.NotNil(t, cond.Location)
 				assert.Equal(t, "dallas", cond.Location.Contains)
 			},
@@ -295,6 +305,7 @@ func TestConvertConditions(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, cond *Conditions) {
+				t.Helper()
 				require.NotNil(t, cond.Location)
 				assert.Equal(t, "dc-dallas-1", cond.Location.Exact)
 			},
@@ -308,6 +319,7 @@ func TestConvertConditions(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, cond *Conditions) {
+				t.Helper()
 				assert.Len(t, cond.Capabilities, 2)
 				assert.Contains(t, cond.Capabilities, adapter.Capability("resource-pools"))
 			},
@@ -329,6 +341,7 @@ func TestConvertConditions(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, cond *Conditions) {
+				t.Helper()
 				assert.Equal(t, "compute", cond.Labels["type"])
 				require.NotNil(t, cond.Location)
 				assert.Equal(t, "dc-", cond.Location.Prefix)
@@ -340,8 +353,7 @@ func TestConvertConditions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cond, err := convertConditions(tt.config)
-			assert.NoError(t, err)
+			cond := convertConditions(tt.config)
 			require.NotNil(t, cond)
 			if tt.validate != nil {
 				tt.validate(t, cond)

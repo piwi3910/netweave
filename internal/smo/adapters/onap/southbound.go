@@ -6,8 +6,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/piwi3910/netweave/internal/smo"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/smo"
 )
 
 // === SOUTHBOUND MODE: SMO → netweave ===
@@ -122,11 +123,12 @@ func (p *Plugin) GetWorkflowStatus(ctx context.Context, executionID string) (*sm
 		status.CompletedAt = orchestrationStatus.FinishTime
 	}
 
-	if orchestrationStatus.RequestState == "COMPLETE" {
+	switch orchestrationStatus.RequestState {
+	case "COMPLETE":
 		status.Result = map[string]interface{}{
 			"serviceInstanceId": orchestrationStatus.ServiceInstanceID,
 		}
-	} else if orchestrationStatus.RequestState == "FAILED" {
+	case "FAILED":
 		status.Error = orchestrationStatus.StatusMessage
 	}
 
@@ -326,7 +328,7 @@ func (p *Plugin) ListServiceModels(ctx context.Context) ([]*smo.ServiceModel, er
 
 // ApplyPolicy applies a policy to the infrastructure or deployments.
 // Policies are managed through ONAP Policy Framework.
-func (p *Plugin) ApplyPolicy(ctx context.Context, policy *smo.Policy) error {
+func (p *Plugin) ApplyPolicy(_ context.Context, policy *smo.Policy) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -364,7 +366,7 @@ func (p *Plugin) ApplyPolicy(ctx context.Context, policy *smo.Policy) error {
 }
 
 // GetPolicyStatus retrieves the current status of an applied policy.
-func (p *Plugin) GetPolicyStatus(ctx context.Context, policyID string) (*smo.PolicyStatus, error) {
+func (p *Plugin) GetPolicyStatus(_ context.Context, policyID string) (*smo.PolicyStatus, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 

@@ -5,13 +5,17 @@ import (
 	"fmt"
 
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/aggregates"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // ListResourcePools retrieves all OpenStack host aggregates and transforms them to O2-IMS Resource Pools.
 // Host aggregates in OpenStack are logical groupings of compute hosts, which map naturally to O2-IMS Resource Pools.
-func (a *OpenStackAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *OpenStackAdapter) ListResourcePools(
+	_ context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
 	a.logger.Debug("ListResourcePools called",
 		zap.Any("filter", filter))
 
@@ -56,7 +60,7 @@ func (a *OpenStackAdapter) ListResourcePools(ctx context.Context, filter *adapte
 }
 
 // GetResourcePool retrieves a specific OpenStack host aggregate by ID and transforms it to O2-IMS Resource Pool.
-func (a *OpenStackAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+func (a *OpenStackAdapter) GetResourcePool(_ context.Context, id string) (*adapter.ResourcePool, error) {
 	a.logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
@@ -87,7 +91,10 @@ func (a *OpenStackAdapter) GetResourcePool(ctx context.Context, id string) (*ada
 }
 
 // CreateResourcePool creates a new OpenStack host aggregate from an O2-IMS Resource Pool.
-func (a *OpenStackAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *OpenStackAdapter) CreateResourcePool(
+	_ context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	a.logger.Debug("CreateResourcePool called",
 		zap.String("name", pool.Name))
 
@@ -148,7 +155,11 @@ func (a *OpenStackAdapter) CreateResourcePool(ctx context.Context, pool *adapter
 
 // UpdateResourcePool updates an existing OpenStack host aggregate.
 // Note: Only metadata can be updated; name and availability zone are immutable in OpenStack.
-func (a *OpenStackAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *OpenStackAdapter) UpdateResourcePool(
+	_ context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	a.logger.Debug("UpdateResourcePool called",
 		zap.String("id", id),
 		zap.String("name", pool.Name))
@@ -200,7 +211,7 @@ func (a *OpenStackAdapter) UpdateResourcePool(ctx context.Context, id string, po
 }
 
 // DeleteResourcePool deletes an OpenStack host aggregate.
-func (a *OpenStackAdapter) DeleteResourcePool(ctx context.Context, id string) error {
+func (a *OpenStackAdapter) DeleteResourcePool(_ context.Context, id string) error {
 	a.logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 

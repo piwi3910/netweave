@@ -5,13 +5,17 @@ import (
 	"fmt"
 
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/flavors"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // ListResourceTypes retrieves all OpenStack flavors and transforms them to O2-IMS Resource Types.
 // Flavors in OpenStack define the compute, memory, and storage capacity of instances.
-func (a *OpenStackAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (a *OpenStackAdapter) ListResourceTypes(
+	_ context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourceType, error) {
 	a.logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
@@ -59,7 +63,7 @@ func (a *OpenStackAdapter) ListResourceTypes(ctx context.Context, filter *adapte
 }
 
 // GetResourceType retrieves a specific OpenStack flavor by ID and transforms it to O2-IMS Resource Type.
-func (a *OpenStackAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
+func (a *OpenStackAdapter) GetResourceType(_ context.Context, id string) (*adapter.ResourceType, error) {
 	a.logger.Debug("GetResourceType called",
 		zap.String("id", id))
 

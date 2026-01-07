@@ -7,13 +7,15 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/aggregates"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
-// TestTransformHostAggregateToResourcePool tests the transformation from OpenStack host aggregate to O2-IMS resource pool
+// TestTransformHostAggregateToResourcePool tests the transformation from
+// OpenStack host aggregate to O2-IMS resource pool.
 func TestTransformHostAggregateToResourcePool(t *testing.T) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",
@@ -62,7 +64,7 @@ func TestTransformHostAggregateToResourcePool(t *testing.T) {
 	assert.ElementsMatch(t, []string{"host1", "host2", "host3"}, hosts)
 }
 
-// TestTransformHostAggregateToResourcePoolEmpty tests transformation with minimal data
+// TestTransformHostAggregateToResourcePoolEmpty tests transformation with minimal data.
 func TestTransformHostAggregateToResourcePoolEmpty(t *testing.T) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",
@@ -85,7 +87,7 @@ func TestTransformHostAggregateToResourcePoolEmpty(t *testing.T) {
 	assert.Equal(t, 0, pool.Extensions["openstack.hostCount"])
 }
 
-// TestResourcePoolIDParsing tests parsing resource pool IDs
+// TestResourcePoolIDParsing tests parsing resource pool IDs.
 func TestResourcePoolIDParsing(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -142,7 +144,7 @@ func TestResourcePoolIDParsing(t *testing.T) {
 	}
 }
 
-// TestListResourcePoolsFilter tests filtering logic for ListResourcePools
+// TestListResourcePoolsFilter tests filtering logic for ListResourcePools.
 func TestListResourcePoolsFilter(t *testing.T) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",
@@ -210,7 +212,7 @@ func TestListResourcePoolsFilter(t *testing.T) {
 	})
 }
 
-// TestListResourcePoolsPagination tests pagination for ListResourcePools
+// TestListResourcePoolsPagination tests pagination for ListResourcePools.
 func TestListResourcePoolsPagination(t *testing.T) {
 	// Create test pools
 	pools := make([]*adapter.ResourcePool, 10)
@@ -267,7 +269,7 @@ func TestListResourcePoolsPagination(t *testing.T) {
 	}
 }
 
-// TestCreateResourcePoolValidation tests validation for CreateResourcePool
+// TestCreateResourcePoolValidation tests validation for CreateResourcePool.
 func TestCreateResourcePoolValidation(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger: zap.NewNop(),
@@ -286,7 +288,7 @@ func TestCreateResourcePoolValidation(t *testing.T) {
 	})
 }
 
-// BenchmarkTransformHostAggregateToResourcePool benchmarks the transformation
+// BenchmarkTransformHostAggregateToResourcePool benchmarks the transformation.
 func BenchmarkTransformHostAggregateToResourcePool(b *testing.B) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",

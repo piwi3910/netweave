@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
-// TestCreateSubscription tests subscription creation
+// TestCreateSubscription tests subscription creation.
 func TestCreateSubscription(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
@@ -87,7 +88,7 @@ func TestCreateSubscription(t *testing.T) {
 	})
 }
 
-// TestGetSubscription tests subscription retrieval
+// TestGetSubscription tests subscription retrieval.
 func TestGetSubscription(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
@@ -121,7 +122,7 @@ func TestGetSubscription(t *testing.T) {
 	})
 }
 
-// TestDeleteSubscription tests subscription deletion
+// TestDeleteSubscription tests subscription deletion.
 func TestDeleteSubscription(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
@@ -161,7 +162,7 @@ func TestDeleteSubscription(t *testing.T) {
 	})
 }
 
-// TestListSubscriptions tests listing all subscriptions
+// TestListSubscriptions tests listing all subscriptions.
 func TestListSubscriptions(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
@@ -202,7 +203,7 @@ func TestListSubscriptions(t *testing.T) {
 	})
 }
 
-// TestSubscriptionFilters tests subscription filter handling
+// TestSubscriptionFilters tests subscription filter handling.
 func TestSubscriptionFilters(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
@@ -273,7 +274,7 @@ func TestSubscriptionFilters(t *testing.T) {
 	}
 }
 
-// TestSubscriptionConcurrency tests concurrent subscription operations
+// TestSubscriptionConcurrency tests concurrent subscription operations.
 func TestSubscriptionConcurrency(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
@@ -349,7 +350,7 @@ func TestSubscriptionConcurrency(t *testing.T) {
 	})
 }
 
-// BenchmarkCreateSubscription benchmarks subscription creation
+// BenchmarkCreateSubscription benchmarks subscription creation.
 func BenchmarkCreateSubscription(b *testing.B) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
@@ -367,11 +368,11 @@ func BenchmarkCreateSubscription(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		adp.CreateSubscription(ctx, sub)
+		_, _ = adp.CreateSubscription(ctx, sub)
 	}
 }
 
-// BenchmarkGetSubscription benchmarks subscription retrieval
+// BenchmarkGetSubscription benchmarks subscription retrieval.
 func BenchmarkGetSubscription(b *testing.B) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
@@ -389,6 +390,6 @@ func BenchmarkGetSubscription(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		adp.GetSubscription(ctx, created.SubscriptionID)
+		_, _ = adp.GetSubscription(ctx, created.SubscriptionID)
 	}
 }

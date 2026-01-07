@@ -5,10 +5,11 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+
 	"github.com/piwi3910/netweave/internal/adapter"
 	internalmodels "github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
-	"go.uber.org/zap"
 )
 
 // DeploymentManagerHandler handles Deployment Manager API endpoints.
@@ -41,7 +42,7 @@ func NewDeploymentManagerHandler(adp adapter.Adapter, logger *zap.Logger) *Deplo
 //   - offset: Pagination offset
 //   - limit: Maximum number of items to return
 //
-// Response: 200 OK with array of DeploymentManager objects
+// Response: 200 OK with array of DeploymentManager objects.
 func (h *DeploymentManagerHandler) ListDeploymentManagers(c *gin.Context) {
 	ctx := c.Request.Context()
 

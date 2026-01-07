@@ -127,23 +127,67 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	}, nil
 }
 
-// doRequest performs an HTTP request with authentication, retries, and error handling.
-func (c *Client) doRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
-	// Marshal request body if provided
-	var bodyReader io.Reader
-	if body != nil {
-		jsonBody, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal request body: %w", err)
-		}
-		bodyReader = bytes.NewReader(jsonBody)
+// marshalRequestBody converts a request body to a JSON reader.
+// Returns nil reader when body is nil (valid for GET/DELETE requests).
+func (c *Client) marshalRequestBody(body interface{}) (io.Reader, error) {
+	if body == nil {
+		return http.NoBody, nil
+	}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+	return bytes.NewReader(jsonBody), nil
+}
+
+// createHTTPRequest creates an HTTP request with authentication headers.
+func (c *Client) createHTTPRequest(
+	ctx context.Context,
+	method, url string,
+	bodyReader io.Reader,
+) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Build request URL
-	url := c.baseURL + path
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "netweave-o2ims-gateway/1.0")
 
-	// Retry loop
+	return req, nil
+}
+
+// isRetryableResponse checks if a response should trigger a retry.
+func (c *Client) isRetryableResponse(resp *http.Response) (bool, error) {
+	if resp.StatusCode >= 500 && resp.StatusCode < 600 {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			return true, fmt.Errorf("failed to close response body: %w", closeErr)
+		}
+		return true, fmt.Errorf("server error: %s", resp.Status)
+	}
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			return true, fmt.Errorf("failed to close response body: %w", closeErr)
+		}
+		return true, fmt.Errorf("rate limited: %s", resp.Status)
+	}
+
+	return false, nil
+}
+
+// doRequest performs an HTTP request with authentication, retries, and error handling.
+func (c *Client) doRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
+	bodyReader, err := c.marshalRequestBody(body)
+	if err != nil {
+		return nil, err
+	}
+
+	url := c.baseURL + path
 	var lastErr error
+
 	for attempt := 0; attempt <= c.retryAttempts; attempt++ {
 		if attempt > 0 {
 			c.logger.Debug("retrying request",
@@ -153,41 +197,23 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 			time.Sleep(c.retryDelay)
 		}
 
-		// Create request
-		req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
+		req, err := c.createHTTPRequest(ctx, method, url, bodyReader)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create request: %w", err)
+			return nil, err
 		}
 
-		// Add authentication header
-		req.Header.Set("Authorization", "Bearer "+c.apiKey)
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Accept", "application/json")
-		req.Header.Set("User-Agent", "netweave-o2ims-gateway/1.0")
-
-		// Execute request
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("request failed: %w", err)
 			continue
 		}
 
-		// Check for retryable status codes
-		if resp.StatusCode >= 500 && resp.StatusCode < 600 {
-			// Server error - retry
-			resp.Body.Close()
-			lastErr = fmt.Errorf("server error: %s", resp.Status)
+		retryable, retryErr := c.isRetryableResponse(resp)
+		if retryable {
+			lastErr = retryErr
 			continue
 		}
 
-		if resp.StatusCode == http.StatusTooManyRequests {
-			// Rate limited - retry
-			resp.Body.Close()
-			lastErr = fmt.Errorf("rate limited: %s", resp.Status)
-			continue
-		}
-
-		// Success or non-retryable error
 		return resp, nil
 	}
 
@@ -196,7 +222,11 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 
 // parseResponse parses a JSON response body into the target structure.
 func (c *Client) parseResponse(resp *http.Response, target interface{}) error {
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			c.logger.Warn("failed to close response body", zap.Error(err))
+		}
+	}()
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
@@ -230,7 +260,11 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			c.logger.Warn("failed to close response body", zap.Error(err))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check failed: status %d", resp.StatusCode)

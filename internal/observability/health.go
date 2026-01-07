@@ -9,22 +9,22 @@ import (
 	"time"
 )
 
-// HealthStatus represents the health status of a component
+// HealthStatus represents the health status of a componen.
 type HealthStatus string
 
 const (
-	// StatusHealthy indicates the component is healthy
+	// StatusHealthy indicates the component is healthy.
 	StatusHealthy HealthStatus = "healthy"
-	// StatusUnhealthy indicates the component is unhealthy
+	// StatusUnhealthy indicates the component is unhealthy.
 	StatusUnhealthy HealthStatus = "unhealthy"
-	// StatusDegraded indicates the component is degraded but functional
+	// StatusDegraded indicates the component is degraded but functional.
 	StatusDegraded HealthStatus = "degraded"
 )
 
-// HealthCheck represents a health check function
+// HealthCheck represents a health check function.
 type HealthCheck func(ctx context.Context) error
 
-// ComponentHealth represents the health status of a single component
+// ComponentHealth represents the health status of a single componen.
 type ComponentHealth struct {
 	Status  HealthStatus `json:"status"`
 	Message string       `json:"message,omitempty"`
@@ -32,7 +32,7 @@ type ComponentHealth struct {
 	Latency string       `json:"latency,omitempty"`
 }
 
-// HealthResponse represents the overall health check response
+// HealthResponse represents the overall health check response.
 type HealthResponse struct {
 	Status     HealthStatus               `json:"status"`
 	Timestamp  time.Time                  `json:"timestamp"`
@@ -40,14 +40,14 @@ type HealthResponse struct {
 	Components map[string]ComponentHealth `json:"components"`
 }
 
-// ReadinessResponse represents the readiness check response
+// ReadinessResponse represents the readiness check response.
 type ReadinessResponse struct {
 	Ready      bool                       `json:"ready"`
 	Timestamp  time.Time                  `json:"timestamp"`
 	Components map[string]ComponentHealth `json:"components"`
 }
 
-// HealthChecker manages health and readiness checks
+// HealthChecker manages health and readiness checks.
 type HealthChecker struct {
 	mu              sync.RWMutex
 	healthChecks    map[string]HealthCheck
@@ -56,7 +56,7 @@ type HealthChecker struct {
 	timeout         time.Duration
 }
 
-// NewHealthChecker creates a new health checker
+// NewHealthChecker creates a new health checker.
 func NewHealthChecker(version string) *HealthChecker {
 	return &HealthChecker{
 		healthChecks:    make(map[string]HealthCheck),
@@ -66,28 +66,28 @@ func NewHealthChecker(version string) *HealthChecker {
 	}
 }
 
-// RegisterHealthCheck registers a health check for a component
+// RegisterHealthCheck registers a health check for a componen.
 func (hc *HealthChecker) RegisterHealthCheck(name string, check HealthCheck) {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
 	hc.healthChecks[name] = check
 }
 
-// RegisterReadinessCheck registers a readiness check for a component
+// RegisterReadinessCheck registers a readiness check for a componen.
 func (hc *HealthChecker) RegisterReadinessCheck(name string, check HealthCheck) {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
 	hc.readinessChecks[name] = check
 }
 
-// SetTimeout sets the timeout for health checks
+// SetTimeout sets the timeout for health checks.
 func (hc *HealthChecker) SetTimeout(timeout time.Duration) {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
 	hc.timeout = timeout
 }
 
-// CheckHealth performs all health checks and returns the health status
+// CheckHealth performs all health checks and returns the health status.
 func (hc *HealthChecker) CheckHealth(ctx context.Context) *HealthResponse {
 	hc.mu.RLock()
 	checks := make(map[string]HealthCheck, len(hc.healthChecks))
@@ -122,7 +122,7 @@ func (hc *HealthChecker) CheckHealth(ctx context.Context) *HealthResponse {
 	}
 }
 
-// CheckReadiness performs all readiness checks and returns the readiness status
+// CheckReadiness performs all readiness checks and returns the readiness status.
 func (hc *HealthChecker) CheckReadiness(ctx context.Context) *ReadinessResponse {
 	hc.mu.RLock()
 	checks := make(map[string]HealthCheck, len(hc.readinessChecks))
@@ -153,7 +153,7 @@ func (hc *HealthChecker) CheckReadiness(ctx context.Context) *ReadinessResponse 
 	}
 }
 
-// executeChecks executes a set of health checks concurrently
+// executeChecks executes a set of health checks concurrently.
 func (hc *HealthChecker) executeChecks(ctx context.Context, checks map[string]HealthCheck) map[string]ComponentHealth {
 	components := make(map[string]ComponentHealth)
 	if len(checks) == 0 {
@@ -211,7 +211,7 @@ func (hc *HealthChecker) executeChecks(ctx context.Context, checks map[string]He
 	return components
 }
 
-// HealthHandler returns an HTTP handler for the health endpoint
+// HealthHandler returns an HTTP handler for the health endpoin.
 func (hc *HealthChecker) HealthHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		health := hc.CheckHealth(r.Context())
@@ -230,7 +230,7 @@ func (hc *HealthChecker) HealthHandler() http.HandlerFunc {
 	}
 }
 
-// ReadinessHandler returns an HTTP handler for the readiness endpoint
+// ReadinessHandler returns an HTTP handler for the readiness endpoin.
 func (hc *HealthChecker) ReadinessHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		readiness := hc.CheckReadiness(r.Context())
@@ -250,9 +250,9 @@ func (hc *HealthChecker) ReadinessHandler() http.HandlerFunc {
 }
 
 // LivenessHandler returns an HTTP handler for the liveness endpoint
-// Liveness is simpler - just checks if the process is alive
+// Liveness is simpler - just checks if the process is alive.
 func LivenessHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
@@ -269,7 +269,7 @@ func LivenessHandler() http.HandlerFunc {
 
 // Common health check implementations
 
-// RedisHealthCheck creates a health check for Redis
+// RedisHealthCheck creates a health check for Redis.
 func RedisHealthCheck(pingFunc func(ctx context.Context) error) HealthCheck {
 	return func(ctx context.Context) error {
 		if pingFunc == nil {
@@ -279,7 +279,7 @@ func RedisHealthCheck(pingFunc func(ctx context.Context) error) HealthCheck {
 	}
 }
 
-// KubernetesHealthCheck creates a health check for Kubernetes API
+// KubernetesHealthCheck creates a health check for Kubernetes API.
 func KubernetesHealthCheck(pingFunc func(ctx context.Context) error) HealthCheck {
 	return func(ctx context.Context) error {
 		if pingFunc == nil {
@@ -289,7 +289,7 @@ func KubernetesHealthCheck(pingFunc func(ctx context.Context) error) HealthCheck
 	}
 }
 
-// AdapterHealthCheck creates a health check for an adapter
+// AdapterHealthCheck creates a health check for an adapter.
 func AdapterHealthCheck(name string, checkFunc func(ctx context.Context) error) HealthCheck {
 	return func(ctx context.Context) error {
 		if checkFunc == nil {
@@ -299,7 +299,7 @@ func AdapterHealthCheck(name string, checkFunc func(ctx context.Context) error) 
 	}
 }
 
-// GenericHealthCheck creates a generic health check from a function
+// GenericHealthCheck creates a generic health check from a function.
 func GenericHealthCheck(checkFunc func(ctx context.Context) error) HealthCheck {
 	return checkFunc
 }

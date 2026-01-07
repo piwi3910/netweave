@@ -2,14 +2,16 @@ package routing
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
-	"github.com/piwi3910/netweave/internal/adapter"
-	"github.com/piwi3910/netweave/internal/registry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+
+	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/registry"
 )
 
 // mockAdapter is a test implementation.
@@ -31,7 +33,7 @@ func (m *mockAdapter) Capabilities() []adapter.Capability {
 	return m.capabilities
 }
 
-func (m *mockAdapter) Health(ctx context.Context) error {
+func (m *mockAdapter) Health(_ context.Context) error {
 	return nil
 }
 
@@ -39,66 +41,74 @@ func (m *mockAdapter) Close() error {
 	return nil
 }
 
-func (m *mockAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
-	return nil, nil
+// errNotImplemented is returned by stub methods not used in tests.
+var errNotImplemented = errors.New("method not implemented in mock")
+
+func (m *mockAdapter) GetDeploymentManager(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
+	return nil, errNotImplemented
 }
-func (m *mockAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
-	return nil, nil
+func (m *mockAdapter) ListResourcePools(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourcePool, error) {
+	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
-	return nil, nil
+func (m *mockAdapter) GetResourcePool(_ context.Context, _ string) (*adapter.ResourcePool, error) {
+	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
-	return nil, nil
+func (m *mockAdapter) CreateResourcePool(_ context.Context, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
-	return nil, nil
+func (m *mockAdapter) UpdateResourcePool(
+	_ context.Context,
+	_ string,
+	_ *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
+	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) DeleteResourcePool(ctx context.Context, id string) error {
-	return nil
+func (m *mockAdapter) DeleteResourcePool(_ context.Context, _ string) error {
+	return errNotImplemented
 }
 
-func (m *mockAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
-	return nil, nil
+func (m *mockAdapter) ListResources(_ context.Context, _ *adapter.Filter) ([]*adapter.Resource, error) {
+	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
-	return nil, nil
+func (m *mockAdapter) GetResource(_ context.Context, _ string) (*adapter.Resource, error) {
+	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
-	return nil, nil
+func (m *mockAdapter) CreateResource(_ context.Context, _ *adapter.Resource) (*adapter.Resource, error) {
+	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) DeleteResource(ctx context.Context, id string) error {
-	return nil
+func (m *mockAdapter) DeleteResource(_ context.Context, _ string) error {
+	return errNotImplemented
 }
 
-func (m *mockAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
-	return nil, nil
+func (m *mockAdapter) ListResourceTypes(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourceType, error) {
+	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
-	return nil, nil
+func (m *mockAdapter) GetResourceType(_ context.Context, _ string) (*adapter.ResourceType, error) {
+	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
-	return nil, nil
+func (m *mockAdapter) CreateSubscription(_ context.Context, _ *adapter.Subscription) (*adapter.Subscription, error) {
+	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
-	return nil, nil
+func (m *mockAdapter) GetSubscription(_ context.Context, _ string) (*adapter.Subscription, error) {
+	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) DeleteSubscription(ctx context.Context, id string) error {
-	return nil
+func (m *mockAdapter) DeleteSubscription(_ context.Context, _ string) error {
+	return errNotImplemented
 }
 
 func setupTestRouter(t *testing.T) (*Router, *registry.Registry) {
+	t.Helper()
 	logger := zaptest.NewLogger(t)
 	ctx := context.Background()
 

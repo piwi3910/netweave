@@ -1,8 +1,7 @@
-// Package helpers provides common test utilities for integration tests.
-//
 //go:build integration
 // +build integration
 
+// Package helpers provides common test utilities for integration tests.
 package helpers
 
 import (

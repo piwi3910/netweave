@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -11,14 +12,14 @@ import (
 )
 
 const (
-	// Redis key prefixes
+	// Redis key prefixes.
 	subscriptionKeyPrefix       = "subscription:"
 	subscriptionSetKey          = "subscriptions:active"
 	subscriptionPoolIndexPrefix = "subscriptions:pool:"
 	subscriptionTypeIndexPrefix = "subscriptions:type:"
 	subscriptionEventChannel    = "subscriptions:events"
 
-	// Default TTL for subscription keys (0 = no expiration)
+	// Default TTL for subscription keys (0 = no expiration).
 	subscriptionTTL = 0
 )
 
@@ -154,7 +155,7 @@ func (r *RedisStore) Create(ctx context.Context, sub *Subscription) error {
 		return ErrInvalidID
 	}
 	if err := validateCallbackURL(sub.Callback); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidCallback, err)
+		return fmt.Errorf("%w: %w", ErrInvalidCallback, err)
 	}
 
 	// Set timestamps
@@ -228,7 +229,7 @@ func (r *RedisStore) Get(ctx context.Context, id string) (*Subscription, error) 
 
 	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, ErrSubscriptionNotFound
 		}
 		return nil, fmt.Errorf("failed to get subscription: %w", err)
@@ -246,16 +247,47 @@ func (r *RedisStore) Get(ctx context.Context, id string) (*Subscription, error) 
 // Returns ErrSubscriptionNotFound if the subscription does not exist.
 // Returns ErrInvalidCallback if the callback URL is invalid.
 func (r *RedisStore) Update(ctx context.Context, sub *Subscription) error {
+	if err := r.validateUpdate(ctx, sub); err != nil {
+		return err
+	}
+
+	existing, err := r.Get(ctx, sub.ID)
+	if err != nil {
+		return err
+	}
+
+	sub.UpdatedAt = time.Now().UTC()
+	sub.CreatedAt = existing.CreatedAt
+
+	data, err := json.Marshal(sub)
+	if err != nil {
+		return fmt.Errorf("failed to marshal subscription: %w", err)
+	}
+
+	pipe := r.client.Pipeline()
+	key := subscriptionKeyPrefix + sub.ID
+
+	pipe.Set(ctx, key, data, subscriptionTTL)
+	r.updateIndexesInPipeline(ctx, pipe, existing, sub)
+	r.publishUpdateEvent(ctx, pipe, sub.ID)
+
+	if _, err = pipe.Exec(ctx); err != nil {
+		return fmt.Errorf("failed to update subscription: %w", err)
+	}
+
+	return nil
+}
+
+// validateUpdate validates the subscription update request.
+func (r *RedisStore) validateUpdate(ctx context.Context, sub *Subscription) error {
 	if sub.ID == "" {
 		return ErrInvalidID
 	}
 	if err := validateCallbackURL(sub.Callback); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidCallback, err)
+		return fmt.Errorf("%w: %w", ErrInvalidCallback, err)
 	}
 
 	key := subscriptionKeyPrefix + sub.ID
-
-	// Check if subscription exists
 	exists, err := r.client.Exists(ctx, key).Result()
 	if err != nil {
 		return fmt.Errorf("failed to check subscription existence: %w", err)
@@ -264,67 +296,67 @@ func (r *RedisStore) Update(ctx context.Context, sub *Subscription) error {
 		return ErrSubscriptionNotFound
 	}
 
-	// Get existing subscription to compare filters
-	existing, err := r.Get(ctx, sub.ID)
-	if err != nil {
-		return err
+	return nil
+}
+
+// updateIndexesInPipeline updates resource pool and type indexes if filters changed.
+func (r *RedisStore) updateIndexesInPipeline(
+	ctx context.Context,
+	pipe redis.Pipeliner,
+	existing, updated *Subscription,
+) {
+	r.updateResourcePoolIndex(ctx, pipe, existing, updated)
+	r.updateResourceTypeIndex(ctx, pipe, existing, updated)
+}
+
+// updateResourcePoolIndex updates the resource pool index if changed.
+func (r *RedisStore) updateResourcePoolIndex(
+	ctx context.Context,
+	pipe redis.Pipeliner,
+	existing, updated *Subscription,
+) {
+	if existing.Filter.ResourcePoolID == updated.Filter.ResourcePoolID {
+		return
 	}
 
-	// Update timestamp
-	sub.UpdatedAt = time.Now().UTC()
-	sub.CreatedAt = existing.CreatedAt // Preserve creation time
+	if existing.Filter.ResourcePoolID != "" {
+		oldPoolKey := subscriptionPoolIndexPrefix + existing.Filter.ResourcePoolID
+		pipe.SRem(ctx, oldPoolKey, updated.ID)
+	}
+	if updated.Filter.ResourcePoolID != "" {
+		newPoolKey := subscriptionPoolIndexPrefix + updated.Filter.ResourcePoolID
+		pipe.SAdd(ctx, newPoolKey, updated.ID)
+	}
+}
 
-	// Serialize subscription
-	data, err := json.Marshal(sub)
-	if err != nil {
-		return fmt.Errorf("failed to marshal subscription: %w", err)
+// updateResourceTypeIndex updates the resource type index if changed.
+func (r *RedisStore) updateResourceTypeIndex(
+	ctx context.Context,
+	pipe redis.Pipeliner,
+	existing, updated *Subscription,
+) {
+	if existing.Filter.ResourceTypeID == updated.Filter.ResourceTypeID {
+		return
 	}
 
-	// Use pipeline for atomic operations
-	pipe := r.client.Pipeline()
-
-	// Update subscription data
-	pipe.Set(ctx, key, data, subscriptionTTL)
-
-	// Update resource pool index if changed
-	if existing.Filter.ResourcePoolID != sub.Filter.ResourcePoolID {
-		if existing.Filter.ResourcePoolID != "" {
-			oldPoolKey := subscriptionPoolIndexPrefix + existing.Filter.ResourcePoolID
-			pipe.SRem(ctx, oldPoolKey, sub.ID)
-		}
-		if sub.Filter.ResourcePoolID != "" {
-			newPoolKey := subscriptionPoolIndexPrefix + sub.Filter.ResourcePoolID
-			pipe.SAdd(ctx, newPoolKey, sub.ID)
-		}
+	if existing.Filter.ResourceTypeID != "" {
+		oldTypeKey := subscriptionTypeIndexPrefix + existing.Filter.ResourceTypeID
+		pipe.SRem(ctx, oldTypeKey, updated.ID)
 	}
-
-	// Update resource type index if changed
-	if existing.Filter.ResourceTypeID != sub.Filter.ResourceTypeID {
-		if existing.Filter.ResourceTypeID != "" {
-			oldTypeKey := subscriptionTypeIndexPrefix + existing.Filter.ResourceTypeID
-			pipe.SRem(ctx, oldTypeKey, sub.ID)
-		}
-		if sub.Filter.ResourceTypeID != "" {
-			newTypeKey := subscriptionTypeIndexPrefix + sub.Filter.ResourceTypeID
-			pipe.SAdd(ctx, newTypeKey, sub.ID)
-		}
+	if updated.Filter.ResourceTypeID != "" {
+		newTypeKey := subscriptionTypeIndexPrefix + updated.Filter.ResourceTypeID
+		pipe.SAdd(ctx, newTypeKey, updated.ID)
 	}
+}
 
-	// Publish subscription updated event
+// publishUpdateEvent publishes a subscription updated event.
+func (r *RedisStore) publishUpdateEvent(ctx context.Context, pipe redis.Pipeliner, subID string) {
 	eventData := map[string]interface{}{
 		"event": "updated",
-		"id":    sub.ID,
+		"id":    subID,
 	}
 	eventJSON, _ := json.Marshal(eventData)
 	pipe.Publish(ctx, subscriptionEventChannel, eventJSON)
-
-	// Execute pipeline
-	_, err = pipe.Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to update subscription: %w", err)
-	}
-
-	return nil
 }
 
 // Delete deletes a subscription by ID.
@@ -473,14 +505,17 @@ func (r *RedisStore) ListByResourceType(ctx context.Context, resourceTypeID stri
 
 // Close closes the Redis connection and releases resources.
 func (r *RedisStore) Close() error {
-	return r.client.Close()
+	if err := r.client.Close(); err != nil {
+		return fmt.Errorf("failed to close Redis client: %w", err)
+	}
+	return nil
 }
 
 // Ping checks if Redis is available.
 // Returns ErrStorageUnavailable if Redis cannot be reached.
 func (r *RedisStore) Ping(ctx context.Context) error {
 	if err := r.client.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("%w: %v", ErrStorageUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrStorageUnavailable, err)
 	}
 	return nil
 }

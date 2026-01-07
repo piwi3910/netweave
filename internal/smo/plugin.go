@@ -10,7 +10,7 @@ import (
 // Plugin defines the interface that all SMO integration plugins must implement.
 // SMO plugins operate in dual mode:
 // - Northbound: netweave → SMO (inventory sync, event publishing)
-// - Southbound: SMO → netweave (workflow orchestration, deployments)
+// - Southbound: SMO → netweave (workflow orchestration, deployments).
 type Plugin interface {
 	// Metadata returns the plugin's identifying information.
 	Metadata() PluginMetadata

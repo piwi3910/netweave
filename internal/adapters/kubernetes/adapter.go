@@ -7,11 +7,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // KubernetesAdapter implements the adapter.Adapter interface for Kubernetes backends.
@@ -158,7 +159,7 @@ func (a *KubernetesAdapter) Capabilities() []adapter.Capability {
 
 // GetDeploymentManager retrieves metadata about the deployment manager.
 // Implementation will read from O2DeploymentManager CRD or ConfigMap.
-func (a *KubernetesAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
+func (a *KubernetesAdapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
 	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
@@ -169,7 +170,10 @@ func (a *KubernetesAdapter) GetDeploymentManager(ctx context.Context, id string)
 
 // ListResourcePools retrieves all resource pools matching the provided filter.
 // Implementation will list MachineSets and transform them to O2-IMS ResourcePools.
-func (a *KubernetesAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *KubernetesAdapter) ListResourcePools(
+	_ context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
 	a.logger.Debug("ListResourcePools called",
 		zap.Any("filter", filter))
 
@@ -180,7 +184,7 @@ func (a *KubernetesAdapter) ListResourcePools(ctx context.Context, filter *adapt
 
 // GetResourcePool retrieves a specific resource pool by ID.
 // Implementation will get a MachineSet and transform it to O2-IMS ResourcePool.
-func (a *KubernetesAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+func (a *KubernetesAdapter) GetResourcePool(_ context.Context, id string) (*adapter.ResourcePool, error) {
 	a.logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
@@ -191,7 +195,10 @@ func (a *KubernetesAdapter) GetResourcePool(ctx context.Context, id string) (*ad
 
 // CreateResourcePool creates a new resource pool.
 // Implementation will create a MachineSet from the O2-IMS ResourcePool.
-func (a *KubernetesAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *KubernetesAdapter) CreateResourcePool(
+	_ context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	a.logger.Debug("CreateResourcePool called",
 		zap.String("name", pool.Name))
 
@@ -202,7 +209,11 @@ func (a *KubernetesAdapter) CreateResourcePool(ctx context.Context, pool *adapte
 
 // UpdateResourcePool updates an existing resource pool.
 // Implementation will update the corresponding MachineSet.
-func (a *KubernetesAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *KubernetesAdapter) UpdateResourcePool(
+	_ context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	a.logger.Debug("UpdateResourcePool called",
 		zap.String("id", id),
 		zap.String("name", pool.Name))
@@ -214,7 +225,7 @@ func (a *KubernetesAdapter) UpdateResourcePool(ctx context.Context, id string, p
 
 // DeleteResourcePool deletes a resource pool by ID.
 // Implementation will delete the corresponding MachineSet.
-func (a *KubernetesAdapter) DeleteResourcePool(ctx context.Context, id string) error {
+func (a *KubernetesAdapter) DeleteResourcePool(_ context.Context, id string) error {
 	a.logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 
@@ -225,7 +236,7 @@ func (a *KubernetesAdapter) DeleteResourcePool(ctx context.Context, id string) e
 
 // ListResources retrieves all resources matching the provided filter.
 // Implementation will list Nodes and transform them to O2-IMS Resources.
-func (a *KubernetesAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (a *KubernetesAdapter) ListResources(_ context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
 	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
@@ -236,7 +247,7 @@ func (a *KubernetesAdapter) ListResources(ctx context.Context, filter *adapter.F
 
 // GetResource retrieves a specific resource by ID.
 // Implementation will get a Node and transform it to O2-IMS Resource.
-func (a *KubernetesAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+func (a *KubernetesAdapter) GetResource(_ context.Context, id string) (*adapter.Resource, error) {
 	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
@@ -247,7 +258,7 @@ func (a *KubernetesAdapter) GetResource(ctx context.Context, id string) (*adapte
 
 // CreateResource creates a new resource.
 // Implementation will create a Machine which will trigger Node creation.
-func (a *KubernetesAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+func (a *KubernetesAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
 	a.logger.Debug("CreateResource called",
 		zap.String("resourceTypeId", resource.ResourceTypeID))
 
@@ -258,7 +269,7 @@ func (a *KubernetesAdapter) CreateResource(ctx context.Context, resource *adapte
 
 // DeleteResource deletes a resource by ID.
 // Implementation will delete the corresponding Machine or drain and delete Node.
-func (a *KubernetesAdapter) DeleteResource(ctx context.Context, id string) error {
+func (a *KubernetesAdapter) DeleteResource(_ context.Context, id string) error {
 	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
@@ -269,7 +280,10 @@ func (a *KubernetesAdapter) DeleteResource(ctx context.Context, id string) error
 
 // ListResourceTypes retrieves all resource types matching the provided filter.
 // Implementation will aggregate from Nodes and StorageClasses.
-func (a *KubernetesAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (a *KubernetesAdapter) ListResourceTypes(
+	_ context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourceType, error) {
 	a.logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
@@ -280,7 +294,7 @@ func (a *KubernetesAdapter) ListResourceTypes(ctx context.Context, filter *adapt
 
 // GetResourceType retrieves a specific resource type by ID.
 // Implementation will derive type information from Nodes or StorageClasses.
-func (a *KubernetesAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
+func (a *KubernetesAdapter) GetResourceType(_ context.Context, id string) (*adapter.ResourceType, error) {
 	a.logger.Debug("GetResourceType called",
 		zap.String("id", id))
 
@@ -291,7 +305,10 @@ func (a *KubernetesAdapter) GetResourceType(ctx context.Context, id string) (*ad
 
 // CreateSubscription creates a new event subscription.
 // Implementation will store subscription in Redis and start watching K8s resources.
-func (a *KubernetesAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *KubernetesAdapter) CreateSubscription(
+	_ context.Context,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback))
 
@@ -302,7 +319,7 @@ func (a *KubernetesAdapter) CreateSubscription(ctx context.Context, sub *adapter
 
 // GetSubscription retrieves a specific subscription by ID.
 // Implementation will retrieve subscription from Redis.
-func (a *KubernetesAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
+func (a *KubernetesAdapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
@@ -313,7 +330,7 @@ func (a *KubernetesAdapter) GetSubscription(ctx context.Context, id string) (*ad
 
 // DeleteSubscription deletes a subscription by ID.
 // Implementation will remove subscription from Redis and stop watching.
-func (a *KubernetesAdapter) DeleteSubscription(ctx context.Context, id string) error {
+func (a *KubernetesAdapter) DeleteSubscription(_ context.Context, id string) error {
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
@@ -324,7 +341,7 @@ func (a *KubernetesAdapter) DeleteSubscription(ctx context.Context, id string) e
 
 // Health performs a health check on the Kubernetes backend.
 // It verifies connectivity to the Kubernetes API server.
-func (a *KubernetesAdapter) Health(ctx context.Context) error {
+func (a *KubernetesAdapter) Health(_ context.Context) error {
 	a.logger.Debug("Health check called")
 
 	// Perform basic health check by querying server version
@@ -344,10 +361,8 @@ func (a *KubernetesAdapter) Close() error {
 	a.logger.Info("closing Kubernetes adapter")
 
 	// Sync logger before shutdown
-	if err := a.logger.Sync(); err != nil {
-		// Ignore sync errors on stderr/stdout
-		return nil
-	}
+	// Ignore sync errors on stderr/stdout which are common
+	_ = a.logger.Sync()
 
 	return nil
 }

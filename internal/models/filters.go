@@ -196,77 +196,77 @@ func ParseQueryParams(params url.Values) *Filter {
 func (f *Filter) ToQueryParams() url.Values {
 	params := url.Values{}
 
-	// Add resource pool IDs
+	f.addIDFilters(params)
+	f.addStringFilters(params)
+	f.addLabelsFilter(params)
+	f.addPaginationParams(params)
+	f.addSortingParams(params)
+
+	return params
+}
+
+// addIDFilters adds ID-based filter parameters.
+func (f *Filter) addIDFilters(params url.Values) {
 	for _, poolID := range f.ResourcePoolID {
 		params.Add("resourcePoolId", poolID)
 	}
-
-	// Add resource type IDs
 	for _, typeID := range f.ResourceTypeID {
 		params.Add("resourceTypeId", typeID)
 	}
-
-	// Add resource IDs
 	for _, resourceID := range f.ResourceID {
 		params.Add("resourceId", resourceID)
 	}
+}
 
-	// Add location
-	if f.Location != "" {
-		params.Set("location", f.Location)
+// addStringFilters adds string-based filter parameters.
+func (f *Filter) addStringFilters(params url.Values) {
+	stringFilters := map[string]string{
+		"location":      f.Location,
+		"oCloudId":      f.OCloudID,
+		"resourceClass": f.ResourceClass,
+		"resourceKind":  f.ResourceKind,
+		"vendor":        f.Vendor,
+		"model":         f.Model,
 	}
 
-	// Add O-Cloud ID
-	if f.OCloudID != "" {
-		params.Set("oCloudId", f.OCloudID)
-	}
-
-	// Add resource class
-	if f.ResourceClass != "" {
-		params.Set("resourceClass", f.ResourceClass)
-	}
-
-	// Add resource kind
-	if f.ResourceKind != "" {
-		params.Set("resourceKind", f.ResourceKind)
-	}
-
-	// Add vendor
-	if f.Vendor != "" {
-		params.Set("vendor", f.Vendor)
-	}
-
-	// Add model
-	if f.Model != "" {
-		params.Set("model", f.Model)
-	}
-
-	// Add labels (format: "key1:value1,key2:value2")
-	if len(f.Labels) > 0 {
-		var labelPairs []string
-		for key, value := range f.Labels {
-			labelPairs = append(labelPairs, key+":"+value)
+	for key, value := range stringFilters {
+		if value != "" {
+			params.Set(key, value)
 		}
-		params.Set("labels", strings.Join(labelPairs, ","))
+	}
+}
+
+// addLabelsFilter adds label-based filter parameters.
+func (f *Filter) addLabelsFilter(params url.Values) {
+	if len(f.Labels) == 0 {
+		return
 	}
 
-	// Add pagination
+	labelPairs := make([]string, 0, len(f.Labels))
+	for key, value := range f.Labels {
+		labelPairs = append(labelPairs, key+":"+value)
+	}
+	params.Set("labels", strings.Join(labelPairs, ","))
+}
+
+// addPaginationParams adds pagination parameters.
+func (f *Filter) addPaginationParams(params url.Values) {
 	if f.Limit > 0 {
 		params.Set("limit", strconv.Itoa(f.Limit))
 	}
 	if f.Offset > 0 {
 		params.Set("offset", strconv.Itoa(f.Offset))
 	}
+}
 
-	// Add sorting
+// addSortingParams adds sorting parameters.
+func (f *Filter) addSortingParams(params url.Values) {
 	if f.SortBy != "" {
 		params.Set("sortBy", f.SortBy)
 	}
 	if f.SortOrder != "" {
 		params.Set("sortOrder", f.SortOrder)
 	}
-
-	return params
 }
 
 // MatchesResourcePool checks if a ResourcePool matches this filter's criteria.
@@ -316,56 +316,62 @@ func (f *Filter) MatchesResource(resource *Resource) bool {
 // MatchesResourceType checks if a ResourceType matches this filter's criteria.
 // Returns true if the resource type matches all specified filter conditions.
 func (f *Filter) MatchesResourceType(rt *ResourceType) bool {
-	// Check resource type ID
-	if len(f.ResourceTypeID) > 0 && !contains(f.ResourceTypeID, rt.ResourceTypeID) {
-		return false
-	}
+	return f.matchesResourceTypeID(rt) &&
+		f.matchesResourceClass(rt) &&
+		f.matchesResourceKind(rt) &&
+		f.matchesVendor(rt) &&
+		f.matchesModel(rt)
+}
 
-	// Check resource class
-	if f.ResourceClass != "" && rt.ResourceClass != f.ResourceClass {
-		return false
-	}
+// matchesResourceTypeID checks if resource type ID matches filter.
+func (f *Filter) matchesResourceTypeID(rt *ResourceType) bool {
+	return len(f.ResourceTypeID) == 0 || contains(f.ResourceTypeID, rt.ResourceTypeID)
+}
 
-	// Check resource kind
-	if f.ResourceKind != "" && rt.ResourceKind != f.ResourceKind {
-		return false
-	}
+// matchesResourceClass checks if resource class matches filter.
+func (f *Filter) matchesResourceClass(rt *ResourceType) bool {
+	return f.ResourceClass == "" || rt.ResourceClass == f.ResourceClass
+}
 
-	// Check vendor
-	if f.Vendor != "" && rt.Vendor != f.Vendor {
-		return false
-	}
+// matchesResourceKind checks if resource kind matches filter.
+func (f *Filter) matchesResourceKind(rt *ResourceType) bool {
+	return f.ResourceKind == "" || rt.ResourceKind == f.ResourceKind
+}
 
-	// Check model
-	if f.Model != "" && rt.Model != f.Model {
-		return false
-	}
+// matchesVendor checks if vendor matches filter.
+func (f *Filter) matchesVendor(rt *ResourceType) bool {
+	return f.Vendor == "" || rt.Vendor == f.Vendor
+}
 
-	// All conditions matched
-	return true
+// matchesModel checks if model matches filter.
+func (f *Filter) matchesModel(rt *ResourceType) bool {
+	return f.Model == "" || rt.Model == f.Model
 }
 
 // MatchesSubscription checks if a Subscription matches this filter's criteria.
 // This is used for filtering subscription lists.
 func (f *Filter) MatchesSubscription(sub *Subscription) bool {
 	// If filter specifies resource pool IDs, check if subscription filters for them
-	if len(f.ResourcePoolID) > 0 && sub.Filter != nil {
-		if len(sub.Filter.ResourcePoolID) > 0 {
-			hasMatch := false
-			for _, filterPoolID := range f.ResourcePoolID {
-				if contains(sub.Filter.ResourcePoolID, filterPoolID) {
-					hasMatch = true
-					break
-				}
-			}
-			if !hasMatch {
-				return false
-			}
+	if len(f.ResourcePoolID) == 0 {
+		return true
+	}
+
+	if sub.Filter == nil {
+		return true
+	}
+
+	if len(sub.Filter.ResourcePoolID) == 0 {
+		return true
+	}
+
+	// Check if any filter pool ID matches subscription filter
+	for _, filterPoolID := range f.ResourcePoolID {
+		if contains(sub.Filter.ResourcePoolID, filterPoolID) {
+			return true
 		}
 	}
 
-	// All conditions matched
-	return true
+	return false
 }
 
 // IsEmpty returns true if the filter has no criteria set (will match everything).

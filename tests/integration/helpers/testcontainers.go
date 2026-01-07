@@ -1,14 +1,14 @@
-// Package helpers provides common test utilities for integration tests.
-// This includes testcontainers setup, mock servers, and test fixtures.
-//
 //go:build integration
 // +build integration
 
+// Package helpers provides common test utilities for integration tests.
+// This includes testcontainers setup, mock servers, and test fixtures.
 package helpers
 
 import (
 	"context"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -71,7 +71,9 @@ func (r *RedisContainer) Addr() string {
 // Cleanup terminates the Redis container.
 func (r *RedisContainer) Cleanup(ctx context.Context) error {
 	if r.Container != nil {
-		return r.Container.Terminate(ctx)
+		if err := r.Container.Terminate(ctx); err != nil {
+			return fmt.Errorf("failed to terminate Redis container: %w", err)
+		}
 	}
 	return nil
 }
@@ -135,13 +137,15 @@ func SetupMinioContainer(ctx context.Context, t *testing.T) *MinioContainer {
 
 // Endpoint returns the MinIO endpoint URL.
 func (m *MinioContainer) Endpoint() string {
-	return fmt.Sprintf("http://%s:%s", m.Host, m.Port)
+	return fmt.Sprintf("http://%s", net.JoinHostPort(m.Host, m.Port))
 }
 
 // Cleanup terminates the MinIO container.
 func (m *MinioContainer) Cleanup(ctx context.Context) error {
 	if m.Container != nil {
-		return m.Container.Terminate(ctx)
+		if err := m.Container.Terminate(ctx); err != nil {
+			return fmt.Errorf("failed to terminate MinIO container: %w", err)
+		}
 	}
 	return nil
 }

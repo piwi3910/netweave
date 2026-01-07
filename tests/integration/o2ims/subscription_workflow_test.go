@@ -7,6 +7,7 @@ package o2ims
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -23,7 +24,7 @@ import (
 // TestSubscriptionWorkflow_CreateAndNotify tests the complete subscription workflow:
 // 1. Create subscription
 // 2. Trigger resource event
-// 3. Receive webhook notification
+// 3. Receive webhook notification.
 func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -42,7 +43,11 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 		WriteTimeout: 3 * time.Second,
 		PoolSize:     10,
 	})
-	defer redisStore.Close()
+	defer func() {
+		if err := redisStore.Close(); err != nil {
+			t.Logf("Failed to close Redis store: %v", err)
+		}
+	}()
 
 	// Setup webhook server to receive notifications
 	webhookServer := helpers.NewWebhookServer(t)
@@ -50,7 +55,11 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 
 	// Setup gateway server
 	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
+	defer func() {
+		if err := k8sAdapter.Close(); err != nil {
+			t.Logf("Failed to close Kubernetes adapter: %v", err)
+		}
+	}()
 
 	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
@@ -60,13 +69,22 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 	subBody, err := json.Marshal(subscriptionData)
 	require.NoError(t, err)
 
-	subResp, err := http.Post(
+	subReq, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		ts.O2IMSURL()+"/subscriptions",
-		"application/json",
 		bytes.NewReader(subBody),
 	)
 	require.NoError(t, err)
-	defer subResp.Body.Close()
+	subReq.Header.Set("Content-Type", "application/json")
+
+	subResp, err := http.DefaultClient.Do(subReq)
+	require.NoError(t, err)
+	defer func() {
+		if err := subResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	assert.Equal(t, http.StatusCreated, subResp.StatusCode)
 
@@ -89,18 +107,29 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 	poolBody, err := json.Marshal(poolData)
 	require.NoError(t, err)
 
-	poolResp, err := http.Post(
+	poolReq, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		ts.O2IMSURL()+"/resourcePools",
-		"application/json",
 		bytes.NewReader(poolBody),
 	)
 	require.NoError(t, err)
-	defer poolResp.Body.Close()
+	poolReq.Header.Set("Content-Type", "application/json")
+
+	poolResp, err := http.DefaultClient.Do(poolReq)
+	require.NoError(t, err)
+	defer func() {
+		if err := poolResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	assert.Equal(t, http.StatusCreated, poolResp.StatusCode)
 
 	var pool map[string]interface{}
-	json.NewDecoder(poolResp.Body).Decode(&pool)
+	if err := json.NewDecoder(poolResp.Body).Decode(&pool); err != nil {
+		t.Logf("Failed to decode response: %v", err)
+	}
 	poolID := pool["resourcePoolId"].(string)
 
 	// Step 3: Wait for webhook notification
@@ -134,28 +163,47 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 		Addr:     env.Redis.Addr(),
 		PoolSize: 10,
 	})
-	defer redisStore.Close()
+	defer func() {
+		if err := redisStore.Close(); err != nil {
+			t.Logf("Failed to close Redis store: %v", err)
+		}
+	}()
 
 	webhookServer := helpers.NewWebhookServer(t)
 	defer webhookServer.Close()
 
 	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
+	defer func() {
+		if err := k8sAdapter.Close(); err != nil {
+			t.Logf("Failed to close Kubernetes adapter: %v", err)
+		}
+	}()
 
 	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
 	// Create a resource pool first
 	poolData := helpers.TestResourcePool("filter-test-pool")
 	poolBody, _ := json.Marshal(poolData)
-	poolResp, _ := http.Post(
+	poolReq, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		ts.O2IMSURL()+"/resourcePools",
-		"application/json",
 		bytes.NewReader(poolBody),
 	)
-	defer poolResp.Body.Close()
+	if poolReq != nil {
+		poolReq.Header.Set("Content-Type", "application/json")
+	}
+	poolResp, _ := http.DefaultClient.Do(poolReq)
+	defer func() {
+		if err := poolResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	var pool map[string]interface{}
-	json.NewDecoder(poolResp.Body).Decode(&pool)
+	if err := json.NewDecoder(poolResp.Body).Decode(&pool); err != nil {
+		t.Logf("Failed to decode response: %v", err)
+	}
 	poolID := pool["resourcePoolId"].(string)
 
 	// Test 1: Subscription with pool filter (should match)
@@ -166,29 +214,49 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 		subData := helpers.TestSubscriptionWithFilter(webhookServer.URL(), poolID, "")
 		subBody, _ := json.Marshal(subData)
 
-		subResp, err := http.Post(
+		subReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/subscriptions",
-			"application/json",
 			bytes.NewReader(subBody),
 		)
 		require.NoError(t, err)
-		defer subResp.Body.Close()
+		subReq.Header.Set("Content-Type", "application/json")
+
+		subResp, err := http.DefaultClient.Do(subReq)
+		require.NoError(t, err)
+		defer func() {
+			if err := subResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var subscription map[string]interface{}
-		json.NewDecoder(subResp.Body).Decode(&subscription)
+		if err := json.NewDecoder(subResp.Body).Decode(&subscription); err != nil {
+			t.Logf("Failed to decode response: %v", err)
+		}
 		subscriptionID := subscription["subscriptionId"].(string)
 
 		// Create resource in the matching pool
 		resourceData := helpers.TestResource(poolID, "compute-node")
 		resBody, _ := json.Marshal(resourceData)
 
-		resResp, err := http.Post(
+		resReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/resources",
-			"application/json",
 			bytes.NewReader(resBody),
 		)
 		require.NoError(t, err)
-		defer resResp.Body.Close()
+		resReq.Header.Set("Content-Type", "application/json")
+
+		resResp, err := http.DefaultClient.Do(resReq)
+		require.NoError(t, err)
+		defer func() {
+			if err := resResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		// Should receive notification
 		notification := webhookServer.WaitForNotification(5 * time.Second)
@@ -204,25 +272,43 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 		subData := helpers.TestSubscriptionWithFilter(webhookServer.URL(), "different-pool-id", "")
 		subBody, _ := json.Marshal(subData)
 
-		subResp, err := http.Post(
+		subReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/subscriptions",
-			"application/json",
 			bytes.NewReader(subBody),
 		)
 		require.NoError(t, err)
-		defer subResp.Body.Close()
+		subReq.Header.Set("Content-Type", "application/json")
+
+		subResp, err := http.DefaultClient.Do(subReq)
+		require.NoError(t, err)
+		defer func() {
+			if err := subResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		// Create resource in original pool (not matching subscription filter)
 		resourceData := helpers.TestResource(poolID, "compute-node")
 		resBody, _ := json.Marshal(resourceData)
 
-		resResp, err := http.Post(
+		resReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/resources",
-			"application/json",
 			bytes.NewReader(resBody),
 		)
 		require.NoError(t, err)
-		defer resResp.Body.Close()
+		resReq.Header.Set("Content-Type", "application/json")
+
+		resResp, err := http.DefaultClient.Do(resReq)
+		require.NoError(t, err)
+		defer func() {
+			if err := resResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		// Should NOT receive notification
 		notification := webhookServer.WaitForNotification(2 * time.Second)
@@ -242,13 +328,21 @@ func TestSubscriptionWorkflow_MultipleSubscriptions(t *testing.T) {
 		Addr:     env.Redis.Addr(),
 		PoolSize: 10,
 	})
-	defer redisStore.Close()
+	defer func() {
+		if err := redisStore.Close(); err != nil {
+			t.Logf("Failed to close Redis store: %v", err)
+		}
+	}()
 
 	webhookServer := helpers.NewWebhookServer(t)
 	defer webhookServer.Close()
 
 	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
+	defer func() {
+		if err := k8sAdapter.Close(); err != nil {
+			t.Logf("Failed to close Kubernetes adapter: %v", err)
+		}
+	}()
 
 	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
@@ -260,16 +354,27 @@ func TestSubscriptionWorkflow_MultipleSubscriptions(t *testing.T) {
 		subData := helpers.TestSubscription(webhookServer.URL())
 		subBody, _ := json.Marshal(subData)
 
-		subResp, err := http.Post(
+		subReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/subscriptions",
-			"application/json",
 			bytes.NewReader(subBody),
 		)
 		require.NoError(t, err)
-		defer subResp.Body.Close()
+		subReq.Header.Set("Content-Type", "application/json")
+
+		subResp, err := http.DefaultClient.Do(subReq)
+		require.NoError(t, err)
+		defer func() {
+			if err := subResp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var subscription map[string]interface{}
-		json.NewDecoder(subResp.Body).Decode(&subscription)
+		if err := json.NewDecoder(subResp.Body).Decode(&subscription); err != nil {
+			t.Logf("Failed to decode response: %v", err)
+		}
 		subscriptionIDs[i] = subscription["subscriptionId"].(string)
 
 		t.Logf("Created subscription %d: %s", i+1, subscriptionIDs[i])
@@ -279,13 +384,22 @@ func TestSubscriptionWorkflow_MultipleSubscriptions(t *testing.T) {
 	poolData := helpers.TestResourcePool("multi-sub-pool")
 	poolBody, _ := json.Marshal(poolData)
 
-	poolResp, err := http.Post(
+	poolReq, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		ts.O2IMSURL()+"/resourcePools",
-		"application/json",
 		bytes.NewReader(poolBody),
 	)
 	require.NoError(t, err)
-	defer poolResp.Body.Close()
+	poolReq.Header.Set("Content-Type", "application/json")
+
+	poolResp, err := http.DefaultClient.Do(poolReq)
+	require.NoError(t, err)
+	defer func() {
+		if err := poolResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	// Wait for all notifications
 	notifications := webhookServer.WaitForNotifications(numSubscriptions, 10*time.Second)
@@ -316,13 +430,21 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 		Addr:     env.Redis.Addr(),
 		PoolSize: 10,
 	})
-	defer redisStore.Close()
+	defer func() {
+		if err := redisStore.Close(); err != nil {
+			t.Logf("Failed to close Redis store: %v", err)
+		}
+	}()
 
 	webhookServer := helpers.NewWebhookServer(t)
 	defer webhookServer.Close()
 
 	k8sAdapter := kubernetes.NewMockAdapter()
-	defer k8sAdapter.Close()
+	defer func() {
+		if err := k8sAdapter.Close(); err != nil {
+			t.Logf("Failed to close Kubernetes adapter: %v", err)
+		}
+	}()
 
 	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
@@ -330,16 +452,26 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	subData := helpers.TestSubscription(webhookServer.URL())
 	subBody, _ := json.Marshal(subData)
 
-	subResp, err := http.Post(
+	subReq, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		ts.O2IMSURL()+"/subscriptions",
-		"application/json",
 		bytes.NewReader(subBody),
 	)
 	require.NoError(t, err)
-	defer subResp.Body.Close()
+	subReq.Header.Set("Content-Type", "application/json")
+
+	subResp, err := http.DefaultClient.Do(subReq)
+	require.NoError(t, err)
+	defer func() {
+		if err := subResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	var subscription map[string]interface{}
-	json.NewDecoder(subResp.Body).Decode(&subscription)
+	err = json.NewDecoder(subResp.Body).Decode(&subscription)
+	require.NoError(t, err)
 	subscriptionID := subscription["subscriptionId"].(string)
 
 	// Verify subscription exists in storage
@@ -347,16 +479,22 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	require.NoError(t, err)
 
 	// Delete subscription
-	req, _ := http.NewRequest(
+	req, err := http.NewRequestWithContext(
+		context.Background(),
 		http.MethodDelete,
 		ts.O2IMSURL()+"/subscriptions/"+subscriptionID,
 		nil,
 	)
+	require.NoError(t, err)
 
 	client := &http.Client{}
 	delResp, err := client.Do(req)
 	require.NoError(t, err)
-	defer delResp.Body.Close()
+	defer func() {
+		if err := delResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	assert.Equal(t, http.StatusNoContent, delResp.StatusCode)
 
@@ -369,13 +507,22 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	poolData := helpers.TestResourcePool("post-delete-pool")
 	poolBody, _ := json.Marshal(poolData)
 
-	poolResp, err := http.Post(
+	poolReq, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		ts.O2IMSURL()+"/resourcePools",
-		"application/json",
 		bytes.NewReader(poolBody),
 	)
 	require.NoError(t, err)
-	defer poolResp.Body.Close()
+	poolReq.Header.Set("Content-Type", "application/json")
+
+	poolResp, err := http.DefaultClient.Do(poolReq)
+	require.NoError(t, err)
+	defer func() {
+		if err := poolResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	// Should NOT receive notification after deletion
 	notification := webhookServer.WaitForNotification(2 * time.Second)

@@ -1,14 +1,16 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/piwi3910/netweave/internal/adapter"
-	"github.com/piwi3910/netweave/internal/storage"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/storage"
 )
 
 // setupRoutes configures all HTTP routes for the O2-IMS Gateway.
@@ -156,7 +158,7 @@ func (s *Server) handleAPIInfo(c *gin.Context) {
 // Subscription handlers
 
 // handleListSubscriptions lists all subscriptions.
-// GET /o2ims/v1/subscriptions
+// GET /o2ims/v1/subscriptions.
 func (s *Server) handleListSubscriptions(c *gin.Context) {
 	s.logger.Info("listing subscriptions")
 
@@ -194,7 +196,7 @@ func (s *Server) handleListSubscriptions(c *gin.Context) {
 }
 
 // handleCreateSubscription creates a new subscription.
-// POST /o2ims/v1/subscriptions
+// POST /o2ims/v1/subscriptions.
 func (s *Server) handleCreateSubscription(c *gin.Context) {
 	s.logger.Info("creating subscription")
 
@@ -257,7 +259,7 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 }
 
 // handleGetSubscription retrieves a specific subscription.
-// GET /o2ims/v1/subscriptions/:subscriptionId
+// GET /o2ims/v1/subscriptions/:subscriptionId.
 func (s *Server) handleGetSubscription(c *gin.Context) {
 	subscriptionID := c.Param("subscriptionId")
 	s.logger.Info("getting subscription", zap.String("subscription_id", subscriptionID))
@@ -265,7 +267,7 @@ func (s *Server) handleGetSubscription(c *gin.Context) {
 	// Get subscription from storage
 	sub, err := s.store.Get(c.Request.Context(), subscriptionID)
 	if err != nil {
-		if err == storage.ErrSubscriptionNotFound {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
 				"message": "Subscription not found: " + subscriptionID,
@@ -299,7 +301,7 @@ func (s *Server) handleGetSubscription(c *gin.Context) {
 }
 
 // handleDeleteSubscription deletes a subscription.
-// DELETE /o2ims/v1/subscriptions/:subscriptionId
+// DELETE /o2ims/v1/subscriptions/:subscriptionId.
 func (s *Server) handleDeleteSubscription(c *gin.Context) {
 	subscriptionID := c.Param("subscriptionId")
 	s.logger.Info("deleting subscription", zap.String("subscription_id", subscriptionID))
@@ -317,7 +319,7 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 
 	// Delete from storage
 	if err := s.store.Delete(c.Request.Context(), subscriptionID); err != nil {
-		if err == storage.ErrSubscriptionNotFound {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
 				"message": "Subscription not found: " + subscriptionID,
@@ -342,7 +344,7 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 // Resource Pool handlers
 
 // handleListResourcePools lists all resource pools.
-// GET /o2ims/v1/resourcePools
+// GET /o2ims/v1/resourcePools.
 func (s *Server) handleListResourcePools(c *gin.Context) {
 	s.logger.Info("listing resource pools")
 
@@ -365,7 +367,7 @@ func (s *Server) handleListResourcePools(c *gin.Context) {
 }
 
 // handleGetResourcePool retrieves a specific resource pool.
-// GET /o2ims/v1/resourcePools/:resourcePoolId
+// GET /o2ims/v1/resourcePools/:resourcePoolId.
 func (s *Server) handleGetResourcePool(c *gin.Context) {
 	resourcePoolID := c.Param("resourcePoolId")
 	s.logger.Info("getting resource pool", zap.String("resource_pool_id", resourcePoolID))
@@ -386,7 +388,7 @@ func (s *Server) handleGetResourcePool(c *gin.Context) {
 }
 
 // handleListResourcesInPool lists resources in a specific pool.
-// GET /o2ims/v1/resourcePools/:resourcePoolId/resources
+// GET /o2ims/v1/resourcePools/:resourcePoolId/resources.
 func (s *Server) handleListResourcesInPool(c *gin.Context) {
 	resourcePoolID := c.Param("resourcePoolId")
 	s.logger.Info("listing resources in pool", zap.String("resource_pool_id", resourcePoolID))
@@ -417,7 +419,7 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 // Resource handlers
 
 // handleListResources lists all resources.
-// GET /o2ims/v1/resources
+// GET /o2ims/v1/resources.
 func (s *Server) handleListResources(c *gin.Context) {
 	s.logger.Info("listing resources")
 
@@ -440,7 +442,7 @@ func (s *Server) handleListResources(c *gin.Context) {
 }
 
 // handleGetResource retrieves a specific resource.
-// GET /o2ims/v1/resources/:resourceId
+// GET /o2ims/v1/resources/:resourceId.
 func (s *Server) handleGetResource(c *gin.Context) {
 	resourceID := c.Param("resourceId")
 	s.logger.Info("getting resource", zap.String("resource_id", resourceID))
@@ -463,7 +465,7 @@ func (s *Server) handleGetResource(c *gin.Context) {
 // Resource Type handlers
 
 // handleListResourceTypes lists all resource types.
-// GET /o2ims/v1/resourceTypes
+// GET /o2ims/v1/resourceTypes.
 func (s *Server) handleListResourceTypes(c *gin.Context) {
 	s.logger.Info("listing resource types")
 
@@ -486,7 +488,7 @@ func (s *Server) handleListResourceTypes(c *gin.Context) {
 }
 
 // handleGetResourceType retrieves a specific resource type.
-// GET /o2ims/v1/resourceTypes/:resourceTypeId
+// GET /o2ims/v1/resourceTypes/:resourceTypeId.
 func (s *Server) handleGetResourceType(c *gin.Context) {
 	resourceTypeID := c.Param("resourceTypeId")
 	s.logger.Info("getting resource type", zap.String("resource_type_id", resourceTypeID))
@@ -509,7 +511,7 @@ func (s *Server) handleGetResourceType(c *gin.Context) {
 // Deployment Manager handlers
 
 // handleListDeploymentManagers lists all deployment managers.
-// GET /o2ims/v1/deploymentManagers
+// GET /o2ims/v1/deploymentManagers.
 func (s *Server) handleListDeploymentManagers(c *gin.Context) {
 	s.logger.Info("listing deployment managers")
 
@@ -533,7 +535,7 @@ func (s *Server) handleListDeploymentManagers(c *gin.Context) {
 }
 
 // handleGetDeploymentManager retrieves a specific deployment manager.
-// GET /o2ims/v1/deploymentManagers/:deploymentManagerId
+// GET /o2ims/v1/deploymentManagers/:deploymentManagerId.
 func (s *Server) handleGetDeploymentManager(c *gin.Context) {
 	deploymentManagerID := c.Param("deploymentManagerId")
 	s.logger.Info("getting deployment manager", zap.String("deployment_manager_id", deploymentManagerID))
@@ -556,7 +558,7 @@ func (s *Server) handleGetDeploymentManager(c *gin.Context) {
 // O-Cloud Infrastructure handlers
 
 // handleGetOCloudInfrastructure retrieves O-Cloud infrastructure information.
-// GET /o2ims/v1/oCloudInfrastructure
+// GET /o2ims/v1/oCloudInfrastructure.
 func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 	s.logger.Info("getting O-Cloud infrastructure information")
 

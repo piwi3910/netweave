@@ -268,9 +268,7 @@ func TestParseConfig(t *testing.T) {
 	}
 
 	output := DefaultConfig()
-	err := parseConfig(input, output)
-
-	require.NoError(t, err)
+	parseConfig(input, output)
 	assert.Equal(t, "https://aai.example.com", output.AAIURL)
 	assert.Equal(t, "https://dmaap.example.com", output.DMaaPURL)
 	assert.Equal(t, "https://so.example.com", output.SOURL)

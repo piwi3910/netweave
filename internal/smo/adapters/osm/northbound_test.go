@@ -53,7 +53,7 @@ func TestSyncInfrastructureInventory(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResp))
-			defer server.Close()
+			t.Cleanup(func() { server.Close() })
 
 			plugin := createTestPlugin(t, server.URL)
 			ctx := context.Background()
@@ -136,8 +136,8 @@ func TestCreateVIMAccount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(mockOSMServer(t)))
-			defer server.Close()
+			server := httptest.NewServer(mockOSMServer(t))
+			t.Cleanup(func() { server.Close() })
 
 			plugin := createTestPlugin(t, server.URL)
 			ctx := context.Background()
@@ -304,8 +304,8 @@ func TestPublishInfrastructureEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(mockOSMServer(t)))
-			defer server.Close()
+			server := httptest.NewServer(mockOSMServer(t))
+			t.Cleanup(func() { server.Close() })
 
 			plugin := createTestPlugin(t, server.URL)
 			plugin.config.EnableEventPublish = tt.enableEventPublish
@@ -328,7 +328,7 @@ func TestPublishInfrastructureEvent(t *testing.T) {
 }
 
 // mockOSMServer creates a mock OSM server handler for testing.
-func mockOSMServer(t *testing.T) http.HandlerFunc {
+func mockOSMServer(_ *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -336,7 +336,7 @@ func mockOSMServer(t *testing.T) http.HandlerFunc {
 		case r.URL.Path == "/osm/admin/v1/tokens" && r.Method == http.MethodPost:
 			// Authentication
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]string{
+			_ = json.NewEncoder(w).Encode(map[string]string{
 				"id":         "test-token",
 				"project_id": "admin",
 				"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
@@ -355,12 +355,12 @@ func mockOSMServer(t *testing.T) http.HandlerFunc {
 			}
 			vim.ID = "vim-" + vim.Name
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(vim)
+			_ = json.NewEncoder(w).Encode(vim)
 
 		case r.URL.Path == "/osm/admin/v1/vim_accounts" && r.Method == http.MethodGet:
 			// List VIM accounts
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode([]*VIMAccount{})
+			_ = json.NewEncoder(w).Encode([]*VIMAccount{})
 
 		default:
 			if r.Method == http.MethodGet && len(r.URL.Path) > len("/osm/admin/v1/vim_accounts/") {
@@ -375,6 +375,7 @@ func mockOSMServer(t *testing.T) http.HandlerFunc {
 
 // createTestPlugin creates a plugin configured for testing.
 func createTestPlugin(t *testing.T, serverURL string) *Plugin {
+	t.Helper()
 	config := &Config{
 		NBIURL:              serverURL,
 		Username:            "admin",

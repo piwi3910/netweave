@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+const (
+	// OSM operational status values.
+	osmStatusRunning = "running"
+)
+
 // DeploymentPackage represents a deployment package (NSD or VNFD) in OSM.
 type DeploymentPackage struct {
 	ID          string                 `json:"_id,omitempty"`
@@ -24,8 +29,8 @@ type DeploymentRequest struct {
 	// NSDId is the ID of the NSD (Network Service Descriptor)
 	NSDId string `json:"nsdId"`
 
-	// VIMAccountId is the ID of the VIM account to deploy to
-	VIMAccountId string `json:"vimAccountId"`
+	// VIMAccountID is the ID of the VIM account to deploy to
+	VIMAccountID string `json:"vimAccountId"`
 
 	// NSDescription provides context about this deployment
 	NSDescription string `json:"nsDescription,omitempty"`
@@ -42,8 +47,8 @@ type VNFParams struct {
 	// MemberVnfIndex identifies which VNF in the NS
 	MemberVnfIndex string `json:"member-vnf-index"`
 
-	// VIMAccountId can override the NS-level VIM account
-	VIMAccountId string `json:"vimAccountId,omitempty"`
+	// VIMAccountID can override the NS-level VIM account
+	VIMAccountID string `json:"vimAccountId,omitempty"`
 
 	// AdditionalParams contains VNF-specific parameters
 	AdditionalParams map[string]interface{} `json:"additionalParamsForVnf,omitempty"`
@@ -137,8 +142,8 @@ type ScaleByStepData struct {
 
 // NSHealRequest represents a request to heal an NS (Day-2 operation).
 type NSHealRequest struct {
-	// VNFInstanceId identifies which VNF to heal
-	VNFInstanceId string `json:"vnfInstanceId"`
+	// VNFInstanceID identifies which VNF to heal
+	VNFInstanceID string `json:"vnfInstanceId"`
 
 	// Cause describes why healing is needed
 	Cause string `json:"cause,omitempty"`
@@ -151,7 +156,7 @@ type NSHealRequest struct {
 
 // OnboardNSD uploads and onboards an NSD (Network Service Descriptor) to OSM.
 // This is a DMS backend operation for package management.
-func (p *Plugin) OnboardNSD(ctx context.Context, nsdContent []byte) (string, error) {
+func (p *Plugin) OnboardNSD(_ context.Context, _ []byte) (string, error) {
 	// OSM expects NSDs as tar.gz packages
 	// The package should contain:
 	//   - NS descriptor YAML
@@ -167,7 +172,7 @@ func (p *Plugin) OnboardNSD(ctx context.Context, nsdContent []byte) (string, err
 }
 
 // OnboardVNFD uploads and onboards a VNFD (VNF Descriptor) to OSM.
-func (p *Plugin) OnboardVNFD(ctx context.Context, vnfdContent []byte) (string, error) {
+func (p *Plugin) OnboardVNFD(_ context.Context, _ []byte) (string, error) {
 	// Similar to NSD onboarding
 	// POST /osm/vnfpkgm/v1/vnf_packages_content
 
@@ -232,7 +237,7 @@ func (p *Plugin) InstantiateNS(ctx context.Context, req *DeploymentRequest) (str
 	if req.NSDId == "" {
 		return "", fmt.Errorf("nsd id is required")
 	}
-	if req.VIMAccountId == "" {
+	if req.VIMAccountID == "" {
 		return "", fmt.Errorf("vim account id is required")
 	}
 
@@ -280,7 +285,8 @@ func (p *Plugin) TerminateNS(ctx context.Context, nsInstanceID string) error {
 		"terminateTime": time.Now().UTC().Format(time.RFC3339),
 	}
 
-	if err := p.client.post(ctx, fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/terminate", nsInstanceID), terminateReq, nil); err != nil {
+	terminateURL := fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/terminate", nsInstanceID)
+	if err := p.client.post(ctx, terminateURL, terminateReq, nil); err != nil {
 		return fmt.Errorf("failed to terminate NS: %w", err)
 	}
 
@@ -318,17 +324,14 @@ func (p *Plugin) GetNSStatus(ctx context.Context, nsInstanceID string) (*Deploym
 
 	// Query VNF statuses if available
 	if len(deployment.ConstituentVNFRIds) > 0 {
-		vnfStatuses, err := p.getVNFStatuses(ctx, deployment.ConstituentVNFRIds)
-		if err == nil {
-			status.VNFStatuses = vnfStatuses
-		}
+		status.VNFStatuses = p.getVNFStatuses(ctx, deployment.ConstituentVNFRIds)
 	}
 
 	return status, nil
 }
 
 // getVNFStatuses retrieves status information for multiple VNFs.
-func (p *Plugin) getVNFStatuses(ctx context.Context, vnfIDs []string) ([]VNFStatus, error) {
+func (p *Plugin) getVNFStatuses(ctx context.Context, vnfIDs []string) []VNFStatus {
 	statuses := make([]VNFStatus, 0, len(vnfIDs))
 
 	for _, vnfID := range vnfIDs {
@@ -352,7 +355,7 @@ func (p *Plugin) getVNFStatuses(ctx context.Context, vnfIDs []string) ([]VNFStat
 		})
 	}
 
-	return statuses, nil
+	return statuses
 }
 
 // ==== Day-2 Operations ====
@@ -373,7 +376,8 @@ func (p *Plugin) ScaleNS(ctx context.Context, nsInstanceID string, scaleReq *NSS
 	}
 
 	// Execute scale operation via OSM NBI
-	if err := p.client.post(ctx, fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/scale", nsInstanceID), scaleReq, nil); err != nil {
+	scaleURL := fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/scale", nsInstanceID)
+	if err := p.client.post(ctx, scaleURL, scaleReq, nil); err != nil {
 		return fmt.Errorf("failed to scale NS: %w", err)
 	}
 
@@ -391,12 +395,13 @@ func (p *Plugin) HealNS(ctx context.Context, nsInstanceID string, healReq *NSHea
 	}
 
 	// Validate heal request
-	if healReq.VNFInstanceId == "" {
+	if healReq.VNFInstanceID == "" {
 		return fmt.Errorf("vnf instance id is required")
 	}
 
 	// Execute heal operation via OSM NBI
-	if err := p.client.post(ctx, fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/heal", nsInstanceID), healReq, nil); err != nil {
+	healURL := fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/heal", nsInstanceID)
+	if err := p.client.post(ctx, healURL, healReq, nil); err != nil {
 		return fmt.Errorf("failed to heal NS: %w", err)
 	}
 
@@ -408,7 +413,7 @@ func (p *Plugin) mapOSMStatus(osmStatus string) string {
 	switch osmStatus {
 	case "init", "building":
 		return "BUILDING"
-	case "running":
+	case osmStatusRunning:
 		return "ACTIVE"
 	case "scaling":
 		return "SCALING"
@@ -439,7 +444,7 @@ func (p *Plugin) WaitForNSReady(ctx context.Context, nsInstanceID string, timeou
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("context cancelled while waiting for NS ready: %w", ctx.Err())
 		case <-ticker.C:
 			if time.Now().After(deadline) {
 				return fmt.Errorf("timeout waiting for NS to become ready")
@@ -452,7 +457,7 @@ func (p *Plugin) WaitForNSReady(ctx context.Context, nsInstanceID string, timeou
 
 			// Check if NS is in a stable state
 			switch deployment.OperationalStatus {
-			case "running":
+			case osmStatusRunning:
 				return nil // Success
 			case "failed", "error", "terminated":
 				return fmt.Errorf("NS entered failed state: %s", deployment.DetailedStatus)

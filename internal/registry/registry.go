@@ -8,8 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // PluginMetadata contains metadata about a registered plugin.
@@ -273,7 +274,7 @@ func (r *Registry) ListHealthy() []adapter.Adapter {
 }
 
 // FindByCapability returns all plugins that support a specific capability.
-func (r *Registry) FindByCapability(cap adapter.Capability) []adapter.Adapter {
+func (r *Registry) FindByCapability(capability adapter.Capability) []adapter.Adapter {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -285,7 +286,7 @@ func (r *Registry) FindByCapability(cap adapter.Capability) []adapter.Adapter {
 		}
 
 		for _, c := range meta.Capabilities {
-			if c == cap {
+			if c == capability {
 				plugins = append(plugins, p)
 				break
 			}

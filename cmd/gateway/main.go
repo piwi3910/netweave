@@ -36,27 +36,28 @@ import (
 	"syscall"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/piwi3910/netweave/internal/adapters/kubernetes"
 	"github.com/piwi3910/netweave/internal/config"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/server"
 	"github.com/piwi3910/netweave/internal/storage"
-	"go.uber.org/zap"
 )
 
 const (
-	// Version is the application version (set via build flags)
+	// Version is the application version (set via build flags).
 	Version = "1.0.0"
 
-	// ServiceName is the name of this service
+	// ServiceName is the name of this service.
 	ServiceName = "netweave-gateway"
 
-	// DefaultConfigPath is the default configuration file path
+	// DefaultConfigPath is the default configuration file path.
 	DefaultConfigPath = "config/config.yaml"
 )
 
 var (
-	// Command-line flags
+	// Command-line flags.
 	configPath  = flag.String("config", DefaultConfigPath, "Path to configuration file")
 	showVersion = flag.Bool("version", false, "Show version information and exit")
 )
@@ -67,7 +68,10 @@ func main() {
 
 	// Show version and exit if requested
 	if *showVersion {
-		fmt.Printf("%s version %s\n", ServiceName, Version)
+		if _, err := fmt.Fprintf(os.Stdout, "%s version %s\n", ServiceName, Version); err != nil {
+			// Error writing to stdout is generally fatal
+			panic(err)
+		}
 		os.Exit(0)
 	}
 
@@ -88,61 +92,100 @@ func run() error {
 	}
 
 	// Step 2: Initialize structured logger
-	logger, err := initializeLogger(cfg)
+	logger, err := setupLogger(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to initialize logger: %w", err)
+		return err
 	}
-	defer func() {
-		if syncErr := logger.Sync(); syncErr != nil {
-			// Ignore sync errors on stderr/stdout (common on some platforms)
-			fmt.Fprintf(os.Stderr, "Warning: failed to sync logger: %v\n", syncErr)
-		}
-	}()
 
 	logger.Info("O2-IMS Gateway starting",
 		zap.String("version", Version),
 		zap.String("service", ServiceName),
 	)
 
-	// Step 3: Initialize Redis storage
+	// Step 3-6: Initialize components
+	components, err := initializeComponents(cfg, logger)
+	if err != nil {
+		return err
+	}
+	defer components.Close(logger)
+
+	// Step 7: Setup and run server with graceful shutdown
+	return runServerWithShutdown(cfg, logger, components)
+}
+
+// applicationComponents holds all initialized application components.
+type applicationComponents struct {
+	store         *storage.RedisStore
+	k8sAdapter    *kubernetes.KubernetesAdapter
+	healthChecker *observability.HealthChecker
+	server        *server.Server
+}
+
+// Close closes all components gracefully.
+func (c *applicationComponents) Close(logger *zap.Logger) {
+	if c.k8sAdapter != nil {
+		if err := c.k8sAdapter.Close(); err != nil {
+			logger.Warn("failed to close Kubernetes adapter", zap.Error(err))
+		}
+	}
+	if c.store != nil {
+		if err := c.store.Close(); err != nil {
+			logger.Warn("failed to close Redis connection", zap.Error(err))
+		}
+	}
+}
+
+// setupLogger initializes and configures the logger with proper cleanup.
+func setupLogger(cfg *config.Config) (*zap.Logger, error) {
+	logger, err := initializeLogger(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize logger: %w", err)
+	}
+
+	// Setup deferred sync with error handling
+	go func() {
+		if syncErr := logger.Sync(); syncErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to sync logger: %v\n", syncErr)
+		}
+	}()
+
+	return logger, nil
+}
+
+// initializeComponents initializes all application components.
+func initializeComponents(cfg *config.Config, logger *zap.Logger) (*applicationComponents, error) {
+	// Initialize Redis storage
 	store, err := initializeRedisStorage(cfg, logger)
 	if err != nil {
 		logger.Error("failed to initialize Redis storage", zap.Error(err))
-		return fmt.Errorf("failed to initialize Redis storage: %w", err)
+		return nil, fmt.Errorf("failed to initialize Redis storage: %w", err)
 	}
-	defer func() {
-		if closeErr := store.Close(); closeErr != nil {
-			logger.Warn("failed to close Redis connection", zap.Error(closeErr))
-		}
-	}()
 
 	logger.Info("Redis storage initialized successfully",
 		zap.String("mode", cfg.Redis.Mode),
 		zap.Strings("addresses", cfg.Redis.Addresses),
 	)
 
-	// Step 4: Initialize Kubernetes adapter
+	// Initialize Kubernetes adapter
 	k8sAdapter, err := initializeKubernetesAdapter(cfg, logger)
 	if err != nil {
 		logger.Error("failed to initialize Kubernetes adapter", zap.Error(err))
-		return fmt.Errorf("failed to initialize Kubernetes adapter: %w", err)
-	}
-	defer func() {
-		if closeErr := k8sAdapter.Close(); closeErr != nil {
-			logger.Warn("failed to close Kubernetes adapter", zap.Error(closeErr))
+		if closeErr := store.Close(); closeErr != nil {
+			logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
 		}
-	}()
+		return nil, fmt.Errorf("failed to initialize Kubernetes adapter: %w", err)
+	}
 
 	logger.Info("Kubernetes adapter initialized successfully",
 		zap.String("adapter", k8sAdapter.Name()),
 		zap.String("version", k8sAdapter.Version()),
 	)
 
-	// Step 5: Initialize health checker
+	// Initialize health checker
 	healthChecker := initializeHealthChecker(store, k8sAdapter, logger)
 	logger.Info("health checker initialized")
 
-	// Step 6: Create and configure HTTP server
+	// Create and configure HTTP server
 	srv := server.New(cfg, logger, k8sAdapter, store)
 	srv.SetHealthChecker(healthChecker)
 	logger.Info("HTTP server created",
@@ -151,44 +194,57 @@ func run() error {
 		zap.String("mode", cfg.Server.GinMode),
 	)
 
-	// Step 7: Setup graceful shutdown
+	return &applicationComponents{
+		store:         store,
+		k8sAdapter:    k8sAdapter,
+		healthChecker: healthChecker,
+		server:        srv,
+	}, nil
+}
+
+// runServerWithShutdown starts the server and handles graceful shutdown.
+func runServerWithShutdown(cfg *config.Config, logger *zap.Logger, components *applicationComponents) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Channel to listen for shutdown signals
+	// Setup signal handling
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
 
-	// Channel to listen for server errors
+	// Start server
 	serverErrors := make(chan error, 1)
-
-	// Start HTTP server in a goroutine
 	go func() {
 		logger.Info("starting HTTP server",
 			zap.String("address", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)),
 			zap.Bool("tls_enabled", cfg.TLS.Enabled),
 		)
-
-		if err := srv.Start(); err != nil {
+		if err := components.server.Start(); err != nil {
 			serverErrors <- err
 		}
 	}()
 
-	// Block until we receive a signal or an error
+	// Wait for shutdown signal or error
+	return handleShutdown(ctx, cancel, components.server, cfg, logger, shutdown, serverErrors)
+}
+
+// handleShutdown waits for shutdown signals or errors and performs graceful shutdown.
+func handleShutdown(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	srv *server.Server,
+	cfg *config.Config,
+	logger *zap.Logger,
+	shutdown chan os.Signal,
+	serverErrors chan error,
+) error {
 	select {
 	case err := <-serverErrors:
 		logger.Error("server error", zap.Error(err))
 		return fmt.Errorf("server error: %w", err)
 
 	case sig := <-shutdown:
-		logger.Info("shutdown signal received",
-			zap.String("signal", sig.String()),
-		)
-
-		// Cancel context to signal shutdown to all components
+		logger.Info("shutdown signal received", zap.String("signal", sig.String()))
 		cancel()
-
-		// Graceful shutdown with timeout
 		return gracefulShutdown(ctx, srv, cfg, logger)
 	}
 }
@@ -321,7 +377,7 @@ func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.Re
 	defer cancel()
 
 	if err := store.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("Redis connectivity check failed: %w", err)
+		return nil, fmt.Errorf("redis connectivity check failed: %w", err)
 	}
 
 	logger.Info("Redis connectivity verified")
@@ -355,7 +411,10 @@ func initializeKubernetesAdapter(cfg *config.Config, logger *zap.Logger) (*kuber
 	defer cancel()
 
 	if err := adapter.Health(ctx); err != nil {
-		return nil, fmt.Errorf("Kubernetes connectivity check failed: %w", err)
+		return nil, fmt.Errorf(
+			"kubernetes connectivity check failed: %w",
+			err,
+		)
 	}
 
 	logger.Info("Kubernetes connectivity verified")
@@ -363,7 +422,11 @@ func initializeKubernetesAdapter(cfg *config.Config, logger *zap.Logger) (*kuber
 }
 
 // initializeHealthChecker creates and configures the health checker.
-func initializeHealthChecker(store *storage.RedisStore, adapter *kubernetes.KubernetesAdapter, logger *zap.Logger) *observability.HealthChecker {
+func initializeHealthChecker(
+	store *storage.RedisStore,
+	adapter *kubernetes.KubernetesAdapter,
+	logger *zap.Logger,
+) *observability.HealthChecker {
 	healthChecker := observability.NewHealthChecker(Version)
 
 	// Set health check timeout
@@ -375,18 +438,23 @@ func initializeHealthChecker(store *storage.RedisStore, adapter *kubernetes.Kube
 	}))
 
 	// Register Kubernetes health check
-	healthChecker.RegisterHealthCheck("kubernetes", observability.KubernetesHealthCheck(func(ctx context.Context) error {
-		return adapter.Health(ctx)
-	}))
+	healthChecker.RegisterHealthCheck(
+		"kubernetes",
+		observability.KubernetesHealthCheck(func(ctx context.Context) error {
+			return adapter.Health(ctx)
+		}),
+	)
 
 	// Register the same checks for readiness
-	healthChecker.RegisterReadinessCheck("redis", observability.RedisHealthCheck(func(ctx context.Context) error {
-		return store.Ping(ctx)
-	}))
+	healthChecker.RegisterReadinessCheck("redis",
+		observability.RedisHealthCheck(func(ctx context.Context) error {
+			return store.Ping(ctx)
+		}))
 
-	healthChecker.RegisterReadinessCheck("kubernetes", observability.KubernetesHealthCheck(func(ctx context.Context) error {
-		return adapter.Health(ctx)
-	}))
+	healthChecker.RegisterReadinessCheck("kubernetes",
+		observability.KubernetesHealthCheck(func(ctx context.Context) error {
+			return adapter.Health(ctx)
+		}))
 
 	logger.Info("health checks registered",
 		zap.Int("health_checks", 2),
@@ -397,7 +465,7 @@ func initializeHealthChecker(store *storage.RedisStore, adapter *kubernetes.Kube
 }
 
 // gracefulShutdown performs graceful shutdown of the application.
-func gracefulShutdown(ctx context.Context, srv *server.Server, cfg *config.Config, logger *zap.Logger) error {
+func gracefulShutdown(_ context.Context, srv *server.Server, cfg *config.Config, logger *zap.Logger) error {
 	logger.Info("initiating graceful shutdown",
 		zap.Duration("timeout", cfg.Server.ShutdownTimeout),
 	)

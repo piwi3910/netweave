@@ -14,8 +14,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // DTIASAdapter implements the adapter.Adapter interface for Dell DTIAS bare-metal backends.
@@ -102,60 +103,20 @@ type Config struct {
 //	    RetryDelay:          2 * time.Second,
 //	})
 func New(cfg *Config) (*DTIASAdapter, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config cannot be nil")
+	if err := validateConfig(cfg); err != nil {
+		return nil, err
 	}
 
-	// Validate required configuration
-	if cfg.Endpoint == "" {
-		return nil, fmt.Errorf("endpoint is required")
-	}
-	if cfg.APIKey == "" {
-		return nil, fmt.Errorf("apiKey is required")
-	}
-	if cfg.OCloudID == "" {
-		return nil, fmt.Errorf("ocloudId is required")
-	}
+	setConfigDefaults(cfg)
 
-	// Set defaults
-	if cfg.Timeout == 0 {
-		cfg.Timeout = 30 * time.Second
-	}
-	if cfg.RetryAttempts == 0 {
-		cfg.RetryAttempts = 3
-	}
-	if cfg.RetryDelay == 0 {
-		cfg.RetryDelay = 2 * time.Second
-	}
-	if cfg.DeploymentManagerID == "" {
-		cfg.DeploymentManagerID = fmt.Sprintf("%s-dtias-dm", cfg.OCloudID)
-	}
-
-	// Initialize logger
-	logger := cfg.Logger
-	if logger == nil {
-		var err error
-		logger, err = zap.NewProduction()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create logger: %w", err)
-		}
-	}
-
-	// Create DTIAS client
-	client, err := NewClient(&ClientConfig{
-		Endpoint:           cfg.Endpoint,
-		APIKey:             cfg.APIKey,
-		ClientCert:         cfg.ClientCert,
-		ClientKey:          cfg.ClientKey,
-		CACert:             cfg.CACert,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		Timeout:            cfg.Timeout,
-		RetryAttempts:      cfg.RetryAttempts,
-		RetryDelay:         cfg.RetryDelay,
-		Logger:             logger,
-	})
+	logger, err := getLogger(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create DTIAS client: %w", err)
+		return nil, err
+	}
+
+	client, err := createDTIASClient(cfg, logger)
+	if err != nil {
+		return nil, err
 	}
 
 	adapter := &DTIASAdapter{
@@ -173,6 +134,72 @@ func New(cfg *Config) (*DTIASAdapter, error) {
 		zap.String("datacenter", cfg.Datacenter))
 
 	return adapter, nil
+}
+
+// validateConfig validates the required configuration fields.
+func validateConfig(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config cannot be nil")
+	}
+	if cfg.Endpoint == "" {
+		return fmt.Errorf("endpoint is required")
+	}
+	if cfg.APIKey == "" {
+		return fmt.Errorf("apiKey is required")
+	}
+	if cfg.OCloudID == "" {
+		return fmt.Errorf("ocloudId is required")
+	}
+	return nil
+}
+
+// setConfigDefaults sets default values for optional configuration fields.
+func setConfigDefaults(cfg *Config) {
+	if cfg.Timeout == 0 {
+		cfg.Timeout = 30 * time.Second
+	}
+	if cfg.RetryAttempts == 0 {
+		cfg.RetryAttempts = 3
+	}
+	if cfg.RetryDelay == 0 {
+		cfg.RetryDelay = 2 * time.Second
+	}
+	if cfg.DeploymentManagerID == "" {
+		cfg.DeploymentManagerID = fmt.Sprintf("%s-dtias-dm", cfg.OCloudID)
+	}
+}
+
+// getLogger returns the logger from config or creates a new production logger.
+func getLogger(cfg *Config) (*zap.Logger, error) {
+	if cfg.Logger != nil {
+		return cfg.Logger, nil
+	}
+
+	logger, err := zap.NewProduction()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logger: %w", err)
+	}
+	return logger, nil
+}
+
+// createDTIASClient creates a new DTIAS client with the provided configuration.
+func createDTIASClient(cfg *Config, logger *zap.Logger) (*Client, error) {
+	client, err := NewClient(&ClientConfig{
+		Endpoint:           cfg.Endpoint,
+		APIKey:             cfg.APIKey,
+		ClientCert:         cfg.ClientCert,
+		ClientKey:          cfg.ClientKey,
+		CACert:             cfg.CACert,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		Timeout:            cfg.Timeout,
+		RetryAttempts:      cfg.RetryAttempts,
+		RetryDelay:         cfg.RetryDelay,
+		Logger:             logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create DTIAS client: %w", err)
+	}
+	return client, nil
 }
 
 // Name returns the adapter name.
@@ -225,10 +252,8 @@ func (a *DTIASAdapter) Close() error {
 	}
 
 	// Sync logger before shutdown
-	if err := a.logger.Sync(); err != nil {
-		// Ignore sync errors on stderr/stdout
-		return nil
-	}
+	// Ignore sync errors on stderr/stdout which are common
+	_ = a.logger.Sync()
 
 	return nil
 }

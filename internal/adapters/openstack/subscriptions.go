@@ -6,8 +6,9 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // subscriptionStore is a thread-safe in-memory store for subscriptions.
@@ -20,7 +21,10 @@ var (
 // Note: OpenStack does not natively support event subscriptions, so this implementation
 // uses a polling-based approach. The subscription is stored in memory (or Redis in production)
 // and events are detected by periodic polling of OpenStack resources.
-func (a *OpenStackAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *OpenStackAdapter) CreateSubscription(
+	_ context.Context,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback))
 
@@ -60,7 +64,7 @@ func (a *OpenStackAdapter) CreateSubscription(ctx context.Context, sub *adapter.
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *OpenStackAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
+func (a *OpenStackAdapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
@@ -80,7 +84,7 @@ func (a *OpenStackAdapter) GetSubscription(ctx context.Context, id string) (*ada
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *OpenStackAdapter) DeleteSubscription(ctx context.Context, id string) error {
+func (a *OpenStackAdapter) DeleteSubscription(_ context.Context, id string) error {
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
@@ -105,7 +109,7 @@ func (a *OpenStackAdapter) DeleteSubscription(ctx context.Context, id string) er
 
 // ListSubscriptions retrieves all active subscriptions.
 // This is a helper method not part of the Adapter interface but useful for management.
-func (a *OpenStackAdapter) ListSubscriptions(ctx context.Context) ([]*adapter.Subscription, error) {
+func (a *OpenStackAdapter) ListSubscriptions(_ context.Context) ([]*adapter.Subscription, error) {
 	a.logger.Debug("ListSubscriptions called")
 
 	subscriptionMu.RLock()
@@ -127,7 +131,7 @@ func (a *OpenStackAdapter) ListSubscriptions(ctx context.Context) ([]*adapter.Su
 //
 // Example implementation:
 //
-//	func (a *OpenStackAdapter) pollResourceChanges(ctx context.Context) {
+//	func (a *OpenStackAdapter) pollResourceChanges(_ context.Context) {
 //	    ticker := time.NewTicker(30 * time.Second)
 //	    defer ticker.Stop()
 //
@@ -141,7 +145,7 @@ func (a *OpenStackAdapter) ListSubscriptions(ctx context.Context) ([]*adapter.Su
 //	    }
 //	}
 //
-//	func (a *OpenStackAdapter) detectAndNotifyChanges(ctx context.Context) {
+//	func (a *OpenStackAdapter) detectAndNotifyChanges(_ context.Context) {
 //	    // 1. Query current state of resources
 //	    // 2. Compare with previous snapshot
 //	    // 3. Detect changes (created, updated, deleted)

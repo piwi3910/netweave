@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/piwi3910/netweave/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/piwi3910/netweave/internal/config"
 )
 
 // TestLoad tests the Load function with various scenarios.
@@ -31,6 +32,7 @@ redis:
 `,
 			wantErr: false,
 			validate: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
 				assert.Equal(t, 8080, cfg.Server.Port)
 				assert.Equal(t, "0.0.0.0", cfg.Server.Host)
 				assert.Equal(t, []string{"localhost:6379"}, cfg.Redis.Addresses)
@@ -78,6 +80,7 @@ security:
 `,
 			wantErr: false,
 			validate: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
 				assert.Equal(t, "127.0.0.1", cfg.Server.Host)
 				assert.Equal(t, 9090, cfg.Server.Port)
 				assert.Equal(t, 60*time.Second, cfg.Server.ReadTimeout)
@@ -119,6 +122,7 @@ redis:
 			},
 			wantErr: false,
 			validate: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
 				assert.Equal(t, 9999, cfg.Server.Port)
 				assert.Equal(t, "debug", cfg.Observability.Logging.Level)
 				assert.Equal(t, "cluster", cfg.Redis.Mode)

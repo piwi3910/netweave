@@ -10,8 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/piwi3910/netweave/internal/smo"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/smo"
 )
 
 // Plugin implements the SMO Plugin interface for ONAP integration.
@@ -149,17 +150,40 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 		return fmt.Errorf("plugin is closed")
 	}
 
-	// Parse configuration
-	cfg := DefaultConfig()
-	if err := parseConfig(config, cfg); err != nil {
-		return fmt.Errorf("failed to parse configuration: %w", err)
-	}
-
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("invalid configuration: %w", err)
+	// Parse and validate configuration
+	cfg, err := p.parseAndValidateConfig(config)
+	if err != nil {
+		return err
 	}
 
 	p.config = cfg
+	p.logInitialization(cfg)
+
+	// Initialize all ONAP clients
+	if err := p.initializeClients(cfg); err != nil {
+		return err
+	}
+
+	// Perform initial health check and log status
+	p.performHealthCheck(ctx)
+
+	return nil
+}
+
+// parseAndValidateConfig parses and validates the plugin configuration.
+func (p *Plugin) parseAndValidateConfig(config map[string]interface{}) (*Config, error) {
+	cfg := DefaultConfig()
+	parseConfig(config, cfg)
+
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	return cfg, nil
+}
+
+// logInitialization logs the plugin initialization details.
+func (p *Plugin) logInitialization(cfg *Config) {
 	p.logger.Info("Initializing ONAP plugin",
 		zap.String("aaiUrl", cfg.AAIURL),
 		zap.String("dmaapUrl", cfg.DMaaPURL),
@@ -170,8 +194,25 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 		zap.Bool("enableDmsBackend", cfg.EnableDMSBackend),
 		zap.Bool("enableSdnc", cfg.EnableSDNC),
 	)
+}
 
+// initializeClients initializes all enabled ONAP clients.
+func (p *Plugin) initializeClients(cfg *Config) error {
 	// Initialize northbound clients
+	if err := p.initializeNorthboundClients(cfg); err != nil {
+		return err
+	}
+
+	// Initialize DMS backend clients
+	if err := p.initializeDMSClients(cfg); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// initializeNorthboundClients initializes A&AI and DMaaP clients.
+func (p *Plugin) initializeNorthboundClients(cfg *Config) error {
 	if cfg.EnableInventorySync && cfg.AAIURL != "" {
 		p.logger.Info("Initializing A&AI client", zap.String("url", cfg.AAIURL))
 		aaiClient, err := NewAAIClient(cfg, p.logger)
@@ -190,7 +231,11 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 		p.dmaapClient = dmaapClient
 	}
 
-	// Initialize DMS backend clients
+	return nil
+}
+
+// initializeDMSClients initializes SO and SDNC clients for DMS backend.
+func (p *Plugin) initializeDMSClients(cfg *Config) error {
 	if cfg.EnableDMSBackend && cfg.SOURL != "" {
 		p.logger.Info("Initializing SO client", zap.String("url", cfg.SOURL))
 		soClient, err := NewSOClient(cfg, p.logger)
@@ -209,7 +254,11 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 		p.sdncClient = sdncClient
 	}
 
-	// Perform initial health check
+	return nil
+}
+
+// performHealthCheck performs initial health check and logs the resul.
+func (p *Plugin) performHealthCheck(ctx context.Context) {
 	health := p.Health(ctx)
 	if !health.Healthy {
 		p.logger.Warn("ONAP plugin initialized but some components are unhealthy",
@@ -218,8 +267,6 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 	} else {
 		p.logger.Info("ONAP plugin initialized successfully")
 	}
-
-	return nil
 }
 
 // Health checks the health status of all ONAP component connections.
@@ -285,7 +332,11 @@ func (p *Plugin) Health(ctx context.Context) smo.HealthStatus {
 }
 
 // checkComponentHealth is a helper to check individual component health with timeout.
-func (p *Plugin) checkComponentHealth(ctx context.Context, name string, healthFn func(context.Context) error) smo.ComponentHealth {
+func (p *Plugin) checkComponentHealth(
+	ctx context.Context,
+	name string,
+	healthFn func(context.Context) error,
+) smo.ComponentHealth {
 	start := time.Now()
 
 	// Create context with timeout for health check
@@ -331,32 +382,7 @@ func (p *Plugin) Close() error {
 
 	p.logger.Info("Closing ONAP plugin")
 
-	var errs []error
-
-	// Close all clients
-	if p.aaiClient != nil {
-		if err := p.aaiClient.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close A&AI client: %w", err))
-		}
-	}
-
-	if p.dmaapClient != nil {
-		if err := p.dmaapClient.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close DMaaP client: %w", err))
-		}
-	}
-
-	if p.soClient != nil {
-		if err := p.soClient.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close SO client: %w", err))
-		}
-	}
-
-	if p.sdncClient != nil {
-		if err := p.sdncClient.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close SDNC client: %w", err))
-		}
-	}
+	errs := p.closeAllClients()
 
 	p.closed = true
 
@@ -368,114 +394,164 @@ func (p *Plugin) Close() error {
 	return nil
 }
 
+// closeAllClients closes all ONAP clients and collects any errors.
+func (p *Plugin) closeAllClients() []error {
+	var errs []error
+
+	errs = p.closeClient(p.aaiClient, "A&AI", errs)
+	errs = p.closeClient(p.dmaapClient, "DMaaP", errs)
+	errs = p.closeClient(p.soClient, "SO", errs)
+	errs = p.closeClient(p.sdncClient, "SDNC", errs)
+
+	return errs
+}
+
+// closeClient closes a single client and appends any error to the error slice.
+func (p *Plugin) closeClient(client interface{ Close() error }, name string, errs []error) []error {
+	if client != nil {
+		if err := client.Close(); err != nil {
+			return append(errs, fmt.Errorf("failed to close %s client: %w", name, err))
+		}
+	}
+	return errs
+}
+
 // Validate validates the configuration.
 func (c *Config) Validate() error {
+	if err := c.validateURLs(); err != nil {
+		return err
+	}
+	if err := c.validateAuth(); err != nil {
+		return err
+	}
+	return c.validateTuning()
+}
+
+// validateURLs validates URL configuration fields.
+func (c *Config) validateURLs() error {
 	if c.EnableInventorySync && c.AAIURL == "" {
 		return fmt.Errorf("aaiUrl is required when inventory sync is enabled")
 	}
-
 	if c.EnableEventPublishing && c.DMaaPURL == "" {
 		return fmt.Errorf("dmaapUrl is required when event publishing is enabled")
 	}
-
 	if c.EnableDMSBackend && c.SOURL == "" {
 		return fmt.Errorf("soUrl is required when DMS backend is enabled")
 	}
+	return nil
+}
 
+// validateAuth validates authentication configuration.
+func (c *Config) validateAuth() error {
 	if c.Username == "" || c.Password == "" {
 		return fmt.Errorf("username and password are required")
 	}
+	return nil
+}
 
+// validateTuning validates tuning parameters.
+func (c *Config) validateTuning() error {
 	if c.RequestTimeout <= 0 {
 		return fmt.Errorf("requestTimeout must be positive")
 	}
-
 	if c.MaxRetries < 0 {
 		return fmt.Errorf("maxRetries cannot be negative")
 	}
-
 	if c.EventPublishBatchSize <= 0 {
 		return fmt.Errorf("eventPublishBatchSize must be positive")
 	}
-
 	return nil
 }
 
 // parseConfig parses a map[string]interface{} into a Config struct.
-func parseConfig(input map[string]interface{}, output *Config) error {
-	// Helper function to get string values
-	getString := func(key string, defaultVal string) string {
-		if val, ok := input[key]; ok {
-			if str, ok := val.(string); ok {
-				return str
-			}
+func parseConfig(input map[string]interface{}, output *Config) {
+	parseStringFields(input, output)
+	parseTLSFields(input, output)
+	parseTimingFields(input, output)
+	parseFeatureFlags(input, output)
+}
+
+// parseStringFields parses string configuration fields.
+func parseStringFields(input map[string]interface{}, output *Config) {
+	output.AAIURL = getStringValue(input, "aaiUrl", output.AAIURL)
+	output.DMaaPURL = getStringValue(input, "dmaapUrl", output.DMaaPURL)
+	output.SOURL = getStringValue(input, "soUrl", output.SOURL)
+	output.SDNCURL = getStringValue(input, "sdncUrl", output.SDNCURL)
+	output.Username = getStringValue(input, "username", output.Username)
+	output.Password = getStringValue(input, "password", output.Password)
+}
+
+// parseTLSFields parses TLS configuration fields.
+func parseTLSFields(input map[string]interface{}, output *Config) {
+	output.TLSEnabled = getBoolValue(input, "tlsEnabled", output.TLSEnabled)
+	output.TLSCertFile = getStringValue(input, "tlsCertFile", output.TLSCertFile)
+	output.TLSKeyFile = getStringValue(input, "tlsKeyFile", output.TLSKeyFile)
+	output.TLSCAFile = getStringValue(input, "tlsCAFile", output.TLSCAFile)
+	output.TLSInsecureSkipVerify = getBoolValue(input, "tlsInsecureSkipVerify", output.TLSInsecureSkipVerify)
+}
+
+// parseTimingFields parses timing and retry configuration fields.
+func parseTimingFields(input map[string]interface{}, output *Config) {
+	output.InventorySyncInterval = getDurationValue(input, "inventorySyncInterval", output.InventorySyncInterval)
+	output.EventPublishBatchSize = getIntValue(input, "eventPublishBatchSize", output.EventPublishBatchSize)
+	output.RequestTimeout = getDurationValue(input, "requestTimeout", output.RequestTimeout)
+	output.MaxRetries = getIntValue(input, "maxRetries", output.MaxRetries)
+}
+
+// parseFeatureFlags parses feature flag configuration fields.
+func parseFeatureFlags(input map[string]interface{}, output *Config) {
+	output.EnableInventorySync = getBoolValue(input, "enableInventorySync", output.EnableInventorySync)
+	output.EnableEventPublishing = getBoolValue(input, "enableEventPublishing", output.EnableEventPublishing)
+	output.EnableDMSBackend = getBoolValue(input, "enableDmsBackend", output.EnableDMSBackend)
+	output.EnableSDNC = getBoolValue(input, "enableSdnc", output.EnableSDNC)
+}
+
+// getStringValue retrieves a string value from config map with default fallback.
+func getStringValue(input map[string]interface{}, key, defaultVal string) string {
+	if val, ok := input[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
 		}
-		return defaultVal
 	}
+	return defaultVal
+}
 
-	// Helper function to get bool values
-	getBool := func(key string, defaultVal bool) bool {
-		if val, ok := input[key]; ok {
-			if b, ok := val.(bool); ok {
-				return b
-			}
+// getBoolValue retrieves a bool value from config map with default fallback.
+func getBoolValue(input map[string]interface{}, key string, defaultVal bool) bool {
+	if val, ok := input[key]; ok {
+		if b, ok := val.(bool); ok {
+			return b
 		}
-		return defaultVal
 	}
+	return defaultVal
+}
 
-	// Helper function to get int values
-	getInt := func(key string, defaultVal int) int {
-		if val, ok := input[key]; ok {
-			switch v := val.(type) {
-			case int:
-				return v
-			case int64:
-				return int(v)
-			case float64:
-				return int(v)
-			}
+// getIntValue retrieves an int value from config map with default fallback.
+func getIntValue(input map[string]interface{}, key string, defaultVal int) int {
+	if val, ok := input[key]; ok {
+		switch v := val.(type) {
+		case int:
+			return v
+		case int64:
+			return int(v)
+		case float64:
+			return int(v)
 		}
-		return defaultVal
 	}
+	return defaultVal
+}
 
-	// Helper function to get duration values
-	getDuration := func(key string, defaultVal time.Duration) time.Duration {
-		if val, ok := input[key]; ok {
-			switch v := val.(type) {
-			case string:
-				if d, err := time.ParseDuration(v); err == nil {
-					return d
-				}
-			case time.Duration:
-				return v
+// getDurationValue retrieves a duration value from config map with default fallback.
+func getDurationValue(input map[string]interface{}, key string, defaultVal time.Duration) time.Duration {
+	if val, ok := input[key]; ok {
+		switch v := val.(type) {
+		case string:
+			if d, err := time.ParseDuration(v); err == nil {
+				return d
 			}
+		case time.Duration:
+			return v
 		}
-		return defaultVal
 	}
-
-	// Parse all configuration fields
-	output.AAIURL = getString("aaiUrl", output.AAIURL)
-	output.DMaaPURL = getString("dmaapUrl", output.DMaaPURL)
-	output.SOURL = getString("soUrl", output.SOURL)
-	output.SDNCURL = getString("sdncUrl", output.SDNCURL)
-	output.Username = getString("username", output.Username)
-	output.Password = getString("password", output.Password)
-
-	output.TLSEnabled = getBool("tlsEnabled", output.TLSEnabled)
-	output.TLSCertFile = getString("tlsCertFile", output.TLSCertFile)
-	output.TLSKeyFile = getString("tlsKeyFile", output.TLSKeyFile)
-	output.TLSCAFile = getString("tlsCAFile", output.TLSCAFile)
-	output.TLSInsecureSkipVerify = getBool("tlsInsecureSkipVerify", output.TLSInsecureSkipVerify)
-
-	output.InventorySyncInterval = getDuration("inventorySyncInterval", output.InventorySyncInterval)
-	output.EventPublishBatchSize = getInt("eventPublishBatchSize", output.EventPublishBatchSize)
-	output.RequestTimeout = getDuration("requestTimeout", output.RequestTimeout)
-	output.MaxRetries = getInt("maxRetries", output.MaxRetries)
-
-	output.EnableInventorySync = getBool("enableInventorySync", output.EnableInventorySync)
-	output.EnableEventPublishing = getBool("enableEventPublishing", output.EnableEventPublishing)
-	output.EnableDMSBackend = getBool("enableDmsBackend", output.EnableDMSBackend)
-	output.EnableSDNC = getBool("enableSdnc", output.EnableSDNC)
-
-	return nil
+	return defaultVal
 }

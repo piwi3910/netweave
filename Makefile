@@ -302,6 +302,33 @@ profile-mem: ## Run memory profiling
 	@$(GOTEST) -memprofile=mem.prof -bench=. ./...
 	@go tool pprof -http=:8080 mem.prof
 
+##@ Compliance
+
+compliance-check: ## Run O-RAN specification compliance validation
+	@echo "$(COLOR_YELLOW)Running O-RAN compliance checks...$(COLOR_RESET)"
+	@go build -o $(BUILD_DIR)/compliance ./cmd/compliance
+	@$(BUILD_DIR)/compliance -url http://localhost:8080 -output text
+	@echo "$(COLOR_GREEN)✓ Compliance check complete$(COLOR_RESET)"
+
+compliance-badges: ## Generate compliance badges for README
+	@echo "$(COLOR_YELLOW)Generating compliance badges...$(COLOR_RESET)"
+	@go build -o $(BUILD_DIR)/compliance ./cmd/compliance
+	@$(BUILD_DIR)/compliance -url http://localhost:8080 -output badges
+	@echo "$(COLOR_GREEN)✓ Badges generated$(COLOR_RESET)"
+
+compliance-json: ## Generate compliance report as JSON
+	@echo "$(COLOR_YELLOW)Generating compliance JSON report...$(COLOR_RESET)"
+	@mkdir -p $(BUILD_DIR)/reports
+	@go build -o $(BUILD_DIR)/compliance ./cmd/compliance
+	@$(BUILD_DIR)/compliance -url http://localhost:8080 -output json > $(BUILD_DIR)/reports/compliance.json
+	@echo "$(COLOR_GREEN)✓ JSON report generated: $(BUILD_DIR)/reports/compliance.json$(COLOR_RESET)"
+
+compliance-update-readme: ## Update README.md with compliance badges
+	@echo "$(COLOR_YELLOW)Updating README with compliance badges...$(COLOR_RESET)"
+	@go build -o $(BUILD_DIR)/compliance ./cmd/compliance
+	@$(BUILD_DIR)/compliance -url http://localhost:8080 -update-readme
+	@echo "$(COLOR_GREEN)✓ README.md updated with compliance badges$(COLOR_RESET)"
+
 ##@ Documentation
 
 lint-docs: ## Lint all Markdown documentation

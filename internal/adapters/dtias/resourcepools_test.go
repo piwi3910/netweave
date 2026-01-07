@@ -5,14 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 func TestDTIASAdapter_transformServerPoolToResourcePool(t *testing.T) {
 	adapter := createTestAdapter(t)
-	defer adapter.Close()
+	t.Cleanup(func() { require.NoError(t, adapter.Close()) })
 
 	now := time.Now()
 	serverPool := &ServerPool{
@@ -62,7 +63,7 @@ func TestDTIASAdapter_transformServerPoolToResourcePool(t *testing.T) {
 
 func TestDTIASAdapter_matchesFilter(t *testing.T) {
 	a := createTestAdapter(t)
-	defer a.Close()
+	t.Cleanup(func() { require.NoError(t, a.Close()) })
 
 	pool := &adapter.ResourcePool{
 		ResourcePoolID: "pool-123",
@@ -159,7 +160,7 @@ func TestDTIASAdapter_ListResourcePools_FilteringLogic(t *testing.T) {
 	// Note: This is a unit test that doesn't call the actual DTIAS API
 
 	a := createTestAdapter(t)
-	defer a.Close()
+	t.Cleanup(func() { require.NoError(t, a.Close()) })
 
 	tests := []struct {
 		name           string
@@ -229,7 +230,7 @@ func TestDTIASAdapter_ListResourcePools_FilteringLogic(t *testing.T) {
 
 func TestDTIASAdapter_GetResourcePool_IDValidation(t *testing.T) {
 	a := createTestAdapter(t)
-	defer a.Close()
+	t.Cleanup(func() { require.NoError(t, a.Close()) })
 
 	tests := []struct {
 		name    string
@@ -260,7 +261,7 @@ func TestDTIASAdapter_GetResourcePool_IDValidation(t *testing.T) {
 
 func TestDTIASAdapter_CreateResourcePool_Transformation(t *testing.T) {
 	a := createTestAdapter(t)
-	defer a.Close()
+	t.Cleanup(func() { require.NoError(t, a.Close()) })
 
 	tests := []struct {
 		name string
@@ -302,7 +303,7 @@ func TestDTIASAdapter_CreateResourcePool_Transformation(t *testing.T) {
 
 func TestDTIASAdapter_UpdateResourcePool_FieldsAllowed(t *testing.T) {
 	a := createTestAdapter(t)
-	defer a.Close()
+	t.Cleanup(func() { require.NoError(t, a.Close()) })
 
 	// Test which fields can be updated
 	pool := &adapter.ResourcePool{

@@ -5,13 +5,14 @@ import (
 	"fmt"
 
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // ListResources retrieves all OpenStack Nova instances and transforms them to O2-IMS Resources.
 // Nova instances (VMs) are the fundamental compute resources in OpenStack.
-func (a *OpenStackAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (a *OpenStackAdapter) ListResources(_ context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
 	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
@@ -21,10 +22,8 @@ func (a *OpenStackAdapter) ListResources(ctx context.Context, filter *adapter.Fi
 	}
 
 	// Apply resource pool filter if specified
-	if filter != nil && filter.ResourcePoolID != "" {
-		// Extract availability zone from resource pool ID if needed
-		// For now, we list all and filter in memory
-	}
+	// For now, we list all and filter in memory
+	_ = filter // TODO: implement resource pool filtering
 
 	// Query all servers from Nova
 	allPages, err := servers.List(a.compute, listOpts).AllPages()
@@ -107,73 +106,19 @@ func (a *OpenStackAdapter) CreateResource(ctx context.Context, resource *adapter
 	a.logger.Debug("CreateResource called",
 		zap.String("resourceTypeID", resource.ResourceTypeID))
 
-	if resource.ResourceTypeID == "" {
-		return nil, fmt.Errorf("resourceTypeID is required")
-	}
-
-	// Extract flavor ID from resource type ID
-	var flavorID string
-	_, err := fmt.Sscanf(resource.ResourceTypeID, "openstack-flavor-%s", &flavorID)
+	// Extract and validate required parameters
+	flavorID, imageID, err := a.extractRequiredParams(resource)
 	if err != nil {
-		return nil, fmt.Errorf("invalid resourceTypeID format: %s", resource.ResourceTypeID)
-	}
-
-	// Extract required parameters from extensions
-	imageID, ok := resource.Extensions["openstack.imageId"].(string)
-	if !ok || imageID == "" {
-		return nil, fmt.Errorf("openstack.imageId is required in extensions")
-	}
-
-	// Extract optional parameters
-	name := "openstack-instance"
-	if n, ok := resource.Extensions["openstack.name"].(string); ok && n != "" {
-		name = n
-	}
-
-	// Extract availability zone from resource pool if specified
-	availabilityZone := ""
-	if resource.ResourcePoolID != "" {
-		// Query the resource pool to get availability zone
-		pool, err := a.GetResourcePool(ctx, resource.ResourcePoolID)
-		if err != nil {
-			a.logger.Warn("failed to get resource pool for availability zone",
-				zap.String("resourcePoolID", resource.ResourcePoolID),
-				zap.Error(err))
-		} else {
-			availabilityZone = pool.Location
-		}
+		return nil, err
 	}
 
 	// Build server create options
-	createOpts := servers.CreateOpts{
-		Name:             name,
-		FlavorRef:        flavorID,
-		ImageRef:         imageID,
-		AvailabilityZone: availabilityZone,
-	}
-
-	// Add networks if specified
-	if networks, ok := resource.Extensions["openstack.networks"].([]string); ok && len(networks) > 0 {
-		networksSlice := make([]servers.Network, len(networks))
-		for i, netID := range networks {
-			networksSlice[i] = servers.Network{UUID: netID}
-		}
-		createOpts.Networks = networksSlice
-	}
-
-	// Add security groups if specified
-	if securityGroups, ok := resource.Extensions["openstack.securityGroups"].([]string); ok && len(securityGroups) > 0 {
-		createOpts.SecurityGroups = securityGroups
-	}
+	createOpts := a.buildCreateOptions(ctx, resource, flavorID, imageID)
 
 	// Create server in OpenStack
-	osServer, err := servers.Create(a.compute, createOpts).Extract()
+	osServer, err := a.createOpenStackServer(createOpts)
 	if err != nil {
-		a.logger.Error("failed to create server",
-			zap.String("name", name),
-			zap.String("flavorID", flavorID),
-			zap.Error(err))
-		return nil, fmt.Errorf("failed to create OpenStack server: %w", err)
+		return nil, err
 	}
 
 	// Transform back to O2-IMS Resource
@@ -187,8 +132,114 @@ func (a *OpenStackAdapter) CreateResource(ctx context.Context, resource *adapter
 	return createdResource, nil
 }
 
+// extractRequiredParams extracts and validates required parameters from resource.
+func (a *OpenStackAdapter) extractRequiredParams(resource *adapter.Resource) (string, string, error) {
+	var flavorID, imageID string
+	var err error
+	if resource.ResourceTypeID == "" {
+		return "", "", fmt.Errorf("resourceTypeID is required")
+	}
+
+	// Extract flavor ID from resource type ID
+	_, err = fmt.Sscanf(resource.ResourceTypeID, "openstack-flavor-%s", &flavorID)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid resourceTypeID format: %s", resource.ResourceTypeID)
+	}
+
+	// Extract required image ID from extensions
+	imageID, ok := resource.Extensions["openstack.imageId"].(string)
+	if !ok || imageID == "" {
+		return "", "", fmt.Errorf("openstack.imageId is required in extensions")
+	}
+
+	return flavorID, imageID, nil
+}
+
+// buildCreateOptions builds OpenStack server create options from resource specification.
+func (a *OpenStackAdapter) buildCreateOptions(
+	ctx context.Context,
+	resource *adapter.Resource,
+	flavorID, imageID string,
+) servers.CreateOpts {
+	// Extract optional name parameter
+	name := "openstack-instance"
+	if n, ok := resource.Extensions["openstack.name"].(string); ok && n != "" {
+		name = n
+	}
+
+	// Extract availability zone from resource pool
+	availabilityZone := a.getAvailabilityZone(ctx, resource.ResourcePoolID)
+
+	createOpts := servers.CreateOpts{
+		Name:             name,
+		FlavorRef:        flavorID,
+		ImageRef:         imageID,
+		AvailabilityZone: availabilityZone,
+	}
+
+	// Add optional network configuration
+	a.addNetworkConfig(&createOpts, resource.Extensions)
+
+	// Add optional security groups
+	a.addSecurityGroups(&createOpts, resource.Extensions)
+
+	return createOpts
+}
+
+// getAvailabilityZone retrieves availability zone from resource pool.
+func (a *OpenStackAdapter) getAvailabilityZone(ctx context.Context, resourcePoolID string) string {
+	if resourcePoolID == "" {
+		return ""
+	}
+
+	pool, err := a.GetResourcePool(ctx, resourcePoolID)
+	if err != nil {
+		a.logger.Warn("failed to get resource pool for availability zone",
+			zap.String("resourcePoolID", resourcePoolID),
+			zap.Error(err))
+		return ""
+	}
+
+	return pool.Location
+}
+
+// addNetworkConfig adds network configuration to create options if specified.
+func (a *OpenStackAdapter) addNetworkConfig(opts *servers.CreateOpts, extensions map[string]interface{}) {
+	networks, ok := extensions["openstack.networks"].([]string)
+	if !ok || len(networks) == 0 {
+		return
+	}
+
+	networksSlice := make([]servers.Network, len(networks))
+	for i, netID := range networks {
+		networksSlice[i] = servers.Network{UUID: netID}
+	}
+	opts.Networks = networksSlice
+}
+
+// addSecurityGroups adds security groups to create options if specified.
+func (a *OpenStackAdapter) addSecurityGroups(opts *servers.CreateOpts, extensions map[string]interface{}) {
+	securityGroups, ok := extensions["openstack.securityGroups"].([]string)
+	if ok && len(securityGroups) > 0 {
+		opts.SecurityGroups = securityGroups
+	}
+}
+
+// createOpenStackServer creates a server in OpenStack and handles errors.
+func (a *OpenStackAdapter) createOpenStackServer(createOpts servers.CreateOpts) (*servers.Server, error) {
+	osServer, err := servers.Create(a.compute, createOpts).Extract()
+	if err != nil {
+		a.logger.Error("failed to create server",
+			zap.String("name", createOpts.Name),
+			zap.String("flavorID", createOpts.FlavorRef),
+			zap.Error(err))
+		return nil, fmt.Errorf("failed to create OpenStack server: %w", err)
+	}
+	return osServer, nil
+}
+
 // DeleteResource deletes an OpenStack Nova instance.
-func (a *OpenStackAdapter) DeleteResource(ctx context.Context, id string) error {
+func (a *OpenStackAdapter) DeleteResource(_ context.Context, id string) error {
 	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
@@ -271,7 +322,7 @@ func (a *OpenStackAdapter) transformServerToResource(server *servers.Server) *ad
 
 // getResourcePoolIDFromServer derives the resource pool ID from a server's availability zone.
 // This is a best-effort approach since OpenStack doesn't directly link servers to host aggregates.
-func (a *OpenStackAdapter) getResourcePoolIDFromServer(server *servers.Server) string {
+func (a *OpenStackAdapter) getResourcePoolIDFromServer(_ *servers.Server) string {
 	// In OpenStack, we can't directly determine which host aggregate a server belongs to
 	// from the server object alone. We would need to query host aggregates and match
 	// the server's host. For now, we return empty string or use availability zone as a proxy.

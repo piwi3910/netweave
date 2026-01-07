@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+const (
+	testTokenPath = "/osm/admin/v1/tokens"
+)
+
 // TestNewClient tests the creation of a new OSM client.
 func TestNewClient(t *testing.T) {
 	tests := []struct {
@@ -106,8 +110,8 @@ func TestAuthenticate(t *testing.T) {
 				if r.Method != http.MethodPost {
 					t.Errorf("Expected POST request, got %s", r.Method)
 				}
-				if r.URL.Path != "/osm/admin/v1/tokens" {
-					t.Errorf("Expected path /osm/admin/v1/tokens, got %s", r.URL.Path)
+				if r.URL.Path != testTokenPath {
+					t.Errorf("Expected path %s, got %s", testTokenPath, r.URL.Path)
 				}
 
 				// Parse request body
@@ -132,7 +136,7 @@ func TestAuthenticate(t *testing.T) {
 					"project_id": "admin",
 					"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
 				}
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 			},
 			wantErr: false,
 		},
@@ -141,9 +145,9 @@ func TestAuthenticate(t *testing.T) {
 			username: "admin",
 			password: "wrong-password",
 			project:  "admin",
-			serverResp: func(w http.ResponseWriter, r *http.Request) {
+			serverResp: func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte(`{"detail": "Invalid credentials"}`))
+				_, _ = w.Write([]byte(`{"detail": "Invalid credentials"}`))
 			},
 			wantErr: true,
 		},
@@ -152,9 +156,9 @@ func TestAuthenticate(t *testing.T) {
 			username: "admin",
 			password: "secret",
 			project:  "admin",
-			serverResp: func(w http.ResponseWriter, r *http.Request) {
+			serverResp: func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(`{"detail": "Internal server error"}`))
+				_, _ = w.Write([]byte(`{"detail": "Internal server error"}`))
 			},
 			wantErr: true,
 		},
@@ -164,7 +168,7 @@ func TestAuthenticate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create test server
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResp))
-			defer server.Close()
+			t.Cleanup(func() { server.Close() })
 
 			// Create client
 			config := &Config{
@@ -213,7 +217,7 @@ func TestAuthenticate(t *testing.T) {
 func TestAuthenticateWithCachedToken(t *testing.T) {
 	callCount := 0
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -222,9 +226,9 @@ func TestAuthenticateWithCachedToken(t *testing.T) {
 			"project_id": "admin",
 			"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
-	defer server.Close()
+	t.Cleanup(func() { server.Close() })
 
 	config := &Config{
 		NBIURL:         server.URL,
@@ -266,7 +270,7 @@ func TestAuthenticateWithCachedToken(t *testing.T) {
 func TestAuthenticateTokenExpiry(t *testing.T) {
 	callCount := 0
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -282,9 +286,9 @@ func TestAuthenticateTokenExpiry(t *testing.T) {
 			"project_id": "admin",
 			"expires":    expiryTime.Format(time.RFC3339),
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
-	defer server.Close()
+	t.Cleanup(func() { server.Close() })
 
 	config := &Config{
 		NBIURL:         server.URL,
@@ -335,7 +339,7 @@ func TestHealth(t *testing.T) {
 		{
 			name: "healthy",
 			serverResp: func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == "/osm/admin/v1/tokens" {
+				if r.URL.Path == testTokenPath {
 					// Auth request
 					if r.Method == http.MethodPost {
 						w.Header().Set("Content-Type", "application/json")
@@ -345,7 +349,7 @@ func TestHealth(t *testing.T) {
 							"project_id": "admin",
 							"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
 						}
-						json.NewEncoder(w).Encode(resp)
+						_ = json.NewEncoder(w).Encode(resp)
 					} else {
 						// Health check
 						w.WriteHeader(http.StatusOK)
@@ -356,7 +360,7 @@ func TestHealth(t *testing.T) {
 		},
 		{
 			name: "unhealthy - auth failure",
-			serverResp: func(w http.ResponseWriter, r *http.Request) {
+			serverResp: func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusUnauthorized)
 			},
 			wantErr: true,
@@ -366,7 +370,7 @@ func TestHealth(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResp))
-			defer server.Close()
+			t.Cleanup(func() { server.Close() })
 
 			config := &Config{
 				NBIURL:         server.URL,
@@ -435,7 +439,7 @@ func TestClose(t *testing.T) {
 	client.mu.RUnlock()
 }
 
-// Helper function to check if a string contains a substring
+// Helper function to check if a string contains a substring.
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))

@@ -158,14 +158,14 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *ArgoCDAdapter {
 }
 
 // createTestApplication creates a test ArgoCD Application unstructured object.
-func createTestApplication(name, namespace, repoURL, path, healthStatus, syncStatus string) *unstructured.Unstructured {
+func createTestApplication(name, repoURL, path, healthStatus, syncStatus string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
 			"metadata": map[string]interface{}{
 				"name":              name,
-				"namespace":         namespace,
+				"namespace":         "argocd",
 				"creationTimestamp": time.Now().Format(time.RFC3339),
 			},
 			"spec": map[string]interface{}{
@@ -214,8 +214,8 @@ func TestListDeployments(t *testing.T) {
 		{
 			name: "list all deployments",
 			apps: []*unstructured.Unstructured{
-				createTestApplication("app1", "argocd", "https://github.com/example/repo", "app1", "Healthy", "Synced"),
-				createTestApplication("app2", "argocd", "https://github.com/example/repo", "app2", "Progressing", "OutOfSync"),
+				createTestApplication("app1", "https://github.com/example/repo", "app1", "Healthy", "Synced"),
+				createTestApplication("app2", "https://github.com/example/repo", "app2", "Progressing", "OutOfSync"),
 			},
 			filter:    nil,
 			wantCount: 2,
@@ -224,8 +224,8 @@ func TestListDeployments(t *testing.T) {
 		{
 			name: "filter by status - deployed",
 			apps: []*unstructured.Unstructured{
-				createTestApplication("app1", "argocd", "https://github.com/example/repo", "app1", "Healthy", "Synced"),
-				createTestApplication("app2", "argocd", "https://github.com/example/repo", "app2", "Progressing", "OutOfSync"),
+				createTestApplication("app1", "https://github.com/example/repo", "app1", "Healthy", "Synced"),
+				createTestApplication("app2", "https://github.com/example/repo", "app2", "Progressing", "OutOfSync"),
 			},
 			filter:    &dmsadapter.Filter{Status: dmsadapter.DeploymentStatusDeployed},
 			wantCount: 1,
@@ -241,9 +241,9 @@ func TestListDeployments(t *testing.T) {
 		{
 			name: "pagination - limit",
 			apps: []*unstructured.Unstructured{
-				createTestApplication("app1", "argocd", "https://github.com/example/repo", "app1", "Healthy", "Synced"),
-				createTestApplication("app2", "argocd", "https://github.com/example/repo", "app2", "Healthy", "Synced"),
-				createTestApplication("app3", "argocd", "https://github.com/example/repo", "app3", "Healthy", "Synced"),
+				createTestApplication("app1", "https://github.com/example/repo", "app1", "Healthy", "Synced"),
+				createTestApplication("app2", "https://github.com/example/repo", "app2", "Healthy", "Synced"),
+				createTestApplication("app3", "https://github.com/example/repo", "app3", "Healthy", "Synced"),
 			},
 			filter:    &dmsadapter.Filter{Limit: 2},
 			wantCount: 2,
@@ -252,9 +252,9 @@ func TestListDeployments(t *testing.T) {
 		{
 			name: "pagination - offset",
 			apps: []*unstructured.Unstructured{
-				createTestApplication("app1", "argocd", "https://github.com/example/repo", "app1", "Healthy", "Synced"),
-				createTestApplication("app2", "argocd", "https://github.com/example/repo", "app2", "Healthy", "Synced"),
-				createTestApplication("app3", "argocd", "https://github.com/example/repo", "app3", "Healthy", "Synced"),
+				createTestApplication("app1", "https://github.com/example/repo", "app1", "Healthy", "Synced"),
+				createTestApplication("app2", "https://github.com/example/repo", "app2", "Healthy", "Synced"),
+				createTestApplication("app3", "https://github.com/example/repo", "app3", "Healthy", "Synced"),
 			},
 			filter:    &dmsadapter.Filter{Offset: 1, Limit: 10},
 			wantCount: 2,
@@ -298,7 +298,7 @@ func TestGetDeployment(t *testing.T) {
 		{
 			name: "get existing deployment",
 			apps: []*unstructured.Unstructured{
-				createTestApplication("my-app", "argocd", "https://github.com/example/repo", "apps/my-app", "Healthy", "Synced"),
+				createTestApplication("my-app", "https://github.com/example/repo", "apps/my-app", "Healthy", "Synced"),
 			},
 			deployID: "my-app",
 			wantErr:  false,
@@ -407,7 +407,13 @@ func TestCreateDeployment(t *testing.T) {
 
 // TestUpdateDeployment tests updating ArgoCD Applications.
 func TestUpdateDeployment(t *testing.T) {
-	existingApp := createTestApplication("existing-app", "argocd", "https://github.com/example/repo", "apps/existing", "Healthy", "Synced")
+	existingApp := createTestApplication(
+		"existing-app",
+		"https://github.com/example/repo",
+		"apps/existing",
+		"Healthy",
+		"Synced",
+	)
 
 	tests := []struct {
 		name        string
@@ -475,7 +481,13 @@ func TestUpdateDeployment(t *testing.T) {
 
 // TestDeleteDeployment tests deleting ArgoCD Applications.
 func TestDeleteDeployment(t *testing.T) {
-	existingApp := createTestApplication("app-to-delete", "argocd", "https://github.com/example/repo", "apps/delete", "Healthy", "Synced")
+	existingApp := createTestApplication(
+		"app-to-delete",
+		"https://github.com/example/repo",
+		"apps/delete",
+		"Healthy",
+		"Synced",
+	)
 
 	tests := []struct {
 		name        string
@@ -515,7 +527,13 @@ func TestDeleteDeployment(t *testing.T) {
 
 // TestScaleDeployment tests scaling ArgoCD Applications.
 func TestScaleDeployment(t *testing.T) {
-	existingApp := createTestApplication("scalable-app", "argocd", "https://github.com/example/repo", "apps/scalable", "Healthy", "Synced")
+	existingApp := createTestApplication(
+		"scalable-app",
+		"https://github.com/example/repo",
+		"apps/scalable",
+		"Healthy",
+		"Synced",
+	)
 
 	tests := []struct {
 		name        string
@@ -571,8 +589,20 @@ func TestScaleDeployment(t *testing.T) {
 
 // TestGetDeploymentStatus tests retrieving deployment status.
 func TestGetDeploymentStatus(t *testing.T) {
-	healthyApp := createTestApplication("healthy-app", "argocd", "https://github.com/example/repo", "apps/healthy", "Healthy", "Synced")
-	progressingApp := createTestApplication("progressing-app", "argocd", "https://github.com/example/repo", "apps/progressing", "Progressing", "OutOfSync")
+	healthyApp := createTestApplication(
+		"healthy-app",
+		"https://github.com/example/repo",
+		"apps/healthy",
+		"Healthy",
+		"Synced",
+	)
+	progressingApp := createTestApplication(
+		"progressing-app",
+		"https://github.com/example/repo",
+		"apps/progressing",
+		"Progressing",
+		"OutOfSync",
+	)
 
 	tests := []struct {
 		name         string
@@ -637,7 +667,13 @@ func TestGetDeploymentStatus(t *testing.T) {
 
 // TestGetDeploymentHistory tests retrieving deployment history.
 func TestGetDeploymentHistory(t *testing.T) {
-	appWithHistory := createTestApplication("app-with-history", "argocd", "https://github.com/example/repo", "apps/history", "Healthy", "Synced")
+	appWithHistory := createTestApplication(
+		"app-with-history",
+		"https://github.com/example/repo",
+		"apps/history",
+		"Healthy",
+		"Synced",
+	)
 
 	tests := []struct {
 		name        string
@@ -680,7 +716,7 @@ func TestGetDeploymentHistory(t *testing.T) {
 
 // TestGetDeploymentLogs tests retrieving deployment logs/status.
 func TestGetDeploymentLogs(t *testing.T) {
-	app := createTestApplication("app-for-logs", "argocd", "https://github.com/example/repo", "apps/logs", "Healthy", "Synced")
+	app := createTestApplication("app-for-logs", "https://github.com/example/repo", "apps/logs", "Healthy", "Synced")
 
 	tests := []struct {
 		name        string
@@ -725,7 +761,7 @@ func TestGetDeploymentLogs(t *testing.T) {
 // TestHealth tests the health check functionality.
 func TestHealth(t *testing.T) {
 	t.Run("healthy adapter", func(t *testing.T) {
-		app := createTestApplication("test-app", "argocd", "https://github.com/example/repo", "apps/test", "Healthy", "Synced")
+		app := createTestApplication("test-app", "https://github.com/example/repo", "apps/test", "Healthy", "Synced")
 		adp := createFakeAdapter(t, app)
 
 		err := adp.Health(context.Background())
@@ -968,9 +1004,9 @@ func TestApplyPagination(t *testing.T) {
 // TestListDeploymentPackages tests package listing functionality.
 func TestListDeploymentPackages(t *testing.T) {
 	apps := []*unstructured.Unstructured{
-		createTestApplication("app1", "argocd", "https://github.com/example/repo1", "apps/app1", "Healthy", "Synced"),
-		createTestApplication("app2", "argocd", "https://github.com/example/repo1", "apps/app2", "Healthy", "Synced"),
-		createTestApplication("app3", "argocd", "https://github.com/example/repo2", "apps/app3", "Healthy", "Synced"),
+		createTestApplication("app1", "https://github.com/example/repo1", "apps/app1", "Healthy", "Synced"),
+		createTestApplication("app2", "https://github.com/example/repo1", "apps/app2", "Healthy", "Synced"),
+		createTestApplication("app3", "https://github.com/example/repo2", "apps/app3", "Healthy", "Synced"),
 	}
 
 	objects := make([]runtime.Object, len(apps))
@@ -1060,7 +1096,13 @@ func TestDeleteDeploymentPackage(t *testing.T) {
 
 // TestRollbackDeployment tests rollback functionality.
 func TestRollbackDeployment(t *testing.T) {
-	appWithHistory := createTestApplication("rollback-app", "argocd", "https://github.com/example/repo", "apps/rollback", "Healthy", "Synced")
+	appWithHistory := createTestApplication(
+		"rollback-app",
+		"https://github.com/example/repo",
+		"apps/rollback",
+		"Healthy",
+		"Synced",
+	)
 
 	tests := []struct {
 		name        string
@@ -1161,7 +1203,6 @@ func BenchmarkListDeployments(b *testing.B) {
 	for i := 0; i < 100; i++ {
 		apps[i] = createTestApplication(
 			formatString("app-%d", i),
-			"argocd",
 			"https://github.com/example/repo",
 			formatString("apps/app-%d", i),
 			"Healthy",

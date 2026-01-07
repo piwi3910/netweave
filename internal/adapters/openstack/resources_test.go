@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/adapter"
 )
 
-// TestTransformServerToResource tests the transformation from OpenStack server to O2-IMS resource
+// TestTransformServerToResource tests the transformation from OpenStack server to O2-IMS resource.
 func TestTransformServerToResource(t *testing.T) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",
@@ -88,7 +89,7 @@ func TestTransformServerToResource(t *testing.T) {
 	assert.Equal(t, "web", metadata["app"])
 }
 
-// TestTransformServerToResourceMinimal tests transformation with minimal data
+// TestTransformServerToResourceMinimal tests transformation with minimal data.
 func TestTransformServerToResourceMinimal(t *testing.T) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",
@@ -110,7 +111,7 @@ func TestTransformServerToResourceMinimal(t *testing.T) {
 	assert.NotNil(t, resource.Extensions)
 }
 
-// TestResourceIDParsing tests parsing resource IDs
+// TestResourceIDParsing tests parsing resource IDs.
 func TestResourceIDParsing(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -156,16 +157,14 @@ func TestResourceIDParsing(t *testing.T) {
 			if tt.wantErr {
 				// Should not match the format or should error
 				assert.True(t, err != nil || n == 0)
-			} else {
-				if err == nil && n > 0 {
-					assert.Equal(t, tt.wantID, serverID)
-				}
+			} else if err == nil && n > 0 {
+				assert.Equal(t, tt.wantID, serverID)
 			}
 		})
 	}
 }
 
-// TestListResourcesFilter tests filtering logic for ListResources
+// TestListResourcesFilter tests filtering logic for ListResources.
 func TestListResourcesFilter(t *testing.T) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",
@@ -222,7 +221,7 @@ func TestListResourcesFilter(t *testing.T) {
 	})
 }
 
-// TestCreateResourceValidation tests validation for CreateResource
+// TestCreateResourceValidation tests validation for CreateResource.
 func TestCreateResourceValidation(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger: zap.NewNop(),
@@ -270,15 +269,13 @@ func TestCreateResourceValidation(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
-			} else {
-				// Note: This will fail with OpenStack API error in tests
-				// We're just testing validation logic here
 			}
+			// Note: Success cases would require OpenStack API mock
 		})
 	}
 }
 
-// TestGetResourcePoolIDFromServer tests resource pool ID derivation
+// TestGetResourcePoolIDFromServer tests resource pool ID derivation.
 func TestGetResourcePoolIDFromServer(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger: zap.NewNop(),
@@ -313,7 +310,7 @@ func TestGetResourcePoolIDFromServer(t *testing.T) {
 	}
 }
 
-// BenchmarkTransformServerToResource benchmarks the transformation
+// BenchmarkTransformServerToResource benchmarks the transformation.
 func BenchmarkTransformServerToResource(b *testing.B) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",
