@@ -62,6 +62,22 @@ type Server struct {
 	store            storage.Store
 	healthCheck      *observability.HealthChecker
 	openAPIValidator *middleware.OpenAPIValidator
+	authStore        AuthStore
+	authMw           AuthMiddleware
+}
+
+// AuthStore defines the interface for auth storage operations.
+// This allows the server to remain decoupled from the auth package.
+type AuthStore interface {
+	Ping(ctx context.Context) error
+	Close() error
+}
+
+// AuthMiddleware defines the interface for authentication middleware.
+type AuthMiddleware interface {
+	AuthenticationMiddleware() gin.HandlerFunc
+	RequirePermission(permission string) gin.HandlerFunc
+	RequirePlatformAdmin() gin.HandlerFunc
 }
 
 // Metrics holds Prometheus metrics for the server.
