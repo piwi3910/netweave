@@ -93,10 +93,11 @@ issues:
         - nilerr
       path: internal/adapters/
     # Allow more linting issues in pre-existing adapters (not part of DMS PR)
-    - path: internal/adapters/(aws|azure|gcp|dtias|openstack|vmware)/
+    - path: internal/adapters/(aws|azure|gcp|dtias|openstack|vmware|kubernetes)/
       linters:
         - goconst
         - gocognit
+        - gocyclo
         - nestif
         - errcheck
         - godot
@@ -106,6 +107,10 @@ issues:
         - unparam
         - gocritic
         - dupBranchBody
+        - importas
+        - staticcheck
+        - revive
+        - govet
 
 output:
   sort-results: true
