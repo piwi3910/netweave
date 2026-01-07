@@ -55,6 +55,7 @@ Official O-RAN Alliance specifications:
 - ✅ **Real-Time Notifications**: Webhook-based subscriptions for infrastructure change events
 - ✅ **Extensible Architecture**: Plugin-based adapter system with 25+ production-ready adapters
 - ✅ **Enterprise Observability**: Prometheus metrics, Jaeger tracing, structured logging
+- ✅ **Interactive API Documentation**: OpenAPI 3.0 spec with Swagger UI for API exploration
 
 ### Use Cases
 
@@ -123,6 +124,22 @@ graph TB
     style IMS_Backends fill:#f0f8ff
     style DMS_Backends fill:#f5f0ff
     style SMO_Backends fill:#fff5f0
+```
+
+### API Documentation
+
+The gateway provides interactive API documentation via Swagger UI:
+
+- **Swagger UI**: Access at `/docs/` for interactive API exploration
+- **OpenAPI Spec**: Available at `/openapi.yaml` (YAML format)
+- **Try It Out**: Test API endpoints directly from the documentation
+
+```bash
+# Access Swagger UI (after deployment)
+open https://netweave.example.com/docs/
+
+# Download OpenAPI spec
+curl https://netweave.example.com/openapi.yaml -o o2ims-api.yaml
 ```
 
 ### Documentation
@@ -452,6 +469,9 @@ make quality
 
 ```
 netweave/
+├── api/
+│   └── openapi/              # OpenAPI specifications
+│       └── o2ims.yaml        # O2-IMS API spec
 ├── cmd/
 │   └── gateway/              # Main gateway binary
 ├── internal/
