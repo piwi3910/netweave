@@ -263,9 +263,36 @@ type Gateway struct {
 1. Load configuration (env vars, ConfigMap)
 2. Connect to Redis (Sentinel)
 3. Connect to Kubernetes API
-4. Register routes and middleware
-5. Start HTTP server on port 8080
-6. Signal readiness (liveness/readiness probes)
+4. Load OpenAPI specification
+5. Register routes and middleware
+6. Start HTTP server on port 8080
+7. Signal readiness (liveness/readiness probes)
+
+### API Documentation
+
+**Responsibility**: Provide interactive API documentation and OpenAPI specification
+
+The gateway includes built-in API documentation served via Swagger UI:
+
+| Endpoint | Description |
+|----------|-------------|
+| `/docs/` | Interactive Swagger UI for API exploration |
+| `/docs/openapi.yaml` | OpenAPI 3.0 specification (YAML format) |
+| `/openapi.yaml` | OpenAPI specification (root path alias) |
+
+**Security Features**:
+- Pinned Swagger UI version (5.11.0) for reproducibility
+- Subresource Integrity (SRI) hashes for all CDN resources
+- Content Security Policy (CSP) headers
+- Security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy)
+
+**OpenAPI Specification** (`api/openapi/o2ims.yaml`):
+- Comprehensive documentation of all O2-IMS endpoints
+- Request/response schemas with examples
+- Error response definitions
+- Query parameter documentation
+
+**Fail-Fast Loading**: The gateway requires the OpenAPI specification to be present at startup. If the spec file is not found, the gateway will fail to start. This ensures documentation is always available in production.
 
 ### Redis Cluster
 
