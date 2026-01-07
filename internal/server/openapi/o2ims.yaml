@@ -14,8 +14,8 @@ info:
     url: https://www.apache.org/licenses/LICENSE-2.0
 
 servers:
-  - url: /o2ims/v1
-    description: O2-IMS API v1
+  - url: /o2ims-infrastructureInventory/v1
+    description: O2-IMS Infrastructure Inventory API v1
 
 tags:
   - name: subscriptions
@@ -543,20 +543,14 @@ components:
       type: object
       properties:
         resourcePoolId:
-          type: array
-          items:
-            type: string
-          description: Filter by resource pool IDs (OR logic)
+          type: string
+          description: Filter by resource pool ID
         resourceTypeId:
-          type: array
-          items:
-            type: string
-          description: Filter by resource type IDs (OR logic)
+          type: string
+          description: Filter by resource type ID
         resourceId:
-          type: array
-          items:
-            type: string
-          description: Filter by resource IDs (OR logic)
+          type: string
+          description: Filter by resource ID
         labels:
           type: object
           additionalProperties:

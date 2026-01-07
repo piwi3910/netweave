@@ -7,6 +7,7 @@ package onap
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -406,12 +407,32 @@ func (p *Plugin) closeAllClients() []error {
 	return errs
 }
 
+// isNilInterface checks if an interface contains a nil value.
+// This is necessary because in Go, an interface containing a nil pointer is not nil itself.
+func isNilInterface(i interface{}) bool {
+	if i == nil {
+		return true
+	}
+	// Use reflection to check if the underlying value is nil
+	v := reflect.ValueOf(i)
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
 // closeClient closes a single client and appends any error to the error slice.
 func (p *Plugin) closeClient(client interface{ Close() error }, name string, errs []error) []error {
-	if client != nil {
-		if err := client.Close(); err != nil {
-			return append(errs, fmt.Errorf("failed to close %s client: %w", name, err))
-		}
+	// Check if the interface contains a nil value using reflection
+	// This is necessary because a nil pointer wrapped in an interface is not nil
+	if client == nil || isNilInterface(client) {
+		return errs
+	}
+
+	if err := client.Close(); err != nil {
+		return append(errs, fmt.Errorf("failed to close %s client: %w", name, err))
 	}
 	return errs
 }

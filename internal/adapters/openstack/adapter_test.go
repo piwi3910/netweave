@@ -1,7 +1,6 @@
 package openstack
 
 import (
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -10,8 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-
-	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // TestNew tests the creation of a new OpenStackAdapter.
@@ -170,191 +167,8 @@ func TestMetadata(t *testing.T) {
 	})
 }
 
-// TestMatchesFilter tests the filter matching logic.
-func TestMatchesFilter(t *testing.T) {
-	a := &OpenStackAdapter{
-		logger: zap.NewNop(),
-	}
-
-	tests := []struct {
-		name           string
-		filter         *adapter.Filter
-		resourcePoolID string
-		resourceTypeID string
-		location       string
-		labels         map[string]string
-		want           bool
-	}{
-		{
-			name:           "nil filter matches all",
-			filter:         nil,
-			resourcePoolID: "pool-1",
-			want:           true,
-		},
-		{
-			name: "resource pool filter matches",
-			filter: &adapter.Filter{
-				ResourcePoolID: "pool-1",
-			},
-			resourcePoolID: "pool-1",
-			want:           true,
-		},
-		{
-			name: "resource pool filter doesn't match",
-			filter: &adapter.Filter{
-				ResourcePoolID: "pool-1",
-			},
-			resourcePoolID: "pool-2",
-			want:           false,
-		},
-		{
-			name: "resource type filter matches",
-			filter: &adapter.Filter{
-				ResourceTypeID: "type-1",
-			},
-			resourceTypeID: "type-1",
-			want:           true,
-		},
-		{
-			name: "resource type filter doesn't match",
-			filter: &adapter.Filter{
-				ResourceTypeID: "type-1",
-			},
-			resourceTypeID: "type-2",
-			want:           false,
-		},
-		{
-			name: "location filter matches",
-			filter: &adapter.Filter{
-				Location: "zone-1",
-			},
-			location: "zone-1",
-			want:     true,
-		},
-		{
-			name: "location filter doesn't match",
-			filter: &adapter.Filter{
-				Location: "zone-1",
-			},
-			location: "zone-2",
-			want:     false,
-		},
-		{
-			name: "labels filter matches",
-			filter: &adapter.Filter{
-				Labels: map[string]string{
-					"env": "prod",
-				},
-			},
-			labels: map[string]string{
-				"env": "prod",
-				"app": "web",
-			},
-			want: true,
-		},
-		{
-			name: "labels filter doesn't match",
-			filter: &adapter.Filter{
-				Labels: map[string]string{
-					"env": "prod",
-				},
-			},
-			labels: map[string]string{
-				"env": "dev",
-			},
-			want: false,
-		},
-		{
-			name: "multiple filters all match",
-			filter: &adapter.Filter{
-				ResourcePoolID: "pool-1",
-				Location:       "zone-1",
-			},
-			resourcePoolID: "pool-1",
-			location:       "zone-1",
-			want:           true,
-		},
-		{
-			name: "multiple filters one doesn't match",
-			filter: &adapter.Filter{
-				ResourcePoolID: "pool-1",
-				Location:       "zone-1",
-			},
-			resourcePoolID: "pool-1",
-			location:       "zone-2",
-			want:           false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := a.matchesFilter(
-				tt.filter,
-				tt.resourcePoolID,
-				tt.resourceTypeID,
-				tt.location,
-				tt.labels,
-			)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-// TestApplyPagination tests the pagination logic.
-func TestApplyPagination(t *testing.T) {
-	items := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
-
-	tests := []struct {
-		name   string
-		limit  int
-		offset int
-		want   []string
-	}{
-		{
-			name:   "no pagination",
-			limit:  0,
-			offset: 0,
-			want:   items,
-		},
-		{
-			name:   "limit only",
-			limit:  3,
-			offset: 0,
-			want:   []string{"a", "b", "c"},
-		},
-		{
-			name:   "offset only",
-			limit:  0,
-			offset: 3,
-			want:   []string{"d", "e", "f", "g", "h", "i", "j"},
-		},
-		{
-			name:   "limit and offset",
-			limit:  3,
-			offset: 2,
-			want:   []string{"c", "d", "e"},
-		},
-		{
-			name:   "offset beyond items",
-			limit:  3,
-			offset: 20,
-			want:   []string{},
-		},
-		{
-			name:   "limit larger than remaining items",
-			limit:  10,
-			offset: 5,
-			want:   []string{"f", "g", "h", "i", "j"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := applyPagination(items, tt.limit, tt.offset)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
+// NOTE: TestMatchesFilter and TestApplyPagination tests moved to internal/adapter/helpers_test.go
+// These shared helper functions are now tested in the common adapter package.
 
 // TestGenerateFlavorID tests flavor ID generation.
 func TestGenerateFlavorID(t *testing.T) {
@@ -443,43 +257,4 @@ func TestConfigValidation(t *testing.T) {
 	})
 }
 
-// BenchmarkMatchesFilter benchmarks the filter matching logic.
-func BenchmarkMatchesFilter(b *testing.B) {
-	a := &OpenStackAdapter{
-		logger: zap.NewNop(),
-	}
-
-	filter := &adapter.Filter{
-		ResourcePoolID: "pool-1",
-		ResourceTypeID: "type-1",
-		Location:       "zone-1",
-		Labels: map[string]string{
-			"env": "prod",
-			"app": "web",
-		},
-	}
-
-	labels := map[string]string{
-		"env":     "prod",
-		"app":     "web",
-		"version": "1.0",
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		a.matchesFilter(filter, "pool-1", "type-1", "zone-1", labels)
-	}
-}
-
-// BenchmarkApplyPagination benchmarks the pagination logic.
-func BenchmarkApplyPagination(b *testing.B) {
-	items := make([]string, 1000)
-	for i := range items {
-		items[i] = fmt.Sprintf("item-%d", i)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		applyPagination(items, 10, 50)
-	}
-}
+// NOTE: BenchmarkMatchesFilter and BenchmarkApplyPagination moved to internal/adapter/helpers_test.go

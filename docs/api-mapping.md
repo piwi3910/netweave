@@ -1753,6 +1753,101 @@ func (a *AWSAdapter) transformEC2InstanceToResource(
 }
 ```
 
+### Azure Adapter Mappings
+
+For Azure cloud deployments, the adapter uses Azure SDK to manage infrastructure:
+
+| O2-IMS Resource | Azure Resource | Azure API | Transformation Notes |
+|-----------------|----------------|-----------|----------------------|
+| Deployment Manager | Resource Group | `ResourceGroups.Get` | Resource group metadata |
+| Resource Pool | VM Scale Set | `VirtualMachineScaleSets` | Auto-scaling VM group |
+| Resource | Virtual Machine | `VirtualMachines` | Individual VM in scale set |
+| Resource Type | VM Size | `VirtualMachineSizes` | Standard_D4s_v3, etc. |
+
+**Example Transformation: Azure VMSS → O2-IMS ResourcePool**
+
+```go
+func (a *AzureAdapter) vmssToResourcePool(vmss *armcompute.VirtualMachineScaleSet) *adapter.ResourcePool {
+    return &adapter.ResourcePool{
+        ResourcePoolID: fmt.Sprintf("azure-vmss-%s", *vmss.Name),
+        Name:           *vmss.Name,
+        Description:    fmt.Sprintf("Azure VM Scale Set in %s", *vmss.Location),
+        Location:       *vmss.Location,
+        OCloudID:       a.oCloudID,
+        Extensions: map[string]interface{}{
+            "azure.resourceGroup":  a.resourceGroup,
+            "azure.vmSize":         *vmss.Properties.VirtualMachineProfile.HardwareProfile.VMSize,
+            "azure.capacity":       *vmss.SKU.Capacity,
+            "azure.provisioningState": *vmss.Properties.ProvisioningState,
+        },
+    }
+}
+```
+
+### GCP Adapter Mappings
+
+For Google Cloud deployments, the adapter uses GCP Compute Engine API:
+
+| O2-IMS Resource | GCP Resource | GCP API | Transformation Notes |
+|-----------------|--------------|---------|----------------------|
+| Deployment Manager | Project | `Projects.Get` | Project metadata |
+| Resource Pool | Instance Group | `InstanceGroupManagers` | Managed instance group |
+| Resource | Compute Instance | `Instances` | Individual VM in group |
+| Resource Type | Machine Type | `MachineTypes` | n2-standard-4, etc. |
+
+**Example Transformation: GCP Instance Group → O2-IMS ResourcePool**
+
+```go
+func (a *GCPAdapter) instanceGroupToResourcePool(ig *compute.InstanceGroupManager) *adapter.ResourcePool {
+    return &adapter.ResourcePool{
+        ResourcePoolID: fmt.Sprintf("gcp-mig-%s", ig.Name),
+        Name:           ig.Name,
+        Description:    fmt.Sprintf("GCP Managed Instance Group in %s", ig.Zone),
+        Location:       ig.Zone,
+        OCloudID:       a.oCloudID,
+        Extensions: map[string]interface{}{
+            "gcp.project":       a.projectID,
+            "gcp.zone":          ig.Zone,
+            "gcp.targetSize":    ig.TargetSize,
+            "gcp.instanceTemplate": ig.InstanceTemplate,
+            "gcp.status":        ig.Status,
+        },
+    }
+}
+```
+
+### VMware vSphere Adapter Mappings
+
+For VMware vSphere deployments, the adapter uses govmomi client:
+
+| O2-IMS Resource | VMware Resource | VMware API | Transformation Notes |
+|-----------------|-----------------|------------|----------------------|
+| Deployment Manager | vCenter | `ServiceContent` | vCenter metadata |
+| Resource Pool | Resource Pool | `ResourcePool` | vSphere resource pool |
+| Resource | Virtual Machine | `VirtualMachine` | VM within resource pool |
+| Resource Type | VM Configuration | `VirtualMachineConfigInfo` | CPU/memory specifications |
+
+**Example Transformation: VMware ResourcePool → O2-IMS ResourcePool**
+
+```go
+func (a *VMwareAdapter) vspherePoolToResourcePool(pool *object.ResourcePool) *adapter.ResourcePool {
+    return &adapter.ResourcePool{
+        ResourcePoolID: fmt.Sprintf("vmware-pool-%s", pool.Reference().Value),
+        Name:           pool.Name(),
+        Description:    fmt.Sprintf("VMware Resource Pool %s", pool.Name()),
+        Location:       a.datacenter,
+        OCloudID:       a.oCloudID,
+        Extensions: map[string]interface{}{
+            "vmware.moRef":       pool.Reference().Value,
+            "vmware.datacenter":  a.datacenter,
+            "vmware.cluster":     a.cluster,
+            "vmware.cpuLimit":    pool.Config.CpuAllocation.Limit,
+            "vmware.memoryLimit": pool.Config.MemoryAllocation.Limit,
+        },
+    }
+}
+```
+
 ### Comparison: Multi-Backend Resource Pool Creation
 
 **Same O2-IMS Request, Different Backend Actions**:
@@ -1833,10 +1928,10 @@ eksClient.CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 
 **Mapping Completeness**:
 - ✅ Deployment Manager → Custom Resource (metadata)
-- ✅ Resource Pool → MachineSet / DTIAS Pool / AWS NodeGroup (full CRUD)
-- ✅ Resource → Node/Machine / DTIAS Server / EC2 Instance (full CRUD)
-- ✅ Resource Type → Aggregated from Nodes + StorageClasses + Provider Catalogs
-- ✅ Subscription → Redis + K8s Informers / DTIAS Webhooks / AWS EventBridge (full CRUD + webhooks)
+- ✅ Resource Pool → MachineSet / DTIAS Pool / AWS NodeGroup / Azure VMSS / GCP MIG / VMware Pool (full CRUD)
+- ✅ Resource → Node/Machine / DTIAS Server / EC2 Instance / Azure VM / GCP Instance / VMware VM (full CRUD)
+- ✅ Resource Type → Aggregated from Nodes + StorageClasses + Provider Catalogs + Cloud Instance Types
+- ✅ Subscription → Redis + K8s Informers / DTIAS Webhooks / Cloud Events (full CRUD + webhooks)
 
 **Key Principles**:
 1. Use native K8s resources where possible
@@ -1849,8 +1944,8 @@ eksClient.CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 8. **Abstract backend complexity from SMO clients**
 
 **Future Extensions**:
-- Additional adapters (OpenStack, VMware, Azure)
 - Advanced filtering (complex queries)
 - Batch operations
 - Custom resource definitions for all O2-IMS types
 - Cross-backend resource migration
+- Additional cloud providers (Oracle Cloud, IBM Cloud, Alibaba Cloud)

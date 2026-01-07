@@ -174,7 +174,7 @@ func TestListResourcePoolsFilter(t *testing.T) {
 		count := 0
 		for _, agg := range aggregates {
 			pool := adp.transformHostAggregateToResourcePool(agg)
-			if adp.matchesFilter(nil, pool.ResourcePoolID, "", pool.Location, nil) {
+			if adapter.MatchesFilter(nil, pool.ResourcePoolID, "", pool.Location, nil) {
 				count++
 			}
 		}
@@ -189,7 +189,7 @@ func TestListResourcePoolsFilter(t *testing.T) {
 		count := 0
 		for _, agg := range aggregates {
 			pool := adp.transformHostAggregateToResourcePool(agg)
-			if adp.matchesFilter(filter, pool.ResourcePoolID, "", pool.Location, nil) {
+			if adapter.MatchesFilter(filter, pool.ResourcePoolID, "", pool.Location, nil) {
 				count++
 			}
 		}
@@ -204,7 +204,7 @@ func TestListResourcePoolsFilter(t *testing.T) {
 		count := 0
 		for _, agg := range aggregates {
 			pool := adp.transformHostAggregateToResourcePool(agg)
-			if adp.matchesFilter(filter, pool.ResourcePoolID, "", pool.Location, nil) {
+			if adapter.MatchesFilter(filter, pool.ResourcePoolID, "", pool.Location, nil) {
 				count++
 			}
 		}
@@ -263,7 +263,7 @@ func TestListResourcePoolsPagination(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := applyPagination(pools, tt.limit, tt.offset)
+			result := adapter.ApplyPagination(pools, tt.limit, tt.offset)
 			assert.Len(t, result, tt.wantCount)
 		})
 	}

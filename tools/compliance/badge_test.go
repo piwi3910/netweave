@@ -27,7 +27,7 @@ func TestBadgeGenerator_GenerateBadge(t *testing.T) {
 			},
 			expectedColor: BadgeColorGreen,
 			expectedContain: []string{
-				"O__RAN__O2--IMS", // URL-encoded label
+				"O--RAN__O2--IMS", // URL-encoded label: "O-RAN O2-IMS" → hyphens doubled, space to underscore, underscore doubled
 				"v3.0.0",
 				string(BadgeColorGreen),
 			},
@@ -42,7 +42,7 @@ func TestBadgeGenerator_GenerateBadge(t *testing.T) {
 			},
 			expectedColor: BadgeColorYellow,
 			expectedContain: []string{
-				"O__RAN__O2--DMS",
+				"O--RAN__O2--DMS",
 				"v3.0.0",
 				"85",
 				string(BadgeColorYellow),
@@ -58,7 +58,7 @@ func TestBadgeGenerator_GenerateBadge(t *testing.T) {
 			},
 			expectedColor: BadgeColorRed,
 			expectedContain: []string{
-				"O__RAN__O2--SMO",
+				"O--RAN__O2--SMO",
 				string(BadgeColorRed),
 				"not",
 			},

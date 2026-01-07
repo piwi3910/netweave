@@ -1,0 +1,116 @@
+package aws
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/piwi3910/netweave/internal/adapter"
+	"go.uber.org/zap"
+)
+
+// CreateSubscription creates a new event subscription.
+// AWS adapter uses polling-based subscriptions since CloudWatch Events
+// integration would require additional AWS infrastructure setup.
+func (a *AWSAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (created *adapter.Subscription, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "CreateSubscription", start, err) }()
+
+	a.logger.Debug("CreateSubscription called",
+		zap.String("callback", sub.Callback))
+
+	// Validate callback URL
+	if sub.Callback == "" {
+		return nil, fmt.Errorf("callback URL is required")
+	}
+
+	// Generate subscription ID if not provided
+	subscriptionID := sub.SubscriptionID
+	if subscriptionID == "" {
+		subscriptionID = fmt.Sprintf("aws-sub-%s", uuid.New().String())
+	}
+
+	// Create the subscription
+	newSub := &adapter.Subscription{
+		SubscriptionID:         subscriptionID,
+		Callback:               sub.Callback,
+		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
+		Filter:                 sub.Filter,
+	}
+
+	// Store in memory
+	a.subscriptionsMu.Lock()
+	a.subscriptions[subscriptionID] = newSub
+	subscriptionCount := len(a.subscriptions)
+	a.subscriptionsMu.Unlock()
+
+	// Update subscription count metric
+	adapter.UpdateSubscriptionCount("aws", subscriptionCount)
+
+	a.logger.Info("created subscription",
+		zap.String("subscriptionId", subscriptionID),
+		zap.String("callback", sub.Callback))
+
+	return newSub, nil
+}
+
+// GetSubscription retrieves a specific subscription by ID.
+func (a *AWSAdapter) GetSubscription(ctx context.Context, id string) (sub *adapter.Subscription, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "GetSubscription", start, err) }()
+
+	a.logger.Debug("GetSubscription called",
+		zap.String("id", id))
+
+	a.subscriptionsMu.RLock()
+	sub, exists := a.subscriptions[id]
+	a.subscriptionsMu.RUnlock()
+
+	if !exists {
+		return nil, fmt.Errorf("subscription not found: %s", id)
+	}
+
+	return sub, nil
+}
+
+// DeleteSubscription deletes a subscription by ID.
+func (a *AWSAdapter) DeleteSubscription(ctx context.Context, id string) (err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "DeleteSubscription", start, err) }()
+
+	a.logger.Debug("DeleteSubscription called",
+		zap.String("id", id))
+
+	a.subscriptionsMu.Lock()
+	if _, exists := a.subscriptions[id]; !exists {
+		a.subscriptionsMu.Unlock()
+		return fmt.Errorf("subscription not found: %s", id)
+	}
+
+	delete(a.subscriptions, id)
+	subscriptionCount := len(a.subscriptions)
+	a.subscriptionsMu.Unlock()
+
+	// Update subscription count metric
+	adapter.UpdateSubscriptionCount("aws", subscriptionCount)
+
+	a.logger.Info("deleted subscription",
+		zap.String("subscriptionId", id))
+
+	return nil
+}
+
+// ListSubscriptions returns all active subscriptions.
+// This is a helper method not part of the Adapter interface.
+func (a *AWSAdapter) ListSubscriptions() []*adapter.Subscription {
+	a.subscriptionsMu.RLock()
+	defer a.subscriptionsMu.RUnlock()
+
+	subs := make([]*adapter.Subscription, 0, len(a.subscriptions))
+	for _, sub := range a.subscriptions {
+		subs = append(subs, sub)
+	}
+
+	return subs
+}

@@ -198,7 +198,7 @@ func TestListResourcesFilter(t *testing.T) {
 		count := 0
 		for _, srv := range servers {
 			resource := adp.transformServerToResource(srv)
-			if adp.matchesFilter(nil, "", resource.ResourceTypeID, "", nil) {
+			if adapter.MatchesFilter(nil, "", resource.ResourceTypeID, "", nil) {
 				count++
 			}
 		}
@@ -213,7 +213,7 @@ func TestListResourcesFilter(t *testing.T) {
 		count := 0
 		for _, srv := range servers {
 			resource := adp.transformServerToResource(srv)
-			if adp.matchesFilter(filter, "", resource.ResourceTypeID, "", nil) {
+			if adapter.MatchesFilter(filter, "", resource.ResourceTypeID, "", nil) {
 				count++
 			}
 		}

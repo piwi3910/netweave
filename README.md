@@ -41,6 +41,10 @@ Official O-RAN Alliance specifications:
   - **Kubernetes** - Primary cloud-native infrastructure adapter
   - **Dell DTIAS** - Bare-metal infrastructure management
   - **OpenStack** - IaaS cloud infrastructure
+  - **AWS** - EC2 instances, Auto Scaling Groups, Availability Zones
+  - **Azure** - Virtual Machines, Resource Groups, VM Sizes
+  - **GCP** - Compute Engine instances, Zones, Machine Types
+  - **VMware vSphere** - VMs, Clusters, Resource Pools
 - ✅ **O2-DMS Integration**: Deployment Management Services with Helm 3 and ArgoCD adapters
 - ✅ **O2-SMO Integration**: Service Management & Orchestration with ONAP and OSM adapters
 - ✅ **Enterprise Multi-Tenancy**: Built-in from day 1 - support multiple SMO systems with strict resource isolation

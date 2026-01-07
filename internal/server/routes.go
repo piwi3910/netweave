@@ -31,8 +31,8 @@ func (s *Server) setupRoutes() {
 	}
 
 	// O2-IMS API v1 routes
-	// Base path: /o2ims/v1
-	v1 := s.router.Group("/o2ims/v1")
+	// Base path: /o2ims-infrastructureInventory/v1 (per O-RAN O2 IMS specification)
+	v1 := s.router.Group("/o2ims-infrastructureInventory/v1")
 	{
 		// Infrastructure Inventory Subscription Management
 		// Endpoint: /subscriptions
@@ -134,7 +134,7 @@ func (s *Server) handleRoot(c *gin.Context) {
 			"health":   "/health",
 			"ready":    "/ready",
 			"metrics":  s.config.Observability.Metrics.Path,
-			"api_base": "/o2ims/v1",
+			"api_base": "/o2ims-infrastructureInventory/v1",
 		},
 	})
 }
@@ -143,7 +143,7 @@ func (s *Server) handleRoot(c *gin.Context) {
 func (s *Server) handleAPIInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"api_version": "v1",
-		"base_path":   "/o2ims/v1",
+		"base_path":   "/o2ims-infrastructureInventory/v1",
 		"resources": []string{
 			"subscriptions",
 			"resourcePools",

@@ -48,6 +48,11 @@ func NewTestServer(t *testing.T, adapter adapter.Adapter, store storage.Store) *
 			EnableCORS:       false,
 			RateLimitEnabled: false,
 		},
+		Validation: config.ValidationConfig{
+			Enabled:          true,
+			ValidateResponse: false,
+			MaxBodySize:      1048576,
+		},
 	}
 
 	// Create logger using environment-based initialization
