@@ -112,7 +112,7 @@ func initializeLogger() *observability.Logger {
 }
 
 // generateOutput generates output in the requested format.
-func generateOutput(results []compliance.ComplianceResult) error {
+func generateOutput(results []compliance.Result) error {
 	switch *outputFormat {
 	case "json":
 		outputJSON(results)
@@ -127,7 +127,7 @@ func generateOutput(results []compliance.ComplianceResult) error {
 }
 
 // determineExitCode returns 1 if any spec is not compliant, 0 otherwise.
-func determineExitCode(results []compliance.ComplianceResult) int {
+func determineExitCode(results []compliance.Result) int {
 	for _, result := range results {
 		if result.ComplianceLevel == compliance.ComplianceNone {
 			return 1
@@ -137,7 +137,7 @@ func determineExitCode(results []compliance.ComplianceResult) int {
 }
 
 // outputJSON outputs results as JSON.
-func outputJSON(results []compliance.ComplianceResult) {
+func outputJSON(results []compliance.Result) {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(results); err != nil {
@@ -147,9 +147,9 @@ func outputJSON(results []compliance.ComplianceResult) {
 }
 
 // outputBadges outputs badge markdown.
-func outputBadges(results []compliance.ComplianceResult) {
+func outputBadges(results []compliance.Result) {
 	generator := compliance.NewBadgeGenerator()
-	badgeSection := generator.GenerateBadgeSection(results)
+	badgeSection := generator.GenerateBadgeSection(toResultPointers(results))
 	if _, err := fmt.Fprint(os.Stdout, badgeSection); err != nil {
 		// Error writing to stdout is generally fatal
 		panic(err)
@@ -157,9 +157,9 @@ func outputBadges(results []compliance.ComplianceResult) {
 }
 
 // outputText outputs human-readable report.
-func outputText(results []compliance.ComplianceResult) {
+func outputText(results []compliance.Result) {
 	generator := compliance.NewBadgeGenerator()
-	report := generator.GenerateComplianceReport(results)
+	report := generator.GenerateComplianceReport(toResultPointers(results))
 	if _, err := fmt.Fprint(os.Stdout, report); err != nil {
 		// Error writing to stdout is generally fatal
 		panic(err)
@@ -167,7 +167,7 @@ func outputText(results []compliance.ComplianceResult) {
 }
 
 // updateReadmeFile updates README.md with compliance badge section.
-func updateReadmeFile(path string, results []compliance.ComplianceResult, logger *zap.Logger) error {
+func updateReadmeFile(path string, results []compliance.Result, logger *zap.Logger) error {
 	// Read current README
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -176,7 +176,7 @@ func updateReadmeFile(path string, results []compliance.ComplianceResult, logger
 
 	// Generate badge section
 	generator := compliance.NewBadgeGenerator()
-	badgeSection := generator.GenerateBadgeSection(results)
+	badgeSection := generator.GenerateBadgeSection(toResultPointers(results))
 
 	// Find and replace compliance section
 	readme := string(content)
@@ -225,4 +225,13 @@ func updateReadmeFile(path string, results []compliance.ComplianceResult, logger
 	}
 
 	return nil
+}
+
+// toResultPointers converts a slice of Result values to a slice of Result pointers.
+func toResultPointers(results []compliance.Result) []*compliance.Result {
+	ptrs := make([]*compliance.Result, len(results))
+	for i := range results {
+		ptrs[i] = &results[i]
+	}
+	return ptrs
 }

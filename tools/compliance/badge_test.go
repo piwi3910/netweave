@@ -67,7 +67,7 @@ func TestBadgeGenerator_GenerateBadge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			badgeURL := generator.GenerateBadge(tt.result)
+			badgeURL := generator.GenerateBadge(&tt.result)
 
 			// Verify it's a valid shields.io URL
 			assert.Contains(t, badgeURL, "https://img.shields.io/badge/")
@@ -94,7 +94,7 @@ func TestBadgeGenerator_GenerateMarkdownBadge(t *testing.T) {
 		ComplianceScore: 100.0,
 	}
 
-	markdown := generator.GenerateMarkdownBadge(result)
+	markdown := generator.GenerateMarkdownBadge(&result)
 
 	// Verify markdown format
 	assert.True(t, strings.HasPrefix(markdown, "[!["))
@@ -105,7 +105,7 @@ func TestBadgeGenerator_GenerateMarkdownBadge(t *testing.T) {
 func TestBadgeGenerator_GenerateBadgeSection(t *testing.T) {
 	generator := NewBadgeGenerator()
 
-	results := []Result{
+	results := []*Result{
 		{
 			SpecName:        "O2-IMS",
 			SpecVersion:     "v3.0.0",
@@ -155,7 +155,7 @@ func TestBadgeGenerator_GenerateBadgeSection(t *testing.T) {
 func TestBadgeGenerator_GenerateComplianceReport(t *testing.T) {
 	generator := NewBadgeGenerator()
 
-	results := []Result{
+	results := []*Result{
 		{
 			SpecName:        "O2-IMS",
 			SpecVersion:     "v3.0.0",
@@ -301,7 +301,7 @@ func TestGetMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			message := generator.getMessage(tt.result)
+			message := generator.getMessage(&tt.result)
 			for _, expected := range tt.expectedContain {
 				assert.Contains(t, message, expected)
 			}
