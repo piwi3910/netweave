@@ -139,7 +139,7 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 }
 
 // initHealthChecker initializes the health checker with component checks.
-func initHealthChecker(cfg *config.Config, adp adapter.Adapter, store storage.Store) *observability.HealthChecker {
+func initHealthChecker(_ *config.Config, adp adapter.Adapter, store storage.Store) *observability.HealthChecker {
 	checker := observability.NewHealthChecker("1.0.0")
 
 	// Register health checks for critical components

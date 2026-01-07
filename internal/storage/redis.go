@@ -300,13 +300,21 @@ func (r *RedisStore) validateUpdate(ctx context.Context, sub *Subscription) erro
 }
 
 // updateIndexesInPipeline updates resource pool and type indexes if filters changed.
-func (r *RedisStore) updateIndexesInPipeline(ctx context.Context, pipe redis.Pipeliner, existing, updated *Subscription) {
+func (r *RedisStore) updateIndexesInPipeline(
+	ctx context.Context,
+	pipe redis.Pipeliner,
+	existing, updated *Subscription,
+) {
 	r.updateResourcePoolIndex(ctx, pipe, existing, updated)
 	r.updateResourceTypeIndex(ctx, pipe, existing, updated)
 }
 
 // updateResourcePoolIndex updates the resource pool index if changed.
-func (r *RedisStore) updateResourcePoolIndex(ctx context.Context, pipe redis.Pipeliner, existing, updated *Subscription) {
+func (r *RedisStore) updateResourcePoolIndex(
+	ctx context.Context,
+	pipe redis.Pipeliner,
+	existing, updated *Subscription,
+) {
 	if existing.Filter.ResourcePoolID == updated.Filter.ResourcePoolID {
 		return
 	}
@@ -322,7 +330,11 @@ func (r *RedisStore) updateResourcePoolIndex(ctx context.Context, pipe redis.Pip
 }
 
 // updateResourceTypeIndex updates the resource type index if changed.
-func (r *RedisStore) updateResourceTypeIndex(ctx context.Context, pipe redis.Pipeliner, existing, updated *Subscription) {
+func (r *RedisStore) updateResourceTypeIndex(
+	ctx context.Context,
+	pipe redis.Pipeliner,
+	existing, updated *Subscription,
+) {
 	if existing.Filter.ResourceTypeID == updated.Filter.ResourceTypeID {
 		return
 	}

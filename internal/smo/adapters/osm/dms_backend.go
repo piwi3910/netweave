@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	// OSM operational status values
+	// OSM operational status values.
 	osmStatusRunning = "running"
 )
 
@@ -156,7 +156,7 @@ type NSHealRequest struct {
 
 // OnboardNSD uploads and onboards an NSD (Network Service Descriptor) to OSM.
 // This is a DMS backend operation for package management.
-func (p *Plugin) OnboardNSD(ctx context.Context, nsdContent []byte) (string, error) {
+func (p *Plugin) OnboardNSD(_ context.Context, _ []byte) (string, error) {
 	// OSM expects NSDs as tar.gz packages
 	// The package should contain:
 	//   - NS descriptor YAML
@@ -172,7 +172,7 @@ func (p *Plugin) OnboardNSD(ctx context.Context, nsdContent []byte) (string, err
 }
 
 // OnboardVNFD uploads and onboards a VNFD (VNF Descriptor) to OSM.
-func (p *Plugin) OnboardVNFD(ctx context.Context, vnfdContent []byte) (string, error) {
+func (p *Plugin) OnboardVNFD(_ context.Context, _ []byte) (string, error) {
 	// Similar to NSD onboarding
 	// POST /osm/vnfpkgm/v1/vnf_packages_content
 
@@ -285,7 +285,8 @@ func (p *Plugin) TerminateNS(ctx context.Context, nsInstanceID string) error {
 		"terminateTime": time.Now().UTC().Format(time.RFC3339),
 	}
 
-	if err := p.client.post(ctx, fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/terminate", nsInstanceID), terminateReq, nil); err != nil {
+	terminateURL := fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/terminate", nsInstanceID)
+	if err := p.client.post(ctx, terminateURL, terminateReq, nil); err != nil {
 		return fmt.Errorf("failed to terminate NS: %w", err)
 	}
 
@@ -375,7 +376,8 @@ func (p *Plugin) ScaleNS(ctx context.Context, nsInstanceID string, scaleReq *NSS
 	}
 
 	// Execute scale operation via OSM NBI
-	if err := p.client.post(ctx, fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/scale", nsInstanceID), scaleReq, nil); err != nil {
+	scaleURL := fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/scale", nsInstanceID)
+	if err := p.client.post(ctx, scaleURL, scaleReq, nil); err != nil {
 		return fmt.Errorf("failed to scale NS: %w", err)
 	}
 
@@ -398,7 +400,8 @@ func (p *Plugin) HealNS(ctx context.Context, nsInstanceID string, healReq *NSHea
 	}
 
 	// Execute heal operation via OSM NBI
-	if err := p.client.post(ctx, fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/heal", nsInstanceID), healReq, nil); err != nil {
+	healURL := fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/heal", nsInstanceID)
+	if err := p.client.post(ctx, healURL, healReq, nil); err != nil {
 		return fmt.Errorf("failed to heal NS: %w", err)
 	}
 

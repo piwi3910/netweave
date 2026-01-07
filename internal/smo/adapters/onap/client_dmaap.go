@@ -105,7 +105,13 @@ func (c *DMaaPClient) PublishEvents(ctx context.Context, topic string, events []
 }
 
 // publishWithRetry attempts to publish events with retry logic.
-func (c *DMaaPClient) publishWithRetry(ctx context.Context, url string, body []byte, topic string, eventCount int) error {
+func (c *DMaaPClient) publishWithRetry(
+	ctx context.Context,
+	url string,
+	body []byte,
+	topic string,
+	eventCount int,
+) error {
 	var lastErr error
 	for attempt := 0; attempt <= c.config.MaxRetries; attempt++ {
 		if attempt > 0 {
@@ -135,7 +141,14 @@ func (c *DMaaPClient) waitBeforeRetryDMaaP(attempt int, topic string) {
 }
 
 // executePublishRequest executes a single publish request to DMaaP.
-func (c *DMaaPClient) executePublishRequest(ctx context.Context, url string, body []byte, topic string, eventCount int, lastErr *error) error {
+func (c *DMaaPClient) executePublishRequest(
+	ctx context.Context,
+	url string,
+	body []byte,
+	topic string,
+	eventCount int,
+	lastErr *error,
+) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		*lastErr = fmt.Errorf("failed to create request: %w", err)
@@ -183,7 +196,12 @@ func (c *DMaaPClient) shouldStopRetryingDMaaP(err error) bool {
 
 // SubscribeTopic subscribes to a DMaaP topic for consuming messages.
 // Note: This is for future use if netweave needs to consume events from ONAP.
-func (c *DMaaPClient) SubscribeTopic(ctx context.Context, topic string, consumerGroup string, consumerID string) ([]json.RawMessage, error) {
+func (c *DMaaPClient) SubscribeTopic(
+	ctx context.Context,
+	topic string,
+	consumerGroup string,
+	consumerID string,
+) ([]json.RawMessage, error) {
 	url := fmt.Sprintf("%s/events/%s/%s/%s", c.baseURL, topic, consumerGroup, consumerID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

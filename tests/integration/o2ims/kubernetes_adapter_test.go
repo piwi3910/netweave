@@ -7,6 +7,7 @@ package o2ims
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -79,11 +80,16 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		body, err := json.Marshal(poolData)
 		require.NoError(t, err)
 
-		resp, err := http.Post(
+		req, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/resourcePools",
-			"application/json",
 			bytes.NewReader(body),
 		)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -108,11 +114,16 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		poolData := helpers.TestResourcePool("test-pool-2")
 		body, _ := json.Marshal(poolData)
 
-		createResp, err := http.Post(
+		createReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/resourcePools",
-			"application/json",
 			bytes.NewReader(body),
 		)
+		require.NoError(t, err)
+		createReq.Header.Set("Content-Type", "application/json")
+
+		createResp, err := http.DefaultClient.Do(createReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := createResp.Body.Close(); err != nil {
@@ -127,9 +138,15 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		poolID := created["resourcePoolId"].(string)
 
 		// Get the pool
-		getResp, err := http.Get(
-			ts.O2IMSURL() + "/resourcePools/" + poolID,
+		getReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			ts.O2IMSURL()+"/resourcePools/"+poolID,
+			nil,
 		)
+		require.NoError(t, err)
+
+		getResp, err := http.DefaultClient.Do(getReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := getResp.Body.Close(); err != nil {
@@ -149,9 +166,15 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 
 	// Test 3: List resource pools
 	t.Run("ListResourcePools", func(t *testing.T) {
-		resp, err := http.Get(
-			ts.O2IMSURL() + "/resourcePools",
+		listReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			ts.O2IMSURL()+"/resourcePools",
+			nil,
 		)
+		require.NoError(t, err)
+
+		resp, err := http.DefaultClient.Do(listReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -175,11 +198,16 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		poolData := helpers.TestResourcePool("test-pool-update")
 		body, _ := json.Marshal(poolData)
 
-		createResp, err := http.Post(
+		createReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/resourcePools",
-			"application/json",
 			bytes.NewReader(body),
 		)
+		require.NoError(t, err)
+		createReq.Header.Set("Content-Type", "application/json")
+
+		createResp, err := http.DefaultClient.Do(createReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := createResp.Body.Close(); err != nil {
@@ -200,11 +228,13 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		}
 		updateBody, _ := json.Marshal(updateData)
 
-		req, _ := http.NewRequest(
+		req, err := http.NewRequestWithContext(
+			context.Background(),
 			http.MethodPut,
 			ts.O2IMSURL()+"/resourcePools/"+poolID,
 			bytes.NewReader(updateBody),
 		)
+		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
 		client := &http.Client{}
@@ -232,11 +262,16 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		poolData := helpers.TestResourcePool("test-pool-delete")
 		body, _ := json.Marshal(poolData)
 
-		createResp, err := http.Post(
+		createReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/resourcePools",
-			"application/json",
 			bytes.NewReader(body),
 		)
+		require.NoError(t, err)
+		createReq.Header.Set("Content-Type", "application/json")
+
+		createResp, err := http.DefaultClient.Do(createReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := createResp.Body.Close(); err != nil {
@@ -251,11 +286,13 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		poolID := created["resourcePoolId"].(string)
 
 		// Delete the pool
-		req, _ := http.NewRequest(
+		req, err := http.NewRequestWithContext(
+			context.Background(),
 			http.MethodDelete,
 			ts.O2IMSURL()+"/resourcePools/"+poolID,
 			nil,
 		)
+		require.NoError(t, err)
 
 		client := &http.Client{}
 		deleteResp, err := client.Do(req)
@@ -269,9 +306,13 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		assert.Equal(t, http.StatusNoContent, deleteResp.StatusCode)
 
 		// Verify deletion - GET should return 404
-		getResp, _ := http.Get(
-			ts.O2IMSURL() + "/resourcePools/" + poolID,
+		verifyReq, _ := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			ts.O2IMSURL()+"/resourcePools/"+poolID,
+			nil,
 		)
+		getResp, _ := http.DefaultClient.Do(verifyReq)
 		defer func() {
 			if err := getResp.Body.Close(); err != nil {
 				t.Logf("Failed to close response body: %v", err)
@@ -313,11 +354,16 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 	// First create a resource pool and resource type
 	poolData := helpers.TestResourcePool("resource-test-pool")
 	poolBody, _ := json.Marshal(poolData)
-	poolResp, _ := http.Post(
+	poolReq, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		ts.O2IMSURL()+"/resourcePools",
-		"application/json",
 		bytes.NewReader(poolBody),
 	)
+	if poolReq != nil {
+		poolReq.Header.Set("Content-Type", "application/json")
+	}
+	poolResp, _ := http.DefaultClient.Do(poolReq)
 	defer func() {
 		if err := poolResp.Body.Close(); err != nil {
 			t.Logf("Failed to close response body: %v", err)
@@ -336,11 +382,16 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		body, err := json.Marshal(resourceData)
 		require.NoError(t, err)
 
-		resp, err := http.Post(
+		req, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/resources",
-			"application/json",
 			bytes.NewReader(body),
 		)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -364,11 +415,16 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		resourceData := helpers.TestResource(poolID, "compute-node")
 		body, _ := json.Marshal(resourceData)
 
-		createResp, err := http.Post(
+		createReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/resources",
-			"application/json",
 			bytes.NewReader(body),
 		)
+		require.NoError(t, err)
+		createReq.Header.Set("Content-Type", "application/json")
+
+		createResp, err := http.DefaultClient.Do(createReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := createResp.Body.Close(); err != nil {
@@ -383,9 +439,15 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		resourceID := created["resourceId"].(string)
 
 		// Get the resource
-		getResp, err := http.Get(
-			ts.O2IMSURL() + "/resources/" + resourceID,
+		getReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			ts.O2IMSURL()+"/resources/"+resourceID,
+			nil,
 		)
+		require.NoError(t, err)
+
+		getResp, err := http.DefaultClient.Do(getReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := getResp.Body.Close(); err != nil {
@@ -408,20 +470,31 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			resourceData := helpers.TestResource(poolID, "compute-node")
 			body, _ := json.Marshal(resourceData)
-			resp, _ := http.Post(
+			req, _ := http.NewRequestWithContext(
+				context.Background(),
+				http.MethodPost,
 				ts.O2IMSURL()+"/resources",
-				"application/json",
 				bytes.NewReader(body),
 			)
+			if req != nil {
+				req.Header.Set("Content-Type", "application/json")
+			}
+			resp, _ := http.DefaultClient.Do(req)
 			if err := resp.Body.Close(); err != nil {
 				t.Logf("Failed to close response body: %v", err)
 			}
 		}
 
 		// List with pool filter
-		resp, err := http.Get(
-			ts.O2IMSURL() + "/resources?resourcePoolId=" + poolID,
+		listReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			ts.O2IMSURL()+"/resources?resourcePoolId="+poolID,
+			nil,
 		)
+		require.NoError(t, err)
+
+		resp, err := http.DefaultClient.Do(listReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -448,11 +521,16 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		resourceData := helpers.TestResource(poolID, "compute-node")
 		body, _ := json.Marshal(resourceData)
 
-		createResp, err := http.Post(
+		createReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/resources",
-			"application/json",
 			bytes.NewReader(body),
 		)
+		require.NoError(t, err)
+		createReq.Header.Set("Content-Type", "application/json")
+
+		createResp, err := http.DefaultClient.Do(createReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := createResp.Body.Close(); err != nil {
@@ -467,11 +545,13 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		resourceID := created["resourceId"].(string)
 
 		// Delete the resource
-		req, _ := http.NewRequest(
+		req, err := http.NewRequestWithContext(
+			context.Background(),
 			http.MethodDelete,
 			ts.O2IMSURL()+"/resources/"+resourceID,
 			nil,
 		)
+		require.NoError(t, err)
 
 		client := &http.Client{}
 		deleteResp, err := client.Do(req)
@@ -485,9 +565,13 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		assert.Equal(t, http.StatusNoContent, deleteResp.StatusCode)
 
 		// Verify deletion
-		getResp, _ := http.Get(
-			ts.O2IMSURL() + "/resources/" + resourceID,
+		verifyReq, _ := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			ts.O2IMSURL()+"/resources/"+resourceID,
+			nil,
 		)
+		getResp, _ := http.DefaultClient.Do(verifyReq)
 		defer func() {
 			if err := getResp.Body.Close(); err != nil {
 				t.Logf("Failed to close response body: %v", err)
@@ -525,9 +609,15 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
 
 	t.Run("GetNonExistentResourcePool", func(t *testing.T) {
-		resp, err := http.Get(
-			ts.O2IMSURL() + "/resourcePools/nonexistent-pool",
+		req, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			ts.O2IMSURL()+"/resourcePools/nonexistent-pool",
+			nil,
 		)
+		require.NoError(t, err)
+
+		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -544,11 +634,16 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 		}
 		body, _ := json.Marshal(invalidData)
 
-		resp, err := http.Post(
+		req, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/resourcePools",
-			"application/json",
 			bytes.NewReader(body),
 		)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -560,11 +655,13 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("DeleteNonExistentResource", func(t *testing.T) {
-		req, _ := http.NewRequest(
+		req, err := http.NewRequestWithContext(
+			context.Background(),
 			http.MethodDelete,
 			ts.O2IMSURL()+"/resources/nonexistent-resource",
 			nil,
 		)
+		require.NoError(t, err)
 
 		client := &http.Client{}
 		resp, err := client.Do(req)
@@ -581,11 +678,16 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 	t.Run("InvalidJSONPayload", func(t *testing.T) {
 		invalidJSON := []byte(`{"invalid": json}`)
 
-		resp, err := http.Post(
+		req, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/resourcePools",
-			"application/json",
 			bytes.NewReader(invalidJSON),
 		)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {

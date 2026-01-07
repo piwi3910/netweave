@@ -1,13 +1,14 @@
-// Package helpers provides common test utilities for integration tests.
-// This includes testcontainers setup, mock servers, and test fixtures.
 //go:build integration
 // +build integration
 
+// Package helpers provides common test utilities for integration tests.
+// This includes testcontainers setup, mock servers, and test fixtures.
 package helpers
 
 import (
 	"context"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -136,7 +137,7 @@ func SetupMinioContainer(ctx context.Context, t *testing.T) *MinioContainer {
 
 // Endpoint returns the MinIO endpoint URL.
 func (m *MinioContainer) Endpoint() string {
-	return fmt.Sprintf("http://%s:%s", m.Host, m.Port)
+	return fmt.Sprintf("http://%s", net.JoinHostPort(m.Host, m.Port))
 }
 
 // Cleanup terminates the MinIO container.

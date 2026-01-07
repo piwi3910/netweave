@@ -157,10 +157,8 @@ func TestResourceIDParsing(t *testing.T) {
 			if tt.wantErr {
 				// Should not match the format or should error
 				assert.True(t, err != nil || n == 0)
-			} else {
-				if err == nil && n > 0 {
-					assert.Equal(t, tt.wantID, serverID)
-				}
+			} else if err == nil && n > 0 {
+				assert.Equal(t, tt.wantID, serverID)
 			}
 		})
 	}

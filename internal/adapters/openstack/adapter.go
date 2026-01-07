@@ -176,28 +176,23 @@ func validateConfig(cfg *Config) error {
 }
 
 // applyDefaults applies default values to optional configuration fields.
-func applyDefaults(cfg *Config) (
-	domainName string,
-	deploymentManagerID string,
-	timeout time.Duration,
-	logger *zap.Logger,
-) {
-	domainName = cfg.DomainName
+func applyDefaults(cfg *Config) (string, string, time.Duration, *zap.Logger) {
+	domainName := cfg.DomainName
 	if domainName == "" {
 		domainName = "Default"
 	}
 
-	deploymentManagerID = cfg.DeploymentManagerID
+	deploymentManagerID := cfg.DeploymentManagerID
 	if deploymentManagerID == "" {
 		deploymentManagerID = fmt.Sprintf("ocloud-openstack-%s", cfg.Region)
 	}
 
-	timeout = cfg.Timeout
+	timeout := cfg.Timeout
 	if timeout == 0 {
 		timeout = 30 * time.Second
 	}
 
-	logger = cfg.Logger
+	logger := cfg.Logger
 	if logger == nil {
 		var err error
 		logger, err = zap.NewProduction()
@@ -313,7 +308,7 @@ func (a *OpenStackAdapter) Capabilities() []adapter.Capability {
 
 // GetDeploymentManager retrieves metadata about the OpenStack deployment manager.
 // It queries the Keystone region information to construct the deployment manager metadata.
-func (a *OpenStackAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
+func (a *OpenStackAdapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
 	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
@@ -403,7 +398,7 @@ func (a *OpenStackAdapter) Health(ctx context.Context) error {
 }
 
 // checkNovaHealth verifies Nova compute service connectivity.
-func (a *OpenStackAdapter) checkNovaHealth(ctx context.Context) error {
+func (a *OpenStackAdapter) checkNovaHealth(_ context.Context) error {
 	// Query a small number of servers to verify connectivity
 	listOpts := servers.ListOpts{
 		Limit: 1,
@@ -418,7 +413,7 @@ func (a *OpenStackAdapter) checkNovaHealth(ctx context.Context) error {
 }
 
 // checkPlacementHealth verifies Placement service connectivity.
-func (a *OpenStackAdapter) checkPlacementHealth(ctx context.Context) error {
+func (a *OpenStackAdapter) checkPlacementHealth(_ context.Context) error {
 	// Query resource providers to verify connectivity
 	_, err := resourceproviders.List(a.placement, resourceproviders.ListOpts{}).AllPages()
 	if err != nil {
@@ -429,7 +424,7 @@ func (a *OpenStackAdapter) checkPlacementHealth(ctx context.Context) error {
 }
 
 // checkKeystoneHealth verifies Keystone identity service connectivity.
-func (a *OpenStackAdapter) checkKeystoneHealth(ctx context.Context) error {
+func (a *OpenStackAdapter) checkKeystoneHealth(_ context.Context) error {
 	// Query regions to verify connectivity
 	_, err := regions.List(a.identity, nil).AllPages()
 	if err != nil {
@@ -443,11 +438,8 @@ func (a *OpenStackAdapter) checkKeystoneHealth(ctx context.Context) error {
 func (a *OpenStackAdapter) Close() error {
 	a.logger.Info("closing OpenStack adapter")
 
-	// Sync logger before shutdown
-	if err := a.logger.Sync(); err != nil {
-		// Ignore sync errors on stderr/stdout
-		return nil
-	}
+	// Sync logger before shutdown (ignore sync errors on stderr/stdout)
+	_ = a.logger.Sync()
 
 	return nil
 }

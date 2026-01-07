@@ -109,7 +109,7 @@ func NewAdapter(config *Config) (*HelmAdapter, error) {
 
 // Initialize performs lazy initialization of the Helm action configuration.
 // This allows the adapter to be created without requiring immediate Kubernetes connectivity.
-func (h *HelmAdapter) Initialize(ctx context.Context) error {
+func (h *HelmAdapter) Initialize(_ context.Context) error {
 	if h.initialized {
 		return nil
 	}
@@ -118,7 +118,7 @@ func (h *HelmAdapter) Initialize(ctx context.Context) error {
 	actionCfg := new(action.Configuration)
 
 	// Setup debug logger that respects debug flag
-	var debugOut io.Writer = io.Discard
+	debugOut := io.Discard
 	if h.config.Debug {
 		debugOut = os.Stderr
 	}
@@ -165,7 +165,10 @@ func (h *HelmAdapter) Capabilities() []adapter.Capability {
 }
 
 // ListDeploymentPackages retrieves all Helm charts from the configured repository.
-func (h *HelmAdapter) ListDeploymentPackages(ctx context.Context, filter *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
+func (h *HelmAdapter) ListDeploymentPackages(
+	ctx context.Context,
+	_ *adapter.Filter,
+) ([]*adapter.DeploymentPackage, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -191,7 +194,10 @@ func (h *HelmAdapter) GetDeploymentPackage(ctx context.Context, id string) (*ada
 }
 
 // UploadDeploymentPackage uploads a new Helm chart to the repository.
-func (h *HelmAdapter) UploadDeploymentPackage(ctx context.Context, pkg *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
+func (h *HelmAdapter) UploadDeploymentPackage(
+	ctx context.Context,
+	pkg *adapter.DeploymentPackageUpload,
+) (*adapter.DeploymentPackage, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -221,7 +227,7 @@ func (h *HelmAdapter) UploadDeploymentPackage(ctx context.Context, pkg *adapter.
 }
 
 // DeleteDeploymentPackage deletes a Helm chart from the repository.
-func (h *HelmAdapter) DeleteDeploymentPackage(ctx context.Context, id string) error {
+func (h *HelmAdapter) DeleteDeploymentPackage(ctx context.Context, _ string) error {
 	if err := h.Initialize(ctx); err != nil {
 		return err
 	}
@@ -264,7 +270,10 @@ func (h *HelmAdapter) fetchAllReleases() ([]*release.Release, error) {
 }
 
 // filterAndTransformReleases transforms releases and applies filters.
-func (h *HelmAdapter) filterAndTransformReleases(releases []*release.Release, filter *adapter.Filter) []*adapter.Deployment {
+func (h *HelmAdapter) filterAndTransformReleases(
+	releases []*release.Release,
+	filter *adapter.Filter,
+) []*adapter.Deployment {
 	deployments := make([]*adapter.Deployment, 0, len(releases))
 	for _, rel := range releases {
 		deployment := h.transformReleaseToDeployment(rel)
@@ -276,7 +285,11 @@ func (h *HelmAdapter) filterAndTransformReleases(releases []*release.Release, fi
 }
 
 // matchesDeploymentFilter checks if a release matches the filter criteria.
-func (h *HelmAdapter) matchesDeploymentFilter(rel *release.Release, deployment *adapter.Deployment, filter *adapter.Filter) bool {
+func (h *HelmAdapter) matchesDeploymentFilter(
+	rel *release.Release,
+	deployment *adapter.Deployment,
+	filter *adapter.Filter,
+) bool {
 	if filter == nil {
 		return true
 	}
@@ -311,7 +324,10 @@ func (h *HelmAdapter) GetDeployment(ctx context.Context, id string) (*adapter.De
 }
 
 // CreateDeployment installs a new Helm release.
-func (h *HelmAdapter) CreateDeployment(ctx context.Context, req *adapter.DeploymentRequest) (*adapter.Deployment, error) {
+func (h *HelmAdapter) CreateDeployment(
+	ctx context.Context,
+	req *adapter.DeploymentRequest,
+) (*adapter.Deployment, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -357,7 +373,11 @@ func (h *HelmAdapter) CreateDeployment(ctx context.Context, req *adapter.Deploym
 }
 
 // UpdateDeployment upgrades an existing Helm release.
-func (h *HelmAdapter) UpdateDeployment(ctx context.Context, id string, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+func (h *HelmAdapter) UpdateDeployment(
+	ctx context.Context,
+	id string,
+	update *adapter.DeploymentUpdate,
+) (*adapter.Deployment, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -518,7 +538,7 @@ func (h *HelmAdapter) GetDeploymentHistory(ctx context.Context, id string) (*ada
 
 // GetDeploymentLogs retrieves logs for a deployment.
 // Note: Helm doesn't directly provide logs, so this queries Kubernetes pods.
-func (h *HelmAdapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapter.LogOptions) ([]byte, error) {
+func (h *HelmAdapter) GetDeploymentLogs(ctx context.Context, id string, _ *adapter.LogOptions) ([]byte, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -681,7 +701,7 @@ func (h *HelmAdapter) buildConditions(rel *release.Release) []adapter.Deployment
 }
 
 // matchesLabels checks if deployment matches label filters.
-func (h *HelmAdapter) matchesLabels(deployment *adapter.Deployment, labels map[string]string) bool {
+func (h *HelmAdapter) matchesLabels(_ *adapter.Deployment, labels map[string]string) bool {
 	if len(labels) == 0 {
 		return true
 	}

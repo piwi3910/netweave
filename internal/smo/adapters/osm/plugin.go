@@ -278,7 +278,7 @@ func (p *Plugin) inventorySyncLoop() {
 
 // syncInventory performs a full inventory synchronization with OSM.
 // This is an internal method called by the sync loop.
-func (p *Plugin) syncInventory(ctx context.Context) error {
+func (p *Plugin) syncInventory(_ context.Context) error {
 	// TODO: Implement inventory synchronization
 	// 1. Fetch current VIM accounts from OSM
 	// 2. Compare with local inventory

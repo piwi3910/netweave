@@ -465,7 +465,7 @@ func initializeHealthChecker(
 }
 
 // gracefulShutdown performs graceful shutdown of the application.
-func gracefulShutdown(ctx context.Context, srv *server.Server, cfg *config.Config, logger *zap.Logger) error {
+func gracefulShutdown(_ context.Context, srv *server.Server, cfg *config.Config, logger *zap.Logger) error {
 	logger.Info("initiating graceful shutdown",
 		zap.Duration("timeout", cfg.Server.ShutdownTimeout),
 	)

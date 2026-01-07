@@ -66,26 +66,33 @@ func main() {
 	results, err := checker.CheckAll(ctx)
 	if err != nil {
 		logger.Error("compliance check failed", zap.Error(err))
-		os.Exit(1)
+		// Exit after defer runs
+		defer os.Exit(1)
+		return
 	}
 
 	// Generate output in requested format
 	if err := generateOutput(results); err != nil {
 		logger.Error("output generation failed", zap.Error(err))
-		os.Exit(1)
+		// Exit after defer runs
+		defer os.Exit(1)
+		return
 	}
 
 	// Update README if requested
 	if *updateReadme {
 		if err := updateReadmeFile(*readmePath, results, logger.Logger); err != nil {
 			logger.Error("failed to update README", zap.Error(err))
-			os.Exit(1)
+			// Exit after defer runs
+			defer os.Exit(1)
+			return
 		}
 		logger.Info("README.md updated with compliance badges", zap.String("path", *readmePath))
 	}
 
 	// Exit with error if any spec is not compliant
-	os.Exit(determineExitCode(results))
+	// Exit after defer runs
+	defer os.Exit(determineExitCode(results))
 }
 
 // initializeLogger initializes and configures the logger based on verbosity setting.

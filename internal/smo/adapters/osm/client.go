@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -231,7 +232,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request, result interf
 		defer func() { _ = resp.Body.Close() }()
 
 		if err := c.handleResponse(ctx, req, resp, result, &lastErr); err != nil {
-			if err == errRetryable {
+			if errors.Is(err, errRetryable) {
 				continue
 			}
 			return err
@@ -265,7 +266,13 @@ func (c *Client) waitForRetry(ctx context.Context, attempt int) error {
 }
 
 // handleResponse processes the HTTP response based on status code.
-func (c *Client) handleResponse(ctx context.Context, req *http.Request, resp *http.Response, result interface{}, lastErr *error) error {
+func (c *Client) handleResponse(
+	ctx context.Context,
+	req *http.Request,
+	resp *http.Response,
+	result interface{},
+	lastErr *error,
+) error {
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusCreated, http.StatusAccepted, http.StatusNoContent:
 		return c.handleSuccessResponse(resp, result)
@@ -294,7 +301,7 @@ func (c *Client) handleSuccessResponse(resp *http.Response, result interface{}) 
 
 // handleUnauthorized handles 401 responses by refreshing authentication.
 // Note: resp.Body is closed by caller's defer.
-func (c *Client) handleUnauthorized(ctx context.Context, req *http.Request, resp *http.Response, lastErr *error) error {
+func (c *Client) handleUnauthorized(ctx context.Context, req *http.Request, _ *http.Response, lastErr *error) error {
 	if err := c.Authenticate(ctx); err != nil {
 		return fmt.Errorf("failed to refresh authentication: %w", err)
 	}

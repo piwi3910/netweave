@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	// Metric status labels
+	// Metric status labels.
 	statusSuccess = "success"
 	statusError   = "error"
 )

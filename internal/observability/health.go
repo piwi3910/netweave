@@ -252,7 +252,7 @@ func (hc *HealthChecker) ReadinessHandler() http.HandlerFunc {
 // LivenessHandler returns an HTTP handler for the liveness endpoint
 // Liveness is simpler - just checks if the process is alive.
 func LivenessHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 

@@ -332,7 +332,11 @@ func (p *Plugin) Health(ctx context.Context) smo.HealthStatus {
 }
 
 // checkComponentHealth is a helper to check individual component health with timeout.
-func (p *Plugin) checkComponentHealth(ctx context.Context, name string, healthFn func(context.Context) error) smo.ComponentHealth {
+func (p *Plugin) checkComponentHealth(
+	ctx context.Context,
+	name string,
+	healthFn func(context.Context) error,
+) smo.ComponentHealth {
 	start := time.Now()
 
 	// Create context with timeout for health check

@@ -1,7 +1,7 @@
-// Package kubernetes provides Kubernetes-based adapter implementation for O2-IMS.
 //go:build integration
 // +build integration
 
+// Package kubernetes provides Kubernetes-based adapter implementation for O2-IMS.
 package kubernetes
 
 import (
@@ -71,7 +71,7 @@ func (m *MockAdapter) Capabilities() []adapter.Capability {
 }
 
 // GetDeploymentManager returns mock deployment manager metadata.
-func (m *MockAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
+func (m *MockAdapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -83,7 +83,7 @@ func (m *MockAdapter) GetDeploymentManager(ctx context.Context, id string) (*ada
 }
 
 // ListResourcePools lists all resource pools.
-func (m *MockAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (m *MockAdapter) ListResourcePools(_ context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -103,7 +103,7 @@ func (m *MockAdapter) ListResourcePools(ctx context.Context, filter *adapter.Fil
 }
 
 // GetResourcePool retrieves a specific resource pool.
-func (m *MockAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+func (m *MockAdapter) GetResourcePool(_ context.Context, id string) (*adapter.ResourcePool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -116,7 +116,7 @@ func (m *MockAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.
 }
 
 // CreateResourcePool creates a new resource pool.
-func (m *MockAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *MockAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -137,7 +137,11 @@ func (m *MockAdapter) CreateResourcePool(ctx context.Context, pool *adapter.Reso
 }
 
 // UpdateResourcePool updates an existing resource pool.
-func (m *MockAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *MockAdapter) UpdateResourcePool(
+	_ context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -156,7 +160,7 @@ func (m *MockAdapter) UpdateResourcePool(ctx context.Context, id string, pool *a
 }
 
 // DeleteResourcePool deletes a resource pool.
-func (m *MockAdapter) DeleteResourcePool(ctx context.Context, id string) error {
+func (m *MockAdapter) DeleteResourcePool(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -169,7 +173,7 @@ func (m *MockAdapter) DeleteResourcePool(ctx context.Context, id string) error {
 }
 
 // ListResources lists all resources.
-func (m *MockAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (m *MockAdapter) ListResources(_ context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -191,7 +195,7 @@ func (m *MockAdapter) ListResources(ctx context.Context, filter *adapter.Filter)
 }
 
 // GetResource retrieves a specific resource.
-func (m *MockAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+func (m *MockAdapter) GetResource(_ context.Context, id string) (*adapter.Resource, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -204,7 +208,7 @@ func (m *MockAdapter) GetResource(ctx context.Context, id string) (*adapter.Reso
 }
 
 // CreateResource creates a new resource.
-func (m *MockAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+func (m *MockAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -225,7 +229,7 @@ func (m *MockAdapter) CreateResource(ctx context.Context, resource *adapter.Reso
 }
 
 // DeleteResource deletes a resource.
-func (m *MockAdapter) DeleteResource(ctx context.Context, id string) error {
+func (m *MockAdapter) DeleteResource(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -238,7 +242,7 @@ func (m *MockAdapter) DeleteResource(ctx context.Context, id string) error {
 }
 
 // ListResourceTypes lists all resource types.
-func (m *MockAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (m *MockAdapter) ListResourceTypes(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourceType, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -251,7 +255,7 @@ func (m *MockAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Fil
 }
 
 // GetResourceType retrieves a specific resource type.
-func (m *MockAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
+func (m *MockAdapter) GetResourceType(_ context.Context, id string) (*adapter.ResourceType, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -264,7 +268,7 @@ func (m *MockAdapter) GetResourceType(ctx context.Context, id string) (*adapter.
 }
 
 // CreateSubscription creates a new subscription.
-func (m *MockAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *MockAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -280,7 +284,7 @@ func (m *MockAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subsc
 }
 
 // GetSubscription retrieves a specific subscription.
-func (m *MockAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
+func (m *MockAdapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -293,7 +297,7 @@ func (m *MockAdapter) GetSubscription(ctx context.Context, id string) (*adapter.
 }
 
 // DeleteSubscription deletes a subscription.
-func (m *MockAdapter) DeleteSubscription(ctx context.Context, id string) error {
+func (m *MockAdapter) DeleteSubscription(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -306,7 +310,7 @@ func (m *MockAdapter) DeleteSubscription(ctx context.Context, id string) error {
 }
 
 // Health performs a health check.
-func (m *MockAdapter) Health(ctx context.Context) error {
+func (m *MockAdapter) Health(_ context.Context) error {
 	// Mock adapter is always healthy
 	return nil
 }

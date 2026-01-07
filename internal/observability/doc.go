@@ -55,10 +55,11 @@
 //	}))
 //
 //	// Register Kubernetes health check
-//	healthChecker.RegisterReadinessCheck("kubernetes", observability.KubernetesHealthCheck(func(ctx context.Context) error {
-//	    _, err := k8sClient.ServerVersion()
-//	    return err
-//	}))
+//	healthChecker.RegisterReadinessCheck("kubernetes",
+//	    observability.KubernetesHealthCheck(func(ctx context.Context) error {
+//	        _, err := k8sClient.ServerVersion()
+//	        return err
+//	    }))
 //
 // Expose health endpoints:
 //
