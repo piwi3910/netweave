@@ -160,6 +160,7 @@ issues:
         - interfacebloat # DMS interface per O-RAN spec
         - ireturn       # Returning interfaces is intentional for adapters
         - godot         # Comment punctuation
+        - gocritic      # httpNoBody, unnecessaryBlock in tests
 
 output:
   sort-results: true
