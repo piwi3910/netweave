@@ -40,16 +40,16 @@ const (
 
 // Result represents the result of compliance validation.
 type Result struct {
-	SpecName        string  `json:"specName"`
-	SpecVersion     string  `json:"specVersion"`
-	SpecURL         string  `json:"specUrl"`
-	Level Level   `json:"complianceLevel"`
-	ComplianceScore float64         `json:"complianceScore"` // Percentage (0-100)
-	TotalEndpoints  int             `json:"totalEndpoints"`
-	PassedEndpoints int             `json:"passedEndpoints"`
-	FailedEndpoints int             `json:"failedEndpoints"`
-	MissingFeatures []string        `json:"missingFeatures,omitempty"`
-	TestedAt        time.Time       `json:"testedAt"`
+	SpecName        string    `json:"specName"`
+	SpecVersion     string    `json:"specVersion"`
+	SpecURL         string    `json:"specUrl"`
+	Level           Level     `json:"complianceLevel"`
+	ComplianceScore float64   `json:"complianceScore"` // Percentage (0-100)
+	TotalEndpoints  int       `json:"totalEndpoints"`
+	PassedEndpoints int       `json:"passedEndpoints"`
+	FailedEndpoints int       `json:"failedEndpoints"`
+	MissingFeatures []string  `json:"missingFeatures,omitempty"`
+	TestedAt        time.Time `json:"testedAt"`
 }
 
 // Checker performs O-RAN API compliance validation.
@@ -272,7 +272,7 @@ func (c *Checker) validateEndpoints(
 		SpecName:        spec.Name,
 		SpecVersion:     spec.Version,
 		SpecURL:         spec.SpecURL,
-		Level: complianceLevel,
+		Level:           complianceLevel,
 		ComplianceScore: complianceScore,
 		TotalEndpoints:  totalEndpoints,
 		PassedEndpoints: passedEndpoints,
