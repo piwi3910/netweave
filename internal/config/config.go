@@ -48,6 +48,37 @@ type Config struct {
 	Observability ObservabilityConfig `mapstructure:"observability"`
 	Security      SecurityConfig      `mapstructure:"security"`
 	Validation    ValidationConfig    `mapstructure:"validation"`
+	MultiTenancy  MultiTenancyConfig  `mapstructure:"multi_tenancy"`
+}
+
+// MultiTenancyConfig contains multi-tenancy and RBAC configuration.
+type MultiTenancyConfig struct {
+	// Enabled enables multi-tenancy and RBAC enforcement.
+	Enabled bool `mapstructure:"enabled"`
+
+	// RequireMTLS requires mTLS client certificates for authentication.
+	RequireMTLS bool `mapstructure:"require_mtls"`
+
+	// InitializeDefaultRoles creates default system roles on startup.
+	InitializeDefaultRoles bool `mapstructure:"initialize_default_roles"`
+
+	// DefaultTenantQuota sets default quotas for new tenants.
+	DefaultTenantQuota DefaultQuotaConfig `mapstructure:"default_tenant_quota"`
+
+	// AuditLogRetentionDays sets how long audit logs are retained.
+	AuditLogRetentionDays int `mapstructure:"audit_log_retention_days"`
+
+	// SkipAuthPaths is a list of paths that skip authentication.
+	SkipAuthPaths []string `mapstructure:"skip_auth_paths"`
+}
+
+// DefaultQuotaConfig contains default quota values for new tenants.
+type DefaultQuotaConfig struct {
+	MaxSubscriptions     int `mapstructure:"max_subscriptions"`
+	MaxResourcePools     int `mapstructure:"max_resource_pools"`
+	MaxDeployments       int `mapstructure:"max_deployments"`
+	MaxUsers             int `mapstructure:"max_users"`
+	MaxRequestsPerMinute int `mapstructure:"max_requests_per_minute"`
 }
 
 // ServerConfig contains HTTP server configuration.
@@ -434,6 +465,20 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("validation.validate_response", false)
 	v.SetDefault("validation.spec_path", "")
 	v.SetDefault("validation.max_body_size", 1048576) // 1MB default
+
+	// Multi-tenancy defaults
+	v.SetDefault("multi_tenancy.enabled", false)
+	v.SetDefault("multi_tenancy.require_mtls", true)
+	v.SetDefault("multi_tenancy.initialize_default_roles", true)
+	v.SetDefault("multi_tenancy.audit_log_retention_days", 30)
+	v.SetDefault("multi_tenancy.skip_auth_paths", []string{
+		"/health", "/healthz", "/ready", "/readyz", "/metrics", "/", "/o2ims",
+	})
+	v.SetDefault("multi_tenancy.default_tenant_quota.max_subscriptions", 100)
+	v.SetDefault("multi_tenancy.default_tenant_quota.max_resource_pools", 50)
+	v.SetDefault("multi_tenancy.default_tenant_quota.max_deployments", 200)
+	v.SetDefault("multi_tenancy.default_tenant_quota.max_users", 20)
+	v.SetDefault("multi_tenancy.default_tenant_quota.max_requests_per_minute", 1000)
 }
 
 // Validate validates the configuration and returns an error if any values are invalid.
