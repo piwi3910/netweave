@@ -9,8 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-
-	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // TestNew tests the creation of a new OpenStackAdapter.
