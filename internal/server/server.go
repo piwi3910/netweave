@@ -639,3 +639,36 @@ func joinStrings(strs []string, sep string) string {
 	}
 	return result
 }
+
+// SetOpenAPISpec sets the OpenAPI specification content.
+// This is primarily used for testing.
+func (s *Server) SetOpenAPISpec(spec []byte) {
+	s.openAPISpec = spec
+}
+
+// GetOpenAPISpec returns the OpenAPI specification content.
+// This is primarily used for testing.
+func (s *Server) GetOpenAPISpec() []byte {
+	return s.openAPISpec
+}
+
+// ShutdownWithContext gracefully shuts down the HTTP server using the provided context.
+// It waits for active requests to complete or until the context is canceled.
+// This is a wrapper around Shutdown() that respects the provided context.
+func (s *Server) ShutdownWithContext(ctx context.Context) error {
+	// Create a channel to signal when shutdown completes
+	done := make(chan error, 1)
+
+	// Run shutdown in a goroutine
+	go func() {
+		done <- s.Shutdown()
+	}()
+
+	// Wait for either shutdown to complete or context to be canceled
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
