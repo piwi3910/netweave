@@ -117,74 +117,15 @@ func (a *AWSAdapter) CreateResource(ctx context.Context, resource *adapter.Resou
 	a.logger.Debug("CreateResource called",
 		zap.String("resourceTypeId", resource.ResourceTypeID))
 
-	// Extract instance type from resource type ID
-	instanceType := strings.TrimPrefix(resource.ResourceTypeID, "aws-instance-type-")
-	if instanceType == resource.ResourceTypeID {
-		instanceType = resource.ResourceTypeID
-	}
-
-	// Get required AMI from extensions
-	var amiID string
-	if resource.Extensions != nil {
-		if ami, ok := resource.Extensions["aws.imageId"].(string); ok {
-			amiID = ami
-		}
-	}
-	if amiID == "" {
-		return nil, fmt.Errorf("aws.imageId is required in extensions")
-	}
-
-	// Get optional parameters from extensions
-	var subnetID string
-	var securityGroupIDs []string
-	var keyName string
-
-	if resource.Extensions != nil {
-		if subnet, ok := resource.Extensions["aws.subnetId"].(string); ok {
-			subnetID = subnet
-		}
-		if sgs, ok := resource.Extensions["aws.securityGroupIds"].([]string); ok {
-			securityGroupIDs = sgs
-		}
-		if key, ok := resource.Extensions["aws.keyName"].(string); ok {
-			keyName = key
-		}
+	// Extract instance type and validate required parameters
+	instanceType := extractInstanceType(resource.ResourceTypeID)
+	amiID, err := getRequiredAMI(resource.Extensions)
+	if err != nil {
+		return nil, err
 	}
 
 	// Build run instance input
-	input := &ec2.RunInstancesInput{
-		ImageId:      aws.String(amiID),
-		InstanceType: ec2Types.InstanceType(instanceType),
-		MinCount:     aws.Int32(1),
-		MaxCount:     aws.Int32(1),
-	}
-
-	if subnetID != "" {
-		input.SubnetId = aws.String(subnetID)
-	}
-
-	if len(securityGroupIDs) > 0 {
-		input.SecurityGroupIds = securityGroupIDs
-	}
-
-	if keyName != "" {
-		input.KeyName = aws.String(keyName)
-	}
-
-	// Add name tag if description is provided
-	if resource.Description != "" {
-		input.TagSpecifications = []ec2Types.TagSpecification{
-			{
-				ResourceType: ec2Types.ResourceTypeInstance,
-				Tags: []ec2Types.Tag{
-					{
-						Key:   aws.String("Name"),
-						Value: aws.String(resource.Description),
-					},
-				},
-			},
-		}
-	}
+	input := buildRunInstanceInput(resource, instanceType, amiID)
 
 	// Launch the instance
 	output, err := a.ec2Client.RunInstances(ctx, input)
@@ -203,6 +144,79 @@ func (a *AWSAdapter) CreateResource(ctx context.Context, resource *adapter.Resou
 		zap.String("instanceId", aws.ToString(output.Instances[0].InstanceId)))
 
 	return created, nil
+}
+
+// extractInstanceType extracts the instance type from the resource type ID.
+func extractInstanceType(resourceTypeID string) string {
+	instanceType := strings.TrimPrefix(resourceTypeID, "aws-instance-type-")
+	if instanceType == resourceTypeID {
+		return resourceTypeID
+	}
+	return instanceType
+}
+
+// getRequiredAMI extracts and validates the required AMI ID from extensions.
+func getRequiredAMI(extensions map[string]interface{}) (string, error) {
+	if extensions == nil {
+		return "", fmt.Errorf("aws.imageId is required in extensions")
+	}
+
+	amiID, ok := extensions["aws.imageId"].(string)
+	if !ok || amiID == "" {
+		return "", fmt.Errorf("aws.imageId is required in extensions")
+	}
+
+	return amiID, nil
+}
+
+// buildRunInstanceInput builds the EC2 RunInstances input from resource parameters.
+func buildRunInstanceInput(resource *adapter.Resource, instanceType, amiID string) *ec2.RunInstancesInput {
+	input := &ec2.RunInstancesInput{
+		ImageId:      aws.String(amiID),
+		InstanceType: ec2Types.InstanceType(instanceType),
+		MinCount:     aws.Int32(1),
+		MaxCount:     aws.Int32(1),
+	}
+
+	if resource.Extensions != nil {
+		applyOptionalParameters(input, resource.Extensions)
+	}
+
+	if resource.Description != "" {
+		applyNameTag(input, resource.Description)
+	}
+
+	return input
+}
+
+// applyOptionalParameters applies optional parameters from extensions to the run input.
+func applyOptionalParameters(input *ec2.RunInstancesInput, extensions map[string]interface{}) {
+	if subnet, ok := extensions["aws.subnetId"].(string); ok && subnet != "" {
+		input.SubnetId = aws.String(subnet)
+	}
+
+	if sgs, ok := extensions["aws.securityGroupIds"].([]string); ok && len(sgs) > 0 {
+		input.SecurityGroupIds = sgs
+	}
+
+	if key, ok := extensions["aws.keyName"].(string); ok && key != "" {
+		input.KeyName = aws.String(key)
+	}
+}
+
+// applyNameTag adds a Name tag to the instance.
+func applyNameTag(input *ec2.RunInstancesInput, description string) {
+	input.TagSpecifications = []ec2Types.TagSpecification{
+		{
+			ResourceType: ec2Types.ResourceTypeInstance,
+			Tags: []ec2Types.Tag{
+				{
+					Key:   aws.String("Name"),
+					Value: aws.String(description),
+				},
+			},
+		},
+	}
 }
 
 // DeleteResource deletes a resource (terminates an EC2 instance) by ID.
