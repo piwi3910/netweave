@@ -285,6 +285,8 @@ func (c *DMaaPClient) CreateTopic(ctx context.Context, topic string, partitions 
 
 // Close closes the DMaaP client and releases resources.
 func (c *DMaaPClient) Close() error {
-	c.httpClient.CloseIdleConnections()
+	if c.httpClient != nil {
+		c.httpClient.CloseIdleConnections()
+	}
 	return nil
 }

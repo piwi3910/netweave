@@ -278,7 +278,9 @@ func (c *AAIClient) getResource(ctx context.Context, url string, result interfac
 
 // Close closes the A&AI client and releases resources.
 func (c *AAIClient) Close() error {
-	c.httpClient.CloseIdleConnections()
+	if c.httpClient != nil {
+		c.httpClient.CloseIdleConnections()
+	}
 	return nil
 }
 

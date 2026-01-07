@@ -316,6 +316,8 @@ func (c *SDNCClient) shouldStopRetryingSDNC(err error) bool {
 
 // Close closes the SDNC client and releases resources.
 func (c *SDNCClient) Close() error {
-	c.httpClient.CloseIdleConnections()
+	if c.httpClient != nil {
+		c.httpClient.CloseIdleConnections()
+	}
 	return nil
 }
