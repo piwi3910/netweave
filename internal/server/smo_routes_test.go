@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -204,6 +205,7 @@ func setupTestSMOHandler(t *testing.T) (*SMOHandler, *smoapi.Registry) {
 
 func setupTestRouter(handler *SMOHandler) *gin.Engine {
 	router := gin.New()
+	router.Use(gin.Recovery()) // Add recovery middleware to prevent panics
 	v1 := router.Group("/o2smo/v1")
 	{
 		v1.GET("/plugins", handler.handleListPlugins)
@@ -636,7 +638,7 @@ func TestSMOHandler_InvalidIdentifiers(t *testing.T) {
 		{
 			name:     "too long model ID",
 			method:   "GET",
-			path:     "/o2smo/v1/serviceModels/" + string(make([]byte, 300)),
+			path:     "/o2smo/v1/serviceModels/" + strings.Repeat("a", 300),
 			wantCode: http.StatusBadRequest,
 		},
 	}
