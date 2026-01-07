@@ -163,12 +163,13 @@ func (p *Plugin) OnboardNSD(_ context.Context, _ []byte) (string, error) {
 	//   - checksums.txt
 	//   - metadata (optional)
 
-	// TODO: Implement multipart/form-data upload
+	// Multipart/form-data upload implementation planned for future release.
 	// POST /osm/nsd/v1/ns_descriptors_content
 	// Content-Type: application/gzip
+	// Tracked in: https://github.com/piwi3910/netweave/issues/33
 
-	// For now, return an error indicating this needs implementation
-	return "", fmt.Errorf("NSD onboarding not yet implemented")
+	// Return clear error indicating this endpoint requires implementation
+	return "", fmt.Errorf("NSD onboarding not yet implemented: multipart upload support pending")
 }
 
 // OnboardVNFD uploads and onboards a VNFD (VNF Descriptor) to OSM.

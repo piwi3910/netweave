@@ -7,27 +7,26 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/smo"
 )
 
 // TestSyncInfrastructureInventory tests inventory synchronization.
 func TestSyncInfrastructureInventory(t *testing.T) {
 	tests := []struct {
 		name       string
-		inventory  *InfrastructureInventory
+		inventory  *smo.InfrastructureInventory
 		serverResp func(w http.ResponseWriter, r *http.Request)
 		wantErr    bool
 	}{
 		{
-			name: "successful sync with new VIM accounts",
-			inventory: &InfrastructureInventory{
-				VIMAccounts: []*VIMAccount{
+			name: "successful sync with resource pools",
+			inventory: &smo.InfrastructureInventory{
+				ResourcePools: []smo.ResourcePool{
 					{
-						Name:          "openstack-vim",
-						VIMType:       "openstack",
-						VIMURL:        "https://openstack.example.com:5000/v3",
-						VIMUser:       "admin",
-						VIMPassword:   "secret",
-						VIMTenantName: "admin",
+						ID:       "pool-1",
+						Name:     "openstack-pool",
+						Location: "dc-1",
 					},
 				},
 			},
@@ -42,8 +41,8 @@ func TestSyncInfrastructureInventory(t *testing.T) {
 		},
 		{
 			name: "empty inventory",
-			inventory: &InfrastructureInventory{
-				VIMAccounts: []*VIMAccount{},
+			inventory: &smo.InfrastructureInventory{
+				ResourcePools: []smo.ResourcePool{},
 			},
 			serverResp: mockOSMServer(t),
 			wantErr:    false,
@@ -268,28 +267,30 @@ func TestTransformVIMAccountVariations(t *testing.T) {
 func TestPublishInfrastructureEvent(t *testing.T) {
 	tests := []struct {
 		name               string
-		event              *InfrastructureEvent
+		event              *smo.InfrastructureEvent
 		enableEventPublish bool
 		wantErr            bool
 	}{
 		{
 			name: "valid event with publishing enabled",
-			event: &InfrastructureEvent{
-				EventType:    "created",
-				ResourceType: "resource_pool",
+			event: &smo.InfrastructureEvent{
+				EventID:      "event-1",
+				EventType:    "ResourceCreated",
+				ResourceType: "ResourcePool",
 				ResourceID:   "pool-123",
-				Timestamp:    time.Now().Format(time.RFC3339),
+				Timestamp:    time.Now(),
 			},
 			enableEventPublish: true,
 			wantErr:            false,
 		},
 		{
 			name: "valid event with publishing disabled",
-			event: &InfrastructureEvent{
-				EventType:    "deleted",
-				ResourceType: "resource",
+			event: &smo.InfrastructureEvent{
+				EventID:      "event-2",
+				EventType:    "ResourceDeleted",
+				ResourceType: "Resource",
 				ResourceID:   "resource-456",
-				Timestamp:    time.Now().Format(time.RFC3339),
+				Timestamp:    time.Now(),
 			},
 			enableEventPublish: false,
 			wantErr:            false, // Should succeed but do nothing

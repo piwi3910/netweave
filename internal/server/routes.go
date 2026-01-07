@@ -125,17 +125,20 @@ func (s *Server) handleMetrics(c *gin.Context) {
 
 // handleRoot returns basic API information.
 func (s *Server) handleRoot(c *gin.Context) {
+	endpoints := gin.H{
+		"health":     "/health",
+		"ready":      "/ready",
+		"metrics":    s.config.Observability.Metrics.Path,
+		"o2ims_base": "/o2ims/v1",
+		"o2smo_base": "/o2smo/v1",
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"name":        "O2-IMS Gateway",
 		"version":     "1.0.0",
-		"description": "ORAN O2-IMS compliant API gateway for Kubernetes",
+		"description": "ORAN O2-IMS/O2-SMO compliant API gateway for Kubernetes",
 		"api_version": "v1",
-		"endpoints": gin.H{
-			"health":   "/health",
-			"ready":    "/ready",
-			"metrics":  s.config.Observability.Metrics.Path,
-			"api_base": "/o2ims-infrastructureInventory/v1",
-		},
+		"endpoints":   endpoints,
 	})
 }
 

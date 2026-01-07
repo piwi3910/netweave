@@ -324,6 +324,31 @@ curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
 
 See [docs/api-mapping.md](docs/api-mapping.md) for O2-IMS ↔ Kubernetes resource mappings.
 
+## O2-SMO API Coverage
+
+The O2-SMO API (`/o2smo/v1/*`) provides integration with Service Management & Orchestration systems:
+
+| Resource | List | Get | Create | Execute | Cancel |
+|----------|------|-----|--------|---------|--------|
+| Plugins | ✅ | ✅ | - | - | - |
+| Workflows | - | ✅ | - | ✅ | ✅ |
+| Service Models | ✅ | ✅ | ✅ | - | - |
+| Policies | - | ✅ | ✅ | - | - |
+| Infrastructure Sync | - | - | ✅ | - | - |
+| Deployment Sync | - | - | ✅ | - | - |
+| Events | - | - | ✅ | - | - |
+| Health | - | ✅ | - | - | - |
+
+**O2-SMO Features:**
+- 🔌 **Plugin System**: Extensible adapter architecture (ONAP, OSM, custom)
+- 🔄 **Workflow Orchestration**: Execute and monitor orchestration workflows
+- 📋 **Service Modeling**: Register and manage service models
+- 📜 **Policy Management**: Apply and monitor policies
+- 🔗 **Infrastructure Sync**: Synchronize infrastructure inventory with SMO
+- 📡 **Event Publishing**: Publish infrastructure and deployment events
+
+See [docs/o2dms-o2smo-extension.md](docs/o2dms-o2smo-extension.md) for detailed O2-SMO integration documentation.
+
 ## Development
 
 ### Setup Development Environment
