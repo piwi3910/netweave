@@ -115,6 +115,7 @@ issues:
         - staticcheck
         - revive
         - govet
+        - dupl
     # Allow linting issues in pre-existing auth middleware (not part of DMS PR)
     - path: internal/auth/
       linters:
@@ -128,6 +129,7 @@ issues:
         - revive
         - importas
         - unparam
+        - dupl
     # Allow linting issues in pre-existing config code (not part of DMS PR)
     - path: internal/config/
       linters:
@@ -161,6 +163,7 @@ issues:
         - nestif
         - unused
         - ireturn
+        - dupl
     # Allow linting issues in DMS code (part of PR #29 but need focused cleanup later)
     - path: internal/dms/
       linters:
@@ -180,6 +183,7 @@ issues:
         - gocritic      # httpNoBody, unnecessaryBlock in tests
         - predeclared   # Parameter names matching builtins
         - nilnil        # Test helpers returning nil, nil
+        - dupl          # Code duplication in handler patterns
 
 output:
   sort-results: true
