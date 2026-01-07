@@ -8,15 +8,16 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Multi-Backend Adapter Routing](#multi-backend-adapter-routing)
-3. [API Versioning and Evolution](#api-versioning-and-evolution)
-4. [Deployment Manager](#deployment-manager)
-5. [Resource Pools](#resource-pools)
-6. [Resources](#resources)
-7. [Resource Types](#resource-types)
-8. [Subscriptions](#subscriptions)
-9. [Data Transformation Examples](#data-transformation-examples)
-10. [Backend-Specific Mappings](#backend-specific-mappings)
+2. [Multi-Tenancy and RBAC](#multi-tenancy-and-rbac)
+3. [Multi-Backend Adapter Routing](#multi-backend-adapter-routing)
+4. [API Versioning and Evolution](#api-versioning-and-evolution)
+5. [Deployment Manager](#deployment-manager)
+6. [Resource Pools](#resource-pools)
+7. [Resources](#resources)
+8. [Resource Types](#resource-types)
+9. [Subscriptions](#subscriptions)
+10. [Data Transformation Examples](#data-transformation-examples)
+11. [Backend-Specific Mappings](#backend-specific-mappings)
 
 ---
 
@@ -44,6 +45,347 @@ This document defines how O-RAN O2-IMS resources map to Kubernetes resources in 
 | Resource | Node / Machine | ✅ Full | CRUD |
 | Resource Type | StorageClass, Machine Types | ✅ Full | R |
 | Subscription | Redis (O2-IMS specific) | ✅ Full | CRUD |
+
+---
+
+## Multi-Tenancy and RBAC
+
+### Overview
+
+The netweave gateway provides multi-tenancy and Role-Based Access Control (RBAC) to enable secure, isolated access to O2-IMS resources across different organizations or teams.
+
+### Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Tenant** | Isolated organization with its own users, quotas, and resources |
+| **User** | Entity authenticated via mTLS certificate, belonging to a tenant |
+| **Role** | Collection of permissions (platform-level or tenant-scoped) |
+| **Permission** | Granular access right (e.g., `subscription:create`, `resource:read`) |
+
+### Authentication
+
+Authentication is performed via mTLS client certificates. The certificate's Subject DN is used to identify users:
+
+```
+CN=john.doe,O=Tenant A,OU=Engineering
+```
+
+The middleware extracts user identity from the `X-Forwarded-Client-Cert` (XFCC) header when behind a proxy, or directly from the TLS connection.
+
+### Tenant Management API
+
+#### List Tenants (Platform Admin Only)
+
+```http
+GET /admin/tenants HTTP/1.1
+Accept: application/json
+```
+
+**Response:**
+```json
+{
+  "tenants": [
+    {
+      "id": "tenant-123",
+      "name": "Acme Corporation",
+      "description": "Primary production tenant",
+      "status": "active",
+      "contactEmail": "admin@acme.com",
+      "quota": {
+        "maxSubscriptions": 100,
+        "maxResourcePools": 50,
+        "maxDeployments": 200,
+        "maxUsers": 25
+      },
+      "usage": {
+        "subscriptions": 45,
+        "resourcePools": 12,
+        "deployments": 78,
+        "users": 15
+      },
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-05T12:30:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+#### Create Tenant (Platform Admin Only)
+
+```http
+POST /admin/tenants HTTP/1.1
+Content-Type: application/json
+
+{
+  "name": "New Tenant",
+  "description": "Description of the tenant",
+  "contactEmail": "admin@newtenant.com",
+  "quota": {
+    "maxSubscriptions": 50,
+    "maxResourcePools": 25,
+    "maxDeployments": 100,
+    "maxUsers": 10
+  }
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "id": "tenant-456",
+  "name": "New Tenant",
+  "status": "active",
+  ...
+}
+```
+
+#### Get Tenant
+
+```http
+GET /admin/tenants/{tenantId} HTTP/1.1
+```
+
+#### Update Tenant (Platform Admin Only)
+
+```http
+PUT /admin/tenants/{tenantId} HTTP/1.1
+Content-Type: application/json
+
+{
+  "name": "Updated Name",
+  "description": "Updated description",
+  "status": "suspended",
+  "quota": {
+    "maxSubscriptions": 200
+  }
+}
+```
+
+#### Delete Tenant (Platform Admin Only)
+
+```http
+DELETE /admin/tenants/{tenantId} HTTP/1.1
+```
+
+**Note:** Tenants with active resources are marked as `pending_deletion` and resources must be cleaned up first.
+
+### User Management API
+
+#### List Users (Tenant Admin)
+
+```http
+GET /tenant/users HTTP/1.1
+Accept: application/json
+```
+
+**Response:**
+```json
+{
+  "users": [
+    {
+      "id": "user-123",
+      "tenantId": "tenant-456",
+      "subject": "CN=john.doe,O=Acme,OU=Engineering",
+      "commonName": "john.doe",
+      "email": "john.doe@acme.com",
+      "roleId": "role-tenant-admin",
+      "isActive": true,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "lastLoginAt": "2026-01-06T09:15:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+#### Create User (Tenant Admin)
+
+```http
+POST /tenant/users HTTP/1.1
+Content-Type: application/json
+
+{
+  "subject": "CN=jane.smith,O=Acme,OU=Operations",
+  "commonName": "jane.smith",
+  "email": "jane.smith@acme.com",
+  "roleId": "role-tenant-viewer"
+}
+```
+
+#### Update User (Tenant Admin)
+
+```http
+PUT /tenant/users/{userId} HTTP/1.1
+Content-Type: application/json
+
+{
+  "email": "new.email@acme.com",
+  "roleId": "role-tenant-operator",
+  "isActive": false
+}
+```
+
+#### Delete User (Tenant Admin)
+
+```http
+DELETE /tenant/users/{userId} HTTP/1.1
+```
+
+### Role System
+
+#### Platform-Level Roles
+
+| Role | Permissions | Description |
+|------|-------------|-------------|
+| `platform_admin` | All permissions | Full system administration |
+| `platform_operator` | Tenant read, some write | Platform operations |
+| `platform_viewer` | Read-only platform access | Monitoring and auditing |
+
+#### Tenant-Scoped Roles
+
+| Role | Permissions | Description |
+|------|-------------|-------------|
+| `tenant_admin` | Full tenant management | Manage users, quotas, resources within tenant |
+| `tenant_operator` | Create/manage resources | Day-to-day operations |
+| `tenant_viewer` | Read-only tenant access | View resources and status |
+
+#### List Available Roles
+
+```http
+GET /roles HTTP/1.1
+Accept: application/json
+```
+
+**Response:**
+```json
+{
+  "roles": [
+    {
+      "id": "role-tenant-admin",
+      "name": "tenant_admin",
+      "description": "Full tenant management",
+      "type": "tenant",
+      "permissions": [
+        "tenant:read",
+        "tenant:update",
+        "user:create",
+        "user:read",
+        "user:update",
+        "user:delete",
+        "subscription:create",
+        "subscription:read",
+        "subscription:delete",
+        "resource:read"
+      ]
+    }
+  ]
+}
+```
+
+### Permissions
+
+| Permission | Description |
+|------------|-------------|
+| `tenant:create` | Create new tenants (platform admin) |
+| `tenant:read` | View tenant information |
+| `tenant:update` | Modify tenant settings |
+| `tenant:delete` | Delete tenants |
+| `user:create` | Create users within tenant |
+| `user:read` | View user information |
+| `user:update` | Modify user settings |
+| `user:delete` | Remove users |
+| `subscription:create` | Create subscriptions |
+| `subscription:read` | View subscriptions |
+| `subscription:delete` | Remove subscriptions |
+| `resource:read` | View resources |
+| `resource:create` | Create resources |
+| `resource:delete` | Delete resources |
+| `audit:read` | View audit logs |
+
+### Audit Logging
+
+All authentication and authorization events are logged for compliance:
+
+```http
+GET /admin/audit?limit=100&offset=0 HTTP/1.1
+```
+
+**Response:**
+```json
+{
+  "events": [
+    {
+      "id": "event-123",
+      "type": "authentication_success",
+      "tenantId": "tenant-456",
+      "userId": "user-789",
+      "subject": "CN=john.doe,O=Acme",
+      "action": "user_authenticated",
+      "details": {
+        "method": "mtls",
+        "path": "/o2ims/v1/subscriptions"
+      },
+      "clientIp": "10.0.1.100",
+      "userAgent": "curl/7.68.0",
+      "timestamp": "2026-01-06T10:30:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+**Event Types:**
+- `authentication_success` - Successful authentication
+- `authentication_failure` - Failed authentication attempt
+- `authorization_failure` - Permission denied
+- `tenant_created` - New tenant created
+- `tenant_updated` - Tenant modified
+- `tenant_deleted` - Tenant removed
+- `user_created` - New user created
+- `user_updated` - User modified
+- `user_deleted` - User removed
+
+### Quota Enforcement
+
+Tenants have configurable quotas that are enforced atomically:
+
+| Resource | Default Limit | Description |
+|----------|---------------|-------------|
+| `maxSubscriptions` | 100 | Maximum O2-IMS subscriptions |
+| `maxResourcePools` | 50 | Maximum resource pools |
+| `maxDeployments` | 200 | Maximum deployments |
+| `maxUsers` | 25 | Maximum users per tenant |
+
+When a quota is exceeded, the API returns:
+```http
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+
+{
+  "error": "QuotaExceeded",
+  "message": "User quota exceeded for tenant",
+  "code": 403
+}
+```
+
+### Tenant Isolation
+
+All O2-IMS resources are isolated by tenant:
+
+1. **Subscriptions**: Each subscription belongs to a tenant
+2. **Resources**: Resources are scoped to tenant's resource pools
+3. **Audit Logs**: Tenants can only view their own audit events
+4. **Users**: Users can only access their own tenant's data
+
+**Example: Tenant-scoped subscription query**
+```http
+GET /o2ims/v1/subscriptions HTTP/1.1
+X-Tenant-ID: tenant-456
+```
+
+Returns only subscriptions belonging to `tenant-456`.
 
 ---
 
@@ -1701,127 +2043,9 @@ eksClient.CreateNodegroup(ctx, &eks.CreateNodegroupInput{
 7. **Support multiple backends simultaneously**
 8. **Abstract backend complexity from SMO clients**
 
----
-
-## O2-DMS API Mapping
-
-The O2-DMS (Deployment Management Service) API provides lifecycle management for Network Functions (NFs) deployed on the O-Cloud infrastructure.
-
-### O2-DMS Endpoints
-
-| Endpoint | Method | Description | K8s/Backend Action |
-|----------|--------|-------------|-------------------|
-| `/o2dms/v1/deploymentLifecycle` | GET | Get DMS API information | List registered adapters |
-| `/o2dms/v1/nfDeployments` | GET | List NF deployments | List Helm releases / ArgoCD apps |
-| `/o2dms/v1/nfDeployments` | POST | Create NF deployment | helm install / kubectl apply |
-| `/o2dms/v1/nfDeployments/{id}` | GET | Get NF deployment | Get Helm release / ArgoCD app |
-| `/o2dms/v1/nfDeployments/{id}` | PUT | Update NF deployment | helm upgrade / sync app |
-| `/o2dms/v1/nfDeployments/{id}` | DELETE | Delete NF deployment | helm uninstall / kubectl delete |
-| `/o2dms/v1/nfDeployments/{id}/scale` | POST | Scale NF deployment | Update replicas |
-| `/o2dms/v1/nfDeployments/{id}/rollback` | POST | Rollback NF deployment | helm rollback / sync to revision |
-| `/o2dms/v1/nfDeployments/{id}/status` | GET | Get deployment status | Get release/app status |
-| `/o2dms/v1/nfDeployments/{id}/history` | GET | Get deployment history | List revisions |
-| `/o2dms/v1/nfDeploymentDescriptors` | GET | List NF descriptors | List Helm charts / Git repos |
-| `/o2dms/v1/nfDeploymentDescriptors` | POST | Create NF descriptor | Register chart/repo |
-| `/o2dms/v1/nfDeploymentDescriptors/{id}` | GET | Get NF descriptor | Get chart/repo info |
-| `/o2dms/v1/nfDeploymentDescriptors/{id}` | DELETE | Delete NF descriptor | Unregister chart/repo |
-| `/o2dms/v1/subscriptions` | GET | List DMS subscriptions | List from storage |
-| `/o2dms/v1/subscriptions` | POST | Create DMS subscription | Store + start watching |
-| `/o2dms/v1/subscriptions/{id}` | GET | Get DMS subscription | Get from storage |
-| `/o2dms/v1/subscriptions/{id}` | DELETE | Delete DMS subscription | Delete + stop watching |
-
-### NF Deployment Status Values
-
-| O2-DMS Status | Description | Backend Status |
-|---------------|-------------|----------------|
-| `pending` | Deployment queued | Helm: pending-install, ArgoCD: Unknown |
-| `instantiating` | Deployment in progress | Helm: pending-install/pending-upgrade, ArgoCD: Progressing |
-| `deployed` | Successfully deployed | Helm: deployed, ArgoCD: Healthy+Synced |
-| `failed` | Deployment failed | Helm: failed, ArgoCD: Degraded |
-| `updating` | Update in progress | Helm: pending-upgrade, ArgoCD: Progressing |
-| `scaling` | Scale operation | N/A (internal state) |
-| `terminating` | Being deleted | Helm: uninstalling, ArgoCD: Deleting |
-| `terminated` | Successfully deleted | N/A (resource removed) |
-
-### Backend Adapter Support
-
-| Adapter | Capabilities | Use Case |
-|---------|--------------|----------|
-| **Helm** | Package management, deployments, rollback, scaling | Traditional Helm chart deployments |
-| **ArgoCD** | GitOps, deployments, rollback, health checks, metrics | GitOps-based deployments |
-| Flux (planned) | GitOps, deployments | Flux-based GitOps |
-| ONAP-LCM (planned) | ONAP lifecycle management | ONAP orchestration integration |
-| OSM-LCM (planned) | OSM lifecycle management | OSM orchestration integration |
-
-### Example: Create NF Deployment
-
-**Request**:
-```http
-POST /o2dms/v1/nfDeployments HTTP/1.1
-Content-Type: application/json
-
-{
-  "name": "cu-up-deployment",
-  "description": "CU-UP deployment for cell site A",
-  "nfDeploymentDescriptorId": "cu-up-chart-v1.2.0",
-  "namespace": "ran-namespace",
-  "parameterValues": {
-    "replicas": 3,
-    "resources.cpu": "4",
-    "resources.memory": "8Gi"
-  }
-}
-```
-
-**Response**:
-```http
-HTTP/1.1 201 Created
-Content-Type: application/json
-
-{
-  "nfDeploymentId": "dep-cu-up-deployment",
-  "name": "cu-up-deployment",
-  "description": "CU-UP deployment for cell site A",
-  "nfDeploymentDescriptorId": "cu-up-chart-v1.2.0",
-  "status": "instantiating",
-  "namespace": "ran-namespace",
-  "version": 1,
-  "createdAt": "2026-01-06T12:00:00Z",
-  "updatedAt": "2026-01-06T12:00:00Z"
-}
-```
-
-### Example: Scale NF Deployment
-
-**Request**:
-```http
-POST /o2dms/v1/nfDeployments/dep-cu-up-deployment/scale HTTP/1.1
-Content-Type: application/json
-
-{
-  "replicas": 5
-}
-```
-
-**Response**:
-```http
-HTTP/1.1 202 Accepted
-Content-Type: application/json
-
-{
-  "message": "Scale operation initiated",
-  "nfDeploymentId": "dep-cu-up-deployment",
-  "targetReplicas": 5
-}
-```
-
----
-
 **Future Extensions**:
 - Additional adapters (OpenStack, VMware, Azure)
 - Advanced filtering (complex queries)
 - Batch operations
 - Custom resource definitions for all O2-IMS types
 - Cross-backend resource migration
-- O2-DMS multi-cluster deployments
-- Canary and blue-green deployment strategies

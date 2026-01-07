@@ -45,7 +45,7 @@ Official O-RAN Alliance specifications:
   - **Azure** - Virtual Machines, Resource Groups, VM Sizes
   - **GCP** - Compute Engine instances, Zones, Machine Types
   - **VMware vSphere** - VMs, Clusters, Resource Pools
-- ✅ **O2-DMS Integration**: Deployment Management Services with Helm 3 and ArgoCD adapters
+- ✅ **O2-DMS Integration**: Deployment Management Services with Helm 3, ArgoCD, and Flux CD adapters
 - ✅ **O2-SMO Integration**: Service Management & Orchestration with ONAP and OSM adapters
 - ✅ **Enterprise Multi-Tenancy**: Built-in from day 1 - support multiple SMO systems with strict resource isolation
 - ✅ **Comprehensive RBAC**: Fine-grained role-based access control with system and tenant roles
@@ -55,6 +55,7 @@ Official O-RAN Alliance specifications:
 - ✅ **Real-Time Notifications**: Webhook-based subscriptions for infrastructure change events
 - ✅ **Extensible Architecture**: Plugin-based adapter system with 25+ production-ready adapters
 - ✅ **Enterprise Observability**: Prometheus metrics, Jaeger tracing, structured logging
+- ✅ **Interactive API Documentation**: OpenAPI 3.0 spec with Swagger UI for API exploration
 
 ### Use Cases
 
@@ -93,6 +94,7 @@ graph TB
         subgraph DMS_Backends [DMS: Deployment 7+]
             Helm[Helm 3]
             Argo[ArgoCD]
+            Flux[Flux CD]
             ONAP_LCM[ONAP-LCM]
         end
 
@@ -122,6 +124,22 @@ graph TB
     style IMS_Backends fill:#f0f8ff
     style DMS_Backends fill:#f5f0ff
     style SMO_Backends fill:#fff5f0
+```
+
+### API Documentation
+
+The gateway provides interactive API documentation via Swagger UI:
+
+- **Swagger UI**: Access at `/docs/` for interactive API exploration
+- **OpenAPI Spec**: Available at `/openapi.yaml` (YAML format)
+- **Try It Out**: Test API endpoints directly from the documentation
+
+```bash
+# Access Swagger UI (after deployment)
+open https://netweave.example.com/docs/
+
+# Download OpenAPI spec
+curl https://netweave.example.com/openapi.yaml -o o2ims-api.yaml
 ```
 
 ### Documentation
@@ -324,15 +342,30 @@ curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
 
 See [docs/api-mapping.md](docs/api-mapping.md) for O2-IMS ↔ Kubernetes resource mappings.
 
-## O2-DMS API Coverage
+## O2-SMO API Coverage
 
-| Resource | List | Get | Create | Update | Delete | Scale | Rollback |
-|----------|------|-----|--------|--------|--------|-------|----------|
-| NF Deployments | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| NF Deployment Descriptors | ✅ | ✅ | ✅ | ❌ | ✅ | N/A | N/A |
-| DMS Subscriptions | ✅ | ✅ | ✅ | ❌ | ✅ | N/A | N/A |
+The O2-SMO API (`/o2smo/v1/*`) provides integration with Service Management & Orchestration systems:
 
-See [docs/o2dms-api-mapping.md](docs/o2dms-api-mapping.md) for O2-DMS ↔ Kubernetes/Helm/ArgoCD mappings.
+| Resource | List | Get | Create | Execute | Cancel |
+|----------|------|-----|--------|---------|--------|
+| Plugins | ✅ | ✅ | - | - | - |
+| Workflows | - | ✅ | - | ✅ | ✅ |
+| Service Models | ✅ | ✅ | ✅ | - | - |
+| Policies | - | ✅ | ✅ | - | - |
+| Infrastructure Sync | - | - | ✅ | - | - |
+| Deployment Sync | - | - | ✅ | - | - |
+| Events | - | - | ✅ | - | - |
+| Health | - | ✅ | - | - | - |
+
+**O2-SMO Features:**
+- 🔌 **Plugin System**: Extensible adapter architecture (ONAP, OSM, custom)
+- 🔄 **Workflow Orchestration**: Execute and monitor orchestration workflows
+- 📋 **Service Modeling**: Register and manage service models
+- 📜 **Policy Management**: Apply and monitor policies
+- 🔗 **Infrastructure Sync**: Synchronize infrastructure inventory with SMO
+- 📡 **Event Publishing**: Publish infrastructure and deployment events
+
+See [docs/o2dms-o2smo-extension.md](docs/o2dms-o2smo-extension.md) for detailed O2-SMO integration documentation.
 
 ## Development
 
@@ -436,6 +469,9 @@ make quality
 
 ```
 netweave/
+├── api/
+│   └── openapi/              # OpenAPI specifications
+│       └── o2ims.yaml        # O2-IMS API spec
 ├── cmd/
 │   └── gateway/              # Main gateway binary
 ├── internal/
@@ -449,7 +485,8 @@ netweave/
 │   │   ├── adapter/          # DMS adapter interface
 │   │   └── adapters/         # DMS backend adapters
 │   │       ├── helm/         # Helm 3 adapter
-│   │       └── argocd/       # ArgoCD GitOps adapter
+│   │       ├── argocd/       # ArgoCD GitOps adapter
+│   │       └── flux/         # Flux CD GitOps adapter
 │   ├── smo/                  # O2-SMO (Service Management & Orchestration)
 │   │   ├── adapter/          # SMO adapter interface
 │   │   └── adapters/         # SMO backend adapters
@@ -534,6 +571,7 @@ netweave/
 - ✅ O2-DMS support (Deployment Management Services)
   - ✅ Helm 3 adapter for CNF/VNF deployment
   - ✅ ArgoCD adapter for GitOps deployments
+  - ✅ Flux CD adapter for GitOps deployments
 - ✅ O2-SMO integration (Service Management & Orchestration)
   - ✅ ONAP adapter
   - ✅ OSM (Open Source MANO) adapter

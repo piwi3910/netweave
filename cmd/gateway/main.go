@@ -194,6 +194,18 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*applicationC
 		zap.String("mode", cfg.Server.GinMode),
 	)
 
+	// Load OpenAPI specification for documentation endpoints
+	// This is fail-fast - server won't start without a valid OpenAPI spec
+	spec, err := loadOpenAPISpec(logger)
+	if err != nil {
+		logger.Error("failed to load OpenAPI specification", zap.Error(err))
+		return nil, fmt.Errorf("failed to load OpenAPI specification: %w", err)
+	}
+	srv.SetOpenAPISpec(spec)
+	logger.Info("OpenAPI specification loaded",
+		zap.Int("size", len(spec)),
+	)
+
 	return &applicationComponents{
 		store:         store,
 		k8sAdapter:    k8sAdapter,
@@ -480,11 +492,10 @@ func gracefulShutdown(_ context.Context, srv *server.Server, cfg *config.Config,
 	// Channel to signal shutdown completion
 	shutdownComplete := make(chan error, 1)
 
-	// Perform shutdown in a goroutine
-	//nolint:contextcheck // srv.Shutdown() uses shutdownCtx from parent scope internally
+	// Perform shutdown in a goroutine with the shutdown context
 	go func() {
-		// Shutdown HTTP server
-		if err := srv.Shutdown(); err != nil {
+		// Shutdown HTTP server using the shutdown context
+		if err := srv.ShutdownWithContext(shutdownCtx); err != nil {
 			shutdownComplete <- fmt.Errorf("server shutdown failed: %w", err)
 			return
 		}
@@ -506,4 +517,30 @@ func gracefulShutdown(_ context.Context, srv *server.Server, cfg *config.Config,
 		logger.Warn("graceful shutdown timed out, forcing shutdown")
 		return fmt.Errorf("shutdown timeout exceeded")
 	}
+}
+
+// loadOpenAPISpec loads the OpenAPI specification from the api/openapi directory.
+// The spec is loaded from multiple possible locations to support different deployment scenarios.
+// Returns the spec data or an error if not found.
+func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
+	// Possible locations for the OpenAPI spec file
+	specPaths := []string{
+		"api/openapi/o2ims.yaml",      // Local development
+		"./api/openapi/o2ims.yaml",    // Explicit local path
+		"/etc/netweave/openapi.yaml",  // Production deployment
+		"/app/api/openapi/o2ims.yaml", // Container deployment
+	}
+
+	for _, path := range specPaths {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			logger.Debug("loaded OpenAPI spec",
+				zap.String("path", path),
+				zap.Int("size", len(data)),
+			)
+			return data, nil
+		}
+	}
+
+	return nil, fmt.Errorf("OpenAPI specification not found in any of the expected locations")
 }

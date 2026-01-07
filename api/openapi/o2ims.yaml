@@ -2,12 +2,30 @@ openapi: 3.0.3
 info:
   title: O2-IMS API
   description: |
-    O-RAN O2 Interface Management Service (IMS) API for managing cloud infrastructure resources.
-    This API provides endpoints for managing resource pools, resources, resource types,
-    deployment managers, and subscriptions for event notifications.
+    ORAN O2-IMS (O-Cloud Infrastructure Management Service) API for managing O-Cloud infrastructure resources.
+
+    This API provides endpoints for:
+    - **Subscriptions**: Event subscription management for resource change notifications
+    - **Resource Pools**: Logical groupings of infrastructure resources
+    - **Resources**: Individual infrastructure units (compute nodes, storage, etc.)
+    - **Resource Types**: Classification of infrastructure resources
+    - **Deployment Managers**: O-Cloud deployment metadata
+    - **O-Cloud Infrastructure**: Top-level infrastructure information
+
+    ## Authentication
+
+    This API supports mTLS (mutual TLS) authentication. Clients must present valid certificates
+    signed by a trusted CA.
+
+    ## Rate Limiting
+
+    API calls are subject to rate limiting. See response headers for current limits:
+    - `X-RateLimit-Limit`: Maximum requests per window
+    - `X-RateLimit-Remaining`: Remaining requests in current window
+    - `X-RateLimit-Reset`: Unix timestamp when the window resets
   version: 1.0.0
   contact:
-    name: O2-IMS Gateway
+    name: Netweave Project
     url: https://github.com/piwi3910/netweave
   license:
     name: Apache 2.0
@@ -18,52 +36,78 @@ servers:
     description: O2-IMS API v1
 
 tags:
-  - name: subscriptions
-    description: Subscription management for event notifications
-  - name: resourcePools
-    description: Resource pool management
-  - name: resources
-    description: Resource management
-  - name: resourceTypes
-    description: Resource type management
-  - name: deploymentManagers
-    description: Deployment manager management
-  - name: oCloudInfrastructure
-    description: O-Cloud infrastructure information
+  - name: Subscriptions
+    description: Event subscription management for resource change notifications
+  - name: Resource Pools
+    description: Logical groupings of infrastructure resources
+  - name: Resources
+    description: Individual infrastructure units
+  - name: Resource Types
+    description: Classification of infrastructure resources
+  - name: Deployment Managers
+    description: O-Cloud deployment metadata
+  - name: O-Cloud Infrastructure
+    description: Top-level infrastructure information
 
 paths:
   /subscriptions:
     get:
-      tags:
-        - subscriptions
       summary: List all subscriptions
-      description: Returns a list of all subscriptions for event notifications
+      description: Retrieves a list of all active subscriptions for resource change notifications.
       operationId: listSubscriptions
+      tags:
+        - Subscriptions
+      parameters:
+        - $ref: '#/components/parameters/ResourcePoolIdFilter'
+        - $ref: '#/components/parameters/OffsetParam'
+        - $ref: '#/components/parameters/LimitParam'
       responses:
         '200':
-          description: Successful operation
+          description: List of subscriptions retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SubscriptionListResponse'
+              example:
+                subscriptions:
+                  - subscriptionId: "550e8400-e29b-41d4-a716-446655440000"
+                    callback: "https://smo.example.com/notifications"
+                    consumerSubscriptionId: "smo-sub-123"
+                    filter:
+                      resourcePoolId:
+                        - "pool-compute-high-mem"
+                      resourceTypeId:
+                        - "compute-node"
+                      resourceId: []
+                    createdAt: "2024-01-15T10:30:00Z"
+                total: 1
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
+
     post:
-      tags:
-        - subscriptions
-      summary: Create a new subscription
-      description: Creates a new subscription for receiving event notifications
+      summary: Create a subscription
+      description: |
+        Creates a new subscription for receiving notifications about resource changes.
+
+        When resources matching the filter criteria are created, updated, or deleted,
+        a webhook notification will be sent to the specified callback URL.
       operationId: createSubscription
+      tags:
+        - Subscriptions
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SubscriptionCreateRequest'
+              $ref: '#/components/schemas/CreateSubscriptionRequest'
+            example:
+              callback: "https://smo.example.com/notifications"
+              consumerSubscriptionId: "smo-sub-123"
+              filter:
+                resourcePoolId:
+                  - "pool-compute-high-mem"
+                resourceTypeId:
+                  - "compute-node"
       responses:
         '201':
           description: Subscription created successfully
@@ -71,390 +115,319 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Subscription'
+              example:
+                subscriptionId: "550e8400-e29b-41d4-a716-446655440000"
+                callback: "https://smo.example.com/notifications"
+                consumerSubscriptionId: "smo-sub-123"
+                filter:
+                  resourcePoolId:
+                    - "pool-compute-high-mem"
+                  resourceTypeId:
+                    - "compute-node"
+                  resourceId: []
+                createdAt: "2024-01-15T10:30:00Z"
         '400':
-          description: Invalid request body
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Subscription with the same consumer ID already exists
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Conflict"
+                message: "Subscription already exists"
+                code: 409
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
 
   /subscriptions/{subscriptionId}:
     get:
-      tags:
-        - subscriptions
-      summary: Get a subscription by ID
-      description: Returns a specific subscription by its ID
+      summary: Get a subscription
+      description: Retrieves details of a specific subscription by its ID.
       operationId: getSubscription
+      tags:
+        - Subscriptions
       parameters:
         - $ref: '#/components/parameters/SubscriptionId'
       responses:
         '200':
-          description: Successful operation
+          description: Subscription retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
-          description: Subscription not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFound'
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
+
     delete:
-      tags:
-        - subscriptions
       summary: Delete a subscription
-      description: Deletes a subscription by its ID
+      description: Deletes a subscription and stops sending notifications.
       operationId: deleteSubscription
+      tags:
+        - Subscriptions
       parameters:
         - $ref: '#/components/parameters/SubscriptionId'
       responses:
         '204':
           description: Subscription deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
-          description: Subscription not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFound'
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
 
   /resourcePools:
     get:
-      tags:
-        - resourcePools
       summary: List all resource pools
-      description: Returns a list of all resource pools
+      description: Retrieves a list of all resource pools in the O-Cloud infrastructure.
       operationId: listResourcePools
+      tags:
+        - Resource Pools
       responses:
         '200':
-          description: Successful operation
+          description: List of resource pools retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourcePoolListResponse'
+              example:
+                resourcePools:
+                  - resourcePoolId: "pool-compute-high-mem"
+                    name: "High Memory Compute Pool"
+                    description: "Pool of high-memory compute nodes"
+                    location: "us-east-1"
+                    oCloudId: "ocloud-001"
+                    globalLocationId: "geo:37.7749,-122.4194"
+                    extensions:
+                      capacity: 100
+                      available: 85
+                total: 1
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
 
   /resourcePools/{resourcePoolId}:
     get:
-      tags:
-        - resourcePools
-      summary: Get a resource pool by ID
-      description: Returns a specific resource pool by its ID
+      summary: Get a resource pool
+      description: Retrieves details of a specific resource pool by its ID.
       operationId: getResourcePool
+      tags:
+        - Resource Pools
       parameters:
         - $ref: '#/components/parameters/ResourcePoolId'
       responses:
         '200':
-          description: Successful operation
+          description: Resource pool retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourcePool'
         '404':
-          description: Resource pool not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFound'
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
 
   /resourcePools/{resourcePoolId}/resources:
     get:
-      tags:
-        - resourcePools
-      summary: List resources in a resource pool
-      description: Returns all resources within a specific resource pool
+      summary: List resources in a pool
+      description: Retrieves all resources belonging to a specific resource pool.
       operationId: listResourcesInPool
+      tags:
+        - Resource Pools
       parameters:
         - $ref: '#/components/parameters/ResourcePoolId'
       responses:
         '200':
-          description: Successful operation
+          description: List of resources in the pool retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourceListResponse'
         '404':
-          description: Resource pool not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFound'
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
 
   /resources:
     get:
-      tags:
-        - resources
       summary: List all resources
-      description: Returns a list of all resources
+      description: Retrieves a list of all resources across all resource pools.
       operationId: listResources
+      tags:
+        - Resources
       responses:
         '200':
-          description: Successful operation
+          description: List of resources retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourceListResponse'
+              example:
+                resources:
+                  - resourceId: "node-001"
+                    resourceTypeId: "compute-node"
+                    resourcePoolId: "pool-compute-high-mem"
+                    globalAssetId: "urn:o-ran:resource:node-001"
+                    description: "High-memory compute node"
+                    extensions:
+                      cpu: "64 cores"
+                      memory: "512GB"
+                total: 1
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
 
   /resources/{resourceId}:
     get:
-      tags:
-        - resources
-      summary: Get a resource by ID
-      description: Returns a specific resource by its ID
+      summary: Get a resource
+      description: Retrieves details of a specific resource by its ID.
       operationId: getResource
+      tags:
+        - Resources
       parameters:
         - $ref: '#/components/parameters/ResourceId'
       responses:
         '200':
-          description: Successful operation
+          description: Resource retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Resource'
         '404':
-          description: Resource not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFound'
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
 
   /resourceTypes:
     get:
-      tags:
-        - resourceTypes
       summary: List all resource types
-      description: Returns a list of all resource types
+      description: Retrieves a list of all resource types supported by the O-Cloud.
       operationId: listResourceTypes
+      tags:
+        - Resource Types
       responses:
         '200':
-          description: Successful operation
+          description: List of resource types retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourceTypeListResponse'
+              example:
+                resourceTypes:
+                  - resourceTypeId: "compute-node"
+                    name: "Compute Node"
+                    description: "Physical or virtual compute resource"
+                    vendor: "Dell"
+                    model: "PowerEdge R750"
+                    version: "1.0"
+                    resourceClass: "compute"
+                    resourceKind: "physical"
+                total: 1
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
 
   /resourceTypes/{resourceTypeId}:
     get:
-      tags:
-        - resourceTypes
-      summary: Get a resource type by ID
-      description: Returns a specific resource type by its ID
+      summary: Get a resource type
+      description: Retrieves details of a specific resource type by its ID.
       operationId: getResourceType
+      tags:
+        - Resource Types
       parameters:
         - $ref: '#/components/parameters/ResourceTypeId'
       responses:
         '200':
-          description: Successful operation
+          description: Resource type retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourceType'
         '404':
-          description: Resource type not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFound'
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
 
   /deploymentManagers:
     get:
-      tags:
-        - deploymentManagers
       summary: List all deployment managers
-      description: Returns a list of all deployment managers
+      description: Retrieves a list of all deployment managers in the O-Cloud.
       operationId: listDeploymentManagers
+      tags:
+        - Deployment Managers
       responses:
         '200':
-          description: Successful operation
+          description: List of deployment managers retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeploymentManagerListResponse'
+              example:
+                deploymentManagers:
+                  - deploymentManagerId: "dm-001"
+                    name: "Primary Deployment Manager"
+                    description: "Main O-Cloud deployment manager"
+                    oCloudId: "ocloud-001"
+                    serviceUri: "https://o2ims.example.com/o2ims/v1"
+                    supportedLocations:
+                      - "us-east-1"
+                      - "us-west-2"
+                    capabilities:
+                      - "resource-pools"
+                      - "resources"
+                      - "subscriptions"
+                total: 1
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
 
   /deploymentManagers/{deploymentManagerId}:
     get:
-      tags:
-        - deploymentManagers
-      summary: Get a deployment manager by ID
-      description: Returns a specific deployment manager by its ID
+      summary: Get a deployment manager
+      description: Retrieves details of a specific deployment manager by its ID.
       operationId: getDeploymentManager
+      tags:
+        - Deployment Managers
       parameters:
         - $ref: '#/components/parameters/DeploymentManagerId'
       responses:
         '200':
-          description: Successful operation
+          description: Deployment manager retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeploymentManager'
         '404':
-          description: Deployment manager not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFound'
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
 
   /oCloudInfrastructure:
     get:
-      tags:
-        - oCloudInfrastructure
       summary: Get O-Cloud infrastructure information
-      description: Returns information about the O-Cloud infrastructure
+      description: Retrieves top-level information about the O-Cloud infrastructure.
       operationId: getOCloudInfrastructure
+      tags:
+        - O-Cloud Infrastructure
       responses:
         '200':
-          description: Successful operation
+          description: O-Cloud infrastructure information retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OCloudInfrastructure'
+              example:
+                oCloudId: "ocloud-001"
+                name: "Primary O-Cloud"
+                description: "Main O-Cloud infrastructure"
+                serviceUri: "https://o2ims.example.com/o2ims/v1"
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalServerError'
 
 components:
-  parameters:
-    SubscriptionId:
-      name: subscriptionId
-      in: path
-      required: true
-      description: The unique identifier of the subscription
-      schema:
-        type: string
-        format: uuid
-        minLength: 1
-
-    ResourcePoolId:
-      name: resourcePoolId
-      in: path
-      required: true
-      description: The unique identifier of the resource pool
-      schema:
-        type: string
-        minLength: 1
-
-    ResourceId:
-      name: resourceId
-      in: path
-      required: true
-      description: The unique identifier of the resource
-      schema:
-        type: string
-        minLength: 1
-
-    ResourceTypeId:
-      name: resourceTypeId
-      in: path
-      required: true
-      description: The unique identifier of the resource type
-      schema:
-        type: string
-        minLength: 1
-
-    DeploymentManagerId:
-      name: deploymentManagerId
-      in: path
-      required: true
-      description: The unique identifier of the deployment manager
-      schema:
-        type: string
-        minLength: 1
-
   schemas:
-    ErrorResponse:
-      type: object
-      required:
-        - error
-        - message
-        - code
-      properties:
-        error:
-          type: string
-          description: Error type identifier
-          example: NotFound
-        message:
-          type: string
-          description: Human-readable error message
-          example: Resource not found
-        code:
-          type: integer
-          description: HTTP status code
-          example: 404
-
     Subscription:
       type: object
       required:
@@ -465,48 +438,48 @@ components:
           type: string
           format: uuid
           description: Unique identifier for the subscription
-          example: 550e8400-e29b-41d4-a716-446655440000
+          example: "550e8400-e29b-41d4-a716-446655440000"
         callback:
           type: string
           format: uri
           description: Webhook URL for notifications
-          example: https://smo.example.com/notifications
-          minLength: 1
+          example: "https://smo.example.com/notifications"
         consumerSubscriptionId:
           type: string
-          description: Client-provided identifier for correlation
-          example: smo-sub-123
+          description: Client-provided subscription identifier
+          example: "smo-sub-123"
         filter:
           $ref: '#/components/schemas/SubscriptionFilter'
-        eventTypes:
-          type: array
-          items:
-            type: string
-            enum:
-              - ResourceCreated
-              - ResourceUpdated
-              - ResourceDeleted
-              - ResourcePoolCreated
-              - ResourcePoolUpdated
-              - ResourcePoolDeleted
-              - ResourceTypeCreated
-              - ResourceTypeUpdated
-              - ResourceTypeDeleted
-          description: Types of events to subscribe to
         createdAt:
           type: string
           format: date-time
           description: Timestamp when the subscription was created
-        updatedAt:
-          type: string
-          format: date-time
-          description: Timestamp when the subscription was last updated
-        extensions:
-          type: object
-          additionalProperties: true
-          description: Additional backend-specific fields
+          example: "2024-01-15T10:30:00Z"
 
-    SubscriptionCreateRequest:
+    SubscriptionFilter:
+      type: object
+      description: Filter criteria for subscription notifications
+      properties:
+        resourcePoolId:
+          type: array
+          items:
+            type: string
+          description: Filter by resource pool IDs
+          example: ["pool-compute-high-mem"]
+        resourceTypeId:
+          type: array
+          items:
+            type: string
+          description: Filter by resource type IDs
+          example: ["compute-node"]
+        resourceId:
+          type: array
+          items:
+            type: string
+          description: Filter by specific resource IDs
+          example: ["node-001"]
+
+    CreateSubscriptionRequest:
       type: object
       required:
         - callback
@@ -514,73 +487,27 @@ components:
         callback:
           type: string
           format: uri
-          description: Webhook URL for notifications
-          example: https://smo.example.com/notifications
-          minLength: 1
+          description: Webhook URL for notifications (must be HTTP or HTTPS)
+          example: "https://smo.example.com/notifications"
         consumerSubscriptionId:
           type: string
-          description: Client-provided identifier for correlation
-          example: smo-sub-123
+          description: Client-provided subscription identifier
+          example: "smo-sub-123"
         filter:
           $ref: '#/components/schemas/SubscriptionFilter'
-        eventTypes:
-          type: array
-          items:
-            type: string
-            enum:
-              - ResourceCreated
-              - ResourceUpdated
-              - ResourceDeleted
-              - ResourcePoolCreated
-              - ResourcePoolUpdated
-              - ResourcePoolDeleted
-              - ResourceTypeCreated
-              - ResourceTypeUpdated
-              - ResourceTypeDeleted
-          description: Types of events to subscribe to
-
-    SubscriptionFilter:
-      type: object
-      properties:
-        resourcePoolId:
-          type: array
-          items:
-            type: string
-          description: Filter by resource pool IDs (OR logic)
-        resourceTypeId:
-          type: array
-          items:
-            type: string
-          description: Filter by resource type IDs (OR logic)
-        resourceId:
-          type: array
-          items:
-            type: string
-          description: Filter by resource IDs (OR logic)
-        labels:
-          type: object
-          additionalProperties:
-            type: string
-          description: Filter by labels (AND logic)
-        extensions:
-          type: object
-          additionalProperties: true
-          description: Additional filter criteria
 
     SubscriptionListResponse:
       type: object
-      required:
-        - subscriptions
-        - total
       properties:
         subscriptions:
           type: array
           items:
             $ref: '#/components/schemas/Subscription'
+          description: List of subscriptions
         total:
           type: integer
-          minimum: 0
           description: Total number of subscriptions
+          example: 10
 
     ResourcePool:
       type: object
@@ -592,35 +519,34 @@ components:
         resourcePoolId:
           type: string
           description: Unique identifier for the resource pool
-          example: pool-compute-high-mem
+          example: "pool-compute-high-mem"
         name:
           type: string
-          description: Human-readable name
-          example: High Memory Compute Pool
+          description: Human-readable name of the resource pool
+          example: "High Memory Compute Pool"
         description:
           type: string
-          description: Additional details about the resource pool
+          description: Additional context about the pool
+          example: "Pool of high-memory compute nodes"
         location:
           type: string
-          description: Physical or logical location
-          example: us-east-1a
+          description: Geographic or logical location
+          example: "us-east-1"
         oCloudId:
           type: string
-          description: O-Cloud identifier
+          description: Parent O-Cloud identifier
+          example: "ocloud-001"
         globalLocationId:
           type: string
-          description: Geographic identifier (e.g., geo:lat,lon)
-          example: geo:37.7749,-122.4194
+          description: Geographic coordinates (geo URI format)
+          example: "geo:37.7749,-122.4194"
         extensions:
           type: object
           additionalProperties: true
-          description: Additional backend-specific fields
+          description: Vendor-specific metadata
 
     ResourcePoolListResponse:
       type: object
-      required:
-        - resourcePools
-        - total
       properties:
         resourcePools:
           type: array
@@ -628,8 +554,8 @@ components:
             $ref: '#/components/schemas/ResourcePool'
         total:
           type: integer
-          minimum: 0
           description: Total number of resource pools
+          example: 5
 
     Resource:
       type: object
@@ -640,31 +566,30 @@ components:
         resourceId:
           type: string
           description: Unique identifier for the resource
-          example: node-worker-1a-abc123
+          example: "node-001"
         resourceTypeId:
           type: string
-          description: Type of the resource
-          example: compute-node
+          description: Type/class identifier of the resource
+          example: "compute-node"
         resourcePoolId:
           type: string
-          description: Parent resource pool ID
+          description: Parent resource pool identifier
+          example: "pool-compute-high-mem"
         globalAssetId:
           type: string
           description: Globally unique identifier (URN format)
-          example: urn:o-ran:node:abc123
+          example: "urn:o-ran:resource:node-001"
         description:
           type: string
-          description: Additional details about the resource
+          description: Additional context about the resource
+          example: "High-memory compute node"
         extensions:
           type: object
           additionalProperties: true
-          description: Additional backend-specific fields
+          description: Vendor-specific metadata
 
     ResourceListResponse:
       type: object
-      required:
-        - resources
-        - total
       properties:
         resources:
           type: array
@@ -672,8 +597,8 @@ components:
             $ref: '#/components/schemas/Resource'
         total:
           type: integer
-          minimum: 0
           description: Total number of resources
+          example: 100
 
     ResourceType:
       type: object
@@ -684,49 +609,44 @@ components:
         resourceTypeId:
           type: string
           description: Unique identifier for the resource type
-          example: compute-node-highmem
+          example: "compute-node"
         name:
           type: string
           description: Human-readable name
-          example: High Memory Compute Node
+          example: "Compute Node"
         description:
           type: string
-          description: Additional details about the resource type
+          description: Additional context about the resource type
+          example: "Physical or virtual compute resource"
         vendor:
           type: string
-          description: Vendor/manufacturer
-          example: AWS
+          description: Vendor providing this resource type
+          example: "Dell"
         model:
           type: string
-          description: Model identifier
-          example: m5.4xlarge
+          description: Specific model or SKU
+          example: "PowerEdge R750"
         version:
           type: string
-          description: Version of the resource type
+          description: Hardware/software version
+          example: "1.0"
         resourceClass:
           type: string
-          description: Category of resource
-          enum:
-            - compute
-            - storage
-            - network
+          description: Resource category
+          enum: [compute, storage, network]
+          example: "compute"
         resourceKind:
           type: string
-          description: Kind of resource
-          enum:
-            - physical
-            - virtual
-            - logical
+          description: Physical or virtual indicator
+          enum: [physical, virtual]
+          example: "physical"
         extensions:
           type: object
           additionalProperties: true
-          description: Additional backend-specific fields
+          description: Vendor-specific metadata
 
     ResourceTypeListResponse:
       type: object
-      required:
-        - resourceTypes
-        - total
       properties:
         resourceTypes:
           type: array
@@ -734,8 +654,8 @@ components:
             $ref: '#/components/schemas/ResourceType'
         total:
           type: integer
-          minimum: 0
           description: Total number of resource types
+          example: 10
 
     DeploymentManager:
       type: object
@@ -748,44 +668,43 @@ components:
         deploymentManagerId:
           type: string
           description: Unique identifier for the deployment manager
-          example: ocloud-k8s-1
+          example: "dm-001"
         name:
           type: string
           description: Human-readable name
-          example: Production Kubernetes Cluster
+          example: "Primary Deployment Manager"
         description:
           type: string
-          description: Additional details about the deployment manager
+          description: Additional context about the deployment manager
+          example: "Main O-Cloud deployment manager"
         oCloudId:
           type: string
-          description: O-Cloud identifier
+          description: Parent O-Cloud identifier
+          example: "ocloud-001"
         serviceUri:
           type: string
           format: uri
-          description: Base URI for the deployment manager API
-          example: https://api.o2ims.example.com/o2ims/v1
+          description: API endpoint for O2-IMS services
+          example: "https://o2ims.example.com/o2ims/v1"
         supportedLocations:
           type: array
           items:
             type: string
           description: Geographic locations supported
+          example: ["us-east-1", "us-west-2"]
         capabilities:
           type: array
           items:
             type: string
           description: Features supported by this deployment manager
-        capacity:
-          $ref: '#/components/schemas/Capacity'
+          example: ["resource-pools", "resources", "subscriptions"]
         extensions:
           type: object
           additionalProperties: true
-          description: Additional backend-specific fields
+          description: Vendor-specific metadata
 
     DeploymentManagerListResponse:
       type: object
-      required:
-        - deploymentManagers
-        - total
       properties:
         deploymentManagers:
           type: array
@@ -793,36 +712,8 @@ components:
             $ref: '#/components/schemas/DeploymentManager'
         total:
           type: integer
-          minimum: 0
           description: Total number of deployment managers
-
-    Capacity:
-      type: object
-      properties:
-        totalCpu:
-          type: integer
-          format: int64
-          description: Total CPU capacity in cores
-        totalMemoryMb:
-          type: integer
-          format: int64
-          description: Total memory capacity in MB
-        totalStorageGb:
-          type: integer
-          format: int64
-          description: Total storage capacity in GB
-        availableCpu:
-          type: integer
-          format: int64
-          description: Available CPU capacity in cores
-        availableMemoryMb:
-          type: integer
-          format: int64
-          description: Available memory capacity in MB
-        availableStorageGb:
-          type: integer
-          format: int64
-          description: Available storage capacity in GB
+          example: 1
 
     OCloudInfrastructure:
       type: object
@@ -833,14 +724,158 @@ components:
       properties:
         oCloudId:
           type: string
-          description: O-Cloud identifier
+          description: Unique identifier for the O-Cloud
+          example: "ocloud-001"
         name:
           type: string
           description: Human-readable name
+          example: "Primary O-Cloud"
         description:
           type: string
-          description: Additional details about the O-Cloud
+          description: Additional context about the O-Cloud
+          example: "Main O-Cloud infrastructure"
         serviceUri:
           type: string
           format: uri
-          description: Base URI for the O-Cloud API
+          description: API endpoint for O2-IMS services
+          example: "https://o2ims.example.com/o2ims/v1"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - code
+      properties:
+        error:
+          type: string
+          description: Error type identifier
+          example: "NotFound"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Resource not found: node-001"
+        code:
+          type: integer
+          description: HTTP status code
+          example: 404
+
+  parameters:
+    SubscriptionId:
+      name: subscriptionId
+      in: path
+      required: true
+      description: Unique identifier of the subscription
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    ResourcePoolId:
+      name: resourcePoolId
+      in: path
+      required: true
+      description: Unique identifier of the resource pool
+      schema:
+        type: string
+      example: "pool-compute-high-mem"
+
+    ResourceId:
+      name: resourceId
+      in: path
+      required: true
+      description: Unique identifier of the resource
+      schema:
+        type: string
+      example: "node-001"
+
+    ResourceTypeId:
+      name: resourceTypeId
+      in: path
+      required: true
+      description: Unique identifier of the resource type
+      schema:
+        type: string
+      example: "compute-node"
+
+    DeploymentManagerId:
+      name: deploymentManagerId
+      in: path
+      required: true
+      description: Unique identifier of the deployment manager
+      schema:
+        type: string
+      example: "dm-001"
+
+    ResourcePoolIdFilter:
+      name: resourcePoolId
+      in: query
+      required: false
+      description: Filter by resource pool ID
+      schema:
+        type: string
+      example: "pool-compute-high-mem"
+
+    OffsetParam:
+      name: offset
+      in: query
+      required: false
+      description: Pagination offset (number of items to skip)
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      example: 0
+
+    LimitParam:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of items to return
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters or body
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "BadRequest"
+            message: "Invalid request body: missing required field 'callback'"
+            code: 400
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "NotFound"
+            message: "Resource not found: node-001"
+            code: 404
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "InternalError"
+            message: "Failed to retrieve resources"
+            code: 500
+
+  securitySchemes:
+    mtls:
+      type: mutualTLS
+      description: |
+        Mutual TLS authentication. Clients must present a valid X.509 certificate
+        signed by a trusted Certificate Authority.
