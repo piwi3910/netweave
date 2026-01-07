@@ -193,22 +193,32 @@ func validateAzureConfig(cfg *Config) error {
 		return fmt.Errorf("oCloudID is required")
 	}
 
-	// Validate authentication configuration
-	if !cfg.UseManagedIdentity {
-		if cfg.TenantID == "" {
-			return fmt.Errorf("tenantID is required when not using managed identity")
-		}
-		if cfg.ClientID == "" {
-			return fmt.Errorf("clientID is required when not using managed identity")
-		}
-		if cfg.ClientSecret == "" {
-			return fmt.Errorf("clientSecret is required when not using managed identity")
-		}
+	if err := validateAzureAuth(cfg); err != nil {
+		return err
 	}
 
 	// Validate poolMode if provided
 	if cfg.PoolMode != "" && cfg.PoolMode != "rg" && cfg.PoolMode != "az" {
 		return fmt.Errorf("poolMode must be 'rg' or 'az', got %q", cfg.PoolMode)
+	}
+
+	return nil
+}
+
+// validateAzureAuth validates authentication configuration.
+func validateAzureAuth(cfg *Config) error {
+	if cfg.UseManagedIdentity {
+		return nil
+	}
+
+	if cfg.TenantID == "" {
+		return fmt.Errorf("tenantID is required when not using managed identity")
+	}
+	if cfg.ClientID == "" {
+		return fmt.Errorf("clientID is required when not using managed identity")
+	}
+	if cfg.ClientSecret == "" {
+		return fmt.Errorf("clientSecret is required when not using managed identity")
 	}
 
 	return nil

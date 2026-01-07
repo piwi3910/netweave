@@ -124,54 +124,14 @@ type Config struct {
 //	    PoolMode:           "cluster",
 //	})
 func New(cfg *Config) (*VMwareAdapter, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config cannot be nil")
+	if err := validateVMwareConfig(cfg); err != nil {
+		return nil, err
 	}
 
-	// Validate required configuration
-	if cfg.VCenterURL == "" {
-		return nil, fmt.Errorf("vCenterURL is required")
-	}
-	if cfg.Username == "" {
-		return nil, fmt.Errorf("username is required")
-	}
-	if cfg.Password == "" {
-		return nil, fmt.Errorf("password is required")
-	}
-	if cfg.Datacenter == "" {
-		return nil, fmt.Errorf("datacenter is required")
-	}
-	if cfg.OCloudID == "" {
-		return nil, fmt.Errorf("oCloudID is required")
-	}
-
-	// Set defaults
-	deploymentManagerID := cfg.DeploymentManagerID
-	if deploymentManagerID == "" {
-		deploymentManagerID = fmt.Sprintf("ocloud-vmware-%s", cfg.Datacenter)
-	}
-
-	poolMode := cfg.PoolMode
-	if poolMode == "" {
-		poolMode = "cluster"
-	}
-	if poolMode != "cluster" && poolMode != "pool" {
-		return nil, fmt.Errorf("poolMode must be 'cluster' or 'pool', got %q", poolMode)
-	}
-
-	timeout := cfg.Timeout
-	if timeout == 0 {
-		timeout = 30 * time.Second
-	}
-
-	// Initialize logger
-	logger := cfg.Logger
-	if logger == nil {
-		var err error
-		logger, err = zap.NewProduction()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create logger: %w", err)
-		}
+	deploymentManagerID, poolMode, timeout := applyVMwareDefaults(cfg)
+	logger, err := initializeVMwareLogger(cfg.Logger)
+	if err != nil {
+		return nil, err
 	}
 
 	logger.Info("initializing VMware adapter",
@@ -180,51 +140,21 @@ func New(cfg *Config) (*VMwareAdapter, error) {
 		zap.String("oCloudID", cfg.OCloudID),
 		zap.String("poolMode", poolMode))
 
-	// Parse vCenter URL
-	u, err := soap.ParseURL(cfg.VCenterURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse vCenter URL: %w", err)
-	}
-	u.User = url.UserPassword(cfg.Username, cfg.Password)
-
-	// Create session
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	// Create client with session caching
-	s := &cache.Session{
-		URL:      u,
-		Insecure: cfg.InsecureSkipVerify,
-	}
-
-	c := new(vim25.Client)
-	err = s.Login(ctx, c, nil)
+	client, err := createVMwareClient(ctx, cfg, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to login to vCenter: %w", err)
+		return nil, err
 	}
 
-	client := &govmomi.Client{
-		Client:         c,
-		SessionManager: session.NewManager(c),
-	}
-
-	logger.Info("connected to vCenter",
-		zap.String("vCenterURL", cfg.VCenterURL))
-
-	// Create finder and set datacenter
-	finder := find.NewFinder(client.Client, true)
-
-	dc, err := finder.Datacenter(ctx, cfg.Datacenter)
+	finder, dc, err := setupVMwareDatacenter(ctx, client, cfg.Datacenter, logger)
 	if err != nil {
 		client.Logout(ctx)
-		return nil, fmt.Errorf("failed to find datacenter %s: %w", cfg.Datacenter, err)
+		return nil, err
 	}
-	finder.SetDatacenter(dc)
 
-	logger.Info("found datacenter",
-		zap.String("datacenter", cfg.Datacenter))
-
-	adp := &VMwareAdapter{
+	return &VMwareAdapter{
 		client:              client,
 		finder:              finder,
 		datacenter:          dc,
@@ -235,15 +165,109 @@ func New(cfg *Config) (*VMwareAdapter, error) {
 		datacenterName:      cfg.Datacenter,
 		subscriptions:       make(map[string]*adapter.Subscription),
 		poolMode:            poolMode,
+	}, nil
+}
+
+// validateVMwareConfig validates required configuration fields.
+func validateVMwareConfig(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config cannot be nil")
+	}
+	if cfg.VCenterURL == "" {
+		return fmt.Errorf("vCenterURL is required")
+	}
+	if cfg.Username == "" {
+		return fmt.Errorf("username is required")
+	}
+	if cfg.Password == "" {
+		return fmt.Errorf("password is required")
+	}
+	if cfg.Datacenter == "" {
+		return fmt.Errorf("datacenter is required")
+	}
+	if cfg.OCloudID == "" {
+		return fmt.Errorf("oCloudID is required")
 	}
 
-	logger.Info("VMware adapter initialized successfully",
-		zap.String("oCloudID", cfg.OCloudID),
-		zap.String("deploymentManagerID", deploymentManagerID),
-		zap.String("datacenter", cfg.Datacenter),
-		zap.String("poolMode", poolMode))
+	// Validate poolMode if provided
+	if cfg.PoolMode != "" && cfg.PoolMode != "cluster" && cfg.PoolMode != "pool" {
+		return fmt.Errorf("poolMode must be 'cluster' or 'pool', got %q", cfg.PoolMode)
+	}
 
-	return adp, nil
+	return nil
+}
+
+// applyVMwareDefaults applies default values to configuration.
+func applyVMwareDefaults(cfg *Config) (deploymentManagerID, poolMode string, timeout time.Duration) {
+	deploymentManagerID = cfg.DeploymentManagerID
+	if deploymentManagerID == "" {
+		deploymentManagerID = fmt.Sprintf("ocloud-vmware-%s", cfg.Datacenter)
+	}
+
+	poolMode = cfg.PoolMode
+	if poolMode == "" {
+		poolMode = "cluster"
+	}
+
+	timeout = cfg.Timeout
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
+
+	return deploymentManagerID, poolMode, timeout
+}
+
+// initializeVMwareLogger creates or returns the configured logger.
+func initializeVMwareLogger(logger *zap.Logger) (*zap.Logger, error) {
+	if logger != nil {
+		return logger, nil
+	}
+	logger, err := zap.NewProduction()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logger: %w", err)
+	}
+	return logger, nil
+}
+
+// createVMwareClient creates and authenticates a vCenter client.
+func createVMwareClient(ctx context.Context, cfg *Config, logger *zap.Logger) (*govmomi.Client, error) {
+	u, err := soap.ParseURL(cfg.VCenterURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse vCenter URL: %w", err)
+	}
+	u.User = url.UserPassword(cfg.Username, cfg.Password)
+
+	s := &cache.Session{
+		URL:      u,
+		Insecure: cfg.InsecureSkipVerify,
+	}
+
+	c := new(vim25.Client)
+	if err := s.Login(ctx, c, nil); err != nil {
+		return nil, fmt.Errorf("failed to login to vCenter: %w", err)
+	}
+
+	client := &govmomi.Client{
+		Client:         c,
+		SessionManager: session.NewManager(c),
+	}
+
+	logger.Info("connected to vCenter", zap.String("vCenterURL", cfg.VCenterURL))
+	return client, nil
+}
+
+// setupVMwareDatacenter creates a finder and locates the datacenter.
+func setupVMwareDatacenter(ctx context.Context, client *govmomi.Client, datacenterName string, logger *zap.Logger) (*find.Finder, *object.Datacenter, error) {
+	finder := find.NewFinder(client.Client, true)
+
+	dc, err := finder.Datacenter(ctx, datacenterName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to find datacenter %s: %w", datacenterName, err)
+	}
+	finder.SetDatacenter(dc)
+
+	logger.Info("found datacenter", zap.String("datacenter", datacenterName))
+	return finder, dc, nil
 }
 
 // Name returns the adapter name.
