@@ -1078,9 +1078,9 @@ func (f *FluxAdapter) updateHelmRelease(ctx context.Context, hr *unstructured.Un
 			existingValues = make(map[string]interface{})
 		}
 
-		// Merge with new values
+		// Merge with new values, normalizing types for JSON compatibility
 		for k, v := range update.Values {
-			existingValues[k] = v
+			existingValues[k] = normalizeValueForJSON(v)
 		}
 
 		if err := unstructured.SetNestedField(hr.Object, existingValues, "spec", "values"); err != nil {
@@ -1535,4 +1535,52 @@ func buildLabelSelector(labels map[string]string) string {
 		selectors = append(selectors, fmt.Sprintf("%s=%s", k, v))
 	}
 	return strings.Join(selectors, ",")
+}
+
+// normalizeValueForJSON converts values to JSON-compatible types for k8s.io/apimachinery.
+// The DeepCopyJSONValue function in k8s.io/apimachinery v0.35.0+ only accepts:
+// bool, string, float64, map[string]interface{}, []interface{}, and nil.
+// This function recursively converts int types to float64.
+func normalizeValueForJSON(v interface{}) interface{} {
+	switch val := v.(type) {
+	case int:
+		return float64(val)
+	case int8:
+		return float64(val)
+	case int16:
+		return float64(val)
+	case int32:
+		return float64(val)
+	case int64:
+		return float64(val)
+	case uint:
+		return float64(val)
+	case uint8:
+		return float64(val)
+	case uint16:
+		return float64(val)
+	case uint32:
+		return float64(val)
+	case uint64:
+		return float64(val)
+	case float32:
+		return float64(val)
+	case map[string]interface{}:
+		// Recursively normalize map values
+		normalized := make(map[string]interface{}, len(val))
+		for k, mv := range val {
+			normalized[k] = normalizeValueForJSON(mv)
+		}
+		return normalized
+	case []interface{}:
+		// Recursively normalize slice elements
+		normalized := make([]interface{}, len(val))
+		for i, elem := range val {
+			normalized[i] = normalizeValueForJSON(elem)
+		}
+		return normalized
+	default:
+		// bool, string, float64, nil are already JSON-compatible
+		return v
+	}
 }
