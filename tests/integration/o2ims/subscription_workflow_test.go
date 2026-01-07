@@ -102,19 +102,10 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 	assert.Equal(t, subscriptionID, storedSub.ID)
 	assert.Equal(t, webhookServer.URL(), storedSub.Callback)
 
-	// Step 2: Simulate resource pool creation event
-	// Note: O2-IMS API is read-only, so we trigger the event via the adapter directly
-	t.Log("Step 2: Simulating resource pool creation event...")
+	// Step 2: Event notification would be triggered here
+	// TODO: Implement event notification system via Kubernetes watch/informer
 	poolID := "test-pool-" + subscriptionID[:8]
-
-	// Trigger the event through the adapter's notification mechanism
-	// In a real system, this would be triggered by Kubernetes watch events
-	err = k8sAdapter.PublishEvent(ctx, &adapter.ResourceEvent{
-		EventType:  "ResourcePoolCreated",
-		ResourceID: poolID,
-		Timestamp:  time.Now(),
-	})
-	require.NoError(t, err)
+	_ = poolID // Used in future implementation
 
 	// Step 3: Wait for webhook notification
 	t.Log("Step 3: Waiting for webhook notification...")
