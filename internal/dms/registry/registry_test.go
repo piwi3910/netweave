@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 // mockDMSAdapter implements adapter.DMSAdapter for testing.
 type mockDMSAdapter struct {
+	mu           sync.RWMutex
 	name         string
 	version      string
 	capabilities []adapter.Capability
@@ -97,6 +99,8 @@ func (m *mockDMSAdapter) SupportsScaling() bool  { return true }
 func (m *mockDMSAdapter) SupportsGitOps() bool   { return false }
 
 func (m *mockDMSAdapter) Health(_ context.Context) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if !m.healthy {
 		return m.healthErr
 	}
@@ -589,8 +593,10 @@ func TestRegistry_HealthCheckStateChanges(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Make the adapter unhealthy.
+	mockAdp.mu.Lock()
 	mockAdp.healthy = false
 	mockAdp.healthErr = errors.New("now unhealthy")
+	mockAdp.mu.Unlock()
 
 	// Wait for health check to detect the change.
 	time.Sleep(100 * time.Millisecond)
@@ -599,8 +605,10 @@ func TestRegistry_HealthCheckStateChanges(t *testing.T) {
 	assert.False(t, meta.Healthy)
 
 	// Make it healthy again.
+	mockAdp.mu.Lock()
 	mockAdp.healthy = true
 	mockAdp.healthErr = nil
+	mockAdp.mu.Unlock()
 
 	// Wait for health check to detect recovery.
 	time.Sleep(100 * time.Millisecond)

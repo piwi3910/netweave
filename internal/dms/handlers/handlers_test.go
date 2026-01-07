@@ -964,7 +964,7 @@ func TestHandler_UpdateDeploymentError(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestHandler_DeleteDeploymentError(t *testing.T) {
@@ -978,7 +978,7 @@ func TestHandler_DeleteDeploymentError(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestHandler_ScaleDeploymentError(t *testing.T) {
@@ -1090,7 +1090,7 @@ func TestHandler_DeleteNFDeploymentDescriptor_NotFound(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestHandler_DeleteDMSSubscription_NotFound(t *testing.T) {
@@ -1922,7 +1922,7 @@ func TestCreateNFDeployment_InvalidName(t *testing.T) {
 		{
 			name:        "empty name",
 			deployName:  "",
-			errContains: "cannot be empty",
+			errContains: "required",
 		},
 		{
 			name:        "uppercase name",
