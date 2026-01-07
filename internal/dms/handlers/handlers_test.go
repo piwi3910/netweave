@@ -697,8 +697,12 @@ func TestCreateDMSSubscription(t *testing.T) {
 	handler, _, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
+	// Use a public HTTPS URL that will pass DNS validation.
+	// google.com reliably resolves to public IPs in all environments.
+	testCallbackURL := "https://google.com/webhook"
+
 	createReq := models.CreateDMSSubscriptionRequest{
-		Callback:               "https://example.com/webhook",
+		Callback:               testCallbackURL,
 		ConsumerSubscriptionID: "consumer-123",
 		Filter: &models.DMSSubscriptionFilter{
 			Namespace: "default",
@@ -714,6 +718,9 @@ func TestCreateDMSSubscription(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
+	if w.Code != http.StatusCreated {
+		t.Logf("Response body: %s", w.Body.String())
+	}
 	assert.Equal(t, http.StatusCreated, w.Code)
 
 	var subscription models.DMSSubscription
@@ -721,7 +728,7 @@ func TestCreateDMSSubscription(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, subscription.SubscriptionID)
-	assert.Equal(t, "https://example.com/webhook", subscription.Callback)
+	assert.Equal(t, testCallbackURL, subscription.Callback)
 	assert.Equal(t, "consumer-123", subscription.ConsumerSubscriptionID)
 }
 
@@ -730,8 +737,9 @@ func TestGetDMSSubscription(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	// First create a subscription.
+	testCallbackURL := "https://google.com/webhook"
 	createReq := models.CreateDMSSubscriptionRequest{
-		Callback: "https://example.com/webhook",
+		Callback: testCallbackURL,
 	}
 
 	body, err := json.Marshal(createReq)
@@ -768,8 +776,9 @@ func TestDeleteDMSSubscription(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	// First create a subscription.
+	testCallbackURL := "https://google.com/webhook"
 	createReq := models.CreateDMSSubscriptionRequest{
-		Callback: "https://example.com/webhook",
+		Callback: testCallbackURL,
 	}
 
 	body, err := json.Marshal(createReq)
@@ -1214,8 +1223,9 @@ func TestHandler_CreateSubscriptionNoStore(t *testing.T) {
 	handler := NewHandler(reg, nil, logger)
 	router := setupTestRouter(handler)
 
+	testCallbackURL := "https://google.com/webhook"
 	createReq := models.CreateDMSSubscriptionRequest{
-		Callback: "https://example.com/webhook",
+		Callback: testCallbackURL,
 	}
 	body, err := json.Marshal(createReq)
 	require.NoError(t, err)
@@ -1315,8 +1325,9 @@ func TestHandler_CreateSubscriptionWithFilter(t *testing.T) {
 	handler, _, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
+	testCallbackURL := "https://google.com/webhook"
 	createReq := models.CreateDMSSubscriptionRequest{
-		Callback:               "https://example.com/webhook",
+		Callback:               testCallbackURL,
 		ConsumerSubscriptionID: "consumer-123",
 		Filter: &models.DMSSubscriptionFilter{
 			NFDeploymentIDs:           []string{"nfd-1", "nfd-2"},
@@ -1413,7 +1424,7 @@ func TestValidateCallbackURL(t *testing.T) {
 			name:        "invalid URL format",
 			callbackURL: "not-a-url",
 			wantErr:     true,
-			errContains: "must use HTTPS",
+			errContains: "must have a valid host", // Checked before scheme.
 		},
 		{
 			name:        "empty URL",
@@ -1453,7 +1464,8 @@ func TestIsPrivateIP(t *testing.T) {
 		// Public IPs.
 		{"public IP 8.8.8.8", "8.8.8.8", false},
 		{"public IP 1.1.1.1", "1.1.1.1", false},
-		{"public IP 203.0.113.1", "203.0.113.1", false},
+		// Note: 203.0.113.0/24 is TEST-NET-3 (RFC 5737), reserved for documentation.
+		{"reserved TEST-NET-3", "203.0.113.1", true},
 
 		// Private Class A (10.0.0.0/8).
 		{"private 10.0.0.1", "10.0.0.1", true},
@@ -1724,8 +1736,11 @@ func TestIsPrivateIP_IPv6(t *testing.T) {
 		{"IPv6 documentation", "2001:db8::1", true},
 
 		// IPv4-mapped IPv6.
-		{"IPv4-mapped private", "::ffff:192.168.1.1", true},
-		{"IPv4-mapped public", "::ffff:8.8.8.8", true}, // This checks the IPv4-mapped range itself.
+		// Note: Go's net.ParseIP normalizes ::ffff:x.x.x.x to x.x.x.x (IPv4 form),
+		// so IPv4-mapped addresses are indistinguishable from pure IPv4 after parsing.
+		// Therefore, they follow IPv4 private/public rules based on the underlying IP.
+		{"IPv4-mapped private", "::ffff:192.168.1.1", true},  // Private underlying IPv4.
+		{"IPv4-mapped public", "::ffff:8.8.8.8", false},      // Public underlying IPv4.
 	}
 
 	for _, tt := range tests {

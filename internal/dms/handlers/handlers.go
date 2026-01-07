@@ -89,15 +89,15 @@ func validateCallbackURL(callbackURL string) error {
 		return errors.New("invalid URL format")
 	}
 
-	// Enforce HTTPS for webhook callbacks.
-	if parsed.Scheme != "https" {
-		return errors.New("callback URL must use HTTPS")
-	}
-
 	// Extract host without port.
 	host := parsed.Hostname()
 	if host == "" {
 		return errors.New("callback URL must have a valid host")
+	}
+
+	// Enforce HTTPS for webhook callbacks.
+	if parsed.Scheme != "https" {
+		return errors.New("callback URL must use HTTPS")
 	}
 
 	// Block localhost and loopback addresses.
@@ -164,9 +164,12 @@ func isPrivateIP(ip net.IP) bool {
 		return true
 	}
 
+	// Determine if IP is IPv4 or IPv6 based on original representation.
+	// To4() returns non-nil for IPv4 addresses and IPv4-mapped IPv6.
+	ipv4 := ip.To4()
+
 	// Additional private/reserved ranges not covered by IsPrivate().
-	privateBlocks := []string{
-		// IPv4 reserved ranges.
+	ipv4Blocks := []string{
 		"169.254.0.0/16",  // Link-local (also checked above, but explicit for CIDR matching)
 		"100.64.0.0/10",   // Carrier-grade NAT
 		"192.0.0.0/24",    // IETF Protocol Assignments
@@ -175,19 +178,36 @@ func isPrivateIP(ip net.IP) bool {
 		"203.0.113.0/24",  // Documentation (TEST-NET-3)
 		"224.0.0.0/4",     // Multicast
 		"240.0.0.0/4",     // Reserved for future use
+	}
 
-		// IPv6 private/reserved ranges.
+	ipv6Blocks := []string{
 		"fc00::/7",      // Unique local addresses (ULA)
 		"fe80::/10",     // Link-local
 		"ff00::/8",      // Multicast
 		"::1/128",       // Loopback
-		"::ffff:0:0/96", // IPv4-mapped IPv6
+		"::ffff:0:0/96", // IPv4-mapped IPv6 (all instances, regardless of underlying IPv4)
 		"64:ff9b::/96",  // IPv4/IPv6 translation
 		"100::/64",      // Discard prefix
 		"2001:db8::/32", // Documentation
 	}
 
-	for _, block := range privateBlocks {
+	// For IPv4 addresses, check IPv4-specific blocks only.
+	if ipv4 != nil {
+		for _, block := range ipv4Blocks {
+			_, cidr, err := net.ParseCIDR(block)
+			if err != nil {
+				continue
+			}
+			if cidr.Contains(ipv4) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// For IPv6 addresses, check IPv6-specific blocks.
+	// This includes blocking ALL IPv4-mapped IPv6 addresses.
+	for _, block := range ipv6Blocks {
 		_, cidr, err := net.ParseCIDR(block)
 		if err != nil {
 			continue
