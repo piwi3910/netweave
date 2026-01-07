@@ -183,12 +183,9 @@ func (a *VMwareAdapter) vmToResource(vm *mo.VirtualMachine, vmName string) *adap
 	}
 
 	// Generate resource type ID based on CPU and memory
-	var cpuCount int32
-	var memoryMB int64
-	if vm.Summary.Config != nil {
-		cpuCount = vm.Summary.Config.NumCpu
-		memoryMB = int64(vm.Summary.Config.MemorySizeMB)
-	}
+	config := vm.Summary.Config
+	cpuCount := config.NumCpu
+	memoryMB := int64(config.MemorySizeMB)
 	resourceTypeID := generateVMProfileID(cpuCount, memoryMB)
 
 	// Generate resource ID
@@ -201,38 +198,31 @@ func (a *VMwareAdapter) vmToResource(vm *mo.VirtualMachine, vmName string) *adap
 	}
 
 	// Add summary info
-	if vm.Summary.Config != nil {
-		config := vm.Summary.Config
-		extensions["vmware.guestFullName"] = config.GuestFullName
-		extensions["vmware.guestId"] = config.GuestId
-		extensions["vmware.numCpu"] = config.NumCpu
-		extensions["vmware.memorySizeMB"] = config.MemorySizeMB
-		extensions["vmware.uuid"] = config.Uuid
-		extensions["vmware.instanceUuid"] = config.InstanceUuid
-		extensions["vmware.template"] = config.Template
-	}
+	extensions["vmware.guestFullName"] = config.GuestFullName
+	extensions["vmware.guestId"] = config.GuestId
+	extensions["vmware.numCpu"] = config.NumCpu
+	extensions["vmware.memorySizeMB"] = config.MemorySizeMB
+	extensions["vmware.uuid"] = config.Uuid
+	extensions["vmware.instanceUuid"] = config.InstanceUuid
+	extensions["vmware.template"] = config.Template
 
 	// Add runtime info
-	if vm.Summary.Runtime != nil {
-		runtime := vm.Summary.Runtime
-		extensions["vmware.powerState"] = string(runtime.PowerState)
-		extensions["vmware.connectionState"] = string(runtime.ConnectionState)
-		if runtime.Host != nil {
-			extensions["vmware.host"] = runtime.Host.Value
-		}
-		if runtime.BootTime != nil {
-			extensions["vmware.bootTime"] = runtime.BootTime.String()
-		}
+	runtime := vm.Summary.Runtime
+	extensions["vmware.powerState"] = string(runtime.PowerState)
+	extensions["vmware.connectionState"] = string(runtime.ConnectionState)
+	if runtime.Host != nil {
+		extensions["vmware.host"] = runtime.Host.Value
+	}
+	if runtime.BootTime != nil {
+		extensions["vmware.bootTime"] = runtime.BootTime.String()
 	}
 
 	// Add quick stats
-	if vm.Summary.QuickStats != nil {
-		stats := vm.Summary.QuickStats
-		extensions["vmware.overallCpuUsage"] = stats.OverallCpuUsage
-		extensions["vmware.guestMemoryUsage"] = stats.GuestMemoryUsage
-		extensions["vmware.hostMemoryUsage"] = stats.HostMemoryUsage
-		extensions["vmware.uptimeSeconds"] = stats.UptimeSeconds
-	}
+	stats := vm.Summary.QuickStats
+	extensions["vmware.overallCpuUsage"] = stats.OverallCpuUsage
+	extensions["vmware.guestMemoryUsage"] = stats.GuestMemoryUsage
+	extensions["vmware.hostMemoryUsage"] = stats.HostMemoryUsage
+	extensions["vmware.uptimeSeconds"] = stats.UptimeSeconds
 
 	// Add guest info
 	if vm.Guest != nil {
@@ -271,8 +261,8 @@ func (a *VMwareAdapter) vmToResource(vm *mo.VirtualMachine, vmName string) *adap
 
 	// Get description
 	description := vmName
-	if vm.Summary.Config != nil && vm.Summary.Config.Annotation != "" {
-		description = vm.Summary.Config.Annotation
+	if config.Annotation != "" {
+		description = config.Annotation
 	}
 
 	return &adapter.Resource{

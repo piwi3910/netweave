@@ -1,13 +1,11 @@
 package openstack
 
 import (
-	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/flavors"
-	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

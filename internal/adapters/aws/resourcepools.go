@@ -68,7 +68,7 @@ func (a *AWSAdapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([
 			OCloudID:       a.oCloudID,
 			Extensions: map[string]interface{}{
 				"aws.zoneId":   aws.ToString(az.ZoneId),
-				"aws.zoneType": string(az.ZoneType),
+				"aws.zoneType": aws.ToString(az.ZoneType),
 				"aws.region":   aws.ToString(az.RegionName),
 				"aws.state":    string(az.State),
 			},

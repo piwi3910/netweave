@@ -219,7 +219,7 @@ func (a *AWSAdapter) DeleteResource(ctx context.Context, id string) (err error) 
 		instanceID = id
 	}
 
-	_, err := a.ec2Client.TerminateInstances(ctx, &ec2.TerminateInstancesInput{
+	_, err = a.ec2Client.TerminateInstances(ctx, &ec2.TerminateInstancesInput{
 		InstanceIds: []string{instanceID},
 	})
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/vmware/govmomi/vim25/mo"
+	"github.com/vmware/govmomi/vim25/types"
 	"go.uber.org/zap"
 )
 
@@ -70,14 +71,16 @@ func (a *VMwareAdapter) listClusterPools(ctx context.Context, filter *adapter.Fi
 
 		// Add summary info if available
 		if clusterMo.Summary != nil {
-			pool.Extensions["vmware.totalCpu"] = clusterMo.Summary.TotalCpu
-			pool.Extensions["vmware.totalMemory"] = clusterMo.Summary.TotalMemory
-			pool.Extensions["vmware.numCpuCores"] = clusterMo.Summary.NumCpuCores
-			pool.Extensions["vmware.numCpuThreads"] = clusterMo.Summary.NumCpuThreads
-			pool.Extensions["vmware.effectiveCpu"] = clusterMo.Summary.EffectiveCpu
-			pool.Extensions["vmware.effectiveMemory"] = clusterMo.Summary.EffectiveMemory
-			pool.Extensions["vmware.numHosts"] = clusterMo.Summary.NumHosts
-			pool.Extensions["vmware.numEffectiveHosts"] = clusterMo.Summary.NumEffectiveHosts
+			if summary, ok := clusterMo.Summary.(*types.ComputeResourceSummary); ok {
+				pool.Extensions["vmware.totalCpu"] = summary.TotalCpu
+				pool.Extensions["vmware.totalMemory"] = summary.TotalMemory
+				pool.Extensions["vmware.numCpuCores"] = summary.NumCpuCores
+				pool.Extensions["vmware.numCpuThreads"] = summary.NumCpuThreads
+				pool.Extensions["vmware.effectiveCpu"] = summary.EffectiveCpu
+				pool.Extensions["vmware.effectiveMemory"] = summary.EffectiveMemory
+				pool.Extensions["vmware.numHosts"] = summary.NumHosts
+				pool.Extensions["vmware.numEffectiveHosts"] = summary.NumEffectiveHosts
+			}
 		}
 
 		pools = append(pools, pool)
@@ -139,15 +142,14 @@ func (a *VMwareAdapter) listVSpherePools(ctx context.Context, filter *adapter.Fi
 		}
 
 		// Add runtime info
-		if rpMo.Summary != nil && rpMo.Summary.Runtime != nil {
-			runtime := rpMo.Summary.Runtime
-			pool.Extensions["vmware.overallStatus"] = string(runtime.OverallStatus)
-			if runtime.Cpu != nil {
+		if rpMo.Summary != nil {
+			if summary, ok := rpMo.Summary.(*types.ResourcePoolSummary); ok {
+				runtime := &summary.Runtime
+				pool.Extensions["vmware.overallStatus"] = string(runtime.OverallStatus)
+				// Cpu and Memory are structs, not pointers, so they always exist
 				pool.Extensions["vmware.cpuMaxUsage"] = runtime.Cpu.MaxUsage
 				pool.Extensions["vmware.cpuOverallUsage"] = runtime.Cpu.OverallUsage
 				pool.Extensions["vmware.cpuReservationUsed"] = runtime.Cpu.ReservationUsed
-			}
-			if runtime.Memory != nil {
 				pool.Extensions["vmware.memoryMaxUsage"] = runtime.Memory.MaxUsage
 				pool.Extensions["vmware.memoryOverallUsage"] = runtime.Memory.OverallUsage
 				pool.Extensions["vmware.memoryReservationUsed"] = runtime.Memory.ReservationUsed

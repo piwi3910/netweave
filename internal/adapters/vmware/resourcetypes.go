@@ -36,10 +36,6 @@ func (a *VMwareAdapter) ListResourceTypes(ctx context.Context, filter *adapter.F
 			continue
 		}
 
-		if vmMo.Summary.Config == nil {
-			continue
-		}
-
 		config := vmMo.Summary.Config
 		cpuCount := config.NumCpu
 		memoryMB := int64(config.MemorySizeMB)

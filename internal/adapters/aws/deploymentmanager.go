@@ -72,7 +72,7 @@ func (a *AWSAdapter) GetDeploymentManager(ctx context.Context, id string) (*adap
 			"aws.region":         a.region,
 			"aws.regionEndpoint": aws.ToString(currentRegion.Endpoint),
 			"aws.poolMode":       a.poolMode,
-			"aws.optInStatus":    string(currentRegion.OptInStatus),
+			"aws.optInStatus":    aws.ToString(currentRegion.OptInStatus),
 		},
 	}
 

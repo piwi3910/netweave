@@ -197,8 +197,12 @@ func (a *GCPAdapter) instanceToResource(instance *computepb.Instance, zone strin
 	}
 
 	// Build extensions with GCP instance details
+	var instanceID int64
+	if instance.Id != nil {
+		instanceID = int64(*instance.Id)
+	}
 	extensions := map[string]interface{}{
-		"gcp.id":          ptrToInt64((*int64)(instance.Id)),
+		"gcp.id":          instanceID,
 		"gcp.name":        instanceName,
 		"gcp.zone":        zone,
 		"gcp.machineType": machineType,
