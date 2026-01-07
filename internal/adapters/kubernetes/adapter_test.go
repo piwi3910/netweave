@@ -1202,36 +1202,49 @@ func TestKubernetesAdapter_ConcurrentMetadata(t *testing.T) {
 
 	const numGoroutines = 10
 	var wg sync.WaitGroup
+
+	// Collect results from goroutines to avoid race conditions on testing.T
+	names := make([]string, numGoroutines)
+	versions := make([]string, numGoroutines)
+	capabilities := make([][]adapterapi.Capability, numGoroutines)
+
 	wg.Add(numGoroutines * 3)
 
 	// Concurrent Name() calls
 	for i := 0; i < numGoroutines; i++ {
+		i := i // Capture loop variable
 		go func() {
 			defer wg.Done()
-			name := adp.Name()
-			assert.Equal(t, "kubernetes", name)
+			names[i] = adp.Name()
 		}()
 	}
 
 	// Concurrent Version() calls
 	for i := 0; i < numGoroutines; i++ {
+		i := i // Capture loop variable
 		go func() {
 			defer wg.Done()
-			version := adp.Version()
-			assert.NotEmpty(t, version)
+			versions[i] = adp.Version()
 		}()
 	}
 
 	// Concurrent Capabilities() calls
 	for i := 0; i < numGoroutines; i++ {
+		i := i // Capture loop variable
 		go func() {
 			defer wg.Done()
-			caps := adp.Capabilities()
-			assert.Len(t, caps, 6)
+			capabilities[i] = adp.Capabilities()
 		}()
 	}
 
 	wg.Wait()
+
+	// Assert on collected results after all goroutines complete
+	for i := 0; i < numGoroutines; i++ {
+		assert.Equal(t, "kubernetes", names[i], "Name() should return 'kubernetes'")
+		assert.NotEmpty(t, versions[i], "Version() should not be empty")
+		assert.Len(t, capabilities[i], 6, "Capabilities() should return 6 items")
+	}
 }
 
 func TestKubernetesAdapter_ConcurrentListOperations(t *testing.T) {
@@ -1240,36 +1253,52 @@ func TestKubernetesAdapter_ConcurrentListOperations(t *testing.T) {
 
 	const numGoroutines = 5
 	var wg sync.WaitGroup
+
+	// Collect errors from goroutines to avoid race conditions on testing.T
+	poolErrors := make([]error, numGoroutines)
+	resourceErrors := make([]error, numGoroutines)
+	typeErrors := make([]error, numGoroutines)
+
 	wg.Add(numGoroutines * 3)
 
 	// Concurrent ListResourcePools calls
 	for i := 0; i < numGoroutines; i++ {
+		i := i // Capture loop variable
 		go func() {
 			defer wg.Done()
 			_, err := adp.ListResourcePools(ctx, nil)
-			assert.Error(t, err)
+			poolErrors[i] = err
 		}()
 	}
 
 	// Concurrent ListResources calls
 	for i := 0; i < numGoroutines; i++ {
+		i := i // Capture loop variable
 		go func() {
 			defer wg.Done()
 			_, err := adp.ListResources(ctx, nil)
-			assert.Error(t, err)
+			resourceErrors[i] = err
 		}()
 	}
 
 	// Concurrent ListResourceTypes calls
 	for i := 0; i < numGoroutines; i++ {
+		i := i // Capture loop variable
 		go func() {
 			defer wg.Done()
 			_, err := adp.ListResourceTypes(ctx, nil)
-			assert.Error(t, err)
+			typeErrors[i] = err
 		}()
 	}
 
 	wg.Wait()
+
+	// Assert on collected errors after all goroutines complete
+	for i := 0; i < numGoroutines; i++ {
+		assert.Error(t, poolErrors[i], "ListResourcePools should return error")
+		assert.Error(t, resourceErrors[i], "ListResources should return error")
+		assert.Error(t, typeErrors[i], "ListResourceTypes should return error")
+	}
 }
 
 // Benchmark tests for performance tracking
