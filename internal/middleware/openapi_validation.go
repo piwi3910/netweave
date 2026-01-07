@@ -164,9 +164,15 @@ func (v *OpenAPIValidator) Spec() *openapi3.T {
 }
 
 // isExcludedPath checks if the given path should be excluded from validation.
+// It matches exact paths or path prefixes followed by a slash.
 func (v *OpenAPIValidator) isExcludedPath(path string) bool {
 	for _, excluded := range v.config.ExcludePaths {
-		if strings.HasPrefix(path, excluded) {
+		// Exact match
+		if path == excluded {
+			return true
+		}
+		// Prefix match with trailing slash (e.g., "/health/" matches "/health/live")
+		if strings.HasPrefix(path, excluded+"/") {
 			return true
 		}
 	}
