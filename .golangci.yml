@@ -164,6 +164,13 @@ issues:
         - unused
         - ireturn
         - dupl
+        - cyclop
+        - errcheck
+        - contextcheck
+        - wrapcheck
+        - promlinter
+        - misspell
+        - usestdlibvars
     # Allow linting issues in DMS code (part of PR #29 but need focused cleanup later)
     - path: internal/dms/
       linters:
