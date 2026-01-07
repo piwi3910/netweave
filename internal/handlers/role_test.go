@@ -210,7 +210,7 @@ func TestRoleHandler_GetRole(t *testing.T) {
 			isPlatformAdmin: false,
 			setupStore:      func(s *mockAuthStore) {},
 			wantStatus:      http.StatusMovedPermanently, // 301 redirect from router
-			validateBody:    nil,                          // No JSON response for redirects
+			validateBody:    nil,                         // No JSON response for redirects
 		},
 		{
 			name:            "get role from different tenant denied",

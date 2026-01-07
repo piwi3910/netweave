@@ -1739,8 +1739,8 @@ func TestIsPrivateIP_IPv6(t *testing.T) {
 		// Note: Go's net.ParseIP normalizes ::ffff:x.x.x.x to x.x.x.x (IPv4 form),
 		// so IPv4-mapped addresses are indistinguishable from pure IPv4 after parsing.
 		// Therefore, they follow IPv4 private/public rules based on the underlying IP.
-		{"IPv4-mapped private", "::ffff:192.168.1.1", true},  // Private underlying IPv4.
-		{"IPv4-mapped public", "::ffff:8.8.8.8", false},      // Public underlying IPv4.
+		{"IPv4-mapped private", "::ffff:192.168.1.1", true}, // Private underlying IPv4.
+		{"IPv4-mapped public", "::ffff:8.8.8.8", false},     // Public underlying IPv4.
 	}
 
 	for _, tt := range tests {
