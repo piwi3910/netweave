@@ -168,102 +168,18 @@ func (a *VMwareAdapter) DeleteResource(ctx context.Context, id string) (err erro
 
 // vmToResource converts a vSphere VM to an O2-IMS Resource.
 func (a *VMwareAdapter) vmToResource(vm *mo.VirtualMachine, vmName string) *adapter.Resource {
-	// Determine resource pool ID
-	var resourcePoolID string
-	if a.poolMode == "cluster" {
-		// In cluster mode, use the default cluster as the pool
-		resourcePoolID = generateClusterPoolID("default")
-	} else {
-		// In pool mode, use the resource pool reference
-		if vm.ResourcePool != nil {
-			resourcePoolID = generateResourcePoolID(vm.ResourcePool.Value, "default")
-		} else {
-			resourcePoolID = generateResourcePoolID("default", "default")
-		}
-	}
-
-	// Generate resource type ID based on CPU and memory
 	config := vm.Summary.Config
-	cpuCount := config.NumCpu
-	memoryMB := int64(config.MemorySizeMB)
-	resourceTypeID := generateVMProfileID(cpuCount, memoryMB)
 
-	// Generate resource ID
+	// Determine resource pool and type IDs
+	resourcePoolID := a.determineVMResourcePoolID(vm)
+	resourceTypeID := generateVMProfileID(config.NumCpu, int64(config.MemorySizeMB))
 	resourceID := generateVMID(vmName, a.datacenterName)
 
 	// Build extensions with VM details
-	extensions := map[string]interface{}{
-		"vmware.name":       vmName,
-		"vmware.datacenter": a.datacenterName,
-	}
-
-	// Add summary info
-	extensions["vmware.guestFullName"] = config.GuestFullName
-	extensions["vmware.guestId"] = config.GuestId
-	extensions["vmware.numCpu"] = config.NumCpu
-	extensions["vmware.memorySizeMB"] = config.MemorySizeMB
-	extensions["vmware.uuid"] = config.Uuid
-	extensions["vmware.instanceUuid"] = config.InstanceUuid
-	extensions["vmware.template"] = config.Template
-
-	// Add runtime info
-	runtime := vm.Summary.Runtime
-	extensions["vmware.powerState"] = string(runtime.PowerState)
-	extensions["vmware.connectionState"] = string(runtime.ConnectionState)
-	if runtime.Host != nil {
-		extensions["vmware.host"] = runtime.Host.Value
-	}
-	if runtime.BootTime != nil {
-		extensions["vmware.bootTime"] = runtime.BootTime.String()
-	}
-
-	// Add quick stats
-	stats := vm.Summary.QuickStats
-	extensions["vmware.overallCpuUsage"] = stats.OverallCpuUsage
-	extensions["vmware.guestMemoryUsage"] = stats.GuestMemoryUsage
-	extensions["vmware.hostMemoryUsage"] = stats.HostMemoryUsage
-	extensions["vmware.uptimeSeconds"] = stats.UptimeSeconds
-
-	// Add guest info
-	if vm.Guest != nil {
-		guest := vm.Guest
-		extensions["vmware.guestState"] = string(guest.GuestState)
-		extensions["vmware.guestToolsStatus"] = string(guest.ToolsStatus)
-		extensions["vmware.guestToolsVersion"] = guest.ToolsVersion
-		extensions["vmware.hostName"] = guest.HostName
-		extensions["vmware.ipAddress"] = guest.IpAddress
-
-		// Add network info
-		if len(guest.Net) > 0 {
-			nics := make([]map[string]interface{}, 0, len(guest.Net))
-			for _, nic := range guest.Net {
-				nicInfo := map[string]interface{}{
-					"network":    nic.Network,
-					"connected":  nic.Connected,
-					"macAddress": nic.MacAddress,
-				}
-				if len(nic.IpAddress) > 0 {
-					nicInfo["ipAddresses"] = nic.IpAddress
-				}
-				nics = append(nics, nicInfo)
-			}
-			extensions["vmware.networkInterfaces"] = nics
-		}
-	}
-
-	// Add storage info
-	if vm.Summary.Storage != nil {
-		storage := vm.Summary.Storage
-		extensions["vmware.committed"] = storage.Committed
-		extensions["vmware.uncommitted"] = storage.Uncommitted
-		extensions["vmware.unshared"] = storage.Unshared
-	}
+	extensions := buildVMExtensions(vm, vmName, a.datacenterName)
 
 	// Get description
-	description := vmName
-	if config.Annotation != "" {
-		description = config.Annotation
-	}
+	description := getVMDescription(vmName, config.Annotation)
 
 	return &adapter.Resource{
 		ResourceID:     resourceID,
@@ -273,4 +189,111 @@ func (a *VMwareAdapter) vmToResource(vm *mo.VirtualMachine, vmName string) *adap
 		Description:    description,
 		Extensions:     extensions,
 	}
+}
+
+// determineVMResourcePoolID determines the resource pool ID based on pool mode.
+func (a *VMwareAdapter) determineVMResourcePoolID(vm *mo.VirtualMachine) string {
+	if a.poolMode == "cluster" {
+		return generateClusterPoolID("default")
+	}
+
+	// In pool mode, use the resource pool reference
+	if vm.ResourcePool != nil {
+		return generateResourcePoolID(vm.ResourcePool.Value, "default")
+	}
+	return generateResourcePoolID("default", "default")
+}
+
+// buildVMExtensions builds the extensions map with VM details.
+func buildVMExtensions(vm *mo.VirtualMachine, vmName, datacenterName string) map[string]interface{} {
+	extensions := map[string]interface{}{
+		"vmware.name":       vmName,
+		"vmware.datacenter": datacenterName,
+	}
+
+	addVMConfigInfo(extensions, vm.Summary.Config)
+	addVMRuntimeInfo(extensions, vm.Summary.Runtime)
+	addVMQuickStats(extensions, vm.Summary.QuickStats)
+	addVMGuestInfo(extensions, vm.Guest)
+	addVMStorageInfo(extensions, vm.Summary.Storage)
+
+	return extensions
+}
+
+// addVMConfigInfo adds VM configuration information to extensions.
+func addVMConfigInfo(extensions map[string]interface{}, config types.VirtualMachineConfigSummary) {
+	extensions["vmware.guestFullName"] = config.GuestFullName
+	extensions["vmware.guestId"] = config.GuestId
+	extensions["vmware.numCpu"] = config.NumCpu
+	extensions["vmware.memorySizeMB"] = config.MemorySizeMB
+	extensions["vmware.uuid"] = config.Uuid
+	extensions["vmware.instanceUuid"] = config.InstanceUuid
+	extensions["vmware.template"] = config.Template
+}
+
+// addVMRuntimeInfo adds VM runtime information to extensions.
+func addVMRuntimeInfo(extensions map[string]interface{}, runtime types.VirtualMachineRuntimeInfo) {
+	extensions["vmware.powerState"] = string(runtime.PowerState)
+	extensions["vmware.connectionState"] = string(runtime.ConnectionState)
+	if runtime.Host != nil {
+		extensions["vmware.host"] = runtime.Host.Value
+	}
+	if runtime.BootTime != nil {
+		extensions["vmware.bootTime"] = runtime.BootTime.String()
+	}
+}
+
+// addVMQuickStats adds VM quick statistics to extensions.
+func addVMQuickStats(extensions map[string]interface{}, stats types.VirtualMachineQuickStats) {
+	extensions["vmware.overallCpuUsage"] = stats.OverallCpuUsage
+	extensions["vmware.guestMemoryUsage"] = stats.GuestMemoryUsage
+	extensions["vmware.hostMemoryUsage"] = stats.HostMemoryUsage
+	extensions["vmware.uptimeSeconds"] = stats.UptimeSeconds
+}
+
+// addVMGuestInfo adds VM guest information to extensions.
+func addVMGuestInfo(extensions map[string]interface{}, guest *types.GuestInfo) {
+	if guest == nil {
+		return
+	}
+
+	extensions["vmware.guestState"] = string(guest.GuestState)
+	extensions["vmware.guestToolsStatus"] = string(guest.ToolsStatus)
+	extensions["vmware.guestToolsVersion"] = guest.ToolsVersion
+	extensions["vmware.hostName"] = guest.HostName
+	extensions["vmware.ipAddress"] = guest.IpAddress
+
+	// Add network info
+	if len(guest.Net) > 0 {
+		nics := make([]map[string]interface{}, 0, len(guest.Net))
+		for _, nic := range guest.Net {
+			nicInfo := map[string]interface{}{
+				"network":    nic.Network,
+				"connected":  nic.Connected,
+				"macAddress": nic.MacAddress,
+			}
+			if len(nic.IpAddress) > 0 {
+				nicInfo["ipAddresses"] = nic.IpAddress
+			}
+			nics = append(nics, nicInfo)
+		}
+		extensions["vmware.networkInterfaces"] = nics
+	}
+}
+
+// addVMStorageInfo adds VM storage information to extensions.
+func addVMStorageInfo(extensions map[string]interface{}, storage *types.VirtualMachineStorageSummary) {
+	if storage != nil {
+		extensions["vmware.committed"] = storage.Committed
+		extensions["vmware.uncommitted"] = storage.Uncommitted
+		extensions["vmware.unshared"] = storage.Unshared
+	}
+}
+
+// getVMDescription returns a description for the VM.
+func getVMDescription(vmName, annotation string) string {
+	if annotation != "" {
+		return annotation
+	}
+	return vmName
 }
