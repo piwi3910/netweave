@@ -20,38 +20,61 @@ func (a *GCPAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filt
 	a.logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
-	seen := make(map[string]bool)
+	// Get the first zone in the region
+	firstZone, err := a.getFirstZoneInRegion(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	// Get the first zone in the region to list machine types
+	// List and filter machine types
+	resourceTypes, err = a.listMachineTypesInZone(ctx, firstZone, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply pagination
+	if filter != nil {
+		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
+	}
+
+	a.logger.Info("listed resource types",
+		zap.Int("count", len(resourceTypes)))
+
+	return resourceTypes, nil
+}
+
+// getFirstZoneInRegion finds the first zone in the adapter's region.
+func (a *GCPAdapter) getFirstZoneInRegion(ctx context.Context) (string, error) {
 	zoneIt := a.zonesClient.List(ctx, &computepb.ListZonesRequest{
 		Project: a.projectID,
 	})
 
-	var firstZone string
 	for {
 		zone, err := zoneIt.Next()
 		if err == iterator.Done {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to list zones: %w", err)
+			return "", fmt.Errorf("failed to list zones: %w", err)
 		}
 
 		zoneName := ptrToString(zone.Name)
 		if strings.HasPrefix(zoneName, a.region) {
-			firstZone = zoneName
-			break
+			return zoneName, nil
 		}
 	}
 
-	if firstZone == "" {
-		return nil, fmt.Errorf("no zones found in region %s", a.region)
-	}
+	return "", fmt.Errorf("no zones found in region %s", a.region)
+}
 
-	// List machine types in the zone
+// listMachineTypesInZone lists machine types in a zone and applies filtering.
+func (a *GCPAdapter) listMachineTypesInZone(ctx context.Context, zone string, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+	var resourceTypes []*adapter.ResourceType
+	seen := make(map[string]bool)
+
 	mtIt := a.machineTypesClient.List(ctx, &computepb.ListMachineTypesRequest{
 		Project: a.projectID,
-		Zone:    firstZone,
+		Zone:    zone,
 	})
 
 	for {
@@ -64,8 +87,6 @@ func (a *GCPAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filt
 		}
 
 		machineType := ptrToString(mt.Name)
-
-		// Skip if already seen (shouldn't happen, but just in case)
 		if seen[machineType] {
 			continue
 		}
@@ -80,14 +101,6 @@ func (a *GCPAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filt
 
 		resourceTypes = append(resourceTypes, resourceType)
 	}
-
-	// Apply pagination
-	if filter != nil {
-		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
-	}
-
-	a.logger.Info("listed resource types",
-		zap.Int("count", len(resourceTypes)))
 
 	return resourceTypes, nil
 }

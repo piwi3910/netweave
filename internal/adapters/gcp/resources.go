@@ -20,7 +20,27 @@ func (a *GCPAdapter) ListResources(ctx context.Context, filter *adapter.Filter) 
 	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
-	// List zones in the region first
+	// List instances across all zones in the region
+	resources, err = a.listInstancesInRegion(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply pagination
+	if filter != nil {
+		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
+	}
+
+	a.logger.Info("listed resources",
+		zap.Int("count", len(resources)))
+
+	return resources, nil
+}
+
+// listInstancesInRegion lists all instances across zones in the region.
+func (a *GCPAdapter) listInstancesInRegion(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+	var resources []*adapter.Resource
+
 	zoneIt := a.zonesClient.List(ctx, &computepb.ListZonesRequest{
 		Project: a.projectID,
 	})
@@ -39,43 +59,48 @@ func (a *GCPAdapter) ListResources(ctx context.Context, filter *adapter.Filter) 
 			continue
 		}
 
-		// List instances in this zone
-		instanceIt := a.instancesClient.List(ctx, &computepb.ListInstancesRequest{
-			Project: a.projectID,
-			Zone:    zoneName,
-		})
-
-		for {
-			instance, err := instanceIt.Next()
-			if err == iterator.Done {
-				break
-			}
-			if err != nil {
-				return nil, fmt.Errorf("failed to list instances: %w", err)
-			}
-
-			resource := a.instanceToResource(instance, zoneName)
-
-			// Apply filter
-			labels := instance.Labels
-			if labels == nil {
-				labels = make(map[string]string)
-			}
-			if !adapter.MatchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, zoneName, labels) {
-				continue
-			}
-
-			resources = append(resources, resource)
+		zoneResources, err := a.listInstancesInZone(ctx, zoneName, filter)
+		if err != nil {
+			return nil, err
 		}
+
+		resources = append(resources, zoneResources...)
 	}
 
-	// Apply pagination
-	if filter != nil {
-		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
-	}
+	return resources, nil
+}
 
-	a.logger.Info("listed resources",
-		zap.Int("count", len(resources)))
+// listInstancesInZone lists instances in a specific zone and applies filtering.
+func (a *GCPAdapter) listInstancesInZone(ctx context.Context, zoneName string, filter *adapter.Filter) ([]*adapter.Resource, error) {
+	var resources []*adapter.Resource
+
+	instanceIt := a.instancesClient.List(ctx, &computepb.ListInstancesRequest{
+		Project: a.projectID,
+		Zone:    zoneName,
+	})
+
+	for {
+		instance, err := instanceIt.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to list instances: %w", err)
+		}
+
+		resource := a.instanceToResource(instance, zoneName)
+
+		// Apply filter
+		labels := instance.Labels
+		if labels == nil {
+			labels = make(map[string]string)
+		}
+		if !adapter.MatchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, zoneName, labels) {
+			continue
+		}
+
+		resources = append(resources, resource)
+	}
 
 	return resources, nil
 }
@@ -181,92 +206,15 @@ func (a *GCPAdapter) instanceToResource(instance *computepb.Instance, zone strin
 	instanceName := ptrToString(instance.Name)
 	resourceID := generateInstanceID(instanceName, zone)
 
-	// Extract machine type name from URL
-	machineTypeURL := ptrToString(instance.MachineType)
-	machineType := extractMachineTypeName(machineTypeURL)
+	// Extract machine type and resource pool
+	machineType := extractMachineTypeName(ptrToString(instance.MachineType))
 	resourceTypeID := generateMachineTypeID(machineType)
+	resourcePoolID := a.determineResourcePoolID(zone)
 
-	// Determine resource pool ID based on pool mode
-	var resourcePoolID string
-	if a.poolMode == "zone" {
-		resourcePoolID = generateZonePoolID(zone)
-	} else {
-		// In IG mode, we would need to look up which IG this instance belongs to
-		// For now, use zone as fallback
-		resourcePoolID = generateZonePoolID(zone)
-	}
+	// Build extensions with instance details
+	extensions := buildInstanceExtensions(instance, instanceName, zone, machineType)
 
-	// Build extensions with GCP instance details
-	var instanceID int64
-	if instance.Id != nil {
-		instanceID = int64(*instance.Id)
-	}
-	extensions := map[string]interface{}{
-		"gcp.id":          instanceID,
-		"gcp.name":        instanceName,
-		"gcp.zone":        zone,
-		"gcp.machineType": machineType,
-		"gcp.status":      ptrToString(instance.Status),
-		"gcp.selfLink":    ptrToString(instance.SelfLink),
-		"gcp.labels":      instance.Labels,
-	}
-
-	// Add network interfaces
-	if len(instance.NetworkInterfaces) > 0 {
-		nics := make([]map[string]interface{}, 0, len(instance.NetworkInterfaces))
-		for _, nic := range instance.NetworkInterfaces {
-			nicInfo := map[string]interface{}{
-				"name":       ptrToString(nic.Name),
-				"network":    ptrToString(nic.Network),
-				"subnetwork": ptrToString(nic.Subnetwork),
-				"internalIP": ptrToString(nic.NetworkIP),
-			}
-			if len(nic.AccessConfigs) > 0 {
-				nicInfo["externalIP"] = ptrToString(nic.AccessConfigs[0].NatIP)
-			}
-			nics = append(nics, nicInfo)
-		}
-		extensions["gcp.networkInterfaces"] = nics
-
-		// Add primary IPs for quick access
-		if len(instance.NetworkInterfaces) > 0 {
-			extensions["gcp.internalIP"] = ptrToString(instance.NetworkInterfaces[0].NetworkIP)
-			if len(instance.NetworkInterfaces[0].AccessConfigs) > 0 {
-				extensions["gcp.externalIP"] = ptrToString(instance.NetworkInterfaces[0].AccessConfigs[0].NatIP)
-			}
-		}
-	}
-
-	// Add disks
-	if len(instance.Disks) > 0 {
-		disks := make([]map[string]interface{}, 0, len(instance.Disks))
-		for _, disk := range instance.Disks {
-			diskInfo := map[string]interface{}{
-				"deviceName": ptrToString(disk.DeviceName),
-				"source":     ptrToString(disk.Source),
-				"boot":       ptrToBool(disk.Boot),
-				"mode":       ptrToString(disk.Mode),
-				"sizeGB":     ptrToInt64(disk.DiskSizeGb),
-				"type":       ptrToString(disk.Type),
-			}
-			disks = append(disks, diskInfo)
-		}
-		extensions["gcp.disks"] = disks
-	}
-
-	// Add CPU platform
-	extensions["gcp.cpuPlatform"] = ptrToString(instance.CpuPlatform)
-
-	// Add creation timestamp
-	extensions["gcp.creationTimestamp"] = ptrToString(instance.CreationTimestamp)
-
-	// Add scheduling info
-	if instance.Scheduling != nil {
-		extensions["gcp.preemptible"] = ptrToBool(instance.Scheduling.Preemptible)
-		extensions["gcp.automaticRestart"] = ptrToBool(instance.Scheduling.AutomaticRestart)
-	}
-
-	// Get description for the resource
+	// Get description
 	description := ptrToString(instance.Description)
 	if description == "" {
 		description = instanceName
@@ -279,6 +227,100 @@ func (a *GCPAdapter) instanceToResource(instance *computepb.Instance, zone strin
 		GlobalAssetID:  fmt.Sprintf("urn:gcp:compute:%s:%s:%s", a.projectID, zone, instanceName),
 		Description:    description,
 		Extensions:     extensions,
+	}
+}
+
+// determineResourcePoolID determines the resource pool ID based on pool mode.
+func (a *GCPAdapter) determineResourcePoolID(zone string) string {
+	if a.poolMode == "zone" {
+		return generateZonePoolID(zone)
+	}
+	// In IG mode, we would need to look up which IG this instance belongs to
+	// For now, use zone as fallback
+	return generateZonePoolID(zone)
+}
+
+// buildInstanceExtensions builds the extensions map with GCP instance details.
+func buildInstanceExtensions(instance *computepb.Instance, instanceName, zone, machineType string) map[string]interface{} {
+	var instanceID int64
+	if instance.Id != nil {
+		instanceID = int64(*instance.Id)
+	}
+
+	extensions := map[string]interface{}{
+		"gcp.id":          instanceID,
+		"gcp.name":        instanceName,
+		"gcp.zone":        zone,
+		"gcp.machineType": machineType,
+		"gcp.status":      ptrToString(instance.Status),
+		"gcp.selfLink":    ptrToString(instance.SelfLink),
+		"gcp.labels":      instance.Labels,
+	}
+
+	addInstanceNetworkInterfaces(extensions, instance.NetworkInterfaces)
+	addInstanceDisks(extensions, instance.Disks)
+	addInstanceSchedulingInfo(extensions, instance.Scheduling)
+
+	extensions["gcp.cpuPlatform"] = ptrToString(instance.CpuPlatform)
+	extensions["gcp.creationTimestamp"] = ptrToString(instance.CreationTimestamp)
+
+	return extensions
+}
+
+// addInstanceNetworkInterfaces adds network interface information to extensions.
+func addInstanceNetworkInterfaces(extensions map[string]interface{}, networkInterfaces []*computepb.NetworkInterface) {
+	if len(networkInterfaces) == 0 {
+		return
+	}
+
+	nics := make([]map[string]interface{}, 0, len(networkInterfaces))
+	for _, nic := range networkInterfaces {
+		nicInfo := map[string]interface{}{
+			"name":       ptrToString(nic.Name),
+			"network":    ptrToString(nic.Network),
+			"subnetwork": ptrToString(nic.Subnetwork),
+			"internalIP": ptrToString(nic.NetworkIP),
+		}
+		if len(nic.AccessConfigs) > 0 {
+			nicInfo["externalIP"] = ptrToString(nic.AccessConfigs[0].NatIP)
+		}
+		nics = append(nics, nicInfo)
+	}
+	extensions["gcp.networkInterfaces"] = nics
+
+	// Add primary IPs for quick access
+	extensions["gcp.internalIP"] = ptrToString(networkInterfaces[0].NetworkIP)
+	if len(networkInterfaces[0].AccessConfigs) > 0 {
+		extensions["gcp.externalIP"] = ptrToString(networkInterfaces[0].AccessConfigs[0].NatIP)
+	}
+}
+
+// addInstanceDisks adds disk information to extensions.
+func addInstanceDisks(extensions map[string]interface{}, disks []*computepb.AttachedDisk) {
+	if len(disks) == 0 {
+		return
+	}
+
+	diskList := make([]map[string]interface{}, 0, len(disks))
+	for _, disk := range disks {
+		diskInfo := map[string]interface{}{
+			"deviceName": ptrToString(disk.DeviceName),
+			"source":     ptrToString(disk.Source),
+			"boot":       ptrToBool(disk.Boot),
+			"mode":       ptrToString(disk.Mode),
+			"sizeGB":     ptrToInt64(disk.DiskSizeGb),
+			"type":       ptrToString(disk.Type),
+		}
+		diskList = append(diskList, diskInfo)
+	}
+	extensions["gcp.disks"] = diskList
+}
+
+// addInstanceSchedulingInfo adds scheduling information to extensions.
+func addInstanceSchedulingInfo(extensions map[string]interface{}, scheduling *computepb.Scheduling) {
+	if scheduling != nil {
+		extensions["gcp.preemptible"] = ptrToBool(scheduling.Preemptible)
+		extensions["gcp.automaticRestart"] = ptrToBool(scheduling.AutomaticRestart)
 	}
 }
 
