@@ -25,25 +25,25 @@ type SpecVersion struct {
 	ReleaseDate time.Time // When this version was released
 }
 
-// ComplianceLevel represents the level of compliance with a specification.
-type ComplianceLevel string
+// Level represents the level of compliance with a specification.
+type Level string
 
 // Compliance level constants.
 const (
 	// ComplianceFull indicates 100% compliance.
-	ComplianceFull ComplianceLevel = "full"
+	ComplianceFull Level = "full"
 	// CompliancePartial indicates partial compliance (>= 80%).
-	CompliancePartial ComplianceLevel = "partial"
+	CompliancePartial Level = "partial"
 	// ComplianceNone indicates non-compliance (< 80%).
-	ComplianceNone ComplianceLevel = "none"
+	ComplianceNone Level = "none"
 )
 
-// ComplianceResult represents the result of compliance validation.
-type ComplianceResult struct {
-	SpecName        string          `json:"specName"`
-	SpecVersion     string          `json:"specVersion"`
-	SpecURL         string          `json:"specUrl"`
-	ComplianceLevel ComplianceLevel `json:"complianceLevel"`
+// Result represents the result of compliance validation.
+type Result struct {
+	SpecName        string  `json:"specName"`
+	SpecVersion     string  `json:"specVersion"`
+	SpecURL         string  `json:"specUrl"`
+	Level Level   `json:"complianceLevel"`
 	ComplianceScore float64         `json:"complianceScore"` // Percentage (0-100)
 	TotalEndpoints  int             `json:"totalEndpoints"`
 	PassedEndpoints int             `json:"passedEndpoints"`
@@ -97,15 +97,15 @@ func getORANSpecifications() []SpecVersion {
 }
 
 // CheckAll validates compliance with all O-RAN specifications.
-func (c *Checker) CheckAll(ctx context.Context) ([]ComplianceResult, error) {
-	results := make([]ComplianceResult, 0, len(c.specs))
+func (c *Checker) CheckAll(ctx context.Context) ([]Result, error) {
+	results := make([]Result, 0, len(c.specs))
 
 	for _, spec := range c.specs {
 		c.logger.Info("checking compliance",
 			zap.String("spec", spec.Name),
 			zap.String("version", spec.Version))
 
-		var result ComplianceResult
+		var result Result
 		var err error
 
 		switch spec.Name {
@@ -130,7 +130,7 @@ func (c *Checker) CheckAll(ctx context.Context) ([]ComplianceResult, error) {
 }
 
 // checkO2IMS validates O2-IMS API compliance.
-func (c *Checker) checkO2IMS(ctx context.Context, spec SpecVersion) (ComplianceResult, error) {
+func (c *Checker) checkO2IMS(ctx context.Context, spec SpecVersion) (Result, error) {
 	c.logger.Info("validating O2-IMS API endpoints")
 
 	// Define required O2-IMS endpoints according to spec
@@ -166,7 +166,7 @@ func (c *Checker) checkO2IMS(ctx context.Context, spec SpecVersion) (ComplianceR
 }
 
 // checkO2DMS validates O2-DMS API compliance.
-func (c *Checker) checkO2DMS(ctx context.Context, spec SpecVersion) (ComplianceResult, error) {
+func (c *Checker) checkO2DMS(ctx context.Context, spec SpecVersion) (Result, error) {
 	c.logger.Info("validating O2-DMS API endpoints")
 
 	// Define required O2-DMS endpoints according to spec
@@ -198,7 +198,7 @@ func (c *Checker) checkO2DMS(ctx context.Context, spec SpecVersion) (ComplianceR
 }
 
 // checkO2SMO validates O2-SMO integration compliance.
-func (c *Checker) checkO2SMO(ctx context.Context, spec SpecVersion) (ComplianceResult, error) {
+func (c *Checker) checkO2SMO(ctx context.Context, spec SpecVersion) (Result, error) {
 	c.logger.Info("validating O2-SMO integration")
 
 	// O2-SMO compliance is verified through:
@@ -231,7 +231,7 @@ func (c *Checker) validateEndpoints(
 	ctx context.Context,
 	spec SpecVersion,
 	endpoints []EndpointTest,
-) (ComplianceResult, error) {
+) (Result, error) {
 	totalEndpoints := len(endpoints)
 	passedEndpoints := 0
 	failedEndpoints := 0
@@ -258,7 +258,7 @@ func (c *Checker) validateEndpoints(
 	complianceScore := float64(passedEndpoints) / float64(totalEndpoints) * 100
 
 	// Determine compliance level
-	var complianceLevel ComplianceLevel
+	var complianceLevel Level
 	switch {
 	case complianceScore == 100:
 		complianceLevel = ComplianceFull
@@ -268,11 +268,11 @@ func (c *Checker) validateEndpoints(
 		complianceLevel = ComplianceNone
 	}
 
-	return ComplianceResult{
+	return Result{
 		SpecName:        spec.Name,
 		SpecVersion:     spec.Version,
 		SpecURL:         spec.SpecURL,
-		ComplianceLevel: complianceLevel,
+		Level: complianceLevel,
 		ComplianceScore: complianceScore,
 		TotalEndpoints:  totalEndpoints,
 		PassedEndpoints: passedEndpoints,
@@ -290,7 +290,7 @@ func (c *Checker) testEndpoint(ctx context.Context, test EndpointTest) (bool, er
 	url := c.baseURL + path
 
 	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, test.Method, url, nil)
+	req, err := http.NewRequestWithContext(ctx, test.Method, url, http.NoBody)
 	if err != nil {
 		return false, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -301,7 +301,11 @@ func (c *Checker) testEndpoint(ctx context.Context, test EndpointTest) (bool, er
 		// Endpoint not reachable = not implemented
 		return false, nil
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Check status code
 	// Accept both the required status and 404 (endpoint exists but resource not found)

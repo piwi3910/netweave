@@ -67,6 +67,10 @@ issues:
     - text: "replacement are not allowed"
       linters:
         - gomoddirectives
+    # Allow code duplication in compliance checker (each spec check is intentionally separate)
+    - path: tools/compliance/checker\.go
+      linters:
+        - dupl
     # Allow larger interfaces for adapters (O-RAN spec defines many operations)
     - text: "interface has more than.*methods"
       linters:
