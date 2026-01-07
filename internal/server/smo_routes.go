@@ -565,6 +565,7 @@ func (h *SMOHandler) handleGetServiceModel(c *gin.Context) {
 
 // handleDeleteServiceModel deletes a service model.
 // DELETE /o2smo/v1/serviceModels/:modelId
+// NOTE: Service model deletion is planned for future release - see GitHub issue #33.
 func (h *SMOHandler) handleDeleteServiceModel(c *gin.Context) {
 	modelID := c.Param("modelId")
 
@@ -576,8 +577,9 @@ func (h *SMOHandler) handleDeleteServiceModel(c *gin.Context) {
 
 	h.logger.Info("delete service model requested", zap.String("model_id", modelID))
 
-	// Service model deletion is not implemented in the smo.Plugin interface
-	// Return 501 Not Implemented until the interface is extended
+	// Service model deletion is not implemented in the smo.Plugin interface.
+	// This endpoint is documented but returns 501 until interface is extended.
+	// Tracked in: https://github.com/piwi3910/netweave/issues/33
 	respondWithError(c, http.StatusNotImplemented, "NotImplemented",
 		"Service model deletion is not supported by the current plugin interface")
 }

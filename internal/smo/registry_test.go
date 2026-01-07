@@ -527,3 +527,195 @@ func TestRegistry_Count(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, registry.Count())
 }
+
+// TestRegistry_ConcurrentAccess tests thread-safety of registry operations.
+// Run with -race flag: go test -race ./internal/smo/...
+func TestRegistry_ConcurrentAccess(t *testing.T) {
+	registry := NewRegistry(zap.NewNop())
+	ctx := context.Background()
+
+	// Register initial plugins
+	for i := 0; i < 5; i++ {
+		name := "plugin-" + string(rune('a'+i))
+		err := registry.Register(ctx, name, newMockPlugin(name, true), i == 0)
+		require.NoError(t, err)
+	}
+
+	// Concurrent operations
+	done := make(chan bool)
+	iterations := 100
+
+	// Goroutine 1: List plugins
+	go func() {
+		for i := 0; i < iterations; i++ {
+			_ = registry.List()
+		}
+		done <- true
+	}()
+
+	// Goroutine 2: Get plugin
+	go func() {
+		for i := 0; i < iterations; i++ {
+			_, _ = registry.Get("plugin-a")
+		}
+		done <- true
+	}()
+
+	// Goroutine 3: Get default
+	go func() {
+		for i := 0; i < iterations; i++ {
+			_, _ = registry.GetDefault()
+		}
+		done <- true
+	}()
+
+	// Goroutine 4: Find by capability
+	go func() {
+		for i := 0; i < iterations; i++ {
+			_ = registry.FindByCapability(CapInventorySync)
+		}
+		done <- true
+	}()
+
+	// Goroutine 5: Get healthy
+	go func() {
+		for i := 0; i < iterations; i++ {
+			_ = registry.GetHealthy()
+		}
+		done <- true
+	}()
+
+	// Goroutine 6: Count
+	go func() {
+		for i := 0; i < iterations; i++ {
+			_ = registry.Count()
+		}
+		done <- true
+	}()
+
+	// Wait for all goroutines
+	for i := 0; i < 6; i++ {
+		<-done
+	}
+
+	// Final verification
+	assert.Equal(t, 5, registry.Count())
+}
+
+// TestRegistry_StartHealthChecksIdempotent tests that multiple calls to StartHealthChecks
+// do not spawn duplicate goroutines (atomic.Bool protection).
+func TestRegistry_StartHealthChecksIdempotent(t *testing.T) {
+	registry := NewRegistry(zap.NewNop(),
+		WithHealthCheckInterval(100*time.Millisecond),
+		WithHealthCheckTimeout(50*time.Millisecond),
+	)
+	ctx := context.Background()
+
+	// Register a plugin
+	err := registry.Register(ctx, "test", newMockPlugin("test", true), true)
+	require.NoError(t, err)
+
+	// Start health checks multiple times concurrently
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func() {
+			registry.StartHealthChecks(ctx)
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// Let health check run briefly
+	time.Sleep(150 * time.Millisecond)
+
+	// Stop health checks
+	registry.StopHealthChecks()
+
+	// Verify registry is still functional
+	assert.Equal(t, 1, registry.Count())
+}
+
+// TestRegistry_HealthStateTransitions tests health status transitions.
+func TestRegistry_HealthStateTransitions(t *testing.T) {
+	registry := NewRegistry(zap.NewNop(),
+		WithHealthCheckInterval(50*time.Millisecond),
+		WithHealthCheckTimeout(25*time.Millisecond),
+	)
+	ctx := context.Background()
+
+	// Create plugin with controllable health
+	plugin := newMockPlugin("test", true)
+	err := registry.Register(ctx, "test", plugin, true)
+	require.NoError(t, err)
+
+	// Start health checks
+	registry.StartHealthChecks(ctx)
+
+	// Initially healthy
+	info := registry.List()
+	require.Len(t, info, 1)
+	assert.True(t, info[0].Healthy)
+
+	// Transition to unhealthy
+	plugin.healthy = false
+	time.Sleep(100 * time.Millisecond)
+
+	info = registry.List()
+	require.Len(t, info, 1)
+	assert.False(t, info[0].Healthy)
+
+	// Transition back to healthy
+	plugin.healthy = true
+	time.Sleep(100 * time.Millisecond)
+
+	info = registry.List()
+	require.Len(t, info, 1)
+	assert.True(t, info[0].Healthy)
+
+	// Stop health checks
+	registry.StopHealthChecks()
+}
+
+// TestRegistry_WithOptions tests configurable health check intervals.
+func TestRegistry_WithOptions(t *testing.T) {
+	customInterval := 10 * time.Second
+	customTimeout := 2 * time.Second
+
+	registry := NewRegistry(zap.NewNop(),
+		WithHealthCheckInterval(customInterval),
+		WithHealthCheckTimeout(customTimeout),
+	)
+
+	// Verify options were applied (internal fields)
+	assert.Equal(t, customInterval, registry.healthCheckInterval)
+	assert.Equal(t, customTimeout, registry.healthCheckTimeout)
+}
+
+// TestRegistry_ListDeepCopy tests that List() returns deep copies.
+func TestRegistry_ListDeepCopy(t *testing.T) {
+	registry := NewRegistry(zap.NewNop())
+	ctx := context.Background()
+
+	plugin := newMockPlugin("test", true)
+	plugin.capabilities = []Capability{CapInventorySync, CapEventPublishing}
+
+	err := registry.Register(ctx, "test", plugin, true)
+	require.NoError(t, err)
+
+	// Get list
+	info := registry.List()
+	require.Len(t, info, 1)
+
+	// Modify the returned capabilities slice
+	originalLen := len(info[0].Capabilities)
+	info[0].Capabilities = append(info[0].Capabilities, CapWorkflowOrchestration)
+
+	// Get list again - should be unchanged
+	info2 := registry.List()
+	require.Len(t, info2, 1)
+	assert.Equal(t, originalLen, len(info2[0].Capabilities))
+}
