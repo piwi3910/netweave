@@ -227,11 +227,7 @@ func (p *Plugin) publishOSMEvent(ctx context.Context, event *InfrastructureEvent
 	// - Handling delivery confirmation
 	// Tracked in: https://github.com/piwi3910/netweave/issues/33
 
-	// Log event for now, full notification service support pending
-	p.logger.Debug("infrastructure event logged (OSM notification service pending)",
-		zap.String("event_type", string(event.Type)),
-		zap.String("resource_id", event.ResourceID),
-	)
+	// Event will be published via OSM notification service in future release
 	return nil
 }
 
