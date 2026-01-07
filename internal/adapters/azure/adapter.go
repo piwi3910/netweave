@@ -128,56 +128,14 @@ type Config struct {
 //	    PoolMode:       "rg",
 //	})
 func New(cfg *Config) (*AzureAdapter, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config cannot be nil")
+	if err := validateAzureConfig(cfg); err != nil {
+		return nil, err
 	}
 
-	// Validate required configuration
-	if cfg.SubscriptionID == "" {
-		return nil, fmt.Errorf("subscriptionID is required")
-	}
-	if cfg.Location == "" {
-		return nil, fmt.Errorf("location is required")
-	}
-	if cfg.OCloudID == "" {
-		return nil, fmt.Errorf("oCloudID is required")
-	}
-
-	// Validate authentication configuration
-	if !cfg.UseManagedIdentity {
-		if cfg.TenantID == "" {
-			return nil, fmt.Errorf("tenantID is required when not using managed identity")
-		}
-		if cfg.ClientID == "" {
-			return nil, fmt.Errorf("clientID is required when not using managed identity")
-		}
-		if cfg.ClientSecret == "" {
-			return nil, fmt.Errorf("clientSecret is required when not using managed identity")
-		}
-	}
-
-	// Set defaults
-	deploymentManagerID := cfg.DeploymentManagerID
-	if deploymentManagerID == "" {
-		deploymentManagerID = fmt.Sprintf("ocloud-azure-%s", cfg.Location)
-	}
-
-	poolMode := cfg.PoolMode
-	if poolMode == "" {
-		poolMode = "rg"
-	}
-	if poolMode != "rg" && poolMode != "az" {
-		return nil, fmt.Errorf("poolMode must be 'rg' or 'az', got %q", poolMode)
-	}
-
-	// Initialize logger
-	logger := cfg.Logger
-	if logger == nil {
-		var err error
-		logger, err = zap.NewProduction()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create logger: %w", err)
-		}
+	deploymentManagerID, poolMode := applyAzureDefaults(cfg)
+	logger, err := initializeAzureLogger(cfg.Logger)
+	if err != nil {
+		return nil, err
 	}
 
 	logger.Info("initializing Azure adapter",
@@ -187,56 +145,20 @@ func New(cfg *Config) (*AzureAdapter, error) {
 		zap.String("poolMode", poolMode),
 		zap.Bool("useManagedIdentity", cfg.UseManagedIdentity))
 
-	// Create Azure credential
-	var cred azcore.TokenCredential
-	var err error
-
-	if cfg.UseManagedIdentity {
-		cred, err = azidentity.NewManagedIdentityCredential(nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create managed identity credential: %w", err)
-		}
-		logger.Info("using Azure Managed Identity for authentication")
-	} else {
-		cred, err = azidentity.NewClientSecretCredential(
-			cfg.TenantID,
-			cfg.ClientID,
-			cfg.ClientSecret,
-			nil,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create service principal credential: %w", err)
-		}
-		logger.Info("using Azure Service Principal for authentication",
-			zap.String("tenantID", cfg.TenantID),
-			zap.String("clientID", cfg.ClientID))
+	cred, err := createAzureCredential(cfg, logger)
+	if err != nil {
+		return nil, err
 	}
 
-	// Create ARM client options
-	clientOpts := &arm.ClientOptions{}
-
-	// Create VM client
-	vmClient, err := armcompute.NewVirtualMachinesClient(cfg.SubscriptionID, cred, clientOpts)
+	clients, err := createAzureClients(cfg.SubscriptionID, cred)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create VM client: %w", err)
-	}
-
-	// Create VM Sizes client
-	vmSizeClient, err := armcompute.NewVirtualMachineSizesClient(cfg.SubscriptionID, cred, clientOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create VM Sizes client: %w", err)
-	}
-
-	// Create Resource Group client
-	resourceGroupClient, err := armresources.NewResourceGroupsClient(cfg.SubscriptionID, cred, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Resource Group client: %w", err)
+		return nil, err
 	}
 
 	adp := &AzureAdapter{
-		vmClient:            vmClient,
-		vmSizeClient:        vmSizeClient,
-		resourceGroupClient: resourceGroupClient,
+		vmClient:            clients.vmClient,
+		vmSizeClient:        clients.vmSizeClient,
+		resourceGroupClient: clients.resourceGroupClient,
 		credential:          cred,
 		logger:              logger,
 		oCloudID:            cfg.OCloudID,
@@ -254,6 +176,128 @@ func New(cfg *Config) (*AzureAdapter, error) {
 		zap.String("poolMode", poolMode))
 
 	return adp, nil
+}
+
+// validateAzureConfig validates required configuration fields.
+func validateAzureConfig(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config cannot be nil")
+	}
+	if cfg.SubscriptionID == "" {
+		return fmt.Errorf("subscriptionID is required")
+	}
+	if cfg.Location == "" {
+		return fmt.Errorf("location is required")
+	}
+	if cfg.OCloudID == "" {
+		return fmt.Errorf("oCloudID is required")
+	}
+
+	// Validate authentication configuration
+	if !cfg.UseManagedIdentity {
+		if cfg.TenantID == "" {
+			return fmt.Errorf("tenantID is required when not using managed identity")
+		}
+		if cfg.ClientID == "" {
+			return fmt.Errorf("clientID is required when not using managed identity")
+		}
+		if cfg.ClientSecret == "" {
+			return fmt.Errorf("clientSecret is required when not using managed identity")
+		}
+	}
+
+	// Validate poolMode if provided
+	if cfg.PoolMode != "" && cfg.PoolMode != "rg" && cfg.PoolMode != "az" {
+		return fmt.Errorf("poolMode must be 'rg' or 'az', got %q", cfg.PoolMode)
+	}
+
+	return nil
+}
+
+// applyAzureDefaults applies default values to configuration.
+func applyAzureDefaults(cfg *Config) (deploymentManagerID, poolMode string) {
+	deploymentManagerID = cfg.DeploymentManagerID
+	if deploymentManagerID == "" {
+		deploymentManagerID = fmt.Sprintf("ocloud-azure-%s", cfg.Location)
+	}
+
+	poolMode = cfg.PoolMode
+	if poolMode == "" {
+		poolMode = "rg"
+	}
+
+	return deploymentManagerID, poolMode
+}
+
+// initializeAzureLogger creates or returns the configured logger.
+func initializeAzureLogger(logger *zap.Logger) (*zap.Logger, error) {
+	if logger != nil {
+		return logger, nil
+	}
+	logger, err := zap.NewProduction()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logger: %w", err)
+	}
+	return logger, nil
+}
+
+// createAzureCredential creates Azure credentials based on configuration.
+func createAzureCredential(cfg *Config, logger *zap.Logger) (azcore.TokenCredential, error) {
+	if cfg.UseManagedIdentity {
+		cred, err := azidentity.NewManagedIdentityCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create managed identity credential: %w", err)
+		}
+		logger.Info("using Azure Managed Identity for authentication")
+		return cred, nil
+	}
+
+	cred, err := azidentity.NewClientSecretCredential(
+		cfg.TenantID,
+		cfg.ClientID,
+		cfg.ClientSecret,
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create service principal credential: %w", err)
+	}
+	logger.Info("using Azure Service Principal for authentication",
+		zap.String("tenantID", cfg.TenantID),
+		zap.String("clientID", cfg.ClientID))
+	return cred, nil
+}
+
+// azureClients holds Azure SDK clients.
+type azureClients struct {
+	vmClient            *armcompute.VirtualMachinesClient
+	vmSizeClient        *armcompute.VirtualMachineSizesClient
+	resourceGroupClient *armresources.ResourceGroupsClient
+}
+
+// createAzureClients creates all required Azure SDK clients.
+func createAzureClients(subscriptionID string, cred azcore.TokenCredential) (*azureClients, error) {
+	clientOpts := &arm.ClientOptions{}
+
+	vmClient, err := armcompute.NewVirtualMachinesClient(subscriptionID, cred, clientOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create VM client: %w", err)
+	}
+
+	vmSizeClient, err := armcompute.NewVirtualMachineSizesClient(subscriptionID, cred, clientOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create VM Sizes client: %w", err)
+	}
+
+	resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Resource Group client: %w", err)
+	}
+
+	return &azureClients{
+		vmClient:            vmClient,
+		vmSizeClient:        vmSizeClient,
+		resourceGroupClient: resourceGroupClient,
+	}, nil
 }
 
 // Name returns the adapter name.

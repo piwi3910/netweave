@@ -122,43 +122,14 @@ type Config struct {
 //	    PoolMode:        "zone",
 //	})
 func New(cfg *Config) (*GCPAdapter, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config cannot be nil")
+	if err := validateGCPConfig(cfg); err != nil {
+		return nil, err
 	}
 
-	// Validate required configuration
-	if cfg.ProjectID == "" {
-		return nil, fmt.Errorf("projectID is required")
-	}
-	if cfg.Region == "" {
-		return nil, fmt.Errorf("region is required")
-	}
-	if cfg.OCloudID == "" {
-		return nil, fmt.Errorf("oCloudID is required")
-	}
-
-	// Set defaults
-	deploymentManagerID := cfg.DeploymentManagerID
-	if deploymentManagerID == "" {
-		deploymentManagerID = fmt.Sprintf("ocloud-gcp-%s", cfg.Region)
-	}
-
-	poolMode := cfg.PoolMode
-	if poolMode == "" {
-		poolMode = "zone"
-	}
-	if poolMode != "zone" && poolMode != "ig" {
-		return nil, fmt.Errorf("poolMode must be 'zone' or 'ig', got %q", poolMode)
-	}
-
-	// Initialize logger
-	logger := cfg.Logger
-	if logger == nil {
-		var err error
-		logger, err = zap.NewProduction()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create logger: %w", err)
-		}
+	deploymentManagerID, poolMode := applyGCPDefaults(cfg)
+	logger, err := initializeGCPLogger(cfg.Logger)
+	if err != nil {
+		return nil, err
 	}
 
 	logger.Info("initializing GCP adapter",
@@ -167,7 +138,80 @@ func New(cfg *Config) (*GCPAdapter, error) {
 		zap.String("oCloudID", cfg.OCloudID),
 		zap.String("poolMode", poolMode))
 
-	// Build client options
+	opts := buildGCPClientOptions(cfg, logger)
+	clients, err := createGCPClients(context.Background(), opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GCPAdapter{
+		instancesClient:      clients.instancesClient,
+		machineTypesClient:   clients.machineTypesClient,
+		zonesClient:          clients.zonesClient,
+		regionsClient:        clients.regionsClient,
+		instanceGroupsClient: clients.instanceGroupsClient,
+		logger:               logger,
+		oCloudID:             cfg.OCloudID,
+		deploymentManagerID:  deploymentManagerID,
+		projectID:            cfg.ProjectID,
+		region:               cfg.Region,
+		subscriptions:        make(map[string]*adapter.Subscription),
+		poolMode:             poolMode,
+	}, nil
+}
+
+// validateGCPConfig validates required configuration fields.
+func validateGCPConfig(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config cannot be nil")
+	}
+	if cfg.ProjectID == "" {
+		return fmt.Errorf("projectID is required")
+	}
+	if cfg.Region == "" {
+		return fmt.Errorf("region is required")
+	}
+	if cfg.OCloudID == "" {
+		return fmt.Errorf("oCloudID is required")
+	}
+
+	// Validate poolMode if provided
+	if cfg.PoolMode != "" && cfg.PoolMode != "zone" && cfg.PoolMode != "ig" {
+		return fmt.Errorf("poolMode must be 'zone' or 'ig', got %q", cfg.PoolMode)
+	}
+
+	return nil
+}
+
+// applyGCPDefaults applies default values to configuration.
+func applyGCPDefaults(cfg *Config) (deploymentManagerID, poolMode string) {
+	deploymentManagerID = cfg.DeploymentManagerID
+	if deploymentManagerID == "" {
+		deploymentManagerID = fmt.Sprintf("ocloud-gcp-%s", cfg.Region)
+	}
+
+	poolMode = cfg.PoolMode
+	if poolMode == "" {
+		poolMode = "zone"
+	}
+
+	return deploymentManagerID, poolMode
+}
+
+// initializeGCPLogger creates or returns the configured logger.
+func initializeGCPLogger(logger *zap.Logger) (*zap.Logger, error) {
+	if logger != nil {
+		return logger, nil
+	}
+	logger, err := zap.NewProduction()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logger: %w", err)
+	}
+	return logger, nil
+}
+
+// buildGCPClientOptions builds GCP client options.
+func buildGCPClientOptions(cfg *Config, logger *zap.Logger) []option.ClientOption {
 	var opts []option.ClientOption
 	if len(cfg.CredentialsJSON) > 0 {
 		opts = append(opts, option.WithCredentialsJSON(cfg.CredentialsJSON))
@@ -179,23 +223,31 @@ func New(cfg *Config) (*GCPAdapter, error) {
 	} else {
 		logger.Info("using default GCP credentials (ADC)")
 	}
+	return opts
+}
 
-	ctx := context.Background()
+// gcpClients holds GCP compute clients.
+type gcpClients struct {
+	instancesClient      *compute.InstancesClient
+	machineTypesClient   *compute.MachineTypesClient
+	zonesClient          *compute.ZonesClient
+	regionsClient        *compute.RegionsClient
+	instanceGroupsClient *compute.InstanceGroupsClient
+}
 
-	// Create Instances client
+// createGCPClients creates all required GCP compute clients.
+func createGCPClients(ctx context.Context, opts []option.ClientOption) (*gcpClients, error) {
 	instancesClient, err := compute.NewInstancesRESTClient(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Instances client: %w", err)
 	}
 
-	// Create Machine Types client
 	machineTypesClient, err := compute.NewMachineTypesRESTClient(ctx, opts...)
 	if err != nil {
 		instancesClient.Close()
 		return nil, fmt.Errorf("failed to create Machine Types client: %w", err)
 	}
 
-	// Create Zones client
 	zonesClient, err := compute.NewZonesRESTClient(ctx, opts...)
 	if err != nil {
 		instancesClient.Close()
@@ -203,7 +255,6 @@ func New(cfg *Config) (*GCPAdapter, error) {
 		return nil, fmt.Errorf("failed to create Zones client: %w", err)
 	}
 
-	// Create Regions client
 	regionsClient, err := compute.NewRegionsRESTClient(ctx, opts...)
 	if err != nil {
 		instancesClient.Close()
@@ -212,7 +263,6 @@ func New(cfg *Config) (*GCPAdapter, error) {
 		return nil, fmt.Errorf("failed to create Regions client: %w", err)
 	}
 
-	// Create Instance Groups client
 	instanceGroupsClient, err := compute.NewInstanceGroupsRESTClient(ctx, opts...)
 	if err != nil {
 		instancesClient.Close()
@@ -222,28 +272,13 @@ func New(cfg *Config) (*GCPAdapter, error) {
 		return nil, fmt.Errorf("failed to create Instance Groups client: %w", err)
 	}
 
-	adp := &GCPAdapter{
+	return &gcpClients{
 		instancesClient:      instancesClient,
 		machineTypesClient:   machineTypesClient,
 		zonesClient:          zonesClient,
 		regionsClient:        regionsClient,
 		instanceGroupsClient: instanceGroupsClient,
-		logger:               logger,
-		oCloudID:             cfg.OCloudID,
-		deploymentManagerID:  deploymentManagerID,
-		projectID:            cfg.ProjectID,
-		region:               cfg.Region,
-		subscriptions:        make(map[string]*adapter.Subscription),
-		poolMode:             poolMode,
-	}
-
-	logger.Info("GCP adapter initialized successfully",
-		zap.String("oCloudID", cfg.OCloudID),
-		zap.String("deploymentManagerID", deploymentManagerID),
-		zap.String("region", cfg.Region),
-		zap.String("poolMode", poolMode))
-
-	return adp, nil
+	}, nil
 }
 
 // Name returns the adapter name.
