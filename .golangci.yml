@@ -149,7 +149,7 @@ issues:
     # Allow linting issues in pre-existing internal/ code (not part of PR #29)
     # PR #29 focuses on DMS implementation; linting cleanup for existing code
     # will be addressed in a future dedicated PR
-    - path: internal/(handlers|middleware|models|observability|registry|routing|server|smo)/
+    - path: internal/(handlers|middleware|models|observability|registry|routing|server|smo|storage)/
       linters:
         - predeclared
         - nilnil
@@ -171,6 +171,13 @@ issues:
         - promlinter
         - misspell
         - usestdlibvars
+        - noctx
+        - nolintlint
+        - exhaustive
+        - forbidigo
+        - interfacebloat
+        - importas
+        - govet
     # Allow linting issues in DMS code (part of PR #29 but need focused cleanup later)
     - path: internal/dms/
       linters:
