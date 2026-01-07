@@ -253,11 +253,7 @@ func (h *SMOHandler) handleGetPlugin(c *gin.Context) {
 
 	plugin, err := h.registry.Get(pluginID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + pluginID,
-			"code":    http.StatusNotFound,
-		})
+		h.respondWithNotFound(c, "Plugin", err)
 		return
 	}
 
