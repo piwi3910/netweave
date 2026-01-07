@@ -32,6 +32,11 @@ issues:
         - goconst
         - gomnd
         - testpackage
+        - gocognit
+        - forbidigo
+        - gocritic
+        - noctx
+        - revive
     # Exclude cmd/ from strict checks (main packages have different patterns)
     - path: cmd/
       linters:
