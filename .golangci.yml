@@ -37,6 +37,12 @@ issues:
         - gocritic
         - noctx
         - revive
+        - maintidx
+    # Exclude linters from integration test helpers
+    - path: tests/integration/
+      linters:
+        - errcheck
+        - maintidx
     # Exclude cmd/ from strict checks (main packages have different patterns)
     - path: cmd/
       linters:
