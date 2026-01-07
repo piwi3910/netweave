@@ -129,7 +129,7 @@ func generateOutput(results []compliance.Result) error {
 // determineExitCode returns 1 if any spec is not compliant, 0 otherwise.
 func determineExitCode(results []compliance.Result) int {
 	for _, result := range results {
-		if result.ComplianceLevel == compliance.ComplianceNone {
+		if result.Level == compliance.ComplianceNone {
 			return 1
 		}
 	}
