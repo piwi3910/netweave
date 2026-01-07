@@ -45,7 +45,7 @@ Official O-RAN Alliance specifications:
   - **Azure** - Virtual Machines, Resource Groups, VM Sizes
   - **GCP** - Compute Engine instances, Zones, Machine Types
   - **VMware vSphere** - VMs, Clusters, Resource Pools
-- ✅ **O2-DMS Integration**: Deployment Management Services with Helm 3 and ArgoCD adapters
+- ✅ **O2-DMS Integration**: Deployment Management Services with Helm 3, ArgoCD, and Flux CD adapters
 - ✅ **O2-SMO Integration**: Service Management & Orchestration with ONAP and OSM adapters
 - ✅ **Enterprise Multi-Tenancy**: Built-in from day 1 - support multiple SMO systems with strict resource isolation
 - ✅ **Comprehensive RBAC**: Fine-grained role-based access control with system and tenant roles
@@ -93,6 +93,7 @@ graph TB
         subgraph DMS_Backends [DMS: Deployment 7+]
             Helm[Helm 3]
             Argo[ArgoCD]
+            Flux[Flux CD]
             ONAP_LCM[ONAP-LCM]
         end
 
@@ -464,7 +465,8 @@ netweave/
 │   │   ├── adapter/          # DMS adapter interface
 │   │   └── adapters/         # DMS backend adapters
 │   │       ├── helm/         # Helm 3 adapter
-│   │       └── argocd/       # ArgoCD GitOps adapter
+│   │       ├── argocd/       # ArgoCD GitOps adapter
+│   │       └── flux/         # Flux CD GitOps adapter
 │   ├── smo/                  # O2-SMO (Service Management & Orchestration)
 │   │   ├── adapter/          # SMO adapter interface
 │   │   └── adapters/         # SMO backend adapters
@@ -549,6 +551,7 @@ netweave/
 - ✅ O2-DMS support (Deployment Management Services)
   - ✅ Helm 3 adapter for CNF/VNF deployment
   - ✅ ArgoCD adapter for GitOps deployments
+  - ✅ Flux CD adapter for GitOps deployments
 - ✅ O2-SMO integration (Service Management & Orchestration)
   - ✅ ONAP adapter
   - ✅ OSM (Open Source MANO) adapter
