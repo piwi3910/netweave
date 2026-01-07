@@ -33,14 +33,16 @@ func MatchesFilter(filter *Filter, resourcePoolID, resourceTypeID, location stri
 	}
 
 	// Check Labels filter
-	if len(filter.Labels) > 0 {
-		for key, value := range filter.Labels {
-			if labels[key] != value {
-				return false
-			}
+	return matchesLabels(filter.Labels, labels)
+}
+
+// matchesLabels checks if all filter labels match the resource labels.
+func matchesLabels(filterLabels, resourceLabels map[string]string) bool {
+	for key, value := range filterLabels {
+		if resourceLabels[key] != value {
+			return false
 		}
 	}
-
 	return true
 }
 

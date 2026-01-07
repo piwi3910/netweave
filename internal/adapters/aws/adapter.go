@@ -117,45 +117,14 @@ type Config struct {
 //	    PoolMode:        "az",
 //	})
 func New(cfg *Config) (*AWSAdapter, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config cannot be nil")
+	if err := validateConfig(cfg); err != nil {
+		return nil, err
 	}
 
-	// Validate required configuration
-	if cfg.Region == "" {
-		return nil, fmt.Errorf("region is required")
-	}
-	if cfg.OCloudID == "" {
-		return nil, fmt.Errorf("oCloudID is required")
-	}
-
-	// Set defaults
-	deploymentManagerID := cfg.DeploymentManagerID
-	if deploymentManagerID == "" {
-		deploymentManagerID = fmt.Sprintf("ocloud-aws-%s", cfg.Region)
-	}
-
-	poolMode := cfg.PoolMode
-	if poolMode == "" {
-		poolMode = "az"
-	}
-	if poolMode != "az" && poolMode != "asg" {
-		return nil, fmt.Errorf("poolMode must be 'az' or 'asg', got %q", poolMode)
-	}
-
-	timeout := cfg.Timeout
-	if timeout == 0 {
-		timeout = 30 * time.Second
-	}
-
-	// Initialize logger
-	logger := cfg.Logger
-	if logger == nil {
-		var err error
-		logger, err = zap.NewProduction()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create logger: %w", err)
-		}
+	deploymentManagerID, poolMode, timeout := applyDefaults(cfg)
+	logger, err := initializeLogger(cfg.Logger)
+	if err != nil {
+		return nil, err
 	}
 
 	logger.Info("initializing AWS adapter",
@@ -163,28 +132,8 @@ func New(cfg *Config) (*AWSAdapter, error) {
 		zap.String("oCloudID", cfg.OCloudID),
 		zap.String("poolMode", poolMode))
 
-	// Build AWS configuration
-	var awsCfgOpts []func(*config.LoadOptions) error
-	awsCfgOpts = append(awsCfgOpts, config.WithRegion(cfg.Region))
+	awsCfgOpts := buildAWSConfigOptions(cfg, logger)
 
-	// Configure credentials
-	if cfg.Profile != "" {
-		awsCfgOpts = append(awsCfgOpts, config.WithSharedConfigProfile(cfg.Profile))
-		logger.Info("using AWS profile for authentication",
-			zap.String("profile", cfg.Profile))
-	} else if cfg.AccessKeyID != "" && cfg.SecretAccessKey != "" {
-		creds := credentials.NewStaticCredentialsProvider(
-			cfg.AccessKeyID,
-			cfg.SecretAccessKey,
-			cfg.SessionToken,
-		)
-		awsCfgOpts = append(awsCfgOpts, config.WithCredentialsProvider(creds))
-		logger.Info("using static credentials for authentication")
-	} else {
-		logger.Info("using default AWS credential chain")
-	}
-
-	// Load AWS configuration
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -193,33 +142,91 @@ func New(cfg *Config) (*AWSAdapter, error) {
 		return nil, fmt.Errorf("failed to load AWS configuration: %w", err)
 	}
 
-	// Create EC2 client
-	ec2Client := ec2.NewFromConfig(awsCfg)
-
-	// Create Auto Scaling client
-	asgClient := autoscaling.NewFromConfig(awsCfg)
-
-	// Get account ID by describing the caller identity
-	// We'll get this lazily on first use to avoid initial API call
-
-	adp := &AWSAdapter{
-		ec2Client:           ec2Client,
-		asgClient:           asgClient,
+	return &AWSAdapter{
+		ec2Client:           ec2.NewFromConfig(awsCfg),
+		asgClient:           autoscaling.NewFromConfig(awsCfg),
 		logger:              logger,
 		oCloudID:            cfg.OCloudID,
 		deploymentManagerID: deploymentManagerID,
 		region:              cfg.Region,
 		subscriptions:       make(map[string]*adapter.Subscription),
 		poolMode:            poolMode,
+	}, nil
+}
+
+// validateConfig validates required configuration fields.
+func validateConfig(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config cannot be nil")
+	}
+	if cfg.Region == "" {
+		return fmt.Errorf("region is required")
+	}
+	if cfg.OCloudID == "" {
+		return fmt.Errorf("oCloudID is required")
 	}
 
-	logger.Info("AWS adapter initialized successfully",
-		zap.String("oCloudID", cfg.OCloudID),
-		zap.String("deploymentManagerID", deploymentManagerID),
-		zap.String("region", cfg.Region),
-		zap.String("poolMode", poolMode))
+	// Validate poolMode if provided
+	if cfg.PoolMode != "" && cfg.PoolMode != "az" && cfg.PoolMode != "asg" {
+		return fmt.Errorf("poolMode must be 'az' or 'asg', got %q", cfg.PoolMode)
+	}
 
-	return adp, nil
+	return nil
+}
+
+// applyDefaults applies default values to configuration.
+func applyDefaults(cfg *Config) (deploymentManagerID, poolMode string, timeout time.Duration) {
+	deploymentManagerID = cfg.DeploymentManagerID
+	if deploymentManagerID == "" {
+		deploymentManagerID = fmt.Sprintf("ocloud-aws-%s", cfg.Region)
+	}
+
+	poolMode = cfg.PoolMode
+	if poolMode == "" {
+		poolMode = "az"
+	}
+
+	timeout = cfg.Timeout
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
+
+	return deploymentManagerID, poolMode, timeout
+}
+
+// initializeLogger creates or returns the configured logger.
+func initializeLogger(logger *zap.Logger) (*zap.Logger, error) {
+	if logger != nil {
+		return logger, nil
+	}
+	logger, err := zap.NewProduction()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logger: %w", err)
+	}
+	return logger, nil
+}
+
+// buildAWSConfigOptions builds AWS SDK configuration options.
+func buildAWSConfigOptions(cfg *Config, logger *zap.Logger) []func(*config.LoadOptions) error {
+	opts := []func(*config.LoadOptions) error{config.WithRegion(cfg.Region)}
+
+	if cfg.Profile != "" {
+		opts = append(opts, config.WithSharedConfigProfile(cfg.Profile))
+		logger.Info("using AWS profile for authentication",
+			zap.String("profile", cfg.Profile))
+	} else if cfg.AccessKeyID != "" && cfg.SecretAccessKey != "" {
+		creds := credentials.NewStaticCredentialsProvider(
+			cfg.AccessKeyID,
+			cfg.SecretAccessKey,
+			cfg.SessionToken,
+		)
+		opts = append(opts, config.WithCredentialsProvider(creds))
+		logger.Info("using static credentials for authentication")
+	} else {
+		logger.Info("using default AWS credential chain")
+	}
+
+	return opts
 }
 
 // Name returns the adapter name.
