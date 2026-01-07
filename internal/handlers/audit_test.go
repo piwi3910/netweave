@@ -245,18 +245,13 @@ func TestAuditHandler_ListAuditEventsByType(t *testing.T) {
 			},
 		},
 		{
-			name:            "empty event type returns bad request",
+			name:            "empty event type returns not found",
 			eventType:       "",
 			tenantID:        "tenant-1",
 			isPlatformAdmin: false,
 			setupStore:      func(s *mockAuthStore) {},
-			wantStatus:      http.StatusBadRequest,
-			validateBody: func(t *testing.T, body []byte) {
-				var response models.ErrorResponse
-				err := json.Unmarshal(body, &response)
-				require.NoError(t, err)
-				assert.Equal(t, "BadRequest", response.Error)
-			},
+			wantStatus:      http.StatusNotFound,
+			validateBody:    nil, // 404 from router, no JSON response
 		},
 		{
 			name:            "non-admin sees only own tenant events",
@@ -470,19 +465,14 @@ func TestAuditHandler_ListAuditEventsByUser(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:            "empty user ID returns bad request",
+			name:            "empty user ID returns not found",
 			targetUserID:    "",
 			currentUserID:   "user-1",
 			tenantID:        "tenant-1",
 			isPlatformAdmin: false,
 			setupStore:      func(s *mockAuthStore) {},
-			wantStatus:      http.StatusBadRequest,
-			validateBody: func(t *testing.T, body []byte) {
-				var response models.ErrorResponse
-				err := json.Unmarshal(body, &response)
-				require.NoError(t, err)
-				assert.Equal(t, "BadRequest", response.Error)
-			},
+			wantStatus:      http.StatusNotFound,
+			validateBody:    nil, // 404 from router, no JSON response
 		},
 		{
 			name:            "non-existent target user denied",

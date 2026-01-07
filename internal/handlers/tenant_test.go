@@ -459,10 +459,10 @@ func TestTenantHandler_GetTenant(t *testing.T) {
 			},
 		},
 		{
-			name:       "get with empty tenant ID",
+			name:       "get with empty tenant ID returns redirect",
 			tenantID:   "",
 			setupStore: func(s *mockAuthStore) {},
-			wantStatus: http.StatusBadRequest,
+			wantStatus: http.StatusMovedPermanently, // 301 redirect from router
 		},
 	}
 

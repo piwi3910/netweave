@@ -204,18 +204,13 @@ func TestRoleHandler_GetRole(t *testing.T) {
 			},
 		},
 		{
-			name:            "get role with empty ID",
+			name:            "get role with empty ID returns redirect",
 			roleID:          "",
 			tenantID:        "tenant-1",
 			isPlatformAdmin: false,
 			setupStore:      func(s *mockAuthStore) {},
-			wantStatus:      http.StatusBadRequest,
-			validateBody: func(t *testing.T, body []byte) {
-				var response models.ErrorResponse
-				err := json.Unmarshal(body, &response)
-				require.NoError(t, err)
-				assert.Equal(t, "BadRequest", response.Error)
-			},
+			wantStatus:      http.StatusMovedPermanently, // 301 redirect from router
+			validateBody:    nil,                          // No JSON response for redirects
 		},
 		{
 			name:            "get role from different tenant denied",

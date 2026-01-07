@@ -25,15 +25,25 @@ func setupUserTestRouter(t *testing.T, store *mockAuthStore) (*gin.Engine, *User
 	logger := zap.NewNop()
 	handler := NewUserHandler(store, logger)
 
-	// Middleware to set tenant context for tests.
+	// Middleware to set user and tenant context for tests.
 	router.Use(func(c *gin.Context) {
 		tenantID := c.GetHeader("X-Tenant-ID")
+		userID := c.GetHeader("X-User-ID")
 		if tenantID != "" {
+			// Get tenant from store and add to context
 			tenant := store.tenants[tenantID]
 			if tenant != nil {
 				ctx := auth.ContextWithTenant(c.Request.Context(), tenant)
 				c.Request = c.Request.WithContext(ctx)
 			}
+
+			// Create user context with tenant ID
+			user := &auth.AuthenticatedUser{
+				UserID:   userID,
+				TenantID: tenantID,
+			}
+			ctx := auth.ContextWithUser(c.Request.Context(), user)
+			c.Request = c.Request.WithContext(ctx)
 		}
 		c.Next()
 	})
