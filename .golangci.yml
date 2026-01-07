@@ -124,6 +124,10 @@ issues:
         - misspell
         - gocritic
         - contextcheck
+        - wrapcheck
+        - revive
+        - importas
+        - unparam
 
 output:
   sort-results: true
