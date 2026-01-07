@@ -387,6 +387,8 @@ func (c *SOClient) serviceInstanceOperation(
 
 // Close closes the SO client and releases resources.
 func (c *SOClient) Close() error {
-	c.httpClient.CloseIdleConnections()
+	if c.httpClient != nil {
+		c.httpClient.CloseIdleConnections()
+	}
 	return nil
 }

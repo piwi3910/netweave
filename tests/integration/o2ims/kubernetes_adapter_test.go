@@ -651,7 +651,8 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 			}
 		}()
 
-		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		// Resource pools are read-only in O2-IMS spec, so POST should return 404
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 
 	t.Run("DeleteNonExistentResource", func(t *testing.T) {
@@ -695,6 +696,7 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 			}
 		}()
 
-		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		// Resource pools are read-only in O2-IMS spec, so POST should return 404
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 }

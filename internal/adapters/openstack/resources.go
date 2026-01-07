@@ -51,7 +51,7 @@ func (a *OpenStackAdapter) ListResources(_ context.Context, filter *adapter.Filt
 		// Apply filter
 		if filter != nil {
 			resourcePoolID := a.getResourcePoolIDFromServer(&osServers[i])
-			if !a.matchesFilter(filter, resourcePoolID, resource.ResourceTypeID, "", nil) {
+			if !adapter.MatchesFilter(filter, resourcePoolID, resource.ResourceTypeID, "", nil) {
 				continue
 			}
 		}
@@ -61,7 +61,7 @@ func (a *OpenStackAdapter) ListResources(_ context.Context, filter *adapter.Filt
 
 	// Apply pagination
 	if filter != nil {
-		resources = applyPagination(resources, filter.Limit, filter.Offset)
+		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resources",

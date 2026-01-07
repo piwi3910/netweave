@@ -53,7 +53,7 @@ func (a *OpenStackAdapter) ListResourceTypes(
 
 	// Apply pagination
 	if filter != nil {
-		resourceTypes = applyPagination(resourceTypes, filter.Limit, filter.Offset)
+		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
 	}
 
 	a.logger.Info("listed resource types",

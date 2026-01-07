@@ -76,9 +76,18 @@ func (a *DTIASAdapter) transformAndFilterPools(
 	filter *adapter.Filter,
 ) []*adapter.ResourcePool {
 	resourcePools := make([]*adapter.ResourcePool, 0, len(serverPools))
-	for i := range serverPools {
-		pool := a.transformServerPoolToResourcePool(&serverPools[i])
-		if filter != nil && !a.matchesFilter(pool, filter) {
+	for _, sp := range serverPools {
+		pool := a.transformServerPoolToResourcePool(&sp)
+
+		// Apply client-side filtering using shared helper
+		// Extract dtias metadata for label matching
+		var labels map[string]string
+		if pool.Extensions != nil {
+			if metadata, ok := pool.Extensions["dtias.metadata"].(map[string]string); ok {
+				labels = metadata
+			}
+		}
+		if !adapter.MatchesFilter(filter, pool.ResourcePoolID, "", pool.Location, labels) {
 			continue
 		}
 		resourcePools = append(resourcePools, pool)
@@ -277,29 +286,5 @@ func (a *DTIASAdapter) transformServerPoolToResourcePool(sp *ServerPool) *adapte
 	}
 }
 
-// matchesFilter checks if a resource pool matches the provided filter.
-func (a *DTIASAdapter) matchesFilter(pool *adapter.ResourcePool, filter *adapter.Filter) bool {
-	if filter == nil {
-		return true
-	}
-
-	// Filter by location
-	if filter.Location != "" && pool.Location != filter.Location {
-		return false
-	}
-
-	// Filter by labels
-	if len(filter.Labels) > 0 {
-		poolMetadata, ok := pool.Extensions["dtias.metadata"].(map[string]string)
-		if !ok {
-			return false
-		}
-		for key, value := range filter.Labels {
-			if poolMetadata[key] != value {
-				return false
-			}
-		}
-	}
-
-	return true
-}
+// NOTE: Filter matching uses shared helpers from internal/adapter/helpers.go
+// Use adapter.MatchesFilter() instead of local implementation.

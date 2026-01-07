@@ -444,62 +444,8 @@ func (a *OpenStackAdapter) Close() error {
 	return nil
 }
 
-// matchesFilter checks if a resource matches the provided filter criteria.
-func (a *OpenStackAdapter) matchesFilter(
-	filter *adapter.Filter,
-	resourcePoolID, resourceTypeID, location string,
-	labels map[string]string,
-) bool {
-	if filter == nil {
-		return true
-	}
-
-	return matchesResourcePoolID(filter, resourcePoolID) &&
-		matchesResourceTypeID(filter, resourceTypeID) &&
-		matchesLocation(filter, location) &&
-		matchesLabels(filter, labels)
-}
-
-// matchesResourcePoolID checks if resource pool ID matches filter.
-func matchesResourcePoolID(filter *adapter.Filter, resourcePoolID string) bool {
-	return filter.ResourcePoolID == "" || filter.ResourcePoolID == resourcePoolID
-}
-
-// matchesResourceTypeID checks if resource type ID matches filter.
-func matchesResourceTypeID(filter *adapter.Filter, resourceTypeID string) bool {
-	return filter.ResourceTypeID == "" || filter.ResourceTypeID == resourceTypeID
-}
-
-// matchesLocation checks if location matches filter.
-func matchesLocation(filter *adapter.Filter, location string) bool {
-	return filter.Location == "" || filter.Location == location
-}
-
-// matchesLabels checks if all filter labels match the resource labels.
-func matchesLabels(filter *adapter.Filter, labels map[string]string) bool {
-	for key, value := range filter.Labels {
-		if labels[key] != value {
-			return false
-		}
-	}
-	return true
-}
-
-// applyPagination applies limit and offset to a slice of results.
-func applyPagination[T any](items []T, limit, offset int) []T {
-	if offset >= len(items) {
-		return []T{}
-	}
-
-	start := offset
-	end := len(items)
-
-	if limit > 0 && start+limit < end {
-		end = start + limit
-	}
-
-	return items[start:end]
-}
+// NOTE: Filter matching and pagination use shared helpers from internal/adapter/helpers.go
+// Use adapter.MatchesFilter() and adapter.ApplyPagination() instead of local implementations.
 
 // generateFlavorID generates a consistent resource type ID for a flavor.
 func generateFlavorID(flavor *flavors.Flavor) string {

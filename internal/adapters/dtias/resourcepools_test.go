@@ -144,7 +144,12 @@ func TestDTIASAdapter_matchesFilter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := a.matchesFilter(pool, tt.filter)
+			// Extract labels from extensions
+			var labels map[string]string
+			if metadata, ok := pool.Extensions["dtias.metadata"].(map[string]string); ok {
+				labels = metadata
+			}
+			result := adapter.MatchesFilter(tt.filter, pool.ResourcePoolID, "", pool.Location, labels)
 			assert.Equal(t, tt.matches, result)
 		})
 	}
