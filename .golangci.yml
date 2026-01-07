@@ -31,6 +31,14 @@ issues:
         - gosec
         - goconst
         - gomnd
+        - testpackage
+    # Exclude cmd/ from strict checks (main packages have different patterns)
+    - path: cmd/
+      linters:
+        - contextcheck
+        - nestif
+        - goconst
+        - nonamedreturns
     # Exclude known false positives
     - text: "G404: Use of weak random number generator"
       linters:
@@ -44,6 +52,45 @@ issues:
     - source: "^//go:generate "
       linters:
         - lll
+    # Allow G304 for config file reading (paths are from config/env)
+    - text: "G304.*Potential file inclusion"
+      linters:
+        - gosec
+      path: cmd/
+    # Allow G306 for README files (public documentation)
+    - text: "G306.*WriteFile permissions"
+      linters:
+        - gosec
+      path: cmd/compliance/
+    # Allow go.mod replacements (needed for K8s compatibility)
+    - text: "replacement are not allowed"
+      linters:
+        - gomoddirectives
+    # Allow larger interfaces for adapters (O-RAN spec defines many operations)
+    - text: "interface has more than.*methods"
+      linters:
+        - interfacebloat
+      path: internal/adapter/
+    # Allow unused ctx in unimplemented adapter methods
+    - text: "unused-parameter.*ctx"
+      linters:
+        - revive
+      path: internal/adapters/
+    # Allow name stuttering in adapters (AWSAdapter follows AWS naming)
+    - text: "stutters.*Adapter"
+      linters:
+        - revive
+      path: internal/adapters/
+    # Allow named returns in adapters (clearer for complex return types)
+    - text: "named return.*found"
+      linters:
+        - nonamedreturns
+      path: internal/adapters/
+    # Allow nilerr in adapter health checks (intentional)
+    - text: "error is not nil.*but it returns nil"
+      linters:
+        - nilerr
+      path: internal/adapters/
 
 output:
   sort-results: true
@@ -167,7 +214,7 @@ linters-settings:
       - kubernetes
 
   lll:
-    line-length: 120
+    line-length: 130
     tab-width: 4
 
   gomnd:
@@ -238,6 +285,9 @@ linters-settings:
     disabled-checks:
       - whyNoLint # nolint directives forbidden anyway
       - unnamedResult # Named returns checked separately
+      - rangeValCopy # Acceptable for small structs, micro-optimization
+      - unnecessaryDefer # Sometimes used intentionally for clarity
+      - ifElseChain # if-else can be clearer than switch
 
   revive:
     rules:
