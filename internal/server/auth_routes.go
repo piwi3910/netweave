@@ -57,18 +57,18 @@ func (s *Server) setupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) 
 
 		// User management within tenant.
 		users := tenant.Group("/users")
-		users.Use(authMw.RequirePermission(string(auth.PermissionUserRead)))
+		users.Use(authMw.RequirePermission(auth.PermissionUserRead))
 		{
 			users.GET("", userHandler.ListUsers)
-			users.POST("", authMw.RequirePermission(string(auth.PermissionUserCreate)), userHandler.CreateUser)
+			users.POST("", authMw.RequirePermission(auth.PermissionUserCreate), userHandler.CreateUser)
 			users.GET("/:userId", userHandler.GetUser)
-			users.PUT("/:userId", authMw.RequirePermission(string(auth.PermissionUserUpdate)), userHandler.UpdateUser)
-			users.DELETE("/:userId", authMw.RequirePermission(string(auth.PermissionUserDelete)), userHandler.DeleteUser)
+			users.PUT("/:userId", authMw.RequirePermission(auth.PermissionUserUpdate), userHandler.UpdateUser)
+			users.DELETE("/:userId", authMw.RequirePermission(auth.PermissionUserDelete), userHandler.DeleteUser)
 		}
 
 		// Tenant-level audit logs.
 		audit := tenant.Group("/audit")
-		audit.Use(authMw.RequirePermission(string(auth.PermissionAuditRead)))
+		audit.Use(authMw.RequirePermission(auth.PermissionAuditRead))
 		{
 			audit.GET("/events", auditHandler.ListAuditEvents)
 			audit.GET("/events/type/:eventType", auditHandler.ListAuditEventsByType)
@@ -88,7 +88,7 @@ func (s *Server) setupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) 
 	// Read-only access to roles for all authenticated users.
 	roles := s.router.Group("/roles")
 	roles.Use(authMw.AuthenticationMiddleware())
-	roles.Use(authMw.RequirePermission(string(auth.PermissionRoleRead)))
+	roles.Use(authMw.RequirePermission(auth.PermissionRoleRead))
 	{
 		roles.GET("", roleHandler.ListRoles)
 		roles.GET("/:roleId", roleHandler.GetRole)

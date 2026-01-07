@@ -70,7 +70,7 @@ func TestAuditHandler_ListAuditEvents(t *testing.T) {
 					{
 						ID:        "event-1",
 						TenantID:  "tenant-1",
-						Type:      auth.AuditEventUserLogin,
+						Type:      auth.AuditEventAuthSuccess,
 						Timestamp: time.Now().UTC(),
 					},
 					{
@@ -228,7 +228,7 @@ func TestAuditHandler_ListAuditEventsByType(t *testing.T) {
 					{
 						ID:       "event-1",
 						TenantID: "tenant-1",
-						Type:     auth.AuditEventUserLogin,
+						Type:     auth.AuditEventAuthSuccess,
 					},
 				}
 			},
@@ -268,17 +268,17 @@ func TestAuditHandler_ListAuditEventsByType(t *testing.T) {
 					{
 						ID:       "event-1",
 						TenantID: "tenant-1",
-						Type:     auth.AuditEventUserLogin,
+						Type:     auth.AuditEventAuthSuccess,
 					},
 					{
 						ID:       "event-2",
 						TenantID: "tenant-2",
-						Type:     auth.AuditEventUserLogin,
+						Type:     auth.AuditEventAuthSuccess,
 					},
 					{
 						ID:       "event-3",
 						TenantID: "", // Global event.
-						Type:     auth.AuditEventUserLogin,
+						Type:     auth.AuditEventAuthSuccess,
 					},
 				}
 			},
@@ -304,12 +304,12 @@ func TestAuditHandler_ListAuditEventsByType(t *testing.T) {
 					{
 						ID:       "event-1",
 						TenantID: "tenant-1",
-						Type:     auth.AuditEventUserLogin,
+						Type:     auth.AuditEventAuthSuccess,
 					},
 					{
 						ID:       "event-2",
 						TenantID: "tenant-2",
-						Type:     auth.AuditEventUserLogin,
+						Type:     auth.AuditEventAuthSuccess,
 					},
 				}
 			},
@@ -383,7 +383,7 @@ func TestAuditHandler_ListAuditEventsByUser(t *testing.T) {
 					{
 						ID:     "event-1",
 						UserID: "user-1",
-						Type:   auth.AuditEventUserLogin,
+						Type:   auth.AuditEventAuthSuccess,
 					},
 				}
 			},
@@ -418,7 +418,7 @@ func TestAuditHandler_ListAuditEventsByUser(t *testing.T) {
 					{
 						ID:     "event-1",
 						UserID: "user-2",
-						Type:   auth.AuditEventUserLogin,
+						Type:   auth.AuditEventAuthSuccess,
 					},
 				}
 			},
@@ -463,7 +463,7 @@ func TestAuditHandler_ListAuditEventsByUser(t *testing.T) {
 					{
 						ID:     "event-1",
 						UserID: "user-2",
-						Type:   auth.AuditEventUserLogin,
+						Type:   auth.AuditEventAuthSuccess,
 					},
 				}
 			},

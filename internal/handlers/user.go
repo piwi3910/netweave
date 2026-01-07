@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"net/mail"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -114,6 +115,19 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 			Code:    http.StatusBadRequest,
 		})
 		return
+	}
+
+	// Validate email if provided
+	if req.Email != "" {
+		if _, err := mail.ParseAddress(req.Email); err != nil {
+			h.logger.Warn("invalid email", zap.String("email", req.Email), zap.Error(err))
+			c.JSON(http.StatusBadRequest, models.ErrorResponse{
+				Error:   "BadRequest",
+				Message: "Invalid email format",
+				Code:    http.StatusBadRequest,
+			})
+			return
+		}
 	}
 
 	// Check quota.
@@ -319,6 +333,19 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 			Code:    http.StatusForbidden,
 		})
 		return
+	}
+
+	// Validate email if provided
+	if req.Email != "" {
+		if _, err := mail.ParseAddress(req.Email); err != nil {
+			h.logger.Warn("invalid email", zap.String("email", req.Email), zap.Error(err))
+			c.JSON(http.StatusBadRequest, models.ErrorResponse{
+				Error:   "BadRequest",
+				Message: "Invalid email format",
+				Code:    http.StatusBadRequest,
+			})
+			return
+		}
 	}
 
 	// Apply updates.

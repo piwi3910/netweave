@@ -176,7 +176,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 				}
 				s.roles["role-viewer"] = &auth.Role{
 					ID:   "role-viewer",
-					Name: auth.RoleTenantViewer,
+					Name: auth.RoleViewer,
 					Type: auth.RoleTypeTenant,
 				}
 			},
@@ -262,7 +262,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 				}
 				s.roles["role-viewer"] = &auth.Role{
 					ID:   "role-viewer",
-					Name: auth.RoleTenantViewer,
+					Name: auth.RoleViewer,
 					Type: auth.RoleTypeTenant,
 				}
 			},

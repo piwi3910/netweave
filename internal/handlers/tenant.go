@@ -3,6 +3,9 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"net/mail"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +19,35 @@ import (
 type TenantHandler struct {
 	store  auth.Store
 	logger *zap.Logger
+}
+
+var (
+	// tenantNameRegex validates tenant names: alphanumeric, spaces, hyphens, underscores
+	tenantNameRegex = regexp.MustCompile(`^[a-zA-Z0-9\s\-_]+$`)
+)
+
+// validateTenantName validates tenant name constraints
+func validateTenantName(name string) error {
+	trimmed := strings.TrimSpace(name)
+	if len(trimmed) == 0 || len(trimmed) > 255 {
+		return errors.New("tenant name must be between 1 and 255 characters")
+	}
+	if !tenantNameRegex.MatchString(trimmed) {
+		return errors.New("tenant name can only contain alphanumeric characters, spaces, hyphens, and underscores")
+	}
+	return nil
+}
+
+// validateEmail validates email format using RFC 5322
+func validateEmail(email string) error {
+	if email == "" {
+		return nil // Email is optional
+	}
+	_, err := mail.ParseAddress(email)
+	if err != nil {
+		return errors.New("invalid email format")
+	}
+	return nil
 }
 
 // NewTenantHandler creates a new TenantHandler.
@@ -89,6 +121,28 @@ func (h *TenantHandler) CreateTenant(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
 			Message: "Invalid request body",
+			Code:    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Validate tenant name
+	if err := validateTenantName(req.Name); err != nil {
+		h.logger.Warn("invalid tenant name", zap.String("name", req.Name), zap.Error(err))
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: err.Error(),
+			Code:    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Validate email if provided
+	if err := validateEmail(req.ContactEmail); err != nil {
+		h.logger.Warn("invalid email", zap.String("email", req.ContactEmail), zap.Error(err))
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: err.Error(),
 			Code:    http.StatusBadRequest,
 		})
 		return
@@ -207,6 +261,32 @@ func (h *TenantHandler) UpdateTenant(c *gin.Context) {
 			Code:    http.StatusBadRequest,
 		})
 		return
+	}
+
+	// Validate tenant name if provided
+	if req.Name != "" {
+		if err := validateTenantName(req.Name); err != nil {
+			h.logger.Warn("invalid tenant name", zap.String("name", req.Name), zap.Error(err))
+			c.JSON(http.StatusBadRequest, models.ErrorResponse{
+				Error:   "BadRequest",
+				Message: err.Error(),
+				Code:    http.StatusBadRequest,
+			})
+			return
+		}
+	}
+
+	// Validate email if provided
+	if req.ContactEmail != "" {
+		if err := validateEmail(req.ContactEmail); err != nil {
+			h.logger.Warn("invalid email", zap.String("email", req.ContactEmail), zap.Error(err))
+			c.JSON(http.StatusBadRequest, models.ErrorResponse{
+				Error:   "BadRequest",
+				Message: err.Error(),
+				Code:    http.StatusBadRequest,
+			})
+			return
+		}
 	}
 
 	// Get existing tenant.

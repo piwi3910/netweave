@@ -267,7 +267,7 @@ func TestRoleHandler_GetRole(t *testing.T) {
 			setupStore: func(s *mockAuthStore) {
 				s.roles["role-global"] = &auth.Role{
 					ID:       "role-global",
-					Name:     auth.RoleTenantViewer,
+					Name:     auth.RoleViewer,
 					Type:     auth.RoleTypeTenant,
 					TenantID: "", // Global role.
 				}
