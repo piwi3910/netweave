@@ -336,39 +336,10 @@ func (p *Plugin) transformToAAIInventory(inventory *smo.InfrastructureInventory)
 		}
 
 		if isPhysical {
-			// Physical resource → PNF
-			pnf := &PNF{
-				PNFName:  resource.ID,
-				PNFName2: resource.Description,
-				PNFID:    resource.GlobalAssetID,
-				InMaint:  false,
-				FrameID:  resource.ResourcePoolID,
-			}
-
-			// Extract additional metadata
-			if resource.Extensions != nil {
-				if equipType, ok := resource.Extensions["equipmentType"].(string); ok {
-					pnf.EquipType = equipType
-				}
-				if equipVendor, ok := resource.Extensions["equipmentVendor"].(string); ok {
-					pnf.EquipVendor = equipVendor
-				}
-				if equipModel, ok := resource.Extensions["equipmentModel"].(string); ok {
-					pnf.EquipModel = equipModel
-				}
-			}
-
+			pnf := p.createPNFFromResource(&resource)
 			aaiInventory.PNFs = append(aaiInventory.PNFs, pnf)
 		} else {
-			// Virtual resource → VNF
-			vnf := &VNF{
-				VNFID:                resource.ID,
-				VNFName:              resource.Description,
-				VNFType:              resource.ResourceTypeID,
-				InMaint:              false,
-				IsClosedLoopDisabled: false,
-			}
-
+			vnf := p.createVNFFromResource(&resource)
 			aaiInventory.VNFs = append(aaiInventory.VNFs, vnf)
 		}
 	}
@@ -496,4 +467,43 @@ func (p *Plugin) mapDeploymentStatusToOrchestrationStatus(status string) string 
 	}
 
 	return "Created"
+}
+
+// createPNFFromResource creates a PNF (Physical Network Function) from a resource.
+func (p *Plugin) createPNFFromResource(resource *smo.Resource) *PNF {
+	pnf := &PNF{
+		PNFName:  resource.ID,
+		PNFName2: resource.Description,
+		PNFID:    resource.GlobalAssetID,
+		InMaint:  false,
+		FrameID:  resource.ResourcePoolID,
+	}
+
+	// Extract additional metadata from extensions
+	if resource.Extensions == nil {
+		return pnf
+	}
+
+	if equipType, ok := resource.Extensions["equipmentType"].(string); ok {
+		pnf.EquipType = equipType
+	}
+	if equipVendor, ok := resource.Extensions["equipmentVendor"].(string); ok {
+		pnf.EquipVendor = equipVendor
+	}
+	if equipModel, ok := resource.Extensions["equipmentModel"].(string); ok {
+		pnf.EquipModel = equipModel
+	}
+
+	return pnf
+}
+
+// createVNFFromResource creates a VNF (Virtual Network Function) from a resource.
+func (p *Plugin) createVNFFromResource(resource *smo.Resource) *VNF {
+	return &VNF{
+		VNFID:                resource.ID,
+		VNFName:              resource.Description,
+		VNFType:              resource.ResourceTypeID,
+		InMaint:              false,
+		IsClosedLoopDisabled: false,
+	}
 }

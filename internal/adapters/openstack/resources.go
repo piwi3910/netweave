@@ -12,7 +12,7 @@ import (
 
 // ListResources retrieves all OpenStack Nova instances and transforms them to O2-IMS Resources.
 // Nova instances (VMs) are the fundamental compute resources in OpenStack.
-func (a *OpenStackAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (a *OpenStackAdapter) ListResources(_ context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
 	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
@@ -113,10 +113,7 @@ func (a *OpenStackAdapter) CreateResource(ctx context.Context, resource *adapter
 	}
 
 	// Build server create options
-	createOpts, err := a.buildCreateOptions(ctx, resource, flavorID, imageID)
-	if err != nil {
-		return nil, err
-	}
+	createOpts := a.buildCreateOptions(ctx, resource, flavorID, imageID)
 
 	// Create server in OpenStack
 	osServer, err := a.createOpenStackServer(createOpts)
@@ -136,7 +133,9 @@ func (a *OpenStackAdapter) CreateResource(ctx context.Context, resource *adapter
 }
 
 // extractRequiredParams extracts and validates required parameters from resource.
-func (a *OpenStackAdapter) extractRequiredParams(resource *adapter.Resource) (flavorID, imageID string, err error) {
+func (a *OpenStackAdapter) extractRequiredParams(resource *adapter.Resource) (string, string, error) {
+	var flavorID, imageID string
+	var err error
 	if resource.ResourceTypeID == "" {
 		return "", "", fmt.Errorf("resourceTypeID is required")
 	}
@@ -161,7 +160,7 @@ func (a *OpenStackAdapter) buildCreateOptions(
 	ctx context.Context,
 	resource *adapter.Resource,
 	flavorID, imageID string,
-) (servers.CreateOpts, error) {
+) servers.CreateOpts {
 	// Extract optional name parameter
 	name := "openstack-instance"
 	if n, ok := resource.Extensions["openstack.name"].(string); ok && n != "" {
@@ -184,7 +183,7 @@ func (a *OpenStackAdapter) buildCreateOptions(
 	// Add optional security groups
 	a.addSecurityGroups(&createOpts, resource.Extensions)
 
-	return createOpts, nil
+	return createOpts
 }
 
 // getAvailabilityZone retrieves availability zone from resource pool.
@@ -240,7 +239,7 @@ func (a *OpenStackAdapter) createOpenStackServer(createOpts servers.CreateOpts) 
 }
 
 // DeleteResource deletes an OpenStack Nova instance.
-func (a *OpenStackAdapter) DeleteResource(ctx context.Context, id string) error {
+func (a *OpenStackAdapter) DeleteResource(_ context.Context, id string) error {
 	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
@@ -323,7 +322,7 @@ func (a *OpenStackAdapter) transformServerToResource(server *servers.Server) *ad
 
 // getResourcePoolIDFromServer derives the resource pool ID from a server's availability zone.
 // This is a best-effort approach since OpenStack doesn't directly link servers to host aggregates.
-func (a *OpenStackAdapter) getResourcePoolIDFromServer(server *servers.Server) string {
+func (a *OpenStackAdapter) getResourcePoolIDFromServer(_ *servers.Server) string {
 	// In OpenStack, we can't directly determine which host aggregate a server belongs to
 	// from the server object alone. We would need to query host aggregates and match
 	// the server's host. For now, we return empty string or use availability zone as a proxy.

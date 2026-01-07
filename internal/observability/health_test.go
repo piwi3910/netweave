@@ -25,7 +25,7 @@ func TestNewHealthChecker(t *testing.T) {
 func TestRegisterHealthCheck(t *testing.T) {
 	hc := NewHealthChecker("v1.0.0")
 
-	checkFunc := func(ctx context.Context) error {
+	checkFunc := func(_ context.Context) error {
 		return nil
 	}
 
@@ -39,7 +39,7 @@ func TestRegisterHealthCheck(t *testing.T) {
 func TestRegisterReadinessCheck(t *testing.T) {
 	hc := NewHealthChecker("v1.0.0")
 
-	checkFunc := func(ctx context.Context) error {
+	checkFunc := func(_ context.Context) error {
 		return nil
 	}
 
@@ -62,10 +62,10 @@ func TestCheckHealthAllHealthy(t *testing.T) {
 	hc := NewHealthChecker("v1.0.0")
 
 	// Register healthy checks
-	hc.RegisterHealthCheck("component1", func(ctx context.Context) error {
+	hc.RegisterHealthCheck("component1", func(_ context.Context) error {
 		return nil
 	})
-	hc.RegisterHealthCheck("component2", func(ctx context.Context) error {
+	hc.RegisterHealthCheck("component2", func(_ context.Context) error {
 		return nil
 	})
 
@@ -87,10 +87,10 @@ func TestCheckHealthWithUnhealthyComponent(t *testing.T) {
 	hc := NewHealthChecker("v1.0.0")
 
 	// Register healthy and unhealthy checks
-	hc.RegisterHealthCheck("healthy-component", func(ctx context.Context) error {
+	hc.RegisterHealthCheck("healthy-component", func(_ context.Context) error {
 		return nil
 	})
-	hc.RegisterHealthCheck("unhealthy-component", func(ctx context.Context) error {
+	hc.RegisterHealthCheck("unhealthy-component", func(_ context.Context) error {
 		return errors.New("component is down")
 	})
 
@@ -137,10 +137,10 @@ func TestCheckReadinessAllReady(t *testing.T) {
 	hc := NewHealthChecker("v1.0.0")
 
 	// Register ready checks
-	hc.RegisterReadinessCheck("redis", func(ctx context.Context) error {
+	hc.RegisterReadinessCheck("redis", func(_ context.Context) error {
 		return nil
 	})
-	hc.RegisterReadinessCheck("kubernetes", func(ctx context.Context) error {
+	hc.RegisterReadinessCheck("kubernetes", func(_ context.Context) error {
 		return nil
 	})
 
@@ -159,10 +159,10 @@ func TestCheckReadinessAllReady(t *testing.T) {
 func TestCheckReadinessWithNotReadyComponent(t *testing.T) {
 	hc := NewHealthChecker("v1.0.0")
 
-	hc.RegisterReadinessCheck("redis", func(ctx context.Context) error {
+	hc.RegisterReadinessCheck("redis", func(_ context.Context) error {
 		return nil
 	})
-	hc.RegisterReadinessCheck("kubernetes", func(ctx context.Context) error {
+	hc.RegisterReadinessCheck("kubernetes", func(_ context.Context) error {
 		return errors.New("k8s not reachable")
 	})
 
@@ -193,15 +193,15 @@ func TestExecuteChecksConcurrent(t *testing.T) {
 	ctx := context.Background()
 
 	checks := map[string]HealthCheck{
-		"check1": func(ctx context.Context) error {
+		"check1": func(_ context.Context) error {
 			time.Sleep(50 * time.Millisecond)
 			return nil
 		},
-		"check2": func(ctx context.Context) error {
+		"check2": func(_ context.Context) error {
 			time.Sleep(50 * time.Millisecond)
 			return nil
 		},
-		"check3": func(ctx context.Context) error {
+		"check3": func(_ context.Context) error {
 			time.Sleep(50 * time.Millisecond)
 			return nil
 		},
@@ -222,7 +222,7 @@ func TestExecuteChecksConcurrent(t *testing.T) {
 
 func TestHealthHandler(t *testing.T) {
 	hc := NewHealthChecker("v1.0.0")
-	hc.RegisterHealthCheck("test", func(ctx context.Context) error {
+	hc.RegisterHealthCheck("test", func(_ context.Context) error {
 		return nil
 	})
 
@@ -245,7 +245,7 @@ func TestHealthHandler(t *testing.T) {
 
 func TestHealthHandlerUnhealthy(t *testing.T) {
 	hc := NewHealthChecker("v1.0.0")
-	hc.RegisterHealthCheck("test", func(ctx context.Context) error {
+	hc.RegisterHealthCheck("test", func(_ context.Context) error {
 		return errors.New("component failed")
 	})
 
@@ -266,7 +266,7 @@ func TestHealthHandlerUnhealthy(t *testing.T) {
 
 func TestReadinessHandler(t *testing.T) {
 	hc := NewHealthChecker("v1.0.0")
-	hc.RegisterReadinessCheck("test", func(ctx context.Context) error {
+	hc.RegisterReadinessCheck("test", func(_ context.Context) error {
 		return nil
 	})
 
@@ -288,7 +288,7 @@ func TestReadinessHandler(t *testing.T) {
 
 func TestReadinessHandlerNotReady(t *testing.T) {
 	hc := NewHealthChecker("v1.0.0")
-	hc.RegisterReadinessCheck("test", func(ctx context.Context) error {
+	hc.RegisterReadinessCheck("test", func(_ context.Context) error {
 		return errors.New("not ready")
 	})
 
@@ -331,7 +331,7 @@ func TestLivenessHandler(t *testing.T) {
 
 func TestRedisHealthCheck(t *testing.T) {
 	// Success case
-	pingFunc := func(ctx context.Context) error {
+	pingFunc := func(_ context.Context) error {
 		return nil
 	}
 	check := RedisHealthCheck(pingFunc)
@@ -339,7 +339,7 @@ func TestRedisHealthCheck(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Error case
-	pingFuncErr := func(ctx context.Context) error {
+	pingFuncErr := func(_ context.Context) error {
 		return errors.New("redis connection failed")
 	}
 	checkErr := RedisHealthCheck(pingFuncErr)
@@ -356,7 +356,7 @@ func TestRedisHealthCheck(t *testing.T) {
 
 func TestKubernetesHealthCheck(t *testing.T) {
 	// Success case
-	pingFunc := func(ctx context.Context) error {
+	pingFunc := func(_ context.Context) error {
 		return nil
 	}
 	check := KubernetesHealthCheck(pingFunc)
@@ -364,7 +364,7 @@ func TestKubernetesHealthCheck(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Error case
-	pingFuncErr := func(ctx context.Context) error {
+	pingFuncErr := func(_ context.Context) error {
 		return errors.New("k8s api unreachable")
 	}
 	checkErr := KubernetesHealthCheck(pingFuncErr)
@@ -381,7 +381,7 @@ func TestKubernetesHealthCheck(t *testing.T) {
 
 func TestAdapterHealthCheck(t *testing.T) {
 	// Success case
-	checkFunc := func(ctx context.Context) error {
+	checkFunc := func(_ context.Context) error {
 		return nil
 	}
 	check := AdapterHealthCheck("k8s-adapter", checkFunc)
@@ -389,7 +389,7 @@ func TestAdapterHealthCheck(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Error case
-	checkFuncErr := func(ctx context.Context) error {
+	checkFuncErr := func(_ context.Context) error {
 		return errors.New("adapter error")
 	}
 	checkErr := AdapterHealthCheck("mock-adapter", checkFuncErr)
@@ -404,14 +404,14 @@ func TestAdapterHealthCheck(t *testing.T) {
 }
 
 func TestGenericHealthCheck(t *testing.T) {
-	checkFunc := func(ctx context.Context) error {
+	checkFunc := func(_ context.Context) error {
 		return nil
 	}
 	check := GenericHealthCheck(checkFunc)
 	err := check(context.Background())
 	assert.NoError(t, err)
 
-	checkFuncErr := func(ctx context.Context) error {
+	checkFuncErr := func(_ context.Context) error {
 		return errors.New("generic error")
 	}
 	checkErr := GenericHealthCheck(checkFuncErr)
@@ -477,7 +477,7 @@ func TestReadinessResponseStructure(t *testing.T) {
 // Benchmark tests for performance validation.
 func BenchmarkHealthCheckExecution(b *testing.B) {
 	hc := NewHealthChecker("v1.0.0")
-	hc.RegisterHealthCheck("test", func(ctx context.Context) error {
+	hc.RegisterHealthCheck("test", func(_ context.Context) error {
 		return nil
 	})
 
@@ -491,7 +491,7 @@ func BenchmarkHealthCheckExecution(b *testing.B) {
 
 func BenchmarkReadinessCheckExecution(b *testing.B) {
 	hc := NewHealthChecker("v1.0.0")
-	hc.RegisterReadinessCheck("test", func(ctx context.Context) error {
+	hc.RegisterReadinessCheck("test", func(_ context.Context) error {
 		return nil
 	})
 
@@ -505,7 +505,7 @@ func BenchmarkReadinessCheckExecution(b *testing.B) {
 
 func BenchmarkHealthHandlerExecution(b *testing.B) {
 	hc := NewHealthChecker("v1.0.0")
-	hc.RegisterHealthCheck("test", func(ctx context.Context) error {
+	hc.RegisterHealthCheck("test", func(_ context.Context) error {
 		return nil
 	})
 

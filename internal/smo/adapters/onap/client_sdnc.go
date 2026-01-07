@@ -123,7 +123,12 @@ func (c *SDNCClient) DeleteNetwork(ctx context.Context, networkID string, networ
 }
 
 // ConfigureVNF configures a VNF via SDNC.
-func (c *SDNCClient) ConfigureVNF(ctx context.Context, vnfID string, serviceInstanceID string, parameters map[string]interface{}) (*SDNCResponse, error) {
+func (c *SDNCClient) ConfigureVNF(
+	ctx context.Context,
+	vnfID string,
+	serviceInstanceID string,
+	parameters map[string]interface{},
+) (*SDNCResponse, error) {
 	request := &SDNCRequest{
 		Input: SDNCInput{
 			RequestInformation: RequestInformation{
@@ -147,7 +152,11 @@ func (c *SDNCClient) ConfigureVNF(ctx context.Context, vnfID string, serviceInst
 }
 
 // ActivateService activates a service via SDNC.
-func (c *SDNCClient) ActivateService(ctx context.Context, serviceInstanceID string, serviceType string) (*SDNCResponse, error) {
+func (c *SDNCClient) ActivateService(
+	ctx context.Context,
+	serviceInstanceID string,
+	serviceType string,
+) (*SDNCResponse, error) {
 	request := &SDNCRequest{
 		Input: SDNCInput{
 			RequestInformation: RequestInformation{
@@ -166,7 +175,11 @@ func (c *SDNCClient) ActivateService(ctx context.Context, serviceInstanceID stri
 }
 
 // DeactivateService deactivates a service via SDNC.
-func (c *SDNCClient) DeactivateService(ctx context.Context, serviceInstanceID string, serviceType string) (*SDNCResponse, error) {
+func (c *SDNCClient) DeactivateService(
+	ctx context.Context,
+	serviceInstanceID string,
+	serviceType string,
+) (*SDNCResponse, error) {
 	request := &SDNCRequest{
 		Input: SDNCInput{
 			RequestInformation: RequestInformation{
@@ -185,7 +198,11 @@ func (c *SDNCClient) DeactivateService(ctx context.Context, serviceInstanceID st
 }
 
 // executeSDNCOperation is a helper method for executing SDNC operations.
-func (c *SDNCClient) executeSDNCOperation(ctx context.Context, operation string, request *SDNCRequest) (*SDNCResponse, error) {
+func (c *SDNCClient) executeSDNCOperation(
+	ctx context.Context,
+	operation string,
+	request *SDNCRequest,
+) (*SDNCResponse, error) {
 	body, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
@@ -196,7 +213,12 @@ func (c *SDNCClient) executeSDNCOperation(ctx context.Context, operation string,
 }
 
 // executeWithRetry executes an SDNC operation with retry logic.
-func (c *SDNCClient) executeWithRetry(ctx context.Context, url string, body []byte, operation string) (*SDNCResponse, error) {
+func (c *SDNCClient) executeWithRetry(
+	ctx context.Context,
+	url string,
+	body []byte,
+	operation string,
+) (*SDNCResponse, error) {
 	var lastErr error
 	for attempt := 0; attempt <= c.config.MaxRetries; attempt++ {
 		if attempt > 0 {
@@ -213,8 +235,10 @@ func (c *SDNCClient) executeWithRetry(ctx context.Context, url string, body []by
 		}
 	}
 
-	return nil, fmt.Errorf("failed to execute SDNC operation %s after %d attempts: %w",
-		operation, c.config.MaxRetries+1, lastErr)
+	return nil, fmt.Errorf(
+		"failed to execute SDNC operation %s after %d attempts: %w",
+		operation, c.config.MaxRetries+1, lastErr,
+	)
 }
 
 // waitBeforeRetrySDNC implements exponential backoff for SDNC retries.
@@ -227,7 +251,13 @@ func (c *SDNCClient) waitBeforeRetrySDNC(attempt int, operation string) {
 }
 
 // executeSDNCRequest executes a single SDNC request.
-func (c *SDNCClient) executeSDNCRequest(ctx context.Context, url string, body []byte, operation string, lastErr *error) (*SDNCResponse, error) {
+func (c *SDNCClient) executeSDNCRequest(
+	ctx context.Context,
+	url string,
+	body []byte,
+	operation string,
+	lastErr *error,
+) (*SDNCResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		*lastErr = fmt.Errorf("failed to create request: %w", err)

@@ -352,23 +352,26 @@ func (f *Filter) matchesModel(rt *ResourceType) bool {
 // This is used for filtering subscription lists.
 func (f *Filter) MatchesSubscription(sub *Subscription) bool {
 	// If filter specifies resource pool IDs, check if subscription filters for them
-	if len(f.ResourcePoolID) > 0 && sub.Filter != nil {
-		if len(sub.Filter.ResourcePoolID) > 0 {
-			hasMatch := false
-			for _, filterPoolID := range f.ResourcePoolID {
-				if contains(sub.Filter.ResourcePoolID, filterPoolID) {
-					hasMatch = true
-					break
-				}
-			}
-			if !hasMatch {
-				return false
-			}
+	if len(f.ResourcePoolID) == 0 {
+		return true
+	}
+
+	if sub.Filter == nil {
+		return true
+	}
+
+	if len(sub.Filter.ResourcePoolID) == 0 {
+		return true
+	}
+
+	// Check if any filter pool ID matches subscription filter
+	for _, filterPoolID := range f.ResourcePoolID {
+		if contains(sub.Filter.ResourcePoolID, filterPoolID) {
+			return true
 		}
 	}
 
-	// All conditions matched
-	return true
+	return false
 }
 
 // IsEmpty returns true if the filter has no criteria set (will match everything).

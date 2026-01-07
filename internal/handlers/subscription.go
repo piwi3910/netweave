@@ -223,7 +223,10 @@ func (h *SubscriptionHandler) validateCallbackURL(c *gin.Context, callback strin
 }
 
 // convertToStorageSubscription converts models.Subscription to storage.Subscription.
-func (h *SubscriptionHandler) convertToStorageSubscription(sub *models.Subscription, subscriptionID string) *storage.Subscription {
+func (h *SubscriptionHandler) convertToStorageSubscription(
+	sub *models.Subscription,
+	subscriptionID string,
+) *storage.Subscription {
 	storageFilter := storage.SubscriptionFilter{}
 	if len(sub.Filter.ResourcePoolID) > 0 {
 		storageFilter.ResourcePoolID = sub.Filter.ResourcePoolID[0]
@@ -245,7 +248,11 @@ func (h *SubscriptionHandler) convertToStorageSubscription(sub *models.Subscript
 }
 
 // storeSubscription stores the subscription and handles errors.
-func (h *SubscriptionHandler) storeSubscription(ctx context.Context, c *gin.Context, storageSub *storage.Subscription) error {
+func (h *SubscriptionHandler) storeSubscription(
+	ctx context.Context,
+	c *gin.Context,
+	storageSub *storage.Subscription,
+) error {
 	err := h.store.Create(ctx, storageSub)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionExists) {
@@ -273,7 +280,10 @@ func (h *SubscriptionHandler) storeSubscription(ctx context.Context, c *gin.Cont
 }
 
 // buildSubscriptionResponse builds the subscription response objec.
-func (h *SubscriptionHandler) buildSubscriptionResponse(subscriptionID string, storageSub *storage.Subscription) models.Subscription {
+func (h *SubscriptionHandler) buildSubscriptionResponse(
+	subscriptionID string,
+	storageSub *storage.Subscription,
+) models.Subscription {
 	return models.Subscription{
 		SubscriptionID:         subscriptionID,
 		Callback:               storageSub.Callback,

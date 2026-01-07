@@ -1,7 +1,7 @@
-// Package helpers provides common test utilities for integration tests.
 //go:build integration
 // +build integration
 
+// Package helpers provides common test utilities for integration tests.
 package helpers
 
 import (
@@ -94,7 +94,7 @@ func (ws *WebhookServer) handleWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleHealth responds to health check requests.
-func (ws *WebhookServer) handleHealth(w http.ResponseWriter, r *http.Request) {
+func (ws *WebhookServer) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "healthy",

@@ -145,7 +145,7 @@ func TestAuthenticate(t *testing.T) {
 			username: "admin",
 			password: "wrong-password",
 			project:  "admin",
-			serverResp: func(w http.ResponseWriter, r *http.Request) {
+			serverResp: func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusUnauthorized)
 				_, _ = w.Write([]byte(`{"detail": "Invalid credentials"}`))
 			},
@@ -156,7 +156,7 @@ func TestAuthenticate(t *testing.T) {
 			username: "admin",
 			password: "secret",
 			project:  "admin",
-			serverResp: func(w http.ResponseWriter, r *http.Request) {
+			serverResp: func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 				_, _ = w.Write([]byte(`{"detail": "Internal server error"}`))
 			},
@@ -217,7 +217,7 @@ func TestAuthenticate(t *testing.T) {
 func TestAuthenticateWithCachedToken(t *testing.T) {
 	callCount := 0
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -270,7 +270,7 @@ func TestAuthenticateWithCachedToken(t *testing.T) {
 func TestAuthenticateTokenExpiry(t *testing.T) {
 	callCount := 0
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -360,7 +360,7 @@ func TestHealth(t *testing.T) {
 		},
 		{
 			name: "unhealthy - auth failure",
-			serverResp: func(w http.ResponseWriter, r *http.Request) {
+			serverResp: func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusUnauthorized)
 			},
 			wantErr: true,

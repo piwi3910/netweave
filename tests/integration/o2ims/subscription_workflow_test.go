@@ -7,6 +7,7 @@ package o2ims
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -23,7 +24,7 @@ import (
 // TestSubscriptionWorkflow_CreateAndNotify tests the complete subscription workflow:
 // 1. Create subscription
 // 2. Trigger resource event
-// 3. Receive webhook notification
+// 3. Receive webhook notification.
 func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -68,11 +69,16 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 	subBody, err := json.Marshal(subscriptionData)
 	require.NoError(t, err)
 
-	subResp, err := http.Post(
+	subReq, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		ts.O2IMSURL()+"/subscriptions",
-		"application/json",
 		bytes.NewReader(subBody),
 	)
+	require.NoError(t, err)
+	subReq.Header.Set("Content-Type", "application/json")
+
+	subResp, err := http.DefaultClient.Do(subReq)
 	require.NoError(t, err)
 	defer func() {
 		if err := subResp.Body.Close(); err != nil {
@@ -101,11 +107,16 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 	poolBody, err := json.Marshal(poolData)
 	require.NoError(t, err)
 
-	poolResp, err := http.Post(
+	poolReq, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		ts.O2IMSURL()+"/resourcePools",
-		"application/json",
 		bytes.NewReader(poolBody),
 	)
+	require.NoError(t, err)
+	poolReq.Header.Set("Content-Type", "application/json")
+
+	poolResp, err := http.DefaultClient.Do(poolReq)
 	require.NoError(t, err)
 	defer func() {
 		if err := poolResp.Body.Close(); err != nil {
@@ -173,11 +184,16 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 	// Create a resource pool first
 	poolData := helpers.TestResourcePool("filter-test-pool")
 	poolBody, _ := json.Marshal(poolData)
-	poolResp, _ := http.Post(
+	poolReq, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		ts.O2IMSURL()+"/resourcePools",
-		"application/json",
 		bytes.NewReader(poolBody),
 	)
+	if poolReq != nil {
+		poolReq.Header.Set("Content-Type", "application/json")
+	}
+	poolResp, _ := http.DefaultClient.Do(poolReq)
 	defer func() {
 		if err := poolResp.Body.Close(); err != nil {
 			t.Logf("Failed to close response body: %v", err)
@@ -198,11 +214,16 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 		subData := helpers.TestSubscriptionWithFilter(webhookServer.URL(), poolID, "")
 		subBody, _ := json.Marshal(subData)
 
-		subResp, err := http.Post(
+		subReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/subscriptions",
-			"application/json",
 			bytes.NewReader(subBody),
 		)
+		require.NoError(t, err)
+		subReq.Header.Set("Content-Type", "application/json")
+
+		subResp, err := http.DefaultClient.Do(subReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := subResp.Body.Close(); err != nil {
@@ -220,11 +241,16 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 		resourceData := helpers.TestResource(poolID, "compute-node")
 		resBody, _ := json.Marshal(resourceData)
 
-		resResp, err := http.Post(
+		resReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/resources",
-			"application/json",
 			bytes.NewReader(resBody),
 		)
+		require.NoError(t, err)
+		resReq.Header.Set("Content-Type", "application/json")
+
+		resResp, err := http.DefaultClient.Do(resReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := resResp.Body.Close(); err != nil {
@@ -246,11 +272,16 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 		subData := helpers.TestSubscriptionWithFilter(webhookServer.URL(), "different-pool-id", "")
 		subBody, _ := json.Marshal(subData)
 
-		subResp, err := http.Post(
+		subReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/subscriptions",
-			"application/json",
 			bytes.NewReader(subBody),
 		)
+		require.NoError(t, err)
+		subReq.Header.Set("Content-Type", "application/json")
+
+		subResp, err := http.DefaultClient.Do(subReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := subResp.Body.Close(); err != nil {
@@ -262,11 +293,16 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 		resourceData := helpers.TestResource(poolID, "compute-node")
 		resBody, _ := json.Marshal(resourceData)
 
-		resResp, err := http.Post(
+		resReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/resources",
-			"application/json",
 			bytes.NewReader(resBody),
 		)
+		require.NoError(t, err)
+		resReq.Header.Set("Content-Type", "application/json")
+
+		resResp, err := http.DefaultClient.Do(resReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := resResp.Body.Close(); err != nil {
@@ -318,11 +354,16 @@ func TestSubscriptionWorkflow_MultipleSubscriptions(t *testing.T) {
 		subData := helpers.TestSubscription(webhookServer.URL())
 		subBody, _ := json.Marshal(subData)
 
-		subResp, err := http.Post(
+		subReq, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
 			ts.O2IMSURL()+"/subscriptions",
-			"application/json",
 			bytes.NewReader(subBody),
 		)
+		require.NoError(t, err)
+		subReq.Header.Set("Content-Type", "application/json")
+
+		subResp, err := http.DefaultClient.Do(subReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := subResp.Body.Close(); err != nil {
@@ -343,11 +384,16 @@ func TestSubscriptionWorkflow_MultipleSubscriptions(t *testing.T) {
 	poolData := helpers.TestResourcePool("multi-sub-pool")
 	poolBody, _ := json.Marshal(poolData)
 
-	poolResp, err := http.Post(
+	poolReq, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		ts.O2IMSURL()+"/resourcePools",
-		"application/json",
 		bytes.NewReader(poolBody),
 	)
+	require.NoError(t, err)
+	poolReq.Header.Set("Content-Type", "application/json")
+
+	poolResp, err := http.DefaultClient.Do(poolReq)
 	require.NoError(t, err)
 	defer func() {
 		if err := poolResp.Body.Close(); err != nil {
@@ -406,11 +452,16 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	subData := helpers.TestSubscription(webhookServer.URL())
 	subBody, _ := json.Marshal(subData)
 
-	subResp, err := http.Post(
+	subReq, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		ts.O2IMSURL()+"/subscriptions",
-		"application/json",
 		bytes.NewReader(subBody),
 	)
+	require.NoError(t, err)
+	subReq.Header.Set("Content-Type", "application/json")
+
+	subResp, err := http.DefaultClient.Do(subReq)
 	require.NoError(t, err)
 	defer func() {
 		if err := subResp.Body.Close(); err != nil {
@@ -419,7 +470,8 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	}()
 
 	var subscription map[string]interface{}
-	json.NewDecoder(subResp.Body).Decode(&subscription)
+	err = json.NewDecoder(subResp.Body).Decode(&subscription)
+	require.NoError(t, err)
 	subscriptionID := subscription["subscriptionId"].(string)
 
 	// Verify subscription exists in storage
@@ -427,11 +479,13 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	require.NoError(t, err)
 
 	// Delete subscription
-	req, _ := http.NewRequest(
+	req, err := http.NewRequestWithContext(
+		context.Background(),
 		http.MethodDelete,
 		ts.O2IMSURL()+"/subscriptions/"+subscriptionID,
 		nil,
 	)
+	require.NoError(t, err)
 
 	client := &http.Client{}
 	delResp, err := client.Do(req)
@@ -453,11 +507,16 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	poolData := helpers.TestResourcePool("post-delete-pool")
 	poolBody, _ := json.Marshal(poolData)
 
-	poolResp, err := http.Post(
+	poolReq, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		ts.O2IMSURL()+"/resourcePools",
-		"application/json",
 		bytes.NewReader(poolBody),
 	)
+	require.NoError(t, err)
+	poolReq.Header.Set("Content-Type", "application/json")
+
+	poolResp, err := http.DefaultClient.Do(poolReq)
 	require.NoError(t, err)
 	defer func() {
 		if err := poolResp.Body.Close(); err != nil {

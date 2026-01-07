@@ -407,7 +407,13 @@ func TestCreateDeployment(t *testing.T) {
 
 // TestUpdateDeployment tests updating ArgoCD Applications.
 func TestUpdateDeployment(t *testing.T) {
-	existingApp := createTestApplication("existing-app", "https://github.com/example/repo", "apps/existing", "Healthy", "Synced")
+	existingApp := createTestApplication(
+		"existing-app",
+		"https://github.com/example/repo",
+		"apps/existing",
+		"Healthy",
+		"Synced",
+	)
 
 	tests := []struct {
 		name        string
@@ -475,7 +481,13 @@ func TestUpdateDeployment(t *testing.T) {
 
 // TestDeleteDeployment tests deleting ArgoCD Applications.
 func TestDeleteDeployment(t *testing.T) {
-	existingApp := createTestApplication("app-to-delete", "https://github.com/example/repo", "apps/delete", "Healthy", "Synced")
+	existingApp := createTestApplication(
+		"app-to-delete",
+		"https://github.com/example/repo",
+		"apps/delete",
+		"Healthy",
+		"Synced",
+	)
 
 	tests := []struct {
 		name        string
@@ -515,7 +527,13 @@ func TestDeleteDeployment(t *testing.T) {
 
 // TestScaleDeployment tests scaling ArgoCD Applications.
 func TestScaleDeployment(t *testing.T) {
-	existingApp := createTestApplication("scalable-app", "https://github.com/example/repo", "apps/scalable", "Healthy", "Synced")
+	existingApp := createTestApplication(
+		"scalable-app",
+		"https://github.com/example/repo",
+		"apps/scalable",
+		"Healthy",
+		"Synced",
+	)
 
 	tests := []struct {
 		name        string
@@ -571,8 +589,20 @@ func TestScaleDeployment(t *testing.T) {
 
 // TestGetDeploymentStatus tests retrieving deployment status.
 func TestGetDeploymentStatus(t *testing.T) {
-	healthyApp := createTestApplication("healthy-app", "https://github.com/example/repo", "apps/healthy", "Healthy", "Synced")
-	progressingApp := createTestApplication("progressing-app", "https://github.com/example/repo", "apps/progressing", "Progressing", "OutOfSync")
+	healthyApp := createTestApplication(
+		"healthy-app",
+		"https://github.com/example/repo",
+		"apps/healthy",
+		"Healthy",
+		"Synced",
+	)
+	progressingApp := createTestApplication(
+		"progressing-app",
+		"https://github.com/example/repo",
+		"apps/progressing",
+		"Progressing",
+		"OutOfSync",
+	)
 
 	tests := []struct {
 		name         string
@@ -637,7 +667,13 @@ func TestGetDeploymentStatus(t *testing.T) {
 
 // TestGetDeploymentHistory tests retrieving deployment history.
 func TestGetDeploymentHistory(t *testing.T) {
-	appWithHistory := createTestApplication("app-with-history", "https://github.com/example/repo", "apps/history", "Healthy", "Synced")
+	appWithHistory := createTestApplication(
+		"app-with-history",
+		"https://github.com/example/repo",
+		"apps/history",
+		"Healthy",
+		"Synced",
+	)
 
 	tests := []struct {
 		name        string
@@ -1060,7 +1096,13 @@ func TestDeleteDeploymentPackage(t *testing.T) {
 
 // TestRollbackDeployment tests rollback functionality.
 func TestRollbackDeployment(t *testing.T) {
-	appWithHistory := createTestApplication("rollback-app", "https://github.com/example/repo", "apps/rollback", "Healthy", "Synced")
+	appWithHistory := createTestApplication(
+		"rollback-app",
+		"https://github.com/example/repo",
+		"apps/rollback",
+		"Healthy",
+		"Synced",
+	)
 
 	tests := []struct {
 		name        string

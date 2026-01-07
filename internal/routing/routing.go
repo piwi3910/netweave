@@ -133,7 +133,7 @@ func NewRouter(reg *registry.Registry, logger *zap.Logger, config *Config) *Rout
 
 // Route selects the appropriate adapter based on the routing context.
 // Returns the selected adapter or an error if no suitable adapter is found.
-func (r *Router) Route(ctx context.Context, routingCtx *RoutingContext) (adapter.Adapter, error) {
+func (r *Router) Route(_ context.Context, routingCtx *RoutingContext) (adapter.Adapter, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -143,49 +143,19 @@ func (r *Router) Route(ctx context.Context, routingCtx *RoutingContext) (adapter
 			continue
 		}
 
-		if r.matchesRule(rule, routingCtx) {
-			plugin := r.registry.Get(rule.AdapterName)
-			if plugin == nil {
-				r.logger.Warn("rule matched but adapter not found",
-					zap.String("rule", rule.Name),
-					zap.String("adapter", rule.AdapterName),
-				)
-				continue
-			}
+		if !r.matchesRule(rule, routingCtx) {
+			continue
+		}
 
-			// Check if adapter is healthy
-			meta := r.registry.GetMetadata(rule.AdapterName)
-			if meta == nil || !meta.Enabled || !meta.Healthy {
-				r.logger.Warn("rule matched but adapter unhealthy",
-					zap.String("rule", rule.Name),
-					zap.String("adapter", rule.AdapterName),
-				)
-				continue
-			}
-
-			// Check if adapter has required capabilities
-			if !r.hasCapabilities(meta.Capabilities, routingCtx.RequiredCapabilities) {
-				r.logger.Debug("adapter missing required capabilities",
-					zap.String("adapter", rule.AdapterName),
-					zap.Strings("required", capabilitiesToStrings(routingCtx.RequiredCapabilities)),
-				)
-				continue
-			}
-
-			r.logger.Debug("route matched",
-				zap.String("rule", rule.Name),
-				zap.String("adapter", rule.AdapterName),
-				zap.Int("priority", rule.Priority),
-			)
-
+		plugin, ok := r.getValidatedAdapter(rule, routingCtx)
+		if ok {
 			return plugin, nil
 		}
 	}
 
 	// Fallback to default adapter if enabled
 	if r.fallbackEnabled {
-		defaultAdapter := r.registry.GetDefault()
-		if defaultAdapter != nil {
+		if defaultAdapter := r.registry.GetDefault(); defaultAdapter != nil {
 			r.logger.Debug("using default adapter (no rule matched)")
 			return defaultAdapter, nil
 		}
@@ -196,7 +166,7 @@ func (r *Router) Route(ctx context.Context, routingCtx *RoutingContext) (adapter
 
 // RouteMultiple selects multiple adapters based on the routing context.
 // This is used when aggregating results from multiple backends.
-func (r *Router) RouteMultiple(ctx context.Context, routingCtx *RoutingContext) ([]adapter.Adapter, error) {
+func (r *Router) RouteMultiple(_ context.Context, routingCtx *RoutingContext) ([]adapter.Adapter, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -205,45 +175,27 @@ func (r *Router) RouteMultiple(ctx context.Context, routingCtx *RoutingContext) 
 
 	// Match all applicable routing rules
 	for _, rule := range r.rules {
-		if !rule.Enabled {
+		if !rule.Enabled || !r.matchesRule(rule, routingCtx) || seen[rule.AdapterName] {
 			continue
 		}
 
-		if r.matchesRule(rule, routingCtx) {
-			if seen[rule.AdapterName] {
-				continue
-			}
-
-			plugin := r.registry.Get(rule.AdapterName)
-			if plugin == nil {
-				continue
-			}
-
-			// Check if adapter is healthy and enabled
-			meta := r.registry.GetMetadata(rule.AdapterName)
-			if meta == nil || !meta.Enabled || !meta.Healthy {
-				continue
-			}
-
-			// Check capabilities
-			if !r.hasCapabilities(meta.Capabilities, routingCtx.RequiredCapabilities) {
-				continue
-			}
-
-			adapters = append(adapters, plugin)
-			seen[rule.AdapterName] = true
-
-			r.logger.Debug("adapter selected for aggregation",
-				zap.String("rule", rule.Name),
-				zap.String("adapter", rule.AdapterName),
-			)
+		plugin, ok := r.getValidatedAdapter(rule, routingCtx)
+		if !ok {
+			continue
 		}
+
+		adapters = append(adapters, plugin)
+		seen[rule.AdapterName] = true
+
+		r.logger.Debug("adapter selected for aggregation",
+			zap.String("rule", rule.Name),
+			zap.String("adapter", rule.AdapterName),
+		)
 	}
 
 	// If no adapters matched and fallback is enabled, use default
 	if len(adapters) == 0 && r.fallbackEnabled {
-		defaultAdapter := r.registry.GetDefault()
-		if defaultAdapter != nil {
+		if defaultAdapter := r.registry.GetDefault(); defaultAdapter != nil {
 			adapters = append(adapters, defaultAdapter)
 			r.logger.Debug("using default adapter for aggregation")
 		}
@@ -488,6 +440,46 @@ func (r *Router) IsAggregationEnabled() bool {
 	defer r.mu.RUnlock()
 
 	return r.aggregateMode
+}
+
+// getValidatedAdapter retrieves and validates an adapter for a matched rule.
+// Returns the adapter and true if valid, nil and false otherwise.
+func (r *Router) getValidatedAdapter(rule *Rule, routingCtx *RoutingContext) (adapter.Adapter, bool) {
+	plugin := r.registry.Get(rule.AdapterName)
+	if plugin == nil {
+		r.logger.Warn("rule matched but adapter not found",
+			zap.String("rule", rule.Name),
+			zap.String("adapter", rule.AdapterName),
+		)
+		return nil, false
+	}
+
+	// Check if adapter is healthy
+	meta := r.registry.GetMetadata(rule.AdapterName)
+	if meta == nil || !meta.Enabled || !meta.Healthy {
+		r.logger.Warn("rule matched but adapter unhealthy",
+			zap.String("rule", rule.Name),
+			zap.String("adapter", rule.AdapterName),
+		)
+		return nil, false
+	}
+
+	// Check if adapter has required capabilities
+	if !r.hasCapabilities(meta.Capabilities, routingCtx.RequiredCapabilities) {
+		r.logger.Debug("adapter missing required capabilities",
+			zap.String("adapter", rule.AdapterName),
+			zap.Strings("required", capabilitiesToStrings(routingCtx.RequiredCapabilities)),
+		)
+		return nil, false
+	}
+
+	r.logger.Debug("route matched",
+		zap.String("rule", rule.Name),
+		zap.String("adapter", rule.AdapterName),
+		zap.Int("priority", rule.Priority),
+	)
+
+	return plugin, true
 }
 
 // capabilitiesToStrings converts capabilities to string slice.

@@ -221,11 +221,9 @@ func TestFilter_ToQueryParams(t *testing.T) {
 						t.Errorf("Result value %v for key %s doesn't match any expected permutation %v",
 							resultValues, key, expectedValues)
 					}
-				} else {
-					if !reflect.DeepEqual(resultValues, expectedValues) {
-						t.Errorf("Result value %v for key %s doesn't match expected %v",
-							resultValues, key, expectedValues)
-					}
+				} else if !reflect.DeepEqual(resultValues, expectedValues) {
+					t.Errorf("Result value %v for key %s doesn't match expected %v",
+						resultValues, key, expectedValues)
 				}
 			}
 		})

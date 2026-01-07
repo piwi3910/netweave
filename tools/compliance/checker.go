@@ -227,7 +227,11 @@ type EndpointTest struct {
 }
 
 // validateEndpoints tests a list of API endpoints.
-func (c *Checker) validateEndpoints(ctx context.Context, spec SpecVersion, endpoints []EndpointTest) (ComplianceResult, error) {
+func (c *Checker) validateEndpoints(
+	ctx context.Context,
+	spec SpecVersion,
+	endpoints []EndpointTest,
+) (ComplianceResult, error) {
 	totalEndpoints := len(endpoints)
 	passedEndpoints := 0
 	failedEndpoints := 0

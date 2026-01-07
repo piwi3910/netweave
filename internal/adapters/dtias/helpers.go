@@ -13,7 +13,7 @@ import (
 // It handles the common pattern of:
 // 1. Making a GET request to DTIAS API
 // 2. Parsing the response into the provided result type
-// 3. Handling errors and resource cleanup
+// 3. Handling errors and resource cleanup.
 func (a *DTIASAdapter) getAndParseResource(
 	ctx context.Context,
 	path string,

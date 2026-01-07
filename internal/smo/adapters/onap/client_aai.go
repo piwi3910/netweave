@@ -118,8 +118,12 @@ func (c *AAIClient) CreateOrUpdateServiceInstance(ctx context.Context, serviceIn
 	customerID := "netweave-o2dms"
 	serviceType := serviceInstance.ServiceType
 
-	url := fmt.Sprintf("%s/aai/v24/business/customers/customer/%s/service-subscriptions/service-subscription/%s/service-instances/service-instance/%s",
-		c.baseURL, customerID, serviceType, serviceInstance.ServiceInstanceID)
+	url := fmt.Sprintf(
+		"%s/aai/v24/business/customers/customer/%s/"+
+			"service-subscriptions/service-subscription/%s/"+
+			"service-instances/service-instance/%s",
+		c.baseURL, customerID, serviceType, serviceInstance.ServiceInstanceID,
+	)
 
 	return c.putResource(ctx, url, serviceInstance, "service instance")
 }
@@ -132,8 +136,12 @@ func (c *AAIClient) GetServiceInstance(ctx context.Context, serviceInstanceID st
 	customerID := "netweave-o2dms"
 	serviceType := "netweave-deployment"
 
-	url := fmt.Sprintf("%s/aai/v24/business/customers/customer/%s/service-subscriptions/service-subscription/%s/service-instances/service-instance/%s",
-		c.baseURL, customerID, serviceType, serviceInstanceID)
+	url := fmt.Sprintf(
+		"%s/aai/v24/business/customers/customer/%s/"+
+			"service-subscriptions/service-subscription/%s/"+
+			"service-instances/service-instance/%s",
+		c.baseURL, customerID, serviceType, serviceInstanceID,
+	)
 
 	var serviceInstance ServiceInstance
 	if err := c.getResource(ctx, url, &serviceInstance, "service instance"); err != nil {
@@ -179,7 +187,13 @@ func (c *AAIClient) waitBeforeRetry(attempt int, resourceType string) {
 }
 
 // executePutRequest executes a single PUT request to A&AI.
-func (c *AAIClient) executePutRequest(ctx context.Context, url string, body []byte, resourceType string, lastErr *error) error {
+func (c *AAIClient) executePutRequest(
+	ctx context.Context,
+	url string,
+	body []byte,
+	resourceType string,
+	lastErr *error,
+) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, strings.NewReader(string(body)))
 	if err != nil {
 		*lastErr = fmt.Errorf("failed to create request: %w", err)
@@ -233,7 +247,7 @@ func (c *AAIClient) shouldStopRetrying(err error) bool {
 }
 
 // getResource is a helper method to GET a resource from A&AI.
-func (c *AAIClient) getResource(ctx context.Context, url string, result interface{}, resourceType string) error {
+func (c *AAIClient) getResource(ctx context.Context, url string, result interface{}, _ string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
@@ -276,7 +290,7 @@ func createTLSConfig(config *Config) (*tls.Config, error) {
 	}
 
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: config.TLSInsecureSkipVerify, // nolint:gosec
+		InsecureSkipVerify: config.TLSInsecureSkipVerify, //nolint:gosec
 		MinVersion:         tls.VersionTLS12,
 	}
 

@@ -14,7 +14,7 @@ import (
 // This implementation returns an error indicating that subscriptions must be
 // implemented at a higher layer using polling or an external event system.
 func (a *DTIASAdapter) CreateSubscription(
-	ctx context.Context,
+	_ context.Context,
 	sub *adapter.Subscription,
 ) (*adapter.Subscription, error) {
 	a.logger.Debug("CreateSubscription called",
@@ -34,7 +34,7 @@ func (a *DTIASAdapter) CreateSubscription(
 
 // GetSubscription retrieves a specific subscription by ID.
 // NOTE: DTIAS does not have a native subscription system.
-func (a *DTIASAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
+func (a *DTIASAdapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
@@ -43,7 +43,7 @@ func (a *DTIASAdapter) GetSubscription(ctx context.Context, id string) (*adapter
 
 // DeleteSubscription deletes a subscription by ID.
 // NOTE: DTIAS does not have a native subscription system.
-func (a *DTIASAdapter) DeleteSubscription(ctx context.Context, id string) error {
+func (a *DTIASAdapter) DeleteSubscription(_ context.Context, id string) error {
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 

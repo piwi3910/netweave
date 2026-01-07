@@ -31,26 +31,28 @@ func (a *DTIASAdapter) ListResources(ctx context.Context, filter *adapter.Filter
 
 // buildServersPath builds the API path with query parameters for servers.
 func buildServersPath(filter *adapter.Filter) string {
-	queryParams := url.Values{}
-	if filter != nil {
-		if filter.ResourcePoolID != "" {
-			queryParams.Set("serverPoolId", filter.ResourcePoolID)
-		}
-		if filter.ResourceTypeID != "" {
-			queryParams.Set("serverType", filter.ResourceTypeID)
-		}
-		if filter.Location != "" {
-			queryParams.Set("datacenter", filter.Location)
-		}
-		if filter.Limit > 0 {
-			queryParams.Set("limit", fmt.Sprintf("%d", filter.Limit))
-		}
-		if filter.Offset > 0 {
-			queryParams.Set("offset", fmt.Sprintf("%d", filter.Offset))
-		}
+	path := "/servers"
+	if filter == nil {
+		return path
 	}
 
-	path := "/servers"
+	queryParams := url.Values{}
+	if filter.ResourcePoolID != "" {
+		queryParams.Set("serverPoolId", filter.ResourcePoolID)
+	}
+	if filter.ResourceTypeID != "" {
+		queryParams.Set("serverType", filter.ResourceTypeID)
+	}
+	if filter.Location != "" {
+		queryParams.Set("datacenter", filter.Location)
+	}
+	if filter.Limit > 0 {
+		queryParams.Set("limit", fmt.Sprintf("%d", filter.Limit))
+	}
+	if filter.Offset > 0 {
+		queryParams.Set("offset", fmt.Sprintf("%d", filter.Offset))
+	}
+
 	if len(queryParams) > 0 {
 		path += "?" + queryParams.Encode()
 	}

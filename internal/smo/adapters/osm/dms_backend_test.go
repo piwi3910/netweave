@@ -92,10 +92,8 @@ func TestInstantiateNS(t *testing.T) {
 				if tt.errMsg != "" && err.Error() != tt.errMsg {
 					t.Errorf("Error = %v, want %v", err.Error(), tt.errMsg)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("Unexpected validation error: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("Unexpected validation error: %v", err)
 			}
 		})
 	}
@@ -222,10 +220,8 @@ func TestNSScaleRequest(t *testing.T) {
 				if tt.errContains != "" && !contains(err.Error(), tt.errContains) {
 					t.Errorf("Error = %v, want to contain %v", err.Error(), tt.errContains)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("Unexpected validation error: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("Unexpected validation error: %v", err)
 			}
 		})
 	}
@@ -288,10 +284,8 @@ func TestNSHealRequest(t *testing.T) {
 				if tt.errContains != "" && !contains(err.Error(), tt.errContains) {
 					t.Errorf("Error = %v, want to contain %v", err.Error(), tt.errContains)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("Unexpected validation error: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("Unexpected validation error: %v", err)
 			}
 		})
 	}

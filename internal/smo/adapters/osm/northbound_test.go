@@ -328,7 +328,7 @@ func TestPublishInfrastructureEvent(t *testing.T) {
 }
 
 // mockOSMServer creates a mock OSM server handler for testing.
-func mockOSMServer(t *testing.T) http.HandlerFunc {
+func mockOSMServer(_ *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 

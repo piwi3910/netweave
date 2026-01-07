@@ -328,7 +328,7 @@ func TestSetSubscriptionCount(t *testing.T) {
 		SubscriptionsTotal: prometheus.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: "test",
-				Name:      "subscriptions_total",
+				Name:      "subscriptions_active",
 				Help:      "Total number of active subscriptions",
 			},
 		),

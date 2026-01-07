@@ -14,7 +14,8 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 )
 
-// TestTransformHostAggregateToResourcePool tests the transformation from OpenStack host aggregate to O2-IMS resource pool.
+// TestTransformHostAggregateToResourcePool tests the transformation from
+// OpenStack host aggregate to O2-IMS resource pool.
 func TestTransformHostAggregateToResourcePool(t *testing.T) {
 	adp := &OpenStackAdapter{
 		oCloudID: "ocloud-test",
