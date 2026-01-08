@@ -89,7 +89,8 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := http.DefaultClient.Do(req)
+		httpClient := helpers.NewTestHTTPClient()
+		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -123,7 +124,8 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		createReq.Header.Set("Content-Type", "application/json")
 
-		createResp, err := http.DefaultClient.Do(createReq)
+		httpClient := helpers.NewTestHTTPClient()
+		createResp, err := httpClient.Do(createReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := createResp.Body.Close(); err != nil {
@@ -146,7 +148,8 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		getResp, err := http.DefaultClient.Do(getReq)
+		httpClient = helpers.NewTestHTTPClient()
+		getResp, err := httpClient.Do(getReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := getResp.Body.Close(); err != nil {
@@ -174,7 +177,8 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		resp, err := http.DefaultClient.Do(listReq)
+		httpClient := helpers.NewTestHTTPClient()
+		resp, err := httpClient.Do(listReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -207,7 +211,8 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		createReq.Header.Set("Content-Type", "application/json")
 
-		createResp, err := http.DefaultClient.Do(createReq)
+		httpClient := helpers.NewTestHTTPClient()
+		createResp, err := httpClient.Do(createReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := createResp.Body.Close(); err != nil {
@@ -271,7 +276,8 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		createReq.Header.Set("Content-Type", "application/json")
 
-		createResp, err := http.DefaultClient.Do(createReq)
+		httpClient := helpers.NewTestHTTPClient()
+		createResp, err := httpClient.Do(createReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := createResp.Body.Close(); err != nil {
@@ -312,7 +318,8 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 			ts.O2IMSURL()+"/resourcePools/"+poolID,
 			nil,
 		)
-		getResp, _ := http.DefaultClient.Do(verifyReq)
+		httpClient = helpers.NewTestHTTPClient()
+		getResp, _ := httpClient.Do(verifyReq)
 		defer func() {
 			if err := getResp.Body.Close(); err != nil {
 				t.Logf("Failed to close response body: %v", err)
@@ -363,7 +370,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 	if poolReq != nil {
 		poolReq.Header.Set("Content-Type", "application/json")
 	}
-	poolResp, _ := http.DefaultClient.Do(poolReq)
+	httpClient := helpers.NewTestHTTPClient()
+	poolResp, _ := httpClient.Do(poolReq)
 	defer func() {
 		if err := poolResp.Body.Close(); err != nil {
 			t.Logf("Failed to close response body: %v", err)
@@ -391,7 +399,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := http.DefaultClient.Do(req)
+		httpClient := helpers.NewTestHTTPClient()
+		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -424,7 +433,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		createReq.Header.Set("Content-Type", "application/json")
 
-		createResp, err := http.DefaultClient.Do(createReq)
+		httpClient := helpers.NewTestHTTPClient()
+		createResp, err := httpClient.Do(createReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := createResp.Body.Close(); err != nil {
@@ -447,7 +457,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		getResp, err := http.DefaultClient.Do(getReq)
+		httpClient = helpers.NewTestHTTPClient()
+		getResp, err := httpClient.Do(getReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := getResp.Body.Close(); err != nil {
@@ -479,7 +490,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 			if req != nil {
 				req.Header.Set("Content-Type", "application/json")
 			}
-			resp, _ := http.DefaultClient.Do(req)
+			httpClient := helpers.NewTestHTTPClient()
+			resp, _ := httpClient.Do(req)
 			if err := resp.Body.Close(); err != nil {
 				t.Logf("Failed to close response body: %v", err)
 			}
@@ -494,7 +506,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		resp, err := http.DefaultClient.Do(listReq)
+		httpClient := helpers.NewTestHTTPClient()
+		resp, err := httpClient.Do(listReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -530,7 +543,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		createReq.Header.Set("Content-Type", "application/json")
 
-		createResp, err := http.DefaultClient.Do(createReq)
+		httpClient := helpers.NewTestHTTPClient()
+		createResp, err := httpClient.Do(createReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := createResp.Body.Close(); err != nil {
@@ -571,7 +585,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 			ts.O2IMSURL()+"/resources/"+resourceID,
 			nil,
 		)
-		getResp, _ := http.DefaultClient.Do(verifyReq)
+		httpClient = helpers.NewTestHTTPClient()
+		getResp, _ := httpClient.Do(verifyReq)
 		defer func() {
 			if err := getResp.Body.Close(); err != nil {
 				t.Logf("Failed to close response body: %v", err)
@@ -617,7 +632,8 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		resp, err := http.DefaultClient.Do(req)
+		httpClient := helpers.NewTestHTTPClient()
+		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -643,7 +659,8 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := http.DefaultClient.Do(req)
+		httpClient := helpers.NewTestHTTPClient()
+		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -688,7 +705,8 @@ func TestKubernetesAdapter_ErrorHandling(t *testing.T) {
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := http.DefaultClient.Do(req)
+		httpClient := helpers.NewTestHTTPClient()
+		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
