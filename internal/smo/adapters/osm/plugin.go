@@ -181,7 +181,9 @@ func (p *Plugin) Initialize(ctx context.Context) error {
 
 	// Start inventory sync loop if enabled
 	if p.config.EnableInventorySync {
-		go p.inventorySyncLoop() //nolint:contextcheck // Background goroutine manages its own context
+		// Pass context.Background() for the long-running background sync loop
+		// The loop will create its own child contexts with timeouts for each sync operation
+		go p.inventorySyncLoop(context.Background())
 	}
 
 	p.running = true
@@ -236,7 +238,7 @@ func (p *Plugin) Close() error {
 
 // inventorySyncLoop runs periodic inventory synchronization with OSM.
 // It syncs VIM accounts and infrastructure resources at the configured interval.
-func (p *Plugin) inventorySyncLoop() {
+func (p *Plugin) inventorySyncLoop(ctx context.Context) {
 	defer close(p.doneCh)
 
 	ticker := time.NewTicker(p.config.InventorySyncInterval)
@@ -246,9 +248,11 @@ func (p *Plugin) inventorySyncLoop() {
 		select {
 		case <-p.stopCh:
 			return
+		case <-ctx.Done():
+			return
 		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-			if err := p.syncInventory(ctx); err != nil {
+			syncCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+			if err := p.syncInventory(syncCtx); err != nil {
 				// Log error but continue syncing
 				// In production, this would use structured logging
 				fmt.Printf("inventory sync error: %v\n", err)

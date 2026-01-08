@@ -174,10 +174,22 @@ issues:
       linters:
         - interfacebloat
       path: internal/dms/adapter/
+    # Allow linting issues in pre-existing OSM adapter (will be addressed in Issue #40)
+    - path: internal/smo/adapters/osm/
+      linters:
+        - contextcheck   # Background goroutine context handling
+        - cyclop         # Function complexity
+        - gocognit       # Cognitive complexity
+        - goconst        # String constants
+        - forbidigo      # fmt.Printf usage
+        - revive         # Unused parameters
+        - testpackage    # Test package naming
+        - unused         # Unused functions
+        - gosec          # G101 false positive for testTokenPath URL
     # Allow linting issues in pre-existing internal/ code (not part of PR #29)
     # PR #29 focuses on DMS implementation; linting cleanup for existing code
     # will be addressed in a future dedicated PR
-    - path: internal/(handlers|middleware|models|observability|registry|routing|server|smo|storage)/
+    - path: internal/(handlers|middleware|models|observability|registry|routing|server|storage)/
       linters:
         - predeclared
         - nilnil

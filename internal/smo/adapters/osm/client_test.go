@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	//nolint:gosec // G101: False positive - this is a URL path constant, not credentials
+	// testTokenPath is the OSM API endpoint path for token authentication.
 	testTokenPath = "/osm/admin/v1/tokens"
 )
 
