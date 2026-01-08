@@ -242,9 +242,9 @@ func (a *GCPAdapter) determineResourcePoolID(zone string) string {
 
 // buildInstanceExtensions builds the extensions map with GCP instance details.
 func buildInstanceExtensions(instance *computepb.Instance, instanceName, zone, machineType string) map[string]interface{} {
-	var instanceID int64
+	var instanceID uint64
 	if instance.Id != nil {
-		instanceID = int64(*instance.Id)
+		instanceID = *instance.Id
 	}
 
 	extensions := map[string]interface{}{

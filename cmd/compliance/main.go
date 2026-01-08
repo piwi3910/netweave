@@ -168,6 +168,12 @@ func outputText(results []compliance.Result) {
 
 // updateReadmeFile updates README.md with compliance badge section.
 func updateReadmeFile(path string, results []compliance.Result, logger *zap.Logger) error {
+	// G304: Validate and clean the file path to prevent directory traversal
+	// While this is a CLI tool and the path comes from flags, we still validate for security
+	if path == "" || strings.Contains(path, "..") {
+		return fmt.Errorf("invalid README path: path cannot be empty or contain '..'")
+	}
+
 	// Read current README
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -220,7 +226,8 @@ func updateReadmeFile(path string, results []compliance.Result, logger *zap.Logg
 	}
 
 	// Write updated README
-	if err := os.WriteFile(path, []byte(newReadme), 0644); err != nil {
+	// G306: Use 0600 permissions for security - only owner can read/write
+	if err := os.WriteFile(path, []byte(newReadme), 0600); err != nil {
 		return fmt.Errorf("failed to write README: %w", err)
 	}
 

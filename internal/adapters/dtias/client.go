@@ -77,7 +77,18 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 
+	// Warn about insecure TLS configuration
+	logger := cfg.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	if cfg.InsecureSkipVerify {
+		logger.Warn("TLS certificate validation is disabled - this is insecure and should only be used in development/testing environments")
+	}
+
 	// Create TLS configuration
+	// G402: InsecureSkipVerify is intentionally configurable for development/testing environments
+	// Production deployments should always use proper certificate validation (InsecureSkipVerify=false)
 	tlsConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS13,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
