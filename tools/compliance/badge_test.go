@@ -13,16 +13,16 @@ func TestBadgeGenerator_GenerateBadge(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		result          ComplianceResult
+		result          Result
 		expectedColor   BadgeColor
 		expectedContain []string
 	}{
 		{
 			name: "full compliance",
-			result: ComplianceResult{
+			result: Result{
 				SpecName:        "O2-IMS",
 				SpecVersion:     "v3.0.0",
-				ComplianceLevel: ComplianceFull,
+				Level:           ComplianceFull,
 				ComplianceScore: 100.0,
 			},
 			expectedColor: BadgeColorGreen,
@@ -34,10 +34,10 @@ func TestBadgeGenerator_GenerateBadge(t *testing.T) {
 		},
 		{
 			name: "partial compliance",
-			result: ComplianceResult{
+			result: Result{
 				SpecName:        "O2-DMS",
 				SpecVersion:     "v3.0.0",
-				ComplianceLevel: CompliancePartial,
+				Level:           CompliancePartial,
 				ComplianceScore: 85.0,
 			},
 			expectedColor: BadgeColorYellow,
@@ -50,10 +50,10 @@ func TestBadgeGenerator_GenerateBadge(t *testing.T) {
 		},
 		{
 			name: "no compliance",
-			result: ComplianceResult{
+			result: Result{
 				SpecName:        "O2-SMO",
 				SpecVersion:     "v3.0.0",
-				ComplianceLevel: ComplianceNone,
+				Level:           ComplianceNone,
 				ComplianceScore: 50.0,
 			},
 			expectedColor: BadgeColorRed,
@@ -67,7 +67,7 @@ func TestBadgeGenerator_GenerateBadge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			badgeURL := generator.GenerateBadge(tt.result)
+			badgeURL := generator.GenerateBadge(&tt.result)
 
 			// Verify it's a valid shields.io URL
 			assert.Contains(t, badgeURL, "https://img.shields.io/badge/")
@@ -86,15 +86,15 @@ func TestBadgeGenerator_GenerateBadge(t *testing.T) {
 func TestBadgeGenerator_GenerateMarkdownBadge(t *testing.T) {
 	generator := NewBadgeGenerator()
 
-	result := ComplianceResult{
+	result := Result{
 		SpecName:        "O2-IMS",
 		SpecVersion:     "v3.0.0",
 		SpecURL:         "https://specifications.o-ran.org/o2ims",
-		ComplianceLevel: ComplianceFull,
+		Level:           ComplianceFull,
 		ComplianceScore: 100.0,
 	}
 
-	markdown := generator.GenerateMarkdownBadge(result)
+	markdown := generator.GenerateMarkdownBadge(&result)
 
 	// Verify markdown format
 	assert.True(t, strings.HasPrefix(markdown, "[!["))
@@ -105,12 +105,12 @@ func TestBadgeGenerator_GenerateMarkdownBadge(t *testing.T) {
 func TestBadgeGenerator_GenerateBadgeSection(t *testing.T) {
 	generator := NewBadgeGenerator()
 
-	results := []ComplianceResult{
+	results := []*Result{
 		{
 			SpecName:        "O2-IMS",
 			SpecVersion:     "v3.0.0",
 			SpecURL:         "https://specifications.o-ran.org/o2ims",
-			ComplianceLevel: ComplianceFull,
+			Level:           ComplianceFull,
 			ComplianceScore: 100.0,
 			TotalEndpoints:  15,
 			PassedEndpoints: 15,
@@ -121,7 +121,7 @@ func TestBadgeGenerator_GenerateBadgeSection(t *testing.T) {
 			SpecName:        "O2-DMS",
 			SpecVersion:     "v3.0.0",
 			SpecURL:         "https://specifications.o-ran.org/o2dms",
-			ComplianceLevel: ComplianceNone,
+			Level:           ComplianceNone,
 			ComplianceScore: 0.0,
 			TotalEndpoints:  14,
 			PassedEndpoints: 0,
@@ -155,12 +155,12 @@ func TestBadgeGenerator_GenerateBadgeSection(t *testing.T) {
 func TestBadgeGenerator_GenerateComplianceReport(t *testing.T) {
 	generator := NewBadgeGenerator()
 
-	results := []ComplianceResult{
+	results := []*Result{
 		{
 			SpecName:        "O2-IMS",
 			SpecVersion:     "v3.0.0",
 			SpecURL:         "https://specifications.o-ran.org/o2ims",
-			ComplianceLevel: CompliancePartial,
+			Level:           CompliancePartial,
 			ComplianceScore: 93.3,
 			TotalEndpoints:  15,
 			PassedEndpoints: 14,
@@ -232,7 +232,7 @@ func TestGetColor(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		level    ComplianceLevel
+		level    Level
 		expected BadgeColor
 	}{
 		{
@@ -252,7 +252,7 @@ func TestGetColor(t *testing.T) {
 		},
 		{
 			name:     "unknown = gray",
-			level:    ComplianceLevel("unknown"),
+			level:    Level("unknown"),
 			expected: BadgeColorGray,
 		},
 	}
@@ -270,30 +270,30 @@ func TestGetMessage(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		result          ComplianceResult
+		result          Result
 		expectedContain []string
 	}{
 		{
 			name: "full compliance message",
-			result: ComplianceResult{
-				SpecVersion:     "v3.0.0",
-				ComplianceLevel: ComplianceFull,
+			result: Result{
+				SpecVersion: "v3.0.0",
+				Level:       ComplianceFull,
 			},
 			expectedContain: []string{"v3.0.0", "compliant"},
 		},
 		{
 			name: "partial compliance message",
-			result: ComplianceResult{
+			result: Result{
 				SpecVersion:     "v3.0.0",
-				ComplianceLevel: CompliancePartial,
+				Level:           CompliancePartial,
 				ComplianceScore: 85.5,
 			},
 			expectedContain: []string{"v3.0.0", "86"}, // Rounded
 		},
 		{
 			name: "no compliance message",
-			result: ComplianceResult{
-				ComplianceLevel: ComplianceNone,
+			result: Result{
+				Level: ComplianceNone,
 			},
 			expectedContain: []string{"not compliant"},
 		},
@@ -301,7 +301,7 @@ func TestGetMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			message := generator.getMessage(tt.result)
+			message := generator.getMessage(&tt.result)
 			for _, expected := range tt.expectedContain {
 				assert.Contains(t, message, expected)
 			}

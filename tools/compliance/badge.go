@@ -29,9 +29,9 @@ func NewBadgeGenerator() *BadgeGenerator {
 }
 
 // GenerateBadge generates a shields.io badge URL for a compliance result.
-func (g *BadgeGenerator) GenerateBadge(result ComplianceResult) string {
+func (g *BadgeGenerator) GenerateBadge(result *Result) string {
 	// Determine badge color based on compliance level
-	color := g.getColor(result.ComplianceLevel)
+	color := g.getColor(result.Level)
 
 	// Generate badge label and message
 	label := fmt.Sprintf("O-RAN %s", result.SpecName)
@@ -48,7 +48,7 @@ func (g *BadgeGenerator) GenerateBadge(result ComplianceResult) string {
 }
 
 // GenerateMarkdownBadge generates a markdown badge with link to spec.
-func (g *BadgeGenerator) GenerateMarkdownBadge(result ComplianceResult) string {
+func (g *BadgeGenerator) GenerateMarkdownBadge(result *Result) string {
 	badgeURL := g.GenerateBadge(result)
 
 	// Create markdown link: [![label](badge-url)](spec-url)
@@ -62,7 +62,7 @@ func (g *BadgeGenerator) GenerateMarkdownBadge(result ComplianceResult) string {
 }
 
 // GenerateBadgeSection generates a complete badge section for README.
-func (g *BadgeGenerator) GenerateBadgeSection(results []ComplianceResult) string {
+func (g *BadgeGenerator) GenerateBadgeSection(results []*Result) string {
 	var sb strings.Builder
 
 	sb.WriteString("## O-RAN Specification Compliance\n\n")
@@ -102,7 +102,7 @@ func (g *BadgeGenerator) GenerateBadgeSection(results []ComplianceResult) string
 }
 
 // getColor determines badge color based on compliance level.
-func (g *BadgeGenerator) getColor(level ComplianceLevel) BadgeColor {
+func (g *BadgeGenerator) getColor(level Level) BadgeColor {
 	switch level {
 	case ComplianceFull:
 		return BadgeColorGreen
@@ -116,8 +116,8 @@ func (g *BadgeGenerator) getColor(level ComplianceLevel) BadgeColor {
 }
 
 // getMessage generates badge message based on compliance result.
-func (g *BadgeGenerator) getMessage(result ComplianceResult) string {
-	switch result.ComplianceLevel {
+func (g *BadgeGenerator) getMessage(result *Result) string {
+	switch result.Level {
 	case ComplianceFull:
 		return fmt.Sprintf("%s compliant", result.SpecVersion)
 	case CompliancePartial:
@@ -144,7 +144,7 @@ func urlEncode(s string) string {
 }
 
 // GenerateComplianceReport generates a detailed text report.
-func (g *BadgeGenerator) GenerateComplianceReport(results []ComplianceResult) string {
+func (g *BadgeGenerator) GenerateComplianceReport(results []*Result) string {
 	var sb strings.Builder
 
 	sb.WriteString("O-RAN Specification Compliance Report\n")
@@ -153,7 +153,7 @@ func (g *BadgeGenerator) GenerateComplianceReport(results []ComplianceResult) st
 	for _, result := range results {
 		sb.WriteString(fmt.Sprintf("## %s %s\n\n", result.SpecName, result.SpecVersion))
 		sb.WriteString(fmt.Sprintf("Specification URL: %s\n", result.SpecURL))
-		sb.WriteString(fmt.Sprintf("Compliance Level: %s\n", result.ComplianceLevel))
+		sb.WriteString(fmt.Sprintf("Compliance Level: %s\n", result.Level))
 		sb.WriteString(fmt.Sprintf("Compliance Score: %.1f%%\n", result.ComplianceScore))
 		sb.WriteString(fmt.Sprintf("Endpoints Tested: %d\n", result.TotalEndpoints))
 		sb.WriteString(fmt.Sprintf("Endpoints Passed: %d\n", result.PassedEndpoints))

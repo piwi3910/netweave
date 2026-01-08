@@ -5,7 +5,20 @@ package adapter
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+// Error definitions for DMS adapter operations.
+var (
+	// ErrDeploymentNotFound is returned when a deployment is not found.
+	ErrDeploymentNotFound = errors.New("deployment not found")
+
+	// ErrPackageNotFound is returned when a deployment package is not found.
+	ErrPackageNotFound = errors.New("deployment package not found")
+
+	// ErrOperationNotSupported is returned when an operation is not supported.
+	ErrOperationNotSupported = errors.New("operation not supported")
 )
 
 // Capability represents a feature that a DMS adapter supports.

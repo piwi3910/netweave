@@ -3,6 +3,7 @@ package smo
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 
 // mockPlugin implements the Plugin interface for testing.
 type mockPlugin struct {
+	mu           sync.RWMutex
 	name         string
 	version      string
 	description  string
@@ -56,6 +58,8 @@ func (m *mockPlugin) Initialize(ctx context.Context, config map[string]interface
 }
 
 func (m *mockPlugin) Health(ctx context.Context) HealthStatus {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	status := HealthStatus{
 		Healthy:   m.healthy,
 		Timestamp: time.Now(),
@@ -170,6 +174,13 @@ func newMockPlugin(name string, healthy bool) *mockPlugin {
 		capabilities: []Capability{CapInventorySync, CapEventPublishing},
 		healthy:      healthy,
 	}
+}
+
+// setHealthy is a thread-safe method to update plugin health status.
+func (m *mockPlugin) setHealthy(healthy bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.healthy = healthy
 }
 
 func TestNewRegistry(t *testing.T) {
@@ -661,7 +672,7 @@ func TestRegistry_HealthStateTransitions(t *testing.T) {
 	assert.True(t, info[0].Healthy)
 
 	// Transition to unhealthy
-	plugin.healthy = false
+	plugin.setHealthy(false)
 	time.Sleep(100 * time.Millisecond)
 
 	info = registry.List()
@@ -669,7 +680,7 @@ func TestRegistry_HealthStateTransitions(t *testing.T) {
 	assert.False(t, info[0].Healthy)
 
 	// Transition back to healthy
-	plugin.healthy = true
+	plugin.setHealthy(true)
 	time.Sleep(100 * time.Millisecond)
 
 	info = registry.List()
