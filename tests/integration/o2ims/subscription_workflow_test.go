@@ -103,7 +103,7 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 	assert.Equal(t, webhookServer.URL(), storedSub.Callback)
 
 	// Step 2: Event notification would be triggered here
-	// TODO: Implement event notification system via Kubernetes watch/informer
+	// TODO(#56): Implement event notification system via Kubernetes watch/informer
 	poolID := "test-pool-" + subscriptionID[:8]
 	_ = poolID // Used in future implementation
 

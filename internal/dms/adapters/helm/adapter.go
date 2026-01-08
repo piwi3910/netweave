@@ -177,7 +177,7 @@ func (h *HelmAdapter) ListDeploymentPackages(
 	// This would query the chart repository index
 	packages := make([]*adapter.DeploymentPackage, 0)
 
-	// TODO: Implement repository query
+	// TODO(#60): Implement repository query
 	// For now, return empty list
 
 	return packages, nil
@@ -189,7 +189,7 @@ func (h *HelmAdapter) GetDeploymentPackage(ctx context.Context, id string) (*ada
 		return nil, err
 	}
 
-	// TODO: Implement chart lookup by ID
+	// TODO(#60): Implement chart lookup by ID
 	return nil, fmt.Errorf("chart not found: %s", id)
 }
 
@@ -232,7 +232,7 @@ func (h *HelmAdapter) DeleteDeploymentPackage(ctx context.Context, _ string) err
 		return err
 	}
 
-	// TODO: Implement chart deletion from repository
+	// TODO(#60): Implement chart deletion from repository
 	return nil
 }
 
@@ -543,7 +543,7 @@ func (h *HelmAdapter) GetDeploymentLogs(ctx context.Context, id string, _ *adapt
 		return nil, err
 	}
 
-	// TODO: Implement pod log retrieval for Helm release
+	// TODO(#60): Implement pod log retrieval for Helm release
 	// This would query Kubernetes API to get pods for the release
 	// and stream their logs
 

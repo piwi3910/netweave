@@ -174,7 +174,7 @@ func (a *KubernetesAdapter) CreateSubscription(
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback))
 
-	// TODO: Implement subscription creation
+	// TODO(#59): Implement subscription creation
 	// This will store in Redis and configure informers
 	return nil, fmt.Errorf("not implemented")
 }
@@ -185,7 +185,7 @@ func (a *KubernetesAdapter) GetSubscription(_ context.Context, id string) (*adap
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
-	// TODO: Implement subscription retrieval
+	// TODO(#59): Implement subscription retrieval
 	// This will retrieve from Redis
 	return nil, fmt.Errorf("not implemented")
 }
@@ -196,7 +196,7 @@ func (a *KubernetesAdapter) DeleteSubscription(_ context.Context, id string) err
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
-	// TODO: Implement subscription deletion
+	// TODO(#59): Implement subscription deletion
 	// This will remove from Redis and stop informers
 	return fmt.Errorf("not implemented")
 }

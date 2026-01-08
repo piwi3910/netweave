@@ -55,7 +55,7 @@ func (a *OpenStackAdapter) CreateSubscription(
 		zap.String("subscriptionID", subscriptionID),
 		zap.String("callback", sub.Callback))
 
-	// TODO: In production, implement polling mechanism to detect resource changes
+	// TODO(#57): In production, implement polling mechanism to detect resource changes
 	// and send webhook notifications to the callback URL. This would typically be
 	// done by a separate goroutine that periodically polls OpenStack resources
 	// and compares against a snapshot to detect changes.
@@ -102,7 +102,7 @@ func (a *OpenStackAdapter) DeleteSubscription(_ context.Context, id string) erro
 	a.logger.Info("deleted subscription",
 		zap.String("subscriptionID", id))
 
-	// TODO: In production, stop the polling mechanism for this subscription
+	// TODO(#57): In production, stop the polling mechanism for this subscription
 
 	return nil
 }
@@ -153,7 +153,7 @@ func (a *OpenStackAdapter) ListSubscriptions(_ context.Context) ([]*adapter.Subs
 //	    // 5. Send webhook notifications to matching subscriptions
 //	}
 
-// TODO: Implement polling mechanism for production use
+// TODO(#57): Implement polling mechanism for production use
 // This would involve:
 // 1. Maintaining a snapshot of resource state
 // 2. Periodically querying OpenStack APIs

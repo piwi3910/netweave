@@ -23,7 +23,7 @@ func (a *OpenStackAdapter) ListResources(_ context.Context, filter *adapter.Filt
 
 	// Apply resource pool filter if specified
 	// For now, we list all and filter in memory
-	_ = filter // TODO: implement resource pool filtering
+	_ = filter // TODO(#58): implement resource pool filtering
 
 	// Query all servers from Nova
 	allPages, err := servers.List(a.compute, listOpts).AllPages()
