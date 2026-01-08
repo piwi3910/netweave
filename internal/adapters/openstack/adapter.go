@@ -56,6 +56,9 @@ type OpenStackAdapter struct {
 
 	// subscriptions holds active subscriptions (polling-based).
 	subscriptions map[string]*adapter.Subscription
+
+	// pollingStates tracks the polling state for each active subscription.
+	pollingStates map[string]*subscriptionState
 }
 
 // Config holds configuration for creating an OpenStackAdapter.
@@ -437,6 +440,9 @@ func (a *OpenStackAdapter) checkKeystoneHealth(_ context.Context) error {
 // Close cleanly shuts down the adapter and releases resources.
 func (a *OpenStackAdapter) Close() error {
 	a.logger.Info("closing OpenStack adapter")
+
+	// Stop all polling goroutines
+	a.StopAllPolling()
 
 	// Sync logger before shutdown (ignore sync errors on stderr/stdout)
 	_ = a.logger.Sync()
