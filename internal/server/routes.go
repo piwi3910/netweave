@@ -85,6 +85,9 @@ func (s *Server) setupRoutes() {
 	// API information endpoint
 	s.router.GET("/o2ims", s.handleAPIInfo)
 	s.router.GET("/", s.handleRoot)
+
+	// Documentation endpoints (Swagger UI, OpenAPI spec)
+	s.setupDocsRoutes()
 }
 
 // Health check handlers
