@@ -2,6 +2,8 @@
 # Version: 1.64+
 # Zero-tolerance linting - ALL issues must be fixed
 
+version: "2"
+
 run:
   timeout: 5m
   tests: true
