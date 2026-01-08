@@ -440,6 +440,356 @@ func TestClose(t *testing.T) {
 	client.mu.RUnlock()
 }
 
+// TestGet tests HTTP GET requests.
+func TestGet(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Auth endpoint
+		if r.URL.Path == testTokenPath && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			resp := map[string]string{
+				"id":         "token-123",
+				"project_id": "admin",
+				"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+
+		// GET endpoint
+		if r.Method == http.MethodGet && r.URL.Path == "/api/test" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status": "ok"}`))
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(func() { server.Close() })
+
+	config := &Config{
+		NBIURL:         server.URL,
+		Username:       "admin",
+		Password:       "secret",
+		RequestTimeout: 5 * time.Second,
+	}
+
+	client, err := NewClient(config)
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Authenticate first
+	err = client.Authenticate(ctx)
+	if err != nil {
+		t.Fatalf("Authenticate() failed: %v", err)
+	}
+
+	var result map[string]string
+	err = client.get(ctx, "/api/test", &result)
+
+	if err != nil {
+		t.Errorf("get() unexpected error: %v", err)
+	}
+
+	if result["status"] != "ok" {
+		t.Errorf("get() returned unexpected result: %v", result)
+	}
+}
+
+// TestDelete tests HTTP DELETE requests.
+func TestDelete(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Auth endpoint
+		if r.URL.Path == testTokenPath && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			resp := map[string]string{
+				"id":         "token-123",
+				"project_id": "admin",
+				"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+
+		// DELETE endpoint
+		if r.Method == http.MethodDelete && r.URL.Path == "/api/test/123" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(func() { server.Close() })
+
+	config := &Config{
+		NBIURL:         server.URL,
+		Username:       "admin",
+		Password:       "secret",
+		RequestTimeout: 5 * time.Second,
+	}
+
+	client, err := NewClient(config)
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Authenticate first
+	err = client.Authenticate(ctx)
+	if err != nil {
+		t.Fatalf("Authenticate() failed: %v", err)
+	}
+
+	err = client.delete(ctx, "/api/test/123")
+
+	if err != nil {
+		t.Errorf("delete() unexpected error: %v", err)
+	}
+}
+
+// TestPatch tests HTTP PATCH requests.
+func TestPatch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Auth endpoint
+		if r.URL.Path == testTokenPath && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			resp := map[string]string{
+				"id":         "token-123",
+				"project_id": "admin",
+				"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+
+		// PATCH endpoint
+		if r.Method == http.MethodPatch && r.URL.Path == "/api/test/123" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status": "updated"}`))
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(func() { server.Close() })
+
+	config := &Config{
+		NBIURL:         server.URL,
+		Username:       "admin",
+		Password:       "secret",
+		RequestTimeout: 5 * time.Second,
+	}
+
+	client, err := NewClient(config)
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Authenticate first
+	err = client.Authenticate(ctx)
+	if err != nil {
+		t.Fatalf("Authenticate() failed: %v", err)
+	}
+
+	payload := map[string]string{"field": "value"}
+	var result map[string]string
+	err = client.patch(ctx, "/api/test/123", payload, &result)
+
+	if err != nil {
+		t.Errorf("patch() unexpected error: %v", err)
+	}
+
+	if result["status"] != "updated" {
+		t.Errorf("patch() returned unexpected result: %v", result)
+	}
+}
+
+// TestDoRequest_Unauthorized tests unauthorized response handling.
+func TestDoRequest_Unauthorized(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Auth endpoint - always succeed
+		if r.URL.Path == testTokenPath && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			resp := map[string]string{
+				"id":         "token-123",
+				"project_id": "admin",
+				"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+
+		// API calls - always return 401 to test auth error handling
+		if r.URL.Path == "/api/test" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(func() { server.Close() })
+
+	config := &Config{
+		NBIURL:         server.URL,
+		Username:       "admin",
+		Password:       "secret",
+		RequestTimeout: 5 * time.Second,
+	}
+
+	client, err := NewClient(config)
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Authenticate first
+	err = client.Authenticate(ctx)
+	if err != nil {
+		t.Fatalf("Authenticate() failed: %v", err)
+	}
+
+	var result map[string]string
+	err = client.get(ctx, "/api/test", &result)
+
+	// Should fail with authentication error
+	if err == nil {
+		t.Error("get() expected error for 401, got none")
+	}
+}
+
+// TestDoRequest_RetryableError tests retryable error handling.
+func TestDoRequest_RetryableError(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		// Auth endpoint
+		if r.URL.Path == testTokenPath && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			resp := map[string]string{
+				"id":         "token-123",
+				"project_id": "admin",
+				"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+
+		// API endpoint - return 503 to trigger retry
+		if r.URL.Path == "/api/test" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(func() { server.Close() })
+
+	config := &Config{
+		NBIURL:         server.URL,
+		Username:       "admin",
+		Password:       "secret",
+		RequestTimeout: 5 * time.Second,
+		MaxRetries:     2,
+		RetryDelay:     1 * time.Millisecond,
+	}
+
+	client, err := NewClient(config)
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Authenticate first
+	err = client.Authenticate(ctx)
+	if err != nil {
+		t.Fatalf("Authenticate() failed: %v", err)
+	}
+
+	var result map[string]string
+	err = client.get(ctx, "/api/test", &result)
+
+	// Should fail after retries
+	if err == nil {
+		t.Error("get() expected error after retries, got none")
+	}
+
+	// Should have retried: 1 auth + 1 initial try + 2 retries = 4 calls minimum
+	if callCount < 3 {
+		t.Errorf("Expected at least 3 calls (with retries), got %d", callCount)
+	}
+}
+
+// TestDoRequest_NonRetryableError tests non-retryable error handling.
+func TestDoRequest_NonRetryableError(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		// Auth endpoint
+		if r.URL.Path == testTokenPath && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			resp := map[string]string{
+				"id":         "token-123",
+				"project_id": "admin",
+				"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+
+		// API endpoint - return 400 (non-retryable)
+		if r.URL.Path == "/api/test" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"detail": "Invalid request"}`))
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(func() { server.Close() })
+
+	config := &Config{
+		NBIURL:         server.URL,
+		Username:       "admin",
+		Password:       "secret",
+		RequestTimeout: 5 * time.Second,
+		MaxRetries:     3,
+	}
+
+	client, err := NewClient(config)
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	ctx := context.Background()
+	var result map[string]string
+	err = client.get(ctx, "/api/test", &result)
+
+	// Should fail immediately without retries
+	if err == nil {
+		t.Error("get() expected error for 400, got none")
+	}
+
+	// Should NOT retry for 400: 1 auth + 1 attempt = 2 calls
+	if callCount > 2 {
+		t.Errorf("Expected no retries for 400 error, got %d total calls", callCount)
+	}
+}
+
 // Helper function to check if a string contains a substring.
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
