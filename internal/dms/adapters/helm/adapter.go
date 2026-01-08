@@ -4,6 +4,7 @@
 package helm
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -15,9 +16,14 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/piwi3910/netweave/internal/dms/adapter"
 )
@@ -167,29 +173,116 @@ func (h *HelmAdapter) Capabilities() []adapter.Capability {
 // ListDeploymentPackages retrieves all Helm charts from the configured repository.
 func (h *HelmAdapter) ListDeploymentPackages(
 	ctx context.Context,
-	_ *adapter.Filter,
+	filter *adapter.Filter,
 ) ([]*adapter.DeploymentPackage, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	// For Helm, packages are charts in repositories
-	// This would query the chart repository index
+	// Load repository index
+	if err := h.loadRepositoryIndex(ctx); err != nil {
+		return nil, fmt.Errorf("failed to load repository index: %w", err)
+	}
+
+	// Get the index
+	idx, exists := h.repoIndex[h.config.RepositoryURL]
+	if !exists {
+		return nil, fmt.Errorf("repository index not loaded")
+	}
+
 	packages := make([]*adapter.DeploymentPackage, 0)
 
-	// TODO(#60): Implement repository query
-	// For now, return empty list
+	// Iterate through all chart entries
+	for chartName, chartVersions := range idx.Entries {
+		// For each chart, get the latest version (first in the list as it's sorted)
+		if len(chartVersions) == 0 {
+			continue
+		}
+
+		latestChart := chartVersions[0]
+
+		// Apply filter if provided (use Extensions for chart-specific filtering)
+		if filter != nil && filter.Extensions != nil {
+			if name, ok := filter.Extensions["helm.chartName"].(string); ok && name != "" {
+				if chartName != name {
+					continue
+				}
+			}
+			if version, ok := filter.Extensions["helm.chartVersion"].(string); ok && version != "" {
+				if latestChart.Version != version {
+					continue
+				}
+			}
+		}
+
+		pkg := &adapter.DeploymentPackage{
+			ID:          fmt.Sprintf("%s-%s", chartName, latestChart.Version),
+			Name:        chartName,
+			Version:     latestChart.Version,
+			PackageType: "helm-chart",
+			Description: latestChart.Description,
+			UploadedAt:  latestChart.Created,
+			Extensions: map[string]interface{}{
+				"helm.chartName":    chartName,
+				"helm.chartVersion": latestChart.Version,
+				"helm.appVersion":   latestChart.AppVersion,
+				"helm.repository":   h.config.RepositoryURL,
+				"helm.apiVersion":   latestChart.APIVersion,
+				"helm.deprecated":   latestChart.Deprecated,
+			},
+		}
+
+		packages = append(packages, pkg)
+	}
 
 	return packages, nil
 }
 
 // GetDeploymentPackage retrieves a specific Helm chart by ID.
+// The ID format is expected to be "{chartName}-{version}".
 func (h *HelmAdapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	// TODO(#60): Implement chart lookup by ID
+	// Load repository index
+	if err := h.loadRepositoryIndex(ctx); err != nil {
+		return nil, fmt.Errorf("failed to load repository index: %w", err)
+	}
+
+	// Get the index
+	idx, exists := h.repoIndex[h.config.RepositoryURL]
+	if !exists {
+		return nil, fmt.Errorf("repository index not loaded")
+	}
+
+	// Search through all charts to find matching ID
+	for chartName, chartVersions := range idx.Entries {
+		for _, chartVersion := range chartVersions {
+			pkgID := fmt.Sprintf("%s-%s", chartName, chartVersion.Version)
+			if pkgID == id {
+				return &adapter.DeploymentPackage{
+					ID:          pkgID,
+					Name:        chartName,
+					Version:     chartVersion.Version,
+					PackageType: "helm-chart",
+					Description: chartVersion.Description,
+					UploadedAt:  chartVersion.Created,
+					Extensions: map[string]interface{}{
+						"helm.chartName":    chartName,
+						"helm.chartVersion": chartVersion.Version,
+						"helm.appVersion":   chartVersion.AppVersion,
+						"helm.repository":   h.config.RepositoryURL,
+						"helm.apiVersion":   chartVersion.APIVersion,
+						"helm.deprecated":   chartVersion.Deprecated,
+						"helm.urls":         chartVersion.URLs,
+						"helm.digest":       chartVersion.Digest,
+					},
+				}, nil
+			}
+		}
+	}
+
 	return nil, fmt.Errorf("chart not found: %s", id)
 }
 
@@ -227,13 +320,29 @@ func (h *HelmAdapter) UploadDeploymentPackage(
 }
 
 // DeleteDeploymentPackage deletes a Helm chart from the repository.
-func (h *HelmAdapter) DeleteDeploymentPackage(ctx context.Context, _ string) error {
+// Note: Chart deletion depends on repository type support (ChartMuseum, Harbor, etc.).
+// OCI registries and some HTTP repositories may not support deletion via API.
+func (h *HelmAdapter) DeleteDeploymentPackage(ctx context.Context, id string) error {
 	if err := h.Initialize(ctx); err != nil {
 		return err
 	}
 
-	// TODO(#60): Implement chart deletion from repository
-	return nil
+	// Parse chart name and version from ID (format: {chartName}-{version})
+	pkg, err := h.GetDeploymentPackage(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to get package for deletion: %w", err)
+	}
+
+	// Invalidate cached repository index
+	delete(h.repoIndex, h.config.RepositoryURL)
+
+	// Note: Actual deletion would require repository-specific API calls
+	// For ChartMuseum: DELETE /api/charts/{name}/{version}
+	// For Harbor: DELETE /api/chartrepo/{project}/charts/{name}/{version}
+	// This implementation only clears the cache; actual deletion requires
+	// repository-specific HTTP client implementation
+
+	return fmt.Errorf("chart deletion not fully implemented for %s (cache cleared)", pkg.Name)
 }
 
 // ListDeployments retrieves all Helm releases matching the filter.
@@ -538,16 +647,83 @@ func (h *HelmAdapter) GetDeploymentHistory(ctx context.Context, id string) (*ada
 
 // GetDeploymentLogs retrieves logs for a deployment.
 // Note: Helm doesn't directly provide logs, so this queries Kubernetes pods.
-func (h *HelmAdapter) GetDeploymentLogs(ctx context.Context, id string, _ *adapter.LogOptions) ([]byte, error) {
+func (h *HelmAdapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapter.LogOptions) ([]byte, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	// TODO(#60): Implement pod log retrieval for Helm release
-	// This would query Kubernetes API to get pods for the release
-	// and stream their logs
+	// Get the release to find its namespace
+	client := action.NewGet(h.actionCfg)
+	rel, err := client.Run(id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get release: %w", err)
+	}
 
-	return []byte(fmt.Sprintf("Logs for deployment %s (log retrieval not yet implemented)", id)), nil
+	// Create Kubernetes clientset
+	config, err := clientcmd.BuildConfigFromFlags("", h.config.Kubeconfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kubernetes config: %w", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kubernetes client: %w", err)
+	}
+
+	// Find pods for this release using label selector
+	labelSelector := fmt.Sprintf("app.kubernetes.io/instance=%s", rel.Name)
+	pods, err := clientset.CoreV1().Pods(rel.Namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pods: %w", err)
+	}
+
+	if len(pods.Items) == 0 {
+		return []byte(fmt.Sprintf("No pods found for release %s in namespace %s", id, rel.Namespace)), nil
+	}
+
+	// Aggregate logs from all pods
+	var logBuffer bytes.Buffer
+
+	for i, pod := range pods.Items {
+		if i > 0 {
+			logBuffer.WriteString("\n\n===== Pod: " + pod.Name + " =====\n\n")
+		} else {
+			logBuffer.WriteString("===== Pod: " + pod.Name + " =====\n\n")
+		}
+
+		// Build log options
+		logOpts := &corev1.PodLogOptions{}
+		if opts != nil {
+			if opts.TailLines > 0 {
+				tail := int64(opts.TailLines)
+				logOpts.TailLines = &tail
+			}
+			if !opts.Since.IsZero() {
+				logOpts.SinceTime = &metav1.Time{Time: opts.Since}
+			}
+			logOpts.Follow = opts.Follow
+		}
+
+		// Get logs for the pod
+		req := clientset.CoreV1().Pods(rel.Namespace).GetLogs(pod.Name, logOpts)
+		logs, err := req.Stream(ctx)
+		if err != nil {
+			logBuffer.WriteString(fmt.Sprintf("Error retrieving logs: %v\n", err))
+			continue
+		}
+
+		// Copy logs to buffer
+		if _, err := io.Copy(&logBuffer, logs); err != nil {
+			logs.Close()
+			logBuffer.WriteString(fmt.Sprintf("Error reading logs: %v\n", err))
+			continue
+		}
+		logs.Close()
+	}
+
+	return logBuffer.Bytes(), nil
 }
 
 // SupportsRollback returns true as Helm supports rollback.
@@ -587,6 +763,57 @@ func (h *HelmAdapter) Health(ctx context.Context) error {
 func (h *HelmAdapter) Close() error {
 	h.initialized = false
 	h.actionCfg = nil
+	return nil
+}
+
+// loadRepositoryIndex loads and caches the Helm chart repository index.
+func (h *HelmAdapter) loadRepositoryIndex(ctx context.Context) error {
+	if h.config.RepositoryURL == "" {
+		return fmt.Errorf("repository URL not configured")
+	}
+
+	// Check if already loaded
+	if _, exists := h.repoIndex[h.config.RepositoryURL]; exists {
+		return nil
+	}
+
+	// Create repository entry
+	chartRepo := &repo.Entry{
+		Name: "default",
+		URL:  h.config.RepositoryURL,
+	}
+
+	// Add authentication if configured
+	if h.config.RepositoryUsername != "" {
+		chartRepo.Username = h.config.RepositoryUsername
+		chartRepo.Password = h.config.RepositoryPassword
+	}
+
+	// Create chart repository with getters
+	providers := getter.All(h.settings)
+	r, err := repo.NewChartRepository(chartRepo, providers)
+	if err != nil {
+		return fmt.Errorf("failed to create chart repository: %w", err)
+	}
+
+	// Set cache path
+	r.CachePath = h.settings.RepositoryCache
+
+	// Download index file
+	indexFile, err := r.DownloadIndexFile()
+	if err != nil {
+		return fmt.Errorf("failed to download repository index: %w", err)
+	}
+
+	// Load index
+	idx, err := repo.LoadIndexFile(indexFile)
+	if err != nil {
+		return fmt.Errorf("failed to load index file: %w", err)
+	}
+
+	// Cache the index
+	h.repoIndex[h.config.RepositoryURL] = idx
+
 	return nil
 }
 
