@@ -73,4 +73,5 @@ logs/
 Thumbs.db
 /bin/
 /gateway
-netweave
+/netweave
+!/helm/netweave
