@@ -1,0 +1,293 @@
+{
+  "dashboard": {
+    "title": "O2-IMS Adapter Observability",
+    "description": "Comprehensive observability dashboard for O2-IMS adapter operations, performance, and health",
+    "tags": ["o2ims", "adapters", "observability"],
+    "timezone": "browser",
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 1,
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "type": "graph",
+        "title": "Adapter Operation Rate",
+        "targets": [
+          {
+            "expr": "sum(rate(o2ims_adapter_operations_total[5m])) by (adapter, operation)",
+            "legendFormat": "{{adapter}}/{{operation}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Operations/sec"},
+          {"format": "short"}
+        ],
+        "tooltip": {"shared": true, "sort": 2}
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "type": "graph",
+        "title": "Adapter Operation Latency (p95, p99)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(o2ims_adapter_operation_duration_seconds_bucket[5m])) by (adapter, operation, le))",
+            "legendFormat": "{{adapter}}/{{operation}} p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(o2ims_adapter_operation_duration_seconds_bucket[5m])) by (adapter, operation, le))",
+            "legendFormat": "{{adapter}}/{{operation}} p99"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Latency"},
+          {"format": "short"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [0.5], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "frequency": "60s",
+          "handler": 1,
+          "name": "Adapter Operation Latency p99 > 500ms",
+          "noDataState": "no_data",
+          "for": "5m"
+        },
+        "thresholds": [
+          {"value": 0.1, "colorMode": "custom", "fill": false, "line": true, "op": "gt", "fillColor": "rgba(51, 162, 229, 0.2)", "lineColor": "rgba(31, 120, 193, 0.6)"},
+          {"value": 0.5, "colorMode": "custom", "fill": true, "line": true, "op": "gt", "fillColor": "rgba(234, 112, 112, 0.2)", "lineColor": "rgb(212, 74, 74)"}
+        ]
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "type": "graph",
+        "title": "Adapter Error Rate",
+        "targets": [
+          {
+            "expr": "sum(rate(o2ims_adapter_operations_total{status=\"error\"}[5m])) by (adapter, operation)",
+            "legendFormat": "{{adapter}}/{{operation}} errors"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Errors/sec"},
+          {"format": "short"}
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {"fillOpacity": 10},
+            "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}
+          }
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "type": "graph",
+        "title": "Adapter Success Rate (%)",
+        "targets": [
+          {
+            "expr": "sum(rate(o2ims_adapter_operations_total{status=\"success\"}[5m])) by (adapter) / sum(rate(o2ims_adapter_operations_total[5m])) by (adapter) * 100",
+            "legendFormat": "{{adapter}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "Success Rate", "max": 100, "min": 0},
+          {"format": "short"}
+        ],
+        "thresholds": [
+          {"value": 95, "colorMode": "custom", "fill": false, "line": true, "op": "lt", "lineColor": "rgb(212, 74, 74)"}
+        ]
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "type": "graph",
+        "title": "Cache Hit Ratio",
+        "targets": [
+          {
+            "expr": "sum(rate(o2ims_adapter_cache_hits_total[5m])) by (adapter, operation) / (sum(rate(o2ims_adapter_cache_hits_total[5m])) by (adapter, operation) + sum(rate(o2ims_adapter_cache_misses_total[5m])) by (adapter, operation)) * 100",
+            "legendFormat": "{{adapter}}/{{operation}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "Hit Ratio", "max": 100, "min": 0},
+          {"format": "short"}
+        ],
+        "thresholds": [
+          {"value": 90, "colorMode": "custom", "fill": false, "line": true, "op": "lt", "lineColor": "rgb(255, 152, 48)"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [90], "type": "lt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "frequency": "60s",
+          "handler": 1,
+          "name": "Cache Hit Ratio < 90%",
+          "noDataState": "no_data",
+          "for": "10m"
+        }
+      },
+      {
+        "id": 6,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "type": "stat",
+        "title": "Active Resources by Adapter",
+        "targets": [
+          {
+            "expr": "sum(o2ims_adapter_resources_total) by (adapter, resource_type)",
+            "legendFormat": "{{adapter}}/{{resource_type}}"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "textMode": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 100},
+                {"color": "red", "value": 1000}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+        "type": "graph",
+        "title": "Backend API Latency by Endpoint",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(o2ims_adapter_backend_latency_seconds_bucket[5m])) by (adapter, endpoint, le))",
+            "legendFormat": "{{adapter}}/{{endpoint}} p95"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Latency"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 8,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+        "type": "graph",
+        "title": "Backend API Error Rate",
+        "targets": [
+          {
+            "expr": "sum(rate(o2ims_adapter_backend_errors_total[5m])) by (adapter, endpoint, error_type)",
+            "legendFormat": "{{adapter}}/{{endpoint}}: {{error_type}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Errors/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 9,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+        "type": "stat",
+        "title": "Health Check Status",
+        "targets": [
+          {
+            "expr": "o2ims_adapter_health_check_status",
+            "legendFormat": "{{adapter}}"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "background",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "value": "1", "text": "Healthy", "color": "green"},
+              {"type": "value", "value": "0", "text": "Unhealthy", "color": "red"}
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "green", "value": 1}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+        "type": "stat",
+        "title": "Active Subscriptions by Adapter",
+        "targets": [
+          {
+            "expr": "o2ims_adapter_subscriptions_active",
+            "legendFormat": "{{adapter}}"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 11,
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 40},
+        "type": "table",
+        "title": "Adapter Operation Statistics (5m)",
+        "targets": [
+          {
+            "expr": "topk(20, sum(rate(o2ims_adapter_operations_total[5m])) by (adapter, operation, status))",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "renameByName": {
+                "adapter": "Adapter",
+                "operation": "Operation",
+                "status": "Status",
+                "Value": "Rate (ops/s)"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s",
+    "schemaVersion": 39,
+    "version": 1
+  },
+  "overwrite": true
+}

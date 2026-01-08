@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -17,15 +18,29 @@ func (a *KubernetesAdapter) ListResources(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.Resource, error) {
+	// Start observability tracing and metrics
+	ctx, span := adapter.StartSpan(ctx, a.Name(), "ListResources")
+	start := time.Now()
+	var err error
+	defer func() {
+		adapter.ObserveOperationWithTracing(a.Name(), "ListResources", span, start, err)
+	}()
+
 	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
+	// Record backend API call timing
+	backendStart := time.Now()
 	// List all nodes
-	nodes, err := a.client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
+	nodes, listErr := a.client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	adapter.ObserveBackendRequest(a.Name(), "/api/v1/nodes", "LIST", backendStart, 200, listErr)
+	adapter.RecordBackendCall(span, "/api/v1/nodes", "LIST", 200)
+
+	if listErr != nil {
+		err = fmt.Errorf("failed to list Kubernetes nodes: %w", listErr)
 		a.logger.Error("failed to list nodes",
 			zap.Error(err))
-		return nil, fmt.Errorf("failed to list Kubernetes nodes: %w", err)
+		return nil, err
 	}
 
 	a.logger.Debug("retrieved nodes from Kubernetes",
@@ -52,6 +67,15 @@ func (a *KubernetesAdapter) ListResources(
 		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
+	// Update resource metrics
+	adapter.UpdateResourceCount(a.Name(), "node", len(resources))
+	adapter.RecordSuccess(span, len(resources))
+	adapter.AddAttributes(span, map[string]interface{}{
+		"resource.type":  "node",
+		"resource.count": len(resources),
+		"filtered":       filter != nil,
+	})
+
 	a.logger.Info("listed resources",
 		zap.Int("count", len(resources)))
 
@@ -60,6 +84,16 @@ func (a *KubernetesAdapter) ListResources(
 
 // GetResource retrieves a specific Kubernetes node by name and transforms it to O2-IMS Resource.
 func (a *KubernetesAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+	// Start observability tracing and metrics
+	ctx, span := adapter.StartSpan(ctx, a.Name(), "GetResource")
+	start := time.Now()
+	var err error
+	defer func() {
+		adapter.ObserveOperationWithTracing(a.Name(), "GetResource", span, start, err)
+	}()
+
+	adapter.RecordResourceOperation(span, "node", "get", id)
+
 	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
@@ -71,6 +105,12 @@ func (a *KubernetesAdapter) GetResource(ctx context.Context, id string) (*adapte
 
 	// Transform to O2-IMS Resource
 	resource := a.transformNodeToResource(node)
+
+	adapter.RecordSuccess(span, 1)
+	adapter.AddAttributes(span, map[string]interface{}{
+		"resource.id":   resource.ResourceID,
+		"resource.type": resource.ResourceTypeID,
+	})
 
 	a.logger.Info("retrieved resource",
 		zap.String("resourceID", resource.ResourceID),

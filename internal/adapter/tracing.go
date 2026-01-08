@@ -16,6 +16,20 @@ const (
 )
 
 // StartSpan starts a new span for an adapter operation.
+// It returns a new context with the span and the span itself.
+// The caller should defer span.End() to ensure the span is properly closed.
+//
+// Example usage:
+//
+//	ctx, span := adapter.StartSpan(ctx, "kubernetes", "ListResources")
+//	defer span.End()
+//
+//	resources, err := a.listResourcesFromBackend(ctx)
+//	if err != nil {
+//	    adapter.RecordError(span, err)
+//	    return nil, err
+//	}
+//	adapter.RecordSuccess(span, len(resources))
 func StartSpan(ctx context.Context, adapterName, operation string) (context.Context, trace.Span) {
 	tracer := otel.Tracer(TracerName)
 	ctx, span := tracer.Start(ctx, operation,
@@ -28,7 +42,14 @@ func StartSpan(ctx context.Context, adapterName, operation string) (context.Cont
 	return ctx, span
 }
 
-// RecordError records an error in the span.
+// RecordError records an error in the span and sets the span status to error.
+//
+// Example usage:
+//
+//	if err != nil {
+//	    adapter.RecordError(span, err)
+//	    return nil, err
+//	}
 func RecordError(span trace.Span, err error) {
 	if err != nil {
 		span.RecordError(err)
@@ -36,13 +57,24 @@ func RecordError(span trace.Span, err error) {
 	}
 }
 
-// RecordSuccess marks the span as successful.
+// RecordSuccess marks the span as successful and optionally records result metrics.
+//
+// Example usage:
+//
+//	adapter.RecordSuccess(span, len(resources))
 func RecordSuccess(span trace.Span, count int) {
 	span.SetStatus(codes.Ok, "operation completed successfully")
 	span.SetAttributes(attribute.Int("result.count", count))
 }
 
 // AddAttributes adds custom attributes to the span.
+//
+// Example usage:
+//
+//	adapter.AddAttributes(span, map[string]interface{}{
+//	    "resource.type": "node",
+//	    "resource.pool": "default",
+//	})
 func AddAttributes(span trace.Span, attrs map[string]interface{}) {
 	for key, value := range attrs {
 		switch v := value.(type) {
@@ -60,7 +92,11 @@ func AddAttributes(span trace.Span, attrs map[string]interface{}) {
 	}
 }
 
-// RecordCacheOperation records cache operation attributes.
+// RecordCacheOperation records attributes for a cache operation.
+//
+// Example usage:
+//
+//	adapter.RecordCacheOperation(span, true)
 func RecordCacheOperation(span trace.Span, hit bool) {
 	span.SetAttributes(
 		attribute.Bool("cache.hit", hit),
@@ -68,7 +104,11 @@ func RecordCacheOperation(span trace.Span, hit bool) {
 	)
 }
 
-// RecordBackendCall records backend API call attributes.
+// RecordBackendCall records attributes for a backend API call.
+//
+// Example usage:
+//
+//	adapter.RecordBackendCall(span, "/api/v1/nodes", "GET", 200)
 func RecordBackendCall(span trace.Span, endpoint, method string, statusCode int) {
 	span.SetAttributes(
 		attribute.String("backend.endpoint", endpoint),
@@ -77,7 +117,11 @@ func RecordBackendCall(span trace.Span, endpoint, method string, statusCode int)
 	)
 }
 
-// RecordResourceOperation records resource operation attributes.
+// RecordResourceOperation records attributes for a resource operation.
+//
+// Example usage:
+//
+//	adapter.RecordResourceOperation(span, "node", "get", "node-123")
 func RecordResourceOperation(span trace.Span, resourceType, operationType, resourceID string) {
 	span.SetAttributes(
 		attribute.String("resource.type", resourceType),
