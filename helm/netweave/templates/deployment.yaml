@@ -46,6 +46,8 @@ spec:
               containerPort: {{ .Values.service.healthPort }}
               protocol: TCP
           env:
+            - name: NETWEAVE_ENV
+              value: {{ .Values.environment | default "dev" | quote }}
             - name: SERVER_PORT
               value: {{ .Values.config.server.port | quote }}
             - name: SERVER_HOST

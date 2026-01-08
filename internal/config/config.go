@@ -22,6 +22,16 @@ const (
 	tlsClientAuthRequireAndVerify = "require-and-verify"
 )
 
+// Environment names for configuration.
+const (
+	EnvDevelopment = "dev"
+	EnvStaging     = "staging"
+	EnvProduction  = "prod"
+
+	// DefaultConfigPath is the default configuration file path.
+	DefaultConfigPath = "config/config.yaml"
+)
+
 // Config represents the complete configuration for the O2-IMS Gateway.
 // It includes server settings, Redis configuration, Kubernetes client config,
 // TLS/mTLS settings, and observability options.
@@ -49,6 +59,10 @@ type Config struct {
 	Security      SecurityConfig      `mapstructure:"security"`
 	Validation    ValidationConfig    `mapstructure:"validation"`
 	MultiTenancy  MultiTenancyConfig  `mapstructure:"multi_tenancy"`
+
+	// Environment stores the detected environment (dev/staging/prod)
+	// This field is set automatically during Load() and used for validation
+	Environment string `mapstructure:"-"`
 }
 
 // MultiTenancyConfig contains multi-tenancy and RBAC configuration.
@@ -367,6 +381,12 @@ type ValidationConfig struct {
 // Environment variables override file values and should be prefixed with NETWEAVE_
 // (e.g., NETWEAVE_SERVER_PORT=8080).
 //
+// Configuration file resolution order:
+//  1. Explicit configPath parameter (if provided)
+//  2. NETWEAVE_CONFIG environment variable
+//  3. Environment-specific config via NETWEAVE_ENV (dev/staging/prod)
+//  4. Default: config/config.yaml
+//
 // Returns an error if the configuration file cannot be read or parsed.
 //
 // Example:
@@ -378,7 +398,8 @@ type ValidationConfig struct {
 func Load(configPath string) (*Config, error) {
 	v := viper.New()
 
-	// Set configuration file
+	// Set configuration file with environment detection
+	configPath = resolveConfigPath(configPath)
 	if configPath != "" {
 		v.SetConfigFile(configPath)
 	} else {
@@ -413,7 +434,60 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	// Set environment from NETWEAVE_ENV or detect from config path
+	cfg.Environment = detectEnvironment(configPath)
+
 	return &cfg, nil
+}
+
+// resolveConfigPath determines the configuration file path to use.
+// Priority order:
+//  1. Explicit configPath parameter (if non-empty)
+//  2. NETWEAVE_CONFIG environment variable
+//  3. Environment-specific config via NETWEAVE_ENV (dev/staging/prod)
+//  4. Empty string (use viper defaults)
+func resolveConfigPath(configPath string) string {
+	// Priority 1: Explicit path provided
+	if configPath != "" && configPath != DefaultConfigPath {
+		return configPath
+	}
+
+	// Priority 2: NETWEAVE_CONFIG environment variable
+	if envConfig := os.Getenv("NETWEAVE_CONFIG"); envConfig != "" {
+		return envConfig
+	}
+
+	// Priority 3: Environment-specific config via NETWEAVE_ENV
+	if env := os.Getenv("NETWEAVE_ENV"); env != "" {
+		envConfigPath := fmt.Sprintf("config/config.%s.yaml", env)
+		// Check if environment-specific config exists
+		if _, err := os.Stat(envConfigPath); err == nil {
+			return envConfigPath
+		}
+	}
+
+	// Priority 4: Use default or empty (viper will search default paths)
+	return ""
+}
+
+// detectEnvironment determines the environment from the config path or NETWEAVE_ENV.
+func detectEnvironment(configPath string) string {
+	// Check NETWEAVE_ENV first
+	if env := os.Getenv("NETWEAVE_ENV"); env != "" {
+		return env
+	}
+
+	// Detect from config path
+	switch {
+	case strings.Contains(configPath, ".dev."):
+		return EnvDevelopment
+	case strings.Contains(configPath, ".staging."):
+		return EnvStaging
+	case strings.Contains(configPath, ".prod."):
+		return EnvProduction
+	default:
+		return EnvDevelopment // Default to dev
+	}
 }
 
 // setDefaults sets default values for all configuration options.
@@ -514,6 +588,7 @@ func setDefaults(v *viper.Viper) {
 
 // Validate validates the configuration and returns an error if any values are invalid.
 // This should be called after Load() to ensure the configuration is valid before use.
+// It enforces environment-specific requirements for production and staging environments.
 //
 // Example:
 //
@@ -543,6 +618,80 @@ func (c *Config) Validate() error {
 
 	if err := c.validateSecurity(); err != nil {
 		return err
+	}
+
+	if err := c.validateEnvironmentRules(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateEnvironmentRules enforces environment-specific configuration requirements.
+func (c *Config) validateEnvironmentRules() error {
+	switch c.Environment {
+	case EnvProduction:
+		return c.validateProductionRules()
+	case EnvStaging:
+		return c.validateStagingRules()
+	case EnvDevelopment:
+		// Development has no strict requirements
+		return nil
+	default:
+		// Unknown environment, treat as development
+		return nil
+	}
+}
+
+// validateProductionRules enforces strict requirements for production.
+func (c *Config) validateProductionRules() error {
+	// TLS/mTLS must be enabled
+	if !c.TLS.Enabled {
+		return fmt.Errorf("TLS must be enabled in production (environment: %s)", c.Environment)
+	}
+	if c.TLS.ClientAuth != tlsClientAuthRequireAndVerify {
+		return fmt.Errorf(
+			"mTLS with require-and-verify must be enabled in production (got: %s)",
+			c.TLS.ClientAuth,
+		)
+	}
+
+	// Rate limiting must be enabled
+	if !c.Security.RateLimitEnabled {
+		return fmt.Errorf("rate limiting must be enabled in production")
+	}
+
+	// Logging must not be in development mode
+	if c.Observability.Logging.Development {
+		return fmt.Errorf("logging development mode must be disabled in production")
+	}
+	if c.Observability.Logging.Level == "debug" {
+		return fmt.Errorf("debug logging level is not recommended for production")
+	}
+
+	// Response validation should be disabled for performance
+	if c.Validation.ValidateResponse {
+		return fmt.Errorf("response validation should be disabled in production for performance")
+	}
+
+	// CORS should typically be disabled or restricted
+	if c.Security.EnableCORS && len(c.Security.AllowedOrigins) == 0 {
+		return fmt.Errorf("CORS enabled in production but allowed_origins is empty")
+	}
+
+	return nil
+}
+
+// validateStagingRules enforces requirements for staging.
+func (c *Config) validateStagingRules() error {
+	// TLS should be enabled
+	if !c.TLS.Enabled {
+		return fmt.Errorf("TLS should be enabled in staging (environment: %s)", c.Environment)
+	}
+
+	// Rate limiting should be enabled
+	if !c.Security.RateLimitEnabled {
+		return fmt.Errorf("rate limiting should be enabled in staging")
 	}
 
 	return nil

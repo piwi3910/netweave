@@ -1,6 +1,9 @@
 # Production values for netweave
 # This file overrides values.yaml for production deployments
 
+# Environment identifier (used for config validation and logging)
+environment: prod
+
 replicaCount: 3
 
 image:

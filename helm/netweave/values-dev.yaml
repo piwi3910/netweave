@@ -1,6 +1,9 @@
 # Development values for netweave
 # This file overrides values.yaml for development deployments
 
+# Environment identifier (used for config validation and logging)
+environment: dev
+
 replicaCount: 1
 
 image:
