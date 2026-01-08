@@ -309,11 +309,40 @@ type SecurityConfig struct {
 	// RateLimitEnabled enables rate limiting
 	RateLimitEnabled bool `mapstructure:"rate_limit_enabled"`
 
-	// RateLimitRequests is the maximum requests per window
-	RateLimitRequests int `mapstructure:"rate_limit_requests"`
+	// RateLimit contains comprehensive rate limiting configuration
+	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
+}
 
-	// RateLimitWindow is the rate limit time window
-	RateLimitWindow time.Duration `mapstructure:"rate_limit_window"`
+// RateLimitConfig contains comprehensive rate limiting configuration.
+type RateLimitConfig struct {
+	// PerTenant configures per-tenant rate limits
+	PerTenant TenantRateLimitConfig `mapstructure:"tenant"`
+
+	// PerEndpoint configures per-endpoint rate limits
+	PerEndpoint []EndpointRateLimitConfig `mapstructure:"endpoints"`
+
+	// Global configures global rate limits
+	Global GlobalRateLimitConfig `mapstructure:"global"`
+}
+
+// TenantRateLimitConfig configures per-tenant rate limits.
+type TenantRateLimitConfig struct {
+	RequestsPerSecond int `mapstructure:"requests_per_second"`
+	BurstSize         int `mapstructure:"burst_size"`
+}
+
+// EndpointRateLimitConfig configures rate limits for specific endpoints.
+type EndpointRateLimitConfig struct {
+	Path              string `mapstructure:"path"`
+	Method            string `mapstructure:"method"`
+	RequestsPerSecond int    `mapstructure:"requests_per_second"`
+	BurstSize         int    `mapstructure:"burst_size"`
+}
+
+// GlobalRateLimitConfig configures global rate limits.
+type GlobalRateLimitConfig struct {
+	RequestsPerSecond     int `mapstructure:"requests_per_second"`
+	MaxConcurrentRequests int `mapstructure:"max_concurrent_requests"`
 }
 
 // ValidationConfig contains OpenAPI request/response validation configuration.
@@ -697,12 +726,36 @@ func (c *Config) validateTracing() error {
 // validateSecurity validates the security configuration.
 func (c *Config) validateSecurity() error {
 	if c.Security.RateLimitEnabled {
-		if c.Security.RateLimitRequests < 1 {
-			return fmt.Errorf("invalid rate_limit_requests: %d (must be > 0)", c.Security.RateLimitRequests)
+		// Validate per-tenant limits
+		if c.Security.RateLimit.PerTenant.RequestsPerSecond < 0 {
+			return fmt.Errorf("invalid tenant requests_per_second: %d (must be >= 0)", c.Security.RateLimit.PerTenant.RequestsPerSecond)
+		}
+		if c.Security.RateLimit.PerTenant.BurstSize < 0 {
+			return fmt.Errorf("invalid tenant burst_size: %d (must be >= 0)", c.Security.RateLimit.PerTenant.BurstSize)
 		}
 
-		if c.Security.RateLimitWindow < time.Second {
-			return fmt.Errorf("invalid rate_limit_window: %s (must be >= 1s)", c.Security.RateLimitWindow)
+		// Validate global limits
+		if c.Security.RateLimit.Global.RequestsPerSecond < 0 {
+			return fmt.Errorf("invalid global requests_per_second: %d (must be >= 0)", c.Security.RateLimit.Global.RequestsPerSecond)
+		}
+		if c.Security.RateLimit.Global.MaxConcurrentRequests < 0 {
+			return fmt.Errorf("invalid global max_concurrent_requests: %d (must be >= 0)", c.Security.RateLimit.Global.MaxConcurrentRequests)
+		}
+
+		// Validate endpoint limits
+		for i, ep := range c.Security.RateLimit.PerEndpoint {
+			if ep.Path == "" {
+				return fmt.Errorf("endpoint[%d] path cannot be empty", i)
+			}
+			if ep.Method == "" {
+				return fmt.Errorf("endpoint[%d] method cannot be empty", i)
+			}
+			if ep.RequestsPerSecond < 0 {
+				return fmt.Errorf("endpoint[%d] requests_per_second: %d (must be >= 0)", i, ep.RequestsPerSecond)
+			}
+			if ep.BurstSize < 0 {
+				return fmt.Errorf("endpoint[%d] burst_size: %d (must be >= 0)", i, ep.BurstSize)
+			}
 		}
 	}
 

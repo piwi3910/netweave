@@ -624,14 +624,54 @@ func (s *Server) corsMiddleware() gin.HandlerFunc {
 	}
 }
 
-// rateLimitMiddleware implements rate limiting for HTTP requests.
-// TODO: Implement Redis-based distributed rate limiting.
+// rateLimitMiddleware implements Redis-based distributed rate limiting for HTTP requests.
 func (s *Server) rateLimitMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// TODO: Implement rate limiting logic
-		// For now, just pass through
-		c.Next()
+	// Get Redis client from store
+	redisStore, ok := s.store.(*storage.RedisStore)
+	if !ok {
+		s.logger.Warn("rate limiting requires RedisStore, disabled")
+		return func(c *gin.Context) {
+			c.Next()
+		}
 	}
+
+	// Convert config types to middleware types
+	rateLimitConfig := &middleware.RateLimitConfig{
+		Enabled:     s.config.Security.RateLimitEnabled,
+		RedisClient: redisStore.Client(),
+		PerTenant: middleware.TenantLimitConfig{
+			RequestsPerSecond: s.config.Security.RateLimit.PerTenant.RequestsPerSecond,
+			BurstSize:         s.config.Security.RateLimit.PerTenant.BurstSize,
+		},
+		Global: middleware.GlobalLimitConfig{
+			RequestsPerSecond:     s.config.Security.RateLimit.Global.RequestsPerSecond,
+			MaxConcurrentRequests: s.config.Security.RateLimit.Global.MaxConcurrentRequests,
+		},
+	}
+
+	// Convert endpoint configs
+	for _, ep := range s.config.Security.RateLimit.PerEndpoint {
+		rateLimitConfig.PerEndpoint = append(rateLimitConfig.PerEndpoint, middleware.EndpointLimitConfig{
+			Path:              ep.Path,
+			Method:            ep.Method,
+			RequestsPerSecond: ep.RequestsPerSecond,
+			BurstSize:         ep.BurstSize,
+		})
+	}
+
+	// Create rate limiter
+	rateLimiter, err := middleware.NewRateLimiter(rateLimitConfig, s.logger)
+	if err != nil {
+		s.logger.Error("failed to create rate limiter, rate limiting disabled",
+			zap.Error(err),
+		)
+		// Return pass-through middleware if rate limiter creation fails
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+
+	return rateLimiter.Middleware()
 }
 
 // joinStrings joins a slice of strings with the given separator.

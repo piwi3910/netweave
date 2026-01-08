@@ -565,6 +565,12 @@ func (r *RedisStore) Ping(ctx context.Context) error {
 	return nil
 }
 
+// Client returns the underlying Redis client.
+// This is used by middleware that needs direct Redis access (e.g., rate limiting).
+func (r *RedisStore) Client() redis.UniversalClient {
+	return r.client
+}
+
 // validateCallbackURL validates that a callback URL is properly formatted.
 func validateCallbackURL(callback string) error {
 	if callback == "" {
