@@ -224,7 +224,7 @@ func (a *AWSAdapter) CreateResourcePool(ctx context.Context, pool *adapter.Resou
 
 // UpdateResourcePool updates an existing resource pool.
 // In "az" mode, this operation is not supported.
-// In "asg" mode, this could update ASG capacity settings.
+// In "asg" mode, this updates ASG capacity settings (desired, min, max).
 func (a *AWSAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (updated *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "UpdateResourcePool", start, err) }()
@@ -237,14 +237,44 @@ func (a *AWSAdapter) UpdateResourcePool(ctx context.Context, id string, pool *ad
 		return nil, fmt.Errorf("cannot update resource pools in 'az' mode: availability zones are AWS-managed")
 	}
 
-	// In ASG mode, we could update the ASG capacity
-	// For now, return not implemented
-	return nil, fmt.Errorf("updating Auto Scaling Groups is not yet implemented")
+	// Extract ASG name from pool ID
+	asgName := extractASGNameFromPoolID(id)
+	if asgName == "" {
+		return nil, fmt.Errorf("invalid resource pool ID format: %s", id)
+	}
+
+	// Build update input from pool extensions
+	updateInput := &autoscaling.UpdateAutoScalingGroupInput{
+		AutoScalingGroupName: aws.String(asgName),
+	}
+
+	// Extract capacity settings from extensions if provided
+	if pool.Extensions != nil {
+		updateInput.DesiredCapacity = extractInt32FromExtensions(pool.Extensions, "aws.desiredCapacity")
+		updateInput.MinSize = extractInt32FromExtensions(pool.Extensions, "aws.minSize")
+		updateInput.MaxSize = extractInt32FromExtensions(pool.Extensions, "aws.maxSize")
+	}
+
+	// Update the Auto Scaling Group
+	_, err = a.asgClient.UpdateAutoScalingGroup(ctx, updateInput)
+	if err != nil {
+		a.logger.Error("failed to update auto scaling group",
+			zap.String("asgName", asgName),
+			zap.Error(err))
+		return nil, fmt.Errorf("failed to update Auto Scaling Group %s: %w", asgName, err)
+	}
+
+	a.logger.Info("updated auto scaling group",
+		zap.String("asgName", asgName))
+
+	// Retrieve and return the updated pool
+	return a.getASGPool(ctx, id)
 }
 
 // DeleteResourcePool deletes a resource pool by ID.
 // In "az" mode, this operation is not supported.
-// In "asg" mode, this could delete an Auto Scaling Group.
+// In "asg" mode, this deletes an Auto Scaling Group.
+// Note: This is a destructive operation. The ASG must be empty or ForceDelete must be enabled.
 func (a *AWSAdapter) DeleteResourcePool(ctx context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "DeleteResourcePool", start, err) }()
@@ -256,9 +286,53 @@ func (a *AWSAdapter) DeleteResourcePool(ctx context.Context, id string) (err err
 		return fmt.Errorf("cannot delete resource pools in 'az' mode: availability zones are AWS-managed")
 	}
 
-	// In ASG mode, we could delete the ASG
-	// This is a destructive operation and requires careful handling
-	return fmt.Errorf("deleting Auto Scaling Groups is not yet implemented")
+	// Extract ASG name from pool ID
+	asgName := extractASGNameFromPoolID(id)
+	if asgName == "" {
+		return fmt.Errorf("invalid resource pool ID format: %s", id)
+	}
+
+	// Delete the Auto Scaling Group
+	// ForceDelete will terminate instances if the ASG is not empty
+	deleteInput := &autoscaling.DeleteAutoScalingGroupInput{
+		AutoScalingGroupName: aws.String(asgName),
+		ForceDelete:          aws.Bool(true), // Force delete to handle non-empty ASGs
+	}
+
+	_, err = a.asgClient.DeleteAutoScalingGroup(ctx, deleteInput)
+	if err != nil {
+		a.logger.Error("failed to delete auto scaling group",
+			zap.String("asgName", asgName),
+			zap.Error(err))
+		return fmt.Errorf("failed to delete Auto Scaling Group %s: %w", asgName, err)
+	}
+
+	a.logger.Info("deleted auto scaling group",
+		zap.String("asgName", asgName))
+
+	return nil
+}
+
+// extractASGNameFromPoolID extracts the ASG name from a resource pool ID.
+// Pool ID format: aws-asg-{asgName}.
+func extractASGNameFromPoolID(poolID string) string {
+	const prefix = "aws-asg-"
+	if len(poolID) > len(prefix) && poolID[:len(prefix)] == prefix {
+		return poolID[len(prefix):]
+	}
+	return ""
+}
+
+// extractInt32FromExtensions extracts an int32 value from extensions map.
+// Handles both int32 and float64 types (JSON unmarshaling can produce either).
+func extractInt32FromExtensions(extensions map[string]interface{}, key string) *int32 {
+	if val, ok := extensions[key].(int32); ok {
+		return aws.Int32(val)
+	}
+	if val, ok := extensions[key].(float64); ok {
+		return aws.Int32(int32(val))
+	}
+	return nil
 }
 
 // getLaunchTemplateName extracts the launch template name from LaunchTemplateSpecification.
