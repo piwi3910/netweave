@@ -299,6 +299,7 @@ func createTLSConfig(config *Config, logger *zap.Logger) (*tls.Config, error) {
 
 	// G402: InsecureSkipVerify is intentionally configurable for development/testing environments
 	// Production deployments should always use proper certificate validation (InsecureSkipVerify=false)
+	//nolint:gosec // G402: Documented exception - InsecureSkipVerify is configurable for dev/test environments
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: config.TLSInsecureSkipVerify,
 		MinVersion:         tls.VersionTLS12,
