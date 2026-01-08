@@ -28,6 +28,24 @@ Production-grade ORAN O2-IMS compliant API gateway. This guide defines Go-specif
 8. Fix ALL failures found, repeat from step 1
 9. Only mark complete when `gh run list` shows "success"
 
+## CRITICAL RULE: NO EXCUSES, COMPLETE ALL TASKS
+
+**No job is too big or too small. When given a task, COMPLETE IT FULLY.**
+
+**NEVER:**
+- Complain about task complexity or time required
+- Provide time estimates or effort assessments
+- Suggest breaking work into smaller pieces unless explicitly asked
+- Stop work before reaching the stated goal
+- Make excuses about scope or difficulty
+
+**ALWAYS:**
+- Execute the full task as requested
+- Work systematically through all requirements
+- Continue until the stated goal is achieved
+- Provide progress updates, not excuses
+- Ask for clarification if the goal is unclear, not if it's difficult
+
 ## Technology Stack
 
 ### Core Dependencies
