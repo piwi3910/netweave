@@ -157,8 +157,8 @@ func (m *mockStore) ListRoles(_ context.Context) ([]*Role, error) {
 	return result, nil
 }
 
-func (m *mockStore) ListRolesByTenant(_ context.Context, _ string) ([]*Role, error) {
-	return m.ListRoles(context.Background())
+func (m *mockStore) ListRolesByTenant(ctx context.Context, _ string) ([]*Role, error) {
+	return m.ListRoles(ctx)
 }
 
 func (m *mockStore) InitializeDefaultRoles(_ context.Context) error {

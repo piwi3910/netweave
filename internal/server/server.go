@@ -393,6 +393,19 @@ func (s *Server) Start() error {
 //
 // Returns an error if the shutdown fails.
 func (s *Server) Shutdown() error {
+	// Create shutdown context with timeout
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		s.config.Server.ShutdownTimeout,
+	)
+	defer cancel()
+
+	return s.shutdownWithContext(ctx)
+}
+
+// shutdownWithContext performs the actual shutdown logic using the provided context.
+// This is the internal implementation that both Shutdown() and ShutdownWithContext() delegate to.
+func (s *Server) shutdownWithContext(ctx context.Context) error {
 	var shutdownErr error
 
 	s.shutdownOnce.Do(func() {
@@ -407,13 +420,6 @@ func (s *Server) Shutdown() error {
 				s.logger.Warn("error closing SMO registry", zap.Error(err))
 			}
 		}
-
-		// Create shutdown context with timeout
-		ctx, cancel := context.WithTimeout(
-			context.Background(),
-			s.config.Server.ShutdownTimeout,
-		)
-		defer cancel()
 
 		// Shutdown HTTP server
 		if err := s.httpServer.Shutdown(ctx); err != nil {
@@ -659,10 +665,10 @@ func (s *Server) ShutdownWithContext(ctx context.Context) error {
 	// Create a channel to signal when shutdown completes
 	done := make(chan error, 1)
 
-	// Run shutdown in a goroutine
-	go func() {
-		done <- s.Shutdown()
-	}()
+	// Run shutdown in a goroutine with the provided context
+	go func(shutdownCtx context.Context) {
+		done <- s.shutdownWithContext(shutdownCtx)
+	}(ctx)
 
 	// Wait for either shutdown to complete or context to be canceled
 	select {
