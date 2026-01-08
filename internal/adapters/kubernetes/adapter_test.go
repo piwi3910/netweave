@@ -7,7 +7,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	adapterapi "github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -115,6 +117,42 @@ func newTestAdapter(t *testing.T) *KubernetesAdapter {
 		if err := adp.Close(); err != nil {
 			t.Logf("warning: failed to close adapter during cleanup: %v", err)
 		}
+	})
+
+	return adp
+}
+
+// newTestAdapterWithStore creates a test adapter with a Redis store for testing subscriptions.
+func newTestAdapterWithStore(t *testing.T) *KubernetesAdapter {
+	t.Helper()
+
+	// Create miniredis instance for testing
+	mr := miniredis.RunT(t)
+
+	// Create Redis store
+	store := storage.NewRedisStore(&storage.RedisConfig{
+		Addr: mr.Addr(),
+	})
+
+	logger := zaptest.NewLogger(t)
+	adp := &KubernetesAdapter{
+		client:              fake.NewSimpleClientset(),
+		store:               store,
+		logger:              logger,
+		oCloudID:            "test-ocloud",
+		deploymentManagerID: "test-dm",
+		namespace:           "o2ims-system",
+	}
+
+	// Register cleanup
+	t.Cleanup(func() {
+		if err := adp.Close(); err != nil {
+			t.Logf("warning: failed to close adapter during cleanup: %v", err)
+		}
+		if err := store.Close(); err != nil {
+			t.Logf("warning: failed to close store during cleanup: %v", err)
+		}
+		mr.Close()
 	})
 
 	return adp
@@ -523,36 +561,127 @@ func TestKubernetesAdapter_GetResourceType(t *testing.T) {
 }
 
 func TestKubernetesAdapter_CreateSubscription(t *testing.T) {
-	adp := newTestAdapter(t)
-	ctx := context.Background()
+	t.Run("without store configured", func(t *testing.T) {
+		adp := newTestAdapter(t)
+		ctx := context.Background()
 
-	sub := &adapterapi.Subscription{
-		Callback: "https://smo.example.com/notify",
-	}
+		sub := &adapterapi.Subscription{
+			SubscriptionID: "sub-1",
+			Callback:       "https://smo.example.com/notify",
+		}
 
-	created, err := adp.CreateSubscription(ctx, sub)
+		created, err := adp.CreateSubscription(ctx, sub)
 
-	require.Error(t, err)
-	assert.Nil(t, created)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "storage not configured")
+		assert.Nil(t, created)
+	})
+
+	t.Run("with store configured", func(t *testing.T) {
+		adp := newTestAdapterWithStore(t)
+		ctx := context.Background()
+
+		sub := &adapterapi.Subscription{
+			SubscriptionID: "sub-1",
+			Callback:       "https://smo.example.com/notify",
+		}
+
+		created, err := adp.CreateSubscription(ctx, sub)
+
+		require.NoError(t, err)
+		require.NotNil(t, created)
+		assert.Equal(t, "sub-1", created.SubscriptionID)
+		assert.Equal(t, "https://smo.example.com/notify", created.Callback)
+	})
 }
 
 func TestKubernetesAdapter_GetSubscription(t *testing.T) {
-	adp := newTestAdapter(t)
-	ctx := context.Background()
+	t.Run("without store configured", func(t *testing.T) {
+		adp := newTestAdapter(t)
+		ctx := context.Background()
 
-	sub, err := adp.GetSubscription(ctx, "sub-1")
+		sub, err := adp.GetSubscription(ctx, "sub-1")
 
-	require.Error(t, err)
-	assert.Nil(t, sub)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "storage not configured")
+		assert.Nil(t, sub)
+	})
+
+	t.Run("subscription exists", func(t *testing.T) {
+		adp := newTestAdapterWithStore(t)
+		ctx := context.Background()
+
+		// Create subscription first
+		sub := &adapterapi.Subscription{
+			SubscriptionID: "sub-1",
+			Callback:       "https://smo.example.com/notify",
+		}
+		_, err := adp.CreateSubscription(ctx, sub)
+		require.NoError(t, err)
+
+		// Get subscription
+		retrieved, err := adp.GetSubscription(ctx, "sub-1")
+
+		require.NoError(t, err)
+		require.NotNil(t, retrieved)
+		assert.Equal(t, "sub-1", retrieved.SubscriptionID)
+		assert.Equal(t, "https://smo.example.com/notify", retrieved.Callback)
+	})
+
+	t.Run("subscription not found", func(t *testing.T) {
+		adp := newTestAdapterWithStore(t)
+		ctx := context.Background()
+
+		sub, err := adp.GetSubscription(ctx, "nonexistent")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "subscription not found")
+		assert.Nil(t, sub)
+	})
 }
 
 func TestKubernetesAdapter_DeleteSubscription(t *testing.T) {
-	adp := newTestAdapter(t)
-	ctx := context.Background()
+	t.Run("without store configured", func(t *testing.T) {
+		adp := newTestAdapter(t)
+		ctx := context.Background()
 
-	err := adp.DeleteSubscription(ctx, "sub-1")
+		err := adp.DeleteSubscription(ctx, "sub-1")
 
-	require.Error(t, err)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "storage not configured")
+	})
+
+	t.Run("subscription exists", func(t *testing.T) {
+		adp := newTestAdapterWithStore(t)
+		ctx := context.Background()
+
+		// Create subscription first
+		sub := &adapterapi.Subscription{
+			SubscriptionID: "sub-1",
+			Callback:       "https://smo.example.com/notify",
+		}
+		_, err := adp.CreateSubscription(ctx, sub)
+		require.NoError(t, err)
+
+		// Delete subscription
+		err = adp.DeleteSubscription(ctx, "sub-1")
+
+		require.NoError(t, err)
+
+		// Verify it's deleted
+		_, err = adp.GetSubscription(ctx, "sub-1")
+		assert.Contains(t, err.Error(), "subscription not found")
+	})
+
+	t.Run("subscription not found", func(t *testing.T) {
+		adp := newTestAdapterWithStore(t)
+		ctx := context.Background()
+
+		err := adp.DeleteSubscription(ctx, "nonexistent")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "subscription not found")
+	})
 }
 
 func TestKubernetesAdapter_ImplementsAdapterInterface(t *testing.T) {

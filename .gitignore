@@ -73,4 +73,6 @@ logs/
 Thumbs.db
 /bin/
 /gateway
-netweave
+# Ignore binary in root only
+/netweave
+!/helm/netweave/
