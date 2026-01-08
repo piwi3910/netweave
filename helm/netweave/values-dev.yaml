@@ -1,0 +1,84 @@
+# Development values for netweave
+# This file overrides values.yaml for development deployments
+
+replicaCount: 1
+
+image:
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+  hosts:
+    - host: o2ims.dev.localhost
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: netweave-dev-tls
+      hosts:
+        - o2ims.dev.localhost
+
+config:
+  server:
+    tls:
+      enabled: false  # Disable TLS in dev for easier testing
+      mtls:
+        enabled: false
+
+  observability:
+    logging:
+      level: debug
+      format: json
+    metrics:
+      enabled: true
+    tracing:
+      enabled: false
+
+  rateLimit:
+    enabled: false
+
+# Redis dev configuration
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false  # Disable auth in dev
+  master:
+    persistence:
+      enabled: false  # Use emptyDir for dev
+    resources:
+      limits:
+        cpu: 200m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+# Disable monitoring in dev
+monitoring:
+  enabled: false
+
+# Auto-generate certs for dev
+tls:
+  autoGenerate: true
+
+# No affinity rules for dev
+affinity: {}

@@ -391,3 +391,105 @@ info: ## Show build information
 	@echo "$(COLOR_BLUE)Docker Configuration:$(COLOR_RESET)"
 	@echo "  Registry:   $(DOCKER_REGISTRY)"
 	@echo "  Image:      $(DOCKER_IMAGE)"
+
+## ==============================================================================
+## Helm Operations
+## ==============================================================================
+
+HELM_CHART_PATH := helm/netweave
+HELM_NAMESPACE ?= o2ims-system
+
+.PHONY: helm-lint
+helm-lint: ## Lint Helm chart
+	@echo "$(COLOR_YELLOW)Linting Helm chart...$(COLOR_RESET)"
+	@helm lint $(HELM_CHART_PATH)
+	@echo "$(COLOR_GREEN)✓ Helm chart lint passed$(COLOR_RESET)"
+
+.PHONY: helm-template
+helm-template: ## Template Helm chart
+	@echo "$(COLOR_YELLOW)Templating Helm chart...$(COLOR_RESET)"
+	@helm template netweave $(HELM_CHART_PATH) --debug
+
+.PHONY: helm-template-dev
+helm-template-dev: ## Template with dev values
+	@helm template netweave $(HELM_CHART_PATH) -f $(HELM_CHART_PATH)/values-dev.yaml
+
+.PHONY: helm-template-prod
+helm-template-prod: ## Template with prod values
+	@helm template netweave $(HELM_CHART_PATH) -f $(HELM_CHART_PATH)/values-prod.yaml
+
+.PHONY: helm-install-dev
+helm-install-dev: ## Install with dev values
+	@echo "$(COLOR_YELLOW)Installing Helm chart (dev)...$(COLOR_RESET)"
+	@helm install netweave $(HELM_CHART_PATH) \
+		--namespace $(HELM_NAMESPACE) \
+		--create-namespace \
+		--values $(HELM_CHART_PATH)/values-dev.yaml \
+		--wait
+	@echo "$(COLOR_GREEN)✓ Helm chart installed$(COLOR_RESET)"
+
+.PHONY: helm-install-prod
+helm-install-prod: ## Install with prod values
+	@echo "$(COLOR_YELLOW)Installing Helm chart (prod)...$(COLOR_RESET)"
+	@helm install netweave $(HELM_CHART_PATH) \
+		--namespace $(HELM_NAMESPACE) \
+		--values $(HELM_CHART_PATH)/values-prod.yaml \
+		--wait \
+		--timeout 10m
+	@echo "$(COLOR_GREEN)✓ Helm chart installed$(COLOR_RESET)"
+
+.PHONY: helm-upgrade
+helm-upgrade: ## Upgrade Helm release
+	@echo "$(COLOR_YELLOW)Upgrading Helm release...$(COLOR_RESET)"
+	@helm upgrade netweave $(HELM_CHART_PATH) \
+		--namespace $(HELM_NAMESPACE) \
+		--wait
+	@echo "$(COLOR_GREEN)✓ Helm chart upgraded$(COLOR_RESET)"
+
+.PHONY: helm-upgrade-dev
+helm-upgrade-dev: ## Upgrade with dev values
+	@helm upgrade netweave $(HELM_CHART_PATH) \
+		--namespace $(HELM_NAMESPACE) \
+		--values $(HELM_CHART_PATH)/values-dev.yaml \
+		--wait
+
+.PHONY: helm-upgrade-prod
+helm-upgrade-prod: ## Upgrade with prod values
+	@helm upgrade netweave $(HELM_CHART_PATH) \
+		--namespace $(HELM_NAMESPACE) \
+		--values $(HELM_CHART_PATH)/values-prod.yaml \
+		--wait \
+		--timeout 10m
+
+.PHONY: helm-uninstall
+helm-uninstall: ## Uninstall Helm release
+	@echo "$(COLOR_YELLOW)Uninstalling Helm release...$(COLOR_RESET)"
+	@helm uninstall netweave --namespace $(HELM_NAMESPACE)
+	@echo "$(COLOR_GREEN)✓ Helm chart uninstalled$(COLOR_RESET)"
+
+.PHONY: helm-test
+helm-test: ## Run Helm tests
+	@echo "$(COLOR_YELLOW)Running Helm tests...$(COLOR_RESET)"
+	@helm test netweave --namespace $(HELM_NAMESPACE)
+	@echo "$(COLOR_GREEN)✓ Helm tests passed$(COLOR_RESET)"
+
+.PHONY: helm-package
+helm-package: ## Package Helm chart
+	@echo "$(COLOR_YELLOW)Packaging Helm chart...$(COLOR_RESET)"
+	@helm package $(HELM_CHART_PATH) --destination ./build
+	@echo "$(COLOR_GREEN)✓ Helm chart packaged$(COLOR_RESET)"
+
+.PHONY: helm-deps
+helm-deps: ## Update Helm dependencies
+	@echo "$(COLOR_YELLOW)Updating Helm dependencies...$(COLOR_RESET)"
+	@helm dependency update $(HELM_CHART_PATH)
+	@echo "$(COLOR_GREEN)✓ Helm dependencies updated$(COLOR_RESET)"
+
+.PHONY: helm-docs
+helm-docs: ## Generate Helm documentation
+	@echo "$(COLOR_YELLOW)Generating Helm documentation...$(COLOR_RESET)"
+	@helm-docs $(HELM_CHART_PATH) || echo "Install helm-docs: go install github.com/norwoodj/helm-docs/cmd/helm-docs@latest"
+
+.PHONY: helm-all
+helm-all: helm-lint helm-template helm-test ## Run all Helm checks
+
