@@ -202,9 +202,22 @@ build-all: ## Build for all platforms
 	done
 	@echo "$(COLOR_GREEN)✓ Multi-platform build complete$(COLOR_RESET)"
 
-run: build ## Build and run the gateway
+.PHONY: run run-dev run-staging run-prod
+run: build ## Build and run the gateway (default: dev environment)
 	@echo "$(COLOR_YELLOW)Starting $(BINARY_NAME)...$(COLOR_RESET)"
-	@$(BUILD_DIR)/$(BINARY_NAME)
+	@NETWEAVE_ENV=dev $(BUILD_DIR)/$(BINARY_NAME)
+
+run-dev: build ## Build and run the gateway in development mode
+	@echo "$(COLOR_YELLOW)Starting $(BINARY_NAME) (development)...$(COLOR_RESET)"
+	@NETWEAVE_ENV=dev $(BUILD_DIR)/$(BINARY_NAME)
+
+run-staging: build ## Build and run the gateway in staging mode
+	@echo "$(COLOR_YELLOW)Starting $(BINARY_NAME) (staging)...$(COLOR_RESET)"
+	@NETWEAVE_ENV=staging $(BUILD_DIR)/$(BINARY_NAME)
+
+run-prod: build ## Build and run the gateway in production mode
+	@echo "$(COLOR_YELLOW)Starting $(BINARY_NAME) (production)...$(COLOR_RESET)"
+	@NETWEAVE_ENV=prod $(BUILD_DIR)/$(BINARY_NAME)
 
 ##@ Docker
 

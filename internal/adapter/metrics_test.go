@@ -244,14 +244,14 @@ func TestUpdateResourcePoolCount(t *testing.T) {
 
 func TestObserveBackendRequest(t *testing.T) {
 	tests := []struct {
-		name         string
-		adapterName  string
-		endpoint     string
-		method       string
-		statusCode   int
-		err          error
+		name           string
+		adapterName    string
+		endpoint       string
+		method         string
+		statusCode     int
+		err            error
 		expectedStatus string
-		expectError  bool
+		expectError    bool
 	}{
 		{
 			name:           "successful GET request",
