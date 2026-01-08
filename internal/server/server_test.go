@@ -200,7 +200,6 @@ func TestServer_SetHealthChecker(t *testing.T) {
 	assert.NotNil(t, srv.healthCheck)
 }
 
-
 func TestServer_SetOpenAPISpec(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -331,7 +330,6 @@ func TestMetricsMiddleware(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
-
 
 func TestServer_ShutdownWithContext(t *testing.T) {
 	gin.SetMode(gin.TestMode)
