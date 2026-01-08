@@ -2601,6 +2601,99 @@ validation:
 3. **Schema Enforcement**: Ensures O2-IMS compliance at API boundary
 4. **Defense in Depth**: First layer of validation before business logic
 
+### Distributed Rate Limiting
+
+The gateway implements production-grade distributed rate limiting using Redis-backed token bucket algorithm to protect against DDoS attacks, resource exhaustion, backend overload, tenant abuse, and cost explosion.
+
+```mermaid
+sequenceDiagram
+    participant Client as SMO Client
+    participant RateLimit as Rate Limiter
+    participant Redis as Redis
+    participant Handler as API Handler
+
+    Client->>+RateLimit: HTTP Request
+    Note over RateLimit: Extract tenant ID<br/>from client cert CN
+
+    RateLimit->>+Redis: Check rate limit<br/>(Lua atomic operation)
+    Note over Redis: Token Bucket Algorithm:<br/>1. Calculate tokens added since last request<br/>2. Add tokens (up to burst size)<br/>3. Check if ≥1 token available<br/>4. Consume 1 token if available
+
+    alt Within Rate Limit
+        Redis-->>RateLimit: Allowed<br/>(remaining tokens)
+        Note over RateLimit: Set HTTP headers:<br/>X-RateLimit-Limit<br/>X-RateLimit-Remaining<br/>X-RateLimit-Reset
+        RateLimit->>+Handler: Forward Request
+        Handler-->>RateLimit: Response
+        RateLimit-->>Client: 200/201 Response<br/>+ Rate Limit Headers
+    else Rate Limit Exceeded
+        Redis-->>-RateLimit: Denied
+        Note over RateLimit: Set HTTP headers:<br/>X-RateLimit-Limit: 0<br/>X-RateLimit-Remaining: 0<br/>X-RateLimit-Reset<br/>Retry-After
+        RateLimit-->>-Client: 429 Too Many Requests<br/>+ Rate Limit Headers
+    end
+```
+
+**Middleware Location**: `internal/middleware/ratelimit.go`
+
+**Features**:
+- **Multi-Level Limits**: Per-tenant, per-endpoint, and global rate limits
+- **Token Bucket Algorithm**: Allows bursts while maintaining average rate
+- **Atomic Operations**: Redis Lua scripts ensure consistency across pods
+- **Standard Headers**: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After
+- **Graceful Degradation**: Fails open if Redis unavailable (logs errors)
+- **Distributed**: Works across multiple gateway pods via shared Redis state
+
+**Configuration**:
+```yaml
+security:
+  rate_limit_enabled: true
+  rate_limit:
+    tenant:
+      requests_per_second: 1000   # Per-tenant limit
+      burst_size: 2000             # Allow bursts up to 2x
+    endpoints:
+      - path: "/o2ims/v1/subscriptions"
+        method: "POST"
+        requests_per_second: 100   # Stricter limit for subscriptions
+        burst_size: 150
+      - path: "/o2ims/v1/resourcePools"
+        method: "POST"
+        requests_per_second: 50    # Even stricter for creates
+        burst_size: 100
+    global:
+      requests_per_second: 10000   # Total gateway capacity
+      max_concurrent_requests: 1000 # In-flight request limit
+```
+
+**Rate Limit Headers**:
+```http
+HTTP/1.1 200 OK
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 847
+X-RateLimit-Reset: 1704725400
+
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1704725401
+Retry-After: 1
+```
+
+**Security Benefits**:
+1. **DDoS Protection**: Prevents request floods from overwhelming the gateway
+2. **Resource Exhaustion Prevention**: Limits CPU, memory, and connection usage
+3. **Backend Protection**: Prevents overloading Kubernetes API server
+4. **Tenant Isolation**: Per-tenant limits prevent noisy neighbor problems
+5. **Cost Control**: Prevents runaway cloud costs from excessive API calls
+6. **Fair Use Enforcement**: Ensures equitable resource sharing
+
+**Implementation Details**:
+- **Tenant Identification**: Extracted from client certificate CN (e.g., `CN=tenant-1`)
+- **Endpoint Matching**: Most specific match wins (exact path+method > path wildcard)
+- **Token Bucket Parameters**:
+  - `requests_per_second`: Average sustained rate
+  - `burst_size`: Maximum tokens available (allows temporary bursts)
+- **Redis Keys**: `ratelimit:tenant:{tenant-id}:{endpoint}:{method}`
+- **Expiration**: Keys expire after 2× window size to prevent memory leaks
+
 ### mTLS Architecture
 
 #### Certificate Hierarchy

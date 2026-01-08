@@ -52,10 +52,12 @@ Official O-RAN Alliance specifications:
 - ✅ **Multi-Cluster Ready**: Deploy across single or multiple Kubernetes clusters with Redis-based state synchronization
 - ✅ **High Availability**: Stateless gateway pods with automatic failover (99.9% uptime)
 - ✅ **Production Security**: mTLS everywhere, zero-trust networking, tenant isolation, comprehensive audit logging
+- ✅ **Distributed Rate Limiting**: Redis-based token bucket algorithm with per-tenant, per-endpoint, and global limits
 - ✅ **Real-Time Notifications**: Webhook-based subscriptions for infrastructure change events
 - ✅ **Extensible Architecture**: Plugin-based adapter system with 25+ production-ready adapters
 - ✅ **Enterprise Observability**: Prometheus metrics, Jaeger tracing, structured logging
 - ✅ **Interactive API Documentation**: OpenAPI 3.0 spec with Swagger UI for API exploration
+- ✅ **Request Validation**: Automatic OpenAPI schema validation for all API requests
 
 ### Use Cases
 
@@ -175,7 +177,7 @@ curl https://netweave.example.com/openapi.yaml -o o2ims-api.yaml
 ### Prerequisites
 
 - Kubernetes 1.30+ cluster with access
-- Go 1.23+ (for development)
+- Go 1.25.0+ (for development)
 - Docker (for building containers)
 - kubectl configured
 - make
@@ -518,11 +520,11 @@ netweave/
 
 | Layer | Technology | Version | Purpose |
 |-------|-----------|---------|---------|
-| Language | Go | 1.23+ | Core implementation |
+| Language | Go | 1.25.0+ | Core implementation |
 | Framework | Gin | 1.10+ | HTTP server |
 | Orchestration | Kubernetes | 1.30+ | Infrastructure platform |
 | TLS | Native Go + cert-manager | 1.15+ | mTLS, certificate management |
-| Storage | Redis OSS | 7.4+ | State, cache, pub/sub |
+| Storage | Redis OSS | 7.4+ | State, cache, pub/sub, rate limiting |
 | Deployment | Helm + Custom Operator | 3.x+ | Application lifecycle |
 | Metrics | Prometheus | 2.54+ | Monitoring |
 | Tracing | Jaeger | 1.60+ | Distributed tracing |
@@ -540,10 +542,16 @@ netweave/
 
 - ✅ **mTLS Everywhere**: All communication encrypted
 - ✅ **Zero-Trust Networking**: Verify every request
+- ✅ **Distributed Rate Limiting**: Protection against DDoS, resource exhaustion, and abuse
+  - Token bucket algorithm with Redis backend
+  - Per-tenant, per-endpoint, and global limits
+  - Standard HTTP rate limit headers (X-RateLimit-*)
+  - Graceful degradation (fails open if Redis unavailable)
+- ✅ **Request Validation**: Automatic OpenAPI schema validation for all requests
 - ✅ **No Hardcoded Secrets**: All secrets via K8s Secrets or cert-manager
 - ✅ **RBAC**: Least-privilege access control
 - ✅ **Audit Logging**: All operations logged
-- ✅ **Vulnerability Scanning**: Continuous security scanning
+- ✅ **Vulnerability Scanning**: Continuous security scanning (gosec, govulncheck, Trivy)
 
 ## High Availability
 
@@ -575,6 +583,10 @@ netweave/
 - ✅ O2-SMO integration (Service Management & Orchestration)
   - ✅ ONAP adapter
   - ✅ OSM (Open Source MANO) adapter
+- ✅ Production security enhancements
+  - ✅ Distributed rate limiting (Redis-based token bucket)
+  - ✅ OpenAPI request validation
+  - ✅ Comprehensive security scanning (gosec, govulncheck, Trivy)
 - 🔄 Resource update operations
 - 🔄 Advanced filtering and pagination
 - 🔄 Enhanced observability dashboards

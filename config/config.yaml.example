@@ -234,14 +234,44 @@ security:
   #   - Content-Type
   #   - Authorization
 
-  # Enable rate limiting
+  # Enable distributed rate limiting
   rate_limit_enabled: true
 
-  # Maximum requests per window
-  rate_limit_requests: 100
+  # Rate limiting configuration (Redis-based token bucket)
+  rate_limit:
+    # Per-tenant rate limits
+    tenant:
+      # Average requests per second per tenant
+      requests_per_second: 1000
+      # Burst capacity (allows temporary bursts)
+      burst_size: 2000
 
-  # Rate limit time window
-  rate_limit_window: 1m
+    # Per-endpoint rate limits (more restrictive for specific operations)
+    endpoints:
+      # Subscription creation (expensive operation)
+      - path: "/o2ims/v1/subscriptions"
+        method: "POST"
+        requests_per_second: 100
+        burst_size: 150
+
+      # Resource pool creation (infrastructure changes)
+      - path: "/o2ims/v1/resourcePools"
+        method: "POST"
+        requests_per_second: 50
+        burst_size: 100
+
+      # Resource creation (infrastructure changes)
+      - path: "/o2ims/v1/resourcePools/:resourcePoolId/resources"
+        method: "POST"
+        requests_per_second: 50
+        burst_size: 100
+
+    # Global rate limits (total gateway capacity)
+    global:
+      # Maximum requests per second for entire gateway
+      requests_per_second: 10000
+      # Maximum concurrent in-flight requests
+      max_concurrent_requests: 1000
 
 # Environment-specific configurations can override values above
 # using environment variables with NETWEAVE_ prefix:
@@ -251,3 +281,5 @@ security:
 #   NETWEAVE_REDIS_ADDRESSES=redis1:6379,redis2:6379
 #   NETWEAVE_OBSERVABILITY_LOGGING_LEVEL=debug
 #   NETWEAVE_TLS_ENABLED=true
+#   NETWEAVE_SECURITY_RATE_LIMIT_TENANT_REQUESTS_PER_SECOND=500
+#   NETWEAVE_SECURITY_RATE_LIMIT_GLOBAL_REQUESTS_PER_SECOND=5000
