@@ -63,21 +63,10 @@ func (a *KubernetesAdapter) GetResourcePool(ctx context.Context, id string) (*ad
 	a.logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
-	// Parse resource pool ID to extract namespace name
-	var namespaceName string
-	_, err := fmt.Sscanf(id, "k8s-namespace-%s", &namespaceName)
+	// Get namespace from Kubernetes using helper
+	namespace, err := a.getNamespaceByID(ctx, id)
 	if err != nil {
-		// Try direct namespace name
-		namespaceName = id
-	}
-
-	// Get namespace from Kubernetes
-	namespace, err := a.client.CoreV1().Namespaces().Get(ctx, namespaceName, metav1.GetOptions{})
-	if err != nil {
-		a.logger.Error("failed to get namespace",
-			zap.String("namespace", namespaceName),
-			zap.Error(err))
-		return nil, fmt.Errorf("failed to get Kubernetes namespace %s: %w", namespaceName, err)
+		return nil, err
 	}
 
 	// Transform to O2-IMS Resource Pool

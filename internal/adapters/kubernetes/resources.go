@@ -63,21 +63,10 @@ func (a *KubernetesAdapter) GetResource(ctx context.Context, id string) (*adapte
 	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
-	// Parse resource ID to extract node name
-	var nodeName string
-	_, err := fmt.Sscanf(id, "k8s-node-%s", &nodeName)
+	// Get node from Kubernetes using helper
+	node, err := a.getNodeByID(ctx, id)
 	if err != nil {
-		// Try direct node name
-		nodeName = id
-	}
-
-	// Get node from Kubernetes
-	node, err := a.client.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
-	if err != nil {
-		a.logger.Error("failed to get node",
-			zap.String("node", nodeName),
-			zap.Error(err))
-		return nil, fmt.Errorf("failed to get Kubernetes node %s: %w", nodeName, err)
+		return nil, err
 	}
 
 	// Transform to O2-IMS Resource
