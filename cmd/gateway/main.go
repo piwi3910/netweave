@@ -51,14 +51,11 @@ const (
 
 	// ServiceName is the name of this service.
 	ServiceName = "netweave-gateway"
-
-	// DefaultConfigPath is the default configuration file path.
-	DefaultConfigPath = "config/config.yaml"
 )
 
 var (
 	// Command-line flags.
-	configPath  = flag.String("config", DefaultConfigPath, "Path to configuration file")
+	configPath  = flag.String("config", config.DefaultConfigPath, "Path to configuration file")
 	showVersion = flag.Bool("version", false, "Show version information and exit")
 )
 
@@ -100,6 +97,7 @@ func run() error {
 	logger.Info("O2-IMS Gateway starting",
 		zap.String("version", Version),
 		zap.String("service", ServiceName),
+		zap.String("environment", cfg.Environment),
 	)
 
 	// Step 3-6: Initialize components

@@ -254,6 +254,151 @@ kubectl get pods -n o2ims-system
 
 See [docs/deployment.md](docs/deployment.md) for detailed deployment instructions.
 
+## Configuration
+
+The O2-IMS Gateway supports environment-specific configurations for development, staging, and production environments.
+
+### Environment Detection
+
+The gateway automatically selects the appropriate configuration based on the `NETWEAVE_ENV` environment variable:
+
+```bash
+# Development (default)
+NETWEAVE_ENV=dev ./bin/gateway
+
+# Staging
+NETWEAVE_ENV=staging ./bin/gateway
+
+# Production
+NETWEAVE_ENV=prod ./bin/gateway
+```
+
+Or using Makefile targets:
+
+```bash
+make run-dev      # Development
+make run-staging  # Staging
+make run-prod     # Production
+```
+
+### Configuration Files
+
+| Environment | File | Purpose |
+|-------------|------|---------|
+| Development | `config/config.dev.yaml` | Local development, minimal security |
+| Staging | `config/config.staging.yaml` | Pre-production, full security |
+| Production | `config/config.prod.yaml` | Production, maximum security |
+
+### Development Configuration
+
+Optimized for local development:
+
+- **HTTP only** - No TLS for easier local testing
+- **Debug logging** - Verbose console output
+- **No authentication** - Local Redis without password
+- **CORS enabled** - For frontend development
+- **No rate limiting** - Unrestricted API access
+
+```bash
+# Run with development config
+NETWEAVE_ENV=dev ./bin/gateway
+
+# Or use explicit path
+./bin/gateway --config=config/config.dev.yaml
+```
+
+### Staging Configuration
+
+Production-like environment for testing:
+
+- **TLS/mTLS enabled** - Full certificate validation
+- **Redis Sentinel** - High availability setup
+- **Info-level logging** - JSON format
+- **Rate limiting** - Moderate limits for testing
+- **Tracing enabled** - 50% sampling rate
+
+```bash
+# Run with staging config
+NETWEAVE_ENV=staging ./bin/gateway
+```
+
+### Production Configuration
+
+Secure, high-performance configuration:
+
+- **Strict mTLS** - `require-and-verify` client certificates
+- **Redis Sentinel + TLS** - Secure HA setup
+- **Optimized logging** - Info level, JSON format only
+- **High rate limits** - DoS protection
+- **Low trace sampling** - 10% for efficiency
+- **Multi-tenancy** - RBAC enabled
+
+```bash
+# Run with production config
+NETWEAVE_ENV=prod ./bin/gateway
+```
+
+### Environment Variable Overrides
+
+Override any configuration value using environment variables with the `NETWEAVE_` prefix:
+
+```bash
+# Override server port
+export NETWEAVE_SERVER_PORT=9443
+
+# Override Redis password
+export NETWEAVE_REDIS_PASSWORD=secure-password
+
+# Override log level
+export NETWEAVE_OBSERVABILITY_LOGGING_LEVEL=debug
+
+./bin/gateway
+```
+
+### Kubernetes Deployment
+
+When deploying via Helm, use environment-specific value files:
+
+```bash
+# Development
+helm install netweave ./helm/netweave \
+  --values helm/netweave/values-dev.yaml \
+  --namespace o2ims-dev
+
+# Production
+helm install netweave ./helm/netweave \
+  --values helm/netweave/values-prod.yaml \
+  --set image.tag=v1.0.0 \
+  --namespace o2ims-prod
+```
+
+### Configuration Validation
+
+The gateway validates configuration on startup and enforces environment-specific rules:
+
+**Production Requirements:**
+- ✅ TLS must be enabled
+- ✅ mTLS must use `require-and-verify`
+- ✅ Rate limiting must be enabled
+- ✅ Development logging must be disabled
+- ✅ Response validation must be disabled (performance)
+
+**Staging Requirements:**
+- ✅ TLS should be enabled
+- ✅ Rate limiting should be enabled
+
+```bash
+# Test configuration validity
+NETWEAVE_ENV=prod ./bin/gateway --config=config/config.prod.yaml
+# Will fail if prod requirements aren't met
+```
+
+### Complete Configuration Reference
+
+For a complete configuration reference including all options, validation rules, and best practices, see:
+
+📖 [Configuration Guide](docs/configuration.md)
+
 ### Basic Usage
 
 #### 1. List Resource Pools
