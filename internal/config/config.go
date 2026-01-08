@@ -486,8 +486,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("security.enable_cors", false)
 	v.SetDefault("security.allowed_methods", []string{"GET", "POST", "PUT", "PATCH", "DELETE"})
 	v.SetDefault("security.rate_limit_enabled", true)
-	v.SetDefault("security.rate_limit_requests", 100)
-	v.SetDefault("security.rate_limit_window", "1m")
+	v.SetDefault("security.rate_limit.tenant.requests_per_second", 1000)
+	v.SetDefault("security.rate_limit.tenant.burst_size", 2000)
+	v.SetDefault("security.rate_limit.global.requests_per_second", 10000)
+	v.SetDefault("security.rate_limit.global.max_concurrent_requests", 1000)
 
 	// Validation defaults
 	v.SetDefault("validation.enabled", true)
@@ -725,39 +727,56 @@ func (c *Config) validateTracing() error {
 
 // validateSecurity validates the security configuration.
 func (c *Config) validateSecurity() error {
-	if c.Security.RateLimitEnabled {
-		// Validate per-tenant limits
-		if c.Security.RateLimit.PerTenant.RequestsPerSecond < 0 {
-			return fmt.Errorf("invalid tenant requests_per_second: %d (must be >= 0)", c.Security.RateLimit.PerTenant.RequestsPerSecond)
-		}
-		if c.Security.RateLimit.PerTenant.BurstSize < 0 {
-			return fmt.Errorf("invalid tenant burst_size: %d (must be >= 0)", c.Security.RateLimit.PerTenant.BurstSize)
-		}
-
-		// Validate global limits
-		if c.Security.RateLimit.Global.RequestsPerSecond < 0 {
-			return fmt.Errorf("invalid global requests_per_second: %d (must be >= 0)", c.Security.RateLimit.Global.RequestsPerSecond)
-		}
-		if c.Security.RateLimit.Global.MaxConcurrentRequests < 0 {
-			return fmt.Errorf("invalid global max_concurrent_requests: %d (must be >= 0)", c.Security.RateLimit.Global.MaxConcurrentRequests)
-		}
-
-		// Validate endpoint limits
-		for i, ep := range c.Security.RateLimit.PerEndpoint {
-			if ep.Path == "" {
-				return fmt.Errorf("endpoint[%d] path cannot be empty", i)
-			}
-			if ep.Method == "" {
-				return fmt.Errorf("endpoint[%d] method cannot be empty", i)
-			}
-			if ep.RequestsPerSecond < 0 {
-				return fmt.Errorf("endpoint[%d] requests_per_second: %d (must be >= 0)", i, ep.RequestsPerSecond)
-			}
-			if ep.BurstSize < 0 {
-				return fmt.Errorf("endpoint[%d] burst_size: %d (must be >= 0)", i, ep.BurstSize)
-			}
-		}
+	if !c.Security.RateLimitEnabled {
+		return nil
 	}
 
+	if err := c.validateTenantRateLimit(); err != nil {
+		return err
+	}
+	if err := c.validateGlobalRateLimit(); err != nil {
+		return err
+	}
+	return c.validateEndpointRateLimits()
+}
+
+// validateTenantRateLimit validates per-tenant rate limit configuration.
+func (c *Config) validateTenantRateLimit() error {
+	if c.Security.RateLimit.PerTenant.RequestsPerSecond < 0 {
+		return fmt.Errorf("invalid tenant requests_per_second: %d (must be >= 0)", c.Security.RateLimit.PerTenant.RequestsPerSecond)
+	}
+	if c.Security.RateLimit.PerTenant.BurstSize < 0 {
+		return fmt.Errorf("invalid tenant burst_size: %d (must be >= 0)", c.Security.RateLimit.PerTenant.BurstSize)
+	}
+	return nil
+}
+
+// validateGlobalRateLimit validates global rate limit configuration.
+func (c *Config) validateGlobalRateLimit() error {
+	if c.Security.RateLimit.Global.RequestsPerSecond < 0 {
+		return fmt.Errorf("invalid global requests_per_second: %d (must be >= 0)", c.Security.RateLimit.Global.RequestsPerSecond)
+	}
+	if c.Security.RateLimit.Global.MaxConcurrentRequests < 0 {
+		return fmt.Errorf("invalid global max_concurrent_requests: %d (must be >= 0)", c.Security.RateLimit.Global.MaxConcurrentRequests)
+	}
+	return nil
+}
+
+// validateEndpointRateLimits validates per-endpoint rate limit configuration.
+func (c *Config) validateEndpointRateLimits() error {
+	for i, ep := range c.Security.RateLimit.PerEndpoint {
+		if ep.Path == "" {
+			return fmt.Errorf("endpoint[%d] path cannot be empty", i)
+		}
+		if ep.Method == "" {
+			return fmt.Errorf("endpoint[%d] method cannot be empty", i)
+		}
+		if ep.RequestsPerSecond < 0 {
+			return fmt.Errorf("endpoint[%d] requests_per_second: %d (must be >= 0)", i, ep.RequestsPerSecond)
+		}
+		if ep.BurstSize < 0 {
+			return fmt.Errorf("endpoint[%d] burst_size: %d (must be >= 0)", i, ep.BurstSize)
+		}
+	}
 	return nil
 }

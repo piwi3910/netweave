@@ -76,7 +76,10 @@ observability:
 security:
   enable_cors: true
   rate_limit_enabled: true
-  rate_limit_requests: 1000
+  rate_limit:
+    tenant:
+      requests_per_second: 1000
+      burst_size: 2000
 `,
 			wantErr: false,
 			validate: func(t *testing.T, cfg *config.Config) {
@@ -102,7 +105,7 @@ security:
 				assert.Equal(t, "/prometheus", cfg.Observability.Metrics.Path)
 
 				assert.True(t, cfg.Security.EnableCORS)
-				assert.Equal(t, 1000, cfg.Security.RateLimitRequests)
+				assert.Equal(t, 1000, cfg.Security.RateLimit.PerTenant.RequestsPerSecond)
 			},
 		},
 		{
@@ -115,10 +118,10 @@ redis:
     - localhost:6379
 `,
 			envVars: map[string]string{
-				"NETWEAVE_SERVER_PORT":                  "9999",
-				"NETWEAVE_OBSERVABILITY_LOGGING_LEVEL":  "debug",
-				"NETWEAVE_REDIS_MODE":                   "cluster",
-				"NETWEAVE_SECURITY_RATE_LIMIT_REQUESTS": "500",
+				"NETWEAVE_SERVER_PORT":                                    "9999",
+				"NETWEAVE_OBSERVABILITY_LOGGING_LEVEL":                    "debug",
+				"NETWEAVE_REDIS_MODE":                                     "cluster",
+				"NETWEAVE_SECURITY_RATE_LIMIT_TENANT_REQUESTS_PER_SECOND": "500",
 			},
 			wantErr: false,
 			validate: func(t *testing.T, cfg *config.Config) {
@@ -126,7 +129,7 @@ redis:
 				assert.Equal(t, 9999, cfg.Server.Port)
 				assert.Equal(t, "debug", cfg.Observability.Logging.Level)
 				assert.Equal(t, "cluster", cfg.Redis.Mode)
-				assert.Equal(t, 500, cfg.Security.RateLimitRequests)
+				assert.Equal(t, 500, cfg.Security.RateLimit.PerTenant.RequestsPerSecond)
 			},
 		},
 		{
@@ -223,9 +226,13 @@ func TestValidate(t *testing.T) {
 					},
 				},
 				Security: config.SecurityConfig{
-					RateLimitEnabled:  true,
-					RateLimitRequests: 100,
-					RateLimitWindow:   time.Minute,
+					RateLimitEnabled: true,
+					RateLimit: config.RateLimitConfig{
+						PerTenant: config.TenantRateLimitConfig{
+							RequestsPerSecond: 100,
+							BurstSize:         200,
+						},
+					},
 				},
 			},
 			wantErr: false,
@@ -459,7 +466,7 @@ func TestValidate(t *testing.T) {
 			errMsg:  "invalid tracing sampling_rate",
 		},
 		{
-			name: "invalid rate limit requests",
+			name: "invalid rate limit requests per second",
 			config: &config.Config{
 				Server: config.ServerConfig{
 					Port:    8080,
@@ -476,15 +483,20 @@ func TestValidate(t *testing.T) {
 					},
 				},
 				Security: config.SecurityConfig{
-					RateLimitEnabled:  true,
-					RateLimitRequests: 0,
+					RateLimitEnabled: true,
+					RateLimit: config.RateLimitConfig{
+						PerTenant: config.TenantRateLimitConfig{
+							RequestsPerSecond: -1,
+							BurstSize:         100,
+						},
+					},
 				},
 			},
 			wantErr: true,
-			errMsg:  "invalid rate_limit_requests",
+			errMsg:  "invalid tenant requests_per_second",
 		},
 		{
-			name: "invalid rate limit window",
+			name: "invalid rate limit burst size",
 			config: &config.Config{
 				Server: config.ServerConfig{
 					Port:    8080,
@@ -501,13 +513,17 @@ func TestValidate(t *testing.T) {
 					},
 				},
 				Security: config.SecurityConfig{
-					RateLimitEnabled:  true,
-					RateLimitRequests: 100,
-					RateLimitWindow:   500 * time.Millisecond,
+					RateLimitEnabled: true,
+					RateLimit: config.RateLimitConfig{
+						PerTenant: config.TenantRateLimitConfig{
+							RequestsPerSecond: 100,
+							BurstSize:         -1,
+						},
+					},
 				},
 			},
 			wantErr: true,
-			errMsg:  "invalid rate_limit_window",
+			errMsg:  "invalid tenant burst_size",
 		},
 	}
 
@@ -765,6 +781,6 @@ redis:
 	assert.Equal(t, "/metrics", cfg.Observability.Metrics.Path)
 
 	assert.True(t, cfg.Security.RateLimitEnabled)
-	assert.Equal(t, 100, cfg.Security.RateLimitRequests)
-	assert.Equal(t, time.Minute, cfg.Security.RateLimitWindow)
+	assert.Equal(t, 1000, cfg.Security.RateLimit.PerTenant.RequestsPerSecond)
+	assert.Equal(t, 2000, cfg.Security.RateLimit.PerTenant.BurstSize)
 }
