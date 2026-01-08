@@ -743,10 +743,16 @@ func (c *Config) validateSecurity() error {
 // validateTenantRateLimit validates per-tenant rate limit configuration.
 func (c *Config) validateTenantRateLimit() error {
 	if c.Security.RateLimit.PerTenant.RequestsPerSecond < 0 {
-		return fmt.Errorf("invalid tenant requests_per_second: %d (must be >= 0)", c.Security.RateLimit.PerTenant.RequestsPerSecond)
+		return fmt.Errorf(
+			"invalid tenant requests_per_second: %d (must be >= 0)",
+			c.Security.RateLimit.PerTenant.RequestsPerSecond,
+		)
 	}
 	if c.Security.RateLimit.PerTenant.BurstSize < 0 {
-		return fmt.Errorf("invalid tenant burst_size: %d (must be >= 0)", c.Security.RateLimit.PerTenant.BurstSize)
+		return fmt.Errorf(
+			"invalid tenant burst_size: %d (must be >= 0)",
+			c.Security.RateLimit.PerTenant.BurstSize,
+		)
 	}
 	return nil
 }
@@ -754,10 +760,16 @@ func (c *Config) validateTenantRateLimit() error {
 // validateGlobalRateLimit validates global rate limit configuration.
 func (c *Config) validateGlobalRateLimit() error {
 	if c.Security.RateLimit.Global.RequestsPerSecond < 0 {
-		return fmt.Errorf("invalid global requests_per_second: %d (must be >= 0)", c.Security.RateLimit.Global.RequestsPerSecond)
+		return fmt.Errorf(
+			"invalid global requests_per_second: %d (must be >= 0)",
+			c.Security.RateLimit.Global.RequestsPerSecond,
+		)
 	}
 	if c.Security.RateLimit.Global.MaxConcurrentRequests < 0 {
-		return fmt.Errorf("invalid global max_concurrent_requests: %d (must be >= 0)", c.Security.RateLimit.Global.MaxConcurrentRequests)
+		return fmt.Errorf(
+			"invalid global max_concurrent_requests: %d (must be >= 0)",
+			c.Security.RateLimit.Global.MaxConcurrentRequests,
+		)
 	}
 	return nil
 }

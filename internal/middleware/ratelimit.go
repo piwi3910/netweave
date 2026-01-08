@@ -129,7 +129,9 @@ func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 
 // checkLimit checks if the request is within the rate limit using token bucket algorithm.
 // Returns true if allowed, false if rate limit exceeded.
-func (rl *RateLimiter) checkLimit(ctx context.Context, c *gin.Context, key string, requestsPerSecond, burstSize int) bool {
+func (rl *RateLimiter) checkLimit(
+	ctx context.Context, c *gin.Context, key string, requestsPerSecond, burstSize int,
+) bool {
 	now := time.Now().Unix()
 	windowSize := int64(1) // 1 second window
 
