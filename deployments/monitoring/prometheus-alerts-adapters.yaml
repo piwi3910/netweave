@@ -1,0 +1,209 @@
+# Prometheus Alert Rules for O2-IMS Adapter SLO Violations
+# These alerts monitor adapter performance against defined SLOs:
+# - API response: p95 < 100ms, p99 < 500ms
+# - Webhook delivery: < 1s end-to-end
+# - Cache hit ratio: > 90%
+# - Memory per pod: < 512MB
+
+groups:
+  - name: adapter_slo_violations
+    interval: 30s
+    rules:
+      # Alert: Adapter operation p95 latency exceeds 100ms
+      - alert: AdapterOperationP95LatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(o2ims_adapter_operation_duration_seconds_bucket[5m]))
+            by (adapter, operation, le)
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: adapter
+          slo: latency_p95
+        annotations:
+          summary: "Adapter operation p95 latency exceeds 100ms"
+          description: "Adapter {{ $labels.adapter }} operation {{ $labels.operation }} has p95 latency of {{ $value | humanizeDuration }} (SLO: <100ms)"
+          runbook_url: "https://docs.example.com/runbooks/adapter-latency-high"
+
+      # Alert: Adapter operation p99 latency exceeds 500ms (CRITICAL)
+      - alert: AdapterOperationP99LatencyCritical
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(o2ims_adapter_operation_duration_seconds_bucket[5m]))
+            by (adapter, operation, le)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          component: adapter
+          slo: latency_p99
+        annotations:
+          summary: "Adapter operation p99 latency exceeds 500ms (CRITICAL SLO violation)"
+          description: "Adapter {{ $labels.adapter }} operation {{ $labels.operation }} has p99 latency of {{ $value | humanizeDuration }} (SLO: <500ms)"
+          runbook_url: "https://docs.example.com/runbooks/adapter-latency-critical"
+
+      # Alert: Adapter error rate > 5%
+      - alert: AdapterErrorRateHigh
+        expr: |
+          (
+            sum(rate(o2ims_adapter_operations_total{status="error"}[5m])) by (adapter, operation)
+            /
+            sum(rate(o2ims_adapter_operations_total[5m])) by (adapter, operation)
+          ) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: adapter
+          slo: error_rate
+        annotations:
+          summary: "Adapter error rate exceeds 5%"
+          description: "Adapter {{ $labels.adapter }} operation {{ $labels.operation }} has error rate of {{ $value | printf \"%.2f\" }}%"
+          runbook_url: "https://docs.example.com/runbooks/adapter-error-rate-high"
+
+      # Alert: Adapter error rate > 10% (CRITICAL)
+      - alert: AdapterErrorRateCritical
+        expr: |
+          (
+            sum(rate(o2ims_adapter_operations_total{status="error"}[5m])) by (adapter, operation)
+            /
+            sum(rate(o2ims_adapter_operations_total[5m])) by (adapter, operation)
+          ) * 100 > 10
+        for: 5m
+        labels:
+          severity: critical
+          component: adapter
+          slo: error_rate
+        annotations:
+          summary: "Adapter error rate exceeds 10% (CRITICAL)"
+          description: "Adapter {{ $labels.adapter }} operation {{ $labels.operation }} has error rate of {{ $value | printf \"%.2f\" }}%"
+          runbook_url: "https://docs.example.com/runbooks/adapter-error-rate-critical"
+
+      # Alert: Cache hit ratio < 90%
+      - alert: AdapterCacheHitRatioLow
+        expr: |
+          (
+            sum(rate(o2ims_adapter_cache_hits_total[5m])) by (adapter, operation)
+            /
+            (
+              sum(rate(o2ims_adapter_cache_hits_total[5m])) by (adapter, operation)
+              +
+              sum(rate(o2ims_adapter_cache_misses_total[5m])) by (adapter, operation)
+            )
+          ) * 100 < 90
+        for: 10m
+        labels:
+          severity: warning
+          component: adapter
+          slo: cache_hit_ratio
+        annotations:
+          summary: "Adapter cache hit ratio below 90%"
+          description: "Adapter {{ $labels.adapter }} operation {{ $labels.operation }} has cache hit ratio of {{ $value | printf \"%.2f\" }}% (SLO: >90%)"
+          runbook_url: "https://docs.example.com/runbooks/adapter-cache-hit-ratio-low"
+
+      # Alert: Backend API latency high
+      - alert: AdapterBackendLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(o2ims_adapter_backend_latency_seconds_bucket[5m]))
+            by (adapter, endpoint, method, le)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: adapter
+          slo: backend_latency
+        annotations:
+          summary: "Backend API latency is high"
+          description: "Adapter {{ $labels.adapter }} backend {{ $labels.method }} {{ $labels.endpoint }} has p95 latency of {{ $value | humanizeDuration }}"
+          runbook_url: "https://docs.example.com/runbooks/adapter-backend-latency-high"
+
+      # Alert: Backend API errors
+      - alert: AdapterBackendErrorsHigh
+        expr: |
+          sum(rate(o2ims_adapter_backend_errors_total[5m])) by (adapter, endpoint, error_type) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: adapter
+        annotations:
+          summary: "Backend API errors detected"
+          description: "Adapter {{ $labels.adapter }} endpoint {{ $labels.endpoint }} has {{ $value | printf \"%.2f\" }} errors/sec ({{ $labels.error_type }})"
+          runbook_url: "https://docs.example.com/runbooks/adapter-backend-errors"
+
+      # Alert: Adapter health check failing
+      - alert: AdapterUnhealthy
+        expr: o2ims_adapter_health_check_status == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: adapter
+        annotations:
+          summary: "Adapter health check failing"
+          description: "Adapter {{ $labels.adapter }} is reporting unhealthy status"
+          runbook_url: "https://docs.example.com/runbooks/adapter-unhealthy"
+
+      # Alert: No operations in last 5 minutes (adapter might be stuck)
+      - alert: AdapterNoOperations
+        expr: |
+          sum(rate(o2ims_adapter_operations_total[5m])) by (adapter) == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: adapter
+        annotations:
+          summary: "Adapter has no operations"
+          description: "Adapter {{ $labels.adapter }} has not performed any operations in the last 5 minutes"
+          runbook_url: "https://docs.example.com/runbooks/adapter-no-operations"
+
+  - name: adapter_resource_alerts
+    interval: 30s
+    rules:
+      # Alert: Resource pool count dropped significantly
+      - alert: AdapterResourcePoolCountDrop
+        expr: |
+          (
+            o2ims_adapter_resource_pools_total
+            -
+            o2ims_adapter_resource_pools_total offset 10m
+          ) / o2ims_adapter_resource_pools_total offset 10m * 100 < -20
+        for: 5m
+        labels:
+          severity: warning
+          component: adapter
+        annotations:
+          summary: "Resource pool count dropped significantly"
+          description: "Adapter {{ $labels.adapter }} resource pool count dropped by {{ $value | printf \"%.2f\" }}% in last 10 minutes"
+          runbook_url: "https://docs.example.com/runbooks/adapter-resource-pool-drop"
+
+      # Alert: Resource count dropped significantly
+      - alert: AdapterResourceCountDrop
+        expr: |
+          (
+            sum(o2ims_adapter_resources_total) by (adapter, resource_type)
+            -
+            sum(o2ims_adapter_resources_total offset 10m) by (adapter, resource_type)
+          ) / sum(o2ims_adapter_resources_total offset 10m) by (adapter, resource_type) * 100 < -20
+        for: 5m
+        labels:
+          severity: warning
+          component: adapter
+        annotations:
+          summary: "Resource count dropped significantly"
+          description: "Adapter {{ $labels.adapter }} {{ $labels.resource_type }} count dropped by {{ $value | printf \"%.2f\" }}% in last 10 minutes"
+          runbook_url: "https://docs.example.com/runbooks/adapter-resource-drop"
+
+  - name: adapter_subscription_alerts
+    interval: 30s
+    rules:
+      # Alert: No active subscriptions (might indicate sync issue)
+      - alert: AdapterNoActiveSubscriptions
+        expr: o2ims_adapter_subscriptions_active == 0
+        for: 10m
+        labels:
+          severity: info
+          component: adapter
+        annotations:
+          summary: "No active subscriptions for adapter"
+          description: "Adapter {{ $labels.adapter }} has no active subscriptions for 10+ minutes"
+          runbook_url: "https://docs.example.com/runbooks/adapter-no-subscriptions"
