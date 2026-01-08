@@ -205,7 +205,7 @@ func (p *Plugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequ
 		req := &DeploymentRequest{
 			NSName:       nsName,
 			NSDId:        nsdID,
-			VIMAccountId: vimAccountID,
+			VIMAccountID: vimAccountID,
 		}
 
 		if desc, ok := workflow.Parameters["description"].(string); ok {
@@ -300,7 +300,7 @@ func (p *Plugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequ
 		cause, _ := workflow.Parameters["cause"].(string)
 
 		healReq := &NSHealRequest{
-			VNFInstanceId: vnfInstanceID,
+			VNFInstanceID: vnfInstanceID,
 			Cause:         cause,
 		}
 

@@ -267,12 +267,12 @@ func (a *ArgoCDAdapter) UploadDeploymentPackage(
 
 	// ArgoCD doesn't support traditional package uploads
 	// Instead, create a reference to a Git repository
-	repoURL, _ := pkg.Extensions["argocd.repoURL"].(string)
-	path, _ := pkg.Extensions["argocd.path"].(string)
-
-	if repoURL == "" {
+	repoURL, ok := pkg.Extensions["argocd.repoURL"].(string)
+	if !ok || repoURL == "" {
 		return nil, fmt.Errorf("argocd.repoURL extension is required for ArgoCD packages")
 	}
+
+	path, _ := pkg.Extensions["argocd.path"].(string)
 
 	return &adapter.DeploymentPackage{
 		ID:          generatePackageID(repoURL, path),
@@ -378,16 +378,18 @@ func validateDeploymentRequest(req *adapter.DeploymentRequest) error {
 	if req.Name == "" {
 		return fmt.Errorf("deployment name is required")
 	}
-	repoURL, _ := req.Extensions["argocd.repoURL"].(string)
-	if repoURL == "" {
+	repoURL, ok := req.Extensions["argocd.repoURL"].(string)
+	if !ok || repoURL == "" {
 		return fmt.Errorf("argocd.repoURL extension is required")
 	}
 	return nil
 }
 
 // buildApplicationManifest builds the ArgoCD Application manifest from the request.
+// Assumes validateDeploymentRequest has been called to ensure required extensions exist.
 func (a *ArgoCDAdapter) buildApplicationManifest(req *adapter.DeploymentRequest) (*unstructured.Unstructured, error) {
-	repoURL, _ := req.Extensions["argocd.repoURL"].(string)
+	// Safe to ignore ok values since validateDeploymentRequest ensures repoURL exists
+	repoURL := req.Extensions["argocd.repoURL"].(string)
 	path, _ := req.Extensions["argocd.path"].(string)
 	targetRevision, _ := req.Extensions["argocd.targetRevision"].(string)
 	chart, _ := req.Extensions["argocd.chart"].(string)

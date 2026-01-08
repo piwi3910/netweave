@@ -20,6 +20,9 @@ import (
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/config"
+	dmshandlers "github.com/piwi3910/netweave/internal/dms/handlers"
+	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
+	dmsstorage "github.com/piwi3910/netweave/internal/dms/storage"
 	"github.com/piwi3910/netweave/internal/middleware"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/smo"
@@ -64,11 +67,18 @@ type Server struct {
 	store            storage.Store
 	healthCheck      *observability.HealthChecker
 	openAPIValidator *middleware.OpenAPIValidator
-	smoRegistry      *smo.Registry
-	smoHandler       *SMOHandler
-	authStore        AuthStore
-	authMw           AuthMiddleware
-	shutdownOnce     sync.Once // Ensures shutdown logic runs only once
+	openAPISpec      []byte
+
+	// DMS subsystem.
+	dmsRegistry *dmsregistry.Registry
+	dmsStore    dmsstorage.Store
+	dmsHandler  *dmshandlers.Handler
+
+	smoRegistry  *smo.Registry
+	smoHandler   *SMOHandler
+	authStore    AuthStore
+	authMw       AuthMiddleware
+	shutdownOnce sync.Once // Ensures shutdown logic runs only once
 }
 
 // AuthStore defines the interface for auth storage operations.
@@ -148,6 +158,7 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 		store:            store,
 		healthCheck:      healthCheck,
 		openAPIValidator: openAPIValidator,
+		openAPISpec:      o2imsOpenAPISpec,
 	}
 
 	// Setup middleware
@@ -429,6 +440,30 @@ func (s *Server) SetHealthChecker(hc *observability.HealthChecker) {
 	s.healthCheck = hc
 }
 
+// SetupDMS initializes the DMS subsystem with the provided registry.
+// This must be called after creating the server to enable O2-DMS API endpoints.
+func (s *Server) SetupDMS(reg *dmsregistry.Registry) {
+	s.dmsRegistry = reg
+	s.dmsStore = dmsstorage.NewMemoryStore()
+	s.dmsHandler = dmshandlers.NewHandler(reg, s.dmsStore, s.logger)
+
+	// Set up DMS routes.
+	s.setupDMSRoutes(s.dmsHandler)
+
+	// Register DMS health check.
+	if s.healthCheck != nil {
+		s.healthCheck.RegisterHealthCheck("dms", s.dmsHandler.Health)
+		s.healthCheck.RegisterReadinessCheck("dms", s.dmsHandler.Health)
+	}
+
+	s.logger.Info("DMS subsystem initialized")
+}
+
+// DMSRegistry returns the DMS adapter registry.
+func (s *Server) DMSRegistry() *dmsregistry.Registry {
+	return s.dmsRegistry
+}
+
 // SetSMORegistry sets the SMO plugin registry and configures SMO API routes.
 // This enables the O2-SMO API endpoints for workflow orchestration, service modeling,
 // policy management, and infrastructure synchronization.
@@ -603,4 +638,37 @@ func joinStrings(strs []string, sep string) string {
 		result += sep + strs[i]
 	}
 	return result
+}
+
+// SetOpenAPISpec sets the OpenAPI specification content.
+// This is primarily used for testing.
+func (s *Server) SetOpenAPISpec(spec []byte) {
+	s.openAPISpec = spec
+}
+
+// GetOpenAPISpec returns the OpenAPI specification content.
+// This is primarily used for testing.
+func (s *Server) GetOpenAPISpec() []byte {
+	return s.openAPISpec
+}
+
+// ShutdownWithContext gracefully shuts down the HTTP server using the provided context.
+// It waits for active requests to complete or until the context is canceled.
+// This is a wrapper around Shutdown() that respects the provided context.
+func (s *Server) ShutdownWithContext(ctx context.Context) error {
+	// Create a channel to signal when shutdown completes
+	done := make(chan error, 1)
+
+	// Run shutdown in a goroutine
+	go func() {
+		done <- s.Shutdown()
+	}()
+
+	// Wait for either shutdown to complete or context to be canceled
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
