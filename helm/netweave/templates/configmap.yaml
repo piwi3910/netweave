@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "netweave.configMapName" . }}
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    server:
+      port: {{ .Values.config.server.port }}
+      host: {{ .Values.config.server.host }}
+      tls:
+        enabled: {{ .Values.config.server.tls.enabled }}
+        {{- if .Values.config.server.tls.enabled }}
+        cert_file: "/etc/netweave/tls/{{ .Values.tls.certFile }}"
+        key_file: "/etc/netweave/tls/{{ .Values.tls.keyFile }}"
+        ca_file: "/etc/netweave/tls/{{ .Values.tls.caFile }}"
+        mtls:
+          enabled: {{ .Values.config.server.tls.mtls.enabled }}
+          client_auth: {{ .Values.config.server.tls.mtls.clientAuth }}
+        {{- end }}
+
+    observability:
+      logging:
+        level: {{ .Values.config.observability.logging.level }}
+        format: {{ .Values.config.observability.logging.format }}
+      metrics:
+        enabled: {{ .Values.config.observability.metrics.enabled }}
+        port: {{ .Values.config.observability.metrics.port }}
+      tracing:
+        enabled: {{ .Values.config.observability.tracing.enabled }}
+        {{- if .Values.config.observability.tracing.enabled }}
+        jaeger_endpoint: {{ .Values.config.observability.tracing.jaegerEndpoint }}
+        {{- end }}
+
+    {{- if .Values.config.rateLimit.enabled }}
+    rate_limit:
+      enabled: true
+      global:
+        requests_per_second: {{ .Values.config.rateLimit.global.requestsPerSecond }}
+      tenant:
+        requests_per_second: {{ .Values.config.rateLimit.tenant.requestsPerSecond }}
+    {{- end }}
+
+    database:
+      type: {{ .Values.config.database.type }}
+      connection_string: {{ include "netweave.redisConnectionString" . }}
