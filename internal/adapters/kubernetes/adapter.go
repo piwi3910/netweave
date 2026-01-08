@@ -5,6 +5,7 @@ package kubernetes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.uber.org/zap"
@@ -13,6 +14,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/storage"
 )
 
 // KubernetesAdapter implements the adapter.Adapter interface for Kubernetes backends.
@@ -25,6 +27,9 @@ import (
 type KubernetesAdapter struct {
 	// client is the Kubernetes client for API operations.
 	client kubernetes.Interface
+
+	// store is the subscription storage backend (Redis).
+	store storage.Store
 
 	// logger provides structured logging.
 	logger *zap.Logger
@@ -54,6 +59,10 @@ type Config struct {
 	// Namespace is the default namespace for O2-IMS resources.
 	// Defaults to "o2ims-system" if not specified.
 	Namespace string
+
+	// Store is the subscription storage backend (Redis).
+	// Optional: If nil, subscription operations will return not implemented errors.
+	Store storage.Store
 
 	// Logger is the logger to use. If nil, a default logger will be created.
 	Logger *zap.Logger
@@ -120,6 +129,7 @@ func New(cfg *Config) (*KubernetesAdapter, error) {
 
 	adapter := &KubernetesAdapter{
 		client:              client,
+		store:               cfg.Store,
 		logger:              logger,
 		oCloudID:            cfg.OCloudID,
 		deploymentManagerID: cfg.DeploymentManagerID,
@@ -129,7 +139,8 @@ func New(cfg *Config) (*KubernetesAdapter, error) {
 	logger.Info("Kubernetes adapter initialized",
 		zap.String("oCloudId", cfg.OCloudID),
 		zap.String("deploymentManagerId", cfg.DeploymentManagerID),
-		zap.String("namespace", namespace))
+		zap.String("namespace", namespace),
+		zap.Bool("subscriptionsEnabled", cfg.Store != nil))
 
 	return adapter, nil
 }
@@ -166,39 +177,128 @@ func (a *KubernetesAdapter) Capabilities() []adapter.Capability {
 // - resourcetypes.go: Resource type operations
 
 // CreateSubscription creates a new event subscription.
-// Implementation will store subscription in Redis and start watching K8s resources.
+// Stores subscription in Redis. Kubernetes watch/informer integration is handled
+// by the controller package which monitors Redis subscriptions.
 func (a *KubernetesAdapter) CreateSubscription(
-	_ context.Context,
+	ctx context.Context,
 	sub *adapter.Subscription,
 ) (*adapter.Subscription, error) {
 	a.logger.Debug("CreateSubscription called",
+		zap.String("callback", sub.Callback),
+		zap.String("subscriptionId", sub.SubscriptionID))
+
+	if a.store == nil {
+		a.logger.Warn("subscription storage not configured")
+		return nil, fmt.Errorf("subscription storage not configured")
+	}
+
+	// Convert adapter.Subscription to storage.Subscription
+	var filter storage.SubscriptionFilter
+	if sub.Filter != nil {
+		filter = storage.SubscriptionFilter{
+			ResourcePoolID: sub.Filter.ResourcePoolID,
+			ResourceTypeID: sub.Filter.ResourceTypeID,
+			ResourceID:     sub.Filter.ResourceID,
+		}
+	}
+
+	storageSub := &storage.Subscription{
+		ID:                     sub.SubscriptionID,
+		Callback:               sub.Callback,
+		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
+		Filter:                 filter,
+	}
+
+	// Store subscription in Redis
+	if err := a.store.Create(ctx, storageSub); err != nil {
+		a.logger.Error("failed to store subscription",
+			zap.String("subscriptionId", sub.SubscriptionID),
+			zap.Error(err))
+		return nil, fmt.Errorf("failed to store subscription: %w", err)
+	}
+
+	a.logger.Info("subscription created",
+		zap.String("subscriptionId", sub.SubscriptionID),
 		zap.String("callback", sub.Callback))
 
-	// TODO(#59): Implement subscription creation
-	// This will store in Redis and configure informers
-	return nil, fmt.Errorf("not implemented")
+	return sub, nil
 }
 
-// GetSubscription retrieves a specific subscription by ID.
-// Implementation will retrieve subscription from Redis.
-func (a *KubernetesAdapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
+// GetSubscription retrieves a specific subscription by ID from Redis.
+func (a *KubernetesAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
-	// TODO(#59): Implement subscription retrieval
-	// This will retrieve from Redis
-	return nil, fmt.Errorf("not implemented")
+	if a.store == nil {
+		a.logger.Warn("subscription storage not configured")
+		return nil, fmt.Errorf("subscription storage not configured")
+	}
+
+	// Retrieve subscription from Redis
+	storageSub, err := a.store.Get(ctx, id)
+	if err != nil {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
+			a.logger.Debug("subscription not found",
+				zap.String("subscriptionId", id))
+			return nil, fmt.Errorf("subscription not found: %s", id)
+		}
+		a.logger.Error("failed to retrieve subscription",
+			zap.String("subscriptionId", id),
+			zap.Error(err))
+		return nil, fmt.Errorf("failed to retrieve subscription: %w", err)
+	}
+
+	// Convert storage.Subscription to adapter.Subscription
+	var filter *adapter.SubscriptionFilter
+	hasFilter := storageSub.Filter.ResourcePoolID != "" ||
+		storageSub.Filter.ResourceTypeID != "" ||
+		storageSub.Filter.ResourceID != ""
+	if hasFilter {
+		filter = &adapter.SubscriptionFilter{
+			ResourcePoolID: storageSub.Filter.ResourcePoolID,
+			ResourceTypeID: storageSub.Filter.ResourceTypeID,
+			ResourceID:     storageSub.Filter.ResourceID,
+		}
+	}
+
+	adapterSub := &adapter.Subscription{
+		SubscriptionID:         storageSub.ID,
+		Callback:               storageSub.Callback,
+		ConsumerSubscriptionID: storageSub.ConsumerSubscriptionID,
+		Filter:                 filter,
+	}
+
+	return adapterSub, nil
 }
 
-// DeleteSubscription deletes a subscription by ID.
-// Implementation will remove subscription from Redis and stop watching.
-func (a *KubernetesAdapter) DeleteSubscription(_ context.Context, id string) error {
+// DeleteSubscription deletes a subscription by ID from Redis.
+// The controller package monitors Redis and stops the corresponding Kubernetes watchers.
+func (a *KubernetesAdapter) DeleteSubscription(ctx context.Context, id string) error {
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
-	// TODO(#59): Implement subscription deletion
-	// This will remove from Redis and stop informers
-	return fmt.Errorf("not implemented")
+	if a.store == nil {
+		a.logger.Warn("subscription storage not configured")
+		return fmt.Errorf("subscription storage not configured")
+	}
+
+	// Delete subscription from Redis
+	if err := a.store.Delete(ctx, id); err != nil {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
+			a.logger.Debug("subscription not found for deletion",
+				zap.String("subscriptionId", id))
+			return fmt.Errorf("subscription not found: %s", id)
+		}
+		a.logger.Error("failed to delete subscription",
+			zap.String("subscriptionId", id),
+			zap.Error(err))
+		return fmt.Errorf("failed to delete subscription: %w", err)
+	}
+
+	a.logger.Info("subscription deleted",
+		zap.String("subscriptionId", id))
+
+	return nil
 }
 
 // Health performs a health check on the Kubernetes backend.
