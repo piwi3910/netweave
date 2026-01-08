@@ -53,6 +53,9 @@ issues:
         - goconst
         - nonamedreturns
         - gocritic  # Allows octalLiteral 0644 in cmd/compliance
+    - path: cmd/compliance/
+      linters:
+        - cyclop    # Complex business logic in compliance checker
     # Exclude known false positives
     - text: "G404: Use of weak random number generator"
       linters:
@@ -225,6 +228,7 @@ issues:
         - nestif        # Complex K8s CRD parsing logic
         - gocognit      # Complex deployment state machine logic
         - gocyclo       # Complex K8s resource handling
+        - cyclop        # Cyclomatic complexity (deployment state machines, K8s resource handling)
         - misspell      # cancelled vs canceled (UK vs US English in K8s contexts)
         - wrapcheck     # Context errors don't need wrapping
         - revive        # Unused parameters, comment formatting

@@ -14,11 +14,11 @@ import (
 
 func TestGetNamespaceByID(t *testing.T) {
 	tests := []struct {
-		name          string
-		id            string
-		existingNS    *corev1.Namespace
-		expectedName  string
-		wantErr       bool
+		name         string
+		id           string
+		existingNS   *corev1.Namespace
+		expectedName string
+		wantErr      bool
 	}{
 		{
 			name: "formatted ID with k8s-namespace prefix",

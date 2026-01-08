@@ -397,8 +397,8 @@ func TestDeleteSubscription_Success(t *testing.T) {
 	store := &mockSubscriptionStore{
 		subscriptions: []*storage.Subscription{
 			{
-				ID:       "sub-1",
-				Callback: "https://example.com/notify",
+				ID:        "sub-1",
+				Callback:  "https://example.com/notify",
 				CreatedAt: now,
 			},
 		},
