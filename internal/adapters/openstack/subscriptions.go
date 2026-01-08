@@ -33,21 +33,6 @@ const (
 	defaultRetryDelay = 2 * time.Second
 )
 
-// subscriptionConfig holds configuration for the polling mechanism.
-type subscriptionConfig struct {
-	// PollingInterval is how often to poll OpenStack for changes.
-	PollingInterval time.Duration
-
-	// WebhookTimeout is the HTTP timeout for webhook deliveries.
-	WebhookTimeout time.Duration
-
-	// MaxRetries is the maximum number of delivery attempts.
-	MaxRetries int
-
-	// RetryDelay is the base delay between retries (exponential backoff).
-	RetryDelay time.Duration
-}
-
 // subscriptionState tracks polling state for each subscription.
 type subscriptionState struct {
 	subscription     *adapter.Subscription
@@ -327,8 +312,13 @@ type resourceChange struct {
 }
 
 // createResourceSnapshot creates a snapshot of current OpenStack resources.
-func (a *OpenStackAdapter) createResourceSnapshot(ctx context.Context) (map[string]string, error) {
+func (a *OpenStackAdapter) createResourceSnapshot(_ context.Context) (map[string]string, error) {
 	snapshot := make(map[string]string)
+
+	// Skip if compute client is not initialized (e.g., in tests)
+	if a.compute == nil {
+		return snapshot, nil
+	}
 
 	// Query servers (resources)
 	allPages, err := servers.List(a.compute, servers.ListOpts{}).AllPages()
@@ -416,7 +406,7 @@ func (a *OpenStackAdapter) sendWebhookNotification(
 	change resourceChange,
 ) error {
 	// Fetch current resource details if it still exists
-	var resourceData interface{}
+	var resourceData any
 	if change.EventType != string(models.EventTypeResourceDeleted) {
 		resource, err := a.getResourceDetails(ctx, change.ResourceID)
 		if err != nil {
@@ -461,11 +451,12 @@ func (a *OpenStackAdapter) deliverWebhookWithRetries(
 	var lastErr error
 	for attempt := 0; attempt <= defaultMaxRetries; attempt++ {
 		if attempt > 0 {
-			// Exponential backoff
-			delay := defaultRetryDelay * time.Duration(1<<uint(attempt-1))
+			// Exponential backoff: 2s, 4s, 8s
+			backoffMultiplier := 1 << (attempt - 1)
+			delay := defaultRetryDelay * time.Duration(backoffMultiplier)
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return fmt.Errorf("context cancelled during retry: %w", ctx.Err())
 			case <-time.After(delay):
 			}
 
@@ -527,7 +518,11 @@ func (a *OpenStackAdapter) deliverWebhook(
 	if err != nil {
 		return 0, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	return resp.StatusCode, nil
 }
@@ -540,7 +535,7 @@ func (a *OpenStackAdapter) getResourceDetails(ctx context.Context, resourceID st
 }
 
 // computeResourceHash computes a hash of a resource's state.
-func computeResourceHash(resource interface{}) string {
+func computeResourceHash(resource any) string {
 	// Serialize resource to JSON
 	data, err := json.Marshal(resource)
 	if err != nil {

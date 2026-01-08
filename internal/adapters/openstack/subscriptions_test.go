@@ -18,6 +18,7 @@ func TestCreateSubscription(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
+		pollingStates: make(map[string]*subscriptionState),
 	}
 
 	ctx := context.Background()
@@ -93,6 +94,7 @@ func TestGetSubscription(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
+		pollingStates: make(map[string]*subscriptionState),
 	}
 
 	ctx := context.Background()
@@ -127,6 +129,7 @@ func TestDeleteSubscription(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
+		pollingStates: make(map[string]*subscriptionState),
 	}
 
 	ctx := context.Background()
@@ -167,6 +170,7 @@ func TestListSubscriptions(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
+		pollingStates: make(map[string]*subscriptionState),
 	}
 
 	ctx := context.Background()
@@ -208,6 +212,7 @@ func TestSubscriptionFilters(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
+		pollingStates: make(map[string]*subscriptionState),
 	}
 
 	ctx := context.Background()
@@ -279,6 +284,7 @@ func TestSubscriptionConcurrency(t *testing.T) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
+		pollingStates: make(map[string]*subscriptionState),
 	}
 
 	ctx := context.Background()
@@ -355,6 +361,7 @@ func BenchmarkCreateSubscription(b *testing.B) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
+		pollingStates: make(map[string]*subscriptionState),
 	}
 
 	ctx := context.Background()
@@ -377,6 +384,7 @@ func BenchmarkGetSubscription(b *testing.B) {
 	adp := &OpenStackAdapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
+		pollingStates: make(map[string]*subscriptionState),
 	}
 
 	ctx := context.Background()
