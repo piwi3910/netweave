@@ -51,11 +51,19 @@ func matchesLabels(filterLabels, resourceLabels map[string]string) bool {
 //
 // Parameters:
 //   - items: The slice of items to paginate
-//   - limit: Maximum number of items to return (0 means no limit)
-//   - offset: Number of items to skip from the beginning
+//   - limit: Maximum number of items to return (0 or negative means no limit)
+//   - offset: Number of items to skip from the beginning (negative values treated as 0)
 //
 // Returns a new slice with pagination applied.
 func ApplyPagination[T any](items []T, limit, offset int) []T {
+	// Normalize negative values
+	if offset < 0 {
+		offset = 0
+	}
+	if limit < 0 {
+		limit = 0
+	}
+
 	if offset >= len(items) {
 		return []T{}
 	}

@@ -37,7 +37,7 @@ func (a *KubernetesAdapter) ListDeploymentManagers(
 }
 
 // GetDeploymentManager retrieves metadata about the deployment manager.
-func (a *KubernetesAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
+func (a *KubernetesAdapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
 	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
