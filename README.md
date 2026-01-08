@@ -14,7 +14,7 @@ This project implements the following O-RAN Alliance specifications:
 
 [![O-RAN O2-IMS v3.0.0 Compliance](https://img.shields.io/badge/O--RAN__O2--IMS-v3.0.0__compliant-brightgreen)](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2IMS-INTERFACE) **O2-IMS v3.0.0**: Full compliance with O-RAN Infrastructure Management Services specification
 
-[![O-RAN O2-DMS v3.0.0 Compliance](https://img.shields.io/badge/O--RAN__O2--DMS-v3.0.0__partial-yellow)](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2DMS-INTERFACE) **O2-DMS v3.0.0**: Partial compliance with O-RAN Deployment Management Services specification (in development)
+[![O-RAN O2-DMS v3.0.0 Compliance](https://img.shields.io/badge/O--RAN__O2--DMS-v3.0.0__compliant-brightgreen)](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2DMS-INTERFACE) **O2-DMS v3.0.0**: Full compliance with O-RAN Deployment Management Services specification
 
 [![O-RAN O2-SMO v3.0.0 Compliance](https://img.shields.io/badge/O--RAN__O2--SMO-v3.0.0__compliant-brightgreen)](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2SMO-INTERFACE) **O2-SMO v3.0.0**: Full compliance with O-RAN Service Management & Orchestration integration specification
 
@@ -343,6 +343,29 @@ curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
 | Subscriptions | ✅ | ✅ | ✅ | ✅ | ✅ | N/A |
 
 See [docs/api-mapping.md](docs/api-mapping.md) for O2-IMS ↔ Kubernetes resource mappings.
+
+## O2-DMS API Coverage
+
+The O2-DMS API (`/o2dms/v1/*`) provides full deployment lifecycle management for CNF/VNF workloads:
+
+| Resource | List | Get | Create | Update | Delete | Lifecycle Ops |
+|----------|------|-----|--------|--------|--------|---------------|
+| NF Deployments | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Scale, Rollback |
+| NF Deployment Descriptors | ✅ | ✅ | ✅ | ❌ | ✅ | N/A |
+| Subscriptions | ✅ | ✅ | ✅ | ❌ | ✅ | N/A |
+| Deployment Status | N/A | ✅ | N/A | N/A | N/A | N/A |
+| Deployment History | N/A | ✅ | N/A | N/A | N/A | N/A |
+| Deployment Lifecycle Info | N/A | ✅ | N/A | N/A | N/A | N/A |
+
+**O2-DMS Features:**
+- 🚀 **Full Lifecycle Management**: Deploy, update, scale, rollback, and delete CNF/VNF workloads
+- 📦 **Package Management**: Upload, list, and manage Helm charts and CNF packages
+- 🔄 **GitOps Support**: Native ArgoCD and Flux CD adapters for GitOps workflows
+- 📊 **Status & History**: Real-time deployment status and complete revision history
+- 🔔 **Event Notifications**: Webhook subscriptions for deployment lifecycle events
+- 🎯 **Multi-Adapter**: Helm 3, ArgoCD, and Flux CD adapters available
+
+See [docs/o2dms-o2smo-extension.md](docs/o2dms-o2smo-extension.md) for detailed O2-DMS deployment management documentation.
 
 ## O2-SMO API Coverage
 
