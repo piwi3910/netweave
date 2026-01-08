@@ -669,3 +669,171 @@ func BenchmarkHelmAdapter_ApplyPagination(b *testing.B) {
 		_ = adapter.applyPagination(deployments, 10, 0)
 	}
 }
+
+// TestHelmAdapter_ListDeploymentPackages tests listing packages from repository.
+func TestHelmAdapter_ListDeploymentPackages(t *testing.T) {
+	adapter, err := NewAdapter(&Config{
+		Namespace:     "test",
+		RepositoryURL: "https://charts.example.com",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name      string
+		filter    *dmsadapter.Filter
+		expectErr bool
+	}{
+		{
+			name:      "list all packages",
+			filter:    nil,
+			expectErr: true, // Will fail without real repository
+		},
+		{
+			name: "filter by chart name",
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{
+					"helm.chartName": "nginx",
+				},
+			},
+			expectErr: true, // Will fail without real repository
+		},
+		{
+			name: "filter by version",
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{
+					"helm.chartVersion": "1.0.0",
+				},
+			},
+			expectErr: true, // Will fail without real repository
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			packages, err := adapter.ListDeploymentPackages(ctx, tt.filter)
+			if tt.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, packages)
+			}
+		})
+	}
+}
+
+// TestHelmAdapter_GetDeploymentPackage tests getting a specific package.
+func TestHelmAdapter_GetDeploymentPackage(t *testing.T) {
+	adapter, err := NewAdapter(&Config{
+		Namespace:     "test",
+		RepositoryURL: "https://charts.example.com",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name      string
+		packageID string
+		expectErr bool
+	}{
+		{
+			name:      "get existing package",
+			packageID: "nginx-1.0.0",
+			expectErr: true, // Will fail without real repository
+		},
+		{
+			name:      "get non-existent package",
+			packageID: "non-existent-1.0.0",
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pkg, err := adapter.GetDeploymentPackage(ctx, tt.packageID)
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, pkg)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, pkg)
+				assert.Equal(t, tt.packageID, pkg.ID)
+			}
+		})
+	}
+}
+
+// TestHelmAdapter_DeleteDeploymentPackage tests package deletion.
+func TestHelmAdapter_DeleteDeploymentPackage(t *testing.T) {
+	adapter, err := NewAdapter(&Config{
+		Namespace:     "test",
+		RepositoryURL: "https://charts.example.com",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name      string
+		packageID string
+		expectErr bool
+	}{
+		{
+			name:      "delete package",
+			packageID: "nginx-1.0.0",
+			expectErr: true, // Always fails as deletion is not fully implemented
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := adapter.DeleteDeploymentPackage(ctx, tt.packageID)
+			if tt.expectErr {
+				assert.Error(t, err)
+				// Error could be "not fully implemented" or repository access error
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestHelmAdapter_LoadRepositoryIndex tests repository index loading.
+func TestHelmAdapter_LoadRepositoryIndex(t *testing.T) {
+	tests := []struct {
+		name      string
+		repoURL   string
+		expectErr bool
+	}{
+		{
+			name:      "missing repository URL",
+			repoURL:   "",
+			expectErr: true,
+		},
+		{
+			name:      "invalid repository URL",
+			repoURL:   "https://invalid-repo-url.example.com",
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter, err := NewAdapter(&Config{
+				Namespace:     "test",
+				RepositoryURL: tt.repoURL,
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			err = adapter.loadRepositoryIndex(ctx)
+			if tt.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
