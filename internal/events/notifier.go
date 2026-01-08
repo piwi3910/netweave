@@ -1,0 +1,403 @@
+package events
+
+import (
+	"bytes"
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/sony/gobreaker"
+	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/models"
+	"github.com/piwi3910/netweave/internal/storage"
+)
+
+const (
+	// Default timeout for HTTP requests
+	defaultHTTPTimeout = 10 * time.Second
+
+	// Default maximum retries
+	defaultMaxRetries = 3
+
+	// Initial retry backoff
+	initialBackoff = 1 * time.Second
+
+	// Maximum retry backoff
+	maxBackoff = 60 * time.Second
+
+	// Backoff multiplier
+	backoffMultiplier = 2
+)
+
+// NotifierConfig holds configuration for the webhook notifier.
+type NotifierConfig struct {
+	// HTTPTimeout is the timeout for HTTP requests
+	HTTPTimeout time.Duration
+
+	// MaxRetries is the maximum number of delivery attempts
+	MaxRetries int
+
+	// EnableMTLS enables mutual TLS for webhook delivery
+	EnableMTLS bool
+
+	// ClientCertFile is the path to the client certificate for mTLS
+	ClientCertFile string
+
+	// ClientKeyFile is the path to the client private key for mTLS
+	ClientKeyFile string
+
+	// CACertFile is the path to the CA certificate for verifying server certificates
+	CACertFile string
+
+	// InsecureSkipVerify disables certificate verification (for testing only)
+	InsecureSkipVerify bool
+}
+
+// DefaultNotifierConfig returns a NotifierConfig with sensible defaults.
+func DefaultNotifierConfig() *NotifierConfig {
+	return &NotifierConfig{
+		HTTPTimeout:        defaultHTTPTimeout,
+		MaxRetries:         defaultMaxRetries,
+		EnableMTLS:         false,
+		InsecureSkipVerify: false,
+	}
+}
+
+// WebhookNotifier implements the Notifier interface using HTTP webhooks.
+type WebhookNotifier struct {
+	config          *NotifierConfig
+	httpClient      *http.Client
+	logger          *zap.Logger
+	deliveryTracker DeliveryTracker
+	circuitBreakers map[string]*gobreaker.CircuitBreaker
+}
+
+// NewWebhookNotifier creates a new WebhookNotifier instance.
+func NewWebhookNotifier(config *NotifierConfig, deliveryTracker DeliveryTracker, logger *zap.Logger) (*WebhookNotifier, error) {
+	if config == nil {
+		config = DefaultNotifierConfig()
+	}
+	if logger == nil {
+		return nil, errors.New("logger cannot be nil")
+	}
+
+	// Create HTTP client with optional mTLS
+	httpClient, err := createHTTPClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+	}
+
+	return &WebhookNotifier{
+		config:          config,
+		httpClient:      httpClient,
+		logger:          logger,
+		deliveryTracker: deliveryTracker,
+		circuitBreakers: make(map[string]*gobreaker.CircuitBreaker),
+	}, nil
+}
+
+// createHTTPClient creates an HTTP client with optional mTLS configuration.
+func createHTTPClient(config *NotifierConfig) (*http.Client, error) {
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: config.InsecureSkipVerify,
+		MinVersion:         tls.VersionTLS13,
+	}
+
+	// Load client certificate for mTLS
+	if config.EnableMTLS && config.ClientCertFile != "" && config.ClientKeyFile != "" {
+		cert, err := tls.LoadX509KeyPair(config.ClientCertFile, config.ClientKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load client certificate: %w", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	// Load CA certificate
+	if config.CACertFile != "" {
+		caCert, err := os.ReadFile(config.CACertFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read CA certificate: %w", err)
+		}
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			return nil, errors.New("failed to parse CA certificate")
+		}
+		tlsConfig.RootCAs = caCertPool
+	}
+
+	transport := &http.Transport{
+		TLSClientConfig:     tlsConfig,
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	}
+
+	return &http.Client{
+		Transport: transport,
+		Timeout:   config.HTTPTimeout,
+	}, nil
+}
+
+// Notify sends a notification to a subscriber's callback URL.
+func (n *WebhookNotifier) Notify(ctx context.Context, event *Event, subscription *storage.Subscription) error {
+	if event == nil {
+		return errors.New("event cannot be nil")
+	}
+	if subscription == nil {
+		return errors.New("subscription cannot be nil")
+	}
+
+	// Build notification payload
+	notification := n.buildNotification(event, subscription)
+
+	// Send HTTP POST request
+	return n.sendWebhook(ctx, subscription.Callback, notification)
+}
+
+// NotifyWithRetry sends a notification with automatic retry logic.
+func (n *WebhookNotifier) NotifyWithRetry(ctx context.Context, event *Event, subscription *storage.Subscription) (*NotificationDelivery, error) {
+	if event == nil {
+		return nil, errors.New("event cannot be nil")
+	}
+	if subscription == nil {
+		return nil, errors.New("subscription cannot be nil")
+	}
+
+	// Create delivery tracking record
+	delivery := &NotificationDelivery{
+		ID:             uuid.New().String(),
+		EventID:        event.ID,
+		SubscriptionID: subscription.ID,
+		CallbackURL:    subscription.Callback,
+		Status:         DeliveryStatusPending,
+		Attempts:       0,
+		MaxAttempts:    n.config.MaxRetries,
+		CreatedAt:      time.Now().UTC(),
+	}
+
+	// Build notification payload
+	notification := n.buildNotification(event, subscription)
+
+	// Get or create circuit breaker for this callback URL
+	cb := n.getCircuitBreaker(subscription.Callback)
+
+	// Attempt delivery with retries
+	backoff := initialBackoff
+	for attempt := 1; attempt <= n.config.MaxRetries; attempt++ {
+		delivery.Attempts = attempt
+		delivery.LastAttemptAt = time.Now().UTC()
+		delivery.Status = DeliveryStatusDelivering
+
+		// Track attempt
+		if n.deliveryTracker != nil {
+			_ = n.deliveryTracker.Track(ctx, delivery)
+		}
+
+		// Execute with circuit breaker
+		startTime := time.Now()
+		err := n.executeWithCircuitBreaker(ctx, cb, subscription.Callback, notification)
+		responseTime := time.Since(startTime).Milliseconds()
+
+		delivery.ResponseTime = responseTime
+
+		// Record metrics
+		RecordNotificationResponseTime(subscription.ID, fmt.Sprintf("%d", delivery.HTTPStatusCode), float64(responseTime))
+
+		if err == nil {
+			// Success
+			delivery.Status = DeliveryStatusDelivered
+			delivery.HTTPStatusCode = http.StatusOK
+			delivery.CompletedAt = time.Now().UTC()
+
+			// Record success metrics
+			duration := time.Since(delivery.CreatedAt).Seconds()
+			RecordNotificationDelivered("success", subscription.ID, duration, attempt)
+
+			n.logger.Info("notification delivered successfully",
+				zap.String("delivery_id", delivery.ID),
+				zap.String("subscription_id", subscription.ID),
+				zap.String("callback", subscription.Callback),
+				zap.Int("attempts", attempt),
+				zap.Int64("response_time_ms", responseTime),
+			)
+
+			if n.deliveryTracker != nil {
+				_ = n.deliveryTracker.Track(ctx, delivery)
+			}
+
+			return delivery, nil
+		}
+
+		// Handle failure
+		delivery.LastError = err.Error()
+		delivery.Status = DeliveryStatusRetrying
+
+		n.logger.Warn("notification delivery failed",
+			zap.String("delivery_id", delivery.ID),
+			zap.String("subscription_id", subscription.ID),
+			zap.String("callback", subscription.Callback),
+			zap.Int("attempt", attempt),
+			zap.Int("max_attempts", n.config.MaxRetries),
+			zap.Error(err),
+		)
+
+		// Check if this is the last attempt
+		if attempt >= n.config.MaxRetries {
+			delivery.Status = DeliveryStatusFailed
+			delivery.CompletedAt = time.Now().UTC()
+
+			// Record failure metrics
+			duration := time.Since(delivery.CreatedAt).Seconds()
+			RecordNotificationDelivered("failed", subscription.ID, duration, attempt)
+
+			n.logger.Error("notification delivery failed after all retries",
+				zap.String("delivery_id", delivery.ID),
+				zap.String("subscription_id", subscription.ID),
+				zap.String("callback", subscription.Callback),
+				zap.Int("attempts", attempt),
+				zap.Error(err),
+			)
+
+			if n.deliveryTracker != nil {
+				_ = n.deliveryTracker.Track(ctx, delivery)
+			}
+
+			return delivery, fmt.Errorf("delivery failed after %d attempts: %w", attempt, err)
+		}
+
+		// Calculate next retry time with exponential backoff
+		delivery.NextAttemptAt = time.Now().Add(backoff)
+
+		if n.deliveryTracker != nil {
+			_ = n.deliveryTracker.Track(ctx, delivery)
+		}
+
+		// Wait before retry
+		select {
+		case <-ctx.Done():
+			delivery.Status = DeliveryStatusFailed
+			delivery.CompletedAt = time.Now().UTC()
+			return delivery, ctx.Err()
+		case <-time.After(backoff):
+		}
+
+		// Increase backoff for next attempt
+		backoff *= backoffMultiplier
+		if backoff > maxBackoff {
+			backoff = maxBackoff
+		}
+	}
+
+	return delivery, errors.New("unexpected end of retry loop")
+}
+
+// buildNotification builds the O2-IMS notification payload.
+func (n *WebhookNotifier) buildNotification(event *Event, subscription *storage.Subscription) *models.Notification {
+	return &models.Notification{
+		SubscriptionID:         subscription.ID,
+		ConsumerSubscriptionID: subscription.ConsumerSubscriptionID,
+		EventType:              string(event.Type),
+		Resource:               event.Resource,
+		Timestamp:              event.Timestamp,
+		Extensions:             event.Extensions,
+	}
+}
+
+// sendWebhook sends an HTTP POST request to the webhook URL.
+func (n *WebhookNotifier) sendWebhook(ctx context.Context, callbackURL string, notification *models.Notification) error {
+	// Serialize notification
+	payload, err := json.Marshal(notification)
+	if err != nil {
+		return fmt.Errorf("failed to marshal notification: %w", err)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, callbackURL, bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "O2-IMS-Gateway/1.0")
+
+	// Send request
+	resp, err := n.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("HTTP request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("webhook returned non-2xx status: %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// executeWithCircuitBreaker executes a webhook delivery with circuit breaker protection.
+func (n *WebhookNotifier) executeWithCircuitBreaker(ctx context.Context, cb *gobreaker.CircuitBreaker, callbackURL string, notification *models.Notification) error {
+	_, err := cb.Execute(func() (interface{}, error) {
+		return nil, n.sendWebhook(ctx, callbackURL, notification)
+	})
+	return err
+}
+
+// getCircuitBreaker gets or creates a circuit breaker for a callback URL.
+func (n *WebhookNotifier) getCircuitBreaker(callbackURL string) *gobreaker.CircuitBreaker {
+	if cb, ok := n.circuitBreakers[callbackURL]; ok {
+		return cb
+	}
+
+	// Create new circuit breaker
+	settings := gobreaker.Settings{
+		Name:        callbackURL,
+		MaxRequests: 3,
+		Interval:    60 * time.Second,
+		Timeout:     30 * time.Second,
+		ReadyToTrip: func(counts gobreaker.Counts) bool {
+			// Open circuit after 3 consecutive failures
+			return counts.ConsecutiveFailures >= 3
+		},
+		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
+			n.logger.Info("circuit breaker state changed",
+				zap.String("callback", name),
+				zap.String("from", from.String()),
+				zap.String("to", to.String()),
+			)
+			// Record circuit breaker state: 0=closed, 1=half-open, 2=open
+			var state float64
+			switch to {
+			case gobreaker.StateClosed:
+				state = 0
+			case gobreaker.StateHalfOpen:
+				state = 1
+			case gobreaker.StateOpen:
+				state = 2
+			}
+			RecordCircuitBreakerState(name, state)
+		},
+	}
+
+	cb := gobreaker.NewCircuitBreaker(settings)
+	n.circuitBreakers[callbackURL] = cb
+
+	return cb
+}
+
+// Close closes the notifier and releases resources.
+func (n *WebhookNotifier) Close() error {
+	n.httpClient.CloseIdleConnections()
+	return nil
+}
