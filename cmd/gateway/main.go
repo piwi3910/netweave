@@ -523,7 +523,8 @@ func gracefulShutdown(_ context.Context, srv *server.Server, cfg *config.Config,
 // The spec is loaded from multiple possible locations to support different deployment scenarios.
 // Returns the spec data or an error if not found.
 func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
-	// Possible locations for the OpenAPI spec file
+	// Possible locations for the OpenAPI spec file (hardcoded paths, not user input)
+	// G304: These are predefined trusted paths, not user-controllable input
 	specPaths := []string{
 		"api/openapi/o2ims.yaml",      // Local development
 		"./api/openapi/o2ims.yaml",    // Explicit local path
@@ -532,6 +533,7 @@ func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 	}
 
 	for _, path := range specPaths {
+		// G304: path is from hardcoded list above, not user input - safe from path traversal
 		data, err := os.ReadFile(path)
 		if err == nil {
 			logger.Debug("loaded OpenAPI spec",

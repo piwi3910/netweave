@@ -26,8 +26,13 @@ type DMaaPClient struct {
 
 // NewDMaaPClient creates a new DMaaP client with the provided configuration.
 func NewDMaaPClient(config *Config, logger *zap.Logger) (*DMaaPClient, error) {
+	// Warn about insecure TLS configuration
+	if config.TLSInsecureSkipVerify {
+		logger.Warn("TLS certificate validation is disabled - this is insecure and should only be used in development/testing environments")
+	}
+
 	// Create TLS configuration
-	tlsConfig, err := createTLSConfig(config)
+	tlsConfig, err := createTLSConfig(config, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TLS config: %w", err)
 	}

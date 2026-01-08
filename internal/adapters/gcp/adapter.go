@@ -139,7 +139,7 @@ func New(cfg *Config) (*GCPAdapter, error) {
 		zap.String("poolMode", poolMode))
 
 	opts := buildGCPClientOptions(cfg, logger)
-	clients, err := createGCPClients(context.Background(), opts)
+	clients, err := createGCPClients(context.Background(), opts, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +236,7 @@ type gcpClients struct {
 }
 
 // createGCPClients creates all required GCP compute clients.
-func createGCPClients(ctx context.Context, opts []option.ClientOption) (*gcpClients, error) {
+func createGCPClients(ctx context.Context, opts []option.ClientOption, logger *zap.Logger) (*gcpClients, error) {
 	instancesClient, err := compute.NewInstancesRESTClient(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Instances client: %w", err)
@@ -244,31 +244,55 @@ func createGCPClients(ctx context.Context, opts []option.ClientOption) (*gcpClie
 
 	machineTypesClient, err := compute.NewMachineTypesRESTClient(ctx, opts...)
 	if err != nil {
-		instancesClient.Close()
+		// G104: Handle Close() error in cleanup path
+		if closeErr := instancesClient.Close(); closeErr != nil {
+			logger.Warn("failed to close instances client during cleanup", zap.Error(closeErr))
+		}
 		return nil, fmt.Errorf("failed to create Machine Types client: %w", err)
 	}
 
 	zonesClient, err := compute.NewZonesRESTClient(ctx, opts...)
 	if err != nil {
-		instancesClient.Close()
-		machineTypesClient.Close()
+		// G104: Handle Close() errors in cleanup path
+		if closeErr := instancesClient.Close(); closeErr != nil {
+			logger.Warn("failed to close instances client during cleanup", zap.Error(closeErr))
+		}
+		if closeErr := machineTypesClient.Close(); closeErr != nil {
+			logger.Warn("failed to close machine types client during cleanup", zap.Error(closeErr))
+		}
 		return nil, fmt.Errorf("failed to create Zones client: %w", err)
 	}
 
 	regionsClient, err := compute.NewRegionsRESTClient(ctx, opts...)
 	if err != nil {
-		instancesClient.Close()
-		machineTypesClient.Close()
-		zonesClient.Close()
+		// G104: Handle Close() errors in cleanup path
+		if closeErr := instancesClient.Close(); closeErr != nil {
+			logger.Warn("failed to close instances client during cleanup", zap.Error(closeErr))
+		}
+		if closeErr := machineTypesClient.Close(); closeErr != nil {
+			logger.Warn("failed to close machine types client during cleanup", zap.Error(closeErr))
+		}
+		if closeErr := zonesClient.Close(); closeErr != nil {
+			logger.Warn("failed to close zones client during cleanup", zap.Error(closeErr))
+		}
 		return nil, fmt.Errorf("failed to create Regions client: %w", err)
 	}
 
 	instanceGroupsClient, err := compute.NewInstanceGroupsRESTClient(ctx, opts...)
 	if err != nil {
-		instancesClient.Close()
-		machineTypesClient.Close()
-		zonesClient.Close()
-		regionsClient.Close()
+		// G104: Handle Close() errors in cleanup path
+		if closeErr := instancesClient.Close(); closeErr != nil {
+			logger.Warn("failed to close instances client during cleanup", zap.Error(closeErr))
+		}
+		if closeErr := machineTypesClient.Close(); closeErr != nil {
+			logger.Warn("failed to close machine types client during cleanup", zap.Error(closeErr))
+		}
+		if closeErr := zonesClient.Close(); closeErr != nil {
+			logger.Warn("failed to close zones client during cleanup", zap.Error(closeErr))
+		}
+		if closeErr := regionsClient.Close(); closeErr != nil {
+			logger.Warn("failed to close regions client during cleanup", zap.Error(closeErr))
+		}
 		return nil, fmt.Errorf("failed to create Instance Groups client: %w", err)
 	}
 
