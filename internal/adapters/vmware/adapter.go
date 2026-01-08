@@ -150,7 +150,10 @@ func New(cfg *Config) (*VMwareAdapter, error) {
 
 	finder, dc, err := setupVMwareDatacenter(ctx, client, cfg.Datacenter, logger)
 	if err != nil {
-		client.Logout(ctx)
+		// G104: Handle logout error - log if it fails but don't override the original error
+		if logoutErr := client.Logout(ctx); logoutErr != nil {
+			logger.Warn("failed to logout after datacenter setup error", zap.Error(logoutErr))
+		}
 		return nil, err
 	}
 

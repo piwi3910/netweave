@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	//nolint:gosec // G101: False positive - this is a URL path constant, not credentials
 	testTokenPath = "/osm/admin/v1/tokens"
 )
 

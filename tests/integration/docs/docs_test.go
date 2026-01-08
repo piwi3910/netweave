@@ -60,13 +60,14 @@ func TestDocsEndpoints_OpenAPIYAML(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		// Should return 404 since no spec is loaded in test mode
-		// In production, this would return 200 with the spec
-		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		// Should return 200 with the OpenAPI spec
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "application/x-yaml", resp.Header.Get("Content-Type"))
 
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		assert.Contains(t, string(body), "OpenAPI specification not loaded")
+		assert.Contains(t, string(body), "openapi:")
+		assert.Contains(t, string(body), "O2-IMS API")
 	})
 
 	// Test /openapi.yaml root endpoint
@@ -75,7 +76,8 @@ func TestDocsEndpoints_OpenAPIYAML(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "application/x-yaml", resp.Header.Get("Content-Type"))
 	})
 }
 

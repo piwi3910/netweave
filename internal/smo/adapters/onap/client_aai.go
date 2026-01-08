@@ -28,8 +28,13 @@ type AAIClient struct {
 
 // NewAAIClient creates a new A&AI client with the provided configuration.
 func NewAAIClient(config *Config, logger *zap.Logger) (*AAIClient, error) {
+	// Warn about insecure TLS configuration
+	if config.TLSInsecureSkipVerify {
+		logger.Warn("TLS certificate validation is disabled - this is insecure and should only be used in development/testing environments")
+	}
+
 	// Create TLS configuration
-	tlsConfig, err := createTLSConfig(config)
+	tlsConfig, err := createTLSConfig(config, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TLS config: %w", err)
 	}
@@ -286,13 +291,16 @@ func (c *AAIClient) Close() error {
 
 // createTLSConfig creates a TLS configuration from the plugin config.
 // Returns nil when TLS is not enabled (uses default HTTP transport).
-func createTLSConfig(config *Config) (*tls.Config, error) {
+// WARNING: InsecureSkipVerify disables certificate validation and should only be used in development/testing.
+func createTLSConfig(config *Config, logger *zap.Logger) (*tls.Config, error) {
 	if !config.TLSEnabled {
 		return &tls.Config{MinVersion: tls.VersionTLS12}, nil
 	}
 
+	// G402: InsecureSkipVerify is intentionally configurable for development/testing environments
+	// Production deployments should always use proper certificate validation (InsecureSkipVerify=false)
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: config.TLSInsecureSkipVerify, //nolint:gosec
+		InsecureSkipVerify: config.TLSInsecureSkipVerify,
 		MinVersion:         tls.VersionTLS12,
 	}
 
