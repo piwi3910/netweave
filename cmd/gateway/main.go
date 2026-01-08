@@ -534,7 +534,7 @@ func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 
 	for _, path := range specPaths {
 		// G304: path is from hardcoded list above, not user input - safe from path traversal
-		data, err := os.ReadFile(path) //nolint:gosec // G304: Documented exception - hardcoded paths only
+		data, err := os.ReadFile(path)
 		if err == nil {
 			logger.Debug("loaded OpenAPI spec",
 				zap.String("path", path),

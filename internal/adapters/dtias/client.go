@@ -91,7 +91,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	// Production deployments should always use proper certificate validation (InsecureSkipVerify=false)
 	tlsConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS13,
-		InsecureSkipVerify: cfg.InsecureSkipVerify, //nolint:gosec // G402: Documented exception - configurable for dev/test
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
 	}
 
 	// Load client certificate for mTLS if provided

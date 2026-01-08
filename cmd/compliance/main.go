@@ -175,7 +175,7 @@ func updateReadmeFile(path string, results []compliance.Result, logger *zap.Logg
 	}
 
 	// Read current README
-	content, err := os.ReadFile(path) //nolint:gosec // G304: Documented exception - path validated to reject ".."
+	content, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read README: %w", err)
 	}
