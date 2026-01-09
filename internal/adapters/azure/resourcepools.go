@@ -87,7 +87,7 @@ func (a *AzureAdapter) listRGPools(ctx context.Context, filter *adapter.Filter) 
 }
 
 // listAZPools lists Availability Zones as resource pools.
-func (a *AzureAdapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *AzureAdapter) listAZPools(_ context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	// Azure has 3 availability zones (1, 2, 3) in supported regions
 	// Not all regions support availability zones, but we'll list them anyway
 	zones := []string{"1", "2", "3"}
@@ -178,7 +178,7 @@ func (a *AzureAdapter) getAZPool(ctx context.Context, id string) (*adapter.Resou
 // CreateResourcePool creates a new resource pool.
 // In "rg" mode, this creates a new Resource Group.
 // In "az" mode, this operation is not supported (AZs are Azure-managed).
-func (a *AzureAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *AzureAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "CreateResourcePool", start, err) }()
 
@@ -195,7 +195,7 @@ func (a *AzureAdapter) CreateResourcePool(ctx context.Context, pool *adapter.Res
 }
 
 // UpdateResourcePool updates an existing resource pool.
-func (a *AzureAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *AzureAdapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "UpdateResourcePool", start, err) }()
 
@@ -211,7 +211,7 @@ func (a *AzureAdapter) UpdateResourcePool(ctx context.Context, id string, pool *
 }
 
 // DeleteResourcePool deletes a resource pool by ID.
-func (a *AzureAdapter) DeleteResourcePool(ctx context.Context, id string) (err error) {
+func (a *AzureAdapter) DeleteResourcePool(_ context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "DeleteResourcePool", start, err) }()
 

@@ -97,7 +97,7 @@ func (a *AzureAdapter) GetResource(ctx context.Context, id string) (resource *ad
 }
 
 // CreateResource creates a new resource (Azure VM).
-func (a *AzureAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
+func (a *AzureAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "CreateResource", start, err) }()
 
