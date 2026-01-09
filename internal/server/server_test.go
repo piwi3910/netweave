@@ -118,6 +118,40 @@ func (m *mockStore) Ping(ctx context.Context) error {
 	return nil
 }
 
+// mockAuthStore implements AuthStore interface for testing.
+type mockAuthStore struct {
+	pingErr error
+}
+
+func (m *mockAuthStore) Ping(ctx context.Context) error {
+	return m.pingErr
+}
+
+func (m *mockAuthStore) Close() error {
+	return nil
+}
+
+// mockAuthMiddleware implements AuthMiddleware interface for testing.
+type mockAuthMiddleware struct{}
+
+func (m *mockAuthMiddleware) AuthenticationMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+	}
+}
+
+func (m *mockAuthMiddleware) RequirePermission(_ string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+	}
+}
+
+func (m *mockAuthMiddleware) RequirePlatformAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+	}
+}
+
 func TestNew(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -361,4 +395,83 @@ func TestServer_ShutdownWithContext(t *testing.T) {
 	err := srv.ShutdownWithContext(ctx)
 	// Should not error even if server wasn't started
 	assert.NoError(t, err)
+}
+
+func TestServer_SetupAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name         string
+		authStore    AuthStore
+		authMw       AuthMiddleware
+		wantAuthNil  bool
+		wantStoreNil bool
+	}{
+		{
+			name:         "successful setup",
+			authStore:    &mockAuthStore{},
+			authMw:       &mockAuthMiddleware{},
+			wantAuthNil:  false,
+			wantStoreNil: false,
+		},
+		{
+			name:         "with ping error store",
+			authStore:    &mockAuthStore{pingErr: errors.New("connection refused")},
+			authMw:       &mockAuthMiddleware{},
+			wantAuthNil:  false,
+			wantStoreNil: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Server: config.ServerConfig{
+					Port:    8080,
+					GinMode: gin.TestMode,
+				},
+			}
+			srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+			// Call SetupAuth
+			srv.SetupAuth(tt.authStore, tt.authMw)
+
+			// Verify auth store is set
+			if tt.wantStoreNil {
+				assert.Nil(t, srv.AuthStore())
+			} else {
+				assert.NotNil(t, srv.AuthStore())
+				assert.Equal(t, tt.authStore, srv.AuthStore())
+			}
+
+			// Verify auth middleware is set
+			if tt.wantAuthNil {
+				assert.Nil(t, srv.authMw)
+			} else {
+				assert.NotNil(t, srv.authMw)
+			}
+		})
+	}
+}
+
+func TestServer_AuthStore(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+	// Before setup, should be nil
+	assert.Nil(t, srv.AuthStore())
+
+	// After setup
+	authStore := &mockAuthStore{}
+	srv.SetupAuth(authStore, &mockAuthMiddleware{})
+
+	assert.NotNil(t, srv.AuthStore())
+	assert.Equal(t, authStore, srv.AuthStore())
 }
