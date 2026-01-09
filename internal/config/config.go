@@ -151,6 +151,21 @@ type RedisConfig struct {
 	// The file should contain only the password, whitespace will be trimmed
 	PasswordFile string `mapstructure:"password_file"`
 
+	// SentinelPassword for Sentinel authentication (optional, DEPRECATED: use SentinelPasswordEnvVar or SentinelPasswordFile)
+	// WARNING: Storing passwords in config files is insecure. Use environment variables or secret files instead.
+	// Best practice: Use different passwords for Sentinel and Redis.
+	SentinelPassword string `mapstructure:"sentinel_password"`
+
+	// SentinelPasswordEnvVar specifies the environment variable name containing the Sentinel password
+	// Example: "SENTINEL_PASSWORD"
+	// This takes priority over SentinelPasswordFile if both are set
+	SentinelPasswordEnvVar string `mapstructure:"sentinel_password_env_var"`
+
+	// SentinelPasswordFile specifies the path to a file containing the Sentinel password
+	// Example: "/run/secrets/sentinel-password" (Kubernetes Secret mount)
+	// The file should contain only the password, whitespace will be trimmed
+	SentinelPasswordFile string `mapstructure:"sentinel_password_file"`
+
 	// DB is the Redis database number (0-15, only for standalone/sentinel)
 	DB int `mapstructure:"db"`
 
@@ -213,6 +228,36 @@ func (c *RedisConfig) GetPassword() (string, error) {
 
 	// Priority 3: Direct password (DEPRECATED)
 	return c.Password, nil
+}
+
+// GetSentinelPassword retrieves the Sentinel password from the configured source.
+// Priority order:
+//  1. Environment variable (if SentinelPasswordEnvVar is set)
+//  2. File (if SentinelPasswordFile is set)
+//  3. Direct password (DEPRECATED, for backward compatibility)
+//
+// Returns empty string if no password is configured (Sentinel without authentication).
+func (c *RedisConfig) GetSentinelPassword() (string, error) {
+	// Priority 1: Environment variable
+	if c.SentinelPasswordEnvVar != "" {
+		if pwd := os.Getenv(c.SentinelPasswordEnvVar); pwd != "" {
+			return pwd, nil
+		}
+		// Env var specified but not set - this is an error
+		return "", fmt.Errorf("environment variable %s is not set", c.SentinelPasswordEnvVar)
+	}
+
+	// Priority 2: Password file
+	if c.SentinelPasswordFile != "" {
+		data, err := os.ReadFile(c.SentinelPasswordFile)
+		if err != nil {
+			return "", fmt.Errorf("failed to read sentinel password file %s: %w", c.SentinelPasswordFile, err)
+		}
+		return strings.TrimSpace(string(data)), nil
+	}
+
+	// Priority 3: Direct password (DEPRECATED)
+	return c.SentinelPassword, nil
 }
 
 // KubernetesConfig contains Kubernetes client configuration.

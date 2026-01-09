@@ -915,3 +915,107 @@ func TestRedisConfig_GetPassword(t *testing.T) {
 		})
 	}
 }
+
+// TestRedisConfig_GetSentinelPassword tests the GetSentinelPassword method.
+func TestRedisConfig_GetSentinelPassword(t *testing.T) {
+	tests := []struct {
+		name        string
+		cfg         config.RedisConfig
+		envVars     map[string]string
+		setupFile   func(*testing.T) string
+		wantPwd     string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "environment variable takes priority",
+			cfg: config.RedisConfig{
+				SentinelPasswordEnvVar: "SENTINEL_PASSWORD",
+				SentinelPasswordFile:   "/some/file",
+				SentinelPassword:       "direct-password",
+			},
+			envVars: map[string]string{
+				"SENTINEL_PASSWORD": "env-sentinel-password",
+			},
+			wantPwd: "env-sentinel-password",
+			wantErr: false,
+		},
+		{
+			name: "password file used when env var not set",
+			cfg: config.RedisConfig{
+				SentinelPasswordFile: "", // Will be set by setupFile
+				SentinelPassword:     "direct-password",
+			},
+			setupFile: func(t *testing.T) string {
+				t.Helper()
+				tmpFile := filepath.Join(t.TempDir(), "sentinel-password")
+				err := os.WriteFile(tmpFile, []byte("file-sentinel-password\n"), 0600)
+				require.NoError(t, err)
+				return tmpFile
+			},
+			wantPwd: "file-sentinel-password",
+			wantErr: false,
+		},
+		{
+			name: "direct password used as fallback",
+			cfg: config.RedisConfig{
+				SentinelPassword: "direct-sentinel-password",
+			},
+			wantPwd: "direct-sentinel-password",
+			wantErr: false,
+		},
+		{
+			name: "empty password when none configured",
+			cfg:  config.RedisConfig{
+				// All password fields empty
+			},
+			wantPwd: "",
+			wantErr: false,
+		},
+		{
+			name: "error when env var specified but not set",
+			cfg: config.RedisConfig{
+				SentinelPasswordEnvVar: "NONEXISTENT_SENTINEL_VAR",
+			},
+			wantErr:     true,
+			errContains: "environment variable NONEXISTENT_SENTINEL_VAR is not set",
+		},
+		{
+			name: "error when password file does not exist",
+			cfg: config.RedisConfig{
+				SentinelPasswordFile: "/nonexistent/sentinel-password",
+			},
+			wantErr:     true,
+			errContains: "failed to read sentinel password file",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set environment variables
+			for key, value := range tt.envVars {
+				t.Setenv(key, value)
+			}
+
+			// Setup file if needed
+			cfg := tt.cfg
+			if tt.setupFile != nil {
+				cfg.SentinelPasswordFile = tt.setupFile(t)
+			}
+
+			// Call GetSentinelPassword
+			password, err := cfg.GetSentinelPassword()
+
+			// Verify results
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantPwd, password)
+			}
+		})
+	}
+}
