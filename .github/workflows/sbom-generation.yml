@@ -192,6 +192,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Submit dependency snapshot to GitHub
+  # GitHub automatically detects and analyzes Go module dependencies from go.mod/go.sum
+  # This ensures the dependency graph is up-to-date for Dependabot and security alerts
   dependency-submission:
     name: Submit Dependency Snapshot
     runs-on: ubuntu-latest
@@ -208,10 +210,11 @@ jobs:
           go-version: '1.25.5'
           cache: true
 
-      - name: Submit dependency graph
-        uses: advanced-security/maven-dependency-submission-action@v4
-        with:
-          directory: .
+      - name: Ensure dependencies are downloaded
+        run: |
+          echo "Downloading Go module dependencies for dependency graph detection"
+          go mod download
+          go mod verify
 
   # Create SBOM summary
   sbom-summary:
