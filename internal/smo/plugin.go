@@ -59,7 +59,7 @@ type Plugin interface {
 	GetWorkflowStatus(ctx context.Context, executionID string) (*WorkflowStatus, error)
 
 	// CancelWorkflow cancels a running workflow execution.
-	// Returns an error if the workflow cannot be cancelled (already completed, not found, etc.).
+	// Returns an error if the workflow cannot be canceled (already completed, not found, etc.).
 	CancelWorkflow(ctx context.Context, executionID string) error
 
 	// RegisterServiceModel registers a service model with the SMO.

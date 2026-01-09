@@ -92,7 +92,9 @@ func NewWebhookNotifier(config *NotifierConfig, deliveryTracker DeliveryTracker,
 
 	// Log security warning if InsecureSkipVerify is enabled
 	if config.InsecureSkipVerify {
-		logger.Warn("SECURITY WARNING: TLS certificate verification is disabled for webhook delivery. This should ONLY be used in development/testing environments. Production deployments MUST use proper certificate validation to prevent man-in-the-middle attacks.",
+		logger.Warn("SECURITY WARNING: TLS certificate verification is disabled for webhook delivery. "+
+			"This should ONLY be used in development/testing environments. "+
+			"Production deployments MUST use proper certificate validation to prevent man-in-the-middle attacks.",
 			zap.Bool("insecure_skip_verify", true))
 	}
 
@@ -358,7 +360,12 @@ func (n *WebhookNotifier) sendWebhook(ctx context.Context, callbackURL string, n
 }
 
 // executeWithCircuitBreaker executes a webhook delivery with circuit breaker protection.
-func (n *WebhookNotifier) executeWithCircuitBreaker(ctx context.Context, cb *gobreaker.CircuitBreaker, callbackURL string, notification *models.Notification) error {
+func (n *WebhookNotifier) executeWithCircuitBreaker(
+	ctx context.Context,
+	cb *gobreaker.CircuitBreaker,
+	callbackURL string,
+	notification *models.Notification,
+) error {
 	_, err := cb.Execute(func() (interface{}, error) {
 		return nil, n.sendWebhook(ctx, callbackURL, notification)
 	})
