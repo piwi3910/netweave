@@ -117,7 +117,7 @@ func TestNew(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotNil(t, adp)
 				if adp != nil {
-					defer adp.Close()
+					defer func() { _ = adp.Close() }()
 				}
 			}
 		})

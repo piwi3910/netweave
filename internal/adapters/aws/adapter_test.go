@@ -97,7 +97,7 @@ func TestNew(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotNil(t, adp)
 				if adp != nil {
-					defer adp.Close()
+					defer func() { _ = adp.Close() }()
 				}
 			}
 		})
@@ -115,7 +115,7 @@ func TestNewWithDefaults(t *testing.T) {
 	adp, err := New(config)
 	require.NoError(t, err)
 	require.NotNil(t, adp)
-	defer adp.Close()
+	defer func() { _ = adp.Close() }()
 
 	// Check defaults
 	assert.Equal(t, "test-ocloud", adp.oCloudID)
@@ -336,7 +336,7 @@ func TestConfigValidation(t *testing.T) {
 		adp, err := New(config)
 		require.NoError(t, err)
 		require.NotNil(t, adp)
-		defer adp.Close()
+		defer func() { _ = adp.Close() }()
 
 		assert.Equal(t, "dm-test", adp.deploymentManagerID)
 		assert.Equal(t, "asg", adp.poolMode)
@@ -352,7 +352,7 @@ func TestConfigValidation(t *testing.T) {
 		adp, err := New(config)
 		require.NoError(t, err)
 		require.NotNil(t, adp)
-		defer adp.Close()
+		defer func() { _ = adp.Close() }()
 
 		// Check defaults are applied
 		assert.Equal(t, "ocloud-aws-us-west-2", adp.deploymentManagerID)
