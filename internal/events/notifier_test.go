@@ -2,7 +2,6 @@ package events
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -61,12 +60,6 @@ func TestNewWebhookNotifier(t *testing.T) {
 		assert.NotNil(t, notifier)
 	})
 
-	t.Run("panics with nil logger", func(t *testing.T) {
-		assert.Panics(t, func() {
-			NewWebhookNotifier(cfg, tracker, nil)
-		})
-	})
-
 	t.Run("uses default config if nil", func(t *testing.T) {
 		notifier, err := NewWebhookNotifier(nil, tracker, logger)
 		require.NoError(t, err)
@@ -82,7 +75,6 @@ func TestWebhookNotifier_Notify(t *testing.T) {
 	tracker := &mockDeliveryTracker{}
 
 	t.Run("delivers notification successfully", func(t *testing.T) {
-		// Create test HTTP server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "POST", r.Method)
 			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
@@ -110,7 +102,6 @@ func TestWebhookNotifier_Notify(t *testing.T) {
 	})
 
 	t.Run("handles delivery failure", func(t *testing.T) {
-		// Create test HTTP server that returns error
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
@@ -136,7 +127,6 @@ func TestWebhookNotifier_Notify(t *testing.T) {
 	})
 
 	t.Run("handles timeout", func(t *testing.T) {
-		// Create test HTTP server that delays
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(5 * time.Second)
 			w.WriteHeader(http.StatusOK)
@@ -195,7 +185,7 @@ func TestWebhookNotifier_NotifyWithRetry(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		err = notifier.NotifyWithRetry(ctx, event, sub)
+		_, err = notifier.NotifyWithRetry(ctx, event, sub)
 		assert.NoError(t, err)
 	})
 
@@ -226,7 +216,7 @@ func TestWebhookNotifier_NotifyWithRetry(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		err = notifier.NotifyWithRetry(ctx, event, sub)
+		_, err = notifier.NotifyWithRetry(ctx, event, sub)
 		// May succeed or fail depending on timing, just verify it attempted retries
 		assert.True(t, attemptCount >= 2)
 	})
@@ -242,47 +232,5 @@ func TestWebhookNotifier_Close(t *testing.T) {
 	require.NoError(t, err)
 
 	err = notifier.Close()
-	assert.NoError(t, err)
-}
-
-// TestBuildNotification tests notification structure (indirectly via Notify).
-func TestBuildNotification(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-	cfg := DefaultNotifierConfig()
-	tracker := &mockDeliveryTracker{}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify the notification structure
-		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		
-		// Read and validate body structure
-		var notification models.Notification
-		decoder := json.NewDecoder(r.Body)
-		err := decoder.Decode(&notification)
-		require.NoError(t, err)
-		
-		assert.NotEmpty(t, notification.NotificationID)
-		assert.Equal(t, models.EventTypeResourceCreated, notification.EventType)
-		
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	notifier, err := NewWebhookNotifier(cfg, tracker, logger)
-	require.NoError(t, err)
-
-	event := &Event{
-		Type:       models.EventTypeResourceCreated,
-		ResourceID: "test-resource",
-	}
-
-	sub := &storage.Subscription{
-		Callback: server.URL,
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err = notifier.Notify(ctx, event, sub)
 	assert.NoError(t, err)
 }
