@@ -210,6 +210,35 @@ paths:
                 total: 1
         '500':
           $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create a resource pool
+      description: Creates a new resource pool in the O-Cloud infrastructure.
+      operationId: createResourcePool
+      tags:
+        - Resource Pools
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourcePool'
+            example:
+              name: "High Memory Compute Pool"
+              description: "Pool of high-memory compute nodes"
+              location: "us-east-1"
+              oCloudId: "ocloud-001"
+              globalLocationId: "geo:37.7749,-122.4194"
+      responses:
+        '201':
+          description: Resource pool created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePool'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /resourcePools/{resourcePoolId}:
     get:
@@ -227,6 +256,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourcePool'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      summary: Update a resource pool
+      description: Updates an existing resource pool by its ID.
+      operationId: updateResourcePool
+      tags:
+        - Resource Pools
+      parameters:
+        - $ref: '#/components/parameters/ResourcePoolId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourcePool'
+            example:
+              description: "Updated pool description"
+              location: "us-west-2"
+      responses:
+        '200':
+          description: Resource pool updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePool'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete a resource pool
+      description: Deletes a resource pool by its ID.
+      operationId: deleteResourcePool
+      tags:
+        - Resource Pools
+      parameters:
+        - $ref: '#/components/parameters/ResourcePoolId'
+      responses:
+        '204':
+          description: Resource pool deleted successfully
         '404':
           $ref: '#/components/responses/NotFound'
         '500':

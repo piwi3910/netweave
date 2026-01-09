@@ -49,7 +49,10 @@ func (s *Server) setupRoutes() {
 		resourcePools := v1.Group("/resourcePools")
 		{
 			resourcePools.GET("", s.handleListResourcePools)
+			resourcePools.POST("", s.handleCreateResourcePool)
 			resourcePools.GET("/:resourcePoolId", s.handleGetResourcePool)
+			resourcePools.PUT("/:resourcePoolId", s.handleUpdateResourcePool)
+			resourcePools.DELETE("/:resourcePoolId", s.handleDeleteResourcePool)
 			resourcePools.GET("/:resourcePoolId/resources", s.handleListResourcesInPool)
 		}
 
@@ -424,6 +427,111 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 		"resources": resources,
 		"total":     len(resources),
 	})
+}
+
+// handleCreateResourcePool creates a new resource pool.
+// POST /o2ims/v1/resourcePools.
+func (s *Server) handleCreateResourcePool(c *gin.Context) {
+	s.logger.Info("creating resource pool")
+
+	var req adapter.ResourcePool
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Validate required fields
+	if req.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Resource pool name is required",
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Generate resource pool ID if not provided
+	if req.ResourcePoolID == "" {
+		req.ResourcePoolID = "pool-" + req.Name
+	}
+
+	// Create resource pool via adapter
+	created, err := s.adapter.CreateResourcePool(c.Request.Context(), &req)
+	if err != nil {
+		s.logger.Error("failed to create resource pool", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to create resource pool",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("resource pool created",
+		zap.String("resource_pool_id", created.ResourcePoolID),
+		zap.String("name", created.Name))
+
+	c.JSON(http.StatusCreated, created)
+}
+
+// handleUpdateResourcePool updates an existing resource pool.
+// PUT /o2ims/v1/resourcePools/:resourcePoolId.
+func (s *Server) handleUpdateResourcePool(c *gin.Context) {
+	resourcePoolID := c.Param("resourcePoolId")
+	s.logger.Info("updating resource pool", zap.String("resource_pool_id", resourcePoolID))
+
+	var req adapter.ResourcePool
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Update resource pool via adapter
+	updated, err := s.adapter.UpdateResourcePool(c.Request.Context(), resourcePoolID, &req)
+	if err != nil {
+		s.logger.Error("failed to update resource pool", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to update resource pool",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("resource pool updated",
+		zap.String("resource_pool_id", updated.ResourcePoolID),
+		zap.String("name", updated.Name))
+
+	c.JSON(http.StatusOK, updated)
+}
+
+// handleDeleteResourcePool deletes a resource pool.
+// DELETE /o2ims/v1/resourcePools/:resourcePoolId.
+func (s *Server) handleDeleteResourcePool(c *gin.Context) {
+	resourcePoolID := c.Param("resourcePoolId")
+	s.logger.Info("deleting resource pool", zap.String("resource_pool_id", resourcePoolID))
+
+	// Delete resource pool via adapter
+	if err := s.adapter.DeleteResourcePool(c.Request.Context(), resourcePoolID); err != nil {
+		s.logger.Error("failed to delete resource pool", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to delete resource pool",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("resource pool deleted", zap.String("resource_pool_id", resourcePoolID))
+	c.Status(http.StatusNoContent)
 }
 
 // Resource handlers
