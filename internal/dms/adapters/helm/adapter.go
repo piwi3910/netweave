@@ -716,11 +716,11 @@ func (h *HelmAdapter) GetDeploymentLogs(ctx context.Context, id string, opts *ad
 
 		// Copy logs to buffer
 		if _, err := io.Copy(&logBuffer, logs); err != nil {
-			logs.Close()
+			_ = logs.Close()
 			logBuffer.WriteString(fmt.Sprintf("Error reading logs: %v\n", err))
 			continue
 		}
-		logs.Close()
+		_ = logs.Close()
 	}
 
 	return logBuffer.Bytes(), nil
