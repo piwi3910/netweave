@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -22,6 +24,7 @@ import (
 // mockResourceAdapter implements adapter.Adapter for resource CRUD tests.
 type mockResourceAdapter struct {
 	mockAdapter
+	mu        sync.Mutex
 	resources map[string]*adapter.Resource
 }
 
@@ -40,6 +43,9 @@ func newMockResourceAdapter() *mockResourceAdapter {
 }
 
 func (m *mockResourceAdapter) GetResource(_ context.Context, id string) (*adapter.Resource, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if res, ok := m.resources[id]; ok {
 		return res, nil
 	}
@@ -47,11 +53,17 @@ func (m *mockResourceAdapter) GetResource(_ context.Context, id string) (*adapte
 }
 
 func (m *mockResourceAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.resources[resource.ResourceID] = resource
 	return resource, nil
 }
 
 func (m *mockResourceAdapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if _, ok := m.resources[id]; !ok {
 		return nil, errors.New("resource not found")
 	}
@@ -304,7 +316,7 @@ func TestResourceCRUD(t *testing.T) {
 	})
 
 	t.Run("POST /resources - description too long", func(t *testing.T) {
-		longDesc := string(make([]byte, 1001)) // Exceeds 1000 char limit
+		longDesc := strings.Repeat("a", 1001) // Exceeds 1000 char limit
 		resource := adapter.Resource{
 			ResourceTypeID: "machine",
 			ResourcePoolID: "pool-1",

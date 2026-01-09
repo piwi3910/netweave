@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -434,7 +435,7 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 func validateResourceFields(resource *adapter.Resource) error {
 	// Validate GlobalAssetID format (URN) if provided
 	if resource.GlobalAssetID != "" {
-		if len(resource.GlobalAssetID) < 4 || resource.GlobalAssetID[:4] != "urn:" {
+		if !strings.HasPrefix(resource.GlobalAssetID, "urn:") {
 			return errors.New("globalAssetId must be in URN format (e.g., urn:o-ran:resource:node-001)")
 		}
 		if len(resource.GlobalAssetID) > 256 {
@@ -640,7 +641,7 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 		s.logger.Error("failed to update resource", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
-			"message": "Failed to update resource: " + err.Error(),
+			"message": "Failed to update resource",
 			"code":    http.StatusInternalServerError,
 		})
 		return
