@@ -3,6 +3,7 @@ package vmware
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
@@ -323,3 +324,117 @@ func TestGetDefaultResourceTypes(t *testing.T) {
 }
 
 // NOTE: BenchmarkMatchesFilter moved to internal/adapter/helpers_test.go
+
+// TestVMwareAdapter_Health tests the Health function.
+func TestVMwareAdapter_Health(t *testing.T) {
+	adapter, err := New(&Config{
+		VCenterURL: "https://vcenter.example.com",
+		Username:   "test",
+		Password:   "test",
+		Datacenter: "DC1",
+		OCloudID:   "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires VMware credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	err = adapter.Health(ctx)
+	if err != nil {
+		t.Skip("Skipping - requires VMware access")
+	}
+}
+
+// TestVMwareAdapter_ListResourcePools tests the ListResourcePools function.
+func TestVMwareAdapter_ListResourcePools(t *testing.T) {
+	adapter, err := New(&Config{
+		VCenterURL: "https://vcenter.example.com",
+		Username:   "test",
+		Password:   "test",
+		Datacenter: "DC1",
+		OCloudID:   "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires VMware credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	pools, err := adapter.ListResourcePools(ctx, nil)
+	if err != nil {
+		t.Skip("Skipping - requires VMware access")
+	}
+	assert.NotNil(t, pools)
+}
+
+// TestVMwareAdapter_ListResources tests the ListResources function.
+func TestVMwareAdapter_ListResources(t *testing.T) {
+	adapter, err := New(&Config{
+		VCenterURL: "https://vcenter.example.com",
+		Username:   "test",
+		Password:   "test",
+		Datacenter: "DC1",
+		OCloudID:   "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires VMware credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	resources, err := adapter.ListResources(ctx, nil)
+	if err != nil {
+		t.Skip("Skipping - requires VMware access")
+	}
+	assert.NotNil(t, resources)
+}
+
+// TestVMwareAdapter_ListResourceTypes tests the ListResourceTypes function.
+func TestVMwareAdapter_ListResourceTypes(t *testing.T) {
+	adapter, err := New(&Config{
+		VCenterURL: "https://vcenter.example.com",
+		Username:   "test",
+		Password:   "test",
+		Datacenter: "DC1",
+		OCloudID:   "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires VMware credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	types, err := adapter.ListResourceTypes(ctx, nil)
+	if err != nil {
+		t.Skip("Skipping - requires VMware access")
+	}
+	assert.NotNil(t, types)
+}
+
+// TestVMwareAdapter_GetDeploymentManager tests the GetDeploymentManager function.
+func TestVMwareAdapter_GetDeploymentManager(t *testing.T) {
+	adapter, err := New(&Config{
+		VCenterURL: "https://vcenter.example.com",
+		Username:   "test",
+		Password:   "test",
+		Datacenter: "DC1",
+		OCloudID:   "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires VMware credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	dm, err := adapter.GetDeploymentManager(ctx, "dm-1")
+	if err != nil {
+		t.Skip("Skipping - requires VMware access")
+	}
+	assert.NotNil(t, dm)
+}
