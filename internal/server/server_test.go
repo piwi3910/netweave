@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,8 +21,6 @@ type mockAdapter struct {
 	healthErr error
 }
 
-var errNotFound = errors.New("not found")
-
 func (m *mockAdapter) Name() string    { return "mock" }
 func (m *mockAdapter) Version() string { return "1.0.0" }
 func (m *mockAdapter) Capabilities() []adapter.Capability {
@@ -39,7 +36,7 @@ func (m *mockAdapter) ListResourcePools(ctx context.Context, filter *adapter.Fil
 	return nil, nil
 }
 func (m *mockAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
-	return nil, errNotFound
+	return nil, adapter.ErrResourcePoolNotFound
 }
 func (m *mockAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
 	return pool, nil
@@ -54,9 +51,13 @@ func (m *mockAdapter) ListResources(ctx context.Context, filter *adapter.Filter)
 	return nil, nil
 }
 func (m *mockAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
-	return nil, errNotFound
+	return nil, adapter.ErrResourceNotFound
 }
 func (m *mockAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+	return resource, nil
+}
+func (m *mockAdapter) UpdateResource(ctx context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+	resource.ResourceID = id
 	return resource, nil
 }
 func (m *mockAdapter) DeleteResource(ctx context.Context, id string) error {
@@ -66,16 +67,16 @@ func (m *mockAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Fil
 	return nil, nil
 }
 func (m *mockAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
-	return nil, errNotFound
+	return nil, adapter.ErrResourceNotFound
 }
 func (m *mockAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
-	return nil, errNotFound
+	return nil, adapter.ErrResourceNotFound
 }
 func (m *mockAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
 	return sub, nil
 }
 func (m *mockAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
-	return nil, errNotFound
+	return nil, adapter.ErrResourceNotFound
 }
 func (m *mockAdapter) DeleteSubscription(ctx context.Context, id string) error {
 	return nil
