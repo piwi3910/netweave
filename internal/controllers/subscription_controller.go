@@ -356,7 +356,6 @@ func (c *SubscriptionController) handleNamespaceDelete(obj interface{}) {
 
 // processNodeEvent finds matching subscriptions and queues webhook notifications.
 func (c *SubscriptionController) processNodeEvent(ctx context.Context, node *corev1.Node, eventType EventType) {
-
 	// Track event processing
 	EventsProcessedTotal.WithLabelValues("k8s-node", string(eventType)).Inc()
 
@@ -406,7 +405,6 @@ func (c *SubscriptionController) processNodeEvent(ctx context.Context, node *cor
 
 // processNamespaceEvent finds matching subscriptions and queues webhook notifications.
 func (c *SubscriptionController) processNamespaceEvent(ctx context.Context, ns *corev1.Namespace, eventType EventType) {
-
 	// Track event processing
 	EventsProcessedTotal.WithLabelValues("k8s-namespace", string(eventType)).Inc()
 
