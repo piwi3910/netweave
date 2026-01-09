@@ -223,12 +223,16 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*applicationC
 	if cfg.MultiTenancy.Enabled {
 		authStore, authMw, err := initializeAuth(cfg, logger)
 		if err != nil {
-			logger.Error("failed to initialize auth", zap.Error(err))
+			// Log without exposing sensitive credential details from error chain.
+			logger.Error("failed to initialize authentication subsystem")
 			return nil, fmt.Errorf("failed to initialize auth: %w", err)
 		}
 
 		components.authStore = authStore
 		components.authMw = authMw
+
+		// Register auth store health checks.
+		srv.SetupAuth(authStore, authMw)
 
 		// Wire up auth routes.
 		srv.SetupAuthRoutes(authStore, authMw)
@@ -645,8 +649,26 @@ func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 	return nil, fmt.Errorf("OpenAPI specification not found in any of the expected locations")
 }
 
-// initializeAuth creates and initializes the auth store and middleware.
-// This is only called when multi-tenancy is enabled.
+// initializeAuth creates and initializes the authentication store and middleware.
+//
+// This function performs the following initialization steps:
+//  1. Retrieves Redis credentials from environment variables, files, or config
+//  2. Builds Redis configuration with support for standalone and Sentinel modes
+//  3. Creates the auth Redis store and verifies connectivity via ping
+//  4. Initializes default system roles if configured (platform-admin, tenant-admin, etc.)
+//  5. Creates authentication middleware with configured skip paths and mTLS requirements
+//
+// Parameters:
+//   - cfg: Application configuration containing multi-tenancy and Redis settings
+//   - logger: Structured logger for logging initialization progress and errors
+//
+// Returns:
+//   - authStore: Initialized Redis store for auth data (tenants, users, roles, audit)
+//   - authMw: Configured authentication middleware for request validation
+//   - err: Any error encountered during initialization
+//
+// Errors are returned without exposing sensitive credential details in messages.
+// This function is only called when cfg.MultiTenancy.Enabled is true.
 func initializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *auth.Middleware, error) {
 	// Get Redis password (reuse the same logic as main storage).
 	password, sentinelPassword, err := getRedisPasswords(cfg, logger)
