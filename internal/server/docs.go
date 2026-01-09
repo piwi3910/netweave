@@ -13,19 +13,19 @@ import (
 const (
 	swaggerUIVersion = "5.11.0"
 
-	// CDN URLs for Swagger UI assets
+	// CDN URLs for Swagger UI assets.
 	swaggerUICSSURL    = "https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css"
 	swaggerUIBundleURL = "https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"
 	swaggerUIPresetURL = "https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"
 
 	// SRI hashes for CDN resources (sha384)
-	// Generated using: curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A
+	// Generated using: curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A.
 	swaggerUICSSSRI    = "sha384-+yyzNgM3K92sROwsXxYCxaiLWxWJ0G+v/9A+qIZ2rgefKgkdcmJI+L601cqPD/Ut"
 	swaggerUIBundleSRI = "sha384-qn5tagrAjZi8cSmvZ+k3zk4+eDEEUcP9myuR2J6V+/H6rne++v6ChO7EeHAEzqxQ"
 	swaggerUIPresetSRI = "sha384-SiLF+uYBf9lVQW98s/XUYP14enXJN31bn0zu3BS1WFqr5hvnMF+w132WkE/v0uJw"
 
 	// Content Security Policy for Swagger UI page
-	// Allows only specific CDN sources and inline styles/scripts needed by Swagger UI
+	// Allows only specific CDN sources and inline styles/scripts needed by Swagger UI.
 	swaggerUICSP = "default-src 'self'; " +
 		"script-src 'self' 'unsafe-inline' https://unpkg.com; " +
 		"style-src 'self' 'unsafe-inline' https://unpkg.com; " +
@@ -87,7 +87,7 @@ func (s *Server) handleSwaggerUIRedirect(c *gin.Context) {
 // Security features:
 // - Pinned CDN versions to prevent supply chain attacks
 // - Content Security Policy header to restrict resource loading
-// - crossorigin="anonymous" for CORS compliance
+// - crossorigin="anonymous" for CORS compliance.
 func (s *Server) handleSwaggerUI(c *gin.Context) {
 	// Build Swagger UI HTML with security attributes
 	html := `<!DOCTYPE html>

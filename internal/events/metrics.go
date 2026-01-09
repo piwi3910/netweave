@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	// Event generation metrics
+	// Event generation metrics.
 	eventsGeneratedTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "o2ims",
@@ -17,7 +17,7 @@ var (
 		[]string{"event_type", "resource_type"},
 	)
 
-	// Event queue metrics
+	// Event queue metrics.
 	eventsQueuedTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "o2ims",
@@ -37,7 +37,7 @@ var (
 		},
 	)
 
-	// Notification delivery metrics
+	// Notification delivery metrics.
 	notificationsDeliveredTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "o2ims",
@@ -81,7 +81,7 @@ var (
 		[]string{"subscription_id", "http_status"},
 	)
 
-	// Circuit breaker metrics
+	// Circuit breaker metrics.
 	circuitBreakerState = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "o2ims",
@@ -92,7 +92,7 @@ var (
 		[]string{"callback_url"},
 	)
 
-	// Subscription filtering metrics
+	// Subscription filtering metrics.
 	subscriptionsMatchedTotal = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "o2ims",
@@ -104,7 +104,7 @@ var (
 		[]string{"event_type"},
 	)
 
-	// Worker metrics
+	// Worker metrics.
 	notificationWorkersActive = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "o2ims",
@@ -114,7 +114,7 @@ var (
 		},
 	)
 
-	// Failed deliveries
+	// Failed deliveries.
 	notificationFailedCurrent = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "o2ims",

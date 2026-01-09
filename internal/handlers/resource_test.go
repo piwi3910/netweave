@@ -16,7 +16,7 @@ import (
 	"github.com/piwi3910/netweave/internal/o2ims/models"
 )
 
-// mockResourceAdapter implements adapter.Adapter for testing
+// mockResourceAdapter implements adapter.Adapter for testing.
 type mockResourceAdapter struct {
 	resources         []*adapter.Resource
 	listErr           error

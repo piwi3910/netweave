@@ -281,7 +281,7 @@ func (a *VMwareAdapter) Name() string {
 // Version returns the vSphere API version this adapter supports.
 func (a *VMwareAdapter) Version() string {
 	if a.client != nil && a.client.Client != nil {
-		return a.client.Client.ServiceContent.About.Version
+		return a.client.ServiceContent.About.Version
 	}
 	return "vsphere-7.0"
 }

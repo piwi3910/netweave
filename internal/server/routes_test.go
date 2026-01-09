@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -245,5 +246,161 @@ func TestHandleListDeploymentManagers(t *testing.T) {
 
 		// May return error or success - just test that handler executes
 		assert.True(t, w.Code == http.StatusOK || w.Code == http.StatusInternalServerError)
+	})
+}
+
+// TestHandleCreateSubscription tests the handleCreateSubscription endpoint.
+func TestHandleCreateSubscription(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+	t.Run("creates subscription successfully", func(t *testing.T) {
+		body := `{"callback":"https://smo.example.com/notify","filter":{}}`
+		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/subscriptions", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+}
+
+// TestHandleGetSubscription tests the handleGetSubscription endpoint.
+func TestHandleGetSubscription(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+	t.Run("subscription not found", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/subscriptions/sub-123", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
+// TestHandleDeleteSubscription tests the handleDeleteSubscription endpoint.
+func TestHandleDeleteSubscription(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+	t.Run("deletes subscription", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/subscriptions/sub-123", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNoContent, w.Code)
+	})
+}
+
+// TestHandleGetResourcePool tests the handleGetResourcePool endpoint.
+func TestHandleGetResourcePool(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+	t.Run("resource pool not found", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourcePools/pool-123", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
+// TestHandleGetResource tests the handleGetResource endpoint.
+func TestHandleGetResource(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+	t.Run("resource not found", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources/res-123", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
+// TestHandleGetResourceType tests the handleGetResourceType endpoint.
+func TestHandleGetResourceType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+	t.Run("resource type not found", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes/type-123", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
+// TestHandleGetDeploymentManager tests the handleGetDeploymentManager endpoint.
+func TestHandleGetDeploymentManager(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+	t.Run("deployment manager not found", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/deploymentManagers/dm-123", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 }

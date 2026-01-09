@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	// Redis key prefixes for delivery tracking
+	// Redis key prefixes for delivery tracking.
 	deliveryKeyPrefix          = "delivery:"
 	deliveryEventIndexPrefix   = "deliveries:event:"
 	deliverySubscriptionPrefix = "deliveries:subscription:"

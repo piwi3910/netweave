@@ -33,7 +33,7 @@ func (a *VMwareAdapter) GetDeploymentManager(ctx context.Context, id string) (*a
 	// Get vCenter version info
 	version := "unknown"
 	if a.client != nil && a.client.Client != nil {
-		version = a.client.Client.ServiceContent.About.Version
+		version = a.client.ServiceContent.About.Version
 	}
 
 	// Construct deployment manager metadata

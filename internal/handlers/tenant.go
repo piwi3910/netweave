@@ -22,11 +22,11 @@ type TenantHandler struct {
 }
 
 var (
-	// tenantNameRegex validates tenant names: alphanumeric, spaces, hyphens, underscores
+	// tenantNameRegex validates tenant names: alphanumeric, spaces, hyphens, underscores.
 	tenantNameRegex = regexp.MustCompile(`^[a-zA-Z0-9\s\-_]+$`)
 )
 
-// validateTenantName validates tenant name constraints
+// validateTenantName validates tenant name constraints.
 func validateTenantName(name string) error {
 	trimmed := strings.TrimSpace(name)
 	if len(trimmed) == 0 || len(trimmed) > 255 {
@@ -38,7 +38,7 @@ func validateTenantName(name string) error {
 	return nil
 }
 
-// validateEmail validates email format using RFC 5322
+// validateEmail validates email format using RFC 5322.
 func validateEmail(email string) error {
 	if email == "" {
 		return nil // Email is optional
