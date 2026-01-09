@@ -91,7 +91,20 @@ PORT_FORWARD_PID=$!
 echo "${PORT_FORWARD_PID}" > /tmp/netweave-e2e-port-forward.pid
 
 # Wait for port-forward to be ready
-sleep 3
+echo "Waiting for port-forward to be ready..."
+MAX_RETRIES=30
+RETRY_COUNT=0
+while ! curl -s -f http://localhost:8080/healthz >/dev/null 2>&1; do
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    if [ ${RETRY_COUNT} -ge ${MAX_RETRIES} ]; then
+        echo "ERROR: Port-forward failed to become ready after ${MAX_RETRIES} attempts"
+        kubectl port-forward -n "${NAMESPACE}" svc/netweave 8080:8080 &
+        exit 1
+    fi
+    echo "Waiting for gateway to be ready (attempt ${RETRY_COUNT}/${MAX_RETRIES})..."
+    sleep 1
+done
+echo "Port-forward is ready!"
 
 echo "==> E2E test environment ready!"
 echo "Gateway URL: http://localhost:8080"

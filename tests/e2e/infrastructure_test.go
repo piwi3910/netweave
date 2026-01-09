@@ -29,9 +29,16 @@ func TestInfrastructureDiscovery(t *testing.T) {
 	defer fw.Cleanup()
 
 	t.Run("list resource pools", func(t *testing.T) {
-		resp, err := fw.APIClient.Get(fw.GatewayURL + "/o2ims/v1/resourcePools")
+		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, fw.GatewayURL+"/o2ims/v1/resourcePools", nil)
+		require.NoError(t, err)
+
+		resp, err := fw.APIClient.Do(req)
 		require.NoError(t, err, "Failed to send request")
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK")
 		assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
@@ -61,9 +68,16 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 	t.Run("get specific resource pool", func(t *testing.T) {
 		// First, get the list of pools to find a valid ID
-		resp, err := fw.APIClient.Get(fw.GatewayURL + "/o2ims/v1/resourcePools")
+		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, fw.GatewayURL+"/o2ims/v1/resourcePools", nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err := fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var pools []map[string]any
 		body, err := io.ReadAll(resp.Body)
@@ -75,13 +89,22 @@ func TestInfrastructureDiscovery(t *testing.T) {
 			t.Skip("No resource pools available for testing")
 		}
 
-		poolID := pools[0]["resourcePoolId"].(string)
+		poolID, ok := pools[0]["resourcePoolId"].(string)
+		require.True(t, ok, "resourcePoolId is not a string")
+		require.NotEmpty(t, poolID, "resourcePoolId is empty")
 
 		// Get specific pool
 		url := fmt.Sprintf("%s/o2ims/v1/resourcePools/%s", fw.GatewayURL, poolID)
-		resp, err = fw.APIClient.Get(url)
+		req, err = http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err = fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -103,9 +126,16 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 	t.Run("list resources in pool", func(t *testing.T) {
 		// Get a pool ID first
-		resp, err := fw.APIClient.Get(fw.GatewayURL + "/o2ims/v1/resourcePools")
+		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, fw.GatewayURL+"/o2ims/v1/resourcePools", nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err := fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var pools []map[string]any
 		body, err := io.ReadAll(resp.Body)
@@ -117,13 +147,22 @@ func TestInfrastructureDiscovery(t *testing.T) {
 			t.Skip("No resource pools available")
 		}
 
-		poolID := pools[0]["resourcePoolId"].(string)
+		poolID, ok := pools[0]["resourcePoolId"].(string)
+		require.True(t, ok, "resourcePoolId is not a string")
+		require.NotEmpty(t, poolID, "resourcePoolId is empty")
 
 		// List resources in the pool
 		url := fmt.Sprintf("%s/o2ims/v1/resourcePools/%s/resources", fw.GatewayURL, poolID)
-		resp, err = fw.APIClient.Get(url)
+		req, err = http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err = fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -150,9 +189,16 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 	t.Run("get specific resource", func(t *testing.T) {
 		// Get a pool ID and resource ID first
-		resp, err := fw.APIClient.Get(fw.GatewayURL + "/o2ims/v1/resourcePools")
+		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, fw.GatewayURL+"/o2ims/v1/resourcePools", nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err := fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var pools []map[string]any
 		body, err := io.ReadAll(resp.Body)
@@ -164,13 +210,22 @@ func TestInfrastructureDiscovery(t *testing.T) {
 			t.Skip("No resource pools available")
 		}
 
-		poolID := pools[0]["resourcePoolId"].(string)
+		poolID, ok := pools[0]["resourcePoolId"].(string)
+		require.True(t, ok, "resourcePoolId is not a string")
+		require.NotEmpty(t, poolID, "resourcePoolId is empty")
 
 		// Get resources
 		url := fmt.Sprintf("%s/o2ims/v1/resourcePools/%s/resources", fw.GatewayURL, poolID)
-		resp, err = fw.APIClient.Get(url)
+		req, err = http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err = fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var resources []map[string]any
 		body, err = io.ReadAll(resp.Body)
@@ -182,14 +237,23 @@ func TestInfrastructureDiscovery(t *testing.T) {
 			t.Skip("No resources available for testing")
 		}
 
-		resourceID := resources[0]["resourceId"].(string)
+		resourceID, ok := resources[0]["resourceId"].(string)
+		require.True(t, ok, "resourceId is not a string")
+		require.NotEmpty(t, resourceID, "resourceId is empty")
 
 		// Get specific resource
 		url = fmt.Sprintf("%s/o2ims/v1/resourcePools/%s/resources/%s",
 			fw.GatewayURL, poolID, resourceID)
-		resp, err = fw.APIClient.Get(url)
+		req, err = http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err = fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -212,9 +276,16 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 	t.Run("filter resources by type", func(t *testing.T) {
 		// Get a pool ID first
-		resp, err := fw.APIClient.Get(fw.GatewayURL + "/o2ims/v1/resourcePools")
+		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, fw.GatewayURL+"/o2ims/v1/resourcePools", nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err := fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var pools []map[string]any
 		body, err := io.ReadAll(resp.Body)
@@ -226,14 +297,23 @@ func TestInfrastructureDiscovery(t *testing.T) {
 			t.Skip("No resource pools available")
 		}
 
-		poolID := pools[0]["resourcePoolId"].(string)
+		poolID, ok := pools[0]["resourcePoolId"].(string)
+		require.True(t, ok, "resourcePoolId is not a string")
+		require.NotEmpty(t, poolID, "resourcePoolId is empty")
 
 		// Filter resources by type (Node is common in K8s clusters)
 		url := fmt.Sprintf("%s/o2ims/v1/resourcePools/%s/resources?filter=resourceType==Node",
 			fw.GatewayURL, poolID)
-		resp, err = fw.APIClient.Get(url)
+		req, err = http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err = fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -257,9 +337,16 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 	t.Run("pagination support", func(t *testing.T) {
 		// Get a pool ID first
-		resp, err := fw.APIClient.Get(fw.GatewayURL + "/o2ims/v1/resourcePools")
+		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, fw.GatewayURL+"/o2ims/v1/resourcePools", nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err := fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		var pools []map[string]any
 		body, err := io.ReadAll(resp.Body)
@@ -271,14 +358,23 @@ func TestInfrastructureDiscovery(t *testing.T) {
 			t.Skip("No resource pools available")
 		}
 
-		poolID := pools[0]["resourcePoolId"].(string)
+		poolID, ok := pools[0]["resourcePoolId"].(string)
+		require.True(t, ok, "resourcePoolId is not a string")
+		require.NotEmpty(t, poolID, "resourcePoolId is empty")
 
 		// Request with limit
 		url := fmt.Sprintf("%s/o2ims/v1/resourcePools/%s/resources?limit=5",
 			fw.GatewayURL, poolID)
-		resp, err = fw.APIClient.Get(url)
+		req, err = http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err = fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -311,9 +407,16 @@ func TestErrorHandling(t *testing.T) {
 
 	t.Run("get non-existent pool", func(t *testing.T) {
 		url := fmt.Sprintf("%s/o2ims/v1/resourcePools/non-existent-pool-id", fw.GatewayURL)
-		resp, err := fw.APIClient.Get(url)
+		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err := fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
@@ -332,9 +435,16 @@ func TestErrorHandling(t *testing.T) {
 	t.Run("invalid filter syntax", func(t *testing.T) {
 		// Use invalid filter syntax
 		url := fmt.Sprintf("%s/o2ims/v1/resourcePools?filter=invalid syntax here", fw.GatewayURL)
-		resp, err := fw.APIClient.Get(url)
+		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err := fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		// Should return 400 Bad Request for invalid filter
 		assert.True(t, resp.StatusCode >= 400, "Expected error status code")

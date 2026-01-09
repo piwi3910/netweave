@@ -40,9 +40,17 @@ func TestSubscriptionWorkflow(t *testing.T) {
 		require.NoError(t, err)
 
 		url := fw.GatewayURL + "/o2ims/v1/subscriptions"
-		resp, err := fw.APIClient.Post(url, "application/json", bytes.NewReader(reqBody))
+		req, err := http.NewRequestWithContext(fw.Context, http.MethodPost, url, bytes.NewReader(reqBody))
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
@@ -56,7 +64,10 @@ func TestSubscriptionWorkflow(t *testing.T) {
 		assert.Contains(t, createdSub, "subscriptionId")
 		assert.Equal(t, fw.WebhookServer.URL(), createdSub["callback"])
 
-		subscriptionID = createdSub["subscriptionId"].(string)
+		subID, ok := createdSub["subscriptionId"].(string)
+		require.True(t, ok, "subscriptionId is not a string")
+		require.NotEmpty(t, subID, "subscriptionId is empty")
+		subscriptionID = subID
 
 		fw.Logger.Info("Successfully created subscription",
 			zap.String("subscriptionId", subscriptionID),
@@ -65,9 +76,16 @@ func TestSubscriptionWorkflow(t *testing.T) {
 
 	t.Run("list subscriptions", func(t *testing.T) {
 		url := fw.GatewayURL + "/o2ims/v1/subscriptions"
-		resp, err := fw.APIClient.Get(url)
+		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err := fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -95,9 +113,16 @@ func TestSubscriptionWorkflow(t *testing.T) {
 
 	t.Run("get subscription", func(t *testing.T) {
 		url := fmt.Sprintf("%s/o2ims/v1/subscriptions/%s", fw.GatewayURL, subscriptionID)
-		resp, err := fw.APIClient.Get(url)
+		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err := fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -118,12 +143,16 @@ func TestSubscriptionWorkflow(t *testing.T) {
 
 	t.Run("delete subscription", func(t *testing.T) {
 		url := fmt.Sprintf("%s/o2ims/v1/subscriptions/%s", fw.GatewayURL, subscriptionID)
-		req, err := http.NewRequest(http.MethodDelete, url, nil)
+		req, err := http.NewRequestWithContext(fw.Context, http.MethodDelete, url, nil)
 		require.NoError(t, err)
 
 		resp, err := fw.APIClient.Do(req)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 
@@ -132,9 +161,16 @@ func TestSubscriptionWorkflow(t *testing.T) {
 		)
 
 		// Verify it's gone
-		resp, err = fw.APIClient.Get(url)
+		req, err = http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+
+		resp, err = fw.APIClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
@@ -167,7 +203,11 @@ func TestSubscriptionNotifications(t *testing.T) {
 	url := fw.GatewayURL + "/o2ims/v1/subscriptions"
 	resp, err := fw.APIClient.Post(url, "application/json", bytes.NewReader(reqBody))
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
 
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 

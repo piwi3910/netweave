@@ -103,18 +103,17 @@ func NewTestFramework(opts *FrameworkOptions) (*TestFramework, error) {
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
+	defer cancel()
 
 	// Build Kubernetes client
 	kubeClient, err := buildKubernetesClient(opts.KubeconfigPath)
 	if err != nil {
-		cancel()
 		return nil, fmt.Errorf("failed to create Kubernetes client: %w", err)
 	}
 
 	// Build HTTP client
 	httpClient, err := buildHTTPClient(opts)
 	if err != nil {
-		cancel()
 		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
 	}
 
@@ -123,7 +122,6 @@ func NewTestFramework(opts *FrameworkOptions) (*TestFramework, error) {
 	if gatewayURL == "" {
 		gatewayURL, err = detectGatewayURL(ctx, kubeClient, opts.Namespace)
 		if err != nil {
-			cancel()
 			return nil, fmt.Errorf("failed to detect gateway URL: %w", err)
 		}
 	}
@@ -145,7 +143,6 @@ func NewTestFramework(opts *FrameworkOptions) (*TestFramework, error) {
 
 	// Start webhook server
 	if err := webhookServer.Start(); err != nil {
-		cancel()
 		return nil, fmt.Errorf("failed to start webhook server: %w", err)
 	}
 	fw.AddCleanup(webhookServer.Stop)
@@ -226,7 +223,7 @@ func buildHTTPClient(opts *FrameworkOptions) (*http.Client, error) {
 
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   30 * time.Second,
+		Timeout:   5 * time.Second,
 	}
 
 	return client, nil

@@ -80,7 +80,8 @@ func (ws *WebhookServer) Start() error {
 	}
 
 	// Create listener on random available port
-	listener, err := net.Listen("tcp", "localhost:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.Listen(context.Background(), "tcp", "localhost:0")
 	if err != nil {
 		return fmt.Errorf("failed to create listener: %w", err)
 	}
@@ -128,8 +129,8 @@ func (ws *WebhookServer) Stop() error {
 		return fmt.Errorf("failed to shutdown webhook server: %w", err)
 	}
 
-	close(ws.events)
 	ws.started = false
+	close(ws.events)
 	ws.logger.Info("Webhook server stopped")
 
 	return nil
