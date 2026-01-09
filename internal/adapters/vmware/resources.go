@@ -96,7 +96,7 @@ func (a *VMwareAdapter) GetResource(ctx context.Context, id string) (resource *a
 }
 
 // CreateResource creates a new resource (VM).
-func (a *VMwareAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
+func (a *VMwareAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "CreateResource", start, err) }()
 
