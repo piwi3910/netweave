@@ -75,6 +75,11 @@ type Filter struct {
 
 	// Extensions contains additional filter criteria for backend-specific fields.
 	Extensions map[string]interface{} `json:"extensions,omitempty" yaml:"extensions,omitempty"`
+
+	// Fields specifies which fields to include in the response (field selection).
+	// If empty, all fields are returned. Supports nested fields with dot notation.
+	// Example: "resourceId,name,extensions.cpu"
+	Fields []string `json:"fields,omitempty" yaml:"fields,omitempty"`
 }
 
 // ParseQueryParams parses HTTP query parameters into a Filter.
@@ -182,6 +187,18 @@ func ParseQueryParams(params url.Values) *Filter {
 		filter.SortOrder = "asc"
 	}
 
+	// Parse fields (comma-separated list for field selection)
+	if fieldsParam := params.Get("fields"); fieldsParam != "" {
+		fields := strings.Split(fieldsParam, ",")
+		filter.Fields = make([]string, 0, len(fields))
+		for _, field := range fields {
+			trimmed := strings.TrimSpace(field)
+			if trimmed != "" {
+				filter.Fields = append(filter.Fields, trimmed)
+			}
+		}
+	}
+
 	return filter
 }
 
@@ -201,6 +218,7 @@ func (f *Filter) ToQueryParams() url.Values {
 	f.addLabelsFilter(params)
 	f.addPaginationParams(params)
 	f.addSortingParams(params)
+	f.addFieldsParam(params)
 
 	return params
 }
@@ -266,6 +284,13 @@ func (f *Filter) addSortingParams(params url.Values) {
 	}
 	if f.SortOrder != "" {
 		params.Set("sortOrder", f.SortOrder)
+	}
+}
+
+// addFieldsParam adds field selection parameter.
+func (f *Filter) addFieldsParam(params url.Values) {
+	if len(f.Fields) > 0 {
+		params.Set("fields", strings.Join(f.Fields, ","))
 	}
 }
 
@@ -406,11 +431,13 @@ func (f *Filter) Clone() *Filter {
 		SortBy:         f.SortBy,
 		SortOrder:      f.SortOrder,
 		Extensions:     make(map[string]interface{}),
+		Fields:         make([]string, len(f.Fields)),
 	}
 
 	copy(clone.ResourcePoolID, f.ResourcePoolID)
 	copy(clone.ResourceTypeID, f.ResourceTypeID)
 	copy(clone.ResourceID, f.ResourceID)
+	copy(clone.Fields, f.Fields)
 
 	for k, v := range f.Labels {
 		clone.Labels[k] = v
@@ -431,4 +458,68 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+// HasFieldSelection returns true if the filter has field selection enabled.
+func (f *Filter) HasFieldSelection() bool {
+	return len(f.Fields) > 0
+}
+
+// ShouldIncludeField checks if a field should be included in the response.
+// It supports exact matching and prefix matching for nested fields.
+func (f *Filter) ShouldIncludeField(fieldName string) bool {
+	if !f.HasFieldSelection() {
+		return true
+	}
+
+	for _, field := range f.Fields {
+		// Exact match
+		if field == fieldName {
+			return true
+		}
+		// Check if the field is a prefix (for nested fields)
+		if strings.HasPrefix(fieldName, field+".") {
+			return true
+		}
+		// Check if requested field is a prefix of this field (for parent inclusion)
+		if strings.HasPrefix(field, fieldName+".") {
+			return true
+		}
+	}
+	return false
+}
+
+// SelectFields filters a map to only include requested fields.
+// This is useful for filtering response objects based on field selection.
+func (f *Filter) SelectFields(data map[string]interface{}) map[string]interface{} {
+	if !f.HasFieldSelection() {
+		return data
+	}
+
+	result := make(map[string]interface{})
+	for _, field := range f.Fields {
+		parts := strings.SplitN(field, ".", 2)
+		key := parts[0]
+
+		if value, exists := data[key]; exists {
+			if len(parts) == 1 {
+				// Direct field, include it
+				result[key] = value
+			} else {
+				// Nested field, need to recurse
+				if nestedMap, ok := value.(map[string]interface{}); ok {
+					nestedFilter := &Filter{Fields: []string{parts[1]}}
+					if existing, ok := result[key].(map[string]interface{}); ok {
+						// Merge with existing
+						for k, v := range nestedFilter.SelectFields(nestedMap) {
+							existing[k] = v
+						}
+					} else {
+						result[key] = nestedFilter.SelectFields(nestedMap)
+					}
+				}
+			}
+		}
+	}
+	return result
 }

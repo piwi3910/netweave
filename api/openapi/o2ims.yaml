@@ -48,6 +48,12 @@ tags:
     description: O-Cloud deployment metadata
   - name: O-Cloud Infrastructure
     description: Top-level infrastructure information
+  - name: Batch Operations
+    description: Bulk create, update, and delete operations (v2+)
+  - name: API Info
+    description: API version and feature information
+  - name: Tenants
+    description: Multi-tenant management (v3)
 
 paths:
   /subscriptions:
@@ -426,6 +432,310 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  # Batch Operations (v2+)
+  /batch/subscriptions:
+    post:
+      summary: Batch create subscriptions
+      description: Creates multiple subscriptions in a single request. Supports atomic operations.
+      operationId: batchCreateSubscriptions
+      tags:
+        - Batch Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchSubscriptionCreateRequest'
+      responses:
+        '200':
+          description: Batch operation completed (check individual results)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '207':
+          description: Multi-status response (partial success)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Atomic operation rolled back due to failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /batch/subscriptions/delete:
+    post:
+      summary: Batch delete subscriptions
+      description: Deletes multiple subscriptions in a single request.
+      operationId: batchDeleteSubscriptions
+      tags:
+        - Batch Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchDeleteRequest'
+      responses:
+        '200':
+          description: Batch delete completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /batch/resourcePools:
+    post:
+      summary: Batch create resource pools
+      description: Creates multiple resource pools in a single request. Supports atomic operations.
+      operationId: batchCreateResourcePools
+      tags:
+        - Batch Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchResourcePoolCreateRequest'
+      responses:
+        '200':
+          description: Batch operation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '207':
+          description: Multi-status response (partial success)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Atomic operation rolled back due to failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /batch/resourcePools/delete:
+    post:
+      summary: Batch delete resource pools
+      description: Deletes multiple resource pools in a single request.
+      operationId: batchDeleteResourcePools
+      tags:
+        - Batch Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchDeleteRequest'
+      responses:
+        '200':
+          description: Batch delete completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /features:
+    get:
+      summary: Get API version features
+      description: Returns the features available in this API version.
+      operationId: getApiFeatures
+      tags:
+        - API Info
+      responses:
+        '200':
+          description: API features retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiFeatures'
+
+  # Tenant Management (v3)
+  /tenants:
+    get:
+      summary: List all tenants
+      description: Retrieves a list of all tenants (v3 multi-tenancy feature).
+      operationId: listTenants
+      tags:
+        - Tenants
+      responses:
+        '200':
+          description: List of tenants retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create a tenant
+      description: Creates a new tenant (v3 multi-tenancy feature).
+      operationId: createTenant
+      tags:
+        - Tenants
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+      responses:
+        '201':
+          description: Tenant created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Tenant already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /tenants/{tenantId}:
+    get:
+      summary: Get a tenant
+      description: Retrieves details of a specific tenant.
+      operationId: getTenant
+      tags:
+        - Tenants
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Tenant retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      summary: Update a tenant
+      description: Updates an existing tenant.
+      operationId: updateTenant
+      tags:
+        - Tenants
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantRequest'
+      responses:
+        '200':
+          description: Tenant updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete a tenant
+      description: Deletes a tenant.
+      operationId: deleteTenant
+      tags:
+        - Tenants
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '204':
+          description: Tenant deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Cannot delete tenant (e.g., default tenant)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /tenants/{tenantId}/quotas:
+    get:
+      summary: Get tenant quotas
+      description: Retrieves quota information for a tenant.
+      operationId: getTenantQuotas
+      tags:
+        - Tenants
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Tenant quotas retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantQuotas'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      summary: Update tenant quotas
+      description: Updates quota limits for a tenant.
+      operationId: updateTenantQuotas
+      tags:
+        - Tenants
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantQuotasRequest'
+      responses:
+        '200':
+          description: Tenant quotas updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantQuotas'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   schemas:
     Subscription:
@@ -760,6 +1070,249 @@ components:
           description: HTTP status code
           example: 404
 
+    # Batch Operations Schemas
+    BatchSubscriptionCreateRequest:
+      type: object
+      required:
+        - subscriptions
+      properties:
+        subscriptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateSubscriptionRequest'
+          minItems: 1
+          maxItems: 100
+          description: List of subscriptions to create
+        atomic:
+          type: boolean
+          default: false
+          description: If true, all operations succeed or all are rolled back
+
+    BatchResourcePoolCreateRequest:
+      type: object
+      required:
+        - resourcePools
+      properties:
+        resourcePools:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourcePool'
+          minItems: 1
+          maxItems: 100
+          description: List of resource pools to create
+        atomic:
+          type: boolean
+          default: false
+          description: If true, all operations succeed or all are rolled back
+
+    BatchDeleteRequest:
+      type: object
+      required:
+        - ids
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          maxItems: 100
+          description: List of IDs to delete
+        atomic:
+          type: boolean
+          default: false
+          description: If true, all operations succeed or all are rolled back
+
+    BatchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchResult'
+          description: Results for each operation
+        successCount:
+          type: integer
+          description: Number of successful operations
+          example: 8
+        failureCount:
+          type: integer
+          description: Number of failed operations
+          example: 2
+
+    BatchResult:
+      type: object
+      properties:
+        index:
+          type: integer
+          description: Index of the operation in the request
+          example: 0
+        success:
+          type: boolean
+          description: Whether the operation succeeded
+          example: true
+        id:
+          type: string
+          description: ID of the created/affected resource
+          example: "sub-123"
+        error:
+          type: string
+          description: Error message if operation failed
+          example: "Subscription already exists"
+
+    # API Features Schema
+    ApiFeatures:
+      type: object
+      properties:
+        version:
+          type: string
+          description: API version
+          example: "v2"
+        features:
+          type: object
+          description: Feature flags for this API version
+          properties:
+            enhancedFiltering:
+              type: boolean
+              example: true
+            fieldSelection:
+              type: boolean
+              example: true
+            batchOperations:
+              type: boolean
+              example: true
+            cursorPagination:
+              type: boolean
+              example: true
+            multiTenancy:
+              type: boolean
+              example: false
+        description:
+          type: string
+          description: Description of the API version
+          example: "O2-IMS API v2 with enhanced features"
+
+    # Tenant Schemas (v3)
+    Tenant:
+      type: object
+      required:
+        - tenantId
+        - name
+      properties:
+        tenantId:
+          type: string
+          description: Unique identifier for the tenant
+          example: "tenant-001"
+        name:
+          type: string
+          description: Human-readable name of the tenant
+          example: "Production Tenant"
+        description:
+          type: string
+          description: Description of the tenant
+          example: "Production workloads tenant"
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the tenant was created
+          example: "2024-01-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the tenant was last updated
+          example: "2024-01-15T10:30:00Z"
+
+    CreateTenantRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Human-readable name of the tenant
+          example: "Production Tenant"
+        description:
+          type: string
+          description: Description of the tenant
+          example: "Production workloads tenant"
+
+    UpdateTenantRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Human-readable name of the tenant
+          example: "Production Tenant"
+        description:
+          type: string
+          description: Description of the tenant
+          example: "Production workloads tenant"
+
+    TenantListResponse:
+      type: object
+      properties:
+        tenants:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tenant'
+        total:
+          type: integer
+          description: Total number of tenants
+          example: 5
+
+    TenantQuotas:
+      type: object
+      properties:
+        tenantId:
+          type: string
+          description: Tenant identifier
+          example: "tenant-001"
+        quotas:
+          type: object
+          properties:
+            maxSubscriptions:
+              type: integer
+              description: Maximum number of subscriptions allowed
+              example: 100
+            maxResourcePools:
+              type: integer
+              description: Maximum number of resource pools allowed
+              example: 50
+            maxResources:
+              type: integer
+              description: Maximum number of resources allowed
+              example: 1000
+            usedSubscriptions:
+              type: integer
+              description: Current number of subscriptions
+              example: 10
+            usedResourcePools:
+              type: integer
+              description: Current number of resource pools
+              example: 5
+            usedResources:
+              type: integer
+              description: Current number of resources
+              example: 100
+
+    UpdateTenantQuotasRequest:
+      type: object
+      properties:
+        maxSubscriptions:
+          type: integer
+          minimum: 0
+          description: Maximum number of subscriptions allowed
+          example: 100
+        maxResourcePools:
+          type: integer
+          minimum: 0
+          description: Maximum number of resource pools allowed
+          example: 50
+        maxResources:
+          type: integer
+          minimum: 0
+          description: Maximum number of resources allowed
+          example: 1000
+
   parameters:
     SubscriptionId:
       name: subscriptionId
@@ -838,6 +1391,44 @@ components:
         maximum: 100
         default: 20
       example: 20
+
+    SortByParam:
+      name: sortBy
+      in: query
+      required: false
+      description: Field name to sort results by
+      schema:
+        type: string
+      example: "name"
+
+    SortOrderParam:
+      name: sortOrder
+      in: query
+      required: false
+      description: Sort order direction
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: asc
+      example: "asc"
+
+    FieldsParam:
+      name: fields
+      in: query
+      required: false
+      description: Comma-separated list of fields to include in response (field selection)
+      schema:
+        type: string
+      example: "resourceId,name,extensions.cpu"
+
+    TenantId:
+      name: tenantId
+      in: path
+      required: true
+      description: Unique identifier of the tenant
+      schema:
+        type: string
+      example: "tenant-001"
 
   responses:
     BadRequest:
