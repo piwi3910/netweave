@@ -184,46 +184,8 @@ func updateReadmeFile(path string, results []compliance.Result, logger *zap.Logg
 	generator := compliance.NewBadgeGenerator()
 	badgeSection := generator.GenerateBadgeSection(toResultPointers(results))
 
-	// Find and replace compliance section
-	readme := string(content)
-
-	// Markers for compliance section
-	startMarker := "<!-- COMPLIANCE_BADGES_START -->"
-	endMarker := "<!-- COMPLIANCE_BADGES_END -->"
-
-	// Check if markers exist
-	startIdx := strings.Index(readme, startMarker)
-	endIdx := strings.Index(readme, endMarker)
-
-	var newReadme string
-	if startIdx != -1 && endIdx != -1 {
-		// Replace existing section
-		newReadme = readme[:startIdx+len(startMarker)] + "\n" + badgeSection + readme[endIdx:]
-		logger.Info("replacing existing compliance section")
-	} else {
-		// Append new section after main header
-		// Find first ## heading
-		lines := strings.Split(readme, "\n")
-		insertIdx := -1
-		for i, line := range lines {
-			if strings.HasPrefix(line, "## ") && i > 0 {
-				insertIdx = i
-				break
-			}
-		}
-
-		if insertIdx == -1 {
-			// Append at end
-			newReadme = readme + "\n" + startMarker + "\n" + badgeSection + endMarker + "\n"
-		} else {
-			// Insert before first ## heading
-			before := strings.Join(lines[:insertIdx], "\n")
-			after := strings.Join(lines[insertIdx:], "\n")
-			newReadme = before + "\n\n" + startMarker + "\n" + badgeSection + endMarker + "\n\n" + after
-		}
-
-		logger.Info("adding new compliance section")
-	}
+	// Update README content with badge section
+	newReadme := insertBadgeSection(string(content), badgeSection, logger)
 
 	// Write updated README
 	// G306: Use 0600 permissions for security - only owner can read/write
@@ -232,6 +194,51 @@ func updateReadmeFile(path string, results []compliance.Result, logger *zap.Logg
 	}
 
 	return nil
+}
+
+// insertBadgeSection inserts or replaces the compliance badge section in the README.
+func insertBadgeSection(readme, badgeSection string, logger *zap.Logger) string {
+	startMarker := "<!-- COMPLIANCE_BADGES_START -->"
+	endMarker := "<!-- COMPLIANCE_BADGES_END -->"
+
+	startIdx := strings.Index(readme, startMarker)
+	endIdx := strings.Index(readme, endMarker)
+
+	if startIdx != -1 && endIdx != -1 {
+		// Replace existing section
+		logger.Info("replacing existing compliance section")
+		return readme[:startIdx+len(startMarker)] + "\n" + badgeSection + readme[endIdx:]
+	}
+
+	// Add new section
+	logger.Info("adding new compliance section")
+	return insertNewBadgeSection(readme, startMarker, badgeSection, endMarker)
+}
+
+// insertNewBadgeSection inserts a new badge section at the appropriate location.
+func insertNewBadgeSection(readme, startMarker, badgeSection, endMarker string) string {
+	lines := strings.Split(readme, "\n")
+	insertIdx := findFirstHeading(lines)
+
+	if insertIdx == -1 {
+		// Append at end
+		return readme + "\n" + startMarker + "\n" + badgeSection + endMarker + "\n"
+	}
+
+	// Insert before first ## heading
+	before := strings.Join(lines[:insertIdx], "\n")
+	after := strings.Join(lines[insertIdx:], "\n")
+	return before + "\n\n" + startMarker + "\n" + badgeSection + endMarker + "\n\n" + after
+}
+
+// findFirstHeading finds the index of the first ## heading after line 0.
+func findFirstHeading(lines []string) int {
+	for i, line := range lines {
+		if strings.HasPrefix(line, "## ") && i > 0 {
+			return i
+		}
+	}
+	return -1
 }
 
 // toResultPointers converts a slice of Result values to a slice of Result pointers.

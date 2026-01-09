@@ -244,55 +244,25 @@ func createGCPClients(ctx context.Context, opts []option.ClientOption, logger *z
 
 	machineTypesClient, err := compute.NewMachineTypesRESTClient(ctx, opts...)
 	if err != nil {
-		// G104: Handle Close() error in cleanup path
-		if closeErr := instancesClient.Close(); closeErr != nil {
-			logger.Warn("failed to close instances client during cleanup", zap.Error(closeErr))
-		}
+		closeClients(logger, instancesClient)
 		return nil, fmt.Errorf("failed to create Machine Types client: %w", err)
 	}
 
 	zonesClient, err := compute.NewZonesRESTClient(ctx, opts...)
 	if err != nil {
-		// G104: Handle Close() errors in cleanup path
-		if closeErr := instancesClient.Close(); closeErr != nil {
-			logger.Warn("failed to close instances client during cleanup", zap.Error(closeErr))
-		}
-		if closeErr := machineTypesClient.Close(); closeErr != nil {
-			logger.Warn("failed to close machine types client during cleanup", zap.Error(closeErr))
-		}
+		closeClients(logger, instancesClient, machineTypesClient)
 		return nil, fmt.Errorf("failed to create Zones client: %w", err)
 	}
 
 	regionsClient, err := compute.NewRegionsRESTClient(ctx, opts...)
 	if err != nil {
-		// G104: Handle Close() errors in cleanup path
-		if closeErr := instancesClient.Close(); closeErr != nil {
-			logger.Warn("failed to close instances client during cleanup", zap.Error(closeErr))
-		}
-		if closeErr := machineTypesClient.Close(); closeErr != nil {
-			logger.Warn("failed to close machine types client during cleanup", zap.Error(closeErr))
-		}
-		if closeErr := zonesClient.Close(); closeErr != nil {
-			logger.Warn("failed to close zones client during cleanup", zap.Error(closeErr))
-		}
+		closeClients(logger, instancesClient, machineTypesClient, zonesClient)
 		return nil, fmt.Errorf("failed to create Regions client: %w", err)
 	}
 
 	instanceGroupsClient, err := compute.NewInstanceGroupsRESTClient(ctx, opts...)
 	if err != nil {
-		// G104: Handle Close() errors in cleanup path
-		if closeErr := instancesClient.Close(); closeErr != nil {
-			logger.Warn("failed to close instances client during cleanup", zap.Error(closeErr))
-		}
-		if closeErr := machineTypesClient.Close(); closeErr != nil {
-			logger.Warn("failed to close machine types client during cleanup", zap.Error(closeErr))
-		}
-		if closeErr := zonesClient.Close(); closeErr != nil {
-			logger.Warn("failed to close zones client during cleanup", zap.Error(closeErr))
-		}
-		if closeErr := regionsClient.Close(); closeErr != nil {
-			logger.Warn("failed to close regions client during cleanup", zap.Error(closeErr))
-		}
+		closeClients(logger, instancesClient, machineTypesClient, zonesClient, regionsClient)
 		return nil, fmt.Errorf("failed to create Instance Groups client: %w", err)
 	}
 
@@ -303,6 +273,23 @@ func createGCPClients(ctx context.Context, opts []option.ClientOption, logger *z
 		regionsClient:        regionsClient,
 		instanceGroupsClient: instanceGroupsClient,
 	}, nil
+}
+
+// closeClients closes multiple GCP clients and logs any errors.
+// This is a cleanup helper for error paths during client initialization.
+type closer interface {
+	Close() error
+}
+
+func closeClients(logger *zap.Logger, clients ...closer) {
+	for _, client := range clients {
+		if client != nil {
+			// G104: Handle Close() error in cleanup path
+			if err := client.Close(); err != nil {
+				logger.Warn("failed to close client during cleanup", zap.Error(err))
+			}
+		}
+	}
 }
 
 // Name returns the adapter name.
