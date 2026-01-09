@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -267,7 +268,7 @@ func (w *WebhookWorker) processNextEvent(ctx context.Context, consumerName strin
 
 	if err != nil {
 		// Timeout is expected when no events are available
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil
 		}
 		return fmt.Errorf("failed to read from stream: %w", err)
