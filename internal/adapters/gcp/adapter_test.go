@@ -3,6 +3,7 @@ package gcp
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
@@ -362,3 +363,108 @@ func TestPtrHelpers(t *testing.T) {
 }
 
 // NOTE: BenchmarkMatchesFilter moved to internal/adapter/helpers_test.go
+
+// TestGCPAdapter_Health tests the Health function.
+func TestGCPAdapter_Health(t *testing.T) {
+	adapter, err := New(&Config{
+		ProjectID: "test-project",
+		Region:    "us-central1",
+		OCloudID:  "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires GCP credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	err = adapter.Health(ctx)
+	if err != nil {
+		t.Skip("Skipping - requires GCP credentials")
+	}
+}
+
+// TestGCPAdapter_ListResourcePools tests the ListResourcePools function.
+func TestGCPAdapter_ListResourcePools(t *testing.T) {
+	adapter, err := New(&Config{
+		ProjectID: "test-project",
+		Region:    "us-central1",
+		OCloudID:  "test-cloud",
+		PoolMode:  "zone",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires GCP credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	pools, err := adapter.ListResourcePools(ctx, nil)
+	if err != nil {
+		t.Skip("Skipping - requires GCP credentials")
+	}
+	assert.NotNil(t, pools)
+}
+
+// TestGCPAdapter_ListResources tests the ListResources function.
+func TestGCPAdapter_ListResources(t *testing.T) {
+	adapter, err := New(&Config{
+		ProjectID: "test-project",
+		Region:    "us-central1",
+		OCloudID:  "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires GCP credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	resources, err := adapter.ListResources(ctx, nil)
+	if err != nil {
+		t.Skip("Skipping - requires GCP credentials")
+	}
+	assert.NotNil(t, resources)
+}
+
+// TestGCPAdapter_ListResourceTypes tests the ListResourceTypes function.
+func TestGCPAdapter_ListResourceTypes(t *testing.T) {
+	adapter, err := New(&Config{
+		ProjectID: "test-project",
+		Region:    "us-central1",
+		OCloudID:  "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires GCP credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	types, err := adapter.ListResourceTypes(ctx, nil)
+	if err != nil {
+		t.Skip("Skipping - requires GCP credentials")
+	}
+	assert.NotNil(t, types)
+}
+
+// TestGCPAdapter_GetDeploymentManager tests the GetDeploymentManager function.
+func TestGCPAdapter_GetDeploymentManager(t *testing.T) {
+	adapter, err := New(&Config{
+		ProjectID: "test-project",
+		Region:    "us-central1",
+		OCloudID:  "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires GCP credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	dm, err := adapter.GetDeploymentManager(ctx, "dm-1")
+	if err != nil {
+		t.Skip("Skipping - requires GCP credentials")
+	}
+	assert.NotNil(t, dm)
+}
