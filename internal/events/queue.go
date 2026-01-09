@@ -12,13 +12,13 @@ import (
 )
 
 const (
-	// Redis stream key for events
+	// Redis stream key for events.
 	eventStreamKey = "events:stream"
 
-	// Default batch size for reading from stream
+	// Default batch size for reading from stream.
 	defaultBatchSize = 10
 
-	// Block time for reading from stream (milliseconds)
+	// Block time for reading from stream (milliseconds).
 	blockTime = 5000
 )
 

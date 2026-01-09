@@ -22,19 +22,19 @@ import (
 )
 
 const (
-	// Default timeout for HTTP requests
+	// Default timeout for HTTP requests.
 	defaultHTTPTimeout = 10 * time.Second
 
-	// Default maximum retries
+	// Default maximum retries.
 	defaultMaxRetries = 3
 
-	// Initial retry backoff
+	// Initial retry backoff.
 	initialBackoff = 1 * time.Second
 
-	// Maximum retry backoff
+	// Maximum retry backoff.
 	maxBackoff = 60 * time.Second
 
-	// Backoff multiplier
+	// Backoff multiplier.
 	backoffMultiplier = 2
 )
 
