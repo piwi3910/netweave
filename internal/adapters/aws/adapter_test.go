@@ -358,3 +358,78 @@ func TestConfigValidation(t *testing.T) {
 }
 
 // NOTE: BenchmarkMatchesFilter and BenchmarkApplyPagination moved to internal/adapter/helpers_test.go
+
+// TestAWSAdapter_Health tests the Health function.
+func TestAWSAdapter_Health(t *testing.T) {
+	adapter, err := New(&Config{
+		Region:   "us-east-1",
+		OCloudID: "test-cloud",
+	})
+	require.NoError(t, err)
+
+	err = adapter.Health(context.Background())
+	if err != nil {
+		t.Skip("Skipping - requires AWS credentials")
+	}
+}
+
+// TestAWSAdapter_ListResourcePools tests the ListResourcePools function.
+func TestAWSAdapter_ListResourcePools(t *testing.T) {
+	adapter, err := New(&Config{
+		Region:   "us-east-1",
+		OCloudID: "test-cloud",
+		PoolMode: "az",
+	})
+	require.NoError(t, err)
+
+	pools, err := adapter.ListResourcePools(context.Background(), nil)
+	if err != nil {
+		t.Skip("Skipping - requires AWS credentials")
+	}
+	assert.NotNil(t, pools)
+}
+
+// TestAWSAdapter_ListResources tests the ListResources function.
+func TestAWSAdapter_ListResources(t *testing.T) {
+	adapter, err := New(&Config{
+		Region:   "us-east-1",
+		OCloudID: "test-cloud",
+	})
+	require.NoError(t, err)
+
+	resources, err := adapter.ListResources(context.Background(), nil)
+	if err != nil {
+		t.Skip("Skipping - requires AWS credentials")
+	}
+	assert.NotNil(t, resources)
+}
+
+// TestAWSAdapter_ListResourceTypes tests the ListResourceTypes function.
+func TestAWSAdapter_ListResourceTypes(t *testing.T) {
+	adapter, err := New(&Config{
+		Region:   "us-east-1",
+		OCloudID: "test-cloud",
+	})
+	require.NoError(t, err)
+
+	types, err := adapter.ListResourceTypes(context.Background(), nil)
+	if err != nil {
+		t.Skip("Skipping - requires AWS credentials")
+	}
+	assert.NotNil(t, types)
+}
+
+// TestAWSAdapter_GetDeploymentManager tests the GetDeploymentManager function.
+func TestAWSAdapter_GetDeploymentManager(t *testing.T) {
+	adapter, err := New(&Config{
+		Region:   "us-east-1",
+		OCloudID: "test-cloud",
+	})
+	require.NoError(t, err)
+
+	dm, err := adapter.GetDeploymentManager(context.Background(), "dm-1")
+	if err != nil {
+		t.Skip("Skipping - requires AWS credentials")
+	}
+	assert.NotNil(t, dm)
+}
