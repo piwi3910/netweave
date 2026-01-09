@@ -82,58 +82,58 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := New(tt.config)
+			adp, err := New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
-				assert.Nil(t, adapter)
+				assert.Nil(t, adp)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, adapter)
+				require.NotNil(t, adp)
 
 				// Verify adapter metadata
-				assert.Equal(t, "dtias", adapter.Name())
-				assert.Equal(t, "1.0.0", adapter.Version())
-				assert.NotEmpty(t, adapter.Capabilities())
+				assert.Equal(t, "dtias", adp.Name())
+				assert.Equal(t, "1.0.0", adp.Version())
+				assert.NotEmpty(t, adp.Capabilities())
 
 				// Verify configuration defaults were applied
 				if tt.config.Timeout == 0 {
-					assert.Equal(t, 30*time.Second, adapter.config.Timeout)
+					assert.Equal(t, 30*time.Second, adp.config.Timeout)
 				}
 				if tt.config.RetryAttempts == 0 {
-					assert.Equal(t, 3, adapter.config.RetryAttempts)
+					assert.Equal(t, 3, adp.config.RetryAttempts)
 				}
 				if tt.config.RetryDelay == 0 {
-					assert.Equal(t, 2*time.Second, adapter.config.RetryDelay)
+					assert.Equal(t, 2*time.Second, adp.config.RetryDelay)
 				}
 				if tt.config.DeploymentManagerID == "" {
-					assert.NotEmpty(t, adapter.deploymentManagerID)
+					assert.NotEmpty(t, adp.deploymentManagerID)
 				}
 
 				// Cleanup
-				assert.NoError(t, adapter.Close())
+				assert.NoError(t, adp.Close())
 			}
 		})
 	}
 }
 
 func TestDTIASAdapter_Name(t *testing.T) {
-	adapter := createTestAdapter(t)
+	adp := createTestAdapter(t)
 	t.Cleanup(func() {
-		assert.NoError(t, adapter.Close())
+		assert.NoError(t, adp.Close())
 	})
 
-	assert.Equal(t, "dtias", adapter.Name())
+	assert.Equal(t, "dtias", adp.Name())
 }
 
 func TestDTIASAdapter_Version(t *testing.T) {
-	adapter := createTestAdapter(t)
+	adp := createTestAdapter(t)
 	t.Cleanup(func() {
-		assert.NoError(t, adapter.Close())
+		assert.NoError(t, adp.Close())
 	})
 
-	assert.Equal(t, "1.0.0", adapter.Version())
+	assert.Equal(t, "1.0.0", adp.Version())
 }
 
 func TestDTIASAdapter_Capabilities(t *testing.T) {
@@ -161,9 +161,9 @@ func TestDTIASAdapter_Capabilities(t *testing.T) {
 }
 
 func TestDTIASAdapter_Close(t *testing.T) {
-	adapter := createTestAdapter(t)
+	adp := createTestAdapter(t)
 
-	err := adapter.Close()
+	err := adp.Close()
 	assert.NoError(t, err)
 }
 
