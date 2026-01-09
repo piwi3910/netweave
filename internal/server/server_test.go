@@ -118,6 +118,45 @@ func (m *mockStore) Ping(ctx context.Context) error {
 	return nil
 }
 
+// mockStoreWithSubscription implements storage.Store for testing subscription updates.
+type mockStoreWithSubscription struct{}
+
+func (m *mockStoreWithSubscription) Create(ctx context.Context, sub *storage.Subscription) error {
+	return nil
+}
+func (m *mockStoreWithSubscription) Get(ctx context.Context, id string) (*storage.Subscription, error) {
+	return &storage.Subscription{
+		ID:                     id,
+		TenantID:               "tenant-123",
+		Callback:               "https://example.com/original-callback",
+		ConsumerSubscriptionID: "consumer-sub-1",
+	}, nil
+}
+func (m *mockStoreWithSubscription) Update(ctx context.Context, sub *storage.Subscription) error {
+	return nil
+}
+func (m *mockStoreWithSubscription) Delete(ctx context.Context, id string) error {
+	return nil
+}
+func (m *mockStoreWithSubscription) List(ctx context.Context) ([]*storage.Subscription, error) {
+	return nil, nil
+}
+func (m *mockStoreWithSubscription) ListByResourcePool(ctx context.Context, resourcePoolID string) ([]*storage.Subscription, error) {
+	return nil, nil
+}
+func (m *mockStoreWithSubscription) ListByResourceType(ctx context.Context, resourceTypeID string) ([]*storage.Subscription, error) {
+	return nil, nil
+}
+func (m *mockStoreWithSubscription) ListByTenant(ctx context.Context, tenantID string) ([]*storage.Subscription, error) {
+	return nil, nil
+}
+func (m *mockStoreWithSubscription) Close() error {
+	return nil
+}
+func (m *mockStoreWithSubscription) Ping(ctx context.Context) error {
+	return nil
+}
+
 func TestNew(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
