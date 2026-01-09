@@ -138,8 +138,8 @@ var Metrics = struct {
 		prometheus.GaugeOpts{
 			Namespace: "o2ims",
 			Subsystem: "adapter",
-			Name:      "resources_total",
-			Help:      "Total number of resources managed by adapter",
+			Name:      "resources",
+			Help:      "Current number of resources managed by adapter",
 		},
 		[]string{"adapter", "resource_type"},
 	),
@@ -148,8 +148,8 @@ var Metrics = struct {
 		prometheus.GaugeOpts{
 			Namespace: "o2ims",
 			Subsystem: "adapter",
-			Name:      "resource_pools_total",
-			Help:      "Total number of resource pools per adapter",
+			Name:      "resource_pools",
+			Help:      "Current number of resource pools per adapter",
 		},
 		[]string{"adapter"},
 	),
@@ -186,6 +186,11 @@ var Metrics = struct {
 	),
 }
 
+const (
+	statusSuccess = "success"
+	statusError   = "error"
+)
+
 // ObserveOperation records metrics for an adapter operation.
 // Call this at the end of each operation to record duration and success/failure.
 //
@@ -196,9 +201,9 @@ var Metrics = struct {
 //	adapter.ObserveOperation("aws", "ListResources", start, err)
 func ObserveOperation(adapterName, operation string, start time.Time, err error) {
 	duration := time.Since(start).Seconds()
-	status := "success"
+	status := statusSuccess
 	if err != nil {
-		status = "error"
+		status = statusError
 		Metrics.OperationErrors.WithLabelValues(adapterName, operation, "unknown").Inc()
 	}
 
@@ -279,19 +284,16 @@ func UpdateResourcePoolCount(adapterName string, count int) {
 //	adapter.ObserveBackendRequest("kubernetes", "/api/v1/nodes", "GET", start, resp.StatusCode, err)
 func ObserveBackendRequest(adapterName, endpoint, method string, start time.Time, statusCode int, err error) {
 	duration := time.Since(start).Seconds()
-	status := "success"
-	errorType := ""
+	status := statusSuccess
 
 	if err != nil {
-		status = "error"
-		errorType = "network_error"
-		Metrics.BackendErrors.WithLabelValues(adapterName, endpoint, method, errorType).Inc()
+		status = statusError
+		Metrics.BackendErrors.WithLabelValues(adapterName, endpoint, method, "network_error").Inc()
 	} else if statusCode >= 400 {
-		status = "error"
+		status = statusError
+		errorType := "client_error"
 		if statusCode >= 500 {
 			errorType = "server_error"
-		} else {
-			errorType = "client_error"
 		}
 		Metrics.BackendErrors.WithLabelValues(adapterName, endpoint, method, errorType).Inc()
 	}
