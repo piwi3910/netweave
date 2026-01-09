@@ -53,7 +53,7 @@ func TestK8sEventGenerator_CreateDeletedResource(t *testing.T) {
 				Name: "test-node",
 				Labels: map[string]string{
 					"node-role.kubernetes.io/worker": "",
-					"custom-label":                    "value",
+					"custom-label":                   "value",
 				},
 			},
 		}
