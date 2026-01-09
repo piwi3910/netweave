@@ -116,8 +116,8 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 		commonName := cert.Subject.CommonName
 
 		m.logger.Debug("authenticating client",
-			zap.String("subject", subject),
-			zap.String("common_name", commonName),
+			zap.String("subject", sanitizeForLogging(subject, 200)),
+			zap.String("common_name", sanitizeForLogging(commonName, 100)),
 			zap.String("request_id", requestID),
 		)
 
@@ -126,7 +126,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 		if err != nil {
 			if err == ErrUserNotFound {
 				m.logger.Warn("unknown user certificate",
-					zap.String("subject", subject),
+					zap.String("subject", sanitizeForLogging(subject, 200)),
 					zap.String("client_ip", c.ClientIP()),
 					zap.String("request_id", requestID),
 				)
@@ -142,7 +142,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 			}
 
 			m.logger.Error("failed to lookup user",
-				zap.String("subject", subject),
+				zap.String("subject", sanitizeForLogging(subject, 200)),
 				zap.Error(err),
 				zap.String("request_id", requestID),
 			)
@@ -158,7 +158,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 		if !user.IsActive {
 			m.logger.Warn("inactive user attempted access",
 				zap.String("user_id", user.ID),
-				zap.String("subject", subject),
+				zap.String("subject", sanitizeForLogging(subject, 200)),
 				zap.String("request_id", requestID),
 			)
 
@@ -272,7 +272,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 		m.logger.Info("user authenticated",
 			zap.String("user_id", user.ID),
 			zap.String("tenant_id", user.TenantID),
-			zap.String("role", string(role.Name)),
+			zap.String("role", sanitizeForLogging(string(role.Name), 50)),
 			zap.String("request_id", requestID),
 		)
 
@@ -630,6 +630,29 @@ func sanitizeDNValue(value string) string {
 		}
 	}
 	return strings.TrimSpace(result.String())
+}
+
+// sanitizeForLogging sanitizes a string for safe logging by removing control characters
+// and enforcing a maximum length. This prevents log injection attacks and keeps logs readable.
+// Parameters:
+//   - s: the string to sanitize
+//   - maxLen: maximum length (truncated with "..." if exceeded)
+//
+// Returns sanitized string safe for logging.
+func sanitizeForLogging(s string, maxLen int) string {
+	// Remove control characters except space and tab
+	clean := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) && r != ' ' && r != '\t' {
+			return -1 // Remove character
+		}
+		return r
+	}, s)
+
+	// Truncate if too long
+	if len(clean) > maxLen {
+		return clean[:maxLen] + "..."
+	}
+	return clean
 }
 
 // extractEmail returns the first email from the list.
