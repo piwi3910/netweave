@@ -138,6 +138,25 @@ func (a *KubernetesAdapter) CreateResource(
 	)
 }
 
+// UpdateResource updates a Kubernetes node's mutable fields (labels, annotations).
+// Note: Core node properties are managed by kubelet and cannot be modified directly.
+func (a *KubernetesAdapter) UpdateResource(
+	_ context.Context,
+	_ string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
+	a.logger.Debug("UpdateResource called",
+		zap.String("resourceID", resource.ResourceID))
+
+	// Updating nodes directly is not a standard Kubernetes operation
+	// Nodes are managed by kubelet and controllers
+	// This implementation returns an error indicating the operation is not supported
+	return nil, fmt.Errorf(
+		"updating nodes directly is not supported in Kubernetes; " +
+			"nodes are managed by kubelet and must be modified through node taints/labels",
+	)
+}
+
 // DeleteResource deletes a Kubernetes node by ID.
 // This drains the node and then removes it from the cluster.
 func (a *KubernetesAdapter) DeleteResource(ctx context.Context, id string) error {

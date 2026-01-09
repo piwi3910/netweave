@@ -172,6 +172,17 @@ func (a *DTIASAdapter) CreateResource(ctx context.Context, resource *adapter.Res
 	return createdResource, nil
 }
 
+// UpdateResource updates an existing bare-metal server's metadata.
+// Note: Physical hardware properties cannot be modified.
+func (a *DTIASAdapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (*adapter.Resource, error) {
+	a.logger.Debug("UpdateResource called",
+		zap.String("resourceID", resource.ResourceID))
+
+	// TODO(#193): Implement server metadata updates via DTIAS API
+	// For now, return not supported
+	return nil, fmt.Errorf("updating DTIAS servers is not yet implemented")
+}
+
 // DeleteResource deprovisions a physical server.
 // Decommissions the DTIAS server and returns it to the available pool.
 func (a *DTIASAdapter) DeleteResource(ctx context.Context, id string) error {
