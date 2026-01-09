@@ -2340,3 +2340,159 @@ func TestRollbackNFDeployment_InternalError(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
+
+// TestConvertDeploymentStatus tests deployment status conversion.
+func TestConvertDeploymentStatus(t *testing.T) {
+	tests := []struct {
+		name   string
+		status adapter.DeploymentStatus
+		want   models.NFDeploymentStatus
+	}{
+		{
+			name:   "pending",
+			status: adapter.DeploymentStatusPending,
+			want:   models.NFDeploymentStatusPending,
+		},
+		{
+			name:   "deploying",
+			status: adapter.DeploymentStatusDeploying,
+			want:   models.NFDeploymentStatusInstantiating,
+		},
+		{
+			name:   "deployed",
+			status: adapter.DeploymentStatusDeployed,
+			want:   models.NFDeploymentStatusDeployed,
+		},
+		{
+			name:   "failed",
+			status: adapter.DeploymentStatusFailed,
+			want:   models.NFDeploymentStatusFailed,
+		},
+		{
+			name:   "rolling back",
+			status: adapter.DeploymentStatusRollingBack,
+			want:   models.NFDeploymentStatusUpdating,
+		},
+		{
+			name:   "deleting",
+			status: adapter.DeploymentStatusDeleting,
+			want:   models.NFDeploymentStatusTerminating,
+		},
+		{
+			name:   "unknown status",
+			status: adapter.DeploymentStatus("unknown"),
+			want:   models.NFDeploymentStatus("unknown"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := convertDeploymentStatus(tt.status)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestConvertToNFDeployment tests NFDeployment conversion.
+func TestConvertToNFDeployment(t *testing.T) {
+	createdAt := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	updatedAt := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name       string
+		deployment *adapter.Deployment
+		wantNil    bool
+	}{
+		{
+			name: "full deployment",
+			deployment: &adapter.Deployment{
+				ID:        "deploy-1",
+				Name:      "my-deployment",
+				Status:    adapter.DeploymentStatusDeployed,
+				PackageID: "pkg-1",
+				CreatedAt: createdAt,
+				UpdatedAt: updatedAt,
+			},
+			wantNil: false,
+		},
+		{
+			name: "deployment with description",
+			deployment: &adapter.Deployment{
+				ID:          "deploy-2",
+				Name:        "test-deploy",
+				Status:      adapter.DeploymentStatusPending,
+				Description: "Test deployment",
+			},
+			wantNil: false,
+		},
+		{
+			name:       "nil deployment",
+			deployment: nil,
+			wantNil:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := convertToNFDeployment(tt.deployment)
+			if tt.wantNil {
+				assert.Nil(t, got)
+			} else {
+				require.NotNil(t, got)
+				assert.Equal(t, tt.deployment.ID, got.NFDeploymentID)
+				assert.Equal(t, tt.deployment.Name, got.Name)
+				assert.Equal(t, tt.deployment.Description, got.Description)
+			}
+		})
+	}
+}
+
+// TestConvertToNFDeploymentDescriptor tests NFDeploymentDescriptor conversion.
+func TestConvertToNFDeploymentDescriptor(t *testing.T) {
+	uploadedAt := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name    string
+		pkg     *adapter.DeploymentPackage
+		wantNil bool
+	}{
+		{
+			name: "full package",
+			pkg: &adapter.DeploymentPackage{
+				ID:          "pkg-1",
+				Name:        "my-package",
+				Description: "Test package",
+				Version:     "1.0.0",
+				UploadedAt:  uploadedAt,
+			},
+			wantNil: false,
+		},
+		{
+			name: "minimal package",
+			pkg: &adapter.DeploymentPackage{
+				ID:   "pkg-2",
+				Name: "minimal",
+			},
+			wantNil: false,
+		},
+		{
+			name:    "nil package",
+			pkg:     nil,
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := convertToNFDeploymentDescriptor(tt.pkg)
+			if tt.wantNil {
+				assert.Nil(t, got)
+			} else {
+				require.NotNil(t, got)
+				assert.Equal(t, tt.pkg.ID, got.NFDeploymentDescriptorID)
+				assert.Equal(t, tt.pkg.Name, got.Name)
+				assert.Equal(t, tt.pkg.Description, got.Description)
+			}
+		})
+	}
+}
