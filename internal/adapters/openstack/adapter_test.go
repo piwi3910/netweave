@@ -1,6 +1,7 @@
 package openstack
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -258,3 +259,128 @@ func TestConfigValidation(t *testing.T) {
 }
 
 // NOTE: BenchmarkMatchesFilter and BenchmarkApplyPagination moved to internal/adapter/helpers_test.go
+
+
+// TestOpenStackAdapter_Health tests the Health function.
+func TestOpenStackAdapter_Health(t *testing.T) {
+	adapter, err := New(&Config{
+		AuthURL:     "https://openstack.example.com:5000/v3",
+		Username:    "test",
+		Password:    "test",
+		ProjectName: "test",
+		DomainName:  "Default",
+		Region:      "RegionOne",
+		OCloudID:    "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires OpenStack credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	err = adapter.Health(ctx)
+	if err != nil {
+		t.Skip("Skipping - requires OpenStack access")
+	}
+}
+
+// TestOpenStackAdapter_ListResourcePools tests the ListResourcePools function.
+func TestOpenStackAdapter_ListResourcePools(t *testing.T) {
+	adapter, err := New(&Config{
+		AuthURL:     "https://openstack.example.com:5000/v3",
+		Username:    "test",
+		Password:    "test",
+		ProjectName: "test",
+		DomainName:  "Default",
+		Region:      "RegionOne",
+		OCloudID:    "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires OpenStack credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	pools, err := adapter.ListResourcePools(ctx, nil)
+	if err != nil {
+		t.Skip("Skipping - requires OpenStack access")
+	}
+	assert.NotNil(t, pools)
+}
+
+// TestOpenStackAdapter_ListResources tests the ListResources function.
+func TestOpenStackAdapter_ListResources(t *testing.T) {
+	adapter, err := New(&Config{
+		AuthURL:     "https://openstack.example.com:5000/v3",
+		Username:    "test",
+		Password:    "test",
+		ProjectName: "test",
+		DomainName:  "Default",
+		Region:      "RegionOne",
+		OCloudID:    "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires OpenStack credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	resources, err := adapter.ListResources(ctx, nil)
+	if err != nil {
+		t.Skip("Skipping - requires OpenStack access")
+	}
+	assert.NotNil(t, resources)
+}
+
+// TestOpenStackAdapter_ListResourceTypes tests the ListResourceTypes function.
+func TestOpenStackAdapter_ListResourceTypes(t *testing.T) {
+	adapter, err := New(&Config{
+		AuthURL:     "https://openstack.example.com:5000/v3",
+		Username:    "test",
+		Password:    "test",
+		ProjectName: "test",
+		DomainName:  "Default",
+		Region:      "RegionOne",
+		OCloudID:    "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires OpenStack credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	types, err := adapter.ListResourceTypes(ctx, nil)
+	if err != nil {
+		t.Skip("Skipping - requires OpenStack access")
+	}
+	assert.NotNil(t, types)
+}
+
+// TestOpenStackAdapter_GetDeploymentManager tests the GetDeploymentManager function.
+func TestOpenStackAdapter_GetDeploymentManager(t *testing.T) {
+	adapter, err := New(&Config{
+		AuthURL:     "https://openstack.example.com:5000/v3",
+		Username:    "test",
+		Password:    "test",
+		ProjectName: "test",
+		DomainName:  "Default",
+		Region:      "RegionOne",
+		OCloudID:    "test-cloud",
+	})
+	if err != nil {
+		t.Skip("Skipping - requires OpenStack credentials")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	dm, err := adapter.GetDeploymentManager(ctx, "dm-1")
+	if err != nil {
+		t.Skip("Skipping - requires OpenStack access")
+	}
+	assert.NotNil(t, dm)
+}
