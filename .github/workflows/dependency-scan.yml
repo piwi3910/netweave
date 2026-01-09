@@ -168,7 +168,9 @@ jobs:
           fail-on-severity: high
           # Use allow-licenses instead of deprecated deny-licenses
           # Allow permissive licenses commonly used in Go ecosystem
-          allow-licenses: Apache-2.0, MIT, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0, CC0-1.0, Unlicense
+          # Note: LicenseRef-scancode-google-patent-license-golang is Google's Additional IP Rights Grant
+          # which provides additional patent protection (not a restriction) for golang.org/x/* packages
+          allow-licenses: Apache-2.0, MIT, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0, CC0-1.0, Unlicense, LicenseRef-scancode-google-patent-license-golang
           comment-summary-in-pr: true
 
   # Trivy vulnerability scanner for dependencies
