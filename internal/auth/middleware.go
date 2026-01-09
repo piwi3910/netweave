@@ -89,6 +89,9 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// Start timing authentication.
+		authStart := time.Now()
+
 		// Extract client certificate.
 		cert := m.extractCertificate(c)
 		if cert == nil {
@@ -101,6 +104,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 
 				m.logAuthFailure(c, "", "no client certificate")
 				RecordAuthenticationAttempt("failed", "mtls")
+				RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 					"error":   "Unauthorized",
 					"message": "Client certificate required",
@@ -134,6 +138,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 
 				m.logAuthFailure(c, subject, "user not found")
 				RecordAuthenticationAttempt("failed", "mtls")
+				RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
 				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 					"error":   "Forbidden",
 					"message": "Authentication failed",
@@ -147,6 +152,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 				zap.Error(err),
 				zap.String("request_id", requestID),
 			)
+			RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 				"error":   "InternalError",
 				"message": "Authentication failed",
@@ -164,6 +170,8 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 			)
 
 			m.logAuthFailure(c, subject, "user inactive")
+			RecordAuthenticationAttempt("failed", "mtls")
+			RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"error":   "Forbidden",
 				"message": "Authentication failed",
@@ -181,6 +189,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 				zap.Error(err),
 				zap.String("request_id", requestID),
 			)
+			RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 				"error":   "InternalError",
 				"message": "Authentication service temporarily unavailable",
@@ -198,6 +207,8 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 					zap.String("tenant_id", user.TenantID),
 					zap.String("request_id", requestID),
 				)
+				RecordAuthenticationAttempt("failed", "mtls")
+				RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
 				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 					"error":   "Forbidden",
 					"message": "Authentication failed",
@@ -211,6 +222,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 				zap.Error(err),
 				zap.String("request_id", requestID),
 			)
+			RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 				"error":   "InternalError",
 				"message": "Authentication service temporarily unavailable",
@@ -228,6 +240,8 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 			)
 
 			m.logAuthFailure(c, subject, "tenant suspended")
+			RecordAuthenticationAttempt("failed", "mtls")
+			RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"error":   "Forbidden",
 				"message": "Tenant is suspended",
@@ -278,6 +292,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 		)
 
 		RecordAuthenticationAttempt("success", "mtls")
+		RecordAuthenticationDuration("success", time.Since(authStart).Seconds())
 		c.Next()
 	}
 }

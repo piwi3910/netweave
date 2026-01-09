@@ -294,6 +294,8 @@ validation:
 
 ### Multi-Tenancy Configuration
 
+Multi-tenancy enables multiple SMO systems (tenants) to securely share the same gateway while maintaining strict resource isolation.
+
 ```yaml
 multi_tenancy:
   enabled: true
@@ -310,6 +312,70 @@ multi_tenancy:
     max_deployments: 200
     max_users: 20
     max_requests_per_minute: 1000
+```
+
+**Field Reference:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enables multi-tenancy and RBAC enforcement. When enabled, creates a separate auth Redis store for tenant/user/role management. |
+| `require_mtls` | bool | `true` | Requires mTLS client certificates for authentication. Tenant ID is extracted from certificate CN. |
+| `initialize_default_roles` | bool | `true` | Creates default system roles on startup: `platform-admin`, `tenant-admin`, `operator`, `viewer`. |
+| `audit_log_retention_days` | int | `90` | Number of days to retain audit log entries in Redis. |
+| `skip_auth_paths` | []string | `[]` | Paths that bypass authentication (e.g., health checks, metrics). Supports exact matches and prefix patterns. |
+
+**Default Tenant Quota Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `max_subscriptions` | int | `100` | Maximum webhook subscriptions per tenant. |
+| `max_resource_pools` | int | `50` | Maximum resource pools a tenant can manage. |
+| `max_deployments` | int | `200` | Maximum deployments per tenant (O2-DMS). |
+| `max_users` | int | `20` | Maximum users per tenant. |
+| `max_requests_per_minute` | int | `1000` | Rate limit for API requests per tenant. |
+
+**Skip Auth Paths Examples:**
+
+```yaml
+skip_auth_paths:
+  # Exact matches
+  - /health
+  - /healthz
+  - /ready
+  - /metrics
+
+  # OpenAPI documentation (optional)
+  - /swagger
+  - /swagger/
+  - /api-docs
+```
+
+**Connection Pooling Considerations:**
+
+When multi-tenancy is enabled, the gateway maintains **two separate Redis connections**:
+1. **Main Storage**: Subscriptions, caching, pub/sub
+2. **Auth Storage**: Tenants, users, roles, audit logs
+
+For high-replica deployments (e.g., 30+ pods), this means 60+ total connections. Configure Redis connection pool size accordingly:
+
+```yaml
+redis:
+  pool_size: 10              # Per store, per pod
+  min_idle_conns: 2          # Minimum idle connections
+  max_conn_age: 30m          # Maximum connection age
+```
+
+**Environment Variable Overrides:**
+
+```bash
+# Enable/disable multi-tenancy
+export NETWEAVE_MULTI_TENANCY_ENABLED=true
+
+# Require mTLS
+export NETWEAVE_MULTI_TENANCY_REQUIRE_MTLS=true
+
+# Skip auth for specific paths (comma-separated)
+export NETWEAVE_MULTI_TENANCY_SKIP_AUTH_PATHS="/health,/metrics"
 ```
 
 ## Environment-Specific Settings
