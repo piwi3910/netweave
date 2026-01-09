@@ -2,7 +2,9 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -58,6 +60,7 @@ func (s *Server) setupRoutes() {
 		resources := v1.Group("/resources")
 		{
 			resources.GET("", s.handleListResources)
+			resources.POST("", s.handleCreateResource)
 			resources.GET("/:resourceId", s.handleGetResource)
 		}
 
@@ -470,6 +473,57 @@ func (s *Server) handleGetResource(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, resource)
+}
+
+// handleCreateResource creates a new resource.
+// POST /o2ims/v1/resources.
+func (s *Server) handleCreateResource(c *gin.Context) {
+	s.logger.Info("creating resource")
+
+	var req adapter.Resource
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Validate required fields
+	if req.ResourceTypeID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Resource type ID is required",
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Generate resource ID if not provided
+	if req.ResourceID == "" {
+		// Generate ID based on resource type for better organization
+		req.ResourceID = "res-" + req.ResourceTypeID + "-" +
+			fmt.Sprintf("%d", time.Now().UnixNano()%1000000)
+	}
+
+	// Create resource via adapter
+	created, err := s.adapter.CreateResource(c.Request.Context(), &req)
+	if err != nil {
+		s.logger.Error("failed to create resource", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to create resource",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("resource created",
+		zap.String("resource_id", created.ResourceID),
+		zap.String("resource_type_id", created.ResourceTypeID))
+
+	c.JSON(http.StatusCreated, created)
 }
 
 // Resource Type handlers
