@@ -13,6 +13,13 @@ import (
 	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
 )
 
+// Test credentials constants used only for unit testing.
+// These are not real credentials and should never be used in production.
+const (
+	testUsername       = "admin"
+	testCredentialData = "test-credential-data"
+)
+
 // TestNewAdapter tests adapter creation with various configurations.
 func TestNewAdapter(t *testing.T) {
 	tests := []struct {
@@ -31,8 +38,8 @@ func TestNewAdapter(t *testing.T) {
 			name: "valid config with auth",
 			config: &Config{
 				NBIEndpoint: "http://localhost:9999",
-				Username:    "admin",
-				Password:    "secret",
+				Username:    testUsername,
+				Password:    testCredentialData,
 			},
 			wantErr: false,
 		},
@@ -1030,16 +1037,16 @@ func TestDoRequest(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			user, pass, ok := r.BasicAuth()
 			assert.True(t, ok)
-			assert.Equal(t, "admin", user)
-			assert.Equal(t, "secret", pass)
+			assert.Equal(t, testUsername, user)
+			assert.Equal(t, testCredentialData, pass)
 			w.WriteHeader(http.StatusOK)
 		}))
 		defer server.Close()
 
 		adp, err := NewAdapter(&Config{
 			NBIEndpoint: server.URL,
-			Username:    "admin",
-			Password:    "secret",
+			Username:    testUsername,
+			Password:    testCredentialData,
 		})
 		require.NoError(t, err)
 		_ = adp.initialize()

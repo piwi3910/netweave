@@ -81,7 +81,9 @@ type Config struct {
 	// Timeout is the default timeout for API operations.
 	Timeout time.Duration
 
-	// TLSSkipVerify skips TLS certificate verification (for testing).
+	// TLSSkipVerify skips TLS certificate verification.
+	// WARNING: This should only be used in development/testing environments.
+	// In production, always use proper TLS certificate verification.
 	TLSSkipVerify bool
 }
 
@@ -649,6 +651,9 @@ func (o *OSMLCMAdapter) Close() error {
 }
 
 // doRequest performs an HTTP request to the OSM NBI API.
+// The body parameter uses interface{} to accept various request payload types
+// (maps, structs) that are marshaled to JSON - this flexibility is required
+// to support different OSM NBI endpoints with varying request schemas.
 func (o *OSMLCMAdapter) doRequest(
 	ctx context.Context,
 	method, path string,
