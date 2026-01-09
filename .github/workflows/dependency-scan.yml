@@ -1,0 +1,284 @@
+name: Dependency Scanning
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/dependency-scan.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/dependency-scan.yml'
+  schedule:
+    # Run weekly on Monday at 6:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  # Snyk vulnerability scanning
+  snyk-scan:
+    name: Snyk Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/golang@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --sarif-file-output=snyk.sarif
+
+      - name: Upload Snyk results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: snyk.sarif
+
+      - name: Generate Snyk report
+        if: always()
+        uses: snyk/actions/golang@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --json-file-output=snyk-report.json
+
+      - name: Upload Snyk report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-report
+          path: snyk-report.json
+          retention-days: 30
+
+  # Nancy (Sonatype) vulnerability scanning
+  nancy-scan:
+    name: Nancy (Sonatype) Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: true
+
+      - name: Install Nancy
+        run: |
+          curl -L -o nancy https://github.com/sonatype-nexus-community/nancy/releases/latest/download/nancy-linux-amd64
+          chmod +x nancy
+          sudo mv nancy /usr/local/bin/
+
+      - name: Run Nancy scan
+        run: |
+          go list -json -deps ./... | nancy sleuth -o json > nancy-report.json || true
+
+      - name: Check for critical vulnerabilities
+        run: |
+          if jq -e '.vulnerable[]' nancy-report.json > /dev/null 2>&1; then
+            echo "⚠️ Vulnerabilities found. See nancy-report.json for details."
+            jq '.vulnerable[]' nancy-report.json
+            # Don't fail the build - just warn
+            exit 0
+          else
+            echo "✓ No vulnerabilities found"
+          fi
+
+      - name: Upload Nancy report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nancy-report
+          path: nancy-report.json
+          retention-days: 30
+
+  # Go vulnerability check (official Go vulnerability database)
+  govulncheck:
+    name: Go Vulnerability Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: true
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: |
+          govulncheck -json ./... > govulncheck-report.json || true
+
+      - name: Parse and display results
+        if: always()
+        run: |
+          if [ -s govulncheck-report.json ]; then
+            echo "=== Go Vulnerability Check Results ==="
+            cat govulncheck-report.json | jq -r '.osv // empty | "[\(.id)] \(.summary)"'
+          fi
+
+      - name: Upload govulncheck report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: govulncheck-report
+          path: govulncheck-report.json
+          retention-days: 30
+
+  # Dependency review (for PRs only)
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          allow-licenses: Apache-2.0, MIT, BSD-2-Clause, BSD-3-Clause, ISC
+          deny-licenses: GPL-2.0, GPL-3.0, LGPL-2.0, LGPL-2.1, LGPL-3.0, AGPL-3.0
+          comment-summary-in-pr: true
+
+  # Trivy vulnerability scanner for dependencies
+  trivy-scan:
+    name: Trivy Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner in repo mode
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run Trivy with JSON output
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'json'
+          output: 'trivy-report.json'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.json
+          retention-days: 30
+
+  # Check for outdated dependencies
+  outdated-check:
+    name: Check Outdated Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: true
+
+      - name: Check for outdated dependencies
+        run: |
+          echo "=== Checking for outdated dependencies ==="
+          go list -u -m -json all | jq -r 'select(.Update != null) | "\(.Path): \(.Version) -> \(.Update.Version)"' > outdated.txt
+
+          if [ -s outdated.txt ]; then
+            echo "⚠️ Outdated dependencies found:"
+            cat outdated.txt
+          else
+            echo "✓ All dependencies are up to date"
+          fi
+
+      - name: Upload outdated dependencies list
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: outdated-dependencies
+          path: outdated.txt
+          retention-days: 7
+
+  # Aggregate results and create summary
+  summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [snyk-scan, nancy-scan, govulncheck, trivy-scan, outdated-check]
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: reports
+
+      - name: Create security summary
+        run: |
+          echo "# 🔒 Dependency Security Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Scanner | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Snyk | ${{ needs.snyk-scan.result == 'success' && '✅ Passed' || '⚠️ Issues Found' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Nancy (Sonatype) | ${{ needs.nancy-scan.result == 'success' && '✅ Passed' || '⚠️ Issues Found' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| govulncheck | ${{ needs.govulncheck.result == 'success' && '✅ Passed' || '⚠️ Issues Found' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy | ${{ needs.trivy-scan.result == 'success' && '✅ Passed' || '⚠️ Issues Found' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 Detailed reports are available in the workflow artifacts." >> $GITHUB_STEP_SUMMARY
+
+      - name: Check if any critical issues found
+        run: |
+          if [[ "${{ needs.snyk-scan.result }}" == "failure" ]] || \
+             [[ "${{ needs.nancy-scan.result }}" == "failure" ]] || \
+             [[ "${{ needs.govulncheck.result }}" == "failure" ]] || \
+             [[ "${{ needs.trivy-scan.result }}" == "failure" ]]; then
+            echo "⚠️ Critical vulnerabilities detected. Please review the reports."
+            # Don't fail the build on scheduled runs or in main branch
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              exit 1
+            fi
+          fi

@@ -1,0 +1,117 @@
+# Dependabot configuration for automated dependency updates
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # Go module dependencies
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "piwi3910"
+    labels:
+      - "dependencies"
+      - "go"
+      - "security"
+    commit-message:
+      prefix: "[Deps]"
+      include: "scope"
+    # Group minor and patch updates together
+    groups:
+      kubernetes:
+        patterns:
+          - "k8s.io/*"
+          - "sigs.k8s.io/*"
+        update-types:
+          - "minor"
+          - "patch"
+      aws-sdk:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2*"
+        update-types:
+          - "minor"
+          - "patch"
+      azure-sdk:
+        patterns:
+          - "github.com/Azure/*"
+        update-types:
+          - "minor"
+          - "patch"
+      testing:
+        patterns:
+          - "github.com/stretchr/testify"
+          - "github.com/testcontainers/*"
+          - "github.com/alicebob/miniredis*"
+        update-types:
+          - "minor"
+          - "patch"
+      observability:
+        patterns:
+          - "go.opentelemetry.io/*"
+          - "github.com/prometheus/*"
+          - "go.uber.org/zap"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "piwi3910"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "security"
+    commit-message:
+      prefix: "[CI]"
+      include: "scope"
+
+  # Docker dependencies (if Dockerfile uses specific base images)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "piwi3910"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "security"
+    commit-message:
+      prefix: "[Docker]"
+      include: "scope"
+
+  # Helm chart dependencies
+  - package-ecosystem: "docker"
+    directory: "/helm/netweave"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "piwi3910"
+    labels:
+      - "dependencies"
+      - "helm"
+      - "security"
+    commit-message:
+      prefix: "[Helm]"
+      include: "scope"
