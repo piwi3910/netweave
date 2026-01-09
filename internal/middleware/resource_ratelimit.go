@@ -216,6 +216,14 @@ func NewResourceRateLimiter(
 		return nil, fmt.Errorf("invalid rate limit configuration: %w", err)
 	}
 
+	// Warn about zero rate limit values that effectively disable limiting
+	warnZeroLimits(logger, "DeploymentManagers", config.DeploymentManagers)
+	warnZeroLimits(logger, "ResourcePools", config.ResourcePools)
+	warnZeroLimits(logger, "Resources", config.Resources)
+	warnZeroLimits(logger, "ResourceTypes", config.ResourceTypes)
+	warnZeroSubscriptionLimits(logger, config.Subscriptions)
+	warnZeroLimits(logger, "DefaultLimits", config.DefaultLimits)
+
 	// Test Redis connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -288,6 +296,42 @@ func validateResourceTypeLimits(name string, limits ResourceTypeLimits) error {
 		return fmt.Errorf("%s.ListPageSizeMax cannot be negative", name)
 	}
 	return nil
+}
+
+// warnZeroLimits logs warnings for zero rate limit values that effectively disable limiting.
+func warnZeroLimits(logger *zap.Logger, name string, limits ResourceTypeLimits) {
+	if limits.ReadsPerMinute == 0 {
+		logger.Warn("rate limit effectively disabled",
+			zap.String("resource_type", name),
+			zap.String("limit_type", "ReadsPerMinute"),
+			zap.String("recommendation", "set explicit value or use Enabled=false"),
+		)
+	}
+	if limits.WritesPerMinute == 0 {
+		logger.Warn("rate limit effectively disabled",
+			zap.String("resource_type", name),
+			zap.String("limit_type", "WritesPerMinute"),
+			zap.String("recommendation", "set explicit value or use Enabled=false"),
+		)
+	}
+}
+
+// warnZeroSubscriptionLimits logs warnings for zero subscription rate limit values.
+func warnZeroSubscriptionLimits(logger *zap.Logger, limits SubscriptionLimits) {
+	if limits.ReadsPerMinute == 0 {
+		logger.Warn("rate limit effectively disabled",
+			zap.String("resource_type", "Subscriptions"),
+			zap.String("limit_type", "ReadsPerMinute"),
+			zap.String("recommendation", "set explicit value or use Enabled=false"),
+		)
+	}
+	if limits.CreatesPerHour == 0 {
+		logger.Warn("rate limit effectively disabled",
+			zap.String("resource_type", "Subscriptions"),
+			zap.String("limit_type", "CreatesPerHour"),
+			zap.String("recommendation", "set explicit value or use Enabled=false"),
+		)
+	}
 }
 
 // Middleware returns a Gin middleware for resource-type rate limiting.

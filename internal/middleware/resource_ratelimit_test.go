@@ -5,8 +5,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestExtractResourceType(t *testing.T) {
@@ -253,5 +257,222 @@ func TestResourceRateLimiter_CheckPageSize(t *testing.T) {
 				assert.Equal(t, http.StatusBadRequest, w.Code)
 			}
 		})
+	}
+}
+
+// Redis integration tests
+
+func TestNewResourceRateLimiter(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer func() { _ = redisClient.Close() }()
+
+	logger := zap.NewNop()
+
+	t.Run("valid creation", func(t *testing.T) {
+		config := DefaultResourceRateLimitConfig()
+		config.RedisClient = redisClient
+
+		rl, err := NewResourceRateLimiter(config, logger)
+		require.NoError(t, err)
+		assert.NotNil(t, rl)
+	})
+
+	t.Run("nil config", func(t *testing.T) {
+		rl, err := NewResourceRateLimiter(nil, logger)
+		assert.Error(t, err)
+		assert.Nil(t, rl)
+		assert.Contains(t, err.Error(), "config cannot be nil")
+	})
+
+	t.Run("nil redis client", func(t *testing.T) {
+		config := DefaultResourceRateLimitConfig()
+		config.RedisClient = nil
+
+		rl, err := NewResourceRateLimiter(config, logger)
+		assert.Error(t, err)
+		assert.Nil(t, rl)
+		assert.Contains(t, err.Error(), "redis client cannot be nil")
+	})
+
+	t.Run("nil logger", func(t *testing.T) {
+		config := DefaultResourceRateLimitConfig()
+		config.RedisClient = redisClient
+
+		rl, err := NewResourceRateLimiter(config, nil)
+		assert.Error(t, err)
+		assert.Nil(t, rl)
+		assert.Contains(t, err.Error(), "logger cannot be nil")
+	})
+
+	t.Run("negative rate limit values", func(t *testing.T) {
+		config := DefaultResourceRateLimitConfig()
+		config.RedisClient = redisClient
+		config.DeploymentManagers.ReadsPerMinute = -1
+
+		rl, err := NewResourceRateLimiter(config, logger)
+		assert.Error(t, err)
+		assert.Nil(t, rl)
+		assert.Contains(t, err.Error(), "cannot be negative")
+	})
+}
+
+func TestResourceRateLimiter_SlidingWindow(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer func() { _ = redisClient.Close() }()
+
+	logger := zap.NewNop()
+
+	config := DefaultResourceRateLimitConfig()
+	config.RedisClient = redisClient
+	// Set a very low limit for testing
+	config.DeploymentManagers.ReadsPerMinute = 3
+
+	rl, err := NewResourceRateLimiter(config, logger)
+	require.NoError(t, err)
+
+	gin.SetMode(gin.TestMode)
+
+	// Helper to make requests
+	makeRequest := func() *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/o2ims/v1/deploymentManagers/dm-123", nil)
+		c.Set("tenant_id", "test-tenant")
+
+		middleware := rl.Middleware()
+		middleware(c)
+		return w
+	}
+
+	// First 3 requests should succeed
+	for i := 0; i < 3; i++ {
+		w := makeRequest()
+		assert.NotEqual(t, http.StatusTooManyRequests, w.Code, "Request %d should succeed", i+1)
+	}
+
+	// 4th request should be rate limited
+	w := makeRequest()
+	assert.Equal(t, http.StatusTooManyRequests, w.Code, "Request 4 should be rate limited")
+	assert.Contains(t, w.Body.String(), "resource rate limit exceeded")
+}
+
+func TestResourceRateLimiter_RateLimitHeaders(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer func() { _ = redisClient.Close() }()
+
+	logger := zap.NewNop()
+
+	config := DefaultResourceRateLimitConfig()
+	config.RedisClient = redisClient
+	config.Resources.ReadsPerMinute = 10
+
+	rl, err := NewResourceRateLimiter(config, logger)
+	require.NoError(t, err)
+
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/o2ims/v1/resources/res-123", nil)
+	c.Set("tenant_id", "test-tenant")
+
+	middleware := rl.Middleware()
+	middleware(c)
+
+	// Check rate limit headers are set
+	assert.Equal(t, "10", w.Header().Get("X-RateLimit-Limit"))
+	assert.NotEmpty(t, w.Header().Get("X-RateLimit-Remaining"))
+	assert.NotEmpty(t, w.Header().Get("X-RateLimit-Reset"))
+	assert.Equal(t, "resources", w.Header().Get("X-RateLimit-Resource"))
+}
+
+func TestResourceRateLimiter_FailOpen(t *testing.T) {
+	// Create a miniredis instance and then close it to simulate failure
+	mr := miniredis.RunT(t)
+	addr := mr.Addr()
+	mr.Close()
+
+	// Create client pointing to closed server
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: addr,
+	})
+	defer func() { _ = redisClient.Close() }()
+
+	logger := zap.NewNop()
+
+	// Manually create the rate limiter without the connection check
+	config := DefaultResourceRateLimitConfig()
+	config.RedisClient = redisClient
+
+	rl := &ResourceRateLimiter{
+		client: redisClient,
+		logger: logger,
+		config: config,
+		metrics: &resourceRateLimitMetrics{
+			hits:     resourceRateLimitHits,
+			failOpen: resourceRateLimitFailOpen,
+		},
+	}
+
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/o2ims/v1/resources/res-123", nil)
+	c.Set("tenant_id", "test-tenant")
+
+	middleware := rl.Middleware()
+	middleware(c)
+
+	// Request should succeed (fail-open behavior)
+	assert.NotEqual(t, http.StatusTooManyRequests, w.Code, "Should fail open when Redis is unavailable")
+}
+
+func TestResourceRateLimiter_Disabled(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer func() { _ = redisClient.Close() }()
+
+	logger := zap.NewNop()
+
+	config := DefaultResourceRateLimitConfig()
+	config.RedisClient = redisClient
+	config.Enabled = false
+
+	rl, err := NewResourceRateLimiter(config, logger)
+	require.NoError(t, err)
+
+	gin.SetMode(gin.TestMode)
+
+	// Make many requests - none should be rate limited
+	for i := 0; i < 100; i++ {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/o2ims/v1/resources/res-123", nil)
+		c.Set("tenant_id", "test-tenant")
+
+		middleware := rl.Middleware()
+		middleware(c)
+
+		assert.NotEqual(t, http.StatusTooManyRequests, w.Code, "Request %d should not be rate limited when disabled", i+1)
 	}
 }

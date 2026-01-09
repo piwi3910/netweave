@@ -212,18 +212,69 @@ func TestBuildHSTSValue(t *testing.T) {
 func TestServerHeaderRemoved(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	router := gin.New()
-	router.Use(SecurityHeaders(DefaultSecurityHeadersConfig()))
-	router.GET("/test", func(c *gin.Context) {
-		c.String(http.StatusOK, "OK")
+	t.Run("server header is empty by default", func(t *testing.T) {
+		router := gin.New()
+		router.Use(SecurityHeaders(DefaultSecurityHeadersConfig()))
+		router.GET("/test", func(c *gin.Context) {
+			c.String(http.StatusOK, "OK")
+		})
+
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodGet, "/test", nil)
+		require.NoError(t, err)
+
+		router.ServeHTTP(w, req)
+
+		// Server header should be empty/not set
+		assert.Empty(t, w.Header().Get("Server"))
 	})
 
-	w := httptest.NewRecorder()
-	req, err := http.NewRequest(http.MethodGet, "/test", nil)
-	require.NoError(t, err)
+	t.Run("server header remains empty after full request cycle", func(t *testing.T) {
+		router := gin.New()
+		router.Use(SecurityHeaders(DefaultSecurityHeadersConfig()))
 
-	router.ServeHTTP(w, req)
+		// Simulate a handler that might try to set headers
+		router.GET("/test", func(c *gin.Context) {
+			// Handler sets some custom headers
+			c.Header("X-Custom-Header", "custom-value")
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
 
-	// Server header should be empty/not set
-	assert.Empty(t, w.Header().Get("Server"))
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodGet, "/test", nil)
+		require.NoError(t, err)
+
+		router.ServeHTTP(w, req)
+
+		// Verify response was successful
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// Verify custom header was set
+		assert.Equal(t, "custom-value", w.Header().Get("X-Custom-Header"))
+
+		// Server header should still be empty after full request/response cycle
+		assert.Empty(t, w.Header().Get("Server"),
+			"Server header should remain empty throughout request lifecycle")
+	})
+
+	t.Run("all security headers present after full request cycle", func(t *testing.T) {
+		router := gin.New()
+		router.Use(SecurityHeaders(DefaultSecurityHeadersConfig()))
+		router.GET("/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"data": "test"})
+		})
+
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodGet, "/test", nil)
+		require.NoError(t, err)
+
+		router.ServeHTTP(w, req)
+
+		// Verify all security headers are present after response
+		assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+		assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
+		assert.Equal(t, "1; mode=block", w.Header().Get("X-XSS-Protection"))
+		assert.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+		assert.Empty(t, w.Header().Get("Server"))
+	})
 }

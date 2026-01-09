@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"time"
 
@@ -15,12 +16,19 @@ type AuditLogger struct {
 	logger *zap.Logger
 }
 
+// ErrNilLogger is returned when a nil logger is passed to NewAuditLogger.
+var ErrNilLogger = errors.New("logger cannot be nil")
+
 // NewAuditLogger creates a new AuditLogger.
-func NewAuditLogger(store Store, logger *zap.Logger) *AuditLogger {
+// Returns an error if logger is nil. Store can be nil (events will only be logged, not persisted).
+func NewAuditLogger(store Store, logger *zap.Logger) (*AuditLogger, error) {
+	if logger == nil {
+		return nil, ErrNilLogger
+	}
 	return &AuditLogger{
 		store:  store,
 		logger: logger,
-	}
+	}, nil
 }
 
 // LogResourceOperation logs a resource operation (create, modify, delete).
