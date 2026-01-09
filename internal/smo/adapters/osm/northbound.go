@@ -203,6 +203,11 @@ func (p *Plugin) DeleteVIMAccount(ctx context.Context, id string) error {
 //  2. Trigger OSM workflows based on events
 //  3. Forward events to external systems via OSM's notification service
 func (p *Plugin) publishOSMEvent(ctx context.Context, event *InfrastructureEvent) error {
+	// Check context cancellation
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("context canceled: %w", err)
+	}
+
 	if event == nil {
 		return fmt.Errorf("event cannot be nil")
 	}

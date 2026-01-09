@@ -33,7 +33,7 @@ func NewTestHTTPClient() *http.Client {
 				MinVersion: tls.VersionTLS13,
 				// InsecureSkipVerify can be set true for test environments
 				// In production tests with real certificates, this should be false
-				InsecureSkipVerify: false, //nolint:gosec // Configurable for test environments
+				InsecureSkipVerify: false,
 			},
 		},
 	}
