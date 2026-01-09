@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -124,7 +125,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 		// Look up user by certificate subject.
 		user, err := m.store.GetUserBySubject(c.Request.Context(), subject)
 		if err != nil {
-			if err == ErrUserNotFound {
+			if errors.Is(err, ErrUserNotFound) {
 				m.logger.Warn("unknown user certificate",
 					zap.String("subject", sanitizeForLogging(subject, 200)),
 					zap.String("client_ip", c.ClientIP()),
@@ -191,7 +192,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 		// Get tenant information.
 		tenant, err := m.store.GetTenant(c.Request.Context(), user.TenantID)
 		if err != nil {
-			if err == ErrTenantNotFound {
+			if errors.Is(err, ErrTenantNotFound) {
 				m.logger.Warn("user's tenant not found",
 					zap.String("user_id", user.ID),
 					zap.String("tenant_id", user.TenantID),

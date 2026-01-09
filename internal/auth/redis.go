@@ -5,10 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	redis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
@@ -285,7 +286,7 @@ func (r *RedisStore) Close() error {
 // Ping checks if Redis is available.
 func (r *RedisStore) Ping(ctx context.Context) error {
 	if err := r.client.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("%w: %v", ErrStorageUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrStorageUnavailable, err)
 	}
 	return nil
 }
@@ -336,7 +337,7 @@ func (r *RedisStore) GetTenant(ctx context.Context, id string) (*Tenant, error) 
 	key := tenantKeyPrefix + id
 	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, ErrTenantNotFound
 		}
 		return nil, fmt.Errorf("failed to get tenant: %w", err)
@@ -591,7 +592,7 @@ func (r *RedisStore) GetUser(ctx context.Context, id string) (*TenantUser, error
 	key := userKeyPrefix + id
 	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
@@ -614,7 +615,7 @@ func (r *RedisStore) GetUserBySubject(ctx context.Context, subject string) (*Ten
 	subjectKey := userSubjectIndex + sanitizeSubjectKey(subject)
 	userID, err := r.client.Get(ctx, subjectKey).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to get user by subject: %w", err)
@@ -825,7 +826,7 @@ func (r *RedisStore) GetRole(ctx context.Context, id string) (*Role, error) {
 	key := roleKeyPrefix + id
 	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, ErrRoleNotFound
 		}
 		return nil, fmt.Errorf("failed to get role: %w", err)
@@ -844,7 +845,7 @@ func (r *RedisStore) GetRoleByName(ctx context.Context, name RoleName) (*Role, e
 	nameKey := roleNameIndex + string(name)
 	roleID, err := r.client.Get(ctx, nameKey).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, ErrRoleNotFound
 		}
 		return nil, fmt.Errorf("failed to get role by name: %w", err)
