@@ -22,6 +22,17 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// API path constants for O2-IMS endpoints.
+const (
+	APIPathResourcePools        = "/o2ims/v1/resourcePools"
+	APIPathResourcePoolByID     = "/o2ims/v1/resourcePools/%s"
+	APIPathResourcesInPool      = "/o2ims/v1/resourcePools/%s/resources"
+	APIPathResourceByID         = "/o2ims/v1/resourcePools/%s/resources/%s"
+	APIPathSubscriptions        = "/o2ims/v1/subscriptions"
+	APIPathSubscriptionByID     = "/o2ims/v1/subscriptions/%s"
+	APIPathHealthCheck          = "/healthz"
+)
+
 // TestFramework provides infrastructure for E2E tests.
 type TestFramework struct {
 	// KubeClient is the Kubernetes client for cluster operations
@@ -178,8 +189,9 @@ func (f *TestFramework) Cleanup() {
 	}
 
 	// Sync logger
+	// Note: Sync errors are ignored because they commonly occur when output
+	// is redirected or during test cleanup. These are not critical failures.
 	if err := f.Logger.Sync(); err != nil {
-		// Ignore sync errors
 		_ = err
 	}
 }
@@ -205,6 +217,10 @@ func buildKubernetesClient(kubeconfigPath string) (kubernetes.Interface, error) 
 
 // buildHTTPClient creates an HTTP client with optional TLS configuration.
 func buildHTTPClient(opts *FrameworkOptions) (*http.Client, error) {
+	// Transport settings optimized for E2E testing:
+	// - MaxIdleConns/MaxIdleConnsPerHost: Reuse connections for faster tests
+	// - IdleConnTimeout: Keep connections alive between test cases
+	// - Compression enabled for realistic testing
 	transport := &http.Transport{
 		MaxIdleConns:        10,
 		IdleConnTimeout:     30 * time.Second,
@@ -262,8 +278,11 @@ func buildTLSConfig(opts *FrameworkOptions) (*tls.Config, error) {
 }
 
 // detectGatewayURL attempts to detect the gateway URL from the Kubernetes service.
+// Currently returns a hardcoded localhost URL for port-forwarded E2E tests.
+// Parameters are accepted for future enhancement when auto-detecting service URLs
+// from the Kubernetes API (e.g., LoadBalancer external IPs, NodePort addresses).
 func detectGatewayURL(_ context.Context, _ kubernetes.Interface, _ string) (string, error) {
-	// For E2E tests, we assume port-forwarding or NodePort access
-	// Default to localhost with common port
+	// For E2E tests, we assume port-forwarding or NodePort access.
+	// The setup.sh script establishes port-forward to localhost:8080.
 	return "http://localhost:8080", nil
 }

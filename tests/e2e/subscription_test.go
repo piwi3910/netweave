@@ -39,7 +39,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 		reqBody, err := json.Marshal(subscription)
 		require.NoError(t, err)
 
-		url := fw.GatewayURL + "/o2ims/v1/subscriptions"
+		url := fw.GatewayURL + APIPathSubscriptions
 		req, err := http.NewRequestWithContext(fw.Context, http.MethodPost, url, bytes.NewReader(reqBody))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
@@ -75,7 +75,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 	})
 
 	t.Run("list subscriptions", func(t *testing.T) {
-		url := fw.GatewayURL + "/o2ims/v1/subscriptions"
+		url := fw.GatewayURL + APIPathSubscriptions
 		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
 
@@ -112,7 +112,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 	})
 
 	t.Run("get subscription", func(t *testing.T) {
-		url := fmt.Sprintf("%s/o2ims/v1/subscriptions/%s", fw.GatewayURL, subscriptionID)
+		url := fw.GatewayURL + fmt.Sprintf(APIPathSubscriptionByID, subscriptionID)
 		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
 
@@ -142,7 +142,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 	})
 
 	t.Run("delete subscription", func(t *testing.T) {
-		url := fmt.Sprintf("%s/o2ims/v1/subscriptions/%s", fw.GatewayURL, subscriptionID)
+		url := fw.GatewayURL + fmt.Sprintf(APIPathSubscriptionByID, subscriptionID)
 		req, err := http.NewRequestWithContext(fw.Context, http.MethodDelete, url, nil)
 		require.NoError(t, err)
 
@@ -200,7 +200,7 @@ func TestSubscriptionNotifications(t *testing.T) {
 	reqBody, err := json.Marshal(subscription)
 	require.NoError(t, err)
 
-	url := fw.GatewayURL + "/o2ims/v1/subscriptions"
+	url := fw.GatewayURL + APIPathSubscriptions
 	resp, err := fw.APIClient.Post(url, "application/json", bytes.NewReader(reqBody))
 	require.NoError(t, err)
 	defer func() {

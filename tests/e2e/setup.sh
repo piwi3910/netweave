@@ -42,6 +42,9 @@ helm repo update
 if helm list -n "${NAMESPACE}" | grep -q "redis"; then
     echo "Redis already installed"
 else
+    # Deploy Redis for E2E testing
+    # Note: auth.enabled=false is ONLY acceptable for isolated E2E test environments.
+    # Production deployments must enable authentication and TLS.
     helm install redis bitnami/redis \
         --namespace "${NAMESPACE}" \
         --set auth.enabled=false \
