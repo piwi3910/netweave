@@ -128,7 +128,7 @@ func New(cfg *Config) (*DTIASAdapter, error) {
 		return nil, err
 	}
 
-	adapter := &DTIASAdapter{
+	adp := &DTIASAdapter{
 		client:              client,
 		logger:              logger,
 		config:              cfg,
@@ -143,7 +143,7 @@ func New(cfg *Config) (*DTIASAdapter, error) {
 		zap.String("deploymentManagerId", cfg.DeploymentManagerID),
 		zap.String("datacenter", cfg.Datacenter))
 
-	return adapter, nil
+	return adp, nil
 }
 
 // validateConfig validates the required configuration fields.
