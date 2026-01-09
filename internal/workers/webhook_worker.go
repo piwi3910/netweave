@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	redis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/controllers"
