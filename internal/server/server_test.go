@@ -59,6 +59,10 @@ func (m *mockAdapter) GetResource(ctx context.Context, id string) (*adapter.Reso
 func (m *mockAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
 	return resource, nil
 }
+func (m *mockAdapter) UpdateResource(ctx context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+	resource.ResourceID = id
+	return resource, nil
+}
 func (m *mockAdapter) DeleteResource(ctx context.Context, id string) error {
 	return nil
 }

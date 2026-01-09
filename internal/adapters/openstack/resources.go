@@ -271,6 +271,17 @@ func (a *OpenStackAdapter) createOpenStackServer(createOpts servers.CreateOpts) 
 	return osServer, nil
 }
 
+// UpdateResource updates an existing OpenStack instance's metadata.
+// Note: Core instance properties cannot be modified after creation.
+func (a *OpenStackAdapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (*adapter.Resource, error) {
+	a.logger.Debug("UpdateResource called",
+		zap.String("resourceID", resource.ResourceID))
+
+	// TODO: Implement instance metadata updates via OpenStack API
+	// For now, return not supported
+	return nil, fmt.Errorf("updating OpenStack instances is not yet implemented")
+}
+
 // DeleteResource deletes an OpenStack Nova instance.
 func (a *OpenStackAdapter) DeleteResource(_ context.Context, id string) error {
 	a.logger.Debug("DeleteResource called",

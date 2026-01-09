@@ -563,16 +563,16 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 		req.ResourcePoolID = existing.ResourcePoolID
 	}
 
-	// Update via adapter (if UpdateResource exists, otherwise return updated struct)
-	// For now, since adapter interface doesn't have UpdateResource,
-	// we'll return the updated resource directly
-	updated := &adapter.Resource{
-		ResourceID:     resourceID,
-		ResourceTypeID: req.ResourceTypeID,
-		ResourcePoolID: req.ResourcePoolID,
-		GlobalAssetID:  req.GlobalAssetID,
-		Description:    req.Description,
-		Extensions:     req.Extensions,
+	// Update via adapter
+	updated, err := s.adapter.UpdateResource(c.Request.Context(), resourceID, &req)
+	if err != nil {
+		s.logger.Error("failed to update resource", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to update resource: " + err.Error(),
+			"code":    http.StatusInternalServerError,
+		})
+		return
 	}
 
 	s.logger.Info("resource updated",

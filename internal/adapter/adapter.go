@@ -259,6 +259,11 @@ type Adapter interface {
 	// Returns the created resource with server-assigned fields populated.
 	CreateResource(ctx context.Context, resource *Resource) (*Resource, error)
 
+	// UpdateResource updates an existing resource's mutable fields (description, globalAssetId, extensions).
+	// Immutable fields (resourceId, resourceTypeId, resourcePoolId) cannot be changed.
+	// Returns the updated resource or an error if the resource doesn't exist.
+	UpdateResource(ctx context.Context, id string, resource *Resource) (*Resource, error)
+
 	// DeleteResource deletes a resource by ID (e.g., deprovision a node).
 	// Returns an error if the resource doesn't exist or cannot be deleted.
 	DeleteResource(ctx context.Context, id string) error

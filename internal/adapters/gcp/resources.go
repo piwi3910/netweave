@@ -156,6 +156,20 @@ func (a *GCPAdapter) CreateResource(_ context.Context, resource *adapter.Resourc
 	return nil, fmt.Errorf("creating GCP instances requires additional configuration: use gcloud CLI or console")
 }
 
+// UpdateResource updates an existing GCP instance's labels and metadata.
+// Note: Core instance properties cannot be modified after creation.
+func (a *GCPAdapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("gcp", "UpdateResource", start, err) }()
+
+	a.logger.Debug("UpdateResource called",
+		zap.String("resourceID", resource.ResourceID))
+
+	// TODO: Implement instance metadata updates via GCP API
+	// For now, return not supported
+	return nil, fmt.Errorf("updating GCP instances is not yet implemented")
+}
+
 // DeleteResource deletes a resource (GCP instance) by ID.
 func (a *GCPAdapter) DeleteResource(ctx context.Context, id string) (err error) {
 	start := time.Now()
