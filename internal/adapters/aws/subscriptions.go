@@ -13,7 +13,7 @@ import (
 // CreateSubscription creates a new event subscription.
 // AWS adapter uses polling-based subscriptions since CloudWatch Events
 // integration would require additional AWS infrastructure setup.
-func (a *AWSAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (created *adapter.Subscription, err error) {
+func (a *AWSAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (created *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "CreateSubscription", start, err) }()
 
@@ -56,7 +56,7 @@ func (a *AWSAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscr
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *AWSAdapter) GetSubscription(ctx context.Context, id string) (sub *adapter.Subscription, err error) {
+func (a *AWSAdapter) GetSubscription(_ context.Context, id string) (sub *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetSubscription", start, err) }()
 
@@ -75,7 +75,7 @@ func (a *AWSAdapter) GetSubscription(ctx context.Context, id string) (sub *adapt
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *AWSAdapter) DeleteSubscription(ctx context.Context, id string) (err error) {
+func (a *AWSAdapter) DeleteSubscription(_ context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "DeleteSubscription", start, err) }()
 

@@ -357,7 +357,7 @@ func (a *OpenStackAdapter) transformServerToResource(server *servers.Server) *ad
 // This is a best-effort mapping that requires the OS-EXT-AZ extension to be available.
 // In production OpenStack deployments, use the availability zone stored in server.Metadata
 // or query with the OS-EXT-AZ extension enabled.
-func (a *OpenStackAdapter) getResourcePoolIDFromServer(server *servers.Server) string {
+func (a *OpenStackAdapter) getResourcePoolIDFromServer(_ *servers.Server) string {
 	// Note: The standard gophercloud servers.Server struct doesn't include
 	// the availability zone field. To get this information, you need to:
 	// 1. Use the OS-EXT-AZ:availability_zone extension when fetching servers

@@ -193,7 +193,7 @@ func (a *VMwareAdapter) GetResourcePool(ctx context.Context, id string) (pool *a
 }
 
 // CreateResourcePool creates a new resource pool.
-func (a *VMwareAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *VMwareAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "CreateResourcePool", start, err) }()
 
@@ -205,7 +205,7 @@ func (a *VMwareAdapter) CreateResourcePool(ctx context.Context, pool *adapter.Re
 }
 
 // UpdateResourcePool updates an existing resource pool.
-func (a *VMwareAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *VMwareAdapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "UpdateResourcePool", start, err) }()
 
@@ -217,7 +217,7 @@ func (a *VMwareAdapter) UpdateResourcePool(ctx context.Context, id string, pool 
 }
 
 // DeleteResourcePool deletes a resource pool by ID.
-func (a *VMwareAdapter) DeleteResourcePool(ctx context.Context, id string) (err error) {
+func (a *VMwareAdapter) DeleteResourcePool(_ context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "DeleteResourcePool", start, err) }()
 

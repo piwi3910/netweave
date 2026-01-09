@@ -13,7 +13,7 @@ import (
 // CreateSubscription creates a new event subscription.
 // GCP adapter uses polling-based subscriptions since Pub/Sub
 // integration would require additional GCP infrastructure setup.
-func (a *GCPAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+func (a *GCPAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "CreateSubscription", start, err) }()
 
@@ -56,7 +56,7 @@ func (a *GCPAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscr
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *GCPAdapter) GetSubscription(ctx context.Context, id string) (sub *adapter.Subscription, err error) {
+func (a *GCPAdapter) GetSubscription(_ context.Context, id string) (sub *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "GetSubscription", start, err) }()
 
@@ -75,7 +75,7 @@ func (a *GCPAdapter) GetSubscription(ctx context.Context, id string) (sub *adapt
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *GCPAdapter) DeleteSubscription(ctx context.Context, id string) (err error) {
+func (a *GCPAdapter) DeleteSubscription(_ context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "DeleteSubscription", start, err) }()
 
