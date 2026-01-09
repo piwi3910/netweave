@@ -102,7 +102,10 @@ func (c *Client) Authenticate(ctx context.Context) error {
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("authentication failed (status %d, failed to read body: %w)", resp.StatusCode, err)
+		}
 		return fmt.Errorf("authentication failed (status %d): %s", resp.StatusCode, string(body))
 	}
 
@@ -317,7 +320,11 @@ func (c *Client) handleUnauthorized(ctx context.Context, req *http.Request, _ *h
 // handleRetryableError handles retryable HTTP errors (rate limiting, service unavailable).
 // Note: resp.Body is closed by caller's defer.
 func (c *Client) handleRetryableError(resp *http.Response, lastErr *error) error {
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		*lastErr = fmt.Errorf("request failed (status %d, failed to read body: %w)", resp.StatusCode, err)
+		return errRetryable
+	}
 	*lastErr = fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(body))
 	return errRetryable
 }
@@ -325,7 +332,10 @@ func (c *Client) handleRetryableError(resp *http.Response, lastErr *error) error
 // handleNonRetryableError handles non-retryable HTTP errors.
 // Note: resp.Body is closed by caller's defer.
 func (c *Client) handleNonRetryableError(resp *http.Response) error {
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("request failed (status %d, failed to read body: %w)", resp.StatusCode, err)
+	}
 	return fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(body))
 }
 

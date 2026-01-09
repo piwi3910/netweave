@@ -302,10 +302,14 @@ func (p *Plugin) GetNSStatus(ctx context.Context, nsInstanceID string) (*Deploym
 		return nil, err
 	}
 
-	// Parse modify time
+	// Parse modify time (best effort - use zero time if parsing fails)
 	var modifyTime time.Time
 	if deployment.ModifyTime != "" {
-		modifyTime, _ = time.Parse(time.RFC3339, deployment.ModifyTime)
+		parsedTime, err := time.Parse(time.RFC3339, deployment.ModifyTime)
+		if err == nil {
+			modifyTime = parsedTime
+		}
+		// Silently ignore parsing errors - zero time is acceptable fallback
 	}
 
 	status := &DeploymentStatus{

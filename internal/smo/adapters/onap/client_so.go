@@ -125,7 +125,10 @@ func (c *SOClient) GetOrchestrationStatus(ctx context.Context, requestID string)
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("SO returned status %d (failed to read body: %w)", resp.StatusCode, err)
+		}
 		return nil, fmt.Errorf("SO returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -297,7 +300,10 @@ func (c *SOClient) GetServiceModel(ctx context.Context, modelID string) (*Servic
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("SO returned status %d (failed to read body: %w)", resp.StatusCode, err)
+		}
 		return nil, fmt.Errorf("SO returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -330,7 +336,10 @@ func (c *SOClient) ListServiceModels(ctx context.Context) ([]*ServiceModel, erro
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("SO returned status %d (failed to read body: %w)", resp.StatusCode, err)
+		}
 		return nil, fmt.Errorf("SO returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
