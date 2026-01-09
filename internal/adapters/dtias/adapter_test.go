@@ -82,58 +82,58 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := New(tt.config)
+			adp, err := New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
-				assert.Nil(t, adapter)
+				assert.Nil(t, adp)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, adapter)
+				require.NotNil(t, adp)
 
 				// Verify adapter metadata
-				assert.Equal(t, "dtias", adapter.Name())
-				assert.Equal(t, "1.0.0", adapter.Version())
-				assert.NotEmpty(t, adapter.Capabilities())
+				assert.Equal(t, "dtias", adp.Name())
+				assert.Equal(t, "1.0.0", adp.Version())
+				assert.NotEmpty(t, adp.Capabilities())
 
 				// Verify configuration defaults were applied
 				if tt.config.Timeout == 0 {
-					assert.Equal(t, 30*time.Second, adapter.config.Timeout)
+					assert.Equal(t, 30*time.Second, adp.config.Timeout)
 				}
 				if tt.config.RetryAttempts == 0 {
-					assert.Equal(t, 3, adapter.config.RetryAttempts)
+					assert.Equal(t, 3, adp.config.RetryAttempts)
 				}
 				if tt.config.RetryDelay == 0 {
-					assert.Equal(t, 2*time.Second, adapter.config.RetryDelay)
+					assert.Equal(t, 2*time.Second, adp.config.RetryDelay)
 				}
 				if tt.config.DeploymentManagerID == "" {
-					assert.NotEmpty(t, adapter.deploymentManagerID)
+					assert.NotEmpty(t, adp.deploymentManagerID)
 				}
 
 				// Cleanup
-				assert.NoError(t, adapter.Close())
+				assert.NoError(t, adp.Close())
 			}
 		})
 	}
 }
 
 func TestDTIASAdapter_Name(t *testing.T) {
-	adapter := createTestAdapter(t)
+	adp := createTestAdapter(t)
 	t.Cleanup(func() {
-		assert.NoError(t, adapter.Close())
+		assert.NoError(t, adp.Close())
 	})
 
-	assert.Equal(t, "dtias", adapter.Name())
+	assert.Equal(t, "dtias", adp.Name())
 }
 
 func TestDTIASAdapter_Version(t *testing.T) {
-	adapter := createTestAdapter(t)
+	adp := createTestAdapter(t)
 	t.Cleanup(func() {
-		assert.NoError(t, adapter.Close())
+		assert.NoError(t, adp.Close())
 	})
 
-	assert.Equal(t, "1.0.0", adapter.Version())
+	assert.Equal(t, "1.0.0", adp.Version())
 }
 
 func TestDTIASAdapter_Capabilities(t *testing.T) {
@@ -151,21 +151,19 @@ func TestDTIASAdapter_Capabilities(t *testing.T) {
 		adapter.CapabilityResourceTypes,
 		adapter.CapabilityDeploymentManagers,
 		adapter.CapabilityHealthChecks,
+		adapter.CapabilitySubscriptions, // Polling-based implementation
 	}
 
 	assert.Len(t, capabilities, len(expectedCapabilities))
 	for _, expected := range expectedCapabilities {
 		assert.Contains(t, capabilities, expected)
 	}
-
-	// Verify subscriptions capability is NOT present (DTIAS has no native subscriptions)
-	assert.NotContains(t, capabilities, adapter.CapabilitySubscriptions)
 }
 
 func TestDTIASAdapter_Close(t *testing.T) {
-	adapter := createTestAdapter(t)
+	adp := createTestAdapter(t)
 
-	err := adapter.Close()
+	err := adp.Close()
 	assert.NoError(t, err)
 }
 
@@ -218,9 +216,136 @@ func createTestAdapter(t *testing.T) *DTIASAdapter {
 		Logger: zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
 	}
 
-	adapter, err := New(config)
+	adp, err := New(config)
 	require.NoError(t, err)
-	require.NotNil(t, adapter)
+	require.NotNil(t, adp)
 
-	return adapter
+	return adp
+}
+
+// TestSubscriptions tests subscription CRUD operations.
+// DTIAS implements polling-based subscriptions stored locally.
+func TestSubscriptions(t *testing.T) {
+	adp := createTestAdapter(t)
+	t.Cleanup(func() {
+		assert.NoError(t, adp.Close())
+	})
+
+	ctx := context.Background()
+
+	t.Run("CreateSubscription", func(t *testing.T) {
+		sub := &adapter.Subscription{
+			Callback:               "https://example.com/callback",
+			ConsumerSubscriptionID: "consumer-sub-1",
+		}
+
+		created, err := adp.CreateSubscription(ctx, sub)
+		require.NoError(t, err)
+		require.NotNil(t, created)
+		assert.NotEmpty(t, created.SubscriptionID)
+		assert.Equal(t, "https://example.com/callback", created.Callback)
+		assert.Equal(t, "consumer-sub-1", created.ConsumerSubscriptionID)
+	})
+
+	t.Run("CreateSubscription with ID", func(t *testing.T) {
+		sub := &adapter.Subscription{
+			SubscriptionID: "my-custom-id",
+			Callback:       "https://example.com/callback2",
+		}
+
+		created, err := adp.CreateSubscription(ctx, sub)
+		require.NoError(t, err)
+		require.NotNil(t, created)
+		assert.Equal(t, "my-custom-id", created.SubscriptionID)
+	})
+
+	t.Run("CreateSubscription without callback", func(t *testing.T) {
+		sub := &adapter.Subscription{}
+
+		_, err := adp.CreateSubscription(ctx, sub)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "callback URL is required")
+	})
+
+	t.Run("GetSubscription", func(t *testing.T) {
+		sub, err := adp.GetSubscription(ctx, "my-custom-id")
+		require.NoError(t, err)
+		require.NotNil(t, sub)
+		assert.Equal(t, "my-custom-id", sub.SubscriptionID)
+	})
+
+	t.Run("GetSubscription not found", func(t *testing.T) {
+		_, err := adp.GetSubscription(ctx, "nonexistent")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "subscription not found")
+	})
+
+	t.Run("ListSubscriptions", func(t *testing.T) {
+		subs := adp.ListSubscriptions()
+		assert.Len(t, subs, 2)
+	})
+
+	t.Run("DeleteSubscription", func(t *testing.T) {
+		err := adp.DeleteSubscription(ctx, "my-custom-id")
+		require.NoError(t, err)
+
+		_, err = adp.GetSubscription(ctx, "my-custom-id")
+		require.Error(t, err)
+	})
+
+	t.Run("DeleteSubscription not found", func(t *testing.T) {
+		err := adp.DeleteSubscription(ctx, "nonexistent")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "subscription not found")
+	})
+}
+
+// TestGetPollingRecommendation tests polling recommendations.
+func TestGetPollingRecommendation(t *testing.T) {
+	adp := createTestAdapter(t)
+	t.Cleanup(func() {
+		assert.NoError(t, adp.Close())
+	})
+
+	rec := adp.GetPollingRecommendation()
+	require.NotNil(t, rec)
+
+	// Verify recommended intervals
+	assert.Contains(t, rec.RecommendedIntervals, "resource-pools")
+	assert.Contains(t, rec.RecommendedIntervals, "resources")
+	assert.Contains(t, rec.RecommendedIntervals, "health-metrics")
+
+	// Verify change detection fields
+	assert.Contains(t, rec.ChangeDetectionFields, "resource-pools")
+	assert.Contains(t, rec.ChangeDetectionFields, "resources")
+
+	// Verify optimization tips
+	assert.NotEmpty(t, rec.OptimizationTips)
+}
+
+// TestCloseWithSubscriptions verifies subscriptions are cleared on close.
+func TestCloseWithSubscriptions(t *testing.T) {
+	adp := createTestAdapter(t)
+	ctx := context.Background()
+
+	// Create some subscriptions
+	_, err := adp.CreateSubscription(ctx, &adapter.Subscription{
+		Callback: "https://example.com/callback1",
+	})
+	require.NoError(t, err)
+
+	_, err = adp.CreateSubscription(ctx, &adapter.Subscription{
+		Callback: "https://example.com/callback2",
+	})
+	require.NoError(t, err)
+
+	// Verify subscriptions exist
+	assert.Len(t, adp.ListSubscriptions(), 2)
+
+	// Close adapter
+	err = adp.Close()
+	require.NoError(t, err)
+
+	// Verify subscriptions are cleared
+	assert.Empty(t, adp.subscriptions)
 }

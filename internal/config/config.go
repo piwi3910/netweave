@@ -230,6 +230,20 @@ func (c *RedisConfig) GetPassword() (string, error) {
 	return c.Password, nil
 }
 
+// IsUsingDeprecatedPassword returns true if the deprecated direct Password field
+// is being used instead of the recommended PasswordEnvVar or PasswordFile.
+// This method avoids direct access to sensitive password data for deprecation checks.
+func (c *RedisConfig) IsUsingDeprecatedPassword() bool {
+	return c.Password != "" && c.PasswordEnvVar == "" && c.PasswordFile == ""
+}
+
+// IsUsingDeprecatedSentinelPassword returns true if the deprecated direct SentinelPassword
+// field is being used instead of the recommended SentinelPasswordEnvVar or SentinelPasswordFile.
+// This method avoids direct access to sensitive password data for deprecation checks.
+func (c *RedisConfig) IsUsingDeprecatedSentinelPassword() bool {
+	return c.SentinelPassword != "" && c.SentinelPasswordEnvVar == "" && c.SentinelPasswordFile == ""
+}
+
 // GetSentinelPassword retrieves the Sentinel password from the configured source.
 // Priority order:
 //  1. Environment variable (if SentinelPasswordEnvVar is set)

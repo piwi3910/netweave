@@ -1,7 +1,7 @@
 # O2-IMS to Kubernetes API Mapping
 
-**Version:** 1.0
-**Date:** 2026-01-06
+**Version:** 1.1
+**Date:** 2026-01-09
 
 This document defines how O-RAN O2-IMS resources map to Kubernetes resources in the netweave gateway.
 
@@ -1160,13 +1160,13 @@ func transformMachineSetToO2Pool(ms *machinev1beta1.MachineSet) *models.Resource
 
 ### API Operations
 
-| Operation | Method | Endpoint | K8s Action |
-|-----------|--------|----------|------------|
-| List | GET | `/resourcePools` | List MachineSets |
-| Get | GET | `/resourcePools/{id}` | Get MachineSet |
-| Create | POST | `/resourcePools` | Create MachineSet |
-| Update | PUT | `/resourcePools/{id}` | Update MachineSet |
-| Delete | DELETE | `/resourcePools/{id}` | Delete MachineSet |
+| Operation | Method | Endpoint | K8s Action | Notes |
+|-----------|--------|----------|------------|-------|
+| List | GET | `/resourcePools` | List MachineSets | Supports filtering by location, labels |
+| Get | GET | `/resourcePools/{id}` | Get MachineSet | Returns 404 if not found |
+| Create | POST | `/resourcePools` | Create MachineSet | Requires name; generates ID |
+| Update | PUT | `/resourcePools/{id}` | Update MachineSet | Updates name, description, extensions |
+| Delete | DELETE | `/resourcePools/{id}` | Delete MachineSet | Returns 204 No Content |
 
 ---
 
@@ -1303,13 +1303,13 @@ func transformO2ResourceToMachine(resource *models.Resource) *machinev1beta1.Mac
 
 ### API Operations
 
-| Operation | Method | Endpoint | K8s Action |
-|-----------|--------|----------|------------|
-| List | GET | `/resources` | List Nodes (or Machines) |
-| Get | GET | `/resources/{id}` | Get Node |
-| Create | POST | `/resources` | Create Machine (triggers Node) |
-| ~~Update~~ | ~~PUT~~ | ~~N/A~~ | Not supported (nodes are immutable) |
-| Delete | DELETE | `/resources/{id}` | Delete Machine or drain+delete Node |
+| Operation | Method | Endpoint | K8s Action | Notes |
+|-----------|--------|----------|------------|-------|
+| List | GET | `/resources` | List Nodes (or Machines) | Supports filtering by pool, type |
+| Get | GET | `/resources/{id}` | Get Node | Returns 404 if not found |
+| Create | POST | `/resources` | Create Machine (triggers Node) | Requires resourceTypeId; generates ID |
+| ~~Update~~ | ~~PUT~~ | ~~N/A~~ | Not supported | Nodes are immutable in K8s |
+| Delete | DELETE | `/resources/{id}` | Delete Machine or drain+delete Node | Returns 204 No Content |
 
 ---
 
@@ -1516,13 +1516,13 @@ func (c *SubscriptionController) sendWebhook(
 
 ### API Operations
 
-| Operation | Method | Endpoint | K8s Action |
-|-----------|--------|----------|------------|
-| List | GET | `/subscriptions` | List from Redis |
-| Get | GET | `/subscriptions/{id}` | Get from Redis |
-| Create | POST | `/subscriptions` | Store in Redis + start watching |
-| Update | PUT | `/subscriptions/{id}` | Update Redis |
-| Delete | DELETE | `/subscriptions/{id}` | Delete from Redis + stop watching |
+| Operation | Method | Endpoint | Action | Notes |
+|-----------|--------|----------|--------|-------|
+| List | GET | `/subscriptions` | List from Redis | Returns all subscriptions for tenant |
+| Get | GET | `/subscriptions/{id}` | Get from Redis | Returns single subscription |
+| Create | POST | `/subscriptions` | Store in Redis + start watching | Validates callback URL |
+| Update | PUT | `/subscriptions/{id}` | Update Redis | Updates callback, filter; preserves ID, tenantId, createdAt |
+| Delete | DELETE | `/subscriptions/{id}` | Delete from Redis + stop watching | Returns 204 No Content |
 
 ---
 
