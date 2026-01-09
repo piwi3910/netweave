@@ -2,9 +2,7 @@ package server
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -503,8 +501,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 
 	// Generate resource ID if not provided
 	if req.ResourceID == "" {
-		req.ResourceID = "res-" + req.ResourceTypeID + "-" +
-			fmt.Sprintf("%d", time.Now().UnixNano()%1000000)
+		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()
 	}
 
 	// Create resource via adapter
