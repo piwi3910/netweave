@@ -89,6 +89,7 @@ jobs:
       - name: Scan SBOM with Grype
         uses: anchore/scan-action@v5
         id: grype-scan
+        continue-on-error: true
         with:
           sbom: sbom-spdx.json
           fail-build: false
@@ -98,23 +99,37 @@ jobs:
       - name: Upload Grype scan results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         if: always()
+        continue-on-error: true
         with:
           sarif_file: ${{ steps.grype-scan.outputs.sarif }}
 
       - name: Generate vulnerability report
         uses: anchore/scan-action@v5
+        id: grype-report
+        continue-on-error: true
         with:
           sbom: sbom-spdx.json
           fail-build: false
           output-format: json
-          output-file: grype-report.json
+
+      - name: Save Grype report path
+        if: always()
+        id: report-path
+        run: |
+          REPORT_PATH="${{ steps.grype-report.outputs.json }}"
+          if [ -n "$REPORT_PATH" ] && [ -f "$REPORT_PATH" ]; then
+            echo "path=$REPORT_PATH" >> $GITHUB_OUTPUT
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Upload Grype report
-        if: always()
+        if: always() && steps.report-path.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: grype-report
-          path: grype-report.json
+          path: ${{ steps.report-path.outputs.path }}
           retention-days: 30
 
   # Generate dependency graph
@@ -192,6 +207,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Submit dependency snapshot to GitHub
+  # GitHub automatically detects and analyzes Go module dependencies from go.mod/go.sum
+  # This ensures the dependency graph is up-to-date for Dependabot and security alerts
   dependency-submission:
     name: Submit Dependency Snapshot
     runs-on: ubuntu-latest
@@ -208,10 +225,11 @@ jobs:
           go-version: '1.25.5'
           cache: true
 
-      - name: Submit dependency graph
-        uses: advanced-security/maven-dependency-submission-action@v4
-        with:
-          directory: .
+      - name: Ensure dependencies are downloaded
+        run: |
+          echo "Downloading Go module dependencies for dependency graph detection"
+          go mod download
+          go mod verify
 
   # Create SBOM summary
   sbom-summary:

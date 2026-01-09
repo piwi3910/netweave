@@ -1,6 +1,6 @@
 module github.com/piwi3910/netweave
 
-go 1.25.0
+go 1.25.5
 
 require (
 	cloud.google.com/go/compute v1.25.1
