@@ -559,3 +559,202 @@ func TestDefaultRedisConfig(t *testing.T) {
 	assert.Equal(t, 3*time.Second, cfg.WriteTimeout)
 	assert.Equal(t, 10, cfg.PoolSize)
 }
+
+// TestListTenants tests tenant listing.
+func TestListTenants(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	cfg := &RedisConfig{Addr: mr.Addr()}
+	store := NewRedisStore(cfg)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Create multiple tenants
+	tenant1 := &Tenant{
+		ID:           "tenant-1",
+		Name:         "Tenant One",
+		Description:  "First tenant",
+		Status:       TenantStatusActive,
+		Quota:        TenantQuota{MaxSubscriptions: 100},
+		ContactEmail: "admin@tenant1.com",
+	}
+	tenant2 := &Tenant{
+		ID:           "tenant-2",
+		Name:         "Tenant Two",
+		Description:  "Second tenant",
+		Status:       TenantStatusActive,
+		Quota:        TenantQuota{MaxSubscriptions: 50},
+		ContactEmail: "admin@tenant2.com",
+	}
+
+	err := store.CreateTenant(ctx, tenant1)
+	require.NoError(t, err)
+	err = store.CreateTenant(ctx, tenant2)
+	require.NoError(t, err)
+
+	// List all tenants
+	tenants, err := store.ListTenants(ctx)
+	require.NoError(t, err)
+	assert.Len(t, tenants, 2)
+
+	// Verify tenant IDs
+	ids := make(map[string]bool)
+	for _, t := range tenants {
+		ids[t.ID] = true
+	}
+	assert.True(t, ids["tenant-1"])
+	assert.True(t, ids["tenant-2"])
+}
+
+// TestIncrementUsage tests usage increment.
+func TestIncrementUsage(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	cfg := &RedisConfig{Addr: mr.Addr()}
+	store := NewRedisStore(cfg)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	tenant := &Tenant{
+		ID:          "tenant-incr",
+		Name:        "Test Tenant",
+		Description: "Test tenant for increment",
+		Status:      TenantStatusActive,
+		Quota:       TenantQuota{MaxSubscriptions: 100, MaxUsers: 50},
+	}
+
+	err := store.CreateTenant(ctx, tenant)
+	require.NoError(t, err)
+
+	// Increment subscriptions
+	err = store.IncrementUsage(ctx, "tenant-incr", "subscriptions")
+	require.NoError(t, err)
+
+	// Increment users
+	err = store.IncrementUsage(ctx, "tenant-incr", "users")
+	require.NoError(t, err)
+	err = store.IncrementUsage(ctx, "tenant-incr", "users")
+	require.NoError(t, err)
+
+	// Verify usage
+	retrieved, err := store.GetTenant(ctx, "tenant-incr")
+	require.NoError(t, err)
+	assert.Equal(t, 1, retrieved.Usage.Subscriptions)
+	assert.Equal(t, 2, retrieved.Usage.Users)
+}
+
+// TestDecrementUsage tests usage decrement.
+func TestDecrementUsage(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	cfg := &RedisConfig{Addr: mr.Addr()}
+	store := NewRedisStore(cfg)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	tenant := &Tenant{
+		ID:          "tenant-decr",
+		Name:        "Test Tenant",
+		Description: "Test tenant for decrement",
+		Status:      TenantStatusActive,
+		Usage:       TenantUsage{Subscriptions: 5, Users: 10},
+		Quota:       TenantQuota{MaxSubscriptions: 100, MaxUsers: 50},
+	}
+
+	err := store.CreateTenant(ctx, tenant)
+	require.NoError(t, err)
+
+	// Decrement subscriptions
+	err = store.DecrementUsage(ctx, "tenant-decr", "subscriptions")
+	require.NoError(t, err)
+
+	// Decrement users twice
+	err = store.DecrementUsage(ctx, "tenant-decr", "users")
+	require.NoError(t, err)
+	err = store.DecrementUsage(ctx, "tenant-decr", "users")
+	require.NoError(t, err)
+
+	// Verify usage
+	retrieved, err := store.GetTenant(ctx, "tenant-decr")
+	require.NoError(t, err)
+	assert.Equal(t, 4, retrieved.Usage.Subscriptions)
+	assert.Equal(t, 8, retrieved.Usage.Users)
+}
+
+// TestUpdateTenant tests tenant update.
+func TestUpdateTenant(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	cfg := &RedisConfig{Addr: mr.Addr()}
+	store := NewRedisStore(cfg)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	tenant := &Tenant{
+		ID:           "tenant-update",
+		Name:         "Original Name",
+		Description:  "Original description",
+		Status:       TenantStatusActive,
+		ContactEmail: "original@example.com",
+		Quota:        TenantQuota{MaxSubscriptions: 100},
+	}
+
+	err := store.CreateTenant(ctx, tenant)
+	require.NoError(t, err)
+
+	// Update tenant
+	tenant.Name = "Updated Name"
+	tenant.Description = "Updated description"
+	tenant.ContactEmail = "updated@example.com"
+	tenant.Quota.MaxSubscriptions = 200
+
+	err = store.UpdateTenant(ctx, tenant)
+	require.NoError(t, err)
+
+	// Verify updates
+	retrieved, err := store.GetTenant(ctx, "tenant-update")
+	require.NoError(t, err)
+	assert.Equal(t, "Updated Name", retrieved.Name)
+	assert.Equal(t, "Updated description", retrieved.Description)
+	assert.Equal(t, "updated@example.com", retrieved.ContactEmail)
+	assert.Equal(t, 200, retrieved.Quota.MaxSubscriptions)
+}
+
+// TestDeleteTenant tests tenant deletion.
+func TestDeleteTenant(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	cfg := &RedisConfig{Addr: mr.Addr()}
+	store := NewRedisStore(cfg)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	tenant := &Tenant{
+		ID:          "tenant-delete",
+		Name:        "To Delete",
+		Description: "Tenant for deletion test",
+		Status:      TenantStatusActive,
+	}
+
+	err := store.CreateTenant(ctx, tenant)
+	require.NoError(t, err)
+
+	// Delete tenant
+	err = store.DeleteTenant(ctx, "tenant-delete")
+	require.NoError(t, err)
+
+	// Verify deletion
+	_, err = store.GetTenant(ctx, "tenant-delete")
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrTenantNotFound)
+}

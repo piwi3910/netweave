@@ -195,6 +195,17 @@ func TestFilter_ToQueryParams(t *testing.T) {
 				"labels": {"env:prod,tier:gold", "tier:gold,env:prod"}, // Order may vary
 			},
 		},
+		{
+			name: "sorting parameters",
+			filter: &Filter{
+				SortBy:    "name",
+				SortOrder: "desc",
+			},
+			expected: map[string][]string{
+				"sortBy":    {"name"},
+				"sortOrder": {"desc"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
