@@ -181,9 +181,10 @@ func (p *Plugin) Initialize(ctx context.Context) error {
 
 	// Start inventory sync loop if enabled
 	if p.config.EnableInventorySync {
-		// Pass context.Background() for the long-running background sync loop
+		// Create a detached context for the long-running background sync loop
 		// The loop will create its own child contexts with timeouts for each sync operation
-		go p.inventorySyncLoop(context.Background())
+		syncCtx := context.WithoutCancel(ctx)
+		go p.inventorySyncLoop(syncCtx)
 	}
 
 	p.running = true

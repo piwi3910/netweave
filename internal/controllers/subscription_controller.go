@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	redis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
+	kubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/piwi3910/netweave/internal/storage"
@@ -235,7 +235,8 @@ func (c *SubscriptionController) handleNodeAdd(obj interface{}) {
 	c.logger.Debug("node created",
 		zap.String("node", node.Name))
 
-	c.processNodeEvent(node, EventTypeCreated)
+	ctx := context.Background()
+	c.processNodeEvent(ctx, node, EventTypeCreated)
 }
 
 // handleNodeUpdate handles node update events.
@@ -260,7 +261,8 @@ func (c *SubscriptionController) handleNodeUpdate(oldObj, newObj interface{}) {
 	c.logger.Debug("node updated",
 		zap.String("node", newNode.Name))
 
-	c.processNodeEvent(newNode, EventTypeUpdated)
+	ctx := context.Background()
+	c.processNodeEvent(ctx, newNode, EventTypeUpdated)
 }
 
 // handleNodeDelete handles node deletion events.
@@ -268,8 +270,8 @@ func (c *SubscriptionController) handleNodeDelete(obj interface{}) {
 	node, ok := obj.(*corev1.Node)
 	if !ok {
 		// Handle DeletedFinalStateUnknown
-		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
+		tombstone, tombstoneOk := obj.(cache.DeletedFinalStateUnknown)
+		if !tombstoneOk {
 			c.logger.Error("invalid object type in handleNodeDelete")
 			return
 		}
@@ -283,7 +285,8 @@ func (c *SubscriptionController) handleNodeDelete(obj interface{}) {
 	c.logger.Debug("node deleted",
 		zap.String("node", node.Name))
 
-	c.processNodeEvent(node, EventTypeDeleted)
+	ctx := context.Background()
+	c.processNodeEvent(ctx, node, EventTypeDeleted)
 }
 
 // handleNamespaceAdd handles namespace creation events.
@@ -297,7 +300,8 @@ func (c *SubscriptionController) handleNamespaceAdd(obj interface{}) {
 	c.logger.Debug("namespace created",
 		zap.String("namespace", ns.Name))
 
-	c.processNamespaceEvent(ns, EventTypeCreated)
+	ctx := context.Background()
+	c.processNamespaceEvent(ctx, ns, EventTypeCreated)
 }
 
 // handleNamespaceUpdate handles namespace update events.
@@ -322,7 +326,8 @@ func (c *SubscriptionController) handleNamespaceUpdate(oldObj, newObj interface{
 	c.logger.Debug("namespace updated",
 		zap.String("namespace", newNs.Name))
 
-	c.processNamespaceEvent(newNs, EventTypeUpdated)
+	ctx := context.Background()
+	c.processNamespaceEvent(ctx, newNs, EventTypeUpdated)
 }
 
 // handleNamespaceDelete handles namespace deletion events.
@@ -330,8 +335,8 @@ func (c *SubscriptionController) handleNamespaceDelete(obj interface{}) {
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok {
 		// Handle DeletedFinalStateUnknown
-		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
+		tombstone, tombstoneOk := obj.(cache.DeletedFinalStateUnknown)
+		if !tombstoneOk {
 			c.logger.Error("invalid object type in handleNamespaceDelete")
 			return
 		}
@@ -345,12 +350,12 @@ func (c *SubscriptionController) handleNamespaceDelete(obj interface{}) {
 	c.logger.Debug("namespace deleted",
 		zap.String("namespace", ns.Name))
 
-	c.processNamespaceEvent(ns, EventTypeDeleted)
+	ctx := context.Background()
+	c.processNamespaceEvent(ctx, ns, EventTypeDeleted)
 }
 
 // processNodeEvent finds matching subscriptions and queues webhook notifications.
-func (c *SubscriptionController) processNodeEvent(node *corev1.Node, eventType EventType) {
-	ctx := context.Background()
+func (c *SubscriptionController) processNodeEvent(ctx context.Context, node *corev1.Node, eventType EventType) {
 
 	// Track event processing
 	EventsProcessedTotal.WithLabelValues("k8s-node", string(eventType)).Inc()
@@ -400,8 +405,7 @@ func (c *SubscriptionController) processNodeEvent(node *corev1.Node, eventType E
 }
 
 // processNamespaceEvent finds matching subscriptions and queues webhook notifications.
-func (c *SubscriptionController) processNamespaceEvent(ns *corev1.Namespace, eventType EventType) {
-	ctx := context.Background()
+func (c *SubscriptionController) processNamespaceEvent(ctx context.Context, ns *corev1.Namespace, eventType EventType) {
 
 	// Track event processing
 	EventsProcessedTotal.WithLabelValues("k8s-namespace", string(eventType)).Inc()

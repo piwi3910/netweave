@@ -1,14 +1,13 @@
 ---
 active: true
-iteration: 3
+iteration: 1
 max_iterations: 20
 completion_promise: "COMPLETE"
-started_at: "2026-01-09T14:21:02Z"
+started_at: "2026-01-09T17:06:31Z"
 ---
 
-fix security gh issues.
+fix all linting issues detected and make sure all gh actions run successfully.
 Success criteria:
-- Coverage >= 85%
 - All tests green
 - No lint errors
 - Do not disable tests, always fix the issue

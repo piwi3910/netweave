@@ -1065,8 +1065,10 @@ func TestParseXFCCHeader(t *testing.T) {
 		wantEmail string
 	}{
 		{
-			name:      "valid XFCC header",
-			xfcc:      `By=spiffe://cluster.local;Hash=abc123;Subject="CN=test-user,O=test-org,emailAddress=user@example.com";URI=spiffe://cluster.local/ns/default/sa/test`,
+			name: "valid XFCC header",
+			xfcc: `By=spiffe://cluster.local;Hash=abc123;` +
+				`Subject="CN=test-user,O=test-org,emailAddress=user@example.com";` +
+				`URI=spiffe://cluster.local/ns/default/sa/test`,
 			wantNil:   false,
 			wantCN:    "test-user",
 			wantEmail: "user@example.com",
