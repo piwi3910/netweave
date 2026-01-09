@@ -97,7 +97,10 @@ graph TB
             Helm[Helm 3]
             Argo[ArgoCD]
             Flux[Flux CD]
+            Kust[Kustomize]
+            XPlane[Crossplane]
             ONAP_LCM[ONAP-LCM]
+            OSM_LCM[OSM-LCM]
         end
 
         subgraph SMO_Backends [SMO: Orchestration 5+]
@@ -508,7 +511,7 @@ The O2-DMS API (`/o2dms/v1/*`) provides full deployment lifecycle management for
 - 🔄 **GitOps Support**: Native ArgoCD and Flux CD adapters for GitOps workflows
 - 📊 **Status & History**: Real-time deployment status and complete revision history
 - 🔔 **Event Notifications**: Webhook subscriptions for deployment lifecycle events
-- 🎯 **Multi-Adapter**: Helm 3, ArgoCD, and Flux CD adapters available
+- 🎯 **Multi-Adapter**: Helm 3, ArgoCD, Flux CD, Kustomize, Crossplane, ONAP-LCM, and OSM-LCM adapters
 
 See [docs/o2dms-o2smo-extension.md](docs/o2dms-o2smo-extension.md) for detailed O2-DMS deployment management documentation.
 
@@ -653,10 +656,15 @@ netweave/
 │   │   └── mock/             # Mock adapter for testing
 │   ├── dms/                  # O2-DMS (Deployment Management Service)
 │   │   ├── adapter/          # DMS adapter interface
+│   │   ├── storage/          # DMS package storage backend
 │   │   └── adapters/         # DMS backend adapters
 │   │       ├── helm/         # Helm 3 adapter
 │   │       ├── argocd/       # ArgoCD GitOps adapter
-│   │       └── flux/         # Flux CD GitOps adapter
+│   │       ├── flux/         # Flux CD GitOps adapter
+│   │       ├── kustomize/    # Kustomize adapter
+│   │       ├── crossplane/   # Crossplane adapter
+│   │       ├── onaplcm/      # ONAP LCM adapter
+│   │       └── osmlcm/       # OSM LCM adapter
 │   ├── smo/                  # O2-SMO (Service Management & Orchestration)
 │   │   ├── adapter/          # SMO adapter interface
 │   │   └── adapters/         # SMO backend adapters
@@ -748,6 +756,11 @@ netweave/
   - ✅ Helm 3 adapter for CNF/VNF deployment
   - ✅ ArgoCD adapter for GitOps deployments
   - ✅ Flux CD adapter for GitOps deployments
+  - ✅ Kustomize adapter for overlay-based deployments
+  - ✅ Crossplane adapter for infrastructure-as-code
+  - ✅ ONAP-LCM adapter for ONAP lifecycle management
+  - ✅ OSM-LCM adapter for OSM lifecycle management
+  - ✅ Package storage backend for deployment packages
 - ✅ O2-SMO integration (Service Management & Orchestration)
   - ✅ ONAP adapter
   - ✅ OSM (Open Source MANO) adapter
