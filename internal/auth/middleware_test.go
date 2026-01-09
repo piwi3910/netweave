@@ -1148,3 +1148,81 @@ func TestExtractEmail(t *testing.T) {
 		})
 	}
 }
+
+// TestSanitizeForLogging tests the sanitizeForLogging function.
+func TestSanitizeForLogging(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		maxLen int
+		want   string
+	}{
+		{
+			name:   "clean string unchanged",
+			input:  "CN=user,O=example",
+			maxLen: 100,
+			want:   "CN=user,O=example",
+		},
+		{
+			name:   "remove newlines",
+			input:  "CN=user\nO=example",
+			maxLen: 100,
+			want:   "CN=userO=example",
+		},
+		{
+			name:   "remove carriage returns",
+			input:  "CN=user\r\nO=example",
+			maxLen: 100,
+			want:   "CN=userO=example",
+		},
+		{
+			name:   "keep spaces and tabs",
+			input:  "CN=user name\tO=example",
+			maxLen: 100,
+			want:   "CN=user name\tO=example",
+		},
+		{
+			name:   "truncate long strings",
+			input:  "CN=very_long_common_name_that_exceeds_maximum_length",
+			maxLen: 20,
+			want:   "CN=very_long_common_...",
+		},
+		{
+			name:   "remove control characters",
+			input:  "CN=user\x00\x01\x02O=example",
+			maxLen: 100,
+			want:   "CN=userO=example",
+		},
+		{
+			name:   "log injection attack prevented",
+			input:  "CN=user\n[ERROR] Fake log entry\nO=evil",
+			maxLen: 100,
+			want:   "CN=user[ERROR] Fake log entryO=evil",
+		},
+		{
+			name:   "empty string",
+			input:  "",
+			maxLen: 100,
+			want:   "",
+		},
+		{
+			name:   "only control characters",
+			input:  "\n\r\x00\x01",
+			maxLen: 100,
+			want:   "",
+		},
+		{
+			name:   "unicode characters preserved",
+			input:  "CN=用户,O=例",
+			maxLen: 100,
+			want:   "CN=用户,O=例",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeForLogging(tt.input, tt.maxLen)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
