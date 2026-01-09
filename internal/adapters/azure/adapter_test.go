@@ -448,7 +448,7 @@ func TestAzureAdapter_Health(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	
+
 	err = adapter.Health(ctx)
 	if err != nil {
 		t.Skip("Skipping - requires Azure credentials")

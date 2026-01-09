@@ -18,15 +18,16 @@ func setupTestRedis(t *testing.T) (*RedisStore, *miniredis.Miniredis) {
 	mr := miniredis.RunT(t)
 
 	cfg := &RedisConfig{
-		Addr:         mr.Addr(),
-		Password:     "",
-		DB:           0,
-		UseSentinel:  false,
-		MaxRetries:   1,
-		DialTimeout:  1 * time.Second,
-		ReadTimeout:  1 * time.Second,
-		WriteTimeout: 1 * time.Second,
-		PoolSize:     5,
+		Addr:                   mr.Addr(),
+		Password:               "",
+		DB:                     0,
+		UseSentinel:            false,
+		MaxRetries:             1,
+		DialTimeout:            1 * time.Second,
+		ReadTimeout:            1 * time.Second,
+		WriteTimeout:           1 * time.Second,
+		PoolSize:               5,
+		AllowInsecureCallbacks: true, // Allow HTTP in tests
 	}
 
 	store := NewRedisStore(cfg)

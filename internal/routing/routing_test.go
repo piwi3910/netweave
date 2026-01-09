@@ -645,10 +645,10 @@ func TestRouter_matchesResourceType(t *testing.T) {
 	defer func() { _ = reg.Close() }()
 
 	tests := []struct {
-		name         string
-		ruleResType  string
-		ctxResType   string
-		wantMatch    bool
+		name        string
+		ruleResType string
+		ctxResType  string
+		wantMatch   bool
 	}{
 		{
 			name:        "exact match",
@@ -696,10 +696,10 @@ func TestRouter_matchesConditions(t *testing.T) {
 	defer func() { _ = reg.Close() }()
 
 	tests := []struct {
-		name       string
-		rule       *Rule
-		ctx        *RoutingContext
-		wantMatch  bool
+		name      string
+		rule      *Rule
+		ctx       *RoutingContext
+		wantMatch bool
 	}{
 		{
 			name: "labels match",
@@ -791,7 +791,7 @@ func TestRouter_matchesConditions(t *testing.T) {
 					},
 				},
 			},
-			ctx: &RoutingContext{},
+			ctx:       &RoutingContext{},
 			wantMatch: true,
 		},
 		{
@@ -804,7 +804,7 @@ func TestRouter_matchesConditions(t *testing.T) {
 					},
 				},
 			},
-			ctx: &RoutingContext{},
+			ctx:       &RoutingContext{},
 			wantMatch: false,
 		},
 	}
