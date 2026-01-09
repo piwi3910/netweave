@@ -1,5 +1,4 @@
 // Package e2e provides end-to-end testing framework.
-//
 //go:build e2e
 
 package e2e
@@ -192,7 +191,7 @@ func (ws *WebhookServer) handleWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleHealth handles health check requests.
-func (ws *WebhookServer) handleHealth(w http.ResponseWriter, r *http.Request) {
+func (ws *WebhookServer) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte(`{"status":"healthy"}`)); err != nil {
 		ws.logger.Error("Failed to write health response", zap.Error(err))

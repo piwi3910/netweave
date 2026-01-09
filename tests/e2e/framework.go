@@ -3,7 +3,6 @@
 // Kind cluster and executing real API calls.
 //
 // Build tag 'e2e' ensures these tests only run when explicitly requested.
-//
 //go:build e2e
 
 package e2e
@@ -19,7 +18,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-	"k8s.io/client-go/kubernetes"
+	kubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -266,7 +265,7 @@ func buildTLSConfig(opts *FrameworkOptions) (*tls.Config, error) {
 }
 
 // detectGatewayURL attempts to detect the gateway URL from the Kubernetes service.
-func detectGatewayURL(ctx context.Context, client kubernetes.Interface, namespace string) (string, error) {
+func detectGatewayURL(_ context.Context, _ kubernetes.Interface, _ string) (string, error) {
 	// For E2E tests, we assume port-forwarding or NodePort access
 	// Default to localhost with common port
 	return "http://localhost:8080", nil
