@@ -493,6 +493,33 @@ func (s *Server) SMORegistry() *smo.Registry {
 	return s.smoRegistry
 }
 
+// SetupAuth configures multi-tenancy and RBAC for the server.
+// It sets up authentication middleware, authorization checks, and tenant/user/role management routes.
+// This must be called after creating the server and before starting it.
+// If authStore is nil, this method is a no-op (multi-tenancy disabled).
+func (s *Server) SetupAuth(authStore AuthStore, authMw AuthMiddleware) {
+	if authStore == nil || authMw == nil {
+		s.logger.Info("multi-tenancy is disabled, skipping auth setup")
+		return
+	}
+
+	s.authStore = authStore
+	s.authMw = authMw
+
+	// Register auth store health check.
+	if s.healthCheck != nil {
+		s.healthCheck.RegisterHealthCheck("auth_store", func(ctx context.Context) error {
+			return s.authStore.Ping(ctx)
+		})
+		s.healthCheck.RegisterReadinessCheck("auth_store", func(ctx context.Context) error {
+			return s.authStore.Ping(ctx)
+		})
+	}
+
+	s.logger.Info("multi-tenancy and RBAC enabled")
+}
+
+
 // recoveryMiddleware recovers from panics and logs the error.
 func (s *Server) recoveryMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
