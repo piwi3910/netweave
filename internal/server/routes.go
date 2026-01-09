@@ -3,6 +3,8 @@ package server
 import (
 	"errors"
 	"net/http"
+	"net/url"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -353,11 +355,26 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 		return
 	}
 
-	// Update storage subscription with new values
+	// Validate callback URL if provided
+	if req.Callback != "" {
+		if !isValidCallbackURL(req.Callback) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "BadRequest",
+				"message": "Invalid callback URL: must be a valid HTTP or HTTPS URL",
+				"code":    http.StatusBadRequest,
+			})
+			return
+		}
+	}
+
+	// Update storage subscription with new values, preserving immutable fields
 	updatedSub := &storage.Subscription{
 		ID:                     subscriptionID,
+		TenantID:               existingSub.TenantID,  // Preserve tenant
 		Callback:               req.Callback,
 		ConsumerSubscriptionID: req.ConsumerSubscriptionID,
+		CreatedAt:              existingSub.CreatedAt, // Preserve creation time
+		UpdatedAt:              time.Now(),            // Set update time
 	}
 
 	// Use existing callback if not provided in request
@@ -858,4 +875,15 @@ func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 		"description": dm.Description,
 		"serviceUri":  dm.ServiceURI,
 	})
+}
+
+// Helper functions
+
+// isValidCallbackURL validates that a callback URL is a valid HTTP or HTTPS URL.
+func isValidCallbackURL(callback string) bool {
+	parsedURL, err := url.Parse(callback)
+	if err != nil {
+		return false
+	}
+	return parsedURL.Scheme == "http" || parsedURL.Scheme == "https"
 }
