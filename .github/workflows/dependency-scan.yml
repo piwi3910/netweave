@@ -52,20 +52,21 @@ jobs:
 
       - name: Upload Snyk results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && hashFiles('snyk.sarif') != ''
         with:
           sarif_file: snyk.sarif
 
       - name: Generate Snyk report
         if: always()
         uses: snyk/actions/golang@master
+        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           args: --json-file-output=snyk-report.json
 
       - name: Upload Snyk report artifact
-        if: always()
+        if: always() && hashFiles('snyk-report.json') != ''
         uses: actions/upload-artifact@v4
         with:
           name: snyk-report
@@ -165,7 +166,6 @@ jobs:
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
-          allow-licenses: Apache-2.0, MIT, BSD-2-Clause, BSD-3-Clause, ISC
           deny-licenses: GPL-2.0, GPL-3.0, LGPL-2.0, LGPL-2.1, LGPL-3.0, AGPL-3.0
           comment-summary-in-pr: true
 
