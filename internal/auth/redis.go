@@ -1006,7 +1006,7 @@ func (r *RedisStore) InitializeDefaultRoles(ctx context.Context) error {
 	defaultRoles := GetDefaultRoles()
 	for _, role := range defaultRoles {
 		err := r.CreateRole(ctx, role)
-		if err != nil && err != ErrRoleExists {
+		if err != nil && !errors.Is(err, ErrRoleExists) {
 			return fmt.Errorf("failed to create default role %s: %w", role.Name, err)
 		}
 	}
