@@ -29,6 +29,7 @@ type WebhookServer struct {
 	mu            sync.RWMutex
 	notifyChan    chan WebhookNotification
 	t             *testing.T
+	closed        bool
 }
 
 // NewWebhookServer creates a new webhook test server.
@@ -171,9 +172,18 @@ func (ws *WebhookServer) Clear() {
 }
 
 // Close closes the webhook server.
+// It's safe to call Close multiple times - subsequent calls are no-ops.
 func (ws *WebhookServer) Close() {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+
+	if ws.closed {
+		return // Already closed, prevent double-close panic
+	}
+
 	if ws.server != nil {
 		ws.server.Close()
 	}
 	close(ws.notifyChan)
+	ws.closed = true
 }
