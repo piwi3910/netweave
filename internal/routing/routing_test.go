@@ -638,3 +638,444 @@ func TestRouter_RulePriority(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "dtias", adapter.Name(), "higher priority rule should win")
 }
+
+// TestRouter_matchesResourceType tests resource type matching.
+func TestRouter_matchesResourceType(t *testing.T) {
+	router, reg := setupTestRouter(t)
+	defer func() { _ = reg.Close() }()
+
+	tests := []struct {
+		name         string
+		ruleResType  string
+		ctxResType   string
+		wantMatch    bool
+	}{
+		{
+			name:        "exact match",
+			ruleResType: "compute-node",
+			ctxResType:  "compute-node",
+			wantMatch:   true,
+		},
+		{
+			name:        "wildcard match",
+			ruleResType: "*",
+			ctxResType:  "compute-node",
+			wantMatch:   true,
+		},
+		{
+			name:        "empty rule matches all",
+			ruleResType: "",
+			ctxResType:  "compute-node",
+			wantMatch:   true,
+		},
+		{
+			name:        "no match",
+			ruleResType: "compute-node",
+			ctxResType:  "storage-node",
+			wantMatch:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rule := &Rule{
+				ResourceType: tt.ruleResType,
+			}
+			ctx := &RoutingContext{
+				ResourceType: tt.ctxResType,
+			}
+			match := router.matchesResourceType(rule, ctx)
+			assert.Equal(t, tt.wantMatch, match)
+		})
+	}
+}
+
+// TestRouter_matchesConditions tests condition matching.
+func TestRouter_matchesConditions(t *testing.T) {
+	router, reg := setupTestRouter(t)
+	defer func() { _ = reg.Close() }()
+
+	tests := []struct {
+		name       string
+		rule       *Rule
+		ctx        *RoutingContext
+		wantMatch  bool
+	}{
+		{
+			name: "labels match",
+			rule: &Rule{
+				AdapterName: "kubernetes",
+				Conditions: &Conditions{
+					Labels: map[string]string{
+						"env": "prod",
+					},
+				},
+			},
+			ctx: &RoutingContext{
+				Labels: map[string]string{
+					"env": "prod",
+					"app": "test",
+				},
+			},
+			wantMatch: true,
+		},
+		{
+			name: "labels don't match",
+			rule: &Rule{
+				AdapterName: "kubernetes",
+				Conditions: &Conditions{
+					Labels: map[string]string{
+						"env": "prod",
+					},
+				},
+			},
+			ctx: &RoutingContext{
+				Labels: map[string]string{
+					"env": "dev",
+				},
+			},
+			wantMatch: false,
+		},
+		{
+			name: "location exact match",
+			rule: &Rule{
+				AdapterName: "kubernetes",
+				Conditions: &Conditions{
+					Location: &LocationCondition{
+						Exact: "us-east-1",
+					},
+				},
+			},
+			ctx: &RoutingContext{
+				Location: "us-east-1",
+			},
+			wantMatch: true,
+		},
+		{
+			name: "location prefix match",
+			rule: &Rule{
+				AdapterName: "kubernetes",
+				Conditions: &Conditions{
+					Location: &LocationCondition{
+						Prefix: "us-east",
+					},
+				},
+			},
+			ctx: &RoutingContext{
+				Location: "us-east-1",
+			},
+			wantMatch: true,
+		},
+		{
+			name: "location doesn't match",
+			rule: &Rule{
+				AdapterName: "kubernetes",
+				Conditions: &Conditions{
+					Location: &LocationCondition{
+						Exact: "us-east-1",
+					},
+				},
+			},
+			ctx: &RoutingContext{
+				Location: "us-west-2",
+			},
+			wantMatch: false,
+		},
+		{
+			name: "capabilities match",
+			rule: &Rule{
+				AdapterName: "kubernetes",
+				Conditions: &Conditions{
+					Capabilities: []adapter.Capability{
+						adapter.CapabilityResourcePools,
+					},
+				},
+			},
+			ctx: &RoutingContext{},
+			wantMatch: true,
+		},
+		{
+			name: "capabilities don't match",
+			rule: &Rule{
+				AdapterName: "kubernetes",
+				Conditions: &Conditions{
+					Capabilities: []adapter.Capability{
+						adapter.CapabilityDeploymentManagers,
+					},
+				},
+			},
+			ctx: &RoutingContext{},
+			wantMatch: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			match := router.matchesConditions(tt.rule, tt.ctx)
+			assert.Equal(t, tt.wantMatch, match)
+		})
+	}
+}
+
+// TestRouter_matchesRule tests rule matching logic.
+func TestRouter_matchesRule(t *testing.T) {
+	router, reg := setupTestRouter(t)
+	defer func() { _ = reg.Close() }()
+
+	tests := []struct {
+		name      string
+		rule      *Rule
+		ctx       *RoutingContext
+		wantMatch bool
+	}{
+		{
+			name: "matches resource type and conditions",
+			rule: &Rule{
+				ResourceType: "compute-node",
+				AdapterName:  "kubernetes",
+				Conditions: &Conditions{
+					Labels: map[string]string{
+						"env": "prod",
+					},
+				},
+			},
+			ctx: &RoutingContext{
+				ResourceType: "compute-node",
+				Labels: map[string]string{
+					"env": "prod",
+				},
+			},
+			wantMatch: true,
+		},
+		{
+			name: "matches resource type, no conditions",
+			rule: &Rule{
+				ResourceType: "compute-node",
+				AdapterName:  "kubernetes",
+			},
+			ctx: &RoutingContext{
+				ResourceType: "compute-node",
+			},
+			wantMatch: true,
+		},
+		{
+			name: "resource type doesn't match",
+			rule: &Rule{
+				ResourceType: "compute-node",
+				AdapterName:  "kubernetes",
+			},
+			ctx: &RoutingContext{
+				ResourceType: "storage-node",
+			},
+			wantMatch: false,
+		},
+		{
+			name: "conditions don't match",
+			rule: &Rule{
+				ResourceType: "compute-node",
+				AdapterName:  "kubernetes",
+				Conditions: &Conditions{
+					Labels: map[string]string{
+						"env": "prod",
+					},
+				},
+			},
+			ctx: &RoutingContext{
+				ResourceType: "compute-node",
+				Labels: map[string]string{
+					"env": "dev",
+				},
+			},
+			wantMatch: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			match := router.matchesRule(tt.rule, tt.ctx)
+			assert.Equal(t, tt.wantMatch, match)
+		})
+	}
+}
+
+// TestRouter_getAdapterCapabilities tests capability retrieval.
+func TestRouter_getAdapterCapabilities(t *testing.T) {
+	router, reg := setupTestRouter(t)
+	defer func() { _ = reg.Close() }()
+
+	tests := []struct {
+		name     string
+		adapter  string
+		wantCaps []adapter.Capability
+	}{
+		{
+			name:    "existing adapter",
+			adapter: "kubernetes",
+			wantCaps: []adapter.Capability{
+				adapter.CapabilityResourcePools,
+				adapter.CapabilityResources,
+			},
+		},
+		{
+			name:     "nonexistent adapter",
+			adapter:  "nonexistent",
+			wantCaps: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			caps := router.getAdapterCapabilities(tt.adapter)
+			assert.Equal(t, tt.wantCaps, caps)
+		})
+	}
+}
+
+// TestRouter_capabilitiesToStrings tests capability string conversion.
+func Test_capabilitiesToStrings(t *testing.T) {
+	tests := []struct {
+		name string
+		caps []adapter.Capability
+		want []string
+	}{
+		{
+			name: "multiple capabilities",
+			caps: []adapter.Capability{
+				adapter.CapabilityResourcePools,
+				adapter.CapabilityResources,
+			},
+			want: []string{
+				string(adapter.CapabilityResourcePools),
+				string(adapter.CapabilityResources),
+			},
+		},
+		{
+			name: "empty capabilities",
+			caps: []adapter.Capability{},
+			want: []string{},
+		},
+		{
+			name: "nil capabilities",
+			caps: nil,
+			want: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := capabilitiesToStrings(tt.caps)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// mockUnhealthyAdapter is a test adapter that fails health checks.
+type mockUnhealthyAdapter struct {
+	mockAdapter
+}
+
+func (m *mockUnhealthyAdapter) Health(_ context.Context) error {
+	return errors.New("adapter unhealthy")
+}
+
+// TestRouter_getValidatedAdapter tests adapter validation with unhealthy adapters.
+func TestRouter_getValidatedAdapter(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	ctx := context.Background()
+
+	reg := registry.NewRegistry(logger, &registry.Config{
+		HealthCheckInterval: 1 * time.Hour,
+		HealthCheckTimeout:  5 * time.Second,
+	})
+
+	// Register healthy adapter
+	healthyAdapter := &mockAdapter{
+		name:    "healthy",
+		version: "1.0.0",
+		capabilities: []adapter.Capability{
+			adapter.CapabilityResourcePools,
+		},
+	}
+	err := reg.Register(ctx, "healthy", "healthy", healthyAdapter, nil, true)
+	require.NoError(t, err)
+
+	// Register unhealthy adapter (fails health check)
+	unhealthyAdapter := &mockUnhealthyAdapter{
+		mockAdapter: mockAdapter{
+			name:    "unhealthy",
+			version: "1.0.0",
+			capabilities: []adapter.Capability{
+				adapter.CapabilityResourcePools,
+			},
+		},
+	}
+	err = reg.Register(ctx, "unhealthy", "unhealthy", unhealthyAdapter, nil, true)
+	require.NoError(t, err)
+
+	router := NewRouter(reg, logger, nil)
+
+	tests := []struct {
+		name        string
+		rule        *Rule
+		ctx         *RoutingContext
+		wantAdapter bool
+		wantName    string
+	}{
+		{
+			name: "healthy adapter",
+			rule: &Rule{
+				Name:        "test-rule",
+				AdapterName: "healthy",
+			},
+			ctx:         &RoutingContext{},
+			wantAdapter: true,
+			wantName:    "healthy",
+		},
+		{
+			name: "unhealthy adapter",
+			rule: &Rule{
+				Name:        "test-rule",
+				AdapterName: "unhealthy",
+			},
+			ctx:         &RoutingContext{},
+			wantAdapter: false,
+		},
+		{
+			name: "nonexistent adapter",
+			rule: &Rule{
+				Name:        "test-rule",
+				AdapterName: "nonexistent",
+			},
+			ctx:         &RoutingContext{},
+			wantAdapter: false,
+		},
+		{
+			name: "missing required capabilities",
+			rule: &Rule{
+				Name:        "test-rule",
+				AdapterName: "healthy",
+			},
+			ctx: &RoutingContext{
+				RequiredCapabilities: []adapter.Capability{
+					adapter.CapabilityDeploymentManagers,
+				},
+			},
+			wantAdapter: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, ok := router.getValidatedAdapter(tt.rule, tt.ctx)
+			assert.Equal(t, tt.wantAdapter, ok)
+			if tt.wantAdapter {
+				require.NotNil(t, adp)
+				assert.Equal(t, tt.wantName, adp.Name())
+			} else {
+				assert.Nil(t, adp)
+			}
+		})
+	}
+
+	_ = reg.Close()
+}
