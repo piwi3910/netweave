@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/piwi3910/netweave/internal/adapter"
@@ -30,7 +31,7 @@ func TestNew(t *testing.T) {
 				Timeout:             30 * time.Second,
 				RetryAttempts:       3,
 				RetryDelay:          2 * time.Second,
-				Logger:              zaptest.NewLogger(t),
+				Logger:              zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
 			},
 			wantErr: false,
 		},
@@ -169,7 +170,25 @@ func TestDTIASAdapter_Close(t *testing.T) {
 }
 
 func TestDTIASAdapter_Health(t *testing.T) {
-	a := createTestAdapter(t)
+	// Create adapter with no-op logger to suppress expected ERROR logs
+	// from intentionally failing health checks
+	config := &Config{
+		Endpoint:            "https://dtias.example.com/api/v1",
+		APIKey:              "test-api-key",
+		OCloudID:            "ocloud-test",
+		DeploymentManagerID: "dm-test",
+		Datacenter:          "dc-test",
+		Timeout:             5 * time.Second,
+		RetryAttempts:       2,
+		RetryDelay:          time.Millisecond,
+		Logger:              zap.NewNop(), // No-op logger for expected errors
+		InsecureSkipVerify:  true,
+	}
+
+	a, err := New(config)
+	require.NoError(t, err)
+	require.NotNil(t, a)
+
 	t.Cleanup(func() {
 		assert.NoError(t, a.Close())
 	})
@@ -177,7 +196,7 @@ func TestDTIASAdapter_Health(t *testing.T) {
 	// Health check will fail without a real DTIAS backend
 	// This is expected behavior for unit tests
 	// Integration tests will test actual DTIAS API connectivity
-	err := a.Health(context.Background())
+	err = a.Health(context.Background())
 
 	// We expect an error since there's no real backend
 	assert.Error(t, err, "health check should fail without real backend")
@@ -196,8 +215,9 @@ func createTestAdapter(t *testing.T) *DTIASAdapter {
 		Timeout:             5 * time.Second,
 		RetryAttempts:       1,
 		RetryDelay:          time.Millisecond,
-		Logger:              zaptest.NewLogger(t),
-		InsecureSkipVerify:  true, // For testing only
+		// Use WarnLevel to suppress expected ERROR logs from intentional test failures
+		Logger:             zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
+		InsecureSkipVerify: true, // For testing only
 	}
 
 	adapter, err := New(config)
