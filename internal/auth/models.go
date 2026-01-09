@@ -407,10 +407,10 @@ const (
 	AuditEventDeploymentManagerModified AuditEventType = "deploymentmanager.modified"
 
 	// Subscription events.
-	AuditEventSubscriptionCreated        AuditEventType = "subscription.created"
-	AuditEventSubscriptionDeleted        AuditEventType = "subscription.deleted"
-	AuditEventSubscriptionFilterModified AuditEventType = "subscription.filter.modified"
-	AuditEventWebhookDeliveryFailed      AuditEventType = "webhook.delivery.failed"
+	AuditEventSubscriptionCreated         AuditEventType = "subscription.created"
+	AuditEventSubscriptionDeleted         AuditEventType = "subscription.deleted"
+	AuditEventSubscriptionFilterModified  AuditEventType = "subscription.filter.modified"
+	AuditEventWebhookDeliveryFailed       AuditEventType = "webhook.delivery.failed"
 	AuditEventSignatureVerificationFailed AuditEventType = "signature.verification.failed"
 
 	// Configuration events.

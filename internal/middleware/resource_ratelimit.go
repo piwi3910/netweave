@@ -38,6 +38,31 @@ const (
 // DefaultMaxPageSize is the default maximum page size for list operations.
 const DefaultMaxPageSize = 100
 
+// Pre-compiled regex patterns for resource type extraction.
+// These are compiled once at package initialization for performance.
+var resourceTypePatterns = []struct {
+	pattern      *regexp.Regexp
+	resourceType ResourceType
+}{
+	{regexp.MustCompile(`/o2ims(?:-dms)?/v1/deploymentManagers`), ResourceTypeDeploymentManagers},
+	{regexp.MustCompile(`/o2ims(?:-dms)?/v1/resourcePools`), ResourceTypeResourcePools},
+	{regexp.MustCompile(`/o2ims(?:-dms)?/v1/resources`), ResourceTypeResources},
+	{regexp.MustCompile(`/o2ims(?:-dms)?/v1/resourceTypes`), ResourceTypeResourceTypes},
+	{regexp.MustCompile(`/o2ims(?:-dms)?/v1/subscriptions`), ResourceTypeSubscriptions},
+	{regexp.MustCompile(`/o2ims(?:-dms)?/v1/[^/]+/resourcePools`), ResourceTypeResourcePools},
+	{regexp.MustCompile(`/o2ims(?:-dms)?/v1/[^/]+/resources`), ResourceTypeResources},
+	{regexp.MustCompile(`/o2ims(?:-dms)?/v1/[^/]+/deploymentManagers`), ResourceTypeDeploymentManagers},
+}
+
+// Pre-compiled regex patterns for collection path detection.
+var collectionPathPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`/deploymentManagers$`),
+	regexp.MustCompile(`/resourcePools$`),
+	regexp.MustCompile(`/resources$`),
+	regexp.MustCompile(`/resourceTypes$`),
+	regexp.MustCompile(`/subscriptions$`),
+}
+
 // OperationType represents the type of operation being performed.
 type OperationType string
 
@@ -112,7 +137,8 @@ type ResourceRateLimiter struct {
 }
 
 type resourceRateLimitMetrics struct {
-	hits *prometheus.CounterVec
+	hits     *prometheus.CounterVec
+	failOpen *prometheus.CounterVec
 }
 
 // Prometheus metrics for resource rate limiting.
@@ -120,6 +146,15 @@ var resourceRateLimitHits = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "o2ims_resource_rate_limit_hits_total",
 		Help: "Total number of resource rate limit hits",
+	},
+	[]string{"resource_type", "operation", "tenant"},
+)
+
+// resourceRateLimitFailOpen tracks when rate limiting fails open due to Redis errors.
+var resourceRateLimitFailOpen = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "o2ims_resource_rate_limit_fail_open_total",
+		Help: "Total number of requests allowed due to rate limit check failures (fail-open behavior)",
 	},
 	[]string{"resource_type", "operation", "tenant"},
 )
@@ -194,7 +229,8 @@ func NewResourceRateLimiter(
 		logger: logger,
 		config: config,
 		metrics: &resourceRateLimitMetrics{
-			hits: resourceRateLimitHits,
+			hits:     resourceRateLimitHits,
+			failOpen: resourceRateLimitFailOpen,
 		},
 	}, nil
 }
@@ -359,6 +395,8 @@ func (rl *ResourceRateLimiter) checkResourceLimit(
 			zap.String("key", key),
 			zap.Error(err),
 		)
+		// Record fail-open metric for observability
+		rl.metrics.failOpen.WithLabelValues(string(resourceType), string(operation), tenantID).Inc()
 		// Fail open: allow request if Redis fails
 		return true
 	}
@@ -502,21 +540,10 @@ func (rl *ResourceRateLimiter) checkRedisLimit(
 // extractResourceType determines the resource type from the request path.
 func extractResourceType(path string) ResourceType {
 	// O2-IMS API paths follow the pattern: /o2ims/v1/{resourceType}/...
-	patterns := map[string]ResourceType{
-		`/o2ims(?:-dms)?/v1/deploymentManagers`:         ResourceTypeDeploymentManagers,
-		`/o2ims(?:-dms)?/v1/resourcePools`:              ResourceTypeResourcePools,
-		`/o2ims(?:-dms)?/v1/resources`:                  ResourceTypeResources,
-		`/o2ims(?:-dms)?/v1/resourceTypes`:              ResourceTypeResourceTypes,
-		`/o2ims(?:-dms)?/v1/subscriptions`:              ResourceTypeSubscriptions,
-		`/o2ims(?:-dms)?/v1/[^/]+/resourcePools`:        ResourceTypeResourcePools,
-		`/o2ims(?:-dms)?/v1/[^/]+/resources`:            ResourceTypeResources,
-		`/o2ims(?:-dms)?/v1/[^/]+/deploymentManagers`:   ResourceTypeDeploymentManagers,
-	}
-
-	for pattern, resourceType := range patterns {
-		matched, _ := regexp.MatchString(pattern, path)
-		if matched {
-			return resourceType
+	// Uses pre-compiled regex patterns for performance.
+	for _, p := range resourceTypePatterns {
+		if p.pattern.MatchString(path) {
+			return p.resourceType
 		}
 	}
 
@@ -545,18 +572,10 @@ func extractOperation(method, path string) OperationType {
 
 // isCollectionPath determines if a path is a collection endpoint.
 func isCollectionPath(path string) bool {
-	// Collection paths end with the resource type name, not an ID
-	collectionPatterns := []string{
-		`/deploymentManagers$`,
-		`/resourcePools$`,
-		`/resources$`,
-		`/resourceTypes$`,
-		`/subscriptions$`,
-	}
-
-	for _, pattern := range collectionPatterns {
-		matched, _ := regexp.MatchString(pattern, path)
-		if matched {
+	// Collection paths end with the resource type name, not an ID.
+	// Uses pre-compiled regex patterns for performance.
+	for _, pattern := range collectionPathPatterns {
+		if pattern.MatchString(path) {
 			return true
 		}
 	}
