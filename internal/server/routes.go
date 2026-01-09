@@ -434,6 +434,18 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 	})
 }
 
+// Validation constants for resource pool fields.
+const (
+	// MaxResourcePoolNameLength is the maximum allowed length for resource pool names.
+	MaxResourcePoolNameLength = 255
+
+	// MaxResourcePoolIDLength is the maximum allowed length for resource pool IDs.
+	MaxResourcePoolIDLength = 255
+
+	// MaxResourcePoolDescriptionLength is the maximum allowed length for resource pool descriptions.
+	MaxResourcePoolDescriptionLength = 1000
+)
+
 // sanitizeResourcePoolID sanitizes a string for use in resource pool IDs.
 // Removes special characters that could cause security issues (path traversal, injection).
 func sanitizeResourcePoolID(name string) string {
@@ -472,8 +484,8 @@ func isValidIDCharacter(ch rune) bool {
 
 // validateResourcePoolID validates the resource pool ID format.
 func validateResourcePoolID(id string) error {
-	if len(id) > 255 {
-		return errors.New("resourcePoolId must not exceed 255 characters")
+	if len(id) > MaxResourcePoolIDLength {
+		return fmt.Errorf("resourcePoolId must not exceed %d characters", MaxResourcePoolIDLength)
 	}
 
 	for _, ch := range id {
@@ -493,9 +505,9 @@ func validateResourcePoolFields(pool *adapter.ResourcePool) error {
 		validationErrors = append(validationErrors, "name is required")
 	}
 
-	// Validate Name length (max 255 characters)
-	if len(pool.Name) > 255 {
-		validationErrors = append(validationErrors, "name must not exceed 255 characters")
+	// Validate Name length
+	if len(pool.Name) > MaxResourcePoolNameLength {
+		validationErrors = append(validationErrors, fmt.Sprintf("name must not exceed %d characters", MaxResourcePoolNameLength))
 	}
 
 	// Validate ResourcePoolID if provided
@@ -506,8 +518,8 @@ func validateResourcePoolFields(pool *adapter.ResourcePool) error {
 	}
 
 	// Validate Description length if provided
-	if len(pool.Description) > 1000 {
-		validationErrors = append(validationErrors, "description must not exceed 1000 characters")
+	if len(pool.Description) > MaxResourcePoolDescriptionLength {
+		validationErrors = append(validationErrors, fmt.Sprintf("description must not exceed %d characters", MaxResourcePoolDescriptionLength))
 	}
 
 	// Return all validation errors together
@@ -544,6 +556,8 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 	}
 
 	// Generate resource pool ID if not provided (sanitized with UUID for uniqueness)
+	// Format: pool-{sanitized-name}-{8-char-uuid}
+	// Example: "GPU Pool (Production)" → "pool-gpu-pool--production--a1b2c3d4"
 	if req.ResourcePoolID == "" {
 		// Add UUID suffix to prevent collisions from similar names
 		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name) + "-" + uuid.New().String()[:8]

@@ -178,7 +178,7 @@ func TestResourcePoolCRUD(t *testing.T) {
 		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
 
 		pool := adapter.ResourcePool{
-			Name: strings.Repeat("a", 256), // Exceeds 255 character limit
+			Name: strings.Repeat("a", MaxResourcePoolNameLength+1), // Exceeds max length
 		}
 
 		body, err := json.Marshal(pool)
@@ -220,7 +220,7 @@ func TestResourcePoolCRUD(t *testing.T) {
 
 		pool := adapter.ResourcePool{
 			Name:        "test-pool",
-			Description: strings.Repeat("a", 1001), // Exceeds 1000 character limit
+			Description: strings.Repeat("a", MaxResourcePoolDescriptionLength+1), // Exceeds max length
 		}
 
 		body, err := json.Marshal(pool)
