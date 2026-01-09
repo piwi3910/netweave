@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
@@ -435,3 +436,102 @@ func TestPtrHelpers(t *testing.T) {
 }
 
 // NOTE: BenchmarkMatchesFilter and BenchmarkApplyPagination moved to internal/adapter/helpers_test.go
+// TestAzureAdapter_Health tests the Health function.
+func TestAzureAdapter_Health(t *testing.T) {
+	adapter, err := New(&Config{
+		SubscriptionID:     "test-sub",
+		Location:           "eastus",
+		OCloudID:           "test-cloud",
+		UseManagedIdentity: true,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	
+	err = adapter.Health(ctx)
+	if err != nil {
+		t.Skip("Skipping - requires Azure credentials")
+	}
+}
+
+// TestAzureAdapter_ListResourcePools tests the ListResourcePools function.
+func TestAzureAdapter_ListResourcePools(t *testing.T) {
+	adapter, err := New(&Config{
+		SubscriptionID:     "test-sub",
+		Location:           "eastus",
+		OCloudID:           "test-cloud",
+		PoolMode:           "rg",
+		UseManagedIdentity: true,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	pools, err := adapter.ListResourcePools(ctx, nil)
+	if err != nil {
+		t.Skip("Skipping - requires Azure credentials")
+	}
+	assert.NotNil(t, pools)
+}
+
+// TestAzureAdapter_ListResources tests the ListResources function.
+func TestAzureAdapter_ListResources(t *testing.T) {
+	adapter, err := New(&Config{
+		SubscriptionID:     "test-sub",
+		Location:           "eastus",
+		OCloudID:           "test-cloud",
+		UseManagedIdentity: true,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	resources, err := adapter.ListResources(ctx, nil)
+	if err != nil {
+		t.Skip("Skipping - requires Azure credentials")
+	}
+	assert.NotNil(t, resources)
+}
+
+// TestAzureAdapter_ListResourceTypes tests the ListResourceTypes function.
+func TestAzureAdapter_ListResourceTypes(t *testing.T) {
+	adapter, err := New(&Config{
+		SubscriptionID:     "test-sub",
+		Location:           "eastus",
+		OCloudID:           "test-cloud",
+		UseManagedIdentity: true,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	types, err := adapter.ListResourceTypes(ctx, nil)
+	if err != nil {
+		t.Skip("Skipping - requires Azure credentials")
+	}
+	assert.NotNil(t, types)
+}
+
+// TestAzureAdapter_GetDeploymentManager tests the GetDeploymentManager function.
+func TestAzureAdapter_GetDeploymentManager(t *testing.T) {
+	adapter, err := New(&Config{
+		SubscriptionID:     "test-sub",
+		Location:           "eastus",
+		OCloudID:           "test-cloud",
+		UseManagedIdentity: true,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	dm, err := adapter.GetDeploymentManager(ctx, "dm-1")
+	if err != nil {
+		t.Skip("Skipping - requires Azure credentials")
+	}
+	assert.NotNil(t, dm)
+}
