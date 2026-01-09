@@ -2,6 +2,7 @@ package gcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -47,7 +48,7 @@ func (a *GCPAdapter) listInstancesInRegion(ctx context.Context, filter *adapter.
 
 	for {
 		zone, err := zoneIt.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -81,7 +82,7 @@ func (a *GCPAdapter) listInstancesInZone(ctx context.Context, zoneName string, f
 
 	for {
 		instance, err := instanceIt.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {

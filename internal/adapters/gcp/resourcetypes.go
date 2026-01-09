@@ -2,6 +2,7 @@ package gcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -51,7 +52,7 @@ func (a *GCPAdapter) getFirstZoneInRegion(ctx context.Context) (string, error) {
 
 	for {
 		zone, err := zoneIt.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -79,7 +80,7 @@ func (a *GCPAdapter) listMachineTypesInZone(ctx context.Context, zone string, fi
 
 	for {
 		mt, err := mtIt.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -127,7 +128,7 @@ func (a *GCPAdapter) GetResourceType(ctx context.Context, id string) (resourceTy
 	var firstZone string
 	for {
 		zone, err := zoneIt.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {

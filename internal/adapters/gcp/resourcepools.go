@@ -2,6 +2,7 @@ package gcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -40,7 +41,7 @@ func (a *GCPAdapter) listZonePools(ctx context.Context, filter *adapter.Filter) 
 
 	for {
 		zone, err := it.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -99,7 +100,7 @@ func (a *GCPAdapter) listIGPools(ctx context.Context, filter *adapter.Filter) ([
 
 	for {
 		zone, err := zoneIt.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -119,7 +120,7 @@ func (a *GCPAdapter) listIGPools(ctx context.Context, filter *adapter.Filter) ([
 
 		for {
 			ig, err := igIt.Next()
-			if err == iterator.Done {
+			if errors.Is(err, iterator.Done) {
 				break
 			}
 			if err != nil {
