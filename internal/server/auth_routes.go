@@ -14,9 +14,10 @@ type AuthHandlers struct {
 	Audit  *handlers.AuditHandler
 }
 
-// setupAuthRoutes configures all authentication and multi-tenancy routes.
+// SetupAuthRoutes configures all authentication and multi-tenancy routes.
 // These routes are only enabled when multi-tenancy is configured.
-func (s *Server) setupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) {
+// This is the main entry point for wiring up multi-tenancy routes.
+func (s *Server) SetupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) {
 	// Create handlers.
 	tenantHandler := handlers.NewTenantHandler(authStore, s.logger)
 	userHandler := handlers.NewUserHandler(authStore, s.logger)
