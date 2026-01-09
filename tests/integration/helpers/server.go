@@ -35,7 +35,9 @@ func NewTestServer(t *testing.T, adapter adapter.Adapter, store storage.Store) *
 		},
 		Observability: config.ObservabilityConfig{
 			Logging: config.LoggingConfig{
-				Level:  "info",
+				// Use warn level in tests to suppress expected ERROR logs
+				// from test cases that intentionally trigger error conditions
+				Level:  "warn",
 				Format: "json",
 			},
 			Metrics: config.MetricsConfig{

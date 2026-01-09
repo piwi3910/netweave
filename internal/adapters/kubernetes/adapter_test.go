@@ -103,10 +103,34 @@ func TestNewWithInvalidKubeconfig(t *testing.T) {
 func newTestAdapter(t *testing.T) *KubernetesAdapter {
 	t.Helper()
 
-	logger := zaptest.NewLogger(t)
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))
 	adp := &KubernetesAdapter{
 		client:              fake.NewSimpleClientset(),
 		logger:              logger,
+		oCloudID:            "test-ocloud",
+		deploymentManagerID: "test-dm",
+		namespace:           "o2ims-system",
+	}
+
+	// Register cleanup to close adapter after test
+	t.Cleanup(func() {
+		if err := adp.Close(); err != nil {
+			t.Logf("warning: failed to close adapter during cleanup: %v", err)
+		}
+	})
+
+	return adp
+}
+
+// newTestAdapterSilent creates a test adapter with a no-op logger.
+// Use this for tests that intentionally trigger error conditions to suppress
+// expected ERROR logs in test output.
+func newTestAdapterSilent(t *testing.T) *KubernetesAdapter {
+	t.Helper()
+
+	adp := &KubernetesAdapter{
+		client:              fake.NewSimpleClientset(),
+		logger:              zap.NewNop(), // No-op logger for expected errors
 		oCloudID:            "test-ocloud",
 		deploymentManagerID: "test-dm",
 		namespace:           "o2ims-system",
@@ -134,11 +158,47 @@ func newTestAdapterWithStore(t *testing.T) *KubernetesAdapter {
 		Addr: mr.Addr(),
 	})
 
-	logger := zaptest.NewLogger(t)
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))
 	adp := &KubernetesAdapter{
 		client:              fake.NewSimpleClientset(),
 		store:               store,
 		logger:              logger,
+		oCloudID:            "test-ocloud",
+		deploymentManagerID: "test-dm",
+		namespace:           "o2ims-system",
+	}
+
+	// Register cleanup
+	t.Cleanup(func() {
+		if err := adp.Close(); err != nil {
+			t.Logf("warning: failed to close adapter during cleanup: %v", err)
+		}
+		if err := store.Close(); err != nil {
+			t.Logf("warning: failed to close store during cleanup: %v", err)
+		}
+		mr.Close()
+	})
+
+	return adp
+}
+
+// newTestAdapterWithStoreSilent creates a test adapter with Redis store and no-op logger.
+// Use this for tests that intentionally trigger error conditions to suppress expected ERROR logs.
+func newTestAdapterWithStoreSilent(t *testing.T) *KubernetesAdapter {
+	t.Helper()
+
+	// Create miniredis instance for testing
+	mr := miniredis.RunT(t)
+
+	// Create Redis store
+	store := storage.NewRedisStore(&storage.RedisConfig{
+		Addr: mr.Addr(),
+	})
+
+	adp := &KubernetesAdapter{
+		client:              fake.NewSimpleClientset(),
+		store:               store,
+		logger:              zap.NewNop(), // No-op logger for expected errors
 		oCloudID:            "test-ocloud",
 		deploymentManagerID: "test-dm",
 		namespace:           "o2ims-system",
@@ -278,7 +338,8 @@ func TestKubernetesAdapter_ListResourcePools(t *testing.T) {
 
 func TestKubernetesAdapter_GetResourcePool(t *testing.T) {
 	t.Run("namespace not found", func(t *testing.T) {
-		adp := newTestAdapter(t)
+		// Use silent adapter to suppress expected ERROR logs
+		adp := newTestAdapterSilent(t)
 		ctx := context.Background()
 
 		pool, err := adp.GetResourcePool(ctx, "k8s-namespace-nonexistent")
@@ -415,7 +476,8 @@ func TestKubernetesAdapter_ListResources(t *testing.T) {
 
 func TestKubernetesAdapter_GetResource(t *testing.T) {
 	t.Run("node not found", func(t *testing.T) {
-		adp := newTestAdapter(t)
+		// Use silent adapter to suppress expected ERROR logs
+		adp := newTestAdapterSilent(t)
 		ctx := context.Background()
 
 		resource, err := adp.GetResource(ctx, "k8s-node-nonexistent")
@@ -629,7 +691,8 @@ func TestKubernetesAdapter_GetSubscription(t *testing.T) {
 	})
 
 	t.Run("subscription not found", func(t *testing.T) {
-		adp := newTestAdapterWithStore(t)
+		// Use silent adapter to suppress expected ERROR logs
+		adp := newTestAdapterWithStoreSilent(t)
 		ctx := context.Background()
 
 		sub, err := adp.GetSubscription(ctx, "nonexistent")
@@ -674,7 +737,8 @@ func TestKubernetesAdapter_DeleteSubscription(t *testing.T) {
 	})
 
 	t.Run("subscription not found", func(t *testing.T) {
-		adp := newTestAdapterWithStore(t)
+		// Use silent adapter to suppress expected ERROR logs
+		adp := newTestAdapterWithStoreSilent(t)
 		ctx := context.Background()
 
 		err := adp.DeleteSubscription(ctx, "nonexistent")
@@ -715,7 +779,7 @@ func TestConfigDefaults(t *testing.T) {
 			// but we can verify the logic by creating adapter manually
 			adp := &KubernetesAdapter{
 				client:              fake.NewSimpleClientset(),
-				logger:              zaptest.NewLogger(t),
+				logger:              zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
 				oCloudID:            "test-ocloud",
 				deploymentManagerID: "test-dm",
 			}
@@ -1009,7 +1073,7 @@ func TestKubernetesAdapter_Close_MultipleCallsAreSafe(t *testing.T) {
 	// Create adapter without using newTestAdapter to avoid double close
 	adp := &KubernetesAdapter{
 		client:              fake.NewSimpleClientset(),
-		logger:              zaptest.NewLogger(t),
+		logger:              zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
 		oCloudID:            "test-ocloud",
 		deploymentManagerID: "test-dm",
 		namespace:           "o2ims-system",
@@ -1628,7 +1692,7 @@ func TestKubernetesAdapter_WithNilLogger(t *testing.T) {
 
 func TestKubernetesAdapter_LoggerUsedInOperations(t *testing.T) {
 	// Verify logger is properly used in operations
-	logger := zaptest.NewLogger(t)
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))
 	adp := &KubernetesAdapter{
 		client:              fake.NewSimpleClientset(),
 		logger:              logger,
