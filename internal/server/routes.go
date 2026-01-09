@@ -431,7 +431,7 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 // Resource handlers
 
 // validateResourceFields validates resource field constraints.
-func validateResourceFields(resource *adapter.Resource, isCreate bool) error {
+func validateResourceFields(resource *adapter.Resource) error {
 	// Validate GlobalAssetID format (URN) if provided
 	if resource.GlobalAssetID != "" {
 		if len(resource.GlobalAssetID) < 4 || resource.GlobalAssetID[:4] != "urn:" {
@@ -525,7 +525,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 	}
 
 	// Validate field constraints
-	if err := validateResourceFields(&req, true); err != nil {
+	if err := validateResourceFields(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": err.Error(),
@@ -537,6 +537,17 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 	// Generate resource ID if not provided
 	if req.ResourceID == "" {
 		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()
+	} else {
+		// If custom ID provided, check for duplicates
+		existing, err := s.adapter.GetResource(c.Request.Context(), req.ResourceID)
+		if err == nil && existing != nil {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "Conflict",
+				"message": "Resource with ID " + req.ResourceID + " already exists",
+				"code":    http.StatusConflict,
+			})
+			return
+		}
 	}
 
 	// Create resource via adapter
@@ -587,7 +598,7 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 	}
 
 	// Validate field constraints
-	if err := validateResourceFields(&req, false); err != nil {
+	if err := validateResourceFields(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": err.Error(),

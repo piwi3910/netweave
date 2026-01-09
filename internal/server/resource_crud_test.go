@@ -51,6 +51,16 @@ func (m *mockResourceAdapter) CreateResource(_ context.Context, resource *adapte
 	return resource, nil
 }
 
+func (m *mockResourceAdapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+	if _, ok := m.resources[id]; !ok {
+		return nil, errors.New("resource not found")
+	}
+	// Update the resource in the map
+	resource.ResourceID = id
+	m.resources[id] = resource
+	return resource, nil
+}
+
 func TestResourceCRUD(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -375,5 +385,31 @@ func TestResourceCRUD(t *testing.T) {
 		err = json.Unmarshal(resp.Body.Bytes(), &created)
 		require.NoError(t, err)
 		assert.Equal(t, "custom-resource-id", created.ResourceID)
+	})
+
+	t.Run("POST /resources - duplicate resource ID", func(t *testing.T) {
+		// Use the existing resource ID from the mock
+		resource := adapter.Resource{
+			ResourceID:     "test-res-123", // Already exists in mock
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Description:    "Duplicate resource",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusConflict, resp.Code)
+		assert.Contains(t, resp.Body.String(), "already exists")
 	})
 }
