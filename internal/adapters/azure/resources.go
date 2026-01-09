@@ -108,6 +108,20 @@ func (a *AzureAdapter) CreateResource(_ context.Context, resource *adapter.Resou
 	return nil, fmt.Errorf("creating Azure VMs requires additional configuration: use Azure portal or CLI")
 }
 
+// UpdateResource updates an existing Azure VM's tags and metadata.
+// Note: Core VM properties cannot be modified after creation.
+func (a *AzureAdapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("azure", "UpdateResource", start, err) }()
+
+	a.logger.Debug("UpdateResource called",
+		zap.String("resourceID", resource.ResourceID))
+
+	// TODO(#189): Implement VM tag updates via Azure API
+	// For now, return not supported
+	return nil, fmt.Errorf("updating Azure VMs is not yet implemented")
+}
+
 // DeleteResource deletes a resource (Azure VM) by ID.
 func (a *AzureAdapter) DeleteResource(ctx context.Context, id string) (err error) {
 	start := time.Now()

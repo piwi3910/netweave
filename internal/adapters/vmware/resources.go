@@ -107,6 +107,20 @@ func (a *VMwareAdapter) CreateResource(_ context.Context, resource *adapter.Reso
 	return nil, fmt.Errorf("creating vSphere VMs requires additional configuration: use vCenter or vSphere CLI")
 }
 
+// UpdateResource updates an existing vSphere VM's annotations and custom attributes.
+// Note: Core VM properties cannot be modified while VM is running.
+func (a *VMwareAdapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("vmware", "UpdateResource", start, err) }()
+
+	a.logger.Debug("UpdateResource called",
+		zap.String("resourceID", resource.ResourceID))
+
+	// TODO(#192): Implement VM custom attribute updates via vSphere API
+	// For now, return not supported
+	return nil, fmt.Errorf("updating vSphere VMs is not yet implemented")
+}
+
 // DeleteResource deletes a resource (VM) by ID.
 func (a *VMwareAdapter) DeleteResource(ctx context.Context, id string) (err error) {
 	start := time.Now()

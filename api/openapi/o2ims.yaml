@@ -281,6 +281,38 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+    post:
+      summary: Create a new resource
+      description: Creates a new resource in the infrastructure inventory.
+      operationId: createResource
+      tags:
+        - Resources
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Resource'
+            example:
+              resourceTypeId: "compute-node"
+              resourcePoolId: "pool-compute-high-mem"
+              globalAssetId: "urn:o-ran:resource:node-002"
+              description: "High-memory compute node"
+              extensions:
+                cpu: "64 cores"
+                memory: "512GB"
+      responses:
+        '201':
+          description: Resource created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /resources/{resourceId}:
     get:
       summary: Get a resource
@@ -297,6 +329,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Resource'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update a resource
+      description: Updates an existing resource's description, global asset ID, and extensions. The resourceId, resourceTypeId, and resourcePoolId are immutable.
+      operationId: updateResource
+      tags:
+        - Resources
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Resource'
+            example:
+              description: "Updated high-memory compute node"
+              globalAssetId: "urn:o-ran:resource:node-001-updated"
+              extensions:
+                cpu: "128 cores"
+                memory: "1TB"
+                status: "active"
+      responses:
+        '200':
+          description: Resource updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
