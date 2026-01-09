@@ -54,7 +54,7 @@ func TestInfrastructureDiscovery(t *testing.T) {
 		}
 
 		fw.Logger.Info("Successfully listed resource pools",
-			"count", len(pools),
+			zap.Int("count", len(pools)),
 		)
 	})
 
@@ -95,8 +95,8 @@ func TestInfrastructureDiscovery(t *testing.T) {
 		assert.Contains(t, pool, "description")
 
 		fw.Logger.Info("Successfully retrieved resource pool",
-			"poolId", poolID,
-			"name", pool["name"],
+			zap.String("poolId", poolID),
+			zap.Any("name", pool["name"]),
 		)
 	})
 
@@ -134,8 +134,8 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 		// May or may not have resources depending on cluster state
 		fw.Logger.Info("Listed resources in pool",
-			"poolId", poolID,
-			"count", len(resources),
+			zap.String("poolId", poolID),
+			zap.Int("count", len(resources)),
 		)
 
 		// Verify resource structure if any exist
@@ -203,9 +203,9 @@ func TestInfrastructureDiscovery(t *testing.T) {
 		assert.Contains(t, resource, "resourceType")
 
 		fw.Logger.Info("Successfully retrieved resource",
-			"poolId", poolID,
-			"resourceId", resourceID,
-			"resourceType", resource["resourceType"],
+			zap.String("poolId", poolID),
+			zap.String("resourceId", resourceID),
+			zap.Any("resourceType", resource["resourceType"]),
 		)
 	})
 
@@ -248,9 +248,9 @@ func TestInfrastructureDiscovery(t *testing.T) {
 		}
 
 		fw.Logger.Info("Successfully filtered resources by type",
-			"poolId", poolID,
-			"filter", "resourceType==Node",
-			"count", len(resources),
+			zap.String("poolId", poolID),
+			zap.String("filter", "resourceType==Node"),
+			zap.Int("count", len(resources)),
 		)
 	})
 
@@ -291,9 +291,9 @@ func TestInfrastructureDiscovery(t *testing.T) {
 		assert.LessOrEqual(t, len(resources), 5)
 
 		fw.Logger.Info("Successfully tested pagination",
-			"poolId", poolID,
-			"limit", 5,
-			"returned", len(resources),
+			zap.String("poolId", poolID),
+			zap.Int("limit", 5),
+			zap.Int("returned", len(resources)),
 		)
 	})
 }
@@ -339,7 +339,7 @@ func TestErrorHandling(t *testing.T) {
 		assert.True(t, resp.StatusCode >= 400, "Expected error status code")
 
 		fw.Logger.Info("Successfully handled invalid filter syntax",
-			"statusCode", resp.StatusCode,
+			zap.Int("statusCode", resp.StatusCode),
 		)
 	})
 }

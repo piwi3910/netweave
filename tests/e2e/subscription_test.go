@@ -58,7 +58,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 		subscriptionID = createdSub["subscriptionId"].(string)
 
 		fw.Logger.Info("Successfully created subscription",
-			"subscriptionId", subscriptionID,
+			zap.String("subscriptionId", subscriptionID),
 		)
 	})
 
@@ -88,7 +88,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 		assert.True(t, found, "Created subscription not found in list")
 
 		fw.Logger.Info("Successfully listed subscriptions",
-			"count", len(subscriptions),
+			zap.Int("count", len(subscriptions)),
 		)
 	})
 
@@ -111,7 +111,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 		assert.Equal(t, fw.WebhookServer.URL(), sub["callback"])
 
 		fw.Logger.Info("Successfully retrieved subscription",
-			"subscriptionId", subscriptionID,
+			zap.String("subscriptionId", subscriptionID),
 		)
 	})
 
@@ -127,7 +127,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 		assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 
 		fw.Logger.Info("Successfully deleted subscription",
-			"subscriptionId", subscriptionID,
+			zap.String("subscriptionId", subscriptionID),
 		)
 
 		// Verify it's gone
@@ -178,8 +178,8 @@ func TestSubscriptionNotifications(t *testing.T) {
 	if err == nil {
 		assert.Equal(t, "Namespace", event.ResourceType)
 		fw.Logger.Info("Received webhook notification",
-			"eventId", event.ID,
-			"resourceType", event.ResourceType,
+			zap.String("eventId", event.ID),
+			zap.String("resourceType", event.ResourceType),
 		)
 	}
 }
