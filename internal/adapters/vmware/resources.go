@@ -257,7 +257,7 @@ func addVMGuestInfo(extensions map[string]interface{}, guest *types.GuestInfo) {
 		return
 	}
 
-	extensions["vmware.guestState"] = string(guest.GuestState)
+	extensions["vmware.guestState"] = guest.GuestState
 	extensions["vmware.guestToolsStatus"] = string(guest.ToolsStatus)
 	extensions["vmware.guestToolsVersion"] = guest.ToolsVersion
 	extensions["vmware.hostName"] = guest.HostName
