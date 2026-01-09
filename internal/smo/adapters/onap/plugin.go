@@ -418,7 +418,14 @@ func isNilInterface(i interface{}) bool {
 	switch v.Kind() {
 	case reflect.Ptr, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
 		return v.IsNil()
+	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
+		reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Uintptr, reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128,
+		reflect.Array, reflect.Interface, reflect.String, reflect.Struct, reflect.UnsafePointer:
+		// These types cannot be nil (value types) or don't support IsNil check
+		return false
 	default:
+		// Handle any future reflect.Kind values
 		return false
 	}
 }

@@ -142,8 +142,14 @@ func (g *K8sEventGenerator) handleNodeEvent(ctx context.Context, watchEvent watc
 		eventType = models.EventTypeResourceUpdated
 	case watch.Deleted:
 		eventType = models.EventTypeResourceDeleted
+	case watch.Bookmark:
+		// Skip bookmark events
+		return nil
+	case watch.Error:
+		// Skip error events
+		return nil
 	default:
-		// Skip other event types (Bookmark, Error)
+		// Skip any other unknown event types
 		return nil
 	}
 
