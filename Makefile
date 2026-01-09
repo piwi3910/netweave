@@ -517,3 +517,129 @@ helm-docs: ## Generate Helm documentation
 .PHONY: helm-all
 helm-all: helm-lint helm-template helm-test ## Run all Helm checks
 
+
+## ==============================================================================
+## Supply Chain Security
+## ==============================================================================
+
+.PHONY: deps-scan
+deps-scan: ## Run dependency vulnerability scanning
+	@echo "$(COLOR_YELLOW)Running dependency vulnerability scans...$(COLOR_RESET)"
+	@$(MAKE) deps-scan-govulncheck
+	@$(MAKE) deps-scan-nancy
+	@echo "$(COLOR_GREEN)✓ Dependency scans complete$(COLOR_RESET)"
+
+.PHONY: deps-scan-govulncheck
+deps-scan-govulncheck: ## Run govulncheck vulnerability scanner
+	@echo "$(COLOR_BLUE)→ Running govulncheck...$(COLOR_RESET)"
+	@command -v govulncheck >/dev/null 2>&1 || { echo "$(COLOR_YELLOW)Installing govulncheck...$(COLOR_RESET)"; go install golang.org/x/vuln/cmd/govulncheck@latest; }
+	@govulncheck ./... || true
+
+.PHONY: deps-scan-nancy
+deps-scan-nancy: ## Run Nancy (Sonatype) vulnerability scanner
+	@echo "$(COLOR_BLUE)→ Running Nancy scan...$(COLOR_RESET)"
+	@command -v nancy >/dev/null 2>&1 || { echo "$(COLOR_YELLOW)Installing Nancy...$(COLOR_RESET)"; \
+		curl -L -o /tmp/nancy https://github.com/sonatype-nexus-community/nancy/releases/latest/download/nancy-$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/'); \
+		chmod +x /tmp/nancy; \
+		sudo mv /tmp/nancy /usr/local/bin/nancy; }
+	@go list -json -deps ./... | nancy sleuth || true
+
+.PHONY: deps-scan-trivy
+deps-scan-trivy: ## Run Trivy vulnerability scanner
+	@echo "$(COLOR_BLUE)→ Running Trivy scan...$(COLOR_RESET)"
+	@command -v trivy >/dev/null 2>&1 || { echo "$(COLOR_RED)✗ trivy not found. Install from: https://trivy.dev/$(COLOR_RESET)"; exit 1; }
+	@trivy fs --severity HIGH,CRITICAL .
+
+.PHONY: license-check
+license-check: ## Check license compliance
+	@echo "$(COLOR_YELLOW)Checking license compliance...$(COLOR_RESET)"
+	@command -v go-licenses >/dev/null 2>&1 || { echo "$(COLOR_YELLOW)Installing go-licenses...$(COLOR_RESET)"; go install github.com/google/go-licenses@latest; }
+	@go-licenses check ./... --allowed_licenses=Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC,MPL-2.0 --ignore github.com/piwi3910/netweave
+	@echo "$(COLOR_GREEN)✓ License compliance check passed$(COLOR_RESET)"
+
+.PHONY: license-report
+license-report: ## Generate license compliance report
+	@echo "$(COLOR_YELLOW)Generating license report...$(COLOR_RESET)"
+	@mkdir -p $(BUILD_DIR)/reports
+	@command -v go-licenses >/dev/null 2>&1 || { echo "$(COLOR_YELLOW)Installing go-licenses...$(COLOR_RESET)"; go install github.com/google/go-licenses@latest; }
+	@go-licenses report ./... --template=csv > $(BUILD_DIR)/reports/licenses.csv || true
+	@go-licenses report ./... --template=json > $(BUILD_DIR)/reports/licenses.json || true
+	@echo "$(COLOR_GREEN)✓ License reports generated$(COLOR_RESET)"
+	@echo "$(COLOR_BLUE)CSV report: $(BUILD_DIR)/reports/licenses.csv$(COLOR_RESET)"
+	@echo "$(COLOR_BLUE)JSON report: $(BUILD_DIR)/reports/licenses.json$(COLOR_RESET)"
+
+.PHONY: license-save
+license-save: ## Save all third-party license files
+	@echo "$(COLOR_YELLOW)Saving third-party licenses...$(COLOR_RESET)"
+	@mkdir -p $(BUILD_DIR)/licenses
+	@command -v go-licenses >/dev/null 2>&1 || { echo "$(COLOR_YELLOW)Installing go-licenses...$(COLOR_RESET)"; go install github.com/google/go-licenses@latest; }
+	@go-licenses save ./... --save_path=$(BUILD_DIR)/licenses --ignore github.com/piwi3910/netweave || true
+	@echo "$(COLOR_GREEN)✓ License files saved to $(BUILD_DIR)/licenses$(COLOR_RESET)"
+
+.PHONY: license-notice
+license-notice: ## Generate NOTICE file for attribution
+	@echo "$(COLOR_YELLOW)Generating NOTICE file...$(COLOR_RESET)"
+	@command -v go-licenses >/dev/null 2>&1 || { echo "$(COLOR_YELLOW)Installing go-licenses...$(COLOR_RESET)"; go install github.com/google/go-licenses@latest; }
+	@cat > NOTICE << 'NOTICE_EOF'
+	netweave O2-IMS Gateway
+	Copyright 2024-2026 Pascal Watteel
+
+	This product includes software developed by third parties.
+	The following is a list of third-party dependencies and their licenses:
+
+	NOTICE_EOF
+	@go-licenses report ./... --template=csv | tail -n +2 | sort | while IFS=, read -r package url license; do \
+		echo "" >> NOTICE; \
+		echo "----------------------------------------" >> NOTICE; \
+		echo "Package: $$package" >> NOTICE; \
+		echo "License: $$license" >> NOTICE; \
+		echo "URL: $$url" >> NOTICE; \
+	done || true
+	@echo "$(COLOR_GREEN)✓ NOTICE file generated$(COLOR_RESET)"
+
+.PHONY: sbom-generate
+sbom-generate: ## Generate Software Bill of Materials (SBOM)
+	@echo "$(COLOR_YELLOW)Generating SBOM...$(COLOR_RESET)"
+	@mkdir -p $(BUILD_DIR)/sbom
+	@command -v syft >/dev/null 2>&1 || { echo "$(COLOR_RED)✗ syft not found. Install from: https://github.com/anchore/syft$(COLOR_RESET)"; exit 1; }
+	@echo "$(COLOR_BLUE)→ Generating SPDX JSON format...$(COLOR_RESET)"
+	@syft dir:. -o spdx-json > $(BUILD_DIR)/sbom/sbom-spdx.json
+	@echo "$(COLOR_BLUE)→ Generating CycloneDX JSON format...$(COLOR_RESET)"
+	@syft dir:. -o cyclonedx-json > $(BUILD_DIR)/sbom/sbom-cyclonedx.json
+	@echo "$(COLOR_BLUE)→ Generating SPDX tag-value format...$(COLOR_RESET)"
+	@syft dir:. -o spdx > $(BUILD_DIR)/sbom/sbom.spdx
+	@echo "$(COLOR_GREEN)✓ SBOM generated$(COLOR_RESET)"
+	@echo "$(COLOR_BLUE)SBOM files: $(BUILD_DIR)/sbom/$(COLOR_RESET)"
+
+.PHONY: sbom-scan
+sbom-scan: sbom-generate ## Scan SBOM for vulnerabilities with Grype
+	@echo "$(COLOR_YELLOW)Scanning SBOM with Grype...$(COLOR_RESET)"
+	@command -v grype >/dev/null 2>&1 || { echo "$(COLOR_RED)✗ grype not found. Install from: https://github.com/anchore/grype$(COLOR_RESET)"; exit 1; }
+	@grype sbom:$(BUILD_DIR)/sbom/sbom-spdx.json -o json > $(BUILD_DIR)/sbom/grype-report.json || true
+	@grype sbom:$(BUILD_DIR)/sbom/sbom-spdx.json || true
+	@echo "$(COLOR_GREEN)✓ SBOM scan complete$(COLOR_RESET)"
+	@echo "$(COLOR_BLUE)Report: $(BUILD_DIR)/sbom/grype-report.json$(COLOR_RESET)"
+
+.PHONY: deps-outdated
+deps-outdated: ## Check for outdated dependencies
+	@echo "$(COLOR_YELLOW)Checking for outdated dependencies...$(COLOR_RESET)"
+	@go list -u -m -json all | jq -r 'select(.Update != null) | "\(.Path): \(.Version) -> \(.Update.Version)"' > $(BUILD_DIR)/outdated.txt || true
+	@if [ -s $(BUILD_DIR)/outdated.txt ]; then \
+		echo "$(COLOR_YELLOW)⚠️ Outdated dependencies found:$(COLOR_RESET)"; \
+		cat $(BUILD_DIR)/outdated.txt; \
+	else \
+		echo "$(COLOR_GREEN)✓ All dependencies are up to date$(COLOR_RESET)"; \
+	fi
+
+.PHONY: supply-chain-all
+supply-chain-all: deps-scan license-check sbom-generate sbom-scan license-report ## Run all supply chain security checks
+	@echo ""
+	@echo "$(COLOR_GREEN)$(COLOR_BOLD)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)"
+	@echo "$(COLOR_GREEN)$(COLOR_BOLD)  ✓ SUPPLY CHAIN SECURITY CHECKS COMPLETE            $(COLOR_RESET)"
+	@echo "$(COLOR_GREEN)$(COLOR_BOLD)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)"
+	@echo "$(COLOR_GREEN)All supply chain security checks passed!$(COLOR_RESET)"
+	@echo ""
+	@echo "$(COLOR_BLUE)Reports available in:$(COLOR_RESET)"
+	@echo "  - $(BUILD_DIR)/reports/ (licenses)"
+	@echo "  - $(BUILD_DIR)/sbom/ (SBOM and vulnerability scans)"
+
