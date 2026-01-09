@@ -1247,3 +1247,297 @@ func BenchmarkListDeployments(b *testing.B) {
 func formatString(format string, a ...interface{}) string {
 	return fmt.Sprintf(format, a...)
 }
+
+// TestContextCancellation tests that adapter methods respect context cancellation.
+func TestContextCancellation(t *testing.T) {
+	app := createTestApplication("test-app", "https://github.com/example/repo", "apps/test", "Healthy", "Synced")
+	adp := createFakeAdapter(t, app)
+
+	// Create a cancelled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	tests := []struct {
+		name string
+		fn   func() error
+	}{
+		{
+			name: "ListDeployments",
+			fn: func() error {
+				_, err := adp.ListDeployments(ctx, nil)
+				return err
+			},
+		},
+		{
+			name: "GetDeployment",
+			fn: func() error {
+				_, err := adp.GetDeployment(ctx, "test-app")
+				return err
+			},
+		},
+		{
+			name: "CreateDeployment",
+			fn: func() error {
+				_, err := adp.CreateDeployment(ctx, &dmsadapter.DeploymentRequest{
+					Name: "new-app",
+					Extensions: map[string]interface{}{
+						"argocd.repoURL": "https://github.com/example/repo",
+					},
+				})
+				return err
+			},
+		},
+		{
+			name: "Health",
+			fn: func() error {
+				return adp.Health(ctx)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.fn()
+			require.Error(t, err)
+			assert.ErrorIs(t, err, context.Canceled)
+		})
+	}
+}
+
+// TestBuildConditions tests condition building for different app states.
+func TestBuildConditions(t *testing.T) {
+	adp, _ := NewAdapter(&Config{})
+
+	tests := []struct {
+		name           string
+		healthStatus   string
+		syncStatus     string
+		wantCondType   string
+		wantCondStatus string
+	}{
+		{
+			name:           "healthy synced",
+			healthStatus:   "Healthy",
+			syncStatus:     "Synced",
+			wantCondType:   "Healthy",
+			wantCondStatus: "True",
+		},
+		{
+			name:           "degraded",
+			healthStatus:   "Degraded",
+			syncStatus:     "Synced",
+			wantCondType:   "Healthy",
+			wantCondStatus: "False",
+		},
+		{
+			name:           "progressing",
+			healthStatus:   "Progressing",
+			syncStatus:     "OutOfSync",
+			wantCondType:   "Healthy",
+			wantCondStatus: "Unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conditions := adp.buildConditions(tt.healthStatus, tt.syncStatus)
+			require.NotEmpty(t, conditions)
+
+			// Find the health condition
+			var healthCond *dmsadapter.DeploymentCondition
+			for i := range conditions {
+				if conditions[i].Type == tt.wantCondType {
+					healthCond = &conditions[i]
+					break
+				}
+			}
+			require.NotNil(t, healthCond)
+			assert.Equal(t, tt.wantCondStatus, healthCond.Status)
+		})
+	}
+}
+
+// TestExtractSource tests source extraction from Application.
+func TestExtractSource(t *testing.T) {
+	adp, _ := NewAdapter(&Config{})
+
+	tests := []struct {
+		name      string
+		app       *unstructured.Unstructured
+		wantRepo  string
+		wantPath  string
+		wantChart string
+	}{
+		{
+			name:     "standard source",
+			app:      createTestApplication("app", "https://github.com/example/repo", "apps/myapp", "Healthy", "Synced"),
+			wantRepo: "https://github.com/example/repo",
+			wantPath: "apps/myapp",
+		},
+		{
+			name: "helm source",
+			app: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "argoproj.io/v1alpha1",
+					"kind":       "Application",
+					"metadata": map[string]interface{}{
+						"name":      "helm-app",
+						"namespace": "argocd",
+					},
+					"spec": map[string]interface{}{
+						"source": map[string]interface{}{
+							"repoURL":   "https://charts.example.com",
+							"chart":     "nginx",
+							"chartPath": ".",
+						},
+					},
+				},
+			},
+			wantRepo:  "https://charts.example.com",
+			wantChart: "nginx",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repoURL, path, _, chart := adp.extractSource(tt.app)
+			assert.Equal(t, tt.wantRepo, repoURL)
+			if tt.wantPath != "" {
+				assert.Equal(t, tt.wantPath, path)
+			}
+			if tt.wantChart != "" {
+				assert.Equal(t, tt.wantChart, chart)
+			}
+		})
+	}
+}
+
+// TestTransformApplicationToDeployment tests transformation of ArgoCD Application to Deployment.
+func TestTransformApplicationToDeployment(t *testing.T) {
+	adp, _ := NewAdapter(&Config{})
+
+	tests := []struct {
+		name       string
+		app        *unstructured.Unstructured
+		wantStatus dmsadapter.DeploymentStatus
+	}{
+		{
+			name:       "healthy synced app",
+			app:        createTestApplication("healthy-app", "https://github.com/example/repo", "apps/healthy", "Healthy", "Synced"),
+			wantStatus: dmsadapter.DeploymentStatusDeployed,
+		},
+		{
+			name:       "progressing app",
+			app:        createTestApplication("progressing-app", "https://github.com/example/repo", "apps/progress", "Progressing", "OutOfSync"),
+			wantStatus: dmsadapter.DeploymentStatusDeploying,
+		},
+		{
+			name:       "degraded app",
+			app:        createTestApplication("degraded-app", "https://github.com/example/repo", "apps/degraded", "Degraded", "Synced"),
+			wantStatus: dmsadapter.DeploymentStatusFailed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deployment := adp.transformApplicationToDeployment(tt.app)
+
+			assert.NotNil(t, deployment)
+			assert.NotEmpty(t, deployment.ID)
+			assert.NotEmpty(t, deployment.Name)
+			assert.Equal(t, tt.wantStatus, deployment.Status)
+			assert.NotNil(t, deployment.Extensions)
+		})
+	}
+}
+
+// TestScaleDeployment_ZeroReplicas tests scaling to zero replicas.
+func TestScaleDeployment_ZeroReplicas(t *testing.T) {
+	existingApp := createTestApplication("zero-scale-app", "https://github.com/example/repo", "apps/zero", "Healthy", "Synced")
+	adp := createFakeAdapter(t, existingApp)
+
+	err := adp.ScaleDeployment(context.Background(), "zero-scale-app", 0)
+	require.NoError(t, err)
+}
+
+// TestGetDeploymentPackage tests getting a specific package.
+func TestGetDeploymentPackage(t *testing.T) {
+	apps := []*unstructured.Unstructured{
+		createTestApplication("app1", "https://github.com/example/repo", "apps/app1", "Healthy", "Synced"),
+	}
+	objects := make([]runtime.Object, len(apps))
+	for i, app := range apps {
+		objects[i] = app
+	}
+
+	adp := createFakeAdapter(t, objects...)
+
+	t.Run("package found", func(t *testing.T) {
+		pkg, err := adp.GetDeploymentPackage(context.Background(), "https-github-com-example-repo-apps-app1")
+		require.NoError(t, err)
+		assert.NotNil(t, pkg)
+		assert.Equal(t, "git-repo", pkg.PackageType)
+	})
+
+	t.Run("package not found", func(t *testing.T) {
+		_, err := adp.GetDeploymentPackage(context.Background(), "nonexistent-package")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+}
+
+// TestBuildLabelSelector_MultipleLabels tests label selector with multiple labels.
+func TestBuildLabelSelector_MultipleLabels(t *testing.T) {
+	labels := map[string]string{
+		"app":         "myapp",
+		"environment": "production",
+	}
+
+	selector := buildLabelSelector(labels)
+
+	// Should contain both labels separated by comma
+	assert.Contains(t, selector, "app=myapp")
+	assert.Contains(t, selector, "environment=production")
+	assert.Contains(t, selector, ",")
+}
+
+// TestConfigDefaults tests default configuration values.
+func TestConfigDefaults(t *testing.T) {
+	tests := []struct {
+		name             string
+		config           *Config
+		wantNamespace    string
+		wantProject      string
+		wantSyncTimeout  time.Duration
+	}{
+		{
+			name:             "all defaults",
+			config:           &Config{},
+			wantNamespace:    DefaultNamespace,
+			wantProject:      "default",
+			wantSyncTimeout:  DefaultSyncTimeout,
+		},
+		{
+			name: "custom values",
+			config: &Config{
+				Namespace:      "custom-ns",
+				DefaultProject: "custom-project",
+				SyncTimeout:    10 * time.Minute,
+			},
+			wantNamespace:   "custom-ns",
+			wantProject:     "custom-project",
+			wantSyncTimeout: 10 * time.Minute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := NewAdapter(tt.config)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantNamespace, adp.config.Namespace)
+			assert.Equal(t, tt.wantProject, adp.config.DefaultProject)
+			assert.Equal(t, tt.wantSyncTimeout, adp.config.SyncTimeout)
+		})
+	}
+}
