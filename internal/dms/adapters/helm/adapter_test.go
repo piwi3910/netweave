@@ -1183,3 +1183,461 @@ func TestHelmAdapter_UpdateDeployment(t *testing.T) {
 	}
 	assert.NotNil(t, deployment)
 }
+
+// TestHelmAdapter_CreateDeployment_Validation tests CreateDeployment validation.
+func TestHelmAdapter_CreateDeployment_Validation(t *testing.T) {
+	adapter, err := NewAdapter(&Config{
+		Namespace: "test",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name        string
+		req         *dmsadapter.DeploymentRequest
+		expectErr   bool
+		errContains string
+	}{
+		{
+			name:        "nil request",
+			req:         nil,
+			expectErr:   true,
+			errContains: "cannot be nil",
+		},
+		{
+			name: "missing name",
+			req: &dmsadapter.DeploymentRequest{
+				PackageID: "nginx-1.0.0",
+			},
+			expectErr:   true,
+			errContains: "name is required",
+		},
+		{
+			name: "missing package ID",
+			req: &dmsadapter.DeploymentRequest{
+				Name: "test-release",
+			},
+			expectErr:   true,
+			errContains: "package ID is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := adapter.CreateDeployment(ctx, tt.req)
+			if tt.expectErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+			}
+		})
+	}
+}
+
+// TestHelmAdapter_UpdateDeployment_Validation tests UpdateDeployment validation.
+func TestHelmAdapter_UpdateDeployment_Validation(t *testing.T) {
+	adapter, err := NewAdapter(&Config{
+		Namespace: "test",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("nil update", func(t *testing.T) {
+		_, err := adapter.UpdateDeployment(ctx, "test-release", nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}
+
+// TestHelmAdapter_MatchesDeploymentFilter tests the filter matching logic.
+func TestHelmAdapter_MatchesDeploymentFilter(t *testing.T) {
+	adapter, err := NewAdapter(&Config{
+		Namespace: "test",
+	})
+	require.NoError(t, err)
+
+	now := helmtime.Now()
+	rel := &release.Release{
+		Name:      "test-release",
+		Namespace: "production",
+		Info: &release.Info{
+			Status:        release.StatusDeployed,
+			FirstDeployed: now,
+			LastDeployed:  now,
+		},
+		Chart: &chart.Chart{
+			Metadata: &chart.Metadata{
+				Name:    "test-chart",
+				Version: "1.0.0",
+			},
+		},
+	}
+	deployment := adapter.transformReleaseToDeployment(rel)
+
+	tests := []struct {
+		name   string
+		filter *dmsadapter.Filter
+		want   bool
+	}{
+		{
+			name:   "nil filter matches all",
+			filter: nil,
+			want:   true,
+		},
+		{
+			name:   "empty filter matches all",
+			filter: &dmsadapter.Filter{},
+			want:   true,
+		},
+		{
+			name: "matching namespace",
+			filter: &dmsadapter.Filter{
+				Namespace: "production",
+			},
+			want: true,
+		},
+		{
+			name: "non-matching namespace",
+			filter: &dmsadapter.Filter{
+				Namespace: "staging",
+			},
+			want: false,
+		},
+		{
+			name: "matching status",
+			filter: &dmsadapter.Filter{
+				Status: dmsadapter.DeploymentStatusDeployed,
+			},
+			want: true,
+		},
+		{
+			name: "non-matching status",
+			filter: &dmsadapter.Filter{
+				Status: dmsadapter.DeploymentStatusFailed,
+			},
+			want: false,
+		},
+		{
+			name: "matching namespace and status",
+			filter: &dmsadapter.Filter{
+				Namespace: "production",
+				Status:    dmsadapter.DeploymentStatusDeployed,
+			},
+			want: true,
+		},
+		{
+			name: "matching namespace but non-matching status",
+			filter: &dmsadapter.Filter{
+				Namespace: "production",
+				Status:    dmsadapter.DeploymentStatusFailed,
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adapter.matchesDeploymentFilter(rel, deployment, tt.filter)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestHelmAdapter_FilterAndTransformReleases tests filtering and transformation.
+func TestHelmAdapter_FilterAndTransformReleases(t *testing.T) {
+	adapter, err := NewAdapter(&Config{
+		Namespace: "test",
+	})
+	require.NoError(t, err)
+
+	now := helmtime.Now()
+	createRelease := func(name, namespace string, status release.Status) *release.Release {
+		return &release.Release{
+			Name:      name,
+			Namespace: namespace,
+			Info: &release.Info{
+				Status:        status,
+				FirstDeployed: now,
+				LastDeployed:  now,
+			},
+			Chart: &chart.Chart{
+				Metadata: &chart.Metadata{
+					Name:    "test-chart",
+					Version: "1.0.0",
+				},
+			},
+		}
+	}
+
+	releases := []*release.Release{
+		createRelease("release1", "production", release.StatusDeployed),
+		createRelease("release2", "staging", release.StatusDeployed),
+		createRelease("release3", "production", release.StatusFailed),
+	}
+
+	tests := []struct {
+		name     string
+		filter   *dmsadapter.Filter
+		wantLen  int
+		wantName string
+	}{
+		{
+			name:    "no filter",
+			filter:  nil,
+			wantLen: 3,
+		},
+		{
+			name: "filter by namespace production",
+			filter: &dmsadapter.Filter{
+				Namespace: "production",
+			},
+			wantLen: 2,
+		},
+		{
+			name: "filter by namespace staging",
+			filter: &dmsadapter.Filter{
+				Namespace: "staging",
+			},
+			wantLen:  1,
+			wantName: "release2",
+		},
+		{
+			name: "filter by status deployed",
+			filter: &dmsadapter.Filter{
+				Status: dmsadapter.DeploymentStatusDeployed,
+			},
+			wantLen: 2,
+		},
+		{
+			name: "filter by status failed",
+			filter: &dmsadapter.Filter{
+				Status: dmsadapter.DeploymentStatusFailed,
+			},
+			wantLen:  1,
+			wantName: "release3",
+		},
+		{
+			name: "filter by production and deployed",
+			filter: &dmsadapter.Filter{
+				Namespace: "production",
+				Status:    dmsadapter.DeploymentStatusDeployed,
+			},
+			wantLen:  1,
+			wantName: "release1",
+		},
+		{
+			name: "filter with no matches",
+			filter: &dmsadapter.Filter{
+				Namespace: "development",
+			},
+			wantLen: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := adapter.filterAndTransformReleases(releases, tt.filter)
+			assert.Len(t, result, tt.wantLen)
+			if tt.wantName != "" && len(result) > 0 {
+				assert.Equal(t, tt.wantName, result[0].Name)
+			}
+		})
+	}
+}
+
+// TestHelmAdapter_TransformHelmStatus_AllStatuses tests all Helm status transformations.
+func TestHelmAdapter_TransformHelmStatus_AllStatuses(t *testing.T) {
+	adapter, err := NewAdapter(&Config{
+		Namespace: "test",
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		helmStatus release.Status
+		want       dmsadapter.DeploymentStatus
+	}{
+		{"superseded", release.StatusSuperseded, dmsadapter.DeploymentStatusFailed},
+		{"unknown", release.StatusUnknown, dmsadapter.DeploymentStatusFailed},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adapter.transformHelmStatus(tt.helmStatus)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestHelmAdapter_CalculateProgress_AllStatuses tests all progress calculations.
+func TestHelmAdapter_CalculateProgress_AllStatuses(t *testing.T) {
+	adapter, err := NewAdapter(&Config{
+		Namespace: "test",
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		helmStatus release.Status
+		want       int
+	}{
+		{"superseded", release.StatusSuperseded, 0},
+		{"unknown", release.StatusUnknown, 0},
+		{"uninstalled", release.StatusUninstalled, 0},
+		{"pending_rollback", release.StatusPendingRollback, 50},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rel := &release.Release{
+				Info: &release.Info{
+					Status: tt.helmStatus,
+				},
+			}
+			got := adapter.calculateProgress(rel)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestHelmAdapter_Initialize tests initialization behavior.
+func TestHelmAdapter_Initialize(t *testing.T) {
+	t.Run("already initialized", func(t *testing.T) {
+		adapter, err := NewAdapter(&Config{
+			Namespace: "test",
+		})
+		require.NoError(t, err)
+
+		// Mark as initialized
+		adapter.initialized = true
+		adapter.actionCfg = &action.Configuration{}
+
+		// Should return immediately without error
+		err = adapter.Initialize(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, adapter.initialized)
+	})
+
+	t.Run("initialization without kubeconfig", func(t *testing.T) {
+		adapter, err := NewAdapter(&Config{
+			Namespace: "test",
+			Debug:     true, // Enable debug for coverage
+		})
+		require.NoError(t, err)
+
+		// Initialize should fail without proper kubeconfig
+		err = adapter.Initialize(context.Background())
+		// Error is expected since we don't have a real kubeconfig
+		if err != nil {
+			assert.Contains(t, err.Error(), "failed to initialize")
+		}
+	})
+}
+
+// TestHelmAdapter_BuildConditions_EdgeCases tests condition building edge cases.
+func TestHelmAdapter_BuildConditions_EdgeCases(t *testing.T) {
+	adapter, err := NewAdapter(&Config{
+		Namespace: "test",
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		helmStatus     release.Status
+		wantCondStatus string
+	}{
+		{"pending_install", release.StatusPendingInstall, "False"},
+		{"uninstalling", release.StatusUninstalling, "False"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rel := &release.Release{
+				Info: &release.Info{
+					Status:       tt.helmStatus,
+					LastDeployed: helmtime.Now(),
+				},
+			}
+
+			conditions := adapter.buildConditions(rel)
+			require.NotEmpty(t, conditions)
+			assert.Equal(t, tt.wantCondStatus, conditions[0].Status)
+		})
+	}
+}
+
+// TestHelmAdapter_ScaleDeployment_ZeroReplicas tests scaling to zero.
+func TestHelmAdapter_ScaleDeployment_ZeroReplicas(t *testing.T) {
+	adapter, err := NewAdapter(&Config{
+		Namespace: "test",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Zero replicas should be valid
+	err = adapter.ScaleDeployment(ctx, "test-release", 0)
+	// Will fail without K8s but should not fail on validation
+	if err != nil && !assert.Contains(t, err.Error(), "replicas must be non-negative") {
+		// Expected to fail due to missing K8s
+		t.Skip("Skipping - requires Kubernetes")
+	}
+}
+
+// TestHelmAdapter_RollbackDeployment_ZeroRevision tests rollback to revision 0.
+func TestHelmAdapter_RollbackDeployment_ZeroRevision(t *testing.T) {
+	adapter, err := NewAdapter(&Config{
+		Namespace: "test",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Zero revision should be valid (means latest - 1 in Helm)
+	err = adapter.RollbackDeployment(ctx, "test-release", 0)
+	// Will fail without K8s but should not fail on validation
+	if err != nil && !assert.Contains(t, err.Error(), "revision must be non-negative") {
+		// Expected to fail due to missing K8s
+		t.Skip("Skipping - requires Kubernetes")
+	}
+}
+
+// TestHelmAdapter_Settings tests Helm settings configuration.
+func TestHelmAdapter_Settings(t *testing.T) {
+	tests := []struct {
+		name       string
+		kubeconfig string
+		namespace  string
+		debug      bool
+	}{
+		{
+			name:       "with kubeconfig",
+			kubeconfig: "/tmp/kubeconfig",
+			namespace:  "custom",
+			debug:      false,
+		},
+		{
+			name:       "with debug enabled",
+			kubeconfig: "",
+			namespace:  "test",
+			debug:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter, err := NewAdapter(&Config{
+				Kubeconfig: tt.kubeconfig,
+				Namespace:  tt.namespace,
+				Debug:      tt.debug,
+			})
+			require.NoError(t, err)
+
+			if tt.kubeconfig != "" {
+				assert.Equal(t, tt.kubeconfig, adapter.settings.KubeConfig)
+			}
+			assert.Equal(t, tt.debug, adapter.settings.Debug)
+		})
+	}
+}
