@@ -1498,6 +1498,10 @@ func (f *FluxAdapter) calculateProgress(status adapter.DeploymentStatus) int {
 		return progressPending
 	case adapter.DeploymentStatusFailed:
 		return progressFailed
+	case adapter.DeploymentStatusRollingBack:
+		return progressDeploying // Treat rollback as in-progress
+	case adapter.DeploymentStatusDeleting:
+		return progressDeploying // Treat deletion as in-progress
 	default:
 		return progressFailed
 	}
