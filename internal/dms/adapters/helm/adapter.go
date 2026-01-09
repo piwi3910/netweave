@@ -767,7 +767,7 @@ func (h *HelmAdapter) Close() error {
 }
 
 // loadRepositoryIndex loads and caches the Helm chart repository index.
-func (h *HelmAdapter) loadRepositoryIndex(ctx context.Context) error {
+func (h *HelmAdapter) loadRepositoryIndex(_ context.Context) error {
 	if h.config.RepositoryURL == "" {
 		return fmt.Errorf("repository URL not configured")
 	}
