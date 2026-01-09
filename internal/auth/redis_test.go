@@ -511,7 +511,7 @@ func TestRedisStore_Ping(t *testing.T) {
 	err := store.Ping(ctx)
 	assert.NoError(t, err)
 
-	store.Close()
+	_ = store.Close()
 
 	// After closing, ping should fail.
 	err = store.Ping(ctx)
@@ -524,7 +524,7 @@ func TestNewRedisStore(t *testing.T) {
 		assert.NotNil(t, store)
 		assert.NotNil(t, store.config)
 		assert.Equal(t, "localhost:6379", store.config.Addr)
-		store.Close()
+		_ = store.Close()
 	})
 
 	t.Run("with custom config", func(t *testing.T) {
@@ -542,7 +542,7 @@ func TestNewRedisStore(t *testing.T) {
 
 		err := store.Ping(context.Background())
 		assert.NoError(t, err)
-		store.Close()
+		_ = store.Close()
 	})
 }
 
