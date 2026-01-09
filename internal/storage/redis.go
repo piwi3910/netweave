@@ -61,20 +61,27 @@ type RedisConfig struct {
 
 	// PoolSize is the maximum number of socket connections.
 	PoolSize int
+
+	// AllowInsecureCallbacks allows HTTP (non-HTTPS) webhook callbacks.
+	// This should ONLY be enabled in development/testing environments.
+	// Production deployments MUST enforce HTTPS for webhook callbacks to prevent
+	// man-in-the-middle attacks and ensure data confidentiality.
+	AllowInsecureCallbacks bool
 }
 
 // DefaultRedisConfig returns a RedisConfig with sensible defaults.
 func DefaultRedisConfig() *RedisConfig {
 	return &RedisConfig{
-		Addr:         "localhost:6379",
-		Password:     "",
-		DB:           0,
-		UseSentinel:  false,
-		MaxRetries:   3,
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 3 * time.Second,
-		PoolSize:     10,
+		Addr:                   "localhost:6379",
+		Password:               "",
+		DB:                     0,
+		UseSentinel:            false,
+		MaxRetries:             3,
+		DialTimeout:            5 * time.Second,
+		ReadTimeout:            3 * time.Second,
+		WriteTimeout:           3 * time.Second,
+		PoolSize:               10,
+		AllowInsecureCallbacks: false, // Enforce HTTPS by default
 	}
 }
 
@@ -155,7 +162,7 @@ func (r *RedisStore) Create(ctx context.Context, sub *Subscription) error {
 	if sub.ID == "" {
 		return ErrInvalidID
 	}
-	if err := validateCallbackURL(sub.Callback); err != nil {
+	if err := r.validateCallbackURL(sub.Callback); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidCallback, err)
 	}
 
@@ -290,7 +297,7 @@ func (r *RedisStore) validateUpdate(ctx context.Context, sub *Subscription) erro
 	if sub.ID == "" {
 		return ErrInvalidID
 	}
-	if err := validateCallbackURL(sub.Callback); err != nil {
+	if err := r.validateCallbackURL(sub.Callback); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidCallback, err)
 	}
 
@@ -571,8 +578,9 @@ func (r *RedisStore) Client() redis.UniversalClient {
 	return r.client
 }
 
-// validateCallbackURL validates that a callback URL is properly formatted.
-func validateCallbackURL(callback string) error {
+// validateCallbackURL validates that a callback URL is properly formatted and secure.
+// It enforces HTTPS unless AllowInsecureCallbacks is enabled in the configuration.
+func (r *RedisStore) validateCallbackURL(callback string) error {
 	if callback == "" {
 		return fmt.Errorf("callback URL is empty")
 	}
@@ -582,7 +590,12 @@ func validateCallbackURL(callback string) error {
 		return fmt.Errorf("invalid URL format: %w", err)
 	}
 
-	if u.Scheme != "http" && u.Scheme != "https" {
+	// Enforce HTTPS unless explicitly allowed
+	if u.Scheme == "http" {
+		if !r.config.AllowInsecureCallbacks {
+			return fmt.Errorf("HTTP callbacks are not allowed in production. Use HTTPS for secure webhook delivery. To allow HTTP callbacks in development/testing, set allow_insecure_callbacks=true in security configuration")
+		}
+	} else if u.Scheme != "https" {
 		return fmt.Errorf("callback URL must use http or https scheme")
 	}
 

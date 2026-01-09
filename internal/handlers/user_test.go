@@ -652,16 +652,16 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 // TestUserHandler_GetCurrentUser tests GetCurrentUser endpoint.
 func TestUserHandler_GetCurrentUser(t *testing.T) {
 	tests := []struct {
-		name        string
-		tenantID    string
-		userID      string
-		setupStore  func(*mockAuthStore)
-		wantStatus  int
+		name       string
+		tenantID   string
+		userID     string
+		setupStore func(*mockAuthStore)
+		wantStatus int
 	}{
 		{
-			name:     "returns error without user context",
-			tenantID: "tenant-1",
-			wantStatus: http.StatusInternalServerError,  // Returns 500 when GetUser fails
+			name:       "returns error without user context",
+			tenantID:   "tenant-1",
+			wantStatus: http.StatusInternalServerError, // Returns 500 when GetUser fails
 		},
 		{
 			name:     "gets current user successfully",
@@ -671,7 +671,7 @@ func TestUserHandler_GetCurrentUser(t *testing.T) {
 				store.users["user-1"] = &auth.TenantUser{
 					ID:       "user-1",
 					TenantID: "tenant-1",
-					Subject: "CN=testuser,O=test",
+					Subject:  "CN=testuser,O=test",
 					Email:    "test@example.com",
 				}
 			},

@@ -1110,7 +1110,7 @@ func TestHelmAdapter_ListDeployments(t *testing.T) {
 
 	ctx := context.Background()
 	deployments, err := adapter.ListDeployments(ctx, nil)
-	
+
 	// Will fail without K8s but tests the code path
 	if err != nil {
 		t.Skip("Skipping - requires Kubernetes")
@@ -1128,7 +1128,7 @@ func TestHelmAdapter_GetDeployment(t *testing.T) {
 
 	ctx := context.Background()
 	deployment, err := adapter.GetDeployment(ctx, "test-release")
-	
+
 	// Will fail without K8s but tests the code path
 	if err != nil {
 		t.Skip("Skipping - requires Kubernetes")
@@ -1151,9 +1151,9 @@ func TestHelmAdapter_CreateDeployment(t *testing.T) {
 		Namespace: "test",
 		Values:    map[string]interface{}{},
 	}
-	
+
 	deployment, err := adapter.CreateDeployment(ctx, req)
-	
+
 	// Will fail without K8s but tests the code path
 	if err != nil {
 		t.Skip("Skipping - requires Kubernetes")
@@ -1174,9 +1174,9 @@ func TestHelmAdapter_UpdateDeployment(t *testing.T) {
 		Values:      map[string]interface{}{"replicas": 3},
 		Description: "Update replicas",
 	}
-	
+
 	deployment, err := adapter.UpdateDeployment(ctx, "test-release", update)
-	
+
 	// Will fail without K8s but tests the code path
 	if err != nil {
 		t.Skip("Skipping - requires Kubernetes")
