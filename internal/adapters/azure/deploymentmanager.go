@@ -10,7 +10,7 @@ import (
 
 // GetDeploymentManager retrieves metadata about the Azure deployment manager.
 // It provides information about the Azure subscription and region.
-func (a *AzureAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
+func (a *AzureAdapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
 	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 

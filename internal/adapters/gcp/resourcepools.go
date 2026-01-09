@@ -214,7 +214,7 @@ func (a *GCPAdapter) getIGPool(ctx context.Context, id string) (*adapter.Resourc
 // CreateResourcePool creates a new resource pool.
 // In "zone" mode, this operation is not supported (zones are GCP-managed).
 // In "ig" mode, this could create a new Instance Group.
-func (a *GCPAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *GCPAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "CreateResourcePool", start, err) }()
 
@@ -230,7 +230,7 @@ func (a *GCPAdapter) CreateResourcePool(ctx context.Context, pool *adapter.Resou
 }
 
 // UpdateResourcePool updates an existing resource pool.
-func (a *GCPAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *GCPAdapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "UpdateResourcePool", start, err) }()
 
@@ -246,7 +246,7 @@ func (a *GCPAdapter) UpdateResourcePool(ctx context.Context, id string, pool *ad
 }
 
 // DeleteResourcePool deletes a resource pool by ID.
-func (a *GCPAdapter) DeleteResourcePool(ctx context.Context, id string) (err error) {
+func (a *GCPAdapter) DeleteResourcePool(_ context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "DeleteResourcePool", start, err) }()
 

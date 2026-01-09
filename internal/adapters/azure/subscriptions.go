@@ -13,7 +13,7 @@ import (
 // CreateSubscription creates a new event subscription.
 // Azure adapter uses polling-based subscriptions since Event Grid
 // integration would require additional Azure infrastructure setup.
-func (a *AzureAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+func (a *AzureAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "CreateSubscription", start, err) }()
 
@@ -56,7 +56,7 @@ func (a *AzureAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subs
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *AzureAdapter) GetSubscription(ctx context.Context, id string) (sub *adapter.Subscription, err error) {
+func (a *AzureAdapter) GetSubscription(_ context.Context, id string) (sub *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetSubscription", start, err) }()
 
@@ -75,7 +75,7 @@ func (a *AzureAdapter) GetSubscription(ctx context.Context, id string) (sub *ada
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *AzureAdapter) DeleteSubscription(ctx context.Context, id string) (err error) {
+func (a *AzureAdapter) DeleteSubscription(_ context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "DeleteSubscription", start, err) }()
 

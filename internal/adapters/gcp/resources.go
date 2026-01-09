@@ -145,7 +145,7 @@ func (a *GCPAdapter) GetResource(ctx context.Context, id string) (resource *adap
 }
 
 // CreateResource creates a new resource (GCP instance).
-func (a *GCPAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
+func (a *GCPAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "CreateResource", start, err) }()
 

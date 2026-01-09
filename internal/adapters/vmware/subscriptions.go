@@ -13,7 +13,7 @@ import (
 // CreateSubscription creates a new event subscription.
 // VMware adapter uses polling-based subscriptions since vSphere Event
 // integration would require additional configuration.
-func (a *VMwareAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+func (a *VMwareAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "CreateSubscription", start, err) }()
 
@@ -56,7 +56,7 @@ func (a *VMwareAdapter) CreateSubscription(ctx context.Context, sub *adapter.Sub
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *VMwareAdapter) GetSubscription(ctx context.Context, id string) (sub *adapter.Subscription, err error) {
+func (a *VMwareAdapter) GetSubscription(_ context.Context, id string) (sub *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "GetSubscription", start, err) }()
 
@@ -75,7 +75,7 @@ func (a *VMwareAdapter) GetSubscription(ctx context.Context, id string) (sub *ad
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *VMwareAdapter) DeleteSubscription(ctx context.Context, id string) (err error) {
+func (a *VMwareAdapter) DeleteSubscription(_ context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "DeleteSubscription", start, err) }()
 

@@ -206,7 +206,7 @@ func (a *AWSAdapter) getASGPool(ctx context.Context, id string) (*adapter.Resour
 // CreateResourcePool creates a new resource pool.
 // In "az" mode, this operation is not supported (AZs are AWS-managed).
 // In "asg" mode, this creates a new Auto Scaling Group.
-func (a *AWSAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (created *adapter.ResourcePool, err error) {
+func (a *AWSAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (created *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "CreateResourcePool", start, err) }()
 
