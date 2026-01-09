@@ -291,6 +291,9 @@ func (s *Server) setupMiddleware() {
 	// Recovery middleware - must be first to catch panics
 	s.router.Use(s.recoveryMiddleware())
 
+	// Security headers middleware - add early to ensure headers are set
+	s.router.Use(s.securityHeadersMiddleware())
+
 	// Request logging middleware
 	s.router.Use(s.loggingMiddleware())
 
@@ -314,6 +317,36 @@ func (s *Server) setupMiddleware() {
 		s.router.Use(s.openAPIValidator.Middleware())
 		s.logger.Info("OpenAPI request validation enabled")
 	}
+}
+
+// securityHeadersMiddleware returns the security headers middleware.
+func (s *Server) securityHeadersMiddleware() gin.HandlerFunc {
+	config := &middleware.SecurityHeadersConfig{
+		Enabled:               s.config.Security.SecurityHeaders.Enabled,
+		HSTSMaxAge:            s.config.Security.SecurityHeaders.HSTSMaxAge,
+		HSTSIncludeSubDomains: s.config.Security.SecurityHeaders.HSTSIncludeSubDomains,
+		HSTSPreload:           s.config.Security.SecurityHeaders.HSTSPreload,
+		ContentSecurityPolicy: s.config.Security.SecurityHeaders.ContentSecurityPolicy,
+		FrameOptions:          s.config.Security.SecurityHeaders.FrameOptions,
+		ReferrerPolicy:        s.config.Security.SecurityHeaders.ReferrerPolicy,
+		TLSEnabled:            s.config.Server.TLSEnabled,
+	}
+
+	// Apply defaults if not configured
+	if config.ContentSecurityPolicy == "" {
+		config.ContentSecurityPolicy = "default-src 'none'; frame-ancestors 'none'"
+	}
+	if config.FrameOptions == "" {
+		config.FrameOptions = "DENY"
+	}
+	if config.ReferrerPolicy == "" {
+		config.ReferrerPolicy = "strict-origin-when-cross-origin"
+	}
+	if config.HSTSMaxAge == 0 {
+		config.HSTSMaxAge = 31536000 // 1 year
+	}
+
+	return middleware.SecurityHeaders(config)
 }
 
 // Start starts the HTTP server and blocks until the server is shut down.

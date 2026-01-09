@@ -57,10 +57,8 @@ type Config struct {
 	ClientKey string `yaml:"clientKey"`
 
 	// CACert is the path to the CA certificate for server verification (optional)
+	// If not provided, system root CAs are used for certificate validation
 	CACert string `yaml:"caCert"`
-
-	// InsecureSkipVerify skips TLS certificate verification (NOT for production)
-	InsecureSkipVerify bool `yaml:"insecureSkipVerify"`
 
 	// Timeout is the HTTP client timeout
 	Timeout time.Duration `yaml:"timeout"`
@@ -185,16 +183,15 @@ func getLogger(cfg *Config) (*zap.Logger, error) {
 // createDTIASClient creates a new DTIAS client with the provided configuration.
 func createDTIASClient(cfg *Config, logger *zap.Logger) (*Client, error) {
 	client, err := NewClient(&ClientConfig{
-		Endpoint:           cfg.Endpoint,
-		APIKey:             cfg.APIKey,
-		ClientCert:         cfg.ClientCert,
-		ClientKey:          cfg.ClientKey,
-		CACert:             cfg.CACert,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		Timeout:            cfg.Timeout,
-		RetryAttempts:      cfg.RetryAttempts,
-		RetryDelay:         cfg.RetryDelay,
-		Logger:             logger,
+		Endpoint:      cfg.Endpoint,
+		APIKey:        cfg.APIKey,
+		ClientCert:    cfg.ClientCert,
+		ClientKey:     cfg.ClientKey,
+		CACert:        cfg.CACert,
+		Timeout:       cfg.Timeout,
+		RetryAttempts: cfg.RetryAttempts,
+		RetryDelay:    cfg.RetryDelay,
+		Logger:        logger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create DTIAS client: %w", err)
