@@ -443,7 +443,7 @@ func TestHandleNodeAdd(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	clientset := fake.NewSimpleClientset()
 	store := &mockStore{
@@ -526,7 +526,7 @@ func TestHandleNodeUpdate(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	clientset := fake.NewSimpleClientset()
 	store := &mockStore{
@@ -614,7 +614,7 @@ func TestHandleNodeDelete(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	clientset := fake.NewSimpleClientset()
 	store := &mockStore{
@@ -688,7 +688,7 @@ func TestHandleNamespaceAdd(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	clientset := fake.NewSimpleClientset()
 	store := &mockStore{
@@ -762,7 +762,7 @@ func TestHandleNamespaceUpdate(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	clientset := fake.NewSimpleClientset()
 	store := &mockStore{
@@ -845,7 +845,7 @@ func TestHandleNamespaceDelete(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	clientset := fake.NewSimpleClientset()
 	store := &mockStore{
@@ -923,7 +923,7 @@ func TestGetNodeByName(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	ctrl, err := NewSubscriptionController(&Config{
 		K8sClient:   clientset,
@@ -977,7 +977,7 @@ func TestStart(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	ctrl, err := NewSubscriptionController(&Config{
 		K8sClient:   clientset,
@@ -1022,7 +1022,7 @@ func TestStop(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	ctrl, err := NewSubscriptionController(&Config{
 		K8sClient:   clientset,
