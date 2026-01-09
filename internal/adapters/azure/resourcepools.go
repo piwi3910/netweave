@@ -65,7 +65,7 @@ func (a *AzureAdapter) listRGPools(ctx context.Context, filter *adapter.Filter) 
 					"azure.resourceGroupId":   ptrToString(rg.ID),
 					"azure.resourceGroupName": rgName,
 					"azure.location":          location,
-					"azure.provisioningState": string(*rg.Properties.ProvisioningState),
+					"azure.provisioningState": *rg.Properties.ProvisioningState,
 					"azure.managedBy":         ptrToString(rg.ManagedBy),
 					"azure.tags":              labels,
 				},

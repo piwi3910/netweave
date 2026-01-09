@@ -294,10 +294,8 @@ func (a *AWSAdapter) Close() error {
 	a.subscriptionsMu.Unlock()
 
 	// Sync logger before shutdown
-	if err := a.logger.Sync(); err != nil {
-		// Ignore sync errors on stderr/stdout
-		return nil
-	}
+	// Ignore sync errors on stderr/stdout
+	_ = a.logger.Sync()
 
 	return nil
 }

@@ -385,10 +385,8 @@ func (a *GCPAdapter) Close() error {
 	}
 
 	// Sync logger before shutdown
-	if err := a.logger.Sync(); err != nil {
-		// Ignore sync errors on stderr/stdout
-		return nil
-	}
+	// Ignore sync errors on stderr/stdout
+	_ = a.logger.Sync()
 
 	return nil
 }
