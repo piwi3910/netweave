@@ -24,13 +24,13 @@ import (
 
 // API path constants for O2-IMS endpoints.
 const (
-	APIPathResourcePools        = "/o2ims/v1/resourcePools"
-	APIPathResourcePoolByID     = "/o2ims/v1/resourcePools/%s"
-	APIPathResourcesInPool      = "/o2ims/v1/resourcePools/%s/resources"
-	APIPathResourceByID         = "/o2ims/v1/resourcePools/%s/resources/%s"
-	APIPathSubscriptions        = "/o2ims/v1/subscriptions"
-	APIPathSubscriptionByID     = "/o2ims/v1/subscriptions/%s"
-	APIPathHealthCheck          = "/healthz"
+	APIPathResourcePools    = "/o2ims/v1/resourcePools"
+	APIPathResourcePoolByID = "/o2ims/v1/resourcePools/%s"
+	APIPathResourcesInPool  = "/o2ims/v1/resourcePools/%s/resources"
+	APIPathResourceByID     = "/o2ims/v1/resourcePools/%s/resources/%s"
+	APIPathSubscriptions    = "/o2ims/v1/subscriptions"
+	APIPathSubscriptionByID = "/o2ims/v1/subscriptions/%s"
+	APIPathHealthCheck      = "/healthz"
 )
 
 // TestFramework provides infrastructure for E2E tests.

@@ -21,7 +21,7 @@ func TestDeploymentManagerJSONMarshaling(t *testing.T) {
 		SupportedLocations:  []string{"us-east-1a", "us-east-1b"},
 		Capabilities:        []string{"helm", "flux", "argocd"},
 		Extensions: map[string]interface{}{
-			"version": "1.28.0",
+			"version":  "1.28.0",
 			"provider": "aws",
 		},
 	}
@@ -418,12 +418,12 @@ func TestExtensionsFieldFlexibility(t *testing.T) {
 		Name:           "extension-test-pool",
 		OCloudID:       "ocloud-1",
 		Extensions: map[string]interface{}{
-			"stringField":  "value",
-			"intField":     42,
-			"boolField":    true,
-			"floatField":   3.14,
-			"arrayField":   []string{"a", "b", "c"},
-			"objectField":  map[string]string{"key": "val"},
+			"stringField":   "value",
+			"intField":      42,
+			"boolField":     true,
+			"floatField":    3.14,
+			"arrayField":    []string{"a", "b", "c"},
+			"objectField":   map[string]string{"key": "val"},
 			"nullableField": nil,
 		},
 	}
