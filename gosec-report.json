@@ -1,0 +1,94 @@
+{
+	"Golang errors": {},
+	"Issues": [
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "295",
+				"url": "https://cwe.mitre.org/data/definitions/295.html"
+			},
+			"rule_id": "G402",
+			"details": "TLS InsecureSkipVerify may be true.",
+			"file": "/Users/pascal/Documents/git/netweave/internal/smo/adapters/onap/client_aai.go",
+			"code": "302: \ttlsConfig := \u0026tls.Config{\n303: \t\tInsecureSkipVerify: config.TLSInsecureSkipVerify,\n304: \t\tMinVersion:         tls.VersionTLS12,\n",
+			"line": "303",
+			"column": "23",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "295",
+				"url": "https://cwe.mitre.org/data/definitions/295.html"
+			},
+			"rule_id": "G402",
+			"details": "TLS InsecureSkipVerify may be true.",
+			"file": "/Users/pascal/Documents/git/netweave/internal/events/notifier.go",
+			"code": "110: \ttlsConfig := \u0026tls.Config{\n111: \t\tInsecureSkipVerify: config.InsecureSkipVerify,\n112: \t\tMinVersion:         tls.VersionTLS13,\n",
+			"line": "111",
+			"column": "23",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "295",
+				"url": "https://cwe.mitre.org/data/definitions/295.html"
+			},
+			"rule_id": "G402",
+			"details": "TLS InsecureSkipVerify may be true.",
+			"file": "/Users/pascal/Documents/git/netweave/internal/adapters/dtias/client.go",
+			"code": "93: \t\tMinVersion:         tls.VersionTLS13,\n94: \t\tInsecureSkipVerify: cfg.InsecureSkipVerify,\n95: \t}\n",
+			"line": "94",
+			"column": "23",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/pascal/Documents/git/netweave/cmd/gateway/main.go",
+			"code": "534: \t\t// G304: path is from hardcoded list above, not user input - safe from path traversal\n535: \t\tdata, err := os.ReadFile(path)\n536: \t\tif err == nil {\n",
+			"line": "535",
+			"column": "16",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/pascal/Documents/git/netweave/cmd/compliance/main.go",
+			"code": "177: \t// Read current README\n178: \tcontent, err := os.ReadFile(path)\n179: \tif err != nil {\n",
+			"line": "178",
+			"column": "18",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		}
+	],
+	"Stats": {
+		"files": 128,
+		"lines": 42010,
+		"nosec": 1,
+		"found": 5
+	},
+	"GosecVersion": "dev"
+}
