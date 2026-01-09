@@ -18,7 +18,9 @@ import (
 )
 
 // mockAdapter implements adapter.Adapter for testing.
-type mockAdapter struct{}
+type mockAdapter struct {
+	healthErr error
+}
 
 var errNotFound = errors.New("not found")
 
@@ -27,7 +29,12 @@ func (m *mockAdapter) Version() string { return "1.0.0" }
 func (m *mockAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{adapter.CapabilityResourcePools}
 }
-func (m *mockAdapter) Health(ctx context.Context) error { return nil }
+func (m *mockAdapter) Health(ctx context.Context) error {
+	if m.healthErr != nil {
+		return m.healthErr
+	}
+	return nil
+}
 func (m *mockAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	return nil, nil
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -402,5 +403,77 @@ func TestHandleGetDeploymentManager(t *testing.T) {
 		srv.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
+// TestHandleListSubscriptions_WithFilter tests the handleListSubscriptions endpoint with filter.
+func TestHandleListSubscriptions_WithFilter(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+	t.Run("list subscriptions with filter", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/subscriptions?filter=(eq,callback,'https://example.com/callback')", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+// TestHandleHealth_Error tests the health endpoint error path.
+func TestHandleHealth_Error(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	
+	// Use mockAdapter with Health() error
+	mockAdp := &mockAdapter{healthErr: fmt.Errorf("adapter unhealthy")}
+	srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+
+	t.Run("health check failed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	})
+}
+
+// TestHandleReadiness_Error tests the readiness endpoint error path.
+func TestHandleReadiness_Error(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	
+	// Use mockAdapter with Health() error
+	mockAdp := &mockAdapter{healthErr: fmt.Errorf("not ready")}
+	srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+
+	t.Run("readiness check failed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 	})
 }
