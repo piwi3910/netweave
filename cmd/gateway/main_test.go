@@ -192,18 +192,57 @@ func TestInitializeAuth_ConnectionFailure(t *testing.T) {
 }
 
 func TestApplicationComponents_Close(t *testing.T) {
-	// Test that Close handles nil components gracefully.
-	logger := zap.NewNop()
+	t.Run("handles nil components gracefully", func(t *testing.T) {
+		logger := zap.NewNop()
 
-	components := &applicationComponents{
-		store:         nil,
-		k8sAdapter:    nil,
-		healthChecker: nil,
-		server:        nil,
-		authStore:     nil,
-		authMw:        nil,
-	}
+		components := &applicationComponents{
+			store:         nil,
+			k8sAdapter:    nil,
+			healthChecker: nil,
+			server:        nil,
+			authStore:     nil,
+			authMw:        nil,
+		}
 
-	// Should not panic with nil components.
-	components.Close(logger)
+		// Should not panic with nil components and return nil error.
+		err := components.Close(logger)
+		assert.NoError(t, err)
+	})
+
+	t.Run("returns nil when all closes succeed", func(t *testing.T) {
+		mr := miniredis.RunT(t)
+		defer mr.Close()
+
+		cfg := &config.Config{
+			Redis: config.RedisConfig{
+				Mode:         "standalone",
+				Addresses:    []string{mr.Addr()},
+				DB:           0,
+				MaxRetries:   3,
+				DialTimeout:  5 * time.Second,
+				ReadTimeout:  3 * time.Second,
+				WriteTimeout: 3 * time.Second,
+				PoolSize:     10,
+			},
+			MultiTenancy: config.MultiTenancyConfig{
+				Enabled:                true,
+				RequireMTLS:            false,
+				InitializeDefaultRoles: false,
+				SkipAuthPaths:          []string{"/health"},
+			},
+		}
+
+		logger := zap.NewNop()
+
+		authStore, _, err := initializeAuth(cfg, logger)
+		require.NoError(t, err)
+
+		components := &applicationComponents{
+			authStore: authStore,
+		}
+
+		// Close should succeed and return nil.
+		err = components.Close(logger)
+		assert.NoError(t, err)
+	})
 }

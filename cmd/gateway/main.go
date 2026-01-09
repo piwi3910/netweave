@@ -29,6 +29,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -106,7 +107,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer components.Close(logger)
+	// Close errors are logged but not returned since we're shutting down anyway.
+	// The Close method still returns aggregated errors for debugging.
+	defer func() { _ = components.Close(logger) }()
 
 	// Step 7: Setup and run server with graceful shutdown
 	return runServerWithShutdown(cfg, logger, components)
@@ -122,23 +125,34 @@ type applicationComponents struct {
 	authMw        *auth.Middleware
 }
 
-// Close closes all components gracefully.
-func (c *applicationComponents) Close(logger *zap.Logger) {
+// Close closes all components gracefully and returns any errors encountered.
+// All components are closed even if earlier close operations fail.
+// Errors are aggregated using errors.Join and logged as warnings.
+// This ensures cleanup continues for all resources while still surfacing issues
+// for debugging connection leaks or other cleanup problems.
+func (c *applicationComponents) Close(logger *zap.Logger) error {
+	var closeErrors []error
+
 	if c.k8sAdapter != nil {
 		if err := c.k8sAdapter.Close(); err != nil {
 			logger.Warn("failed to close Kubernetes adapter", zap.Error(err))
+			closeErrors = append(closeErrors, fmt.Errorf("kubernetes adapter: %w", err))
 		}
 	}
 	if c.authStore != nil {
 		if err := c.authStore.Close(); err != nil {
 			logger.Warn("failed to close auth Redis connection", zap.Error(err))
+			closeErrors = append(closeErrors, fmt.Errorf("auth store: %w", err))
 		}
 	}
 	if c.store != nil {
 		if err := c.store.Close(); err != nil {
 			logger.Warn("failed to close Redis connection", zap.Error(err))
+			closeErrors = append(closeErrors, fmt.Errorf("redis store: %w", err))
 		}
 	}
+
+	return errors.Join(closeErrors...)
 }
 
 // setupLogger initializes and configures the logger with proper cleanup.
