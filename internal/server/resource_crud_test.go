@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -241,5 +242,138 @@ func TestResourceCRUD(t *testing.T) {
 		// ResourceTypeID and ResourcePoolID should be preserved from existing resource
 		assert.NotEmpty(t, updated.ResourceTypeID)
 		assert.NotEmpty(t, updated.ResourcePoolID)
+	})
+
+	t.Run("PUT /resources/:id - reject immutable field modification", func(t *testing.T) {
+		resource := adapter.Resource{
+			ResourceTypeID: "different-type", // Attempt to change immutable field
+			Description:    "Updated resource",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/resources/test-res-123",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "immutable")
+	})
+
+	// Validation tests
+	t.Run("POST /resources - invalid GlobalAssetID format", func(t *testing.T) {
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			GlobalAssetID:  "invalid-not-urn",
+			Description:    "Test resource",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "URN format")
+	})
+
+	t.Run("POST /resources - description too long", func(t *testing.T) {
+		longDesc := string(make([]byte, 1001)) // Exceeds 1000 char limit
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Description:    longDesc,
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "description")
+	})
+
+	t.Run("POST /resources - too many extensions", func(t *testing.T) {
+		// Create 101 extensions (exceeds 100 limit)
+		extensions := make(map[string]interface{})
+		for i := 0; i < 101; i++ {
+			extensions[fmt.Sprintf("key%d", i)] = "value"
+		}
+
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Extensions:     extensions,
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "extensions")
+	})
+
+	t.Run("POST /resources - custom resource ID", func(t *testing.T) {
+		resource := adapter.Resource{
+			ResourceID:     "custom-resource-id",
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Description:    "Resource with custom ID",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusCreated, resp.Code)
+
+		var created adapter.Resource
+		err = json.Unmarshal(resp.Body.Bytes(), &created)
+		require.NoError(t, err)
+		assert.Equal(t, "custom-resource-id", created.ResourceID)
 	})
 }

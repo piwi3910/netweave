@@ -430,6 +430,31 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 
 // Resource handlers
 
+// validateResourceFields validates resource field constraints.
+func validateResourceFields(resource *adapter.Resource, isCreate bool) error {
+	// Validate GlobalAssetID format (URN) if provided
+	if resource.GlobalAssetID != "" {
+		if len(resource.GlobalAssetID) < 4 || resource.GlobalAssetID[:4] != "urn:" {
+			return errors.New("globalAssetId must be in URN format (e.g., urn:o-ran:resource:node-001)")
+		}
+		if len(resource.GlobalAssetID) > 256 {
+			return errors.New("globalAssetId must not exceed 256 characters")
+		}
+	}
+
+	// Validate Description length
+	if len(resource.Description) > 1000 {
+		return errors.New("description must not exceed 1000 characters")
+	}
+
+	// Validate Extensions size (prevent DoS)
+	if resource.Extensions != nil && len(resource.Extensions) > 100 {
+		return errors.New("extensions map must not exceed 100 keys")
+	}
+
+	return nil
+}
+
 // handleListResources lists all resources.
 // GET /o2ims/v1/resources.
 func (s *Server) handleListResources(c *gin.Context) {
@@ -499,6 +524,16 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 		return
 	}
 
+	// Validate field constraints
+	if err := validateResourceFields(&req, true); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
 	// Generate resource ID if not provided
 	if req.ResourceID == "" {
 		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()
@@ -551,7 +586,35 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 		return
 	}
 
-	// Preserve immutable fields
+	// Validate field constraints
+	if err := validateResourceFields(&req, false); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Enforce immutable fields - reject attempts to modify them
+	if req.ResourceTypeID != "" && req.ResourceTypeID != existing.ResourceTypeID {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "resourceTypeId is immutable and cannot be changed",
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+	if req.ResourcePoolID != "" && req.ResourcePoolID != existing.ResourcePoolID {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "resourcePoolId is immutable and cannot be changed",
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Preserve immutable fields (use existing values if not provided)
 	req.ResourceID = resourceID
 	if req.ResourceTypeID == "" {
 		req.ResourceTypeID = existing.ResourceTypeID
