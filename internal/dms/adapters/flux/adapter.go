@@ -452,7 +452,7 @@ func (f *FluxAdapter) UploadDeploymentPackage(ctx context.Context, pkg *adapter.
 
 // DeleteDeploymentPackage is not directly supported in Flux.
 // Source resources should be managed directly in the cluster.
-func (f *FluxAdapter) DeleteDeploymentPackage(ctx context.Context, id string) error {
+func (f *FluxAdapter) DeleteDeploymentPackage(_ context.Context, id string) error {
 	return fmt.Errorf("%w: Flux does not support package deletion through this adapter - manage source resources directly", ErrOperationNotSupported)
 }
 
@@ -748,7 +748,7 @@ func (f *FluxAdapter) GetDeploymentHistory(ctx context.Context, id string) (*ada
 
 // GetDeploymentLogs retrieves status information for a Flux deployment.
 // Note: Flux doesn't provide direct log access, this returns status information.
-func (f *FluxAdapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapter.LogOptions) ([]byte, error) {
+func (f *FluxAdapter) GetDeploymentLogs(ctx context.Context, id string, _ *adapter.LogOptions) ([]byte, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
