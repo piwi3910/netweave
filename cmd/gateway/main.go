@@ -212,40 +212,36 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*applicationC
 		zap.Int("size", len(spec)),
 	)
 
-	// Initialize auth subsystem if multi-tenancy is enabled
-	var authStore *auth.RedisStore
-	var authMw *auth.Middleware
-	if cfg.MultiTenancy.Enabled {
-		authStore, authMw, err = initializeAuth(cfg, logger)
-		if err != nil {
-			logger.Error("failed to initialize auth subsystem")
-			// Clean up previously initialized components
-			if closeErr := k8sAdapter.Close(); closeErr != nil {
-				logger.Warn("failed to close Kubernetes adapter during cleanup", zap.Error(closeErr))
-			}
-			if closeErr := store.Close(); closeErr != nil {
-				logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
-			}
-			return nil, fmt.Errorf("failed to initialize auth: %w", err)
-		}
-
-		// Register auth with server for health checks
-		srv.SetupAuth(authStore, authMw)
-
-		logger.Info("multi-tenancy enabled",
-			zap.Bool("require_mtls", cfg.MultiTenancy.RequireMTLS),
-			zap.Bool("initialize_roles", cfg.MultiTenancy.InitializeDefaultRoles),
-		)
-	}
-
-	return &applicationComponents{
+	components := &applicationComponents{
 		store:         store,
 		k8sAdapter:    k8sAdapter,
 		healthChecker: healthChecker,
 		server:        srv,
-		authStore:     authStore,
-		authMw:        authMw,
-	}, nil
+	}
+
+	// Initialize multi-tenancy and RBAC if enabled.
+	if cfg.MultiTenancy.Enabled {
+		authStore, authMw, err := initializeAuth(cfg, logger)
+		if err != nil {
+			logger.Error("failed to initialize auth", zap.Error(err))
+			return nil, fmt.Errorf("failed to initialize auth: %w", err)
+		}
+
+		components.authStore = authStore
+		components.authMw = authMw
+
+		// Wire up auth routes.
+		srv.SetupAuthRoutes(authStore, authMw)
+
+		logger.Info("multi-tenancy and RBAC initialized",
+			zap.Bool("require_mtls", cfg.MultiTenancy.RequireMTLS),
+			zap.Int("skip_auth_paths", len(cfg.MultiTenancy.SkipAuthPaths)),
+		)
+	} else {
+		logger.Info("multi-tenancy is disabled")
+	}
+
+	return components, nil
 }
 
 // runServerWithShutdown starts the server and handles graceful shutdown.
@@ -578,133 +574,6 @@ func initializeHealthChecker(
 	return healthChecker
 }
 
-// initializeAuth initializes authentication and multi-tenancy components.
-// This function performs the following steps:
-//  1. Retrieves Redis credentials from configuration (env vars, files, or config)
-//  2. Builds auth Redis configuration with support for standalone and Sentinel modes
-//  3. Creates the auth Redis store and verifies connectivity
-//  4. Optionally initializes default system roles (platform-admin, tenant-admin, etc.)
-//  5. Creates authentication middleware with configured skip paths
-//
-// Parameters:
-//   - cfg: application configuration containing multi-tenancy and Redis settings
-//   - logger: structured logger for logging initialization progress
-//
-// Returns:
-//   - authStore: initialized Redis store for auth data (tenants, users, roles)
-//   - authMw: configured authentication middleware
-//   - err: any error encountered during initialization
-//
-// The function returns immediately if multi-tenancy is not enabled.
-func initializeAuth(
-	cfg *config.Config,
-	logger *zap.Logger,
-) (*auth.RedisStore, *auth.Middleware, error) {
-	// Get Redis passwords (same as main storage but potentially different credentials).
-	password, sentinelPassword, err := getRedisPasswords(cfg, logger)
-	if err != nil {
-		// Log without exposing sensitive error details.
-		logger.Error("failed to retrieve Redis credentials for auth store")
-		return nil, nil, fmt.Errorf("failed to get Redis credentials for auth: %w", err)
-	}
-
-	// Build auth Redis configuration.
-	authRedisCfg := buildAuthRedisConfig(cfg, password, sentinelPassword)
-	if err := configureAuthRedisMode(authRedisCfg, cfg, logger); err != nil {
-		return nil, nil, err
-	}
-
-	// Create auth store.
-	authStore := auth.NewRedisStore(authRedisCfg)
-
-	// Verify connectivity.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := authStore.Ping(ctx); err != nil {
-		return nil, nil, fmt.Errorf("auth Redis connectivity check failed: %w", err)
-	}
-	logger.Info("auth Redis connectivity verified")
-
-	// Initialize default roles if configured.
-	if cfg.MultiTenancy.InitializeDefaultRoles {
-		if err := authStore.InitializeDefaultRoles(ctx); err != nil {
-			logger.Warn("failed to initialize default roles", zap.Error(err))
-			// Not fatal - roles may already exist.
-		} else {
-			logger.Info("default system roles initialized")
-		}
-	}
-
-	// Create middleware configuration.
-	mwConfig := &auth.MiddlewareConfig{
-		Enabled:     cfg.MultiTenancy.Enabled,
-		SkipPaths:   cfg.MultiTenancy.SkipAuthPaths,
-		RequireMTLS: cfg.MultiTenancy.RequireMTLS,
-	}
-
-	// Create middleware.
-	authMw := auth.NewMiddleware(authStore, mwConfig, logger)
-
-	logger.Info("auth subsystem initialized",
-		zap.Bool("enabled", cfg.MultiTenancy.Enabled),
-		zap.Bool("require_mtls", cfg.MultiTenancy.RequireMTLS),
-		zap.Int("skip_paths", len(cfg.MultiTenancy.SkipAuthPaths)),
-	)
-
-	return authStore, authMw, nil
-}
-
-// buildAuthRedisConfig creates auth.RedisConfig from config.Config.
-func buildAuthRedisConfig(cfg *config.Config, password, sentinelPassword string) *auth.RedisConfig {
-	return &auth.RedisConfig{
-		DB:               cfg.Redis.DB,
-		Password:         password,
-		SentinelPassword: sentinelPassword,
-		MaxRetries:       cfg.Redis.MaxRetries,
-		DialTimeout:      cfg.Redis.DialTimeout,
-		ReadTimeout:      cfg.Redis.ReadTimeout,
-		WriteTimeout:     cfg.Redis.WriteTimeout,
-		PoolSize:         cfg.Redis.PoolSize,
-	}
-}
-
-// configureAuthRedisMode sets up Redis mode for auth store.
-func configureAuthRedisMode(redisCfg *auth.RedisConfig, cfg *config.Config, logger *zap.Logger) error {
-	switch cfg.Redis.Mode {
-	case "sentinel":
-		redisCfg.UseSentinel = true
-		redisCfg.SentinelAddrs = cfg.Redis.Addresses
-		redisCfg.MasterName = cfg.Redis.MasterName
-		logger.Info("configuring auth Redis in Sentinel mode",
-			zap.Strings("sentinel_addresses", cfg.Redis.Addresses),
-			zap.String("master_name", cfg.Redis.MasterName),
-		)
-
-	case "cluster":
-		logger.Warn("Redis cluster mode not yet fully supported for auth, falling back to standalone",
-			zap.String("mode", cfg.Redis.Mode),
-		)
-		fallthrough
-
-	case "standalone":
-		redisCfg.UseSentinel = false
-		if len(cfg.Redis.Addresses) > 0 {
-			redisCfg.Addr = cfg.Redis.Addresses[0]
-		} else {
-			redisCfg.Addr = "localhost:6379"
-		}
-		logger.Info("configuring auth Redis in standalone mode",
-			zap.String("address", redisCfg.Addr),
-		)
-
-	default:
-		return fmt.Errorf("unsupported Redis mode for auth: %s", cfg.Redis.Mode)
-	}
-
-	return nil
-}
-
 // gracefulShutdown performs graceful shutdown of the application.
 func gracefulShutdown(ctx context.Context, srv *server.Server, cfg *config.Config, logger *zap.Logger) error {
 	logger.Info("initiating graceful shutdown",
@@ -774,4 +643,79 @@ func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("OpenAPI specification not found in any of the expected locations")
+}
+
+// initializeAuth creates and initializes the auth store and middleware.
+// This is only called when multi-tenancy is enabled.
+func initializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *auth.Middleware, error) {
+	// Get Redis password (reuse the same logic as main storage).
+	password, sentinelPassword, err := getRedisPasswords(cfg, logger)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get Redis passwords for auth: %w", err)
+	}
+
+	// Build auth Redis config.
+	authRedisCfg := &auth.RedisConfig{
+		DB:               cfg.Redis.DB,
+		Password:         password,
+		SentinelPassword: sentinelPassword,
+		MaxRetries:       cfg.Redis.MaxRetries,
+		DialTimeout:      cfg.Redis.DialTimeout,
+		ReadTimeout:      cfg.Redis.ReadTimeout,
+		WriteTimeout:     cfg.Redis.WriteTimeout,
+		PoolSize:         cfg.Redis.PoolSize,
+	}
+
+	// Configure Redis mode.
+	switch cfg.Redis.Mode {
+	case "sentinel":
+		authRedisCfg.UseSentinel = true
+		authRedisCfg.SentinelAddrs = cfg.Redis.Addresses
+		authRedisCfg.MasterName = cfg.Redis.MasterName
+	default:
+		authRedisCfg.UseSentinel = false
+		if len(cfg.Redis.Addresses) > 0 {
+			authRedisCfg.Addr = cfg.Redis.Addresses[0]
+		} else {
+			authRedisCfg.Addr = "localhost:6379"
+		}
+	}
+
+	// Create auth Redis store.
+	authStore := auth.NewRedisStore(authRedisCfg)
+
+	// Verify connectivity.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := authStore.Ping(ctx); err != nil {
+		return nil, nil, fmt.Errorf("auth store connectivity check failed: %w", err)
+	}
+
+	logger.Info("auth Redis store initialized")
+
+	// Initialize default roles if configured.
+	if cfg.MultiTenancy.InitializeDefaultRoles {
+		if err := authStore.InitializeDefaultRoles(ctx); err != nil {
+			return nil, nil, fmt.Errorf("failed to initialize default roles: %w", err)
+		}
+		logger.Info("default roles initialized")
+	}
+
+	// Create middleware config.
+	mwConfig := &auth.MiddlewareConfig{
+		Enabled:     true,
+		SkipPaths:   cfg.MultiTenancy.SkipAuthPaths,
+		RequireMTLS: cfg.MultiTenancy.RequireMTLS,
+	}
+
+	// Create auth middleware.
+	authMw := auth.NewMiddleware(authStore, mwConfig, logger)
+
+	logger.Info("auth middleware created",
+		zap.Int("skip_paths", len(mwConfig.SkipPaths)),
+		zap.Bool("require_mtls", mwConfig.RequireMTLS),
+	)
+
+	return authStore, authMw, nil
 }

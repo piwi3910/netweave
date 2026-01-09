@@ -493,33 +493,30 @@ func (s *Server) SMORegistry() *smo.Registry {
 	return s.smoRegistry
 }
 
-// SetupAuth configures authentication and multi-tenancy for the server.
-// It registers the auth store for health checks and sets up authentication routes.
-//
-// Parameters:
-//   - authStore: the authentication storage backend for tenants, users, and roles
-//   - authMw: the authentication middleware for request validation
-//
-// This method registers health checks for the auth store to ensure proper monitoring
-// in multi-tenant deployments. Call this method after creating the server when
-// multi-tenancy is enabled.
+// SetupAuth configures multi-tenancy and RBAC for the server.
+// It sets up authentication middleware, authorization checks, and tenant/user/role management routes.
+// This must be called after creating the server and before starting it.
+// If authStore is nil, this method is a no-op (multi-tenancy disabled).
 func (s *Server) SetupAuth(authStore AuthStore, authMw AuthMiddleware) {
+	if authStore == nil || authMw == nil {
+		s.logger.Info("multi-tenancy is disabled, skipping auth setup")
+		return
+	}
+
 	s.authStore = authStore
 	s.authMw = authMw
 
-	// Register auth store health check for liveness probes.
+	// Register auth store health check.
 	if s.healthCheck != nil {
 		s.healthCheck.RegisterHealthCheck("auth_store", func(ctx context.Context) error {
-			return authStore.Ping(ctx)
+			return s.authStore.Ping(ctx)
 		})
-
-		// Register auth store readiness check for readiness probes.
 		s.healthCheck.RegisterReadinessCheck("auth_store", func(ctx context.Context) error {
-			return authStore.Ping(ctx)
+			return s.authStore.Ping(ctx)
 		})
 	}
 
-	s.logger.Info("auth subsystem configured")
+	s.logger.Info("multi-tenancy and RBAC enabled")
 }
 
 // AuthStore returns the authentication store.
