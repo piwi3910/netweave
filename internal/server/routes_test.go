@@ -69,7 +69,8 @@ func TestHandleMetrics(t *testing.T) {
 		},
 		Observability: config.ObservabilityConfig{
 			Metrics: config.MetricsConfig{
-				Path: "/metrics",
+				Enabled: true,
+				Path:    "/metrics",
 			},
 		},
 	}
@@ -124,7 +125,7 @@ func TestHandleAPIInfo(t *testing.T) {
 	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
 
 	t.Run("returns O2-IMS API info", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1", nil)
+		req := httptest.NewRequest(http.MethodGet, "/o2ims", nil)
 		w := httptest.NewRecorder()
 
 		srv.router.ServeHTTP(w, req)
