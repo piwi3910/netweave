@@ -286,7 +286,11 @@ func (c *SDNCClient) executeSDNCRequest(
 // processSDNCResponse processes the SDNC response.
 func (c *SDNCClient) processSDNCResponse(resp *http.Response, operation string, lastErr *error) (*SDNCResponse, error) {
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			*lastErr = fmt.Errorf("SDNC returned status %d (failed to read body: %w)", resp.StatusCode, err)
+			return nil, *lastErr
+		}
 		*lastErr = fmt.Errorf("SDNC returned status %d: %s", resp.StatusCode, string(bodyBytes))
 		return nil, *lastErr
 	}
