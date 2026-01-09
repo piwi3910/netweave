@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	autoscalingTypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -432,4 +435,207 @@ func TestAWSAdapter_GetDeploymentManager(t *testing.T) {
 		t.Skip("Skipping - requires AWS credentials")
 	}
 	assert.NotNil(t, dm)
+}
+
+// TestExtractTagValue tests tag value extraction.
+func TestExtractTagValue(t *testing.T) {
+	tests := []struct {
+		name string
+		tags []ec2Types.Tag
+		key  string
+		want string
+	}{
+		{
+			name: "tag exists",
+			tags: []ec2Types.Tag{
+				{Key: aws.String("Name"), Value: aws.String("test-instance")},
+				{Key: aws.String("Environment"), Value: aws.String("prod")},
+			},
+			key:  "Name",
+			want: "test-instance",
+		},
+		{
+			name: "tag not found",
+			tags: []ec2Types.Tag{
+				{Key: aws.String("Name"), Value: aws.String("test-instance")},
+			},
+			key:  "NotFound",
+			want: "",
+		},
+		{
+			name: "empty tags",
+			tags: []ec2Types.Tag{},
+			key:  "Name",
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractTagValue(tt.tags, tt.key)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestTagsToMap tests tag to map conversion.
+func TestTagsToMap(t *testing.T) {
+	tests := []struct {
+		name string
+		tags []ec2Types.Tag
+		want map[string]string
+	}{
+		{
+			name: "multiple tags",
+			tags: []ec2Types.Tag{
+				{Key: aws.String("Name"), Value: aws.String("test-instance")},
+				{Key: aws.String("Environment"), Value: aws.String("prod")},
+			},
+			want: map[string]string{
+				"Name":        "test-instance",
+				"Environment": "prod",
+			},
+		},
+		{
+			name: "empty tags",
+			tags: []ec2Types.Tag{},
+			want: map[string]string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tagsToMap(tt.tags)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestExtractASGNameFromPoolID tests ASG name extraction from pool ID.
+func TestExtractASGNameFromPoolID(t *testing.T) {
+	tests := []struct {
+		name   string
+		poolID string
+		want   string
+	}{
+		{
+			name:   "valid pool ID",
+			poolID: "aws-asg-my-asg-name",
+			want:   "my-asg-name",
+		},
+		{
+			name:   "invalid pool ID",
+			poolID: "invalid-pool-id",
+			want:   "",
+		},
+		{
+			name:   "empty pool ID",
+			poolID: "",
+			want:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractASGNameFromPoolID(tt.poolID)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestExtractInt32FromExtensions tests int32 extraction from extensions map.
+func TestExtractInt32FromExtensions(t *testing.T) {
+	tests := []struct {
+		name       string
+		extensions map[string]interface{}
+		key        string
+		want       *int32
+	}{
+		{
+			name: "int32 value",
+			extensions: map[string]interface{}{
+				"count": int32(5),
+			},
+			key:  "count",
+			want: aws.Int32(5),
+		},
+		{
+			name: "float64 value",
+			extensions: map[string]interface{}{
+				"count": float64(10),
+			},
+			key:  "count",
+			want: aws.Int32(10),
+		},
+		{
+			name: "key not found",
+			extensions: map[string]interface{}{
+				"other": int32(5),
+			},
+			key:  "count",
+			want: nil,
+		},
+		{
+			name:       "empty extensions",
+			extensions: map[string]interface{}{},
+			key:        "count",
+			want:       nil,
+		},
+		{
+			name: "wrong type",
+			extensions: map[string]interface{}{
+				"count": "string-value",
+			},
+			key:  "count",
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractInt32FromExtensions(tt.extensions, tt.key)
+			if tt.want == nil {
+				assert.Nil(t, got)
+			} else {
+				require.NotNil(t, got)
+				assert.Equal(t, *tt.want, *got)
+			}
+		})
+	}
+}
+
+// TestGetLaunchTemplateName tests launch template name extraction.
+func TestGetLaunchTemplateName(t *testing.T) {
+	tests := []struct {
+		name string
+		lt   *autoscalingTypes.LaunchTemplateSpecification
+		want string
+	}{
+		{
+			name: "template with name",
+			lt: &autoscalingTypes.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String("my-template"),
+			},
+			want: "my-template",
+		},
+		{
+			name: "template without name",
+			lt: &autoscalingTypes.LaunchTemplateSpecification{
+				LaunchTemplateId: aws.String("lt-123"),
+			},
+			want: "",
+		},
+		{
+			name: "nil template",
+			lt:   nil,
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getLaunchTemplateName(tt.lt)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
