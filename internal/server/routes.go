@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -431,12 +432,60 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 
 // Resource handlers
 
+// isAlphanumericOrHyphen checks if a character is alphanumeric or hyphen.
+func isAlphanumericOrHyphen(ch rune) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-'
+}
+
+// validateURNNamespaceID validates the URN namespace identifier (nid).
+func validateURNNamespaceID(nid string) error {
+	if len(nid) < 2 || len(nid) > 32 {
+		return errors.New("URN namespace identifier must be 2-32 characters")
+	}
+
+	for i, ch := range nid {
+		if !isAlphanumericOrHyphen(ch) {
+			return errors.New("URN namespace identifier must contain only alphanumeric characters and hyphens")
+		}
+		if i == 0 && ch == '-' {
+			return errors.New("URN namespace identifier must start with alphanumeric character")
+		}
+	}
+
+	return nil
+}
+
+// validateURN validates URN format according to RFC 8141.
+// URN format: urn:<nid>:<nss> where:
+// - nid (Namespace Identifier): 2-32 alphanumeric characters, case-insensitive.
+// - nss (Namespace Specific String): at least 1 character.
+func validateURN(urn string) error {
+	if !strings.HasPrefix(urn, "urn:") {
+		return errors.New("globalAssetId must start with 'urn:'")
+	}
+
+	parts := strings.SplitN(urn, ":", 3)
+	if len(parts) < 3 {
+		return errors.New("globalAssetId must be in URN format: urn:<nid>:<nss> (e.g., urn:o-ran:resource:node-001)")
+	}
+
+	if err := validateURNNamespaceID(parts[1]); err != nil {
+		return err
+	}
+
+	if len(parts[2]) == 0 {
+		return errors.New("URN namespace specific string must not be empty")
+	}
+
+	return nil
+}
+
 // validateResourceFields validates resource field constraints.
 func validateResourceFields(resource *adapter.Resource) error {
 	// Validate GlobalAssetID format (URN) if provided
 	if resource.GlobalAssetID != "" {
-		if !strings.HasPrefix(resource.GlobalAssetID, "urn:") {
-			return errors.New("globalAssetId must be in URN format (e.g., urn:o-ran:resource:node-001)")
+		if err := validateURN(resource.GlobalAssetID); err != nil {
+			return err
 		}
 		if len(resource.GlobalAssetID) > 256 {
 			return errors.New("globalAssetId must not exceed 256 characters")
@@ -449,8 +498,21 @@ func validateResourceFields(resource *adapter.Resource) error {
 	}
 
 	// Validate Extensions size (prevent DoS)
-	if resource.Extensions != nil && len(resource.Extensions) > 100 {
-		return errors.New("extensions map must not exceed 100 keys")
+	if resource.Extensions != nil {
+		if len(resource.Extensions) > 100 {
+			return errors.New("extensions map must not exceed 100 keys")
+		}
+		// Validate individual extension values
+		for key, value := range resource.Extensions {
+			if len(key) > 256 {
+				return errors.New("extension keys must not exceed 256 characters")
+			}
+			// Convert value to string representation to check size
+			valueStr := fmt.Sprintf("%v", value)
+			if len(valueStr) > 4096 {
+				return errors.New("extension values must not exceed 4096 characters")
+			}
+		}
 	}
 
 	return nil
@@ -525,6 +587,15 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 		return
 	}
 
+	if req.ResourcePoolID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Resource pool ID is required",
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
 	// Validate field constraints
 	if err := validateResourceFields(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -539,7 +610,11 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 	if req.ResourceID == "" {
 		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()
 	} else {
-		// If custom ID provided, check for duplicates
+		// If custom ID provided, check for duplicates.
+		// NOTE: This check has a TOCTOU (Time-of-Check-Time-of-Use) race condition
+		// between GET and CREATE. In concurrent scenarios, two requests with the same
+		// custom ID could both pass this check. The adapter layer should enforce uniqueness
+		// as the final authority (e.g., via database unique constraints).
 		existing, err := s.adapter.GetResource(c.Request.Context(), req.ResourceID)
 		if err == nil && existing != nil {
 			c.JSON(http.StatusConflict, gin.H{

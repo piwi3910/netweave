@@ -60,7 +60,11 @@ func (m *mockResourceAdapter) CreateResource(_ context.Context, resource *adapte
 	return resource, nil
 }
 
-func (m *mockResourceAdapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+func (m *mockResourceAdapter) UpdateResource(
+	_ context.Context,
+	id string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -135,6 +139,29 @@ func TestResourceCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
 		assert.Contains(t, resp.Body.String(), "Resource type ID is required")
+	})
+
+	t.Run("POST /resources - validation error (empty resourcePoolId)", func(t *testing.T) {
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			Description:    "Test resource",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "Resource pool ID is required")
 	})
 
 	// Test PUT /resources/:id
@@ -312,7 +339,7 @@ func TestResourceCRUD(t *testing.T) {
 		srv.router.ServeHTTP(resp, req)
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "URN format")
+		assert.Contains(t, resp.Body.String(), "urn:")
 	})
 
 	t.Run("POST /resources - description too long", func(t *testing.T) {

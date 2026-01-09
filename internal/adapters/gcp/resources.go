@@ -165,7 +165,7 @@ func (a *GCPAdapter) UpdateResource(_ context.Context, _ string, resource *adapt
 	a.logger.Debug("UpdateResource called",
 		zap.String("resourceID", resource.ResourceID))
 
-	// TODO: Implement instance metadata updates via GCP API
+	// TODO(#190): Implement instance metadata updates via GCP API
 	// For now, return not supported
 	return nil, fmt.Errorf("updating GCP instances is not yet implemented")
 }

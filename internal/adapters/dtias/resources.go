@@ -178,7 +178,7 @@ func (a *DTIASAdapter) UpdateResource(_ context.Context, _ string, resource *ada
 	a.logger.Debug("UpdateResource called",
 		zap.String("resourceID", resource.ResourceID))
 
-	// TODO: Implement server metadata updates via DTIAS API
+	// TODO(#193): Implement server metadata updates via DTIAS API
 	// For now, return not supported
 	return nil, fmt.Errorf("updating DTIAS servers is not yet implemented")
 }

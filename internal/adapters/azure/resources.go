@@ -117,7 +117,7 @@ func (a *AzureAdapter) UpdateResource(_ context.Context, _ string, resource *ada
 	a.logger.Debug("UpdateResource called",
 		zap.String("resourceID", resource.ResourceID))
 
-	// TODO: Implement VM tag updates via Azure API
+	// TODO(#189): Implement VM tag updates via Azure API
 	// For now, return not supported
 	return nil, fmt.Errorf("updating Azure VMs is not yet implemented")
 }

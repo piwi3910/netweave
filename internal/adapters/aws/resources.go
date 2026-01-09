@@ -155,7 +155,7 @@ func (a *AWSAdapter) UpdateResource(ctx context.Context, id string, resource *ad
 	a.logger.Debug("UpdateResource called",
 		zap.String("resourceId", id))
 
-	// TODO: Implement instance tag updates via EC2 CreateTags API
+	// TODO(#188): Implement instance tag updates via EC2 CreateTags API
 	// For now, return not supported
 	return nil, fmt.Errorf("updating EC2 instances is not yet implemented")
 }

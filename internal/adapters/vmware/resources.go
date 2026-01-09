@@ -116,7 +116,7 @@ func (a *VMwareAdapter) UpdateResource(_ context.Context, _ string, resource *ad
 	a.logger.Debug("UpdateResource called",
 		zap.String("resourceID", resource.ResourceID))
 
-	// TODO: Implement VM custom attribute updates via vSphere API
+	// TODO(#192): Implement VM custom attribute updates via vSphere API
 	// For now, return not supported
 	return nil, fmt.Errorf("updating vSphere VMs is not yet implemented")
 }

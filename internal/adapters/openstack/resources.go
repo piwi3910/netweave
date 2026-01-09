@@ -277,7 +277,7 @@ func (a *OpenStackAdapter) UpdateResource(_ context.Context, _ string, resource 
 	a.logger.Debug("UpdateResource called",
 		zap.String("resourceID", resource.ResourceID))
 
-	// TODO: Implement instance metadata updates via OpenStack API
+	// TODO(#191): Implement instance metadata updates via OpenStack API
 	// For now, return not supported
 	return nil, fmt.Errorf("updating OpenStack instances is not yet implemented")
 }
