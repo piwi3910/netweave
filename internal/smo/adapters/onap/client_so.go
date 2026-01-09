@@ -171,7 +171,7 @@ func (c *SOClient) CancelOrchestration(ctx context.Context, requestID string) er
 		return fmt.Errorf("SO returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	c.logger.Info("Successfully cancelled orchestration",
+	c.logger.Info("Successfully canceled orchestration",
 		zap.String("requestId", requestID),
 	)
 
