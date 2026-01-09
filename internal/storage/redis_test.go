@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -800,4 +801,259 @@ func TestSubscriptionFilter_MatchesFilter(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSubscription_MarshalBinary tests the MarshalBinary method.
+func TestSubscription_MarshalBinary(t *testing.T) {
+	tests := []struct {
+		name    string
+		sub     *Subscription
+		wantErr bool
+	}{
+		{
+			name: "valid subscription",
+			sub: &Subscription{
+				ID:       "sub-123",
+				Callback: "https://example.com/callback",
+				Filter: SubscriptionFilter{
+					ResourceTypeID: "compute",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "subscription with all fields",
+			sub: &Subscription{
+				ID:       "sub-456",
+				Callback: "https://example.com/notify",
+				Filter: SubscriptionFilter{
+					ResourcePoolID: "pool-1",
+					ResourceTypeID: "storage",
+					ResourceID:     "res-1",
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := tt.sub.MarshalBinary()
+
+			if tt.wantErr {
+				if err == nil {
+					t.Error("MarshalBinary() expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("MarshalBinary() unexpected error: %v", err)
+				return
+			}
+
+			if len(data) == 0 {
+				t.Error("MarshalBinary() returned empty data")
+			}
+
+			// Verify we can unmarshal it back
+			var decoded Subscription
+			if err := json.Unmarshal(data, &decoded); err != nil {
+				t.Errorf("Failed to unmarshal marshaled data: %v", err)
+			}
+		})
+	}
+}
+
+// TestSubscription_UnmarshalBinary tests the UnmarshalBinary method.
+func TestSubscription_UnmarshalBinary(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    []byte
+		wantErr bool
+		wantID  string
+	}{
+		{
+			name:    "valid subscription data",
+			data:    []byte(`{"subscriptionId":"sub-123","callback":"https://example.com/callback","filter":{"resourceTypeId":"compute"}}`),
+			wantErr: false,
+			wantID:  "sub-123",
+		},
+		{
+			name:    "invalid JSON",
+			data:    []byte(`{invalid json}`),
+			wantErr: true,
+		},
+		{
+			name:    "empty data",
+			data:    []byte(``),
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var sub Subscription
+			err := sub.UnmarshalBinary(tt.data)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Error("UnmarshalBinary() expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("UnmarshalBinary() unexpected error: %v", err)
+				return
+			}
+
+			if sub.ID != tt.wantID {
+				t.Errorf("UnmarshalBinary() ID = %v, want %v", sub.ID, tt.wantID)
+			}
+		})
+	}
+}
+
+// TestRedisStore_ListByTenant tests the ListByTenant method.
+func TestRedisStore_ListByTenant(t *testing.T) {
+	store, mr := setupTestRedis(t)
+	defer mr.Close()
+
+	// Create test subscriptions with different tenants
+	testSubs := []*Subscription{
+		{
+			ID:       "sub-tenant1-1",
+			Callback: "https://tenant1.example.com/callback",
+			TenantID: "tenant-1",
+		},
+		{
+			ID:       "sub-tenant1-2",
+			Callback: "https://tenant1.example.com/callback2",
+			TenantID: "tenant-1",
+		},
+		{
+			ID:       "sub-tenant2-1",
+			Callback: "https://tenant2.example.com/callback",
+			TenantID: "tenant-2",
+		},
+	}
+
+	ctx := context.Background()
+	for _, sub := range testSubs {
+		if err := store.Create(ctx, sub); err != nil {
+			t.Fatalf("Failed to create test subscription: %v", err)
+		}
+	}
+
+	tests := []struct {
+		name      string
+		tenantID  string
+		wantCount int
+	}{
+		{
+			name:      "tenant with 2 subscriptions",
+			tenantID:  "tenant-1",
+			wantCount: 2,
+		},
+		{
+			name:      "tenant with 1 subscription",
+			tenantID:  "tenant-2",
+			wantCount: 1,
+		},
+		{
+			name:      "tenant with no subscriptions",
+			tenantID:  "tenant-3",
+			wantCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subs, err := store.ListByTenant(ctx, tt.tenantID)
+			if err != nil {
+				t.Fatalf("ListByTenant() error = %v", err)
+			}
+
+			if len(subs) != tt.wantCount {
+				t.Errorf("ListByTenant() returned %d subscriptions, want %d", len(subs), tt.wantCount)
+			}
+
+			// Verify all returned subscriptions belong to the tenant
+			for _, sub := range subs {
+				if sub.TenantID != tt.tenantID {
+					t.Errorf("ListByTenant() returned subscription with TenantID %s, want %s", sub.TenantID, tt.tenantID)
+				}
+			}
+		})
+	}
+}
+
+// TestRedisStore_Client tests the Client method.
+func TestRedisStore_Client(t *testing.T) {
+	store, mr := setupTestRedis(t)
+	defer mr.Close()
+
+	client := store.Client()
+	if client == nil {
+		t.Error("Client() returned nil")
+	}
+
+	// Verify the client works
+	ctx := context.Background()
+	if err := client.Ping(ctx).Err(); err != nil {
+		t.Errorf("Client() returned non-functional client: %v", err)
+	}
+}
+
+// TestRedisStore_UpdateResourceTypeIndex tests edge cases in updateResourceTypeIndex.
+func TestRedisStore_UpdateResourceTypeIndex(t *testing.T) {
+	store, mr := setupTestRedis(t)
+	defer mr.Close()
+
+	ctx := context.Background()
+
+	// Create a subscription with resource type filter
+	sub := &Subscription{
+		ID:       "sub-update-type",
+		Callback: "https://example.com/callback",
+		Filter: SubscriptionFilter{
+			ResourceTypeID: "compute",
+		},
+	}
+	err := store.Create(ctx, sub)
+	require.NoError(t, err)
+
+	// Update to a different resource type
+	sub.Filter.ResourceTypeID = "storage"
+	err = store.Update(ctx, sub)
+	require.NoError(t, err)
+
+	// Verify new index
+	subs, err := store.ListByResourceType(ctx, "storage")
+	require.NoError(t, err)
+	require.Len(t, subs, 1)
+	require.Equal(t, "sub-update-type", subs[0].ID)
+
+	// Verify old index is empty
+	subs, err = store.ListByResourceType(ctx, "compute")
+	require.NoError(t, err)
+	require.Len(t, subs, 0)
+}
+
+// TestNewRedisStore_InvalidAddress tests error handling in NewRedisStore.
+func TestNewRedisStore_InvalidAddress(t *testing.T) {
+	// Test with invalid configuration
+	cfg := &RedisConfig{
+		Addr: "invalid://address:999",
+	}
+	store := NewRedisStore(cfg)
+	require.NotNil(t, store)
+
+	// Operations should fail with invalid address
+	ctx := context.Background()
+	_, err := store.Get(ctx, "test")
+	require.Error(t, err)
+
+	store.Close()
 }
