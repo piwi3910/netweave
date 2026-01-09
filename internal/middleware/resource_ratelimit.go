@@ -35,6 +35,9 @@ const (
 	ResourceTypeUnknown ResourceType = "unknown"
 )
 
+// DefaultMaxPageSize is the default maximum page size for list operations.
+const DefaultMaxPageSize = 100
+
 // OperationType represents the type of operation being performed.
 type OperationType string
 
@@ -173,6 +176,11 @@ func NewResourceRateLimiter(
 		return nil, fmt.Errorf("logger cannot be nil")
 	}
 
+	// Validate rate limit configuration values
+	if err := validateResourceRateLimitConfig(config); err != nil {
+		return nil, fmt.Errorf("invalid rate limit configuration: %w", err)
+	}
+
 	// Test Redis connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -189,6 +197,61 @@ func NewResourceRateLimiter(
 			hits: resourceRateLimitHits,
 		},
 	}, nil
+}
+
+// validateResourceRateLimitConfig validates rate limit configuration values.
+func validateResourceRateLimitConfig(config *ResourceRateLimitConfig) error {
+	// Validate DeploymentManagers limits
+	if err := validateResourceTypeLimits("DeploymentManagers", config.DeploymentManagers); err != nil {
+		return err
+	}
+
+	// Validate ResourcePools limits
+	if err := validateResourceTypeLimits("ResourcePools", config.ResourcePools); err != nil {
+		return err
+	}
+
+	// Validate Resources limits
+	if err := validateResourceTypeLimits("Resources", config.Resources); err != nil {
+		return err
+	}
+
+	// Validate ResourceTypes limits
+	if err := validateResourceTypeLimits("ResourceTypes", config.ResourceTypes); err != nil {
+		return err
+	}
+
+	// Validate Subscriptions limits
+	if config.Subscriptions.CreatesPerHour < 0 {
+		return fmt.Errorf("Subscriptions.CreatesPerHour cannot be negative")
+	}
+	if config.Subscriptions.MaxActive < 0 {
+		return fmt.Errorf("Subscriptions.MaxActive cannot be negative")
+	}
+	if config.Subscriptions.ReadsPerMinute < 0 {
+		return fmt.Errorf("Subscriptions.ReadsPerMinute cannot be negative")
+	}
+
+	// Validate DefaultLimits
+	if err := validateResourceTypeLimits("DefaultLimits", config.DefaultLimits); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateResourceTypeLimits validates a ResourceTypeLimits struct.
+func validateResourceTypeLimits(name string, limits ResourceTypeLimits) error {
+	if limits.ReadsPerMinute < 0 {
+		return fmt.Errorf("%s.ReadsPerMinute cannot be negative", name)
+	}
+	if limits.WritesPerMinute < 0 {
+		return fmt.Errorf("%s.WritesPerMinute cannot be negative", name)
+	}
+	if limits.ListPageSizeMax < 0 {
+		return fmt.Errorf("%s.ListPageSizeMax cannot be negative", name)
+	}
+	return nil
 }
 
 // Middleware returns a Gin middleware for resource-type rate limiting.
@@ -266,13 +329,13 @@ func (rl *ResourceRateLimiter) getMaxPageSize(resourceType ResourceType) int {
 			return rl.config.ResourceTypes.ListPageSizeMax
 		}
 	case ResourceTypeSubscriptions:
-		return 100 // Subscriptions don't have a separate page size config
+		return DefaultMaxPageSize // Subscriptions don't have a separate page size config
 	default:
 		if rl.config.DefaultLimits.ListPageSizeMax > 0 {
 			return rl.config.DefaultLimits.ListPageSizeMax
 		}
 	}
-	return 100 // Default fallback
+	return DefaultMaxPageSize // Default fallback
 }
 
 // checkResourceLimit checks if the request is within the resource-specific rate limit.

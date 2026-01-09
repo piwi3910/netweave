@@ -209,25 +209,6 @@ func TestBuildHSTSValue(t *testing.T) {
 	}
 }
 
-func TestItoa(t *testing.T) {
-	tests := []struct {
-		input    int
-		expected string
-	}{
-		{0, "0"},
-		{1, "1"},
-		{123, "123"},
-		{31536000, "31536000"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
-			result := itoa(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestServerHeaderRemoved(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

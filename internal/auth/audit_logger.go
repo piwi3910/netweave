@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -124,7 +125,7 @@ func (a *AuditLogger) LogWebhookFailure(
 		Details: map[string]string{
 			"callback":    callback,
 			"error":       errorMsg,
-			"http_status": intToString(httpStatus),
+			"http_status": strconv.Itoa(httpStatus),
 		},
 		Timestamp: time.Now().UTC(),
 	}
@@ -203,7 +204,7 @@ func (a *AuditLogger) LogUserStatusChange(
 	event.ResourceType = "user"
 	event.ResourceID = userID
 	event.Details = map[string]string{
-		"enabled": boolToString(enabled),
+		"enabled": strconv.FormatBool(enabled),
 		"reason":  reason,
 	}
 
@@ -224,8 +225,8 @@ func (a *AuditLogger) LogQuotaUpdate(
 	event.ResourceID = tenantID
 	event.Details = map[string]string{
 		"quota_type": quotaType,
-		"old_value":  intToString(oldValue),
-		"new_value":  intToString(newValue),
+		"old_value":  strconv.Itoa(oldValue),
+		"new_value":  strconv.Itoa(newValue),
 	}
 
 	a.logEvent(ctx, event)
@@ -247,7 +248,7 @@ func (a *AuditLogger) LogBulkOperation(
 	if details == nil {
 		details = make(map[string]string)
 	}
-	details["affected_count"] = intToString(affectedCount)
+	details["affected_count"] = strconv.Itoa(affectedCount)
 	event.Details = details
 
 	a.logEvent(ctx, event)
@@ -311,7 +312,7 @@ func (a *AuditLogger) logEvent(ctx context.Context, event *AuditEvent) {
 
 // ClientIPFromContext extracts the client IP from context.
 func ClientIPFromContext(ctx context.Context) string {
-	if ip, ok := ctx.Value(contextKeyClientIP).(string); ok {
+	if ip, ok := ctx.Value(auditClientIPKey{}).(string); ok {
 		return ip
 	}
 	return ""
@@ -319,49 +320,22 @@ func ClientIPFromContext(ctx context.Context) string {
 
 // UserAgentFromContext extracts the user agent from context.
 func UserAgentFromContext(ctx context.Context) string {
-	if ua, ok := ctx.Value(contextKeyUserAgent).(string); ok {
+	if ua, ok := ctx.Value(auditUserAgentKey{}).(string); ok {
 		return ua
 	}
 	return ""
 }
 
-// Context keys for audit logging.
-type contextKey string
-
-const (
-	contextKeyClientIP  contextKey = "client_ip"
-	contextKeyUserAgent contextKey = "user_agent"
-)
+// Context key types for audit logging (using struct types to prevent collisions).
+type auditClientIPKey struct{}
+type auditUserAgentKey struct{}
 
 // WithClientIP adds client IP to context.
 func WithClientIP(ctx context.Context, ip string) context.Context {
-	return context.WithValue(ctx, contextKeyClientIP, ip)
+	return context.WithValue(ctx, auditClientIPKey{}, ip)
 }
 
 // WithUserAgent adds user agent to context.
 func WithUserAgent(ctx context.Context, ua string) context.Context {
-	return context.WithValue(ctx, contextKeyUserAgent, ua)
-}
-
-// Helper functions for string conversion.
-func intToString(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	if n < 0 {
-		return "-" + intToString(-n)
-	}
-	var digits []byte
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	return string(digits)
-}
-
-func boolToString(b bool) string {
-	if b {
-		return "true"
-	}
-	return "false"
+	return context.WithValue(ctx, auditUserAgentKey{}, ua)
 }
