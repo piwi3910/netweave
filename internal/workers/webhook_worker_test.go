@@ -441,3 +441,366 @@ func TestWebhookWorker_MoveToDLQ(t *testing.T) {
 	assert.Equal(t, "sub-123", msg.Values["subscription_id"])
 	assert.NotEmpty(t, msg.Values["failed_at"])
 }
+
+// TestWebhookWorker_CreateConsumerGroup tests the createConsumerGroup function.
+func TestWebhookWorker_CreateConsumerGroup(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() {
+		require.NoError(t, rdb.Close())
+	}()
+
+	worker, err := NewWebhookWorker(&Config{
+		RedisClient: rdb,
+		Logger:      zaptest.NewLogger(t),
+		WorkerCount: 1,
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("creates consumer group successfully", func(t *testing.T) {
+		err := worker.createConsumerGroup(ctx)
+		require.NoError(t, err)
+	})
+
+	t.Run("handles existing consumer group", func(t *testing.T) {
+		// Group already exists from previous test
+		err := worker.createConsumerGroup(ctx)
+		require.NoError(t, err)
+	})
+}
+
+// TestWebhookWorker_AcknowledgeMessage tests the acknowledgeMessage function.
+func TestWebhookWorker_AcknowledgeMessage(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() {
+		require.NoError(t, rdb.Close())
+	}()
+
+	worker, err := NewWebhookWorker(&Config{
+		RedisClient: rdb,
+		Logger:      zaptest.NewLogger(t),
+		WorkerCount: 1,
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Create consumer group and add a message
+	err = worker.createConsumerGroup(ctx)
+	require.NoError(t, err)
+
+	// Add a test message to the stream
+	messageID, err := rdb.XAdd(ctx, &redis.XAddArgs{
+		Stream: EventStreamKey,
+		Values: map[string]interface{}{
+			"event": `{"subscriptionId":"sub-123"}`,
+		},
+	}).Result()
+	require.NoError(t, err)
+
+	// Read the message to add it to pending
+	_, err = rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    ConsumerGroup,
+		Consumer: "test-consumer",
+		Streams:  []string{EventStreamKey, ">"},
+		Count:    1,
+	}).Result()
+	require.NoError(t, err)
+
+	t.Run("acknowledges message successfully", func(t *testing.T) {
+		err := worker.acknowledgeMessage(ctx, messageID)
+		require.NoError(t, err)
+	})
+}
+
+// TestWebhookWorker_HandleMessage tests the handleMessage function.
+func TestWebhookWorker_HandleMessage(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() {
+		require.NoError(t, rdb.Close())
+	}()
+
+	// Setup mock webhook server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	worker, err := NewWebhookWorker(&Config{
+		RedisClient: rdb,
+		Logger:      zaptest.NewLogger(t),
+		WorkerCount: 1,
+		MaxRetries:  1,
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Create consumer group
+	err = worker.createConsumerGroup(ctx)
+	require.NoError(t, err)
+
+	t.Run("handles valid message successfully", func(t *testing.T) {
+		event := &controllers.ResourceEvent{
+			SubscriptionID:   "sub-123",
+			EventType:        "o2ims.Resource.Created",
+			ObjectRef:        "/o2ims/v1/resources/test-node",
+			ResourceTypeID:   "k8s-node",
+			GlobalResourceID: "test-node",
+			Timestamp:        time.Now(),
+			NotificationID:   "notif-123",
+			CallbackURL:      server.URL,
+		}
+
+		eventData, err := json.Marshal(event)
+		require.NoError(t, err)
+
+		// Add message to stream first
+		messageID, err := rdb.XAdd(ctx, &redis.XAddArgs{
+			Stream: EventStreamKey,
+			Values: map[string]interface{}{
+				"event": string(eventData),
+			},
+		}).Result()
+		require.NoError(t, err)
+
+		// Read to add to pending
+		streams, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
+			Group:    ConsumerGroup,
+			Consumer: "test-consumer-1",
+			Streams:  []string{EventStreamKey, ">"},
+			Count:    1,
+		}).Result()
+		require.NoError(t, err)
+		require.Len(t, streams, 1)
+		require.Len(t, streams[0].Messages, 1)
+
+		msg := streams[0].Messages[0]
+		assert.Equal(t, messageID, msg.ID)
+
+		err = worker.handleMessage(ctx, "test-consumer-1", msg)
+		require.NoError(t, err)
+	})
+
+	t.Run("handles invalid event data", func(t *testing.T) {
+		// Add message with invalid data
+		messageID, err := rdb.XAdd(ctx, &redis.XAddArgs{
+			Stream: EventStreamKey,
+			Values: map[string]interface{}{
+				"event": 12345, // Invalid type
+			},
+		}).Result()
+		require.NoError(t, err)
+
+		// Read to add to pending
+		streams, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
+			Group:    ConsumerGroup,
+			Consumer: "test-consumer-2",
+			Streams:  []string{EventStreamKey, ">"},
+			Count:    1,
+		}).Result()
+		require.NoError(t, err)
+		require.Len(t, streams, 1)
+		require.Len(t, streams[0].Messages, 1)
+
+		msg := streams[0].Messages[0]
+		assert.Equal(t, messageID, msg.ID)
+
+		err = worker.handleMessage(ctx, "test-consumer-2", msg)
+		require.NoError(t, err) // Should succeed (acknowledged)
+	})
+
+	t.Run("handles malformed JSON", func(t *testing.T) {
+		// Add message with malformed JSON
+		messageID, err := rdb.XAdd(ctx, &redis.XAddArgs{
+			Stream: EventStreamKey,
+			Values: map[string]interface{}{
+				"event": `{invalid json}`,
+			},
+		}).Result()
+		require.NoError(t, err)
+
+		// Read to add to pending
+		streams, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
+			Group:    ConsumerGroup,
+			Consumer: "test-consumer-3",
+			Streams:  []string{EventStreamKey, ">"},
+			Count:    1,
+		}).Result()
+		require.NoError(t, err)
+		require.Len(t, streams, 1)
+		require.Len(t, streams[0].Messages, 1)
+
+		msg := streams[0].Messages[0]
+		assert.Equal(t, messageID, msg.ID)
+
+		err = worker.handleMessage(ctx, "test-consumer-3", msg)
+		require.NoError(t, err) // Should succeed (acknowledged)
+	})
+
+	t.Run("handles webhook delivery failure", func(t *testing.T) {
+		event := &controllers.ResourceEvent{
+			SubscriptionID: "sub-123",
+			CallbackURL:    "http://invalid-url-that-doesnt-exist.example.com",
+		}
+
+		eventData, err := json.Marshal(event)
+		require.NoError(t, err)
+
+		// Add message to stream
+		messageID, err := rdb.XAdd(ctx, &redis.XAddArgs{
+			Stream: EventStreamKey,
+			Values: map[string]interface{}{
+				"event": string(eventData),
+			},
+		}).Result()
+		require.NoError(t, err)
+
+		// Read to add to pending
+		streams, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
+			Group:    ConsumerGroup,
+			Consumer: "test-consumer-4",
+			Streams:  []string{EventStreamKey, ">"},
+			Count:    1,
+		}).Result()
+		require.NoError(t, err)
+		require.Len(t, streams, 1)
+		require.Len(t, streams[0].Messages, 1)
+
+		msg := streams[0].Messages[0]
+		assert.Equal(t, messageID, msg.ID)
+
+		err = worker.handleMessage(ctx, "test-consumer-4", msg)
+		require.NoError(t, err) // handleMessage returns nil, moves to DLQ
+	})
+}
+
+// TestWebhookWorker_ProcessNextEvent tests the processNextEvent function.
+func TestWebhookWorker_ProcessNextEvent(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() {
+		require.NoError(t, rdb.Close())
+	}()
+
+	// Setup mock webhook server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	worker, err := NewWebhookWorker(&Config{
+		RedisClient: rdb,
+		Logger:      zaptest.NewLogger(t),
+		WorkerCount: 1,
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Create consumer group
+	err = worker.createConsumerGroup(ctx)
+	require.NoError(t, err)
+
+	t.Run("handles no events available", func(t *testing.T) {
+		err := worker.processNextEvent(ctx, "test-consumer")
+		require.NoError(t, err) // Should return nil on timeout
+	})
+
+	t.Run("processes event successfully", func(t *testing.T) {
+		event := &controllers.ResourceEvent{
+			SubscriptionID: "sub-123",
+			EventType:      "o2ims.Resource.Created",
+			CallbackURL:    server.URL,
+		}
+
+		eventData, err := json.Marshal(event)
+		require.NoError(t, err)
+
+		// Add event to stream
+		_, err = rdb.XAdd(ctx, &redis.XAddArgs{
+			Stream: EventStreamKey,
+			Values: map[string]interface{}{
+				"event": string(eventData),
+			},
+		}).Result()
+		require.NoError(t, err)
+
+		// Process the event
+		err = worker.processNextEvent(ctx, "test-consumer")
+		require.NoError(t, err)
+	})
+}
+
+// TestWebhookWorker_StartStop tests the Start and Stop lifecycle.
+func TestWebhookWorker_StartStop(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() {
+		require.NoError(t, rdb.Close())
+	}()
+
+	worker, err := NewWebhookWorker(&Config{
+		RedisClient: rdb,
+		Logger:      zaptest.NewLogger(t),
+		WorkerCount: 2,
+	})
+	require.NoError(t, err)
+
+	t.Run("starts and stops successfully", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// Start worker in background
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- worker.Start(ctx)
+		}()
+
+		// Give it time to start
+		time.Sleep(200 * time.Millisecond)
+
+		// Cancel context to trigger shutdown
+		cancel()
+
+		// Wait for Start to return
+		err := <-errChan
+		require.NoError(t, err)
+	})
+}
+
+// TestWebhookWorker_Stop tests the Stop function directly.
+func TestWebhookWorker_Stop(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() {
+		require.NoError(t, rdb.Close())
+	}()
+
+	worker, err := NewWebhookWorker(&Config{
+		RedisClient: rdb,
+		Logger:      zaptest.NewLogger(t),
+		WorkerCount: 1,
+	})
+	require.NoError(t, err)
+
+	t.Run("stops without starting", func(t *testing.T) {
+		err := worker.Stop()
+		require.NoError(t, err)
+	})
+}
