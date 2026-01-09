@@ -216,7 +216,7 @@ func TestWebhookNotifier_NotifyWithRetry(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		_, err = notifier.NotifyWithRetry(ctx, event, sub)
+		_, _ = notifier.NotifyWithRetry(ctx, event, sub)
 		// May succeed or fail depending on timing, just verify it attempted retries
 		assert.True(t, attemptCount >= 2)
 	})
