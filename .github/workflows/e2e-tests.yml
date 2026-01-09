@@ -1,0 +1,73 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger
+  schedule:
+    - cron: '0 2 * * *'  # Nightly at 2 AM UTC
+
+jobs:
+  e2e-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.0'
+          cache: true
+
+      - name: Setup Kind
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: netweave-e2e
+          wait: 5m
+
+      - name: Verify Kind cluster
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Setup E2E environment
+        run: make test-e2e-setup
+        env:
+          CLUSTER_NAME: netweave-e2e
+          NAMESPACE: netweave-e2e
+
+      - name: Wait for gateway to be ready
+        run: |
+          kubectl wait --for=condition=ready pod \
+            -l app.kubernetes.io/name=netweave \
+            -n netweave-e2e \
+            --timeout=5m
+
+      - name: Run E2E tests
+        run: make test-e2e
+        env:
+          GOFLAGS: -v
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "==> Gateway Logs"
+          kubectl logs -n netweave-e2e -l app.kubernetes.io/name=netweave --tail=100 || true
+
+          echo "==> Redis Logs"
+          kubectl logs -n netweave-e2e -l app=redis --tail=100 || true
+
+          echo "==> Pod Status"
+          kubectl get pods -n netweave-e2e || true
+
+          echo "==> Events"
+          kubectl get events -n netweave-e2e --sort-by='.lastTimestamp' || true
+
+      - name: Cleanup E2E environment
+        if: always()
+        run: make test-e2e-cleanup

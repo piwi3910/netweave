@@ -145,10 +145,21 @@ test-integration: ## Run integration tests
 	@$(GOTEST) -v -tags=integration -timeout=10m ./...
 	@echo "$(COLOR_GREEN)✓ Integration tests passed$(COLOR_RESET)"
 
+.PHONY: test-e2e-setup test-e2e test-e2e-cleanup
+test-e2e-setup: ## Setup E2E test environment (Kind cluster + gateway)
+	@echo "$(COLOR_YELLOW)Setting up E2E test environment...$(COLOR_RESET)"
+	@bash tests/e2e/setup.sh
+	@echo "$(COLOR_GREEN)✓ E2E environment ready$(COLOR_RESET)"
+
 test-e2e: ## Run end-to-end tests
 	@echo "$(COLOR_YELLOW)Running E2E tests...$(COLOR_RESET)"
-	@$(GOTEST) -v -tags=e2e -timeout=15m ./...
+	@$(GOTEST) -v -tags=e2e -timeout=15m ./tests/e2e/...
 	@echo "$(COLOR_GREEN)✓ E2E tests passed$(COLOR_RESET)"
+
+test-e2e-cleanup: ## Cleanup E2E test environment
+	@echo "$(COLOR_YELLOW)Cleaning up E2E test environment...$(COLOR_RESET)"
+	@bash tests/e2e/cleanup.sh
+	@echo "$(COLOR_GREEN)✓ E2E environment cleaned up$(COLOR_RESET)"
 
 test-all: ## Run ALL tests (unit + integration + E2E)
 	@echo "$(COLOR_YELLOW)Running all tests...$(COLOR_RESET)"
