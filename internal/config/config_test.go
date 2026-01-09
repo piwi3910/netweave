@@ -784,3 +784,134 @@ redis:
 	assert.Equal(t, 1000, cfg.Security.RateLimit.PerTenant.RequestsPerSecond)
 	assert.Equal(t, 2000, cfg.Security.RateLimit.PerTenant.BurstSize)
 }
+
+// TestRedisConfig_GetPassword tests the GetPassword method with various configurations.
+func TestRedisConfig_GetPassword(t *testing.T) {
+	tests := []struct {
+		name        string
+		cfg         config.RedisConfig
+		envVars     map[string]string
+		setupFile   func(*testing.T) string
+		wantPwd     string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "environment variable takes priority",
+			cfg: config.RedisConfig{
+				PasswordEnvVar: "REDIS_PASSWORD",
+				PasswordFile:   "/some/file",
+				Password:       "direct-password",
+			},
+			envVars: map[string]string{
+				"REDIS_PASSWORD": "env-password",
+			},
+			wantPwd: "env-password",
+			wantErr: false,
+		},
+		{
+			name: "password file used when env var not set",
+			cfg: config.RedisConfig{
+				PasswordFile: "", // Will be set by setupFile
+				Password:     "direct-password",
+			},
+			setupFile: func(t *testing.T) string {
+				t.Helper()
+				tmpFile := filepath.Join(t.TempDir(), "redis-password")
+				err := os.WriteFile(tmpFile, []byte("file-password\n"), 0600)
+				require.NoError(t, err)
+				return tmpFile
+			},
+			wantPwd: "file-password",
+			wantErr: false,
+		},
+		{
+			name: "password file trims whitespace",
+			cfg: config.RedisConfig{
+				PasswordFile: "", // Will be set by setupFile
+			},
+			setupFile: func(t *testing.T) string {
+				t.Helper()
+				tmpFile := filepath.Join(t.TempDir(), "redis-password")
+				err := os.WriteFile(tmpFile, []byte("  trimmed-password  \n\t"), 0600)
+				require.NoError(t, err)
+				return tmpFile
+			},
+			wantPwd: "trimmed-password",
+			wantErr: false,
+		},
+		{
+			name: "direct password used as fallback",
+			cfg: config.RedisConfig{
+				Password: "direct-password",
+			},
+			wantPwd: "direct-password",
+			wantErr: false,
+		},
+		{
+			name: "empty password when none configured",
+			cfg:  config.RedisConfig{
+				// All password fields empty
+			},
+			wantPwd: "",
+			wantErr: false,
+		},
+		{
+			name: "error when env var specified but not set",
+			cfg: config.RedisConfig{
+				PasswordEnvVar: "NONEXISTENT_VAR",
+			},
+			wantErr:     true,
+			errContains: "environment variable NONEXISTENT_VAR is not set",
+		},
+		{
+			name: "error when password file does not exist",
+			cfg: config.RedisConfig{
+				PasswordFile: "/nonexistent/redis-password",
+			},
+			wantErr:     true,
+			errContains: "failed to read password file",
+		},
+		{
+			name: "env var empty string is treated as not set",
+			cfg: config.RedisConfig{
+				PasswordEnvVar: "EMPTY_VAR",
+				Password:       "fallback-password",
+			},
+			envVars: map[string]string{
+				"EMPTY_VAR": "",
+			},
+			wantErr:     true,
+			errContains: "environment variable EMPTY_VAR is not set",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set environment variables
+			for key, value := range tt.envVars {
+				t.Setenv(key, value)
+			}
+
+			// Setup file if needed
+			cfg := tt.cfg
+			if tt.setupFile != nil {
+				cfg.PasswordFile = tt.setupFile(t)
+			}
+
+			// Call GetPassword
+			password, err := cfg.GetPassword()
+
+			// Verify results
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantPwd, password)
+			}
+		})
+	}
+}

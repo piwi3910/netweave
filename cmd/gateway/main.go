@@ -334,10 +334,49 @@ func parseLogLevel(level string) zap.AtomicLevel {
 
 // initializeRedisStorage creates and initializes Redis storage.
 func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.RedisStore, error) {
-	// Build Redis configuration
-	redisCfg := &storage.RedisConfig{
+	password, err := getRedisPassword(cfg, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	redisCfg := buildRedisConfig(cfg, password)
+	if err := configureRedisMode(redisCfg, cfg, logger); err != nil {
+		return nil, err
+	}
+
+	logSecurityWarnings(cfg, logger)
+
+	store := storage.NewRedisStore(redisCfg)
+	if err := verifyRedisConnectivity(store); err != nil {
+		return nil, err
+	}
+
+	logger.Info("Redis connectivity verified")
+	return store, nil
+}
+
+// getRedisPassword retrieves Redis password and logs deprecation warnings.
+func getRedisPassword(cfg *config.Config, logger *zap.Logger) (string, error) {
+	password, err := cfg.Redis.GetPassword()
+	if err != nil {
+		return "", fmt.Errorf("failed to get Redis password: %w", err)
+	}
+
+	// Log warning if using deprecated direct password configuration
+	if cfg.Redis.Password != "" && cfg.Redis.PasswordEnvVar == "" && cfg.Redis.PasswordFile == "" {
+		logger.Warn("SECURITY WARNING: Redis password is stored in plaintext configuration. "+
+			"This is deprecated and insecure. Use password_env_var or password_file instead.",
+			zap.Bool("deprecated_password_field", true))
+	}
+
+	return password, nil
+}
+
+// buildRedisConfig creates storage.RedisConfig from config.Config.
+func buildRedisConfig(cfg *config.Config, password string) *storage.RedisConfig {
+	return &storage.RedisConfig{
 		DB:                     cfg.Redis.DB,
-		Password:               cfg.Redis.Password,
+		Password:               password,
 		MaxRetries:             cfg.Redis.MaxRetries,
 		DialTimeout:            cfg.Redis.DialTimeout,
 		ReadTimeout:            cfg.Redis.ReadTimeout,
@@ -345,8 +384,10 @@ func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.Re
 		PoolSize:               cfg.Redis.PoolSize,
 		AllowInsecureCallbacks: cfg.Security.AllowInsecureCallbacks,
 	}
+}
 
-	// Configure based on Redis mode
+// configureRedisMode sets up Redis mode (standalone/sentinel/cluster).
+func configureRedisMode(redisCfg *storage.RedisConfig, cfg *config.Config, logger *zap.Logger) error {
 	switch cfg.Redis.Mode {
 	case "sentinel":
 		redisCfg.UseSentinel = true
@@ -358,8 +399,6 @@ func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.Re
 		)
 
 	case "cluster":
-		// Note: RedisStore currently supports standalone and sentinel modes
-		// Cluster mode will be implemented in future versions
 		logger.Warn("Redis cluster mode not yet fully supported, falling back to standalone",
 			zap.String("mode", cfg.Redis.Mode),
 		)
@@ -377,28 +416,33 @@ func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.Re
 		)
 
 	default:
-		return nil, fmt.Errorf("unsupported Redis mode: %s", cfg.Redis.Mode)
+		return fmt.Errorf("unsupported Redis mode: %s", cfg.Redis.Mode)
 	}
 
-	// Log security warning if insecure callbacks are allowed
+	return nil
+}
+
+// logSecurityWarnings logs security-related configuration warnings.
+func logSecurityWarnings(cfg *config.Config, logger *zap.Logger) {
 	if cfg.Security.AllowInsecureCallbacks {
-		logger.Warn("SECURITY WARNING: HTTP (non-HTTPS) webhook callbacks are allowed. This should ONLY be used in development/testing environments. Production deployments MUST enforce HTTPS to prevent man-in-the-middle attacks and ensure data confidentiality.",
+		logger.Warn("SECURITY WARNING: HTTP (non-HTTPS) webhook callbacks are allowed. "+
+			"This should ONLY be used in development/testing environments. "+
+			"Production deployments MUST enforce HTTPS to prevent man-in-the-middle attacks "+
+			"and ensure data confidentiality.",
 			zap.Bool("allow_insecure_callbacks", true))
 	}
+}
 
-	// Create Redis store
-	store := storage.NewRedisStore(redisCfg)
-
-	// Test Redis connectivity
+// verifyRedisConnectivity tests Redis connection.
+func verifyRedisConnectivity(store *storage.RedisStore) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := store.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("redis connectivity check failed: %w", err)
+		return fmt.Errorf("redis connectivity check failed: %w", err)
 	}
 
-	logger.Info("Redis connectivity verified")
-	return store, nil
+	return nil
 }
 
 // initializeKubernetesAdapter creates and initializes the Kubernetes adapter.
