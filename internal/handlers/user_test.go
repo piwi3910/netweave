@@ -648,3 +648,58 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 		})
 	}
 }
+
+// TestUserHandler_GetCurrentUser tests GetCurrentUser endpoint.
+func TestUserHandler_GetCurrentUser(t *testing.T) {
+	tests := []struct {
+		name        string
+		tenantID    string
+		userID      string
+		setupStore  func(*mockAuthStore)
+		wantStatus  int
+	}{
+		{
+			name:     "returns error without user context",
+			tenantID: "tenant-1",
+			wantStatus: http.StatusInternalServerError,  // Returns 500 when GetUser fails
+		},
+		{
+			name:     "gets current user successfully",
+			tenantID: "tenant-1",
+			userID:   "user-1",
+			setupStore: func(store *mockAuthStore) {
+				store.users["user-1"] = &auth.TenantUser{
+					ID:       "user-1",
+					TenantID: "tenant-1",
+					Subject: "CN=testuser,O=test",
+					Email:    "test@example.com",
+				}
+			},
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newMockAuthStore()
+			if tt.setupStore != nil {
+				tt.setupStore(store)
+			}
+			router, _ := setupUserTestRouter(t, store)
+
+			req := httptest.NewRequest(http.MethodGet, "/user", nil)
+			req.Header.Set("Accept", "application/json")
+			if tt.tenantID != "" {
+				req.Header.Set("X-Tenant-ID", tt.tenantID)
+			}
+			if tt.userID != "" {
+				req.Header.Set("X-User-ID", tt.userID)
+			}
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+		})
+	}
+}
