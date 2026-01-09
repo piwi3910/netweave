@@ -12,6 +12,13 @@ import (
 	"github.com/piwi3910/netweave/internal/dms/adapter"
 )
 
+// Content size limits for package storage.
+const (
+	// MaxContentSize is the maximum allowed size for package content (100MB).
+	// This limit prevents memory exhaustion from excessively large packages.
+	MaxContentSize = 100 * 1024 * 1024
+)
+
 // Error definitions for package storage operations.
 var (
 	// ErrPackageNotFound is returned when a package is not found.
@@ -25,6 +32,9 @@ var (
 
 	// ErrVersionExists is returned when a package version already exists.
 	ErrVersionExists = errors.New("package version already exists")
+
+	// ErrContentTooLarge is returned when package content exceeds the size limit.
+	ErrContentTooLarge = errors.New("package content exceeds maximum size limit")
 )
 
 // PackageStore defines the interface for DMS deployment package storage.
@@ -338,9 +348,15 @@ func (s *MemoryPackageStore) Delete(ctx context.Context, id string) error {
 }
 
 // SaveContent saves binary content for a package.
+// Returns ErrContentTooLarge if content exceeds MaxContentSize.
 func (s *MemoryPackageStore) SaveContent(ctx context.Context, id string, content []byte) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+
+	// Validate content size to prevent memory exhaustion
+	if len(content) > MaxContentSize {
+		return fmt.Errorf("%w: size %d exceeds limit %d", ErrContentTooLarge, len(content), MaxContentSize)
 	}
 
 	s.mu.Lock()

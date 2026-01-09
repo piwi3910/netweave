@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -463,10 +464,13 @@ func (k *KustomizeAdapter) UpdateDeployment(
 	// Update version and timestamp
 	data, _, _ := unstructured.NestedStringMap(cm.Object, "data")
 	version := 1
-	if v, ok := data["version"]; ok {
-		fmt.Sscanf(v, "%d", &version)
+	if v, ok := data["version"]; ok && v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil {
+			version = parsed
+		}
+		// If parsing fails, continue with default version 1
 	}
-	data["version"] = fmt.Sprintf("%d", version+1)
+	data["version"] = strconv.Itoa(version + 1)
 	data["updatedAt"] = time.Now().Format(time.RFC3339)
 	if update.Description != "" {
 		data["description"] = update.Description
@@ -713,8 +717,11 @@ func (k *KustomizeAdapter) transformConfigMapToDeployment(
 	}
 
 	version := 1
-	if v, ok := data["version"]; ok {
-		fmt.Sscanf(v, "%d", &version)
+	if v, ok := data["version"]; ok && v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil {
+			version = parsed
+		}
+		// If parsing fails, continue with default version 1
 	}
 
 	createdAt := cm.GetCreationTimestamp().Time

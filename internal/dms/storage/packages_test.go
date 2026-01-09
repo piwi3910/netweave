@@ -479,6 +479,45 @@ func TestMemoryPackageStore_Content(t *testing.T) {
 		_, err = store.GetContent(context.Background(), "pkg-1")
 		require.Error(t, err)
 	})
+
+	t.Run("save content exceeds max size", func(t *testing.T) {
+		// Create a package for this test
+		pkg3 := &adapter.DeploymentPackage{
+			ID:          "pkg-3",
+			Name:        "large-content",
+			Version:     "1.0.0",
+			PackageType: "helm-chart",
+		}
+		_ = store.Create(context.Background(), pkg3)
+
+		// Create content that exceeds MaxContentSize
+		// Use MaxContentSize + 1 to just exceed the limit
+		largeContent := make([]byte, MaxContentSize+1)
+		err := store.SaveContent(context.Background(), "pkg-3", largeContent)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrContentTooLarge)
+	})
+
+	t.Run("save content at max size succeeds", func(t *testing.T) {
+		// Create a package for this test
+		pkg4 := &adapter.DeploymentPackage{
+			ID:          "pkg-4",
+			Name:        "max-content",
+			Version:     "1.0.0",
+			PackageType: "helm-chart",
+		}
+		_ = store.Create(context.Background(), pkg4)
+
+		// Create content exactly at MaxContentSize (should succeed)
+		maxContent := make([]byte, MaxContentSize)
+		err := store.SaveContent(context.Background(), "pkg-4", maxContent)
+		require.NoError(t, err)
+
+		// Verify we can retrieve it
+		result, err := store.GetContent(context.Background(), "pkg-4")
+		require.NoError(t, err)
+		assert.Len(t, result, MaxContentSize)
+	})
 }
 
 // TestMemoryPackageStore_Ping tests health check.

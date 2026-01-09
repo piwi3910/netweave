@@ -1504,18 +1504,18 @@ func TestBuildLabelSelector_MultipleLabels(t *testing.T) {
 // TestConfigDefaults tests default configuration values.
 func TestConfigDefaults(t *testing.T) {
 	tests := []struct {
-		name             string
-		config           *Config
-		wantNamespace    string
-		wantProject      string
-		wantSyncTimeout  time.Duration
+		name            string
+		config          *Config
+		wantNamespace   string
+		wantProject     string
+		wantSyncTimeout time.Duration
 	}{
 		{
-			name:             "all defaults",
-			config:           &Config{},
-			wantNamespace:    DefaultNamespace,
-			wantProject:      "default",
-			wantSyncTimeout:  DefaultSyncTimeout,
+			name:            "all defaults",
+			config:          &Config{},
+			wantNamespace:   DefaultNamespace,
+			wantProject:     "default",
+			wantSyncTimeout: DefaultSyncTimeout,
 		},
 		{
 			name: "custom values",
