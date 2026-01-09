@@ -239,7 +239,7 @@ func (w *WebhookWorker) processEvents(ctx context.Context, name string) {
 				zap.String("consumer", name))
 			return
 		case <-ctx.Done():
-			w.logger.Info("worker context cancelled",
+			w.logger.Info("worker context canceled",
 				zap.String("consumer", name))
 			return
 		default:
@@ -356,7 +356,7 @@ func (w *WebhookWorker) deliverWithRetries(ctx context.Context, event *controlle
 			select {
 			case <-time.After(backoff):
 			case <-ctx.Done():
-				return fmt.Errorf("context cancelled during retry: %w", ctx.Err())
+				return fmt.Errorf("context canceled during retry: %w", ctx.Err())
 			}
 		}
 

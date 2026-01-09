@@ -449,7 +449,7 @@ func (p *Plugin) WaitForNSReady(ctx context.Context, nsInstanceID string, timeou
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("context cancelled while waiting for NS ready: %w", ctx.Err())
+			return fmt.Errorf("context canceled while waiting for NS ready: %w", ctx.Err())
 		case <-ticker.C:
 			if time.Now().After(deadline) {
 				return fmt.Errorf("timeout waiting for NS to become ready")

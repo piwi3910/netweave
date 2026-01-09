@@ -264,7 +264,7 @@ func (c *Client) waitForRetry(ctx context.Context, attempt int) error {
 	case <-time.After(delay):
 		return nil
 	case <-ctx.Done():
-		return fmt.Errorf("context cancelled during retry wait: %w", ctx.Err())
+		return fmt.Errorf("context canceled during retry wait: %w", ctx.Err())
 	}
 }
 

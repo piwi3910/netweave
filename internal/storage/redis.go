@@ -599,7 +599,8 @@ func (r *RedisStore) validateCallbackURL(callback string) error {
 	// Enforce HTTPS unless explicitly allowed
 	if u.Scheme == "http" {
 		if !r.config.AllowInsecureCallbacks {
-			return fmt.Errorf("HTTP callbacks are not allowed in production. Use HTTPS for secure webhook delivery. To allow HTTP callbacks in development/testing, set allow_insecure_callbacks=true in security configuration")
+			return fmt.Errorf("HTTP callbacks are not allowed in production. Use HTTPS for secure webhook delivery. " +
+				"To allow HTTP callbacks in development/testing, set allow_insecure_callbacks=true in security configuration")
 		}
 	} else if u.Scheme != "https" {
 		return fmt.Errorf("callback URL must use http or https scheme")

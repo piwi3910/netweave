@@ -159,7 +159,7 @@ func (p *Plugin) CancelWorkflow(ctx context.Context, executionID string) error {
 		return fmt.Errorf("SO client is not initialized")
 	}
 
-	p.logger.Info("Cancelling ONAP workflow",
+	p.logger.Info("Canceling ONAP workflow",
 		zap.String("executionId", executionID),
 	)
 
@@ -171,7 +171,7 @@ func (p *Plugin) CancelWorkflow(ctx context.Context, executionID string) error {
 		return fmt.Errorf("failed to cancel workflow: %w", err)
 	}
 
-	p.logger.Info("Successfully cancelled ONAP workflow",
+	p.logger.Info("Successfully canceled ONAP workflow",
 		zap.String("executionId", executionID),
 	)
 
@@ -413,7 +413,7 @@ func (p *Plugin) mapONAPRequestStateToStatus(requestState string) string {
 		"COMPLETED":   "SUCCEEDED",
 		"FAILED":      "FAILED",
 		"TIMEOUT":     "FAILED",
-		"UNLOCKED":    "CANCELLED",
+		"UNLOCKED":    "CANCELED",
 	}
 
 	if status, ok := statusMap[requestState]; ok {

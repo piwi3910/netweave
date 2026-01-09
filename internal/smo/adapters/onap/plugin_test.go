@@ -354,7 +354,7 @@ func TestMapONAPRequestStateToStatus(t *testing.T) {
 		{"COMPLETED", "SUCCEEDED"},
 		{"FAILED", "FAILED"},
 		{"TIMEOUT", "FAILED"},
-		{"UNLOCKED", "CANCELLED"},
+		{"UNLOCKED", "CANCELED"},
 		{"UNKNOWN_STATE", "UNKNOWN"},
 	}
 
