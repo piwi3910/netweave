@@ -41,6 +41,7 @@ func (s *Server) setupRoutes() {
 			subscriptions.GET("", s.handleListSubscriptions)
 			subscriptions.POST("", s.handleCreateSubscription)
 			subscriptions.GET("/:subscriptionId", s.handleGetSubscription)
+			subscriptions.PUT("/:subscriptionId", s.handleUpdateSubscription)
 			subscriptions.DELETE("/:subscriptionId", s.handleDeleteSubscription)
 		}
 
@@ -308,6 +309,99 @@ func (s *Server) handleGetSubscription(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// handleUpdateSubscription updates an existing subscription.
+// PUT /o2ims/v1/subscriptions/:subscriptionId.
+func (s *Server) handleUpdateSubscription(c *gin.Context) {
+	subscriptionID := c.Param("subscriptionId")
+	s.logger.Info("updating subscription", zap.String("subscription_id", subscriptionID))
+
+	var req adapter.Subscription
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Get existing subscription from storage to verify it exists
+	_, err := s.store.Get(c.Request.Context(), subscriptionID)
+	if err != nil {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Subscription not found: " + subscriptionID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		s.logger.Error("failed to get subscription", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve subscription",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Update subscription in storage
+	// Preserve the subscription ID from the URL parameter
+	storageSub := &storage.Subscription{
+		ID:                     subscriptionID,
+		Callback:               req.Callback,
+		ConsumerSubscriptionID: req.ConsumerSubscriptionID,
+	}
+	if req.Filter != nil {
+		storageSub.Filter = storage.SubscriptionFilter{
+			ResourcePoolID: req.Filter.ResourcePoolID,
+			ResourceTypeID: req.Filter.ResourceTypeID,
+			ResourceID:     req.Filter.ResourceID,
+		}
+	}
+
+	if err := s.store.Update(c.Request.Context(), storageSub); err != nil {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Subscription not found: " + subscriptionID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		s.logger.Error("failed to update subscription", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to update subscription",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("subscription updated",
+		zap.String("subscription_id", subscriptionID),
+		zap.String("callback", req.Callback))
+
+	// Return updated subscription
+	updated := adapter.Subscription{
+		SubscriptionID:         subscriptionID,
+		Callback:               storageSub.Callback,
+		ConsumerSubscriptionID: storageSub.ConsumerSubscriptionID,
+	}
+	hasFilter := storageSub.Filter.ResourcePoolID != "" ||
+		storageSub.Filter.ResourceTypeID != "" ||
+		storageSub.Filter.ResourceID != ""
+	if hasFilter {
+		updated.Filter = &adapter.SubscriptionFilter{
+			ResourcePoolID: storageSub.Filter.ResourcePoolID,
+			ResourceTypeID: storageSub.Filter.ResourceTypeID,
+			ResourceID:     storageSub.Filter.ResourceID,
+		}
+	}
+
+	c.JSON(http.StatusOK, updated)
 }
 
 // handleDeleteSubscription deletes a subscription.
