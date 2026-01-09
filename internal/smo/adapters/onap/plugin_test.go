@@ -516,7 +516,7 @@ func TestPlugin_PublishInfrastructureEvent(t *testing.T) {
 	defer cancel()
 
 	event := &smo.InfrastructureEvent{
-		EventType: "resource.created",
+		EventType:  "resource.created",
 		ResourceID: "test-resource",
 	}
 
@@ -548,7 +548,7 @@ func TestPlugin_PublishDeploymentEvent(t *testing.T) {
 	defer cancel()
 
 	event := &smo.DeploymentEvent{
-		EventType: "deployment.created",
+		EventType:    "deployment.created",
 		DeploymentID: "test-deployment",
 	}
 
@@ -581,7 +581,7 @@ func TestPlugin_ExecuteWorkflow(t *testing.T) {
 
 	workflow := &smo.WorkflowRequest{
 		WorkflowName: "test-workflow",
-		Parameters: map[string]interface{}{},
+		Parameters:   map[string]interface{}{},
 	}
 
 	execution, err := plugin.ExecuteWorkflow(ctx, workflow)

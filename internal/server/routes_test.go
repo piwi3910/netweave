@@ -438,7 +438,7 @@ func TestHandleHealth_Error(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	
+
 	// Use mockAdapter with Health() error
 	mockAdp := &mockAdapter{healthErr: fmt.Errorf("adapter unhealthy")}
 	srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
@@ -463,7 +463,7 @@ func TestHandleReadiness_Error(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	
+
 	// Use mockAdapter with Health() error
 	mockAdp := &mockAdapter{healthErr: fmt.Errorf("not ready")}
 	srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})

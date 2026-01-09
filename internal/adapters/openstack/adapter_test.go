@@ -260,7 +260,6 @@ func TestConfigValidation(t *testing.T) {
 
 // NOTE: BenchmarkMatchesFilter and BenchmarkApplyPagination moved to internal/adapter/helpers_test.go
 
-
 // TestOpenStackAdapter_Health tests the Health function.
 func TestOpenStackAdapter_Health(t *testing.T) {
 	adapter, err := New(&Config{

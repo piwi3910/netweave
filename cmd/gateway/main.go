@@ -336,13 +336,14 @@ func parseLogLevel(level string) zap.AtomicLevel {
 func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.RedisStore, error) {
 	// Build Redis configuration
 	redisCfg := &storage.RedisConfig{
-		DB:           cfg.Redis.DB,
-		Password:     cfg.Redis.Password,
-		MaxRetries:   cfg.Redis.MaxRetries,
-		DialTimeout:  cfg.Redis.DialTimeout,
-		ReadTimeout:  cfg.Redis.ReadTimeout,
-		WriteTimeout: cfg.Redis.WriteTimeout,
-		PoolSize:     cfg.Redis.PoolSize,
+		DB:                     cfg.Redis.DB,
+		Password:               cfg.Redis.Password,
+		MaxRetries:             cfg.Redis.MaxRetries,
+		DialTimeout:            cfg.Redis.DialTimeout,
+		ReadTimeout:            cfg.Redis.ReadTimeout,
+		WriteTimeout:           cfg.Redis.WriteTimeout,
+		PoolSize:               cfg.Redis.PoolSize,
+		AllowInsecureCallbacks: cfg.Security.AllowInsecureCallbacks,
 	}
 
 	// Configure based on Redis mode
@@ -377,6 +378,12 @@ func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.Re
 
 	default:
 		return nil, fmt.Errorf("unsupported Redis mode: %s", cfg.Redis.Mode)
+	}
+
+	// Log security warning if insecure callbacks are allowed
+	if cfg.Security.AllowInsecureCallbacks {
+		logger.Warn("SECURITY WARNING: HTTP (non-HTTPS) webhook callbacks are allowed. This should ONLY be used in development/testing environments. Production deployments MUST enforce HTTPS to prevent man-in-the-middle attacks and ensure data confidentiality.",
+			zap.Bool("allow_insecure_callbacks", true))
 	}
 
 	// Create Redis store

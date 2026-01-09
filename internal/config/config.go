@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -325,6 +326,11 @@ type SecurityConfig struct {
 
 	// RateLimit contains comprehensive rate limiting configuration
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
+
+	// AllowInsecureCallbacks allows HTTP (non-HTTPS) webhook callbacks
+	// This should ONLY be enabled in development/testing environments
+	// Production deployments MUST enforce HTTPS for webhook callbacks
+	AllowInsecureCallbacks bool `mapstructure:"allow_insecure_callbacks"`
 }
 
 // RateLimitConfig contains comprehensive rate limiting configuration.
@@ -446,14 +452,26 @@ func Load(configPath string) (*Config, error) {
 //  2. NETWEAVE_CONFIG environment variable
 //  3. Environment-specific config via NETWEAVE_ENV (dev/staging/prod)
 //  4. Empty string (use viper defaults)
+//
+// Security: All paths are validated to prevent directory traversal and arbitrary file inclusion.
 func resolveConfigPath(configPath string) string {
 	// Priority 1: Explicit path provided
 	if configPath != "" && configPath != DefaultConfigPath {
+		if err := validateConfigPath(configPath); err != nil {
+			// Log error but don't expose path details in error message
+			// Return empty to fall back to defaults
+			return ""
+		}
 		return configPath
 	}
 
 	// Priority 2: NETWEAVE_CONFIG environment variable
 	if envConfig := os.Getenv("NETWEAVE_CONFIG"); envConfig != "" {
+		if err := validateConfigPath(envConfig); err != nil {
+			// Security: Don't load arbitrary files from environment variables
+			// Return empty to fall back to defaults
+			return ""
+		}
 		return envConfig
 	}
 
@@ -468,6 +486,86 @@ func resolveConfigPath(configPath string) string {
 
 	// Priority 4: Use default or empty (viper will search default paths)
 	return ""
+}
+
+// validateConfigPath validates that a configuration file path is safe to load.
+// It prevents directory traversal attacks and arbitrary file inclusion.
+// Security checks:
+//   - Must have .yaml or .yml extension (prevents loading arbitrary files)
+//   - Path must not contain directory traversal (../../../etc/passwd)
+//   - For production safety, relative paths should be in ./config/ or current dir
+func validateConfigPath(path string) error {
+	if path == "" {
+		return fmt.Errorf("config path is empty")
+	}
+
+	// Validate file extension
+	if err := validateConfigExtension(path); err != nil {
+		return err
+	}
+
+	// Check for directory traversal
+	if err := validateNoTraversal(path); err != nil {
+		return err
+	}
+
+	// Clean and validate normalized path
+	cleanPath := filepath.Clean(path)
+	if strings.Contains(cleanPath, "..") {
+		return fmt.Errorf("config path contains directory traversal after normalization")
+	}
+
+	// Validate absolute paths
+	if filepath.IsAbs(cleanPath) {
+		return validateAbsolutePath(cleanPath)
+	}
+
+	// Relative paths are allowed
+	return nil
+}
+
+// validateConfigExtension ensures the config file has a valid extension.
+func validateConfigExtension(path string) error {
+	ext := filepath.Ext(path)
+	if ext != ".yaml" && ext != ".yml" {
+		return fmt.Errorf("config file must have .yaml or .yml extension")
+	}
+	return nil
+}
+
+// validateNoTraversal checks for directory traversal attempts.
+func validateNoTraversal(path string) error {
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("config path contains directory traversal")
+	}
+	return nil
+}
+
+// validateAbsolutePath validates absolute paths and checks for symlinks.
+func validateAbsolutePath(cleanPath string) error {
+	// For absolute paths, check if it exists and validate if it's a symlink
+	info, err := os.Lstat(cleanPath)
+	if err != nil {
+		// Path doesn't exist yet - this is valid for config files that will be created
+		// We've already validated the extension, so just return
+		if os.IsNotExist(err) {
+			return nil
+		}
+		// Other errors (like permission denied) should be reported
+		return fmt.Errorf("cannot access config path: %w", err)
+	}
+
+	// If it's a symlink, validate the target
+	if info.Mode()&os.ModeSymlink != 0 {
+		target, err := filepath.EvalSymlinks(cleanPath)
+		if err != nil {
+			return fmt.Errorf("cannot resolve symlink: %w", err)
+		}
+		// Ensure symlink target also has valid extension
+		return validateConfigExtension(target)
+	}
+
+	return nil
 }
 
 // detectEnvironment determines the environment from the config path or NETWEAVE_ENV.
@@ -564,6 +662,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("security.rate_limit.tenant.burst_size", 2000)
 	v.SetDefault("security.rate_limit.global.requests_per_second", 10000)
 	v.SetDefault("security.rate_limit.global.max_concurrent_requests", 1000)
+	v.SetDefault("security.allow_insecure_callbacks", false)
 
 	// Validation defaults
 	v.SetDefault("validation.enabled", true)
