@@ -334,12 +334,12 @@ func parseLogLevel(level string) zap.AtomicLevel {
 
 // initializeRedisStorage creates and initializes Redis storage.
 func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.RedisStore, error) {
-	password, err := getRedisPassword(cfg, logger)
+	password, sentinelPassword, err := getRedisPasswords(cfg, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	redisCfg := buildRedisConfig(cfg, password)
+	redisCfg := buildRedisConfig(cfg, password, sentinelPassword)
 	if err := configureRedisMode(redisCfg, cfg, logger); err != nil {
 		return nil, err
 	}
@@ -355,11 +355,12 @@ func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.Re
 	return store, nil
 }
 
-// getRedisPassword retrieves Redis password and logs deprecation warnings.
-func getRedisPassword(cfg *config.Config, logger *zap.Logger) (string, error) {
-	password, err := cfg.Redis.GetPassword()
+// getRedisPasswords retrieves Redis and Sentinel passwords and logs deprecation warnings.
+func getRedisPasswords(cfg *config.Config, logger *zap.Logger) (redisPassword, sentinelPassword string, err error) {
+	// Get Redis password
+	redisPassword, err = cfg.Redis.GetPassword()
 	if err != nil {
-		return "", fmt.Errorf("failed to get Redis password: %w", err)
+		return "", "", fmt.Errorf("failed to get Redis password: %w", err)
 	}
 
 	// Log warning if using deprecated direct password configuration
@@ -369,14 +370,30 @@ func getRedisPassword(cfg *config.Config, logger *zap.Logger) (string, error) {
 			zap.Bool("deprecated_password_field", true))
 	}
 
-	return password, nil
+	// Get Sentinel password (only relevant for Sentinel mode)
+	if cfg.Redis.Mode == "sentinel" {
+		sentinelPassword, err = cfg.Redis.GetSentinelPassword()
+		if err != nil {
+			return "", "", fmt.Errorf("failed to get Sentinel password: %w", err)
+		}
+
+		// Log warning if using deprecated direct sentinel password configuration
+		if cfg.Redis.SentinelPassword != "" && cfg.Redis.SentinelPasswordEnvVar == "" && cfg.Redis.SentinelPasswordFile == "" {
+			logger.Warn("SECURITY WARNING: Sentinel password is stored in plaintext configuration. "+
+				"This is deprecated and insecure. Use sentinel_password_env_var or sentinel_password_file instead.",
+				zap.Bool("deprecated_sentinel_password_field", true))
+		}
+	}
+
+	return redisPassword, sentinelPassword, nil
 }
 
 // buildRedisConfig creates storage.RedisConfig from config.Config.
-func buildRedisConfig(cfg *config.Config, password string) *storage.RedisConfig {
+func buildRedisConfig(cfg *config.Config, password, sentinelPassword string) *storage.RedisConfig {
 	return &storage.RedisConfig{
 		DB:                     cfg.Redis.DB,
 		Password:               password,
+		SentinelPassword:       sentinelPassword,
 		MaxRetries:             cfg.Redis.MaxRetries,
 		DialTimeout:            cfg.Redis.DialTimeout,
 		ReadTimeout:            cfg.Redis.ReadTimeout,
