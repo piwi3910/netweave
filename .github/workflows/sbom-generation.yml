@@ -104,17 +104,30 @@ jobs:
       - name: Generate vulnerability report
         uses: anchore/scan-action@v5
         id: grype-report
+        continue-on-error: true
         with:
           sbom: sbom-spdx.json
           fail-build: false
           output-format: json
 
-      - name: Upload Grype report
+      - name: Save Grype report path
         if: always()
+        id: report-path
+        run: |
+          REPORT_PATH="${{ steps.grype-report.outputs.json }}"
+          if [ -n "$REPORT_PATH" ] && [ -f "$REPORT_PATH" ]; then
+            echo "path=$REPORT_PATH" >> $GITHUB_OUTPUT
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Grype report
+        if: always() && steps.report-path.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: grype-report
-          path: ${{ steps.grype-report.outputs.json }}
+          path: ${{ steps.report-path.outputs.path }}
           retention-days: 30
 
   # Generate dependency graph
