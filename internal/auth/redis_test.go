@@ -551,6 +551,7 @@ func TestDefaultRedisConfig(t *testing.T) {
 
 	assert.Equal(t, "localhost:6379", cfg.Addr)
 	assert.Empty(t, cfg.Password)
+	assert.Empty(t, cfg.SentinelPassword)
 	assert.Equal(t, 0, cfg.DB)
 	assert.False(t, cfg.UseSentinel)
 	assert.Equal(t, 3, cfg.MaxRetries)
@@ -558,6 +559,37 @@ func TestDefaultRedisConfig(t *testing.T) {
 	assert.Equal(t, 3*time.Second, cfg.ReadTimeout)
 	assert.Equal(t, 3*time.Second, cfg.WriteTimeout)
 	assert.Equal(t, 10, cfg.PoolSize)
+}
+
+func TestRedisConfig_SentinelPassword(t *testing.T) {
+	t.Run("sentinel password is configurable", func(t *testing.T) {
+		cfg := &RedisConfig{
+			Addr:             "localhost:6379",
+			Password:         "redis-pass",
+			SentinelPassword: "sentinel-pass",
+			UseSentinel:      true,
+			SentinelAddrs:    []string{"sentinel1:26379", "sentinel2:26379"},
+			MasterName:       "mymaster",
+		}
+
+		assert.Equal(t, "redis-pass", cfg.Password)
+		assert.Equal(t, "sentinel-pass", cfg.SentinelPassword)
+		assert.True(t, cfg.UseSentinel)
+		assert.Equal(t, "mymaster", cfg.MasterName)
+		assert.Len(t, cfg.SentinelAddrs, 2)
+	})
+
+	t.Run("sentinel and redis passwords can be different", func(t *testing.T) {
+		cfg := &RedisConfig{
+			Password:         "redis-password-123",
+			SentinelPassword: "sentinel-password-456",
+			UseSentinel:      true,
+			MasterName:       "mymaster",
+			SentinelAddrs:    []string{"sentinel:26379"},
+		}
+
+		assert.NotEqual(t, cfg.Password, cfg.SentinelPassword)
+	})
 }
 
 // TestListTenants tests tenant listing.
