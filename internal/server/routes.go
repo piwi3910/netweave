@@ -41,6 +41,7 @@ func (s *Server) setupRoutes() {
 			subscriptions.GET("", s.handleListSubscriptions)
 			subscriptions.POST("", s.handleCreateSubscription)
 			subscriptions.GET("/:subscriptionId", s.handleGetSubscription)
+			subscriptions.PUT("/:subscriptionId", s.handleUpdateSubscription)
 			subscriptions.DELETE("/:subscriptionId", s.handleDeleteSubscription)
 		}
 
@@ -49,7 +50,10 @@ func (s *Server) setupRoutes() {
 		resourcePools := v1.Group("/resourcePools")
 		{
 			resourcePools.GET("", s.handleListResourcePools)
+			resourcePools.POST("", s.handleCreateResourcePool)
 			resourcePools.GET("/:resourcePoolId", s.handleGetResourcePool)
+			resourcePools.PUT("/:resourcePoolId", s.handleUpdateResourcePool)
+			resourcePools.DELETE("/:resourcePoolId", s.handleDeleteResourcePool)
 			resourcePools.GET("/:resourcePoolId/resources", s.handleListResourcesInPool)
 		}
 
@@ -58,7 +62,9 @@ func (s *Server) setupRoutes() {
 		resources := v1.Group("/resources")
 		{
 			resources.GET("", s.handleListResources)
+			resources.POST("", s.handleCreateResource)
 			resources.GET("/:resourceId", s.handleGetResource)
+			resources.DELETE("/:resourceId", s.handleDeleteResource)
 		}
 
 		// Resource Type Management
@@ -310,6 +316,96 @@ func (s *Server) handleGetSubscription(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// handleUpdateSubscription updates an existing subscription.
+// PUT /o2ims/v1/subscriptions/:subscriptionId.
+func (s *Server) handleUpdateSubscription(c *gin.Context) {
+	subscriptionID := c.Param("subscriptionId")
+	s.logger.Info("updating subscription", zap.String("subscription_id", subscriptionID))
+
+	var req adapter.Subscription
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Check if subscription exists
+	existingSub, err := s.store.Get(c.Request.Context(), subscriptionID)
+	if err != nil {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Subscription not found: " + subscriptionID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+
+		s.logger.Error("failed to get subscription", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve subscription",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Update storage subscription with new values
+	updatedSub := &storage.Subscription{
+		ID:                     subscriptionID,
+		Callback:               req.Callback,
+		ConsumerSubscriptionID: req.ConsumerSubscriptionID,
+	}
+
+	// Use existing callback if not provided in request
+	if req.Callback == "" {
+		updatedSub.Callback = existingSub.Callback
+	}
+	if req.ConsumerSubscriptionID == "" {
+		updatedSub.ConsumerSubscriptionID = existingSub.ConsumerSubscriptionID
+	}
+
+	// Update filter if provided
+	if req.Filter != nil {
+		updatedSub.Filter = storage.SubscriptionFilter{
+			ResourcePoolID: req.Filter.ResourcePoolID,
+			ResourceTypeID: req.Filter.ResourceTypeID,
+			ResourceID:     req.Filter.ResourceID,
+		}
+	} else {
+		updatedSub.Filter = existingSub.Filter
+	}
+
+	// Update in storage
+	if err := s.store.Update(c.Request.Context(), updatedSub); err != nil {
+		s.logger.Error("failed to update subscription", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to update subscription",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Convert to adapter subscription for response
+	result := &adapter.Subscription{
+		SubscriptionID:         updatedSub.ID,
+		Callback:               updatedSub.Callback,
+		ConsumerSubscriptionID: updatedSub.ConsumerSubscriptionID,
+		Filter: &adapter.SubscriptionFilter{
+			ResourcePoolID: updatedSub.Filter.ResourcePoolID,
+			ResourceTypeID: updatedSub.Filter.ResourceTypeID,
+			ResourceID:     updatedSub.Filter.ResourceID,
+		},
+	}
+
+	s.logger.Info("subscription updated", zap.String("subscription_id", subscriptionID))
+	c.JSON(http.StatusOK, result)
+}
+
 // handleDeleteSubscription deletes a subscription.
 // DELETE /o2ims/v1/subscriptions/:subscriptionId.
 func (s *Server) handleDeleteSubscription(c *gin.Context) {
@@ -397,6 +493,108 @@ func (s *Server) handleGetResourcePool(c *gin.Context) {
 	c.JSON(http.StatusOK, pool)
 }
 
+// handleCreateResourcePool creates a new resource pool.
+// POST /o2ims/v1/resourcePools.
+func (s *Server) handleCreateResourcePool(c *gin.Context) {
+	s.logger.Info("creating resource pool")
+
+	var req adapter.ResourcePool
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Validate required fields
+	if req.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Resource pool name is required",
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Generate resource pool ID if not provided
+	if req.ResourcePoolID == "" {
+		req.ResourcePoolID = uuid.New().String()
+	}
+
+	// Create resource pool via adapter
+	created, err := s.adapter.CreateResourcePool(c.Request.Context(), &req)
+	if err != nil {
+		s.logger.Error("failed to create resource pool", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to create resource pool",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("resource pool created",
+		zap.String("resource_pool_id", created.ResourcePoolID),
+		zap.String("name", created.Name))
+
+	c.JSON(http.StatusCreated, created)
+}
+
+// handleUpdateResourcePool updates an existing resource pool.
+// PUT /o2ims/v1/resourcePools/:resourcePoolId.
+func (s *Server) handleUpdateResourcePool(c *gin.Context) {
+	resourcePoolID := c.Param("resourcePoolId")
+	s.logger.Info("updating resource pool", zap.String("resource_pool_id", resourcePoolID))
+
+	var req adapter.ResourcePool
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Update resource pool via adapter
+	updated, err := s.adapter.UpdateResourcePool(c.Request.Context(), resourcePoolID, &req)
+	if err != nil {
+		s.logger.Error("failed to update resource pool", zap.Error(err))
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "NotFound",
+			"message": "Resource pool not found: " + resourcePoolID,
+			"code":    http.StatusNotFound,
+		})
+		return
+	}
+
+	s.logger.Info("resource pool updated", zap.String("resource_pool_id", resourcePoolID))
+	c.JSON(http.StatusOK, updated)
+}
+
+// handleDeleteResourcePool deletes a resource pool.
+// DELETE /o2ims/v1/resourcePools/:resourcePoolId.
+func (s *Server) handleDeleteResourcePool(c *gin.Context) {
+	resourcePoolID := c.Param("resourcePoolId")
+	s.logger.Info("deleting resource pool", zap.String("resource_pool_id", resourcePoolID))
+
+	// Delete resource pool via adapter
+	if err := s.adapter.DeleteResourcePool(c.Request.Context(), resourcePoolID); err != nil {
+		s.logger.Error("failed to delete resource pool", zap.Error(err))
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "NotFound",
+			"message": "Resource pool not found: " + resourcePoolID,
+			"code":    http.StatusNotFound,
+		})
+		return
+	}
+
+	s.logger.Info("resource pool deleted", zap.String("resource_pool_id", resourcePoolID))
+	c.Status(http.StatusNoContent)
+}
+
 // handleListResourcesInPool lists resources in a specific pool.
 // GET /o2ims/v1/resourcePools/:resourcePoolId/resources.
 func (s *Server) handleListResourcesInPool(c *gin.Context) {
@@ -470,6 +668,76 @@ func (s *Server) handleGetResource(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, resource)
+}
+
+// handleCreateResource creates a new resource.
+// POST /o2ims/v1/resources.
+func (s *Server) handleCreateResource(c *gin.Context) {
+	s.logger.Info("creating resource")
+
+	var req adapter.Resource
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Validate required fields
+	if req.ResourceTypeID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Resource type ID is required",
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Generate resource ID if not provided
+	if req.ResourceID == "" {
+		req.ResourceID = uuid.New().String()
+	}
+
+	// Create resource via adapter
+	created, err := s.adapter.CreateResource(c.Request.Context(), &req)
+	if err != nil {
+		s.logger.Error("failed to create resource", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to create resource",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("resource created",
+		zap.String("resource_id", created.ResourceID),
+		zap.String("resource_type_id", created.ResourceTypeID))
+
+	c.JSON(http.StatusCreated, created)
+}
+
+// handleDeleteResource deletes a resource.
+// DELETE /o2ims/v1/resources/:resourceId.
+func (s *Server) handleDeleteResource(c *gin.Context) {
+	resourceID := c.Param("resourceId")
+	s.logger.Info("deleting resource", zap.String("resource_id", resourceID))
+
+	// Delete resource via adapter
+	if err := s.adapter.DeleteResource(c.Request.Context(), resourceID); err != nil {
+		s.logger.Error("failed to delete resource", zap.Error(err))
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "NotFound",
+			"message": "Resource not found: " + resourceID,
+			"code":    http.StatusNotFound,
+		})
+		return
+	}
+
+	s.logger.Info("resource deleted", zap.String("resource_id", resourceID))
+	c.Status(http.StatusNoContent)
 }
 
 // Resource Type handlers

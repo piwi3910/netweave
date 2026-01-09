@@ -12,6 +12,7 @@ package dtias
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -40,6 +41,14 @@ type DTIASAdapter struct {
 
 	// deploymentManagerID is the identifier for this deployment manager
 	deploymentManagerID string
+
+	// subscriptions holds active subscriptions for polling-based change detection.
+	// Since DTIAS has no native event system, subscriptions are stored locally
+	// and the gateway layer implements polling to detect changes.
+	subscriptions map[string]*adapter.Subscription
+
+	// subscriptionsMu protects the subscriptions map.
+	subscriptionsMu sync.RWMutex
 }
 
 // Config holds configuration for creating a DTIASAdapter.
@@ -125,6 +134,7 @@ func New(cfg *Config) (*DTIASAdapter, error) {
 		config:              cfg,
 		oCloudID:            cfg.OCloudID,
 		deploymentManagerID: cfg.DeploymentManagerID,
+		subscriptions:       make(map[string]*adapter.Subscription),
 	}
 
 	logger.Info("DTIAS adapter initialized",
@@ -213,16 +223,17 @@ func (a *DTIASAdapter) Version() string {
 }
 
 // Capabilities returns the list of O2-IMS capabilities supported by this adapter.
-// DTIAS supports resource management but not native subscriptions (uses polling).
+// DTIAS supports resource management with polling-based subscriptions.
+// Note: DTIAS has no native event system, so subscriptions are stored locally
+// and the gateway layer implements polling to detect changes and send notifications.
 func (a *DTIASAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityResourcePools,
 		adapter.CapabilityResources,
 		adapter.CapabilityResourceTypes,
 		adapter.CapabilityDeploymentManagers,
+		adapter.CapabilitySubscriptions, // Polling-based implementation
 		adapter.CapabilityHealthChecks,
-		// Note: CapabilitySubscriptions is NOT supported - DTIAS has no native event system
-		// Subscriptions would need to be implemented via polling in a higher layer
 	}
 }
 
@@ -245,6 +256,11 @@ func (a *DTIASAdapter) Health(ctx context.Context) error {
 // Close cleanly shuts down the adapter and releases resources.
 func (a *DTIASAdapter) Close() error {
 	a.logger.Info("closing DTIAS adapter")
+
+	// Clear subscriptions
+	a.subscriptionsMu.Lock()
+	a.subscriptions = make(map[string]*adapter.Subscription)
+	a.subscriptionsMu.Unlock()
 
 	// Close client connections
 	if err := a.client.Close(); err != nil {

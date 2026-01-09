@@ -151,15 +151,13 @@ func TestDTIASAdapter_Capabilities(t *testing.T) {
 		adapter.CapabilityResourceTypes,
 		adapter.CapabilityDeploymentManagers,
 		adapter.CapabilityHealthChecks,
+		adapter.CapabilitySubscriptions, // Polling-based implementation
 	}
 
 	assert.Len(t, capabilities, len(expectedCapabilities))
 	for _, expected := range expectedCapabilities {
 		assert.Contains(t, capabilities, expected)
 	}
-
-	// Verify subscriptions capability is NOT present (DTIAS has no native subscriptions)
-	assert.NotContains(t, capabilities, adapter.CapabilitySubscriptions)
 }
 
 func TestDTIASAdapter_Close(t *testing.T) {
@@ -220,9 +218,136 @@ func createTestAdapter(t *testing.T) *DTIASAdapter {
 		InsecureSkipVerify: true, // For testing only
 	}
 
-	adapter, err := New(config)
+	adp, err := New(config)
 	require.NoError(t, err)
-	require.NotNil(t, adapter)
+	require.NotNil(t, adp)
 
-	return adapter
+	return adp
+}
+
+// TestSubscriptions tests subscription CRUD operations.
+// DTIAS implements polling-based subscriptions stored locally.
+func TestSubscriptions(t *testing.T) {
+	adp := createTestAdapter(t)
+	t.Cleanup(func() {
+		assert.NoError(t, adp.Close())
+	})
+
+	ctx := context.Background()
+
+	t.Run("CreateSubscription", func(t *testing.T) {
+		sub := &adapter.Subscription{
+			Callback:               "https://example.com/callback",
+			ConsumerSubscriptionID: "consumer-sub-1",
+		}
+
+		created, err := adp.CreateSubscription(ctx, sub)
+		require.NoError(t, err)
+		require.NotNil(t, created)
+		assert.NotEmpty(t, created.SubscriptionID)
+		assert.Equal(t, "https://example.com/callback", created.Callback)
+		assert.Equal(t, "consumer-sub-1", created.ConsumerSubscriptionID)
+	})
+
+	t.Run("CreateSubscription with ID", func(t *testing.T) {
+		sub := &adapter.Subscription{
+			SubscriptionID: "my-custom-id",
+			Callback:       "https://example.com/callback2",
+		}
+
+		created, err := adp.CreateSubscription(ctx, sub)
+		require.NoError(t, err)
+		require.NotNil(t, created)
+		assert.Equal(t, "my-custom-id", created.SubscriptionID)
+	})
+
+	t.Run("CreateSubscription without callback", func(t *testing.T) {
+		sub := &adapter.Subscription{}
+
+		_, err := adp.CreateSubscription(ctx, sub)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "callback URL is required")
+	})
+
+	t.Run("GetSubscription", func(t *testing.T) {
+		sub, err := adp.GetSubscription(ctx, "my-custom-id")
+		require.NoError(t, err)
+		require.NotNil(t, sub)
+		assert.Equal(t, "my-custom-id", sub.SubscriptionID)
+	})
+
+	t.Run("GetSubscription not found", func(t *testing.T) {
+		_, err := adp.GetSubscription(ctx, "nonexistent")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "subscription not found")
+	})
+
+	t.Run("ListSubscriptions", func(t *testing.T) {
+		subs := adp.ListSubscriptions()
+		assert.Len(t, subs, 2)
+	})
+
+	t.Run("DeleteSubscription", func(t *testing.T) {
+		err := adp.DeleteSubscription(ctx, "my-custom-id")
+		require.NoError(t, err)
+
+		_, err = adp.GetSubscription(ctx, "my-custom-id")
+		require.Error(t, err)
+	})
+
+	t.Run("DeleteSubscription not found", func(t *testing.T) {
+		err := adp.DeleteSubscription(ctx, "nonexistent")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "subscription not found")
+	})
+}
+
+// TestGetPollingRecommendation tests polling recommendations.
+func TestGetPollingRecommendation(t *testing.T) {
+	adp := createTestAdapter(t)
+	t.Cleanup(func() {
+		assert.NoError(t, adp.Close())
+	})
+
+	rec := adp.GetPollingRecommendation()
+	require.NotNil(t, rec)
+
+	// Verify recommended intervals
+	assert.Contains(t, rec.RecommendedIntervals, "resource-pools")
+	assert.Contains(t, rec.RecommendedIntervals, "resources")
+	assert.Contains(t, rec.RecommendedIntervals, "health-metrics")
+
+	// Verify change detection fields
+	assert.Contains(t, rec.ChangeDetectionFields, "resource-pools")
+	assert.Contains(t, rec.ChangeDetectionFields, "resources")
+
+	// Verify optimization tips
+	assert.NotEmpty(t, rec.OptimizationTips)
+}
+
+// TestCloseWithSubscriptions verifies subscriptions are cleared on close.
+func TestCloseWithSubscriptions(t *testing.T) {
+	adp := createTestAdapter(t)
+	ctx := context.Background()
+
+	// Create some subscriptions
+	_, err := adp.CreateSubscription(ctx, &adapter.Subscription{
+		Callback: "https://example.com/callback1",
+	})
+	require.NoError(t, err)
+
+	_, err = adp.CreateSubscription(ctx, &adapter.Subscription{
+		Callback: "https://example.com/callback2",
+	})
+	require.NoError(t, err)
+
+	// Verify subscriptions exist
+	assert.Len(t, adp.ListSubscriptions(), 2)
+
+	// Close adapter
+	err = adp.Close()
+	require.NoError(t, err)
+
+	// Verify subscriptions are cleared
+	assert.Empty(t, adp.subscriptions)
 }
