@@ -1,0 +1,248 @@
+package middleware
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestSecurityHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name           string
+		config         *SecurityHeadersConfig
+		expectedHeader map[string]string
+		notExpected    []string
+	}{
+		{
+			name:   "default config adds all security headers",
+			config: DefaultSecurityHeadersConfig(),
+			expectedHeader: map[string]string{
+				"X-Content-Type-Options": "nosniff",
+				"X-Frame-Options":        "DENY",
+				"X-XSS-Protection":       "1; mode=block",
+				"Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+				"Referrer-Policy":        "strict-origin-when-cross-origin",
+				"Cache-Control":          "no-store",
+				"Permissions-Policy":     "geolocation=(), microphone=(), camera=()",
+			},
+			notExpected: []string{"Strict-Transport-Security"}, // TLS not enabled
+		},
+		{
+			name: "HSTS header added when TLS enabled",
+			config: &SecurityHeadersConfig{
+				Enabled:               true,
+				TLSEnabled:            true,
+				HSTSMaxAge:            31536000,
+				HSTSIncludeSubDomains: true,
+				HSTSPreload:           false,
+				ContentSecurityPolicy: "default-src 'none'",
+				FrameOptions:          "DENY",
+				ReferrerPolicy:        "strict-origin-when-cross-origin",
+			},
+			expectedHeader: map[string]string{
+				"X-Content-Type-Options":    "nosniff",
+				"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+			},
+		},
+		{
+			name: "HSTS header with preload",
+			config: &SecurityHeadersConfig{
+				Enabled:               true,
+				TLSEnabled:            true,
+				HSTSMaxAge:            63072000, // 2 years
+				HSTSIncludeSubDomains: true,
+				HSTSPreload:           true,
+				ContentSecurityPolicy: "default-src 'none'",
+				FrameOptions:          "DENY",
+				ReferrerPolicy:        "strict-origin-when-cross-origin",
+			},
+			expectedHeader: map[string]string{
+				"Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+			},
+		},
+		{
+			name: "custom frame options",
+			config: &SecurityHeadersConfig{
+				Enabled:               true,
+				ContentSecurityPolicy: "default-src 'self'",
+				FrameOptions:          "SAMEORIGIN",
+				ReferrerPolicy:        "no-referrer",
+			},
+			expectedHeader: map[string]string{
+				"X-Frame-Options":         "SAMEORIGIN",
+				"Content-Security-Policy": "default-src 'self'",
+				"Referrer-Policy":         "no-referrer",
+			},
+		},
+		{
+			name: "disabled config skips headers",
+			config: &SecurityHeadersConfig{
+				Enabled: false,
+			},
+			notExpected: []string{
+				"X-Content-Type-Options",
+				"X-Frame-Options",
+				"X-XSS-Protection",
+				"Content-Security-Policy",
+				"Referrer-Policy",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := gin.New()
+			router.Use(SecurityHeaders(tt.config))
+			router.GET("/test", func(c *gin.Context) {
+				c.String(http.StatusOK, "OK")
+			})
+
+			w := httptest.NewRecorder()
+			req, err := http.NewRequest(http.MethodGet, "/test", nil)
+			require.NoError(t, err)
+
+			router.ServeHTTP(w, req)
+
+			// Check expected headers
+			for header, expectedValue := range tt.expectedHeader {
+				assert.Equal(t, expectedValue, w.Header().Get(header),
+					"header %s should have value %s", header, expectedValue)
+			}
+
+			// Check headers that should not be present
+			for _, header := range tt.notExpected {
+				assert.Empty(t, w.Header().Get(header),
+					"header %s should not be present", header)
+			}
+		})
+	}
+}
+
+func TestSecurityHeadersNilConfig(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	router.Use(SecurityHeaders(nil))
+	router.GET("/test", func(c *gin.Context) {
+		c.String(http.StatusOK, "OK")
+	})
+
+	w := httptest.NewRecorder()
+	req, err := http.NewRequest(http.MethodGet, "/test", nil)
+	require.NoError(t, err)
+
+	router.ServeHTTP(w, req)
+
+	// Should use default config
+	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+	assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
+}
+
+func TestDefaultSecurityHeadersConfig(t *testing.T) {
+	config := DefaultSecurityHeadersConfig()
+
+	assert.True(t, config.Enabled)
+	assert.Equal(t, 31536000, config.HSTSMaxAge)
+	assert.True(t, config.HSTSIncludeSubDomains)
+	assert.False(t, config.HSTSPreload)
+	assert.Equal(t, "default-src 'none'; frame-ancestors 'none'", config.ContentSecurityPolicy)
+	assert.Equal(t, "DENY", config.FrameOptions)
+	assert.Equal(t, "strict-origin-when-cross-origin", config.ReferrerPolicy)
+	assert.False(t, config.TLSEnabled)
+}
+
+func TestBuildHSTSValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *SecurityHeadersConfig
+		expected string
+	}{
+		{
+			name: "basic max-age",
+			config: &SecurityHeadersConfig{
+				HSTSMaxAge:            31536000,
+				HSTSIncludeSubDomains: false,
+				HSTSPreload:           false,
+			},
+			expected: "max-age=31536000",
+		},
+		{
+			name: "with includeSubDomains",
+			config: &SecurityHeadersConfig{
+				HSTSMaxAge:            31536000,
+				HSTSIncludeSubDomains: true,
+				HSTSPreload:           false,
+			},
+			expected: "max-age=31536000; includeSubDomains",
+		},
+		{
+			name: "with preload",
+			config: &SecurityHeadersConfig{
+				HSTSMaxAge:            63072000,
+				HSTSIncludeSubDomains: true,
+				HSTSPreload:           true,
+			},
+			expected: "max-age=63072000; includeSubDomains; preload",
+		},
+		{
+			name: "zero max-age",
+			config: &SecurityHeadersConfig{
+				HSTSMaxAge:            0,
+				HSTSIncludeSubDomains: true,
+				HSTSPreload:           false,
+			},
+			expected: "max-age=0; includeSubDomains",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := buildHSTSValue(tt.config)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestItoa(t *testing.T) {
+	tests := []struct {
+		input    int
+		expected string
+	}{
+		{0, "0"},
+		{1, "1"},
+		{123, "123"},
+		{31536000, "31536000"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			result := itoa(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestServerHeaderRemoved(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	router.Use(SecurityHeaders(DefaultSecurityHeadersConfig()))
+	router.GET("/test", func(c *gin.Context) {
+		c.String(http.StatusOK, "OK")
+	})
+
+	w := httptest.NewRecorder()
+	req, err := http.NewRequest(http.MethodGet, "/test", nil)
+	require.NoError(t, err)
+
+	router.ServeHTTP(w, req)
+
+	// Server header should be empty/not set
+	assert.Empty(t, w.Header().Get("Server"))
+}

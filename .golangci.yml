@@ -84,11 +84,6 @@ issues:
         - gosec
       path: cmd/compliance/
       text: "G306"
-    # Allow G402 TLS InsecureSkipVerify in DTIAS adapter (configurable with runtime warnings)
-    - linters:
-        - gosec
-      path: internal/adapters/dtias/
-      text: "G402"
     # Allow G402 TLS InsecureSkipVerify in ONAP adapter (configurable with runtime warnings)
     - linters:
         - gosec

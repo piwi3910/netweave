@@ -368,21 +368,62 @@ func (u *AuthenticatedUser) HasPermission(perm Permission) bool {
 type AuditEventType string
 
 const (
-	AuditEventTenantCreated AuditEventType = "tenant.created"
-	AuditEventTenantUpdated AuditEventType = "tenant.updated"
-	AuditEventTenantDeleted AuditEventType = "tenant.deleted"
-
-	AuditEventUserCreated AuditEventType = "user.created"
-	AuditEventUserUpdated AuditEventType = "user.updated"
-	AuditEventUserDeleted AuditEventType = "user.deleted"
-
-	AuditEventRoleAssigned AuditEventType = "role.assigned"
-	AuditEventRoleRevoked  AuditEventType = "role.revoked"
-
-	AuditEventAuthSuccess AuditEventType = "auth.success"
-	AuditEventAuthFailure AuditEventType = "auth.failure"
-
+	// Authentication and authorization events.
+	AuditEventAuthSuccess  AuditEventType = "auth.success"
+	AuditEventAuthFailure  AuditEventType = "auth.failure"
 	AuditEventAccessDenied AuditEventType = "access.denied"
+
+	// Tenant lifecycle events.
+	AuditEventTenantCreated   AuditEventType = "tenant.created"
+	AuditEventTenantUpdated   AuditEventType = "tenant.updated"
+	AuditEventTenantDeleted   AuditEventType = "tenant.deleted"
+	AuditEventTenantSuspended AuditEventType = "tenant.suspended"
+	AuditEventTenantActivated AuditEventType = "tenant.activated"
+
+	// User lifecycle events.
+	AuditEventUserCreated  AuditEventType = "user.created"
+	AuditEventUserUpdated  AuditEventType = "user.updated"
+	AuditEventUserDeleted  AuditEventType = "user.deleted"
+	AuditEventUserEnabled  AuditEventType = "user.enabled"
+	AuditEventUserDisabled AuditEventType = "user.disabled"
+
+	// Role events.
+	AuditEventRoleAssigned           AuditEventType = "role.assigned"
+	AuditEventRoleRevoked            AuditEventType = "role.revoked"
+	AuditEventRolePermissionModified AuditEventType = "role.permission.modified"
+
+	// Resource events.
+	AuditEventResourceCreated  AuditEventType = "resource.created"
+	AuditEventResourceModified AuditEventType = "resource.modified"
+	AuditEventResourceDeleted  AuditEventType = "resource.deleted"
+
+	// Resource pool events.
+	AuditEventResourcePoolCreated  AuditEventType = "resourcepool.created"
+	AuditEventResourcePoolModified AuditEventType = "resourcepool.modified"
+	AuditEventResourcePoolDeleted  AuditEventType = "resourcepool.deleted"
+
+	// Deployment manager events.
+	AuditEventDeploymentManagerAccessed AuditEventType = "deploymentmanager.accessed"
+	AuditEventDeploymentManagerModified AuditEventType = "deploymentmanager.modified"
+
+	// Subscription events.
+	AuditEventSubscriptionCreated        AuditEventType = "subscription.created"
+	AuditEventSubscriptionDeleted        AuditEventType = "subscription.deleted"
+	AuditEventSubscriptionFilterModified AuditEventType = "subscription.filter.modified"
+	AuditEventWebhookDeliveryFailed      AuditEventType = "webhook.delivery.failed"
+	AuditEventSignatureVerificationFailed AuditEventType = "signature.verification.failed"
+
+	// Configuration events.
+	AuditEventQuotaUpdated     AuditEventType = "quota.updated"
+	AuditEventRateLimitUpdated AuditEventType = "ratelimit.updated"
+	AuditEventTLSConfigChanged AuditEventType = "tls.config.changed"
+	AuditEventSecuritySetting  AuditEventType = "security.setting.changed"
+
+	// Administrative events.
+	AuditEventBulkOperation AuditEventType = "admin.bulk.operation"
+	AuditEventAPIKeyRotated AuditEventType = "admin.apikey.rotated"
+	AuditEventConfigExport  AuditEventType = "admin.config.export"
+	AuditEventAuditExport   AuditEventType = "admin.audit.export"
 )
 
 // AuditEvent represents a logged security or administrative event.
