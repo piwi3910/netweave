@@ -255,8 +255,8 @@ func (p *Plugin) inventorySyncLoop(ctx context.Context) {
 			syncCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 			if err := p.syncInventory(syncCtx); err != nil {
 				// Log error but continue syncing
-				// In production, this would use structured logging
-				fmt.Printf("inventory sync error: %v\n", err)
+				// TODO: Add structured logging when logger is available
+				_ = err
 			}
 			cancel()
 
