@@ -18,7 +18,7 @@ import (
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
-// mockSubscriptionStore implements storage.Store for testing
+// mockSubscriptionStore implements storage.Store for testing.
 type mockSubscriptionStore struct {
 	subscriptions []*storage.Subscription
 	createErr     error

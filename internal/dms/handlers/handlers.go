@@ -82,7 +82,7 @@ const dnsLookupTimeout = 5 * time.Second
 // It ensures:
 // - The URL is properly formatted
 // - HTTPS is used (required for production)
-// - The host is not an internal/private IP address or cloud metadata endpoint
+// - The host is not an internal/private IP address or cloud metadata endpoint.
 func validateCallbackURL(callbackURL string) error {
 	parsed, err := url.Parse(callbackURL)
 	if err != nil {
@@ -287,7 +287,7 @@ func validateDeploymentName(name string) error {
 // NF Deployment Handlers
 
 // ListNFDeployments lists all NF deployments.
-// GET /o2dms/v1/nfDeployments
+// GET /o2dms/v1/nfDeployments.
 func (h *Handler) ListNFDeployments(c *gin.Context) {
 	h.logger.Info("listing NF deployments")
 
@@ -333,7 +333,7 @@ func (h *Handler) ListNFDeployments(c *gin.Context) {
 }
 
 // GetNFDeployment retrieves a specific NF deployment.
-// GET /o2dms/v1/nfDeployments/:nfDeploymentId
+// GET /o2dms/v1/nfDeployments/:nfDeploymentId.
 func (h *Handler) GetNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("getting NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
@@ -359,7 +359,7 @@ func (h *Handler) GetNFDeployment(c *gin.Context) {
 }
 
 // CreateNFDeployment creates a new NF deployment.
-// POST /o2dms/v1/nfDeployments
+// POST /o2dms/v1/nfDeployments.
 func (h *Handler) CreateNFDeployment(c *gin.Context) {
 	h.logger.Info("creating NF deployment")
 
@@ -406,7 +406,7 @@ func (h *Handler) CreateNFDeployment(c *gin.Context) {
 }
 
 // UpdateNFDeployment updates an existing NF deployment.
-// PUT /o2dms/v1/nfDeployments/:nfDeploymentId
+// PUT /o2dms/v1/nfDeployments/:nfDeploymentId.
 func (h *Handler) UpdateNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("updating NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
@@ -446,7 +446,7 @@ func (h *Handler) UpdateNFDeployment(c *gin.Context) {
 }
 
 // DeleteNFDeployment deletes an NF deployment.
-// DELETE /o2dms/v1/nfDeployments/:nfDeploymentId
+// DELETE /o2dms/v1/nfDeployments/:nfDeploymentId.
 func (h *Handler) DeleteNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("deleting NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
@@ -474,7 +474,7 @@ func (h *Handler) DeleteNFDeployment(c *gin.Context) {
 // Lifecycle Operations
 
 // ScaleNFDeployment scales an NF deployment.
-// POST /o2dms/v1/nfDeployments/:nfDeploymentId/scale
+// POST /o2dms/v1/nfDeployments/:nfDeploymentId/scale.
 func (h *Handler) ScaleNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("scaling NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
@@ -518,7 +518,7 @@ func (h *Handler) ScaleNFDeployment(c *gin.Context) {
 }
 
 // RollbackNFDeployment rolls back an NF deployment.
-// POST /o2dms/v1/nfDeployments/:nfDeploymentId/rollback
+// POST /o2dms/v1/nfDeployments/:nfDeploymentId/rollback.
 func (h *Handler) RollbackNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("rolling back NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
@@ -568,7 +568,7 @@ func (h *Handler) RollbackNFDeployment(c *gin.Context) {
 }
 
 // GetNFDeploymentStatus retrieves the status of an NF deployment.
-// GET /o2dms/v1/nfDeployments/:nfDeploymentId/status
+// GET /o2dms/v1/nfDeployments/:nfDeploymentId/status.
 func (h *Handler) GetNFDeploymentStatus(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("getting NF deployment status", zap.String("nf_deployment_id", nfDeploymentID))
@@ -594,7 +594,7 @@ func (h *Handler) GetNFDeploymentStatus(c *gin.Context) {
 }
 
 // GetNFDeploymentHistory retrieves the history of an NF deployment.
-// GET /o2dms/v1/nfDeployments/:nfDeploymentId/history
+// GET /o2dms/v1/nfDeployments/:nfDeploymentId/history.
 func (h *Handler) GetNFDeploymentHistory(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("getting NF deployment history", zap.String("nf_deployment_id", nfDeploymentID))
@@ -622,7 +622,7 @@ func (h *Handler) GetNFDeploymentHistory(c *gin.Context) {
 // NF Deployment Descriptor Handlers
 
 // ListNFDeploymentDescriptors lists all NF deployment descriptors.
-// GET /o2dms/v1/nfDeploymentDescriptors
+// GET /o2dms/v1/nfDeploymentDescriptors.
 func (h *Handler) ListNFDeploymentDescriptors(c *gin.Context) {
 	h.logger.Info("listing NF deployment descriptors")
 
@@ -663,7 +663,7 @@ func (h *Handler) ListNFDeploymentDescriptors(c *gin.Context) {
 }
 
 // GetNFDeploymentDescriptor retrieves a specific NF deployment descriptor.
-// GET /o2dms/v1/nfDeploymentDescriptors/:nfDeploymentDescriptorId
+// GET /o2dms/v1/nfDeploymentDescriptors/:nfDeploymentDescriptorId.
 func (h *Handler) GetNFDeploymentDescriptor(c *gin.Context) {
 	descriptorID := c.Param("nfDeploymentDescriptorId")
 	h.logger.Info("getting NF deployment descriptor", zap.String("descriptor_id", descriptorID))
@@ -689,7 +689,7 @@ func (h *Handler) GetNFDeploymentDescriptor(c *gin.Context) {
 }
 
 // CreateNFDeploymentDescriptor creates a new NF deployment descriptor.
-// POST /o2dms/v1/nfDeploymentDescriptors
+// POST /o2dms/v1/nfDeploymentDescriptors.
 func (h *Handler) CreateNFDeploymentDescriptor(c *gin.Context) {
 	h.logger.Info("creating NF deployment descriptor")
 
@@ -729,7 +729,7 @@ func (h *Handler) CreateNFDeploymentDescriptor(c *gin.Context) {
 }
 
 // DeleteNFDeploymentDescriptor deletes an NF deployment descriptor.
-// DELETE /o2dms/v1/nfDeploymentDescriptors/:nfDeploymentDescriptorId
+// DELETE /o2dms/v1/nfDeploymentDescriptors/:nfDeploymentDescriptorId.
 func (h *Handler) DeleteNFDeploymentDescriptor(c *gin.Context) {
 	descriptorID := c.Param("nfDeploymentDescriptorId")
 	h.logger.Info("deleting NF deployment descriptor", zap.String("descriptor_id", descriptorID))
@@ -757,7 +757,7 @@ func (h *Handler) DeleteNFDeploymentDescriptor(c *gin.Context) {
 // DMS Subscription Handlers
 
 // ListDMSSubscriptions lists all DMS subscriptions.
-// GET /o2dms/v1/subscriptions
+// GET /o2dms/v1/subscriptions.
 func (h *Handler) ListDMSSubscriptions(c *gin.Context) {
 	h.logger.Info("listing DMS subscriptions")
 
@@ -780,7 +780,7 @@ func (h *Handler) ListDMSSubscriptions(c *gin.Context) {
 }
 
 // GetDMSSubscription retrieves a specific DMS subscription.
-// GET /o2dms/v1/subscriptions/:subscriptionId
+// GET /o2dms/v1/subscriptions/:subscriptionId.
 func (h *Handler) GetDMSSubscription(c *gin.Context) {
 	subscriptionID := c.Param("subscriptionId")
 	h.logger.Info("getting DMS subscription", zap.String("subscription_id", subscriptionID))
@@ -805,7 +805,7 @@ func (h *Handler) GetDMSSubscription(c *gin.Context) {
 }
 
 // CreateDMSSubscription creates a new DMS subscription.
-// POST /o2dms/v1/subscriptions
+// POST /o2dms/v1/subscriptions.
 func (h *Handler) CreateDMSSubscription(c *gin.Context) {
 	h.logger.Info("creating DMS subscription")
 
@@ -853,7 +853,7 @@ func (h *Handler) CreateDMSSubscription(c *gin.Context) {
 }
 
 // DeleteDMSSubscription deletes a DMS subscription.
-// DELETE /o2dms/v1/subscriptions/:subscriptionId
+// DELETE /o2dms/v1/subscriptions/:subscriptionId.
 func (h *Handler) DeleteDMSSubscription(c *gin.Context) {
 	subscriptionID := c.Param("subscriptionId")
 	h.logger.Info("deleting DMS subscription", zap.String("subscription_id", subscriptionID))
@@ -880,7 +880,7 @@ func (h *Handler) DeleteDMSSubscription(c *gin.Context) {
 // API Info Handlers
 
 // GetDeploymentLifecycleInfo returns O2-DMS deployment lifecycle API information.
-// GET /o2dms/v1/deploymentLifecycle
+// GET /o2dms/v1/deploymentLifecycle.
 func (h *Handler) GetDeploymentLifecycleInfo(c *gin.Context) {
 	h.logger.Info("getting deployment lifecycle info")
 

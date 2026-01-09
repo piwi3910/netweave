@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	// Redis key prefixes
+	// Redis key prefixes.
 	subscriptionKeyPrefix         = "subscription:"
 	subscriptionSetKey            = "subscriptions:active"
 	subscriptionPoolIndexPrefix   = "subscriptions:pool:"

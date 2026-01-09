@@ -126,7 +126,7 @@ func (a *AzureAdapter) vmSizeToResourceType(vmSize *armcompute.VirtualMachineSiz
 }
 
 // extractVMFamily extracts the VM family from an Azure VM size name.
-// e.g., "Standard_D2s_v3" -> "D", "Standard_B2ms" -> "B"
+// e.g., "Standard_D2s_v3" -> "D", "Standard_B2ms" -> "B".
 func extractVMFamily(sizeName string) string {
 	// Remove "Standard_" prefix
 	name := strings.TrimPrefix(sizeName, "Standard_")

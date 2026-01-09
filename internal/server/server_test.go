@@ -17,7 +17,7 @@ import (
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
-// mockAdapter implements adapter.Adapter for testing
+// mockAdapter implements adapter.Adapter for testing.
 type mockAdapter struct{}
 
 var errNotFound = errors.New("not found")
@@ -77,7 +77,7 @@ func (m *mockAdapter) Close() error {
 	return nil
 }
 
-// mockStore implements storage.Store for testing
+// mockStore implements storage.Store for testing.
 type mockStore struct{}
 
 func (m *mockStore) Create(ctx context.Context, sub *storage.Subscription) error {

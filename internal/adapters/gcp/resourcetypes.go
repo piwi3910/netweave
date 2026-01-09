@@ -220,7 +220,7 @@ func (a *GCPAdapter) machineTypeToResourceType(mt *computepb.MachineType) *adapt
 }
 
 // extractMachineFamily extracts the machine family from a GCP machine type name.
-// e.g., "n1-standard-1" -> "n1", "e2-micro" -> "e2"
+// e.g., "n1-standard-1" -> "n1", "e2-micro" -> "e2".
 func extractMachineFamily(machineType string) string {
 	parts := strings.Split(machineType, "-")
 	if len(parts) > 0 {
