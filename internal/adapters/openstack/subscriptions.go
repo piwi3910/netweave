@@ -254,7 +254,7 @@ func (a *OpenStackAdapter) pollResourceChanges(ctx context.Context, state *subsc
 	for {
 		select {
 		case <-ctx.Done():
-			a.logger.Info("context cancelled, stopping polling",
+			a.logger.Info("context canceled, stopping polling",
 				zap.String("subscriptionID", state.subscription.SubscriptionID))
 			return
 
@@ -456,7 +456,7 @@ func (a *OpenStackAdapter) deliverWebhookWithRetries(
 			delay := defaultRetryDelay * time.Duration(backoffMultiplier)
 			select {
 			case <-ctx.Done():
-				return fmt.Errorf("context cancelled during retry: %w", ctx.Err())
+				return fmt.Errorf("context canceled during retry: %w", ctx.Err())
 			case <-time.After(delay):
 			}
 
