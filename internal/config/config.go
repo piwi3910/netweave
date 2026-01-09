@@ -137,8 +137,19 @@ type RedisConfig struct {
 	// MasterName is required for Sentinel mode (e.g., "mymaster")
 	MasterName string `mapstructure:"master_name"`
 
-	// Password for Redis authentication (optional)
+	// Password for Redis authentication (optional, DEPRECATED: use PasswordEnvVar or PasswordFile)
+	// WARNING: Storing passwords in config files is insecure. Use environment variables or secret files instead.
 	Password string `mapstructure:"password"`
+
+	// PasswordEnvVar specifies the environment variable name containing the Redis password
+	// Example: "REDIS_PASSWORD"
+	// This takes priority over PasswordFile if both are set
+	PasswordEnvVar string `mapstructure:"password_env_var"`
+
+	// PasswordFile specifies the path to a file containing the Redis password
+	// Example: "/run/secrets/redis-password" (Kubernetes Secret mount)
+	// The file should contain only the password, whitespace will be trimmed
+	PasswordFile string `mapstructure:"password_file"`
 
 	// DB is the Redis database number (0-15, only for standalone/sentinel)
 	DB int `mapstructure:"db"`
@@ -172,6 +183,36 @@ type RedisConfig struct {
 
 	// TLSInsecureSkipVerify skips TLS certificate verification (use only for testing)
 	TLSInsecureSkipVerify bool `mapstructure:"tls_insecure_skip_verify"`
+}
+
+// GetPassword retrieves the Redis password from the configured source.
+// Priority order:
+//  1. Environment variable (if PasswordEnvVar is set)
+//  2. File (if PasswordFile is set)
+//  3. Direct password (DEPRECATED, for backward compatibility)
+//
+// Returns empty string if no password is configured (Redis without authentication).
+func (c *RedisConfig) GetPassword() (string, error) {
+	// Priority 1: Environment variable
+	if c.PasswordEnvVar != "" {
+		if pwd := os.Getenv(c.PasswordEnvVar); pwd != "" {
+			return pwd, nil
+		}
+		// Env var specified but not set - this is an error
+		return "", fmt.Errorf("environment variable %s is not set", c.PasswordEnvVar)
+	}
+
+	// Priority 2: Password file
+	if c.PasswordFile != "" {
+		data, err := os.ReadFile(c.PasswordFile)
+		if err != nil {
+			return "", fmt.Errorf("failed to read password file %s: %w", c.PasswordFile, err)
+		}
+		return strings.TrimSpace(string(data)), nil
+	}
+
+	// Priority 3: Direct password (DEPRECATED)
+	return c.Password, nil
 }
 
 // KubernetesConfig contains Kubernetes client configuration.
