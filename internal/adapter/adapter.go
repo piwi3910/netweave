@@ -5,6 +5,7 @@ package adapter
 
 import (
 	"context"
+	"errors"
 )
 
 // Capability represents a feature that an adapter supports.
@@ -33,6 +34,28 @@ const (
 
 	// CapabilityHealthChecks indicates support for health status reporting.
 	CapabilityHealthChecks Capability = "health-checks"
+)
+
+// Sentinel errors for common adapter operations.
+// Adapters should return these errors to enable proper HTTP status code mapping.
+var (
+	// ErrResourceNotFound indicates the requested resource does not exist.
+	ErrResourceNotFound = errors.New("resource not found")
+
+	// ErrResourceExists indicates a resource with the given ID already exists.
+	ErrResourceExists = errors.New("resource already exists")
+
+	// ErrResourcePoolNotFound indicates the requested resource pool does not exist.
+	ErrResourcePoolNotFound = errors.New("resource pool not found")
+
+	// ErrResourcePoolExists indicates a resource pool with the given ID already exists.
+	ErrResourcePoolExists = errors.New("resource pool already exists")
+
+	// ErrInvalidResource indicates the resource has invalid fields or constraints.
+	ErrInvalidResource = errors.New("invalid resource")
+
+	// ErrNotImplemented indicates the operation is not yet implemented by the adapter.
+	ErrNotImplemented = errors.New("operation not implemented")
 )
 
 // Filter provides criteria for filtering O2-IMS resources.

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -480,6 +481,29 @@ func validateURN(urn string) error {
 	return nil
 }
 
+// validateExtensions validates resource extensions for size and content.
+func validateExtensions(extensions map[string]interface{}) error {
+	if len(extensions) > 100 {
+		return errors.New("extensions map must not exceed 100 keys")
+	}
+
+	for key, value := range extensions {
+		if len(key) > 256 {
+			return errors.New("extension keys must not exceed 256 characters")
+		}
+		// Check JSON-marshaled size to prevent large payloads
+		valueJSON, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("extension value for key %q must be JSON-serializable", key)
+		}
+		if len(valueJSON) > 4096 {
+			return errors.New("extension values must not exceed 4096 bytes when JSON-encoded")
+		}
+	}
+
+	return nil
+}
+
 // validateResourceFields validates resource field constraints.
 func validateResourceFields(resource *adapter.Resource) error {
 	// Validate GlobalAssetID format (URN) if provided
@@ -497,21 +521,10 @@ func validateResourceFields(resource *adapter.Resource) error {
 		return errors.New("description must not exceed 1000 characters")
 	}
 
-	// Validate Extensions size (prevent DoS)
+	// Validate Extensions
 	if resource.Extensions != nil {
-		if len(resource.Extensions) > 100 {
-			return errors.New("extensions map must not exceed 100 keys")
-		}
-		// Validate individual extension values
-		for key, value := range resource.Extensions {
-			if len(key) > 256 {
-				return errors.New("extension keys must not exceed 256 characters")
-			}
-			// Convert value to string representation to check size
-			valueStr := fmt.Sprintf("%v", value)
-			if len(valueStr) > 4096 {
-				return errors.New("extension values must not exceed 4096 characters")
-			}
+		if err := validateExtensions(resource.Extensions); err != nil {
+			return err
 		}
 	}
 
@@ -550,11 +563,21 @@ func (s *Server) handleGetResource(c *gin.Context) {
 	// Get resource via adapter
 	resource, err := s.adapter.GetResource(c.Request.Context(), resourceID)
 	if err != nil {
+		// Use sentinel error for better error detection
+		if errors.Is(err, adapter.ErrResourceNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource not found: " + resourceID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+
 		s.logger.Error("failed to get resource", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Resource not found: " + resourceID,
-			"code":    http.StatusNotFound,
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve resource",
+			"code":    http.StatusInternalServerError,
 		})
 		return
 	}
@@ -609,14 +632,14 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 	// Generate resource ID if not provided
 	if req.ResourceID == "" {
 		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()
-	} else {
-		// If custom ID provided, check for duplicates.
-		// NOTE: This check has a TOCTOU (Time-of-Check-Time-of-Use) race condition
-		// between GET and CREATE. In concurrent scenarios, two requests with the same
-		// custom ID could both pass this check. The adapter layer should enforce uniqueness
-		// as the final authority (e.g., via database unique constraints).
-		existing, err := s.adapter.GetResource(c.Request.Context(), req.ResourceID)
-		if err == nil && existing != nil {
+	}
+
+	// Create resource via adapter
+	// The adapter is responsible for enforcing uniqueness constraints.
+	created, err := s.adapter.CreateResource(c.Request.Context(), &req)
+	if err != nil {
+		// Check if error indicates duplicate resource using sentinel error
+		if errors.Is(err, adapter.ErrResourceExists) || strings.Contains(err.Error(), "already exists") {
 			c.JSON(http.StatusConflict, gin.H{
 				"error":   "Conflict",
 				"message": "Resource with ID " + req.ResourceID + " already exists",
@@ -624,11 +647,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 			})
 			return
 		}
-	}
 
-	// Create resource via adapter
-	created, err := s.adapter.CreateResource(c.Request.Context(), &req)
-	if err != nil {
 		s.logger.Error("failed to create resource", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
@@ -661,47 +680,84 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 		return
 	}
 
-	// Get existing resource to verify it exists
-	existing, err := s.adapter.GetResource(c.Request.Context(), resourceID)
-	if err != nil {
-		s.logger.Error("failed to get resource", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Resource not found: " + resourceID,
-			"code":    http.StatusNotFound,
-		})
-		return
+	// Get existing resource
+	existing, err := s.getExistingResource(c, resourceID)
+	if err != nil || existing == nil {
+		return // Response already sent
 	}
 
+	// Validate request
+	if err := s.validateUpdateRequest(c, &req, existing); err != nil {
+		return // Response already sent
+	}
+
+	// Apply update
+	s.applyResourceUpdate(c, resourceID, &req, existing)
+}
+
+// getExistingResource retrieves an existing resource and handles errors.
+func (s *Server) getExistingResource(c *gin.Context, resourceID string) (*adapter.Resource, error) {
+	existing, err := s.adapter.GetResource(c.Request.Context(), resourceID)
+	if err != nil {
+		if errors.Is(err, adapter.ErrResourceNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource not found: " + resourceID,
+				"code":    http.StatusNotFound,
+			})
+			return nil, err
+		}
+
+		s.logger.Error("failed to get resource", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve resource",
+			"code":    http.StatusInternalServerError,
+		})
+		return nil, err
+	}
+	return existing, nil
+}
+
+// validateUpdateRequest validates update request and immutable fields.
+func (s *Server) validateUpdateRequest(c *gin.Context, req, existing *adapter.Resource) error {
 	// Validate field constraints
-	if err := validateResourceFields(&req); err != nil {
+	if err := validateResourceFields(req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": err.Error(),
 			"code":    http.StatusBadRequest,
 		})
-		return
+		return err
 	}
 
-	// Enforce immutable fields - reject attempts to modify them
-	if req.ResourceTypeID != "" && req.ResourceTypeID != existing.ResourceTypeID {
+	// Check immutable fields
+	if err := checkImmutableFields(req, existing); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
-			"message": "resourceTypeId is immutable and cannot be changed",
+			"message": err.Error(),
 			"code":    http.StatusBadRequest,
 		})
-		return
+		return err
+	}
+
+	return nil
+}
+
+// checkImmutableFields validates that immutable fields haven't changed.
+func checkImmutableFields(req, existing *adapter.Resource) error {
+	if req.ResourceTypeID != "" && req.ResourceTypeID != existing.ResourceTypeID {
+		return errors.New("resourceTypeId is immutable and cannot be changed")
 	}
 	if req.ResourcePoolID != "" && req.ResourcePoolID != existing.ResourcePoolID {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "resourcePoolId is immutable and cannot be changed",
-			"code":    http.StatusBadRequest,
-		})
-		return
+		return errors.New("resourcePoolId is immutable and cannot be changed")
 	}
+	return nil
+}
 
-	// Preserve immutable fields (use existing values if not provided)
+// applyResourceUpdate performs the update operation.
+func (s *Server) applyResourceUpdate(c *gin.Context, resourceID string, req, existing *adapter.Resource) {
+	// Preserve immutable fields
 	req.ResourceID = resourceID
 	if req.ResourceTypeID == "" {
 		req.ResourceTypeID = existing.ResourceTypeID
@@ -711,7 +767,7 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 	}
 
 	// Update via adapter
-	updated, err := s.adapter.UpdateResource(c.Request.Context(), resourceID, &req)
+	updated, err := s.adapter.UpdateResource(c.Request.Context(), resourceID, req)
 	if err != nil {
 		s.logger.Error("failed to update resource", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{

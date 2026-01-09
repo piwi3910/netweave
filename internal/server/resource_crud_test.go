@@ -49,12 +49,17 @@ func (m *mockResourceAdapter) GetResource(_ context.Context, id string) (*adapte
 	if res, ok := m.resources[id]; ok {
 		return res, nil
 	}
-	return nil, errors.New("resource not found")
+	return nil, adapter.ErrResourceNotFound
 }
 
 func (m *mockResourceAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Check for duplicate resource ID
+	if _, exists := m.resources[resource.ResourceID]; exists {
+		return nil, fmt.Errorf("resource with ID %s already exists: %w", resource.ResourceID, adapter.ErrResourceExists)
+	}
 
 	m.resources[resource.ResourceID] = resource
 	return resource, nil
@@ -69,7 +74,7 @@ func (m *mockResourceAdapter) UpdateResource(
 	defer m.mu.Unlock()
 
 	if _, ok := m.resources[id]; !ok {
-		return nil, errors.New("resource not found")
+		return nil, adapter.ErrResourceNotFound
 	}
 	// Update the resource in the map
 	resource.ResourceID = id
@@ -451,4 +456,104 @@ func TestResourceCRUD(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, resp.Code)
 		assert.Contains(t, resp.Body.String(), "already exists")
 	})
+
+	// Adapter error scenario tests
+	t.Run("POST /resources - adapter error on create", func(t *testing.T) {
+		// Create a mock that returns an error
+		mockAdp := &mockResourceAdapter{
+			resources: map[string]*adapter.Resource{},
+		}
+		srv := New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, "create"}, &mockStore{})
+
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Description:    "Test resource",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusInternalServerError, resp.Code)
+		assert.Contains(t, resp.Body.String(), "Failed to create resource")
+	})
+
+	t.Run("PUT /resources/:id - adapter error on update", func(t *testing.T) {
+		// Create a mock with existing resource that returns error on update
+		mockAdp := &mockResourceAdapter{
+			resources: map[string]*adapter.Resource{
+				"test-res-123": {
+					ResourceID:     "test-res-123",
+					ResourceTypeID: "machine",
+					ResourcePoolID: "pool-1",
+					Description:    "Original",
+				},
+			},
+		}
+		srv := New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, "update"}, &mockStore{})
+
+		resource := adapter.Resource{
+			Description: "Updated description",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/resources/test-res-123",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusInternalServerError, resp.Code)
+		assert.Contains(t, resp.Body.String(), "Failed to update resource")
+	})
+}
+
+// errorReturningAdapter wraps a mock adapter and returns errors for specific operations.
+type errorReturningAdapter struct {
+	*mockResourceAdapter
+	errorOn string // "create", "update", "get"
+}
+
+func (e *errorReturningAdapter) CreateResource(
+	ctx context.Context,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
+	if e.errorOn == "create" {
+		return nil, errors.New("simulated adapter create error")
+	}
+	return e.mockResourceAdapter.CreateResource(ctx, resource)
+}
+
+func (e *errorReturningAdapter) UpdateResource(
+	ctx context.Context,
+	id string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
+	if e.errorOn == "update" {
+		return nil, errors.New("simulated adapter update error")
+	}
+	return e.mockResourceAdapter.UpdateResource(ctx, id, resource)
+}
+
+func (e *errorReturningAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+	if e.errorOn == "get" {
+		return nil, errors.New("simulated adapter get error")
+	}
+	return e.mockResourceAdapter.GetResource(ctx, id)
 }
