@@ -82,7 +82,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download SBOM
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: sbom-syft
 
@@ -182,7 +182,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download SBOM artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: sbom-syft
 
@@ -239,12 +239,12 @@ jobs:
     if: always()
     steps:
       - name: Download SBOM artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: sbom-syft
 
       - name: Download Grype report
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: grype-report
         continue-on-error: true
