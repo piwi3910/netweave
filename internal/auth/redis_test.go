@@ -26,7 +26,7 @@ func setupTestRedis(t *testing.T) (*RedisStore, *miniredis.Miniredis) {
 
 func TestRedisStore_TenantOperations(t *testing.T) {
 	store, _ := setupTestRedis(t)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -130,7 +130,7 @@ func TestRedisStore_TenantOperations(t *testing.T) {
 
 func TestRedisStore_UsageOperations(t *testing.T) {
 	store, _ := setupTestRedis(t)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -194,7 +194,7 @@ func TestRedisStore_UsageOperations(t *testing.T) {
 
 func TestRedisStore_UserOperations(t *testing.T) {
 	store, _ := setupTestRedis(t)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -313,7 +313,7 @@ func TestRedisStore_UserOperations(t *testing.T) {
 
 func TestRedisStore_RoleOperations(t *testing.T) {
 	store, _ := setupTestRedis(t)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -415,7 +415,7 @@ func TestRedisStore_RoleOperations(t *testing.T) {
 
 func TestRedisStore_AuditOperations(t *testing.T) {
 	store, _ := setupTestRedis(t)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -567,7 +567,7 @@ func TestListTenants(t *testing.T) {
 
 	cfg := &RedisConfig{Addr: mr.Addr()}
 	store := NewRedisStore(cfg)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -615,7 +615,7 @@ func TestIncrementUsage(t *testing.T) {
 
 	cfg := &RedisConfig{Addr: mr.Addr()}
 	store := NewRedisStore(cfg)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -654,7 +654,7 @@ func TestDecrementUsage(t *testing.T) {
 
 	cfg := &RedisConfig{Addr: mr.Addr()}
 	store := NewRedisStore(cfg)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -694,7 +694,7 @@ func TestUpdateTenant(t *testing.T) {
 
 	cfg := &RedisConfig{Addr: mr.Addr()}
 	store := NewRedisStore(cfg)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -735,7 +735,7 @@ func TestDeleteTenant(t *testing.T) {
 
 	cfg := &RedisConfig{Addr: mr.Addr()}
 	store := NewRedisStore(cfg)
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
