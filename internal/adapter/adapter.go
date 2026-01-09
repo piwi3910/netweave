@@ -5,6 +5,22 @@ package adapter
 
 import (
 	"context"
+	"errors"
+)
+
+// Sentinel errors for common adapter operations
+var (
+	// ErrResourcePoolExists indicates that a resource pool with the given ID already exists
+	ErrResourcePoolExists = errors.New("resource pool already exists")
+
+	// ErrResourcePoolNotFound indicates that the requested resource pool was not found
+	ErrResourcePoolNotFound = errors.New("resource pool not found")
+
+	// ErrResourceExists indicates that a resource with the given ID already exists
+	ErrResourceExists = errors.New("resource already exists")
+
+	// ErrResourceNotFound indicates that the requested resource was not found
+	ErrResourceNotFound = errors.New("resource not found")
 )
 
 // Capability represents a feature that an adapter supports.

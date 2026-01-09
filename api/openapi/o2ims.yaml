@@ -237,6 +237,8 @@ paths:
                 $ref: '#/components/schemas/ResourcePool'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -935,6 +937,17 @@ components:
             error: "NotFound"
             message: "Resource not found: node-001"
             code: 404
+
+    Conflict:
+      description: Resource already exists or conflict with current state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Conflict"
+            message: "Resource pool with ID pool-123 already exists"
+            code: 409
 
     InternalServerError:
       description: Internal server error
