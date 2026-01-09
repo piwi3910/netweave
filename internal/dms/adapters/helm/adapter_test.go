@@ -841,14 +841,14 @@ func TestHelmAdapter_LoadRepositoryIndex(t *testing.T) {
 // TestHelmAdapter_DeleteDeployment tests the DeleteDeployment function.
 func TestHelmAdapter_DeleteDeployment(t *testing.T) {
 	tests := []struct {
-		name           string
-		releaseID      string
-		expectError    bool
-		errorContains  string
+		name          string
+		releaseID     string
+		expectError   bool
+		errorContains string
 	}{
 		{
-			name:      "successful deletion",
-			releaseID: "test-release",
+			name:        "successful deletion",
+			releaseID:   "test-release",
 			expectError: false,
 		},
 		{
