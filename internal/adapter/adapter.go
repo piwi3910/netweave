@@ -8,21 +8,6 @@ import (
 	"errors"
 )
 
-// Sentinel errors for common adapter operations
-var (
-	// ErrResourcePoolExists indicates that a resource pool with the given ID already exists
-	ErrResourcePoolExists = errors.New("resource pool already exists")
-
-	// ErrResourcePoolNotFound indicates that the requested resource pool was not found
-	ErrResourcePoolNotFound = errors.New("resource pool not found")
-
-	// ErrResourceExists indicates that a resource with the given ID already exists
-	ErrResourceExists = errors.New("resource already exists")
-
-	// ErrResourceNotFound indicates that the requested resource was not found
-	ErrResourceNotFound = errors.New("resource not found")
-)
-
 // Capability represents a feature that an adapter supports.
 // Capabilities are used during adapter selection to ensure the chosen
 // adapter can fulfill the requirements of a specific O2-IMS operation.
@@ -49,6 +34,28 @@ const (
 
 	// CapabilityHealthChecks indicates support for health status reporting.
 	CapabilityHealthChecks Capability = "health-checks"
+)
+
+// Sentinel errors for common adapter operations.
+// Adapters should return these errors to enable proper HTTP status code mapping.
+var (
+	// ErrResourceNotFound indicates the requested resource does not exist.
+	ErrResourceNotFound = errors.New("resource not found")
+
+	// ErrResourceExists indicates a resource with the given ID already exists.
+	ErrResourceExists = errors.New("resource already exists")
+
+	// ErrResourcePoolNotFound indicates the requested resource pool does not exist.
+	ErrResourcePoolNotFound = errors.New("resource pool not found")
+
+	// ErrResourcePoolExists indicates a resource pool with the given ID already exists.
+	ErrResourcePoolExists = errors.New("resource pool already exists")
+
+	// ErrInvalidResource indicates the resource has invalid fields or constraints.
+	ErrInvalidResource = errors.New("invalid resource")
+
+	// ErrNotImplemented indicates the operation is not yet implemented by the adapter.
+	ErrNotImplemented = errors.New("operation not implemented")
 )
 
 // Filter provides criteria for filtering O2-IMS resources.
@@ -274,6 +281,11 @@ type Adapter interface {
 	// CreateResource creates a new resource (e.g., provision a new node).
 	// Returns the created resource with server-assigned fields populated.
 	CreateResource(ctx context.Context, resource *Resource) (*Resource, error)
+
+	// UpdateResource updates an existing resource's mutable fields (description, globalAssetId, extensions).
+	// Immutable fields (resourceId, resourceTypeId, resourcePoolId) cannot be changed.
+	// Returns the updated resource or an error if the resource doesn't exist.
+	UpdateResource(ctx context.Context, id string, resource *Resource) (*Resource, error)
 
 	// DeleteResource deletes a resource by ID (e.g., deprovision a node).
 	// Returns an error if the resource doesn't exist or cannot be deleted.

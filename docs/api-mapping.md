@@ -1355,7 +1355,7 @@ func transformO2ResourceToMachine(resource *models.Resource) *machinev1beta1.Mac
 | List | GET | `/resources` | List Nodes (or Machines) |
 | Get | GET | `/resources/{id}` | Get Node |
 | Create | POST | `/resources` | Create Machine (triggers Node) |
-| ~~Update~~ | ~~PUT~~ | ~~N/A~~ | Not supported (nodes are immutable) |
+| Update | PUT | `/resources/{id}` | Update mutable fields (description, globalAssetId, extensions) |
 | Delete | DELETE | `/resources/{id}` | Delete Machine or drain+delete Node |
 
 ---

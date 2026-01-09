@@ -261,6 +261,116 @@ func TestMiddleware_AuthenticationMiddleware_SkipPaths(t *testing.T) {
 	}
 }
 
+// TestMiddleware_AuthenticationMiddleware_SkipPaths_EdgeCases tests edge cases for skip paths.
+func TestMiddleware_AuthenticationMiddleware_SkipPaths_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		skipPaths  []string
+		wantStatus int
+	}{
+		{
+			name:       "empty skip paths list requires auth",
+			path:       "/health",
+			skipPaths:  []string{},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "nil skip paths list requires auth",
+			path:       "/health",
+			skipPaths:  nil,
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "path with trailing slash - exact match without slash",
+			path:       "/health/",
+			skipPaths:  []string{"/health"},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "path without trailing slash - skip has slash",
+			path:       "/health",
+			skipPaths:  []string{"/health/"},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "path with query parameters - exact match",
+			path:       "/health?check=liveness",
+			skipPaths:  []string{"/health"},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "nested path under wildcard",
+			path:       "/api/v1/public/users/123/profile",
+			skipPaths:  []string{"/api/v1/public/*"},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "partial path match should not skip",
+			path:       "/healthcheck",
+			skipPaths:  []string{"/health"},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "multiple skip paths - first matches",
+			path:       "/ready",
+			skipPaths:  []string{"/ready", "/health", "/metrics"},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "multiple skip paths - last matches",
+			path:       "/metrics",
+			skipPaths:  []string{"/ready", "/health", "/metrics"},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "root path skipped",
+			path:       "/",
+			skipPaths:  []string{"/"},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "double wildcard pattern",
+			path:       "/api/v1/public/nested/deep/path",
+			skipPaths:  []string{"/api/*/public/*"},
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newMockStore()
+			config := &MiddlewareConfig{
+				Enabled:     true,
+				SkipPaths:   tt.skipPaths,
+				RequireMTLS: true,
+			}
+			mw := setupTestMiddleware(t, store, config)
+
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+			router.Use(mw.AuthenticationMiddleware())
+
+			// Register routes for all test paths
+			router.GET("/health", func(c *gin.Context) { c.Status(http.StatusOK) })
+			router.GET("/health/", func(c *gin.Context) { c.Status(http.StatusOK) })
+			router.GET("/healthcheck", func(c *gin.Context) { c.Status(http.StatusOK) })
+			router.GET("/ready", func(c *gin.Context) { c.Status(http.StatusOK) })
+			router.GET("/metrics", func(c *gin.Context) { c.Status(http.StatusOK) })
+			router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+			router.GET("/api/v1/public/users/:id/profile", func(c *gin.Context) { c.Status(http.StatusOK) })
+			router.GET("/api/v1/public/nested/deep/path", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.wantStatus, w.Code, "path: %s, skipPaths: %v", tt.path, tt.skipPaths)
+		})
+	}
+}
+
 // TestMiddleware_AuthenticationMiddleware_NoCertificate tests behavior without client cert.
 func TestMiddleware_AuthenticationMiddleware_NoCertificate(t *testing.T) {
 	tests := []struct {

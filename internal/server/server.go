@@ -291,6 +291,9 @@ func (s *Server) setupMiddleware() {
 	// Recovery middleware - must be first to catch panics
 	s.router.Use(s.recoveryMiddleware())
 
+	// Security headers middleware - add early to ensure headers are set
+	s.router.Use(s.securityHeadersMiddleware())
+
 	// Request logging middleware
 	s.router.Use(s.loggingMiddleware())
 
@@ -314,6 +317,36 @@ func (s *Server) setupMiddleware() {
 		s.router.Use(s.openAPIValidator.Middleware())
 		s.logger.Info("OpenAPI request validation enabled")
 	}
+}
+
+// securityHeadersMiddleware returns the security headers middleware.
+func (s *Server) securityHeadersMiddleware() gin.HandlerFunc {
+	config := &middleware.SecurityHeadersConfig{
+		Enabled:               s.config.Security.SecurityHeaders.Enabled,
+		HSTSMaxAge:            s.config.Security.SecurityHeaders.HSTSMaxAge,
+		HSTSIncludeSubDomains: s.config.Security.SecurityHeaders.HSTSIncludeSubDomains,
+		HSTSPreload:           s.config.Security.SecurityHeaders.HSTSPreload,
+		ContentSecurityPolicy: s.config.Security.SecurityHeaders.ContentSecurityPolicy,
+		FrameOptions:          s.config.Security.SecurityHeaders.FrameOptions,
+		ReferrerPolicy:        s.config.Security.SecurityHeaders.ReferrerPolicy,
+		TLSEnabled:            s.config.TLS.Enabled,
+	}
+
+	// Apply defaults if not configured
+	if config.ContentSecurityPolicy == "" {
+		config.ContentSecurityPolicy = "default-src 'none'; frame-ancestors 'none'"
+	}
+	if config.FrameOptions == "" {
+		config.FrameOptions = "DENY"
+	}
+	if config.ReferrerPolicy == "" {
+		config.ReferrerPolicy = "strict-origin-when-cross-origin"
+	}
+	if config.HSTSMaxAge == 0 {
+		config.HSTSMaxAge = 31536000 // 1 year
+	}
+
+	return middleware.SecurityHeaders(config)
 }
 
 // Start starts the HTTP server and blocks until the server is shut down.
@@ -491,6 +524,38 @@ func (s *Server) SetSMORegistry(registry *smo.Registry) {
 // This can be used to register additional plugins after server creation.
 func (s *Server) SMORegistry() *smo.Registry {
 	return s.smoRegistry
+}
+
+// SetupAuth configures multi-tenancy and RBAC for the server.
+// It sets up authentication middleware, authorization checks, and tenant/user/role management routes.
+// This must be called after creating the server and before starting it.
+// If authStore is nil, this method is a no-op (multi-tenancy disabled).
+func (s *Server) SetupAuth(authStore AuthStore, authMw AuthMiddleware) {
+	if authStore == nil || authMw == nil {
+		s.logger.Info("multi-tenancy is disabled, skipping auth setup")
+		return
+	}
+
+	s.authStore = authStore
+	s.authMw = authMw
+
+	// Register auth store health check.
+	if s.healthCheck != nil {
+		s.healthCheck.RegisterHealthCheck("auth_store", func(ctx context.Context) error {
+			return s.authStore.Ping(ctx)
+		})
+		s.healthCheck.RegisterReadinessCheck("auth_store", func(ctx context.Context) error {
+			return s.authStore.Ping(ctx)
+		})
+	}
+
+	s.logger.Info("multi-tenancy and RBAC enabled")
+}
+
+// AuthStore returns the authentication store.
+// Returns nil if auth is not configured.
+func (s *Server) AuthStore() AuthStore {
+	return s.authStore
 }
 
 // recoveryMiddleware recovers from panics and logs the error.
