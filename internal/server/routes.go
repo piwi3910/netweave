@@ -80,6 +80,9 @@ func (s *Server) setupRoutes() {
 		// O-Cloud Infrastructure Information
 		// Endpoint: /oCloudInfrastructure
 		v1.GET("/oCloudInfrastructure", s.handleGetOCloudInfrastructure)
+
+		// API version endpoint
+		v1.GET("", s.handleAPIInfo)
 	}
 
 	// API information endpoint
