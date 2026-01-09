@@ -434,3 +434,649 @@ func (m *mockStore) Close() error {
 func (m *mockStore) Ping(_ context.Context) error {
 	return nil
 }
+
+// TestHandleNodeAdd tests the handleNodeAdd function.
+func TestHandleNodeAdd(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer rdb.Close()
+
+	clientset := fake.NewSimpleClientset()
+	store := &mockStore{
+		subscriptions: []*storage.Subscription{
+			{
+				ID:       "sub-123",
+				Callback: "http://example.com/callback",
+				Filter:   storage.SubscriptionFilter{},
+			},
+		},
+	}
+	logger := zaptest.NewLogger(t)
+
+	ctrl, err := NewSubscriptionController(&Config{
+		K8sClient:   clientset,
+		Store:       store,
+		RedisClient: rdb,
+		Logger:      logger,
+		OCloudID:    "test-ocloud",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("valid node add", func(t *testing.T) {
+		node := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-node",
+				UID:  "node-123",
+			},
+			Status: corev1.NodeStatus{
+				Conditions: []corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionTrue,
+					},
+				},
+			},
+		}
+
+		ctrl.handleNodeAdd(node)
+
+		time.Sleep(100 * time.Millisecond)
+
+		streams, err := rdb.XRead(ctx, &redis.XReadArgs{
+			Streams: []string{EventStreamKey, "0"},
+			Count:   1,
+		}).Result()
+		require.NoError(t, err)
+		require.Len(t, streams, 1)
+		require.Len(t, streams[0].Messages, 1)
+
+		var event ResourceEvent
+		eventData := streams[0].Messages[0].Values["event"].(string)
+		err = json.Unmarshal([]byte(eventData), &event)
+		require.NoError(t, err)
+
+		assert.Contains(t, event.EventType, string(EventTypeCreated))
+		assert.Equal(t, "k8s-node", event.ResourceTypeID)
+		assert.Equal(t, "test-node", event.GlobalResourceID)
+	})
+
+	t.Run("nil node", func(t *testing.T) {
+		ctrl.handleNodeAdd(nil)
+	})
+
+	t.Run("invalid node type", func(t *testing.T) {
+		ctrl.handleNodeAdd("not-a-node")
+	})
+}
+
+// TestHandleNodeUpdate tests the handleNodeUpdate function.
+func TestHandleNodeUpdate(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer rdb.Close()
+
+	clientset := fake.NewSimpleClientset()
+	store := &mockStore{
+		subscriptions: []*storage.Subscription{
+			{
+				ID:       "sub-123",
+				Callback: "http://example.com/callback",
+				Filter:   storage.SubscriptionFilter{},
+			},
+		},
+	}
+	logger := zaptest.NewLogger(t)
+
+	ctrl, err := NewSubscriptionController(&Config{
+		K8sClient:   clientset,
+		Store:       store,
+		RedisClient: rdb,
+		Logger:      logger,
+		OCloudID:    "test-ocloud",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("valid node update", func(t *testing.T) {
+		oldNode := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            "test-node",
+				UID:             "node-123",
+				ResourceVersion: "1",
+			},
+		}
+
+		newNode := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            "test-node",
+				UID:             "node-123",
+				ResourceVersion: "2",
+			},
+			Status: corev1.NodeStatus{
+				Conditions: []corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionTrue,
+					},
+				},
+			},
+		}
+
+		ctrl.handleNodeUpdate(oldNode, newNode)
+
+		time.Sleep(100 * time.Millisecond)
+
+		streams, err := rdb.XRead(ctx, &redis.XReadArgs{
+			Streams: []string{EventStreamKey, "0"},
+			Count:   1,
+		}).Result()
+		require.NoError(t, err)
+		require.Len(t, streams, 1)
+		require.Len(t, streams[0].Messages, 1)
+
+		var event ResourceEvent
+		eventData := streams[0].Messages[0].Values["event"].(string)
+		err = json.Unmarshal([]byte(eventData), &event)
+		require.NoError(t, err)
+
+		assert.Contains(t, event.EventType, string(EventTypeUpdated))
+		assert.Equal(t, "k8s-node", event.ResourceTypeID)
+		assert.Equal(t, "test-node", event.GlobalResourceID)
+	})
+
+	t.Run("nil old node", func(t *testing.T) {
+		newNode := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-node",
+			},
+		}
+		ctrl.handleNodeUpdate(nil, newNode)
+	})
+
+	t.Run("nil new node", func(t *testing.T) {
+		oldNode := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-node",
+			},
+		}
+		ctrl.handleNodeUpdate(oldNode, nil)
+	})
+
+	t.Run("invalid node types", func(t *testing.T) {
+		ctrl.handleNodeUpdate("not-a-node", "also-not-a-node")
+	})
+}
+
+// TestHandleNodeDelete tests the handleNodeDelete function.
+func TestHandleNodeDelete(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer rdb.Close()
+
+	clientset := fake.NewSimpleClientset()
+	store := &mockStore{
+		subscriptions: []*storage.Subscription{
+			{
+				ID:       "sub-123",
+				Callback: "http://example.com/callback",
+				Filter:   storage.SubscriptionFilter{},
+			},
+		},
+	}
+	logger := zaptest.NewLogger(t)
+
+	ctrl, err := NewSubscriptionController(&Config{
+		K8sClient:   clientset,
+		Store:       store,
+		RedisClient: rdb,
+		Logger:      logger,
+		OCloudID:    "test-ocloud",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("valid node delete", func(t *testing.T) {
+		node := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-node",
+				UID:  "node-123",
+			},
+		}
+
+		ctrl.handleNodeDelete(node)
+
+		time.Sleep(100 * time.Millisecond)
+
+		streams, err := rdb.XRead(ctx, &redis.XReadArgs{
+			Streams: []string{EventStreamKey, "0"},
+			Count:   1,
+		}).Result()
+		require.NoError(t, err)
+		require.Len(t, streams, 1)
+		require.Len(t, streams[0].Messages, 1)
+
+		var event ResourceEvent
+		eventData := streams[0].Messages[0].Values["event"].(string)
+		err = json.Unmarshal([]byte(eventData), &event)
+		require.NoError(t, err)
+
+		assert.Contains(t, event.EventType, string(EventTypeDeleted))
+		assert.Equal(t, "k8s-node", event.ResourceTypeID)
+		assert.Equal(t, "test-node", event.GlobalResourceID)
+	})
+
+	t.Run("nil node", func(t *testing.T) {
+		ctrl.handleNodeDelete(nil)
+	})
+
+	t.Run("invalid node type", func(t *testing.T) {
+		ctrl.handleNodeDelete("not-a-node")
+	})
+}
+
+// TestHandleNamespaceAdd tests the handleNamespaceAdd function.
+func TestHandleNamespaceAdd(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer rdb.Close()
+
+	clientset := fake.NewSimpleClientset()
+	store := &mockStore{
+		subscriptions: []*storage.Subscription{
+			{
+				ID:       "sub-123",
+				Callback: "http://example.com/callback",
+				Filter:   storage.SubscriptionFilter{},
+			},
+		},
+	}
+	logger := zaptest.NewLogger(t)
+
+	ctrl, err := NewSubscriptionController(&Config{
+		K8sClient:   clientset,
+		Store:       store,
+		RedisClient: rdb,
+		Logger:      logger,
+		OCloudID:    "test-ocloud",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("valid namespace add", func(t *testing.T) {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-namespace",
+				UID:  "ns-123",
+			},
+		}
+
+		ctrl.handleNamespaceAdd(ns)
+
+		time.Sleep(100 * time.Millisecond)
+
+		streams, err := rdb.XRead(ctx, &redis.XReadArgs{
+			Streams: []string{EventStreamKey, "0"},
+			Count:   1,
+		}).Result()
+		require.NoError(t, err)
+		require.Len(t, streams, 1)
+		require.Len(t, streams[0].Messages, 1)
+
+		var event ResourceEvent
+		eventData := streams[0].Messages[0].Values["event"].(string)
+		err = json.Unmarshal([]byte(eventData), &event)
+		require.NoError(t, err)
+
+		assert.Contains(t, event.EventType, string(EventTypeCreated))
+		assert.Equal(t, "k8s-namespace", event.ResourceTypeID)
+		assert.Equal(t, "test-namespace", event.GlobalResourceID)
+	})
+
+	t.Run("nil namespace", func(t *testing.T) {
+		ctrl.handleNamespaceAdd(nil)
+	})
+
+	t.Run("invalid namespace type", func(t *testing.T) {
+		ctrl.handleNamespaceAdd("not-a-namespace")
+	})
+}
+
+// TestHandleNamespaceUpdate tests the handleNamespaceUpdate function.
+func TestHandleNamespaceUpdate(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer rdb.Close()
+
+	clientset := fake.NewSimpleClientset()
+	store := &mockStore{
+		subscriptions: []*storage.Subscription{
+			{
+				ID:       "sub-123",
+				Callback: "http://example.com/callback",
+				Filter:   storage.SubscriptionFilter{},
+			},
+		},
+	}
+	logger := zaptest.NewLogger(t)
+
+	ctrl, err := NewSubscriptionController(&Config{
+		K8sClient:   clientset,
+		Store:       store,
+		RedisClient: rdb,
+		Logger:      logger,
+		OCloudID:    "test-ocloud",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("valid namespace update", func(t *testing.T) {
+		oldNs := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            "test-namespace",
+				UID:             "ns-123",
+				ResourceVersion: "1",
+			},
+		}
+
+		newNs := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            "test-namespace",
+				UID:             "ns-123",
+				ResourceVersion: "2",
+			},
+			Status: corev1.NamespaceStatus{
+				Phase: corev1.NamespaceActive,
+			},
+		}
+
+		ctrl.handleNamespaceUpdate(oldNs, newNs)
+
+		time.Sleep(100 * time.Millisecond)
+
+		streams, err := rdb.XRead(ctx, &redis.XReadArgs{
+			Streams: []string{EventStreamKey, "0"},
+			Count:   1,
+		}).Result()
+		require.NoError(t, err)
+		require.Len(t, streams, 1)
+		require.Len(t, streams[0].Messages, 1)
+
+		var event ResourceEvent
+		eventData := streams[0].Messages[0].Values["event"].(string)
+		err = json.Unmarshal([]byte(eventData), &event)
+		require.NoError(t, err)
+
+		assert.Contains(t, event.EventType, string(EventTypeUpdated))
+		assert.Equal(t, "k8s-namespace", event.ResourceTypeID)
+		assert.Equal(t, "test-namespace", event.GlobalResourceID)
+	})
+
+	t.Run("nil old namespace", func(t *testing.T) {
+		newNs := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-namespace",
+			},
+		}
+		ctrl.handleNamespaceUpdate(nil, newNs)
+	})
+
+	t.Run("nil new namespace", func(t *testing.T) {
+		oldNs := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-namespace",
+			},
+		}
+		ctrl.handleNamespaceUpdate(oldNs, nil)
+	})
+
+	t.Run("invalid namespace types", func(t *testing.T) {
+		ctrl.handleNamespaceUpdate("not-a-namespace", "also-not-a-namespace")
+	})
+}
+
+// TestHandleNamespaceDelete tests the handleNamespaceDelete function.
+func TestHandleNamespaceDelete(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer rdb.Close()
+
+	clientset := fake.NewSimpleClientset()
+	store := &mockStore{
+		subscriptions: []*storage.Subscription{
+			{
+				ID:       "sub-123",
+				Callback: "http://example.com/callback",
+				Filter:   storage.SubscriptionFilter{},
+			},
+		},
+	}
+	logger := zaptest.NewLogger(t)
+
+	ctrl, err := NewSubscriptionController(&Config{
+		K8sClient:   clientset,
+		Store:       store,
+		RedisClient: rdb,
+		Logger:      logger,
+		OCloudID:    "test-ocloud",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("valid namespace delete", func(t *testing.T) {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-namespace",
+				UID:  "ns-123",
+			},
+		}
+
+		ctrl.handleNamespaceDelete(ns)
+
+		time.Sleep(100 * time.Millisecond)
+
+		streams, err := rdb.XRead(ctx, &redis.XReadArgs{
+			Streams: []string{EventStreamKey, "0"},
+			Count:   1,
+		}).Result()
+		require.NoError(t, err)
+		require.Len(t, streams, 1)
+		require.Len(t, streams[0].Messages, 1)
+
+		var event ResourceEvent
+		eventData := streams[0].Messages[0].Values["event"].(string)
+		err = json.Unmarshal([]byte(eventData), &event)
+		require.NoError(t, err)
+
+		assert.Contains(t, event.EventType, string(EventTypeDeleted))
+		assert.Equal(t, "k8s-namespace", event.ResourceTypeID)
+		assert.Equal(t, "test-namespace", event.GlobalResourceID)
+	})
+
+	t.Run("nil namespace", func(t *testing.T) {
+		ctrl.handleNamespaceDelete(nil)
+	})
+
+	t.Run("invalid namespace type", func(t *testing.T) {
+		ctrl.handleNamespaceDelete("not-a-namespace")
+	})
+}
+
+// TestGetNodeByName tests the GetNodeByName function.
+func TestGetNodeByName(t *testing.T) {
+	clientset := fake.NewSimpleClientset()
+	store := &mockStore{}
+	logger := zaptest.NewLogger(t)
+
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer rdb.Close()
+
+	ctrl, err := NewSubscriptionController(&Config{
+		K8sClient:   clientset,
+		Store:       store,
+		RedisClient: rdb,
+		Logger:      logger,
+		OCloudID:    "test-ocloud",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("node exists", func(t *testing.T) {
+		node := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-node",
+				UID:  "node-123",
+			},
+		}
+		_, err := clientset.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
+		require.NoError(t, err)
+
+		result, err := ctrl.GetNodeByName(ctx, "test-node")
+		require.NoError(t, err)
+		assert.Equal(t, "test-node", result.Name)
+		assert.Equal(t, "node-123", string(result.UID))
+	})
+
+	t.Run("node does not exist", func(t *testing.T) {
+		result, err := ctrl.GetNodeByName(ctx, "nonexistent-node")
+		assert.Error(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("empty node name", func(t *testing.T) {
+		result, err := ctrl.GetNodeByName(ctx, "")
+		assert.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+// TestStart tests the Start function.
+func TestStart(t *testing.T) {
+	clientset := fake.NewSimpleClientset()
+	store := &mockStore{}
+	logger := zaptest.NewLogger(t)
+
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer rdb.Close()
+
+	ctrl, err := NewSubscriptionController(&Config{
+		K8sClient:   clientset,
+		Store:       store,
+		RedisClient: rdb,
+		Logger:      logger,
+		OCloudID:    "test-ocloud",
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	t.Run("starts successfully", func(t *testing.T) {
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- ctrl.Start(ctx)
+		}()
+
+		time.Sleep(100 * time.Millisecond)
+
+		cancel()
+
+		select {
+		case err := <-errChan:
+			assert.NoError(t, err)
+		case <-time.After(2 * time.Second):
+			t.Fatal("Start did not return after context cancellation")
+		}
+	})
+}
+
+// TestStop tests the Stop function.
+func TestStop(t *testing.T) {
+	clientset := fake.NewSimpleClientset()
+	store := &mockStore{}
+	logger := zaptest.NewLogger(t)
+
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer rdb.Close()
+
+	ctrl, err := NewSubscriptionController(&Config{
+		K8sClient:   clientset,
+		Store:       store,
+		RedisClient: rdb,
+		Logger:      logger,
+		OCloudID:    "test-ocloud",
+	})
+	require.NoError(t, err)
+
+	t.Run("stops successfully", func(t *testing.T) {
+		ctx2, cancel2 := context.WithCancel(context.Background())
+		go func() {
+			_ = ctrl.Start(ctx2)
+		}()
+
+		time.Sleep(100 * time.Millisecond)
+
+		cancel2()
+		time.Sleep(100 * time.Millisecond)
+	})
+
+	t.Run("stop before start", func(t *testing.T) {
+		ctrl2, err := NewSubscriptionController(&Config{
+			K8sClient:   clientset,
+			Store:       store,
+			RedisClient: rdb,
+			Logger:      logger,
+			OCloudID:    "test-ocloud-2",
+		})
+		require.NoError(t, err)
+
+		err = ctrl2.Stop()
+		assert.NoError(t, err)
+	})
+}

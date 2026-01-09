@@ -1049,3 +1049,102 @@ func TestNewMiddleware(t *testing.T) {
 		assert.True(t, mw.config.Enabled)
 	})
 }
+
+// TestParseXFCCHeader tests XFCC header parsing.
+func TestParseXFCCHeader(t *testing.T) {
+	store := newMockStore()
+	logger := zap.NewNop()
+	mw := NewMiddleware(store, nil, logger)
+
+	tests := []struct {
+		name      string
+		xfcc      string
+		wantNil   bool
+		wantCN    string
+		wantOrg   string
+		wantEmail string
+	}{
+		{
+			name:      "valid XFCC header",
+			xfcc:      `By=spiffe://cluster.local;Hash=abc123;Subject="CN=test-user,O=test-org,emailAddress=user@example.com";URI=spiffe://cluster.local/ns/default/sa/test`,
+			wantNil:   false,
+			wantCN:    "test-user",
+			wantEmail: "user@example.com",
+		},
+		{
+			name:    "missing Subject field",
+			xfcc:    `By=spiffe://cluster.local;Hash=abc123;URI=spiffe://cluster.local/ns/default/sa/test`,
+			wantNil: true,
+		},
+		{
+			name:    "malformed Subject field (no closing quote)",
+			xfcc:    `By=spiffe://cluster.local;Subject="CN=test-user,O=test-org`,
+			wantNil: true,
+		},
+		{
+			name:    "minimal valid XFCC",
+			xfcc:    `Subject="CN=minimal"`,
+			wantNil: false,
+			wantCN:  "minimal",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			certInfo := mw.parseXFCCHeader(tt.xfcc)
+			if tt.wantNil {
+				assert.Nil(t, certInfo)
+				return
+			}
+
+			require.NotNil(t, certInfo)
+			if tt.wantCN != "" {
+				assert.Equal(t, tt.wantCN, certInfo.CommonName)
+			}
+			if tt.wantEmail != "" {
+				assert.Equal(t, tt.wantEmail, certInfo.Email)
+			}
+		})
+	}
+}
+
+// TestExtractEmail tests email extraction from email list.
+func TestExtractEmail(t *testing.T) {
+	store := newMockStore()
+	logger := zap.NewNop()
+	mw := NewMiddleware(store, nil, logger)
+
+	tests := []struct {
+		name      string
+		emails    []string
+		wantEmail string
+	}{
+		{
+			name:      "single email",
+			emails:    []string{"user@example.com"},
+			wantEmail: "user@example.com",
+		},
+		{
+			name:      "multiple emails (returns first)",
+			emails:    []string{"first@example.com", "second@example.com"},
+			wantEmail: "first@example.com",
+		},
+		{
+			name:      "empty list",
+			emails:    []string{},
+			wantEmail: "",
+		},
+		{
+			name:      "nil list",
+			emails:    nil,
+			wantEmail: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			email := mw.extractEmail(tt.emails)
+			assert.Equal(t, tt.wantEmail, email)
+		})
+	}
+}

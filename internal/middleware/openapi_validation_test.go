@@ -741,3 +741,93 @@ func TestOpenAPIValidator_ResponseValidation(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }
+
+// TestResponseRecorder_Write tests the Write method of responseRecorder.
+
+// TestResponseRecorder_Write tests the Write method of responseRecorder.
+func TestResponseRecorder_Write(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []byte
+	}{
+		{
+			name:  "write simple data",
+			input: []byte("test data"),
+		},
+		{
+			name:  "write empty data",
+			input: []byte(""),
+		},
+		{
+			name:  "write JSON data",
+			input: []byte(`{"key":"value"}`),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+
+			recorder := &responseRecorder{
+				ResponseWriter: c.Writer,
+				body:           &bytes.Buffer{},
+				statusCode:     http.StatusOK,
+			}
+
+			n, err := recorder.Write(tt.input)
+
+			require.NoError(t, err)
+			assert.Equal(t, len(tt.input), n)
+			assert.Equal(t, string(tt.input), recorder.body.String())
+		})
+	}
+}
+
+// TestResponseRecorder_WriteHeader tests the WriteHeader method of responseRecorder.
+func TestResponseRecorder_WriteHeader(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+	}{
+		{
+			name:       "write 200 OK",
+			statusCode: http.StatusOK,
+		},
+		{
+			name:       "write 201 Created",
+			statusCode: http.StatusCreated,
+		},
+		{
+			name:       "write 400 Bad Request",
+			statusCode: http.StatusBadRequest,
+		},
+		{
+			name:       "write 404 Not Found",
+			statusCode: http.StatusNotFound,
+		},
+		{
+			name:       "write 500 Internal Server Error",
+			statusCode: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+
+			recorder := &responseRecorder{
+				ResponseWriter: c.Writer,
+				body:           &bytes.Buffer{},
+				statusCode:     http.StatusOK,
+			}
+
+			recorder.WriteHeader(tt.statusCode)
+
+			assert.Equal(t, tt.statusCode, recorder.statusCode)
+		})
+	}
+}
