@@ -228,6 +228,25 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 		return
 	}
 
+	// Validate callback URL
+	if req.Callback == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Callback URL is required",
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	if !isValidCallbackURL(req.Callback) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid callback URL: must be a valid HTTP or HTTPS URL with a host",
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
 	// Generate subscription ID
 	req.SubscriptionID = uuid.New().String()
 
@@ -320,6 +339,9 @@ func (s *Server) handleGetSubscription(c *gin.Context) {
 
 // handleUpdateSubscription updates an existing subscription.
 // PUT /o2ims/v1/subscriptions/:subscriptionId.
+// This implements PATCH-like semantics: only provided fields are updated,
+// empty/missing fields preserve their existing values.
+// Immutable fields (ID, TenantID, CreatedAt) are always preserved.
 func (s *Server) handleUpdateSubscription(c *gin.Context) {
 	subscriptionID := c.Param("subscriptionId")
 	s.logger.Info("updating subscription", zap.String("subscription_id", subscriptionID))
@@ -367,21 +389,26 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 		}
 	}
 
-	// Update storage subscription with new values, preserving immutable fields
+	// Build updated subscription with PATCH semantics:
+	// - Request values are used if provided (non-empty)
+	// - Existing values are preserved for empty/missing fields
+	// - Immutable fields (ID, TenantID, CreatedAt) are always preserved
 	updatedSub := &storage.Subscription{
-		ID:                     subscriptionID,
-		TenantID:               existingSub.TenantID,  // Preserve tenant
-		Callback:               req.Callback,
-		ConsumerSubscriptionID: req.ConsumerSubscriptionID,
-		CreatedAt:              existingSub.CreatedAt, // Preserve creation time
-		UpdatedAt:              time.Now(),            // Set update time
+		ID:        subscriptionID,
+		TenantID:  existingSub.TenantID,  // Immutable: preserve tenant
+		CreatedAt: existingSub.CreatedAt, // Immutable: preserve creation time
+		UpdatedAt: time.Now(),            // Always update modification time
 	}
 
-	// Use existing callback if not provided in request
-	if req.Callback == "" {
+	// Apply PATCH semantics: use request value if provided, else preserve existing
+	if req.Callback != "" {
+		updatedSub.Callback = req.Callback
+	} else {
 		updatedSub.Callback = existingSub.Callback
 	}
-	if req.ConsumerSubscriptionID == "" {
+	if req.ConsumerSubscriptionID != "" {
+		updatedSub.ConsumerSubscriptionID = req.ConsumerSubscriptionID
+	} else {
 		updatedSub.ConsumerSubscriptionID = existingSub.ConsumerSubscriptionID
 	}
 
@@ -499,10 +526,18 @@ func (s *Server) handleGetResourcePool(c *gin.Context) {
 	pool, err := s.adapter.GetResourcePool(c.Request.Context(), resourcePoolID)
 	if err != nil {
 		s.logger.Error("failed to get resource pool", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Resource pool not found: " + resourcePoolID,
-			"code":    http.StatusNotFound,
+		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource pool not found: " + resourcePoolID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve resource pool",
+			"code":    http.StatusInternalServerError,
 		})
 		return
 	}
@@ -579,10 +614,18 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 	updated, err := s.adapter.UpdateResourcePool(c.Request.Context(), resourcePoolID, &req)
 	if err != nil {
 		s.logger.Error("failed to update resource pool", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Resource pool not found: " + resourcePoolID,
-			"code":    http.StatusNotFound,
+		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource pool not found: " + resourcePoolID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to update resource pool",
+			"code":    http.StatusInternalServerError,
 		})
 		return
 	}
@@ -600,10 +643,18 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 	// Delete resource pool via adapter
 	if err := s.adapter.DeleteResourcePool(c.Request.Context(), resourcePoolID); err != nil {
 		s.logger.Error("failed to delete resource pool", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Resource pool not found: " + resourcePoolID,
-			"code":    http.StatusNotFound,
+		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource pool not found: " + resourcePoolID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to delete resource pool",
+			"code":    http.StatusInternalServerError,
 		})
 		return
 	}
@@ -676,10 +727,18 @@ func (s *Server) handleGetResource(c *gin.Context) {
 	resource, err := s.adapter.GetResource(c.Request.Context(), resourceID)
 	if err != nil {
 		s.logger.Error("failed to get resource", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Resource not found: " + resourceID,
-			"code":    http.StatusNotFound,
+		if errors.Is(err, adapter.ErrResourceNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource not found: " + resourceID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve resource",
+			"code":    http.StatusInternalServerError,
 		})
 		return
 	}
@@ -745,10 +804,18 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 	// Delete resource via adapter
 	if err := s.adapter.DeleteResource(c.Request.Context(), resourceID); err != nil {
 		s.logger.Error("failed to delete resource", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Resource not found: " + resourceID,
-			"code":    http.StatusNotFound,
+		if errors.Is(err, adapter.ErrResourceNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource not found: " + resourceID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to delete resource",
+			"code":    http.StatusInternalServerError,
 		})
 		return
 	}
@@ -792,10 +859,18 @@ func (s *Server) handleGetResourceType(c *gin.Context) {
 	resType, err := s.adapter.GetResourceType(c.Request.Context(), resourceTypeID)
 	if err != nil {
 		s.logger.Error("failed to get resource type", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Resource type not found: " + resourceTypeID,
-			"code":    http.StatusNotFound,
+		if errors.Is(err, adapter.ErrResourceTypeNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource type not found: " + resourceTypeID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve resource type",
+			"code":    http.StatusInternalServerError,
 		})
 		return
 	}
@@ -839,10 +914,18 @@ func (s *Server) handleGetDeploymentManager(c *gin.Context) {
 	dm, err := s.adapter.GetDeploymentManager(c.Request.Context(), deploymentManagerID)
 	if err != nil {
 		s.logger.Error("failed to get deployment manager", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Deployment manager not found: " + deploymentManagerID,
-			"code":    http.StatusNotFound,
+		if errors.Is(err, adapter.ErrDeploymentManagerNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Deployment manager not found: " + deploymentManagerID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve deployment manager",
+			"code":    http.StatusInternalServerError,
 		})
 		return
 	}
@@ -880,10 +963,29 @@ func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 // Helper functions
 
 // isValidCallbackURL validates that a callback URL is a valid HTTP or HTTPS URL.
+// It checks for:
+//   - Valid URL format
+//   - HTTP or HTTPS scheme (HTTPS recommended for production)
+//   - Non-empty host (prevents javascript: or file: schemes sneaking through)
 func isValidCallbackURL(callback string) bool {
+	if callback == "" {
+		return false
+	}
+
 	parsedURL, err := url.Parse(callback)
 	if err != nil {
 		return false
 	}
-	return parsedURL.Scheme == "http" || parsedURL.Scheme == "https"
+
+	// Must have valid scheme
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return false
+	}
+
+	// Must have a non-empty host (prevents edge cases)
+	if parsedURL.Host == "" {
+		return false
+	}
+
+	return true
 }

@@ -44,8 +44,12 @@ func (a *DTIASAdapter) CreateSubscription(
 		Filter:                 sub.Filter,
 	}
 
-	// Store the subscription
+	// Store the subscription atomically with existence check
 	a.subscriptionsMu.Lock()
+	if _, exists := a.subscriptions[subscriptionID]; exists {
+		a.subscriptionsMu.Unlock()
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionExists, subscriptionID)
+	}
 	a.subscriptions[subscriptionID] = newSub
 	a.subscriptionsMu.Unlock()
 
@@ -66,7 +70,7 @@ func (a *DTIASAdapter) GetSubscription(_ context.Context, id string) (*adapter.S
 	a.subscriptionsMu.RUnlock()
 
 	if !ok {
-		return nil, fmt.Errorf("subscription not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
 	return sub, nil
@@ -81,7 +85,7 @@ func (a *DTIASAdapter) DeleteSubscription(_ context.Context, id string) error {
 	defer a.subscriptionsMu.Unlock()
 
 	if _, ok := a.subscriptions[id]; !ok {
-		return fmt.Errorf("subscription not found: %s", id)
+		return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
 	delete(a.subscriptions, id)

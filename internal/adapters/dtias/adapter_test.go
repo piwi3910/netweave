@@ -2,6 +2,7 @@ package dtias
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -267,6 +268,26 @@ func TestSubscriptions(t *testing.T) {
 		_, err := adp.CreateSubscription(ctx, sub)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "callback URL is required")
+	})
+
+	t.Run("CreateSubscription duplicate ID fails", func(t *testing.T) {
+		// First create should succeed
+		sub := &adapter.Subscription{
+			SubscriptionID: "duplicate-test-id",
+			Callback:       "https://example.com/callback",
+		}
+		_, err := adp.CreateSubscription(ctx, sub)
+		require.NoError(t, err)
+
+		// Second create with same ID should fail
+		sub2 := &adapter.Subscription{
+			SubscriptionID: "duplicate-test-id",
+			Callback:       "https://example.com/callback2",
+		}
+		_, err = adp.CreateSubscription(ctx, sub2)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "subscription already exists")
+		assert.True(t, errors.Is(err, adapter.ErrSubscriptionExists))
 	})
 
 	t.Run("GetSubscription", func(t *testing.T) {

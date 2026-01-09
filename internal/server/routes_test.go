@@ -272,6 +272,42 @@ func TestHandleCreateSubscription(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 	})
+
+	t.Run("fails without callback URL", func(t *testing.T) {
+		body := `{"filter":{}}`
+		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/subscriptions", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "Callback URL is required")
+	})
+
+	t.Run("fails with invalid callback URL", func(t *testing.T) {
+		body := `{"callback":"not-a-valid-url","filter":{}}`
+		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/subscriptions", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "Invalid callback URL")
+	})
+
+	t.Run("fails with javascript scheme callback", func(t *testing.T) {
+		body := `{"callback":"javascript:alert(1)","filter":{}}`
+		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/subscriptions", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "Invalid callback URL")
+	})
 }
 
 // TestHandleGetSubscription tests the handleGetSubscription endpoint.
@@ -681,9 +717,11 @@ func TestIsValidCallbackURL(t *testing.T) {
 		{"invalid scheme", "ftp://example.com/callback", false},
 		{"no scheme", "example.com/callback", false},
 		{"empty string", "", false},
-		{"just scheme", "https://", true},
+		{"just scheme no host", "https://", false},
 		{"with port", "https://example.com:8080/callback", true},
 		{"with query params", "https://example.com/callback?foo=bar", true},
+		{"javascript scheme", "javascript:alert(1)", false},
+		{"file scheme", "file:///etc/passwd", false},
 	}
 
 	for _, tt := range tests {

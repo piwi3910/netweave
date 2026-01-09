@@ -5,6 +5,32 @@ package adapter
 
 import (
 	"context"
+	"errors"
+)
+
+// Sentinel errors for adapter operations.
+// These errors allow callers to distinguish between different failure modes.
+var (
+	// ErrResourceNotFound is returned when a requested resource does not exist.
+	ErrResourceNotFound = errors.New("resource not found")
+
+	// ErrResourcePoolNotFound is returned when a requested resource pool does not exist.
+	ErrResourcePoolNotFound = errors.New("resource pool not found")
+
+	// ErrResourceTypeNotFound is returned when a requested resource type does not exist.
+	ErrResourceTypeNotFound = errors.New("resource type not found")
+
+	// ErrDeploymentManagerNotFound is returned when a requested deployment manager does not exist.
+	ErrDeploymentManagerNotFound = errors.New("deployment manager not found")
+
+	// ErrSubscriptionNotFound is returned when a requested subscription does not exist.
+	ErrSubscriptionNotFound = errors.New("subscription not found")
+
+	// ErrSubscriptionExists is returned when attempting to create a subscription that already exists.
+	ErrSubscriptionExists = errors.New("subscription already exists")
+
+	// ErrValidation is returned when input validation fails.
+	ErrValidation = errors.New("validation error")
 )
 
 // Capability represents a feature that an adapter supports.
