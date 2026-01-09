@@ -1,0 +1,264 @@
+name: SBOM Generation
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main, develop]
+  release:
+    types: [published]
+  schedule:
+    # Run weekly on Monday at 8:00 UTC
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  security-events: write
+
+jobs:
+  # Generate SBOM with Syft
+  syft-sbom:
+    name: Generate SBOM with Syft
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: true
+
+      - name: Build binary for SBOM generation
+        run: |
+          CGO_ENABLED=0 go build -v -ldflags="-s -w" -o netweave ./cmd/gateway
+
+      - name: Generate SBOM with Syft (SPDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          artifact-name: sbom-spdx.json
+          output-file: sbom-spdx.json
+          format: spdx-json
+
+      - name: Generate SBOM with Syft (CycloneDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          artifact-name: sbom-cyclonedx.json
+          output-file: sbom-cyclonedx.json
+          format: cyclonedx-json
+
+      - name: Generate SBOM with Syft (SPDX SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          artifact-name: sbom.spdx
+          output-file: sbom.spdx
+          format: spdx
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-syft
+          path: |
+            sbom-spdx.json
+            sbom-cyclonedx.json
+            sbom.spdx
+          retention-days: 90
+
+  # Scan SBOM with Grype
+  grype-scan:
+    name: Scan SBOM with Grype
+    runs-on: ubuntu-latest
+    needs: syft-sbom
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download SBOM
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-syft
+
+      - name: Scan SBOM with Grype
+        uses: anchore/scan-action@v5
+        id: grype-scan
+        with:
+          sbom: sbom-spdx.json
+          fail-build: false
+          severity-cutoff: high
+          output-format: sarif
+
+      - name: Upload Grype scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: ${{ steps.grype-scan.outputs.sarif }}
+
+      - name: Generate vulnerability report
+        uses: anchore/scan-action@v5
+        with:
+          sbom: sbom-spdx.json
+          fail-build: false
+          output-format: json
+          output-file: grype-report.json
+
+      - name: Upload Grype report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grype-report
+          path: grype-report.json
+          retention-days: 30
+
+  # Generate dependency graph
+  dependency-graph:
+    name: Generate Dependency Graph
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: true
+
+      - name: Generate dependency graph
+        run: |
+          echo "# Dependency Graph" > dependency-graph.md
+          echo "" >> dependency-graph.md
+          echo "Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> dependency-graph.md
+          echo "" >> dependency-graph.md
+          echo "## Direct Dependencies" >> dependency-graph.md
+          echo "" >> dependency-graph.md
+          echo '```' >> dependency-graph.md
+          go list -m -json all | jq -r 'select(.Main != true and .Indirect != true) | "- \(.Path) \(.Version)"' | sort >> dependency-graph.md
+          echo '```' >> dependency-graph.md
+          echo "" >> dependency-graph.md
+          echo "## Module Graph" >> dependency-graph.md
+          echo "" >> dependency-graph.md
+          echo '```' >> dependency-graph.md
+          go mod graph | head -n 100 >> dependency-graph.md
+          echo '```' >> dependency-graph.md
+
+      - name: Upload dependency graph
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-graph
+          path: dependency-graph.md
+          retention-days: 30
+
+  # Publish SBOM for releases
+  publish-sbom:
+    name: Publish SBOM (Releases Only)
+    runs-on: ubuntu-latest
+    needs: [syft-sbom, grype-scan]
+    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-syft
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Attach SBOM to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          files: |
+            sbom-spdx.json
+            sbom-cyclonedx.json
+            sbom.spdx
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Submit dependency snapshot to GitHub
+  dependency-submission:
+    name: Submit Dependency Snapshot
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: true
+
+      - name: Submit dependency graph
+        uses: advanced-security/maven-dependency-submission-action@v4
+        with:
+          directory: .
+
+  # Create SBOM summary
+  sbom-summary:
+    name: SBOM Summary
+    runs-on: ubuntu-latest
+    needs: [syft-sbom, grype-scan, dependency-graph]
+    if: always()
+    steps:
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-syft
+
+      - name: Download Grype report
+        uses: actions/download-artifact@v4
+        with:
+          name: grype-report
+        continue-on-error: true
+
+      - name: Create SBOM summary
+        run: |
+          echo "# 📦 Software Bill of Materials (SBOM)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Generated Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Format | File | Description |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|------|-------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| SPDX JSON | sbom-spdx.json | SPDX 2.3 format (machine-readable) |" >> $GITHUB_STEP_SUMMARY
+          echo "| CycloneDX JSON | sbom-cyclonedx.json | CycloneDX 1.4 format (machine-readable) |" >> $GITHUB_STEP_SUMMARY
+          echo "| SPDX SPDX | sbom.spdx | SPDX tag-value format (human-readable) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "grype-report.json" ]; then
+            CRITICAL=$(jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length' grype-report.json)
+            HIGH=$(jq '[.matches[] | select(.vulnerability.severity == "High")] | length' grype-report.json)
+            MEDIUM=$(jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length' grype-report.json)
+            LOW=$(jq '[.matches[] | select(.vulnerability.severity == "Low")] | length' grype-report.json)
+            
+            echo "## Vulnerability Scan Results (Grype)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔴 Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟠 High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟡 Medium | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟢 Low | $LOW |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "📥 SBOM artifacts are available for download in the workflow run." >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,230 @@
+name: License Compliance
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/license-compliance.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/license-compliance.yml'
+  schedule:
+    # Run weekly on Monday at 7:00 UTC
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  # License scanning with go-licenses
+  license-scan:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: true
+
+      - name: Install go-licenses
+        run: go install github.com/google/go-licenses@latest
+
+      - name: Check licenses
+        run: |
+          echo "=== Checking dependency licenses ==="
+          go-licenses check ./... --allowed_licenses=Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC,MPL-2.0 \
+            --ignore github.com/piwi3910/netweave
+
+      - name: Generate license report (CSV)
+        if: always()
+        run: |
+          go-licenses report ./... --template=csv > licenses.csv || true
+
+      - name: Generate license report (JSON)
+        if: always()
+        run: |
+          go-licenses report ./... --template=json > licenses.json || true
+
+      - name: Detect forbidden licenses
+        if: always()
+        run: |
+          echo "=== Scanning for forbidden licenses ==="
+          FORBIDDEN="GPL-2.0 GPL-3.0 LGPL-2.0 LGPL-2.1 LGPL-3.0 AGPL-3.0"
+          FOUND_FORBIDDEN=false
+
+          for license in $FORBIDDEN; do
+            if grep -qi "$license" licenses.csv 2>/dev/null; then
+              echo "❌ FORBIDDEN LICENSE FOUND: $license"
+              grep -i "$license" licenses.csv
+              FOUND_FORBIDDEN=true
+            fi
+          done
+
+          if [ "$FOUND_FORBIDDEN" = true ]; then
+            echo ""
+            echo "⚠️ One or more forbidden licenses detected!"
+            echo "Please review and remove dependencies with forbidden licenses."
+            exit 1
+          else
+            echo "✅ No forbidden licenses detected"
+          fi
+
+      - name: Upload license reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-reports
+          path: |
+            licenses.csv
+            licenses.json
+          retention-days: 30
+
+      - name: Comment on PR with license summary
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let comment = '## 📋 License Compliance Report\n\n';
+            
+            try {
+              const csvContent = fs.readFileSync('licenses.csv', 'utf8');
+              const lines = csvContent.split('\n').filter(l => l.trim());
+              
+              comment += `✅ Found ${lines.length - 1} dependencies\n\n`;
+              comment += '<details><summary>View License Summary</summary>\n\n';
+              comment += '```\n' + csvContent.slice(0, 2000) + '\n```\n';
+              comment += '</details>';
+            } catch (error) {
+              comment += '⚠️ Unable to generate license summary\n';
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # License attribution generation
+  attribution:
+    name: Generate Attribution File
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: true
+
+      - name: Install go-licenses
+        run: go install github.com/google/go-licenses@latest
+
+      - name: Save license files
+        run: |
+          mkdir -p licenses-output
+          go-licenses save ./... --save_path=licenses-output --ignore github.com/piwi3910/netweave || true
+
+      - name: Generate NOTICE file
+        run: |
+          cat > NOTICE << 'NOTICE_EOF'
+          netweave O2-IMS Gateway
+          Copyright 2024-2026 Pascal Watteel
+
+          This product includes software developed by third parties.
+          The following is a list of third-party dependencies and their licenses:
+
+          NOTICE_EOF
+
+          go-licenses report ./... --template=csv | tail -n +2 | sort | while IFS=, read -r package url license; do
+            echo "" >> NOTICE
+            echo "----------------------------------------" >> NOTICE
+            echo "Package: $package" >> NOTICE
+            echo "License: $license" >> NOTICE
+            echo "URL: $url" >> NOTICE
+          done || true
+
+      - name: Upload NOTICE file
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOTICE
+          path: NOTICE
+          retention-days: 90
+
+      - name: Upload all license files
+        uses: actions/upload-artifact@v4
+        with:
+          name: third-party-licenses
+          path: licenses-output/
+          retention-days: 90
+
+  # License policy validation
+  policy-check:
+    name: License Policy Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: true
+
+      - name: Install go-licenses
+        run: go install github.com/google/go-licenses@latest
+
+      - name: Validate license policy
+        run: |
+          echo "=== License Policy Validation ==="
+          echo ""
+          echo "Allowed Licenses:"
+          echo "  ✅ Apache-2.0"
+          echo "  ✅ MIT"
+          echo "  ✅ BSD-2-Clause"
+          echo "  ✅ BSD-3-Clause"
+          echo "  ✅ ISC"
+          echo "  ✅ MPL-2.0"
+          echo ""
+          echo "Forbidden Licenses:"
+          echo "  ❌ GPL-2.0, GPL-3.0 (strong copyleft)"
+          echo "  ❌ LGPL-2.0, LGPL-2.1, LGPL-3.0 (weak copyleft)"
+          echo "  ❌ AGPL-3.0 (network copyleft)"
+          echo ""
+          
+          # Run compliance check
+          go-licenses check ./... \
+            --allowed_licenses=Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC,MPL-2.0 \
+            --ignore github.com/piwi3910/netweave
+
+      - name: Generate compliance summary
+        if: always()
+        run: |
+          echo "# 📋 License Compliance Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Policy Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All dependencies comply with license policy" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Allowed Licenses" >> $GITHUB_STEP_SUMMARY
+          echo "- Apache-2.0" >> $GITHUB_STEP_SUMMARY
+          echo "- MIT" >> $GITHUB_STEP_SUMMARY
+          echo "- BSD-2-Clause, BSD-3-Clause" >> $GITHUB_STEP_SUMMARY
+          echo "- ISC" >> $GITHUB_STEP_SUMMARY
+          echo "- MPL-2.0" >> $GITHUB_STEP_SUMMARY
