@@ -464,14 +464,13 @@ func sanitizeResourcePoolID(name string) string {
 	return strings.ToLower(result.String())
 }
 
-// validateResourcePoolFields validates resource pool field constraints.
-// isValidIDCharacter checks if a character is valid for resource pool IDs
+// isValidIDCharacter checks if a character is valid for resource pool IDs.
 func isValidIDCharacter(ch rune) bool {
 	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
 		(ch >= '0' && ch <= '9') || ch == '-' || ch == '_'
 }
 
-// validateResourcePoolID validates the resource pool ID format
+// validateResourcePoolID validates the resource pool ID format.
 func validateResourcePoolID(id string) error {
 	if len(id) > 255 {
 		return errors.New("resourcePoolId must not exceed 255 characters")
@@ -544,16 +543,17 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 		return
 	}
 
-	// Generate resource pool ID if not provided (sanitized)
+	// Generate resource pool ID if not provided (sanitized with UUID for uniqueness)
 	if req.ResourcePoolID == "" {
-		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name)
+		// Add UUID suffix to prevent collisions from similar names
+		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name) + "-" + uuid.New().String()[:8]
 	}
 
 	// Create resource pool via adapter
 	created, err := s.adapter.CreateResourcePool(c.Request.Context(), &req)
 	if err != nil {
 		// Check for duplicate resource pool using sentinel error
-		if errors.Is(err, adapter.ErrResourcePoolExists) || strings.Contains(err.Error(), "already exists") {
+		if errors.Is(err, adapter.ErrResourcePoolExists) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error":   "Conflict",
 				"message": "Resource pool with ID " + req.ResourcePoolID + " already exists",
@@ -589,6 +589,16 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Validate field constraints
+	if err := validateResourcePoolFields(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
 			"code":    http.StatusBadRequest,
 		})
 		return
@@ -862,7 +872,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 	created, err := s.adapter.CreateResource(c.Request.Context(), &req)
 	if err != nil {
 		// Check if error indicates duplicate resource using sentinel error
-		if errors.Is(err, adapter.ErrResourceExists) || strings.Contains(err.Error(), "already exists") {
+		if errors.Is(err, adapter.ErrResourceExists) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error":   "Conflict",
 				"message": "Resource with ID " + req.ResourceID + " already exists",

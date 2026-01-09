@@ -1212,8 +1212,11 @@ When `resourcePoolId` is not provided on create, it's auto-generated from the po
 - Non-alphanumeric characters (except hyphens and underscores) removed
 - Converted to lowercase
 - Prefix `pool-` added
+- UUID suffix (8 characters) appended for uniqueness
 
-Example: `"GPU Pool (Production)"` → `"pool-gpu-pool--production-"`
+Example: `"GPU Pool (Production)"` → `"pool-gpu-pool--production--a1b2c3d4"`
+
+**Note:** The UUID suffix ensures that similar or identical pool names generate unique IDs, maintaining idempotency for create operations.
 
 ---
 

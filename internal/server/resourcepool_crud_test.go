@@ -101,7 +101,9 @@ func TestResourcePoolCRUD(t *testing.T) {
 		assert.Equal(t, pool.Description, created.Description)
 		assert.Equal(t, pool.Location, created.Location)
 		assert.NotEmpty(t, created.ResourcePoolID)
-		assert.Equal(t, "pool-test-pool", created.ResourcePoolID)
+		// ID should start with "pool-test-pool-" followed by 8-char UUID
+		assert.Contains(t, created.ResourcePoolID, "pool-test-pool-")
+		assert.Len(t, created.ResourcePoolID, len("pool-test-pool-")+8)
 	})
 
 	t.Run("POST /resourcePools - create with custom ID", func(t *testing.T) {
@@ -377,6 +379,104 @@ func TestResourcePoolCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
 		assert.Contains(t, resp.Body.String(), "Invalid request body")
+	})
+
+	t.Run("PUT /resourcePools/:id - validation error (empty name)", func(t *testing.T) {
+		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+		pool := adapter.ResourcePool{
+			Name: "", // Empty name - should fail validation
+		}
+
+		body, err := json.Marshal(pool)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "name is required")
+	})
+
+	t.Run("PUT /resourcePools/:id - validation error (name too long)", func(t *testing.T) {
+		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+		pool := adapter.ResourcePool{
+			Name: strings.Repeat("a", 256), // Name too long
+		}
+
+		body, err := json.Marshal(pool)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "name must not exceed 255 characters")
+	})
+
+	t.Run("PUT /resourcePools/:id - validation error (invalid ID characters)", func(t *testing.T) {
+		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+		pool := adapter.ResourcePool{
+			Name:           "Valid Name",
+			ResourcePoolID: "invalid@id!", // Invalid characters
+		}
+
+		body, err := json.Marshal(pool)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "resourcePoolId must contain only alphanumeric characters")
+	})
+
+	t.Run("PUT /resourcePools/:id - validation error (description too long)", func(t *testing.T) {
+		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+		pool := adapter.ResourcePool{
+			Name:        "Valid Name",
+			Description: strings.Repeat("b", 1001), // Description too long
+		}
+
+		body, err := json.Marshal(pool)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "description must not exceed 1000 characters")
 	})
 
 	t.Run("DELETE /resourcePools/:id - delete resource pool", func(t *testing.T) {
