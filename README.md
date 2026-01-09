@@ -483,7 +483,7 @@ curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
 |----------|------|-----|--------|--------|--------|-----------|
 | Deployment Managers | ✅ | ✅ | ❌ | ❌ | ❌ | N/A |
 | Resource Pools | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Resources | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Resources | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Resource Types | ✅ | ✅ | ❌ | ❌ | ❌ | N/A |
 | Subscriptions | ✅ | ✅ | ✅ | ✅ | ✅ | N/A |
 
@@ -734,7 +734,7 @@ netweave/
 ### v1.0 (Current)
 - ✅ O2-IMS Deployment Managers (read-only)
 - ✅ Resource Pools (full CRUD)
-- ✅ Resources (create, read, delete)
+- ✅ Resources (full CRUD)
 - ✅ Resource Types (read-only)
 - ✅ Subscriptions with webhook notifications
 - ✅ Kubernetes adapter (primary infrastructure backend)

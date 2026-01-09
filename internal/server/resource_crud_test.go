@@ -557,3 +557,217 @@ func (e *errorReturningAdapter) GetResource(ctx context.Context, id string) (*ad
 	}
 	return e.mockResourceAdapter.GetResource(ctx, id)
 }
+
+// TestResourceConcurrency tests concurrent operations on the same resource.
+func TestResourceConcurrency(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+
+	t.Run("concurrent creates with same ID", func(t *testing.T) {
+		mockAdp := &mockResourceAdapter{
+			resources: make(map[string]*adapter.Resource),
+		}
+		srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+
+		// Use a specific resource ID
+		resourceID := "test-concurrent-123"
+		resource := adapter.Resource{
+			ResourceID:     resourceID,
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Description:    "Concurrent test",
+		}
+
+		// Run 10 concurrent create requests with the same ID
+		const numGoroutines = 10
+		results := make(chan int, numGoroutines)
+
+		for i := 0; i < numGoroutines; i++ {
+			go func() {
+				body, err := json.Marshal(resource)
+				require.NoError(t, err)
+
+				req := httptest.NewRequest(
+					http.MethodPost,
+					"/o2ims-infrastructureInventory/v1/resources",
+					bytes.NewReader(body),
+				)
+				req.Header.Set("Content-Type", "application/json")
+				resp := httptest.NewRecorder()
+
+				srv.router.ServeHTTP(resp, req)
+				results <- resp.Code
+			}()
+		}
+
+		// Collect results
+		statusCodes := make(map[int]int)
+		for i := 0; i < numGoroutines; i++ {
+			code := <-results
+			statusCodes[code]++
+		}
+
+		// Exactly one should succeed (201), others should get 409 Conflict
+		assert.Equal(t, 1, statusCodes[http.StatusCreated],
+			"Exactly one create should succeed")
+		assert.Equal(t, numGoroutines-1, statusCodes[http.StatusConflict],
+			"Other creates should get 409 Conflict")
+
+		// Verify only one resource was created
+		mockAdp.mu.Lock()
+		assert.Equal(t, 1, len(mockAdp.resources),
+			"Only one resource should exist")
+		mockAdp.mu.Unlock()
+	})
+
+	t.Run("concurrent updates to same resource", func(t *testing.T) {
+		resourceID := "test-update-concurrent"
+		mockAdp := &mockResourceAdapter{
+			resources: map[string]*adapter.Resource{
+				resourceID: {
+					ResourceID:     resourceID,
+					ResourceTypeID: "machine",
+					ResourcePoolID: "pool-1",
+					Description:    "Original",
+				},
+			},
+		}
+		srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+
+		// Run 10 concurrent updates
+		const numGoroutines = 10
+		results := make(chan int, numGoroutines)
+
+		for i := 0; i < numGoroutines; i++ {
+			i := i
+			go func() {
+				resource := adapter.Resource{
+					Description: fmt.Sprintf("Updated %d", i),
+				}
+
+				body, err := json.Marshal(resource)
+				require.NoError(t, err)
+
+				req := httptest.NewRequest(
+					http.MethodPut,
+					"/o2ims-infrastructureInventory/v1/resources/"+resourceID,
+					bytes.NewReader(body),
+				)
+				req.Header.Set("Content-Type", "application/json")
+				resp := httptest.NewRecorder()
+
+				srv.router.ServeHTTP(resp, req)
+				results <- resp.Code
+			}()
+		}
+
+		// All updates should succeed (200 OK)
+		for i := 0; i < numGoroutines; i++ {
+			code := <-results
+			assert.Equal(t, http.StatusOK, code,
+				"All concurrent updates should succeed")
+		}
+
+		// Verify resource still exists with one of the descriptions
+		mockAdp.mu.Lock()
+		res, exists := mockAdp.resources[resourceID]
+		mockAdp.mu.Unlock()
+
+		assert.True(t, exists, "Resource should still exist")
+		assert.Contains(t, res.Description, "Updated",
+			"Description should be from one of the updates")
+	})
+
+	t.Run("concurrent create and get operations", func(t *testing.T) {
+		mockAdp := &mockResourceAdapter{
+			resources: make(map[string]*adapter.Resource),
+		}
+		srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+
+		resourceID := "test-create-get-concurrent"
+		const numGoroutines = 20
+
+		results := make(chan string, numGoroutines)
+
+		// Half create, half get
+		for i := 0; i < numGoroutines; i++ {
+			i := i
+			go func() {
+				if i%2 == 0 {
+					// Create operation
+					resource := adapter.Resource{
+						ResourceID:     resourceID,
+						ResourceTypeID: "machine",
+						ResourcePoolID: "pool-1",
+						Description:    "Test",
+					}
+
+					body, err := json.Marshal(resource)
+					require.NoError(t, err)
+
+					req := httptest.NewRequest(
+						http.MethodPost,
+						"/o2ims-infrastructureInventory/v1/resources",
+						bytes.NewReader(body),
+					)
+					req.Header.Set("Content-Type", "application/json")
+					resp := httptest.NewRecorder()
+
+					srv.router.ServeHTTP(resp, req)
+					results <- fmt.Sprintf("create:%d", resp.Code)
+				} else {
+					// Get operation
+					req := httptest.NewRequest(
+						http.MethodGet,
+						"/o2ims-infrastructureInventory/v1/resources/"+resourceID,
+						nil,
+					)
+					resp := httptest.NewRecorder()
+
+					srv.router.ServeHTTP(resp, req)
+					results <- fmt.Sprintf("get:%d", resp.Code)
+				}
+			}()
+		}
+
+		// Collect results
+		createSuccess := 0
+		createConflict := 0
+		getSuccess := 0
+		getNotFound := 0
+
+		for i := 0; i < numGoroutines; i++ {
+			result := <-results
+			parts := bytes.Split([]byte(result), []byte(":"))
+			op := string(parts[0])
+			code := string(parts[1])
+
+			if op == "create" {
+				if code == "201" {
+					createSuccess++
+				} else if code == "409" {
+					createConflict++
+				}
+			} else if op == "get" {
+				if code == "200" {
+					getSuccess++
+				} else if code == "404" {
+					getNotFound++
+				}
+			}
+		}
+
+		// Exactly one create should succeed
+		assert.Equal(t, 1, createSuccess, "Exactly one create should succeed")
+
+		// Gets can be either 200 (if after create) or 404 (if before create)
+		assert.Equal(t, numGoroutines/2, getSuccess+getNotFound,
+			"All gets should complete with either 200 or 404")
+	})
+}
