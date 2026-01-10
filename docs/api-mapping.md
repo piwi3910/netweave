@@ -1690,7 +1690,205 @@ Location: /o2ims/v1/resourcePools/pool-gpu-a100
 
 ---
 
-### Example 2: Subscribe to Node Events
+### Example 2: Create Resource (Provision New Node)
+
+**Request** (O2-IMS):
+```http
+POST /o2ims/v1/resources HTTP/1.1
+Content-Type: application/json
+
+{
+  "resourceTypeId": "compute-node",
+  "resourcePoolId": "pool-compute-high-mem",
+  "globalAssetId": "urn:o-ran:resource:node-prod-042",
+  "description": "High-memory compute node for RAN workloads",
+  "extensions": {
+    "cpu": "64 cores",
+    "memory": "512GB",
+    "disk": "2TB NVMe",
+    "zone": "us-east-1a"
+  }
+}
+```
+
+**Transformation** (Gateway):
+```go
+// 1. Validate required fields
+if resource.ResourceTypeID == "" {
+    return errors.New("Resource type ID is required")
+}
+if resource.ResourcePoolID == "" {
+    return errors.New("Resource pool ID is required")
+}
+
+// 2. Validate field constraints
+validationErrors := validateResourceFields(&resource)
+if len(validationErrors) > 0 {
+    return fmt.Errorf("validation failed: %v", validationErrors)
+}
+
+// 3. Generate resource ID if not provided
+if resource.ResourceID == "" {
+    resource.ResourceID = fmt.Sprintf("res-%s-%s",
+        resource.ResourceTypeID,
+        uuid.New().String()[:8])
+}
+
+// 4. Get resource pool to determine machine template
+pool, err := adapter.GetResourcePool(ctx, resource.ResourcePoolID)
+if err != nil {
+    return err
+}
+
+// 5. Create Machine (triggers Node provisioning)
+machine := &machinev1beta1.Machine{
+    ObjectMeta: metav1.ObjectMeta{
+        GenerateName: resource.ResourcePoolID + "-",
+        Namespace:    "openshift-machine-api",
+        Labels: map[string]string{
+            "machine.openshift.io/cluster-api-machineset": resource.ResourcePoolID,
+            "o2ims.oran.org/resource-id":                  resource.ResourceID,
+            "o2ims.oran.org/resource-pool-id":             resource.ResourcePoolID,
+        },
+        Annotations: map[string]string{
+            "o2ims.oran.org/global-asset-id": resource.GlobalAssetID,
+            "o2ims.oran.org/description":     resource.Description,
+        },
+    },
+    Spec: pool.MachineTemplate.Spec,
+}
+
+// 6. Apply to K8s
+err = k8sClient.Create(ctx, machine)
+
+// 7. Wait for Machine to be provisioned (creates Node)
+// This happens asynchronously via machine controller
+
+// 8. Return O2-IMS response
+return &models.Resource{
+    ResourceID:     resource.ResourceID,
+    ResourceTypeID: resource.ResourceTypeID,
+    ResourcePoolID: resource.ResourcePoolID,
+    GlobalAssetID:  resource.GlobalAssetID,
+    Description:    resource.Description,
+    Extensions:     resource.Extensions,
+}
+```
+
+**Response** (O2-IMS):
+```http
+HTTP/1.1 201 Created
+Content-Type: application/json
+Location: /o2ims/v1/resources/res-compute-node-a1b2c3d4
+
+{
+  "resourceId": "res-compute-node-a1b2c3d4",
+  "resourceTypeId": "compute-node",
+  "resourcePoolId": "pool-compute-high-mem",
+  "globalAssetId": "urn:o-ran:resource:node-prod-042",
+  "description": "High-memory compute node for RAN workloads",
+  "extensions": {
+    "cpu": "64 cores",
+    "memory": "512GB",
+    "disk": "2TB NVMe",
+    "zone": "us-east-1a",
+    "nodeName": "ip-10-0-1-123.ec2.internal",
+    "status": "Provisioning"
+  }
+}
+```
+
+**Kubernetes Side Effects**:
+```yaml
+# Machine created (triggers Node provisioning)
+apiVersion: machine.openshift.io/v1beta1
+kind: Machine
+metadata:
+  name: pool-compute-high-mem-xyz123
+  namespace: openshift-machine-api
+  labels:
+    machine.openshift.io/cluster-api-machineset: pool-compute-high-mem
+    o2ims.oran.org/resource-id: res-compute-node-a1b2c3d4
+  annotations:
+    o2ims.oran.org/global-asset-id: "urn:o-ran:resource:node-prod-042"
+    o2ims.oran.org/description: "High-memory compute node for RAN workloads"
+spec:
+  # Machine spec from resource pool template
+  providerSpec:
+    value:
+      instanceType: m5.4xlarge
+      placement:
+        availabilityZone: us-east-1a
+
+# After ~5 minutes, Node appears:
+apiVersion: v1
+kind: Node
+metadata:
+  name: ip-10-0-1-123.ec2.internal
+  labels:
+    o2ims.oran.org/resource-id: res-compute-node-a1b2c3d4
+    o2ims.oran.org/resource-pool-id: pool-compute-high-mem
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+  capacity:
+    cpu: "64"
+    memory: 512Gi
+```
+
+**Error Scenarios**:
+
+**Missing Required Field**:
+```http
+POST /o2ims/v1/resources
+{"resourceTypeId": "compute-node"}
+
+→ HTTP 400 Bad Request
+{
+  "error": "BadRequest",
+  "message": "Resource pool ID is required",
+  "code": 400
+}
+```
+
+**Invalid GlobalAssetID**:
+```http
+POST /o2ims/v1/resources
+{
+  "resourceTypeId": "compute-node",
+  "resourcePoolId": "pool-compute-high-mem",
+  "globalAssetId": "invalid-not-urn"
+}
+
+→ HTTP 400 Bad Request
+{
+  "error": "BadRequest",
+  "message": "globalAssetId must start with 'urn:'",
+  "code": 400
+}
+```
+
+**Duplicate Resource ID**:
+```http
+POST /o2ims/v1/resources
+{
+  "resourceId": "existing-resource-id",
+  "resourceTypeId": "compute-node",
+  "resourcePoolId": "pool-compute-high-mem"
+}
+
+→ HTTP 409 Conflict
+{
+  "error": "Conflict",
+  "message": "Resource with ID 'existing-resource-id' already exists",
+  "code": 409
+}
+```
+
+---
+
+### Example 3: Subscribe to Node Events
 
 **Request** (O2-IMS):
 ```http
