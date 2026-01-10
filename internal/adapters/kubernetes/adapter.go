@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"go.uber.org/zap"
 	"k8s.io/client-go/kubernetes"
@@ -240,7 +241,7 @@ func (a *KubernetesAdapter) GetSubscription(ctx context.Context, id string) (*ad
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			a.logger.Debug("subscription not found",
 				zap.String("subscriptionId", id))
-			return nil, fmt.Errorf("subscription not found: %s", id)
+			return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 		}
 		a.logger.Error("failed to retrieve subscription",
 			zap.String("subscriptionId", id),
@@ -271,6 +272,137 @@ func (a *KubernetesAdapter) GetSubscription(ctx context.Context, id string) (*ad
 	return adapterSub, nil
 }
 
+// UpdateSubscription updates an existing subscription.
+// Updates both the subscription in Redis and notifies the controller to restart watchers.
+func (a *KubernetesAdapter) UpdateSubscription(
+	ctx context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (result *adapter.Subscription, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("kubernetes", "UpdateSubscription", start, err) }()
+
+	a.logger.Debug("UpdateSubscription called",
+		zap.String("id", id),
+		zap.String("callback", sub.Callback))
+
+	if a.store == nil {
+		a.logger.Warn("subscription storage not configured")
+		return nil, fmt.Errorf("subscription storage not configured")
+	}
+
+	// Validate callback URL (defense-in-depth: server validates HTTP input, adapter validates programmatic calls)
+	if sub.Callback == "" {
+		return nil, fmt.Errorf("callback URL is required")
+	}
+
+	// Get existing subscription for logging
+	existingSub, err := a.getExistingSubscription(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare and update storage subscription
+	storageSub := a.convertToStorageSubscription(id, sub)
+	if err := a.updateSubscriptionInStore(ctx, id, storageSub); err != nil {
+		return nil, err
+	}
+
+	a.logger.Info("subscription updated",
+		zap.String("subscriptionId", id),
+		zap.String("oldCallback", existingSub.Callback),
+		zap.String("newCallback", sub.Callback))
+
+	// Return updated subscription
+	return a.convertToAdapterSubscription(id, storageSub), nil
+}
+
+// getExistingSubscription retrieves an existing subscription with proper error handling.
+// Note: This helper exists to reduce UpdateSubscription cyclomatic complexity from 11 to ~3
+// (CLAUDE.md requirement: max 10).
+func (a *KubernetesAdapter) getExistingSubscription(ctx context.Context, id string) (*storage.Subscription, error) {
+	existingSub, err := a.store.Get(ctx, id)
+	if err != nil {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
+			a.logger.Debug("subscription not found",
+				zap.String("subscriptionId", id))
+			return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+		}
+		a.logger.Error("failed to retrieve existing subscription",
+			zap.String("subscriptionId", id),
+			zap.Error(err))
+		return nil, fmt.Errorf("failed to retrieve subscription: %w", err)
+	}
+	return existingSub, nil
+}
+
+// convertToStorageSubscription converts adapter subscription to storage format.
+// Filter handling: A nil Filter means no filtering (subscribe to all resources).
+// An empty Filter struct {} also means no filtering since all fields will be empty strings.
+// Partial filters are supported (e.g., only ResourcePoolID set filters by pool only).
+func (a *KubernetesAdapter) convertToStorageSubscription(id string, sub *adapter.Subscription) *storage.Subscription {
+	storageSub := &storage.Subscription{
+		ID:                     id,
+		Callback:               sub.Callback,
+		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
+	}
+
+	if sub.Filter != nil {
+		storageSub.Filter = storage.SubscriptionFilter{
+			ResourcePoolID: sub.Filter.ResourcePoolID,
+			ResourceTypeID: sub.Filter.ResourceTypeID,
+			ResourceID:     sub.Filter.ResourceID,
+		}
+	}
+
+	return storageSub
+}
+
+// updateSubscriptionInStore updates subscription in Redis with proper error handling.
+func (a *KubernetesAdapter) updateSubscriptionInStore(
+	ctx context.Context,
+	id string,
+	storageSub *storage.Subscription,
+) error {
+	if err := a.store.Update(ctx, storageSub); err != nil {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
+			a.logger.Debug("subscription not found",
+				zap.String("subscriptionId", id))
+			return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+		}
+		a.logger.Error("failed to update subscription",
+			zap.String("subscriptionId", id),
+			zap.Error(err))
+		return fmt.Errorf("failed to update subscription: %w", err)
+	}
+	return nil
+}
+
+// convertToAdapterSubscription converts storage subscription to adapter format.
+func (a *KubernetesAdapter) convertToAdapterSubscription(
+	id string,
+	storageSub *storage.Subscription,
+) *adapter.Subscription {
+	var filter *adapter.SubscriptionFilter
+	hasFilter := storageSub.Filter.ResourcePoolID != "" ||
+		storageSub.Filter.ResourceTypeID != "" ||
+		storageSub.Filter.ResourceID != ""
+	if hasFilter {
+		filter = &adapter.SubscriptionFilter{
+			ResourcePoolID: storageSub.Filter.ResourcePoolID,
+			ResourceTypeID: storageSub.Filter.ResourceTypeID,
+			ResourceID:     storageSub.Filter.ResourceID,
+		}
+	}
+
+	return &adapter.Subscription{
+		SubscriptionID:         id,
+		Callback:               storageSub.Callback,
+		ConsumerSubscriptionID: storageSub.ConsumerSubscriptionID,
+		Filter:                 filter,
+	}
+}
+
 // DeleteSubscription deletes a subscription by ID from Redis.
 // The controller package monitors Redis and stops the corresponding Kubernetes watchers.
 func (a *KubernetesAdapter) DeleteSubscription(ctx context.Context, id string) error {
@@ -287,7 +419,7 @@ func (a *KubernetesAdapter) DeleteSubscription(ctx context.Context, id string) e
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			a.logger.Debug("subscription not found for deletion",
 				zap.String("subscriptionId", id))
-			return fmt.Errorf("subscription not found: %s", id)
+			return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 		}
 		a.logger.Error("failed to delete subscription",
 			zap.String("subscriptionId", id),

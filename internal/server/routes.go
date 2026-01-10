@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -44,6 +45,7 @@ func (s *Server) setupRoutes() {
 			subscriptions.GET("", s.handleListSubscriptions)
 			subscriptions.POST("", s.handleCreateSubscription)
 			subscriptions.GET("/:subscriptionId", s.handleGetSubscription)
+			subscriptions.PUT("/:subscriptionId", s.handleUpdateSubscription)
 			subscriptions.DELETE("/:subscriptionId", s.handleDeleteSubscription)
 		}
 
@@ -316,6 +318,64 @@ func (s *Server) handleGetSubscription(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// handleUpdateSubscription updates an existing subscription.
+// PUT /o2ims/v1/subscriptions/:subscriptionId.
+// This endpoint allows updating both the callback URL and/or subscription filters.
+// When filter is null, it removes all filters; empty filter object {} also removes filters.
+func (s *Server) handleUpdateSubscription(c *gin.Context) {
+	subscriptionID := c.Param("subscriptionId")
+	s.logger.Info("updating subscription", zap.String("subscription_id", subscriptionID))
+
+	var req adapter.Subscription
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Validate callback URL early for fast failure
+	if err := s.validateCallback(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Update subscription via adapter
+	// The adapter handles validation and persistence to its backend storage
+	updated, err := s.adapter.UpdateSubscription(c.Request.Context(), subscriptionID, &req)
+	if err != nil {
+		// Check for not found error using sentinel error
+		if errors.Is(err, adapter.ErrSubscriptionNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Subscription not found: " + subscriptionID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+
+		s.logger.Error("failed to update subscription", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to update subscription",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("subscription updated",
+		zap.String("subscription_id", subscriptionID),
+		zap.String("callback", updated.Callback))
+
+	c.JSON(http.StatusOK, updated)
 }
 
 // handleDeleteSubscription deletes a subscription.
@@ -1150,4 +1210,34 @@ func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 		"description": dm.Description,
 		"serviceUri":  dm.ServiceURI,
 	})
+}
+
+// validateCallback validates a subscription callback URL.
+// It performs early validation to provide fast failure before calling the adapter.
+func (s *Server) validateCallback(sub *adapter.Subscription) error {
+	if sub == nil {
+		return fmt.Errorf("subscription cannot be nil")
+	}
+
+	if sub.Callback == "" {
+		return fmt.Errorf("callback URL is required")
+	}
+
+	// Parse URL to validate format
+	parsedURL, err := url.Parse(sub.Callback)
+	if err != nil {
+		return fmt.Errorf("invalid callback URL format: %w", err)
+	}
+
+	// Validate scheme
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return fmt.Errorf("callback URL must use http or https scheme")
+	}
+
+	// Validate host
+	if parsedURL.Host == "" {
+		return fmt.Errorf("callback URL must have a valid host")
+	}
+
+	return nil
 }
