@@ -164,6 +164,87 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+    put:
+      summary: Update a subscription
+      description: Updates an existing subscription's callback URL and/or filter criteria.
+      operationId: updateSubscription
+      tags:
+        - Subscriptions
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Subscription'
+            example:
+              callback: "https://smo-updated.example.com/notify"
+              consumerSubscriptionId: "updated-consumer-id"
+              filter:
+                resourcePoolId: "pool-compute-high-mem"
+                resourceTypeId: "compute-node"
+      responses:
+        '200':
+          description: Subscription updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+              examples:
+                callbackUpdated:
+                  summary: Callback URL updated
+                  value:
+                    subscriptionId: "sub-123"
+                    callback: "https://smo-updated.example.com/notify"
+                    consumerSubscriptionId: "consumer-456"
+                    filter:
+                      resourcePoolId: "pool-compute"
+                filterRemoved:
+                  summary: Filter removed (subscribe to all events)
+                  value:
+                    subscriptionId: "sub-456"
+                    callback: "https://smo.example.com/notify"
+                    consumerSubscriptionId: "consumer-789"
+                    filter: null
+        '400':
+          description: Invalid request parameters or body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                emptyCallback:
+                  summary: Empty callback URL
+                  value:
+                    error: "BadRequest"
+                    message: "callback URL is required"
+                    code: 400
+                invalidURLFormat:
+                  summary: Invalid URL format
+                  value:
+                    error: "BadRequest"
+                    message: "invalid callback URL format: parse \"not-a-url\": invalid URI for request"
+                    code: 400
+                unsupportedScheme:
+                  summary: Unsupported URL scheme
+                  value:
+                    error: "BadRequest"
+                    message: "callback URL must use http or https scheme"
+                    code: 400
+        '404':
+          description: Subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "NotFound"
+                message: "Subscription not found: sub-nonexistent"
+                code: 404
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     delete:
       summary: Delete a subscription
       description: Deletes a subscription and stops sending notifications.

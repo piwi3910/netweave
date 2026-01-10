@@ -619,7 +619,7 @@ func TestMiddleware_RequirePermission(t *testing.T) {
 				c.Request = c.Request.WithContext(ctx)
 				c.Next()
 			})
-			router.Use(mw.RequirePermission(tt.requiredPerm))
+			router.Use(mw.RequirePermission(string(tt.requiredPerm)))
 			router.GET("/test", func(c *gin.Context) {
 				c.Status(http.StatusOK)
 			})
@@ -641,7 +641,7 @@ func TestMiddleware_RequirePermission_NoUser(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(mw.RequirePermission(PermissionSubscriptionRead))
+	router.Use(mw.RequirePermission(string(PermissionSubscriptionRead)))
 	router.GET("/test", func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})

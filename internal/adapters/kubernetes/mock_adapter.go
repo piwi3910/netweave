@@ -315,6 +315,25 @@ func (m *MockAdapter) GetSubscription(_ context.Context, id string) (*adapter.Su
 	return sub, nil
 }
 
+// UpdateSubscription updates an existing subscription.
+func (m *MockAdapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if exists
+	if _, exists := m.subscriptions[id]; !exists {
+		return nil, fmt.Errorf("subscription not found")
+	}
+
+	// Preserve ID
+	sub.SubscriptionID = id
+
+	// Update
+	m.subscriptions[id] = sub
+
+	return sub, nil
+}
+
 // DeleteSubscription deletes a subscription.
 func (m *MockAdapter) DeleteSubscription(_ context.Context, id string) error {
 	m.mu.Lock()

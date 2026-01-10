@@ -133,6 +133,11 @@ func (m *mockResourceAdapter) GetSubscription(ctx context.Context, subscriptionI
 	return &adapter.Subscription{SubscriptionID: subscriptionID}, nil
 }
 
+func (m *mockResourceAdapter) UpdateSubscription(ctx context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+	sub.SubscriptionID = id
+	return sub, nil
+}
+
 func (m *mockResourceAdapter) DeleteSubscription(ctx context.Context, subscriptionID string) error {
 	return nil
 }

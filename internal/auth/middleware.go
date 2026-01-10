@@ -298,7 +298,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 }
 
 // RequirePermission returns a middleware that checks if the user has the required permission.
-func (m *Middleware) RequirePermission(permission Permission) gin.HandlerFunc {
+func (m *Middleware) RequirePermission(permission string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := c.GetString("request_id")
 
@@ -318,17 +318,17 @@ func (m *Middleware) RequirePermission(permission Permission) gin.HandlerFunc {
 		}
 
 		// Check permission.
-		if !user.HasPermission(permission) {
+		if !user.HasPermission(Permission(permission)) {
 			m.logger.Warn("permission denied",
 				zap.String("user_id", user.UserID),
 				zap.String("tenant_id", user.TenantID),
-				zap.String("permission", string(permission)),
+				zap.String("permission", permission),
 				zap.String("path", c.Request.URL.Path),
 				zap.String("request_id", requestID),
 			)
 
-			m.logAccessDenied(c, user, permission)
-			RecordAuthorizationCheck("denied", permission)
+			m.logAccessDenied(c, user, Permission(permission))
+			RecordAuthorizationCheck("denied", Permission(permission))
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"error":   "Forbidden",
 				"message": "Insufficient permissions for this operation",
@@ -337,7 +337,7 @@ func (m *Middleware) RequirePermission(permission Permission) gin.HandlerFunc {
 			return
 		}
 
-		RecordAuthorizationCheck("allowed", permission)
+		RecordAuthorizationCheck("allowed", Permission(permission))
 
 		c.Next()
 	}

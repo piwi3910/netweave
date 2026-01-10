@@ -2450,7 +2450,34 @@ PUBLISH cache:invalidate:resourcePools "pool-123-updated"
 
 # Subscription events
 PUBLISH subscriptions:created "550e8400-e29b-41d4-a716-446655440000"
+PUBLISH subscriptions:updated "550e8400-e29b-41d4-a716-446655440000"
 PUBLISH subscriptions:deleted "550e8400-e29b-41d4-a716-446655440000"
+```
+
+**Subscription Update Flow**:
+
+When a subscription is updated (callback URL or filter changes):
+
+1. **Kubernetes Adapter**:
+   - Update subscription in Redis (atomic)
+   - Publish `subscriptions:updated` event
+   - Controller watches Redis, detects change
+   - Controller restarts K8s informers with new filter
+
+2. **OpenStack Adapter**:
+   - Hold mutex lock during critical section
+   - Stop old polling goroutine
+   - Update subscription in memory
+   - Start new polling goroutine with updated config
+   - Rollback on failure (restore old config + polling)
+   - Release lock only after successful polling start
+
+3. **AWS/Azure/GCP/VMware Adapters**:
+   - Update subscription in memory (atomic with mutex)
+   - No watcher restart needed (passive filters on event streams)
+
+See [Subscription UPDATE Behavior](subscription-update-behavior.md) for detailed error handling and rollback mechanisms.
+
 ```
 
 #### Distributed Locks

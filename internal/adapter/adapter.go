@@ -51,6 +51,12 @@ var (
 	// ErrResourcePoolExists indicates a resource pool with the given ID already exists.
 	ErrResourcePoolExists = errors.New("resource pool already exists")
 
+	// ErrResourceTypeNotFound is returned when a resource type does not exist.
+	ErrResourceTypeNotFound = errors.New("resource type not found")
+
+	// ErrSubscriptionNotFound is returned when a subscription does not exist.
+	ErrSubscriptionNotFound = errors.New("subscription not found")
+
 	// ErrInvalidResource indicates the resource has invalid fields or constraints.
 	ErrInvalidResource = errors.New("invalid resource")
 
@@ -311,6 +317,10 @@ type Adapter interface {
 	// GetSubscription retrieves a specific subscription by ID.
 	// Returns the subscription or an error if not found.
 	GetSubscription(ctx context.Context, id string) (*Subscription, error)
+
+	// UpdateSubscription updates an existing subscription.
+	// Returns the updated subscription or an error if not found.
+	UpdateSubscription(ctx context.Context, id string, sub *Subscription) (*Subscription, error)
 
 	// DeleteSubscription deletes a subscription by ID.
 	// Returns an error if the subscription doesn't exist.
