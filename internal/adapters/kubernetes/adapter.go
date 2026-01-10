@@ -289,6 +289,28 @@ func (a *KubernetesAdapter) UpdateSubscription(ctx context.Context, id string, s
 	}
 
 	// Get existing subscription for logging
+	existingSub, err := a.getExistingSubscription(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare and update storage subscription
+	storageSub := a.convertToStorageSubscription(id, sub)
+	if err := a.updateSubscriptionInStore(ctx, id, storageSub); err != nil {
+		return nil, err
+	}
+
+	a.logger.Info("subscription updated",
+		zap.String("subscriptionId", id),
+		zap.String("oldCallback", existingSub.Callback),
+		zap.String("newCallback", sub.Callback))
+
+	// Return updated subscription
+	return a.convertToAdapterSubscription(id, storageSub), nil
+}
+
+// getExistingSubscription retrieves an existing subscription with proper error handling.
+func (a *KubernetesAdapter) getExistingSubscription(ctx context.Context, id string) (*storage.Subscription, error) {
 	existingSub, err := a.store.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
@@ -301,8 +323,11 @@ func (a *KubernetesAdapter) UpdateSubscription(ctx context.Context, id string, s
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to retrieve subscription: %w", err)
 	}
+	return existingSub, nil
+}
 
-	// Prepare storage subscription
+// convertToStorageSubscription converts adapter subscription to storage format.
+func (a *KubernetesAdapter) convertToStorageSubscription(id string, sub *adapter.Subscription) *storage.Subscription {
 	storageSub := &storage.Subscription{
 		ID:                     id,
 		Callback:               sub.Callback,
@@ -317,25 +342,27 @@ func (a *KubernetesAdapter) UpdateSubscription(ctx context.Context, id string, s
 		}
 	}
 
-	// Update in Redis
+	return storageSub
+}
+
+// updateSubscriptionInStore updates subscription in Redis with proper error handling.
+func (a *KubernetesAdapter) updateSubscriptionInStore(ctx context.Context, id string, storageSub *storage.Subscription) error {
 	if err := a.store.Update(ctx, storageSub); err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			a.logger.Debug("subscription not found",
 				zap.String("subscriptionId", id))
-			return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+			return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 		}
 		a.logger.Error("failed to update subscription",
 			zap.String("subscriptionId", id),
 			zap.Error(err))
-		return nil, fmt.Errorf("failed to update subscription: %w", err)
+		return fmt.Errorf("failed to update subscription: %w", err)
 	}
+	return nil
+}
 
-	a.logger.Info("subscription updated",
-		zap.String("subscriptionId", id),
-		zap.String("oldCallback", existingSub.Callback),
-		zap.String("newCallback", sub.Callback))
-
-	// Return updated subscription
+// convertToAdapterSubscription converts storage subscription to adapter format.
+func (a *KubernetesAdapter) convertToAdapterSubscription(id string, storageSub *storage.Subscription) *adapter.Subscription {
 	var filter *adapter.SubscriptionFilter
 	hasFilter := storageSub.Filter.ResourcePoolID != "" ||
 		storageSub.Filter.ResourceTypeID != "" ||
@@ -353,7 +380,7 @@ func (a *KubernetesAdapter) UpdateSubscription(ctx context.Context, id string, s
 		Callback:               storageSub.Callback,
 		ConsumerSubscriptionID: storageSub.ConsumerSubscriptionID,
 		Filter:                 filter,
-	}, nil
+	}
 }
 
 // DeleteSubscription deletes a subscription by ID from Redis.
