@@ -798,6 +798,7 @@ func validateExtensions(extensions map[string]interface{}) error {
 		return errors.New("extensions map must not exceed 100 keys")
 	}
 
+	totalSize := 0
 	for key, value := range extensions {
 		if len(key) > 256 {
 			return errors.New("extension keys must not exceed 256 characters")
@@ -809,6 +810,12 @@ func validateExtensions(extensions map[string]interface{}) error {
 		}
 		if len(valueJSON) > 4096 {
 			return errors.New("extension values must not exceed 4096 bytes when JSON-encoded")
+		}
+
+		// Track total extensions payload size
+		totalSize += len(valueJSON)
+		if totalSize > 50000 {
+			return errors.New("total extensions payload must not exceed 50KB")
 		}
 	}
 

@@ -495,6 +495,72 @@ func TestResourceCRUD(t *testing.T) {
 		assert.Contains(t, resp.Body.String(), "extension values must not exceed 4096 bytes")
 	})
 
+	t.Run("POST /resources - extensions exceeds 100 keys", func(t *testing.T) {
+		srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+		// Create map with 101 keys
+		extensions := make(map[string]interface{})
+		for i := 0; i < 101; i++ {
+			extensions[fmt.Sprintf("key%d", i)] = "value"
+		}
+
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Extensions:     extensions,
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "extensions map must not exceed 100 keys")
+	})
+
+	t.Run("POST /resources - total extensions payload exceeds 50KB", func(t *testing.T) {
+		srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+		// Create extensions with total size > 50KB
+		// Each value ~2KB, 26 keys = ~52KB total
+		extensions := make(map[string]interface{})
+		largeValue := strings.Repeat("x", 2000)
+		for i := 0; i < 26; i++ {
+			extensions[fmt.Sprintf("key%d", i)] = largeValue
+		}
+
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Extensions:     extensions,
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "total extensions payload must not exceed 50KB")
+	})
+
 	t.Run("POST /resources - custom resource ID", func(t *testing.T) {
 		resource := adapter.Resource{
 			ResourceID:     "custom-resource-id",
