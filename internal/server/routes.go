@@ -651,6 +651,8 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 		zap.String("resource_pool_id", created.ResourcePoolID),
 		zap.String("name", created.Name))
 
+	// Set Location header for REST compliance
+	c.Header("Location", "/o2ims/v1/resourcePools/"+created.ResourcePoolID)
 	c.JSON(http.StatusCreated, created)
 }
 
