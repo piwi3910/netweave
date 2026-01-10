@@ -231,7 +231,7 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 	}
 
 	// Generate subscription ID
-	req.SubscriptionID = uuid.New().String()
+	req.SubscriptionID = "sub-" + uuid.New().String()[:12]
 
 	// Create subscription via adapter
 	created, err := s.adapter.CreateSubscription(c.Request.Context(), &req)

@@ -1785,10 +1785,10 @@ return &models.Resource{
 ```http
 HTTP/1.1 201 Created
 Content-Type: application/json
-Location: /o2ims/v1/resources/res-compute-node-a1b2c3d4
+Location: /o2ims/v1/resources/res-compute-node-a1b2c3d4e5f6
 
 {
-  "resourceId": "res-compute-node-a1b2c3d4",
+  "resourceId": "res-compute-node-a1b2c3d4e5f6",
   "resourceTypeId": "compute-node",
   "resourcePoolId": "pool-compute-high-mem",
   "globalAssetId": "urn:o-ran:resource:node-prod-042",
@@ -1814,7 +1814,7 @@ metadata:
   namespace: openshift-machine-api
   labels:
     machine.openshift.io/cluster-api-machineset: pool-compute-high-mem
-    o2ims.oran.org/resource-id: res-compute-node-a1b2c3d4
+    o2ims.oran.org/resource-id: res-compute-node-a1b2c3d4e5f6
   annotations:
     o2ims.oran.org/global-asset-id: "urn:o-ran:resource:node-prod-042"
     o2ims.oran.org/description: "High-memory compute node for RAN workloads"
@@ -1832,7 +1832,7 @@ kind: Node
 metadata:
   name: ip-10-0-1-123.ec2.internal
   labels:
-    o2ims.oran.org/resource-id: res-compute-node-a1b2c3d4
+    o2ims.oran.org/resource-id: res-compute-node-a1b2c3d4e5f6
     o2ims.oran.org/resource-pool-id: pool-compute-high-mem
 status:
   conditions:
