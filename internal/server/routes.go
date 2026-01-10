@@ -17,6 +17,15 @@ import (
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
+// Validation errors for resource operations.
+var (
+	// ErrResourceTypeRequired indicates resourceTypeId field is missing.
+	ErrResourceTypeRequired = errors.New("Resource type ID is required")
+
+	// ErrResourcePoolRequired indicates resourcePoolId field is missing.
+	ErrResourcePoolRequired = errors.New("Resource pool ID is required")
+)
+
 // setupRoutes configures all HTTP routes for the O2-IMS Gateway.
 // It organizes routes into logical groups:
 //   - Health and readiness endpoints
@@ -894,19 +903,43 @@ func (s *Server) handleGetResource(c *gin.Context) {
 	c.JSON(http.StatusOK, resource)
 }
 
+// validateCreateRequestFields validates required fields and constraints for resource creation.
+// This is a pure validation function that doesn't handle HTTP responses.
+func validateCreateRequestFields(req *adapter.Resource) error {
+	if req.ResourceTypeID == "" {
+		return ErrResourceTypeRequired
+	}
+
+	if req.ResourcePoolID == "" {
+		return ErrResourcePoolRequired
+	}
+
+	if err := validateResourceFields(req); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// sendValidationError sends an HTTP 400 Bad Request response for validation errors.
+func (s *Server) sendValidationError(c *gin.Context, err error) {
+	c.JSON(http.StatusBadRequest, gin.H{
+		"error":   "BadRequest",
+		"message": err.Error(),
+		"code":    http.StatusBadRequest,
+	})
+}
+
 // parseAndValidateCreateRequest parses and validates the create resource request.
 func (s *Server) parseAndValidateCreateRequest(c *gin.Context) (*adapter.Resource, error) {
 	var req adapter.Resource
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		s.sendValidationError(c, fmt.Errorf("invalid request body: %w", err))
 		return nil, err
 	}
 
-	if err := s.validateCreateRequest(c, &req); err != nil {
+	if err := validateCreateRequestFields(&req); err != nil {
+		s.sendValidationError(c, err)
 		return nil, err
 	}
 
@@ -916,38 +949,6 @@ func (s *Server) parseAndValidateCreateRequest(c *gin.Context) (*adapter.Resourc
 	}
 
 	return &req, nil
-}
-
-// validateCreateRequest validates required fields and constraints for resource creation.
-func (s *Server) validateCreateRequest(c *gin.Context, req *adapter.Resource) error {
-	if req.ResourceTypeID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Resource type ID is required",
-			"code":    http.StatusBadRequest,
-		})
-		return errors.New("resource type ID is required")
-	}
-
-	if req.ResourcePoolID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Resource pool ID is required",
-			"code":    http.StatusBadRequest,
-		})
-		return errors.New("resource pool ID is required")
-	}
-
-	if err := validateResourceFields(req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": err.Error(),
-			"code":    http.StatusBadRequest,
-		})
-		return err
-	}
-
-	return nil
 }
 
 // createResourceAndRespond creates the resource via adapter and sends the response.
@@ -962,6 +963,8 @@ func (s *Server) createResourceAndRespond(c *gin.Context, req *adapter.Resource)
 		zap.String("resource_id", created.ResourceID),
 		zap.String("resource_type_id", created.ResourceTypeID))
 
+	// Set Location header for REST compliance
+	c.Header("Location", "/o2ims/v1/resources/"+created.ResourceID)
 	c.JSON(http.StatusCreated, created)
 }
 
