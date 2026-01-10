@@ -284,6 +284,10 @@ type Adapter interface {
 	// Returns the subscription or an error if not found.
 	GetSubscription(ctx context.Context, id string) (*Subscription, error)
 
+	// UpdateSubscription updates an existing subscription.
+	// Returns the updated subscription or an error if not found.
+	UpdateSubscription(ctx context.Context, id string, sub *Subscription) (*Subscription, error)
+
 	// DeleteSubscription deletes a subscription by ID.
 	// Returns an error if the subscription doesn't exist.
 	DeleteSubscription(ctx context.Context, id string) error

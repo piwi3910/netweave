@@ -228,4 +228,59 @@ func TestSubscriptionUPDATE(t *testing.T) {
 		assert.Equal(t, subscription.Filter.ResourceTypeID, updated.Filter.ResourceTypeID)
 		assert.Equal(t, subscription.Filter.ResourceID, updated.Filter.ResourceID)
 	})
+
+	t.Run("PUT /subscriptions/:id - empty callback URL", func(t *testing.T) {
+		subscription := adapter.Subscription{
+			Callback: "", // Empty callback should fail validation
+			Filter: &adapter.SubscriptionFilter{
+				ResourcePoolID: "pool-test",
+			},
+		}
+
+		body, err := json.Marshal(subscription)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		// Adapter validation should reject empty callback
+		assert.Equal(t, http.StatusInternalServerError, resp.Code)
+		assert.Contains(t, resp.Body.String(), "Failed to update subscription")
+	})
+
+	t.Run("PUT /subscriptions/:id - update only callback (no filter)", func(t *testing.T) {
+		subscription := adapter.Subscription{
+			Callback:               "https://new-callback.example.com/webhook",
+			ConsumerSubscriptionID: "consumer-456",
+			Filter:                 nil, // No filter update
+		}
+
+		body, err := json.Marshal(subscription)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusOK, resp.Code)
+
+		var updated adapter.Subscription
+		err = json.Unmarshal(resp.Body.Bytes(), &updated)
+		require.NoError(t, err)
+		assert.Equal(t, subscription.Callback, updated.Callback)
+		assert.Equal(t, subscription.ConsumerSubscriptionID, updated.ConsumerSubscriptionID)
+	})
 }

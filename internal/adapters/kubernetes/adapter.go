@@ -271,6 +271,76 @@ func (a *KubernetesAdapter) GetSubscription(ctx context.Context, id string) (*ad
 	return adapterSub, nil
 }
 
+// UpdateSubscription updates an existing subscription.
+// Updates both the subscription in Redis and notifies the controller to restart watchers.
+func (a *KubernetesAdapter) UpdateSubscription(ctx context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+	a.logger.Debug("UpdateSubscription called",
+		zap.String("id", id),
+		zap.String("callback", sub.Callback))
+
+	if a.store == nil {
+		a.logger.Warn("subscription storage not configured")
+		return nil, fmt.Errorf("subscription storage not configured")
+	}
+
+	// Validate callback URL
+	if sub.Callback == "" {
+		return nil, fmt.Errorf("callback URL is required")
+	}
+
+	// Prepare storage subscription
+	storageSub := &storage.Subscription{
+		ID:                     id,
+		Callback:               sub.Callback,
+		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
+	}
+
+	if sub.Filter != nil {
+		storageSub.Filter = storage.SubscriptionFilter{
+			ResourcePoolID: sub.Filter.ResourcePoolID,
+			ResourceTypeID: sub.Filter.ResourceTypeID,
+			ResourceID:     sub.Filter.ResourceID,
+		}
+	}
+
+	// Update in Redis
+	if err := a.store.Update(ctx, storageSub); err != nil {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
+			a.logger.Debug("subscription not found",
+				zap.String("subscriptionId", id))
+			return nil, fmt.Errorf("subscription not found: %s", id)
+		}
+		a.logger.Error("failed to update subscription",
+			zap.String("subscriptionId", id),
+			zap.Error(err))
+		return nil, fmt.Errorf("failed to update subscription: %w", err)
+	}
+
+	a.logger.Info("subscription updated",
+		zap.String("subscriptionId", id),
+		zap.String("callback", sub.Callback))
+
+	// Return updated subscription
+	var filter *adapter.SubscriptionFilter
+	hasFilter := storageSub.Filter.ResourcePoolID != "" ||
+		storageSub.Filter.ResourceTypeID != "" ||
+		storageSub.Filter.ResourceID != ""
+	if hasFilter {
+		filter = &adapter.SubscriptionFilter{
+			ResourcePoolID: storageSub.Filter.ResourcePoolID,
+			ResourceTypeID: storageSub.Filter.ResourceTypeID,
+			ResourceID:     storageSub.Filter.ResourceID,
+		}
+	}
+
+	return &adapter.Subscription{
+		SubscriptionID:         id,
+		Callback:               storageSub.Callback,
+		ConsumerSubscriptionID: storageSub.ConsumerSubscriptionID,
+		Filter:                 filter,
+	}, nil
+}
+
 // DeleteSubscription deletes a subscription by ID from Redis.
 // The controller package monitors Redis and stops the corresponding Kubernetes watchers.
 func (a *KubernetesAdapter) DeleteSubscription(ctx context.Context, id string) error {

@@ -313,6 +313,8 @@ func (s *Server) handleGetSubscription(c *gin.Context) {
 
 // handleUpdateSubscription updates an existing subscription.
 // PUT /o2ims/v1/subscriptions/:subscriptionId.
+// This endpoint allows updating both the callback URL and/or subscription filters.
+// When filter is null, it removes all filters; empty filter object {} also removes filters.
 func (s *Server) handleUpdateSubscription(c *gin.Context) {
 	subscriptionID := c.Param("subscriptionId")
 	s.logger.Info("updating subscription", zap.String("subscription_id", subscriptionID))
@@ -327,10 +329,12 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 		return
 	}
 
-	// Get existing subscription from storage to verify it exists
-	_, err := s.store.Get(c.Request.Context(), subscriptionID)
+	// Update subscription via adapter first (consistent with CREATE and DELETE operations)
+	// The adapter validates the subscription and updates the backend system
+	updated, err := s.adapter.UpdateSubscription(c.Request.Context(), subscriptionID, &req)
 	if err != nil {
-		if errors.Is(err, storage.ErrSubscriptionNotFound) {
+		// Check for not found error
+		if err.Error() == "subscription not found: "+subscriptionID || err.Error() == "subscription not found" {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
 				"message": "Subscription not found: " + subscriptionID,
@@ -338,30 +342,31 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 			})
 			return
 		}
-		s.logger.Error("failed to get subscription", zap.Error(err))
+
+		s.logger.Error("failed to update subscription via adapter", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
-			"message": "Failed to retrieve subscription",
+			"message": "Failed to update subscription",
 			"code":    http.StatusInternalServerError,
 		})
 		return
 	}
 
-	// Update subscription in storage
-	// Preserve the subscription ID from the URL parameter
+	// Update subscription in storage to maintain consistency
 	storageSub := &storage.Subscription{
 		ID:                     subscriptionID,
-		Callback:               req.Callback,
-		ConsumerSubscriptionID: req.ConsumerSubscriptionID,
+		Callback:               updated.Callback,
+		ConsumerSubscriptionID: updated.ConsumerSubscriptionID,
 	}
-	if req.Filter != nil {
+	if updated.Filter != nil {
 		storageSub.Filter = storage.SubscriptionFilter{
-			ResourcePoolID: req.Filter.ResourcePoolID,
-			ResourceTypeID: req.Filter.ResourceTypeID,
-			ResourceID:     req.Filter.ResourceID,
+			ResourcePoolID: updated.Filter.ResourcePoolID,
+			ResourceTypeID: updated.Filter.ResourceTypeID,
+			ResourceID:     updated.Filter.ResourceID,
 		}
 	}
 
+	// Store.Update will return ErrSubscriptionNotFound if the subscription doesn't exist
 	if err := s.store.Update(c.Request.Context(), storageSub); err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -371,7 +376,7 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 			})
 			return
 		}
-		s.logger.Error("failed to update subscription", zap.Error(err))
+		s.logger.Error("failed to update subscription in storage", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
 			"message": "Failed to update subscription",
@@ -382,24 +387,7 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 
 	s.logger.Info("subscription updated",
 		zap.String("subscription_id", subscriptionID),
-		zap.String("callback", req.Callback))
-
-	// Return updated subscription
-	updated := adapter.Subscription{
-		SubscriptionID:         subscriptionID,
-		Callback:               storageSub.Callback,
-		ConsumerSubscriptionID: storageSub.ConsumerSubscriptionID,
-	}
-	hasFilter := storageSub.Filter.ResourcePoolID != "" ||
-		storageSub.Filter.ResourceTypeID != "" ||
-		storageSub.Filter.ResourceID != ""
-	if hasFilter {
-		updated.Filter = &adapter.SubscriptionFilter{
-			ResourcePoolID: storageSub.Filter.ResourcePoolID,
-			ResourceTypeID: storageSub.Filter.ResourceTypeID,
-			ResourceID:     storageSub.Filter.ResourceID,
-		}
-	}
+		zap.String("callback", updated.Callback))
 
 	c.JSON(http.StatusOK, updated)
 }

@@ -77,6 +77,14 @@ func (m *mockAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subsc
 func (m *mockAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
 	return nil, errNotFound
 }
+func (m *mockAdapter) UpdateSubscription(ctx context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+	// Validate callback URL (consistent with real adapters)
+	if sub.Callback == "" {
+		return nil, errors.New("callback URL is required")
+	}
+	sub.SubscriptionID = id
+	return sub, nil
+}
 func (m *mockAdapter) DeleteSubscription(ctx context.Context, id string) error {
 	return nil
 }

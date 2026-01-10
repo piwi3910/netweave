@@ -111,6 +111,9 @@ func (m *mockAdapter) CreateSubscription(_ context.Context, _ *adapter.Subscript
 func (m *mockAdapter) GetSubscription(_ context.Context, _ string) (*adapter.Subscription, error) {
 	return nil, errNotImplemented
 }
+func (m *mockAdapter) UpdateSubscription(_ context.Context, _ string, _ *adapter.Subscription) (*adapter.Subscription, error) {
+	return nil, errNotImplemented
+}
 func (m *mockAdapter) DeleteSubscription(_ context.Context, _ string) error {
 	return errNotImplemented
 }
