@@ -435,6 +435,66 @@ func TestResourceCRUD(t *testing.T) {
 		assert.Contains(t, resp.Body.String(), "extensions")
 	})
 
+	t.Run("POST /resources - extension key exceeds 256 characters", func(t *testing.T) {
+		// Create extension with key longer than 256 characters
+		longKey := strings.Repeat("a", 257)
+		extensions := map[string]interface{}{
+			longKey: "value",
+		}
+
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Extensions:     extensions,
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "extension keys must not exceed 256 characters")
+	})
+
+	t.Run("POST /resources - extension value exceeds 4KB", func(t *testing.T) {
+		// Create extension with value larger than 4096 bytes when JSON-encoded
+		largeValue := strings.Repeat("x", 4100)
+		extensions := map[string]interface{}{
+			"key": largeValue,
+		}
+
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Extensions:     extensions,
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "extension values must not exceed 4096 bytes")
+	})
+
 	t.Run("POST /resources - custom resource ID", func(t *testing.T) {
 		resource := adapter.Resource{
 			ResourceID:     "custom-resource-id",

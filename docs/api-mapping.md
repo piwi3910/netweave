@@ -1715,10 +1715,10 @@ Content-Type: application/json
 ```go
 // 1. Validate required fields
 if resource.ResourceTypeID == "" {
-    return errors.New("Resource type ID is required")
+    return errors.New("resource type ID is required")
 }
 if resource.ResourcePoolID == "" {
-    return errors.New("Resource pool ID is required")
+    return errors.New("resource pool ID is required")
 }
 
 // 2. Validate field constraints
