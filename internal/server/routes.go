@@ -618,11 +618,11 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 	}
 
 	// Generate resource pool ID if not provided (sanitized with UUID for uniqueness)
-	// Format: pool-{sanitized-name}-{8-char-uuid}
-	// Example: "GPU Pool (Production)" → "pool-gpu-pool--production--a1b2c3d4"
+	// Format: pool-{sanitized-name}-{12-char-uuid}
+	// Example: "GPU Pool (Production)" → "pool-gpu-pool--production--a1b2c3d4e5f6"
 	if req.ResourcePoolID == "" {
 		// Add UUID suffix to prevent collisions from similar names
-		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name) + "-" + uuid.New().String()[:8]
+		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name) + "-" + uuid.New().String()[:12]
 	}
 
 	// Create resource pool via adapter
@@ -936,7 +936,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 
 	// Generate resource ID if not provided
 	if req.ResourceID == "" {
-		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()[:8]
+		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()[:12]
 	}
 
 	// Create resource via adapter
