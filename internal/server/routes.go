@@ -894,9 +894,8 @@ func (s *Server) handleGetResource(c *gin.Context) {
 	c.JSON(http.StatusOK, resource)
 }
 
-// validateCreateRequestFields validates required fields and constraints for resource creation.
-// This is a pure validation function that doesn't handle HTTP responses.
-func validateCreateRequestFields(req *adapter.Resource) error {
+// validateCreateRequest validates required fields and constraints for resource creation.
+func validateCreateRequest(req *adapter.Resource) error {
 	if req.ResourceTypeID == "" {
 		return adapter.ErrResourceTypeRequired
 	}
@@ -905,33 +904,32 @@ func validateCreateRequestFields(req *adapter.Resource) error {
 		return adapter.ErrResourcePoolRequired
 	}
 
-	if err := validateResourceFields(req); err != nil {
-		return err
-	}
-
-	return nil
+	return validateResourceFields(req)
 }
 
-// sendValidationError sends an HTTP 400 Bad Request response for validation errors.
-func (s *Server) sendValidationError(c *gin.Context, err error) {
-	c.JSON(http.StatusBadRequest, gin.H{
-		"error":   "BadRequest",
-		"message": err.Error(),
-		"code":    http.StatusBadRequest,
-	})
-}
+// handleCreateResource creates a new resource.
+// POST /o2ims/v1/resources.
+func (s *Server) handleCreateResource(c *gin.Context) {
+	s.logger.Info("creating resource")
 
-// parseAndValidateCreateRequest parses and validates the create resource request.
-func (s *Server) parseAndValidateCreateRequest(c *gin.Context) (*adapter.Resource, error) {
 	var req adapter.Resource
 	if err := c.ShouldBindJSON(&req); err != nil {
-		s.sendValidationError(c, fmt.Errorf("invalid request body: %w", err))
-		return nil, err
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
 	}
 
-	if err := validateCreateRequestFields(&req); err != nil {
-		s.sendValidationError(c, err)
-		return nil, err
+	// Validate required fields and constraints
+	if err := validateCreateRequest(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
 	}
 
 	// Generate resource ID if not provided
@@ -939,14 +937,25 @@ func (s *Server) parseAndValidateCreateRequest(c *gin.Context) (*adapter.Resourc
 		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()
 	}
 
-	return &req, nil
-}
-
-// createResourceAndRespond creates the resource via adapter and sends the response.
-func (s *Server) createResourceAndRespond(c *gin.Context, req *adapter.Resource) {
-	created, err := s.adapter.CreateResource(c.Request.Context(), req)
+	// Create resource via adapter
+	created, err := s.adapter.CreateResource(c.Request.Context(), &req)
 	if err != nil {
-		s.handleCreateError(c, err, req.ResourceID)
+		// Check if error indicates duplicate resource
+		if errors.Is(err, adapter.ErrResourceExists) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "Conflict",
+				"message": "Resource with ID " + req.ResourceID + " already exists",
+				"code":    http.StatusConflict,
+			})
+			return
+		}
+
+		s.logger.Error("failed to create resource", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to create resource",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
@@ -957,38 +966,6 @@ func (s *Server) createResourceAndRespond(c *gin.Context, req *adapter.Resource)
 	// Set Location header for REST compliance
 	c.Header("Location", "/o2ims/v1/resources/"+created.ResourceID)
 	c.JSON(http.StatusCreated, created)
-}
-
-// handleCreateError handles errors during resource creation.
-func (s *Server) handleCreateError(c *gin.Context, err error, resourceID string) {
-	if errors.Is(err, adapter.ErrResourceExists) {
-		c.JSON(http.StatusConflict, gin.H{
-			"error":   "Conflict",
-			"message": "Resource with ID " + resourceID + " already exists",
-			"code":    http.StatusConflict,
-		})
-		return
-	}
-
-	s.logger.Error("failed to create resource", zap.Error(err))
-	c.JSON(http.StatusInternalServerError, gin.H{
-		"error":   "InternalError",
-		"message": "Failed to create resource",
-		"code":    http.StatusInternalServerError,
-	})
-}
-
-// handleCreateResource creates a new resource.
-// POST /o2ims/v1/resources.
-func (s *Server) handleCreateResource(c *gin.Context) {
-	s.logger.Info("creating resource")
-
-	req, err := s.parseAndValidateCreateRequest(c)
-	if err != nil {
-		return // Response already sent
-	}
-
-	s.createResourceAndRespond(c, req)
 }
 
 // handleUpdateResource updates an existing resource.

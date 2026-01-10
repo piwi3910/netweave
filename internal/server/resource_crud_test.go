@@ -176,7 +176,7 @@ func TestResourceCRUD(t *testing.T) {
 		srv.router.ServeHTTP(resp, req)
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Resource type ID is required")
+		assert.Contains(t, resp.Body.String(), "resource type ID is required")
 	})
 
 	t.Run("POST /resources - validation error (empty resourcePoolId)", func(t *testing.T) {
@@ -199,7 +199,7 @@ func TestResourceCRUD(t *testing.T) {
 		srv.router.ServeHTTP(resp, req)
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Resource pool ID is required")
+		assert.Contains(t, resp.Body.String(), "resource pool ID is required")
 	})
 
 	// Test PUT /resources/:id
