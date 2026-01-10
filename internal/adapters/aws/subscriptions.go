@@ -75,7 +75,11 @@ func (a *AWSAdapter) GetSubscription(_ context.Context, id string) (sub *adapter
 }
 
 // UpdateSubscription updates an existing subscription.
-func (a *AWSAdapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (updated *adapter.Subscription, err error) {
+func (a *AWSAdapter) UpdateSubscription(
+	_ context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (result *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "UpdateSubscription", start, err) }()
 
@@ -98,7 +102,7 @@ func (a *AWSAdapter) UpdateSubscription(_ context.Context, id string, sub *adapt
 	}
 
 	// Create updated subscription preserving the ID
-	updatedSub := &adapter.Subscription{
+	result = &adapter.Subscription{
 		SubscriptionID:         id,
 		Callback:               sub.Callback,
 		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
@@ -106,14 +110,14 @@ func (a *AWSAdapter) UpdateSubscription(_ context.Context, id string, sub *adapt
 	}
 
 	// Store updated subscription
-	a.subscriptions[id] = updatedSub
+	a.subscriptions[id] = result
 
 	a.logger.Info("updated subscription",
 		zap.String("subscriptionId", id),
 		zap.String("oldCallback", existing.Callback),
 		zap.String("newCallback", sub.Callback))
 
-	return updatedSub, nil
+	return result, nil
 }
 
 // DeleteSubscription deletes a subscription by ID.

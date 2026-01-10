@@ -274,7 +274,11 @@ func (a *KubernetesAdapter) GetSubscription(ctx context.Context, id string) (*ad
 
 // UpdateSubscription updates an existing subscription.
 // Updates both the subscription in Redis and notifies the controller to restart watchers.
-func (a *KubernetesAdapter) UpdateSubscription(ctx context.Context, id string, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+func (a *KubernetesAdapter) UpdateSubscription(
+	ctx context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (result *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("kubernetes", "UpdateSubscription", start, err) }()
 
@@ -287,7 +291,7 @@ func (a *KubernetesAdapter) UpdateSubscription(ctx context.Context, id string, s
 		return nil, fmt.Errorf("subscription storage not configured")
 	}
 
-	// Validate callback URL
+	// Validate callback URL (defense-in-depth: server validates HTTP input, adapter validates programmatic calls)
 	if sub.Callback == "" {
 		return nil, fmt.Errorf("callback URL is required")
 	}
@@ -314,6 +318,8 @@ func (a *KubernetesAdapter) UpdateSubscription(ctx context.Context, id string, s
 }
 
 // getExistingSubscription retrieves an existing subscription with proper error handling.
+// Note: This helper exists to reduce UpdateSubscription cyclomatic complexity from 11 to ~3
+// (CLAUDE.md requirement: max 10).
 func (a *KubernetesAdapter) getExistingSubscription(ctx context.Context, id string) (*storage.Subscription, error) {
 	existingSub, err := a.store.Get(ctx, id)
 	if err != nil {
@@ -353,7 +359,11 @@ func (a *KubernetesAdapter) convertToStorageSubscription(id string, sub *adapter
 }
 
 // updateSubscriptionInStore updates subscription in Redis with proper error handling.
-func (a *KubernetesAdapter) updateSubscriptionInStore(ctx context.Context, id string, storageSub *storage.Subscription) error {
+func (a *KubernetesAdapter) updateSubscriptionInStore(
+	ctx context.Context,
+	id string,
+	storageSub *storage.Subscription,
+) error {
 	if err := a.store.Update(ctx, storageSub); err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			a.logger.Debug("subscription not found",
@@ -369,7 +379,10 @@ func (a *KubernetesAdapter) updateSubscriptionInStore(ctx context.Context, id st
 }
 
 // convertToAdapterSubscription converts storage subscription to adapter format.
-func (a *KubernetesAdapter) convertToAdapterSubscription(id string, storageSub *storage.Subscription) *adapter.Subscription {
+func (a *KubernetesAdapter) convertToAdapterSubscription(
+	id string,
+	storageSub *storage.Subscription,
+) *adapter.Subscription {
 	var filter *adapter.SubscriptionFilter
 	hasFilter := storageSub.Filter.ResourcePoolID != "" ||
 		storageSub.Filter.ResourceTypeID != "" ||

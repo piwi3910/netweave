@@ -142,7 +142,11 @@ func (a *OpenStackAdapter) GetSubscription(_ context.Context, id string) (*adapt
 
 // UpdateSubscription updates an existing subscription.
 // It stops the old polling goroutine and starts a new one with updated configuration.
-func (a *OpenStackAdapter) UpdateSubscription(ctx context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *OpenStackAdapter) UpdateSubscription(
+	ctx context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	start := time.Now()
 	var err error
 	defer func() { adapter.ObserveOperation("openstack", "UpdateSubscription", start, err) }()
@@ -151,7 +155,7 @@ func (a *OpenStackAdapter) UpdateSubscription(ctx context.Context, id string, su
 		zap.String("id", id),
 		zap.String("callback", sub.Callback))
 
-	// Validate callback URL
+	// Validate callback URL (defense-in-depth: server validates HTTP input, adapter validates programmatic calls)
 	if sub.Callback == "" {
 		err = fmt.Errorf("callback URL is required")
 		return nil, err
@@ -174,16 +178,20 @@ func (a *OpenStackAdapter) UpdateSubscription(ctx context.Context, id string, su
 		Filter:                 sub.Filter,
 	}
 
-	// Update in memory
-	a.subscriptions[id] = updated
+	// Stop old polling goroutine before updating (prevents race with polling reads)
 	subscriptionMu.Unlock()
-
-	// Stop old polling goroutine
 	if stopErr := a.stopPolling(id); stopErr != nil {
 		a.logger.Warn("failed to stop old polling",
 			zap.String("subscriptionID", id),
 			zap.Error(stopErr))
 	}
+
+	// Hold lock from here until polling successfully starts to prevent races
+	subscriptionMu.Lock()
+	defer subscriptionMu.Unlock()
+
+	// Update in memory
+	a.subscriptions[id] = updated
 
 	// Start new polling with updated configuration
 	if err = a.startPolling(ctx, updated); err != nil {
@@ -192,9 +200,7 @@ func (a *OpenStackAdapter) UpdateSubscription(ctx context.Context, id string, su
 			zap.Error(err))
 
 		// Rollback to existing subscription on failure
-		subscriptionMu.Lock()
 		a.subscriptions[id] = existing
-		subscriptionMu.Unlock()
 
 		// Best-effort attempt to restart old polling
 		if restartErr := a.startPolling(ctx, existing); restartErr != nil {
