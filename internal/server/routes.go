@@ -567,7 +567,8 @@ func validateResourcePoolFields(pool *adapter.ResourcePool) error {
 
 	// Validate Name length
 	if len(pool.Name) > MaxResourcePoolNameLength {
-		validationErrors = append(validationErrors, fmt.Sprintf("name must not exceed %d characters", MaxResourcePoolNameLength))
+		validationErrors = append(validationErrors,
+			fmt.Sprintf("name must not exceed %d characters", MaxResourcePoolNameLength))
 	}
 
 	// Validate ResourcePoolID if provided
@@ -579,7 +580,8 @@ func validateResourcePoolFields(pool *adapter.ResourcePool) error {
 
 	// Validate Description length if provided
 	if len(pool.Description) > MaxResourcePoolDescriptionLength {
-		validationErrors = append(validationErrors, fmt.Sprintf("description must not exceed %d characters", MaxResourcePoolDescriptionLength))
+		validationErrors = append(validationErrors,
+			fmt.Sprintf("description must not exceed %d characters", MaxResourcePoolDescriptionLength))
 	}
 
 	// Return all validation errors together

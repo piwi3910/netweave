@@ -159,4 +159,80 @@ func TestResourceCREATE(t *testing.T) {
 		assert.NotNil(t, created.Extensions)
 		assert.Equal(t, "16 cores", created.Extensions["cpu"])
 	})
+
+	t.Run("POST /resources - missing resourcePoolId", func(t *testing.T) {
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			Description:    "Test resource",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "Resource pool ID is required")
+	})
+
+	t.Run("POST /resources - invalid globalAssetId (not URN format)", func(t *testing.T) {
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			GlobalAssetID:  "invalid-not-urn",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "globalAssetId must start with 'urn:'")
+	})
+
+	t.Run("POST /resources - description too long", func(t *testing.T) {
+		longDesc := make([]byte, 1001)
+		for i := range longDesc {
+			longDesc[i] = 'x'
+		}
+
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Description:    string(longDesc),
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "description must not exceed 1000 characters")
+	})
 }
