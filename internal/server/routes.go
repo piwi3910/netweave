@@ -934,7 +934,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 
 	// Generate resource ID if not provided
 	if req.ResourceID == "" {
-		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()
+		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()[:8]
 	}
 
 	// Create resource via adapter
