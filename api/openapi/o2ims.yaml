@@ -844,7 +844,7 @@ components:
         extensions:
           type: object
           additionalProperties: true
-          description: Vendor-specific metadata (max 50 key-value pairs)
+          description: Vendor-specific metadata (max 100 key-value pairs)
 
     ResourceListResponse:
       type: object
