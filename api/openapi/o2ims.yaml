@@ -470,38 +470,6 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-    post:
-      summary: Create a new resource
-      description: Creates a new resource in the infrastructure inventory.
-      operationId: createResource
-      tags:
-        - Resources
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Resource'
-            example:
-              resourceTypeId: "compute-node"
-              resourcePoolId: "pool-compute-high-mem"
-              globalAssetId: "urn:o-ran:resource:node-002"
-              description: "High-memory compute node"
-              extensions:
-                cpu: "64 cores"
-                memory: "512GB"
-      responses:
-        '201':
-          description: Resource created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Resource'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
   /resources/{resourceId}:
     get:
       summary: Get a resource
@@ -818,6 +786,7 @@ components:
       required:
         - resourceId
         - resourceTypeId
+        - resourcePoolId
       properties:
         resourceId:
           type: string
