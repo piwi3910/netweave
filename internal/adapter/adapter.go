@@ -5,6 +5,22 @@ package adapter
 
 import (
 	"context"
+	"errors"
+)
+
+// Sentinel errors for adapter operations.
+var (
+	// ErrSubscriptionNotFound is returned when a subscription does not exist.
+	ErrSubscriptionNotFound = errors.New("subscription not found")
+
+	// ErrResourcePoolNotFound is returned when a resource pool does not exist.
+	ErrResourcePoolNotFound = errors.New("resource pool not found")
+
+	// ErrResourceNotFound is returned when a resource does not exist.
+	ErrResourceNotFound = errors.New("resource not found")
+
+	// ErrResourceTypeNotFound is returned when a resource type does not exist.
+	ErrResourceTypeNotFound = errors.New("resource type not found")
 )
 
 // Capability represents a feature that an adapter supports.

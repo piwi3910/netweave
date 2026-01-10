@@ -131,7 +131,7 @@ func (a *OpenStackAdapter) GetSubscription(_ context.Context, id string) (*adapt
 	subscriptionMu.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("subscription not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
 	a.logger.Debug("retrieved subscription",
@@ -150,7 +150,7 @@ func (a *OpenStackAdapter) DeleteSubscription(_ context.Context, id string) erro
 	_, exists := a.subscriptions[id]
 	if !exists {
 		subscriptionMu.Unlock()
-		return fmt.Errorf("subscription not found: %s", id)
+		return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 	delete(a.subscriptions, id)
 	subscriptionMu.Unlock()

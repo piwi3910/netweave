@@ -240,7 +240,7 @@ func (a *KubernetesAdapter) GetSubscription(ctx context.Context, id string) (*ad
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			a.logger.Debug("subscription not found",
 				zap.String("subscriptionId", id))
-			return nil, fmt.Errorf("subscription not found: %s", id)
+			return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 		}
 		a.logger.Error("failed to retrieve subscription",
 			zap.String("subscriptionId", id),
@@ -288,6 +288,20 @@ func (a *KubernetesAdapter) UpdateSubscription(ctx context.Context, id string, s
 		return nil, fmt.Errorf("callback URL is required")
 	}
 
+	// Get existing subscription for logging
+	existingSub, err := a.store.Get(ctx, id)
+	if err != nil {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
+			a.logger.Debug("subscription not found",
+				zap.String("subscriptionId", id))
+			return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+		}
+		a.logger.Error("failed to retrieve existing subscription",
+			zap.String("subscriptionId", id),
+			zap.Error(err))
+		return nil, fmt.Errorf("failed to retrieve subscription: %w", err)
+	}
+
 	// Prepare storage subscription
 	storageSub := &storage.Subscription{
 		ID:                     id,
@@ -308,7 +322,7 @@ func (a *KubernetesAdapter) UpdateSubscription(ctx context.Context, id string, s
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			a.logger.Debug("subscription not found",
 				zap.String("subscriptionId", id))
-			return nil, fmt.Errorf("subscription not found: %s", id)
+			return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 		}
 		a.logger.Error("failed to update subscription",
 			zap.String("subscriptionId", id),
@@ -318,7 +332,8 @@ func (a *KubernetesAdapter) UpdateSubscription(ctx context.Context, id string, s
 
 	a.logger.Info("subscription updated",
 		zap.String("subscriptionId", id),
-		zap.String("callback", sub.Callback))
+		zap.String("oldCallback", existingSub.Callback),
+		zap.String("newCallback", sub.Callback))
 
 	// Return updated subscription
 	var filter *adapter.SubscriptionFilter
@@ -357,7 +372,7 @@ func (a *KubernetesAdapter) DeleteSubscription(ctx context.Context, id string) e
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			a.logger.Debug("subscription not found for deletion",
 				zap.String("subscriptionId", id))
-			return fmt.Errorf("subscription not found: %s", id)
+			return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 		}
 		a.logger.Error("failed to delete subscription",
 			zap.String("subscriptionId", id),

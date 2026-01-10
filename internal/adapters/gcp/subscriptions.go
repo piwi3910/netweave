@@ -68,7 +68,7 @@ func (a *GCPAdapter) GetSubscription(_ context.Context, id string) (sub *adapter
 	a.subscriptionsMu.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("subscription not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
 	return sub, nil
@@ -94,7 +94,7 @@ func (a *GCPAdapter) UpdateSubscription(_ context.Context, id string, sub *adapt
 	// Check if subscription exists
 	existing, exists := a.subscriptions[id]
 	if !exists {
-		return nil, fmt.Errorf("subscription not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
 	// Create updated subscription preserving the ID
@@ -127,7 +127,7 @@ func (a *GCPAdapter) DeleteSubscription(_ context.Context, id string) (err error
 	a.subscriptionsMu.Lock()
 	if _, exists := a.subscriptions[id]; !exists {
 		a.subscriptionsMu.Unlock()
-		return fmt.Errorf("subscription not found: %s", id)
+		return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
 	delete(a.subscriptions, id)
