@@ -1,10 +1,12 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -52,7 +54,10 @@ func (s *Server) setupRoutes() {
 		resourcePools := v1.Group("/resourcePools")
 		{
 			resourcePools.GET("", s.handleListResourcePools)
+			resourcePools.POST("", s.handleCreateResourcePool)
 			resourcePools.GET("/:resourcePoolId", s.handleGetResourcePool)
+			resourcePools.PUT("/:resourcePoolId", s.handleUpdateResourcePool)
+			resourcePools.DELETE("/:resourcePoolId", s.handleDeleteResourcePool)
 			resourcePools.GET("/:resourcePoolId/resources", s.handleListResourcesInPool)
 		}
 
@@ -61,7 +66,9 @@ func (s *Server) setupRoutes() {
 		resources := v1.Group("/resources")
 		{
 			resources.GET("", s.handleListResources)
+			resources.POST("", s.handleCreateResource)
 			resources.GET("/:resourceId", s.handleGetResource)
+			resources.PUT("/:resourceId", s.handleUpdateResource)
 		}
 
 		// Resource Type Management
@@ -487,7 +494,349 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 	})
 }
 
+// Validation constants for resource pool fields.
+const (
+	// MaxResourcePoolNameLength is the maximum allowed length for resource pool names.
+	MaxResourcePoolNameLength = 255
+
+	// MaxResourcePoolIDLength is the maximum allowed length for resource pool IDs.
+	MaxResourcePoolIDLength = 255
+
+	// MaxResourcePoolDescriptionLength is the maximum allowed length for resource pool descriptions.
+	MaxResourcePoolDescriptionLength = 1000
+)
+
+// sanitizeResourcePoolID sanitizes a string for use in resource pool IDs.
+// Removes special characters that could cause security issues (path traversal, injection).
+func sanitizeResourcePoolID(name string) string {
+	// Replace spaces and slashes with hyphens
+	sanitized := strings.NewReplacer(
+		" ", "-",
+		"/", "-",
+		"\\", "-",
+		"..", "-",
+		":", "-",
+		"*", "-",
+		"?", "-",
+		"\"", "-",
+		"<", "-",
+		">", "-",
+		"|", "-",
+	).Replace(name)
+
+	// Remove any remaining non-alphanumeric characters except hyphens and underscores
+	var result strings.Builder
+	for _, ch := range sanitized {
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+			(ch >= '0' && ch <= '9') || ch == '-' || ch == '_' {
+			result.WriteRune(ch)
+		}
+	}
+
+	return strings.ToLower(result.String())
+}
+
+// isValidIDCharacter checks if a character is valid for resource pool IDs.
+func isValidIDCharacter(ch rune) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+		(ch >= '0' && ch <= '9') || ch == '-' || ch == '_'
+}
+
+// validateResourcePoolID validates the resource pool ID format.
+func validateResourcePoolID(id string) error {
+	if len(id) > MaxResourcePoolIDLength {
+		return fmt.Errorf("resourcePoolId must not exceed %d characters", MaxResourcePoolIDLength)
+	}
+
+	for _, ch := range id {
+		if !isValidIDCharacter(ch) {
+			return errors.New("resourcePoolId must contain only alphanumeric characters, hyphens, and underscores")
+		}
+	}
+
+	return nil
+}
+
+func validateResourcePoolFields(pool *adapter.ResourcePool) error {
+	var validationErrors []string
+
+	// Validate Name is required
+	if pool.Name == "" {
+		validationErrors = append(validationErrors, "name is required")
+	}
+
+	// Validate Name length
+	if len(pool.Name) > MaxResourcePoolNameLength {
+		validationErrors = append(validationErrors, fmt.Sprintf("name must not exceed %d characters", MaxResourcePoolNameLength))
+	}
+
+	// Validate ResourcePoolID if provided
+	if pool.ResourcePoolID != "" {
+		if err := validateResourcePoolID(pool.ResourcePoolID); err != nil {
+			validationErrors = append(validationErrors, err.Error())
+		}
+	}
+
+	// Validate Description length if provided
+	if len(pool.Description) > MaxResourcePoolDescriptionLength {
+		validationErrors = append(validationErrors, fmt.Sprintf("description must not exceed %d characters", MaxResourcePoolDescriptionLength))
+	}
+
+	// Return all validation errors together
+	if len(validationErrors) > 0 {
+		return errors.New(strings.Join(validationErrors, "; "))
+	}
+
+	return nil
+}
+
+// handleCreateResourcePool creates a new resource pool.
+// POST /o2ims/v1/resourcePools.
+func (s *Server) handleCreateResourcePool(c *gin.Context) {
+	s.logger.Info("creating resource pool")
+
+	var req adapter.ResourcePool
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Validate resource pool fields
+	if err := validateResourcePoolFields(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Generate resource pool ID if not provided (sanitized with UUID for uniqueness)
+	// Format: pool-{sanitized-name}-{8-char-uuid}
+	// Example: "GPU Pool (Production)" → "pool-gpu-pool--production--a1b2c3d4"
+	if req.ResourcePoolID == "" {
+		// Add UUID suffix to prevent collisions from similar names
+		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name) + "-" + uuid.New().String()[:8]
+	}
+
+	// Create resource pool via adapter
+	created, err := s.adapter.CreateResourcePool(c.Request.Context(), &req)
+	if err != nil {
+		// Check for duplicate resource pool using sentinel error
+		if errors.Is(err, adapter.ErrResourcePoolExists) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "Conflict",
+				"message": "Resource pool with ID " + req.ResourcePoolID + " already exists",
+				"code":    http.StatusConflict,
+			})
+			return
+		}
+
+		s.logger.Error("failed to create resource pool", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to create resource pool",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("resource pool created",
+		zap.String("resource_pool_id", created.ResourcePoolID),
+		zap.String("name", created.Name))
+
+	c.JSON(http.StatusCreated, created)
+}
+
+// handleUpdateResourcePool updates an existing resource pool.
+// PUT /o2ims/v1/resourcePools/:resourcePoolId.
+func (s *Server) handleUpdateResourcePool(c *gin.Context) {
+	resourcePoolID := c.Param("resourcePoolId")
+	s.logger.Info("updating resource pool", zap.String("resource_pool_id", resourcePoolID))
+
+	var req adapter.ResourcePool
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Validate field constraints
+	if err := validateResourcePoolFields(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Update resource pool via adapter
+	updated, err := s.adapter.UpdateResourcePool(c.Request.Context(), resourcePoolID, &req)
+	if err != nil {
+		// Check for not found error using sentinel error
+		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource pool not found: " + resourcePoolID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+
+		s.logger.Error("failed to update resource pool", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to update resource pool",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("resource pool updated",
+		zap.String("resource_pool_id", updated.ResourcePoolID),
+		zap.String("name", updated.Name))
+
+	c.JSON(http.StatusOK, updated)
+}
+
+// handleDeleteResourcePool deletes a resource pool.
+// DELETE /o2ims/v1/resourcePools/:resourcePoolId.
+func (s *Server) handleDeleteResourcePool(c *gin.Context) {
+	resourcePoolID := c.Param("resourcePoolId")
+	s.logger.Info("deleting resource pool", zap.String("resource_pool_id", resourcePoolID))
+
+	// Delete resource pool via adapter
+	if err := s.adapter.DeleteResourcePool(c.Request.Context(), resourcePoolID); err != nil {
+		// Check for not found error using sentinel error
+		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource pool not found: " + resourcePoolID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+
+		s.logger.Error("failed to delete resource pool", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to delete resource pool",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("resource pool deleted", zap.String("resource_pool_id", resourcePoolID))
+	c.Status(http.StatusNoContent)
+}
+
 // Resource handlers
+
+// isAlphanumericOrHyphen checks if a character is alphanumeric or hyphen.
+func isAlphanumericOrHyphen(ch rune) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-'
+}
+
+// validateURNNamespaceID validates the URN namespace identifier (nid).
+func validateURNNamespaceID(nid string) error {
+	if len(nid) < 2 || len(nid) > 32 {
+		return errors.New("URN namespace identifier must be 2-32 characters")
+	}
+
+	for i, ch := range nid {
+		if !isAlphanumericOrHyphen(ch) {
+			return errors.New("URN namespace identifier must contain only alphanumeric characters and hyphens")
+		}
+		if i == 0 && ch == '-' {
+			return errors.New("URN namespace identifier must start with alphanumeric character")
+		}
+	}
+
+	return nil
+}
+
+// validateURN validates URN format according to RFC 8141.
+// URN format: urn:<nid>:<nss> where:
+// - nid (Namespace Identifier): 2-32 alphanumeric characters, case-insensitive.
+// - nss (Namespace Specific String): at least 1 character.
+func validateURN(urn string) error {
+	if !strings.HasPrefix(urn, "urn:") {
+		return errors.New("globalAssetId must start with 'urn:'")
+	}
+
+	parts := strings.SplitN(urn, ":", 3)
+	if len(parts) < 3 {
+		return errors.New("globalAssetId must be in URN format: urn:<nid>:<nss> (e.g., urn:o-ran:resource:node-001)")
+	}
+
+	if err := validateURNNamespaceID(parts[1]); err != nil {
+		return err
+	}
+
+	if len(parts[2]) == 0 {
+		return errors.New("URN namespace specific string must not be empty")
+	}
+
+	return nil
+}
+
+// validateExtensions validates resource extensions for size and content.
+func validateExtensions(extensions map[string]interface{}) error {
+	if len(extensions) > 100 {
+		return errors.New("extensions map must not exceed 100 keys")
+	}
+
+	for key, value := range extensions {
+		if len(key) > 256 {
+			return errors.New("extension keys must not exceed 256 characters")
+		}
+		// Check JSON-marshaled size to prevent large payloads
+		valueJSON, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("extension value for key %q must be JSON-serializable", key)
+		}
+		if len(valueJSON) > 4096 {
+			return errors.New("extension values must not exceed 4096 bytes when JSON-encoded")
+		}
+	}
+
+	return nil
+}
+
+// validateResourceFields validates resource field constraints.
+func validateResourceFields(resource *adapter.Resource) error {
+	// Validate GlobalAssetID format (URN) if provided
+	if resource.GlobalAssetID != "" {
+		if err := validateURN(resource.GlobalAssetID); err != nil {
+			return err
+		}
+		if len(resource.GlobalAssetID) > 256 {
+			return errors.New("globalAssetId must not exceed 256 characters")
+		}
+	}
+
+	// Validate Description length
+	if len(resource.Description) > 1000 {
+		return errors.New("description must not exceed 1000 characters")
+	}
+
+	// Validate Extensions
+	if resource.Extensions != nil {
+		if err := validateExtensions(resource.Extensions); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 
 // handleListResources lists all resources.
 // GET /o2ims/v1/resources.
@@ -521,16 +870,226 @@ func (s *Server) handleGetResource(c *gin.Context) {
 	// Get resource via adapter
 	resource, err := s.adapter.GetResource(c.Request.Context(), resourceID)
 	if err != nil {
+		// Use sentinel error for better error detection
+		if errors.Is(err, adapter.ErrResourceNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource not found: " + resourceID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+
 		s.logger.Error("failed to get resource", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Resource not found: " + resourceID,
-			"code":    http.StatusNotFound,
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve resource",
+			"code":    http.StatusInternalServerError,
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, resource)
+}
+
+// handleCreateResource creates a new resource.
+// POST /o2ims/v1/resources.
+func (s *Server) handleCreateResource(c *gin.Context) {
+	s.logger.Info("creating resource")
+
+	var req adapter.Resource
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Validate required fields
+	if req.ResourceTypeID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Resource type ID is required",
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	if req.ResourcePoolID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Resource pool ID is required",
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Validate field constraints
+	if err := validateResourceFields(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Generate resource ID if not provided
+	if req.ResourceID == "" {
+		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()
+	}
+
+	// Create resource via adapter
+	// The adapter is responsible for enforcing uniqueness constraints.
+	created, err := s.adapter.CreateResource(c.Request.Context(), &req)
+	if err != nil {
+		// Check if error indicates duplicate resource using sentinel error
+		if errors.Is(err, adapter.ErrResourceExists) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "Conflict",
+				"message": "Resource with ID " + req.ResourceID + " already exists",
+				"code":    http.StatusConflict,
+			})
+			return
+		}
+
+		s.logger.Error("failed to create resource", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to create resource",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("resource created",
+		zap.String("resource_id", created.ResourceID),
+		zap.String("resource_type_id", created.ResourceTypeID))
+
+	c.JSON(http.StatusCreated, created)
+}
+
+// handleUpdateResource updates an existing resource.
+// PUT /o2ims/v1/resources/:resourceId.
+func (s *Server) handleUpdateResource(c *gin.Context) {
+	resourceID := c.Param("resourceId")
+	s.logger.Info("updating resource", zap.String("resource_id", resourceID))
+
+	var req adapter.Resource
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Get existing resource
+	existing, err := s.getExistingResource(c, resourceID)
+	if err != nil || existing == nil {
+		return // Response already sent
+	}
+
+	// Validate request
+	if err := s.validateUpdateRequest(c, &req, existing); err != nil {
+		return // Response already sent
+	}
+
+	// Apply update
+	s.applyResourceUpdate(c, resourceID, &req, existing)
+}
+
+// getExistingResource retrieves an existing resource and handles errors.
+func (s *Server) getExistingResource(c *gin.Context, resourceID string) (*adapter.Resource, error) {
+	existing, err := s.adapter.GetResource(c.Request.Context(), resourceID)
+	if err != nil {
+		if errors.Is(err, adapter.ErrResourceNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource not found: " + resourceID,
+				"code":    http.StatusNotFound,
+			})
+			return nil, err
+		}
+
+		s.logger.Error("failed to get resource", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve resource",
+			"code":    http.StatusInternalServerError,
+		})
+		return nil, err
+	}
+	return existing, nil
+}
+
+// validateUpdateRequest validates update request and immutable fields.
+func (s *Server) validateUpdateRequest(c *gin.Context, req, existing *adapter.Resource) error {
+	// Validate field constraints
+	if err := validateResourceFields(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return err
+	}
+
+	// Check immutable fields
+	if err := checkImmutableFields(req, existing); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return err
+	}
+
+	return nil
+}
+
+// checkImmutableFields validates that immutable fields haven't changed.
+func checkImmutableFields(req, existing *adapter.Resource) error {
+	if req.ResourceTypeID != "" && req.ResourceTypeID != existing.ResourceTypeID {
+		return errors.New("resourceTypeId is immutable and cannot be changed")
+	}
+	if req.ResourcePoolID != "" && req.ResourcePoolID != existing.ResourcePoolID {
+		return errors.New("resourcePoolId is immutable and cannot be changed")
+	}
+	return nil
+}
+
+// applyResourceUpdate performs the update operation.
+func (s *Server) applyResourceUpdate(c *gin.Context, resourceID string, req, existing *adapter.Resource) {
+	// Preserve immutable fields
+	req.ResourceID = resourceID
+	if req.ResourceTypeID == "" {
+		req.ResourceTypeID = existing.ResourceTypeID
+	}
+	if req.ResourcePoolID == "" {
+		req.ResourcePoolID = existing.ResourcePoolID
+	}
+
+	// Update via adapter
+	updated, err := s.adapter.UpdateResource(c.Request.Context(), resourceID, req)
+	if err != nil {
+		s.logger.Error("failed to update resource", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to update resource",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("resource updated",
+		zap.String("resource_id", updated.ResourceID),
+		zap.String("resource_type_id", updated.ResourceTypeID))
+
+	c.JSON(http.StatusOK, updated)
 }
 
 // Resource Type handlers

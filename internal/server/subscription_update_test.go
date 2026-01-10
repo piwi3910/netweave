@@ -125,6 +125,9 @@ func (m *mockSubscriptionAdapter) CreateResource(ctx context.Context, resource *
 func (m *mockSubscriptionAdapter) DeleteResource(ctx context.Context, id string) error {
 	return nil
 }
+func (m *mockSubscriptionAdapter) UpdateResource(ctx context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+	return resource, nil
+}
 func (m *mockSubscriptionAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
 	return nil, nil
 }

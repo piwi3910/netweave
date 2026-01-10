@@ -228,6 +228,25 @@ func (m *MockAdapter) CreateResource(_ context.Context, resource *adapter.Resour
 	return resource, nil
 }
 
+// UpdateResource updates an existing resource.
+func (m *MockAdapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if exists
+	if _, exists := m.resources[id]; !exists {
+		return nil, fmt.Errorf("resource not found")
+	}
+
+	// Preserve ID
+	resource.ResourceID = id
+
+	// Update
+	m.resources[id] = resource
+
+	return resource, nil
+}
+
 // DeleteResource deletes a resource.
 func (m *MockAdapter) DeleteResource(_ context.Context, id string) error {
 	m.mu.Lock()

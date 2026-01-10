@@ -108,6 +108,10 @@ func (m *mockAdapter) CreateResource(_ context.Context, _ *adapter.Resource) (*a
 	return nil, errNotImplemented
 }
 
+func (m *mockAdapter) UpdateResource(_ context.Context, _ string, _ *adapter.Resource) (*adapter.Resource, error) {
+	return nil, errNotImplemented
+}
+
 func (m *mockAdapter) DeleteResource(_ context.Context, _ string) error {
 	return errNotImplemented
 }

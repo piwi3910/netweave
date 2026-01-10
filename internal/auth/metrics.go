@@ -215,3 +215,13 @@ func RecordQuotaExceeded(tenantID, resourceType string) {
 func RecordStorageOperation(operation, entity, status string) {
 	StorageOperations.WithLabelValues(operation, entity, status).Inc()
 }
+
+// RecordAuthenticationDuration records the duration of an authentication attempt.
+func RecordAuthenticationDuration(status string, duration float64) {
+	AuthenticationDuration.WithLabelValues(status).Observe(duration)
+}
+
+// RecordStorageOperationDuration records the duration of a storage operation.
+func RecordStorageOperationDuration(operation, entity string, duration float64) {
+	StorageOperationDuration.WithLabelValues(operation, entity).Observe(duration)
+}

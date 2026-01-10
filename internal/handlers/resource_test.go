@@ -94,6 +94,17 @@ func (m *mockResourceAdapter) CreateResource(ctx context.Context, resource *adap
 	return resource, nil
 }
 
+func (m *mockResourceAdapter) UpdateResource(ctx context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+	for i, res := range m.resources {
+		if res.ResourceID == id {
+			resource.ResourceID = id
+			m.resources[i] = resource
+			return resource, nil
+		}
+	}
+	return nil, errors.New("resource not found")
+}
+
 func (m *mockResourceAdapter) DeleteResource(ctx context.Context, resourceID string) error {
 	if m.deleteErr != nil {
 		return m.deleteErr
