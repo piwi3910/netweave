@@ -123,6 +123,39 @@ func TestResourceCRUD(t *testing.T) {
 		assert.NotEmpty(t, created.ResourceID)
 	})
 
+	t.Run("POST /resources - verify Location header", func(t *testing.T) {
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		require.Equal(t, http.StatusCreated, resp.Code)
+
+		// Verify Location header is set
+		location := resp.Header().Get("Location")
+		require.NotEmpty(t, location, "Location header should be set")
+		require.Contains(t, location, "/o2ims/v1/resources/", "Location header should contain resource path")
+
+		// Verify Location header contains the resource ID
+		var created adapter.Resource
+		err = json.Unmarshal(resp.Body.Bytes(), &created)
+		require.NoError(t, err)
+		require.Contains(t, location, created.ResourceID, "Location header should contain the created resource ID")
+	})
+
 	t.Run("POST /resources - validation error (empty resourceTypeId)", func(t *testing.T) {
 		resource := adapter.Resource{
 			ResourcePoolID: "pool-1",

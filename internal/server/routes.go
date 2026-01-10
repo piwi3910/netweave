@@ -17,15 +17,6 @@ import (
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
-// Validation errors for resource operations.
-var (
-	// ErrResourceTypeRequired indicates resourceTypeId field is missing.
-	ErrResourceTypeRequired = errors.New("Resource type ID is required")
-
-	// ErrResourcePoolRequired indicates resourcePoolId field is missing.
-	ErrResourcePoolRequired = errors.New("Resource pool ID is required")
-)
-
 // setupRoutes configures all HTTP routes for the O2-IMS Gateway.
 // It organizes routes into logical groups:
 //   - Health and readiness endpoints
@@ -907,11 +898,11 @@ func (s *Server) handleGetResource(c *gin.Context) {
 // This is a pure validation function that doesn't handle HTTP responses.
 func validateCreateRequestFields(req *adapter.Resource) error {
 	if req.ResourceTypeID == "" {
-		return ErrResourceTypeRequired
+		return adapter.ErrResourceTypeRequired
 	}
 
 	if req.ResourcePoolID == "" {
-		return ErrResourcePoolRequired
+		return adapter.ErrResourcePoolRequired
 	}
 
 	if err := validateResourceFields(req); err != nil {
