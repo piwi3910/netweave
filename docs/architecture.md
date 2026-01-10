@@ -2341,6 +2341,66 @@ sequenceDiagram
 
 ## Storage Architecture
 
+### Dual Redis Connection Architecture
+
+When multi-tenancy is enabled, the gateway maintains **two separate Redis connections**:
+
+1. **Main Storage** (`storage.RedisStore`): Subscriptions, caching, pub/sub, and distributed locks
+2. **Auth Storage** (`auth.RedisStore`): Tenants, users, roles, role bindings, and audit logs
+
+```mermaid
+graph TB
+    subgraph Gateway [Gateway Pod]
+        App[Application]
+        MainStore[Main Redis Store<br/>• Subscriptions<br/>• Cache<br/>• Pub/Sub<br/>• Locks]
+        AuthStore[Auth Redis Store<br/>• Tenants<br/>• Users<br/>• Roles<br/>• Audit Logs]
+    end
+
+    subgraph Redis [Redis Cluster]
+        Master[Redis Master]
+    end
+
+    App --> MainStore
+    App --> AuthStore
+    MainStore --> Master
+    AuthStore --> Master
+
+    style MainStore fill:#e1f5ff
+    style AuthStore fill:#ffe6f0
+```
+
+**Rationale for Separation**:
+
+| Concern | Main Storage | Auth Storage |
+|---------|--------------|--------------|
+| **Data Lifecycle** | Short-lived (cache TTL) | Long-lived (persistent) |
+| **Access Pattern** | High-frequency reads | Low-frequency, write-heavy |
+| **Security** | General data | Sensitive credentials |
+| **Failure Isolation** | Can degrade gracefully | Must be available for auth |
+| **Health Checks** | Standard ping | Registered separately |
+
+**Benefits**:
+- **Isolation**: Auth failures don't impact main storage operations
+- **Security**: Separate connection pools for credential data
+- **Observability**: Independent health checks and metrics
+- **Scalability**: Can be pointed to different Redis instances if needed
+
+**Configuration** (both stores share the same Redis config by default):
+```yaml
+redis:
+  mode: sentinel
+  addresses:
+    - redis-sentinel-0:26379
+    - redis-sentinel-1:26379
+  master_name: mymaster
+  password_env_var: REDIS_PASSWORD
+  sentinel_password_env_var: REDIS_SENTINEL_PASSWORD
+
+multi_tenancy:
+  enabled: true
+  # When enabled, creates auth.RedisStore alongside storage.RedisStore
+```
+
 ### Redis Data Model
 
 #### Subscriptions
@@ -2390,7 +2450,34 @@ PUBLISH cache:invalidate:resourcePools "pool-123-updated"
 
 # Subscription events
 PUBLISH subscriptions:created "550e8400-e29b-41d4-a716-446655440000"
+PUBLISH subscriptions:updated "550e8400-e29b-41d4-a716-446655440000"
 PUBLISH subscriptions:deleted "550e8400-e29b-41d4-a716-446655440000"
+```
+
+**Subscription Update Flow**:
+
+When a subscription is updated (callback URL or filter changes):
+
+1. **Kubernetes Adapter**:
+   - Update subscription in Redis (atomic)
+   - Publish `subscriptions:updated` event
+   - Controller watches Redis, detects change
+   - Controller restarts K8s informers with new filter
+
+2. **OpenStack Adapter**:
+   - Hold mutex lock during critical section
+   - Stop old polling goroutine
+   - Update subscription in memory
+   - Start new polling goroutine with updated config
+   - Rollback on failure (restore old config + polling)
+   - Release lock only after successful polling start
+
+3. **AWS/Azure/GCP/VMware Adapters**:
+   - Update subscription in memory (atomic with mutex)
+   - No watcher restart needed (passive filters on event streams)
+
+See [Subscription UPDATE Behavior](subscription-update-behavior.md) for detailed error handling and rollback mechanisms.
+
 ```
 
 #### Distributed Locks
@@ -2404,6 +2491,61 @@ SET lock:cache:nodes "gateway-pod-1" NX EX 5
 
 # Background job lock
 SET lock:job:cleanup "controller-pod-1" NX EX 30
+```
+
+#### Auth Data Model (Multi-Tenancy)
+
+When multi-tenancy is enabled, the auth store maintains the following data:
+
+```redis
+# Tenant object
+HSET tenant:tenant-alpha
+  id "tenant-alpha"
+  name "SMO Alpha"
+  status "active"
+  quotas '{"maxUsers":100,"maxSubscriptions":1000}'
+  createdAt "2026-01-06T10:00:00Z"
+
+# Index: All tenants
+SADD tenants:all "tenant-alpha" "tenant-beta"
+
+# User object (scoped to tenant)
+HSET user:tenant-alpha:user-123
+  id "user-123"
+  tenantId "tenant-alpha"
+  name "admin@smo-alpha.com"
+  status "active"
+  createdAt "2026-01-06T10:30:00Z"
+
+# Index: Users by tenant
+SADD users:tenant:tenant-alpha "user-123" "user-456"
+
+# Role definition
+HSET role:operator
+  id "operator"
+  name "Operator"
+  permissions '[{"resource":"ResourcePool","action":"manage","scope":"tenant"}]'
+  isSystem "true"
+
+# Index: All roles
+SADD roles:all "platform-admin" "tenant-admin" "operator" "viewer"
+
+# Role binding (user to role in tenant)
+HSET rolebinding:tenant-alpha:user-123:operator
+  userId "user-123"
+  roleId "operator"
+  tenantId "tenant-alpha"
+  createdAt "2026-01-06T10:30:00Z"
+
+# Index: Role bindings by user
+SADD rolebindings:user:tenant-alpha:user-123 "operator" "viewer"
+
+# Audit log entry
+LPUSH audit:tenant-alpha
+  '{"timestamp":"2026-01-06T11:00:00Z","userId":"user-123","action":"create","resource":"ResourcePool","resourceId":"pool-123"}'
+
+# Audit log TTL (expire old entries)
+LTRIM audit:tenant-alpha 0 9999
 ```
 
 ### Redis Sentinel Configuration

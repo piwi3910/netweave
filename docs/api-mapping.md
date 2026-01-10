@@ -1168,6 +1168,56 @@ func transformMachineSetToO2Pool(ms *machinev1beta1.MachineSet) *models.Resource
 | Update | PUT | `/resourcePools/{id}` | Update MachineSet |
 | Delete | DELETE | `/resourcePools/{id}` | Delete MachineSet |
 
+#### HTTP Status Codes
+
+**POST /resourcePools**
+- `201 Created` - Resource pool successfully created
+- `400 Bad Request` - Invalid request body or validation errors
+- `409 Conflict` - Resource pool with the specified ID already exists
+- `500 Internal Server Error` - Backend adapter error
+
+**PUT /resourcePools/{id}**
+- `200 OK` - Resource pool successfully updated
+- `400 Bad Request` - Invalid request body or validation errors
+- `404 Not Found` - Resource pool with specified ID does not exist
+- `500 Internal Server Error` - Backend adapter error
+
+**DELETE /resourcePools/{id}**
+- `204 No Content` - Resource pool successfully deleted
+- `404 Not Found` - Resource pool with specified ID does not exist
+- `500 Internal Server Error` - Backend adapter error
+
+**GET /resourcePools/{id}**
+- `200 OK` - Resource pool found and returned
+- `404 Not Found` - Resource pool with specified ID does not exist
+- `500 Internal Server Error` - Backend adapter error
+
+**GET /resourcePools**
+- `200 OK` - List of resource pools returned (may be empty)
+- `400 Bad Request` - Invalid query parameters
+- `500 Internal Server Error` - Backend adapter error
+
+#### Input Validation
+
+The gateway performs the following validation on resource pool operations:
+
+**Field Validation:**
+- `name` - Required, maximum 255 characters
+- `resourcePoolId` - Optional on create (auto-generated if not provided), maximum 255 characters, alphanumeric with hyphens and underscores only
+- `description` - Optional, maximum 1000 characters
+
+**Input Sanitization:**
+When `resourcePoolId` is not provided on create, it's auto-generated from the pool name with the following sanitization:
+- Spaces and special characters (`/`, `\`, `..`, `:`, `*`, `?`, `"`, `<`, `>`, `|`) replaced with hyphens
+- Non-alphanumeric characters (except hyphens and underscores) removed
+- Converted to lowercase
+- Prefix `pool-` added
+- UUID suffix (8 characters) appended for uniqueness
+
+Example: `"GPU Pool (Production)"` → `"pool-gpu-pool--production--a1b2c3d4"`
+
+**Note:** The UUID suffix ensures that similar or identical pool names generate unique IDs, maintaining idempotency for create operations.
+
 ---
 
 ## Resources
@@ -1308,7 +1358,7 @@ func transformO2ResourceToMachine(resource *models.Resource) *machinev1beta1.Mac
 | List | GET | `/resources` | List Nodes (or Machines) |
 | Get | GET | `/resources/{id}` | Get Node |
 | Create | POST | `/resources` | Create Machine (triggers Node) |
-| ~~Update~~ | ~~PUT~~ | ~~N/A~~ | Not supported (nodes are immutable) |
+| Update | PUT | `/resources/{id}` | Update mutable fields (description, globalAssetId, extensions) |
 | Delete | DELETE | `/resources/{id}` | Delete Machine or drain+delete Node |
 
 ---

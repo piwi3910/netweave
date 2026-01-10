@@ -228,6 +228,25 @@ func (m *MockAdapter) CreateResource(_ context.Context, resource *adapter.Resour
 	return resource, nil
 }
 
+// UpdateResource updates an existing resource.
+func (m *MockAdapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if exists
+	if _, exists := m.resources[id]; !exists {
+		return nil, fmt.Errorf("resource not found")
+	}
+
+	// Preserve ID
+	resource.ResourceID = id
+
+	// Update
+	m.resources[id] = resource
+
+	return resource, nil
+}
+
 // DeleteResource deletes a resource.
 func (m *MockAdapter) DeleteResource(_ context.Context, id string) error {
 	m.mu.Lock()
@@ -292,6 +311,25 @@ func (m *MockAdapter) GetSubscription(_ context.Context, id string) (*adapter.Su
 	if !exists {
 		return nil, fmt.Errorf("subscription not found")
 	}
+
+	return sub, nil
+}
+
+// UpdateSubscription updates an existing subscription.
+func (m *MockAdapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if exists
+	if _, exists := m.subscriptions[id]; !exists {
+		return nil, fmt.Errorf("subscription not found")
+	}
+
+	// Preserve ID
+	sub.SubscriptionID = id
+
+	// Update
+	m.subscriptions[id] = sub
 
 	return sub, nil
 }

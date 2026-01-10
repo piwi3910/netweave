@@ -164,6 +164,87 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+    put:
+      summary: Update a subscription
+      description: Updates an existing subscription's callback URL and/or filter criteria.
+      operationId: updateSubscription
+      tags:
+        - Subscriptions
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Subscription'
+            example:
+              callback: "https://smo-updated.example.com/notify"
+              consumerSubscriptionId: "updated-consumer-id"
+              filter:
+                resourcePoolId: "pool-compute-high-mem"
+                resourceTypeId: "compute-node"
+      responses:
+        '200':
+          description: Subscription updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+              examples:
+                callbackUpdated:
+                  summary: Callback URL updated
+                  value:
+                    subscriptionId: "sub-123"
+                    callback: "https://smo-updated.example.com/notify"
+                    consumerSubscriptionId: "consumer-456"
+                    filter:
+                      resourcePoolId: "pool-compute"
+                filterRemoved:
+                  summary: Filter removed (subscribe to all events)
+                  value:
+                    subscriptionId: "sub-456"
+                    callback: "https://smo.example.com/notify"
+                    consumerSubscriptionId: "consumer-789"
+                    filter: null
+        '400':
+          description: Invalid request parameters or body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                emptyCallback:
+                  summary: Empty callback URL
+                  value:
+                    error: "BadRequest"
+                    message: "callback URL is required"
+                    code: 400
+                invalidURLFormat:
+                  summary: Invalid URL format
+                  value:
+                    error: "BadRequest"
+                    message: "invalid callback URL format: parse \"not-a-url\": invalid URI for request"
+                    code: 400
+                unsupportedScheme:
+                  summary: Unsupported URL scheme
+                  value:
+                    error: "BadRequest"
+                    message: "callback URL must use http or https scheme"
+                    code: 400
+        '404':
+          description: Subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "NotFound"
+                message: "Subscription not found: sub-nonexistent"
+                code: 404
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     delete:
       summary: Delete a subscription
       description: Deletes a subscription and stops sending notifications.
@@ -210,6 +291,37 @@ paths:
                 total: 1
         '500':
           $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create a resource pool
+      description: Creates a new resource pool in the O-Cloud infrastructure.
+      operationId: createResourcePool
+      tags:
+        - Resource Pools
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourcePool'
+            example:
+              name: "High Memory Compute Pool"
+              description: "Pool of high-memory compute nodes"
+              location: "us-east-1"
+              oCloudId: "ocloud-001"
+              globalLocationId: "geo:37.7749,-122.4194"
+      responses:
+        '201':
+          description: Resource pool created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePool'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /resourcePools/{resourcePoolId}:
     get:
@@ -227,6 +339,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourcePool'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      summary: Update a resource pool
+      description: Updates an existing resource pool by its ID.
+      operationId: updateResourcePool
+      tags:
+        - Resource Pools
+      parameters:
+        - $ref: '#/components/parameters/ResourcePoolId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourcePool'
+            example:
+              description: "Updated pool description"
+              location: "us-west-2"
+      responses:
+        '200':
+          description: Resource pool updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePool'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete a resource pool
+      description: Deletes a resource pool by its ID.
+      operationId: deleteResourcePool
+      tags:
+        - Resource Pools
+      parameters:
+        - $ref: '#/components/parameters/ResourcePoolId'
+      responses:
+        '204':
+          description: Resource pool deleted successfully
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -313,6 +470,38 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+    post:
+      summary: Create a new resource
+      description: Creates a new resource in the infrastructure inventory.
+      operationId: createResource
+      tags:
+        - Resources
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Resource'
+            example:
+              resourceTypeId: "compute-node"
+              resourcePoolId: "pool-compute-high-mem"
+              globalAssetId: "urn:o-ran:resource:node-002"
+              description: "High-memory compute node"
+              extensions:
+                cpu: "64 cores"
+                memory: "512GB"
+      responses:
+        '201':
+          description: Resource created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /resources/{resourceId}:
     get:
       summary: Get a resource
@@ -329,6 +518,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Resource'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update a resource
+      description: Updates an existing resource's description, global asset ID, and extensions. The resourceId, resourceTypeId, and resourcePoolId are immutable.
+      operationId: updateResource
+      tags:
+        - Resources
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Resource'
+            example:
+              description: "Updated high-memory compute node"
+              globalAssetId: "urn:o-ran:resource:node-001-updated"
+              extensions:
+                cpu: "128 cores"
+                memory: "1TB"
+                status: "active"
+      responses:
+        '200':
+          description: Resource updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -893,6 +1117,17 @@ components:
             error: "NotFound"
             message: "Resource not found: node-001"
             code: 404
+
+    Conflict:
+      description: Resource already exists or conflict with current state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Conflict"
+            message: "Resource pool with ID pool-123 already exists"
+            code: 409
 
     InternalServerError:
       description: Internal server error

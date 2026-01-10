@@ -178,6 +178,11 @@ type RedisConfig struct {
 	// Password for Redis authentication.
 	Password string
 
+	// SentinelPassword for Redis Sentinel authentication.
+	// Used in Sentinel mode to authenticate with Sentinel servers.
+	// Best practice: Use separate passwords for Sentinel and Redis.
+	SentinelPassword string
+
 	// DB is the Redis database number (0-15).
 	DB int
 
@@ -238,15 +243,16 @@ func NewRedisStore(cfg *RedisConfig) *RedisStore {
 
 	if cfg.UseSentinel {
 		client = redis.NewFailoverClient(&redis.FailoverOptions{
-			MasterName:    cfg.MasterName,
-			SentinelAddrs: cfg.SentinelAddrs,
-			Password:      cfg.Password,
-			DB:            cfg.DB,
-			MaxRetries:    cfg.MaxRetries,
-			DialTimeout:   cfg.DialTimeout,
-			ReadTimeout:   cfg.ReadTimeout,
-			WriteTimeout:  cfg.WriteTimeout,
-			PoolSize:      cfg.PoolSize,
+			MasterName:       cfg.MasterName,
+			SentinelAddrs:    cfg.SentinelAddrs,
+			SentinelPassword: cfg.SentinelPassword,
+			Password:         cfg.Password,
+			DB:               cfg.DB,
+			MaxRetries:       cfg.MaxRetries,
+			DialTimeout:      cfg.DialTimeout,
+			ReadTimeout:      cfg.ReadTimeout,
+			WriteTimeout:     cfg.WriteTimeout,
+			PoolSize:         cfg.PoolSize,
 		})
 	} else {
 		client = redis.NewClient(&redis.Options{

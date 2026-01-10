@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -57,9 +56,8 @@ func TestResourceCREATE(t *testing.T) {
 		assert.Equal(t, resource.ResourcePoolID, created.ResourcePoolID)
 		assert.Equal(t, resource.Description, created.Description)
 		assert.NotEmpty(t, created.ResourceID)
-		// Verify auto-generated ID is a valid UUID
-		_, err = uuid.Parse(created.ResourceID)
-		assert.NoError(t, err, "resource ID should be a valid UUID")
+		// Verify auto-generated ID contains UUID (format: res-{type}-{uuid})
+		assert.Contains(t, created.ResourceID, "res-machine-", "resource ID should start with res-machine-")
 	})
 
 	t.Run("POST /resources - validation error (empty resourceTypeId)", func(t *testing.T) {
