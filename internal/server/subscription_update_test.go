@@ -457,4 +457,116 @@ func TestSubscriptionUPDATE(t *testing.T) {
 		// Filter should be nil since we removed it
 		assert.Nil(t, updated.Filter)
 	})
+
+	t.Run("PUT /subscriptions/:id - empty filter object", func(t *testing.T) {
+		subscription := adapter.Subscription{
+			Callback:               "https://smo.example.com/notify",
+			ConsumerSubscriptionID: "consumer-101",
+			Filter:                 &adapter.SubscriptionFilter{}, // Empty filter (same as nil)
+		}
+
+		body, err := json.Marshal(subscription)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusOK, resp.Code)
+
+		var updated adapter.Subscription
+		err = json.Unmarshal(resp.Body.Bytes(), &updated)
+		require.NoError(t, err)
+		assert.Equal(t, subscription.Callback, updated.Callback)
+	})
+
+	t.Run("PUT /subscriptions/:id - partial filter (pool only)", func(t *testing.T) {
+		subscription := adapter.Subscription{
+			Callback: "https://smo.example.com/notify",
+			Filter: &adapter.SubscriptionFilter{
+				ResourcePoolID: "pool-123",
+				// ResourceTypeID and ResourceID intentionally omitted
+			},
+		}
+
+		body, err := json.Marshal(subscription)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusOK, resp.Code)
+
+		var updated adapter.Subscription
+		err = json.Unmarshal(resp.Body.Bytes(), &updated)
+		require.NoError(t, err)
+		assert.NotNil(t, updated.Filter)
+		assert.Equal(t, "pool-123", updated.Filter.ResourcePoolID)
+		assert.Equal(t, "", updated.Filter.ResourceTypeID) // Empty but not nil
+	})
+
+	t.Run("PUT /subscriptions/:id - callback URL with port", func(t *testing.T) {
+		subscription := adapter.Subscription{
+			Callback: "https://smo.example.com:8443/webhooks/o2ims",
+		}
+
+		body, err := json.Marshal(subscription)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusOK, resp.Code)
+
+		var updated adapter.Subscription
+		err = json.Unmarshal(resp.Body.Bytes(), &updated)
+		require.NoError(t, err)
+		assert.Equal(t, subscription.Callback, updated.Callback)
+	})
+
+	t.Run("PUT /subscriptions/:id - callback URL with query params", func(t *testing.T) {
+		subscription := adapter.Subscription{
+			Callback: "https://smo.example.com/notify?token=abc123&env=prod",
+		}
+
+		body, err := json.Marshal(subscription)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusOK, resp.Code)
+
+		var updated adapter.Subscription
+		err = json.Unmarshal(resp.Body.Bytes(), &updated)
+		require.NoError(t, err)
+		assert.Equal(t, subscription.Callback, updated.Callback)
+	})
 }
