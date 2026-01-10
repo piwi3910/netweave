@@ -96,54 +96,100 @@ func (m *mockSubscriptionAdapter) Version() string { return "1.0.0" }
 func (m *mockSubscriptionAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{adapter.CapabilitySubscriptions}
 }
-func (m *mockSubscriptionAdapter) Health(ctx context.Context) error { return nil }
-func (m *mockSubscriptionAdapter) Close() error                     { return nil }
-func (m *mockSubscriptionAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (m *mockSubscriptionAdapter) Health(_ context.Context) error { return nil }
+func (m *mockSubscriptionAdapter) Close() error                  { return nil }
+
+func (m *mockSubscriptionAdapter) ListResourcePools(
+	_ context.Context,
+	_ *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
 	return nil, nil
 }
-func (m *mockSubscriptionAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+
+func (m *mockSubscriptionAdapter) GetResourcePool(_ context.Context, _ string) (*adapter.ResourcePool, error) {
 	return nil, nil
 }
-func (m *mockSubscriptionAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+
+func (m *mockSubscriptionAdapter) CreateResourcePool(
+	_ context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	return pool, nil
 }
-func (m *mockSubscriptionAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+
+func (m *mockSubscriptionAdapter) UpdateResourcePool(
+	_ context.Context,
+	_ string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	return pool, nil
 }
-func (m *mockSubscriptionAdapter) DeleteResourcePool(ctx context.Context, id string) error {
+
+func (m *mockSubscriptionAdapter) DeleteResourcePool(_ context.Context, _ string) error {
 	return nil
 }
-func (m *mockSubscriptionAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+
+func (m *mockSubscriptionAdapter) ListResources(_ context.Context, _ *adapter.Filter) ([]*adapter.Resource, error) {
 	return nil, nil
 }
-func (m *mockSubscriptionAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+
+func (m *mockSubscriptionAdapter) GetResource(_ context.Context, _ string) (*adapter.Resource, error) {
 	return nil, nil
 }
-func (m *mockSubscriptionAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+
+func (m *mockSubscriptionAdapter) CreateResource(
+	_ context.Context,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
 	return resource, nil
 }
-func (m *mockSubscriptionAdapter) DeleteResource(ctx context.Context, id string) error {
+
+func (m *mockSubscriptionAdapter) DeleteResource(_ context.Context, _ string) error {
 	return nil
 }
-func (m *mockSubscriptionAdapter) UpdateResource(ctx context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+
+func (m *mockSubscriptionAdapter) UpdateResource(
+	_ context.Context,
+	_ string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
 	return resource, nil
 }
-func (m *mockSubscriptionAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+
+func (m *mockSubscriptionAdapter) ListResourceTypes(
+	_ context.Context,
+	_ *adapter.Filter,
+) ([]*adapter.ResourceType, error) {
 	return nil, nil
 }
-func (m *mockSubscriptionAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
+
+func (m *mockSubscriptionAdapter) GetResourceType(_ context.Context, _ string) (*adapter.ResourceType, error) {
 	return nil, nil
 }
-func (m *mockSubscriptionAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
+
+func (m *mockSubscriptionAdapter) GetDeploymentManager(
+	_ context.Context,
+	_ string,
+) (*adapter.DeploymentManager, error) {
 	return nil, nil
 }
-func (m *mockSubscriptionAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+
+func (m *mockSubscriptionAdapter) CreateSubscription(
+	_ context.Context,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	return sub, nil
 }
-func (m *mockSubscriptionAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
+
+func (m *mockSubscriptionAdapter) GetSubscription(_ context.Context, _ string) (*adapter.Subscription, error) {
 	return nil, nil
 }
-func (m *mockSubscriptionAdapter) UpdateSubscription(ctx context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+
+func (m *mockSubscriptionAdapter) UpdateSubscription(
+	ctx context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	// Validate callback URL
 	if sub.Callback == "" {
 		return nil, fmt.Errorf("callback URL is required")
@@ -170,7 +216,8 @@ func (m *mockSubscriptionAdapter) UpdateSubscription(ctx context.Context, id str
 	sub.SubscriptionID = id
 	return sub, nil
 }
-func (m *mockSubscriptionAdapter) DeleteSubscription(ctx context.Context, id string) error {
+
+func (m *mockSubscriptionAdapter) DeleteSubscription(_ context.Context, _ string) error {
 	return nil
 }
 

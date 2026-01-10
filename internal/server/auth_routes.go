@@ -125,10 +125,3 @@ func (s *Server) wrapWithTenantContext(handler gin.HandlerFunc) gin.HandlerFunc 
 		handler(c)
 	}
 }
-
-// setupAuthMiddleware applies authentication middleware to O2-IMS routes.
-func (s *Server) setupAuthMiddleware(authMw *auth.Middleware) {
-	// Apply authentication to all O2-IMS API routes.
-	// The middleware is configured to skip health/metrics endpoints.
-	s.router.Use(authMw.AuthenticationMiddleware())
-}
