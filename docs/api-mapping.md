@@ -1218,6 +1218,12 @@ Example: `"GPU Pool (Production)"` → `"pool-gpu-pool--production--a1b2c3d4e5f6
 
 **Note:** The UUID suffix ensures that similar or identical pool names generate unique IDs, maintaining idempotency for create operations.
 
+**UUID Length Design:**
+- 12-character UUIDs provide 281 trillion possible combinations
+- Collision probability remains < 0.1% even with 500,000 resources
+- Designed for production telecom deployments with large-scale infrastructure
+- Birthday paradox: 50% collision probability only reached at 16.7M resources
+
 ---
 
 ## Resources
