@@ -131,13 +131,93 @@ func (a *OpenStackAdapter) GetSubscription(_ context.Context, id string) (*adapt
 	subscriptionMu.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("subscription not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
 	a.logger.Debug("retrieved subscription",
 		zap.String("subscriptionID", subscription.SubscriptionID))
 
 	return subscription, nil
+}
+
+// UpdateSubscription updates an existing subscription.
+// It stops the old polling goroutine and starts a new one with updated configuration.
+func (a *OpenStackAdapter) UpdateSubscription(
+	ctx context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
+	start := time.Now()
+	var err error
+	defer func() { adapter.ObserveOperation("openstack", "UpdateSubscription", start, err) }()
+
+	a.logger.Debug("UpdateSubscription called",
+		zap.String("id", id),
+		zap.String("callback", sub.Callback))
+
+	// Validate callback URL (defense-in-depth: server validates HTTP input, adapter validates programmatic calls)
+	if sub.Callback == "" {
+		err = fmt.Errorf("callback URL is required")
+		return nil, err
+	}
+
+	// Check if subscription exists and get existing config
+	subscriptionMu.Lock()
+	existing, exists := a.subscriptions[id]
+	if !exists {
+		subscriptionMu.Unlock()
+		err = fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+		return nil, err
+	}
+
+	// Create updated subscription preserving the ID
+	updated := &adapter.Subscription{
+		SubscriptionID:         id,
+		Callback:               sub.Callback,
+		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
+		Filter:                 sub.Filter,
+	}
+
+	// Stop old polling goroutine before updating (prevents race with polling reads)
+	subscriptionMu.Unlock()
+	if stopErr := a.stopPolling(id); stopErr != nil {
+		a.logger.Warn("failed to stop old polling",
+			zap.String("subscriptionID", id),
+			zap.Error(stopErr))
+	}
+
+	// Hold lock from here until polling successfully starts to prevent races
+	subscriptionMu.Lock()
+	defer subscriptionMu.Unlock()
+
+	// Update in memory
+	a.subscriptions[id] = updated
+
+	// Start new polling with updated configuration
+	if err = a.startPolling(ctx, updated); err != nil {
+		a.logger.Error("failed to restart polling",
+			zap.String("subscriptionID", id),
+			zap.Error(err))
+
+		// Rollback to existing subscription on failure
+		a.subscriptions[id] = existing
+
+		// Best-effort attempt to restart old polling
+		if restartErr := a.startPolling(ctx, existing); restartErr != nil {
+			a.logger.Error("failed to rollback to old subscription",
+				zap.String("subscriptionID", id),
+				zap.Error(restartErr))
+		}
+
+		return nil, fmt.Errorf("failed to restart polling: %w", err)
+	}
+
+	a.logger.Info("updated subscription",
+		zap.String("subscriptionID", id),
+		zap.String("oldCallback", existing.Callback),
+		zap.String("newCallback", sub.Callback))
+
+	return updated, nil
 }
 
 // DeleteSubscription deletes a subscription by ID and stops its polling goroutine.
@@ -150,7 +230,7 @@ func (a *OpenStackAdapter) DeleteSubscription(_ context.Context, id string) erro
 	_, exists := a.subscriptions[id]
 	if !exists {
 		subscriptionMu.Unlock()
-		return fmt.Errorf("subscription not found: %s", id)
+		return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 	delete(a.subscriptions, id)
 	subscriptionMu.Unlock()
