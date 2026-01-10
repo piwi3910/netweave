@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"go.uber.org/zap"
 	"k8s.io/client-go/kubernetes"
@@ -273,7 +274,10 @@ func (a *KubernetesAdapter) GetSubscription(ctx context.Context, id string) (*ad
 
 // UpdateSubscription updates an existing subscription.
 // Updates both the subscription in Redis and notifies the controller to restart watchers.
-func (a *KubernetesAdapter) UpdateSubscription(ctx context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *KubernetesAdapter) UpdateSubscription(ctx context.Context, id string, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("kubernetes", "UpdateSubscription", start, err) }()
+
 	a.logger.Debug("UpdateSubscription called",
 		zap.String("id", id),
 		zap.String("callback", sub.Callback))
@@ -327,6 +331,9 @@ func (a *KubernetesAdapter) getExistingSubscription(ctx context.Context, id stri
 }
 
 // convertToStorageSubscription converts adapter subscription to storage format.
+// Filter handling: A nil Filter means no filtering (subscribe to all resources).
+// An empty Filter struct {} also means no filtering since all fields will be empty strings.
+// Partial filters are supported (e.g., only ResourcePoolID set filters by pool only).
 func (a *KubernetesAdapter) convertToStorageSubscription(id string, sub *adapter.Subscription) *storage.Subscription {
 	storageSub := &storage.Subscription{
 		ID:                     id,
