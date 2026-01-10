@@ -60,6 +60,12 @@ var (
 	// ErrInvalidResource indicates the resource has invalid fields or constraints.
 	ErrInvalidResource = errors.New("invalid resource")
 
+	// ErrResourceTypeRequired indicates resourceTypeId field is missing.
+	ErrResourceTypeRequired = errors.New("resource type ID is required")
+
+	// ErrResourcePoolRequired indicates resourcePoolId field is missing.
+	ErrResourcePoolRequired = errors.New("resource pool ID is required")
+
 	// ErrNotImplemented indicates the operation is not yet implemented by the adapter.
 	ErrNotImplemented = errors.New("operation not implemented")
 )

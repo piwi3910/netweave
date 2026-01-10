@@ -231,7 +231,7 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 	}
 
 	// Generate subscription ID
-	req.SubscriptionID = uuid.New().String()
+	req.SubscriptionID = "sub-" + uuid.New().String()[:12]
 
 	// Create subscription via adapter
 	created, err := s.adapter.CreateSubscription(c.Request.Context(), &req)
@@ -567,7 +567,8 @@ func validateResourcePoolFields(pool *adapter.ResourcePool) error {
 
 	// Validate Name length
 	if len(pool.Name) > MaxResourcePoolNameLength {
-		validationErrors = append(validationErrors, fmt.Sprintf("name must not exceed %d characters", MaxResourcePoolNameLength))
+		validationErrors = append(validationErrors,
+			fmt.Sprintf("name must not exceed %d characters", MaxResourcePoolNameLength))
 	}
 
 	// Validate ResourcePoolID if provided
@@ -579,7 +580,8 @@ func validateResourcePoolFields(pool *adapter.ResourcePool) error {
 
 	// Validate Description length if provided
 	if len(pool.Description) > MaxResourcePoolDescriptionLength {
-		validationErrors = append(validationErrors, fmt.Sprintf("description must not exceed %d characters", MaxResourcePoolDescriptionLength))
+		validationErrors = append(validationErrors,
+			fmt.Sprintf("description must not exceed %d characters", MaxResourcePoolDescriptionLength))
 	}
 
 	// Return all validation errors together
@@ -616,11 +618,11 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 	}
 
 	// Generate resource pool ID if not provided (sanitized with UUID for uniqueness)
-	// Format: pool-{sanitized-name}-{8-char-uuid}
-	// Example: "GPU Pool (Production)" → "pool-gpu-pool--production--a1b2c3d4"
+	// Format: pool-{sanitized-name}-{12-char-uuid}
+	// Example: "GPU Pool (Production)" → "pool-gpu-pool--production--a1b2c3d4e5f6"
 	if req.ResourcePoolID == "" {
 		// Add UUID suffix to prevent collisions from similar names
-		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name) + "-" + uuid.New().String()[:8]
+		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name) + "-" + uuid.New().String()[:12]
 	}
 
 	// Create resource pool via adapter
@@ -649,6 +651,8 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 		zap.String("resource_pool_id", created.ResourcePoolID),
 		zap.String("name", created.Name))
 
+	// Set Location header for REST compliance
+	c.Header("Location", "/o2ims/v1/resourcePools/"+created.ResourcePoolID)
 	c.JSON(http.StatusCreated, created)
 }
 
@@ -794,6 +798,7 @@ func validateExtensions(extensions map[string]interface{}) error {
 		return errors.New("extensions map must not exceed 100 keys")
 	}
 
+	totalSize := 0
 	for key, value := range extensions {
 		if len(key) > 256 {
 			return errors.New("extension keys must not exceed 256 characters")
@@ -805,6 +810,12 @@ func validateExtensions(extensions map[string]interface{}) error {
 		}
 		if len(valueJSON) > 4096 {
 			return errors.New("extension values must not exceed 4096 bytes when JSON-encoded")
+		}
+
+		// Track total extensions payload size
+		totalSize += len(valueJSON)
+		if totalSize > 50000 {
+			return errors.New("total extensions payload must not exceed 50KB")
 		}
 	}
 
@@ -892,6 +903,19 @@ func (s *Server) handleGetResource(c *gin.Context) {
 	c.JSON(http.StatusOK, resource)
 }
 
+// validateCreateRequest validates required fields and constraints for resource creation.
+func validateCreateRequest(req *adapter.Resource) error {
+	if req.ResourceTypeID == "" {
+		return adapter.ErrResourceTypeRequired
+	}
+
+	if req.ResourcePoolID == "" {
+		return adapter.ErrResourcePoolRequired
+	}
+
+	return validateResourceFields(req)
+}
+
 // handleCreateResource creates a new resource.
 // POST /o2ims/v1/resources.
 func (s *Server) handleCreateResource(c *gin.Context) {
@@ -907,27 +931,8 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 		return
 	}
 
-	// Validate required fields
-	if req.ResourceTypeID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Resource type ID is required",
-			"code":    http.StatusBadRequest,
-		})
-		return
-	}
-
-	if req.ResourcePoolID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Resource pool ID is required",
-			"code":    http.StatusBadRequest,
-		})
-		return
-	}
-
-	// Validate field constraints
-	if err := validateResourceFields(&req); err != nil {
+	// Validate required fields and constraints
+	if err := validateCreateRequest(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": err.Error(),
@@ -938,14 +943,13 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 
 	// Generate resource ID if not provided
 	if req.ResourceID == "" {
-		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()
+		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()[:12]
 	}
 
 	// Create resource via adapter
-	// The adapter is responsible for enforcing uniqueness constraints.
 	created, err := s.adapter.CreateResource(c.Request.Context(), &req)
 	if err != nil {
-		// Check if error indicates duplicate resource using sentinel error
+		// Check if error indicates duplicate resource
 		if errors.Is(err, adapter.ErrResourceExists) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error":   "Conflict",
@@ -968,6 +972,8 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 		zap.String("resource_id", created.ResourceID),
 		zap.String("resource_type_id", created.ResourceTypeID))
 
+	// Set Location header for REST compliance
+	c.Header("Location", "/o2ims/v1/resources/"+created.ResourceID)
 	c.JSON(http.StatusCreated, created)
 }
 
