@@ -30,14 +30,16 @@ type mockBatchAdapter struct {
 	deletePoolErr      error
 	createPoolCount    int
 	failOnCreatePool   int // Fail on nth create (0 = never fail)
-	createSubscription func(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error)
 }
 
-func (m *mockBatchAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (m *mockBatchAdapter) ListResourcePools(
+	_ context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
 	return m.resourcePools, nil
 }
 
-func (m *mockBatchAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+func (m *mockBatchAdapter) GetResourcePool(_ context.Context, id string) (*adapter.ResourcePool, error) {
 	if m.getPoolErr != nil {
 		return nil, m.getPoolErr
 	}
@@ -49,7 +51,10 @@ func (m *mockBatchAdapter) GetResourcePool(ctx context.Context, id string) (*ada
 	return nil, errors.New("resource pool not found")
 }
 
-func (m *mockBatchAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockBatchAdapter) CreateResourcePool(
+	_ context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -64,11 +69,15 @@ func (m *mockBatchAdapter) CreateResourcePool(ctx context.Context, pool *adapter
 	return pool, nil
 }
 
-func (m *mockBatchAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockBatchAdapter) UpdateResourcePool(
+	_ context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	return pool, nil
 }
 
-func (m *mockBatchAdapter) DeleteResourcePool(ctx context.Context, id string) error {
+func (m *mockBatchAdapter) DeleteResourcePool(_ context.Context, id string) error {
 	if m.deletePoolErr != nil {
 		return m.deletePoolErr
 	}
@@ -125,7 +134,10 @@ func (m *mockBatchAdapter) GetResourceType(_ context.Context, _ string) (*adapte
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockBatchAdapter) CreateSubscription(_ context.Context, _ *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *mockBatchAdapter) CreateSubscription(
+	_ context.Context,
+	_ *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -137,15 +149,26 @@ func (m *mockBatchAdapter) DeleteSubscription(_ context.Context, _ string) error
 	return errors.New("not implemented")
 }
 
-func (m *mockBatchAdapter) ListDeploymentManagers(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+func (m *mockBatchAdapter) ListDeploymentManagers(
+	_ context.Context,
+	_ *adapter.Filter,
+) ([]*adapter.DeploymentManager, error) {
 	return nil, nil
 }
 
-func (m *mockBatchAdapter) UpdateDeploymentManager(_ context.Context, _ string, _ *adapter.DeploymentManager) (*adapter.DeploymentManager, error) {
+func (m *mockBatchAdapter) UpdateDeploymentManager(
+	_ context.Context,
+	_ string,
+	_ *adapter.DeploymentManager,
+) (*adapter.DeploymentManager, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockBatchAdapter) UpdateSubscription(_ context.Context, _ string, _ *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *mockBatchAdapter) UpdateSubscription(
+	_ context.Context,
+	_ string,
+	_ *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -153,7 +176,7 @@ func (m *mockBatchAdapter) Close() error {
 	return nil
 }
 
-func (m *mockBatchAdapter) Health(ctx context.Context) error {
+func (m *mockBatchAdapter) Health(_ context.Context) error {
 	return nil
 }
 
@@ -166,7 +189,7 @@ type mockBatchStore struct {
 	deleteErr     error
 }
 
-func (m *mockBatchStore) Create(ctx context.Context, sub *storage.Subscription) error {
+func (m *mockBatchStore) Create(_ context.Context, sub *storage.Subscription) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -178,7 +201,7 @@ func (m *mockBatchStore) Create(ctx context.Context, sub *storage.Subscription) 
 	return nil
 }
 
-func (m *mockBatchStore) Get(ctx context.Context, id string) (*storage.Subscription, error) {
+func (m *mockBatchStore) Get(_ context.Context, id string) (*storage.Subscription, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
@@ -190,11 +213,11 @@ func (m *mockBatchStore) Get(ctx context.Context, id string) (*storage.Subscript
 	return nil, storage.ErrSubscriptionNotFound
 }
 
-func (m *mockBatchStore) Update(ctx context.Context, sub *storage.Subscription) error {
+func (m *mockBatchStore) Update(_ context.Context, sub *storage.Subscription) error {
 	return nil
 }
 
-func (m *mockBatchStore) Delete(ctx context.Context, id string) error {
+func (m *mockBatchStore) Delete(_ context.Context, id string) error {
 	if m.deleteErr != nil {
 		return m.deleteErr
 	}
@@ -207,19 +230,19 @@ func (m *mockBatchStore) Delete(ctx context.Context, id string) error {
 	return storage.ErrSubscriptionNotFound
 }
 
-func (m *mockBatchStore) List(ctx context.Context) ([]*storage.Subscription, error) {
+func (m *mockBatchStore) List(_ context.Context) ([]*storage.Subscription, error) {
 	return m.subscriptions, nil
 }
 
-func (m *mockBatchStore) ListByResourcePool(ctx context.Context, resourcePoolID string) ([]*storage.Subscription, error) {
+func (m *mockBatchStore) ListByResourcePool(_ context.Context, resourcePoolID string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
 
-func (m *mockBatchStore) ListByResourceType(ctx context.Context, resourceTypeID string) ([]*storage.Subscription, error) {
+func (m *mockBatchStore) ListByResourceType(_ context.Context, resourceTypeID string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
 
-func (m *mockBatchStore) ListByTenant(ctx context.Context, tenantID string) ([]*storage.Subscription, error) {
+func (m *mockBatchStore) ListByTenant(_ context.Context, tenantID string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
 
@@ -227,7 +250,7 @@ func (m *mockBatchStore) Close() error {
 	return nil
 }
 
-func (m *mockBatchStore) Ping(ctx context.Context) error {
+func (m *mockBatchStore) Ping(_ context.Context) error {
 	return nil
 }
 
