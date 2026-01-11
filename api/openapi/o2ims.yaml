@@ -680,11 +680,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/BatchResponse'
         '207':
-          description: Multi-status response (partial success)
+          description: |
+            Multi-Status response - Some operations succeeded, some failed.
+
+            Used when:
+            - Non-atomic mode: Partial success is allowed
+            - Some items succeeded, others failed
+
+            Response includes per-item status with success/failure details.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchResponse'
+              example:
+                successCount: 2
+                failureCount: 1
+                results:
+                  - index: 0
+                    status: 201
+                    success: true
+                    data:
+                      id: "001"
+                  - index: 1
+                    status: 400
+                    success: false
+                    error:
+                      error: "BadRequest"
+                      message: "Invalid input"
+                      code: 400
+                  - index: 2
+                    status: 201
+                    success: true
+                    data:
+                      id: "002"
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
@@ -742,11 +770,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/BatchResponse'
         '207':
-          description: Multi-status response (partial success)
+          description: |
+            Multi-Status response - Some operations succeeded, some failed.
+
+            Used when:
+            - Non-atomic mode: Partial success is allowed
+            - Some items succeeded, others failed
+
+            Response includes per-item status with success/failure details.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchResponse'
+              example:
+                successCount: 2
+                failureCount: 1
+                results:
+                  - index: 0
+                    status: 201
+                    success: true
+                    data:
+                      id: "001"
+                  - index: 1
+                    status: 400
+                    success: false
+                    error:
+                      error: "BadRequest"
+                      message: "Invalid input"
+                      code: 400
+                  - index: 2
+                    status: 201
+                    success: true
+                    data:
+                      id: "002"
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
@@ -1654,10 +1710,23 @@ components:
       name: sortBy
       in: query
       required: false
-      description: Field name to sort results by
+      description: |
+        Field name(s) to sort results by. Supports multiple fields with sort order.
+
+        Format: `field1:order,field2:order`
+
+        Available fields (vary by resource type):
+        - name, resourceId, resourcePoolId, location, createdAt, updatedAt
+
+        Sort orders: asc (ascending), desc (descending)
+
+        Examples:
+        - Single field: `sortBy=name:asc`
+        - Multiple fields: `sortBy=location:asc,name:desc`
+        - Default order (asc): `sortBy=name`
       schema:
         type: string
-      example: "name"
+      example: "name:asc"
 
     SortOrderParam:
       name: sortOrder
@@ -1674,10 +1743,29 @@ components:
       name: fields
       in: query
       required: false
-      description: Comma-separated list of fields to include in response (field selection)
+      description: |
+        Comma-separated list of fields to include in response (field selection).
+
+        Supports nested field access using dot notation for accessing nested properties.
+
+        Benefits:
+        - Reduces response payload size
+        - Improves API performance
+        - Only returns requested data
+
+        Examples:
+        - Top-level fields: `fields=resourceId,name,location`
+        - Nested fields: `fields=resourceId,metadata.labels,spec.cpu`
+        - Mixed: `fields=resourceId,name,extensions.region,extensions.zone`
       schema:
         type: string
-      example: "resourceId,name,extensions.cpu"
+      examples:
+        simple:
+          value: "resourceId,name"
+          summary: Top-level fields only
+        nested:
+          value: "resourceId,metadata.labels,spec.cpu"
+          summary: With nested field access
 
     TenantId:
       name: tenantId
