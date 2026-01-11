@@ -231,7 +231,7 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 	}
 
 	// Generate subscription ID
-	req.SubscriptionID = uuid.New().String()
+	req.SubscriptionID = "sub-" + uuid.New().String()
 
 	// Create subscription via adapter
 	created, err := s.adapter.CreateSubscription(c.Request.Context(), &req)
@@ -506,34 +506,76 @@ const (
 	MaxResourcePoolDescriptionLength = 1000
 )
 
+// Validation constants for resource extension fields.
+const (
+	// MaxExtensionKeys is the maximum number of extension keys allowed.
+	MaxExtensionKeys = 100
+
+	// MaxExtensionKeyLength is the maximum length for an extension key.
+	MaxExtensionKeyLength = 256
+
+	// MaxExtensionValueSize is the maximum size for a single extension value when JSON-encoded.
+	MaxExtensionValueSize = 4096
+
+	// MaxExtensionsTotalSize is the maximum total size for all extensions combined (50KB).
+	MaxExtensionsTotalSize = 50000
+)
+
 // sanitizeResourcePoolID sanitizes a string for use in resource pool IDs.
 // Removes special characters that could cause security issues (path traversal, injection).
+// Spaces and slashes are replaced with hyphens, all other special characters are dropped.
 func sanitizeResourcePoolID(name string) string {
-	// Replace spaces and slashes with hyphens
-	sanitized := strings.NewReplacer(
-		" ", "-",
-		"/", "-",
-		"\\", "-",
-		"..", "-",
-		":", "-",
-		"*", "-",
-		"?", "-",
-		"\"", "-",
-		"<", "-",
-		">", "-",
-		"|", "-",
-	).Replace(name)
-
-	// Remove any remaining non-alphanumeric characters except hyphens and underscores
 	var result strings.Builder
-	for _, ch := range sanitized {
+	for _, ch := range name {
 		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
 			(ch >= '0' && ch <= '9') || ch == '-' || ch == '_' {
+			result.WriteRune(ch)
+		} else if ch == ' ' || ch == '/' {
+			result.WriteRune('-') // Only replace spaces and slashes with hyphens
+		}
+		// All other special characters are simply dropped for security
+	}
+
+	return strings.ToLower(result.String())
+}
+
+// sanitizeResourceTypeID sanitizes a resource type ID for use in resource IDs.
+// Ensures the resulting ID is URL-safe and prevents injection attacks.
+// Spaces and slashes are replaced with hyphens, all other special characters are dropped.
+func sanitizeResourceTypeID(typeID string) string {
+	var result strings.Builder
+	for _, ch := range typeID {
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+			(ch >= '0' && ch <= '9') || ch == '-' || ch == '_' {
+			result.WriteRune(ch)
+		} else if ch == ' ' || ch == '/' {
+			result.WriteRune('-') // Only replace spaces and slashes with hyphens
+		}
+		// All other special characters are simply dropped for security
+	}
+
+	return strings.ToLower(result.String())
+}
+
+// sanitizeForLogging removes CRLF characters to prevent log injection attacks.
+// This prevents attackers from injecting fake log entries via user-controlled input.
+func sanitizeForLogging(s string) string {
+	// Remove CR, LF, and other control characters
+	sanitized := strings.NewReplacer(
+		"\r", "",
+		"\n", "",
+		"\t", " ",
+	).Replace(s)
+
+	// Remove any remaining control characters (ASCII 0-31 except space)
+	var result strings.Builder
+	for _, ch := range sanitized {
+		if ch >= 32 || ch == ' ' {
 			result.WriteRune(ch)
 		}
 	}
 
-	return strings.ToLower(result.String())
+	return result.String()
 }
 
 // isValidIDCharacter checks if a character is valid for resource pool IDs.
@@ -567,7 +609,8 @@ func validateResourcePoolFields(pool *adapter.ResourcePool) error {
 
 	// Validate Name length
 	if len(pool.Name) > MaxResourcePoolNameLength {
-		validationErrors = append(validationErrors, fmt.Sprintf("name must not exceed %d characters", MaxResourcePoolNameLength))
+		validationErrors = append(validationErrors,
+			fmt.Sprintf("name must not exceed %d characters", MaxResourcePoolNameLength))
 	}
 
 	// Validate ResourcePoolID if provided
@@ -579,7 +622,8 @@ func validateResourcePoolFields(pool *adapter.ResourcePool) error {
 
 	// Validate Description length if provided
 	if len(pool.Description) > MaxResourcePoolDescriptionLength {
-		validationErrors = append(validationErrors, fmt.Sprintf("description must not exceed %d characters", MaxResourcePoolDescriptionLength))
+		validationErrors = append(validationErrors,
+			fmt.Sprintf("description must not exceed %d characters", MaxResourcePoolDescriptionLength))
 	}
 
 	// Return all validation errors together
@@ -616,11 +660,11 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 	}
 
 	// Generate resource pool ID if not provided (sanitized with UUID for uniqueness)
-	// Format: pool-{sanitized-name}-{8-char-uuid}
-	// Example: "GPU Pool (Production)" → "pool-gpu-pool--production--a1b2c3d4"
+	// Format: pool-{sanitized-name}-{uuid}
+	// Example: "GPU Pool (Production)" → "pool-gpu-pool--production--a1b2c3d4-e5f6-7890-abcd-1234567890ab"
 	if req.ResourcePoolID == "" {
 		// Add UUID suffix to prevent collisions from similar names
-		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name) + "-" + uuid.New().String()[:8]
+		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name) + "-" + uuid.New().String()
 	}
 
 	// Create resource pool via adapter
@@ -630,7 +674,7 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 		if errors.Is(err, adapter.ErrResourcePoolExists) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error":   "Conflict",
-				"message": "Resource pool with ID " + req.ResourcePoolID + " already exists",
+				"message": "Resource pool with ID " + sanitizeForLogging(req.ResourcePoolID) + " already exists",
 				"code":    http.StatusConflict,
 			})
 			return
@@ -647,8 +691,10 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 
 	s.logger.Info("resource pool created",
 		zap.String("resource_pool_id", created.ResourcePoolID),
-		zap.String("name", created.Name))
+		zap.String("name", sanitizeForLogging(created.Name)))
 
+	// Set Location header for REST compliance
+	c.Header("Location", "/o2ims/v1/resourcePools/"+created.ResourcePoolID)
 	c.JSON(http.StatusCreated, created)
 }
 
@@ -702,7 +748,7 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 
 	s.logger.Info("resource pool updated",
 		zap.String("resource_pool_id", updated.ResourcePoolID),
-		zap.String("name", updated.Name))
+		zap.String("name", sanitizeForLogging(updated.Name)))
 
 	c.JSON(http.StatusOK, updated)
 }
@@ -790,21 +836,28 @@ func validateURN(urn string) error {
 
 // validateExtensions validates resource extensions for size and content.
 func validateExtensions(extensions map[string]interface{}) error {
-	if len(extensions) > 100 {
-		return errors.New("extensions map must not exceed 100 keys")
+	if len(extensions) > MaxExtensionKeys {
+		return fmt.Errorf("extensions map must not exceed %d keys", MaxExtensionKeys)
 	}
 
+	totalSize := 0
 	for key, value := range extensions {
-		if len(key) > 256 {
-			return errors.New("extension keys must not exceed 256 characters")
+		if len(key) > MaxExtensionKeyLength {
+			return fmt.Errorf("extension keys must not exceed %d characters", MaxExtensionKeyLength)
 		}
 		// Check JSON-marshaled size to prevent large payloads
 		valueJSON, err := json.Marshal(value)
 		if err != nil {
 			return fmt.Errorf("extension value for key %q must be JSON-serializable", key)
 		}
-		if len(valueJSON) > 4096 {
-			return errors.New("extension values must not exceed 4096 bytes when JSON-encoded")
+		if len(valueJSON) > MaxExtensionValueSize {
+			return fmt.Errorf("extension values must not exceed %d bytes when JSON-encoded", MaxExtensionValueSize)
+		}
+
+		// Track total extensions payload size
+		totalSize += len(valueJSON)
+		if totalSize > MaxExtensionsTotalSize {
+			return fmt.Errorf("total extensions payload must not exceed %d bytes (50KB)", MaxExtensionsTotalSize)
 		}
 	}
 
@@ -892,6 +945,19 @@ func (s *Server) handleGetResource(c *gin.Context) {
 	c.JSON(http.StatusOK, resource)
 }
 
+// validateCreateRequest validates required fields and constraints for resource creation.
+func validateCreateRequest(req *adapter.Resource) error {
+	if req.ResourceTypeID == "" {
+		return adapter.ErrResourceTypeRequired
+	}
+
+	if req.ResourcePoolID == "" {
+		return adapter.ErrResourcePoolRequired
+	}
+
+	return validateResourceFields(req)
+}
+
 // handleCreateResource creates a new resource.
 // POST /o2ims/v1/resources.
 func (s *Server) handleCreateResource(c *gin.Context) {
@@ -907,27 +973,8 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 		return
 	}
 
-	// Validate required fields
-	if req.ResourceTypeID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Resource type ID is required",
-			"code":    http.StatusBadRequest,
-		})
-		return
-	}
-
-	if req.ResourcePoolID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Resource pool ID is required",
-			"code":    http.StatusBadRequest,
-		})
-		return
-	}
-
-	// Validate field constraints
-	if err := validateResourceFields(&req); err != nil {
+	// Validate required fields and constraints
+	if err := validateCreateRequest(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": err.Error(),
@@ -936,20 +983,19 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 		return
 	}
 
-	// Generate resource ID if not provided
+	// Generate URL-safe resource ID if not provided
 	if req.ResourceID == "" {
-		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()
+		req.ResourceID = "res-" + sanitizeResourceTypeID(req.ResourceTypeID) + "-" + uuid.New().String()
 	}
 
 	// Create resource via adapter
-	// The adapter is responsible for enforcing uniqueness constraints.
 	created, err := s.adapter.CreateResource(c.Request.Context(), &req)
 	if err != nil {
-		// Check if error indicates duplicate resource using sentinel error
+		// Check if error indicates duplicate resource
 		if errors.Is(err, adapter.ErrResourceExists) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error":   "Conflict",
-				"message": "Resource with ID " + req.ResourceID + " already exists",
+				"message": "Resource with ID " + sanitizeForLogging(req.ResourceID) + " already exists",
 				"code":    http.StatusConflict,
 			})
 			return
@@ -966,8 +1012,10 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 
 	s.logger.Info("resource created",
 		zap.String("resource_id", created.ResourceID),
-		zap.String("resource_type_id", created.ResourceTypeID))
+		zap.String("resource_type_id", sanitizeForLogging(created.ResourceTypeID)))
 
+	// Set Location header for REST compliance
+	c.Header("Location", "/o2ims/v1/resources/"+created.ResourceID)
 	c.JSON(http.StatusCreated, created)
 }
 
@@ -1087,7 +1135,7 @@ func (s *Server) applyResourceUpdate(c *gin.Context, resourceID string, req, exi
 
 	s.logger.Info("resource updated",
 		zap.String("resource_id", updated.ResourceID),
-		zap.String("resource_type_id", updated.ResourceTypeID))
+		zap.String("resource_type_id", sanitizeForLogging(updated.ResourceTypeID)))
 
 	c.JSON(http.StatusOK, updated)
 }

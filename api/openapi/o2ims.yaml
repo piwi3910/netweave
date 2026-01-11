@@ -437,10 +437,9 @@ paths:
                 total: 1
         '500':
           $ref: '#/components/responses/InternalServerError'
-
     post:
-      summary: Create a new resource
-      description: Creates a new resource in the infrastructure inventory.
+      summary: Create a resource
+      description: Creates a new resource (e.g., provision a new compute node or machine). The resourceId is optional and will be auto-generated if not provided.
       operationId: createResource
       tags:
         - Resources
@@ -449,7 +448,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Resource'
+              $ref: '#/components/schemas/ResourceCreateRequest'
             example:
               resourceTypeId: "compute-node"
               resourcePoolId: "pool-compute-high-mem"
@@ -458,6 +457,7 @@ paths:
               extensions:
                 cpu: "64 cores"
                 memory: "512GB"
+                disk: "2TB NVMe"
       responses:
         '201':
           description: Resource created successfully
@@ -467,6 +467,8 @@ paths:
                 $ref: '#/components/schemas/Resource'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -786,6 +788,7 @@ components:
       required:
         - resourceId
         - resourceTypeId
+        - resourcePoolId
       properties:
         resourceId:
           type: string
@@ -811,6 +814,37 @@ components:
           type: object
           additionalProperties: true
           description: Vendor-specific metadata
+
+    ResourceCreateRequest:
+      type: object
+      required:
+        - resourceTypeId
+        - resourcePoolId
+      properties:
+        resourceId:
+          type: string
+          description: Optional custom identifier for the resource. If not provided, one will be auto-generated.
+          example: "custom-node-001"
+        resourceTypeId:
+          type: string
+          description: Type/class identifier of the resource
+          example: "compute-node"
+        resourcePoolId:
+          type: string
+          description: Parent resource pool identifier
+          example: "pool-compute-high-mem"
+        globalAssetId:
+          type: string
+          description: Globally unique identifier (URN format, must start with 'urn:')
+          example: "urn:o-ran:resource:node-002"
+        description:
+          type: string
+          description: Additional context about the resource (max 1000 characters)
+          example: "High-memory compute node"
+        extensions:
+          type: object
+          additionalProperties: true
+          description: Vendor-specific metadata (max 100 key-value pairs)
 
     ResourceListResponse:
       type: object
