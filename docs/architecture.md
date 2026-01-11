@@ -199,7 +199,7 @@ graph TB
    - Horizontal scaling (add more gateway pods)
    - Multi-cluster support
    - Handle 10,000+ nodes per cluster
-   - Support up to 500,000 resources (UUID collision probability < 0.1%)
+   - Support 500,000+ resources (UUID v4 with negligible collision probability)
    - 100+ concurrent subscriptions
 
 4. **Security**
