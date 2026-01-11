@@ -22,14 +22,14 @@ func TestSanitizeResourceTypeID(t *testing.T) {
 			expected: "compute-node",
 		},
 		{
-			name:     "special characters",
+			name:     "slashes to hyphens",
 			input:    "gpu/accelerator",
 			expected: "gpu-accelerator",
 		},
 		{
-			name:     "path traversal attempt",
+			name:     "path traversal attempt - dots dropped",
 			input:    "../../../etc/passwd",
-			expected: "------etc-passwd",
+			expected: "---etc-passwd",
 		},
 		{
 			name:     "mixed case to lowercase",
@@ -40,6 +40,26 @@ func TestSanitizeResourceTypeID(t *testing.T) {
 			name:     "preserve underscores",
 			input:    "physical_server",
 			expected: "physical_server",
+		},
+		{
+			name:     "multiple consecutive special chars",
+			input:    "compute:::node///server",
+			expected: "computenode---server", // Colons dropped, slashes become hyphens
+		},
+		{
+			name:     "special chars dropped not replaced",
+			input:    "type:with*special?chars",
+			expected: "typewithspecialchars",
+		},
+		{
+			name:     "mixed spaces and special chars",
+			input:    "node type (production)",
+			expected: "node-type-production",
+		},
+		{
+			name:     "leading and trailing spaces",
+			input:    "  compute node  ",
+			expected: "--compute-node--",
 		},
 	}
 

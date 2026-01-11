@@ -522,14 +522,14 @@ func TestSanitizeResourcePoolID(t *testing.T) {
 			expected: "test-pool",
 		},
 		{
-			name:     "path traversal attempt",
+			name:     "path traversal attempt - dots dropped, slashes become hyphens",
 			input:    "../../../etc/passwd",
-			expected: "------etc-passwd",
+			expected: "---etc-passwd",
 		},
 		{
-			name:     "special characters replaced with hyphens",
+			name:     "special characters dropped",
 			input:    "pool*name?with<special>chars",
-			expected: "pool-name-with-special-chars",
+			expected: "poolnamewithspecialchars",
 		},
 		{
 			name:     "mixed case to lowercase",

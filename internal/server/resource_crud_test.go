@@ -558,7 +558,7 @@ func TestResourceCRUD(t *testing.T) {
 		srv.router.ServeHTTP(resp, req)
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "total extensions payload must not exceed 50KB")
+		assert.Contains(t, resp.Body.String(), "total extensions payload must not exceed 50000 bytes")
 	})
 
 	t.Run("POST /resources - custom resource ID", func(t *testing.T) {

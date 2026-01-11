@@ -506,31 +506,34 @@ const (
 	MaxResourcePoolDescriptionLength = 1000
 )
 
+// Validation constants for resource extension fields.
+const (
+	// MaxExtensionKeys is the maximum number of extension keys allowed.
+	MaxExtensionKeys = 100
+
+	// MaxExtensionKeyLength is the maximum length for an extension key.
+	MaxExtensionKeyLength = 256
+
+	// MaxExtensionValueSize is the maximum size for a single extension value when JSON-encoded.
+	MaxExtensionValueSize = 4096
+
+	// MaxExtensionsTotalSize is the maximum total size for all extensions combined (50KB).
+	MaxExtensionsTotalSize = 50000
+)
+
 // sanitizeResourcePoolID sanitizes a string for use in resource pool IDs.
 // Removes special characters that could cause security issues (path traversal, injection).
+// Spaces and slashes are replaced with hyphens, all other special characters are dropped.
 func sanitizeResourcePoolID(name string) string {
-	// Replace spaces and slashes with hyphens
-	sanitized := strings.NewReplacer(
-		" ", "-",
-		"/", "-",
-		"\\", "-",
-		"..", "-",
-		":", "-",
-		"*", "-",
-		"?", "-",
-		"\"", "-",
-		"<", "-",
-		">", "-",
-		"|", "-",
-	).Replace(name)
-
-	// Remove any remaining non-alphanumeric characters except hyphens and underscores
 	var result strings.Builder
-	for _, ch := range sanitized {
+	for _, ch := range name {
 		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
 			(ch >= '0' && ch <= '9') || ch == '-' || ch == '_' {
 			result.WriteRune(ch)
+		} else if ch == ' ' || ch == '/' {
+			result.WriteRune('-') // Only replace spaces and slashes with hyphens
 		}
+		// All other special characters are simply dropped for security
 	}
 
 	return strings.ToLower(result.String())
@@ -538,29 +541,17 @@ func sanitizeResourcePoolID(name string) string {
 
 // sanitizeResourceTypeID sanitizes a resource type ID for use in resource IDs.
 // Ensures the resulting ID is URL-safe and prevents injection attacks.
+// Spaces and slashes are replaced with hyphens, all other special characters are dropped.
 func sanitizeResourceTypeID(typeID string) string {
-	// Replace spaces and slashes with hyphens
-	sanitized := strings.NewReplacer(
-		" ", "-",
-		"/", "-",
-		"\\", "-",
-		"..", "-",
-		":", "-",
-		"*", "-",
-		"?", "-",
-		"\"", "-",
-		"<", "-",
-		">", "-",
-		"|", "-",
-	).Replace(typeID)
-
-	// Remove any remaining non-alphanumeric characters except hyphens and underscores
 	var result strings.Builder
-	for _, ch := range sanitized {
+	for _, ch := range typeID {
 		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
 			(ch >= '0' && ch <= '9') || ch == '-' || ch == '_' {
 			result.WriteRune(ch)
+		} else if ch == ' ' || ch == '/' {
+			result.WriteRune('-') // Only replace spaces and slashes with hyphens
 		}
+		// All other special characters are simply dropped for security
 	}
 
 	return strings.ToLower(result.String())
@@ -683,7 +674,7 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 		if errors.Is(err, adapter.ErrResourcePoolExists) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error":   "Conflict",
-				"message": "Resource pool with ID " + req.ResourcePoolID + " already exists",
+				"message": "Resource pool with ID " + sanitizeForLogging(req.ResourcePoolID) + " already exists",
 				"code":    http.StatusConflict,
 			})
 			return
@@ -845,28 +836,28 @@ func validateURN(urn string) error {
 
 // validateExtensions validates resource extensions for size and content.
 func validateExtensions(extensions map[string]interface{}) error {
-	if len(extensions) > 100 {
-		return errors.New("extensions map must not exceed 100 keys")
+	if len(extensions) > MaxExtensionKeys {
+		return fmt.Errorf("extensions map must not exceed %d keys", MaxExtensionKeys)
 	}
 
 	totalSize := 0
 	for key, value := range extensions {
-		if len(key) > 256 {
-			return errors.New("extension keys must not exceed 256 characters")
+		if len(key) > MaxExtensionKeyLength {
+			return fmt.Errorf("extension keys must not exceed %d characters", MaxExtensionKeyLength)
 		}
 		// Check JSON-marshaled size to prevent large payloads
 		valueJSON, err := json.Marshal(value)
 		if err != nil {
 			return fmt.Errorf("extension value for key %q must be JSON-serializable", key)
 		}
-		if len(valueJSON) > 4096 {
-			return errors.New("extension values must not exceed 4096 bytes when JSON-encoded")
+		if len(valueJSON) > MaxExtensionValueSize {
+			return fmt.Errorf("extension values must not exceed %d bytes when JSON-encoded", MaxExtensionValueSize)
 		}
 
 		// Track total extensions payload size
 		totalSize += len(valueJSON)
-		if totalSize > 50000 {
-			return errors.New("total extensions payload must not exceed 50KB")
+		if totalSize > MaxExtensionsTotalSize {
+			return fmt.Errorf("total extensions payload must not exceed %d bytes (50KB)", MaxExtensionsTotalSize)
 		}
 	}
 
@@ -992,8 +983,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 		return
 	}
 
-	// Generate resource ID if not provided
-	// Sanitize resourceTypeID to ensure URL-safe IDs
+	// Generate URL-safe resource ID if not provided
 	if req.ResourceID == "" {
 		req.ResourceID = "res-" + sanitizeResourceTypeID(req.ResourceTypeID) + "-" + uuid.New().String()[:12]
 	}
@@ -1005,7 +995,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 		if errors.Is(err, adapter.ErrResourceExists) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error":   "Conflict",
-				"message": "Resource with ID " + req.ResourceID + " already exists",
+				"message": "Resource with ID " + sanitizeForLogging(req.ResourceID) + " already exists",
 				"code":    http.StatusConflict,
 			})
 			return
