@@ -603,41 +603,57 @@ func TestFilter_Clone(t *testing.T) {
 
 	clone := original.Clone()
 
-	// Verify all fields are equal
-	if len(clone.ResourcePoolID) != len(original.ResourcePoolID) {
-		t.Errorf("ResourcePoolID length mismatch")
-	}
-	if len(clone.ResourceTypeID) != len(original.ResourceTypeID) {
-		t.Errorf("ResourceTypeID length mismatch")
-	}
-	if len(clone.ResourceID) != len(original.ResourceID) {
-		t.Errorf("ResourceID length mismatch")
-	}
-	if clone.Location != original.Location {
-		t.Errorf("Location mismatch")
-	}
-	if clone.OCloudID != original.OCloudID {
-		t.Errorf("OCloudID mismatch")
-	}
-	if len(clone.Labels) != len(original.Labels) {
-		t.Errorf("Labels length mismatch")
-	}
-	if clone.ResourceClass != original.ResourceClass {
-		t.Errorf("ResourceClass mismatch")
-	}
-	if clone.Limit != original.Limit {
-		t.Errorf("Limit mismatch")
-	}
+	// Verify all fields are copied correctly
+	verifyClonedFields(t, original, clone)
 
 	// Verify it's a deep copy (modify clone shouldn't affect original)
-	clone.ResourcePoolID[0] = "modified"
-	if original.ResourcePoolID[0] == "modified" {
-		t.Errorf("Clone is not a deep copy - original was modified")
+	verifyDeepCopy(t, original, clone)
+}
+
+// verifyClonedFields checks that all fields in clone match original.
+func verifyClonedFields(t *testing.T, original, clone *Filter) {
+	t.Helper()
+
+	if len(clone.ResourcePoolID) != len(original.ResourcePoolID) {
+		t.Errorf("ResourcePoolID length mismatch: got %d, want %d", len(clone.ResourcePoolID), len(original.ResourcePoolID))
+	}
+	if len(clone.ResourceTypeID) != len(original.ResourceTypeID) {
+		t.Errorf("ResourceTypeID length mismatch: got %d, want %d", len(clone.ResourceTypeID), len(original.ResourceTypeID))
+	}
+	if len(clone.ResourceID) != len(original.ResourceID) {
+		t.Errorf("ResourceID length mismatch: got %d, want %d", len(clone.ResourceID), len(original.ResourceID))
+	}
+	if clone.Location != original.Location {
+		t.Errorf("Location mismatch: got %s, want %s", clone.Location, original.Location)
+	}
+	if clone.OCloudID != original.OCloudID {
+		t.Errorf("OCloudID mismatch: got %s, want %s", clone.OCloudID, original.OCloudID)
+	}
+	if len(clone.Labels) != len(original.Labels) {
+		t.Errorf("Labels length mismatch: got %d, want %d", len(clone.Labels), len(original.Labels))
+	}
+	if clone.ResourceClass != original.ResourceClass {
+		t.Errorf("ResourceClass mismatch: got %s, want %s", clone.ResourceClass, original.ResourceClass)
+	}
+	if clone.Limit != original.Limit {
+		t.Errorf("Limit mismatch: got %d, want %d", clone.Limit, original.Limit)
+	}
+}
+
+// verifyDeepCopy checks that modifications to clone don't affect original.
+func verifyDeepCopy(t *testing.T, original, clone *Filter) {
+	t.Helper()
+
+	const modifiedValue = "modified"
+
+	clone.ResourcePoolID[0] = modifiedValue
+	if original.ResourcePoolID[0] == modifiedValue {
+		t.Errorf("Clone is not a deep copy - original.ResourcePoolID was modified")
 	}
 
 	clone.Labels["env"] = "dev"
 	if original.Labels["env"] == "dev" {
-		t.Errorf("Clone is not a deep copy - original labels were modified")
+		t.Errorf("Clone is not a deep copy - original.Labels was modified")
 	}
 }
 
