@@ -231,7 +231,7 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 	}
 
 	// Generate subscription ID
-	req.SubscriptionID = "sub-" + uuid.New().String()[:12]
+	req.SubscriptionID = "sub-" + uuid.New().String()
 
 	// Create subscription via adapter
 	created, err := s.adapter.CreateSubscription(c.Request.Context(), &req)
@@ -660,11 +660,11 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 	}
 
 	// Generate resource pool ID if not provided (sanitized with UUID for uniqueness)
-	// Format: pool-{sanitized-name}-{12-char-uuid}
-	// Example: "GPU Pool (Production)" → "pool-gpu-pool--production--a1b2c3d4e5f6"
+	// Format: pool-{sanitized-name}-{uuid}
+	// Example: "GPU Pool (Production)" → "pool-gpu-pool--production--a1b2c3d4-e5f6-7890-abcd-1234567890ab"
 	if req.ResourcePoolID == "" {
 		// Add UUID suffix to prevent collisions from similar names
-		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name) + "-" + uuid.New().String()[:12]
+		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name) + "-" + uuid.New().String()
 	}
 
 	// Create resource pool via adapter
@@ -985,7 +985,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 
 	// Generate URL-safe resource ID if not provided
 	if req.ResourceID == "" {
-		req.ResourceID = "res-" + sanitizeResourceTypeID(req.ResourceTypeID) + "-" + uuid.New().String()[:12]
+		req.ResourceID = "res-" + sanitizeResourceTypeID(req.ResourceTypeID) + "-" + uuid.New().String()
 	}
 
 	// Create resource via adapter

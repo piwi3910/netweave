@@ -13,7 +13,7 @@ import (
 // TestResourcePool creates a test resource pool with default values.
 func TestResourcePool(name string) map[string]interface{} {
 	return map[string]interface{}{
-		"resourcePoolId": fmt.Sprintf("pool-%s", uuid.New().String()[:12]),
+		"resourcePoolId": fmt.Sprintf("pool-%s", uuid.New().String()),
 		"name":           name,
 		"description":    fmt.Sprintf("Test resource pool: %s", name),
 		"location":       "test-location",
@@ -24,7 +24,7 @@ func TestResourcePool(name string) map[string]interface{} {
 // TestResource creates a test resource with default values.
 func TestResource(poolID, typeID string) map[string]interface{} {
 	return map[string]interface{}{
-		"resourceId":     fmt.Sprintf("res-%s", uuid.New().String()[:12]),
+		"resourceId":     fmt.Sprintf("res-%s", uuid.New().String()),
 		"resourceTypeId": typeID,
 		"resourcePoolId": poolID,
 		"description":    "Test resource",
@@ -38,7 +38,7 @@ func TestResource(poolID, typeID string) map[string]interface{} {
 // TestResourceType creates a test resource type with default values.
 func TestResourceType(name string) map[string]interface{} {
 	return map[string]interface{}{
-		"resourceTypeId": fmt.Sprintf("type-%s", uuid.New().String()[:12]),
+		"resourceTypeId": fmt.Sprintf("type-%s", uuid.New().String()),
 		"name":           name,
 		"description":    fmt.Sprintf("Test resource type: %s", name),
 		"vendor":         "Test Vendor",
@@ -52,7 +52,7 @@ func TestResourceType(name string) map[string]interface{} {
 // TestDeploymentManager creates a test deployment manager with default values.
 func TestDeploymentManager(name string) map[string]interface{} {
 	return map[string]interface{}{
-		"deploymentManagerId": fmt.Sprintf("dm-%s", uuid.New().String()[:12]),
+		"deploymentManagerId": fmt.Sprintf("dm-%s", uuid.New().String()),
 		"name":                name,
 		"description":         fmt.Sprintf("Test deployment manager: %s", name),
 		"oCloudId":            "test-ocloud",
@@ -71,7 +71,7 @@ func TestDeploymentManager(name string) map[string]interface{} {
 func TestSubscription(callbackURL string) map[string]interface{} {
 	return map[string]interface{}{
 		"callback":               callbackURL,
-		"consumerSubscriptionId": fmt.Sprintf("consumer-%s", uuid.New().String()[:12]),
+		"consumerSubscriptionId": fmt.Sprintf("consumer-%s", uuid.New().String()),
 		"filter": map[string]interface{}{
 			"resourcePoolId": "",
 			"resourceTypeId": "",
@@ -83,7 +83,7 @@ func TestSubscription(callbackURL string) map[string]interface{} {
 func TestSubscriptionWithFilter(callbackURL, poolID, typeID string) map[string]interface{} {
 	return map[string]interface{}{
 		"callback":               callbackURL,
-		"consumerSubscriptionId": fmt.Sprintf("consumer-%s", uuid.New().String()[:12]),
+		"consumerSubscriptionId": fmt.Sprintf("consumer-%s", uuid.New().String()),
 		"filter": map[string]interface{}{
 			"resourcePoolId": poolID,
 			"resourceTypeId": typeID,

@@ -1212,17 +1212,11 @@ When `resourcePoolId` is not provided on create, it's auto-generated from the po
 - Non-alphanumeric characters (except hyphens and underscores) removed
 - Converted to lowercase
 - Prefix `pool-` added
-- UUID suffix (12 characters) appended for uniqueness
+- Full UUID (36 characters) appended for uniqueness
 
-Example: `"GPU Pool (Production)"` → `"pool-gpu-pool--production--a1b2c3d4e5f6"`
+Example: `"GPU Pool (Production)"` → `"pool-gpu-pool--production--a1b2c3d4-e5f6-7890-abcd-1234567890ab"`
 
 **Note:** The UUID suffix ensures that similar or identical pool names generate unique IDs, maintaining idempotency for create operations.
-
-**UUID Length Design:**
-- 12-character UUIDs provide 281 trillion possible combinations
-- Collision probability remains < 0.1% even with 500,000 resources
-- Designed for production telecom deployments with large-scale infrastructure
-- Birthday paradox: 50% collision probability only reached at 16.7M resources
 
 ---
 
@@ -1737,7 +1731,7 @@ if len(validationErrors) > 0 {
 if resource.ResourceID == "" {
     resource.ResourceID = fmt.Sprintf("res-%s-%s",
         resource.ResourceTypeID,
-        uuid.New().String()[:12])
+        uuid.New().String())
 }
 
 // 4. Get resource pool to determine machine template
@@ -1917,8 +1911,8 @@ if !isValidURL(sub.Callback) {
     return errors.New("invalid callback URL")
 }
 
-// 2. Generate subscription ID (12-character UUID for consistency)
-subID := "sub-" + uuid.New().String()[:12]
+// 2. Generate subscription ID (full UUID for uniqueness)
+subID := "sub-" + uuid.New().String()
 
 // 3. Store in Redis
 err := redis.HSet(ctx, "subscription:"+subID,

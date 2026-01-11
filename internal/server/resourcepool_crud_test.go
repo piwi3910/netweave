@@ -101,9 +101,9 @@ func TestResourcePoolCRUD(t *testing.T) {
 		assert.Equal(t, pool.Description, created.Description)
 		assert.Equal(t, pool.Location, created.Location)
 		assert.NotEmpty(t, created.ResourcePoolID)
-		// ID should start with "pool-test-pool-" followed by 12-char UUID
+		// ID should start with "pool-test-pool-" followed by full UUID (36 chars)
 		assert.Contains(t, created.ResourcePoolID, "pool-test-pool-")
-		assert.Len(t, created.ResourcePoolID, len("pool-test-pool-")+12)
+		assert.Len(t, created.ResourcePoolID, len("pool-test-pool-")+36)
 	})
 
 	t.Run("POST /resourcePools - create with custom ID", func(t *testing.T) {
