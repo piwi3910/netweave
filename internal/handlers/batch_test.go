@@ -1,4 +1,4 @@
-package handlers
+package handlers_test
 
 import (
 	"bytes"
@@ -17,15 +17,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/handlers"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/storage"
 )
-
-func init() {
-	// Initialize metrics for tests
-	observability.InitMetrics("test")
-}
 
 // mockBatchAdapter implements adapter.Adapter for batch testing.
 type mockBatchAdapter struct {
@@ -40,7 +36,7 @@ type mockBatchAdapter struct {
 
 func (m *mockBatchAdapter) ListResourcePools(
 	_ context.Context,
-	filter *adapter.Filter,
+	_ *adapter.Filter,
 ) ([]*adapter.ResourcePool, error) {
 	return m.resourcePools, nil
 }
@@ -77,7 +73,7 @@ func (m *mockBatchAdapter) CreateResourcePool(
 
 func (m *mockBatchAdapter) UpdateResourcePool(
 	_ context.Context,
-	id string,
+	_ string,
 	pool *adapter.ResourcePool,
 ) (*adapter.ResourcePool, error) {
 	return pool, nil
@@ -260,51 +256,64 @@ func (m *mockBatchStore) Ping(_ context.Context) error {
 	return nil
 }
 
+// setupTestMetrics initializes metrics for testing (only once).
+var metricsInitialized bool
+
+func setupTestMetrics() {
+	if !metricsInitialized {
+		observability.InitMetrics("test")
+		metricsInitialized = true
+	}
+}
+
 func TestNewBatchHandler(t *testing.T) {
+	setupTestMetrics()
+
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
 
-	handler := NewBatchHandler(adapter, store, logger, nil)
+	handler := handlers.NewBatchHandler(adapter, store, logger, nil)
 	assert.NotNil(t, handler)
-	assert.Equal(t, adapter, handler.adapter)
-	assert.Equal(t, store, handler.store)
-	assert.Equal(t, logger, handler.logger)
 }
 
 func TestNewBatchHandler_Panics(t *testing.T) {
+	setupTestMetrics()
+
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
 
 	t.Run("nil adapter panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewBatchHandler(nil, store, logger, nil)
+			handlers.NewBatchHandler(nil, store, logger, nil)
 		})
 	})
 
 	t.Run("nil store panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewBatchHandler(adapter, nil, logger, nil)
+			handlers.NewBatchHandler(adapter, nil, logger, nil)
 		})
 	})
 
 	t.Run("nil logger panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewBatchHandler(adapter, store, nil, nil)
+			handlers.NewBatchHandler(adapter, store, nil, nil)
 		})
 	})
 }
 
 func TestBatchCreateSubscriptions_Success(t *testing.T) {
+	setupTestMetrics()
+
 	gin.SetMode(gin.TestMode)
 
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger, nil)
+	handler := handlers.NewBatchHandler(adapter, store, logger, nil)
 
-	req := BatchSubscriptionCreate{
+	req := handlers.BatchSubscriptionCreate{
 		Subscriptions: []models.Subscription{
 			{
 				Callback: "https://example.com/callback1",
@@ -326,7 +335,7 @@ func TestBatchCreateSubscriptions_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response BatchResponse
+	var response handlers.BatchResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -337,14 +346,16 @@ func TestBatchCreateSubscriptions_Success(t *testing.T) {
 }
 
 func TestBatchCreateSubscriptions_InvalidCallback(t *testing.T) {
+	setupTestMetrics()
+
 	gin.SetMode(gin.TestMode)
 
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger, nil)
+	handler := handlers.NewBatchHandler(adapter, store, logger, nil)
 
-	req := BatchSubscriptionCreate{
+	req := handlers.BatchSubscriptionCreate{
 		Subscriptions: []models.Subscription{
 			{
 				Callback: "",
@@ -363,7 +374,7 @@ func TestBatchCreateSubscriptions_InvalidCallback(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var response BatchResponse
+	var response handlers.BatchResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -373,14 +384,16 @@ func TestBatchCreateSubscriptions_InvalidCallback(t *testing.T) {
 }
 
 func TestBatchCreateSubscriptions_AtomicRollback(t *testing.T) {
+	setupTestMetrics()
+
 	gin.SetMode(gin.TestMode)
 
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger, nil)
+	handler := handlers.NewBatchHandler(adapter, store, logger, nil)
 
-	req := BatchSubscriptionCreate{
+	req := handlers.BatchSubscriptionCreate{
 		Subscriptions: []models.Subscription{
 			{
 				Callback: "https://example.com/callback1",
@@ -402,7 +415,7 @@ func TestBatchCreateSubscriptions_AtomicRollback(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var response BatchResponse
+	var response handlers.BatchResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -417,12 +430,14 @@ func TestBatchCreateSubscriptions_AtomicRollback(t *testing.T) {
 }
 
 func TestBatchCreateSubscriptions_BatchSizeValidation(t *testing.T) {
+	setupTestMetrics()
+
 	gin.SetMode(gin.TestMode)
 
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger, nil)
+	handler := handlers.NewBatchHandler(adapter, store, logger, nil)
 
 	tests := []struct {
 		name       string
@@ -455,7 +470,7 @@ func TestBatchCreateSubscriptions_BatchSizeValidation(t *testing.T) {
 				}
 			}
 
-			req := BatchSubscriptionCreate{
+			req := handlers.BatchSubscriptionCreate{
 				Subscriptions: subs,
 				Atomic:        false,
 			}
@@ -474,6 +489,8 @@ func TestBatchCreateSubscriptions_BatchSizeValidation(t *testing.T) {
 }
 
 func TestBatchDeleteSubscriptions_Success(t *testing.T) {
+	setupTestMetrics()
+
 	gin.SetMode(gin.TestMode)
 
 	adapter := &mockBatchAdapter{}
@@ -484,9 +501,9 @@ func TestBatchDeleteSubscriptions_Success(t *testing.T) {
 		},
 	}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger, nil)
+	handler := handlers.NewBatchHandler(adapter, store, logger, nil)
 
-	req := BatchSubscriptionDelete{
+	req := handlers.BatchSubscriptionDelete{
 		SubscriptionIDs: []string{"sub-1", "sub-2"},
 		Atomic:          false,
 	}
@@ -501,7 +518,7 @@ func TestBatchDeleteSubscriptions_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response BatchResponse
+	var response handlers.BatchResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -512,14 +529,16 @@ func TestBatchDeleteSubscriptions_Success(t *testing.T) {
 }
 
 func TestBatchDeleteSubscriptions_NotFound(t *testing.T) {
+	setupTestMetrics()
+
 	gin.SetMode(gin.TestMode)
 
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger, nil)
+	handler := handlers.NewBatchHandler(adapter, store, logger, nil)
 
-	req := BatchSubscriptionDelete{
+	req := handlers.BatchSubscriptionDelete{
 		SubscriptionIDs: []string{"non-existent"},
 		Atomic:          false,
 	}
@@ -534,7 +553,7 @@ func TestBatchDeleteSubscriptions_NotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var response BatchResponse
+	var response handlers.BatchResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -544,6 +563,8 @@ func TestBatchDeleteSubscriptions_NotFound(t *testing.T) {
 }
 
 func TestBatchDeleteSubscriptions_AtomicFailure(t *testing.T) {
+	setupTestMetrics()
+
 	gin.SetMode(gin.TestMode)
 
 	adapter := &mockBatchAdapter{}
@@ -553,9 +574,9 @@ func TestBatchDeleteSubscriptions_AtomicFailure(t *testing.T) {
 		},
 	}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger, nil)
+	handler := handlers.NewBatchHandler(adapter, store, logger, nil)
 
-	req := BatchSubscriptionDelete{
+	req := handlers.BatchSubscriptionDelete{
 		SubscriptionIDs: []string{"sub-1", "non-existent"},
 		Atomic:          true,
 	}
@@ -570,7 +591,7 @@ func TestBatchDeleteSubscriptions_AtomicFailure(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var response BatchResponse
+	var response handlers.BatchResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -583,14 +604,16 @@ func TestBatchDeleteSubscriptions_AtomicFailure(t *testing.T) {
 }
 
 func TestBatchCreateResourcePools_Success(t *testing.T) {
+	setupTestMetrics()
+
 	gin.SetMode(gin.TestMode)
 
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger, nil)
+	handler := handlers.NewBatchHandler(adapter, store, logger, nil)
 
-	req := BatchResourcePoolCreate{
+	req := handlers.BatchResourcePoolCreate{
 		ResourcePools: []models.ResourcePool{
 			{
 				ResourcePoolID: "pool-1",
@@ -614,7 +637,7 @@ func TestBatchCreateResourcePools_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response BatchResponse
+	var response handlers.BatchResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -625,6 +648,8 @@ func TestBatchCreateResourcePools_Success(t *testing.T) {
 }
 
 func TestBatchCreateResourcePools_AtomicRollback(t *testing.T) {
+	setupTestMetrics()
+
 	gin.SetMode(gin.TestMode)
 
 	adapter := &mockBatchAdapter{
@@ -633,9 +658,9 @@ func TestBatchCreateResourcePools_AtomicRollback(t *testing.T) {
 
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger, nil)
+	handler := handlers.NewBatchHandler(adapter, store, logger, nil)
 
-	req := BatchResourcePoolCreate{
+	req := handlers.BatchResourcePoolCreate{
 		ResourcePools: []models.ResourcePool{
 			{
 				ResourcePoolID: "pool-1",
@@ -659,7 +684,7 @@ func TestBatchCreateResourcePools_AtomicRollback(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var response BatchResponse
+	var response handlers.BatchResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -669,6 +694,8 @@ func TestBatchCreateResourcePools_AtomicRollback(t *testing.T) {
 }
 
 func TestBatchDeleteResourcePools_Success(t *testing.T) {
+	setupTestMetrics()
+
 	gin.SetMode(gin.TestMode)
 
 	adapter := &mockBatchAdapter{
@@ -679,9 +706,9 @@ func TestBatchDeleteResourcePools_Success(t *testing.T) {
 	}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger, nil)
+	handler := handlers.NewBatchHandler(adapter, store, logger, nil)
 
-	req := BatchResourcePoolDelete{
+	req := handlers.BatchResourcePoolDelete{
 		ResourcePoolIDs: []string{"pool-1", "pool-2"},
 		Atomic:          false,
 	}
@@ -696,7 +723,7 @@ func TestBatchDeleteResourcePools_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response BatchResponse
+	var response handlers.BatchResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -707,6 +734,8 @@ func TestBatchDeleteResourcePools_Success(t *testing.T) {
 }
 
 func TestBatchDeleteResourcePools_AtomicFailure(t *testing.T) {
+	setupTestMetrics()
+
 	gin.SetMode(gin.TestMode)
 
 	adapter := &mockBatchAdapter{
@@ -716,9 +745,9 @@ func TestBatchDeleteResourcePools_AtomicFailure(t *testing.T) {
 	}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger, nil)
+	handler := handlers.NewBatchHandler(adapter, store, logger, nil)
 
-	req := BatchResourcePoolDelete{
+	req := handlers.BatchResourcePoolDelete{
 		ResourcePoolIDs: []string{"pool-1", "non-existent"},
 		Atomic:          true,
 	}
@@ -733,7 +762,7 @@ func TestBatchDeleteResourcePools_AtomicFailure(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var response BatchResponse
+	var response handlers.BatchResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -746,12 +775,14 @@ func TestBatchDeleteResourcePools_AtomicFailure(t *testing.T) {
 }
 
 func TestBatchHandler_InvalidJSON(t *testing.T) {
+	setupTestMetrics()
+
 	gin.SetMode(gin.TestMode)
 
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger, nil)
+	handler := handlers.NewBatchHandler(adapter, store, logger, nil)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
