@@ -718,12 +718,16 @@ func (h *BatchHandler) createSingleSubscription(
 	}
 
 	if err := h.store.Create(ctx, storageSub); err != nil {
+		h.logger.Error("failed to create subscription",
+			zap.String("subscription_id", subscriptionID),
+			zap.Error(err),
+		)
 		return BatchResult{
 			Status:  http.StatusInternalServerError,
 			Success: false,
 			Error: &models.ErrorResponse{
 				Error:   "InternalError",
-				Message: fmt.Sprintf("Failed to create subscription: %v", err),
+				Message: "Failed to create subscription",
 				Code:    http.StatusInternalServerError,
 			},
 		}
@@ -761,12 +765,16 @@ func (h *BatchHandler) createSingleResourcePool(
 
 	createdPool, err := h.adapter.CreateResourcePool(ctx, adapterPool)
 	if err != nil {
+		h.logger.Error("failed to create resource pool",
+			zap.String("resource_pool_id", pool.ResourcePoolID),
+			zap.Error(err),
+		)
 		return BatchResult{
 			Status:  http.StatusInternalServerError,
 			Success: false,
 			Error: &models.ErrorResponse{
 				Error:   "InternalError",
-				Message: fmt.Sprintf("Failed to create resource pool: %v", err),
+				Message: "Failed to create resource pool",
 				Code:    http.StatusInternalServerError,
 			},
 		}
