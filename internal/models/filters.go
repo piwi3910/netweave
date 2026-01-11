@@ -505,55 +505,72 @@ func deepCopyValue(value interface{}) interface{} {
 
 	switch v := value.(type) {
 	case map[string]interface{}:
-		copied := make(map[string]interface{}, len(v))
-		for key, val := range v {
-			copied[key] = deepCopyValue(val)
-		}
-		return copied
-
+		return deepCopyMap(v)
 	case []interface{}:
-		copied := make([]interface{}, len(v))
-		for i, val := range v {
-			copied[i] = deepCopyValue(val)
-		}
-		return copied
-
-	case []string:
-		copied := make([]string, len(v))
-		copy(copied, v)
-		return copied
-
-	case []int:
-		copied := make([]int, len(v))
-		copy(copied, v)
-		return copied
-
-	case []int64:
-		copied := make([]int64, len(v))
-		copy(copied, v)
-		return copied
-
-	case []float64:
-		copied := make([]float64, len(v))
-		copy(copied, v)
-		return copied
-
-	case []bool:
-		copied := make([]bool, len(v))
-		copy(copied, v)
-		return copied
-
+		return deepCopyInterfaceSlice(v)
 	case []map[string]interface{}:
-		copied := make([]map[string]interface{}, len(v))
-		for i, m := range v {
-			copied[i] = deepCopyValue(m).(map[string]interface{})
-		}
-		return copied
-
+		return deepCopyMapSlice(v)
+	case []string, []int, []int64, []float64, []bool:
+		return deepCopyPrimitiveSlice(v)
 	default:
 		// Primitive types (string, int, int64, bool, float64, etc.) are copied by value
 		// Complex types not explicitly handled are returned as-is (may share references)
 		return v
+	}
+}
+
+// deepCopyMap creates a deep copy of a map.
+func deepCopyMap(m map[string]interface{}) map[string]interface{} {
+	copied := make(map[string]interface{}, len(m))
+	for key, val := range m {
+		copied[key] = deepCopyValue(val)
+	}
+	return copied
+}
+
+// deepCopyInterfaceSlice creates a deep copy of an interface slice.
+func deepCopyInterfaceSlice(s []interface{}) []interface{} {
+	copied := make([]interface{}, len(s))
+	for i, val := range s {
+		copied[i] = deepCopyValue(val)
+	}
+	return copied
+}
+
+// deepCopyMapSlice creates a deep copy of a map slice.
+func deepCopyMapSlice(s []map[string]interface{}) []map[string]interface{} {
+	copied := make([]map[string]interface{}, len(s))
+	for i, m := range s {
+		copied[i] = deepCopyValue(m).(map[string]interface{})
+	}
+	return copied
+}
+
+// deepCopyPrimitiveSlice creates a copy of primitive type slices.
+func deepCopyPrimitiveSlice(value interface{}) interface{} {
+	switch v := value.(type) {
+	case []string:
+		copied := make([]string, len(v))
+		copy(copied, v)
+		return copied
+	case []int:
+		copied := make([]int, len(v))
+		copy(copied, v)
+		return copied
+	case []int64:
+		copied := make([]int64, len(v))
+		copy(copied, v)
+		return copied
+	case []float64:
+		copied := make([]float64, len(v))
+		copy(copied, v)
+		return copied
+	case []bool:
+		copied := make([]bool, len(v))
+		copy(copied, v)
+		return copied
+	default:
+		return value
 	}
 }
 
