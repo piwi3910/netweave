@@ -461,6 +461,13 @@ func contains(slice []string, item string) bool {
 }
 
 // HasFieldSelection returns true if the filter has field selection enabled.
+//
+// Example:
+//
+//	filter := &Filter{Fields: []string{"name", "location"}}
+//	if filter.HasFieldSelection() {
+//	    // Apply field filtering
+//	}
 func (f *Filter) HasFieldSelection() bool {
 	return len(f.Fields) > 0
 }
@@ -552,6 +559,31 @@ func deepCopyValue(value interface{}) interface{} {
 
 // SelectFields filters a map to only include requested fields.
 // Returns a deep copy to prevent shared references with the original data.
+//
+// Example with top-level fields:
+//
+//	data := map[string]interface{}{
+//	    "resourceId": "pool-1",
+//	    "name": "Production Pool",
+//	    "location": "us-west",
+//	    "internal": "secret-data",
+//	}
+//	filter := &Filter{Fields: []string{"resourceId", "name"}}
+//	filtered := filter.SelectFields(data)
+//	// Result: {"resourceId": "pool-1", "name": "Production Pool"}
+//
+// Example with nested fields:
+//
+//	data := map[string]interface{}{
+//	    "metadata": map[string]interface{}{
+//	        "labels": map[string]string{"env": "prod"},
+//	        "annotations": map[string]string{"owner": "team-a"},
+//	    },
+//	    "spec": map[string]interface{}{"replicas": 3},
+//	}
+//	filter := &Filter{Fields: []string{"metadata.labels"}}
+//	filtered := filter.SelectFields(data)
+//	// Result: {"metadata": {"labels": {"env": "prod"}}}
 func (f *Filter) SelectFields(data map[string]interface{}) map[string]interface{} {
 	// Always return a deep copy to prevent memory leaks from shared references
 	if !f.HasFieldSelection() {
