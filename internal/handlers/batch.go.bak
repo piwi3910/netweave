@@ -370,22 +370,6 @@ func (h *BatchHandler) BatchDeleteSubscriptions(c *gin.Context) {
 		return
 	}
 
-	// Validate batch size
-	batchSize := len(req.SubscriptionIDs)
-	if batchSize < MinBatchSize || batchSize > MaxBatchSize {
-		h.logger.Warn("invalid batch size",
-			zap.Int("batch_size", batchSize),
-			zap.Int("min", MinBatchSize),
-			zap.Int("max", MaxBatchSize),
-		)
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "BadRequest",
-			Message: fmt.Sprintf("Batch size must be between %d and %d, got %d", MinBatchSize, MaxBatchSize, batchSize),
-			Code:    http.StatusBadRequest,
-		})
-		return
-	}
-
 	results := make([]BatchResult, len(req.SubscriptionIDs))
 	successCount := 0
 	failureCount := 0
