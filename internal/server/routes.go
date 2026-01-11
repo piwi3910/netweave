@@ -154,11 +154,63 @@ func (s *Server) setupV2Routes(v2 *gin.RouterGroup) {
 // - Cross-tenant resource sharing
 // - Enhanced audit logging
 func (s *Server) setupV3Routes(v3 *gin.RouterGroup) {
-	// Include all v2 routes
-	s.setupV2Routes(v3)
+	// Infrastructure Inventory Subscription Management (v1 endpoints)
+	subscriptions := v3.Group("/subscriptions")
+	{
+		subscriptions.GET("", s.handleListSubscriptions)
+		subscriptions.POST("", s.handleCreateSubscription)
+		subscriptions.GET("/:subscriptionId", s.handleGetSubscription)
+		subscriptions.PUT("/:subscriptionId", s.handleUpdateSubscription)
+		subscriptions.DELETE("/:subscriptionId", s.handleDeleteSubscription)
+	}
+
+	// Resource Pool Management (v1 endpoints)
+	resourcePools := v3.Group("/resourcePools")
+	{
+		resourcePools.GET("", s.handleListResourcePools)
+		resourcePools.POST("", s.handleCreateResourcePool)
+		resourcePools.GET("/:resourcePoolId", s.handleGetResourcePool)
+		resourcePools.PUT("/:resourcePoolId", s.handleUpdateResourcePool)
+		resourcePools.DELETE("/:resourcePoolId", s.handleDeleteResourcePool)
+		resourcePools.GET("/:resourcePoolId/resources", s.handleListResourcesInPool)
+	}
+
+	// Resource Management (v1 endpoints)
+	resources := v3.Group("/resources")
+	{
+		resources.GET("", s.handleListResources)
+		resources.POST("", s.handleCreateResource)
+		resources.GET("/:resourceId", s.handleGetResource)
+		resources.PUT("/:resourceId", s.handleUpdateResource)
+	}
+
+	// Resource Type Management (v1 endpoints)
+	resourceTypes := v3.Group("/resourceTypes")
+	{
+		resourceTypes.GET("", s.handleListResourceTypes)
+		resourceTypes.GET("/:resourceTypeId", s.handleGetResourceType)
+	}
+
+	// Deployment Manager Management (v1 endpoints)
+	deploymentManagers := v3.Group("/deploymentManagers")
+	{
+		deploymentManagers.GET("", s.handleListDeploymentManagers)
+		deploymentManagers.GET("/:deploymentManagerId", s.handleGetDeploymentManager)
+	}
+
+	// Batch Operations (v2 feature)
+	batch := v3.Group("/batch")
+	{
+		// Subscription batch operations
+		batch.POST("/subscriptions", s.handleBatchCreateSubscriptions)
+		batch.POST("/subscriptions/delete", s.handleBatchDeleteSubscriptions)
+
+		// Resource pool batch operations
+		batch.POST("/resourcePools", s.handleBatchCreateResourcePools)
+		batch.POST("/resourcePools/delete", s.handleBatchDeleteResourcePools)
+	}
 
 	// Tenant management (v3 feature)
-	// Endpoint: /tenants/*
 	tenants := v3.Group("/tenants")
 	{
 		tenants.GET("", s.handleListTenants)
