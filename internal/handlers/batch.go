@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -182,7 +181,7 @@ func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
 	createdIDs := make([]string, 0, len(req.Subscriptions))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	var successCount, failureCount int32
+	var successCount, failureCount int
 
 	// Worker pool to limit concurrency
 	semaphore := make(chan struct{}, MaxWorkers)
@@ -208,7 +207,7 @@ func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
 						Code:    http.StatusRequestTimeout,
 					},
 				}
-				atomic.AddInt32(&failureCount, 1)
+				failureCount++
 				mu.Unlock()
 				return
 			default:
@@ -220,12 +219,12 @@ func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
 			mu.Lock()
 			results[idx] = result
 			if result.Success {
-				atomic.AddInt32(&successCount, 1)
+				successCount++
 				if createdSub, ok := result.Data.(*models.Subscription); ok {
 					createdIDs = append(createdIDs, createdSub.SubscriptionID)
 				}
 			} else {
-				atomic.AddInt32(&failureCount, 1)
+				failureCount++
 			}
 			mu.Unlock()
 		}(i, sub)
@@ -234,7 +233,9 @@ func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
 	wg.Wait()
 
 	// If atomic and any failure, rollback all created subscriptions
-	if req.Atomic && atomic.LoadInt32(&failureCount) > 0 {
+	mu.Lock()
+	if req.Atomic && failureCount > 0 {
+		mu.Unlock()
 		rollbackFailures := h.rollbackSubscriptions(ctx, createdIDs)
 		if rollbackFailures > 0 {
 			h.logger.Error("atomic rollback incomplete",
@@ -242,6 +243,7 @@ func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
 				zap.Int("total_subscriptions", len(createdIDs)),
 			)
 		}
+		mu.Lock()
 		for i := range results {
 			if results[i].Success {
 				results[i].Success = false
@@ -254,20 +256,17 @@ func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
 				}
 			}
 		}
-		atomic.StoreInt32(&successCount, 0)
-		// Safe: len(results) is bounded by MaxBatchSize (100) which fits in int32
-		failureTotal := len(results)
-		if failureTotal > 0 && failureTotal <= MaxBatchSize {
-			atomic.StoreInt32(&failureCount, int32(failureTotal))
-		}
+		successCount = 0
+		failureCount = len(results)
 	}
 
 	response := BatchResponse{
 		Results:      results,
-		Success:      atomic.LoadInt32(&failureCount) == 0,
-		SuccessCount: int(atomic.LoadInt32(&successCount)),
-		FailureCount: int(atomic.LoadInt32(&failureCount)),
+		Success:      failureCount == 0,
+		SuccessCount: successCount,
+		FailureCount: failureCount,
 	}
+	mu.Unlock()
 
 	statusCode := http.StatusOK
 	if response.FailureCount > 0 && response.SuccessCount == 0 {
@@ -589,7 +588,7 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 	createdIDs := make([]string, 0, len(req.ResourcePools))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	var successCount, failureCount int32
+	var successCount, failureCount int
 
 	// Worker pool to limit concurrency
 	semaphore := make(chan struct{}, MaxWorkers)
@@ -615,7 +614,7 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 						Code:    http.StatusRequestTimeout,
 					},
 				}
-				atomic.AddInt32(&failureCount, 1)
+				failureCount++
 				mu.Unlock()
 				return
 			default:
@@ -627,12 +626,12 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 			mu.Lock()
 			results[idx] = result
 			if result.Success {
-				atomic.AddInt32(&successCount, 1)
+				successCount++
 				if createdPool, ok := result.Data.(*models.ResourcePool); ok {
 					createdIDs = append(createdIDs, createdPool.ResourcePoolID)
 				}
 			} else {
-				atomic.AddInt32(&failureCount, 1)
+				failureCount++
 			}
 			mu.Unlock()
 		}(i, pool)
@@ -641,7 +640,9 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 	wg.Wait()
 
 	// If atomic and any failure, rollback all created resource pools
-	if req.Atomic && atomic.LoadInt32(&failureCount) > 0 {
+	mu.Lock()
+	if req.Atomic && failureCount > 0 {
+		mu.Unlock()
 		rollbackFailures := h.rollbackResourcePools(ctx, createdIDs)
 		if rollbackFailures > 0 {
 			h.logger.Error("atomic rollback incomplete",
@@ -649,6 +650,7 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 				zap.Int("total_resource_pools", len(createdIDs)),
 			)
 		}
+		mu.Lock()
 		for i := range results {
 			if results[i].Success {
 				results[i].Success = false
@@ -661,20 +663,17 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 				}
 			}
 		}
-		atomic.StoreInt32(&successCount, 0)
-		// Safe: len(results) is bounded by MaxBatchSize (100) which fits in int32
-		failureTotal := len(results)
-		if failureTotal > 0 && failureTotal <= MaxBatchSize {
-			atomic.StoreInt32(&failureCount, int32(failureTotal))
-		}
+		successCount = 0
+		failureCount = len(results)
 	}
 
 	response := BatchResponse{
 		Results:      results,
-		Success:      atomic.LoadInt32(&failureCount) == 0,
-		SuccessCount: int(atomic.LoadInt32(&successCount)),
-		FailureCount: int(atomic.LoadInt32(&failureCount)),
+		Success:      failureCount == 0,
+		SuccessCount: successCount,
+		FailureCount: failureCount,
 	}
+	mu.Unlock()
 
 	statusCode := http.StatusOK
 	if response.FailureCount > 0 && response.SuccessCount == 0 {

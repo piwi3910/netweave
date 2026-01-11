@@ -518,8 +518,9 @@ func deepCopyValue(value interface{}) interface{} {
 // SelectFields filters a map to only include requested fields.
 // Returns a deep copy to prevent shared references with the original data.
 func (f *Filter) SelectFields(data map[string]interface{}) map[string]interface{} {
+	// Always return a deep copy to prevent memory leaks from shared references
 	if !f.HasFieldSelection() {
-		return data
+		return deepCopyValue(data).(map[string]interface{})
 	}
 
 	result := make(map[string]interface{})
@@ -535,13 +536,14 @@ func (f *Filter) SelectFields(data map[string]interface{}) map[string]interface{
 				// Nested field, need to recurse
 				if nestedMap, ok := value.(map[string]interface{}); ok {
 					nestedFilter := &Filter{Fields: []string{parts[1]}}
+					nestedResult := nestedFilter.SelectFields(nestedMap)
 					if existing, ok := result[key].(map[string]interface{}); ok {
-						// Merge with existing
-						for k, v := range nestedFilter.SelectFields(nestedMap) {
-							existing[k] = v
+						// Merge with existing (deep copy values during merge)
+						for k, v := range nestedResult {
+							existing[k] = deepCopyValue(v)
 						}
 					} else {
-						result[key] = nestedFilter.SelectFields(nestedMap)
+						result[key] = nestedResult
 					}
 				}
 			}
