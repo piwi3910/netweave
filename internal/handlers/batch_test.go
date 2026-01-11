@@ -799,3 +799,146 @@ func TestBatchHandler_InvalidJSON(t *testing.T) {
 
 	assert.Equal(t, "BadRequest", response.Error)
 }
+
+// TestBatchHandler_EdgeCases tests edge cases and boundary conditions.
+func TestBatchHandler_EdgeCases(t *testing.T) {
+	setupTestMetrics()
+
+	t.Run("batch size exactly at maximum 100", func(t *testing.T) {
+		adapter := &mockBatchAdapter{}
+		store := &mockBatchStore{}
+		logger := zap.NewNop()
+		handler := handlers.NewBatchHandler(adapter, store, logger, nil)
+
+		// Create exactly 100 subscriptions (max allowed)
+		subs := make([]models.Subscription, 100)
+		for i := 0; i < 100; i++ {
+			subs[i] = models.Subscription{
+				Callback: "https://smo.example.com/notify",
+			}
+		}
+
+		req := handlers.BatchSubscriptionCreate{
+			Subscriptions: subs,
+			Atomic:        false,
+		}
+
+		body, _ := json.Marshal(req)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/batch/subscriptions", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.BatchCreateSubscriptions(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response handlers.BatchResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.True(t, response.Success)
+		assert.Equal(t, 100, response.SuccessCount)
+		assert.Equal(t, 0, response.FailureCount)
+	})
+
+	t.Run("batch size exactly 1 minimum", func(t *testing.T) {
+		adapter := &mockBatchAdapter{}
+		store := &mockBatchStore{}
+		logger := zap.NewNop()
+		handler := handlers.NewBatchHandler(adapter, store, logger, nil)
+
+		req := handlers.BatchSubscriptionCreate{
+			Subscriptions: []models.Subscription{
+				{Callback: "https://smo.example.com/notify"},
+			},
+			Atomic: false,
+		}
+
+		body, _ := json.Marshal(req)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/batch/subscriptions", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.BatchCreateSubscriptions(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response handlers.BatchResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.True(t, response.Success)
+		assert.Equal(t, 1, response.SuccessCount)
+	})
+
+	t.Run("partial success returns 207 multi-status", func(t *testing.T) {
+		adapter := &mockBatchAdapter{
+			failOnCreatePool: 2, // Fail on 2nd create
+		}
+		store := &mockBatchStore{}
+		logger := zap.NewNop()
+		handler := handlers.NewBatchHandler(adapter, store, logger, nil)
+
+		req := handlers.BatchResourcePoolCreate{
+			ResourcePools: []models.ResourcePool{
+				{ResourcePoolID: "pool-1", Name: "Pool 1"},
+				{ResourcePoolID: "pool-2", Name: "Pool 2"},
+				{ResourcePoolID: "pool-3", Name: "Pool 3"},
+			},
+			Atomic: false,
+		}
+
+		body, _ := json.Marshal(req)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/batch/resourcePools", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.BatchCreateResourcePools(c)
+
+		// Verify 207 Multi-Status for partial success
+		assert.Equal(t, http.StatusMultiStatus, w.Code)
+
+		var response handlers.BatchResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.False(t, response.Success)
+		assert.Equal(t, 2, response.SuccessCount)
+		assert.Equal(t, 1, response.FailureCount)
+	})
+
+	t.Run("empty callback URL is rejected", func(t *testing.T) {
+		adapter := &mockBatchAdapter{}
+		store := &mockBatchStore{}
+		logger := zap.NewNop()
+		handler := handlers.NewBatchHandler(adapter, store, logger, nil)
+
+		req := handlers.BatchSubscriptionCreate{
+			Subscriptions: []models.Subscription{
+				{Callback: ""}, // Empty callback should fail validation
+			},
+			Atomic: false,
+		}
+
+		body, _ := json.Marshal(req)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/batch/subscriptions", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.BatchCreateSubscriptions(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var response handlers.BatchResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.False(t, response.Success)
+		assert.Len(t, response.Results, 1)
+		assert.Equal(t, http.StatusBadRequest, response.Results[0].Status)
+	})
+}

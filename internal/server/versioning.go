@@ -132,6 +132,10 @@ func extractVersionFromPath(path string) string {
 
 // isNumeric checks if a string contains only numeric characters.
 func isNumeric(s string) bool {
+	// Prevent potential DoS from extremely long strings
+	if len(s) > 10 {
+		return false
+	}
 	for _, c := range s {
 		if c < '0' || c > '9' {
 			return false

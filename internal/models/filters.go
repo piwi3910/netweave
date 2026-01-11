@@ -585,7 +585,10 @@ func deepCopyValue(value interface{}) interface{} {
 //	filtered := filter.SelectFields(data)
 //	// Result: {"metadata": {"labels": {"env": "prod"}}}
 func (f *Filter) SelectFields(data map[string]interface{}) map[string]interface{} {
-	// Always return a deep copy to prevent memory leaks from shared references
+	// Always return a deep copy to prevent memory leaks from shared references.
+	// Even without field selection, we copy to ensure modifications to the returned
+	// map don't affect the original data. This prevents subtle bugs where filtered
+	// results share memory with source data structures.
 	if !f.HasFieldSelection() {
 		return deepCopyValue(data).(map[string]interface{})
 	}
