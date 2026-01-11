@@ -58,7 +58,13 @@ func NewBatchHandler(
 
 	// Metrics are optional - use global if not provided
 	if metrics == nil {
-		metrics = observability.GetMetrics()
+		// Try to get global metrics, but handle initialization gracefully
+		if globalMetrics := observability.GetMetrics(); globalMetrics != nil {
+			metrics = globalMetrics
+		} else {
+			// Initialize with default namespace for testing
+			metrics = observability.InitMetrics("test")
+		}
 	}
 
 	return &BatchHandler{
@@ -315,7 +321,8 @@ func (h *BatchHandler) executeWithWorkerPool(
 	operation batchOperationFunc,
 ) ([]BatchResult, int, int, []string) {
 	results := make([]BatchResult, count)
-	createdIDs := make([]string, 0, count)
+	// Use index-aligned storage to prevent race condition where order doesn't match results
+	createdIDsAligned := make([]string, count)
 	var successCount, failureCount int
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -355,7 +362,7 @@ func (h *BatchHandler) executeWithWorkerPool(
 			if result.Success {
 				successCount++
 				if createdID != "" {
-					createdIDs = append(createdIDs, createdID)
+					createdIDsAligned[idx] = createdID
 				}
 			} else {
 				failureCount++
@@ -365,6 +372,15 @@ func (h *BatchHandler) executeWithWorkerPool(
 	}
 
 	wg.Wait()
+
+	// Filter out empty strings to build final createdIDs list
+	createdIDs := make([]string, 0, successCount)
+	for _, id := range createdIDsAligned {
+		if id != "" {
+			createdIDs = append(createdIDs, id)
+		}
+	}
+
 	return results, successCount, failureCount, createdIDs
 }
 

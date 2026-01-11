@@ -362,7 +362,7 @@ func (m *Metrics) RecordK8sOperation(operation, resource string, duration time.D
 	m.K8sOperationDuration.WithLabelValues(operation, resource).Observe(duration.Seconds())
 }
 
-// SetSubscriptionCount sets the current subscription coun.
+// SetSubscriptionCount sets the current subscription count.
 func (m *Metrics) SetSubscriptionCount(count int) {
 	m.SubscriptionsTotal.Set(float64(count))
 }
