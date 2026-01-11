@@ -1524,6 +1524,154 @@ func (c *SubscriptionController) sendWebhook(
 | Update | PUT | `/subscriptions/{id}` | Update Redis |
 | Delete | DELETE | `/subscriptions/{id}` | Delete from Redis + stop watching |
 
+### Batch Operations (v2+)
+
+**Version:** Available in API v2 and later
+
+Batch operations enable efficient bulk creation and deletion of multiple subscriptions or resource pools in a single API call, with support for atomic transactions.
+
+| Operation | Method | Endpoint | Description | Atomic Support |
+|-----------|--------|----------|-------------|----------------|
+| Batch Create Subscriptions | POST | `/o2ims/v2/batch/subscriptions` | Create multiple subscriptions | ✅ Yes |
+| Batch Delete Subscriptions | POST | `/o2ims/v2/batch/subscriptions/delete` | Delete multiple subscriptions | ✅ Yes |
+| Batch Create Resource Pools | POST | `/o2ims/v2/batch/resourcePools` | Create multiple resource pools | ✅ Yes |
+| Batch Delete Resource Pools | POST | `/o2ims/v2/batch/resourcePools/delete` | Delete multiple resource pools | ✅ Yes |
+
+#### Batch Create Subscriptions
+
+**Request:**
+```http
+POST /o2ims/v2/batch/subscriptions HTTP/1.1
+Content-Type: application/json
+
+{
+  "subscriptions": [
+    {
+      "callback": "https://smo.example.com/notify1",
+      "consumerSubscriptionId": "smo-sub-1",
+      "filter": {
+        "resourcePoolId": ["pool-compute"]
+      }
+    },
+    {
+      "callback": "https://smo.example.com/notify2",
+      "consumerSubscriptionId": "smo-sub-2",
+      "filter": {
+        "resourceTypeId": ["compute-node"]
+      }
+    }
+  ],
+  "atomic": false
+}
+```
+
+**Response:**
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "results": [
+    {
+      "index": 0,
+      "status": 201,
+      "success": true,
+      "data": {
+        "subscriptionId": "550e8400-e29b-41d4-a716-446655440000",
+        "callback": "https://smo.example.com/notify1",
+        "consumerSubscriptionId": "smo-sub-1",
+        "createdAt": "2026-01-11T10:00:00Z"
+      }
+    },
+    {
+      "index": 1,
+      "status": 201,
+      "success": true,
+      "data": {
+        "subscriptionId": "550e8400-e29b-41d4-a716-446655440001",
+        "callback": "https://smo.example.com/notify2",
+        "consumerSubscriptionId": "smo-sub-2",
+        "createdAt": "2026-01-11T10:00:01Z"
+      }
+    }
+  ],
+  "success": true,
+  "successCount": 2,
+  "failureCount": 0
+}
+```
+
+#### Atomic Batch Operations
+
+When `atomic: true` is set, all operations in the batch must succeed or all will be rolled back:
+
+**Request:**
+```http
+POST /o2ims/v2/batch/subscriptions HTTP/1.1
+Content-Type: application/json
+
+{
+  "subscriptions": [
+    {
+      "callback": "https://smo.example.com/notify1",
+      "consumerSubscriptionId": "smo-sub-1"
+    },
+    {
+      "callback": "invalid-url",  // This will fail validation
+      "consumerSubscriptionID": "smo-sub-2"
+    }
+  ],
+  "atomic": true
+}
+```
+
+**Response:**
+```http
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+{
+  "results": [
+    {
+      "index": 0,
+      "status": 409,
+      "success": false,
+      "error": {
+        "error": "RolledBack",
+        "message": "Operation rolled back due to atomic batch failure",
+        "code": 409
+      }
+    },
+    {
+      "index": 1,
+      "status": 400,
+      "success": false,
+      "error": {
+        "error": "BadRequest",
+        "message": "Invalid callback URL",
+        "code": 400
+      }
+    }
+  ],
+  "success": false,
+  "successCount": 0,
+  "failureCount": 2
+}
+```
+
+#### Batch Operation Constraints
+
+- **Min batch size:** 1 operation
+- **Max batch size:** 100 operations per request
+- **Concurrency limit:** 10 concurrent operations per batch request
+- **Timeout:** Standard API timeout applies to entire batch
+- **HTTP Status Codes:**
+  - `200 OK` - All operations succeeded
+  - `207 Multi-Status` - Partial success (some operations failed)
+  - `400 Bad Request` - All operations failed or atomic batch failed
+  - `401 Unauthorized` - Authentication required
+  - `403 Forbidden` - Insufficient permissions
+
 ---
 
 ## Data Transformation Examples

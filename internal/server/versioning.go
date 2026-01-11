@@ -36,9 +36,6 @@ type VersionConfig struct {
 
 // NewVersionConfig creates a new version configuration with default settings.
 func NewVersionConfig() *VersionConfig {
-	// Define sunset date for v1 deprecation (example: 1 year from now)
-	v1SunsetDate := time.Now().AddDate(1, 0, 0)
-
 	return &VersionConfig{
 		Versions: map[string]*APIVersion{
 			"v1": {
@@ -62,12 +59,6 @@ func NewVersionConfig() *VersionConfig {
 		},
 		DefaultVersion: "v1",
 	}
-
-	// Example of how to set v1 as deprecated when v2 is stable
-	// config.Versions["v1"].Status = VersionStatusDeprecated
-	// config.Versions["v1"].SunsetDate = &v1SunsetDate
-	// config.Versions["v1"].DeprecationMessage = "v1 is deprecated. Please migrate to v2."
-	_ = v1SunsetDate // Suppress unused variable warning
 }
 
 // VersioningMiddleware adds API version headers and handles deprecation notices.
@@ -219,17 +210,15 @@ func RequireVersion(minVersion string) gin.HandlerFunc {
 }
 
 // isVersionAtLeast checks if currentVersion is at least minVersion.
-func isVersionAtLeast(current, min string) bool {
+func isVersionAtLeast(current, minimum string) bool {
 	currentNum := extractVersionNumber(current)
-	minNum := extractVersionNumber(min)
+	minNum := extractVersionNumber(minimum)
 	return currentNum >= minNum
 }
 
 // extractVersionNumber extracts the numeric version from a version string.
 func extractVersionNumber(version string) int {
-	if strings.HasPrefix(version, "v") {
-		version = version[1:]
-	}
+	version = strings.TrimPrefix(version, "v")
 	num := 0
 	for _, c := range version {
 		if c >= '0' && c <= '9' {

@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
+	"sync/atomic"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -14,6 +16,15 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
 	"github.com/piwi3910/netweave/internal/storage"
+)
+
+const (
+	// MaxWorkers limits concurrent operations in batch requests.
+	MaxWorkers = 10
+	// MinBatchSize is the minimum number of items in a batch request.
+	MinBatchSize = 1
+	// MaxBatchSize is the maximum number of items in a batch request.
+	MaxBatchSize = 100
 )
 
 // BatchHandler handles batch operation API endpoints.
@@ -144,14 +155,17 @@ func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
 	var createdIDs []string
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	var successCount, failureCount int32
 
-	successCount := 0
-	failureCount := 0
+	// Worker pool to limit concurrency
+	semaphore := make(chan struct{}, MaxWorkers)
 
 	for i, sub := range req.Subscriptions {
 		wg.Add(1)
+		semaphore <- struct{}{} // Acquire worker slot
 		go func(idx int, subscription models.Subscription) {
 			defer wg.Done()
+			defer func() { <-semaphore }() // Release worker slot
 
 			result := h.createSingleSubscription(ctx, subscription)
 			result.Index = idx
@@ -159,12 +173,12 @@ func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
 			mu.Lock()
 			results[idx] = result
 			if result.Success {
-				successCount++
+				atomic.AddInt32(&successCount, 1)
 				if createdSub, ok := result.Data.(*models.Subscription); ok {
 					createdIDs = append(createdIDs, createdSub.SubscriptionID)
 				}
 			} else {
-				failureCount++
+				atomic.AddInt32(&failureCount, 1)
 			}
 			mu.Unlock()
 		}(i, sub)
@@ -173,8 +187,14 @@ func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
 	wg.Wait()
 
 	// If atomic and any failure, rollback all created subscriptions
-	if req.Atomic && failureCount > 0 {
-		h.rollbackSubscriptions(ctx, createdIDs)
+	if req.Atomic && atomic.LoadInt32(&failureCount) > 0 {
+		rollbackFailures := h.rollbackSubscriptions(ctx, createdIDs)
+		if rollbackFailures > 0 {
+			h.logger.Error("atomic rollback incomplete",
+				zap.Int("failed_rollbacks", rollbackFailures),
+				zap.Int("total_subscriptions", len(createdIDs)),
+			)
+		}
 		for i := range results {
 			if results[i].Success {
 				results[i].Success = false
@@ -187,27 +207,31 @@ func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
 				}
 			}
 		}
-		successCount = 0
-		failureCount = len(results)
+		atomic.StoreInt32(&successCount, 0)
+		// Safe: len(results) is bounded by MaxBatchSize (100) which fits in int32
+		failureTotal := len(results)
+		if failureTotal > 0 && failureTotal <= MaxBatchSize {
+			atomic.StoreInt32(&failureCount, int32(failureTotal))
+		}
 	}
 
 	response := BatchResponse{
 		Results:      results,
-		Success:      failureCount == 0,
-		SuccessCount: successCount,
-		FailureCount: failureCount,
+		Success:      atomic.LoadInt32(&failureCount) == 0,
+		SuccessCount: int(atomic.LoadInt32(&successCount)),
+		FailureCount: int(atomic.LoadInt32(&failureCount)),
 	}
 
 	statusCode := http.StatusOK
-	if failureCount > 0 && successCount == 0 {
+	if response.FailureCount > 0 && response.SuccessCount == 0 {
 		statusCode = http.StatusBadRequest
-	} else if failureCount > 0 {
+	} else if response.FailureCount > 0 {
 		statusCode = http.StatusMultiStatus
 	}
 
 	h.logger.Info("batch subscriptions created",
-		zap.Int("success_count", successCount),
-		zap.Int("failure_count", failureCount),
+		zap.Int("success_count", response.SuccessCount),
+		zap.Int("failure_count", response.FailureCount),
 	)
 
 	c.JSON(statusCode, response)
@@ -218,6 +242,31 @@ func (h *BatchHandler) createSingleSubscription(
 	ctx context.Context,
 	sub models.Subscription,
 ) BatchResult {
+	// Validate callback URL
+	if sub.Callback == "" {
+		return BatchResult{
+			Status:  http.StatusBadRequest,
+			Success: false,
+			Error: &models.ErrorResponse{
+				Error:   "BadRequest",
+				Message: "Callback URL is required",
+				Code:    http.StatusBadRequest,
+			},
+		}
+	}
+
+	if _, err := url.ParseRequestURI(sub.Callback); err != nil {
+		return BatchResult{
+			Status:  http.StatusBadRequest,
+			Success: false,
+			Error: &models.ErrorResponse{
+				Error:   "BadRequest",
+				Message: "Invalid callback URL: " + err.Error(),
+				Code:    http.StatusBadRequest,
+			},
+		}
+	}
+
 	subscriptionID := uuid.New().String()
 
 	storageSub := &storage.Subscription{
@@ -264,15 +313,25 @@ func (h *BatchHandler) createSingleSubscription(
 }
 
 // rollbackSubscriptions deletes the given subscription IDs.
-func (h *BatchHandler) rollbackSubscriptions(ctx context.Context, ids []string) {
+// Returns the number of failed rollback operations.
+func (h *BatchHandler) rollbackSubscriptions(ctx context.Context, ids []string) int {
+	var rollbackFailures int
 	for _, id := range ids {
 		if err := h.store.Delete(ctx, id); err != nil {
-			h.logger.Warn("failed to rollback subscription",
+			rollbackFailures++
+			h.logger.Error("failed to rollback subscription",
 				zap.String("subscription_id", id),
 				zap.Error(err),
 			)
 		}
 	}
+	if rollbackFailures > 0 {
+		h.logger.Warn("partial rollback failure",
+			zap.Int("total_rollbacks", len(ids)),
+			zap.Int("failed_rollbacks", rollbackFailures),
+		)
+	}
+	return rollbackFailures
 }
 
 // BatchDeleteSubscriptions handles POST /o2ims/v1/batch/subscriptions/delete.
@@ -319,7 +378,7 @@ func (h *BatchHandler) BatchDeleteSubscriptions(c *gin.Context) {
 		}
 
 		if failureCount > 0 {
-			// Mark all as failed due to atomic requirement
+			// Mark all remaining (not yet failed) as failed due to atomic requirement
 			for i := range results {
 				if results[i].Error == nil {
 					results[i] = BatchResult{
@@ -332,9 +391,11 @@ func (h *BatchHandler) BatchDeleteSubscriptions(c *gin.Context) {
 							Code:    http.StatusConflict,
 						},
 					}
-					failureCount++
 				}
 			}
+
+			// Recalculate counts - all operations have now failed
+			failureCount = len(results)
 
 			c.JSON(http.StatusBadRequest, BatchResponse{
 				Results:      results,
@@ -417,14 +478,17 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 	var createdIDs []string
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	var successCount, failureCount int32
 
-	successCount := 0
-	failureCount := 0
+	// Worker pool to limit concurrency
+	semaphore := make(chan struct{}, MaxWorkers)
 
 	for i, pool := range req.ResourcePools {
 		wg.Add(1)
+		semaphore <- struct{}{} // Acquire worker slot
 		go func(idx int, resourcePool models.ResourcePool) {
 			defer wg.Done()
+			defer func() { <-semaphore }() // Release worker slot
 
 			result := h.createSingleResourcePool(ctx, resourcePool)
 			result.Index = idx
@@ -432,12 +496,12 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 			mu.Lock()
 			results[idx] = result
 			if result.Success {
-				successCount++
+				atomic.AddInt32(&successCount, 1)
 				if createdPool, ok := result.Data.(*models.ResourcePool); ok {
 					createdIDs = append(createdIDs, createdPool.ResourcePoolID)
 				}
 			} else {
-				failureCount++
+				atomic.AddInt32(&failureCount, 1)
 			}
 			mu.Unlock()
 		}(i, pool)
@@ -446,8 +510,14 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 	wg.Wait()
 
 	// If atomic and any failure, rollback all created resource pools
-	if req.Atomic && failureCount > 0 {
-		h.rollbackResourcePools(ctx, createdIDs)
+	if req.Atomic && atomic.LoadInt32(&failureCount) > 0 {
+		rollbackFailures := h.rollbackResourcePools(ctx, createdIDs)
+		if rollbackFailures > 0 {
+			h.logger.Error("atomic rollback incomplete",
+				zap.Int("failed_rollbacks", rollbackFailures),
+				zap.Int("total_resource_pools", len(createdIDs)),
+			)
+		}
 		for i := range results {
 			if results[i].Success {
 				results[i].Success = false
@@ -460,27 +530,31 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 				}
 			}
 		}
-		successCount = 0
-		failureCount = len(results)
+		atomic.StoreInt32(&successCount, 0)
+		// Safe: len(results) is bounded by MaxBatchSize (100) which fits in int32
+		failureTotal := len(results)
+		if failureTotal > 0 && failureTotal <= MaxBatchSize {
+			atomic.StoreInt32(&failureCount, int32(failureTotal))
+		}
 	}
 
 	response := BatchResponse{
 		Results:      results,
-		Success:      failureCount == 0,
-		SuccessCount: successCount,
-		FailureCount: failureCount,
+		Success:      atomic.LoadInt32(&failureCount) == 0,
+		SuccessCount: int(atomic.LoadInt32(&successCount)),
+		FailureCount: int(atomic.LoadInt32(&failureCount)),
 	}
 
 	statusCode := http.StatusOK
-	if failureCount > 0 && successCount == 0 {
+	if response.FailureCount > 0 && response.SuccessCount == 0 {
 		statusCode = http.StatusBadRequest
-	} else if failureCount > 0 {
+	} else if response.FailureCount > 0 {
 		statusCode = http.StatusMultiStatus
 	}
 
 	h.logger.Info("batch resource pools created",
-		zap.Int("success_count", successCount),
-		zap.Int("failure_count", failureCount),
+		zap.Int("success_count", response.SuccessCount),
+		zap.Int("failure_count", response.FailureCount),
 	)
 
 	c.JSON(statusCode, response)
@@ -532,15 +606,25 @@ func (h *BatchHandler) createSingleResourcePool(
 }
 
 // rollbackResourcePools deletes the given resource pool IDs.
-func (h *BatchHandler) rollbackResourcePools(ctx context.Context, ids []string) {
+// Returns the number of failed rollback operations.
+func (h *BatchHandler) rollbackResourcePools(ctx context.Context, ids []string) int {
+	var rollbackFailures int
 	for _, id := range ids {
 		if err := h.adapter.DeleteResourcePool(ctx, id); err != nil {
-			h.logger.Warn("failed to rollback resource pool",
+			rollbackFailures++
+			h.logger.Error("failed to rollback resource pool",
 				zap.String("resource_pool_id", id),
 				zap.Error(err),
 			)
 		}
 	}
+	if rollbackFailures > 0 {
+		h.logger.Warn("partial rollback failure",
+			zap.Int("total_rollbacks", len(ids)),
+			zap.Int("failed_rollbacks", rollbackFailures),
+		)
+	}
+	return rollbackFailures
 }
 
 // BatchDeleteResourcePools handles POST /o2ims/v1/batch/resourcePools/delete.
@@ -587,6 +671,7 @@ func (h *BatchHandler) BatchDeleteResourcePools(c *gin.Context) {
 		}
 
 		if failureCount > 0 {
+			// Mark all remaining (not yet failed) as failed due to atomic requirement
 			for i := range results {
 				if results[i].Error == nil {
 					results[i] = BatchResult{
@@ -599,9 +684,11 @@ func (h *BatchHandler) BatchDeleteResourcePools(c *gin.Context) {
 							Code:    http.StatusConflict,
 						},
 					}
-					failureCount++
 				}
 			}
+
+			// Recalculate counts - all operations have now failed
+			failureCount = len(results)
 
 			c.JSON(http.StatusBadRequest, BatchResponse{
 				Results:      results,
