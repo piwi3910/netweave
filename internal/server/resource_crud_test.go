@@ -123,6 +123,39 @@ func TestResourceCRUD(t *testing.T) {
 		assert.NotEmpty(t, created.ResourceID)
 	})
 
+	t.Run("POST /resources - verify Location header", func(t *testing.T) {
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		require.Equal(t, http.StatusCreated, resp.Code)
+
+		// Verify Location header is set
+		location := resp.Header().Get("Location")
+		require.NotEmpty(t, location, "Location header should be set")
+		require.Contains(t, location, "/o2ims/v1/resources/", "Location header should contain resource path")
+
+		// Verify Location header contains the resource ID
+		var created adapter.Resource
+		err = json.Unmarshal(resp.Body.Bytes(), &created)
+		require.NoError(t, err)
+		require.Contains(t, location, created.ResourceID, "Location header should contain the created resource ID")
+	})
+
 	t.Run("POST /resources - validation error (empty resourceTypeId)", func(t *testing.T) {
 		resource := adapter.Resource{
 			ResourcePoolID: "pool-1",
@@ -143,7 +176,7 @@ func TestResourceCRUD(t *testing.T) {
 		srv.router.ServeHTTP(resp, req)
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Resource type ID is required")
+		assert.Contains(t, resp.Body.String(), "resource type ID is required")
 	})
 
 	t.Run("POST /resources - validation error (empty resourcePoolId)", func(t *testing.T) {
@@ -166,7 +199,7 @@ func TestResourceCRUD(t *testing.T) {
 		srv.router.ServeHTTP(resp, req)
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Resource pool ID is required")
+		assert.Contains(t, resp.Body.String(), "resource pool ID is required")
 	})
 
 	// Test PUT /resources/:id
@@ -400,6 +433,132 @@ func TestResourceCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
 		assert.Contains(t, resp.Body.String(), "extensions")
+	})
+
+	t.Run("POST /resources - extension key exceeds 256 characters", func(t *testing.T) {
+		// Create extension with key longer than 256 characters
+		longKey := strings.Repeat("a", 257)
+		extensions := map[string]interface{}{
+			longKey: "value",
+		}
+
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Extensions:     extensions,
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "extension keys must not exceed 256 characters")
+	})
+
+	t.Run("POST /resources - extension value exceeds 4KB", func(t *testing.T) {
+		// Create extension with value larger than 4096 bytes when JSON-encoded
+		largeValue := strings.Repeat("x", 4100)
+		extensions := map[string]interface{}{
+			"key": largeValue,
+		}
+
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Extensions:     extensions,
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "extension values must not exceed 4096 bytes")
+	})
+
+	t.Run("POST /resources - extensions exceeds 100 keys", func(t *testing.T) {
+		srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+		// Create map with 101 keys
+		extensions := make(map[string]interface{})
+		for i := 0; i < 101; i++ {
+			extensions[fmt.Sprintf("key%d", i)] = "value"
+		}
+
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Extensions:     extensions,
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "extensions map must not exceed 100 keys")
+	})
+
+	t.Run("POST /resources - total extensions payload exceeds 50KB", func(t *testing.T) {
+		srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+		// Create extensions with total size > 50KB
+		// Each value ~2KB, 26 keys = ~52KB total
+		extensions := make(map[string]interface{})
+		largeValue := strings.Repeat("x", 2000)
+		for i := 0; i < 26; i++ {
+			extensions[fmt.Sprintf("key%d", i)] = largeValue
+		}
+
+		resource := adapter.Resource{
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Extensions:     extensions,
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "total extensions payload must not exceed 50000 bytes")
 	})
 
 	t.Run("POST /resources - custom resource ID", func(t *testing.T) {

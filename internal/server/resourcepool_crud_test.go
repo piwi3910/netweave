@@ -101,9 +101,9 @@ func TestResourcePoolCRUD(t *testing.T) {
 		assert.Equal(t, pool.Description, created.Description)
 		assert.Equal(t, pool.Location, created.Location)
 		assert.NotEmpty(t, created.ResourcePoolID)
-		// ID should start with "pool-test-pool-" followed by 8-char UUID
+		// ID should start with "pool-test-pool-" followed by full UUID (36 chars)
 		assert.Contains(t, created.ResourcePoolID, "pool-test-pool-")
-		assert.Len(t, created.ResourcePoolID, len("pool-test-pool-")+8)
+		assert.Len(t, created.ResourcePoolID, len("pool-test-pool-")+36)
 	})
 
 	t.Run("POST /resourcePools - create with custom ID", func(t *testing.T) {
@@ -522,14 +522,14 @@ func TestSanitizeResourcePoolID(t *testing.T) {
 			expected: "test-pool",
 		},
 		{
-			name:     "path traversal attempt",
+			name:     "path traversal attempt - dots dropped, slashes become hyphens",
 			input:    "../../../etc/passwd",
-			expected: "------etc-passwd",
+			expected: "---etc-passwd",
 		},
 		{
-			name:     "special characters replaced with hyphens",
+			name:     "special characters dropped",
 			input:    "pool*name?with<special>chars",
-			expected: "pool-name-with-special-chars",
+			expected: "poolnamewithspecialchars",
 		},
 		{
 			name:     "mixed case to lowercase",

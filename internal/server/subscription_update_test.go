@@ -97,7 +97,7 @@ func (m *mockSubscriptionAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{adapter.CapabilitySubscriptions}
 }
 func (m *mockSubscriptionAdapter) Health(_ context.Context) error { return nil }
-func (m *mockSubscriptionAdapter) Close() error                  { return nil }
+func (m *mockSubscriptionAdapter) Close() error                   { return nil }
 
 func (m *mockSubscriptionAdapter) ListResourcePools(
 	_ context.Context,
