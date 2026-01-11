@@ -37,6 +37,10 @@ Official O-RAN Alliance specifications:
 ### Key Features
 
 - ✅ **O2-IMS Compliant**: Full implementation of O-RAN O2 Infrastructure Management Services specification
+- ✅ **API Versioning**: Three API versions (v1 stable, v2 with advanced features, v3 with multi-tenancy)
+- ✅ **Advanced Filtering**: Comprehensive query filtering with operators, field selection, and sorting (v2+)
+- ✅ **Batch Operations**: Atomic bulk create/delete operations for subscriptions and resource pools (v2+)
+- ✅ **Tenant Quotas**: Per-tenant resource limits and usage tracking (v3+)
 - ✅ **Multi-Backend Support**: Pluggable adapter architecture for diverse infrastructure
   - **Kubernetes** - Primary cloud-native infrastructure adapter
   - **Dell DTIAS** - Bare-metal infrastructure management
