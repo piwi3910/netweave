@@ -498,7 +498,7 @@ func (h *SMOHandler) handleCreateServiceModel(c *gin.Context) {
 
 	// Create service model
 	model := &smo.ServiceModel{
-		ID:          uuid.New().String(),
+		ID:          "model-" + uuid.New().String(),
 		Name:        req.Name,
 		Version:     req.Version,
 		Description: req.Description,
@@ -622,7 +622,7 @@ func (h *SMOHandler) handleApplyPolicy(c *gin.Context) {
 	// Create policy
 	policyID := req.PolicyID
 	if policyID == "" {
-		policyID = uuid.New().String()
+		policyID = "policy-" + uuid.New().String()
 	}
 
 	policy := &smo.Policy{
@@ -792,7 +792,7 @@ func (h *SMOHandler) handlePublishInfrastructureEvent(c *gin.Context) {
 
 	// Generate event ID if not provided
 	if event.EventID == "" {
-		event.EventID = uuid.New().String()
+		event.EventID = "event-" + uuid.New().String()
 	}
 
 	// Set timestamp if not provided
@@ -845,7 +845,7 @@ func (h *SMOHandler) handlePublishDeploymentEvent(c *gin.Context) {
 
 	// Generate event ID if not provided
 	if event.EventID == "" {
-		event.EventID = uuid.New().String()
+		event.EventID = "event-" + uuid.New().String()
 	}
 
 	// Set timestamp if not provided

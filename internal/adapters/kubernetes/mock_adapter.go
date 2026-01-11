@@ -122,7 +122,7 @@ func (m *MockAdapter) CreateResourcePool(_ context.Context, pool *adapter.Resour
 
 	// Generate ID if not provided
 	if pool.ResourcePoolID == "" {
-		pool.ResourcePoolID = "pool-" + uuid.New().String()[:8]
+		pool.ResourcePoolID = "pool-" + uuid.New().String()
 	}
 
 	// Check for duplicate
@@ -214,7 +214,7 @@ func (m *MockAdapter) CreateResource(_ context.Context, resource *adapter.Resour
 
 	// Generate ID if not provided
 	if resource.ResourceID == "" {
-		resource.ResourceID = "res-" + uuid.New().String()[:8]
+		resource.ResourceID = "res-" + uuid.New().String()
 	}
 
 	// Check for duplicate
@@ -293,7 +293,7 @@ func (m *MockAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscri
 
 	// Generate ID if not provided
 	if sub.SubscriptionID == "" {
-		sub.SubscriptionID = "sub-" + uuid.New().String()[:8]
+		sub.SubscriptionID = "sub-" + uuid.New().String()
 	}
 
 	// Store subscription
