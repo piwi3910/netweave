@@ -141,6 +141,9 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 	// Initialize metrics
 	metrics := initMetrics(cfg)
 
+	// Initialize global observability metrics
+	globalMetrics := observability.InitMetrics(cfg.Observability.Metrics.Namespace)
+
 	// Initialize health checker with adapter and storage checks
 	healthCheck := initHealthChecker(cfg, adp, store)
 
@@ -153,7 +156,7 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 	}
 
 	// Initialize batch handler
-	batchHandler := handlers.NewBatchHandler(adp, store, logger, metrics)
+	batchHandler := handlers.NewBatchHandler(adp, store, logger, globalMetrics)
 
 	// Create server instance
 	srv := &Server{
