@@ -1218,6 +1218,22 @@ Example: `"GPU Pool (Production)"` → `"pool-gpu-pool--production--a1b2c3d4-e5f
 
 **Note:** The UUID suffix ensures that similar or identical pool names generate unique IDs, maintaining idempotency for create operations.
 
+#### UUID Design Rationale
+
+All auto-generated IDs (resource pools, resources, subscriptions) use full RFC 4122 compliant UUIDs (36 characters):
+
+**Format Examples:**
+- Resource Pool: `pool-{sanitized-name}-{uuid}` → `pool-gpu-cluster-a1b2c3d4-e5f6-7890-abcd-1234567890ab`
+- Resource: `res-{type}-{uuid}` → `res-compute-node-a1b2c3d4-e5f6-7890-abcd-1234567890ab`
+- Subscription: `sub-{uuid}` → `sub-a1b2c3d4-e5f6-7890-abcd-1234567890ab`
+
+**Why Full UUIDs?**
+- **Standard Compliance**: RFC 4122 UUID v4 format (universally recognized)
+- **Collision Resistance**: 2^122 possible combinations (effectively zero collision probability)
+- **Simplicity**: No custom truncation logic needed
+- **Compatibility**: Works with all UUID-aware systems and tools
+- **Maintainability**: Standard format is predictable and well-documented
+
 ---
 
 ## Resources
