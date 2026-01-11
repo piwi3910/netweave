@@ -29,13 +29,13 @@ func init() {
 
 // mockBatchAdapter implements adapter.Adapter for batch testing.
 type mockBatchAdapter struct {
-	mu                 sync.Mutex
-	resourcePools      []*adapter.ResourcePool
-	createPoolErr      error
-	getPoolErr         error
-	deletePoolErr      error
-	createPoolCount    int
-	failOnCreatePool   int // Fail on nth create (0 = never fail)
+	mu               sync.Mutex
+	resourcePools    []*adapter.ResourcePool
+	createPoolErr    error
+	getPoolErr       error
+	deletePoolErr    error
+	createPoolCount  int
+	failOnCreatePool int // Fail on nth create (0 = never fail)
 }
 
 func (m *mockBatchAdapter) ListResourcePools(
