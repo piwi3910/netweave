@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -1580,6 +1581,7 @@ func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
 
 // validateCallback validates a subscription callback URL.
 // It performs early validation to provide fast failure before calling the adapter.
+// Includes SSRF protection to prevent callbacks to localhost and private IP ranges.
 func (s *Server) validateCallback(sub *adapter.Subscription) error {
 	if sub == nil {
 		return fmt.Errorf("subscription cannot be nil")
@@ -1605,5 +1607,75 @@ func (s *Server) validateCallback(sub *adapter.Subscription) error {
 		return fmt.Errorf("callback URL must have a valid host")
 	}
 
+	// SSRF Protection: Block localhost and private IP ranges
+	if err := validateCallbackHost(parsedURL.Hostname()); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// validateCallbackHost validates that the callback host is not localhost or a private IP address.
+// This prevents SSRF (Server-Side Request Forgery) attacks.
+func validateCallbackHost(hostname string) error {
+	// Block localhost variations
+	if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" {
+		return fmt.Errorf("callback URL cannot be localhost")
+	}
+
+	// Attempt to resolve hostname to IP
+	ips, err := net.LookupIP(hostname)
+	if err != nil {
+		// If DNS lookup fails, allow it - the actual webhook delivery will fail naturally
+		// This prevents blocking valid hostnames that are temporarily unresolvable
+		return nil
+	}
+
+	// Check if any resolved IP is in a private range
+	for _, ip := range ips {
+		if isPrivateIP(ip) {
+			return fmt.Errorf("callback URL cannot be a private IP address")
+		}
+	}
+
+	return nil
+}
+
+// isPrivateIP checks if an IP address is in a private or reserved range.
+func isPrivateIP(ip net.IP) bool {
+	// Check for loopback
+	if ip.IsLoopback() {
+		return true
+	}
+
+	// Check for private IPv4 ranges (RFC 1918)
+	privateIPv4Ranges := []string{
+		"10.0.0.0/8",     // Private class A
+		"172.16.0.0/12",  // Private class B
+		"192.168.0.0/16", // Private class C
+		"169.254.0.0/16", // Link-local
+	}
+
+	for _, cidr := range privateIPv4Ranges {
+		_, network, _ := net.ParseCIDR(cidr)
+		if network.Contains(ip) {
+			return true
+		}
+	}
+
+	// Check for private IPv6 ranges
+	if ip.To4() == nil {
+		// IPv6 unique local addresses (fc00::/7)
+		_, ulaNetwork, _ := net.ParseCIDR("fc00::/7")
+		if ulaNetwork.Contains(ip) {
+			return true
+		}
+		// IPv6 link-local (fe80::/10)
+		_, linkLocalNetwork, _ := net.ParseCIDR("fe80::/10")
+		if linkLocalNetwork.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
 }

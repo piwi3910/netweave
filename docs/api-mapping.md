@@ -1168,6 +1168,50 @@ func transformMachineSetToO2Pool(ms *machinev1beta1.MachineSet) *models.Resource
 | Update | PUT | `/resourcePools/{id}` | Update MachineSet | Updates name, description, extensions |
 | Delete | DELETE | `/resourcePools/{id}` | Delete MachineSet | Returns 204 No Content |
 
+#### CREATE Operation Example
+
+**Request:**
+```bash
+curl -X POST https://gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "GPU Pool (Production)",
+    "description": "High-performance GPU nodes for ML workloads",
+    "location": "us-west-2a",
+    "oCloudId": "ocloud-prod-us-west-2",
+    "globalLocationId": "geo:47.6062,-122.3321",
+    "extensions": {
+      "instanceType": "p4d.24xlarge",
+      "replicas": 5,
+      "datacenter": "us-west-2a"
+    }
+  }'
+```
+
+**Response (201 Created):**
+```json
+{
+  "resourcePoolId": "pool-gpu-pool--production--a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+  "name": "GPU Pool (Production)",
+  "description": "High-performance GPU nodes for ML workloads",
+  "location": "us-west-2a",
+  "oCloudId": "ocloud-prod-us-west-2",
+  "globalLocationId": "geo:47.6062,-122.3321",
+  "extensions": {
+    "instanceType": "p4d.24xlarge",
+    "replicas": 5,
+    "datacenter": "us-west-2a"
+  }
+}
+```
+
+**Validation Rules:**
+- `name` is **required** (400 Bad Request if missing)
+- `name` max length: 255 characters
+- `resourcePoolId` is auto-generated if not provided (format: `pool-{sanitized-name}-{uuid}`)
+- `description` max length: 1000 characters
+- `extensions` limited to 50KB total payload size
+
 #### HTTP Status Codes
 
 **POST /resourcePools**
@@ -1376,6 +1420,49 @@ func transformO2ResourceToMachine(resource *models.Resource) *machinev1beta1.Mac
 | Create | POST | `/resources` | Create Machine (triggers Node) | Requires resourceTypeId; generates ID |
 | Update | PUT | `/resources/{id}` | Update mutable fields (description, globalAssetId, extensions) | Implemented in main |
 | Delete | DELETE | `/resources/{id}` | Delete Machine or drain+delete Node | Returns 204 No Content |
+
+#### CREATE Operation Example
+
+**Request:**
+```bash
+curl -X POST https://gateway.example.com/o2ims-infrastructureInventory/v1/resources \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resourceTypeId": "compute-node-standard",
+    "resourcePoolId": "pool-production-us-west-2",
+    "description": "Production workload node for AI training",
+    "globalAssetId": "urn:o-ran:resource:node-prod-ai-001",
+    "extensions": {
+      "datacenter": "us-west-2a",
+      "purpose": "ml-training",
+      "team": "ml-platform"
+    }
+  }'
+```
+
+**Response (201 Created):**
+```json
+{
+  "resourceId": "res-compute-node-standard-a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+  "resourceTypeId": "compute-node-standard",
+  "resourcePoolId": "pool-production-us-west-2",
+  "description": "Production workload node for AI training",
+  "globalAssetId": "urn:o-ran:resource:node-prod-ai-001",
+  "extensions": {
+    "datacenter": "us-west-2a",
+    "purpose": "ml-training",
+    "team": "ml-platform"
+  }
+}
+```
+
+**Validation Rules:**
+- `resourceTypeId` is **required** (400 Bad Request if missing)
+- `resourcePoolId` is **required** (400 Bad Request if missing)
+- `resourceId` is auto-generated if not provided (format: `res-{type}-{uuid}`)
+- `description` max length: 1000 characters
+- `globalAssetId` must be valid URN format if provided
+- `extensions` limited to 50KB total payload size
 
 ---
 
@@ -1586,9 +1673,37 @@ func (c *SubscriptionController) sendWebhook(
 |-----------|--------|----------|--------|-------|
 | List | GET | `/subscriptions` | List from Redis | Returns all subscriptions for tenant |
 | Get | GET | `/subscriptions/{id}` | Get from Redis | Returns single subscription |
-| Create | POST | `/subscriptions` | Store in Redis + start watching | Validates callback URL |
+| Create | POST | `/subscriptions` | Store in Redis + start watching | Validates callback URL with SSRF protection |
 | Update | PUT | `/subscriptions/{id}` | Update Redis | Updates callback, filter; preserves ID, tenantId, createdAt |
 | Delete | DELETE | `/subscriptions/{id}` | Delete from Redis + stop watching | Returns 204 No Content |
+
+#### Callback URL Security
+
+**SSRF Protection:**
+
+The gateway implements Server-Side Request Forgery (SSRF) protection to prevent malicious callback URLs:
+
+- **Blocked:** `localhost`, `127.0.0.1`, `::1` (loopback addresses)
+- **Blocked:** Private IPv4 ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)
+- **Blocked:** Link-local addresses (`169.254.0.0/16`)
+- **Blocked:** IPv6 private ranges (ULA `fc00::/7`, link-local `fe80::/10`)
+- **Allowed:** Public internet-accessible URLs only
+
+**Example - Rejected Callback:**
+```json
+POST /o2ims/v1/subscriptions
+{
+  "callback": "http://localhost/admin",
+  "filter": {}
+}
+
+Response: 400 Bad Request
+{
+  "error": "BadRequest",
+  "message": "callback URL cannot be localhost",
+  "code": 400
+}
+```
 
 ### Batch Operations (v2+)
 
