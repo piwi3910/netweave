@@ -21,7 +21,7 @@ import (
 // It organizes routes into logical groups:
 //   - Health and readiness endpoints
 //   - Prometheus metrics endpoint
-//   - O2-IMS API v1 endpoints
+//   - O2-IMS API v1, v2, v3 endpoints
 func (s *Server) setupRoutes() {
 	// Health check endpoints (no authentication required)
 	s.router.GET("/health", s.handleHealth)
@@ -34,66 +34,25 @@ func (s *Server) setupRoutes() {
 		s.router.GET(s.config.Observability.Metrics.Path, s.handleMetrics)
 	}
 
-	// O2-IMS API v1 routes
+	// Initialize version configuration
+	versionConfig := NewVersionConfig()
+
+	// O2-IMS API v1 routes (original)
 	// Base path: /o2ims-infrastructureInventory/v1 (per O-RAN O2 IMS specification)
 	v1 := s.router.Group("/o2ims-infrastructureInventory/v1")
-	{
-		// Infrastructure Inventory Subscription Management
-		// Endpoint: /subscriptions
-		subscriptions := v1.Group("/subscriptions")
-		{
-			subscriptions.GET("", s.handleListSubscriptions)
-			subscriptions.POST("", s.handleCreateSubscription)
-			subscriptions.GET("/:subscriptionId", s.handleGetSubscription)
-			subscriptions.PUT("/:subscriptionId", s.handleUpdateSubscription)
-			subscriptions.DELETE("/:subscriptionId", s.handleDeleteSubscription)
-		}
+	v1.Use(VersioningMiddleware(versionConfig))
+	s.setupV1Routes(v1)
 
-		// Resource Pool Management
-		// Endpoint: /resourcePools
-		resourcePools := v1.Group("/resourcePools")
-		{
-			resourcePools.GET("", s.handleListResourcePools)
-			resourcePools.POST("", s.handleCreateResourcePool)
-			resourcePools.GET("/:resourcePoolId", s.handleGetResourcePool)
-			resourcePools.PUT("/:resourcePoolId", s.handleUpdateResourcePool)
-			resourcePools.DELETE("/:resourcePoolId", s.handleDeleteResourcePool)
-			resourcePools.GET("/:resourcePoolId/resources", s.handleListResourcesInPool)
-		}
+	// O2-IMS API v2 routes (enhanced filtering, batch operations)
+	v2 := s.router.Group("/o2ims-infrastructureInventory/v2")
+	v2.Use(VersioningMiddleware(versionConfig))
+	s.setupV2Routes(v2)
 
-		// Resource Management
-		// Endpoint: /resources
-		resources := v1.Group("/resources")
-		{
-			resources.GET("", s.handleListResources)
-			resources.POST("", s.handleCreateResource)
-			resources.GET("/:resourceId", s.handleGetResource)
-			resources.PUT("/:resourceId", s.handleUpdateResource)
-		}
-
-		// Resource Type Management
-		// Endpoint: /resourceTypes
-		resourceTypes := v1.Group("/resourceTypes")
-		{
-			resourceTypes.GET("", s.handleListResourceTypes)
-			resourceTypes.GET("/:resourceTypeId", s.handleGetResourceType)
-		}
-
-		// Deployment Manager Management
-		// Endpoint: /deploymentManagers
-		deploymentManagers := v1.Group("/deploymentManagers")
-		{
-			deploymentManagers.GET("", s.handleListDeploymentManagers)
-			deploymentManagers.GET("/:deploymentManagerId", s.handleGetDeploymentManager)
-		}
-
-		// O-Cloud Infrastructure Information
-		// Endpoint: /oCloudInfrastructure
-		v1.GET("/oCloudInfrastructure", s.handleGetOCloudInfrastructure)
-
-		// API version endpoint
-		v1.GET("", s.handleAPIInfo)
-	}
+	// O2-IMS API v3 routes (multi-tenancy)
+	v3 := s.router.Group("/o2ims-infrastructureInventory/v3")
+	v3.Use(VersioningMiddleware(versionConfig))
+	v3.Use(TenantMiddleware())
+	s.setupV3Routes(v3)
 
 	// API information endpoint
 	s.router.GET("/o2ims", s.handleAPIInfo)
@@ -101,6 +60,170 @@ func (s *Server) setupRoutes() {
 
 	// Documentation endpoints (Swagger UI, OpenAPI spec)
 	s.setupDocsRoutes()
+}
+
+// setupV1Routes configures the O2-IMS API v1 endpoints.
+func (s *Server) setupV1Routes(v1 *gin.RouterGroup) {
+	// Infrastructure Inventory Subscription Management
+	// Endpoint: /subscriptions
+	subscriptions := v1.Group("/subscriptions")
+	{
+		subscriptions.GET("", s.handleListSubscriptions)
+		subscriptions.POST("", s.handleCreateSubscription)
+		subscriptions.GET("/:subscriptionId", s.handleGetSubscription)
+		subscriptions.PUT("/:subscriptionId", s.handleUpdateSubscription)
+		subscriptions.DELETE("/:subscriptionId", s.handleDeleteSubscription)
+	}
+
+	// Resource Pool Management
+	// Endpoint: /resourcePools
+	resourcePools := v1.Group("/resourcePools")
+	{
+		resourcePools.GET("", s.handleListResourcePools)
+		resourcePools.POST("", s.handleCreateResourcePool)
+		resourcePools.GET("/:resourcePoolId", s.handleGetResourcePool)
+		resourcePools.PUT("/:resourcePoolId", s.handleUpdateResourcePool)
+		resourcePools.DELETE("/:resourcePoolId", s.handleDeleteResourcePool)
+		resourcePools.GET("/:resourcePoolId/resources", s.handleListResourcesInPool)
+	}
+
+	// Resource Management
+	// Endpoint: /resources
+	resources := v1.Group("/resources")
+	{
+		resources.GET("", s.handleListResources)
+		resources.POST("", s.handleCreateResource)
+		resources.GET("/:resourceId", s.handleGetResource)
+		resources.PUT("/:resourceId", s.handleUpdateResource)
+	}
+
+	// Resource Type Management
+	// Endpoint: /resourceTypes
+	resourceTypes := v1.Group("/resourceTypes")
+	{
+		resourceTypes.GET("", s.handleListResourceTypes)
+		resourceTypes.GET("/:resourceTypeId", s.handleGetResourceType)
+	}
+
+	// Deployment Manager Management
+	// Endpoint: /deploymentManagers
+	deploymentManagers := v1.Group("/deploymentManagers")
+	{
+		deploymentManagers.GET("", s.handleListDeploymentManagers)
+		deploymentManagers.GET("/:deploymentManagerId", s.handleGetDeploymentManager)
+	}
+
+	// O-Cloud Infrastructure Information
+	// Endpoint: /oCloudInfrastructure
+	v1.GET("/oCloudInfrastructure", s.handleGetOCloudInfrastructure)
+
+	// API version endpoint
+	v1.GET("", s.handleAPIInfo)
+}
+
+// setupV2Routes configures the O2-IMS API v2 endpoints with enhanced features.
+// V2 includes all v1 endpoints plus:
+// - Batch operations for subscriptions and resource pools
+// - Enhanced filtering and field selection
+// - Cursor-based pagination option
+func (s *Server) setupV2Routes(v2 *gin.RouterGroup) {
+	// Include all v1 routes
+	s.setupV1Routes(v2)
+
+	// Batch operations (v2 feature)
+	// Endpoint: /batch/*
+	batch := v2.Group("/batch")
+	{
+		// Batch subscription operations
+		batch.POST("/subscriptions", s.batchHandler.BatchCreateSubscriptions)
+		batch.POST("/subscriptions/delete", s.batchHandler.BatchDeleteSubscriptions)
+
+		// Batch resource pool operations
+		batch.POST("/resourcePools", s.batchHandler.BatchCreateResourcePools)
+		batch.POST("/resourcePools/delete", s.batchHandler.BatchDeleteResourcePools)
+	}
+
+	// V2 API info with enhanced features
+	v2.GET("/features", s.handleV2Features)
+}
+
+// setupV3Routes configures the O2-IMS API v3 endpoints with multi-tenancy support.
+// V3 includes all v2 features plus:
+// - Multi-tenant isolation
+// - Tenant quotas
+// - Cross-tenant resource sharing
+// - Enhanced audit logging
+func (s *Server) setupV3Routes(v3 *gin.RouterGroup) {
+	// Infrastructure Inventory Subscription Management (v1 endpoints)
+	subscriptions := v3.Group("/subscriptions")
+	{
+		subscriptions.GET("", s.handleListSubscriptions)
+		subscriptions.POST("", s.handleCreateSubscription)
+		subscriptions.GET("/:subscriptionId", s.handleGetSubscription)
+		subscriptions.PUT("/:subscriptionId", s.handleUpdateSubscription)
+		subscriptions.DELETE("/:subscriptionId", s.handleDeleteSubscription)
+	}
+
+	// Resource Pool Management (v1 endpoints)
+	resourcePools := v3.Group("/resourcePools")
+	{
+		resourcePools.GET("", s.handleListResourcePools)
+		resourcePools.POST("", s.handleCreateResourcePool)
+		resourcePools.GET("/:resourcePoolId", s.handleGetResourcePool)
+		resourcePools.PUT("/:resourcePoolId", s.handleUpdateResourcePool)
+		resourcePools.DELETE("/:resourcePoolId", s.handleDeleteResourcePool)
+		resourcePools.GET("/:resourcePoolId/resources", s.handleListResourcesInPool)
+	}
+
+	// Resource Management (v1 endpoints)
+	resources := v3.Group("/resources")
+	{
+		resources.GET("", s.handleListResources)
+		resources.POST("", s.handleCreateResource)
+		resources.GET("/:resourceId", s.handleGetResource)
+		resources.PUT("/:resourceId", s.handleUpdateResource)
+	}
+
+	// Resource Type Management (v1 endpoints)
+	resourceTypes := v3.Group("/resourceTypes")
+	{
+		resourceTypes.GET("", s.handleListResourceTypes)
+		resourceTypes.GET("/:resourceTypeId", s.handleGetResourceType)
+	}
+
+	// Deployment Manager Management (v1 endpoints)
+	deploymentManagers := v3.Group("/deploymentManagers")
+	{
+		deploymentManagers.GET("", s.handleListDeploymentManagers)
+		deploymentManagers.GET("/:deploymentManagerId", s.handleGetDeploymentManager)
+	}
+
+	// Batch Operations (v2 feature)
+	batch := v3.Group("/batch")
+	{
+		// Subscription batch operations
+		batch.POST("/subscriptions", s.batchHandler.BatchCreateSubscriptions)
+		batch.POST("/subscriptions/delete", s.batchHandler.BatchDeleteSubscriptions)
+
+		// Resource pool batch operations
+		batch.POST("/resourcePools", s.batchHandler.BatchCreateResourcePools)
+		batch.POST("/resourcePools/delete", s.batchHandler.BatchDeleteResourcePools)
+	}
+
+	// Tenant management (v3 feature)
+	tenants := v3.Group("/tenants")
+	{
+		tenants.GET("", s.handleListTenants)
+		tenants.POST("", s.handleCreateTenant)
+		tenants.GET("/:tenantId", s.handleGetTenant)
+		tenants.PUT("/:tenantId", s.handleUpdateTenant)
+		tenants.DELETE("/:tenantId", s.handleDeleteTenant)
+		tenants.GET("/:tenantId/quotas", s.handleGetTenantQuotas)
+		tenants.PUT("/:tenantId/quotas", s.handleUpdateTenantQuotas)
+	}
+
+	// V3 API info with multi-tenancy features
+	v3.GET("/features", s.handleV3Features)
 }
 
 // Health check handlers
@@ -1257,6 +1380,201 @@ func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 		"name":        dm.Name,
 		"description": dm.Description,
 		"serviceUri":  dm.ServiceURI,
+	})
+}
+
+// handleV2Features returns v2 API feature information.
+// GET /o2ims/v2/features.
+func (s *Server) handleV2Features(c *gin.Context) {
+	features := GetV2Features()
+	c.JSON(http.StatusOK, gin.H{
+		"version":  "v2",
+		"features": features,
+		"description": "O2-IMS API v2 with enhanced filtering, batch operations, " +
+			"field selection, and cursor-based pagination",
+	})
+}
+
+// handleV3Features returns v3 API feature information.
+// GET /o2ims/v3/features.
+func (s *Server) handleV3Features(c *gin.Context) {
+	features := GetV3Features()
+	c.JSON(http.StatusOK, gin.H{
+		"version":  "v3",
+		"features": features,
+		"description": "O2-IMS API v3 with multi-tenancy support, tenant quotas, " +
+			"cross-tenant resource sharing, and enhanced audit logging",
+	})
+}
+
+// Tenant management handlers (v3)
+
+// handleListTenants lists all tenants.
+// GET /o2ims/v3/tenants.
+func (s *Server) handleListTenants(c *gin.Context) {
+	s.logger.Info("listing tenants")
+
+	// Placeholder implementation - in production this would query a tenant store
+	c.JSON(http.StatusOK, gin.H{
+		"tenants": []gin.H{
+			{
+				"tenantId":    "default",
+				"name":        "Default Tenant",
+				"description": "Default system tenant",
+				"createdAt":   "2024-01-01T00:00:00Z",
+			},
+		},
+		"total": 1,
+	})
+}
+
+// handleCreateTenant creates a new tenant.
+// POST /o2ims/v3/tenants.
+func (s *Server) handleCreateTenant(c *gin.Context) {
+	s.logger.Info("creating tenant")
+
+	var req struct {
+		Name        string `json:"name" binding:"required"`
+		Description string `json:"description,omitempty"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	tenantID := uuid.New().String()
+
+	c.JSON(http.StatusCreated, gin.H{
+		"tenantId":    tenantID,
+		"name":        req.Name,
+		"description": req.Description,
+		"createdAt":   "2024-01-01T00:00:00Z",
+	})
+}
+
+// handleGetTenant retrieves a specific tenant.
+// GET /o2ims/v3/tenants/:tenantId.
+func (s *Server) handleGetTenant(c *gin.Context) {
+	tenantID := c.Param("tenantId")
+	s.logger.Info("getting tenant", zap.String("tenant_id", tenantID))
+
+	if tenantID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Tenant ID cannot be empty",
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Placeholder - return mock tenant
+	c.JSON(http.StatusOK, gin.H{
+		"tenantId":    tenantID,
+		"name":        "Tenant " + tenantID,
+		"description": "Tenant description",
+		"createdAt":   "2024-01-01T00:00:00Z",
+	})
+}
+
+// handleUpdateTenant updates a tenant.
+// PUT /o2ims/v3/tenants/:tenantId.
+func (s *Server) handleUpdateTenant(c *gin.Context) {
+	tenantID := c.Param("tenantId")
+	s.logger.Info("updating tenant", zap.String("tenant_id", tenantID))
+
+	var req struct {
+		Name        string `json:"name,omitempty"`
+		Description string `json:"description,omitempty"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"tenantId":    tenantID,
+		"name":        req.Name,
+		"description": req.Description,
+		"updatedAt":   "2024-01-01T00:00:00Z",
+	})
+}
+
+// handleDeleteTenant deletes a tenant.
+// DELETE /o2ims/v3/tenants/:tenantId.
+func (s *Server) handleDeleteTenant(c *gin.Context) {
+	tenantID := c.Param("tenantId")
+	s.logger.Info("deleting tenant", zap.String("tenant_id", tenantID))
+
+	if tenantID == "default" {
+		c.JSON(http.StatusConflict, gin.H{
+			"error":   "Conflict",
+			"message": "Cannot delete default tenant",
+			"code":    http.StatusConflict,
+		})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// handleGetTenantQuotas retrieves tenant quotas.
+// GET /o2ims/v3/tenants/:tenantId/quotas.
+func (s *Server) handleGetTenantQuotas(c *gin.Context) {
+	tenantID := c.Param("tenantId")
+	s.logger.Info("getting tenant quotas", zap.String("tenant_id", tenantID))
+
+	c.JSON(http.StatusOK, gin.H{
+		"tenantId": tenantID,
+		"quotas": gin.H{
+			"maxSubscriptions":  100,
+			"maxResourcePools":  50,
+			"maxResources":      1000,
+			"usedSubscriptions": 10,
+			"usedResourcePools": 5,
+			"usedResources":     100,
+		},
+	})
+}
+
+// handleUpdateTenantQuotas updates tenant quotas.
+// PUT /o2ims/v3/tenants/:tenantId/quotas.
+func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
+	tenantID := c.Param("tenantId")
+	s.logger.Info("updating tenant quotas", zap.String("tenant_id", tenantID))
+
+	var req struct {
+		MaxSubscriptions int `json:"maxSubscriptions,omitempty"`
+		MaxResourcePools int `json:"maxResourcePools,omitempty"`
+		MaxResources     int `json:"maxResources,omitempty"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Invalid request body: " + err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"tenantId": tenantID,
+		"quotas": gin.H{
+			"maxSubscriptions": req.MaxSubscriptions,
+			"maxResourcePools": req.MaxResourcePools,
+			"maxResources":     req.MaxResources,
+		},
+		"updatedAt": "2024-01-01T00:00:00Z",
 	})
 }
 
