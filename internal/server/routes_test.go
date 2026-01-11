@@ -362,6 +362,39 @@ func TestHandleGetResource(t *testing.T) {
 	})
 }
 
+// TestHandleDeleteResource tests the handleDeleteResource endpoint.
+func TestHandleDeleteResource(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+	t.Run("resource not found", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resources/res-nonexistent", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), "NotFound")
+	})
+
+	t.Run("successful deletion", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resources/res-existing", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNoContent, w.Code)
+		assert.Empty(t, w.Body.String())
+	})
+}
+
 // TestHandleGetResourceType tests the handleGetResourceType endpoint.
 func TestHandleGetResourceType(t *testing.T) {
 	gin.SetMode(gin.TestMode)

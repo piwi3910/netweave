@@ -96,6 +96,7 @@ func (s *Server) setupV1Routes(v1 *gin.RouterGroup) {
 		resources.POST("", s.handleCreateResource)
 		resources.GET("/:resourceId", s.handleGetResource)
 		resources.PUT("/:resourceId", s.handleUpdateResource)
+		resources.DELETE("/:resourceId", s.handleDeleteResource)
 	}
 
 	// Resource Type Management
@@ -1172,6 +1173,35 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 
 	// Apply update
 	s.applyResourceUpdate(c, resourceID, &req, existing)
+}
+
+func (s *Server) handleDeleteResource(c *gin.Context) {
+	resourceID := c.Param("resourceId")
+	s.logger.Info("deleting resource", zap.String("resource_id", resourceID))
+
+	// Delete resource via adapter
+	if err := s.adapter.DeleteResource(c.Request.Context(), resourceID); err != nil {
+		// Check for not found error using sentinel error
+		if errors.Is(err, adapter.ErrResourceNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource not found: " + resourceID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+
+		s.logger.Error("failed to delete resource", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to delete resource",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("resource deleted", zap.String("resource_id", resourceID))
+	c.Status(http.StatusNoContent)
 }
 
 // getExistingResource retrieves an existing resource and handles errors.
