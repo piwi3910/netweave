@@ -1737,7 +1737,7 @@ if len(validationErrors) > 0 {
 if resource.ResourceID == "" {
     resource.ResourceID = fmt.Sprintf("res-%s-%s",
         resource.ResourceTypeID,
-        uuid.New().String()[:8])
+        uuid.New().String()[:12])
 }
 
 // 4. Get resource pool to determine machine template
@@ -1917,8 +1917,8 @@ if !isValidURL(sub.Callback) {
     return errors.New("invalid callback URL")
 }
 
-// 2. Generate subscription ID
-subID := uuid.New().String()
+// 2. Generate subscription ID (12-character UUID for consistency)
+subID := "sub-" + uuid.New().String()[:12]
 
 // 3. Store in Redis
 err := redis.HSet(ctx, "subscription:"+subID,
