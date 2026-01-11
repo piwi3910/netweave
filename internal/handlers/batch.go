@@ -40,7 +40,12 @@ type BatchHandler struct {
 // It requires an adapter for backend operations, a store for subscription persistence,
 // a logger for structured logging, and metrics for observability.
 // If metrics is nil, the global metrics instance will be used.
-func NewBatchHandler(adp adapter.Adapter, store storage.Store, logger *zap.Logger, metrics *observability.Metrics) *BatchHandler {
+func NewBatchHandler(
+	adp adapter.Adapter,
+	store storage.Store,
+	logger *zap.Logger,
+	metrics *observability.Metrics,
+) *BatchHandler {
 	if adp == nil {
 		panic("adapter cannot be nil")
 	}
@@ -140,60 +145,189 @@ type BatchResourcePoolDelete struct {
 	Atomic bool `json:"atomic,omitempty"`
 }
 
-// BatchCreateSubscriptions handles POST /o2ims/v1/batch/subscriptions.
-// Creates multiple subscriptions in a single request.
-func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
+// batchOperationFunc defines a function that processes a single batch item.
+// It returns the result and optionally a created ID for rollback purposes.
+type batchOperationFunc func(ctx context.Context, idx int) (BatchResult, string)
+
+// rollbackFunc defines a function that rolls back created items.
+type rollbackFunc func(ctx context.Context, ids []string) int
+
+// batchConfig holds configuration for a batch operation.
+type batchConfig struct {
+	operationName string
+	atomic        bool
+	itemCount     int
+	useWorkerPool bool // true for creates, false for deletes
+}
+
+// executeBatch is the core generic batch processor that eliminates code duplication.
+// It handles request validation, worker pool execution, atomic rollback, and metrics.
+func (h *BatchHandler) executeBatch(
+	c *gin.Context,
+	config batchConfig,
+	operation batchOperationFunc,
+	rollback rollbackFunc,
+) {
 	startTime := time.Now()
 	ctx := c.Request.Context()
 
-	h.logger.Info("batch creating subscriptions",
+	h.logger.Info(
+		fmt.Sprintf("batch %s", config.operationName),
 		zap.String("request_id", c.GetString("request_id")),
+		zap.Int("item_count", config.itemCount),
+		zap.Bool("atomic", config.atomic),
 	)
 
-	var req BatchSubscriptionCreate
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Warn("invalid batch request body", zap.Error(err))
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "BadRequest",
-			Message: "Invalid request body: " + err.Error(),
-			Code:    http.StatusBadRequest,
-		})
-		return
-	}
-
 	// Validate batch size
-	batchSize := len(req.Subscriptions)
-	if batchSize < MinBatchSize || batchSize > MaxBatchSize {
-		h.logger.Warn("invalid batch size",
-			zap.Int("batch_size", batchSize),
-			zap.Int("min", MinBatchSize),
-			zap.Int("max", MaxBatchSize),
-		)
+	if err := h.validateBatchSize(config.itemCount); err != nil {
+		h.logger.Warn("invalid batch size", zap.Error(err))
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
-			Message: fmt.Sprintf("Batch size must be between %d and %d, got %d", MinBatchSize, MaxBatchSize, batchSize),
+			Message: err.Error(),
 			Code:    http.StatusBadRequest,
 		})
 		return
 	}
 
-	results := make([]BatchResult, len(req.Subscriptions))
-	createdIDs := make([]string, 0, len(req.Subscriptions))
+	// Execute operations
+	results, successCount, failureCount, createdIDs := h.executeOperations(
+		ctx,
+		config,
+		operation,
+	)
+
+	// Handle atomic rollback if needed
+	if h.shouldRollback(config.atomic, failureCount, createdIDs, rollback) {
+		h.performRollback(ctx, rollback, createdIDs, results)
+		successCount = 0
+		failureCount = len(results)
+	}
+
+	// Send response
+	h.sendBatchResponse(c, config, startTime, results, successCount, failureCount)
+}
+
+// validateBatchSize validates that the batch size is within limits.
+func (h *BatchHandler) validateBatchSize(size int) error {
+	if size < MinBatchSize || size > MaxBatchSize {
+		return fmt.Errorf(
+			"batch size must be between %d and %d, got %d",
+			MinBatchSize,
+			MaxBatchSize,
+			size,
+		)
+	}
+	return nil
+}
+
+// executeOperations runs batch operations using the appropriate execution strategy.
+func (h *BatchHandler) executeOperations(
+	ctx context.Context,
+	config batchConfig,
+	operation batchOperationFunc,
+) ([]BatchResult, int, int, []string) {
+	if config.useWorkerPool {
+		return h.executeWithWorkerPool(ctx, config.itemCount, operation)
+	}
+	results, successCount, failureCount := h.executeSequentially(ctx, config.itemCount, operation)
+	return results, successCount, failureCount, nil
+}
+
+// shouldRollback determines if rollback is needed.
+func (h *BatchHandler) shouldRollback(
+	atomic bool,
+	failureCount int,
+	createdIDs []string,
+	rollback rollbackFunc,
+) bool {
+	return atomic && failureCount > 0 && len(createdIDs) > 0 && rollback != nil
+}
+
+// performRollback executes rollback and marks operations as rolled back.
+func (h *BatchHandler) performRollback(
+	ctx context.Context,
+	rollback rollbackFunc,
+	createdIDs []string,
+	results []BatchResult,
+) {
+	rollbackFailures := rollback(ctx, createdIDs)
+	if rollbackFailures > 0 {
+		h.logger.Error("atomic rollback incomplete",
+			zap.Int("failed_rollbacks", rollbackFailures),
+			zap.Int("total_items", len(createdIDs)),
+		)
+	}
+
+	// Mark all successful operations as rolled back
+	for i := range results {
+		if results[i].Success {
+			results[i].Success = false
+			results[i].Status = http.StatusConflict
+			results[i].Data = nil
+			results[i].Error = &models.ErrorResponse{
+				Error:   "RolledBack",
+				Message: "Operation rolled back due to atomic batch failure",
+				Code:    http.StatusConflict,
+			}
+		}
+	}
+}
+
+// sendBatchResponse builds and sends the batch response.
+func (h *BatchHandler) sendBatchResponse(
+	c *gin.Context,
+	config batchConfig,
+	startTime time.Time,
+	results []BatchResult,
+	successCount, failureCount int,
+) {
+	response := BatchResponse{
+		Results:      results,
+		Success:      failureCount == 0,
+		SuccessCount: successCount,
+		FailureCount: failureCount,
+	}
+
+	statusCode := h.determineStatusCode(successCount, failureCount)
+
+	h.logger.Info(
+		fmt.Sprintf("batch %s completed", config.operationName),
+		zap.Int("success_count", successCount),
+		zap.Int("failure_count", failureCount),
+	)
+
+	h.metrics.RecordBatchOperation(
+		config.operationName,
+		config.atomic,
+		time.Since(startTime),
+		successCount,
+		failureCount,
+	)
+
+	c.JSON(statusCode, response)
+}
+
+// executeWithWorkerPool processes items concurrently using a worker pool.
+// Used for create operations that may take longer.
+func (h *BatchHandler) executeWithWorkerPool(
+	ctx context.Context,
+	count int,
+	operation batchOperationFunc,
+) ([]BatchResult, int, int, []string) {
+	results := make([]BatchResult, count)
+	createdIDs := make([]string, 0, count)
+	var successCount, failureCount int
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	var successCount, failureCount int
-
-	// Worker pool to limit concurrency
 	semaphore := make(chan struct{}, MaxWorkers)
 
-	for i, sub := range req.Subscriptions {
+	for i := 0; i < count; i++ {
 		wg.Add(1)
-		semaphore <- struct{}{} // Acquire worker slot
-		go func(idx int, subscription models.Subscription) {
+		semaphore <- struct{}{}
+		go func(idx int) {
 			defer wg.Done()
-			defer func() { <-semaphore }() // Release worker slot
+			defer func() { <-semaphore }()
 
-			// Check for context cancellation
 			select {
 			case <-ctx.Done():
 				mu.Lock()
@@ -213,83 +347,326 @@ func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
 			default:
 			}
 
-			result := h.createSingleSubscription(ctx, subscription)
+			result, createdID := operation(ctx, idx)
 			result.Index = idx
 
 			mu.Lock()
 			results[idx] = result
 			if result.Success {
 				successCount++
-				if createdSub, ok := result.Data.(*models.Subscription); ok {
-					createdIDs = append(createdIDs, createdSub.SubscriptionID)
+				if createdID != "" {
+					createdIDs = append(createdIDs, createdID)
 				}
 			} else {
 				failureCount++
 			}
 			mu.Unlock()
-		}(i, sub)
+		}(i)
 	}
 
 	wg.Wait()
+	return results, successCount, failureCount, createdIDs
+}
 
-	// If atomic and any failure, rollback all created subscriptions
-	mu.Lock()
-	if req.Atomic && failureCount > 0 {
-		mu.Unlock()
-		rollbackFailures := h.rollbackSubscriptions(ctx, createdIDs)
-		if rollbackFailures > 0 {
-			h.logger.Error("atomic rollback incomplete",
-				zap.Int("failed_rollbacks", rollbackFailures),
-				zap.Int("total_subscriptions", len(createdIDs)),
-			)
-		}
-		mu.Lock()
-		for i := range results {
-			if results[i].Success {
-				results[i].Success = false
-				results[i].Status = http.StatusConflict
-				results[i].Data = nil
-				results[i].Error = &models.ErrorResponse{
-					Error:   "RolledBack",
-					Message: "Operation rolled back due to atomic batch failure",
-					Code:    http.StatusConflict,
-				}
+// executeSequentially processes items one by one without concurrency.
+// Used for delete operations that are typically fast.
+func (h *BatchHandler) executeSequentially(
+	ctx context.Context,
+	count int,
+	operation batchOperationFunc,
+) ([]BatchResult, int, int) {
+	results := make([]BatchResult, count)
+	var successCount, failureCount int
+
+	// Check for context cancellation before processing
+	select {
+	case <-ctx.Done():
+		for i := 0; i < count; i++ {
+			results[i] = BatchResult{
+				Index:   i,
+				Status:  http.StatusRequestTimeout,
+				Success: false,
+				Error: &models.ErrorResponse{
+					Error:   "RequestCanceled",
+					Message: "Request canceled or timed out",
+					Code:    http.StatusRequestTimeout,
+				},
 			}
 		}
-		successCount = 0
-		failureCount = len(results)
+		failureCount = count
+		return results, successCount, failureCount
+	default:
 	}
 
-	response := BatchResponse{
+	for i := 0; i < count; i++ {
+		result, _ := operation(ctx, i)
+		result.Index = i
+		results[i] = result
+
+		if result.Success {
+			successCount++
+		} else {
+			failureCount++
+		}
+	}
+
+	return results, successCount, failureCount
+}
+
+// determineStatusCode determines HTTP status based on success/failure counts.
+func (h *BatchHandler) determineStatusCode(successCount, failureCount int) int {
+	if failureCount > 0 && successCount == 0 {
+		return http.StatusBadRequest
+	}
+	if failureCount > 0 {
+		return http.StatusMultiStatus
+	}
+	return http.StatusOK
+}
+
+// handleBindError handles JSON binding errors.
+func (h *BatchHandler) handleBindError(c *gin.Context, err error) {
+	h.logger.Warn("invalid batch request body", zap.Error(err))
+	c.JSON(http.StatusBadRequest, models.ErrorResponse{
+		Error:   "BadRequest",
+		Message: "Invalid request body: " + err.Error(),
+		Code:    http.StatusBadRequest,
+	})
+}
+
+// sendAtomicValidationFailure sends a failure response for atomic validation.
+func (h *BatchHandler) sendAtomicValidationFailure(
+	c *gin.Context,
+	count int,
+	message string,
+) {
+	results := make([]BatchResult, count)
+	for i := range results {
+		results[i] = BatchResult{
+			Index:   i,
+			Status:  http.StatusConflict,
+			Success: false,
+			Error: &models.ErrorResponse{
+				Error:   "AtomicFailure",
+				Message: "Atomic batch failed: " + message,
+				Code:    http.StatusConflict,
+			},
+		}
+	}
+	c.JSON(http.StatusBadRequest, BatchResponse{
 		Results:      results,
-		Success:      failureCount == 0,
-		SuccessCount: successCount,
-		FailureCount: failureCount,
+		Success:      false,
+		SuccessCount: 0,
+		FailureCount: count,
+	})
+}
+
+// BatchCreateSubscriptions handles POST /o2ims/v1/batch/subscriptions.
+// Creates multiple subscriptions in a single request.
+func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
+	var req BatchSubscriptionCreate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleBindError(c, err)
+		return
 	}
-	mu.Unlock()
 
-	statusCode := http.StatusOK
-	if response.FailureCount > 0 && response.SuccessCount == 0 {
-		statusCode = http.StatusBadRequest
-	} else if response.FailureCount > 0 {
-		statusCode = http.StatusMultiStatus
+	config := batchConfig{
+		operationName: "create_subscriptions",
+		atomic:        req.Atomic,
+		itemCount:     len(req.Subscriptions),
+		useWorkerPool: true,
 	}
 
-	h.logger.Info("batch subscriptions created",
-		zap.Int("success_count", response.SuccessCount),
-		zap.Int("failure_count", response.FailureCount),
-	)
+	operation := func(ctx context.Context, idx int) (BatchResult, string) {
+		return h.executeSubscriptionCreate(ctx, req.Subscriptions[idx])
+	}
 
-	// Record metrics
-	h.metrics.RecordBatchOperation(
-		"create_subscriptions",
-		req.Atomic,
-		time.Since(startTime),
-		response.SuccessCount,
-		response.FailureCount,
-	)
+	h.executeBatch(c, config, operation, h.rollbackSubscriptions)
+}
 
-	c.JSON(statusCode, response)
+// executeSubscriptionCreate processes a single subscription creation.
+func (h *BatchHandler) executeSubscriptionCreate(
+	ctx context.Context,
+	sub models.Subscription,
+) (BatchResult, string) {
+	result := h.createSingleSubscription(ctx, sub)
+	var createdID string
+	if result.Success {
+		if sub, ok := result.Data.(*models.Subscription); ok {
+			createdID = sub.SubscriptionID
+		}
+	}
+	return result, createdID
+}
+
+// BatchDeleteSubscriptions handles POST /o2ims/v1/batch/subscriptions/delete.
+// Deletes multiple subscriptions in a single request.
+func (h *BatchHandler) BatchDeleteSubscriptions(c *gin.Context) {
+	var req BatchSubscriptionDelete
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleBindError(c, err)
+		return
+	}
+
+	// Pre-validation for atomic operations
+	if req.Atomic && !h.validateSubscriptionsExist(c, req.SubscriptionIDs) {
+		return
+	}
+
+	config := batchConfig{
+		operationName: "delete_subscriptions",
+		atomic:        req.Atomic,
+		itemCount:     len(req.SubscriptionIDs),
+		useWorkerPool: false,
+	}
+
+	operation := func(ctx context.Context, idx int) (BatchResult, string) {
+		return h.deleteSubscription(ctx, req.SubscriptionIDs[idx])
+	}
+
+	h.executeBatch(c, config, operation, nil)
+}
+
+// validateSubscriptionsExist validates all subscriptions exist for atomic operations.
+func (h *BatchHandler) validateSubscriptionsExist(
+	c *gin.Context,
+	ids []string,
+) bool {
+	ctx := c.Request.Context()
+	for _, id := range ids {
+		if _, err := h.store.Get(ctx, id); err != nil {
+			h.sendAtomicValidationFailure(c, len(ids), "some subscriptions not found")
+			return false
+		}
+	}
+	return true
+}
+
+// deleteSubscription deletes a single subscription.
+func (h *BatchHandler) deleteSubscription(
+	ctx context.Context,
+	id string,
+) (BatchResult, string) {
+	err := h.store.Delete(ctx, id)
+	if err != nil {
+		return BatchResult{
+			Status:  http.StatusNotFound,
+			Success: false,
+			Error: &models.ErrorResponse{
+				Error:   "NotFound",
+				Message: "Subscription not found: " + id,
+				Code:    http.StatusNotFound,
+			},
+		}, ""
+	}
+	return BatchResult{
+		Status:  http.StatusNoContent,
+		Success: true,
+	}, ""
+}
+
+// BatchCreateResourcePools handles POST /o2ims/v1/batch/resourcePools.
+// Creates multiple resource pools in a single request.
+func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
+	var req BatchResourcePoolCreate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleBindError(c, err)
+		return
+	}
+
+	config := batchConfig{
+		operationName: "create_resource_pools",
+		atomic:        req.Atomic,
+		itemCount:     len(req.ResourcePools),
+		useWorkerPool: true,
+	}
+
+	operation := func(ctx context.Context, idx int) (BatchResult, string) {
+		return h.executeResourcePoolCreate(ctx, req.ResourcePools[idx])
+	}
+
+	h.executeBatch(c, config, operation, h.rollbackResourcePools)
+}
+
+// executeResourcePoolCreate processes a single resource pool creation.
+func (h *BatchHandler) executeResourcePoolCreate(
+	ctx context.Context,
+	pool models.ResourcePool,
+) (BatchResult, string) {
+	result := h.createSingleResourcePool(ctx, pool)
+	var createdID string
+	if result.Success {
+		if pool, ok := result.Data.(*models.ResourcePool); ok {
+			createdID = pool.ResourcePoolID
+		}
+	}
+	return result, createdID
+}
+
+// BatchDeleteResourcePools handles POST /o2ims/v1/batch/resourcePools/delete.
+// Deletes multiple resource pools in a single request.
+func (h *BatchHandler) BatchDeleteResourcePools(c *gin.Context) {
+	var req BatchResourcePoolDelete
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleBindError(c, err)
+		return
+	}
+
+	// Pre-validation for atomic operations
+	if req.Atomic && !h.validateResourcePoolsExist(c, req.ResourcePoolIDs) {
+		return
+	}
+
+	config := batchConfig{
+		operationName: "delete_resource_pools",
+		atomic:        req.Atomic,
+		itemCount:     len(req.ResourcePoolIDs),
+		useWorkerPool: false,
+	}
+
+	operation := func(ctx context.Context, idx int) (BatchResult, string) {
+		return h.deleteResourcePool(ctx, req.ResourcePoolIDs[idx])
+	}
+
+	h.executeBatch(c, config, operation, nil)
+}
+
+// validateResourcePoolsExist validates all resource pools exist for atomic operations.
+func (h *BatchHandler) validateResourcePoolsExist(
+	c *gin.Context,
+	ids []string,
+) bool {
+	ctx := c.Request.Context()
+	for _, id := range ids {
+		if _, err := h.adapter.GetResourcePool(ctx, id); err != nil {
+			h.sendAtomicValidationFailure(c, len(ids), "some resource pools not found")
+			return false
+		}
+	}
+	return true
+}
+
+// deleteResourcePool deletes a single resource pool.
+func (h *BatchHandler) deleteResourcePool(
+	ctx context.Context,
+	id string,
+) (BatchResult, string) {
+	err := h.adapter.DeleteResourcePool(ctx, id)
+	if err != nil {
+		return BatchResult{
+			Status:  http.StatusNotFound,
+			Success: false,
+			Error: &models.ErrorResponse{
+				Error:   "NotFound",
+				Message: "Resource pool not found: " + id,
+				Code:    http.StatusNotFound,
+			},
+		}, ""
+	}
+	return BatchResult{
+		Status:  http.StatusNoContent,
+		Success: true,
+	}, ""
 }
 
 // createSingleSubscription creates a single subscription and returns the result.
@@ -367,338 +744,6 @@ func (h *BatchHandler) createSingleSubscription(
 	}
 }
 
-// rollbackSubscriptions deletes the given subscription IDs.
-// Returns the number of failed rollback operations.
-func (h *BatchHandler) rollbackSubscriptions(ctx context.Context, ids []string) int {
-	var rollbackFailures int
-	for _, id := range ids {
-		if err := h.store.Delete(ctx, id); err != nil {
-			rollbackFailures++
-			h.logger.Error("failed to rollback subscription",
-				zap.String("subscription_id", id),
-				zap.Error(err),
-			)
-		}
-	}
-	if rollbackFailures > 0 {
-		h.logger.Warn("partial rollback failure",
-			zap.Int("total_rollbacks", len(ids)),
-			zap.Int("failed_rollbacks", rollbackFailures),
-		)
-	}
-	return rollbackFailures
-}
-
-// BatchDeleteSubscriptions handles POST /o2ims/v1/batch/subscriptions/delete.
-// Deletes multiple subscriptions in a single request.
-func (h *BatchHandler) BatchDeleteSubscriptions(c *gin.Context) {
-	startTime := time.Now()
-	ctx := c.Request.Context()
-
-	h.logger.Info("batch deleting subscriptions",
-		zap.String("request_id", c.GetString("request_id")),
-	)
-
-	var req BatchSubscriptionDelete
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Warn("invalid batch request body", zap.Error(err))
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "BadRequest",
-			Message: "Invalid request body: " + err.Error(),
-			Code:    http.StatusBadRequest,
-		})
-		return
-	}
-
-	// Validate batch size
-	batchSize := len(req.SubscriptionIDs)
-	if batchSize < MinBatchSize || batchSize > MaxBatchSize {
-		h.logger.Warn("invalid batch size",
-			zap.Int("batch_size", batchSize),
-			zap.Int("min", MinBatchSize),
-			zap.Int("max", MaxBatchSize),
-		)
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "BadRequest",
-			Message: fmt.Sprintf("Batch size must be between %d and %d, got %d", MinBatchSize, MaxBatchSize, batchSize),
-			Code:    http.StatusBadRequest,
-		})
-		return
-	}
-
-	results := make([]BatchResult, len(req.SubscriptionIDs))
-	successCount := 0
-	failureCount := 0
-
-	// Check for context cancellation before processing
-	select {
-	case <-ctx.Done():
-		c.JSON(http.StatusRequestTimeout, models.ErrorResponse{
-			Error:   "RequestCanceled",
-			Message: "Request canceled or timed out",
-			Code:    http.StatusRequestTimeout,
-		})
-		return
-	default:
-	}
-
-	// For atomic operations, we need to verify all exist first
-	if req.Atomic {
-		for i, id := range req.SubscriptionIDs {
-			_, err := h.store.Get(ctx, id)
-			if err != nil {
-				results[i] = BatchResult{
-					Index:   i,
-					Status:  http.StatusNotFound,
-					Success: false,
-					Error: &models.ErrorResponse{
-						Error:   "NotFound",
-						Message: "Subscription not found: " + id,
-						Code:    http.StatusNotFound,
-					},
-				}
-				failureCount++
-			}
-		}
-
-		if failureCount > 0 {
-			// Mark all remaining (not yet failed) as failed due to atomic requirement
-			for i := range results {
-				if results[i].Error == nil {
-					results[i] = BatchResult{
-						Index:   i,
-						Status:  http.StatusConflict,
-						Success: false,
-						Error: &models.ErrorResponse{
-							Error:   "AtomicFailure",
-							Message: "Atomic batch failed: some subscriptions not found",
-							Code:    http.StatusConflict,
-						},
-					}
-				}
-			}
-
-			// Recalculate counts - all operations have now failed
-			failureCount = len(results)
-
-			c.JSON(http.StatusBadRequest, BatchResponse{
-				Results:      results,
-				Success:      false,
-				SuccessCount: 0,
-				FailureCount: failureCount,
-			})
-			return
-		}
-	}
-
-	// Perform deletions
-	for i, id := range req.SubscriptionIDs {
-		err := h.store.Delete(ctx, id)
-		if err != nil {
-			results[i] = BatchResult{
-				Index:   i,
-				Status:  http.StatusNotFound,
-				Success: false,
-				Error: &models.ErrorResponse{
-					Error:   "NotFound",
-					Message: "Subscription not found: " + id,
-					Code:    http.StatusNotFound,
-				},
-			}
-			failureCount++
-		} else {
-			results[i] = BatchResult{
-				Index:   i,
-				Status:  http.StatusNoContent,
-				Success: true,
-			}
-			successCount++
-		}
-	}
-
-	response := BatchResponse{
-		Results:      results,
-		Success:      failureCount == 0,
-		SuccessCount: successCount,
-		FailureCount: failureCount,
-	}
-
-	statusCode := http.StatusOK
-	if failureCount > 0 && successCount == 0 {
-		statusCode = http.StatusNotFound
-	} else if failureCount > 0 {
-		statusCode = http.StatusMultiStatus
-	}
-
-	h.logger.Info("batch subscriptions deleted",
-		zap.Int("success_count", successCount),
-		zap.Int("failure_count", failureCount),
-	)
-
-	// Record metrics
-	h.metrics.RecordBatchOperation(
-		"delete_subscriptions",
-		req.Atomic,
-		time.Since(startTime),
-		successCount,
-		failureCount,
-	)
-
-	c.JSON(statusCode, response)
-}
-
-// BatchCreateResourcePools handles POST /o2ims/v1/batch/resourcePools.
-// Creates multiple resource pools in a single request.
-func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
-	startTime := time.Now()
-	ctx := c.Request.Context()
-
-	h.logger.Info("batch creating resource pools",
-		zap.String("request_id", c.GetString("request_id")),
-	)
-
-	var req BatchResourcePoolCreate
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Warn("invalid batch request body", zap.Error(err))
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "BadRequest",
-			Message: "Invalid request body: " + err.Error(),
-			Code:    http.StatusBadRequest,
-		})
-		return
-	}
-
-	// Validate batch size
-	batchSize := len(req.ResourcePools)
-	if batchSize < MinBatchSize || batchSize > MaxBatchSize {
-		h.logger.Warn("invalid batch size",
-			zap.Int("batch_size", batchSize),
-			zap.Int("min", MinBatchSize),
-			zap.Int("max", MaxBatchSize),
-		)
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "BadRequest",
-			Message: fmt.Sprintf("Batch size must be between %d and %d, got %d", MinBatchSize, MaxBatchSize, batchSize),
-			Code:    http.StatusBadRequest,
-		})
-		return
-	}
-
-	results := make([]BatchResult, len(req.ResourcePools))
-	createdIDs := make([]string, 0, len(req.ResourcePools))
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	var successCount, failureCount int
-
-	// Worker pool to limit concurrency
-	semaphore := make(chan struct{}, MaxWorkers)
-
-	for i, pool := range req.ResourcePools {
-		wg.Add(1)
-		semaphore <- struct{}{} // Acquire worker slot
-		go func(idx int, resourcePool models.ResourcePool) {
-			defer wg.Done()
-			defer func() { <-semaphore }() // Release worker slot
-
-			// Check for context cancellation
-			select {
-			case <-ctx.Done():
-				mu.Lock()
-				results[idx] = BatchResult{
-					Index:   idx,
-					Status:  http.StatusRequestTimeout,
-					Success: false,
-					Error: &models.ErrorResponse{
-						Error:   "RequestCanceled",
-						Message: "Request canceled or timed out",
-						Code:    http.StatusRequestTimeout,
-					},
-				}
-				failureCount++
-				mu.Unlock()
-				return
-			default:
-			}
-
-			result := h.createSingleResourcePool(ctx, resourcePool)
-			result.Index = idx
-
-			mu.Lock()
-			results[idx] = result
-			if result.Success {
-				successCount++
-				if createdPool, ok := result.Data.(*models.ResourcePool); ok {
-					createdIDs = append(createdIDs, createdPool.ResourcePoolID)
-				}
-			} else {
-				failureCount++
-			}
-			mu.Unlock()
-		}(i, pool)
-	}
-
-	wg.Wait()
-
-	// If atomic and any failure, rollback all created resource pools
-	mu.Lock()
-	if req.Atomic && failureCount > 0 {
-		mu.Unlock()
-		rollbackFailures := h.rollbackResourcePools(ctx, createdIDs)
-		if rollbackFailures > 0 {
-			h.logger.Error("atomic rollback incomplete",
-				zap.Int("failed_rollbacks", rollbackFailures),
-				zap.Int("total_resource_pools", len(createdIDs)),
-			)
-		}
-		mu.Lock()
-		for i := range results {
-			if results[i].Success {
-				results[i].Success = false
-				results[i].Status = http.StatusConflict
-				results[i].Data = nil
-				results[i].Error = &models.ErrorResponse{
-					Error:   "RolledBack",
-					Message: "Operation rolled back due to atomic batch failure",
-					Code:    http.StatusConflict,
-				}
-			}
-		}
-		successCount = 0
-		failureCount = len(results)
-	}
-
-	response := BatchResponse{
-		Results:      results,
-		Success:      failureCount == 0,
-		SuccessCount: successCount,
-		FailureCount: failureCount,
-	}
-	mu.Unlock()
-
-	statusCode := http.StatusOK
-	if response.FailureCount > 0 && response.SuccessCount == 0 {
-		statusCode = http.StatusBadRequest
-	} else if response.FailureCount > 0 {
-		statusCode = http.StatusMultiStatus
-	}
-
-	h.logger.Info("batch resource pools created",
-		zap.Int("success_count", response.SuccessCount),
-		zap.Int("failure_count", response.FailureCount),
-	)
-
-	// Record metrics
-	h.metrics.RecordBatchOperation(
-		"create_resource_pools",
-		req.Atomic,
-		time.Since(startTime),
-		response.SuccessCount,
-		response.FailureCount,
-	)
-
-	c.JSON(statusCode, response)
-}
-
 // createSingleResourcePool creates a single resource pool and returns the result.
 func (h *BatchHandler) createSingleResourcePool(
 	ctx context.Context,
@@ -744,6 +789,28 @@ func (h *BatchHandler) createSingleResourcePool(
 	}
 }
 
+// rollbackSubscriptions deletes the given subscription IDs.
+// Returns the number of failed rollback operations.
+func (h *BatchHandler) rollbackSubscriptions(ctx context.Context, ids []string) int {
+	var rollbackFailures int
+	for _, id := range ids {
+		if err := h.store.Delete(ctx, id); err != nil {
+			rollbackFailures++
+			h.logger.Error("failed to rollback subscription",
+				zap.String("subscription_id", id),
+				zap.Error(err),
+			)
+		}
+	}
+	if rollbackFailures > 0 {
+		h.logger.Warn("partial rollback failure",
+			zap.Int("total_rollbacks", len(ids)),
+			zap.Int("failed_rollbacks", rollbackFailures),
+		)
+	}
+	return rollbackFailures
+}
+
 // rollbackResourcePools deletes the given resource pool IDs.
 // Returns the number of failed rollback operations.
 func (h *BatchHandler) rollbackResourcePools(ctx context.Context, ids []string) int {
@@ -764,162 +831,4 @@ func (h *BatchHandler) rollbackResourcePools(ctx context.Context, ids []string) 
 		)
 	}
 	return rollbackFailures
-}
-
-// BatchDeleteResourcePools handles POST /o2ims/v1/batch/resourcePools/delete.
-// Deletes multiple resource pools in a single request.
-func (h *BatchHandler) BatchDeleteResourcePools(c *gin.Context) {
-	startTime := time.Now()
-	ctx := c.Request.Context()
-
-	h.logger.Info("batch deleting resource pools",
-		zap.String("request_id", c.GetString("request_id")),
-	)
-
-	var req BatchResourcePoolDelete
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Warn("invalid batch request body", zap.Error(err))
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "BadRequest",
-			Message: "Invalid request body: " + err.Error(),
-			Code:    http.StatusBadRequest,
-		})
-		return
-	}
-
-	// Validate batch size
-	batchSize := len(req.ResourcePoolIDs)
-	if batchSize < MinBatchSize || batchSize > MaxBatchSize {
-		h.logger.Warn("invalid batch size",
-			zap.Int("batch_size", batchSize),
-			zap.Int("min", MinBatchSize),
-			zap.Int("max", MaxBatchSize),
-		)
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "BadRequest",
-			Message: fmt.Sprintf("Batch size must be between %d and %d, got %d", MinBatchSize, MaxBatchSize, batchSize),
-			Code:    http.StatusBadRequest,
-		})
-		return
-	}
-
-	results := make([]BatchResult, len(req.ResourcePoolIDs))
-	successCount := 0
-	failureCount := 0
-
-	// Check for context cancellation before processing
-	select {
-	case <-ctx.Done():
-		c.JSON(http.StatusRequestTimeout, models.ErrorResponse{
-			Error:   "RequestCanceled",
-			Message: "Request canceled or timed out",
-			Code:    http.StatusRequestTimeout,
-		})
-		return
-	default:
-	}
-
-	// For atomic operations, verify all exist first
-	if req.Atomic {
-		for i, id := range req.ResourcePoolIDs {
-			_, err := h.adapter.GetResourcePool(ctx, id)
-			if err != nil {
-				results[i] = BatchResult{
-					Index:   i,
-					Status:  http.StatusNotFound,
-					Success: false,
-					Error: &models.ErrorResponse{
-						Error:   "NotFound",
-						Message: "Resource pool not found: " + id,
-						Code:    http.StatusNotFound,
-					},
-				}
-				failureCount++
-			}
-		}
-
-		if failureCount > 0 {
-			// Mark all remaining (not yet failed) as failed due to atomic requirement
-			for i := range results {
-				if results[i].Error == nil {
-					results[i] = BatchResult{
-						Index:   i,
-						Status:  http.StatusConflict,
-						Success: false,
-						Error: &models.ErrorResponse{
-							Error:   "AtomicFailure",
-							Message: "Atomic batch failed: some resource pools not found",
-							Code:    http.StatusConflict,
-						},
-					}
-				}
-			}
-
-			// Recalculate counts - all operations have now failed
-			failureCount = len(results)
-
-			c.JSON(http.StatusBadRequest, BatchResponse{
-				Results:      results,
-				Success:      false,
-				SuccessCount: 0,
-				FailureCount: failureCount,
-			})
-			return
-		}
-	}
-
-	// Perform deletions
-	for i, id := range req.ResourcePoolIDs {
-		err := h.adapter.DeleteResourcePool(ctx, id)
-		if err != nil {
-			results[i] = BatchResult{
-				Index:   i,
-				Status:  http.StatusNotFound,
-				Success: false,
-				Error: &models.ErrorResponse{
-					Error:   "NotFound",
-					Message: "Resource pool not found: " + id,
-					Code:    http.StatusNotFound,
-				},
-			}
-			failureCount++
-		} else {
-			results[i] = BatchResult{
-				Index:   i,
-				Status:  http.StatusNoContent,
-				Success: true,
-			}
-			successCount++
-		}
-	}
-
-	response := BatchResponse{
-		Results:      results,
-		Success:      failureCount == 0,
-		SuccessCount: successCount,
-		FailureCount: failureCount,
-	}
-
-	statusCode := http.StatusOK
-	if failureCount > 0 && successCount == 0 {
-		statusCode = http.StatusNotFound
-	} else if failureCount > 0 {
-		statusCode = http.StatusMultiStatus
-	}
-
-	h.logger.Info("batch resource pools deleted",
-		zap.Int("success_count", successCount),
-		zap.Int("failure_count", failureCount),
-	)
-
-	// Record metrics
-	h.metrics.RecordBatchOperation(
-		"delete_resource_pools",
-		req.Atomic,
-		time.Since(startTime),
-		successCount,
-		failureCount,
-	)
-
-	c.JSON(statusCode, response)
 }

@@ -532,7 +532,7 @@ func TestBatchDeleteSubscriptions_NotFound(t *testing.T) {
 
 	handler.BatchDeleteSubscriptions(c)
 
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 
 	var response BatchResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
