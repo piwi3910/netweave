@@ -204,6 +204,31 @@ func TestExtractVersionFromPath(t *testing.T) {
 			path:     "/api/version1/resources",
 			expected: "",
 		},
+		{
+			name:     "malformed path with v but no number",
+			path:     "/api/v/resources",
+			expected: "",
+		},
+		{
+			name:     "malformed path with v and non-numeric",
+			path:     "/api/vabc/resources",
+			expected: "",
+		},
+		{
+			name:     "very long numeric version (DoS attempt)",
+			path:     "/api/v12345678901/resources",
+			expected: "",
+		},
+		{
+			name:     "multiple version segments (takes first)",
+			path:     "/api/v1/v2/resources",
+			expected: "v1",
+		},
+		{
+			name:     "version at end of path",
+			path:     "/api/resources/v2",
+			expected: "v2",
+		},
 	}
 
 	for _, tt := range tests {
@@ -227,6 +252,8 @@ func TestIsNumeric(t *testing.T) {
 		{"abc", false},
 		{"", true}, // Empty string contains no non-numeric chars
 		{"12.3", false},
+		{"12345678901", false}, // > 10 chars - DoS prevention
+		{"9999999999", true},   // Exactly 10 chars - should pass
 	}
 
 	for _, tt := range tests {

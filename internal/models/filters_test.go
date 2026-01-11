@@ -884,6 +884,108 @@ func TestFilter_SelectFields(t *testing.T) {
 			},
 			expected: map[string]interface{}{},
 		},
+		{
+			name:   "deeply nested field selection (5 levels)",
+			filter: &Filter{Fields: []string{"level1.level2.level3.level4.level5"}},
+			input: map[string]interface{}{
+				"id": "root",
+				"level1": map[string]interface{}{
+					"data": "level1-data",
+					"level2": map[string]interface{}{
+						"data": "level2-data",
+						"level3": map[string]interface{}{
+							"data": "level3-data",
+							"level4": map[string]interface{}{
+								"data": "level4-data",
+								"level5": map[string]interface{}{
+									"target": "found",
+									"other":  "ignored",
+								},
+								"sibling": "ignored",
+							},
+							"sibling": "ignored",
+						},
+						"sibling": "ignored",
+					},
+					"sibling": "ignored",
+				},
+			},
+			expected: map[string]interface{}{
+				"level1": map[string]interface{}{
+					"level2": map[string]interface{}{
+						"level3": map[string]interface{}{
+							"level4": map[string]interface{}{
+								"level5": map[string]interface{}{
+									"target": "found",
+									"other":  "ignored",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:   "multiple deeply nested fields",
+			filter: &Filter{Fields: []string{"a.b.c.value", "x.y.z.value"}},
+			input: map[string]interface{}{
+				"a": map[string]interface{}{
+					"b": map[string]interface{}{
+						"c": map[string]interface{}{
+							"value": "abc-value",
+							"other": "ignored",
+						},
+					},
+				},
+				"x": map[string]interface{}{
+					"y": map[string]interface{}{
+						"z": map[string]interface{}{
+							"value": "xyz-value",
+							"other": "ignored",
+						},
+					},
+				},
+				"top": "ignored",
+			},
+			expected: map[string]interface{}{
+				"a": map[string]interface{}{
+					"b": map[string]interface{}{
+						"c": map[string]interface{}{
+							"value": "abc-value",
+						},
+					},
+				},
+				"x": map[string]interface{}{
+					"y": map[string]interface{}{
+						"z": map[string]interface{}{
+							"value": "xyz-value",
+						},
+					},
+				},
+			},
+		},
+		{
+			name:   "deeply nested with arrays",
+			filter: &Filter{Fields: []string{"data.items"}},
+			input: map[string]interface{}{
+				"id": "123",
+				"data": map[string]interface{}{
+					"items": []interface{}{
+						map[string]interface{}{"id": "1", "name": "first"},
+						map[string]interface{}{"id": "2", "name": "second"},
+					},
+					"metadata": "ignored",
+				},
+			},
+			expected: map[string]interface{}{
+				"data": map[string]interface{}{
+					"items": []interface{}{
+						map[string]interface{}{"id": "1", "name": "first"},
+						map[string]interface{}{"id": "2", "name": "second"},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
