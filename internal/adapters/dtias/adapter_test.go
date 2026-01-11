@@ -182,7 +182,6 @@ func TestDTIASAdapter_Health(t *testing.T) {
 		RetryAttempts:       2,
 		RetryDelay:          time.Millisecond,
 		Logger:              zap.NewNop(), // No-op logger for expected errors
-		InsecureSkipVerify:  true,
 	}
 
 	a, err := New(config)
@@ -216,8 +215,7 @@ func createTestAdapter(t *testing.T) *DTIASAdapter {
 		RetryAttempts:       1,
 		RetryDelay:          time.Millisecond,
 		// Use WarnLevel to suppress expected ERROR logs from intentional test failures
-		Logger:             zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
-		InsecureSkipVerify: true, // For testing only
+		Logger: zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
 	}
 
 	adapter, err := New(config)

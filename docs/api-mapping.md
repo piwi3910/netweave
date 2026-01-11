@@ -1168,6 +1168,72 @@ func transformMachineSetToO2Pool(ms *machinev1beta1.MachineSet) *models.Resource
 | Update | PUT | `/resourcePools/{id}` | Update MachineSet |
 | Delete | DELETE | `/resourcePools/{id}` | Delete MachineSet |
 
+#### HTTP Status Codes
+
+**POST /resourcePools**
+- `201 Created` - Resource pool successfully created
+- `400 Bad Request` - Invalid request body or validation errors
+- `409 Conflict` - Resource pool with the specified ID already exists
+- `500 Internal Server Error` - Backend adapter error
+
+**PUT /resourcePools/{id}**
+- `200 OK` - Resource pool successfully updated
+- `400 Bad Request` - Invalid request body or validation errors
+- `404 Not Found` - Resource pool with specified ID does not exist
+- `500 Internal Server Error` - Backend adapter error
+
+**DELETE /resourcePools/{id}**
+- `204 No Content` - Resource pool successfully deleted
+- `404 Not Found` - Resource pool with specified ID does not exist
+- `500 Internal Server Error` - Backend adapter error
+
+**GET /resourcePools/{id}**
+- `200 OK` - Resource pool found and returned
+- `404 Not Found` - Resource pool with specified ID does not exist
+- `500 Internal Server Error` - Backend adapter error
+
+**GET /resourcePools**
+- `200 OK` - List of resource pools returned (may be empty)
+- `400 Bad Request` - Invalid query parameters
+- `500 Internal Server Error` - Backend adapter error
+
+#### Input Validation
+
+The gateway performs the following validation on resource pool operations:
+
+**Field Validation:**
+- `name` - Required, maximum 255 characters
+- `resourcePoolId` - Optional on create (auto-generated if not provided), maximum 255 characters, alphanumeric with hyphens and underscores only
+- `description` - Optional, maximum 1000 characters
+
+**Input Sanitization:**
+When `resourcePoolId` is not provided on create, it's auto-generated from the pool name with the following sanitization:
+- Spaces and special characters (`/`, `\`, `..`, `:`, `*`, `?`, `"`, `<`, `>`, `|`) replaced with hyphens
+- Non-alphanumeric characters (except hyphens and underscores) removed
+- Converted to lowercase
+- Prefix `pool-` added
+- Full UUID (36 characters) appended for uniqueness
+
+Example: `"GPU Pool (Production)"` → `"pool-gpu-pool--production--a1b2c3d4-e5f6-7890-abcd-1234567890ab"`
+
+**Note:** The UUID suffix ensures that similar or identical pool names generate unique IDs, maintaining idempotency for create operations.
+
+#### UUID Design Rationale
+
+All auto-generated IDs (resource pools, resources, subscriptions) use full RFC 4122 compliant UUIDs (36 characters):
+
+**Format Examples:**
+- Resource Pool: `pool-{sanitized-name}-{uuid}` → `pool-gpu-cluster-a1b2c3d4-e5f6-7890-abcd-1234567890ab`
+- Resource: `res-{type}-{uuid}` → `res-compute-node-a1b2c3d4-e5f6-7890-abcd-1234567890ab`
+- Subscription: `sub-{uuid}` → `sub-a1b2c3d4-e5f6-7890-abcd-1234567890ab`
+
+**Why Full UUIDs?**
+- **Standard Compliance**: RFC 4122 UUID v4 format (universally recognized)
+- **Collision Resistance**: 2^122 possible combinations (effectively zero collision probability)
+- **Simplicity**: No custom truncation logic needed
+- **Compatibility**: Works with all UUID-aware systems and tools
+- **Maintainability**: Standard format is predictable and well-documented
+
 ---
 
 ## Resources
@@ -1308,7 +1374,7 @@ func transformO2ResourceToMachine(resource *models.Resource) *machinev1beta1.Mac
 | List | GET | `/resources` | List Nodes (or Machines) |
 | Get | GET | `/resources/{id}` | Get Node |
 | Create | POST | `/resources` | Create Machine (triggers Node) |
-| ~~Update~~ | ~~PUT~~ | ~~N/A~~ | Not supported (nodes are immutable) |
+| Update | PUT | `/resources/{id}` | Update mutable fields (description, globalAssetId, extensions) |
 | Delete | DELETE | `/resources/{id}` | Delete Machine or drain+delete Node |
 
 ---
@@ -1788,7 +1854,205 @@ Location: /o2ims/v1/resourcePools/pool-gpu-a100
 
 ---
 
-### Example 2: Subscribe to Node Events
+### Example 2: Create Resource (Provision New Node)
+
+**Request** (O2-IMS):
+```http
+POST /o2ims/v1/resources HTTP/1.1
+Content-Type: application/json
+
+{
+  "resourceTypeId": "compute-node",
+  "resourcePoolId": "pool-compute-high-mem",
+  "globalAssetId": "urn:o-ran:resource:node-prod-042",
+  "description": "High-memory compute node for RAN workloads",
+  "extensions": {
+    "cpu": "64 cores",
+    "memory": "512GB",
+    "disk": "2TB NVMe",
+    "zone": "us-east-1a"
+  }
+}
+```
+
+**Transformation** (Gateway):
+```go
+// 1. Validate required fields
+if resource.ResourceTypeID == "" {
+    return errors.New("resource type ID is required")
+}
+if resource.ResourcePoolID == "" {
+    return errors.New("resource pool ID is required")
+}
+
+// 2. Validate field constraints
+validationErrors := validateResourceFields(&resource)
+if len(validationErrors) > 0 {
+    return fmt.Errorf("validation failed: %v", validationErrors)
+}
+
+// 3. Generate resource ID if not provided
+if resource.ResourceID == "" {
+    resource.ResourceID = fmt.Sprintf("res-%s-%s",
+        resource.ResourceTypeID,
+        uuid.New().String())
+}
+
+// 4. Get resource pool to determine machine template
+pool, err := adapter.GetResourcePool(ctx, resource.ResourcePoolID)
+if err != nil {
+    return err
+}
+
+// 5. Create Machine (triggers Node provisioning)
+machine := &machinev1beta1.Machine{
+    ObjectMeta: metav1.ObjectMeta{
+        GenerateName: resource.ResourcePoolID + "-",
+        Namespace:    "openshift-machine-api",
+        Labels: map[string]string{
+            "machine.openshift.io/cluster-api-machineset": resource.ResourcePoolID,
+            "o2ims.oran.org/resource-id":                  resource.ResourceID,
+            "o2ims.oran.org/resource-pool-id":             resource.ResourcePoolID,
+        },
+        Annotations: map[string]string{
+            "o2ims.oran.org/global-asset-id": resource.GlobalAssetID,
+            "o2ims.oran.org/description":     resource.Description,
+        },
+    },
+    Spec: pool.MachineTemplate.Spec,
+}
+
+// 6. Apply to K8s
+err = k8sClient.Create(ctx, machine)
+
+// 7. Wait for Machine to be provisioned (creates Node)
+// This happens asynchronously via machine controller
+
+// 8. Return O2-IMS response
+return &models.Resource{
+    ResourceID:     resource.ResourceID,
+    ResourceTypeID: resource.ResourceTypeID,
+    ResourcePoolID: resource.ResourcePoolID,
+    GlobalAssetID:  resource.GlobalAssetID,
+    Description:    resource.Description,
+    Extensions:     resource.Extensions,
+}
+```
+
+**Response** (O2-IMS):
+```http
+HTTP/1.1 201 Created
+Content-Type: application/json
+Location: /o2ims/v1/resources/res-compute-node-a1b2c3d4e5f6
+
+{
+  "resourceId": "res-compute-node-a1b2c3d4e5f6",
+  "resourceTypeId": "compute-node",
+  "resourcePoolId": "pool-compute-high-mem",
+  "globalAssetId": "urn:o-ran:resource:node-prod-042",
+  "description": "High-memory compute node for RAN workloads",
+  "extensions": {
+    "cpu": "64 cores",
+    "memory": "512GB",
+    "disk": "2TB NVMe",
+    "zone": "us-east-1a",
+    "nodeName": "ip-10-0-1-123.ec2.internal",
+    "status": "Provisioning"
+  }
+}
+```
+
+**Kubernetes Side Effects**:
+```yaml
+# Machine created (triggers Node provisioning)
+apiVersion: machine.openshift.io/v1beta1
+kind: Machine
+metadata:
+  name: pool-compute-high-mem-xyz123
+  namespace: openshift-machine-api
+  labels:
+    machine.openshift.io/cluster-api-machineset: pool-compute-high-mem
+    o2ims.oran.org/resource-id: res-compute-node-a1b2c3d4e5f6
+  annotations:
+    o2ims.oran.org/global-asset-id: "urn:o-ran:resource:node-prod-042"
+    o2ims.oran.org/description: "High-memory compute node for RAN workloads"
+spec:
+  # Machine spec from resource pool template
+  providerSpec:
+    value:
+      instanceType: m5.4xlarge
+      placement:
+        availabilityZone: us-east-1a
+
+# After ~5 minutes, Node appears:
+apiVersion: v1
+kind: Node
+metadata:
+  name: ip-10-0-1-123.ec2.internal
+  labels:
+    o2ims.oran.org/resource-id: res-compute-node-a1b2c3d4e5f6
+    o2ims.oran.org/resource-pool-id: pool-compute-high-mem
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+  capacity:
+    cpu: "64"
+    memory: 512Gi
+```
+
+**Error Scenarios**:
+
+**Missing Required Field**:
+```http
+POST /o2ims/v1/resources
+{"resourceTypeId": "compute-node"}
+
+→ HTTP 400 Bad Request
+{
+  "error": "BadRequest",
+  "message": "Resource pool ID is required",
+  "code": 400
+}
+```
+
+**Invalid GlobalAssetID**:
+```http
+POST /o2ims/v1/resources
+{
+  "resourceTypeId": "compute-node",
+  "resourcePoolId": "pool-compute-high-mem",
+  "globalAssetId": "invalid-not-urn"
+}
+
+→ HTTP 400 Bad Request
+{
+  "error": "BadRequest",
+  "message": "globalAssetId must start with 'urn:'",
+  "code": 400
+}
+```
+
+**Duplicate Resource ID**:
+```http
+POST /o2ims/v1/resources
+{
+  "resourceId": "existing-resource-id",
+  "resourceTypeId": "compute-node",
+  "resourcePoolId": "pool-compute-high-mem"
+}
+
+→ HTTP 409 Conflict
+{
+  "error": "Conflict",
+  "message": "Resource with ID 'existing-resource-id' already exists",
+  "code": 409
+}
+```
+
+---
+
+### Example 3: Subscribe to Node Events
 
 **Request** (O2-IMS):
 ```http
@@ -1811,8 +2075,8 @@ if !isValidURL(sub.Callback) {
     return errors.New("invalid callback URL")
 }
 
-// 2. Generate subscription ID
-subID := uuid.New().String()
+// 2. Generate subscription ID (full UUID for uniqueness)
+subID := "sub-" + uuid.New().String()
 
 // 3. Store in Redis
 err := redis.HSet(ctx, "subscription:"+subID,

@@ -163,6 +163,37 @@ func TestRecordStorageOperation(t *testing.T) {
 	require.Equal(t, 1.0, count)
 }
 
+// TestRecordAuthenticationDuration tests the RecordAuthenticationDuration function.
+func TestRecordAuthenticationDuration(t *testing.T) {
+	// Reset the histogram
+	AuthenticationDuration.Reset()
+
+	// Record durations for different statuses
+	RecordAuthenticationDuration("success", 0.001)
+	RecordAuthenticationDuration("success", 0.002)
+	RecordAuthenticationDuration("failed", 0.0005)
+	RecordAuthenticationDuration("error", 0.01)
+
+	// Verify histogram has been updated by checking count
+	// Note: histograms don't have a simple way to verify values,
+	// but we can ensure the function doesn't panic
+}
+
+// TestRecordStorageOperationDuration tests the RecordStorageOperationDuration function.
+func TestRecordStorageOperationDuration(t *testing.T) {
+	// Reset the histogram
+	StorageOperationDuration.Reset()
+
+	// Record durations for different operations
+	RecordStorageOperationDuration("create", "tenant", 0.005)
+	RecordStorageOperationDuration("read", "user", 0.001)
+	RecordStorageOperationDuration("update", "role", 0.003)
+	RecordStorageOperationDuration("delete", "tenant", 0.002)
+
+	// Verify histogram has been updated by checking it doesn't panic
+	// and that operations can be recorded
+}
+
 // TestMetricsRegistration tests that all metrics are properly registered.
 func TestMetricsRegistration(t *testing.T) {
 	// Create a new registry
@@ -171,6 +202,7 @@ func TestMetricsRegistration(t *testing.T) {
 	// Register all metrics
 	collectors := []prometheus.Collector{
 		AuthenticationAttempts,
+		AuthenticationDuration,
 		AuthorizationChecks,
 		TenantOperations,
 		UserOperations,
@@ -179,8 +211,10 @@ func TestMetricsRegistration(t *testing.T) {
 		QuotaUsage,
 		QuotaLimit,
 		QuotaExceeded,
+		ActiveTenants,
+		ActiveUsers,
 		StorageOperations,
-		AuthenticationDuration,
+		StorageOperationDuration,
 	}
 
 	for _, collector := range collectors {
