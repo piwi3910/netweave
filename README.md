@@ -484,6 +484,149 @@ curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
 }
 ```
 
+#### 4. Batch Operations (v2+)
+
+Batch operations enable efficient bulk create/delete with atomic transaction support.
+
+**Batch Create Subscriptions (Atomic):**
+```bash
+curl -X POST https://netweave.example.com/o2ims/v2/batch/subscriptions \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "atomic": true,
+    "items": [
+      {
+        "callback": "https://smo.example.com/notify/pool-events",
+        "consumerSubscriptionId": "smo-sub-pools",
+        "filter": {"resourcePoolId": "pool-1"}
+      },
+      {
+        "callback": "https://smo.example.com/notify/resource-events",
+        "consumerSubscriptionId": "smo-sub-resources",
+        "filter": {"resourceTypeId": "compute-node"}
+      }
+    ]
+  }'
+```
+
+**Response (207 Multi-Status):**
+```json
+{
+  "totalCount": 2,
+  "successCount": 2,
+  "failureCount": 0,
+  "results": [
+    {
+      "index": 0,
+      "success": true,
+      "subscriptionId": "550e8400-e29b-41d4-a716-446655440000",
+      "status": 201
+    },
+    {
+      "index": 1,
+      "success": true,
+      "subscriptionId": "550e8400-e29b-41d4-a716-446655440001",
+      "status": 201
+    }
+  ]
+}
+```
+
+**Batch Delete Subscriptions (Non-Atomic):**
+```bash
+curl -X POST https://netweave.example.com/o2ims/v2/batch/subscriptions/delete \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "atomic": false,
+    "ids": [
+      "550e8400-e29b-41d4-a716-446655440000",
+      "550e8400-e29b-41d4-a716-446655440001"
+    ]
+  }'
+```
+
+**Batch Create Resource Pools:**
+```bash
+curl -X POST https://netweave.example.com/o2ims/v2/batch/resourcePools \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "atomic": true,
+    "items": [
+      {
+        "name": "Compute Pool East",
+        "location": "us-east-1a",
+        "oCloudId": "ocloud-1",
+        "extensions": {"instanceType": "c5.2xlarge", "replicas": 5}
+      },
+      {
+        "name": "Compute Pool West",
+        "location": "us-west-2a",
+        "oCloudId": "ocloud-1",
+        "extensions": {"instanceType": "c5.2xlarge", "replicas": 5}
+      }
+    ]
+  }'
+```
+
+**Key Features:**
+- **Atomic Mode**: All operations succeed or all roll back (default: `true`)
+- **Parallel Execution**: Worker pool processes up to 10 items concurrently
+- **Batch Limits**: 1-100 items per batch
+- **Status Codes**: `200` (all success), `207` (partial success), `400` (all failed)
+
+#### 5. Advanced Filtering (v2+)
+
+Filter queries with operators, field selection, and sorting.
+
+**Filter with Operators:**
+```bash
+# Resource pools with location prefix "us-east" OR labels "env:prod"
+curl -X GET "https://netweave.example.com/o2ims/v2/resourcePools?location=us-east&labels=env:prod&limit=50&sortBy=name&sortOrder=asc" \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt
+```
+
+**Field Selection:**
+```bash
+# Return only specific fields (reduces payload size)
+curl -X GET "https://netweave.example.com/o2ims/v2/resourcePools?fields=resourcePoolId,name,location" \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt
+```
+
+**Response:**
+```json
+{
+  "items": [
+    {
+      "resourcePoolId": "pool-compute-highmem",
+      "name": "High Memory Compute Pool",
+      "location": "us-east-1a"
+    }
+  ]
+}
+```
+
+**Nested Field Selection:**
+```bash
+# Select only specific nested fields
+curl -X GET "https://netweave.example.com/o2ims/v2/resourcePools?fields=resourcePoolId,extensions.instanceType,extensions.replicas" \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt
+```
+
 ## O2-IMS API Coverage
 
 | Resource | List | Get | Create | Update | Delete | Subscribe |
