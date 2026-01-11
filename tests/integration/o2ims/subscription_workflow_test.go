@@ -106,7 +106,7 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 	// and watching for K8s resource changes. For this test, the webhook delivery
 	// would be triggered by creating a node or namespace in the K8s cluster.
 	// This test validates the subscription CRUD operations.
-	poolID := "test-pool-" + subscriptionID[:8]
+	poolID := "test-pool-" + subscriptionID
 	_ = poolID // Would be used to create a resource pool in full implementation
 
 	// Step 3: Verify subscription is active and can be retrieved

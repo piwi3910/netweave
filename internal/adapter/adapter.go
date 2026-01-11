@@ -8,31 +8,6 @@ import (
 	"errors"
 )
 
-// Sentinel errors for adapter operations.
-// These errors allow callers to distinguish between different failure modes.
-var (
-	// ErrResourceNotFound is returned when a requested resource does not exist.
-	ErrResourceNotFound = errors.New("resource not found")
-
-	// ErrResourcePoolNotFound is returned when a requested resource pool does not exist.
-	ErrResourcePoolNotFound = errors.New("resource pool not found")
-
-	// ErrResourceTypeNotFound is returned when a requested resource type does not exist.
-	ErrResourceTypeNotFound = errors.New("resource type not found")
-
-	// ErrDeploymentManagerNotFound is returned when a requested deployment manager does not exist.
-	ErrDeploymentManagerNotFound = errors.New("deployment manager not found")
-
-	// ErrSubscriptionNotFound is returned when a requested subscription does not exist.
-	ErrSubscriptionNotFound = errors.New("subscription not found")
-
-	// ErrSubscriptionExists is returned when attempting to create a subscription that already exists.
-	ErrSubscriptionExists = errors.New("subscription already exists")
-
-	// ErrValidation is returned when input validation fails.
-	ErrValidation = errors.New("validation error")
-)
-
 // Capability represents a feature that an adapter supports.
 // Capabilities are used during adapter selection to ensure the chosen
 // adapter can fulfill the requirements of a specific O2-IMS operation.
@@ -59,6 +34,46 @@ const (
 
 	// CapabilityHealthChecks indicates support for health status reporting.
 	CapabilityHealthChecks Capability = "health-checks"
+)
+
+// Sentinel errors for common adapter operations.
+// Adapters should return these errors to enable proper HTTP status code mapping.
+var (
+	// ErrResourceNotFound indicates the requested resource does not exist.
+	ErrResourceNotFound = errors.New("resource not found")
+
+	// ErrResourceExists indicates a resource with the given ID already exists.
+	ErrResourceExists = errors.New("resource already exists")
+
+	// ErrResourcePoolNotFound indicates the requested resource pool does not exist.
+	ErrResourcePoolNotFound = errors.New("resource pool not found")
+
+	// ErrResourcePoolExists indicates a resource pool with the given ID already exists.
+	ErrResourcePoolExists = errors.New("resource pool already exists")
+
+	// ErrResourceTypeNotFound is returned when a resource type does not exist.
+	ErrResourceTypeNotFound = errors.New("resource type not found")
+
+	// ErrSubscriptionNotFound is returned when a subscription does not exist.
+	ErrSubscriptionNotFound = errors.New("subscription not found")
+
+	// ErrSubscriptionExists indicates a subscription with the given ID already exists.
+	ErrSubscriptionExists = errors.New("subscription already exists")
+
+	// ErrDeploymentManagerNotFound indicates the requested deployment manager does not exist.
+	ErrDeploymentManagerNotFound = errors.New("deployment manager not found")
+
+	// ErrInvalidResource indicates the resource has invalid fields or constraints.
+	ErrInvalidResource = errors.New("invalid resource")
+
+	// ErrResourceTypeRequired indicates resourceTypeId field is missing.
+	ErrResourceTypeRequired = errors.New("resource type ID is required")
+
+	// ErrResourcePoolRequired indicates resourcePoolId field is missing.
+	ErrResourcePoolRequired = errors.New("resource pool ID is required")
+
+	// ErrNotImplemented indicates the operation is not yet implemented by the adapter.
+	ErrNotImplemented = errors.New("operation not implemented")
 )
 
 // Filter provides criteria for filtering O2-IMS resources.
@@ -285,6 +300,11 @@ type Adapter interface {
 	// Returns the created resource with server-assigned fields populated.
 	CreateResource(ctx context.Context, resource *Resource) (*Resource, error)
 
+	// UpdateResource updates an existing resource's mutable fields (description, globalAssetId, extensions).
+	// Immutable fields (resourceId, resourceTypeId, resourcePoolId) cannot be changed.
+	// Returns the updated resource or an error if the resource doesn't exist.
+	UpdateResource(ctx context.Context, id string, resource *Resource) (*Resource, error)
+
 	// DeleteResource deletes a resource by ID (e.g., deprovision a node).
 	// Returns an error if the resource doesn't exist or cannot be deleted.
 	DeleteResource(ctx context.Context, id string) error
@@ -309,6 +329,10 @@ type Adapter interface {
 	// GetSubscription retrieves a specific subscription by ID.
 	// Returns the subscription or an error if not found.
 	GetSubscription(ctx context.Context, id string) (*Subscription, error)
+
+	// UpdateSubscription updates an existing subscription.
+	// Returns the updated subscription or an error if not found.
+	UpdateSubscription(ctx context.Context, id string, sub *Subscription) (*Subscription, error)
 
 	// DeleteSubscription deletes a subscription by ID.
 	// Returns an error if the subscription doesn't exist.
