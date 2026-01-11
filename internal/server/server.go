@@ -153,7 +153,7 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 	}
 
 	// Initialize batch handler
-	batchHandler := handlers.NewBatchHandler(adp, store, logger)
+	batchHandler := handlers.NewBatchHandler(adp, store, logger, metrics)
 
 	// Create server instance
 	srv := &Server{

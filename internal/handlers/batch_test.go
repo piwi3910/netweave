@@ -18,8 +18,14 @@ import (
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
+	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/storage"
 )
+
+func init() {
+	// Initialize metrics for tests
+	observability.InitMetrics("test")
+}
 
 // mockBatchAdapter implements adapter.Adapter for batch testing.
 type mockBatchAdapter struct {
@@ -259,7 +265,7 @@ func TestNewBatchHandler(t *testing.T) {
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
 
-	handler := NewBatchHandler(adapter, store, logger)
+	handler := NewBatchHandler(adapter, store, logger, nil)
 	assert.NotNil(t, handler)
 	assert.Equal(t, adapter, handler.adapter)
 	assert.Equal(t, store, handler.store)
@@ -273,19 +279,19 @@ func TestNewBatchHandler_Panics(t *testing.T) {
 
 	t.Run("nil adapter panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewBatchHandler(nil, store, logger)
+			NewBatchHandler(nil, store, logger, nil)
 		})
 	})
 
 	t.Run("nil store panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewBatchHandler(adapter, nil, logger)
+			NewBatchHandler(adapter, nil, logger, nil)
 		})
 	})
 
 	t.Run("nil logger panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewBatchHandler(adapter, store, nil)
+			NewBatchHandler(adapter, store, nil, nil)
 		})
 	})
 }
@@ -296,7 +302,7 @@ func TestBatchCreateSubscriptions_Success(t *testing.T) {
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger)
+	handler := NewBatchHandler(adapter, store, logger, nil)
 
 	req := BatchSubscriptionCreate{
 		Subscriptions: []models.Subscription{
@@ -336,7 +342,7 @@ func TestBatchCreateSubscriptions_InvalidCallback(t *testing.T) {
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger)
+	handler := NewBatchHandler(adapter, store, logger, nil)
 
 	req := BatchSubscriptionCreate{
 		Subscriptions: []models.Subscription{
@@ -372,7 +378,7 @@ func TestBatchCreateSubscriptions_AtomicRollback(t *testing.T) {
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger)
+	handler := NewBatchHandler(adapter, store, logger, nil)
 
 	req := BatchSubscriptionCreate{
 		Subscriptions: []models.Subscription{
@@ -416,7 +422,7 @@ func TestBatchCreateSubscriptions_BatchSizeValidation(t *testing.T) {
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger)
+	handler := NewBatchHandler(adapter, store, logger, nil)
 
 	tests := []struct {
 		name       string
@@ -478,7 +484,7 @@ func TestBatchDeleteSubscriptions_Success(t *testing.T) {
 		},
 	}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger)
+	handler := NewBatchHandler(adapter, store, logger, nil)
 
 	req := BatchSubscriptionDelete{
 		SubscriptionIDs: []string{"sub-1", "sub-2"},
@@ -511,7 +517,7 @@ func TestBatchDeleteSubscriptions_NotFound(t *testing.T) {
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger)
+	handler := NewBatchHandler(adapter, store, logger, nil)
 
 	req := BatchSubscriptionDelete{
 		SubscriptionIDs: []string{"non-existent"},
@@ -547,7 +553,7 @@ func TestBatchDeleteSubscriptions_AtomicFailure(t *testing.T) {
 		},
 	}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger)
+	handler := NewBatchHandler(adapter, store, logger, nil)
 
 	req := BatchSubscriptionDelete{
 		SubscriptionIDs: []string{"sub-1", "non-existent"},
@@ -582,7 +588,7 @@ func TestBatchCreateResourcePools_Success(t *testing.T) {
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger)
+	handler := NewBatchHandler(adapter, store, logger, nil)
 
 	req := BatchResourcePoolCreate{
 		ResourcePools: []models.ResourcePool{
@@ -627,7 +633,7 @@ func TestBatchCreateResourcePools_AtomicRollback(t *testing.T) {
 
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger)
+	handler := NewBatchHandler(adapter, store, logger, nil)
 
 	req := BatchResourcePoolCreate{
 		ResourcePools: []models.ResourcePool{
@@ -673,7 +679,7 @@ func TestBatchDeleteResourcePools_Success(t *testing.T) {
 	}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger)
+	handler := NewBatchHandler(adapter, store, logger, nil)
 
 	req := BatchResourcePoolDelete{
 		ResourcePoolIDs: []string{"pool-1", "pool-2"},
@@ -710,7 +716,7 @@ func TestBatchDeleteResourcePools_AtomicFailure(t *testing.T) {
 	}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger)
+	handler := NewBatchHandler(adapter, store, logger, nil)
 
 	req := BatchResourcePoolDelete{
 		ResourcePoolIDs: []string{"pool-1", "non-existent"},
@@ -745,7 +751,7 @@ func TestBatchHandler_InvalidJSON(t *testing.T) {
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
-	handler := NewBatchHandler(adapter, store, logger)
+	handler := NewBatchHandler(adapter, store, logger, nil)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
+	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
@@ -32,12 +34,14 @@ type BatchHandler struct {
 	adapter adapter.Adapter
 	store   storage.Store
 	logger  *zap.Logger
+	metrics *observability.Metrics
 }
 
 // NewBatchHandler creates a new BatchHandler.
 // It requires an adapter for backend operations, a store for subscription persistence,
-// and a logger for structured logging.
-func NewBatchHandler(adp adapter.Adapter, store storage.Store, logger *zap.Logger) *BatchHandler {
+// a logger for structured logging, and metrics for observability.
+// If metrics is nil, the global metrics instance will be used.
+func NewBatchHandler(adp adapter.Adapter, store storage.Store, logger *zap.Logger, metrics *observability.Metrics) *BatchHandler {
 	if adp == nil {
 		panic("adapter cannot be nil")
 	}
@@ -48,10 +52,16 @@ func NewBatchHandler(adp adapter.Adapter, store storage.Store, logger *zap.Logge
 		panic("logger cannot be nil")
 	}
 
+	// Metrics are optional - use global if not provided
+	if metrics == nil {
+		metrics = observability.GetMetrics()
+	}
+
 	return &BatchHandler{
 		adapter: adp,
 		store:   store,
 		logger:  logger,
+		metrics: metrics,
 	}
 }
 
@@ -134,6 +144,7 @@ type BatchResourcePoolDelete struct {
 // BatchCreateSubscriptions handles POST /o2ims/v1/batch/subscriptions.
 // Creates multiple subscriptions in a single request.
 func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
+	startTime := time.Now()
 	ctx := c.Request.Context()
 
 	h.logger.Info("batch creating subscriptions",
@@ -270,6 +281,15 @@ func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
 		zap.Int("failure_count", response.FailureCount),
 	)
 
+	// Record metrics
+	h.metrics.RecordBatchOperation(
+		"create_subscriptions",
+		req.Atomic,
+		time.Since(startTime),
+		response.SuccessCount,
+		response.FailureCount,
+	)
+
 	c.JSON(statusCode, response)
 }
 
@@ -373,6 +393,7 @@ func (h *BatchHandler) rollbackSubscriptions(ctx context.Context, ids []string) 
 // BatchDeleteSubscriptions handles POST /o2ims/v1/batch/subscriptions/delete.
 // Deletes multiple subscriptions in a single request.
 func (h *BatchHandler) BatchDeleteSubscriptions(c *gin.Context) {
+	startTime := time.Now()
 	ctx := c.Request.Context()
 
 	h.logger.Info("batch deleting subscriptions",
@@ -515,12 +536,22 @@ func (h *BatchHandler) BatchDeleteSubscriptions(c *gin.Context) {
 		zap.Int("failure_count", failureCount),
 	)
 
+	// Record metrics
+	h.metrics.RecordBatchOperation(
+		"delete_subscriptions",
+		req.Atomic,
+		time.Since(startTime),
+		successCount,
+		failureCount,
+	)
+
 	c.JSON(statusCode, response)
 }
 
 // BatchCreateResourcePools handles POST /o2ims/v1/batch/resourcePools.
 // Creates multiple resource pools in a single request.
 func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
+	startTime := time.Now()
 	ctx := c.Request.Context()
 
 	h.logger.Info("batch creating resource pools",
@@ -657,6 +688,15 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 		zap.Int("failure_count", response.FailureCount),
 	)
 
+	// Record metrics
+	h.metrics.RecordBatchOperation(
+		"create_resource_pools",
+		req.Atomic,
+		time.Since(startTime),
+		response.SuccessCount,
+		response.FailureCount,
+	)
+
 	c.JSON(statusCode, response)
 }
 
@@ -730,6 +770,7 @@ func (h *BatchHandler) rollbackResourcePools(ctx context.Context, ids []string) 
 // BatchDeleteResourcePools handles POST /o2ims/v1/batch/resourcePools/delete.
 // Deletes multiple resource pools in a single request.
 func (h *BatchHandler) BatchDeleteResourcePools(c *gin.Context) {
+	startTime := time.Now()
 	ctx := c.Request.Context()
 
 	h.logger.Info("batch deleting resource pools",
@@ -870,6 +911,15 @@ func (h *BatchHandler) BatchDeleteResourcePools(c *gin.Context) {
 	h.logger.Info("batch resource pools deleted",
 		zap.Int("success_count", successCount),
 		zap.Int("failure_count", failureCount),
+	)
+
+	// Record metrics
+	h.metrics.RecordBatchOperation(
+		"delete_resource_pools",
+		req.Atomic,
+		time.Since(startTime),
+		successCount,
+		failureCount,
 	)
 
 	c.JSON(statusCode, response)

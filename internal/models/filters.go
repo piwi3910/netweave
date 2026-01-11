@@ -489,8 +489,34 @@ func (f *Filter) ShouldIncludeField(fieldName string) bool {
 	return false
 }
 
+// deepCopyValue creates a deep copy of a value to prevent shared references.
+// This prevents memory leaks where modifications to filtered data affect the original.
+func deepCopyValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case map[string]interface{}:
+		copied := make(map[string]interface{}, len(v))
+		for key, val := range v {
+			copied[key] = deepCopyValue(val)
+		}
+		return copied
+	case []interface{}:
+		copied := make([]interface{}, len(v))
+		for i, val := range v {
+			copied[i] = deepCopyValue(val)
+		}
+		return copied
+	case []string:
+		copied := make([]string, len(v))
+		copy(copied, v)
+		return copied
+	default:
+		// Primitive types (string, int, bool, float64, etc.) are copied by value
+		return v
+	}
+}
+
 // SelectFields filters a map to only include requested fields.
-// This is useful for filtering response objects based on field selection.
+// Returns a deep copy to prevent shared references with the original data.
 func (f *Filter) SelectFields(data map[string]interface{}) map[string]interface{} {
 	if !f.HasFieldSelection() {
 		return data
@@ -503,8 +529,8 @@ func (f *Filter) SelectFields(data map[string]interface{}) map[string]interface{
 
 		if value, exists := data[key]; exists {
 			if len(parts) == 1 {
-				// Direct field, include it
-				result[key] = value
+				// Direct field, include it with deep copy
+				result[key] = deepCopyValue(value)
 			} else {
 				// Nested field, need to recurse
 				if nestedMap, ok := value.(map[string]interface{}); ok {
