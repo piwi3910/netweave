@@ -536,6 +536,57 @@ func sanitizeResourcePoolID(name string) string {
 	return strings.ToLower(result.String())
 }
 
+// sanitizeResourceTypeID sanitizes a resource type ID for use in resource IDs.
+// Ensures the resulting ID is URL-safe and prevents injection attacks.
+func sanitizeResourceTypeID(typeID string) string {
+	// Replace spaces and slashes with hyphens
+	sanitized := strings.NewReplacer(
+		" ", "-",
+		"/", "-",
+		"\\", "-",
+		"..", "-",
+		":", "-",
+		"*", "-",
+		"?", "-",
+		"\"", "-",
+		"<", "-",
+		">", "-",
+		"|", "-",
+	).Replace(typeID)
+
+	// Remove any remaining non-alphanumeric characters except hyphens and underscores
+	var result strings.Builder
+	for _, ch := range sanitized {
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+			(ch >= '0' && ch <= '9') || ch == '-' || ch == '_' {
+			result.WriteRune(ch)
+		}
+	}
+
+	return strings.ToLower(result.String())
+}
+
+// sanitizeForLogging removes CRLF characters to prevent log injection attacks.
+// This prevents attackers from injecting fake log entries via user-controlled input.
+func sanitizeForLogging(s string) string {
+	// Remove CR, LF, and other control characters
+	sanitized := strings.NewReplacer(
+		"\r", "",
+		"\n", "",
+		"\t", " ",
+	).Replace(s)
+
+	// Remove any remaining control characters (ASCII 0-31 except space)
+	var result strings.Builder
+	for _, ch := range sanitized {
+		if ch >= 32 || ch == ' ' {
+			result.WriteRune(ch)
+		}
+	}
+
+	return result.String()
+}
+
 // isValidIDCharacter checks if a character is valid for resource pool IDs.
 func isValidIDCharacter(ch rune) bool {
 	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
@@ -649,7 +700,7 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 
 	s.logger.Info("resource pool created",
 		zap.String("resource_pool_id", created.ResourcePoolID),
-		zap.String("name", created.Name))
+		zap.String("name", sanitizeForLogging(created.Name)))
 
 	// Set Location header for REST compliance
 	c.Header("Location", "/o2ims/v1/resourcePools/"+created.ResourcePoolID)
@@ -706,7 +757,7 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 
 	s.logger.Info("resource pool updated",
 		zap.String("resource_pool_id", updated.ResourcePoolID),
-		zap.String("name", updated.Name))
+		zap.String("name", sanitizeForLogging(updated.Name)))
 
 	c.JSON(http.StatusOK, updated)
 }
@@ -942,8 +993,9 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 	}
 
 	// Generate resource ID if not provided
+	// Sanitize resourceTypeID to ensure URL-safe IDs
 	if req.ResourceID == "" {
-		req.ResourceID = "res-" + req.ResourceTypeID + "-" + uuid.New().String()[:12]
+		req.ResourceID = "res-" + sanitizeResourceTypeID(req.ResourceTypeID) + "-" + uuid.New().String()[:12]
 	}
 
 	// Create resource via adapter
@@ -970,7 +1022,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 
 	s.logger.Info("resource created",
 		zap.String("resource_id", created.ResourceID),
-		zap.String("resource_type_id", created.ResourceTypeID))
+		zap.String("resource_type_id", sanitizeForLogging(created.ResourceTypeID)))
 
 	// Set Location header for REST compliance
 	c.Header("Location", "/o2ims/v1/resources/"+created.ResourceID)
@@ -1093,7 +1145,7 @@ func (s *Server) applyResourceUpdate(c *gin.Context, resourceID string, req, exi
 
 	s.logger.Info("resource updated",
 		zap.String("resource_id", updated.ResourceID),
-		zap.String("resource_type_id", updated.ResourceTypeID))
+		zap.String("resource_type_id", sanitizeForLogging(updated.ResourceTypeID)))
 
 	c.JSON(http.StatusOK, updated)
 }
