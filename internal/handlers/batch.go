@@ -183,6 +183,26 @@ func (h *BatchHandler) BatchCreateSubscriptions(c *gin.Context) {
 			defer wg.Done()
 			defer func() { <-semaphore }() // Release worker slot
 
+			// Check for context cancellation
+			select {
+			case <-ctx.Done():
+				mu.Lock()
+				results[idx] = BatchResult{
+					Index:   idx,
+					Status:  http.StatusRequestTimeout,
+					Success: false,
+					Error: &models.ErrorResponse{
+						Error:   "RequestCanceled",
+						Message: "Request canceled or timed out",
+						Code:    http.StatusRequestTimeout,
+					},
+				}
+				atomic.AddInt32(&failureCount, 1)
+				mu.Unlock()
+				return
+			default:
+			}
+
 			result := h.createSingleSubscription(ctx, subscription)
 			result.Index = idx
 
@@ -390,6 +410,18 @@ func (h *BatchHandler) BatchDeleteSubscriptions(c *gin.Context) {
 	successCount := 0
 	failureCount := 0
 
+	// Check for context cancellation before processing
+	select {
+	case <-ctx.Done():
+		c.JSON(http.StatusRequestTimeout, models.ErrorResponse{
+			Error:   "RequestCanceled",
+			Message: "Request canceled or timed out",
+			Code:    http.StatusRequestTimeout,
+		})
+		return
+	default:
+	}
+
 	// For atomic operations, we need to verify all exist first
 	if req.Atomic {
 		for i, id := range req.SubscriptionIDs {
@@ -506,6 +538,22 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 		return
 	}
 
+	// Validate batch size
+	batchSize := len(req.ResourcePools)
+	if batchSize < MinBatchSize || batchSize > MaxBatchSize {
+		h.logger.Warn("invalid batch size",
+			zap.Int("batch_size", batchSize),
+			zap.Int("min", MinBatchSize),
+			zap.Int("max", MaxBatchSize),
+		)
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: fmt.Sprintf("Batch size must be between %d and %d, got %d", MinBatchSize, MaxBatchSize, batchSize),
+			Code:    http.StatusBadRequest,
+		})
+		return
+	}
+
 	results := make([]BatchResult, len(req.ResourcePools))
 	createdIDs := make([]string, 0, len(req.ResourcePools))
 	var mu sync.Mutex
@@ -521,6 +569,26 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 		go func(idx int, resourcePool models.ResourcePool) {
 			defer wg.Done()
 			defer func() { <-semaphore }() // Release worker slot
+
+			// Check for context cancellation
+			select {
+			case <-ctx.Done():
+				mu.Lock()
+				results[idx] = BatchResult{
+					Index:   idx,
+					Status:  http.StatusRequestTimeout,
+					Success: false,
+					Error: &models.ErrorResponse{
+						Error:   "RequestCanceled",
+						Message: "Request canceled or timed out",
+						Code:    http.StatusRequestTimeout,
+					},
+				}
+				atomic.AddInt32(&failureCount, 1)
+				mu.Unlock()
+				return
+			default:
+			}
 
 			result := h.createSingleResourcePool(ctx, resourcePool)
 			result.Index = idx
@@ -679,9 +747,37 @@ func (h *BatchHandler) BatchDeleteResourcePools(c *gin.Context) {
 		return
 	}
 
+	// Validate batch size
+	batchSize := len(req.ResourcePoolIDs)
+	if batchSize < MinBatchSize || batchSize > MaxBatchSize {
+		h.logger.Warn("invalid batch size",
+			zap.Int("batch_size", batchSize),
+			zap.Int("min", MinBatchSize),
+			zap.Int("max", MaxBatchSize),
+		)
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: fmt.Sprintf("Batch size must be between %d and %d, got %d", MinBatchSize, MaxBatchSize, batchSize),
+			Code:    http.StatusBadRequest,
+		})
+		return
+	}
+
 	results := make([]BatchResult, len(req.ResourcePoolIDs))
 	successCount := 0
 	failureCount := 0
+
+	// Check for context cancellation before processing
+	select {
+	case <-ctx.Done():
+		c.JSON(http.StatusRequestTimeout, models.ErrorResponse{
+			Error:   "RequestCanceled",
+			Message: "Request canceled or timed out",
+			Code:    http.StatusRequestTimeout,
+		})
+		return
+	default:
+	}
 
 	// For atomic operations, verify all exist first
 	if req.Atomic {
