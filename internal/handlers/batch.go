@@ -414,13 +414,25 @@ func (h *BatchHandler) executeSequentially(
 }
 
 // determineStatusCode determines HTTP status based on success/failure counts.
+// Returns:
+//   - 400 Bad Request: All operations failed (total failure)
+//   - 207 Multi-Status: Mixed success and failure (partial success)
+//   - 200 OK: All operations succeeded (total success)
+//
+// Rationale: Using 400 for total failure allows clients to distinguish between
+// "total failure" and "partial failure" without parsing the response body.
+// This follows RFC 7231 semantics where 400 indicates the request couldn't
+// be processed due to client error (invalid data in all items).
 func (h *BatchHandler) determineStatusCode(successCount, failureCount int) int {
 	if failureCount > 0 && successCount == 0 {
+		// All operations failed - return 400 to indicate total failure
 		return http.StatusBadRequest
 	}
 	if failureCount > 0 {
+		// Mixed results - return 207 Multi-Status
 		return http.StatusMultiStatus
 	}
+	// All operations succeeded
 	return http.StatusOK
 }
 
