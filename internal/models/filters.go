@@ -492,6 +492,10 @@ func (f *Filter) ShouldIncludeField(fieldName string) bool {
 // deepCopyValue creates a deep copy of a value to prevent shared references.
 // This prevents memory leaks where modifications to filtered data affect the original.
 func deepCopyValue(value interface{}) interface{} {
+	if value == nil {
+		return nil
+	}
+
 	switch v := value.(type) {
 	case map[string]interface{}:
 		copied := make(map[string]interface{}, len(v))
@@ -499,18 +503,49 @@ func deepCopyValue(value interface{}) interface{} {
 			copied[key] = deepCopyValue(val)
 		}
 		return copied
+
 	case []interface{}:
 		copied := make([]interface{}, len(v))
 		for i, val := range v {
 			copied[i] = deepCopyValue(val)
 		}
 		return copied
+
 	case []string:
 		copied := make([]string, len(v))
 		copy(copied, v)
 		return copied
+
+	case []int:
+		copied := make([]int, len(v))
+		copy(copied, v)
+		return copied
+
+	case []int64:
+		copied := make([]int64, len(v))
+		copy(copied, v)
+		return copied
+
+	case []float64:
+		copied := make([]float64, len(v))
+		copy(copied, v)
+		return copied
+
+	case []bool:
+		copied := make([]bool, len(v))
+		copy(copied, v)
+		return copied
+
+	case []map[string]interface{}:
+		copied := make([]map[string]interface{}, len(v))
+		for i, m := range v {
+			copied[i] = deepCopyValue(m).(map[string]interface{})
+		}
+		return copied
+
 	default:
-		// Primitive types (string, int, bool, float64, etc.) are copied by value
+		// Primitive types (string, int, int64, bool, float64, etc.) are copied by value
+		// Complex types not explicitly handled are returned as-is (may share references)
 		return v
 	}
 }
