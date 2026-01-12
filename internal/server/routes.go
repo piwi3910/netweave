@@ -1130,6 +1130,19 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 	// Generate resource ID if not provided (using plain UUID for simplicity)
 	if req.ResourceID == "" {
 		req.ResourceID = uuid.New().String()
+	} else {
+		// Validate client-provided resource ID is a valid UUID
+		// This prevents path traversal attacks (e.g., "../../../etc/passwd")
+		if _, err := uuid.Parse(req.ResourceID); err != nil {
+			s.logger.Warn("invalid resource ID format",
+				zap.String("resource_id", sanitizeForLogging(req.ResourceID)))
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "BadRequest",
+				"message": "resourceId must be a valid UUID",
+				"code":    http.StatusBadRequest,
+			})
+			return
+		}
 	}
 
 	// Create resource via adapter

@@ -105,10 +105,33 @@ if _, err := uuid.Parse(resourceID); err != nil {
 }
 ```
 
-### Related Changes
+### Related Changes & ID Format Rationale
 
-- Subscription IDs: Already using `sub-{uuid}` format (no change)
-- Resource Pool IDs: Using `pool-{name}-{uuid}` format (no change, human-readable names valuable)
+**Why Only Resources Use Plain UUIDs:**
+
+The ID format choice for each O2-IMS entity type is intentional and based on specific use cases:
+
+1. **Resources: Plain UUID** (`a1b2c3d4-e5f6-7890-abcd-1234567890ab`)
+   - **Rationale**: Resource type is already captured in `resourceTypeId` field (redundant prefix)
+   - **Benefit**: Shortest, simplest format; avoids over-engineering
+   - **Use Case**: Resources are referenced by UUID in queries; type is always known from context
+
+2. **Subscriptions: Prefixed UUID** (`sub-{uuid}`)
+   - **Rationale**: Helps identify subscription IDs in logs and troubleshooting
+   - **Benefit**: Distinguishes subscriptions from resources/pools when IDs appear in mixed contexts
+   - **Use Case**: Subscriptions often logged separately; prefix aids debugging
+
+3. **Resource Pools: Human-Readable + UUID** (`pool-{sanitized-name}-{uuid}`)
+   - **Rationale**: Operations teams benefit from recognizable pool names in dashboards
+   - **Benefit**: Human-readable names make monitoring and troubleshooting easier
+   - **Use Case**: Pool IDs frequently appear in monitoring dashboards and alerts
+   - **Example**: `pool-gpu-production-a1b2c3d4` is more actionable than plain UUID in alerts
+
+**Design Principle:**
+- Use **simplest format that serves the use case**
+- Add complexity (prefixes, names) only when it provides **operational value**
+- Resources don't need prefixes because type information is redundant
+- Subscriptions and pools benefit from additional context in logs/dashboards
 
 ### Documentation Updates
 

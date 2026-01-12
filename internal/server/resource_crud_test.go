@@ -204,6 +204,89 @@ func TestResourceCRUD(t *testing.T) {
 		assert.Contains(t, resp.Body.String(), "resource pool ID is required")
 	})
 
+	t.Run("POST /resources - security: reject invalid UUID (path traversal)", func(t *testing.T) {
+		// Test path traversal attack attempt
+		resource := adapter.Resource{
+			ResourceID:     "../../../etc/passwd",
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Description:    "Malicious resource",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "resourceId must be a valid UUID")
+	})
+
+	t.Run("POST /resources - security: reject invalid UUID (SQL injection)", func(t *testing.T) {
+		// Test SQL injection attempt
+		resource := adapter.Resource{
+			ResourceID:     "'; DROP TABLE resources; --",
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Description:    "Malicious resource",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "resourceId must be a valid UUID")
+	})
+
+	t.Run("POST /resources - accept valid client-provided UUID", func(t *testing.T) {
+		// Test valid UUID is accepted
+		validUUID := "550e8400-e29b-41d4-a716-446655440001"
+		resource := adapter.Resource{
+			ResourceID:     validUUID,
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Description:    "Resource with client-provided UUID",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusCreated, resp.Code)
+
+		var created adapter.Resource
+		err = json.Unmarshal(resp.Body.Bytes(), &created)
+		require.NoError(t, err)
+		assert.Equal(t, validUUID, created.ResourceID)
+	})
+
 	// Test PUT /resources/:id
 	t.Run("PUT /resources/:id - update resource description", func(t *testing.T) {
 		resource := adapter.Resource{
