@@ -187,145 +187,154 @@ func (p *Plugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequ
 	}
 	p.mu.RUnlock()
 
-	// Generate execution ID
 	executionID := uuid.New().String()
 
-	// Map workflow to OSM NS operation
+	// Dispatch to workflow-specific handler
 	switch workflow.WorkflowName {
 	case "instantiate":
-		// Extract NS instantiation parameters
-		nsName, _ := workflow.Parameters["nsName"].(string)
-		nsdID, _ := workflow.Parameters["nsdId"].(string)
-		vimAccountID, _ := workflow.Parameters["vimAccountId"].(string)
-
-		if nsName == "" || nsdID == "" || vimAccountID == "" {
-			return nil, fmt.Errorf("nsName, nsdId, and vimAccountId are required for instantiate workflow")
-		}
-
-		req := &DeploymentRequest{
-			NSName:       nsName,
-			NSDId:        nsdID,
-			VIMAccountID: vimAccountID,
-		}
-
-		if desc, ok := workflow.Parameters["description"].(string); ok {
-			req.NSDescription = desc
-		}
-
-		nsID, err := p.InstantiateNS(ctx, req)
-		if err != nil {
-			return nil, fmt.Errorf("failed to instantiate NS: %w", err)
-		}
-
-		return &smo.WorkflowExecution{
-			ExecutionID:  executionID,
-			WorkflowName: workflow.WorkflowName,
-			Status:       "RUNNING",
-			StartedAt:    time.Now(),
-			Extensions: map[string]interface{}{
-				"osm.nsInstanceId": nsID,
-				"osm.operation":    "instantiate",
-			},
-		}, nil
-
+		return p.executeInstantiate(ctx, executionID, workflow)
 	case "terminate":
-		nsID, _ := workflow.Parameters["nsInstanceId"].(string)
-		if nsID == "" {
-			return nil, fmt.Errorf("nsInstanceId is required for terminate workflow")
-		}
-
-		if err := p.TerminateNS(ctx, nsID); err != nil {
-			return nil, fmt.Errorf("failed to terminate NS: %w", err)
-		}
-
-		return &smo.WorkflowExecution{
-			ExecutionID:  executionID,
-			WorkflowName: workflow.WorkflowName,
-			Status:       "RUNNING",
-			StartedAt:    time.Now(),
-			Extensions: map[string]interface{}{
-				"osm.nsInstanceId": nsID,
-				"osm.operation":    "terminate",
-			},
-		}, nil
-
+		return p.executeTerminate(ctx, executionID, workflow)
 	case "scale":
-		nsID, _ := workflow.Parameters["nsInstanceId"].(string)
-		if nsID == "" {
-			return nil, fmt.Errorf("nsInstanceId is required for scale workflow")
-		}
-
-		scaleType, _ := workflow.Parameters["scaleType"].(string)
-		if scaleType == "" {
-			scaleType = "SCALE_VNF"
-		}
-
-		scaleVnfType, _ := workflow.Parameters["scaleVnfType"].(string)
-		scalingGroupDescriptor, _ := workflow.Parameters["scalingGroupDescriptor"].(string)
-		memberVnfIndex, _ := workflow.Parameters["memberVnfIndex"].(string)
-
-		scaleReq := &NSScaleRequest{
-			ScaleType: scaleType,
-			ScaleVnfData: ScaleVnfData{
-				ScaleVnfType: scaleVnfType,
-				ScaleByStepData: ScaleByStepData{
-					ScalingGroupDescriptor: scalingGroupDescriptor,
-					MemberVnfIndex:         memberVnfIndex,
-				},
-			},
-		}
-
-		if err := p.ScaleNS(ctx, nsID, scaleReq); err != nil {
-			return nil, fmt.Errorf("failed to scale NS: %w", err)
-		}
-
-		return &smo.WorkflowExecution{
-			ExecutionID:  executionID,
-			WorkflowName: workflow.WorkflowName,
-			Status:       "RUNNING",
-			StartedAt:    time.Now(),
-			Extensions: map[string]interface{}{
-				"osm.nsInstanceId": nsID,
-				"osm.operation":    "scale",
-			},
-		}, nil
-
+		return p.executeScale(ctx, executionID, workflow)
 	case "heal":
-		nsID, _ := workflow.Parameters["nsInstanceId"].(string)
-		vnfInstanceID, _ := workflow.Parameters["vnfInstanceId"].(string)
-		if nsID == "" || vnfInstanceID == "" {
-			return nil, fmt.Errorf("nsInstanceId and vnfInstanceId are required for heal workflow")
-		}
-
-		cause, _ := workflow.Parameters["cause"].(string)
-
-		healReq := &NSHealRequest{
-			VNFInstanceID: vnfInstanceID,
-			Cause:         cause,
-		}
-
-		if err := p.HealNS(ctx, nsID, healReq); err != nil {
-			return nil, fmt.Errorf("failed to heal NS: %w", err)
-		}
-
-		return &smo.WorkflowExecution{
-			ExecutionID:  executionID,
-			WorkflowName: workflow.WorkflowName,
-			Status:       "RUNNING",
-			StartedAt:    time.Now(),
-			Extensions: map[string]interface{}{
-				"osm.nsInstanceId":  nsID,
-				"osm.vnfInstanceId": vnfInstanceID,
-				"osm.operation":     "heal",
-			},
-		}, nil
-
+		return p.executeHeal(ctx, executionID, workflow)
 	default:
 		return nil, fmt.Errorf("unsupported workflow: %s", workflow.WorkflowName)
 	}
 }
 
-// GetWorkflowStatus retrieves the current status of a workflow execution.
+func (p *Plugin) executeInstantiate(ctx context.Context, executionID string, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
+	nsName, _ := workflow.Parameters["nsName"].(string)
+	nsdID, _ := workflow.Parameters["nsdId"].(string)
+	vimAccountID, _ := workflow.Parameters["vimAccountId"].(string)
+
+	if nsName == "" || nsdID == "" || vimAccountID == "" {
+		return nil, fmt.Errorf("nsName, nsdId, and vimAccountId are required for instantiate workflow")
+	}
+
+	req := &DeploymentRequest{
+		NSName:       nsName,
+		NSDId:        nsdID,
+		VIMAccountID: vimAccountID,
+	}
+
+	if desc, ok := workflow.Parameters["description"].(string); ok {
+		req.NSDescription = desc
+	}
+
+	nsID, err := p.InstantiateNS(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to instantiate NS: %w", err)
+	}
+
+	return &smo.WorkflowExecution{
+		ExecutionID:  executionID,
+		WorkflowName: workflow.WorkflowName,
+		Status:       "RUNNING",
+		StartedAt:    time.Now(),
+		Extensions: map[string]interface{}{
+			"osm.nsInstanceId": nsID,
+			"osm.operation":    "instantiate",
+		},
+	}, nil
+}
+
+func (p *Plugin) executeTerminate(ctx context.Context, executionID string, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
+	nsID, _ := workflow.Parameters["nsInstanceId"].(string)
+	if nsID == "" {
+		return nil, fmt.Errorf("nsInstanceId is required for terminate workflow")
+	}
+
+	if err := p.TerminateNS(ctx, nsID); err != nil {
+		return nil, fmt.Errorf("failed to terminate NS: %w", err)
+	}
+
+	return &smo.WorkflowExecution{
+		ExecutionID:  executionID,
+		WorkflowName: workflow.WorkflowName,
+		Status:       "RUNNING",
+		StartedAt:    time.Now(),
+		Extensions: map[string]interface{}{
+			"osm.nsInstanceId": nsID,
+			"osm.operation":    "terminate",
+		},
+	}, nil
+}
+
+func (p *Plugin) executeScale(ctx context.Context, executionID string, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
+	nsID, _ := workflow.Parameters["nsInstanceId"].(string)
+	if nsID == "" {
+		return nil, fmt.Errorf("nsInstanceId is required for scale workflow")
+	}
+
+	scaleType, _ := workflow.Parameters["scaleType"].(string)
+	if scaleType == "" {
+		scaleType = "SCALE_VNF"
+	}
+
+	scaleVnfType, _ := workflow.Parameters["scaleVnfType"].(string)
+	scalingGroupDescriptor, _ := workflow.Parameters["scalingGroupDescriptor"].(string)
+	memberVnfIndex, _ := workflow.Parameters["memberVnfIndex"].(string)
+
+	scaleReq := &NSScaleRequest{
+		ScaleType: scaleType,
+		ScaleVnfData: ScaleVnfData{
+			ScaleVnfType: scaleVnfType,
+			ScaleByStepData: ScaleByStepData{
+				ScalingGroupDescriptor: scalingGroupDescriptor,
+				MemberVnfIndex:         memberVnfIndex,
+			},
+		},
+	}
+
+	if err := p.ScaleNS(ctx, nsID, scaleReq); err != nil {
+		return nil, fmt.Errorf("failed to scale NS: %w", err)
+	}
+
+	return &smo.WorkflowExecution{
+		ExecutionID:  executionID,
+		WorkflowName: workflow.WorkflowName,
+		Status:       "RUNNING",
+		StartedAt:    time.Now(),
+		Extensions: map[string]interface{}{
+			"osm.nsInstanceId": nsID,
+			"osm.operation":    "scale",
+		},
+	}, nil
+}
+
+func (p *Plugin) executeHeal(ctx context.Context, executionID string, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
+	nsID, _ := workflow.Parameters["nsInstanceId"].(string)
+	vnfInstanceID, _ := workflow.Parameters["vnfInstanceId"].(string)
+	if nsID == "" || vnfInstanceID == "" {
+		return nil, fmt.Errorf("nsInstanceId and vnfInstanceID are required for heal workflow")
+	}
+
+	cause, _ := workflow.Parameters["cause"].(string)
+
+	healReq := &NSHealRequest{
+		VNFInstanceID: vnfInstanceID,
+		Cause:         cause,
+	}
+
+	if err := p.HealNS(ctx, nsID, healReq); err != nil {
+		return nil, fmt.Errorf("failed to heal NS: %w", err)
+	}
+
+	return &smo.WorkflowExecution{
+		ExecutionID:  executionID,
+		WorkflowName: workflow.WorkflowName,
+		Status:       "RUNNING",
+		StartedAt:    time.Now(),
+		Extensions: map[string]interface{}{
+			"osm.nsInstanceId":  nsID,
+			"osm.vnfInstanceId": vnfInstanceID,
+			"osm.operation":     "heal",
+		},
+	}, nil
+}
+
 // For OSM, this maps to checking the NS instance status.
 func (p *Plugin) GetWorkflowStatus(_ context.Context, executionID string) (*smo.WorkflowStatus, error) {
 	if executionID == "" {
