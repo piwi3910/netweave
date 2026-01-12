@@ -206,109 +206,22 @@ func (n *WebhookNotifier) NotifyWithRetry(ctx context.Context, event *Event, sub
 	// Attempt delivery with retries
 	backoff := initialBackoff
 	for attempt := 1; attempt <= n.config.MaxRetries; attempt++ {
-		delivery.Attempts = attempt
-		delivery.LastAttemptAt = time.Now().UTC()
-		delivery.Status = DeliveryStatusDelivering
+		// Attempt delivery
+		err := n.attemptDelivery(ctx, delivery, subscription, cb, notification, attempt)
 
-		// Track attempt
-		if n.deliveryTracker != nil {
-			if err := n.deliveryTracker.Track(ctx, delivery); err != nil {
-				n.logger.Warn("failed to track delivery attempt", zap.Error(err))
-			}
-		}
-
-		// Execute with circuit breaker
-		startTime := time.Now()
-		err := n.executeWithCircuitBreaker(ctx, cb, subscription.Callback, notification)
-		responseTime := time.Since(startTime).Milliseconds()
-
-		delivery.ResponseTime = responseTime
-
-		// Record metrics
-		RecordNotificationResponseTime(subscription.ID, fmt.Sprintf("%d", delivery.HTTPStatusCode), float64(responseTime))
-
+		// Handle success
 		if err == nil {
-			// Success
-			delivery.Status = DeliveryStatusDelivered
-			delivery.HTTPStatusCode = http.StatusOK
-			delivery.CompletedAt = time.Now().UTC()
-
-			// Record success metrics
-			duration := time.Since(delivery.CreatedAt).Seconds()
-			RecordNotificationDelivered("success", subscription.ID, duration, attempt)
-
-			n.logger.Info("notification delivered successfully",
-				zap.String("delivery_id", delivery.ID),
-				zap.String("subscription_id", subscription.ID),
-				zap.String("callback", subscription.Callback),
-				zap.Int("attempts", attempt),
-				zap.Int64("response_time_ms", responseTime),
-			)
-
-			if n.deliveryTracker != nil {
-				if err := n.deliveryTracker.Track(ctx, delivery); err != nil {
-					n.logger.Warn("failed to track successful delivery", zap.Error(err))
-				}
-			}
-
-			return delivery, nil
+			return n.handleDeliverySuccess(ctx, delivery, subscription, attempt)
 		}
 
-		// Handle failure
-		delivery.LastError = err.Error()
-		delivery.Status = DeliveryStatusRetrying
-
-		n.logger.Warn("notification delivery failed",
-			zap.String("delivery_id", delivery.ID),
-			zap.String("subscription_id", subscription.ID),
-			zap.String("callback", subscription.Callback),
-			zap.Int("attempt", attempt),
-			zap.Int("max_attempts", n.config.MaxRetries),
-			zap.Error(err),
-		)
-
-		// Check if this is the last attempt
+		// Handle failure (including final failure)
 		if attempt >= n.config.MaxRetries {
-			delivery.Status = DeliveryStatusFailed
-			delivery.CompletedAt = time.Now().UTC()
-
-			// Record failure metrics
-			duration := time.Since(delivery.CreatedAt).Seconds()
-			RecordNotificationDelivered("failed", subscription.ID, duration, attempt)
-
-			n.logger.Error("notification delivery failed after all retries",
-				zap.String("delivery_id", delivery.ID),
-				zap.String("subscription_id", subscription.ID),
-				zap.String("callback", subscription.Callback),
-				zap.Int("attempts", attempt),
-				zap.Error(err),
-			)
-
-			if n.deliveryTracker != nil {
-				if err := n.deliveryTracker.Track(ctx, delivery); err != nil {
-					n.logger.Warn("failed to track failed delivery", zap.Error(err))
-				}
-			}
-
-			return delivery, fmt.Errorf("delivery failed after %d attempts: %w", attempt, err)
+			return n.handleFinalFailure(ctx, delivery, subscription, attempt, err)
 		}
 
-		// Calculate next retry time with exponential backoff
-		delivery.NextAttemptAt = time.Now().Add(backoff)
-
-		if n.deliveryTracker != nil {
-			if err := n.deliveryTracker.Track(ctx, delivery); err != nil {
-				n.logger.Warn("failed to track retry delivery", zap.Error(err))
-			}
-		}
-
-		// Wait before retry
-		select {
-		case <-ctx.Done():
-			delivery.Status = DeliveryStatusFailed
-			delivery.CompletedAt = time.Now().UTC()
-			return delivery, fmt.Errorf("notification delivery cancelled: %w", ctx.Err())
-		case <-time.After(backoff):
+		// Prepare for retry
+		if retryErr := n.prepareRetry(ctx, delivery, subscription, attempt, err, backoff); retryErr != nil {
+			return delivery, retryErr
 		}
 
 		// Increase backoff for next attempt
@@ -319,6 +232,144 @@ func (n *WebhookNotifier) NotifyWithRetry(ctx context.Context, event *Event, sub
 	}
 
 	return delivery, errors.New("unexpected end of retry loop")
+}
+
+// attemptDelivery attempts a single notification delivery.
+func (n *WebhookNotifier) attemptDelivery(
+	ctx context.Context,
+	delivery *NotificationDelivery,
+	subscription *storage.Subscription,
+	cb *gobreaker.CircuitBreaker,
+	notification *models.Notification,
+	attempt int,
+) error {
+	delivery.Attempts = attempt
+	delivery.LastAttemptAt = time.Now().UTC()
+	delivery.Status = DeliveryStatusDelivering
+
+	// Track attempt
+	if n.deliveryTracker != nil {
+		if err := n.deliveryTracker.Track(ctx, delivery); err != nil {
+			n.logger.Warn("failed to track delivery attempt", zap.Error(err))
+		}
+	}
+
+	// Execute with circuit breaker
+	startTime := time.Now()
+	err := n.executeWithCircuitBreaker(ctx, cb, subscription.Callback, notification)
+	responseTime := time.Since(startTime).Milliseconds()
+
+	delivery.ResponseTime = responseTime
+
+	// Record metrics
+	RecordNotificationResponseTime(subscription.ID, fmt.Sprintf("%d", delivery.HTTPStatusCode), float64(responseTime))
+
+	return err
+}
+
+// handleDeliverySuccess handles a successful notification delivery.
+func (n *WebhookNotifier) handleDeliverySuccess(
+	ctx context.Context,
+	delivery *NotificationDelivery,
+	subscription *storage.Subscription,
+	attempt int,
+) (*NotificationDelivery, error) {
+	delivery.Status = DeliveryStatusDelivered
+	delivery.HTTPStatusCode = http.StatusOK
+	delivery.CompletedAt = time.Now().UTC()
+
+	// Record success metrics
+	duration := time.Since(delivery.CreatedAt).Seconds()
+	RecordNotificationDelivered("success", subscription.ID, duration, attempt)
+
+	n.logger.Info("notification delivered successfully",
+		zap.String("delivery_id", delivery.ID),
+		zap.String("subscription_id", subscription.ID),
+		zap.String("callback", subscription.Callback),
+		zap.Int("attempts", attempt),
+		zap.Int64("response_time_ms", delivery.ResponseTime),
+	)
+
+	if n.deliveryTracker != nil {
+		if err := n.deliveryTracker.Track(ctx, delivery); err != nil {
+			n.logger.Warn("failed to track successful delivery", zap.Error(err))
+		}
+	}
+
+	return delivery, nil
+}
+
+// handleFinalFailure handles the final delivery failure after all retries exhausted.
+func (n *WebhookNotifier) handleFinalFailure(
+	ctx context.Context,
+	delivery *NotificationDelivery,
+	subscription *storage.Subscription,
+	attempt int,
+	err error,
+) (*NotificationDelivery, error) {
+	delivery.LastError = err.Error()
+	delivery.Status = DeliveryStatusFailed
+	delivery.CompletedAt = time.Now().UTC()
+
+	// Record failure metrics
+	duration := time.Since(delivery.CreatedAt).Seconds()
+	RecordNotificationDelivered("failed", subscription.ID, duration, attempt)
+
+	n.logger.Error("notification delivery failed after all retries",
+		zap.String("delivery_id", delivery.ID),
+		zap.String("subscription_id", subscription.ID),
+		zap.String("callback", subscription.Callback),
+		zap.Int("attempts", attempt),
+		zap.Error(err),
+	)
+
+	if n.deliveryTracker != nil {
+		if trackErr := n.deliveryTracker.Track(ctx, delivery); trackErr != nil {
+			n.logger.Warn("failed to track failed delivery", zap.Error(trackErr))
+		}
+	}
+
+	return delivery, fmt.Errorf("delivery failed after %d attempts: %w", attempt, err)
+}
+
+// prepareRetry prepares for the next delivery retry.
+func (n *WebhookNotifier) prepareRetry(
+	ctx context.Context,
+	delivery *NotificationDelivery,
+	subscription *storage.Subscription,
+	attempt int,
+	err error,
+	backoff time.Duration,
+) error {
+	delivery.LastError = err.Error()
+	delivery.Status = DeliveryStatusRetrying
+	delivery.NextAttemptAt = time.Now().Add(backoff)
+
+	n.logger.Warn("notification delivery failed",
+		zap.String("delivery_id", delivery.ID),
+		zap.String("subscription_id", subscription.ID),
+		zap.String("callback", subscription.Callback),
+		zap.Int("attempt", attempt),
+		zap.Int("max_attempts", n.config.MaxRetries),
+		zap.Error(err),
+	)
+
+	if n.deliveryTracker != nil {
+		if trackErr := n.deliveryTracker.Track(ctx, delivery); trackErr != nil {
+			n.logger.Warn("failed to track retry delivery", zap.Error(trackErr))
+		}
+	}
+
+	// Wait before retry
+	select {
+	case <-ctx.Done():
+		delivery.Status = DeliveryStatusFailed
+		delivery.CompletedAt = time.Now().UTC()
+		return fmt.Errorf("notification delivery cancelled: %w", ctx.Err())
+	case <-time.After(backoff):
+	}
+
+	return nil
 }
 
 // buildNotification builds the O2-IMS notification payload.
