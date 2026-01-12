@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -682,15 +683,57 @@ func (m *Middleware) extractEmail(emails []string) string {
 // shouldSkipAuth checks if the path should skip authentication.
 func (m *Middleware) shouldSkipAuth(path string) bool {
 	for _, skipPath := range m.config.SkipPaths {
-		if path == skipPath {
-			return true
-		}
-		// Support prefix matching with trailing wildcard.
-		if strings.HasSuffix(skipPath, "*") && strings.HasPrefix(path, skipPath[:len(skipPath)-1]) {
+		if matchesPathPattern(path, skipPath) {
 			return true
 		}
 	}
 	return false
+}
+
+// matchesPathPattern checks if a path matches a pattern with wildcards.
+// Supports both simple trailing wildcards (/api/public/*) and
+// glob-style wildcards (/api/*/public/*).
+// The last * in a pattern can match multiple path segments.
+func matchesPathPattern(path, pattern string) bool {
+	// Exact match
+	if path == pattern {
+		return true
+	}
+
+	// No wildcards - no match
+	if !strings.Contains(pattern, "*") {
+		return false
+	}
+
+	// Convert pattern to regex
+	// Escape regex special characters except *
+	regexPattern := regexp.QuoteMeta(pattern)
+
+	// Split on escaped \* to handle each wildcard separately
+	parts := strings.Split(regexPattern, "\\*")
+
+	// Replace each wildcard:
+	// - Non-trailing wildcards match single path segment: [^/]+
+	// - Trailing wildcard matches everything: .*
+	for i := 0; i < len(parts)-1; i++ {
+		if i == len(parts)-2 && parts[i+1] == "" {
+			// This is the last wildcard and it's at the end (trailing *)
+			parts[i] += ".*"
+		} else {
+			// Non-trailing wildcard - matches single path segment
+			parts[i] += "[^/]+"
+		}
+	}
+	regexPattern = strings.Join(parts, "")
+
+	// Anchor the pattern
+	regexPattern = "^" + regexPattern + "$"
+
+	matched, err := regexp.MatchString(regexPattern, path)
+	if err != nil {
+		return false
+	}
+	return matched
 }
 
 // logAuthFailure logs an authentication failure audit event.

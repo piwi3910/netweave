@@ -59,7 +59,13 @@ var (
 )
 
 // InitMetrics initializes and registers all Prometheus metrics.
+// Returns the existing metrics instance if already initialized (idempotent).
 func InitMetrics(namespace string) *Metrics {
+	// Return existing instance if already initialized
+	if globalMetrics != nil {
+		return globalMetrics
+	}
+
 	if namespace == "" {
 		namespace = "o2ims"
 	}
