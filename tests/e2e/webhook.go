@@ -1,6 +1,6 @@
-// Package e2e provides end-to-end testing framework.
 //go:build e2e
 
+// Package e2e provides end-to-end testing framework.
 package e2e
 
 import (

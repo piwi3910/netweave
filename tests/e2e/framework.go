@@ -1,10 +1,8 @@
+//go:build e2e
+
 // Package e2e provides end-to-end testing framework for the O2-IMS Gateway.
 // These tests verify complete user workflows by deploying the gateway to a
 // Kind cluster and executing real API calls.
-//
-// Build tag 'e2e' ensures these tests only run when explicitly requested.
-//go:build e2e
-
 package e2e
 
 import (
