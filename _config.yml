@@ -1,0 +1,87 @@
+title: netweave Documentation
+description: Complete O-RAN O2 Gateway (IMS + DMS + SMO) for Cloud-Native Infrastructure
+url: https://watteel.github.io
+baseurl: /netweave
+
+# Jekyll theme
+theme: jekyll-theme-cayman
+
+# Markdown settings
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+# Include/Exclude
+include:
+  - docs
+  - README.md
+  - ARCHITECTURE_SUMMARY.md
+
+exclude:
+  - vendor
+  - .bundle
+  - .git
+  - .github
+  - .gitignore
+  - go.mod
+  - go.sum
+  - "*.go"
+  - cmd
+  - internal
+  - pkg
+  - tests
+  - Makefile
+  - Dockerfile
+  - .golangci.yml
+  - .dockerignore
+  - .claude
+
+# Collections
+collections:
+  docs:
+    output: true
+    permalink: /docs/:path/
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+      type: "docs"
+    values:
+      layout: default
+  - scope:
+      path: ""
+    values:
+      layout: default
+
+# Plugins
+plugins:
+  - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-readme-index
+  - jekyll-titles-from-headings
+  - jekyll-github-metadata
+
+# Plugin settings
+relative_links:
+  enabled: true
+  collections: true
+
+optional_front_matter:
+  enabled: true
+
+readme_index:
+  enabled: true
+  remove_originals: false
+
+titles_from_headings:
+  enabled: true
+  strip_title: true
+  collections: true
+
+# GitHub metadata
+repository: watteel/netweave
+github:
+  is_project_page: true
+  repository_url: https://github.com/watteel/netweave
