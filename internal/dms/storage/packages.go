@@ -433,14 +433,14 @@ func (s *MemoryPackageStore) collectLatestPackages(filter *PackageFilter) []*ada
 	var results []*adapter.DeploymentPackage
 
 	for name, ids := range s.byName {
-		if filter.Name != "" && name != filter.Name {
+		if filter != nil && filter.Name != "" && name != filter.Name {
 			continue
 		}
 
 		var latest *adapter.DeploymentPackage
 		for _, id := range ids {
 			pkg := s.packages[id]
-			if filter.PackageType != "" && pkg.PackageType != filter.PackageType {
+			if filter != nil && filter.PackageType != "" && pkg.PackageType != filter.PackageType {
 				continue
 			}
 			if latest == nil || pkg.UploadedAt.After(latest.UploadedAt) {
