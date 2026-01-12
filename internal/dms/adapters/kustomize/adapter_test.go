@@ -169,7 +169,8 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 }
 
 // createTestConfigMap creates a test ConfigMap for tracking deployments.
-func createTestConfigMap(name, namespace, path string, version int) *unstructured.Unstructured {
+func createTestConfigMap(name, path string, version int) *unstructured.Unstructured {
+	namespace := "default"
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": "v1",
@@ -210,8 +211,8 @@ func TestListDeployments(t *testing.T) {
 		{
 			name: "list all deployments",
 			objects: []runtime.Object{
-				createTestConfigMap("app1", "default", "./apps/app1", 1),
-				createTestConfigMap("app2", "default", "./apps/app2", 2),
+				createTestConfigMap("app1", "./apps/app1", 1),
+				createTestConfigMap("app2", "./apps/app2", 2),
 			},
 			filter:    nil,
 			wantCount: 2,
@@ -227,9 +228,9 @@ func TestListDeployments(t *testing.T) {
 		{
 			name: "pagination - limit",
 			objects: []runtime.Object{
-				createTestConfigMap("app1", "default", "./apps/app1", 1),
-				createTestConfigMap("app2", "default", "./apps/app2", 1),
-				createTestConfigMap("app3", "default", "./apps/app3", 1),
+				createTestConfigMap("app1", "./apps/app1", 1),
+				createTestConfigMap("app2", "./apps/app2", 1),
+				createTestConfigMap("app3", "./apps/app3", 1),
 			},
 			filter:    &dmsadapter.Filter{Limit: 2},
 			wantCount: 2,
@@ -238,9 +239,9 @@ func TestListDeployments(t *testing.T) {
 		{
 			name: "pagination - offset",
 			objects: []runtime.Object{
-				createTestConfigMap("app1", "default", "./apps/app1", 1),
-				createTestConfigMap("app2", "default", "./apps/app2", 1),
-				createTestConfigMap("app3", "default", "./apps/app3", 1),
+				createTestConfigMap("app1", "./apps/app1", 1),
+				createTestConfigMap("app2", "./apps/app2", 1),
+				createTestConfigMap("app3", "./apps/app3", 1),
 			},
 			filter:    &dmsadapter.Filter{Offset: 1, Limit: 10},
 			wantCount: 2,
@@ -278,7 +279,7 @@ func TestGetDeployment(t *testing.T) {
 		{
 			name: "get existing deployment",
 			objects: []runtime.Object{
-				createTestConfigMap("my-app", "default", "./apps/my-app", 1),
+				createTestConfigMap("my-app", "./apps/my-app", 1),
 			},
 			deployID: "my-app",
 			wantErr:  false,
@@ -396,7 +397,7 @@ func TestCreateDeployment(t *testing.T) {
 
 // TestUpdateDeployment tests updating Kustomize deployments.
 func TestUpdateDeployment(t *testing.T) {
-	existing := createTestConfigMap("existing-app", "default", "./apps/existing", 1)
+	existing := createTestConfigMap("existing-app", "./apps/existing", 1)
 
 	tests := []struct {
 		name        string
@@ -479,7 +480,7 @@ func TestUpdateDeployment(t *testing.T) {
 
 // TestDeleteDeployment tests deleting Kustomize deployments.
 func TestDeleteDeployment(t *testing.T) {
-	existing := createTestConfigMap("app-to-delete", "default", "./apps", 1)
+	existing := createTestConfigMap("app-to-delete", "./apps", 1)
 
 	tests := []struct {
 		name        string
@@ -556,7 +557,7 @@ func TestRollbackDeployment(t *testing.T) {
 
 // TestGetDeploymentStatus tests retrieving deployment status.
 func TestGetDeploymentStatus(t *testing.T) {
-	existing := createTestConfigMap("status-app", "default", "./apps", 1)
+	existing := createTestConfigMap("status-app", "./apps", 1)
 
 	tests := []struct {
 		name        string
@@ -605,7 +606,7 @@ func TestGetDeploymentStatus(t *testing.T) {
 
 // TestGetDeploymentHistory tests retrieving deployment history.
 func TestGetDeploymentHistory(t *testing.T) {
-	existing := createTestConfigMap("history-app", "default", "./apps", 5)
+	existing := createTestConfigMap("history-app", "./apps", 5)
 
 	tests := []struct {
 		name        string
@@ -651,7 +652,7 @@ func TestGetDeploymentHistory(t *testing.T) {
 
 // TestGetDeploymentLogs tests retrieving deployment logs.
 func TestGetDeploymentLogs(t *testing.T) {
-	existing := createTestConfigMap("logs-app", "default", "./apps", 1)
+	existing := createTestConfigMap("logs-app", "./apps", 1)
 
 	tests := []struct {
 		name        string
@@ -1019,7 +1020,6 @@ func BenchmarkListDeployments(b *testing.B) {
 	for i := 0; i < 100; i++ {
 		objects[i] = createTestConfigMap(
 			fmt.Sprintf("app-%d", i),
-			"default",
 			fmt.Sprintf("./apps/app-%d", i),
 			1,
 		)
