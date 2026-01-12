@@ -476,7 +476,7 @@ curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
   "consumerSubscriptionId": "smo-sub-123",
   "eventType": "ResourceCreated",
   "resource": {
-    "resourceId": "node-worker-123",
+    "resourceId": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
     "resourcePoolId": "pool-compute-highmem",
     "resourceTypeId": "compute-node"
   },

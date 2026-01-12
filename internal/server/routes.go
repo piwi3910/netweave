@@ -672,8 +672,7 @@ const (
 func sanitizeResourcePoolID(name string) string {
 	var result strings.Builder
 	for _, ch := range name {
-		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-			(ch >= '0' && ch <= '9') || ch == '-' || ch == '_' {
+		if isAlphanumericOrAllowed(ch) {
 			result.WriteRune(ch)
 		} else if ch == ' ' || ch == '/' {
 			result.WriteRune('-') // Only replace spaces and slashes with hyphens
@@ -684,22 +683,10 @@ func sanitizeResourcePoolID(name string) string {
 	return strings.ToLower(result.String())
 }
 
-// sanitizeResourceTypeID sanitizes a resource type ID for use in resource IDs.
-// Ensures the resulting ID is URL-safe and prevents injection attacks.
-// Spaces and slashes are replaced with hyphens, all other special characters are dropped.
-func sanitizeResourceTypeID(typeID string) string {
-	var result strings.Builder
-	for _, ch := range typeID {
-		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-			(ch >= '0' && ch <= '9') || ch == '-' || ch == '_' {
-			result.WriteRune(ch)
-		} else if ch == ' ' || ch == '/' {
-			result.WriteRune('-') // Only replace spaces and slashes with hyphens
-		}
-		// All other special characters are simply dropped for security
-	}
-
-	return strings.ToLower(result.String())
+// isAlphanumericOrAllowed checks if a rune is alphanumeric, hyphen, or underscore.
+func isAlphanumericOrAllowed(ch rune) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+		(ch >= '0' && ch <= '9') || ch == '-' || ch == '_'
 }
 
 // sanitizeForLogging removes CRLF characters to prevent log injection attacks.
@@ -1140,9 +1127,22 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 		return
 	}
 
-	// Generate URL-safe resource ID if not provided
+	// Generate resource ID if not provided (using plain UUID for simplicity)
 	if req.ResourceID == "" {
-		req.ResourceID = "res-" + sanitizeResourceTypeID(req.ResourceTypeID) + "-" + uuid.New().String()
+		req.ResourceID = uuid.New().String()
+	} else {
+		// Validate client-provided resource ID is a valid UUID
+		// This prevents path traversal attacks (e.g., "../../../etc/passwd")
+		if _, err := uuid.Parse(req.ResourceID); err != nil {
+			s.logger.Warn("invalid resource ID format",
+				zap.String("resource_id", sanitizeForLogging(req.ResourceID)))
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "BadRequest",
+				"message": "resourceId must be a valid UUID",
+				"code":    http.StatusBadRequest,
+			})
+			return
+		}
 	}
 
 	// Create resource via adapter

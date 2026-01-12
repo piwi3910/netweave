@@ -1268,7 +1268,7 @@ All auto-generated IDs (resource pools, resources, subscriptions) use full RFC 4
 
 **Format Examples:**
 - Resource Pool: `pool-{sanitized-name}-{uuid}` → `pool-gpu-cluster-a1b2c3d4-e5f6-7890-abcd-1234567890ab`
-- Resource: `res-{type}-{uuid}` → `res-compute-node-a1b2c3d4-e5f6-7890-abcd-1234567890ab`
+- Resource: `{uuid}` → `a1b2c3d4-e5f6-7890-abcd-1234567890ab`
 - Subscription: `sub-{uuid}` → `sub-a1b2c3d4-e5f6-7890-abcd-1234567890ab`
 
 **Why Full UUIDs?**
@@ -1443,7 +1443,7 @@ curl -X POST https://gateway.example.com/o2ims-infrastructureInventory/v1/resour
 **Response (201 Created):**
 ```json
 {
-  "resourceId": "res-compute-node-standard-a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+  "resourceId": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
   "resourceTypeId": "compute-node-standard",
   "resourcePoolId": "pool-production-us-west-2",
   "description": "Production workload node for AI training",
@@ -1459,7 +1459,7 @@ curl -X POST https://gateway.example.com/o2ims-infrastructureInventory/v1/resour
 **Validation Rules:**
 - `resourceTypeId` is **required** (400 Bad Request if missing)
 - `resourcePoolId` is **required** (400 Bad Request if missing)
-- `resourceId` is auto-generated if not provided (format: `res-{type}-{uuid}`)
+- `resourceId` is auto-generated if not provided (format: plain UUID)
 - `description` max length: 1000 characters
 - `globalAssetId` must be valid URN format if provided
 - `extensions` limited to 50KB total payload size
@@ -2058,10 +2058,10 @@ return &models.Resource{
 ```http
 HTTP/1.1 201 Created
 Content-Type: application/json
-Location: /o2ims/v1/resources/res-compute-node-a1b2c3d4e5f6
+Location: /o2ims/v1/resources/a1b2c3d4-e5f6-7890-abcd-1234567890ab
 
 {
-  "resourceId": "res-compute-node-a1b2c3d4e5f6",
+  "resourceId": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
   "resourceTypeId": "compute-node",
   "resourcePoolId": "pool-compute-high-mem",
   "globalAssetId": "urn:o-ran:resource:node-prod-042",
@@ -2087,7 +2087,7 @@ metadata:
   namespace: openshift-machine-api
   labels:
     machine.openshift.io/cluster-api-machineset: pool-compute-high-mem
-    o2ims.oran.org/resource-id: res-compute-node-a1b2c3d4e5f6
+    o2ims.oran.org/resource-id: a1b2c3d4-e5f6-7890-abcd-1234567890ab
   annotations:
     o2ims.oran.org/global-asset-id: "urn:o-ran:resource:node-prod-042"
     o2ims.oran.org/description: "High-memory compute node for RAN workloads"
@@ -2105,7 +2105,7 @@ kind: Node
 metadata:
   name: ip-10-0-1-123.ec2.internal
   labels:
-    o2ims.oran.org/resource-id: res-compute-node-a1b2c3d4e5f6
+    o2ims.oran.org/resource-id: a1b2c3d4-e5f6-7890-abcd-1234567890ab
     o2ims.oran.org/resource-pool-id: pool-compute-high-mem
 status:
   conditions:
