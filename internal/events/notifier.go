@@ -261,8 +261,12 @@ func (n *WebhookNotifier) attemptDelivery(
 
 	delivery.ResponseTime = responseTime
 
-	// Record metrics
-	RecordNotificationResponseTime(subscription.ID, fmt.Sprintf("%d", delivery.HTTPStatusCode), float64(responseTime))
+	// Record metrics (use 0 for status code if not set)
+	statusCode := "0"
+	if delivery.HTTPStatusCode > 0 {
+		statusCode = fmt.Sprintf("%d", delivery.HTTPStatusCode)
+	}
+	RecordNotificationResponseTime(subscription.ID, statusCode, float64(responseTime))
 
 	return err
 }
