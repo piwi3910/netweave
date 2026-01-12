@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -36,12 +37,13 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 
 	// Setup Redis storage
 	redisStore := storage.NewRedisStore(&storage.RedisConfig{
-		Addr:         env.Redis.Addr(),
-		MaxRetries:   3,
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 3 * time.Second,
-		PoolSize:     10,
+		Addr:                   env.Redis.Addr(),
+		MaxRetries:             3,
+		DialTimeout:            5 * time.Second,
+		ReadTimeout:            3 * time.Second,
+		WriteTimeout:           3 * time.Second,
+		PoolSize:               10,
+		AllowInsecureCallbacks: true, // Allow HTTP callbacks in tests
 	})
 	defer func() {
 		if err := redisStore.Close(); err != nil {
@@ -86,10 +88,16 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 		}
 	}()
 
+	// Log response body for debugging
+	bodyBytes, readErr := io.ReadAll(subResp.Body)
+	require.NoError(t, readErr)
+	t.Logf("Response status: %d", subResp.StatusCode)
+	t.Logf("Response body: %s", string(bodyBytes))
+
 	assert.Equal(t, http.StatusCreated, subResp.StatusCode)
 
 	var subscription map[string]interface{}
-	err = json.NewDecoder(subResp.Body).Decode(&subscription)
+	err = json.Unmarshal(bodyBytes, &subscription)
 	require.NoError(t, err)
 
 	subscriptionID := subscription["subscriptionId"].(string)
@@ -150,8 +158,9 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 	env := helpers.SetupTestEnvironment(t)
 
 	redisStore := storage.NewRedisStore(&storage.RedisConfig{
-		Addr:     env.Redis.Addr(),
-		PoolSize: 10,
+		Addr:                   env.Redis.Addr(),
+		PoolSize:               10,
+		AllowInsecureCallbacks: true, // Allow HTTP callbacks in tests
 	})
 	defer func() {
 		if err := redisStore.Close(); err != nil {
@@ -316,8 +325,9 @@ func TestSubscriptionWorkflow_MultipleSubscriptions(t *testing.T) {
 	env := helpers.SetupTestEnvironment(t)
 
 	redisStore := storage.NewRedisStore(&storage.RedisConfig{
-		Addr:     env.Redis.Addr(),
-		PoolSize: 10,
+		Addr:                   env.Redis.Addr(),
+		PoolSize:               10,
+		AllowInsecureCallbacks: true, // Allow HTTP callbacks in tests
 	})
 	defer func() {
 		if err := redisStore.Close(); err != nil {
@@ -419,8 +429,9 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	ctx := env.Context()
 
 	redisStore := storage.NewRedisStore(&storage.RedisConfig{
-		Addr:     env.Redis.Addr(),
-		PoolSize: 10,
+		Addr:                   env.Redis.Addr(),
+		PoolSize:               10,
+		AllowInsecureCallbacks: true, // Allow HTTP callbacks in tests
 	})
 	defer func() {
 		if err := redisStore.Close(); err != nil {

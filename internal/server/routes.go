@@ -1683,8 +1683,11 @@ func (s *Server) validateCallback(sub *adapter.Subscription) error {
 	}
 
 	// SSRF Protection: Block localhost and private IP ranges
-	if err := validateCallbackHost(parsedURL.Hostname()); err != nil {
-		return err
+	// Skip SSRF protection if disabled in config (for testing only)
+	if !s.config.Security.DisableSSRFProtection {
+		if err := validateCallbackHost(parsedURL.Hostname()); err != nil {
+			return err
+		}
 	}
 
 	return nil
