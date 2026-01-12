@@ -421,7 +421,7 @@ const (
 
 	// Administrative events.
 	AuditEventBulkOperation AuditEventType = "admin.bulk.operation"
-	AuditEventTokenRotated  AuditEventType = "admin.apikey.rotated"
+	AuditEventTokenRotated  AuditEventType = "admin.token.rotated"
 	AuditEventConfigExport  AuditEventType = "admin.config.export"
 	AuditEventAuditExport   AuditEventType = "admin.audit.export"
 )
