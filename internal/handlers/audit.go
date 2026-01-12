@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
@@ -158,9 +159,6 @@ func (h *AuditHandler) ListAuditEventsByType(c *gin.Context) {
 // Lists audit events for a specific user.
 func (h *AuditHandler) ListAuditEventsByUser(c *gin.Context) {
 	ctx := c.Request.Context()
-	tenantID := auth.TenantIDFromContext(ctx)
-	isPlatformAdmin := auth.IsPlatformAdminFromContext(ctx)
-	currentUser := auth.UserFromContext(ctx)
 	targetUserID := c.Param("userId")
 
 	if targetUserID == "" {
@@ -172,29 +170,13 @@ func (h *AuditHandler) ListAuditEventsByUser(c *gin.Context) {
 		return
 	}
 
-	// Non-platform admins can only view their own events or events in their tenant.
-	if !isPlatformAdmin && currentUser != nil && currentUser.UserID != targetUserID {
-		// Verify target user is in the same tenant.
-		targetUser, err := h.store.GetUser(ctx, targetUserID)
-		if err != nil || targetUser.TenantID != tenantID {
-			c.JSON(http.StatusForbidden, models.ErrorResponse{
-				Error:   "Forbidden",
-				Message: "Access denied to audit events for this user",
-				Code:    http.StatusForbidden,
-			})
-			return
-		}
+	// Check access permissions.
+	if !h.checkUserAccessPermission(c, ctx, targetUserID) {
+		return
 	}
 
-	// Parse limit.
-	limitStr := c.DefaultQuery("limit", "50")
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 {
-		limit = 50
-	}
-	if limit > 1000 {
-		limit = 1000
-	}
+	// Parse and validate limit.
+	limit := h.parseLimit(c)
 
 	h.logger.Info("listing audit events by user",
 		zap.String("target_user_id", targetUserID),
@@ -218,4 +200,50 @@ func (h *AuditHandler) ListAuditEventsByUser(c *gin.Context) {
 		"userId": targetUserID,
 		"total":  len(events),
 	})
+}
+
+// checkUserAccessPermission verifies if current user can access target user's audit events.
+// Returns false and sends error response if access is denied.
+func (h *AuditHandler) checkUserAccessPermission(c *gin.Context, ctx context.Context, targetUserID string) bool {
+	tenantID := auth.TenantIDFromContext(ctx)
+	isPlatformAdmin := auth.IsPlatformAdminFromContext(ctx)
+	currentUser := auth.UserFromContext(ctx)
+
+	// Platform admins can access anyone's events.
+	if isPlatformAdmin {
+		return true
+	}
+
+	// Users can access their own events.
+	if currentUser != nil && currentUser.UserID == targetUserID {
+		return true
+	}
+
+	// Non-platform admins can only view events in their tenant.
+	if currentUser != nil {
+		targetUser, err := h.store.GetUser(ctx, targetUserID)
+		if err == nil && targetUser.TenantID == tenantID {
+			return true
+		}
+	}
+
+	c.JSON(http.StatusForbidden, models.ErrorResponse{
+		Error:   "Forbidden",
+		Message: "Access denied to audit events for this user",
+		Code:    http.StatusForbidden,
+	})
+	return false
+}
+
+// parseLimit parses and validates the limit query parameter.
+func (h *AuditHandler) parseLimit(c *gin.Context) int {
+	limitStr := c.DefaultQuery("limit", "50")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 {
+		return 50
+	}
+	if limit > 1000 {
+		return 1000
+	}
+	return limit
 }
