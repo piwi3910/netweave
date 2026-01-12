@@ -89,6 +89,10 @@ issues:
         - gosec
       path: internal/smo/adapters/onap/
       text: "G402"
+    # Allow dupl in ONAP adapter (client factories share structure intentionally)
+    - linters:
+        - dupl
+      path: internal/smo/adapters/onap/
     # Allow go.mod replacements (needed for K8s compatibility)
     - text: "replacement are not allowed"
       linters:
@@ -238,6 +242,7 @@ issues:
         - predeclared   # Parameter names matching builtins
         - nilnil        # Test helpers returning nil, nil
         - dupl          # Code duplication in handler patterns
+        - lll           # Long lines in K8s resource specifications
     # SMO registry must return Plugin interface (public API design)
     - path: internal/smo/registry\.go
       linters:
