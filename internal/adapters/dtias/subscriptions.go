@@ -76,6 +76,48 @@ func (a *DTIASAdapter) GetSubscription(_ context.Context, id string) (*adapter.S
 	return sub, nil
 }
 
+// UpdateSubscription updates an existing subscription.
+// Returns the updated subscription or an error if not found.
+func (a *DTIASAdapter) UpdateSubscription(
+	_ context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
+	a.logger.Debug("UpdateSubscription called",
+		zap.String("id", id))
+
+	// Validate required fields
+	if sub.Callback == "" {
+		return nil, fmt.Errorf("callback URL is required")
+	}
+
+	// Update the subscription atomically with existence check
+	a.subscriptionsMu.Lock()
+	defer a.subscriptionsMu.Unlock()
+
+	existing, ok := a.subscriptions[id]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+	}
+
+	// Create updated subscription preserving the ID
+	updated := &adapter.Subscription{
+		SubscriptionID:         id,
+		Callback:               sub.Callback,
+		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
+		Filter:                 sub.Filter,
+	}
+
+	a.subscriptions[id] = updated
+
+	a.logger.Info("subscription updated",
+		zap.String("subscriptionId", id),
+		zap.String("oldCallback", existing.Callback),
+		zap.String("newCallback", sub.Callback))
+
+	return updated, nil
+}
+
 // DeleteSubscription deletes a subscription by ID.
 func (a *DTIASAdapter) DeleteSubscription(_ context.Context, id string) error {
 	a.logger.Debug("DeleteSubscription called",
