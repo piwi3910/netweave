@@ -145,9 +145,29 @@ func New(cfg *Config) (*Adapter, error) {
 		zap.String("poolMode", poolMode),
 		zap.Bool("useManagedIdentity", cfg.UseManagedIdentity))
 
-	cred, err := createAzureCredential(cfg, logger)
-	if err != nil {
-		return nil, err
+	// Create Azure credential based on configuration
+	var cred azcore.TokenCredential
+	if cfg.UseManagedIdentity {
+		managedIDCred, err := azidentity.NewManagedIdentityCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create managed identity credential: %w", err)
+		}
+		logger.Info("using Azure Managed Identity for authentication")
+		cred = managedIDCred
+	} else {
+		clientSecretCred, err := azidentity.NewClientSecretCredential(
+			cfg.TenantID,
+			cfg.ClientID,
+			cfg.ClientSecret,
+			nil,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create service principal credential: %w", err)
+		}
+		logger.Info("using Azure Service Principal for authentication",
+			zap.String("tenantID", cfg.TenantID),
+			zap.String("clientID", cfg.ClientID))
+		cred = clientSecretCred
 	}
 
 	clients, err := createAzureClients(cfg.SubscriptionID, cred)
@@ -249,32 +269,6 @@ func initializeAzureLogger(logger *zap.Logger) (*zap.Logger, error) {
 		return nil, fmt.Errorf("failed to create logger: %w", err)
 	}
 	return logger, nil
-}
-
-// createAzureCredential creates Azure credentials based on configuration.
-func createAzureCredential(cfg *Config, logger *zap.Logger) (azcore.TokenCredential, error) {
-	if cfg.UseManagedIdentity {
-		cred, err := azidentity.NewManagedIdentityCredential(nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create managed identity credential: %w", err)
-		}
-		logger.Info("using Azure Managed Identity for authentication")
-		return cred, nil
-	}
-
-	cred, err := azidentity.NewClientSecretCredential(
-		cfg.TenantID,
-		cfg.ClientID,
-		cfg.ClientSecret,
-		nil,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create service principal credential: %w", err)
-	}
-	logger.Info("using Azure Service Principal for authentication",
-		zap.String("tenantID", cfg.TenantID),
-		zap.String("clientID", cfg.ClientID))
-	return cred, nil
 }
 
 // azureClients holds Azure SDK clients.
