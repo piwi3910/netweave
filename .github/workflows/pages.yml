@@ -8,6 +8,7 @@ on:
       - 'README.md'
       - 'ARCHITECTURE_SUMMARY.md'
       - '_config.yml'
+      - '_layouts/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
