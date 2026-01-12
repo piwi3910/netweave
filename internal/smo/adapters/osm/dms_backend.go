@@ -9,6 +9,9 @@ import (
 const (
 	// OSM operational status values.
 	osmStatusRunning = "running"
+
+	// OSM scale type for VNF scaling.
+	scaleTypeVNF = "SCALE_VNF"
 )
 
 // DeploymentPackage represents a deployment package (NSD or VNFD) in OSM.
@@ -113,7 +116,7 @@ type VNFStatus struct {
 // NSScaleRequest represents a request to scale an NS.
 type NSScaleRequest struct {
 	// ScaleType specifies the type of scaling operation
-	ScaleType string `json:"scaleType"` // "SCALE_VNF"
+	ScaleType string `json:"scaleType"` // scaleTypeVNF
 
 	// ScaleVnfData contains VNF scaling parameters
 	ScaleVnfData ScaleVnfData `json:"scaleVnfData,omitempty"`
@@ -376,7 +379,7 @@ func (p *Plugin) ScaleNS(ctx context.Context, nsInstanceID string, scaleReq *NSS
 	}
 
 	// Validate scale request
-	if scaleReq.ScaleType != "SCALE_VNF" {
+	if scaleReq.ScaleType != scaleTypeVNF {
 		return fmt.Errorf("unsupported scale type: %s", scaleReq.ScaleType)
 	}
 

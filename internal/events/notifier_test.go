@@ -19,19 +19,19 @@ import (
 // mockDeliveryTracker implements DeliveryTracker for testing.
 type mockDeliveryTracker struct{}
 
-func (m *mockDeliveryTracker) Track(_ context.Context, delivery *NotificationDelivery) error {
+func (m *mockDeliveryTracker) Track(_ context.Context, _ *NotificationDelivery) error {
 	return nil
 }
 
-func (m *mockDeliveryTracker) Get(_ context.Context, deliveryID string) (*NotificationDelivery, error) {
+func (m *mockDeliveryTracker) Get(_ context.Context, _ string) (*NotificationDelivery, error) {
 	return nil, errors.New("delivery not found")
 }
 
-func (m *mockDeliveryTracker) ListByEvent(_ context.Context, eventID string) ([]*NotificationDelivery, error) {
+func (m *mockDeliveryTracker) ListByEvent(_ context.Context, _ string) ([]*NotificationDelivery, error) {
 	return nil, nil
 }
 
-func (m *mockDeliveryTracker) ListBySubscription(_ context.Context, subscriptionID string) ([]*NotificationDelivery, error) {
+func (m *mockDeliveryTracker) ListBySubscription(_ context.Context, _ string) ([]*NotificationDelivery, error) {
 	return nil, nil
 }
 
