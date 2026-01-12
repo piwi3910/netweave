@@ -125,7 +125,8 @@ func (h *SMOHandler) respondWithBadRequest(c *gin.Context, operation string, err
 }
 
 // respondWithNotFound logs the not found error and returns a safe message.
-func (h *SMOHandler) respondWithNotFound(c *gin.Context, resourceType string, err error) {
+func (h *SMOHandler) respondWithNotFound(c *gin.Context, err error) {
+	resourceType := "Plugin"
 	h.logger.Debug("resource not found",
 		zap.String("resource_type", resourceType),
 		zap.String("path", c.Request.URL.Path),
@@ -223,7 +224,7 @@ func (h *SMOHandler) handleGetPlugin(c *gin.Context) {
 
 	plugin, err := h.registry.Get(pluginID)
 	if err != nil {
-		h.respondWithNotFound(c, "Plugin", err)
+		h.respondWithNotFound(c, err)
 		return
 	}
 
@@ -277,7 +278,7 @@ func (h *SMOHandler) handleExecuteWorkflow(c *gin.Context) {
 	}
 
 	if err != nil {
-		h.respondWithNotFound(c, "Plugin", err)
+		h.respondWithNotFound(c, err)
 		smoAPIRequestDuration.WithLabelValues("workflows", "POST", "404").Observe(time.Since(start).Seconds())
 		return
 	}
@@ -342,7 +343,7 @@ func (h *SMOHandler) handleGetWorkflowStatus(c *gin.Context) {
 	}
 
 	if err != nil {
-		h.respondWithNotFound(c, "Plugin", err)
+		h.respondWithNotFound(c, err)
 		return
 	}
 
@@ -381,7 +382,7 @@ func (h *SMOHandler) handleCancelWorkflow(c *gin.Context) {
 	}
 
 	if err != nil {
-		h.respondWithNotFound(c, "Plugin", err)
+		h.respondWithNotFound(c, err)
 		return
 	}
 
@@ -424,7 +425,7 @@ func (h *SMOHandler) handleListServiceModels(c *gin.Context) {
 	}
 
 	if err != nil {
-		h.respondWithNotFound(c, "Plugin", err)
+		h.respondWithNotFound(c, err)
 		return
 	}
 
@@ -462,7 +463,7 @@ func (h *SMOHandler) handleCreateServiceModel(c *gin.Context) {
 	}
 
 	if err != nil {
-		h.respondWithNotFound(c, "Plugin", err)
+		h.respondWithNotFound(c, err)
 		return
 	}
 
@@ -514,7 +515,7 @@ func (h *SMOHandler) handleGetServiceModel(c *gin.Context) {
 	}
 
 	if err != nil {
-		h.respondWithNotFound(c, "Plugin", err)
+		h.respondWithNotFound(c, err)
 		return
 	}
 
@@ -585,7 +586,7 @@ func (h *SMOHandler) handleApplyPolicy(c *gin.Context) {
 	}
 
 	if err != nil {
-		h.respondWithNotFound(c, "Plugin", err)
+		h.respondWithNotFound(c, err)
 		return
 	}
 
@@ -642,7 +643,7 @@ func (h *SMOHandler) handleGetPolicyStatus(c *gin.Context) {
 	}
 
 	if err != nil {
-		h.respondWithNotFound(c, "Plugin", err)
+		h.respondWithNotFound(c, err)
 		return
 	}
 
@@ -681,7 +682,7 @@ func (h *SMOHandler) handleSyncInfrastructure(c *gin.Context) {
 	}
 
 	if err != nil {
-		h.respondWithNotFound(c, "Plugin", err)
+		h.respondWithNotFound(c, err)
 		return
 	}
 
@@ -725,7 +726,7 @@ func (h *SMOHandler) handleSyncDeployments(c *gin.Context) {
 	}
 
 	if err != nil {
-		h.respondWithNotFound(c, "Plugin", err)
+		h.respondWithNotFound(c, err)
 		return
 	}
 
@@ -780,7 +781,7 @@ func (h *SMOHandler) handlePublishInfrastructureEvent(c *gin.Context) {
 	}
 
 	if err != nil {
-		h.respondWithNotFound(c, "Plugin", err)
+		h.respondWithNotFound(c, err)
 		return
 	}
 
@@ -833,7 +834,7 @@ func (h *SMOHandler) handlePublishDeploymentEvent(c *gin.Context) {
 	}
 
 	if err != nil {
-		h.respondWithNotFound(c, "Plugin", err)
+		h.respondWithNotFound(c, err)
 		return
 	}
 
