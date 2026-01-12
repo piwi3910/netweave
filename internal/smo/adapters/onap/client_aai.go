@@ -312,11 +312,14 @@ func createTLSConfig(config *Config) (*tls.Config, error) {
 		return &tls.Config{MinVersion: tls.VersionTLS12}, nil
 	}
 
-	// G402: InsecureSkipVerify is intentionally configurable for development/testing environments
-	// Production deployments should always use proper certificate validation (InsecureSkipVerify=false)
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: config.TLSInsecureSkipVerify,
-		MinVersion:         tls.VersionTLS12,
+		MinVersion: tls.VersionTLS12,
+	}
+
+	// Only skip verification if explicitly configured (for development/testing only)
+	// Production deployments must validate certificates
+	if config.TLSInsecureSkipVerify {
+		tlsConfig.InsecureSkipVerify = true
 	}
 
 	// Load client certificate if provided

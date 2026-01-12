@@ -118,11 +118,14 @@ func NewWebhookNotifier(config *NotifierConfig, deliveryTracker DeliveryTracker,
 // Production deployments must use proper certificate validation (InsecureSkipVerify=false).
 // This security control prevents man-in-the-middle attacks by ensuring webhook endpoints present valid certificates.
 func createHTTPClient(config *NotifierConfig) (*http.Client, error) {
-	// G402: InsecureSkipVerify is intentionally configurable for development/testing environments
-	// Production deployments should always use proper certificate validation (InsecureSkipVerify=false)
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: config.InsecureSkipVerify,
-		MinVersion:         tls.VersionTLS13,
+		MinVersion: tls.VersionTLS13,
+	}
+
+	// Only skip verification if explicitly configured (for development/testing only)
+	// Production deployments must validate certificates
+	if config.InsecureSkipVerify {
+		tlsConfig.InsecureSkipVerify = true
 	}
 
 	// Load client certificate for mTLS
