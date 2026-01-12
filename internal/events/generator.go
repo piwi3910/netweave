@@ -133,38 +133,52 @@ func (g *K8sEventGenerator) handleNodeEvent(ctx context.Context, watchEvent watc
 		return errors.New("watch event object is not a Node")
 	}
 
-	// Determine event type
-	var eventType models.EventType
-	switch watchEvent.Type {
-	case watch.Added:
-		eventType = models.EventTypeResourceCreated
-	case watch.Modified:
-		eventType = models.EventTypeResourceUpdated
-	case watch.Deleted:
-		eventType = models.EventTypeResourceDeleted
-	case watch.Bookmark:
-		// Skip bookmark events
-		return nil
-	case watch.Error:
-		// Skip error events
-		return nil
-	default:
-		// Skip any other unknown event types
+	eventType, shouldSkip := g.mapWatchEventType(watchEvent.Type)
+	if shouldSkip {
 		return nil
 	}
 
-	// Convert Node to O2-IMS Resource using adapter
-	resource, err := g.adapter.GetResource(ctx, node.Name)
+	resource, err := g.getResourceForNode(ctx, node, watchEvent.Type)
 	if err != nil {
-		// If resource not found during deletion, that's expected
-		if watchEvent.Type != watch.Deleted {
-			return fmt.Errorf("failed to get resource from adapter: %w", err)
-		}
-		resource = g.createDeletedResource(node)
+		return err
 	}
 
-	// Create event
-	event := &Event{
+	event := g.buildEvent(eventType, resource, node)
+	RecordEventGenerated(string(eventType), string(ResourceTypeResource))
+
+	return g.sendEvent(ctx, event)
+}
+
+func (g *K8sEventGenerator) mapWatchEventType(watchType watch.EventType) (models.EventType, bool) {
+	switch watchType {
+	case watch.Added:
+		return models.EventTypeResourceCreated, false
+	case watch.Modified:
+		return models.EventTypeResourceUpdated, false
+	case watch.Deleted:
+		return models.EventTypeResourceDeleted, false
+	case watch.Bookmark, watch.Error:
+		return "", true
+	default:
+		return "", true
+	}
+}
+
+func (g *K8sEventGenerator) getResourceForNode(ctx context.Context, node *corev1.Node, watchType watch.EventType) (*adapter.Resource, error) {
+	resource, err := g.adapter.GetResource(ctx, node.Name)
+	if err == nil {
+		return resource, nil
+	}
+
+	if watchType == watch.Deleted {
+		return g.createDeletedResource(node), nil
+	}
+
+	return nil, fmt.Errorf("failed to get resource from adapter: %w", err)
+}
+
+func (g *K8sEventGenerator) buildEvent(eventType models.EventType, resource *adapter.Resource, node *corev1.Node) *Event {
+	return &Event{
 		ID:             uuid.New().String(),
 		Type:           eventType,
 		ResourceType:   ResourceTypeResource,
@@ -175,28 +189,26 @@ func (g *K8sEventGenerator) handleNodeEvent(ctx context.Context, watchEvent watc
 		Timestamp:      time.Now().UTC(),
 		Labels:         node.Labels,
 	}
+}
 
-	// Record metrics
-	RecordEventGenerated(string(eventType), string(ResourceTypeResource))
-
-	// Send event to channel
+func (g *K8sEventGenerator) sendEvent(ctx context.Context, event *Event) error {
 	select {
 	case g.eventChannel <- event:
 		g.logger.Debug("event generated",
 			zap.String("event_id", event.ID),
-			zap.String("event_type", string(eventType)),
-			zap.String("resource_id", resource.ResourceID),
+			zap.String("event_type", string(event.Type)),
+			zap.String("resource_id", event.ResourceID),
 		)
+		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("event generation canceled: %w", ctx.Err())
 	default:
 		g.logger.Warn("event channel full, dropping event",
 			zap.String("event_id", event.ID),
-			zap.String("event_type", string(eventType)),
+			zap.String("event_type", string(event.Type)),
 		)
+		return nil
 	}
-
-	return nil
 }
 
 // createDeletedResource creates a minimal resource representation for deleted nodes.
