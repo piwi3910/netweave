@@ -165,14 +165,14 @@ func setupTestRouter(t *testing.T) (*Router, *registry.Registry) {
 	config := &Config{
 		FallbackEnabled: true,
 		AggregateMode:   false,
-		Rules: []*Rule{
+		Rules: []RuleConfig{
 			{
 				Name:         "openstack-nfv",
 				Priority:     100,
-				AdapterName:  "openstack",
+				Plugin:       "openstack",
 				ResourceType: "*",
 				Enabled:      true,
-				Conditions: &Conditions{
+				Conditions: ConditionsConfig{
 					Labels: map[string]string{
 						"infrastructure.type": "openstack",
 					},
@@ -181,11 +181,11 @@ func setupTestRouter(t *testing.T) (*Router, *registry.Registry) {
 			{
 				Name:         "bare-metal-edge",
 				Priority:     95,
-				AdapterName:  "dtias",
+				Plugin:       "dtias",
 				ResourceType: "*",
 				Enabled:      true,
-				Conditions: &Conditions{
-					Location: &LocationCondition{
+				Conditions: ConditionsConfig{
+					Location: LocationConditionConfig{
 						Prefix: "dc-",
 					},
 				},
@@ -193,7 +193,7 @@ func setupTestRouter(t *testing.T) (*Router, *registry.Registry) {
 			{
 				Name:         "default-kubernetes",
 				Priority:     1,
-				AdapterName:  "kubernetes",
+				Plugin:       "kubernetes",
 				ResourceType: "*",
 				Enabled:      true,
 			},
@@ -222,7 +222,7 @@ func TestNewRouter(t *testing.T) {
 			config: &Config{
 				FallbackEnabled: true,
 				AggregateMode:   false,
-				Rules:           []*Rule{},
+				Rules:           []RuleConfig{},
 			},
 		},
 	}
@@ -595,7 +595,7 @@ func TestRouter_RouteNoMatch(t *testing.T) {
 	// No adapters registered, no fallback
 	config := &Config{
 		FallbackEnabled: false,
-		Rules:           []*Rule{},
+		Rules:           []RuleConfig{},
 	}
 
 	router := NewRouter(reg, logger, config)
