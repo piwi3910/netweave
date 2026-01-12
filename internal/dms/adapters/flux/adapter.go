@@ -1589,32 +1589,19 @@ func normalizeValueForJSON(v interface{}) interface{} {
 }
 
 func tryConvertToFloat64(v interface{}) (float64, bool) {
-	switch val := v.(type) {
-	case int:
-		return float64(val), true
-	case int8:
-		return float64(val), true
-	case int16:
-		return float64(val), true
-	case int32:
-		return float64(val), true
-	case int64:
-		return float64(val), true
-	case uint:
-		return float64(val), true
-	case uint8:
-		return float64(val), true
-	case uint16:
-		return float64(val), true
-	case uint32:
-		return float64(val), true
-	case uint64:
-		return float64(val), true
-	case float32:
-		return float64(val), true
-	default:
-		return 0, false
+	rv := reflect.ValueOf(v)
+	kind := rv.Kind()
+
+	if kind >= reflect.Int && kind <= reflect.Int64 {
+		return float64(rv.Int()), true
 	}
+	if kind >= reflect.Uint && kind <= reflect.Uintptr {
+		return float64(rv.Uint()), true
+	}
+	if kind >= reflect.Float32 && kind <= reflect.Float64 {
+		return rv.Float(), true
+	}
+	return 0, false
 }
 
 func normalizeMap(val map[string]interface{}) map[string]interface{} {

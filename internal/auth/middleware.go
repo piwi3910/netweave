@@ -157,12 +157,6 @@ func (m *Middleware) handleMissingCertificate(c *gin.Context, requestID string, 
 	})
 }
 
-type authContext struct {
-	user   *TenantUser
-	role   *Role
-	tenant *Tenant
-}
-
 func (m *Middleware) authenticateAndLoadContext(ctx context.Context, subject, requestID string) (*TenantUser, *Role, *Tenant, error) {
 	user, err := m.store.GetUserBySubject(ctx, subject)
 	if err != nil {
