@@ -318,8 +318,8 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 			ts.O2IMSURL()+"/resourcePools/"+poolID,
 			nil,
 		)
-		httpClient = helpers.NewTestHTTPClient()
-		getResp, _ := httpClient.Do(verifyReq)
+		verifyClient := helpers.NewTestHTTPClient()
+		getResp, _ := verifyClient.Do(verifyReq)
 		defer func() {
 			if err := getResp.Body.Close(); err != nil {
 				t.Logf("Failed to close response body: %v", err)
@@ -585,8 +585,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 			ts.O2IMSURL()+"/resources/"+resourceID,
 			nil,
 		)
-		httpClient = helpers.NewTestHTTPClient()
-		getResp, _ := httpClient.Do(verifyReq)
+		verifyClient := helpers.NewTestHTTPClient()
+		getResp, _ := verifyClient.Do(verifyReq)
 		defer func() {
 			if err := getResp.Body.Close(); err != nil {
 				t.Logf("Failed to close response body: %v", err)
