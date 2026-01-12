@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/mail"
@@ -117,99 +118,18 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	// Validate email if provided
-	if req.Email != "" {
-		if _, err := mail.ParseAddress(req.Email); err != nil {
-			h.logger.Warn("invalid email", zap.String("email", req.Email), zap.Error(err))
-			c.JSON(http.StatusBadRequest, models.ErrorResponse{
-				Error:   "BadRequest",
-				Message: "Invalid email format",
-				Code:    http.StatusBadRequest,
-			})
-			return
-		}
-	}
-
-	// Check quota.
-	if !tenant.CanAddUser() {
-		c.JSON(http.StatusForbidden, models.ErrorResponse{
-			Error:   "QuotaExceeded",
-			Message: "User quota exceeded for this tenant",
-			Code:    http.StatusForbidden,
-		})
+	if err := h.validateCreateUserRequest(ctx, &req, tenant); err != nil {
+		h.respondWithError(c, err)
 		return
 	}
 
-	// Verify role exists.
-	role, err := h.store.GetRole(ctx, req.RoleID)
-	if err != nil {
-		if errors.Is(err, auth.ErrRoleNotFound) {
-			c.JSON(http.StatusBadRequest, models.ErrorResponse{
-				Error:   "BadRequest",
-				Message: "Invalid role ID",
-				Code:    http.StatusBadRequest,
-			})
-			return
-		}
-		h.logger.Error("failed to get role", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "InternalError",
-			Message: "Failed to validate role",
-			Code:    http.StatusInternalServerError,
-		})
+	user := h.buildUser(tenantID, &req)
+
+	if err := h.createUserInStore(ctx, user, tenantID); err != nil {
+		h.respondWithError(c, err)
 		return
 	}
 
-	// Prevent assigning platform roles to tenant users.
-	if role.Type == auth.RoleTypePlatform {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "BadRequest",
-			Message: "Cannot assign platform-level roles to tenant users",
-			Code:    http.StatusBadRequest,
-		})
-		return
-	}
-
-	isActive := true
-	if req.IsActive != nil {
-		isActive = *req.IsActive
-	}
-
-	user := &auth.TenantUser{
-		ID:         uuid.New().String(),
-		TenantID:   tenantID,
-		Subject:    req.Subject,
-		CommonName: req.CommonName,
-		Email:      req.Email,
-		RoleID:     req.RoleID,
-		IsActive:   isActive,
-	}
-
-	if err := h.store.CreateUser(ctx, user); err != nil {
-		if errors.Is(err, auth.ErrUserExists) {
-			c.JSON(http.StatusConflict, models.ErrorResponse{
-				Error:   "Conflict",
-				Message: "User with this subject already exists",
-				Code:    http.StatusConflict,
-			})
-			return
-		}
-
-		h.logger.Error("failed to create user", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "InternalError",
-			Message: "Failed to create user",
-			Code:    http.StatusInternalServerError,
-		})
-		return
-	}
-
-	// Increment usage.
-	if err := h.store.IncrementUsage(ctx, tenantID, "users"); err != nil {
-		h.logger.Warn("failed to increment user usage", zap.Error(err))
-	}
-
-	// Log audit event.
 	h.logAuditEvent(c, auth.AuditEventUserCreated, user.ID, "user", "create", map[string]string{
 		"subject":    user.Subject,
 		"commonName": user.CommonName,
@@ -223,6 +143,70 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	)
 
 	c.JSON(http.StatusCreated, user)
+}
+
+func (h *UserHandler) validateCreateUserRequest(ctx context.Context, req *CreateUserRequest, tenant *auth.Tenant) error {
+	if req.Email != "" {
+		if err := h.validateEmail(req.Email); err != nil {
+			return err
+		}
+	}
+
+	if !tenant.CanAddUser() {
+		return &handlerError{status: http.StatusForbidden, message: "User quota exceeded for this tenant"}
+	}
+
+	return h.validateRoleForTenantUser(ctx, req.RoleID)
+}
+
+func (h *UserHandler) validateRoleForTenantUser(ctx context.Context, roleID string) error {
+	role, err := h.store.GetRole(ctx, roleID)
+	if err != nil {
+		if errors.Is(err, auth.ErrRoleNotFound) {
+			return &handlerError{status: http.StatusBadRequest, message: "Invalid role ID"}
+		}
+		h.logger.Error("failed to get role", zap.Error(err))
+		return &handlerError{status: http.StatusInternalServerError, message: "Failed to validate role"}
+	}
+
+	if role.Type == auth.RoleTypePlatform {
+		return &handlerError{status: http.StatusBadRequest, message: "Cannot assign platform-level roles to tenant users"}
+	}
+
+	return nil
+}
+
+func (h *UserHandler) buildUser(tenantID string, req *CreateUserRequest) *auth.TenantUser {
+	isActive := true
+	if req.IsActive != nil {
+		isActive = *req.IsActive
+	}
+
+	return &auth.TenantUser{
+		ID:         uuid.New().String(),
+		TenantID:   tenantID,
+		Subject:    req.Subject,
+		CommonName: req.CommonName,
+		Email:      req.Email,
+		RoleID:     req.RoleID,
+		IsActive:   isActive,
+	}
+}
+
+func (h *UserHandler) createUserInStore(ctx context.Context, user *auth.TenantUser, tenantID string) error {
+	if err := h.store.CreateUser(ctx, user); err != nil {
+		if errors.Is(err, auth.ErrUserExists) {
+			return &handlerError{status: http.StatusConflict, message: "User with this subject already exists"}
+		}
+		h.logger.Error("failed to create user", zap.Error(err))
+		return &handlerError{status: http.StatusInternalServerError, message: "Failed to create user"}
+	}
+
+	if err := h.store.IncrementUsage(ctx, tenantID, "users"); err != nil {
+		h.logger.Warn("failed to increment user usage", zap.Error(err))
+	}
+
+	return nil
 }
 
 // GetUser handles GET /tenant/users/:userId.
@@ -304,96 +288,19 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Get existing user.
-	user, err := h.store.GetUser(ctx, userID)
+	user, err := h.fetchAndValidateUser(ctx, userID, tenantID)
 	if err != nil {
-		if errors.Is(err, auth.ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, models.ErrorResponse{
-				Error:   "NotFound",
-				Message: "User not found",
-				Code:    http.StatusNotFound,
-			})
-			return
-		}
-
-		h.logger.Error("failed to get user", zap.String("user_id", userID), zap.Error(err))
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "InternalError",
-			Message: "Failed to retrieve user",
-			Code:    http.StatusInternalServerError,
-		})
+		h.respondWithError(c, err)
 		return
 	}
 
-	// Ensure user belongs to the requesting tenant (unless platform admin).
-	if !auth.IsPlatformAdminFromContext(ctx) && user.TenantID != tenantID {
-		c.JSON(http.StatusForbidden, models.ErrorResponse{
-			Error:   "Forbidden",
-			Message: "Access denied to user from different tenant",
-			Code:    http.StatusForbidden,
-		})
+	if err := h.validateAndApplyUpdates(ctx, user, &req); err != nil {
+		h.respondWithError(c, err)
 		return
-	}
-
-	// Validate email if provided
-	if req.Email != "" {
-		if _, err := mail.ParseAddress(req.Email); err != nil {
-			h.logger.Warn("invalid email", zap.String("email", req.Email), zap.Error(err))
-			c.JSON(http.StatusBadRequest, models.ErrorResponse{
-				Error:   "BadRequest",
-				Message: "Invalid email format",
-				Code:    http.StatusBadRequest,
-			})
-			return
-		}
-	}
-
-	// Apply updates.
-	if req.Email != "" {
-		user.Email = req.Email
-	}
-	if req.RoleID != "" {
-		// Verify role exists.
-		role, err := h.store.GetRole(ctx, req.RoleID)
-		if err != nil {
-			if errors.Is(err, auth.ErrRoleNotFound) {
-				c.JSON(http.StatusBadRequest, models.ErrorResponse{
-					Error:   "BadRequest",
-					Message: "Invalid role ID",
-					Code:    http.StatusBadRequest,
-				})
-				return
-			}
-			h.logger.Error("failed to get role", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-				Error:   "InternalError",
-				Message: "Failed to validate role",
-				Code:    http.StatusInternalServerError,
-			})
-			return
-		}
-
-		// Prevent assigning platform roles.
-		if role.Type == auth.RoleTypePlatform {
-			c.JSON(http.StatusBadRequest, models.ErrorResponse{
-				Error:   "BadRequest",
-				Message: "Cannot assign platform-level roles to tenant users",
-				Code:    http.StatusBadRequest,
-			})
-			return
-		}
-
-		user.RoleID = req.RoleID
-	}
-	if req.IsActive != nil {
-		user.IsActive = *req.IsActive
 	}
 
 	if err := h.store.UpdateUser(ctx, user); err != nil {
-		h.logger.Error("failed to update user",
-			zap.String("user_id", userID),
-			zap.Error(err),
-		)
+		h.logger.Error("failed to update user", zap.String("user_id", userID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 			Error:   "InternalError",
 			Message: "Failed to update user",
@@ -402,15 +309,99 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Log audit event.
 	h.logAuditEvent(c, auth.AuditEventUserUpdated, user.ID, "user", "update", nil)
-
-	h.logger.Info("user updated",
-		zap.String("user_id", user.ID),
-		zap.String("request_id", c.GetString("request_id")),
-	)
-
+	h.logger.Info("user updated", zap.String("user_id", user.ID), zap.String("request_id", c.GetString("request_id")))
 	c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHandler) fetchAndValidateUser(ctx context.Context, userID, tenantID string) (*auth.TenantUser, error) {
+	user, err := h.store.GetUser(ctx, userID)
+	if err != nil {
+		if errors.Is(err, auth.ErrUserNotFound) {
+			return nil, &handlerError{status: http.StatusNotFound, message: "User not found"}
+		}
+		h.logger.Error("failed to get user", zap.String("user_id", userID), zap.Error(err))
+		return nil, &handlerError{status: http.StatusInternalServerError, message: "Failed to retrieve user"}
+	}
+
+	if !auth.IsPlatformAdminFromContext(ctx) && user.TenantID != tenantID {
+		return nil, &handlerError{status: http.StatusForbidden, message: "Access denied to user from different tenant"}
+	}
+
+	return user, nil
+}
+
+func (h *UserHandler) validateAndApplyUpdates(ctx context.Context, user *auth.TenantUser, req *UpdateUserRequest) error {
+	if req.Email != "" {
+		if err := h.validateEmail(req.Email); err != nil {
+			return err
+		}
+		user.Email = req.Email
+	}
+
+	if req.RoleID != "" {
+		if err := h.validateAndApplyRole(ctx, user, req.RoleID); err != nil {
+			return err
+		}
+	}
+
+	if req.IsActive != nil {
+		user.IsActive = *req.IsActive
+	}
+
+	return nil
+}
+
+func (h *UserHandler) validateEmail(email string) error {
+	if _, err := mail.ParseAddress(email); err != nil {
+		h.logger.Warn("invalid email", zap.String("email", email), zap.Error(err))
+		return &handlerError{status: http.StatusBadRequest, message: "Invalid email format"}
+	}
+	return nil
+}
+
+func (h *UserHandler) validateAndApplyRole(ctx context.Context, user *auth.TenantUser, roleID string) error {
+	role, err := h.store.GetRole(ctx, roleID)
+	if err != nil {
+		if errors.Is(err, auth.ErrRoleNotFound) {
+			return &handlerError{status: http.StatusBadRequest, message: "Invalid role ID"}
+		}
+		h.logger.Error("failed to get role", zap.Error(err))
+		return &handlerError{status: http.StatusInternalServerError, message: "Failed to validate role"}
+	}
+
+	if role.Type == auth.RoleTypePlatform {
+		return &handlerError{status: http.StatusBadRequest, message: "Cannot assign platform-level roles to tenant users"}
+	}
+
+	user.RoleID = roleID
+	return nil
+}
+
+type handlerError struct {
+	status  int
+	message string
+}
+
+func (e *handlerError) Error() string {
+	return e.message
+}
+
+func (h *UserHandler) respondWithError(c *gin.Context, err error) {
+	var hErr *handlerError
+	if errors.As(err, &hErr) {
+		c.JSON(hErr.status, models.ErrorResponse{
+			Error:   http.StatusText(hErr.status),
+			Message: hErr.message,
+			Code:    hErr.status,
+		})
+		return
+	}
+	c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+		Error:   "InternalError",
+		Message: "Internal server error",
+		Code:    http.StatusInternalServerError,
+	})
 }
 
 // DeleteUser handles DELETE /tenant/users/:userId.
