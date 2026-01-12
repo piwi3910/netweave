@@ -335,7 +335,7 @@ func (p *Plugin) executeHeal(ctx context.Context, executionID string, workflow *
 	}, nil
 }
 
-// For OSM, this maps to checking the NS instance status.
+// GetWorkflowStatus checks the NS instance status.
 func (p *Plugin) GetWorkflowStatus(_ context.Context, executionID string) (*smo.WorkflowStatus, error) {
 	if executionID == "" {
 		return nil, fmt.Errorf("execution id is required")

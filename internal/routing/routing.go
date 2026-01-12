@@ -66,7 +66,7 @@ type LocationCondition struct {
 	Exact string
 }
 
-// RoutingContext contains information used for routing decisions.
+// Context contains information used for routing decisions.
 type Context struct {
 	// ResourceType is the type of resource being accessed.
 	ResourceType string
