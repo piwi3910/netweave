@@ -157,11 +157,10 @@ func (g *K8sEventGenerator) handleNodeEvent(ctx context.Context, watchEvent watc
 	resource, err := g.adapter.GetResource(ctx, node.Name)
 	if err != nil {
 		// If resource not found during deletion, that's expected
-		if watchEvent.Type == watch.Deleted {
-			resource = g.createDeletedResource(node)
-		} else {
+		if watchEvent.Type != watch.Deleted {
 			return fmt.Errorf("failed to get resource from adapter: %w", err)
 		}
+		resource = g.createDeletedResource(node)
 	}
 
 	// Create event
