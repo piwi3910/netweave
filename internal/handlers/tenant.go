@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/mail"
 	"regexp"
@@ -275,7 +276,7 @@ func (h *TenantHandler) getTenantForUpdate(ctx context.Context, c *gin.Context, 
 				Message: "Tenant not found",
 				Code:    http.StatusNotFound,
 			})
-			return nil, err
+			return nil, fmt.Errorf("tenant not found: %w", err)
 		}
 
 		h.logger.Error("failed to get tenant", zap.String("tenant_id", tenantID), zap.Error(err))
@@ -284,7 +285,7 @@ func (h *TenantHandler) getTenantForUpdate(ctx context.Context, c *gin.Context, 
 			Message: "Failed to retrieve tenant",
 			Code:    http.StatusInternalServerError,
 		})
-		return nil, err
+		return nil, fmt.Errorf("failed to get tenant: %w", err)
 	}
 
 	return tenant, nil
