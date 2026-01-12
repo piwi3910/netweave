@@ -29,6 +29,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -106,7 +107,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer components.Close(logger)
+	// Close errors are logged but not returned since we're shutting down anyway.
+	// The Close method still returns aggregated errors for debugging.
+	defer func() { _ = components.Close(logger) }()
 
 	// Step 7: Setup and run server with graceful shutdown
 	return runServerWithShutdown(cfg, logger, components)
@@ -122,23 +125,34 @@ type applicationComponents struct {
 	authMw        *auth.Middleware
 }
 
-// Close closes all components gracefully.
-func (c *applicationComponents) Close(logger *zap.Logger) {
+// Close closes all components gracefully and returns any errors encountered.
+// All components are closed even if earlier close operations fail.
+// Errors are aggregated using errors.Join and logged as warnings.
+// This ensures cleanup continues for all resources while still surfacing issues
+// for debugging connection leaks or other cleanup problems.
+func (c *applicationComponents) Close(logger *zap.Logger) error {
+	var closeErrors []error
+
 	if c.k8sAdapter != nil {
 		if err := c.k8sAdapter.Close(); err != nil {
 			logger.Warn("failed to close Kubernetes adapter", zap.Error(err))
+			closeErrors = append(closeErrors, fmt.Errorf("kubernetes adapter: %w", err))
 		}
 	}
 	if c.authStore != nil {
 		if err := c.authStore.Close(); err != nil {
 			logger.Warn("failed to close auth Redis connection", zap.Error(err))
+			closeErrors = append(closeErrors, fmt.Errorf("auth store: %w", err))
 		}
 	}
 	if c.store != nil {
 		if err := c.store.Close(); err != nil {
 			logger.Warn("failed to close Redis connection", zap.Error(err))
+			closeErrors = append(closeErrors, fmt.Errorf("redis store: %w", err))
 		}
 	}
+
+	return errors.Join(closeErrors...)
 }
 
 // setupLogger initializes and configures the logger with proper cleanup.
@@ -223,12 +237,16 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*applicationC
 	if cfg.MultiTenancy.Enabled {
 		authStore, authMw, err := initializeAuth(cfg, logger)
 		if err != nil {
-			logger.Error("failed to initialize auth", zap.Error(err))
+			// Log without exposing sensitive credential details from error chain.
+			logger.Error("failed to initialize authentication subsystem")
 			return nil, fmt.Errorf("failed to initialize auth: %w", err)
 		}
 
 		components.authStore = authStore
 		components.authMw = authMw
+
+		// Register auth store health checks.
+		srv.SetupAuth(authStore, authMw)
 
 		// Wire up auth routes.
 		srv.SetupAuthRoutes(authStore, authMw)
@@ -396,7 +414,8 @@ func getRedisPasswords(cfg *config.Config, logger *zap.Logger) (redisPassword, s
 	}
 
 	// Log warning if using deprecated direct password configuration
-	if cfg.Redis.Password != "" && cfg.Redis.PasswordEnvVar == "" && cfg.Redis.PasswordFile == "" {
+	// Use helper method to avoid direct access to sensitive Password field
+	if cfg.Redis.IsUsingDeprecatedPassword() {
 		logger.Warn("SECURITY WARNING: Redis password is stored in plaintext configuration. "+
 			"This is deprecated and insecure. Use password_env_var or password_file instead.",
 			zap.Bool("deprecated_password_field", true))
@@ -410,7 +429,8 @@ func getRedisPasswords(cfg *config.Config, logger *zap.Logger) (redisPassword, s
 		}
 
 		// Log warning if using deprecated direct sentinel password configuration
-		if cfg.Redis.SentinelPassword != "" && cfg.Redis.SentinelPasswordEnvVar == "" && cfg.Redis.SentinelPasswordFile == "" {
+		// Use helper method to avoid direct access to sensitive SentinelPassword field
+		if cfg.Redis.IsUsingDeprecatedSentinelPassword() {
 			logger.Warn("SECURITY WARNING: Sentinel password is stored in plaintext configuration. "+
 				"This is deprecated and insecure. Use sentinel_password_env_var or sentinel_password_file instead.",
 				zap.Bool("deprecated_sentinel_password_field", true))
@@ -645,8 +665,26 @@ func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 	return nil, fmt.Errorf("OpenAPI specification not found in any of the expected locations")
 }
 
-// initializeAuth creates and initializes the auth store and middleware.
-// This is only called when multi-tenancy is enabled.
+// initializeAuth creates and initializes the authentication store and middleware.
+//
+// This function performs the following initialization steps:
+//  1. Retrieves Redis credentials from environment variables, files, or config
+//  2. Builds Redis configuration with support for standalone and Sentinel modes
+//  3. Creates the auth Redis store and verifies connectivity via ping
+//  4. Initializes default system roles if configured (platform-admin, tenant-admin, etc.)
+//  5. Creates authentication middleware with configured skip paths and mTLS requirements
+//
+// Parameters:
+//   - cfg: Application configuration containing multi-tenancy and Redis settings
+//   - logger: Structured logger for logging initialization progress and errors
+//
+// Returns:
+//   - authStore: Initialized Redis store for auth data (tenants, users, roles, audit)
+//   - authMw: Configured authentication middleware for request validation
+//   - err: Any error encountered during initialization
+//
+// Errors are returned without exposing sensitive credential details in messages.
+// This function is only called when cfg.MultiTenancy.Enabled is true.
 func initializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *auth.Middleware, error) {
 	// Get Redis password (reuse the same logic as main storage).
 	password, sentinelPassword, err := getRedisPasswords(cfg, logger)
@@ -656,13 +694,14 @@ func initializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *
 
 	// Build auth Redis config.
 	authRedisCfg := &auth.RedisConfig{
-		DB:           cfg.Redis.DB,
-		Password:     password,
-		MaxRetries:   cfg.Redis.MaxRetries,
-		DialTimeout:  cfg.Redis.DialTimeout,
-		ReadTimeout:  cfg.Redis.ReadTimeout,
-		WriteTimeout: cfg.Redis.WriteTimeout,
-		PoolSize:     cfg.Redis.PoolSize,
+		DB:               cfg.Redis.DB,
+		Password:         password,
+		SentinelPassword: sentinelPassword,
+		MaxRetries:       cfg.Redis.MaxRetries,
+		DialTimeout:      cfg.Redis.DialTimeout,
+		ReadTimeout:      cfg.Redis.ReadTimeout,
+		WriteTimeout:     cfg.Redis.WriteTimeout,
+		PoolSize:         cfg.Redis.PoolSize,
 	}
 
 	// Configure Redis mode.
@@ -671,8 +710,6 @@ func initializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *
 		authRedisCfg.UseSentinel = true
 		authRedisCfg.SentinelAddrs = cfg.Redis.Addresses
 		authRedisCfg.MasterName = cfg.Redis.MasterName
-		// Note: auth.RedisConfig doesn't have SentinelPassword, but we could add it if needed.
-		_ = sentinelPassword
 	default:
 		authRedisCfg.UseSentinel = false
 		if len(cfg.Redis.Addresses) > 0 {

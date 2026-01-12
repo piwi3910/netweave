@@ -1,6 +1,14 @@
 // Package adapter provides the abstraction layer for different O2-DMS backend implementations.
 // It defines the DMSAdapter interface that all deployment management systems must implement
 // to provide O2-DMS functionality through the netweave gateway.
+//
+// Note on interface{} usage: This package uses map[string]interface{} for Extensions
+// and Values fields to support dynamic JSON/YAML data structures required by:
+// - O2-IMS specification vendor-specific extensions (Extensions fields)
+// - Kubernetes unstructured objects API (for dynamic resources)
+// - Helm values and chart configurations (Values fields)
+// This design allows adapters to pass through arbitrary configuration without
+// requiring schema changes for each vendor's custom fields.
 package adapter
 
 import (
@@ -63,6 +71,8 @@ type Filter struct {
 	Labels map[string]string
 
 	// Extensions allows filtering based on vendor-specific extension fields.
+	// Uses map[string]interface{} to support arbitrary JSON-compatible filter
+	// values as required by the O2-IMS specification for vendor extensions.
 	Extensions map[string]interface{}
 
 	// Limit specifies the maximum number of results to return.
@@ -116,6 +126,8 @@ type DeploymentPackage struct {
 	UploadedAt time.Time `json:"uploadedAt"`
 
 	// Extensions provides vendor-specific additional metadata.
+	// Uses map[string]interface{} to support arbitrary JSON-compatible values
+	// as required by the O2-IMS specification for vendor-specific extensions.
 	Extensions map[string]interface{} `json:"extensions,omitempty"`
 }
 
@@ -140,6 +152,8 @@ type DeploymentPackageUpload struct {
 	Repository string
 
 	// Extensions provides vendor-specific upload parameters.
+	// Uses map[string]interface{} to support arbitrary JSON-compatible values
+	// as required by the O2-IMS specification for vendor-specific extensions.
 	Extensions map[string]interface{}
 }
 
@@ -173,6 +187,8 @@ type Deployment struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	// Extensions provides vendor-specific additional metadata.
+	// Uses map[string]interface{} to support arbitrary JSON-compatible values
+	// as required by the O2-IMS specification for vendor-specific extensions.
 	Extensions map[string]interface{} `json:"extensions,omitempty"`
 }
 
@@ -188,24 +204,32 @@ type DeploymentRequest struct {
 	Namespace string
 
 	// Values contains deployment configuration values (e.g., Helm values).
+	// Uses map[string]interface{} to support arbitrary nested YAML/JSON
+	// configuration structures as required by Helm charts and Kubernetes manifests.
 	Values map[string]interface{}
 
 	// Description provides context about the deployment.
 	Description string
 
 	// Extensions provides vendor-specific deployment parameters.
+	// Uses map[string]interface{} to support arbitrary JSON-compatible values
+	// as required by the O2-IMS specification for vendor-specific extensions.
 	Extensions map[string]interface{}
 }
 
 // DeploymentUpdate contains parameters for updating an existing deployment.
 type DeploymentUpdate struct {
 	// Values contains updated configuration values.
+	// Uses map[string]interface{} to support arbitrary nested YAML/JSON
+	// configuration structures as required by Helm charts and Kubernetes manifests.
 	Values map[string]interface{}
 
 	// Description provides context about the update.
 	Description string
 
 	// Extensions provides vendor-specific update parameters.
+	// Uses map[string]interface{} to support arbitrary JSON-compatible values
+	// as required by the O2-IMS specification for vendor-specific extensions.
 	Extensions map[string]interface{}
 }
 
@@ -230,6 +254,8 @@ type DeploymentStatusDetail struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	// Extensions provides vendor-specific status information.
+	// Uses map[string]interface{} to support arbitrary JSON-compatible values
+	// as required by the O2-IMS specification for vendor-specific extensions.
 	Extensions map[string]interface{} `json:"extensions,omitempty"`
 }
 

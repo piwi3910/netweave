@@ -52,10 +52,8 @@ type ClientConfig struct {
 	ClientKey string
 
 	// CACert is the path to the CA certificate for server verification (optional)
+	// If not provided, system root CAs are used
 	CACert string
-
-	// InsecureSkipVerify skips TLS certificate verification (NOT for production)
-	InsecureSkipVerify bool
 
 	// Timeout is the HTTP client timeout
 	Timeout time.Duration
@@ -77,21 +75,15 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 
-	// Warn about insecure TLS configuration
+	// Initialize logger
 	logger := cfg.Logger
 	if logger == nil {
 		logger = zap.NewNop()
 	}
-	if cfg.InsecureSkipVerify {
-		logger.Warn("TLS certificate validation is disabled - this is insecure and should only be used in development/testing environments")
-	}
 
-	// Create TLS configuration
-	// G402: InsecureSkipVerify is intentionally configurable for development/testing environments
-	// Production deployments should always use proper certificate validation (InsecureSkipVerify=false)
+	// Create secure TLS configuration - always validate certificates
 	tlsConfig := &tls.Config{
-		MinVersion:         tls.VersionTLS13,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		MinVersion: tls.VersionTLS13,
 	}
 
 	// Load client certificate for mTLS if provided

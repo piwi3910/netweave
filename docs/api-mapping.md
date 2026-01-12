@@ -1,7 +1,7 @@
 # O2-IMS to Kubernetes API Mapping
 
-**Version:** 1.0
-**Date:** 2026-01-06
+**Version:** 1.1
+**Date:** 2026-01-09
 
 This document defines how O-RAN O2-IMS resources map to Kubernetes resources in the netweave gateway.
 
@@ -1160,13 +1160,123 @@ func transformMachineSetToO2Pool(ms *machinev1beta1.MachineSet) *models.Resource
 
 ### API Operations
 
-| Operation | Method | Endpoint | K8s Action |
-|-----------|--------|----------|------------|
-| List | GET | `/resourcePools` | List MachineSets |
-| Get | GET | `/resourcePools/{id}` | Get MachineSet |
-| Create | POST | `/resourcePools` | Create MachineSet |
-| Update | PUT | `/resourcePools/{id}` | Update MachineSet |
-| Delete | DELETE | `/resourcePools/{id}` | Delete MachineSet |
+| Operation | Method | Endpoint | K8s Action | Notes |
+|-----------|--------|----------|------------|-------|
+| List | GET | `/resourcePools` | List MachineSets | Supports filtering by location, labels |
+| Get | GET | `/resourcePools/{id}` | Get MachineSet | Returns 404 if not found |
+| Create | POST | `/resourcePools` | Create MachineSet | Requires name; generates ID |
+| Update | PUT | `/resourcePools/{id}` | Update MachineSet | Updates name, description, extensions |
+| Delete | DELETE | `/resourcePools/{id}` | Delete MachineSet | Returns 204 No Content |
+
+#### CREATE Operation Example
+
+**Request:**
+```bash
+curl -X POST https://gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "GPU Pool (Production)",
+    "description": "High-performance GPU nodes for ML workloads",
+    "location": "us-west-2a",
+    "oCloudId": "ocloud-prod-us-west-2",
+    "globalLocationId": "geo:47.6062,-122.3321",
+    "extensions": {
+      "instanceType": "p4d.24xlarge",
+      "replicas": 5,
+      "datacenter": "us-west-2a"
+    }
+  }'
+```
+
+**Response (201 Created):**
+```json
+{
+  "resourcePoolId": "pool-gpu-pool--production--a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+  "name": "GPU Pool (Production)",
+  "description": "High-performance GPU nodes for ML workloads",
+  "location": "us-west-2a",
+  "oCloudId": "ocloud-prod-us-west-2",
+  "globalLocationId": "geo:47.6062,-122.3321",
+  "extensions": {
+    "instanceType": "p4d.24xlarge",
+    "replicas": 5,
+    "datacenter": "us-west-2a"
+  }
+}
+```
+
+**Validation Rules:**
+- `name` is **required** (400 Bad Request if missing)
+- `name` max length: 255 characters
+- `resourcePoolId` is auto-generated if not provided (format: `pool-{sanitized-name}-{uuid}`)
+- `description` max length: 1000 characters
+- `extensions` limited to 50KB total payload size
+
+#### HTTP Status Codes
+
+**POST /resourcePools**
+- `201 Created` - Resource pool successfully created
+- `400 Bad Request` - Invalid request body or validation errors
+- `409 Conflict` - Resource pool with the specified ID already exists
+- `500 Internal Server Error` - Backend adapter error
+
+**PUT /resourcePools/{id}**
+- `200 OK` - Resource pool successfully updated
+- `400 Bad Request` - Invalid request body or validation errors
+- `404 Not Found` - Resource pool with specified ID does not exist
+- `500 Internal Server Error` - Backend adapter error
+
+**DELETE /resourcePools/{id}**
+- `204 No Content` - Resource pool successfully deleted
+- `404 Not Found` - Resource pool with specified ID does not exist
+- `500 Internal Server Error` - Backend adapter error
+
+**GET /resourcePools/{id}**
+- `200 OK` - Resource pool found and returned
+- `404 Not Found` - Resource pool with specified ID does not exist
+- `500 Internal Server Error` - Backend adapter error
+
+**GET /resourcePools**
+- `200 OK` - List of resource pools returned (may be empty)
+- `400 Bad Request` - Invalid query parameters
+- `500 Internal Server Error` - Backend adapter error
+
+#### Input Validation
+
+The gateway performs the following validation on resource pool operations:
+
+**Field Validation:**
+- `name` - Required, maximum 255 characters
+- `resourcePoolId` - Optional on create (auto-generated if not provided), maximum 255 characters, alphanumeric with hyphens and underscores only
+- `description` - Optional, maximum 1000 characters
+
+**Input Sanitization:**
+When `resourcePoolId` is not provided on create, it's auto-generated from the pool name with the following sanitization:
+- Spaces and special characters (`/`, `\`, `..`, `:`, `*`, `?`, `"`, `<`, `>`, `|`) replaced with hyphens
+- Non-alphanumeric characters (except hyphens and underscores) removed
+- Converted to lowercase
+- Prefix `pool-` added
+- Full UUID (36 characters) appended for uniqueness
+
+Example: `"GPU Pool (Production)"` → `"pool-gpu-pool--production--a1b2c3d4-e5f6-7890-abcd-1234567890ab"`
+
+**Note:** The UUID suffix ensures that similar or identical pool names generate unique IDs, maintaining idempotency for create operations.
+
+#### UUID Design Rationale
+
+All auto-generated IDs (resource pools, resources, subscriptions) use full RFC 4122 compliant UUIDs (36 characters):
+
+**Format Examples:**
+- Resource Pool: `pool-{sanitized-name}-{uuid}` → `pool-gpu-cluster-a1b2c3d4-e5f6-7890-abcd-1234567890ab`
+- Resource: `{uuid}` → `a1b2c3d4-e5f6-7890-abcd-1234567890ab`
+- Subscription: `sub-{uuid}` → `sub-a1b2c3d4-e5f6-7890-abcd-1234567890ab`
+
+**Why Full UUIDs?**
+- **Standard Compliance**: RFC 4122 UUID v4 format (universally recognized)
+- **Collision Resistance**: 2^122 possible combinations (effectively zero collision probability)
+- **Simplicity**: No custom truncation logic needed
+- **Compatibility**: Works with all UUID-aware systems and tools
+- **Maintainability**: Standard format is predictable and well-documented
 
 ---
 
@@ -1303,13 +1413,56 @@ func transformO2ResourceToMachine(resource *models.Resource) *machinev1beta1.Mac
 
 ### API Operations
 
-| Operation | Method | Endpoint | K8s Action |
-|-----------|--------|----------|------------|
-| List | GET | `/resources` | List Nodes (or Machines) |
-| Get | GET | `/resources/{id}` | Get Node |
-| Create | POST | `/resources` | Create Machine (triggers Node) |
-| ~~Update~~ | ~~PUT~~ | ~~N/A~~ | Not supported (nodes are immutable) |
-| Delete | DELETE | `/resources/{id}` | Delete Machine or drain+delete Node |
+| Operation | Method | Endpoint | K8s Action | Notes |
+|-----------|--------|----------|------------|-------|
+| List | GET | `/resources` | List Nodes (or Machines) | Supports filtering by pool, type |
+| Get | GET | `/resources/{id}` | Get Node | Returns 404 if not found |
+| Create | POST | `/resources` | Create Machine (triggers Node) | Requires resourceTypeId; generates ID |
+| Update | PUT | `/resources/{id}` | Update mutable fields (description, globalAssetId, extensions) | Implemented in main |
+| Delete | DELETE | `/resources/{id}` | Delete Machine or drain+delete Node | Returns 204 No Content |
+
+#### CREATE Operation Example
+
+**Request:**
+```bash
+curl -X POST https://gateway.example.com/o2ims-infrastructureInventory/v1/resources \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resourceTypeId": "compute-node-standard",
+    "resourcePoolId": "pool-production-us-west-2",
+    "description": "Production workload node for AI training",
+    "globalAssetId": "urn:o-ran:resource:node-prod-ai-001",
+    "extensions": {
+      "datacenter": "us-west-2a",
+      "purpose": "ml-training",
+      "team": "ml-platform"
+    }
+  }'
+```
+
+**Response (201 Created):**
+```json
+{
+  "resourceId": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+  "resourceTypeId": "compute-node-standard",
+  "resourcePoolId": "pool-production-us-west-2",
+  "description": "Production workload node for AI training",
+  "globalAssetId": "urn:o-ran:resource:node-prod-ai-001",
+  "extensions": {
+    "datacenter": "us-west-2a",
+    "purpose": "ml-training",
+    "team": "ml-platform"
+  }
+}
+```
+
+**Validation Rules:**
+- `resourceTypeId` is **required** (400 Bad Request if missing)
+- `resourcePoolId` is **required** (400 Bad Request if missing)
+- `resourceId` is auto-generated if not provided (format: plain UUID)
+- `description` max length: 1000 characters
+- `globalAssetId` must be valid URN format if provided
+- `extensions` limited to 50KB total payload size
 
 ---
 
@@ -1516,13 +1669,189 @@ func (c *SubscriptionController) sendWebhook(
 
 ### API Operations
 
-| Operation | Method | Endpoint | K8s Action |
-|-----------|--------|----------|------------|
-| List | GET | `/subscriptions` | List from Redis |
-| Get | GET | `/subscriptions/{id}` | Get from Redis |
-| Create | POST | `/subscriptions` | Store in Redis + start watching |
-| Update | PUT | `/subscriptions/{id}` | Update Redis |
-| Delete | DELETE | `/subscriptions/{id}` | Delete from Redis + stop watching |
+| Operation | Method | Endpoint | Action | Notes |
+|-----------|--------|----------|--------|-------|
+| List | GET | `/subscriptions` | List from Redis | Returns all subscriptions for tenant |
+| Get | GET | `/subscriptions/{id}` | Get from Redis | Returns single subscription |
+| Create | POST | `/subscriptions` | Store in Redis + start watching | Validates callback URL with SSRF protection |
+| Update | PUT | `/subscriptions/{id}` | Update Redis | Updates callback, filter; preserves ID, tenantId, createdAt |
+| Delete | DELETE | `/subscriptions/{id}` | Delete from Redis + stop watching | Returns 204 No Content |
+
+#### Callback URL Security
+
+**SSRF Protection:**
+
+The gateway implements Server-Side Request Forgery (SSRF) protection to prevent malicious callback URLs:
+
+- **Blocked:** `localhost`, `127.0.0.1`, `::1` (loopback addresses)
+- **Blocked:** Private IPv4 ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)
+- **Blocked:** Link-local addresses (`169.254.0.0/16`)
+- **Blocked:** IPv6 private ranges (ULA `fc00::/7`, link-local `fe80::/10`)
+- **Allowed:** Public internet-accessible URLs only
+
+**Example - Rejected Callback:**
+```json
+POST /o2ims/v1/subscriptions
+{
+  "callback": "http://localhost/admin",
+  "filter": {}
+}
+
+Response: 400 Bad Request
+{
+  "error": "BadRequest",
+  "message": "callback URL cannot be localhost",
+  "code": 400
+}
+```
+
+### Batch Operations (v2+)
+
+**Version:** Available in API v2 and later
+
+Batch operations enable efficient bulk creation and deletion of multiple subscriptions or resource pools in a single API call, with support for atomic transactions.
+
+| Operation | Method | Endpoint | Description | Atomic Support |
+|-----------|--------|----------|-------------|----------------|
+| Batch Create Subscriptions | POST | `/o2ims/v2/batch/subscriptions` | Create multiple subscriptions | ✅ Yes |
+| Batch Delete Subscriptions | POST | `/o2ims/v2/batch/subscriptions/delete` | Delete multiple subscriptions | ✅ Yes |
+| Batch Create Resource Pools | POST | `/o2ims/v2/batch/resourcePools` | Create multiple resource pools | ✅ Yes |
+| Batch Delete Resource Pools | POST | `/o2ims/v2/batch/resourcePools/delete` | Delete multiple resource pools | ✅ Yes |
+
+#### Batch Create Subscriptions
+
+**Request:**
+```http
+POST /o2ims/v2/batch/subscriptions HTTP/1.1
+Content-Type: application/json
+
+{
+  "subscriptions": [
+    {
+      "callback": "https://smo.example.com/notify1",
+      "consumerSubscriptionId": "smo-sub-1",
+      "filter": {
+        "resourcePoolId": ["pool-compute"]
+      }
+    },
+    {
+      "callback": "https://smo.example.com/notify2",
+      "consumerSubscriptionId": "smo-sub-2",
+      "filter": {
+        "resourceTypeId": ["compute-node"]
+      }
+    }
+  ],
+  "atomic": false
+}
+```
+
+**Response:**
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "results": [
+    {
+      "index": 0,
+      "status": 201,
+      "success": true,
+      "data": {
+        "subscriptionId": "550e8400-e29b-41d4-a716-446655440000",
+        "callback": "https://smo.example.com/notify1",
+        "consumerSubscriptionId": "smo-sub-1",
+        "createdAt": "2026-01-11T10:00:00Z"
+      }
+    },
+    {
+      "index": 1,
+      "status": 201,
+      "success": true,
+      "data": {
+        "subscriptionId": "550e8400-e29b-41d4-a716-446655440001",
+        "callback": "https://smo.example.com/notify2",
+        "consumerSubscriptionId": "smo-sub-2",
+        "createdAt": "2026-01-11T10:00:01Z"
+      }
+    }
+  ],
+  "success": true,
+  "successCount": 2,
+  "failureCount": 0
+}
+```
+
+#### Atomic Batch Operations
+
+When `atomic: true` is set, all operations in the batch must succeed or all will be rolled back:
+
+**Request:**
+```http
+POST /o2ims/v2/batch/subscriptions HTTP/1.1
+Content-Type: application/json
+
+{
+  "subscriptions": [
+    {
+      "callback": "https://smo.example.com/notify1",
+      "consumerSubscriptionId": "smo-sub-1"
+    },
+    {
+      "callback": "invalid-url",  // This will fail validation
+      "consumerSubscriptionID": "smo-sub-2"
+    }
+  ],
+  "atomic": true
+}
+```
+
+**Response:**
+```http
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+{
+  "results": [
+    {
+      "index": 0,
+      "status": 409,
+      "success": false,
+      "error": {
+        "error": "RolledBack",
+        "message": "Operation rolled back due to atomic batch failure",
+        "code": 409
+      }
+    },
+    {
+      "index": 1,
+      "status": 400,
+      "success": false,
+      "error": {
+        "error": "BadRequest",
+        "message": "Invalid callback URL",
+        "code": 400
+      }
+    }
+  ],
+  "success": false,
+  "successCount": 0,
+  "failureCount": 2
+}
+```
+
+#### Batch Operation Constraints
+
+- **Min batch size:** 1 operation
+- **Max batch size:** 100 operations per request
+- **Concurrency limit:** 10 concurrent operations per batch request
+- **Timeout:** Standard API timeout applies to entire batch
+- **HTTP Status Codes:**
+  - `200 OK` - All operations succeeded
+  - `207 Multi-Status` - Partial success (some operations failed)
+  - `400 Bad Request` - All operations failed or atomic batch failed
+  - `401 Unauthorized` - Authentication required
+  - `403 Forbidden` - Insufficient permissions
 
 ---
 
@@ -1640,7 +1969,205 @@ Location: /o2ims/v1/resourcePools/pool-gpu-a100
 
 ---
 
-### Example 2: Subscribe to Node Events
+### Example 2: Create Resource (Provision New Node)
+
+**Request** (O2-IMS):
+```http
+POST /o2ims/v1/resources HTTP/1.1
+Content-Type: application/json
+
+{
+  "resourceTypeId": "compute-node",
+  "resourcePoolId": "pool-compute-high-mem",
+  "globalAssetId": "urn:o-ran:resource:node-prod-042",
+  "description": "High-memory compute node for RAN workloads",
+  "extensions": {
+    "cpu": "64 cores",
+    "memory": "512GB",
+    "disk": "2TB NVMe",
+    "zone": "us-east-1a"
+  }
+}
+```
+
+**Transformation** (Gateway):
+```go
+// 1. Validate required fields
+if resource.ResourceTypeID == "" {
+    return errors.New("resource type ID is required")
+}
+if resource.ResourcePoolID == "" {
+    return errors.New("resource pool ID is required")
+}
+
+// 2. Validate field constraints
+validationErrors := validateResourceFields(&resource)
+if len(validationErrors) > 0 {
+    return fmt.Errorf("validation failed: %v", validationErrors)
+}
+
+// 3. Generate resource ID if not provided
+if resource.ResourceID == "" {
+    resource.ResourceID = fmt.Sprintf("res-%s-%s",
+        resource.ResourceTypeID,
+        uuid.New().String())
+}
+
+// 4. Get resource pool to determine machine template
+pool, err := adapter.GetResourcePool(ctx, resource.ResourcePoolID)
+if err != nil {
+    return err
+}
+
+// 5. Create Machine (triggers Node provisioning)
+machine := &machinev1beta1.Machine{
+    ObjectMeta: metav1.ObjectMeta{
+        GenerateName: resource.ResourcePoolID + "-",
+        Namespace:    "openshift-machine-api",
+        Labels: map[string]string{
+            "machine.openshift.io/cluster-api-machineset": resource.ResourcePoolID,
+            "o2ims.oran.org/resource-id":                  resource.ResourceID,
+            "o2ims.oran.org/resource-pool-id":             resource.ResourcePoolID,
+        },
+        Annotations: map[string]string{
+            "o2ims.oran.org/global-asset-id": resource.GlobalAssetID,
+            "o2ims.oran.org/description":     resource.Description,
+        },
+    },
+    Spec: pool.MachineTemplate.Spec,
+}
+
+// 6. Apply to K8s
+err = k8sClient.Create(ctx, machine)
+
+// 7. Wait for Machine to be provisioned (creates Node)
+// This happens asynchronously via machine controller
+
+// 8. Return O2-IMS response
+return &models.Resource{
+    ResourceID:     resource.ResourceID,
+    ResourceTypeID: resource.ResourceTypeID,
+    ResourcePoolID: resource.ResourcePoolID,
+    GlobalAssetID:  resource.GlobalAssetID,
+    Description:    resource.Description,
+    Extensions:     resource.Extensions,
+}
+```
+
+**Response** (O2-IMS):
+```http
+HTTP/1.1 201 Created
+Content-Type: application/json
+Location: /o2ims/v1/resources/a1b2c3d4-e5f6-7890-abcd-1234567890ab
+
+{
+  "resourceId": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+  "resourceTypeId": "compute-node",
+  "resourcePoolId": "pool-compute-high-mem",
+  "globalAssetId": "urn:o-ran:resource:node-prod-042",
+  "description": "High-memory compute node for RAN workloads",
+  "extensions": {
+    "cpu": "64 cores",
+    "memory": "512GB",
+    "disk": "2TB NVMe",
+    "zone": "us-east-1a",
+    "nodeName": "ip-10-0-1-123.ec2.internal",
+    "status": "Provisioning"
+  }
+}
+```
+
+**Kubernetes Side Effects**:
+```yaml
+# Machine created (triggers Node provisioning)
+apiVersion: machine.openshift.io/v1beta1
+kind: Machine
+metadata:
+  name: pool-compute-high-mem-xyz123
+  namespace: openshift-machine-api
+  labels:
+    machine.openshift.io/cluster-api-machineset: pool-compute-high-mem
+    o2ims.oran.org/resource-id: a1b2c3d4-e5f6-7890-abcd-1234567890ab
+  annotations:
+    o2ims.oran.org/global-asset-id: "urn:o-ran:resource:node-prod-042"
+    o2ims.oran.org/description: "High-memory compute node for RAN workloads"
+spec:
+  # Machine spec from resource pool template
+  providerSpec:
+    value:
+      instanceType: m5.4xlarge
+      placement:
+        availabilityZone: us-east-1a
+
+# After ~5 minutes, Node appears:
+apiVersion: v1
+kind: Node
+metadata:
+  name: ip-10-0-1-123.ec2.internal
+  labels:
+    o2ims.oran.org/resource-id: a1b2c3d4-e5f6-7890-abcd-1234567890ab
+    o2ims.oran.org/resource-pool-id: pool-compute-high-mem
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+  capacity:
+    cpu: "64"
+    memory: 512Gi
+```
+
+**Error Scenarios**:
+
+**Missing Required Field**:
+```http
+POST /o2ims/v1/resources
+{"resourceTypeId": "compute-node"}
+
+→ HTTP 400 Bad Request
+{
+  "error": "BadRequest",
+  "message": "Resource pool ID is required",
+  "code": 400
+}
+```
+
+**Invalid GlobalAssetID**:
+```http
+POST /o2ims/v1/resources
+{
+  "resourceTypeId": "compute-node",
+  "resourcePoolId": "pool-compute-high-mem",
+  "globalAssetId": "invalid-not-urn"
+}
+
+→ HTTP 400 Bad Request
+{
+  "error": "BadRequest",
+  "message": "globalAssetId must start with 'urn:'",
+  "code": 400
+}
+```
+
+**Duplicate Resource ID**:
+```http
+POST /o2ims/v1/resources
+{
+  "resourceId": "existing-resource-id",
+  "resourceTypeId": "compute-node",
+  "resourcePoolId": "pool-compute-high-mem"
+}
+
+→ HTTP 409 Conflict
+{
+  "error": "Conflict",
+  "message": "Resource with ID 'existing-resource-id' already exists",
+  "code": 409
+}
+```
+
+---
+
+### Example 3: Subscribe to Node Events
 
 **Request** (O2-IMS):
 ```http
@@ -1663,8 +2190,8 @@ if !isValidURL(sub.Callback) {
     return errors.New("invalid callback URL")
 }
 
-// 2. Generate subscription ID
-subID := uuid.New().String()
+// 2. Generate subscription ID (full UUID for uniqueness)
+subID := "sub-" + uuid.New().String()
 
 // 3. Store in Redis
 err := redis.HSet(ctx, "subscription:"+subID,

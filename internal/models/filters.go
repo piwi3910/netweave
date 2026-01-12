@@ -75,6 +75,11 @@ type Filter struct {
 
 	// Extensions contains additional filter criteria for backend-specific fields.
 	Extensions map[string]interface{} `json:"extensions,omitempty" yaml:"extensions,omitempty"`
+
+	// Fields specifies which fields to include in the response (field selection).
+	// If empty, all fields are returned. Supports nested fields with dot notation.
+	// Example: "resourceId,name,extensions.cpu"
+	Fields []string `json:"fields,omitempty" yaml:"fields,omitempty"`
 }
 
 // ParseQueryParams parses HTTP query parameters into a Filter.
@@ -90,63 +95,70 @@ func ParseQueryParams(params url.Values) *Filter {
 		Extensions: make(map[string]interface{}),
 	}
 
-	// Parse resource pool IDs (supports multiple values)
+	parseResourceIDs(params, filter)
+	parseStringFields(params, filter)
+	parseLabels(params, filter)
+	parsePaginationParams(params, filter)
+	parseSortParams(params, filter)
+	parseFieldSelection(params, filter)
+
+	return filter
+}
+
+// parseResourceIDs parses multi-value resource ID parameters.
+func parseResourceIDs(params url.Values, filter *Filter) {
 	if poolIDs := params["resourcePoolId"]; len(poolIDs) > 0 {
 		filter.ResourcePoolID = poolIDs
 	}
-
-	// Parse resource type IDs (supports multiple values)
 	if typeIDs := params["resourceTypeId"]; len(typeIDs) > 0 {
 		filter.ResourceTypeID = typeIDs
 	}
-
-	// Parse resource IDs (supports multiple values)
 	if resourceIDs := params["resourceId"]; len(resourceIDs) > 0 {
 		filter.ResourceID = resourceIDs
 	}
+}
 
-	// Parse location (single value)
+// parseStringFields parses single-value string parameters.
+func parseStringFields(params url.Values, filter *Filter) {
 	if location := params.Get("location"); location != "" {
 		filter.Location = location
 	}
-
-	// Parse O-Cloud ID (single value)
 	if oCloudID := params.Get("oCloudId"); oCloudID != "" {
 		filter.OCloudID = oCloudID
 	}
-
-	// Parse resource class (single value)
 	if resourceClass := params.Get("resourceClass"); resourceClass != "" {
 		filter.ResourceClass = resourceClass
 	}
-
-	// Parse resource kind (single value)
 	if resourceKind := params.Get("resourceKind"); resourceKind != "" {
 		filter.ResourceKind = resourceKind
 	}
-
-	// Parse vendor (single value)
 	if vendor := params.Get("vendor"); vendor != "" {
 		filter.Vendor = vendor
 	}
-
-	// Parse model (single value)
 	if model := params.Get("model"); model != "" {
 		filter.Model = model
 	}
+}
 
-	// Parse labels (format: "key1:value1,key2:value2")
-	if labelsParam := params.Get("labels"); labelsParam != "" {
-		for _, pair := range strings.Split(labelsParam, ",") {
-			parts := strings.SplitN(pair, ":", 2)
-			if len(parts) == 2 {
-				key := strings.TrimSpace(parts[0])
-				value := strings.TrimSpace(parts[1])
-				filter.Labels[key] = value
-			}
-		}
+// parseLabels parses label parameters (format: "key1:value1,key2:value2").
+func parseLabels(params url.Values, filter *Filter) {
+	labelsParam := params.Get("labels")
+	if labelsParam == "" {
+		return
 	}
 
+	for _, pair := range strings.Split(labelsParam, ",") {
+		parts := strings.SplitN(pair, ":", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			filter.Labels[key] = value
+		}
+	}
+}
+
+// parsePaginationParams parses limit and offset parameters.
+func parsePaginationParams(params url.Values, filter *Filter) {
 	// Parse limit (default: 100, max: 1000)
 	if limitStr := params.Get("limit"); limitStr != "" {
 		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 {
@@ -166,13 +178,14 @@ func ParseQueryParams(params url.Values) *Filter {
 			filter.Offset = offset
 		}
 	}
+}
 
-	// Parse sort by (default: none)
+// parseSortParams parses sorting parameters (sortBy and sortOrder).
+func parseSortParams(params url.Values, filter *Filter) {
 	if sortBy := params.Get("sortBy"); sortBy != "" {
 		filter.SortBy = sortBy
 	}
 
-	// Parse sort order (default: asc)
 	if sortOrder := params.Get("sortOrder"); sortOrder != "" {
 		if sortOrder == "asc" || sortOrder == "desc" {
 			filter.SortOrder = sortOrder
@@ -181,8 +194,23 @@ func ParseQueryParams(params url.Values) *Filter {
 	if filter.SortOrder == "" {
 		filter.SortOrder = "asc"
 	}
+}
 
-	return filter
+// parseFieldSelection parses the fields parameter for field selection.
+func parseFieldSelection(params url.Values, filter *Filter) {
+	fieldsParam := params.Get("fields")
+	if fieldsParam == "" {
+		return
+	}
+
+	fields := strings.Split(fieldsParam, ",")
+	filter.Fields = make([]string, 0, len(fields))
+	for _, field := range fields {
+		trimmed := strings.TrimSpace(field)
+		if trimmed != "" {
+			filter.Fields = append(filter.Fields, trimmed)
+		}
+	}
 }
 
 // ToQueryParams converts a Filter back to URL query parameters.
@@ -201,6 +229,7 @@ func (f *Filter) ToQueryParams() url.Values {
 	f.addLabelsFilter(params)
 	f.addPaginationParams(params)
 	f.addSortingParams(params)
+	f.addFieldsParam(params)
 
 	return params
 }
@@ -266,6 +295,13 @@ func (f *Filter) addSortingParams(params url.Values) {
 	}
 	if f.SortOrder != "" {
 		params.Set("sortOrder", f.SortOrder)
+	}
+}
+
+// addFieldsParam adds field selection parameter.
+func (f *Filter) addFieldsParam(params url.Values) {
+	if len(f.Fields) > 0 {
+		params.Set("fields", strings.Join(f.Fields, ","))
 	}
 }
 
@@ -406,11 +442,13 @@ func (f *Filter) Clone() *Filter {
 		SortBy:         f.SortBy,
 		SortOrder:      f.SortOrder,
 		Extensions:     make(map[string]interface{}),
+		Fields:         make([]string, len(f.Fields)),
 	}
 
 	copy(clone.ResourcePoolID, f.ResourcePoolID)
 	copy(clone.ResourceTypeID, f.ResourceTypeID)
 	copy(clone.ResourceID, f.ResourceID)
+	copy(clone.Fields, f.Fields)
 
 	for k, v := range f.Labels {
 		clone.Labels[k] = v
@@ -431,4 +469,202 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+// HasFieldSelection returns true if the filter has field selection enabled.
+//
+// Example:
+//
+//	filter := &Filter{Fields: []string{"name", "location"}}
+//	if filter.HasFieldSelection() {
+//	    // Apply field filtering
+//	}
+func (f *Filter) HasFieldSelection() bool {
+	return len(f.Fields) > 0
+}
+
+// ShouldIncludeField checks if a field should be included in the response.
+// It supports exact matching and prefix matching for nested fields.
+func (f *Filter) ShouldIncludeField(fieldName string) bool {
+	if !f.HasFieldSelection() {
+		return true
+	}
+
+	for _, field := range f.Fields {
+		// Exact match
+		if field == fieldName {
+			return true
+		}
+		// Check if the field is a prefix (for nested fields)
+		if strings.HasPrefix(fieldName, field+".") {
+			return true
+		}
+		// Check if requested field is a prefix of this field (for parent inclusion)
+		if strings.HasPrefix(field, fieldName+".") {
+			return true
+		}
+	}
+	return false
+}
+
+// deepCopyValue creates a deep copy of a value to prevent shared references.
+// This prevents memory leaks where modifications to filtered data affect the original.
+func deepCopyValue(value interface{}) interface{} {
+	if value == nil {
+		return nil
+	}
+
+	switch v := value.(type) {
+	case map[string]interface{}:
+		return deepCopyMap(v)
+	case []interface{}:
+		return deepCopyInterfaceSlice(v)
+	case []map[string]interface{}:
+		return deepCopyMapSlice(v)
+	case []string, []int, []int64, []float64, []bool:
+		return deepCopyPrimitiveSlice(v)
+	default:
+		// Primitive types (string, int, int64, bool, float64, etc.) are copied by value
+		// Complex types not explicitly handled are returned as-is (may share references)
+		return v
+	}
+}
+
+// deepCopyMap creates a deep copy of a map.
+func deepCopyMap(m map[string]interface{}) map[string]interface{} {
+	copied := make(map[string]interface{}, len(m))
+	for key, val := range m {
+		copied[key] = deepCopyValue(val)
+	}
+	return copied
+}
+
+// deepCopyInterfaceSlice creates a deep copy of an interface slice.
+func deepCopyInterfaceSlice(s []interface{}) []interface{} {
+	copied := make([]interface{}, len(s))
+	for i, val := range s {
+		copied[i] = deepCopyValue(val)
+	}
+	return copied
+}
+
+// deepCopyMapSlice creates a deep copy of a map slice.
+func deepCopyMapSlice(s []map[string]interface{}) []map[string]interface{} {
+	copied := make([]map[string]interface{}, len(s))
+	for i, m := range s {
+		copied[i] = deepCopyValue(m).(map[string]interface{})
+	}
+	return copied
+}
+
+// deepCopyPrimitiveSlice creates a copy of primitive type slices.
+func deepCopyPrimitiveSlice(value interface{}) interface{} {
+	switch v := value.(type) {
+	case []string:
+		copied := make([]string, len(v))
+		copy(copied, v)
+		return copied
+	case []int:
+		copied := make([]int, len(v))
+		copy(copied, v)
+		return copied
+	case []int64:
+		copied := make([]int64, len(v))
+		copy(copied, v)
+		return copied
+	case []float64:
+		copied := make([]float64, len(v))
+		copy(copied, v)
+		return copied
+	case []bool:
+		copied := make([]bool, len(v))
+		copy(copied, v)
+		return copied
+	default:
+		return value
+	}
+}
+
+// SelectFields filters a map to only include requested fields.
+// Returns a deep copy to prevent shared references with the original data.
+//
+// Example with top-level fields:
+//
+//	data := map[string]interface{}{
+//	    "resourceId": "pool-1",
+//	    "name": "Production Pool",
+//	    "location": "us-west",
+//	    "internal": "secret-data",
+//	}
+//	filter := &Filter{Fields: []string{"resourceId", "name"}}
+//	filtered := filter.SelectFields(data)
+//	// Result: {"resourceId": "pool-1", "name": "Production Pool"}
+//
+// Example with nested fields:
+//
+//	data := map[string]interface{}{
+//	    "metadata": map[string]interface{}{
+//	        "labels": map[string]string{"env": "prod"},
+//	        "annotations": map[string]string{"owner": "team-a"},
+//	    },
+//	    "spec": map[string]interface{}{"replicas": 3},
+//	}
+//	filter := &Filter{Fields: []string{"metadata.labels"}}
+//	filtered := filter.SelectFields(data)
+//	// Result: {"metadata": {"labels": {"env": "prod"}}}
+func (f *Filter) SelectFields(data map[string]interface{}) map[string]interface{} {
+	// Always return a deep copy to prevent memory leaks from shared references.
+	// Even without field selection, we copy to ensure modifications to the returned
+	// map don't affect the original data. This prevents subtle bugs where filtered
+	// results share memory with source data structures.
+	if !f.HasFieldSelection() {
+		return deepCopyValue(data).(map[string]interface{})
+	}
+
+	result := make(map[string]interface{})
+	for _, field := range f.Fields {
+		f.selectField(data, result, field)
+	}
+	return result
+}
+
+// selectField extracts a single field from data and adds it to result.
+// Handles both direct fields and nested field paths (e.g., "extensions.cpu").
+func (f *Filter) selectField(data, result map[string]interface{}, field string) {
+	parts := strings.SplitN(field, ".", 2)
+	key := parts[0]
+
+	value, exists := data[key]
+	if !exists {
+		return
+	}
+
+	if len(parts) == 1 {
+		// Direct field, include it with deep copy
+		result[key] = deepCopyValue(value)
+		return
+	}
+
+	// Nested field, need to recurse
+	f.selectNestedField(value, result, key, parts[1])
+}
+
+// selectNestedField handles nested field selection for a key.
+func (f *Filter) selectNestedField(value interface{}, result map[string]interface{}, key, nestedPath string) {
+	nestedMap, ok := value.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	nestedFilter := &Filter{Fields: []string{nestedPath}}
+	nestedResult := nestedFilter.SelectFields(nestedMap)
+
+	if existing, ok := result[key].(map[string]interface{}); ok {
+		// Merge with existing (deep copy values during merge)
+		for k, v := range nestedResult {
+			existing[k] = deepCopyValue(v)
+		}
+	} else {
+		result[key] = nestedResult
+	}
 }

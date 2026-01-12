@@ -23,6 +23,7 @@ import (
 	dmshandlers "github.com/piwi3910/netweave/internal/dms/handlers"
 	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
 	dmsstorage "github.com/piwi3910/netweave/internal/dms/storage"
+	"github.com/piwi3910/netweave/internal/handlers"
 	"github.com/piwi3910/netweave/internal/middleware"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/smo"
@@ -68,6 +69,9 @@ type Server struct {
 	healthCheck      *observability.HealthChecker
 	openAPIValidator *middleware.OpenAPIValidator
 	openAPISpec      []byte
+
+	// Handlers
+	batchHandler *handlers.BatchHandler
 
 	// DMS subsystem.
 	dmsRegistry *dmsregistry.Registry
@@ -137,6 +141,9 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 	// Initialize metrics
 	metrics := initMetrics(cfg)
 
+	// Initialize global observability metrics
+	globalMetrics := observability.InitMetrics(cfg.Observability.Metrics.Namespace)
+
 	// Initialize health checker with adapter and storage checks
 	healthCheck := initHealthChecker(cfg, adp, store)
 
@@ -147,6 +154,9 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 			zap.Error(err),
 		)
 	}
+
+	// Initialize batch handler
+	batchHandler := handlers.NewBatchHandler(adp, store, logger, globalMetrics)
 
 	// Create server instance
 	srv := &Server{
@@ -159,6 +169,7 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 		healthCheck:      healthCheck,
 		openAPIValidator: openAPIValidator,
 		openAPISpec:      o2imsOpenAPISpec,
+		batchHandler:     batchHandler,
 	}
 
 	// Setup middleware
@@ -291,6 +302,9 @@ func (s *Server) setupMiddleware() {
 	// Recovery middleware - must be first to catch panics
 	s.router.Use(s.recoveryMiddleware())
 
+	// Security headers middleware - add early to ensure headers are set
+	s.router.Use(s.securityHeadersMiddleware())
+
 	// Request logging middleware
 	s.router.Use(s.loggingMiddleware())
 
@@ -314,6 +328,36 @@ func (s *Server) setupMiddleware() {
 		s.router.Use(s.openAPIValidator.Middleware())
 		s.logger.Info("OpenAPI request validation enabled")
 	}
+}
+
+// securityHeadersMiddleware returns the security headers middleware.
+func (s *Server) securityHeadersMiddleware() gin.HandlerFunc {
+	config := &middleware.SecurityHeadersConfig{
+		Enabled:               s.config.Security.SecurityHeaders.Enabled,
+		HSTSMaxAge:            s.config.Security.SecurityHeaders.HSTSMaxAge,
+		HSTSIncludeSubDomains: s.config.Security.SecurityHeaders.HSTSIncludeSubDomains,
+		HSTSPreload:           s.config.Security.SecurityHeaders.HSTSPreload,
+		ContentSecurityPolicy: s.config.Security.SecurityHeaders.ContentSecurityPolicy,
+		FrameOptions:          s.config.Security.SecurityHeaders.FrameOptions,
+		ReferrerPolicy:        s.config.Security.SecurityHeaders.ReferrerPolicy,
+		TLSEnabled:            s.config.TLS.Enabled,
+	}
+
+	// Apply defaults if not configured
+	if config.ContentSecurityPolicy == "" {
+		config.ContentSecurityPolicy = "default-src 'none'; frame-ancestors 'none'"
+	}
+	if config.FrameOptions == "" {
+		config.FrameOptions = "DENY"
+	}
+	if config.ReferrerPolicy == "" {
+		config.ReferrerPolicy = "strict-origin-when-cross-origin"
+	}
+	if config.HSTSMaxAge == 0 {
+		config.HSTSMaxAge = 31536000 // 1 year
+	}
+
+	return middleware.SecurityHeaders(config)
 }
 
 // Start starts the HTTP server and blocks until the server is shut down.
@@ -519,6 +563,11 @@ func (s *Server) SetupAuth(authStore AuthStore, authMw AuthMiddleware) {
 	s.logger.Info("multi-tenancy and RBAC enabled")
 }
 
+// AuthStore returns the authentication store.
+// Returns nil if auth is not configured.
+func (s *Server) AuthStore() AuthStore {
+	return s.authStore
+}
 
 // recoveryMiddleware recovers from panics and logs the error.
 func (s *Server) recoveryMiddleware() gin.HandlerFunc {

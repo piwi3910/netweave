@@ -12,6 +12,7 @@ package dtias
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -40,6 +41,14 @@ type DTIASAdapter struct {
 
 	// deploymentManagerID is the identifier for this deployment manager
 	deploymentManagerID string
+
+	// subscriptions holds active subscriptions for polling-based change detection.
+	// Since DTIAS has no native event system, subscriptions are stored locally
+	// and the gateway layer implements polling to detect changes.
+	subscriptions map[string]*adapter.Subscription
+
+	// subscriptionsMu protects the subscriptions map.
+	subscriptionsMu sync.RWMutex
 }
 
 // Config holds configuration for creating a DTIASAdapter.
@@ -57,10 +66,8 @@ type Config struct {
 	ClientKey string `yaml:"clientKey"`
 
 	// CACert is the path to the CA certificate for server verification (optional)
+	// If not provided, system root CAs are used for certificate validation
 	CACert string `yaml:"caCert"`
-
-	// InsecureSkipVerify skips TLS certificate verification (NOT for production)
-	InsecureSkipVerify bool `yaml:"insecureSkipVerify"`
 
 	// Timeout is the HTTP client timeout
 	Timeout time.Duration `yaml:"timeout"`
@@ -119,12 +126,13 @@ func New(cfg *Config) (*DTIASAdapter, error) {
 		return nil, err
 	}
 
-	adapter := &DTIASAdapter{
+	adp := &DTIASAdapter{
 		client:              client,
 		logger:              logger,
 		config:              cfg,
 		oCloudID:            cfg.OCloudID,
 		deploymentManagerID: cfg.DeploymentManagerID,
+		subscriptions:       make(map[string]*adapter.Subscription),
 	}
 
 	logger.Info("DTIAS adapter initialized",
@@ -133,7 +141,7 @@ func New(cfg *Config) (*DTIASAdapter, error) {
 		zap.String("deploymentManagerId", cfg.DeploymentManagerID),
 		zap.String("datacenter", cfg.Datacenter))
 
-	return adapter, nil
+	return adp, nil
 }
 
 // validateConfig validates the required configuration fields.
@@ -185,16 +193,15 @@ func getLogger(cfg *Config) (*zap.Logger, error) {
 // createDTIASClient creates a new DTIAS client with the provided configuration.
 func createDTIASClient(cfg *Config, logger *zap.Logger) (*Client, error) {
 	client, err := NewClient(&ClientConfig{
-		Endpoint:           cfg.Endpoint,
-		APIKey:             cfg.APIKey,
-		ClientCert:         cfg.ClientCert,
-		ClientKey:          cfg.ClientKey,
-		CACert:             cfg.CACert,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		Timeout:            cfg.Timeout,
-		RetryAttempts:      cfg.RetryAttempts,
-		RetryDelay:         cfg.RetryDelay,
-		Logger:             logger,
+		Endpoint:      cfg.Endpoint,
+		APIKey:        cfg.APIKey,
+		ClientCert:    cfg.ClientCert,
+		ClientKey:     cfg.ClientKey,
+		CACert:        cfg.CACert,
+		Timeout:       cfg.Timeout,
+		RetryAttempts: cfg.RetryAttempts,
+		RetryDelay:    cfg.RetryDelay,
+		Logger:        logger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create DTIAS client: %w", err)
@@ -213,16 +220,17 @@ func (a *DTIASAdapter) Version() string {
 }
 
 // Capabilities returns the list of O2-IMS capabilities supported by this adapter.
-// DTIAS supports resource management but not native subscriptions (uses polling).
+// DTIAS supports resource management with polling-based subscriptions.
+// Note: DTIAS has no native event system, so subscriptions are stored locally
+// and the gateway layer implements polling to detect changes and send notifications.
 func (a *DTIASAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityResourcePools,
 		adapter.CapabilityResources,
 		adapter.CapabilityResourceTypes,
 		adapter.CapabilityDeploymentManagers,
+		adapter.CapabilitySubscriptions, // Polling-based implementation
 		adapter.CapabilityHealthChecks,
-		// Note: CapabilitySubscriptions is NOT supported - DTIAS has no native event system
-		// Subscriptions would need to be implemented via polling in a higher layer
 	}
 }
 
@@ -245,6 +253,11 @@ func (a *DTIASAdapter) Health(ctx context.Context) error {
 // Close cleanly shuts down the adapter and releases resources.
 func (a *DTIASAdapter) Close() error {
 	a.logger.Info("closing DTIAS adapter")
+
+	// Clear subscriptions
+	a.subscriptionsMu.Lock()
+	a.subscriptions = make(map[string]*adapter.Subscription)
+	a.subscriptionsMu.Unlock()
 
 	// Close client connections
 	if err := a.client.Close(); err != nil {

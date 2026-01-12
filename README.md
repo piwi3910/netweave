@@ -37,6 +37,10 @@ Official O-RAN Alliance specifications:
 ### Key Features
 
 - ✅ **O2-IMS Compliant**: Full implementation of O-RAN O2 Infrastructure Management Services specification
+- ✅ **API Versioning**: Three API versions (v1 stable, v2 with advanced features, v3 with multi-tenancy)
+- ✅ **Advanced Filtering**: Comprehensive query filtering with operators, field selection, and sorting (v2+)
+- ✅ **Batch Operations**: Atomic bulk create/delete operations for subscriptions and resource pools (v2+)
+- ✅ **Tenant Quotas**: Per-tenant resource limits and usage tracking (v3+)
 - ✅ **Multi-Backend Support**: Pluggable adapter architecture for diverse infrastructure
   - **Kubernetes** - Primary cloud-native infrastructure adapter
   - **Dell DTIAS** - Bare-metal infrastructure management
@@ -97,7 +101,10 @@ graph TB
             Helm[Helm 3]
             Argo[ArgoCD]
             Flux[Flux CD]
+            Kust[Kustomize]
+            XPlane[Crossplane]
             ONAP_LCM[ONAP-LCM]
+            OSM_LCM[OSM-LCM]
         end
 
         subgraph SMO_Backends [SMO: Orchestration 5+]
@@ -469,12 +476,155 @@ curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
   "consumerSubscriptionId": "smo-sub-123",
   "eventType": "ResourceCreated",
   "resource": {
-    "resourceId": "node-worker-123",
+    "resourceId": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
     "resourcePoolId": "pool-compute-highmem",
     "resourceTypeId": "compute-node"
   },
   "timestamp": "2026-01-06T10:30:00Z"
 }
+```
+
+#### 4. Batch Operations (v2+)
+
+Batch operations enable efficient bulk create/delete with atomic transaction support.
+
+**Batch Create Subscriptions (Atomic):**
+```bash
+curl -X POST https://netweave.example.com/o2ims/v2/batch/subscriptions \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "atomic": true,
+    "items": [
+      {
+        "callback": "https://smo.example.com/notify/pool-events",
+        "consumerSubscriptionId": "smo-sub-pools",
+        "filter": {"resourcePoolId": "pool-1"}
+      },
+      {
+        "callback": "https://smo.example.com/notify/resource-events",
+        "consumerSubscriptionId": "smo-sub-resources",
+        "filter": {"resourceTypeId": "compute-node"}
+      }
+    ]
+  }'
+```
+
+**Response (207 Multi-Status):**
+```json
+{
+  "totalCount": 2,
+  "successCount": 2,
+  "failureCount": 0,
+  "results": [
+    {
+      "index": 0,
+      "success": true,
+      "subscriptionId": "550e8400-e29b-41d4-a716-446655440000",
+      "status": 201
+    },
+    {
+      "index": 1,
+      "success": true,
+      "subscriptionId": "550e8400-e29b-41d4-a716-446655440001",
+      "status": 201
+    }
+  ]
+}
+```
+
+**Batch Delete Subscriptions (Non-Atomic):**
+```bash
+curl -X POST https://netweave.example.com/o2ims/v2/batch/subscriptions/delete \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "atomic": false,
+    "ids": [
+      "550e8400-e29b-41d4-a716-446655440000",
+      "550e8400-e29b-41d4-a716-446655440001"
+    ]
+  }'
+```
+
+**Batch Create Resource Pools:**
+```bash
+curl -X POST https://netweave.example.com/o2ims/v2/batch/resourcePools \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "atomic": true,
+    "items": [
+      {
+        "name": "Compute Pool East",
+        "location": "us-east-1a",
+        "oCloudId": "ocloud-1",
+        "extensions": {"instanceType": "c5.2xlarge", "replicas": 5}
+      },
+      {
+        "name": "Compute Pool West",
+        "location": "us-west-2a",
+        "oCloudId": "ocloud-1",
+        "extensions": {"instanceType": "c5.2xlarge", "replicas": 5}
+      }
+    ]
+  }'
+```
+
+**Key Features:**
+- **Atomic Mode**: All operations succeed or all roll back (default: `true`)
+- **Parallel Execution**: Worker pool processes up to 10 items concurrently
+- **Batch Limits**: 1-100 items per batch
+- **Status Codes**: `200` (all success), `207` (partial success), `400` (all failed)
+
+#### 5. Advanced Filtering (v2+)
+
+Filter queries with operators, field selection, and sorting.
+
+**Filter with Operators:**
+```bash
+# Resource pools with location prefix "us-east" OR labels "env:prod"
+curl -X GET "https://netweave.example.com/o2ims/v2/resourcePools?location=us-east&labels=env:prod&limit=50&sortBy=name&sortOrder=asc" \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt
+```
+
+**Field Selection:**
+```bash
+# Return only specific fields (reduces payload size)
+curl -X GET "https://netweave.example.com/o2ims/v2/resourcePools?fields=resourcePoolId,name,location" \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt
+```
+
+**Response:**
+```json
+{
+  "items": [
+    {
+      "resourcePoolId": "pool-compute-highmem",
+      "name": "High Memory Compute Pool",
+      "location": "us-east-1a"
+    }
+  ]
+}
+```
+
+**Nested Field Selection:**
+```bash
+# Select only specific nested fields
+curl -X GET "https://netweave.example.com/o2ims/v2/resourcePools?fields=resourcePoolId,extensions.instanceType,extensions.replicas" \
+  --cert client.crt \
+  --key client.key \
+  --cacert ca.crt
 ```
 
 ## O2-IMS API Coverage
@@ -483,7 +633,7 @@ curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
 |----------|------|-----|--------|--------|--------|-----------|
 | Deployment Managers | ✅ | ✅ | ❌ | ❌ | ❌ | N/A |
 | Resource Pools | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Resources | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Resources | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Resource Types | ✅ | ✅ | ❌ | ❌ | ❌ | N/A |
 | Subscriptions | ✅ | ✅ | ✅ | ✅ | ✅ | N/A |
 
@@ -508,7 +658,7 @@ The O2-DMS API (`/o2dms/v1/*`) provides full deployment lifecycle management for
 - 🔄 **GitOps Support**: Native ArgoCD and Flux CD adapters for GitOps workflows
 - 📊 **Status & History**: Real-time deployment status and complete revision history
 - 🔔 **Event Notifications**: Webhook subscriptions for deployment lifecycle events
-- 🎯 **Multi-Adapter**: Helm 3, ArgoCD, and Flux CD adapters available
+- 🎯 **Multi-Adapter**: Helm 3, ArgoCD, Flux CD, Kustomize, Crossplane, ONAP-LCM, and OSM-LCM adapters
 
 See [docs/o2dms-o2smo-extension.md](docs/o2dms-o2smo-extension.md) for detailed O2-DMS deployment management documentation.
 
@@ -653,10 +803,15 @@ netweave/
 │   │   └── mock/             # Mock adapter for testing
 │   ├── dms/                  # O2-DMS (Deployment Management Service)
 │   │   ├── adapter/          # DMS adapter interface
+│   │   ├── storage/          # DMS package storage backend
 │   │   └── adapters/         # DMS backend adapters
 │   │       ├── helm/         # Helm 3 adapter
 │   │       ├── argocd/       # ArgoCD GitOps adapter
-│   │       └── flux/         # Flux CD GitOps adapter
+│   │       ├── flux/         # Flux CD GitOps adapter
+│   │       ├── kustomize/    # Kustomize adapter
+│   │       ├── crossplane/   # Crossplane adapter
+│   │       ├── onaplcm/      # ONAP LCM adapter
+│   │       └── osmlcm/       # OSM LCM adapter
 │   ├── smo/                  # O2-SMO (Service Management & Orchestration)
 │   │   ├── adapter/          # SMO adapter interface
 │   │   └── adapters/         # SMO backend adapters
@@ -734,7 +889,7 @@ netweave/
 ### v1.0 (Current)
 - ✅ O2-IMS Deployment Managers (read-only)
 - ✅ Resource Pools (full CRUD)
-- ✅ Resources (create, read, delete)
+- ✅ Resources (full CRUD)
 - ✅ Resource Types (read-only)
 - ✅ Subscriptions with webhook notifications
 - ✅ Kubernetes adapter (primary infrastructure backend)
@@ -748,6 +903,11 @@ netweave/
   - ✅ Helm 3 adapter for CNF/VNF deployment
   - ✅ ArgoCD adapter for GitOps deployments
   - ✅ Flux CD adapter for GitOps deployments
+  - ✅ Kustomize adapter for overlay-based deployments
+  - ✅ Crossplane adapter for infrastructure-as-code
+  - ✅ ONAP-LCM adapter for ONAP lifecycle management
+  - ✅ OSM-LCM adapter for OSM lifecycle management
+  - ✅ Package storage backend for deployment packages
 - ✅ O2-SMO integration (Service Management & Orchestration)
   - ✅ ONAP adapter
   - ✅ OSM (Open Source MANO) adapter

@@ -12,8 +12,8 @@ import (
 )
 
 func TestDTIASAdapter_transformServerPoolToResourcePool(t *testing.T) {
-	adapter := createTestAdapter(t)
-	t.Cleanup(func() { require.NoError(t, adapter.Close()) })
+	adp := createTestAdapter(t)
+	t.Cleanup(func() { require.NoError(t, adp.Close()) })
 
 	now := time.Now()
 	serverPool := &ServerPool{
@@ -40,14 +40,14 @@ func TestDTIASAdapter_transformServerPoolToResourcePool(t *testing.T) {
 		UpdatedAt: now,
 	}
 
-	resourcePool := adapter.transformServerPoolToResourcePool(serverPool)
+	resourcePool := adp.transformServerPoolToResourcePool(serverPool)
 
 	// Verify basic fields
 	assert.Equal(t, "pool-123", resourcePool.ResourcePoolID)
 	assert.Equal(t, "Test Pool", resourcePool.Name)
 	assert.Equal(t, "Test server pool", resourcePool.Description)
 	assert.Equal(t, "Dallas, dc-test-1", resourcePool.Location)
-	assert.Equal(t, adapter.oCloudID, resourcePool.OCloudID)
+	assert.Equal(t, adp.oCloudID, resourcePool.OCloudID)
 	assert.Equal(t, "geo:32.776700,-96.797000", resourcePool.GlobalLocationID)
 
 	// Verify extensions

@@ -122,7 +122,7 @@ func (m *MockAdapter) CreateResourcePool(_ context.Context, pool *adapter.Resour
 
 	// Generate ID if not provided
 	if pool.ResourcePoolID == "" {
-		pool.ResourcePoolID = "pool-" + uuid.New().String()[:8]
+		pool.ResourcePoolID = "pool-" + uuid.New().String()
 	}
 
 	// Check for duplicate
@@ -214,7 +214,7 @@ func (m *MockAdapter) CreateResource(_ context.Context, resource *adapter.Resour
 
 	// Generate ID if not provided
 	if resource.ResourceID == "" {
-		resource.ResourceID = "res-" + uuid.New().String()[:8]
+		resource.ResourceID = "res-" + uuid.New().String()
 	}
 
 	// Check for duplicate
@@ -224,6 +224,25 @@ func (m *MockAdapter) CreateResource(_ context.Context, resource *adapter.Resour
 
 	// Store resource
 	m.resources[resource.ResourceID] = resource
+
+	return resource, nil
+}
+
+// UpdateResource updates an existing resource.
+func (m *MockAdapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if exists
+	if _, exists := m.resources[id]; !exists {
+		return nil, fmt.Errorf("resource not found")
+	}
+
+	// Preserve ID
+	resource.ResourceID = id
+
+	// Update
+	m.resources[id] = resource
 
 	return resource, nil
 }
@@ -274,7 +293,7 @@ func (m *MockAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscri
 
 	// Generate ID if not provided
 	if sub.SubscriptionID == "" {
-		sub.SubscriptionID = "sub-" + uuid.New().String()[:8]
+		sub.SubscriptionID = "sub-" + uuid.New().String()
 	}
 
 	// Store subscription
@@ -292,6 +311,25 @@ func (m *MockAdapter) GetSubscription(_ context.Context, id string) (*adapter.Su
 	if !exists {
 		return nil, fmt.Errorf("subscription not found")
 	}
+
+	return sub, nil
+}
+
+// UpdateSubscription updates an existing subscription.
+func (m *MockAdapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if exists
+	if _, exists := m.subscriptions[id]; !exists {
+		return nil, fmt.Errorf("subscription not found")
+	}
+
+	// Preserve ID
+	sub.SubscriptionID = id
+
+	// Update
+	m.subscriptions[id] = sub
 
 	return sub, nil
 }

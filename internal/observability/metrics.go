@@ -44,6 +44,13 @@ type Metrics struct {
 	K8sOperationDuration *prometheus.HistogramVec
 	K8sResourceCacheSize *prometheus.GaugeVec
 	K8sErrorsTotal       *prometheus.CounterVec
+
+	// Batch operation metrics
+	BatchOperationsTotal   *prometheus.CounterVec
+	BatchOperationDuration *prometheus.HistogramVec
+	BatchItemsProcessed    *prometheus.CounterVec
+	BatchRollbacksTotal    *prometheus.CounterVec
+	BatchConcurrentWorkers prometheus.Gauge
 }
 
 var (
@@ -236,6 +243,52 @@ func InitMetrics(namespace string) *Metrics {
 			},
 			[]string{"operation", "resource", "error_type"},
 		),
+
+		// Batch operation metrics
+		BatchOperationsTotal: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "batch_operations_total",
+				Help:      "Total number of batch operations",
+			},
+			[]string{"operation", "atomic", "status"},
+		),
+
+		BatchOperationDuration: promauto.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Name:      "batch_operation_duration_seconds",
+				Help:      "Batch operation duration in seconds",
+				Buckets:   []float64{.1, .25, .5, 1, 2.5, 5, 10, 30, 60},
+			},
+			[]string{"operation"},
+		),
+
+		BatchItemsProcessed: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "batch_items_processed_total",
+				Help:      "Total number of items processed in batch operations",
+			},
+			[]string{"operation", "status"},
+		),
+
+		BatchRollbacksTotal: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "batch_rollbacks_total",
+				Help:      "Total number of batch rollbacks",
+			},
+			[]string{"operation", "reason"},
+		),
+
+		BatchConcurrentWorkers: promauto.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "batch_concurrent_workers",
+				Help:      "Number of concurrent workers processing batch items",
+			},
+		),
 	}
 
 	globalMetrics = m
@@ -309,7 +362,7 @@ func (m *Metrics) RecordK8sOperation(operation, resource string, duration time.D
 	m.K8sOperationDuration.WithLabelValues(operation, resource).Observe(duration.Seconds())
 }
 
-// SetSubscriptionCount sets the current subscription coun.
+// SetSubscriptionCount sets the current subscription count.
 func (m *Metrics) SetSubscriptionCount(count int) {
 	m.SubscriptionsTotal.Set(float64(count))
 }
@@ -332,4 +385,41 @@ func (m *Metrics) HTTPInFlightInc() {
 // HTTPInFlightDec decrements the in-flight HTTP request counter.
 func (m *Metrics) HTTPInFlightDec() {
 	m.HTTPRequestsInFlight.Dec()
+}
+
+// RecordBatchOperation records batch operation metrics.
+func (m *Metrics) RecordBatchOperation(
+	operation string,
+	atomic bool,
+	duration time.Duration,
+	successCount, failureCount int,
+) {
+	atomicStr := "false"
+	if atomic {
+		atomicStr = "true"
+	}
+
+	status := "success"
+	if failureCount > 0 {
+		if successCount > 0 {
+			status = "partial"
+		} else {
+			status = "failure"
+		}
+	}
+
+	m.BatchOperationsTotal.WithLabelValues(operation, atomicStr, status).Inc()
+	m.BatchOperationDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	m.BatchItemsProcessed.WithLabelValues(operation, "success").Add(float64(successCount))
+	m.BatchItemsProcessed.WithLabelValues(operation, "failure").Add(float64(failureCount))
+}
+
+// RecordBatchRollback records batch rollback metrics.
+func (m *Metrics) RecordBatchRollback(operation, reason string, count int) {
+	m.BatchRollbacksTotal.WithLabelValues(operation, reason).Add(float64(count))
+}
+
+// SetBatchConcurrentWorkers sets the current number of concurrent batch workers.
+func (m *Metrics) SetBatchConcurrentWorkers(count int) {
+	m.BatchConcurrentWorkers.Set(float64(count))
 }
