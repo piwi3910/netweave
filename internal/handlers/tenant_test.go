@@ -254,6 +254,7 @@ func TestTenantHandler_ListTenants(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Tenants []*auth.Tenant `json:"tenants"`
 					Total   int            `json:"total"`
@@ -280,6 +281,7 @@ func TestTenantHandler_ListTenants(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Tenants []*auth.Tenant `json:"tenants"`
 					Total   int            `json:"total"`
@@ -331,6 +333,7 @@ func TestTenantHandler_CreateTenant(t *testing.T) {
 			},
 			wantStatus: http.StatusCreated,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response auth.Tenant
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -353,6 +356,7 @@ func TestTenantHandler_CreateTenant(t *testing.T) {
 			},
 			wantStatus: http.StatusCreated,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response auth.Tenant
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -365,6 +369,7 @@ func TestTenantHandler_CreateTenant(t *testing.T) {
 			requestBody: `{invalid json}`,
 			wantStatus:  http.StatusBadRequest,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -376,6 +381,7 @@ func TestTenantHandler_CreateTenant(t *testing.T) {
 			requestBody: CreateTenantRequest{},
 			wantStatus:  http.StatusBadRequest,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -437,6 +443,7 @@ func TestTenantHandler_GetTenant(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response auth.Tenant
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -452,6 +459,7 @@ func TestTenantHandler_GetTenant(t *testing.T) {
 			},
 			wantStatus: http.StatusNotFound,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -518,6 +526,7 @@ func TestTenantHandler_UpdateTenant(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response auth.Tenant
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -534,6 +543,7 @@ func TestTenantHandler_UpdateTenant(t *testing.T) {
 			setupStore: func(s *mockAuthStore) {},
 			wantStatus: http.StatusNotFound,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -568,6 +578,7 @@ func TestTenantHandler_UpdateTenant(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response auth.Tenant
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -648,6 +659,7 @@ func TestTenantHandler_DeleteTenant(t *testing.T) {
 			},
 			wantStatus: http.StatusAccepted,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response map[string]interface{}
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)

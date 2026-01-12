@@ -83,6 +83,7 @@ func TestAuditHandler_ListAuditEvents(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Events []*auth.AuditEvent `json:"events"`
 					Limit  int                `json:"limit"`
@@ -104,6 +105,7 @@ func TestAuditHandler_ListAuditEvents(t *testing.T) {
 			setupStore:      func(s *mockAuthStore) {},
 			wantStatus:      http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Limit  int `json:"limit"`
 					Offset int `json:"offset"`
@@ -122,6 +124,7 @@ func TestAuditHandler_ListAuditEvents(t *testing.T) {
 			setupStore:      func(s *mockAuthStore) {},
 			wantStatus:      http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Limit int `json:"limit"`
 				}
@@ -138,6 +141,7 @@ func TestAuditHandler_ListAuditEvents(t *testing.T) {
 			setupStore:      func(s *mockAuthStore) {},
 			wantStatus:      http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Limit int `json:"limit"`
 				}
@@ -169,6 +173,7 @@ func TestAuditHandler_ListAuditEvents(t *testing.T) {
 			setupStore:      func(s *mockAuthStore) {},
 			wantStatus:      http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Events []*auth.AuditEvent `json:"events"`
 					Total  int                `json:"total"`
@@ -234,6 +239,7 @@ func TestAuditHandler_ListAuditEventsByType(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Events    []*auth.AuditEvent `json:"events"`
 					EventType string             `json:"eventType"`
@@ -279,6 +285,7 @@ func TestAuditHandler_ListAuditEventsByType(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Events []*auth.AuditEvent `json:"events"`
 					Total  int                `json:"total"`
@@ -310,6 +317,7 @@ func TestAuditHandler_ListAuditEventsByType(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Events []*auth.AuditEvent `json:"events"`
 					Total  int                `json:"total"`
@@ -384,6 +392,7 @@ func TestAuditHandler_ListAuditEventsByUser(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Events []*auth.AuditEvent `json:"events"`
 					UserID string             `json:"userId"`
@@ -437,6 +446,7 @@ func TestAuditHandler_ListAuditEventsByUser(t *testing.T) {
 			},
 			wantStatus: http.StatusForbidden,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)

@@ -39,7 +39,7 @@ func (m *mockDMSAdapter) Version() string                    { return m.version 
 func (m *mockDMSAdapter) Capabilities() []adapter.Capability { return m.capabilities }
 
 func (m *mockDMSAdapter) ListDeploymentPackages(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
-	return nil, errNotImplemented
+	return []*adapter.DeploymentPackage{}, nil
 }
 func (m *mockDMSAdapter) GetDeploymentPackage(_ context.Context, _ string) (*adapter.DeploymentPackage, error) {
 	return nil, errNotImplemented
@@ -49,7 +49,7 @@ func (m *mockDMSAdapter) UploadDeploymentPackage(_ context.Context, _ *adapter.D
 }
 func (m *mockDMSAdapter) DeleteDeploymentPackage(_ context.Context, _ string) error { return nil }
 func (m *mockDMSAdapter) ListDeployments(_ context.Context, _ *adapter.Filter) ([]*adapter.Deployment, error) {
-	return nil, errNotImplemented
+	return []*adapter.Deployment{}, nil
 }
 func (m *mockDMSAdapter) GetDeployment(_ context.Context, _ string) (*adapter.Deployment, error) {
 	return nil, errNotImplemented
