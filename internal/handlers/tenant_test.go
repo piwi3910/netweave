@@ -74,11 +74,11 @@ func (m *mockAuthStore) ListTenants(_ context.Context) ([]*auth.Tenant, error) {
 	return result, nil
 }
 
-func (m *mockAuthStore) IncrementUsage(_ context.Context, tenantID, usageType string) error {
+func (m *mockAuthStore) IncrementUsage(_ context.Context, _, usageType string) error {
 	return nil
 }
 
-func (m *mockAuthStore) DecrementUsage(_ context.Context, tenantID, usageType string) error {
+func (m *mockAuthStore) DecrementUsage(_ context.Context, _, usageType string) error {
 	return nil
 }
 
@@ -133,7 +133,7 @@ func (m *mockAuthStore) ListUsersByTenant(_ context.Context, tenantID string) ([
 	return result, nil
 }
 
-func (m *mockAuthStore) UpdateLastLogin(_ context.Context, userID string) error {
+func (m *mockAuthStore) UpdateLastLogin(_ context.Context, _ string) error {
 	return nil
 }
 
@@ -199,15 +199,15 @@ func (m *mockAuthStore) LogEvent(_ context.Context, event *auth.AuditEvent) erro
 	return nil
 }
 
-func (m *mockAuthStore) ListEvents(_ context.Context, tenantID string, limit, offset int) ([]*auth.AuditEvent, error) {
+func (m *mockAuthStore) ListEvents(_ context.Context, _ string, limit, offset int) ([]*auth.AuditEvent, error) {
 	return m.events, nil
 }
 
-func (m *mockAuthStore) ListEventsByType(_ context.Context, eventType auth.AuditEventType, limit int) ([]*auth.AuditEvent, error) {
+func (m *mockAuthStore) ListEventsByType(_ context.Context, _ auth.AuditEventType, limit int) ([]*auth.AuditEvent, error) {
 	return m.events, nil
 }
 
-func (m *mockAuthStore) ListEventsByUser(_ context.Context, userID string, limit int) ([]*auth.AuditEvent, error) {
+func (m *mockAuthStore) ListEventsByUser(_ context.Context, _ string, limit int) ([]*auth.AuditEvent, error) {
 	return m.events, nil
 }
 
@@ -249,7 +249,7 @@ func TestTenantHandler_ListTenants(t *testing.T) {
 	}{
 		{
 			name: "list empty tenants",
-			setupStore: func(s *mockAuthStore) {
+			setupStore: func(_ *mockAuthStore) {
 				// No tenants added.
 			},
 			wantStatus: http.StatusOK,
@@ -454,7 +454,7 @@ func TestTenantHandler_GetTenant(t *testing.T) {
 		{
 			name:     "get non-existent tenant",
 			tenantID: "tenant-nonexistent",
-			setupStore: func(s *mockAuthStore) {
+			setupStore: func(_ *mockAuthStore) {
 				// No tenant added.
 			},
 			wantStatus: http.StatusNotFound,
@@ -469,7 +469,7 @@ func TestTenantHandler_GetTenant(t *testing.T) {
 		{
 			name:       "get with empty tenant ID returns redirect",
 			tenantID:   "",
-			setupStore: func(s *mockAuthStore) {},
+			setupStore: func(_ *mockAuthStore) {},
 			wantStatus: http.StatusMovedPermanently, // 301 redirect from router
 		},
 	}
@@ -540,7 +540,7 @@ func TestTenantHandler_UpdateTenant(t *testing.T) {
 			requestBody: UpdateTenantRequest{
 				Name: "Updated Tenant",
 			},
-			setupStore: func(s *mockAuthStore) {},
+			setupStore: func(_ *mockAuthStore) {},
 			wantStatus: http.StatusNotFound,
 			validateBody: func(t *testing.T, body []byte) {
 				t.Helper()
@@ -669,7 +669,7 @@ func TestTenantHandler_DeleteTenant(t *testing.T) {
 		{
 			name:       "delete non-existent tenant",
 			tenantID:   "tenant-nonexistent",
-			setupStore: func(s *mockAuthStore) {},
+			setupStore: func(_ *mockAuthStore) {},
 			wantStatus: http.StatusNotFound,
 		},
 	}

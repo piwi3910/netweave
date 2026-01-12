@@ -33,25 +33,25 @@ func (m *mockAdapter) Health(_ context.Context) error {
 	}
 	return nil
 }
-func (m *mockAdapter) ListResourcePools(_ context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (m *mockAdapter) ListResourcePools(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	return nil, nil
 }
-func (m *mockAdapter) GetResourcePool(_ context.Context, id string) (*adapter.ResourcePool, error) {
+func (m *mockAdapter) GetResourcePool(_ context.Context, _ string) (*adapter.ResourcePool, error) {
 	return nil, adapter.ErrResourcePoolNotFound
 }
 func (m *mockAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
 	return pool, nil
 }
-func (m *mockAdapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockAdapter) UpdateResourcePool(_ context.Context, _ string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
 	return pool, nil
 }
-func (m *mockAdapter) DeleteResourcePool(_ context.Context, id string) error {
+func (m *mockAdapter) DeleteResourcePool(_ context.Context, _ string) error {
 	return nil
 }
-func (m *mockAdapter) ListResources(_ context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (m *mockAdapter) ListResources(_ context.Context, _ *adapter.Filter) ([]*adapter.Resource, error) {
 	return nil, nil
 }
-func (m *mockAdapter) GetResource(_ context.Context, id string) (*adapter.Resource, error) {
+func (m *mockAdapter) GetResource(_ context.Context, _ string) (*adapter.Resource, error) {
 	return nil, adapter.ErrResourceNotFound
 }
 func (m *mockAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
@@ -68,19 +68,19 @@ func (m *mockAdapter) DeleteResource(_ context.Context, id string) error {
 	}
 	return nil
 }
-func (m *mockAdapter) ListResourceTypes(_ context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (m *mockAdapter) ListResourceTypes(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourceType, error) {
 	return nil, nil
 }
-func (m *mockAdapter) GetResourceType(_ context.Context, id string) (*adapter.ResourceType, error) {
+func (m *mockAdapter) GetResourceType(_ context.Context, _ string) (*adapter.ResourceType, error) {
 	return nil, adapter.ErrResourceNotFound
 }
-func (m *mockAdapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
+func (m *mockAdapter) GetDeploymentManager(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
 	return nil, adapter.ErrResourceNotFound
 }
 func (m *mockAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
 	return sub, nil
 }
-func (m *mockAdapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
+func (m *mockAdapter) GetSubscription(_ context.Context, _ string) (*adapter.Subscription, error) {
 	return nil, adapter.ErrResourceNotFound
 }
 func (m *mockAdapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
@@ -91,7 +91,7 @@ func (m *mockAdapter) UpdateSubscription(_ context.Context, id string, sub *adap
 	sub.SubscriptionID = id
 	return sub, nil
 }
-func (m *mockAdapter) DeleteSubscription(_ context.Context, id string) error {
+func (m *mockAdapter) DeleteSubscription(_ context.Context, _ string) error {
 	return nil
 }
 func (m *mockAdapter) Close() error {
@@ -101,28 +101,28 @@ func (m *mockAdapter) Close() error {
 // mockStore implements storage.Store for testing.
 type mockStore struct{}
 
-func (m *mockStore) Create(_ context.Context, sub *storage.Subscription) error {
+func (m *mockStore) Create(_ context.Context, _ *storage.Subscription) error {
 	return nil
 }
-func (m *mockStore) Get(_ context.Context, id string) (*storage.Subscription, error) {
+func (m *mockStore) Get(_ context.Context, _ string) (*storage.Subscription, error) {
 	return nil, storage.ErrSubscriptionNotFound
 }
-func (m *mockStore) Update(_ context.Context, sub *storage.Subscription) error {
+func (m *mockStore) Update(_ context.Context, _ *storage.Subscription) error {
 	return nil
 }
-func (m *mockStore) Delete(_ context.Context, id string) error {
+func (m *mockStore) Delete(_ context.Context, _ string) error {
 	return nil
 }
 func (m *mockStore) List(_ context.Context) ([]*storage.Subscription, error) {
 	return nil, nil
 }
-func (m *mockStore) ListByResourcePool(_ context.Context, resourcePoolID string) ([]*storage.Subscription, error) {
+func (m *mockStore) ListByResourcePool(_ context.Context, _ string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
-func (m *mockStore) ListByResourceType(_ context.Context, resourceTypeID string) ([]*storage.Subscription, error) {
+func (m *mockStore) ListByResourceType(_ context.Context, _ string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
-func (m *mockStore) ListByTenant(_ context.Context, tenantID string) ([]*storage.Subscription, error) {
+func (m *mockStore) ListByTenant(_ context.Context, _ string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
 func (m *mockStore) Close() error {

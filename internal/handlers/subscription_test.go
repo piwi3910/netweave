@@ -47,7 +47,7 @@ func (m *mockSubscriptionStore) Get(_ context.Context, id string) (*storage.Subs
 	return nil, storage.ErrSubscriptionNotFound
 }
 
-func (m *mockSubscriptionStore) Update(_ context.Context, sub *storage.Subscription) error {
+func (m *mockSubscriptionStore) Update(_ context.Context, _ *storage.Subscription) error {
 	return nil
 }
 
@@ -71,15 +71,15 @@ func (m *mockSubscriptionStore) List(_ context.Context) ([]*storage.Subscription
 	return m.subscriptions, nil
 }
 
-func (m *mockSubscriptionStore) ListByResourcePool(_ context.Context, resourcePoolID string) ([]*storage.Subscription, error) {
+func (m *mockSubscriptionStore) ListByResourcePool(_ context.Context, _ string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
 
-func (m *mockSubscriptionStore) ListByResourceType(_ context.Context, resourceTypeID string) ([]*storage.Subscription, error) {
+func (m *mockSubscriptionStore) ListByResourceType(_ context.Context, _ string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
 
-func (m *mockSubscriptionStore) ListByTenant(_ context.Context, tenantID string) ([]*storage.Subscription, error) {
+func (m *mockSubscriptionStore) ListByTenant(_ context.Context, _ string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
 

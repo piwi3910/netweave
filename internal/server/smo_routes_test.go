@@ -60,7 +60,7 @@ func (m *mockSMOPlugin) Capabilities() []smoapi.Capability {
 	return m.capabilities
 }
 
-func (m *mockSMOPlugin) Initialize(_ context.Context, config map[string]interface{}) error {
+func (m *mockSMOPlugin) Initialize(_ context.Context, _ map[string]interface{}) error {
 	return nil
 }
 
@@ -77,19 +77,19 @@ func (m *mockSMOPlugin) Close() error {
 	return nil
 }
 
-func (m *mockSMOPlugin) SyncInfrastructureInventory(_ context.Context, inventory *smoapi.InfrastructureInventory) error {
+func (m *mockSMOPlugin) SyncInfrastructureInventory(_ context.Context, _ *smoapi.InfrastructureInventory) error {
 	return m.syncInfraErr
 }
 
-func (m *mockSMOPlugin) SyncDeploymentInventory(_ context.Context, inventory *smoapi.DeploymentInventory) error {
+func (m *mockSMOPlugin) SyncDeploymentInventory(_ context.Context, _ *smoapi.DeploymentInventory) error {
 	return m.syncDeployErr
 }
 
-func (m *mockSMOPlugin) PublishInfrastructureEvent(_ context.Context, event *smoapi.InfrastructureEvent) error {
+func (m *mockSMOPlugin) PublishInfrastructureEvent(_ context.Context, _ *smoapi.InfrastructureEvent) error {
 	return m.publishInfraErr
 }
 
-func (m *mockSMOPlugin) PublishDeploymentEvent(_ context.Context, event *smoapi.DeploymentEvent) error {
+func (m *mockSMOPlugin) PublishDeploymentEvent(_ context.Context, _ *smoapi.DeploymentEvent) error {
 	return m.publishDeployErr
 }
 
@@ -124,11 +124,11 @@ func (m *mockSMOPlugin) GetWorkflowStatus(_ context.Context, executionID string)
 	}, nil
 }
 
-func (m *mockSMOPlugin) CancelWorkflow(_ context.Context, executionID string) error {
+func (m *mockSMOPlugin) CancelWorkflow(_ context.Context, _ string) error {
 	return m.cancelWorkflowErr
 }
 
-func (m *mockSMOPlugin) RegisterServiceModel(_ context.Context, model *smoapi.ServiceModel) error {
+func (m *mockSMOPlugin) RegisterServiceModel(_ context.Context, _ *smoapi.ServiceModel) error {
 	return m.registerServiceModelErr
 }
 
@@ -158,7 +158,7 @@ func (m *mockSMOPlugin) ListServiceModels(_ context.Context) ([]*smoapi.ServiceM
 	}, nil
 }
 
-func (m *mockSMOPlugin) ApplyPolicy(_ context.Context, policy *smoapi.Policy) error {
+func (m *mockSMOPlugin) ApplyPolicy(_ context.Context, _ *smoapi.Policy) error {
 	return m.applyPolicyErr
 }
 

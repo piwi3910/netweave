@@ -114,7 +114,7 @@ func TestRoleHandler_ListRoles(t *testing.T) {
 			name:            "list empty roles",
 			tenantID:        "tenant-1",
 			isPlatformAdmin: false,
-			setupStore: func(s *mockAuthStore) {
+			setupStore: func(_ *mockAuthStore) {
 				// No roles.
 			},
 			wantStatus: http.StatusOK,
@@ -196,7 +196,7 @@ func TestRoleHandler_GetRole(t *testing.T) {
 			roleID:          "role-nonexistent",
 			tenantID:        "tenant-1",
 			isPlatformAdmin: false,
-			setupStore: func(s *mockAuthStore) {
+			setupStore: func(_ *mockAuthStore) {
 				// No roles.
 			},
 			wantStatus: http.StatusNotFound,
@@ -213,7 +213,7 @@ func TestRoleHandler_GetRole(t *testing.T) {
 			roleID:          "",
 			tenantID:        "tenant-1",
 			isPlatformAdmin: false,
-			setupStore:      func(s *mockAuthStore) {},
+			setupStore:      func(_ *mockAuthStore) {},
 			wantStatus:      http.StatusMovedPermanently, // 301 redirect from router
 			validateBody:    nil,                         // No JSON response for redirects
 		},

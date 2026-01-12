@@ -34,14 +34,14 @@ func (m *mockResourceAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{adapter.CapabilityResources, adapter.CapabilityResourcePools}
 }
 
-func (m *mockResourceAdapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
+func (m *mockResourceAdapter) GetDeploymentManager(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
 	if m.deploymentManager == nil {
 		return nil, errors.New("deployment manager not configured")
 	}
 	return m.deploymentManager, nil
 }
 
-func (m *mockResourceAdapter) ListResourcePools(_ context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (m *mockResourceAdapter) ListResourcePools(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	return m.resourcePools, nil
 }
 
@@ -59,15 +59,15 @@ func (m *mockResourceAdapter) CreateResourcePool(_ context.Context, pool *adapte
 	return pool, nil
 }
 
-func (m *mockResourceAdapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockResourceAdapter) UpdateResourcePool(_ context.Context, _ string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
 	return pool, nil
 }
 
-func (m *mockResourceAdapter) DeleteResourcePool(_ context.Context, poolID string) error {
+func (m *mockResourceAdapter) DeleteResourcePool(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *mockResourceAdapter) ListResources(_ context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (m *mockResourceAdapter) ListResources(_ context.Context, _ *adapter.Filter) ([]*adapter.Resource, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
@@ -105,14 +105,14 @@ func (m *mockResourceAdapter) UpdateResource(_ context.Context, id string, resou
 	return nil, errors.New("resource not found")
 }
 
-func (m *mockResourceAdapter) DeleteResource(_ context.Context, resourceID string) error {
+func (m *mockResourceAdapter) DeleteResource(_ context.Context, _ string) error {
 	if m.deleteErr != nil {
 		return m.deleteErr
 	}
 	return nil
 }
 
-func (m *mockResourceAdapter) ListResourceTypes(_ context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (m *mockResourceAdapter) ListResourceTypes(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourceType, error) {
 	return m.resourceTypes, nil
 }
 
@@ -138,7 +138,7 @@ func (m *mockResourceAdapter) UpdateSubscription(_ context.Context, id string, s
 	return sub, nil
 }
 
-func (m *mockResourceAdapter) DeleteSubscription(_ context.Context, subscriptionID string) error {
+func (m *mockResourceAdapter) DeleteSubscription(_ context.Context, _ string) error {
 	return nil
 }
 

@@ -68,7 +68,7 @@ func TestListDeploymentManagers(t *testing.T) {
 		{
 			name:        "successful list",
 			queryParams: "",
-			mockFunc: func(_ context.Context, id string) (*adapter.DeploymentManager, error) {
+			mockFunc: func(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
 				return &adapter.DeploymentManager{
 					DeploymentManagerID: "dm-1",
 					Name:                "Test DM",
@@ -90,7 +90,7 @@ func TestListDeploymentManagers(t *testing.T) {
 		{
 			name:        "with pagination",
 			queryParams: "?offset=0&limit=10",
-			mockFunc: func(_ context.Context, id string) (*adapter.DeploymentManager, error) {
+			mockFunc: func(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
 				return &adapter.DeploymentManager{
 					DeploymentManagerID: "dm-1",
 					Name:                "Test DM",
@@ -105,7 +105,7 @@ func TestListDeploymentManagers(t *testing.T) {
 		{
 			name:        "adapter error",
 			queryParams: "",
-			mockFunc: func(_ context.Context, id string) (*adapter.DeploymentManager, error) {
+			mockFunc: func(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
 				return nil, errors.New("adapter failure")
 			},
 			expectedStatus: http.StatusInternalServerError,
@@ -118,7 +118,7 @@ func TestListDeploymentManagers(t *testing.T) {
 		{
 			name:        "high offset pagination",
 			queryParams: "?offset=100&limit=10",
-			mockFunc: func(_ context.Context, id string) (*adapter.DeploymentManager, error) {
+			mockFunc: func(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
 				return &adapter.DeploymentManager{
 					DeploymentManagerID: "dm-1",
 					Name:                "Test DM",
@@ -197,7 +197,7 @@ func TestGetDeploymentManager(t *testing.T) {
 		{
 			name:            "empty ID",
 			deploymentMgrID: "",
-			mockFunc: func(_ context.Context, id string) (*adapter.DeploymentManager, error) {
+			mockFunc: func(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
 				return nil, errors.New("should not be called with empty ID")
 			},
 			expectedStatus: http.StatusBadRequest,
@@ -210,7 +210,7 @@ func TestGetDeploymentManager(t *testing.T) {
 		{
 			name:            "not found",
 			deploymentMgrID: "dm-404",
-			mockFunc: func(_ context.Context, id string) (*adapter.DeploymentManager, error) {
+			mockFunc: func(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
 				return nil, errors.New("deployment manager not found")
 			},
 			expectedStatus: http.StatusNotFound,
@@ -223,7 +223,7 @@ func TestGetDeploymentManager(t *testing.T) {
 		{
 			name:            "adapter error",
 			deploymentMgrID: "dm-error",
-			mockFunc: func(_ context.Context, id string) (*adapter.DeploymentManager, error) {
+			mockFunc: func(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
 				return nil, errors.New("internal adapter error")
 			},
 			expectedStatus: http.StatusInternalServerError,
