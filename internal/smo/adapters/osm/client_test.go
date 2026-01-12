@@ -3,6 +3,7 @@ package osm
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -101,6 +102,65 @@ func verifyNewClientSuccess(t *testing.T, client *Client) {
 	}
 }
 
+// mockSuccessfulAuthResponse returns a mock HTTP handler for successful authentication.
+func mockSuccessfulAuthResponse(t *testing.T) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Verify request method and path
+		if err := validateAuthRequest(r); err != nil {
+			t.Error(err)
+			return
+		}
+
+		// Parse and verify credentials
+		if err := validateAuthCredentials(r, "admin", "secret"); err != nil {
+			t.Error(err)
+			return
+		}
+
+		// Send successful response
+		sendSuccessfulAuthResponse(w)
+	}
+}
+
+// validateAuthRequest validates the HTTP method and path.
+func validateAuthRequest(r *http.Request) error {
+	if r.Method != http.MethodPost {
+		return fmt.Errorf("expected POST request, got %s", r.Method)
+	}
+	if r.URL.Path != testAuthPath {
+		return fmt.Errorf("expected path %s, got %s", testAuthPath, r.URL.Path)
+	}
+	return nil
+}
+
+// validateAuthCredentials parses and validates authentication credentials.
+func validateAuthCredentials(r *http.Request, expectedUser, expectedPass string) error {
+	var authReq map[string]string
+	if err := json.NewDecoder(r.Body).Decode(&authReq); err != nil {
+		return fmt.Errorf("failed to decode auth request: %w", err)
+	}
+
+	if authReq["username"] != expectedUser {
+		return fmt.Errorf("expected username '%s', got %s", expectedUser, authReq["username"])
+	}
+	if authReq["password"] != expectedPass {
+		return fmt.Errorf("expected password '%s', got %s", expectedPass, authReq["password"])
+	}
+	return nil
+}
+
+// sendSuccessfulAuthResponse writes a successful authentication response.
+func sendSuccessfulAuthResponse(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	resp := map[string]string{
+		"id":         "token-123456",
+		"project_id": "admin",
+		"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
+	}
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
 // TestAuthenticate tests the authentication flow.
 func TestAuthenticate(t *testing.T) {
 	tests := []struct {
@@ -112,44 +172,12 @@ func TestAuthenticate(t *testing.T) {
 		wantErr    bool
 	}{
 		{
-			name:     "successful authentication",
-			username: "admin",
-			password: "secret",
-			project:  "admin",
-			serverResp: func(w http.ResponseWriter, r *http.Request) {
-				// Verify request
-				if r.Method != http.MethodPost {
-					t.Errorf("Expected POST request, got %s", r.Method)
-				}
-				if r.URL.Path != testAuthPath {
-					t.Errorf("Expected path %s, got %s", testAuthPath, r.URL.Path)
-				}
-
-				// Parse request body
-				var authReq map[string]string
-				if err := json.NewDecoder(r.Body).Decode(&authReq); err != nil {
-					t.Errorf("Failed to decode auth request: %v", err)
-				}
-
-				// Verify credentials
-				if authReq["username"] != "admin" {
-					t.Errorf("Expected username 'admin', got %s", authReq["username"])
-				}
-				if authReq["password"] != "secret" {
-					t.Errorf("Expected password 'secret', got %s", authReq["password"])
-				}
-
-				// Send successful response
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				resp := map[string]string{
-					"id":         "token-123456",
-					"project_id": "admin",
-					"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
-				}
-				_ = json.NewEncoder(w).Encode(resp)
-			},
-			wantErr: false,
+			name:       "successful authentication",
+			username:   "admin",
+			password:   "secret",
+			project:    "admin",
+			serverResp: mockSuccessfulAuthResponse(t),
+			wantErr:    false,
 		},
 		{
 			name:     "authentication failure - invalid credentials",
