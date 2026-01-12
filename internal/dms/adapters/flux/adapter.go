@@ -1573,45 +1573,62 @@ func buildLabelSelector(labels map[string]string) string {
 // bool, string, float64, map[string]interface{}, []interface{}, and nil.
 // This function recursively converts int types to float64.
 func normalizeValueForJSON(v interface{}) interface{} {
+	if numVal, ok := tryConvertToFloat64(v); ok {
+		return numVal
+	}
+
 	switch val := v.(type) {
-	case int:
-		return float64(val)
-	case int8:
-		return float64(val)
-	case int16:
-		return float64(val)
-	case int32:
-		return float64(val)
-	case int64:
-		return float64(val)
-	case uint:
-		return float64(val)
-	case uint8:
-		return float64(val)
-	case uint16:
-		return float64(val)
-	case uint32:
-		return float64(val)
-	case uint64:
-		return float64(val)
-	case float32:
-		return float64(val)
 	case map[string]interface{}:
-		// Recursively normalize map values
-		normalized := make(map[string]interface{}, len(val))
-		for k, mv := range val {
-			normalized[k] = normalizeValueForJSON(mv)
-		}
-		return normalized
+		return normalizeMap(val)
 	case []interface{}:
-		// Recursively normalize slice elements
-		normalized := make([]interface{}, len(val))
-		for i, elem := range val {
-			normalized[i] = normalizeValueForJSON(elem)
-		}
-		return normalized
+		return normalizeSlice(val)
 	default:
 		// bool, string, float64, nil are already JSON-compatible
 		return v
 	}
+}
+
+func tryConvertToFloat64(v interface{}) (float64, bool) {
+	switch val := v.(type) {
+	case int:
+		return float64(val), true
+	case int8:
+		return float64(val), true
+	case int16:
+		return float64(val), true
+	case int32:
+		return float64(val), true
+	case int64:
+		return float64(val), true
+	case uint:
+		return float64(val), true
+	case uint8:
+		return float64(val), true
+	case uint16:
+		return float64(val), true
+	case uint32:
+		return float64(val), true
+	case uint64:
+		return float64(val), true
+	case float32:
+		return float64(val), true
+	default:
+		return 0, false
+	}
+}
+
+func normalizeMap(val map[string]interface{}) map[string]interface{} {
+	normalized := make(map[string]interface{}, len(val))
+	for k, mv := range val {
+		normalized[k] = normalizeValueForJSON(mv)
+	}
+	return normalized
+}
+
+func normalizeSlice(val []interface{}) []interface{} {
+	normalized := make([]interface{}, len(val))
+	for i, elem := range val {
+		normalized[i] = normalizeValueForJSON(elem)
+	}
+	return normalized
 }
