@@ -179,18 +179,18 @@ func validateConfig(cfg *Config) error {
 }
 
 // applyDefaults applies default values to configuration.
-func applyDefaults(cfg *Config) (deploymentManagerID, poolMode string, timeout time.Duration) {
-	deploymentManagerID = cfg.DeploymentManagerID
+func applyDefaults(cfg *Config) (string, string, time.Duration) {
+	deploymentManagerID := cfg.DeploymentManagerID
 	if deploymentManagerID == "" {
 		deploymentManagerID = fmt.Sprintf("ocloud-aws-%s", cfg.Region)
 	}
 
-	poolMode = cfg.PoolMode
+	poolMode := cfg.PoolMode
 	if poolMode == "" {
 		poolMode = "az"
 	}
 
-	timeout = cfg.Timeout
+	timeout := cfg.Timeout
 	if timeout == 0 {
 		timeout = 30 * time.Second
 	}
@@ -259,8 +259,9 @@ func (a *Adapter) Capabilities() []adapter.Capability {
 // Health performs a health check on the AWS backend.
 // It verifies connectivity to EC2 and Auto Scaling services.
 // The check uses a 10-second timeout to prevent indefinite blocking.
-func (a *Adapter) Health(ctx context.Context) (err error) {
+func (a *Adapter) Health(ctx context.Context) error {
 	start := time.Now()
+	var err error
 	defer func() { adapter.ObserveHealthCheck("aws", start, err) }()
 
 	a.logger.Debug("health check called")
@@ -275,14 +276,16 @@ func (a *Adapter) Health(ctx context.Context) (err error) {
 	})
 	if err != nil {
 		a.logger.Error("EC2 health check failed", zap.Error(err))
-		return fmt.Errorf("ec2 API unreachable: %w", err)
+		err = fmt.Errorf("ec2 API unreachable: %w", err)
+		return err
 	}
 
 	// Check Auto Scaling service by describing account limits
 	_, err = a.asgClient.DescribeAccountLimits(healthCtx, &autoscaling.DescribeAccountLimitsInput{})
 	if err != nil {
 		a.logger.Error("Auto Scaling health check failed", zap.Error(err))
-		return fmt.Errorf("auto scaling API unreachable: %w", err)
+		err = fmt.Errorf("auto scaling API unreachable: %w", err)
+		return err
 	}
 
 	a.logger.Debug("health check passed")
