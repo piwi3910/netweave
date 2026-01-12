@@ -214,7 +214,7 @@ func NewAdapter(config *Config) (*Adapter, error) {
 func checkContext(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("context cancelled: %w", ctx.Err())
 	default:
 		return nil
 	}
