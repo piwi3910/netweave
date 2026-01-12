@@ -127,55 +127,83 @@ func (q *RedisQueue) readFromStream(ctx context.Context, consumerGroup, consumer
 			)
 			return
 		default:
-			// Read from stream
-			streams, err := q.client.XReadGroup(ctx, &redis.XReadGroupArgs{
-				Group:    consumerGroup,
-				Consumer: consumerName,
-				Streams:  []string{eventStreamKey, ">"},
-				Count:    defaultBatchSize,
-				Block:    blockTime * time.Millisecond,
-			}).Result()
-
+			// Read batch from stream
+			streams, err := q.readStreamBatch(ctx, consumerGroup, consumerName)
 			if err != nil {
-				if errors.Is(err, redis.Nil) {
-					// No messages available, continue
-					continue
-				}
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 					return
 				}
-				q.logger.Error("failed to read from stream",
-					zap.Error(err),
-					zap.String("consumer_group", consumerGroup),
-				)
-				time.Sleep(time.Second)
+				// Continue reading on error
 				continue
 			}
 
 			// Process messages
-			for _, stream := range streams {
-				for _, message := range stream.Messages {
-					event, err := q.parseEvent(message)
-					if err != nil {
-						q.logger.Error("failed to parse event",
-							zap.Error(err),
-							zap.String("stream_id", message.ID),
-						)
-						// Acknowledge invalid message to prevent blocking
-						_ = q.Acknowledge(ctx, consumerGroup, message.ID)
-						continue
-					}
-
-					// Send event to channel
-					select {
-					case eventCh <- event:
-					case <-ctx.Done():
-						return
-					}
-				}
+			if q.processStreamMessages(ctx, consumerGroup, streams, eventCh) {
+				return
 			}
 		}
 	}
+}
+
+// readStreamBatch reads a batch of messages from the Redis stream.
+func (q *RedisQueue) readStreamBatch(ctx context.Context, consumerGroup, consumerName string) ([]redis.XStream, error) {
+	streams, err := q.client.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    consumerGroup,
+		Consumer: consumerName,
+		Streams:  []string{eventStreamKey, ">"},
+		Count:    defaultBatchSize,
+		Block:    blockTime * time.Millisecond,
+	}).Result()
+
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			// No messages available, continue
+			return nil, nil
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
+		q.logger.Error("failed to read from stream",
+			zap.Error(err),
+			zap.String("consumer_group", consumerGroup),
+		)
+		time.Sleep(time.Second)
+		return nil, err
+	}
+
+	return streams, nil
+}
+
+// processStreamMessages processes messages from the stream and sends them to the event channel.
+// Returns true if context was cancelled, false otherwise.
+func (q *RedisQueue) processStreamMessages(
+	ctx context.Context,
+	consumerGroup string,
+	streams []redis.XStream,
+	eventCh chan<- *Event,
+) bool {
+	for _, stream := range streams {
+		for _, message := range stream.Messages {
+			event, err := q.parseEvent(message)
+			if err != nil {
+				q.logger.Error("failed to parse event",
+					zap.Error(err),
+					zap.String("stream_id", message.ID),
+				)
+				// Acknowledge invalid message to prevent blocking
+				_ = q.Acknowledge(ctx, consumerGroup, message.ID)
+				continue
+			}
+
+			// Send event to channel
+			select {
+			case eventCh <- event:
+			case <-ctx.Done():
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // parseEvent parses an event from a Redis stream message.
