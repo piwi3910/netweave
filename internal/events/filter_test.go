@@ -22,19 +22,19 @@ type mockStore struct {
 	listByTenantFn func(ctx context.Context, tenantID string) ([]*storage.Subscription, error)
 }
 
-func (m *mockStore) Create(_ context.Context, sub *storage.Subscription) error {
+func (m *mockStore) Create(_ context.Context, _ *storage.Subscription) error {
 	return nil
 }
 
-func (m *mockStore) Get(_ context.Context, id string) (*storage.Subscription, error) {
+func (m *mockStore) Get(_ context.Context, _ string) (*storage.Subscription, error) {
 	return nil, errNotFound
 }
 
-func (m *mockStore) Update(_ context.Context, sub *storage.Subscription) error {
+func (m *mockStore) Update(_ context.Context, _ *storage.Subscription) error {
 	return nil
 }
 
-func (m *mockStore) Delete(_ context.Context, id string) error {
+func (m *mockStore) Delete(_ context.Context, _ string) error {
 	return nil
 }
 
@@ -45,11 +45,11 @@ func (m *mockStore) List(_ context.Context) ([]*storage.Subscription, error) {
 	return m.subscriptions, nil
 }
 
-func (m *mockStore) ListByResourcePool(_ context.Context, resourcePoolID string) ([]*storage.Subscription, error) {
+func (m *mockStore) ListByResourcePool(_ context.Context, _ string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
 
-func (m *mockStore) ListByResourceType(_ context.Context, resourceTypeID string) ([]*storage.Subscription, error) {
+func (m *mockStore) ListByResourceType(_ context.Context, _ string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
 
