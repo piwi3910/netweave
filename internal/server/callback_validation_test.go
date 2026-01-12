@@ -139,7 +139,7 @@ func TestValidateCallback(t *testing.T) {
 				},
 			}
 
-			err := s.validateCallback(tt.sub)
+			err := s.validateCallback(context.Background(), tt.sub)
 
 			if tt.wantErr {
 				require.Error(t, err)

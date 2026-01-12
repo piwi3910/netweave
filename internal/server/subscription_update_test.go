@@ -21,7 +21,7 @@ import (
 )
 
 // Sentinel error for testing.
-var errNotImplemented = errors.New("not implemented in mock")
+var errNotImplementedSub = errors.New("not implemented in mock")
 
 // mockSubscriptionStore implements storage.Store for subscription update tests.
 type mockSubscriptionStore struct {
@@ -110,7 +110,7 @@ func (m *mockSubscriptionAdapter) ListResourcePools(
 }
 
 func (m *mockSubscriptionAdapter) GetResourcePool(_ context.Context, _ string) (*adapter.ResourcePool, error) {
-	return nil, errNotImplemented
+	return nil, errNotImplementedSub
 }
 
 func (m *mockSubscriptionAdapter) CreateResourcePool(
@@ -137,7 +137,7 @@ func (m *mockSubscriptionAdapter) ListResources(_ context.Context, _ *adapter.Fi
 }
 
 func (m *mockSubscriptionAdapter) GetResource(_ context.Context, _ string) (*adapter.Resource, error) {
-	return nil, errNotImplemented
+	return nil, errNotImplementedSub
 }
 
 func (m *mockSubscriptionAdapter) CreateResource(
@@ -167,14 +167,14 @@ func (m *mockSubscriptionAdapter) ListResourceTypes(
 }
 
 func (m *mockSubscriptionAdapter) GetResourceType(_ context.Context, _ string) (*adapter.ResourceType, error) {
-	return nil, errNotImplemented
+	return nil, errNotImplementedSub
 }
 
 func (m *mockSubscriptionAdapter) GetDeploymentManager(
 	_ context.Context,
 	_ string,
 ) (*adapter.DeploymentManager, error) {
-	return nil, errNotImplemented
+	return nil, errNotImplementedSub
 }
 
 func (m *mockSubscriptionAdapter) CreateSubscription(
@@ -185,7 +185,7 @@ func (m *mockSubscriptionAdapter) CreateSubscription(
 }
 
 func (m *mockSubscriptionAdapter) GetSubscription(_ context.Context, _ string) (*adapter.Subscription, error) {
-	return nil, errNotImplemented
+	return nil, errNotImplementedSub
 }
 
 func (m *mockSubscriptionAdapter) UpdateSubscription(

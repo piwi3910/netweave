@@ -429,7 +429,7 @@ func (s *MemoryPackageStore) Close() error {
 }
 
 // collectLatestPackages returns only the latest version of each package matching the filter.
-func (s *MemoryPackageStore) collectLatestPackages(filter *adapter.Filter) []*adapter.DeploymentPackage {
+func (s *MemoryPackageStore) collectLatestPackages(filter *PackageFilter) []*adapter.DeploymentPackage {
 	var results []*adapter.DeploymentPackage
 
 	for name, ids := range s.byName {
@@ -456,7 +456,7 @@ func (s *MemoryPackageStore) collectLatestPackages(filter *adapter.Filter) []*ad
 }
 
 // collectAllPackages returns all packages matching the filter.
-func (s *MemoryPackageStore) collectAllPackages(filter *adapter.Filter) []*adapter.DeploymentPackage {
+func (s *MemoryPackageStore) collectAllPackages(filter *PackageFilter) []*adapter.DeploymentPackage {
 	var results []*adapter.DeploymentPackage
 
 	for _, pkg := range s.packages {
