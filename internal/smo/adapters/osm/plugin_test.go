@@ -78,51 +78,76 @@ func TestNewPlugin(t *testing.T) {
 			plugin, err := NewPlugin(tt.config)
 
 			if tt.wantErr {
-				if err == nil {
-					t.Errorf("NewPlugin() expected error but got none")
-					return
-				}
-				if tt.errMsg != "" && err.Error() != tt.errMsg {
-					t.Errorf("NewPlugin() error = %v, want %v", err.Error(), tt.errMsg)
-				}
+				validateExpectedError(t, err, tt.errMsg)
 				return
 			}
 
-			if err != nil {
-				t.Errorf("NewPlugin() unexpected error: %v", err)
-				return
-			}
-
-			if plugin == nil {
-				t.Error("NewPlugin() returned nil plugin")
-				return
-			}
-
-			// Verify plugin metadata
-			if plugin.Name() != "osm" {
-				t.Errorf("Name() = %v, want %v", plugin.Name(), "osm")
-			}
-
-			if plugin.Version() == "" {
-				t.Error("Version() returned empty string")
-			}
-
-			capabilities := plugin.Capabilities()
-			if len(capabilities) == 0 {
-				t.Error("Capabilities() returned empty list")
-			}
-
-			// Verify defaults were applied
-			if plugin.config.Project == "" {
-				t.Error("Project default was not applied")
-			}
-			if plugin.config.RequestTimeout == 0 {
-				t.Error("RequestTimeout default was not applied")
-			}
-			if plugin.config.InventorySyncInterval == 0 {
-				t.Error("InventorySyncInterval default was not applied")
-			}
+			validatePluginCreation(t, plugin, err)
 		})
+	}
+}
+
+// validateExpectedError validates that an error occurred with the expected message.
+func validateExpectedError(t *testing.T, err error, errMsg string) {
+	t.Helper()
+
+	if err == nil {
+		t.Error("NewPlugin() expected error but got none")
+		return
+	}
+	if errMsg != "" && err.Error() != errMsg {
+		t.Errorf("NewPlugin() error = %v, want %v", err.Error(), errMsg)
+	}
+}
+
+// validatePluginCreation validates successful plugin creation and configuration.
+func validatePluginCreation(t *testing.T, plugin *Plugin, err error) {
+	t.Helper()
+
+	if err != nil {
+		t.Errorf("NewPlugin() unexpected error: %v", err)
+		return
+	}
+
+	if plugin == nil {
+		t.Error("NewPlugin() returned nil plugin")
+		return
+	}
+
+	validatePluginMetadata(t, plugin)
+	validatePluginDefaults(t, plugin)
+}
+
+// validatePluginMetadata validates plugin metadata fields.
+func validatePluginMetadata(t *testing.T, plugin *Plugin) {
+	t.Helper()
+
+	if plugin.Name() != "osm" {
+		t.Errorf("Name() = %v, want %v", plugin.Name(), "osm")
+	}
+
+	if plugin.Version() == "" {
+		t.Error("Version() returned empty string")
+	}
+
+	capabilities := plugin.Capabilities()
+	if len(capabilities) == 0 {
+		t.Error("Capabilities() returned empty list")
+	}
+}
+
+// validatePluginDefaults validates that default configuration values were applied.
+func validatePluginDefaults(t *testing.T, plugin *Plugin) {
+	t.Helper()
+
+	if plugin.config.Project == "" {
+		t.Error("Project default was not applied")
+	}
+	if plugin.config.RequestTimeout == 0 {
+		t.Error("RequestTimeout default was not applied")
+	}
+	if plugin.config.InventorySyncInterval == 0 {
+		t.Error("InventorySyncInterval default was not applied")
 	}
 }
 
