@@ -205,21 +205,21 @@ func validateVMwareConfig(cfg *Config) error {
 }
 
 // applyVMwareDefaults applies default values to configuration.
-func applyVMwareDefaults(cfg *Config) (deploymentManagerID, poolMode string, timeout time.Duration) {
-	deploymentManagerID = cfg.DeploymentManagerID
-	if deploymentManagerID == "" {
-		deploymentManagerID = fmt.Sprintf("ocloud-vmware-%s", cfg.Datacenter)
-	}
+func applyVMwareDefaults(cfg *Config) (string, string, time.Duration) {
+	var deploymentManagerID = cfg.DeploymentManagerID
+	var if deploymentManagerID == "" {
+	var 	deploymentManagerID = fmt.Sprintf("ocloud-vmware-%s", cfg.Datacenter)
+	var }
 
-	poolMode = cfg.PoolMode
-	if poolMode == "" {
-		poolMode = poolModeCluster
-	}
+	var poolMode = cfg.PoolMode
+	var if poolMode == "" {
+	var 	poolMode = poolModeCluster
+	var }
 
-	timeout = cfg.Timeout
-	if timeout == 0 {
-		timeout = 30 * time.Second
-	}
+	var timeout = cfg.Timeout
+	var if timeout == 0 {
+	var 	timeout = 30 * time.Second
+	var }
 
 	return deploymentManagerID, poolMode, timeout
 }

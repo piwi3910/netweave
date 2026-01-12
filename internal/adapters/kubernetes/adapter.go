@@ -278,8 +278,9 @@ func (a *Adapter) UpdateSubscription(
 	ctx context.Context,
 	id string,
 	sub *adapter.Subscription,
-) (result *adapter.Subscription, err error) {
+) (*adapter.Subscription, error) {
 	start := time.Now()
+	var err error
 	defer func() { adapter.ObserveOperation("kubernetes", "UpdateSubscription", start, err) }()
 
 	a.logger.Debug("UpdateSubscription called",
