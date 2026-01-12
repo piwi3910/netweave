@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/config"
 )
 
 // TestValidateCallback tests the callback URL validation including SSRF protection.
@@ -128,8 +129,14 @@ func TestValidateCallback(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a minimal server instance
-			s := &Server{}
+			// Create a minimal server instance with config
+			s := &Server{
+				config: &config.Config{
+					Security: config.SecurityConfig{
+						DisableSSRFProtection: false, // Enable SSRF protection for tests
+					},
+				},
+			}
 
 			err := s.validateCallback(tt.sub)
 
