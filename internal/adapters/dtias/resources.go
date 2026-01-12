@@ -31,26 +31,32 @@ func (a *DTIASAdapter) ListResources(ctx context.Context, filter *adapter.Filter
 
 // buildServersPath builds the API path with query parameters for servers.
 func buildServersPath(filter *adapter.Filter) string {
-	path := "/servers"
+	path := "/v2/inventory/servers"
 	if filter == nil {
 		return path
 	}
 
 	queryParams := url.Values{}
 	if filter.ResourcePoolID != "" {
-		queryParams.Set("serverPoolId", filter.ResourcePoolID)
+		queryParams.Set("resourcePool", filter.ResourcePoolID)
 	}
 	if filter.ResourceTypeID != "" {
-		queryParams.Set("serverType", filter.ResourceTypeID)
+		queryParams.Set("resourceProfileId", filter.ResourceTypeID)
 	}
 	if filter.Location != "" {
-		queryParams.Set("datacenter", filter.Location)
+		queryParams.Set("location", filter.Location)
 	}
+	// DTIAS uses pageNumber/pageSize instead of limit/offset
 	if filter.Limit > 0 {
-		queryParams.Set("limit", fmt.Sprintf("%d", filter.Limit))
+		queryParams.Set("pageSize", fmt.Sprintf("%d", filter.Limit))
 	}
 	if filter.Offset > 0 {
-		queryParams.Set("offset", fmt.Sprintf("%d", filter.Offset))
+		// Convert offset to pageNumber (pageNumber = offset/limit + 1)
+		pageNumber := 1
+		if filter.Limit > 0 {
+			pageNumber = (filter.Offset / filter.Limit) + 1
+		}
+		queryParams.Set("pageNumber", fmt.Sprintf("%d", pageNumber))
 	}
 
 	if len(queryParams) > 0 {
@@ -98,7 +104,7 @@ func (a *DTIASAdapter) GetResource(ctx context.Context, id string) (*adapter.Res
 		zap.String("id", id))
 
 	// Query and parse DTIAS API
-	path := fmt.Sprintf("/servers/%s", id)
+	path := fmt.Sprintf("/v2/inventory/servers/%s", id)
 	var server Server
 	if err := a.getAndParseResource(ctx, path, &server, "server"); err != nil {
 		return nil, err
@@ -144,8 +150,9 @@ func (a *DTIASAdapter) CreateResource(ctx context.Context, resource *adapter.Res
 		}
 	}
 
-	// Provision server via DTIAS API
-	resp, err := a.client.doRequest(ctx, http.MethodPost, "/servers/provision", provisionReq)
+	// Allocate server via DTIAS API
+	// Note: DTIAS uses /v2/resources/allocate instead of /servers/provision
+	resp, err := a.client.doRequest(ctx, http.MethodPost, "/v2/resources/allocate", provisionReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to provision server: %w", err)
 	}
@@ -189,9 +196,11 @@ func (a *DTIASAdapter) DeleteResource(ctx context.Context, id string) error {
 	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
-	// Decommission server via DTIAS API
-	path := fmt.Sprintf("/servers/%s/decommission", id)
-	resp, err := a.client.doRequest(ctx, http.MethodPost, path, nil)
+	// Release server via DTIAS API
+	// Note: DTIAS uses /v2/resources/release instead of /servers/{id}/decommission
+	resp, err := a.client.doRequest(ctx, http.MethodPost, "/v2/resources/release", map[string]interface{}{
+		"id": id,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to decommission server: %w", err)
 	}
@@ -329,9 +338,12 @@ func (a *DTIASAdapter) PowerControl(ctx context.Context, serverID string, operat
 		zap.String("operation", string(operation)))
 
 	// Power control via DTIAS API
-	path := fmt.Sprintf("/servers/%s/power", serverID)
+	// Note: DTIAS v2.4.0 doesn't have a direct power control endpoint
+	// This may need to use resource actions or be removed
+	path := fmt.Sprintf("/v2/resources/action")
 	req := map[string]interface{}{
-		"operation": operation,
+		"id":     serverID,
+		"action": operation,
 	}
 
 	resp, err := a.client.doRequest(ctx, http.MethodPost, path, req)
@@ -354,7 +366,9 @@ func (a *DTIASAdapter) GetHealthMetrics(ctx context.Context, serverID string) (*
 		zap.String("serverId", serverID))
 
 	// Query health metrics via DTIAS API
-	path := fmt.Sprintf("/servers/%s/health/metrics", serverID)
+	// Note: DTIAS v2.4.0 doesn't have a direct health metrics endpoint
+	// May need to query server details and extract health information
+	path := fmt.Sprintf("/v2/inventory/servers/%s", serverID)
 	resp, err := a.client.doRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get health metrics: %w", err)

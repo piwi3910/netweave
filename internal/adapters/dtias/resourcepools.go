@@ -31,20 +31,18 @@ func (a *DTIASAdapter) ListResourcePools(ctx context.Context, filter *adapter.Fi
 
 // buildServerPoolsPath builds the API path with query parameters.
 func buildServerPoolsPath(filter *adapter.Filter) string {
+	path := "/v2/inventory/resourcepools"
+
 	queryParams := url.Values{}
 	if filter != nil {
+		// DTIAS uses siteId instead of datacenter/location
 		if filter.Location != "" {
-			queryParams.Set("datacenter", filter.Location)
+			queryParams.Set("siteId", filter.Location)
 		}
-		if filter.Limit > 0 {
-			queryParams.Set("limit", fmt.Sprintf("%d", filter.Limit))
-		}
-		if filter.Offset > 0 {
-			queryParams.Set("offset", fmt.Sprintf("%d", filter.Offset))
-		}
+		// Note: DTIAS doesn't use limit/offset for resource pools
+		// It returns all pools matching the filter
 	}
 
-	path := "/server-pools"
 	if len(queryParams) > 0 {
 		path += "?" + queryParams.Encode()
 	}
@@ -102,7 +100,7 @@ func (a *DTIASAdapter) GetResourcePool(ctx context.Context, id string) (*adapter
 		zap.String("id", id))
 
 	// Query and parse DTIAS API
-	path := fmt.Sprintf("/server-pools/%s", id)
+	path := fmt.Sprintf("/v2/inventory/resourcepools/%s", id)
 	var serverPool ServerPool
 	if err := a.getAndParseResource(ctx, path, &serverPool, "server pool"); err != nil {
 		return nil, err
@@ -152,7 +150,7 @@ func (a *DTIASAdapter) CreateResourcePool(
 	}
 
 	// Create server pool via DTIAS API
-	resp, err := a.client.doRequest(ctx, http.MethodPost, "/server-pools", createReq)
+	resp, err := a.client.doRequest(ctx, http.MethodPost, "/v2/resourcepools", createReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create server pool: %w", err)
 	}
@@ -204,7 +202,7 @@ func (a *DTIASAdapter) UpdateResourcePool(
 	}
 
 	// Update server pool via DTIAS API
-	path := fmt.Sprintf("/server-pools/%s", id)
+	path := fmt.Sprintf("/v2/resourcepools/%s", id)
 	resp, err := a.client.doRequest(ctx, http.MethodPut, path, updateReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update server pool: %w", err)
@@ -237,7 +235,7 @@ func (a *DTIASAdapter) DeleteResourcePool(ctx context.Context, id string) error 
 		zap.String("id", id))
 
 	// Delete server pool via DTIAS API
-	path := fmt.Sprintf("/server-pools/%s", id)
+	path := fmt.Sprintf("/v2/resourcepools/%s", id)
 	resp, err := a.client.doRequest(ctx, http.MethodDelete, path, nil)
 	if err != nil {
 		return fmt.Errorf("failed to delete server pool: %w", err)

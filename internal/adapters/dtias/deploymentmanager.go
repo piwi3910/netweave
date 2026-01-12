@@ -87,8 +87,8 @@ type DatacenterInfo struct {
 
 // getDatacenterInfo retrieves datacenter metadata from DTIAS API.
 func (a *DTIASAdapter) getDatacenterInfo(ctx context.Context, datacenterID string) (*DatacenterInfo, error) {
-	// Query DTIAS API for datacenter info
-	path := fmt.Sprintf("/datacenters/%s", datacenterID)
+	// Query DTIAS API for site info (DTIAS uses "sites" instead of "datacenters")
+	path := fmt.Sprintf("/v2/inventory/sites/%s", datacenterID)
 	resp, err := a.client.doRequest(ctx, "GET", path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get datacenter info: %w", err)
