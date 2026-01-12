@@ -12,7 +12,9 @@ import (
 
 func TestMemoryStore_Create(t *testing.T) {
 	store := NewMemoryStore()
-	defer store.Close()
+	defer func() {
+		require.NoError(t, store.Close())
+	}()
 
 	sub := &models.DMSSubscription{
 		SubscriptionID:         "sub-1",
