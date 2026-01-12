@@ -74,11 +74,11 @@ func (m *mockAuthStore) ListTenants(_ context.Context) ([]*auth.Tenant, error) {
 	return result, nil
 }
 
-func (m *mockAuthStore) IncrementUsage(_ context.Context, _, usageType string) error {
+func (m *mockAuthStore) IncrementUsage(_ context.Context, _, _ string) error {
 	return nil
 }
 
-func (m *mockAuthStore) DecrementUsage(_ context.Context, _, usageType string) error {
+func (m *mockAuthStore) DecrementUsage(_ context.Context, _, _ string) error {
 	return nil
 }
 
@@ -199,15 +199,15 @@ func (m *mockAuthStore) LogEvent(_ context.Context, event *auth.AuditEvent) erro
 	return nil
 }
 
-func (m *mockAuthStore) ListEvents(_ context.Context, _ string, limit, offset int) ([]*auth.AuditEvent, error) {
+func (m *mockAuthStore) ListEvents(_ context.Context, _ string, _, _ int) ([]*auth.AuditEvent, error) {
 	return m.events, nil
 }
 
-func (m *mockAuthStore) ListEventsByType(_ context.Context, _ auth.AuditEventType, limit int) ([]*auth.AuditEvent, error) {
+func (m *mockAuthStore) ListEventsByType(_ context.Context, _ auth.AuditEventType, _ int) ([]*auth.AuditEvent, error) {
 	return m.events, nil
 }
 
-func (m *mockAuthStore) ListEventsByUser(_ context.Context, _ string, limit int) ([]*auth.AuditEvent, error) {
+func (m *mockAuthStore) ListEventsByUser(_ context.Context, _ string, _ int) ([]*auth.AuditEvent, error) {
 	return m.events, nil
 }
 

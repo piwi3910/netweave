@@ -253,7 +253,7 @@ func (r *Registry) List() []*PluginInfo {
 }
 
 // FindByCapability finds all plugins that support the given capability.
-func (r *Registry) FindByCapability(cap Capability) []Plugin {
+func (r *Registry) FindByCapability(capability Capability) []Plugin {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -265,7 +265,7 @@ func (r *Registry) FindByCapability(cap Capability) []Plugin {
 		}
 
 		for _, c := range info.Capabilities {
-			if c == cap {
+			if c == capability {
 				result = append(result, plugin)
 				break
 			}
