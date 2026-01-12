@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/mail"
@@ -237,6 +238,79 @@ func (h *TenantHandler) GetTenant(c *gin.Context) {
 	c.JSON(http.StatusOK, tenant)
 }
 
+func (h *TenantHandler) validateUpdateTenantRequest(c *gin.Context, req *UpdateTenantRequest) error {
+	if req.Name != "" {
+		if err := validateTenantName(req.Name); err != nil {
+			h.logger.Warn("invalid tenant name", zap.String("name", req.Name), zap.Error(err))
+			c.JSON(http.StatusBadRequest, models.ErrorResponse{
+				Error:   "BadRequest",
+				Message: err.Error(),
+				Code:    http.StatusBadRequest,
+			})
+			return err
+		}
+	}
+
+	if req.ContactEmail != "" {
+		if err := validateEmail(req.ContactEmail); err != nil {
+			h.logger.Warn("invalid email", zap.String("email", req.ContactEmail), zap.Error(err))
+			c.JSON(http.StatusBadRequest, models.ErrorResponse{
+				Error:   "BadRequest",
+				Message: err.Error(),
+				Code:    http.StatusBadRequest,
+			})
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (h *TenantHandler) getTenantForUpdate(c *gin.Context, ctx context.Context, tenantID string) (*auth.Tenant, error) {
+	tenant, err := h.store.GetTenant(ctx, tenantID)
+	if err != nil {
+		if errors.Is(err, auth.ErrTenantNotFound) {
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "NotFound",
+				Message: "Tenant not found",
+				Code:    http.StatusNotFound,
+			})
+			return nil, err
+		}
+
+		h.logger.Error("failed to get tenant", zap.String("tenant_id", tenantID), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to retrieve tenant",
+			Code:    http.StatusInternalServerError,
+		})
+		return nil, err
+	}
+
+	return tenant, nil
+}
+
+func (h *TenantHandler) applyTenantUpdates(tenant *auth.Tenant, req *UpdateTenantRequest) {
+	if req.Name != "" {
+		tenant.Name = req.Name
+	}
+	if req.Description != "" {
+		tenant.Description = req.Description
+	}
+	if req.ContactEmail != "" {
+		tenant.ContactEmail = req.ContactEmail
+	}
+	if req.Metadata != nil {
+		tenant.Metadata = req.Metadata
+	}
+	if req.Status != "" {
+		tenant.Status = req.Status
+	}
+	if req.Quota != nil {
+		tenant.Quota = *req.Quota
+	}
+}
+
 // UpdateTenant handles PUT /admin/tenants/:tenantId.
 // Updates an existing tenant.
 func (h *TenantHandler) UpdateTenant(c *gin.Context) {
@@ -263,72 +337,16 @@ func (h *TenantHandler) UpdateTenant(c *gin.Context) {
 		return
 	}
 
-	// Validate tenant name if provided
-	if req.Name != "" {
-		if err := validateTenantName(req.Name); err != nil {
-			h.logger.Warn("invalid tenant name", zap.String("name", req.Name), zap.Error(err))
-			c.JSON(http.StatusBadRequest, models.ErrorResponse{
-				Error:   "BadRequest",
-				Message: err.Error(),
-				Code:    http.StatusBadRequest,
-			})
-			return
-		}
-	}
-
-	// Validate email if provided
-	if req.ContactEmail != "" {
-		if err := validateEmail(req.ContactEmail); err != nil {
-			h.logger.Warn("invalid email", zap.String("email", req.ContactEmail), zap.Error(err))
-			c.JSON(http.StatusBadRequest, models.ErrorResponse{
-				Error:   "BadRequest",
-				Message: err.Error(),
-				Code:    http.StatusBadRequest,
-			})
-			return
-		}
-	}
-
-	// Get existing tenant.
-	tenant, err := h.store.GetTenant(ctx, tenantID)
-	if err != nil {
-		if errors.Is(err, auth.ErrTenantNotFound) {
-			c.JSON(http.StatusNotFound, models.ErrorResponse{
-				Error:   "NotFound",
-				Message: "Tenant not found",
-				Code:    http.StatusNotFound,
-			})
-			return
-		}
-
-		h.logger.Error("failed to get tenant", zap.String("tenant_id", tenantID), zap.Error(err))
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "InternalError",
-			Message: "Failed to retrieve tenant",
-			Code:    http.StatusInternalServerError,
-		})
+	if err := h.validateUpdateTenantRequest(c, &req); err != nil {
 		return
 	}
 
-	// Apply updates.
-	if req.Name != "" {
-		tenant.Name = req.Name
+	tenant, err := h.getTenantForUpdate(c, ctx, tenantID)
+	if err != nil {
+		return
 	}
-	if req.Description != "" {
-		tenant.Description = req.Description
-	}
-	if req.ContactEmail != "" {
-		tenant.ContactEmail = req.ContactEmail
-	}
-	if req.Metadata != nil {
-		tenant.Metadata = req.Metadata
-	}
-	if req.Status != "" {
-		tenant.Status = req.Status
-	}
-	if req.Quota != nil {
-		tenant.Quota = *req.Quota
-	}
+
+	h.applyTenantUpdates(tenant, &req)
 
 	if err := h.store.UpdateTenant(ctx, tenant); err != nil {
 		h.logger.Error("failed to update tenant",
@@ -343,7 +361,6 @@ func (h *TenantHandler) UpdateTenant(c *gin.Context) {
 		return
 	}
 
-	// Log audit event.
 	h.logAuditEvent(c, auth.AuditEventTenantUpdated, tenant.ID, "tenant", "update", nil)
 
 	h.logger.Info("tenant updated",
