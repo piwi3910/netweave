@@ -29,10 +29,12 @@ type mockResourceAdapter struct {
 }
 
 func newMockResourceAdapter() *mockResourceAdapter {
+	// Use realistic UUID format for test data
+	testResourceID := "550e8400-e29b-41d4-a716-446655440000"
 	return &mockResourceAdapter{
 		resources: map[string]*adapter.Resource{
-			"test-res-123": {
-				ResourceID:     "test-res-123",
+			testResourceID: {
+				ResourceID:     testResourceID,
 				ResourceTypeID: "machine",
 				ResourcePoolID: "pool-1",
 				Description:    "Test resource",
@@ -202,6 +204,89 @@ func TestResourceCRUD(t *testing.T) {
 		assert.Contains(t, resp.Body.String(), "resource pool ID is required")
 	})
 
+	t.Run("POST /resources - security: reject invalid UUID (path traversal)", func(t *testing.T) {
+		// Test path traversal attack attempt
+		resource := adapter.Resource{
+			ResourceID:     "../../../etc/passwd",
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Description:    "Malicious resource",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "resourceId must be a valid UUID")
+	})
+
+	t.Run("POST /resources - security: reject invalid UUID (SQL injection)", func(t *testing.T) {
+		// Test SQL injection attempt
+		resource := adapter.Resource{
+			ResourceID:     "'; DROP TABLE resources; --",
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Description:    "Malicious resource",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "resourceId must be a valid UUID")
+	})
+
+	t.Run("POST /resources - accept valid client-provided UUID", func(t *testing.T) {
+		// Test valid UUID is accepted
+		validUUID := "550e8400-e29b-41d4-a716-446655440001"
+		resource := adapter.Resource{
+			ResourceID:     validUUID,
+			ResourceTypeID: "machine",
+			ResourcePoolID: "pool-1",
+			Description:    "Resource with client-provided UUID",
+		}
+
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusCreated, resp.Code)
+
+		var created adapter.Resource
+		err = json.Unmarshal(resp.Body.Bytes(), &created)
+		require.NoError(t, err)
+		assert.Equal(t, validUUID, created.ResourceID)
+	})
+
 	// Test PUT /resources/:id
 	t.Run("PUT /resources/:id - update resource description", func(t *testing.T) {
 		resource := adapter.Resource{
@@ -214,7 +299,7 @@ func TestResourceCRUD(t *testing.T) {
 
 		req := httptest.NewRequest(
 			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resources/test-res-123",
+			"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
 			bytes.NewReader(body),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -227,7 +312,7 @@ func TestResourceCRUD(t *testing.T) {
 		var updated adapter.Resource
 		err = json.Unmarshal(resp.Body.Bytes(), &updated)
 		require.NoError(t, err)
-		assert.Equal(t, "test-res-123", updated.ResourceID)
+		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", updated.ResourceID)
 		assert.Equal(t, resource.Description, updated.Description)
 		assert.Equal(t, resource.GlobalAssetID, updated.GlobalAssetID)
 	})
@@ -247,7 +332,7 @@ func TestResourceCRUD(t *testing.T) {
 
 		req := httptest.NewRequest(
 			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resources/test-res-123",
+			"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
 			bytes.NewReader(body),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -268,7 +353,7 @@ func TestResourceCRUD(t *testing.T) {
 	t.Run("PUT /resources/:id - invalid JSON", func(t *testing.T) {
 		req := httptest.NewRequest(
 			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resources/test-res-123",
+			"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
 			bytes.NewReader([]byte("invalid json")),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -313,7 +398,7 @@ func TestResourceCRUD(t *testing.T) {
 
 		req := httptest.NewRequest(
 			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resources/test-res-123",
+			"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
 			bytes.NewReader(body),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -342,7 +427,7 @@ func TestResourceCRUD(t *testing.T) {
 
 		req := httptest.NewRequest(
 			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resources/test-res-123",
+			"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
 			bytes.NewReader(body),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -593,7 +678,7 @@ func TestResourceCRUD(t *testing.T) {
 	t.Run("POST /resources - duplicate resource ID", func(t *testing.T) {
 		// Use the existing resource ID from the mock
 		resource := adapter.Resource{
-			ResourceID:     "test-res-123", // Already exists in mock
+			ResourceID:     "550e8400-e29b-41d4-a716-446655440000", // Already exists in mock
 			ResourceTypeID: "machine",
 			ResourcePoolID: "pool-1",
 			Description:    "Duplicate resource",
@@ -651,8 +736,8 @@ func TestResourceCRUD(t *testing.T) {
 		// Create a mock with existing resource that returns error on update
 		mockAdp := &mockResourceAdapter{
 			resources: map[string]*adapter.Resource{
-				"test-res-123": {
-					ResourceID:     "test-res-123",
+				"550e8400-e29b-41d4-a716-446655440000": {
+					ResourceID:     "550e8400-e29b-41d4-a716-446655440000",
 					ResourceTypeID: "machine",
 					ResourcePoolID: "pool-1",
 					Description:    "Original",
@@ -670,7 +755,7 @@ func TestResourceCRUD(t *testing.T) {
 
 		req := httptest.NewRequest(
 			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resources/test-res-123",
+			"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
 			bytes.NewReader(body),
 		)
 		req.Header.Set("Content-Type", "application/json")

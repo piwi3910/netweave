@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -673,6 +674,22 @@ func TestHandleCreateResource(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 		assert.Contains(t, w.Header().Get("Location"), "/resources/")
+
+		// Validate response body contains a valid UUID (not old "res-" prefix format)
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+
+		resourceID, ok := response["resourceId"].(string)
+		assert.True(t, ok, "resourceId should be a string")
+		assert.NotEmpty(t, resourceID)
+
+		// Verify UUID format (36 characters with hyphens in correct positions)
+		assert.Regexp(t, `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, resourceID,
+			"resourceId should be a valid UUID, not old res-{type}-{uuid} format")
+
+		// Verify no "res-" prefix
+		assert.NotContains(t, resourceID, "res-", "resourceId should not contain old res- prefix")
 	})
 
 	t.Run("returns 400 for missing resourceTypeId", func(t *testing.T) {
