@@ -1305,7 +1305,6 @@ func TestContextCancellation(t *testing.T) {
 	}
 }
 
-
 // TestBuildConditions tests condition building for different app states.
 // TODO(#200): Implement buildConditions method before enabling this test.
 // This test is skipped because the buildConditions() method is not yet implemented in the adapter.
