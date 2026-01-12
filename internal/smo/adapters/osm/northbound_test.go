@@ -335,43 +335,59 @@ func mockOSMServer(_ *testing.T) http.HandlerFunc {
 
 		switch {
 		case r.URL.Path == "/osm/admin/v1/tokens" && r.Method == http.MethodPost:
-			// Authentication
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"id":         "test-token",
-				"project_id": "admin",
-				"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
-			})
-
+			handleMockAuth(w)
 		case r.URL.Path == "/osm/admin/v1/tokens" && r.Method == http.MethodGet:
-			// Health check
-			w.WriteHeader(http.StatusOK)
-
+			handleMockHealthCheck(w)
 		case r.URL.Path == "/osm/admin/v1/vim_accounts" && r.Method == http.MethodPost:
-			// Create VIM account
-			var vim VIMAccount
-			if err := json.NewDecoder(r.Body).Decode(&vim); err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			vim.ID = "vim-" + vim.Name
-			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(vim)
-
+			handleMockCreateVIM(w, r)
 		case r.URL.Path == "/osm/admin/v1/vim_accounts" && r.Method == http.MethodGet:
-			// List VIM accounts
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode([]*VIMAccount{})
-
+			handleMockListVIM(w)
 		default:
-			if r.Method == http.MethodGet && len(r.URL.Path) > len("/osm/admin/v1/vim_accounts/") {
-				// Get specific VIM account
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
-			w.WriteHeader(http.StatusNotFound)
+			handleMockNotFound(w, r)
 		}
 	}
+}
+
+// handleMockAuth handles mock authentication requests.
+func handleMockAuth(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"id":         "test-token",
+		"project_id": "admin",
+		"expires":    time.Now().Add(1 * time.Hour).Format(time.RFC3339),
+	})
+}
+
+// handleMockHealthCheck handles mock health check requests.
+func handleMockHealthCheck(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleMockCreateVIM handles mock VIM account creation.
+func handleMockCreateVIM(w http.ResponseWriter, r *http.Request) {
+	var vim VIMAccount
+	if err := json.NewDecoder(r.Body).Decode(&vim); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	vim.ID = "vim-" + vim.Name
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(vim)
+}
+
+// handleMockListVIM handles mock VIM account listing.
+func handleMockListVIM(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode([]*VIMAccount{})
+}
+
+// handleMockNotFound handles mock 404 responses.
+func handleMockNotFound(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet && len(r.URL.Path) > len("/osm/admin/v1/vim_accounts/") {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusNotFound)
 }
 
 // createTestPlugin creates a plugin configured for testing.
