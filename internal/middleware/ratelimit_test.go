@@ -21,7 +21,7 @@ func TestNewRateLimiter(t *testing.T) {
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer redisClient.Close()
+	defer func() { require.NoError(t, redisClient.Close()) }()
 
 	logger := zap.NewNop()
 
@@ -74,7 +74,7 @@ func TestNewRateLimiter(t *testing.T) {
 		badClient := redis.NewClient(&redis.Options{
 			Addr: "localhost:9999",
 		})
-		defer badClient.Close()
+		defer func() { require.NoError(t, badClient.Close()) }()
 
 		config := &RateLimitConfig{
 			Enabled:     true,
@@ -98,7 +98,7 @@ func TestMiddleware(t *testing.T) {
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer redisClient.Close()
+	defer func() { require.NoError(t, redisClient.Close()) }()
 
 	logger := zap.NewNop()
 
@@ -221,7 +221,7 @@ func TestGetEndpointLimit(t *testing.T) {
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	defer redisClient.Close()
+	defer func() { require.NoError(t, redisClient.Close()) }()
 
 	logger := zap.NewNop()
 
