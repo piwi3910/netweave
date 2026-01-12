@@ -1,4 +1,4 @@
-package openstack_test
+package openstack
 
 import (
 	"context"

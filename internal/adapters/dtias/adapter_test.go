@@ -1,4 +1,4 @@
-package dtias_test
+package dtias
 
 import (
 	"context"
@@ -89,33 +89,32 @@ func TestNew(t *testing.T) {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
 				assert.Nil(t, adp)
-				return
-			}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, adp)
 
-			require.NoError(t, err)
-			require.NotNil(t, adp)
+				// Verify adapter metadata
+				assert.Equal(t, "dtias", adp.Name())
+				assert.Equal(t, "1.0.0", adp.Version())
+				assert.NotEmpty(t, adp.Capabilities())
 
-			// Verify adapter metadata
-			assert.Equal(t, "dtias", adp.Name())
-			assert.Equal(t, "1.0.0", adp.Version())
-			assert.NotEmpty(t, adp.Capabilities())
+				// Verify configuration defaults were applied
+				if tt.config.Timeout == 0 {
+					assert.Equal(t, 30*time.Second, adp.config.Timeout)
+				}
+				if tt.config.RetryAttempts == 0 {
+					assert.Equal(t, 3, adp.config.RetryAttempts)
+				}
+				if tt.config.RetryDelay == 0 {
+					assert.Equal(t, 2*time.Second, adp.config.RetryDelay)
+				}
+				if tt.config.DeploymentManagerID == "" {
+					assert.NotEmpty(t, adp.deploymentManagerID)
+				}
 
-			// Verify configuration defaults were applied
-			if tt.config.Timeout == 0 {
-				assert.Equal(t, 30*time.Second, adp.config.Timeout)
+				// Cleanup
+				assert.NoError(t, adp.Close())
 			}
-			if tt.config.RetryAttempts == 0 {
-				assert.Equal(t, 3, adp.config.RetryAttempts)
-			}
-			if tt.config.RetryDelay == 0 {
-				assert.Equal(t, 2*time.Second, adp.config.RetryDelay)
-			}
-			if tt.config.DeploymentManagerID == "" {
-				assert.NotEmpty(t, adp.deploymentManagerID)
-			}
-
-			// Cleanup
-			assert.NoError(t, adp.Close())
 		})
 	}
 }

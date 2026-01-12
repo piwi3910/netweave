@@ -1,4 +1,4 @@
-package storage_test
+package storage
 
 import (
 	"context"
@@ -9,8 +9,6 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/stretchr/testify/require"
-
-	"github.com/piwi3910/netweave/internal/storage"
 )
 
 // setupTestRedis creates a miniredis instance for testing.
