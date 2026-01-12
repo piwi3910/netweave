@@ -214,7 +214,8 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 }
 
 // createTestHelmRelease creates a test Flux HelmRelease unstructured object.
-func createTestHelmRelease(name, namespace, chart, sourceRef string, ready bool) *unstructured.Unstructured {
+func createTestHelmRelease(name, chart, sourceRef string, ready bool) *unstructured.Unstructured {
+	namespace := "flux-system"
 	readyStatus := "True"
 	reason := "ReconciliationSucceeded"
 	message := "Release reconciliation succeeded"
@@ -271,7 +272,8 @@ func createTestHelmRelease(name, namespace, chart, sourceRef string, ready bool)
 }
 
 // createTestKustomization creates a test Flux Kustomization unstructured object.
-func createTestKustomization(name, namespace, path, sourceRef string, ready bool) *unstructured.Unstructured {
+func createTestKustomization(name, path, sourceRef string, ready bool) *unstructured.Unstructured {
+	namespace := "flux-system"
 	readyStatus := "True"
 	reason := "ReconciliationSucceeded"
 	message := "Applied revision: main/abc123"
@@ -382,9 +384,9 @@ func TestListDeployments(t *testing.T) {
 		{
 			name: "list all deployments",
 			objects: []runtime.Object{
-				createTestHelmRelease("hr1", "flux-system", "nginx", "bitnami", true),
-				createTestHelmRelease("hr2", "flux-system", "redis", "bitnami", true),
-				createTestKustomization("ks1", "flux-system", "./apps", "infra-repo", true),
+				createTestHelmRelease("hr1", "nginx", "bitnami", true),
+				createTestHelmRelease("hr2", "redis", "bitnami", true),
+				createTestKustomization("ks1", "./apps", "infra-repo", true),
 			},
 			filter:    nil,
 			wantCount: 3,
@@ -393,8 +395,8 @@ func TestListDeployments(t *testing.T) {
 		{
 			name: "filter by status - deployed",
 			objects: []runtime.Object{
-				createTestHelmRelease("hr1", "flux-system", "nginx", "bitnami", true),
-				createTestHelmRelease("hr2", "flux-system", "redis", "bitnami", false),
+				createTestHelmRelease("hr1", "nginx", "bitnami", true),
+				createTestHelmRelease("hr2", "redis", "bitnami", false),
 			},
 			filter:    &dmsadapter.Filter{Status: dmsadapter.DeploymentStatusDeployed},
 			wantCount: 1,
@@ -410,9 +412,9 @@ func TestListDeployments(t *testing.T) {
 		{
 			name: "pagination - limit",
 			objects: []runtime.Object{
-				createTestHelmRelease("hr1", "flux-system", "nginx", "bitnami", true),
-				createTestHelmRelease("hr2", "flux-system", "redis", "bitnami", true),
-				createTestHelmRelease("hr3", "flux-system", "postgres", "bitnami", true),
+				createTestHelmRelease("hr1", "nginx", "bitnami", true),
+				createTestHelmRelease("hr2", "redis", "bitnami", true),
+				createTestHelmRelease("hr3", "postgres", "bitnami", true),
 			},
 			filter:    &dmsadapter.Filter{Limit: 2},
 			wantCount: 2,
@@ -421,9 +423,9 @@ func TestListDeployments(t *testing.T) {
 		{
 			name: "pagination - offset",
 			objects: []runtime.Object{
-				createTestHelmRelease("hr1", "flux-system", "nginx", "bitnami", true),
-				createTestHelmRelease("hr2", "flux-system", "redis", "bitnami", true),
-				createTestHelmRelease("hr3", "flux-system", "postgres", "bitnami", true),
+				createTestHelmRelease("hr1", "nginx", "bitnami", true),
+				createTestHelmRelease("hr2", "redis", "bitnami", true),
+				createTestHelmRelease("hr3", "postgres", "bitnami", true),
 			},
 			filter:    &dmsadapter.Filter{Offset: 1, Limit: 10},
 			wantCount: 2,
@@ -461,7 +463,7 @@ func TestGetDeployment(t *testing.T) {
 		{
 			name: "get existing helmrelease",
 			objects: []runtime.Object{
-				createTestHelmRelease("my-release", "flux-system", "nginx", "bitnami", true),
+				createTestHelmRelease("my-release", "nginx", "bitnami", true),
 			},
 			deployID: "my-release",
 			wantErr:  false,
@@ -469,7 +471,7 @@ func TestGetDeployment(t *testing.T) {
 		{
 			name: "get existing kustomization",
 			objects: []runtime.Object{
-				createTestKustomization("my-kustomization", "flux-system", "./apps", "infra-repo", true),
+				createTestKustomization("my-kustomization", "./apps", "infra-repo", true),
 			},
 			deployID: "my-kustomization",
 			wantErr:  false,
@@ -601,8 +603,8 @@ func TestCreateDeployment(t *testing.T) {
 
 // TestUpdateDeployment tests updating Flux deployments.
 func TestUpdateDeployment(t *testing.T) {
-	existingHR := createTestHelmRelease("existing-hr", "flux-system", "nginx", "bitnami", true)
-	existingKS := createTestKustomization("existing-ks", "flux-system", "./apps", "infra-repo", true)
+	existingHR := createTestHelmRelease("existing-hr", "nginx", "bitnami", true)
+	existingKS := createTestKustomization("existing-ks", "./apps", "infra-repo", true)
 
 	tests := []struct {
 		name        string
@@ -686,8 +688,8 @@ func TestUpdateDeployment(t *testing.T) {
 
 // TestDeleteDeployment tests deleting Flux deployments.
 func TestDeleteDeployment(t *testing.T) {
-	existingHR := createTestHelmRelease("hr-to-delete", "flux-system", "nginx", "bitnami", true)
-	existingKS := createTestKustomization("ks-to-delete", "flux-system", "./apps", "infra-repo", true)
+	existingHR := createTestHelmRelease("hr-to-delete", "nginx", "bitnami", true)
+	existingKS := createTestKustomization("ks-to-delete", "./apps", "infra-repo", true)
 
 	tests := []struct {
 		name        string
@@ -736,7 +738,7 @@ func TestDeleteDeployment(t *testing.T) {
 
 // TestScaleDeployment tests scaling Flux deployments.
 func TestScaleDeployment(t *testing.T) {
-	existingHR := createTestHelmRelease("scalable-hr", "flux-system", "nginx", "bitnami", true)
+	existingHR := createTestHelmRelease("scalable-hr", "nginx", "bitnami", true)
 
 	tests := []struct {
 		name        string
@@ -797,7 +799,7 @@ func TestScaleDeployment(t *testing.T) {
 
 // TestRollbackDeployment tests rollback functionality.
 func TestRollbackDeployment(t *testing.T) {
-	hrWithHistory := createTestHelmRelease("rollback-hr", "flux-system", "nginx", "bitnami", true)
+	hrWithHistory := createTestHelmRelease("rollback-hr", "nginx", "bitnami", true)
 
 	tests := []struct {
 		name        string
@@ -859,9 +861,9 @@ func TestRollbackDeployment(t *testing.T) {
 
 // TestGetDeploymentStatus tests retrieving deployment status.
 func TestGetDeploymentStatus(t *testing.T) {
-	healthyHR := createTestHelmRelease("healthy-hr", "flux-system", "nginx", "bitnami", true)
-	failedHR := createTestHelmRelease("failed-hr", "flux-system", "nginx", "bitnami", false)
-	healthyKS := createTestKustomization("healthy-ks", "flux-system", "./apps", "infra-repo", true)
+	healthyHR := createTestHelmRelease("healthy-hr", "nginx", "bitnami", true)
+	failedHR := createTestHelmRelease("failed-hr", "nginx", "bitnami", false)
+	healthyKS := createTestKustomization("healthy-ks", "./apps", "infra-repo", true)
 
 	tests := []struct {
 		name         string
@@ -929,8 +931,8 @@ func TestGetDeploymentStatus(t *testing.T) {
 
 // TestGetDeploymentHistory tests retrieving deployment history.
 func TestGetDeploymentHistory(t *testing.T) {
-	hrWithHistory := createTestHelmRelease("hr-with-history", "flux-system", "nginx", "bitnami", true)
-	ksWithHistory := createTestKustomization("ks-with-history", "flux-system", "./apps", "infra-repo", true)
+	hrWithHistory := createTestHelmRelease("hr-with-history", "nginx", "bitnami", true)
+	ksWithHistory := createTestKustomization("ks-with-history", "./apps", "infra-repo", true)
 
 	tests := []struct {
 		name        string
@@ -982,8 +984,8 @@ func TestGetDeploymentHistory(t *testing.T) {
 
 // TestGetDeploymentLogs tests retrieving deployment logs/status.
 func TestGetDeploymentLogs(t *testing.T) {
-	hr := createTestHelmRelease("hr-for-logs", "flux-system", "nginx", "bitnami", true)
-	ks := createTestKustomization("ks-for-logs", "flux-system", "./apps", "infra-repo", true)
+	hr := createTestHelmRelease("hr-for-logs", "nginx", "bitnami", true)
+	ks := createTestKustomization("ks-for-logs", "./apps", "infra-repo", true)
 
 	tests := []struct {
 		name        string
@@ -1136,7 +1138,7 @@ func TestDeleteDeploymentPackage(t *testing.T) {
 // TestHealth tests the health check functionality.
 func TestHealth(t *testing.T) {
 	t.Run("healthy adapter", func(t *testing.T) {
-		hr := createTestHelmRelease("test-hr", "flux-system", "nginx", "bitnami", true)
+		hr := createTestHelmRelease("test-hr", "nginx", "bitnami", true)
 		adp := createFakeAdapter(t, hr)
 
 		err := adp.Health(context.Background())
@@ -1388,7 +1390,7 @@ func TestGVRs(t *testing.T) {
 // TestTransformHelmReleaseToDeployment tests HelmRelease transformation.
 func TestTransformHelmReleaseToDeployment(t *testing.T) {
 	adp := createFakeAdapter(t)
-	hr := createTestHelmRelease("test-release", "flux-system", "nginx", "bitnami", true)
+	hr := createTestHelmRelease("test-release", "nginx", "bitnami", true)
 
 	deployment := adp.transformHelmReleaseToDeployment(hr)
 
@@ -1403,7 +1405,7 @@ func TestTransformHelmReleaseToDeployment(t *testing.T) {
 // TestTransformKustomizationToDeployment tests Kustomization transformation.
 func TestTransformKustomizationToDeployment(t *testing.T) {
 	adp := createFakeAdapter(t)
-	ks := createTestKustomization("test-ks", "flux-system", "./apps", "infra-repo", true)
+	ks := createTestKustomization("test-ks", "./apps", "infra-repo", true)
 
 	deployment := adp.transformKustomizationToDeployment(ks)
 
@@ -1872,7 +1874,7 @@ func TestCreateKustomizationPathValidation(t *testing.T) {
 
 // TestUpdateKustomizationPathValidation tests path validation in kustomization updates.
 func TestUpdateKustomizationPathValidation(t *testing.T) {
-	existingKS := createTestKustomization("existing-ks", "flux-system", "./apps", "infra-repo", true)
+	existingKS := createTestKustomization("existing-ks", "./apps", "infra-repo", true)
 
 	tests := []struct {
 		name        string
