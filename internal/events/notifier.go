@@ -369,7 +369,7 @@ func (n *WebhookNotifier) prepareRetry(
 	case <-ctx.Done():
 		delivery.Status = DeliveryStatusFailed
 		delivery.CompletedAt = time.Now().UTC()
-		return fmt.Errorf("notification delivery cancelled: %w", ctx.Err())
+		return fmt.Errorf("notification delivery canceled: %w", ctx.Err())
 	case <-time.After(backoff):
 	}
 
