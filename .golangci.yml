@@ -330,6 +330,7 @@ linters-settings:
     exclude-functions:
       - (*github.com/redis/go-redis/v9.Client).Close
       - (*github.com/gin-gonic/gin.Context).Error
+      - (io.ReadCloser).Close  # HTTP response bodies - already processed when deferred
 
   govet:
     enable-all: true

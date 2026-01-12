@@ -98,12 +98,7 @@ func (c *Client) Authenticate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("auth request failed: %w", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			// Log close error but don't fail the operation
-			// Response body has already been processed
-		}
-	}()
+	defer resp.Body.Close()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
@@ -157,12 +152,7 @@ func (c *Client) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("health check request failed: %w", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			// Log close error but don't fail the operation
-			// Response body has already been processed
-		}
-	}()
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("health check failed (status %d)", resp.StatusCode)
@@ -246,9 +236,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request, result interf
 		newLastErr, err := c.handleResponse(ctx, req, resp, result)
 
 		// Close response body immediately to avoid resource leak
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			// Log close error but don't fail the operation
-		}
+		resp.Body.Close()
 
 		if newLastErr != nil {
 			lastErr = newLastErr
