@@ -535,6 +535,21 @@ Every commit and PR must pass:
 
 ## Claude-Specific Instructions
 
+### Git Commit Authorship (CRITICAL)
+
+**ALL COMMITS ARE AUTHORED BY PASCAL WATTEEL - NOT CLAUDE**
+
+- **ALWAYS** commit as: `Pascal Watteel <pascal@watteel.com>`
+- **ABSOLUTELY NO AI ATTRIBUTION**: NEVER include `Co-Authored-By` lines
+- **NEVER** mention Claude, AI assistants, or automated tools anywhere in:
+  - Commit messages
+  - Commit bodies
+  - Co-author lines
+  - PR descriptions
+  - Code comments (unless discussing AI/ML features of the application itself)
+- **Pascal is the sole author** of all code - Claude is a development tool, not a co-author
+- Think of it like using an IDE, compiler, or linter - you don't credit your tools in commits
+
 ### When Writing Code
 
 1. **ALWAYS run linters** after writing: `make lint`
@@ -555,6 +570,7 @@ Every commit and PR must pass:
 ❌ Code changes without doc updates
 ❌ Local variables shadowing package names
 ❌ Saying "should work" without verifying
+❌ **Including Claude or AI references in commits/PRs**
 
 ## Makefile Targets
 
