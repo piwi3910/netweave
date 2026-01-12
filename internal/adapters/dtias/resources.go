@@ -77,11 +77,19 @@ func (a *DTIASAdapter) fetchServers(ctx context.Context, path string) ([]Server,
 		}
 	}()
 
-	var servers []Server
-	if err := a.client.parseResponse(resp, &servers); err != nil {
+	// Parse DTIAS wrapped response
+	var dtiasResp ServersInventoryResponse
+	if err := a.client.parseResponse(resp, &dtiasResp); err != nil {
 		return nil, fmt.Errorf("failed to parse servers response: %w", err)
 	}
-	return servers, nil
+
+	// Check for API errors in response
+	if dtiasResp.Error != nil {
+		return nil, dtiasResp.Error
+	}
+
+	// Return the Full array (contains complete server details)
+	return dtiasResp.Full, nil
 }
 
 // transformAndFilterResources transforms servers and applies client-side filtering.
@@ -181,7 +189,11 @@ func (a *DTIASAdapter) CreateResource(ctx context.Context, resource *adapter.Res
 
 // UpdateResource updates an existing bare-metal server's metadata.
 // Note: Physical hardware properties cannot be modified.
-func (a *DTIASAdapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (*adapter.Resource, error) {
+func (a *DTIASAdapter) UpdateResource(
+	_ context.Context,
+	_ string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
 	a.logger.Debug("UpdateResource called",
 		zap.String("resourceID", resource.ResourceID))
 
@@ -340,7 +352,7 @@ func (a *DTIASAdapter) PowerControl(ctx context.Context, serverID string, operat
 	// Power control via DTIAS API
 	// Note: DTIAS v2.4.0 doesn't have a direct power control endpoint
 	// This may need to use resource actions or be removed
-	path := fmt.Sprintf("/v2/resources/action")
+	path := "/v2/resources/action"
 	req := map[string]interface{}{
 		"id":     serverID,
 		"action": operation,
