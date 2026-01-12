@@ -161,21 +161,21 @@ func (q *RedisQueue) readStreamBatch(ctx context.Context, consumerGroup, consume
 			return nil, nil
 		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return nil, err
+			return nil, fmt.Errorf("context canceled during stream read: %w", err)
 		}
 		q.logger.Error("failed to read from stream",
 			zap.Error(err),
 			zap.String("consumer_group", consumerGroup),
 		)
 		time.Sleep(time.Second)
-		return nil, err
+		return nil, fmt.Errorf("failed to read from Redis stream: %w", err)
 	}
 
 	return streams, nil
 }
 
 // processStreamMessages processes messages from the stream and sends them to the event channel.
-// Returns true if context was cancelled, false otherwise.
+// Returns true if context was canceled, false otherwise.
 func (q *RedisQueue) processStreamMessages(
 	ctx context.Context,
 	consumerGroup string,
@@ -191,7 +191,13 @@ func (q *RedisQueue) processStreamMessages(
 					zap.String("stream_id", message.ID),
 				)
 				// Acknowledge invalid message to prevent blocking
-				_ = q.Acknowledge(ctx, consumerGroup, message.ID)
+				// If acknowledgement fails, the message will be redelivered, which is acceptable
+				if ackErr := q.Acknowledge(ctx, consumerGroup, message.ID); ackErr != nil {
+					q.logger.Warn("failed to acknowledge invalid message",
+						zap.Error(ackErr),
+						zap.String("stream_id", message.ID),
+					)
+				}
 				continue
 			}
 

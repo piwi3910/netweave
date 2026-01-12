@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -1702,10 +1703,11 @@ func validateCallbackHost(hostname string) error {
 	}
 
 	// Attempt to resolve hostname to IP
-	ips, err := net.LookupIP(hostname)
-	if err != nil {
-		// If DNS lookup fails, allow it - the actual webhook delivery will fail naturally
-		// This prevents blocking valid hostnames that are temporarily unresolvable
+	// If DNS lookup fails, we allow it - the actual webhook delivery will fail naturally
+	// This prevents blocking valid hostnames that are temporarily unresolvable
+	ips, _ := net.LookupIP(hostname)
+	if len(ips) == 0 {
+		// No IPs resolved (possibly due to DNS failure), allow it
 		return nil
 	}
 
@@ -1720,14 +1722,16 @@ func validateCallbackHost(hostname string) error {
 }
 
 // Pre-computed private IP ranges for SSRF protection.
-// These are computed at package initialization to avoid runtime parsing overhead
-// and ensure error handling happens at startup, not during request processing.
+// These are initialized on first use via sync.Once to avoid runtime parsing overhead.
 var (
 	privateIPv4Nets []*net.IPNet
 	privateIPv6Nets []*net.IPNet
+	privateIPOnce   sync.Once
 )
 
-func init() {
+// initPrivateIPRanges initializes the private IP range networks.
+// This is called lazily on first use via sync.Once.
+func initPrivateIPRanges() {
 	// Parse private IPv4 ranges (RFC 1918 + link-local)
 	privateIPv4CIDRs := []string{
 		"10.0.0.0/8",     // Private class A
@@ -1776,6 +1780,7 @@ func isPrivateIP(ip net.IP) bool {
 
 // isPrivateIPv4 checks if an IPv4 address is in a private range (RFC 1918).
 func isPrivateIPv4(ip net.IP) bool {
+	privateIPOnce.Do(initPrivateIPRanges)
 	for _, network := range privateIPv4Nets {
 		if network.Contains(ip) {
 			return true
@@ -1786,6 +1791,7 @@ func isPrivateIPv4(ip net.IP) bool {
 
 // isPrivateIPv6 checks if an IPv6 address is in a private range.
 func isPrivateIPv6(ip net.IP) bool {
+	privateIPOnce.Do(initPrivateIPRanges)
 	// Only check IPv6 addresses
 	if ip.To4() != nil {
 		return false
