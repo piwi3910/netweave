@@ -102,7 +102,7 @@ func TestAuditHandler_ListAuditEvents(t *testing.T) {
 			tenantID:        "tenant-1",
 			queryParams:     "?limit=10&offset=5",
 			isPlatformAdmin: false,
-			setupStore:      func(s *mockAuthStore) {},
+			setupStore:      func(_ *mockAuthStore) {},
 			wantStatus:      http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
 				t.Helper()
@@ -121,7 +121,7 @@ func TestAuditHandler_ListAuditEvents(t *testing.T) {
 			tenantID:        "tenant-1",
 			queryParams:     "?limit=5000",
 			isPlatformAdmin: false,
-			setupStore:      func(s *mockAuthStore) {},
+			setupStore:      func(_ *mockAuthStore) {},
 			wantStatus:      http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
 				t.Helper()
@@ -138,7 +138,7 @@ func TestAuditHandler_ListAuditEvents(t *testing.T) {
 			tenantID:        "tenant-1",
 			queryParams:     "?limit=invalid",
 			isPlatformAdmin: false,
-			setupStore:      func(s *mockAuthStore) {},
+			setupStore:      func(_ *mockAuthStore) {},
 			wantStatus:      http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
 				t.Helper()
@@ -170,7 +170,7 @@ func TestAuditHandler_ListAuditEvents(t *testing.T) {
 			name:            "list empty events",
 			tenantID:        "tenant-1",
 			isPlatformAdmin: false,
-			setupStore:      func(s *mockAuthStore) {},
+			setupStore:      func(_ *mockAuthStore) {},
 			wantStatus:      http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
 				t.Helper()
@@ -255,7 +255,7 @@ func TestAuditHandler_ListAuditEventsByType(t *testing.T) {
 			eventType:       "",
 			tenantID:        "tenant-1",
 			isPlatformAdmin: false,
-			setupStore:      func(s *mockAuthStore) {},
+			setupStore:      func(_ *mockAuthStore) {},
 			wantStatus:      http.StatusNotFound,
 			validateBody:    nil, // 404 from router, no JSON response
 		},
@@ -480,7 +480,7 @@ func TestAuditHandler_ListAuditEventsByUser(t *testing.T) {
 			currentUserID:   "user-1",
 			tenantID:        "tenant-1",
 			isPlatformAdmin: false,
-			setupStore:      func(s *mockAuthStore) {},
+			setupStore:      func(_ *mockAuthStore) {},
 			wantStatus:      http.StatusNotFound,
 			validateBody:    nil, // 404 from router, no JSON response
 		},

@@ -53,7 +53,7 @@ func (m *mockPlugin) Capabilities() []Capability {
 	return m.capabilities
 }
 
-func (m *mockPlugin) Initialize(_ context.Context, config map[string]interface{}) error {
+func (m *mockPlugin) Initialize(_ context.Context, _ map[string]interface{}) error {
 	return nil
 }
 
@@ -80,22 +80,22 @@ func (m *mockPlugin) Close() error {
 	return m.closeErr
 }
 
-func (m *mockPlugin) SyncInfrastructureInventory(_ context.Context, inventory *InfrastructureInventory) error {
+func (m *mockPlugin) SyncInfrastructureInventory(_ context.Context, _ *InfrastructureInventory) error {
 	m.syncInfraCount++
 	return nil
 }
 
-func (m *mockPlugin) SyncDeploymentInventory(_ context.Context, inventory *DeploymentInventory) error {
+func (m *mockPlugin) SyncDeploymentInventory(_ context.Context, _ *DeploymentInventory) error {
 	m.syncDeployCount++
 	return nil
 }
 
-func (m *mockPlugin) PublishInfrastructureEvent(_ context.Context, event *InfrastructureEvent) error {
+func (m *mockPlugin) PublishInfrastructureEvent(_ context.Context, _ *InfrastructureEvent) error {
 	m.publishInfraCount++
 	return nil
 }
 
-func (m *mockPlugin) PublishDeploymentEvent(_ context.Context, event *DeploymentEvent) error {
+func (m *mockPlugin) PublishDeploymentEvent(_ context.Context, _ *DeploymentEvent) error {
 	m.publishDeployCount++
 	return nil
 }
@@ -121,12 +121,12 @@ func (m *mockPlugin) GetWorkflowStatus(_ context.Context, executionID string) (*
 	}, nil
 }
 
-func (m *mockPlugin) CancelWorkflow(_ context.Context, executionID string) error {
+func (m *mockPlugin) CancelWorkflow(_ context.Context, _ string) error {
 	m.cancelWorkflowCount++
 	return nil
 }
 
-func (m *mockPlugin) RegisterServiceModel(_ context.Context, model *ServiceModel) error {
+func (m *mockPlugin) RegisterServiceModel(_ context.Context, _ *ServiceModel) error {
 	m.registerModelCount++
 	return nil
 }
@@ -148,7 +148,7 @@ func (m *mockPlugin) ListServiceModels(_ context.Context) ([]*ServiceModel, erro
 	}, nil
 }
 
-func (m *mockPlugin) ApplyPolicy(_ context.Context, policy *Policy) error {
+func (m *mockPlugin) ApplyPolicy(_ context.Context, _ *Policy) error {
 	m.applyPolicyCount++
 	return nil
 }

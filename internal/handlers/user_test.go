@@ -125,7 +125,7 @@ func TestUserHandler_ListUsers(t *testing.T) {
 		{
 			name:       "list users without tenant context",
 			tenantID:   "",
-			setupStore: func(s *mockAuthStore) {},
+			setupStore: func(_ *mockAuthStore) {},
 			wantStatus: http.StatusBadRequest,
 		},
 	}

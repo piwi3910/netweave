@@ -140,7 +140,7 @@ func TestDocsEndpoints_SwaggerUI(t *testing.T) {
 	// Test /docs redirect
 	t.Run("DocsRedirect", func(t *testing.T) {
 		client := &http.Client{
-			CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 				return http.ErrUseLastResponse // Don't follow redirects
 			},
 		}

@@ -53,7 +53,7 @@ func (a *SMOPluginAdapter) Capabilities() []smo.Capability {
 
 // Initialize initializes the plugin with the provided configuration.
 // Implements smo.Plugin.Initialize().
-func (a *SMOPluginAdapter) Initialize(ctx context.Context, config map[string]interface{}) error {
+func (a *SMOPluginAdapter) Initialize(ctx context.Context, _ map[string]interface{}) error {
 	// The underlying OSM Plugin is already initialized via NewPlugin
 	// This just delegates to the existing Initialize method
 	return a.Plugin.Initialize(ctx)
