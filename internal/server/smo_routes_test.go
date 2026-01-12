@@ -188,7 +188,7 @@ func newTestMockPlugin(name string) *mockSMOPlugin {
 	}
 }
 
-func setupTestSMOHandler(t *testing.T) (*SMOHandler, *smoapi.Registry) {
+func setupTestSMOHandler(t *testing.T) *SMOHandler {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	logger := zap.NewNop()
@@ -200,7 +200,7 @@ func setupTestSMOHandler(t *testing.T) (*SMOHandler, *smoapi.Registry) {
 	require.NoError(t, err)
 
 	handler := NewSMOHandler(registry, logger)
-	return handler, registry
+	return handler
 }
 
 func setupTestRouter(handler *SMOHandler) *gin.Engine {
@@ -229,7 +229,7 @@ func setupTestRouter(handler *SMOHandler) *gin.Engine {
 }
 
 func TestSMOHandler_ListPlugins(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v1/plugins", nil)
@@ -248,7 +248,7 @@ func TestSMOHandler_ListPlugins(t *testing.T) {
 }
 
 func TestSMOHandler_GetPlugin(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	t.Run("get existing plugin", func(t *testing.T) {
@@ -276,7 +276,7 @@ func TestSMOHandler_GetPlugin(t *testing.T) {
 }
 
 func TestSMOHandler_ExecuteWorkflow(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	t.Run("execute workflow successfully", func(t *testing.T) {
@@ -309,7 +309,7 @@ func TestSMOHandler_ExecuteWorkflow(t *testing.T) {
 }
 
 func TestSMOHandler_GetWorkflowStatus(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v1/workflows/exec-123", nil)
@@ -326,7 +326,7 @@ func TestSMOHandler_GetWorkflowStatus(t *testing.T) {
 }
 
 func TestSMOHandler_CancelWorkflow(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodDelete, "/o2smo/v1/workflows/exec-123", nil)
@@ -337,7 +337,7 @@ func TestSMOHandler_CancelWorkflow(t *testing.T) {
 }
 
 func TestSMOHandler_ListServiceModels(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v1/serviceModels", nil)
@@ -355,7 +355,7 @@ func TestSMOHandler_ListServiceModels(t *testing.T) {
 }
 
 func TestSMOHandler_CreateServiceModel(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	t.Run("create service model successfully", func(t *testing.T) {
@@ -388,7 +388,7 @@ func TestSMOHandler_CreateServiceModel(t *testing.T) {
 }
 
 func TestSMOHandler_GetServiceModel(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v1/serviceModels/model-123", nil)
@@ -405,7 +405,7 @@ func TestSMOHandler_GetServiceModel(t *testing.T) {
 }
 
 func TestSMOHandler_DeleteServiceModel(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodDelete, "/o2smo/v1/serviceModels/model-123", nil)
@@ -417,7 +417,7 @@ func TestSMOHandler_DeleteServiceModel(t *testing.T) {
 }
 
 func TestSMOHandler_ApplyPolicy(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	t.Run("apply policy successfully", func(t *testing.T) {
@@ -449,7 +449,7 @@ func TestSMOHandler_ApplyPolicy(t *testing.T) {
 }
 
 func TestSMOHandler_GetPolicyStatus(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v1/policies/policy-123/status", nil)
@@ -467,7 +467,7 @@ func TestSMOHandler_GetPolicyStatus(t *testing.T) {
 }
 
 func TestSMOHandler_SyncInfrastructure(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	body := `{
@@ -491,7 +491,7 @@ func TestSMOHandler_SyncInfrastructure(t *testing.T) {
 }
 
 func TestSMOHandler_SyncDeployments(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	body := `{
@@ -507,7 +507,7 @@ func TestSMOHandler_SyncDeployments(t *testing.T) {
 }
 
 func TestSMOHandler_PublishInfrastructureEvent(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	body := `{
@@ -531,7 +531,7 @@ func TestSMOHandler_PublishInfrastructureEvent(t *testing.T) {
 }
 
 func TestSMOHandler_PublishDeploymentEvent(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	body := `{
@@ -547,7 +547,7 @@ func TestSMOHandler_PublishDeploymentEvent(t *testing.T) {
 }
 
 func TestSMOHandler_Health(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v1/health", nil)
@@ -614,7 +614,7 @@ func TestSMOHandler_PluginNotFound(t *testing.T) {
 // === Input Validation Tests ===
 
 func TestSMOHandler_InvalidIdentifiers(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	tests := []struct {
@@ -655,7 +655,7 @@ func TestSMOHandler_InvalidIdentifiers(t *testing.T) {
 }
 
 func TestSMOHandler_MalformedJSON(t *testing.T) {
-	handler, _ := setupTestSMOHandler(t)
+	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
 	tests := []struct {

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestRedis(t *testing.T) (*RedisStore, *miniredis.Miniredis) {
+func setupTestRedis(t *testing.T) *RedisStore {
 	t.Helper()
 
 	mr := miniredis.RunT(t)
@@ -21,11 +21,11 @@ func setupTestRedis(t *testing.T) (*RedisStore, *miniredis.Miniredis) {
 	})
 
 	store := NewRedisStoreWithClient(client)
-	return store, mr
+	return store
 }
 
 func TestRedisStore_TenantOperations(t *testing.T) {
-	store, _ := setupTestRedis(t)
+	store := setupTestRedis(t)
 	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
@@ -129,7 +129,7 @@ func TestRedisStore_TenantOperations(t *testing.T) {
 }
 
 func TestRedisStore_UsageOperations(t *testing.T) {
-	store, _ := setupTestRedis(t)
+	store := setupTestRedis(t)
 	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
@@ -193,7 +193,7 @@ func TestRedisStore_UsageOperations(t *testing.T) {
 }
 
 func TestRedisStore_UserOperations(t *testing.T) {
-	store, _ := setupTestRedis(t)
+	store := setupTestRedis(t)
 	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
@@ -312,7 +312,7 @@ func TestRedisStore_UserOperations(t *testing.T) {
 }
 
 func TestRedisStore_RoleOperations(t *testing.T) {
-	store, _ := setupTestRedis(t)
+	store := setupTestRedis(t)
 	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
@@ -414,7 +414,7 @@ func TestRedisStore_RoleOperations(t *testing.T) {
 }
 
 func TestRedisStore_AuditOperations(t *testing.T) {
-	store, _ := setupTestRedis(t)
+	store := setupTestRedis(t)
 	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
@@ -504,7 +504,7 @@ func TestRedisStore_AuditOperations(t *testing.T) {
 }
 
 func TestRedisStore_Ping(t *testing.T) {
-	store, _ := setupTestRedis(t)
+	store := setupTestRedis(t)
 
 	ctx := context.Background()
 

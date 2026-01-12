@@ -16,7 +16,7 @@ import (
 )
 
 // setupAuditTestRouter creates a test Gin router with the AuditHandler.
-func setupAuditTestRouter(t *testing.T, store *mockAuthStore) (*gin.Engine, *AuditHandler) {
+func setupAuditTestRouter(t *testing.T, store *mockAuthStore) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -47,7 +47,7 @@ func setupAuditTestRouter(t *testing.T, store *mockAuthStore) (*gin.Engine, *Aud
 	router.GET("/audit/events/type/:eventType", handler.ListAuditEventsByType)
 	router.GET("/audit/events/user/:userId", handler.ListAuditEventsByUser)
 
-	return router, handler
+	return router
 }
 
 // TestAuditHandler_ListAuditEvents tests listing audit events.
@@ -191,7 +191,7 @@ func TestAuditHandler_ListAuditEvents(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupAuditTestRouter(t, store)
+			router := setupAuditTestRouter(t, store)
 
 			url := "/audit/events" + tt.queryParams
 			req := httptest.NewRequest(http.MethodGet, url, nil)
@@ -335,7 +335,7 @@ func TestAuditHandler_ListAuditEventsByType(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupAuditTestRouter(t, store)
+			router := setupAuditTestRouter(t, store)
 
 			url := "/audit/events/type/" + tt.eventType
 			if tt.eventType == "" {
@@ -506,7 +506,7 @@ func TestAuditHandler_ListAuditEventsByUser(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupAuditTestRouter(t, store)
+			router := setupAuditTestRouter(t, store)
 
 			url := "/audit/events/user/" + tt.targetUserID
 			if tt.targetUserID == "" {
