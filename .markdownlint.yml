@@ -41,3 +41,6 @@ MD049:
 # MD050/strong-style - Strong style should be consistent
 MD050:
   style: asterisk
+
+# MD060/table-column-style - Table column style (disabled - conflicts with common table formatting)
+MD060: false

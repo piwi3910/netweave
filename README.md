@@ -153,18 +153,35 @@ curl https://netweave.example.com/openapi.yaml -o o2ims-api.yaml
 
 ### Documentation
 
-- **[Architecture](docs/architecture.md)**: Comprehensive architecture documentation.
-- **[API Mapping](docs/api-mapping.md)**: O2-IMS ↔ Kubernetes resource mappings.
-- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)**: Enterprise multi-tenancy and access control.
-- **[O2-DMS Extension](docs/o2dms-o2smo-extension.md)**: Deployment management services integration.
-- **[Deployment Guide](docs/deployment.md)**: Single and multi-cluster deployment.
-- **[Security](docs/security.md)**: Security architecture and mTLS configuration.
-- **[Operations](docs/operations.md)**: Operational runbooks and procedures.
-- **[Backend Plugins](docs/backend-plugins.md)**: Specifications for all backend plugins.
-- **[CLAUDE.md](CLAUDE.md)**: Development standards and guidelines.
-- **[CONTRIBUTING.md](CONTRIBUTING.md)**: How to contribute.
+#### Getting Started
+
+- **[Quickstart Guide](docs/getting-started/quickstart.md)**: Get running in 5 minutes with Docker Compose
+- **[Installation Guide](docs/getting-started/installation.md)**: Comprehensive installation for all environments
+- **[First Steps Tutorial](docs/getting-started/first-steps.md)**: Learn O2-IMS concepts and API patterns
+
+#### Technical Documentation
+
+- **[Architecture](docs/architecture.md)**: Comprehensive architecture documentation
+- **[API Mapping](docs/api-mapping.md)**: O2-IMS ↔ Kubernetes resource mappings
+- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)**: Enterprise multi-tenancy and access control
+- **[O2-DMS Extension](docs/o2dms-o2smo-extension.md)**: Deployment management services integration
+- **[Deployment Guide](docs/deployment.md)**: Single and multi-cluster deployment
+- **[Security](docs/security.md)**: Security architecture and mTLS configuration
+- **[Operations](docs/operations.md)**: Operational runbooks and procedures
+- **[Backend Plugins](docs/backend-plugins.md)**: Specifications for all backend plugins
+
+#### Developer Resources
+
+- **[CLAUDE.md](CLAUDE.md)**: Development standards and guidelines
+- **[CONTRIBUTING.md](CONTRIBUTING.md)**: How to contribute
 
 ## Quick Start
+
+**New to netweave?** Follow our comprehensive getting-started guides:
+
+1. **[5-Minute Quickstart](docs/getting-started/quickstart.md)** - Deploy with Docker Compose
+2. **[Installation Guide](docs/getting-started/installation.md)** - Production deployment options
+3. **[First Steps Tutorial](docs/getting-started/first-steps.md)** - Learn O2-IMS concepts
 
 ### Prerequisites
 
@@ -839,6 +856,14 @@ make quality
 
 ## Documentation
 
+### Getting Started
+
+- **[Quickstart Guide](docs/getting-started/quickstart.md)**: Get running in 5 minutes with Docker Compose
+- **[Installation Guide](docs/getting-started/installation.md)**: Comprehensive installation for all environments
+- **[First Steps Tutorial](docs/getting-started/first-steps.md)**: Learn O2-IMS concepts and API patterns
+
+### Technical Documentation
+
 - **[Architecture](docs/architecture.md)**: Comprehensive architecture documentation
 - **[API Mapping](docs/api-mapping.md)**: O2-IMS ↔ Kubernetes resource mappings
 - **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)**: Enterprise multi-tenancy and access control
@@ -846,6 +871,9 @@ make quality
 - **[Deployment Guide](docs/deployment.md)**: Single and multi-cluster deployment
 - **[Security](docs/security.md)**: Security architecture and mTLS configuration
 - **[Operations](docs/operations.md)**: Operational runbooks and procedures
+
+### Developer Resources
+
 - **[CLAUDE.md](CLAUDE.md)**: Development standards and guidelines
 - **[CONTRIBUTING.md](CONTRIBUTING.md)**: How to contribute
 
