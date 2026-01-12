@@ -22,7 +22,7 @@ func TestSecurityHeaders(t *testing.T) {
 	}{
 		{
 			name:   "default config adds all security headers",
-			config: middleware.DefaultSecurityHeadersConfig(),
+			config: DefaultSecurityHeadersConfig(),
 			expectedHeader: map[string]string{
 				"X-Content-Type-Options":  "nosniff",
 				"X-Frame-Options":         "DENY",
@@ -146,7 +146,7 @@ func TestSecurityHeadersNilConfig(t *testing.T) {
 }
 
 func TestDefaultSecurityHeadersConfig(t *testing.T) {
-	config := middleware.DefaultSecurityHeadersConfig()
+	config := DefaultSecurityHeadersConfig()
 
 	assert.True(t, config.Enabled)
 	assert.Equal(t, 31536000, config.HSTSMaxAge)
@@ -215,7 +215,7 @@ func TestServerHeaderRemoved(t *testing.T) {
 
 	t.Run("server header is empty by default", func(t *testing.T) {
 		router := gin.New()
-		router.Use(SecurityHeaders(middleware.DefaultSecurityHeadersConfig()))
+		router.Use(SecurityHeaders(DefaultSecurityHeadersConfig()))
 		router.GET("/test", func(c *gin.Context) {
 			c.String(http.StatusOK, "OK")
 		})
@@ -232,7 +232,7 @@ func TestServerHeaderRemoved(t *testing.T) {
 
 	t.Run("server header remains empty after full request cycle", func(t *testing.T) {
 		router := gin.New()
-		router.Use(SecurityHeaders(middleware.DefaultSecurityHeadersConfig()))
+		router.Use(SecurityHeaders(DefaultSecurityHeadersConfig()))
 
 		// Simulate a handler that might try to set headers
 		router.GET("/test", func(c *gin.Context) {
@@ -260,7 +260,7 @@ func TestServerHeaderRemoved(t *testing.T) {
 
 	t.Run("all security headers present after full request cycle", func(t *testing.T) {
 		router := gin.New()
-		router.Use(SecurityHeaders(middleware.DefaultSecurityHeadersConfig()))
+		router.Use(SecurityHeaders(DefaultSecurityHeadersConfig()))
 		router.GET("/test", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"data": "test"})
 		})
