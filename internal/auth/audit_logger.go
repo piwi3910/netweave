@@ -179,6 +179,8 @@ func (a *AuditLogger) LogTenantStatusChange(
 		eventType = AuditEventTenantSuspended
 	case TenantStatusActive:
 		eventType = AuditEventTenantActivated
+	case TenantStatusPendingDeletion:
+		eventType = AuditEventTenantDeleted
 	default:
 		eventType = AuditEventTenantUpdated
 	}

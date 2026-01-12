@@ -109,7 +109,11 @@ func run() error {
 	}
 	// Close errors are logged but not returned since we're shutting down anyway.
 	// The Close method still returns aggregated errors for debugging.
-	defer func() { _ = components.Close(logger) }()
+	defer func() {
+		if err := components.Close(logger); err != nil {
+			logger.Error("failed to close components", zap.Error(err))
+		}
+	}()
 
 	// Step 7: Setup and run server with graceful shutdown
 	return runServerWithShutdown(cfg, logger, components)
