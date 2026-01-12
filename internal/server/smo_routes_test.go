@@ -17,6 +17,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const invalidJSONBody = `{"invalid": "data"}`
+
 // mockSMOPlugin implements the smoapi.Plugin interface for testing.
 type mockSMOPlugin struct {
 	name         string
@@ -298,7 +300,7 @@ func TestSMOHandler_ExecuteWorkflow(t *testing.T) {
 	})
 
 	t.Run("execute workflow with invalid body", func(t *testing.T) {
-		body := `{"invalid": "data"}`
+		body := invalidJSONBody
 		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/workflows", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
@@ -377,7 +379,7 @@ func TestSMOHandler_CreateServiceModel(t *testing.T) {
 	})
 
 	t.Run("create service model with invalid body", func(t *testing.T) {
-		body := `{"invalid": "data"}`
+		body := invalidJSONBody
 		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/serviceModels", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
@@ -438,7 +440,7 @@ func TestSMOHandler_ApplyPolicy(t *testing.T) {
 	})
 
 	t.Run("apply policy with invalid body", func(t *testing.T) {
-		body := `{"invalid": "data"}`
+		body := invalidJSONBody
 		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/policies", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()

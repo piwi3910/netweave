@@ -1016,11 +1016,12 @@ func collectConcurrentResults(results <-chan string, numGoroutines int) (createS
 		op := string(parts[0])
 		code := string(parts[1])
 
-		if op == errorOnCreate && code == "201" {
+		switch {
+		case op == errorOnCreate && code == "201":
 			createSuccess++
-		} else if op == errorOnGet && code == "200" {
+		case op == errorOnGet && code == "200":
 			getSuccess++
-		} else if op == errorOnGet && code == "404" {
+		case op == errorOnGet && code == "404":
 			getNotFound++
 		}
 	}

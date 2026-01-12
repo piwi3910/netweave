@@ -270,13 +270,13 @@ func (m *Middleware) finalizeAuthentication(c *gin.Context, ctx context.Context,
 	// from the request context - we don't want the login update to be cancelled
 	// if the request context is cancelled
 	userID := user.ID
-	go func(ctx context.Context, id string) {
-		asyncCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	go func(id string) {
+		asyncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := m.store.UpdateLastLogin(asyncCtx, id); err != nil {
 			m.logger.Warn("failed to update last login", zap.String("user_id", id), zap.Error(err))
 		}
-	}(context.Background(), userID)
+	}(userID)
 
 	m.logger.Info("user authenticated", zap.String("user_id", user.ID), zap.String("tenant_id", user.TenantID), zap.String("role", sanitizeForLogging(string(role.Name), 50)), zap.String("request_id", requestID))
 	RecordAuthenticationAttempt("success", "mtls")
