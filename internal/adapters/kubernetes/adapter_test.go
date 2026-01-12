@@ -105,7 +105,7 @@ func newTestAdapter(t *testing.T) *Adapter {
 
 	logger := zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))
 	adp := &Adapter{
-		client:              fake.NewSimpleClientset(),
+		client:              fake.NewClientset(),
 		logger:              logger,
 		oCloudID:            "test-ocloud",
 		deploymentManagerID: "test-dm",
@@ -129,7 +129,7 @@ func newTestAdapterSilent(t *testing.T) *Adapter {
 	t.Helper()
 
 	adp := &Adapter{
-		client:              fake.NewSimpleClientset(),
+		client:              fake.NewClientset(),
 		logger:              zap.NewNop(), // No-op logger for expected errors
 		oCloudID:            "test-ocloud",
 		deploymentManagerID: "test-dm",
@@ -160,7 +160,7 @@ func newTestAdapterWithStore(t *testing.T) *Adapter {
 
 	logger := zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))
 	adp := &Adapter{
-		client:              fake.NewSimpleClientset(),
+		client:              fake.NewClientset(),
 		store:               store,
 		logger:              logger,
 		oCloudID:            "test-ocloud",
@@ -196,7 +196,7 @@ func newTestAdapterWithStoreSilent(t *testing.T) *Adapter {
 	})
 
 	adp := &Adapter{
-		client:              fake.NewSimpleClientset(),
+		client:              fake.NewClientset(),
 		store:               store,
 		logger:              zap.NewNop(), // No-op logger for expected errors
 		oCloudID:            "test-ocloud",
@@ -778,7 +778,7 @@ func TestConfigDefaults(t *testing.T) {
 			// We can't fully test New() without kubernetes access,
 			// but we can verify the logic by creating adapter manually
 			adp := &Adapter{
-				client:              fake.NewSimpleClientset(),
+				client:              fake.NewClientset(),
 				logger:              zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
 				oCloudID:            "test-ocloud",
 				deploymentManagerID: "test-dm",
@@ -1072,7 +1072,7 @@ func TestConfig_Validation(t *testing.T) {
 func TestKubernetesAdapter_Close_MultipleCallsAreSafe(t *testing.T) {
 	// Create adapter without using newTestAdapter to avoid double close
 	adp := &Adapter{
-		client:              fake.NewSimpleClientset(),
+		client:              fake.NewClientset(),
 		logger:              zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
 		oCloudID:            "test-ocloud",
 		deploymentManagerID: "test-dm",
@@ -1612,7 +1612,7 @@ func TestKubernetesAdapter_ConcurrentListOperations(t *testing.T) {
 
 func BenchmarkKubernetesAdapter_Name(b *testing.B) {
 	adp := &Adapter{
-		client:              fake.NewSimpleClientset(),
+		client:              fake.NewClientset(),
 		logger:              zap.NewNop(),
 		oCloudID:            "bench-ocloud",
 		deploymentManagerID: "bench-dm",
@@ -1627,7 +1627,7 @@ func BenchmarkKubernetesAdapter_Name(b *testing.B) {
 
 func BenchmarkKubernetesAdapter_Version(b *testing.B) {
 	adp := &Adapter{
-		client:              fake.NewSimpleClientset(),
+		client:              fake.NewClientset(),
 		logger:              zap.NewNop(),
 		oCloudID:            "bench-ocloud",
 		deploymentManagerID: "bench-dm",
@@ -1642,7 +1642,7 @@ func BenchmarkKubernetesAdapter_Version(b *testing.B) {
 
 func BenchmarkKubernetesAdapter_Capabilities(b *testing.B) {
 	adp := &Adapter{
-		client:              fake.NewSimpleClientset(),
+		client:              fake.NewClientset(),
 		logger:              zap.NewNop(),
 		oCloudID:            "bench-ocloud",
 		deploymentManagerID: "bench-dm",
@@ -1657,7 +1657,7 @@ func BenchmarkKubernetesAdapter_Capabilities(b *testing.B) {
 
 func BenchmarkKubernetesAdapter_Health(b *testing.B) {
 	adp := &Adapter{
-		client:              fake.NewSimpleClientset(),
+		client:              fake.NewClientset(),
 		logger:              zap.NewNop(),
 		oCloudID:            "bench-ocloud",
 		deploymentManagerID: "bench-dm",
@@ -1676,7 +1676,7 @@ func BenchmarkKubernetesAdapter_Health(b *testing.B) {
 func TestKubernetesAdapter_WithNilLogger(t *testing.T) {
 	// Create adapter with nil logger field to test nil handling
 	adp := &Adapter{
-		client:              fake.NewSimpleClientset(),
+		client:              fake.NewClientset(),
 		logger:              nil, // Intentionally nil
 		oCloudID:            "test-ocloud",
 		deploymentManagerID: "test-dm",
@@ -1694,7 +1694,7 @@ func TestKubernetesAdapter_LoggerUsedInOperations(t *testing.T) {
 	// Verify logger is properly used in operations
 	logger := zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))
 	adp := &Adapter{
-		client:              fake.NewSimpleClientset(),
+		client:              fake.NewClientset(),
 		logger:              logger,
 		oCloudID:            "test-ocloud",
 		deploymentManagerID: "test-dm",

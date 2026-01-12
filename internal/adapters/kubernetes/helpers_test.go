@@ -51,7 +51,7 @@ func TestGetNamespaceByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := fake.NewSimpleClientset()
+			client := fake.NewClientset()
 			logger := zap.NewNop()
 
 			// Create namespace if provided
@@ -124,7 +124,7 @@ func TestGetNodeByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := fake.NewSimpleClientset()
+			client := fake.NewClientset()
 			logger := zap.NewNop()
 
 			// Create node if provided
