@@ -259,7 +259,8 @@ func (c *Client) parseResponse(resp *http.Response, target interface{}) error {
 
 // HealthCheck verifies connectivity to the DTIAS API.
 func (c *Client) HealthCheck(ctx context.Context) error {
-	resp, err := c.doRequest(ctx, http.MethodGet, "/health", nil)
+	// DTIAS uses /v2/serverhealth or /v2/version for health checks
+	resp, err := c.doRequest(ctx, http.MethodGet, "/v2/version", nil)
 	if err != nil {
 		return err
 	}

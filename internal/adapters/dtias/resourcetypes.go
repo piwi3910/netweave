@@ -20,16 +20,21 @@ func (a *DTIASAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Fi
 	// Build query parameters
 	queryParams := url.Values{}
 	if filter != nil {
+		// DTIAS uses pageNumber/pageSize instead of limit/offset
 		if filter.Limit > 0 {
-			queryParams.Set("limit", fmt.Sprintf("%d", filter.Limit))
+			queryParams.Set("pageSize", fmt.Sprintf("%d", filter.Limit))
 		}
 		if filter.Offset > 0 {
-			queryParams.Set("offset", fmt.Sprintf("%d", filter.Offset))
+			pageNumber := 1
+			if filter.Limit > 0 {
+				pageNumber = (filter.Offset / filter.Limit) + 1
+			}
+			queryParams.Set("pageNumber", fmt.Sprintf("%d", pageNumber))
 		}
 	}
 
 	// Query DTIAS API
-	path := "/server-types"
+	path := "/v2/resourcetypes"
 	if len(queryParams) > 0 {
 		path += "?" + queryParams.Encode()
 	}
@@ -70,7 +75,7 @@ func (a *DTIASAdapter) GetResourceType(ctx context.Context, id string) (*adapter
 		zap.String("id", id))
 
 	// Query and parse DTIAS API
-	path := fmt.Sprintf("/server-types/%s", id)
+	path := fmt.Sprintf("/v2/resourcetypes/%s", id)
 	var serverType ServerType
 	if err := a.getAndParseResource(ctx, path, &serverType, "server type"); err != nil {
 		return nil, err
