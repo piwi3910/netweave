@@ -55,8 +55,8 @@ var (
 		prometheus.GaugeOpts{
 			Namespace: "o2ims",
 			Subsystem: "smo",
-			Name:      "plugins_registered_total",
-			Help:      "Total number of registered SMO plugins",
+			Name:      "plugins_registered",
+			Help:      "Number of registered SMO plugins",
 		},
 	)
 )

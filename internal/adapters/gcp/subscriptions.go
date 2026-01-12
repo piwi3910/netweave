@@ -13,7 +13,7 @@ import (
 // CreateSubscription creates a new event subscription.
 // GCP adapter uses polling-based subscriptions since Pub/Sub
 // integration would require additional GCP infrastructure setup.
-func (a *GCPAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "CreateSubscription", start, err) }()
 
@@ -56,7 +56,7 @@ func (a *GCPAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscrip
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *GCPAdapter) GetSubscription(_ context.Context, id string) (sub *adapter.Subscription, err error) {
+func (a *Adapter) GetSubscription(_ context.Context, id string) (sub *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "GetSubscription", start, err) }()
 
@@ -75,7 +75,7 @@ func (a *GCPAdapter) GetSubscription(_ context.Context, id string) (sub *adapter
 }
 
 // UpdateSubscription updates an existing subscription.
-func (a *GCPAdapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+func (a *Adapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "UpdateSubscription", start, err) }()
 
@@ -117,7 +117,7 @@ func (a *GCPAdapter) UpdateSubscription(_ context.Context, id string, sub *adapt
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *GCPAdapter) DeleteSubscription(_ context.Context, id string) (err error) {
+func (a *Adapter) DeleteSubscription(_ context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "DeleteSubscription", start, err) }()
 
@@ -145,7 +145,7 @@ func (a *GCPAdapter) DeleteSubscription(_ context.Context, id string) (err error
 
 // ListSubscriptions returns all active subscriptions.
 // This is a helper method not part of the Adapter interface.
-func (a *GCPAdapter) ListSubscriptions() []*adapter.Subscription {
+func (a *Adapter) ListSubscriptions() []*adapter.Subscription {
 	a.subscriptionsMu.RLock()
 	defer a.subscriptionsMu.RUnlock()
 

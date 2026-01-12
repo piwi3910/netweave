@@ -319,12 +319,8 @@ type DeploymentRevision struct {
 	Description string `json:"description,omitempty"`
 }
 
-// DMSAdapter defines the interface that all DMS backend implementations must provide.
-// Implementations include Helm, ArgoCD, Flux, ONAP-LCM, OSM-LCM, etc.
-// Each adapter translates O2-DMS operations to backend-specific API calls.
-type DMSAdapter interface {
-	// Metadata methods
-
+// DMSAdapterMetadata provides basic metadata about a DMS adapter.
+type DMSAdapterMetadata interface {
 	// Name returns the unique name of this adapter (e.g., "helm", "argocd", "flux").
 	Name() string
 
@@ -333,9 +329,10 @@ type DMSAdapter interface {
 
 	// Capabilities returns the list of O2-DMS capabilities this adapter supports.
 	Capabilities() []Capability
+}
 
-	// Package Management operations
-
+// PackageManager provides deployment package management operations.
+type PackageManager interface {
 	// ListDeploymentPackages retrieves all deployment packages matching the filter.
 	// The filter parameter can be nil to retrieve all packages.
 	// Returns a slice of packages or an error.
@@ -352,9 +349,10 @@ type DMSAdapter interface {
 	// DeleteDeploymentPackage deletes a deployment package by ID.
 	// Returns an error if the package doesn't exist or is in use.
 	DeleteDeploymentPackage(ctx context.Context, id string) error
+}
 
-	// Deployment Lifecycle operations
-
+// DeploymentLifecycleManager provides deployment lifecycle operations.
+type DeploymentLifecycleManager interface {
 	// ListDeployments retrieves all deployments matching the provided filter.
 	// The filter parameter can be nil to retrieve all deployments.
 	// Returns a slice of deployments or an error.
@@ -375,9 +373,10 @@ type DMSAdapter interface {
 	// DeleteDeployment deletes a deployment by ID (uninstall).
 	// Returns an error if the deployment doesn't exist or cannot be deleted.
 	DeleteDeployment(ctx context.Context, id string) error
+}
 
-	// Deployment Operations
-
+// DeploymentOperations provides advanced deployment operations.
+type DeploymentOperations interface {
 	// ScaleDeployment scales a deployment to the specified number of replicas.
 	// Returns an error if scaling is not supported or fails.
 	ScaleDeployment(ctx context.Context, id string, replicas int) error
@@ -397,9 +396,10 @@ type DMSAdapter interface {
 	// GetDeploymentLogs retrieves logs for a deployment.
 	// Returns the logs as bytes or an error if the deployment doesn't exist.
 	GetDeploymentLogs(ctx context.Context, id string, opts *LogOptions) ([]byte, error)
+}
 
-	// Capability checks
-
+// DMSCapabilities provides capability checks for DMS adapters.
+type DMSCapabilities interface {
 	// SupportsRollback indicates if the adapter supports deployment rollback.
 	SupportsRollback() bool
 
@@ -408,9 +408,10 @@ type DMSAdapter interface {
 
 	// SupportsGitOps indicates if the adapter supports GitOps workflows.
 	SupportsGitOps() bool
+}
 
-	// Lifecycle methods
-
+// DMSAdapterLifecycle provides lifecycle management operations.
+type DMSAdapterLifecycle interface {
 	// Health performs a health check on the backend system.
 	// Returns nil if healthy, or an error describing the health issue.
 	Health(ctx context.Context) error
@@ -418,4 +419,17 @@ type DMSAdapter interface {
 	// Close cleanly shuts down the adapter and releases resources.
 	// Returns an error if shutdown fails.
 	Close() error
+}
+
+// DMSAdapter defines the interface that all DMS backend implementations must provide.
+// Implementations include Helm, ArgoCD, Flux, ONAP-LCM, OSM-LCM, etc.
+// Each adapter translates O2-DMS operations to backend-specific API calls.
+// This interface is composed of smaller, focused interfaces to reduce complexity.
+type DMSAdapter interface {
+	DMSAdapterMetadata
+	PackageManager
+	DeploymentLifecycleManager
+	DeploymentOperations
+	DMSCapabilities
+	DMSAdapterLifecycle
 }

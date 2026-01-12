@@ -12,7 +12,7 @@ import (
 // getNamespaceByID retrieves a Kubernetes namespace by ID or name.
 // It handles both formatted IDs (k8s-namespace-NAME) and direct namespace names.
 // This helper function is used by both GetResourcePool and related methods to avoid code duplication.
-func (a *KubernetesAdapter) getNamespaceByID(ctx context.Context, id string) (*corev1.Namespace, error) {
+func (a *Adapter) getNamespaceByID(ctx context.Context, id string) (*corev1.Namespace, error) {
 	// Parse resource pool ID to extract namespace name
 	var namespaceName string
 	_, err := fmt.Sscanf(id, "k8s-namespace-%s", &namespaceName)
@@ -36,7 +36,7 @@ func (a *KubernetesAdapter) getNamespaceByID(ctx context.Context, id string) (*c
 // getNodeByID retrieves a Kubernetes node by ID or name.
 // It handles both formatted IDs (k8s-node-NAME) and direct node names.
 // This helper function is used by GetResource and related methods to avoid code duplication.
-func (a *KubernetesAdapter) getNodeByID(ctx context.Context, id string) (*corev1.Node, error) {
+func (a *Adapter) getNodeByID(ctx context.Context, id string) (*corev1.Node, error) {
 	// Parse resource ID to extract node name
 	var nodeName string
 	_, err := fmt.Sscanf(id, "k8s-node-%s", &nodeName)

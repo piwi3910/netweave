@@ -116,7 +116,7 @@ func TestNew(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	adp := &VMwareAdapter{
+	adp := &Adapter{
 		logger: zap.NewNop(),
 	}
 
@@ -216,7 +216,7 @@ func TestGenerateIDs(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
-	adp := &VMwareAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 	}
@@ -291,7 +291,7 @@ func TestSubscriptions(t *testing.T) {
 
 // TestCreateResourceType tests resource type creation.
 func TestCreateResourceType(t *testing.T) {
-	adp := &VMwareAdapter{
+	adp := &Adapter{
 		logger: zap.NewNop(),
 	}
 
@@ -310,7 +310,7 @@ func TestCreateResourceType(t *testing.T) {
 
 // TestGetDefaultResourceTypes tests default resource type generation.
 func TestGetDefaultResourceTypes(t *testing.T) {
-	adp := &VMwareAdapter{
+	adp := &Adapter{
 		logger: zap.NewNop(),
 	}
 

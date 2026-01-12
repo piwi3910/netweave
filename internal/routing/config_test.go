@@ -12,13 +12,13 @@ import (
 func TestLoadRulesFromConfig(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      *RoutingConfig
+		config      *Config
 		expectError bool
 		expectCount int
 	}{
 		{
 			name: "valid configuration",
-			config: &RoutingConfig{
+			config: &Config{
 				Default:         "kubernetes",
 				FallbackEnabled: true,
 				Rules: []RuleConfig{
@@ -47,7 +47,7 @@ func TestLoadRulesFromConfig(t *testing.T) {
 		},
 		{
 			name: "empty rules",
-			config: &RoutingConfig{
+			config: &Config{
 				Default: "kubernetes",
 				Rules:   []RuleConfig{},
 			},
@@ -56,7 +56,7 @@ func TestLoadRulesFromConfig(t *testing.T) {
 		},
 		{
 			name: "rule without name",
-			config: &RoutingConfig{
+			config: &Config{
 				Rules: []RuleConfig{
 					{
 						Priority: 100,
@@ -69,7 +69,7 @@ func TestLoadRulesFromConfig(t *testing.T) {
 		},
 		{
 			name: "rule without plugin",
-			config: &RoutingConfig{
+			config: &Config{
 				Rules: []RuleConfig{
 					{
 						Name:     "test-rule",
@@ -412,12 +412,12 @@ func TestValidatePluginConfig(t *testing.T) {
 func TestValidateRoutingConfig(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      *RoutingConfig
+		config      *Config
 		expectError bool
 	}{
 		{
 			name: "valid config",
-			config: &RoutingConfig{
+			config: &Config{
 				Default:         "kubernetes",
 				FallbackEnabled: true,
 				Rules: []RuleConfig{
@@ -438,7 +438,7 @@ func TestValidateRoutingConfig(t *testing.T) {
 		},
 		{
 			name: "invalid rule",
-			config: &RoutingConfig{
+			config: &Config{
 				Rules: []RuleConfig{
 					{
 						Priority: 100,
@@ -450,7 +450,7 @@ func TestValidateRoutingConfig(t *testing.T) {
 		},
 		{
 			name: "negative priority",
-			config: &RoutingConfig{
+			config: &Config{
 				Rules: []RuleConfig{
 					{
 						Name:     "test-rule",

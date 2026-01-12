@@ -14,7 +14,7 @@ import (
 )
 
 // ListResourceTypes retrieves all resource types (GCP machine types) matching the provided filter.
-func (a *GCPAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
+func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "ListResourceTypes", start, err) }()
 
@@ -45,7 +45,7 @@ func (a *GCPAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filt
 }
 
 // getFirstZoneInRegion finds the first zone in the adapter's region.
-func (a *GCPAdapter) getFirstZoneInRegion(ctx context.Context) (string, error) {
+func (a *Adapter) getFirstZoneInRegion(ctx context.Context) (string, error) {
 	zoneIt := a.zonesClient.List(ctx, &computepb.ListZonesRequest{
 		Project: a.projectID,
 	})
@@ -69,7 +69,7 @@ func (a *GCPAdapter) getFirstZoneInRegion(ctx context.Context) (string, error) {
 }
 
 // listMachineTypesInZone lists machine types in a zone and applies filtering.
-func (a *GCPAdapter) listMachineTypesInZone(ctx context.Context, zone string, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (a *Adapter) listMachineTypesInZone(ctx context.Context, zone string, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
 	var resourceTypes []*adapter.ResourceType
 	seen := make(map[string]bool)
 
@@ -107,7 +107,7 @@ func (a *GCPAdapter) listMachineTypesInZone(ctx context.Context, zone string, fi
 }
 
 // GetResourceType retrieves a specific resource type (GCP machine type) by ID.
-func (a *GCPAdapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
+func (a *Adapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "GetResourceType", start, err) }()
 
@@ -160,7 +160,7 @@ func (a *GCPAdapter) GetResourceType(ctx context.Context, id string) (resourceTy
 }
 
 // machineTypeToResourceType converts a GCP machine type to an O2-IMS ResourceType.
-func (a *GCPAdapter) machineTypeToResourceType(mt *computepb.MachineType) *adapter.ResourceType {
+func (a *Adapter) machineTypeToResourceType(mt *computepb.MachineType) *adapter.ResourceType {
 	machineType := ptrToString(mt.Name)
 	resourceTypeID := generateMachineTypeID(machineType)
 

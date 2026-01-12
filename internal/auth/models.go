@@ -4,6 +4,7 @@ package auth
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -134,12 +135,19 @@ func (r *Role) HasPermission(perm Permission) bool {
 
 // MarshalBinary implements encoding.BinaryMarshaler for Redis storage.
 func (r *Role) MarshalBinary() ([]byte, error) {
-	return json.Marshal(r)
+	data, err := json.Marshal(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal role: %w", err)
+	}
+	return data, nil
 }
 
 // UnmarshalBinary implements encoding.BinaryUnmarshaler for Redis storage.
 func (r *Role) UnmarshalBinary(data []byte) error {
-	return json.Unmarshal(data, r)
+	if err := json.Unmarshal(data, r); err != nil {
+		return fmt.Errorf("failed to unmarshal role: %w", err)
+	}
+	return nil
 }
 
 // TenantStatus represents the operational status of a tenant.
@@ -270,12 +278,19 @@ func (t *Tenant) CanAddUser() bool {
 
 // MarshalBinary implements encoding.BinaryMarshaler for Redis storage.
 func (t *Tenant) MarshalBinary() ([]byte, error) {
-	return json.Marshal(t)
+	data, err := json.Marshal(t)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal tenant: %w", err)
+	}
+	return data, nil
 }
 
 // UnmarshalBinary implements encoding.BinaryUnmarshaler for Redis storage.
 func (t *Tenant) UnmarshalBinary(data []byte) error {
-	return json.Unmarshal(data, t)
+	if err := json.Unmarshal(data, t); err != nil {
+		return fmt.Errorf("failed to unmarshal tenant: %w", err)
+	}
+	return nil
 }
 
 // TenantUser represents a user's association with a tenant and their role.
@@ -323,12 +338,19 @@ type TenantUser struct {
 
 // MarshalBinary implements encoding.BinaryMarshaler for Redis storage.
 func (u *TenantUser) MarshalBinary() ([]byte, error) {
-	return json.Marshal(u)
+	data, err := json.Marshal(u)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal tenant user: %w", err)
+	}
+	return data, nil
 }
 
 // UnmarshalBinary implements encoding.BinaryUnmarshaler for Redis storage.
 func (u *TenantUser) UnmarshalBinary(data []byte) error {
-	return json.Unmarshal(data, u)
+	if err := json.Unmarshal(data, u); err != nil {
+		return fmt.Errorf("failed to unmarshal tenant user: %w", err)
+	}
+	return nil
 }
 
 // AuthenticatedUser represents the current authenticated user context.
@@ -368,62 +390,89 @@ func (u *AuthenticatedUser) HasPermission(perm Permission) bool {
 type AuditEventType string
 
 const (
-	// Authentication and authorization events.
-	AuditEventAuthSuccess  AuditEventType = "auth.success"
-	AuditEventAuthFailure  AuditEventType = "auth.failure"
+	// AuditEventAuthSuccess indicates successful authentication.
+	AuditEventAuthSuccess AuditEventType = "auth.success"
+	// AuditEventAuthFailure indicates failed authentication.
+	AuditEventAuthFailure AuditEventType = "auth.failure"
+	// AuditEventAccessDenied indicates access was denied.
 	AuditEventAccessDenied AuditEventType = "access.denied"
 
-	// Tenant lifecycle events.
-	AuditEventTenantCreated   AuditEventType = "tenant.created"
-	AuditEventTenantUpdated   AuditEventType = "tenant.updated"
-	AuditEventTenantDeleted   AuditEventType = "tenant.deleted"
+	// AuditEventTenantCreated indicates a tenant was created.
+	AuditEventTenantCreated AuditEventType = "tenant.created"
+	// AuditEventTenantUpdated indicates a tenant was updated.
+	AuditEventTenantUpdated AuditEventType = "tenant.updated"
+	// AuditEventTenantDeleted indicates a tenant was deleted.
+	AuditEventTenantDeleted AuditEventType = "tenant.deleted"
+	// AuditEventTenantSuspended indicates a tenant was suspended.
 	AuditEventTenantSuspended AuditEventType = "tenant.suspended"
+	// AuditEventTenantActivated indicates a tenant was activated.
 	AuditEventTenantActivated AuditEventType = "tenant.activated"
 
-	// User lifecycle events.
-	AuditEventUserCreated  AuditEventType = "user.created"
-	AuditEventUserUpdated  AuditEventType = "user.updated"
-	AuditEventUserDeleted  AuditEventType = "user.deleted"
-	AuditEventUserEnabled  AuditEventType = "user.enabled"
+	// AuditEventUserCreated indicates a user was created.
+	AuditEventUserCreated AuditEventType = "user.created"
+	// AuditEventUserUpdated indicates a user was updated.
+	AuditEventUserUpdated AuditEventType = "user.updated"
+	// AuditEventUserDeleted indicates a user was deleted.
+	AuditEventUserDeleted AuditEventType = "user.deleted"
+	// AuditEventUserEnabled indicates a user was enabled.
+	AuditEventUserEnabled AuditEventType = "user.enabled"
+	// AuditEventUserDisabled indicates a user was disabled.
 	AuditEventUserDisabled AuditEventType = "user.disabled"
 
-	// Role events.
-	AuditEventRoleAssigned           AuditEventType = "role.assigned"
-	AuditEventRoleRevoked            AuditEventType = "role.revoked"
+	// AuditEventRoleAssigned indicates a role was assigned.
+	AuditEventRoleAssigned AuditEventType = "role.assigned"
+	// AuditEventRoleRevoked indicates a role was revoked.
+	AuditEventRoleRevoked AuditEventType = "role.revoked"
+	// AuditEventRolePermissionModified indicates role permissions were modified.
 	AuditEventRolePermissionModified AuditEventType = "role.permission.modified"
 
-	// Resource events.
-	AuditEventResourceCreated  AuditEventType = "resource.created"
+	// AuditEventResourceCreated indicates a resource was created.
+	AuditEventResourceCreated AuditEventType = "resource.created"
+	// AuditEventResourceModified indicates a resource was modified.
 	AuditEventResourceModified AuditEventType = "resource.modified"
-	AuditEventResourceDeleted  AuditEventType = "resource.deleted"
+	// AuditEventResourceDeleted indicates a resource was deleted.
+	AuditEventResourceDeleted AuditEventType = "resource.deleted"
 
-	// Resource pool events.
-	AuditEventResourcePoolCreated  AuditEventType = "resourcepool.created"
+	// AuditEventResourcePoolCreated indicates a resource pool was created.
+	AuditEventResourcePoolCreated AuditEventType = "resourcepool.created"
+	// AuditEventResourcePoolModified indicates a resource pool was modified.
 	AuditEventResourcePoolModified AuditEventType = "resourcepool.modified"
-	AuditEventResourcePoolDeleted  AuditEventType = "resourcepool.deleted"
+	// AuditEventResourcePoolDeleted indicates a resource pool was deleted.
+	AuditEventResourcePoolDeleted AuditEventType = "resourcepool.deleted"
 
-	// Deployment manager events.
+	// AuditEventDeploymentManagerAccessed indicates a deployment manager was accessed.
 	AuditEventDeploymentManagerAccessed AuditEventType = "deploymentmanager.accessed"
+	// AuditEventDeploymentManagerModified indicates a deployment manager was modified.
 	AuditEventDeploymentManagerModified AuditEventType = "deploymentmanager.modified"
 
-	// Subscription events.
-	AuditEventSubscriptionCreated         AuditEventType = "subscription.created"
-	AuditEventSubscriptionDeleted         AuditEventType = "subscription.deleted"
-	AuditEventSubscriptionFilterModified  AuditEventType = "subscription.filter.modified"
-	AuditEventWebhookDeliveryFailed       AuditEventType = "webhook.delivery.failed"
+	// AuditEventSubscriptionCreated indicates a subscription was created.
+	AuditEventSubscriptionCreated AuditEventType = "subscription.created"
+	// AuditEventSubscriptionDeleted indicates a subscription was deleted.
+	AuditEventSubscriptionDeleted AuditEventType = "subscription.deleted"
+	// AuditEventSubscriptionFilterModified indicates a subscription filter was modified.
+	AuditEventSubscriptionFilterModified AuditEventType = "subscription.filter.modified"
+	// AuditEventWebhookDeliveryFailed indicates a webhook delivery failed.
+	AuditEventWebhookDeliveryFailed AuditEventType = "webhook.delivery.failed"
+	// AuditEventSignatureVerificationFailed indicates signature verification failed.
 	AuditEventSignatureVerificationFailed AuditEventType = "signature.verification.failed"
 
-	// Configuration events.
-	AuditEventQuotaUpdated     AuditEventType = "quota.updated"
+	// AuditEventQuotaUpdated indicates a quota was updated.
+	AuditEventQuotaUpdated AuditEventType = "quota.updated"
+	// AuditEventRateLimitUpdated indicates a rate limit was updated.
 	AuditEventRateLimitUpdated AuditEventType = "ratelimit.updated"
+	// AuditEventTLSConfigChanged indicates TLS configuration was changed.
 	AuditEventTLSConfigChanged AuditEventType = "tls.config.changed"
-	AuditEventSecuritySetting  AuditEventType = "security.setting.changed"
+	// AuditEventSecuritySetting indicates a security setting was changed.
+	AuditEventSecuritySetting AuditEventType = "security.setting.changed"
 
-	// Administrative events.
+	// AuditEventBulkOperation indicates a bulk administrative operation.
 	AuditEventBulkOperation AuditEventType = "admin.bulk.operation"
-	AuditEventTokenRotated  AuditEventType = "admin.token.rotated"
-	AuditEventConfigExport  AuditEventType = "admin.config.export"
-	AuditEventAuditExport   AuditEventType = "admin.audit.export"
+	// AuditEventTokenRotated indicates an administrative token was rotated.
+	AuditEventTokenRotated AuditEventType = "admin.token.rotated"
+	// AuditEventConfigExport indicates configuration was exported.
+	AuditEventConfigExport AuditEventType = "admin.config.export"
+	// AuditEventAuditExport indicates audit logs were exported.
+	AuditEventAuditExport AuditEventType = "admin.audit.export"
 )
 
 // AuditEvent represents a logged security or administrative event.
@@ -467,12 +516,19 @@ type AuditEvent struct {
 
 // MarshalBinary implements encoding.BinaryMarshaler for Redis storage.
 func (e *AuditEvent) MarshalBinary() ([]byte, error) {
-	return json.Marshal(e)
+	data, err := json.Marshal(e)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal audit event: %w", err)
+	}
+	return data, nil
 }
 
 // UnmarshalBinary implements encoding.BinaryUnmarshaler for Redis storage.
 func (e *AuditEvent) UnmarshalBinary(data []byte) error {
-	return json.Unmarshal(data, e)
+	if err := json.Unmarshal(data, e); err != nil {
+		return fmt.Errorf("failed to unmarshal audit event: %w", err)
+	}
+	return nil
 }
 
 // GetDefaultRoles returns the predefined system roles.

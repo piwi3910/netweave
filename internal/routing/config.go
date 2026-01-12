@@ -26,7 +26,7 @@ type PluginConfig struct {
 }
 
 // RoutingConfig represents the complete routing configuration.
-type RoutingConfig struct {
+type Config struct {
 	// Default is the name of the default adapter.
 	Default string `yaml:"default" json:"default"`
 
@@ -92,7 +92,7 @@ type LocationConditionConfig struct {
 }
 
 // LoadRulesFromConfig converts configuration to routing rules.
-func LoadRulesFromConfig(config *RoutingConfig) ([]*Rule, error) {
+func LoadRulesFromConfig(config *Config) ([]*Rule, error) {
 	if config == nil {
 		return nil, fmt.Errorf("routing config is nil")
 	}
@@ -201,7 +201,7 @@ func ValidatePluginConfig(config *PluginConfig) error {
 }
 
 // ValidateRoutingConfig validates a routing configuration.
-func ValidateRoutingConfig(config *RoutingConfig) error {
+func ValidateRoutingConfig(config *Config) error {
 	if config == nil {
 		return fmt.Errorf("routing config is nil")
 	}

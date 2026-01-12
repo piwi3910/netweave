@@ -64,7 +64,7 @@ func TestGetNamespaceByID(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			adapter := &KubernetesAdapter{
+			adapter := &Adapter{
 				client: client,
 				logger: logger,
 			}
@@ -137,7 +137,7 @@ func TestGetNodeByID(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			adapter := &KubernetesAdapter{
+			adapter := &Adapter{
 				client: client,
 				logger: logger,
 			}

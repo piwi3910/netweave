@@ -13,7 +13,7 @@ import (
 // CreateSubscription creates a new event subscription.
 // AWS adapter uses polling-based subscriptions since CloudWatch Events
 // integration would require additional AWS infrastructure setup.
-func (a *AWSAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (created *adapter.Subscription, err error) {
+func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (created *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "CreateSubscription", start, err) }()
 
@@ -56,7 +56,7 @@ func (a *AWSAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscrip
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *AWSAdapter) GetSubscription(_ context.Context, id string) (sub *adapter.Subscription, err error) {
+func (a *Adapter) GetSubscription(_ context.Context, id string) (sub *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetSubscription", start, err) }()
 
@@ -75,7 +75,7 @@ func (a *AWSAdapter) GetSubscription(_ context.Context, id string) (sub *adapter
 }
 
 // UpdateSubscription updates an existing subscription.
-func (a *AWSAdapter) UpdateSubscription(
+func (a *Adapter) UpdateSubscription(
 	_ context.Context,
 	id string,
 	sub *adapter.Subscription,
@@ -121,7 +121,7 @@ func (a *AWSAdapter) UpdateSubscription(
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *AWSAdapter) DeleteSubscription(_ context.Context, id string) (err error) {
+func (a *Adapter) DeleteSubscription(_ context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "DeleteSubscription", start, err) }()
 
@@ -149,7 +149,7 @@ func (a *AWSAdapter) DeleteSubscription(_ context.Context, id string) (err error
 
 // ListSubscriptions returns all active subscriptions.
 // This is a helper method not part of the Adapter interface.
-func (a *AWSAdapter) ListSubscriptions() []*adapter.Subscription {
+func (a *Adapter) ListSubscriptions() []*adapter.Subscription {
 	a.subscriptionsMu.RLock()
 	defer a.subscriptionsMu.RUnlock()
 

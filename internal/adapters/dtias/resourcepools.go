@@ -13,7 +13,7 @@ import (
 
 // ListResourcePools retrieves all server pools matching the provided filter.
 // Maps DTIAS server pools to O2-IMS ResourcePools.
-func (a *DTIASAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	a.logger.Debug("ListResourcePools called", zap.Any("filter", filter))
 
 	path := buildServerPoolsPath(filter)
@@ -50,7 +50,7 @@ func buildServerPoolsPath(filter *adapter.Filter) string {
 }
 
 // fetchServerPools retrieves server pools from DTIAS API.
-func (a *DTIASAdapter) fetchServerPools(ctx context.Context, path string) ([]ServerPool, error) {
+func (a *Adapter) fetchServerPools(ctx context.Context, path string) ([]ServerPool, error) {
 	resp, err := a.client.doRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list server pools: %w", err)
@@ -77,7 +77,7 @@ func (a *DTIASAdapter) fetchServerPools(ctx context.Context, path string) ([]Ser
 }
 
 // transformAndFilterPools transforms server pools and applies client-side filtering.
-func (a *DTIASAdapter) transformAndFilterPools(
+func (a *Adapter) transformAndFilterPools(
 	serverPools []ServerPool,
 	filter *adapter.Filter,
 ) []*adapter.ResourcePool {
@@ -103,7 +103,7 @@ func (a *DTIASAdapter) transformAndFilterPools(
 
 // GetResourcePool retrieves a specific server pool by ID.
 // Maps a DTIAS server pool to O2-IMS ResourcePool.
-func (a *DTIASAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
 	a.logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
@@ -131,7 +131,7 @@ func (a *DTIASAdapter) GetResourcePool(ctx context.Context, id string) (*adapter
 
 // CreateResourcePool creates a new server pool.
 // Maps an O2-IMS ResourcePool to a DTIAS server pool and creates it.
-func (a *DTIASAdapter) CreateResourcePool(
+func (a *Adapter) CreateResourcePool(
 	ctx context.Context,
 	pool *adapter.ResourcePool,
 ) (*adapter.ResourcePool, error) {
@@ -191,7 +191,7 @@ func (a *DTIASAdapter) CreateResourcePool(
 
 // UpdateResourcePool updates an existing server pool.
 // Maps O2-IMS ResourcePool updates to DTIAS server pool updates.
-func (a *DTIASAdapter) UpdateResourcePool(
+func (a *Adapter) UpdateResourcePool(
 	ctx context.Context,
 	id string,
 	pool *adapter.ResourcePool,
@@ -243,7 +243,7 @@ func (a *DTIASAdapter) UpdateResourcePool(
 }
 
 // DeleteResourcePool deletes a server pool by ID.
-func (a *DTIASAdapter) DeleteResourcePool(ctx context.Context, id string) error {
+func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
 	a.logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 
@@ -262,7 +262,7 @@ func (a *DTIASAdapter) DeleteResourcePool(ctx context.Context, id string) error 
 }
 
 // transformServerPoolToResourcePool transforms a DTIAS ServerPool to an O2-IMS ResourcePool.
-func (a *DTIASAdapter) transformServerPoolToResourcePool(sp *ServerPool) *adapter.ResourcePool {
+func (a *Adapter) transformServerPoolToResourcePool(sp *ServerPool) *adapter.ResourcePool {
 	// Build global location ID (geo URI format)
 	globalLocationID := ""
 	if sp.Location.Latitude != 0 && sp.Location.Longitude != 0 {

@@ -69,7 +69,7 @@ var (
 )
 
 // KustomizeAdapter implements the DMS adapter interface for Kustomize deployments.
-type KustomizeAdapter struct {
+type Adapter struct {
 	config        *Config
 	dynamicClient dynamic.Interface
 	initOnce      sync.Once
@@ -98,7 +98,7 @@ type Config struct {
 }
 
 // NewAdapter creates a new Kustomize adapter instance.
-func NewAdapter(config *Config) (*KustomizeAdapter, error) {
+func NewAdapter(config *Config) (*Adapter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
@@ -111,13 +111,13 @@ func NewAdapter(config *Config) (*KustomizeAdapter, error) {
 		config.Timeout = DefaultTimeout
 	}
 
-	return &KustomizeAdapter{
+	return &Adapter{
 		config: config,
 	}, nil
 }
 
 // initialize performs lazy initialization of the Kubernetes client.
-func (k *KustomizeAdapter) initialize() error {
+func (k *Adapter) initialize() error {
 	k.initOnce.Do(func() {
 		var cfg *rest.Config
 		var err error
@@ -143,17 +143,17 @@ func (k *KustomizeAdapter) initialize() error {
 }
 
 // Name returns the adapter name.
-func (k *KustomizeAdapter) Name() string {
+func (k *Adapter) Name() string {
 	return AdapterName
 }
 
 // Version returns the Kustomize version supported by this adapter.
-func (k *KustomizeAdapter) Version() string {
+func (k *Adapter) Version() string {
 	return AdapterVersion
 }
 
 // Capabilities returns the capabilities supported by the Kustomize adapter.
-func (k *KustomizeAdapter) Capabilities() []adapter.Capability {
+func (k *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityDeploymentLifecycle,
 		adapter.CapabilityHealthChecks,
@@ -161,12 +161,12 @@ func (k *KustomizeAdapter) Capabilities() []adapter.Capability {
 }
 
 // ListDeploymentPackages retrieves all Kustomize bases/overlays.
-func (k *KustomizeAdapter) ListDeploymentPackages(
+func (k *Adapter) ListDeploymentPackages(
 	ctx context.Context,
 	_ *adapter.Filter,
 ) ([]*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := k.initialize(); err != nil {
@@ -196,12 +196,12 @@ func (k *KustomizeAdapter) ListDeploymentPackages(
 }
 
 // GetDeploymentPackage retrieves a specific Kustomize package by ID.
-func (k *KustomizeAdapter) GetDeploymentPackage(
+func (k *Adapter) GetDeploymentPackage(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := k.initialize(); err != nil {
@@ -227,12 +227,12 @@ func (k *KustomizeAdapter) GetDeploymentPackage(
 }
 
 // UploadDeploymentPackage registers a new Kustomize package reference.
-func (k *KustomizeAdapter) UploadDeploymentPackage(
+func (k *Adapter) UploadDeploymentPackage(
 	ctx context.Context,
 	pkg *adapter.DeploymentPackageUpload,
 ) (*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if pkg == nil {
@@ -258,24 +258,24 @@ func (k *KustomizeAdapter) UploadDeploymentPackage(
 }
 
 // DeleteDeploymentPackage is not supported for Kustomize.
-func (k *KustomizeAdapter) DeleteDeploymentPackage(
+func (k *Adapter) DeleteDeploymentPackage(
 	ctx context.Context,
 	_ string,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	return fmt.Errorf("kustomize adapter %w: package deletion requires Git repository access", ErrOperationNotSupported)
 }
 
 // ListDeployments retrieves all Kustomize deployments.
-func (k *KustomizeAdapter) ListDeployments(
+func (k *Adapter) ListDeployments(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.Deployment, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := k.initialize(); err != nil {
@@ -316,12 +316,12 @@ func (k *KustomizeAdapter) ListDeployments(
 }
 
 // GetDeployment retrieves a specific Kustomize deployment by ID.
-func (k *KustomizeAdapter) GetDeployment(
+func (k *Adapter) GetDeployment(
 	ctx context.Context,
 	id string,
 ) (*adapter.Deployment, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := k.initialize(); err != nil {
@@ -341,12 +341,12 @@ func (k *KustomizeAdapter) GetDeployment(
 }
 
 // CreateDeployment creates a new Kustomize deployment.
-func (k *KustomizeAdapter) CreateDeployment(
+func (k *Adapter) CreateDeployment(
 	ctx context.Context,
 	req *adapter.DeploymentRequest,
 ) (*adapter.Deployment, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if req == nil {
@@ -420,13 +420,13 @@ func (k *KustomizeAdapter) CreateDeployment(
 }
 
 // UpdateDeployment updates an existing Kustomize deployment.
-func (k *KustomizeAdapter) UpdateDeployment(
+func (k *Adapter) UpdateDeployment(
 	ctx context.Context,
 	id string,
 	update *adapter.DeploymentUpdate,
 ) (*adapter.Deployment, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if update == nil {
@@ -492,12 +492,12 @@ func (k *KustomizeAdapter) UpdateDeployment(
 }
 
 // DeleteDeployment deletes a Kustomize deployment.
-func (k *KustomizeAdapter) DeleteDeployment(
+func (k *Adapter) DeleteDeployment(
 	ctx context.Context,
 	id string,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := k.initialize(); err != nil {
@@ -518,13 +518,13 @@ func (k *KustomizeAdapter) DeleteDeployment(
 
 // ScaleDeployment is not directly supported by Kustomize.
 // Scaling must be done through Kustomize patches.
-func (k *KustomizeAdapter) ScaleDeployment(
+func (k *Adapter) ScaleDeployment(
 	ctx context.Context,
 	_ string,
 	replicas int,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if replicas < 0 {
@@ -536,13 +536,13 @@ func (k *KustomizeAdapter) ScaleDeployment(
 
 // RollbackDeployment is not directly supported by Kustomize.
 // Rollback must be done through Git or source control.
-func (k *KustomizeAdapter) RollbackDeployment(
+func (k *Adapter) RollbackDeployment(
 	ctx context.Context,
 	_ string,
 	revision int,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if revision < 0 {
@@ -553,12 +553,12 @@ func (k *KustomizeAdapter) RollbackDeployment(
 }
 
 // GetDeploymentStatus retrieves detailed status for a deployment.
-func (k *KustomizeAdapter) GetDeploymentStatus(
+func (k *Adapter) GetDeploymentStatus(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentStatusDetail, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := k.initialize(); err != nil {
@@ -590,12 +590,12 @@ func (k *KustomizeAdapter) GetDeploymentStatus(
 }
 
 // GetDeploymentHistory retrieves the revision history for a deployment.
-func (k *KustomizeAdapter) GetDeploymentHistory(
+func (k *Adapter) GetDeploymentHistory(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentHistory, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := k.initialize(); err != nil {
@@ -624,13 +624,13 @@ func (k *KustomizeAdapter) GetDeploymentHistory(
 }
 
 // GetDeploymentLogs retrieves logs for a deployment.
-func (k *KustomizeAdapter) GetDeploymentLogs(
+func (k *Adapter) GetDeploymentLogs(
 	ctx context.Context,
 	id string,
 	_ *adapter.LogOptions,
 ) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := k.initialize(); err != nil {
@@ -651,28 +651,32 @@ func (k *KustomizeAdapter) GetDeploymentLogs(
 		"updatedAt":    deployment.UpdatedAt,
 	}
 
-	return json.MarshalIndent(info, "", "  ")
+	data, err := json.MarshalIndent(info, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal deployment logs: %w", err)
+	}
+	return data, nil
 }
 
 // SupportsRollback returns false as Kustomize doesn't support direct rollback.
-func (k *KustomizeAdapter) SupportsRollback() bool {
+func (k *Adapter) SupportsRollback() bool {
 	return false
 }
 
 // SupportsScaling returns false as Kustomize doesn't support direct scaling.
-func (k *KustomizeAdapter) SupportsScaling() bool {
+func (k *Adapter) SupportsScaling() bool {
 	return false
 }
 
 // SupportsGitOps returns true as Kustomize is typically used with GitOps.
-func (k *KustomizeAdapter) SupportsGitOps() bool {
+func (k *Adapter) SupportsGitOps() bool {
 	return true
 }
 
 // Health performs a health check on the Kubernetes cluster.
-func (k *KustomizeAdapter) Health(ctx context.Context) error {
+func (k *Adapter) Health(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := k.initialize(); err != nil {
@@ -694,14 +698,14 @@ func (k *KustomizeAdapter) Health(ctx context.Context) error {
 }
 
 // Close cleanly shuts down the adapter.
-func (k *KustomizeAdapter) Close() error {
+func (k *Adapter) Close() error {
 	k.dynamicClient = nil
 	return nil
 }
 
 // Helper functions
 
-func (k *KustomizeAdapter) transformConfigMapToDeployment(
+func (k *Adapter) transformConfigMapToDeployment(
 	cm *unstructured.Unstructured,
 ) *adapter.Deployment {
 	data, _, _ := unstructured.NestedStringMap(cm.Object, "data")
@@ -750,7 +754,7 @@ func (k *KustomizeAdapter) transformConfigMapToDeployment(
 	}
 }
 
-func (k *KustomizeAdapter) applyPagination(
+func (k *Adapter) applyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
 ) []*adapter.Deployment {
@@ -768,7 +772,7 @@ func (k *KustomizeAdapter) applyPagination(
 	return deployments[start:end]
 }
 
-func (k *KustomizeAdapter) calculateProgress(status adapter.DeploymentStatus) int {
+func (k *Adapter) calculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return 100
@@ -776,6 +780,10 @@ func (k *KustomizeAdapter) calculateProgress(status adapter.DeploymentStatus) in
 		return 50
 	case adapter.DeploymentStatusPending:
 		return 25
+	case adapter.DeploymentStatusRollingBack:
+		return 30
+	case adapter.DeploymentStatusDeleting:
+		return 10
 	case adapter.DeploymentStatusFailed:
 		return 0
 	default:
@@ -783,19 +791,25 @@ func (k *KustomizeAdapter) calculateProgress(status adapter.DeploymentStatus) in
 	}
 }
 
-func (k *KustomizeAdapter) conditionStatus(status adapter.DeploymentStatus) string {
+func (k *Adapter) conditionStatus(status adapter.DeploymentStatus) string {
 	if status == adapter.DeploymentStatusDeployed {
 		return "True"
 	}
 	return "False"
 }
 
-func (k *KustomizeAdapter) conditionReason(status adapter.DeploymentStatus) string {
+func (k *Adapter) conditionReason(status adapter.DeploymentStatus) string {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return "ReconciliationSucceeded"
 	case adapter.DeploymentStatusDeploying:
 		return "Progressing"
+	case adapter.DeploymentStatusPending:
+		return "Pending"
+	case adapter.DeploymentStatusRollingBack:
+		return "RollingBack"
+	case adapter.DeploymentStatusDeleting:
+		return "Deleting"
 	case adapter.DeploymentStatusFailed:
 		return "ReconciliationFailed"
 	default:

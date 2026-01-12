@@ -17,7 +17,7 @@ import (
 // TestTransformHostAggregateToResourcePool tests the transformation from
 // OpenStack host aggregate to O2-IMS resource pool.
 func TestTransformHostAggregateToResourcePool(t *testing.T) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		oCloudID: "ocloud-test",
 		logger:   zap.NewNop(),
 	}
@@ -66,7 +66,7 @@ func TestTransformHostAggregateToResourcePool(t *testing.T) {
 
 // TestTransformHostAggregateToResourcePoolEmpty tests transformation with minimal data.
 func TestTransformHostAggregateToResourcePoolEmpty(t *testing.T) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		oCloudID: "ocloud-test",
 		logger:   zap.NewNop(),
 	}
@@ -146,7 +146,7 @@ func TestResourcePoolIDParsing(t *testing.T) {
 
 // TestListResourcePoolsFilter tests filtering logic for ListResourcePools.
 func TestListResourcePoolsFilter(t *testing.T) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		oCloudID: "ocloud-test",
 		logger:   zap.NewNop(),
 	}
@@ -271,7 +271,7 @@ func TestListResourcePoolsPagination(t *testing.T) {
 
 // TestCreateResourcePoolValidation tests validation for CreateResourcePool.
 func TestCreateResourcePoolValidation(t *testing.T) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		logger: zap.NewNop(),
 	}
 
@@ -290,7 +290,7 @@ func TestCreateResourcePoolValidation(t *testing.T) {
 
 // BenchmarkTransformHostAggregateToResourcePool benchmarks the transformation.
 func BenchmarkTransformHostAggregateToResourcePool(b *testing.B) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		oCloudID: "ocloud-test",
 		logger:   zap.NewNop(),
 	}

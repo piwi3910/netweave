@@ -13,7 +13,7 @@ import (
 
 // ListResourceTypes retrieves all unique resource types from Kubernetes nodes.
 // Resource types are derived from node labels such as instance-type or node-type.
-func (a *KubernetesAdapter) ListResourceTypes(
+func (a *Adapter) ListResourceTypes(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.ResourceType, error) {
@@ -64,7 +64,7 @@ func (a *KubernetesAdapter) ListResourceTypes(
 
 // GetResourceType retrieves a specific resource type by ID.
 // It finds a node with the matching type and derives the type information.
-func (a *KubernetesAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
+func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
 	a.logger.Debug("GetResourceType called",
 		zap.String("id", id))
 
@@ -97,7 +97,7 @@ func (a *KubernetesAdapter) GetResourceType(ctx context.Context, id string) (*ad
 }
 
 // createResourceTypeFromNode creates a ResourceType from a Kubernetes node.
-func (a *KubernetesAdapter) createResourceTypeFromNode(
+func (a *Adapter) createResourceTypeFromNode(
 	node *corev1.Node,
 	resourceTypeID string,
 ) *adapter.ResourceType {

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -220,7 +221,7 @@ func TestServerHeaderRemoved(t *testing.T) {
 		})
 
 		w := httptest.NewRecorder()
-		req, err := http.NewRequest(http.MethodGet, "/test", nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 		require.NoError(t, err)
 
 		router.ServeHTTP(w, req)
@@ -241,7 +242,7 @@ func TestServerHeaderRemoved(t *testing.T) {
 		})
 
 		w := httptest.NewRecorder()
-		req, err := http.NewRequest(http.MethodGet, "/test", nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 		require.NoError(t, err)
 
 		router.ServeHTTP(w, req)
@@ -265,7 +266,7 @@ func TestServerHeaderRemoved(t *testing.T) {
 		})
 
 		w := httptest.NewRecorder()
-		req, err := http.NewRequest(http.MethodGet, "/test", nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 		require.NoError(t, err)
 
 		router.ServeHTTP(w, req)

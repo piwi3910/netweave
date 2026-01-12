@@ -15,7 +15,7 @@ import (
 
 // TestCreateSubscription tests subscription creation.
 func TestCreateSubscription(t *testing.T) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 		pollingStates: make(map[string]*subscriptionState),
@@ -91,7 +91,7 @@ func TestCreateSubscription(t *testing.T) {
 
 // TestGetSubscription tests subscription retrieval.
 func TestGetSubscription(t *testing.T) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 		pollingStates: make(map[string]*subscriptionState),
@@ -126,7 +126,7 @@ func TestGetSubscription(t *testing.T) {
 
 // TestDeleteSubscription tests subscription deletion.
 func TestDeleteSubscription(t *testing.T) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 		pollingStates: make(map[string]*subscriptionState),
@@ -167,7 +167,7 @@ func TestDeleteSubscription(t *testing.T) {
 
 // TestListSubscriptions tests listing all subscriptions.
 func TestListSubscriptions(t *testing.T) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 		pollingStates: make(map[string]*subscriptionState),
@@ -209,7 +209,7 @@ func TestListSubscriptions(t *testing.T) {
 
 // TestSubscriptionFilters tests subscription filter handling.
 func TestSubscriptionFilters(t *testing.T) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 		pollingStates: make(map[string]*subscriptionState),
@@ -281,7 +281,7 @@ func TestSubscriptionFilters(t *testing.T) {
 
 // TestSubscriptionConcurrency tests concurrent subscription operations.
 func TestSubscriptionConcurrency(t *testing.T) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 		pollingStates: make(map[string]*subscriptionState),
@@ -358,7 +358,7 @@ func TestSubscriptionConcurrency(t *testing.T) {
 
 // BenchmarkCreateSubscription benchmarks subscription creation.
 func BenchmarkCreateSubscription(b *testing.B) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 		pollingStates: make(map[string]*subscriptionState),
@@ -381,7 +381,7 @@ func BenchmarkCreateSubscription(b *testing.B) {
 
 // BenchmarkGetSubscription benchmarks subscription retrieval.
 func BenchmarkGetSubscription(b *testing.B) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 		pollingStates: make(map[string]*subscriptionState),

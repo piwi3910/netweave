@@ -14,7 +14,7 @@ import (
 )
 
 // ListResources retrieves all resources (GCP instances) matching the provided filter.
-func (a *GCPAdapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
+func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "ListResources", start, err) }()
 
@@ -39,7 +39,7 @@ func (a *GCPAdapter) ListResources(ctx context.Context, filter *adapter.Filter) 
 }
 
 // listInstancesInRegion lists all instances across zones in the region.
-func (a *GCPAdapter) listInstancesInRegion(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (a *Adapter) listInstancesInRegion(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
 	var resources []*adapter.Resource
 
 	zoneIt := a.zonesClient.List(ctx, &computepb.ListZonesRequest{
@@ -72,7 +72,7 @@ func (a *GCPAdapter) listInstancesInRegion(ctx context.Context, filter *adapter.
 }
 
 // listInstancesInZone lists instances in a specific zone and applies filtering.
-func (a *GCPAdapter) listInstancesInZone(ctx context.Context, zoneName string, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (a *Adapter) listInstancesInZone(ctx context.Context, zoneName string, filter *adapter.Filter) ([]*adapter.Resource, error) {
 	var resources []*adapter.Resource
 
 	instanceIt := a.instancesClient.List(ctx, &computepb.ListInstancesRequest{
@@ -107,7 +107,7 @@ func (a *GCPAdapter) listInstancesInZone(ctx context.Context, zoneName string, f
 }
 
 // GetResource retrieves a specific resource (GCP instance) by ID.
-func (a *GCPAdapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
+func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "GetResource", start, err) }()
 
@@ -145,7 +145,7 @@ func (a *GCPAdapter) GetResource(ctx context.Context, id string) (resource *adap
 }
 
 // CreateResource creates a new resource (GCP instance).
-func (a *GCPAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
+func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "CreateResource", start, err) }()
 
@@ -158,7 +158,7 @@ func (a *GCPAdapter) CreateResource(_ context.Context, resource *adapter.Resourc
 
 // UpdateResource updates an existing GCP instance's labels and metadata.
 // Note: Core instance properties cannot be modified after creation.
-func (a *GCPAdapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
+func (a *Adapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "UpdateResource", start, err) }()
 
@@ -171,7 +171,7 @@ func (a *GCPAdapter) UpdateResource(_ context.Context, _ string, resource *adapt
 }
 
 // DeleteResource deletes a resource (GCP instance) by ID.
-func (a *GCPAdapter) DeleteResource(ctx context.Context, id string) (err error) {
+func (a *Adapter) DeleteResource(ctx context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "DeleteResource", start, err) }()
 
@@ -217,7 +217,7 @@ func (a *GCPAdapter) DeleteResource(ctx context.Context, id string) (err error) 
 }
 
 // instanceToResource converts a GCP instance to an O2-IMS Resource.
-func (a *GCPAdapter) instanceToResource(instance *computepb.Instance, zone string) *adapter.Resource {
+func (a *Adapter) instanceToResource(instance *computepb.Instance, zone string) *adapter.Resource {
 	instanceName := ptrToString(instance.Name)
 	resourceID := generateInstanceID(instanceName, zone)
 
@@ -246,7 +246,7 @@ func (a *GCPAdapter) instanceToResource(instance *computepb.Instance, zone strin
 }
 
 // determineResourcePoolID determines the resource pool ID based on pool mode.
-func (a *GCPAdapter) determineResourcePoolID(zone string) string {
+func (a *Adapter) determineResourcePoolID(zone string) string {
 	if a.poolMode == "zone" {
 		return generateZonePoolID(zone)
 	}

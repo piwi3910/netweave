@@ -71,7 +71,7 @@ func initWebhookClient() *http.Client {
 
 // CreateSubscription creates a new event subscription for OpenStack resources.
 // It starts a polling goroutine to detect resource changes and send notifications.
-func (a *OpenStackAdapter) CreateSubscription(
+func (a *Adapter) CreateSubscription(
 	ctx context.Context,
 	sub *adapter.Subscription,
 ) (*adapter.Subscription, error) {
@@ -121,7 +121,7 @@ func (a *OpenStackAdapter) CreateSubscription(
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *OpenStackAdapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
+func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
@@ -142,7 +142,7 @@ func (a *OpenStackAdapter) GetSubscription(_ context.Context, id string) (*adapt
 
 // UpdateSubscription updates an existing subscription.
 // It stops the old polling goroutine and starts a new one with updated configuration.
-func (a *OpenStackAdapter) UpdateSubscription(
+func (a *Adapter) UpdateSubscription(
 	ctx context.Context,
 	id string,
 	sub *adapter.Subscription,
@@ -221,7 +221,7 @@ func (a *OpenStackAdapter) UpdateSubscription(
 }
 
 // DeleteSubscription deletes a subscription by ID and stops its polling goroutine.
-func (a *OpenStackAdapter) DeleteSubscription(_ context.Context, id string) error {
+func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
@@ -249,7 +249,7 @@ func (a *OpenStackAdapter) DeleteSubscription(_ context.Context, id string) erro
 }
 
 // ListSubscriptions retrieves all active subscriptions.
-func (a *OpenStackAdapter) ListSubscriptions(_ context.Context) ([]*adapter.Subscription, error) {
+func (a *Adapter) ListSubscriptions(_ context.Context) ([]*adapter.Subscription, error) {
 	a.logger.Debug("ListSubscriptions called")
 
 	subscriptionMu.RLock()
@@ -266,7 +266,7 @@ func (a *OpenStackAdapter) ListSubscriptions(_ context.Context) ([]*adapter.Subs
 }
 
 // startPolling starts the polling goroutine for a subscription.
-func (a *OpenStackAdapter) startPolling(ctx context.Context, sub *adapter.Subscription) error {
+func (a *Adapter) startPolling(ctx context.Context, sub *adapter.Subscription) error {
 	pollingStateMu.Lock()
 	defer pollingStateMu.Unlock()
 
@@ -305,7 +305,7 @@ func (a *OpenStackAdapter) startPolling(ctx context.Context, sub *adapter.Subscr
 }
 
 // stopPolling stops the polling goroutine for a subscription.
-func (a *OpenStackAdapter) stopPolling(subscriptionID string) error {
+func (a *Adapter) stopPolling(subscriptionID string) error {
 	pollingStateMu.Lock()
 	state, exists := a.pollingStates[subscriptionID]
 	if !exists {
@@ -324,7 +324,7 @@ func (a *OpenStackAdapter) stopPolling(subscriptionID string) error {
 }
 
 // pollResourceChanges runs the polling loop for a subscription.
-func (a *OpenStackAdapter) pollResourceChanges(ctx context.Context, state *subscriptionState) {
+func (a *Adapter) pollResourceChanges(ctx context.Context, state *subscriptionState) {
 	defer state.wg.Done()
 
 	a.logger.Info("started polling for subscription",
@@ -355,7 +355,7 @@ func (a *OpenStackAdapter) pollResourceChanges(ctx context.Context, state *subsc
 }
 
 // detectAndNotifyChanges detects resource changes and sends notifications.
-func (a *OpenStackAdapter) detectAndNotifyChanges(ctx context.Context, state *subscriptionState) error {
+func (a *Adapter) detectAndNotifyChanges(ctx context.Context, state *subscriptionState) error {
 	// Create new snapshot
 	newSnapshot, err := a.createResourceSnapshot(ctx)
 	if err != nil {
@@ -392,7 +392,7 @@ type resourceChange struct {
 }
 
 // createResourceSnapshot creates a snapshot of current OpenStack resources.
-func (a *OpenStackAdapter) createResourceSnapshot(_ context.Context) (map[string]string, error) {
+func (a *Adapter) createResourceSnapshot(_ context.Context) (map[string]string, error) {
 	snapshot := make(map[string]string)
 
 	// Skip if compute client is not initialized (e.g., in tests)
@@ -422,7 +422,7 @@ func (a *OpenStackAdapter) createResourceSnapshot(_ context.Context) (map[string
 }
 
 // detectChanges compares snapshots and returns detected changes.
-func (a *OpenStackAdapter) detectChanges(oldSnapshot, newSnapshot map[string]string) []resourceChange {
+func (a *Adapter) detectChanges(oldSnapshot, newSnapshot map[string]string) []resourceChange {
 	var changes []resourceChange
 
 	// Detect created and updated resources
@@ -458,7 +458,7 @@ func (a *OpenStackAdapter) detectChanges(oldSnapshot, newSnapshot map[string]str
 }
 
 // matchesFilter checks if a resource change matches the subscription filter.
-func (a *OpenStackAdapter) matchesFilter(sub *adapter.Subscription, change resourceChange) bool {
+func (a *Adapter) matchesFilter(sub *adapter.Subscription, change resourceChange) bool {
 	// If no filter, match all changes
 	if sub.Filter == nil {
 		return true
@@ -480,7 +480,7 @@ func (a *OpenStackAdapter) matchesFilter(sub *adapter.Subscription, change resou
 }
 
 // sendWebhookNotification sends a webhook notification for a resource change.
-func (a *OpenStackAdapter) sendWebhookNotification(
+func (a *Adapter) sendWebhookNotification(
 	ctx context.Context,
 	sub *adapter.Subscription,
 	change resourceChange,
@@ -521,7 +521,7 @@ func (a *OpenStackAdapter) sendWebhookNotification(
 }
 
 // deliverWebhookWithRetries delivers a webhook with exponential backoff retries.
-func (a *OpenStackAdapter) deliverWebhookWithRetries(
+func (a *Adapter) deliverWebhookWithRetries(
 	ctx context.Context,
 	callbackURL string,
 	payload []byte,
@@ -580,7 +580,7 @@ func (a *OpenStackAdapter) deliverWebhookWithRetries(
 }
 
 // deliverWebhook performs a single webhook delivery attempt.
-func (a *OpenStackAdapter) deliverWebhook(
+func (a *Adapter) deliverWebhook(
 	ctx context.Context,
 	client *http.Client,
 	callbackURL string,
@@ -608,7 +608,7 @@ func (a *OpenStackAdapter) deliverWebhook(
 }
 
 // getResourceDetails fetches detailed information about a resource.
-func (a *OpenStackAdapter) getResourceDetails(ctx context.Context, resourceID string) (*adapter.Resource, error) {
+func (a *Adapter) getResourceDetails(ctx context.Context, resourceID string) (*adapter.Resource, error) {
 	// Extract server UUID from resourceID (format: openstack-server-{uuid})
 	// For now, use GetResource if available
 	return a.GetResource(ctx, resourceID)
@@ -633,7 +633,7 @@ func generateServerResourceID(server *servers.Server) string {
 }
 
 // StopAllPolling stops all active polling goroutines (called during shutdown).
-func (a *OpenStackAdapter) StopAllPolling() {
+func (a *Adapter) StopAllPolling() {
 	pollingStateMu.Lock()
 	states := make([]*subscriptionState, 0, len(a.pollingStates))
 	for _, state := range a.pollingStates {

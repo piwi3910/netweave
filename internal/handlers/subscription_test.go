@@ -27,7 +27,7 @@ type mockSubscriptionStore struct {
 	deleteErr     error
 }
 
-func (m *mockSubscriptionStore) Create(ctx context.Context, sub *storage.Subscription) error {
+func (m *mockSubscriptionStore) Create(_ context.Context, sub *storage.Subscription) error {
 	if m.createErr != nil {
 		return m.createErr
 	}
@@ -35,7 +35,7 @@ func (m *mockSubscriptionStore) Create(ctx context.Context, sub *storage.Subscri
 	return nil
 }
 
-func (m *mockSubscriptionStore) Get(ctx context.Context, id string) (*storage.Subscription, error) {
+func (m *mockSubscriptionStore) Get(_ context.Context, id string) (*storage.Subscription, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
@@ -47,11 +47,11 @@ func (m *mockSubscriptionStore) Get(ctx context.Context, id string) (*storage.Su
 	return nil, storage.ErrSubscriptionNotFound
 }
 
-func (m *mockSubscriptionStore) Update(ctx context.Context, sub *storage.Subscription) error {
+func (m *mockSubscriptionStore) Update(_ context.Context, sub *storage.Subscription) error {
 	return nil
 }
 
-func (m *mockSubscriptionStore) Delete(ctx context.Context, id string) error {
+func (m *mockSubscriptionStore) Delete(_ context.Context, id string) error {
 	if m.deleteErr != nil {
 		return m.deleteErr
 	}
@@ -64,22 +64,22 @@ func (m *mockSubscriptionStore) Delete(ctx context.Context, id string) error {
 	return storage.ErrSubscriptionNotFound
 }
 
-func (m *mockSubscriptionStore) List(ctx context.Context) ([]*storage.Subscription, error) {
+func (m *mockSubscriptionStore) List(_ context.Context) ([]*storage.Subscription, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
 	return m.subscriptions, nil
 }
 
-func (m *mockSubscriptionStore) ListByResourcePool(ctx context.Context, resourcePoolID string) ([]*storage.Subscription, error) {
+func (m *mockSubscriptionStore) ListByResourcePool(_ context.Context, resourcePoolID string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
 
-func (m *mockSubscriptionStore) ListByResourceType(ctx context.Context, resourceTypeID string) ([]*storage.Subscription, error) {
+func (m *mockSubscriptionStore) ListByResourceType(_ context.Context, resourceTypeID string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
 
-func (m *mockSubscriptionStore) ListByTenant(ctx context.Context, tenantID string) ([]*storage.Subscription, error) {
+func (m *mockSubscriptionStore) ListByTenant(_ context.Context, tenantID string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
 
@@ -87,7 +87,7 @@ func (m *mockSubscriptionStore) Close() error {
 	return nil
 }
 
-func (m *mockSubscriptionStore) Ping(ctx context.Context) error {
+func (m *mockSubscriptionStore) Ping(_ context.Context) error {
 	return nil
 }
 

@@ -54,7 +54,7 @@ var (
 )
 
 // OSMLCMAdapter implements the DMS adapter interface for OSM lifecycle management.
-type OSMLCMAdapter struct {
+type Adapter struct {
 	config      *Config
 	httpClient  *http.Client
 	deployments map[string]*adapter.Deployment
@@ -88,7 +88,7 @@ type Config struct {
 }
 
 // NewAdapter creates a new OSM-LCM adapter instance.
-func NewAdapter(config *Config) (*OSMLCMAdapter, error) {
+func NewAdapter(config *Config) (*Adapter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
@@ -101,7 +101,7 @@ func NewAdapter(config *Config) (*OSMLCMAdapter, error) {
 		config.Project = "admin"
 	}
 
-	return &OSMLCMAdapter{
+	return &Adapter{
 		config:      config,
 		deployments: make(map[string]*adapter.Deployment),
 		packages:    make(map[string]*adapter.DeploymentPackage),
@@ -109,7 +109,7 @@ func NewAdapter(config *Config) (*OSMLCMAdapter, error) {
 }
 
 // initialize performs lazy initialization of the HTTP client.
-func (o *OSMLCMAdapter) initialize() error {
+func (o *Adapter) initialize() error {
 	o.initOnce.Do(func() {
 		o.httpClient = &http.Client{
 			Timeout: o.config.Timeout,
@@ -120,17 +120,17 @@ func (o *OSMLCMAdapter) initialize() error {
 }
 
 // Name returns the adapter name.
-func (o *OSMLCMAdapter) Name() string {
+func (o *Adapter) Name() string {
 	return AdapterName
 }
 
 // Version returns the OSM NBI API version supported by this adapter.
-func (o *OSMLCMAdapter) Version() string {
+func (o *Adapter) Version() string {
 	return AdapterVersion
 }
 
 // Capabilities returns the capabilities supported by the OSM-LCM adapter.
-func (o *OSMLCMAdapter) Capabilities() []adapter.Capability {
+func (o *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityPackageManagement,
 		adapter.CapabilityDeploymentLifecycle,
@@ -140,12 +140,12 @@ func (o *OSMLCMAdapter) Capabilities() []adapter.Capability {
 }
 
 // ListDeploymentPackages retrieves all available VNF/NS packages.
-func (o *OSMLCMAdapter) ListDeploymentPackages(
+func (o *Adapter) ListDeploymentPackages(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -169,12 +169,12 @@ func (o *OSMLCMAdapter) ListDeploymentPackages(
 }
 
 // GetDeploymentPackage retrieves a specific VNF/NS package by ID.
-func (o *OSMLCMAdapter) GetDeploymentPackage(
+func (o *Adapter) GetDeploymentPackage(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -193,12 +193,12 @@ func (o *OSMLCMAdapter) GetDeploymentPackage(
 }
 
 // UploadDeploymentPackage registers a new VNF/NS package.
-func (o *OSMLCMAdapter) UploadDeploymentPackage(
+func (o *Adapter) UploadDeploymentPackage(
 	ctx context.Context,
 	pkg *adapter.DeploymentPackageUpload,
 ) (*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if pkg == nil {
@@ -241,12 +241,12 @@ func (o *OSMLCMAdapter) UploadDeploymentPackage(
 }
 
 // DeleteDeploymentPackage removes a VNF/NS package.
-func (o *OSMLCMAdapter) DeleteDeploymentPackage(
+func (o *Adapter) DeleteDeploymentPackage(
 	ctx context.Context,
 	id string,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -265,12 +265,12 @@ func (o *OSMLCMAdapter) DeleteDeploymentPackage(
 }
 
 // ListDeployments retrieves all NS/VNF instances.
-func (o *OSMLCMAdapter) ListDeployments(
+func (o *Adapter) ListDeployments(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.Deployment, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -298,12 +298,12 @@ func (o *OSMLCMAdapter) ListDeployments(
 }
 
 // GetDeployment retrieves a specific NS/VNF instance by ID.
-func (o *OSMLCMAdapter) GetDeployment(
+func (o *Adapter) GetDeployment(
 	ctx context.Context,
 	id string,
 ) (*adapter.Deployment, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -322,12 +322,12 @@ func (o *OSMLCMAdapter) GetDeployment(
 }
 
 // CreateDeployment instantiates a new NS/VNF.
-func (o *OSMLCMAdapter) CreateDeployment(
+func (o *Adapter) CreateDeployment(
 	ctx context.Context,
 	req *adapter.DeploymentRequest,
 ) (*adapter.Deployment, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if req == nil {
@@ -382,13 +382,13 @@ func (o *OSMLCMAdapter) CreateDeployment(
 }
 
 // UpdateDeployment updates an NS/VNF instance.
-func (o *OSMLCMAdapter) UpdateDeployment(
+func (o *Adapter) UpdateDeployment(
 	ctx context.Context,
 	id string,
 	update *adapter.DeploymentUpdate,
 ) (*adapter.Deployment, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if update == nil {
@@ -418,12 +418,12 @@ func (o *OSMLCMAdapter) UpdateDeployment(
 }
 
 // DeleteDeployment terminates an NS/VNF instance.
-func (o *OSMLCMAdapter) DeleteDeployment(
+func (o *Adapter) DeleteDeployment(
 	ctx context.Context,
 	id string,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -442,13 +442,13 @@ func (o *OSMLCMAdapter) DeleteDeployment(
 }
 
 // ScaleDeployment scales an NS/VNF instance.
-func (o *OSMLCMAdapter) ScaleDeployment(
+func (o *Adapter) ScaleDeployment(
 	ctx context.Context,
 	id string,
 	replicas int,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if replicas < 0 {
@@ -478,13 +478,13 @@ func (o *OSMLCMAdapter) ScaleDeployment(
 }
 
 // RollbackDeployment is not directly supported by OSM.
-func (o *OSMLCMAdapter) RollbackDeployment(
+func (o *Adapter) RollbackDeployment(
 	ctx context.Context,
 	_ string,
 	revision int,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if revision < 0 {
@@ -495,12 +495,12 @@ func (o *OSMLCMAdapter) RollbackDeployment(
 }
 
 // GetDeploymentStatus retrieves detailed status for an NS/VNF instance.
-func (o *OSMLCMAdapter) GetDeploymentStatus(
+func (o *Adapter) GetDeploymentStatus(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentStatusDetail, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -532,12 +532,12 @@ func (o *OSMLCMAdapter) GetDeploymentStatus(
 }
 
 // GetDeploymentHistory retrieves the revision history for an NS/VNF instance.
-func (o *OSMLCMAdapter) GetDeploymentHistory(
+func (o *Adapter) GetDeploymentHistory(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentHistory, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -564,13 +564,13 @@ func (o *OSMLCMAdapter) GetDeploymentHistory(
 }
 
 // GetDeploymentLogs retrieves logs for an NS/VNF instance.
-func (o *OSMLCMAdapter) GetDeploymentLogs(
+func (o *Adapter) GetDeploymentLogs(
 	ctx context.Context,
 	id string,
 	_ *adapter.LogOptions,
 ) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -592,28 +592,32 @@ func (o *OSMLCMAdapter) GetDeploymentLogs(
 		"extensions":   deployment.Extensions,
 	}
 
-	return json.MarshalIndent(info, "", "  ")
+	data, err := json.MarshalIndent(info, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal deployment logs: %w", err)
+	}
+	return data, nil
 }
 
 // SupportsRollback returns false as OSM doesn't support direct rollback.
-func (o *OSMLCMAdapter) SupportsRollback() bool {
+func (o *Adapter) SupportsRollback() bool {
 	return false
 }
 
 // SupportsScaling returns true as OSM supports NS scaling.
-func (o *OSMLCMAdapter) SupportsScaling() bool {
+func (o *Adapter) SupportsScaling() bool {
 	return true
 }
 
 // SupportsGitOps returns false as OSM uses API-driven orchestration.
-func (o *OSMLCMAdapter) SupportsGitOps() bool {
+func (o *Adapter) SupportsGitOps() bool {
 	return false
 }
 
 // Health performs a health check on the OSM NBI endpoint.
-func (o *OSMLCMAdapter) Health(ctx context.Context) error {
+func (o *Adapter) Health(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -645,7 +649,7 @@ func (o *OSMLCMAdapter) Health(ctx context.Context) error {
 }
 
 // Close cleanly shuts down the adapter.
-func (o *OSMLCMAdapter) Close() error {
+func (o *Adapter) Close() error {
 	o.httpClient = nil
 	return nil
 }
@@ -654,7 +658,7 @@ func (o *OSMLCMAdapter) Close() error {
 // The body parameter uses interface{} to accept various request payload types
 // (maps, structs) that are marshaled to JSON - this flexibility is required
 // to support different OSM NBI endpoints with varying request schemas.
-func (o *OSMLCMAdapter) doRequest(
+func (o *Adapter) doRequest(
 	ctx context.Context,
 	method, path string,
 	body interface{},
@@ -702,7 +706,7 @@ func (o *OSMLCMAdapter) doRequest(
 
 // Helper functions
 
-func (o *OSMLCMAdapter) calculateProgress(status adapter.DeploymentStatus) int {
+func (o *Adapter) calculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return 100
@@ -710,6 +714,10 @@ func (o *OSMLCMAdapter) calculateProgress(status adapter.DeploymentStatus) int {
 		return 50
 	case adapter.DeploymentStatusPending:
 		return 25
+	case adapter.DeploymentStatusRollingBack:
+		return 30
+	case adapter.DeploymentStatusDeleting:
+		return 10
 	case adapter.DeploymentStatusFailed:
 		return 0
 	default:
@@ -717,19 +725,25 @@ func (o *OSMLCMAdapter) calculateProgress(status adapter.DeploymentStatus) int {
 	}
 }
 
-func (o *OSMLCMAdapter) conditionStatus(status adapter.DeploymentStatus) string {
+func (o *Adapter) conditionStatus(status adapter.DeploymentStatus) string {
 	if status == adapter.DeploymentStatusDeployed {
 		return "True"
 	}
 	return "False"
 }
 
-func (o *OSMLCMAdapter) conditionReason(status adapter.DeploymentStatus) string {
+func (o *Adapter) conditionReason(status adapter.DeploymentStatus) string {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return "InstantiationSucceeded"
 	case adapter.DeploymentStatusDeploying:
 		return "Instantiating"
+	case adapter.DeploymentStatusPending:
+		return "Pending"
+	case adapter.DeploymentStatusRollingBack:
+		return "RollingBack"
+	case adapter.DeploymentStatusDeleting:
+		return "Deleting"
 	case adapter.DeploymentStatusFailed:
 		return "InstantiationFailed"
 	default:
@@ -737,7 +751,7 @@ func (o *OSMLCMAdapter) conditionReason(status adapter.DeploymentStatus) string 
 	}
 }
 
-func (o *OSMLCMAdapter) applyPagination(
+func (o *Adapter) applyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
 ) []*adapter.Deployment {
@@ -755,7 +769,7 @@ func (o *OSMLCMAdapter) applyPagination(
 	return deployments[start:end]
 }
 
-func (o *OSMLCMAdapter) applyPackagePagination(
+func (o *Adapter) applyPackagePagination(
 	packages []*adapter.DeploymentPackage,
 	limit, offset int,
 ) []*adapter.DeploymentPackage {

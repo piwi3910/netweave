@@ -67,7 +67,7 @@ type LocationCondition struct {
 }
 
 // RoutingContext contains information used for routing decisions.
-type RoutingContext struct {
+type Context struct {
 	// ResourceType is the type of resource being accessed.
 	ResourceType string
 
@@ -96,18 +96,6 @@ type Router struct {
 	aggregateMode   bool
 }
 
-// Config contains configuration for the router.
-type Config struct {
-	// Rules contains the routing rules.
-	Rules []*Rule
-
-	// FallbackEnabled enables fallback to default adapter if no rule matches.
-	FallbackEnabled bool
-
-	// AggregateMode enables aggregating results from multiple adapters.
-	AggregateMode bool
-}
-
 // NewRouter creates a new routing engine.
 func NewRouter(reg *registry.Registry, logger *zap.Logger, config *Config) *Router {
 	if config == nil {
@@ -133,7 +121,7 @@ func NewRouter(reg *registry.Registry, logger *zap.Logger, config *Config) *Rout
 
 // Route selects the appropriate adapter based on the routing context.
 // Returns the selected adapter or an error if no suitable adapter is found.
-func (r *Router) Route(_ context.Context, routingCtx *RoutingContext) (adapter.Adapter, error) {
+func (r *Router) Route(_ context.Context, routingCtx *Context) (adapter.Adapter, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -166,7 +154,7 @@ func (r *Router) Route(_ context.Context, routingCtx *RoutingContext) (adapter.A
 
 // RouteMultiple selects multiple adapters based on the routing context.
 // This is used when aggregating results from multiple backends.
-func (r *Router) RouteMultiple(_ context.Context, routingCtx *RoutingContext) ([]adapter.Adapter, error) {
+func (r *Router) RouteMultiple(_ context.Context, routingCtx *Context) ([]adapter.Adapter, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -209,7 +197,7 @@ func (r *Router) RouteMultiple(_ context.Context, routingCtx *RoutingContext) ([
 }
 
 // matchesRule checks if a routing context matches a rule.
-func (r *Router) matchesRule(rule *Rule, ctx *RoutingContext) bool {
+func (r *Router) matchesRule(rule *Rule, ctx *Context) bool {
 	if !r.matchesResourceType(rule, ctx) {
 		return false
 	}
@@ -222,7 +210,7 @@ func (r *Router) matchesRule(rule *Rule, ctx *RoutingContext) bool {
 }
 
 // matchesResourceType checks if resource type matches the rule.
-func (r *Router) matchesResourceType(rule *Rule, ctx *RoutingContext) bool {
+func (r *Router) matchesResourceType(rule *Rule, ctx *Context) bool {
 	if rule.ResourceType == "" || rule.ResourceType == "*" {
 		return true
 	}
@@ -230,7 +218,7 @@ func (r *Router) matchesResourceType(rule *Rule, ctx *RoutingContext) bool {
 }
 
 // matchesConditions checks if all conditions match.
-func (r *Router) matchesConditions(rule *Rule, ctx *RoutingContext) bool {
+func (r *Router) matchesConditions(rule *Rule, ctx *Context) bool {
 	// Check label matching
 	if len(rule.Conditions.Labels) > 0 {
 		if !r.matchesLabels(rule.Conditions.Labels, ctx.Labels) {
@@ -444,7 +432,7 @@ func (r *Router) IsAggregationEnabled() bool {
 
 // getValidatedAdapter retrieves and validates an adapter for a matched rule.
 // Returns the adapter and true if valid, nil and false otherwise.
-func (r *Router) getValidatedAdapter(rule *Rule, routingCtx *RoutingContext) (adapter.Adapter, bool) {
+func (r *Router) getValidatedAdapter(rule *Rule, routingCtx *Context) (adapter.Adapter, bool) {
 	plugin := r.registry.Get(rule.AdapterName)
 	if plugin == nil {
 		r.logger.Warn("rule matched but adapter not found",

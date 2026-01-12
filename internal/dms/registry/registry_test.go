@@ -14,6 +14,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// Sentinel error for testing.
+var errNotImplemented = errors.New("not implemented in mock")
+
 // mockDMSAdapter implements adapter.DMSAdapter for testing.
 type mockDMSAdapter struct {
 	mu           sync.RWMutex
@@ -39,15 +42,15 @@ func (m *mockDMSAdapter) Version() string                    { return m.version 
 func (m *mockDMSAdapter) Capabilities() []adapter.Capability { return m.capabilities }
 
 func (m *mockDMSAdapter) ListDeploymentPackages(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockDMSAdapter) GetDeploymentPackage(_ context.Context, _ string) (*adapter.DeploymentPackage, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockDMSAdapter) UploadDeploymentPackage(_ context.Context, _ *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockDMSAdapter) DeleteDeploymentPackage(_ context.Context, _ string) error {
@@ -55,19 +58,19 @@ func (m *mockDMSAdapter) DeleteDeploymentPackage(_ context.Context, _ string) er
 }
 
 func (m *mockDMSAdapter) ListDeployments(_ context.Context, _ *adapter.Filter) ([]*adapter.Deployment, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockDMSAdapter) GetDeployment(_ context.Context, _ string) (*adapter.Deployment, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockDMSAdapter) CreateDeployment(_ context.Context, _ *adapter.DeploymentRequest) (*adapter.Deployment, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockDMSAdapter) UpdateDeployment(_ context.Context, _ string, _ *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockDMSAdapter) DeleteDeployment(_ context.Context, _ string) error {
@@ -83,15 +86,15 @@ func (m *mockDMSAdapter) RollbackDeployment(_ context.Context, _ string, _ int) 
 }
 
 func (m *mockDMSAdapter) GetDeploymentStatus(_ context.Context, _ string) (*adapter.DeploymentStatusDetail, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockDMSAdapter) GetDeploymentHistory(_ context.Context, _ string) (*adapter.DeploymentHistory, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockDMSAdapter) GetDeploymentLogs(_ context.Context, _ string, _ *adapter.LogOptions) ([]byte, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockDMSAdapter) SupportsRollback() bool { return true }

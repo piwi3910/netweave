@@ -25,7 +25,7 @@ import (
 //   - Resource Types → Aggregated from Nodes and StorageClasses
 //   - Deployment Manager → Custom Resource or ConfigMap
 //   - Subscriptions → Kubernetes Informers + Redis storage
-type KubernetesAdapter struct {
+type Adapter struct {
 	// client is the Kubernetes client for API operations.
 	client kubernetes.Interface
 
@@ -80,7 +80,7 @@ type Config struct {
 //	    DeploymentManagerID: "ocloud-k8s-1",
 //	    Namespace:           "o2ims-system",
 //	})
-func New(cfg *Config) (*KubernetesAdapter, error) {
+func New(cfg *Config) (*Adapter, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
@@ -128,7 +128,7 @@ func New(cfg *Config) (*KubernetesAdapter, error) {
 		return nil, fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	adapter := &KubernetesAdapter{
+	adapter := &Adapter{
 		client:              client,
 		store:               cfg.Store,
 		logger:              logger,
@@ -147,18 +147,18 @@ func New(cfg *Config) (*KubernetesAdapter, error) {
 }
 
 // Name returns the adapter name.
-func (a *KubernetesAdapter) Name() string {
+func (a *Adapter) Name() string {
 	return "kubernetes"
 }
 
 // Version returns the Kubernetes API version this adapter supports.
-func (a *KubernetesAdapter) Version() string {
+func (a *Adapter) Version() string {
 	// This will be populated from server version in future implementation
 	return "1.30.0"
 }
 
 // Capabilities returns the list of O2-IMS capabilities supported by this adapter.
-func (a *KubernetesAdapter) Capabilities() []adapter.Capability {
+func (a *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityResourcePools,
 		adapter.CapabilityResources,
@@ -180,7 +180,7 @@ func (a *KubernetesAdapter) Capabilities() []adapter.Capability {
 // CreateSubscription creates a new event subscription.
 // Stores subscription in Redis. Kubernetes watch/informer integration is handled
 // by the controller package which monitors Redis subscriptions.
-func (a *KubernetesAdapter) CreateSubscription(
+func (a *Adapter) CreateSubscription(
 	ctx context.Context,
 	sub *adapter.Subscription,
 ) (*adapter.Subscription, error) {
@@ -226,7 +226,7 @@ func (a *KubernetesAdapter) CreateSubscription(
 }
 
 // GetSubscription retrieves a specific subscription by ID from Redis.
-func (a *KubernetesAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
+func (a *Adapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
@@ -274,7 +274,7 @@ func (a *KubernetesAdapter) GetSubscription(ctx context.Context, id string) (*ad
 
 // UpdateSubscription updates an existing subscription.
 // Updates both the subscription in Redis and notifies the controller to restart watchers.
-func (a *KubernetesAdapter) UpdateSubscription(
+func (a *Adapter) UpdateSubscription(
 	ctx context.Context,
 	id string,
 	sub *adapter.Subscription,
@@ -320,7 +320,7 @@ func (a *KubernetesAdapter) UpdateSubscription(
 // getExistingSubscription retrieves an existing subscription with proper error handling.
 // Note: This helper exists to reduce UpdateSubscription cyclomatic complexity from 11 to ~3
 // (CLAUDE.md requirement: max 10).
-func (a *KubernetesAdapter) getExistingSubscription(ctx context.Context, id string) (*storage.Subscription, error) {
+func (a *Adapter) getExistingSubscription(ctx context.Context, id string) (*storage.Subscription, error) {
 	existingSub, err := a.store.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
@@ -340,7 +340,7 @@ func (a *KubernetesAdapter) getExistingSubscription(ctx context.Context, id stri
 // Filter handling: A nil Filter means no filtering (subscribe to all resources).
 // An empty Filter struct {} also means no filtering since all fields will be empty strings.
 // Partial filters are supported (e.g., only ResourcePoolID set filters by pool only).
-func (a *KubernetesAdapter) convertToStorageSubscription(id string, sub *adapter.Subscription) *storage.Subscription {
+func (a *Adapter) convertToStorageSubscription(id string, sub *adapter.Subscription) *storage.Subscription {
 	storageSub := &storage.Subscription{
 		ID:                     id,
 		Callback:               sub.Callback,
@@ -359,7 +359,7 @@ func (a *KubernetesAdapter) convertToStorageSubscription(id string, sub *adapter
 }
 
 // updateSubscriptionInStore updates subscription in Redis with proper error handling.
-func (a *KubernetesAdapter) updateSubscriptionInStore(
+func (a *Adapter) updateSubscriptionInStore(
 	ctx context.Context,
 	id string,
 	storageSub *storage.Subscription,
@@ -379,7 +379,7 @@ func (a *KubernetesAdapter) updateSubscriptionInStore(
 }
 
 // convertToAdapterSubscription converts storage subscription to adapter format.
-func (a *KubernetesAdapter) convertToAdapterSubscription(
+func (a *Adapter) convertToAdapterSubscription(
 	id string,
 	storageSub *storage.Subscription,
 ) *adapter.Subscription {
@@ -405,7 +405,7 @@ func (a *KubernetesAdapter) convertToAdapterSubscription(
 
 // DeleteSubscription deletes a subscription by ID from Redis.
 // The controller package monitors Redis and stops the corresponding Kubernetes watchers.
-func (a *KubernetesAdapter) DeleteSubscription(ctx context.Context, id string) error {
+func (a *Adapter) DeleteSubscription(ctx context.Context, id string) error {
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
@@ -435,7 +435,7 @@ func (a *KubernetesAdapter) DeleteSubscription(ctx context.Context, id string) e
 
 // Health performs a health check on the Kubernetes backend.
 // It verifies connectivity to the Kubernetes API server.
-func (a *KubernetesAdapter) Health(_ context.Context) error {
+func (a *Adapter) Health(_ context.Context) error {
 	a.logger.Debug("Health check called")
 
 	// Perform basic health check by querying server version
@@ -451,7 +451,7 @@ func (a *KubernetesAdapter) Health(_ context.Context) error {
 }
 
 // Close cleanly shuts down the adapter and releases resources.
-func (a *KubernetesAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.logger.Info("closing Kubernetes adapter")
 
 	// Sync logger before shutdown

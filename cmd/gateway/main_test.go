@@ -1,4 +1,4 @@
-package main
+package main_test
 
 import (
 	"testing"
@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	main "github.com/piwi3910/netweave/cmd/gateway"
 	"github.com/piwi3910/netweave/internal/config"
 )
 
@@ -38,7 +39,7 @@ func TestInitializeAuth_Standalone(t *testing.T) {
 
 	logger := zap.NewNop()
 
-	authStore, authMw, err := initializeAuth(cfg, logger)
+	authStore, authMw, err := main.InitializeAuth(cfg, logger)
 	require.NoError(t, err)
 	require.NotNil(t, authStore)
 	require.NotNil(t, authMw)
@@ -73,7 +74,7 @@ func TestInitializeAuth_StandaloneNoDefaultRoles(t *testing.T) {
 
 	logger := zap.NewNop()
 
-	authStore, authMw, err := initializeAuth(cfg, logger)
+	authStore, authMw, err := main.InitializeAuth(cfg, logger)
 	require.NoError(t, err)
 	require.NotNil(t, authStore)
 	require.NotNil(t, authMw)
@@ -110,7 +111,7 @@ func TestInitializeAuth_DefaultAddress(t *testing.T) {
 
 	logger := zap.NewNop()
 
-	authStore, authMw, err := initializeAuth(cfg, logger)
+	authStore, authMw, err := main.InitializeAuth(cfg, logger)
 	require.NoError(t, err)
 	require.NotNil(t, authStore)
 	require.NotNil(t, authMw)
@@ -149,7 +150,7 @@ func TestInitializeAuth_SentinelMode(t *testing.T) {
 
 	// Note: This will fail because miniredis doesn't support Sentinel protocol,
 	// but we're testing that the configuration path works correctly.
-	authStore, authMw, err := initializeAuth(cfg, logger)
+	authStore, authMw, err := main.InitializeAuth(cfg, logger)
 
 	// Sentinel mode with miniredis will fail connectivity check.
 	// This is expected behavior - we're testing the config path.
@@ -184,7 +185,7 @@ func TestInitializeAuth_ConnectionFailure(t *testing.T) {
 
 	logger := zap.NewNop()
 
-	authStore, authMw, err := initializeAuth(cfg, logger)
+	authStore, authMw, err := main.InitializeAuth(cfg, logger)
 	assert.Error(t, err)
 	assert.Nil(t, authStore)
 	assert.Nil(t, authMw)
@@ -195,14 +196,7 @@ func TestApplicationComponents_Close(t *testing.T) {
 	t.Run("handles nil components gracefully", func(t *testing.T) {
 		logger := zap.NewNop()
 
-		components := &applicationComponents{
-			store:         nil,
-			k8sAdapter:    nil,
-			healthChecker: nil,
-			server:        nil,
-			authStore:     nil,
-			authMw:        nil,
-		}
+		components := main.NewApplicationComponentsForTest(nil)
 
 		// Should not panic with nil components and return nil error.
 		err := components.Close(logger)
@@ -234,12 +228,10 @@ func TestApplicationComponents_Close(t *testing.T) {
 
 		logger := zap.NewNop()
 
-		authStore, _, err := initializeAuth(cfg, logger)
+		authStore, _, err := main.InitializeAuth(cfg, logger)
 		require.NoError(t, err)
 
-		components := &applicationComponents{
-			authStore: authStore,
-		}
+		components := main.NewApplicationComponentsForTest(authStore)
 
 		// Close should succeed and return nil.
 		err = components.Close(logger)
