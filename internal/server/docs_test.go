@@ -133,6 +133,7 @@ info:
 			path:           "/docs/",
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
+				t.Helper()
 				assert.Contains(t, body, "swagger-ui")
 			},
 		},
@@ -141,6 +142,7 @@ info:
 			path:           "/docs/openapi.yaml",
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
+				t.Helper()
 				assert.Contains(t, body, "openapi:")
 			},
 		},
@@ -149,6 +151,7 @@ info:
 			path:           "/openapi.yaml",
 			expectedStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body string) {
+				t.Helper()
 				assert.Contains(t, body, "openapi:")
 			},
 		},

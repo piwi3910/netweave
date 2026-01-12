@@ -189,6 +189,7 @@ func newTestMockPlugin(name string) *mockSMOPlugin {
 }
 
 func setupTestSMOHandler(t *testing.T) (*SMOHandler, *smoapi.Registry) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	logger := zap.NewNop()
 	registry := smoapi.NewRegistry(logger)

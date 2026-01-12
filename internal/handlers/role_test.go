@@ -76,6 +76,7 @@ func TestRoleHandler_ListRoles(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Roles []*auth.Role `json:"roles"`
 					Total int          `json:"total"`
@@ -99,6 +100,7 @@ func TestRoleHandler_ListRoles(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Roles []*auth.Role `json:"roles"`
 					Total int          `json:"total"`
@@ -117,6 +119,7 @@ func TestRoleHandler_ListRoles(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Roles []*auth.Role `json:"roles"`
 					Total int          `json:"total"`
@@ -180,6 +183,7 @@ func TestRoleHandler_GetRole(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response auth.Role
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -197,6 +201,7 @@ func TestRoleHandler_GetRole(t *testing.T) {
 			},
 			wantStatus: http.StatusNotFound,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -227,6 +232,7 @@ func TestRoleHandler_GetRole(t *testing.T) {
 			},
 			wantStatus: http.StatusForbidden,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -248,6 +254,7 @@ func TestRoleHandler_GetRole(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response auth.Role
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -269,6 +276,7 @@ func TestRoleHandler_GetRole(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response auth.Role
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
