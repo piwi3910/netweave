@@ -232,7 +232,7 @@ func (m *mockAdapter) Health(_ context.Context) error {
 func (m *mockAdapter) Close() error { return nil }
 
 // setupTestHandler creates a test handler with mock dependencies.
-func setupTestHandler(t *testing.T) (*Handler, *registry.Registry, *mockAdapter) {
+func setupTestHandler(t *testing.T) (*Handler, *mockAdapter) {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -247,7 +247,7 @@ func setupTestHandler(t *testing.T) (*Handler, *registry.Registry, *mockAdapter)
 	store := storage.NewMemoryStore()
 	handler := NewHandler(reg, store, logger)
 
-	return handler, reg, mockAdp
+	return handler, mockAdp
 }
 
 // setupTestRouter creates a test router with the handler configured.
@@ -294,7 +294,7 @@ func setupTestRouter(handler *Handler) *gin.Engine {
 // NF Deployment Tests
 
 func TestListNFDeployments(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Add some deployments to the mock adapter.
@@ -337,7 +337,7 @@ func TestListNFDeployments(t *testing.T) {
 }
 
 func TestGetNFDeployment(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -369,7 +369,7 @@ func TestGetNFDeployment(t *testing.T) {
 }
 
 func TestGetNFDeployment_NotFound(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments/nonexistent", nil)
@@ -381,7 +381,7 @@ func TestGetNFDeployment_NotFound(t *testing.T) {
 }
 
 func TestCreateNFDeployment(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	createReq := models.CreateNFDeploymentRequest{
@@ -412,7 +412,7 @@ func TestCreateNFDeployment(t *testing.T) {
 }
 
 func TestCreateNFDeployment_InvalidRequest(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Missing required fields.
@@ -433,7 +433,7 @@ func TestCreateNFDeployment_InvalidRequest(t *testing.T) {
 }
 
 func TestUpdateNFDeployment(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -476,7 +476,7 @@ func TestUpdateNFDeployment(t *testing.T) {
 }
 
 func TestDeleteNFDeployment(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -498,7 +498,7 @@ func TestDeleteNFDeployment(t *testing.T) {
 }
 
 func TestScaleNFDeployment(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -526,7 +526,7 @@ func TestScaleNFDeployment(t *testing.T) {
 }
 
 func TestRollbackNFDeployment(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -556,7 +556,7 @@ func TestRollbackNFDeployment(t *testing.T) {
 }
 
 func TestGetNFDeploymentStatus(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -585,7 +585,7 @@ func TestGetNFDeploymentStatus(t *testing.T) {
 }
 
 func TestGetNFDeploymentHistory(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -615,7 +615,7 @@ func TestGetNFDeploymentHistory(t *testing.T) {
 // NF Deployment Descriptor Tests
 
 func TestListNFDeploymentDescriptors(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.packages = []*adapter.DeploymentPackage{
@@ -644,7 +644,7 @@ func TestListNFDeploymentDescriptors(t *testing.T) {
 }
 
 func TestCreateNFDeploymentDescriptor(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	createReq := models.CreateNFDeploymentDescriptorRequest{
@@ -676,7 +676,7 @@ func TestCreateNFDeploymentDescriptor(t *testing.T) {
 // DMS Subscription Tests
 
 func TestListDMSSubscriptions(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/subscriptions", nil)
@@ -694,7 +694,7 @@ func TestListDMSSubscriptions(t *testing.T) {
 }
 
 func TestCreateDMSSubscription(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Use a public HTTPS URL that will pass DNS validation.
@@ -733,7 +733,7 @@ func TestCreateDMSSubscription(t *testing.T) {
 }
 
 func TestGetDMSSubscription(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// First create a subscription.
@@ -772,7 +772,7 @@ func TestGetDMSSubscription(t *testing.T) {
 }
 
 func TestDeleteDMSSubscription(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// First create a subscription.
@@ -813,7 +813,7 @@ func TestDeleteDMSSubscription(t *testing.T) {
 }
 
 func TestGetDMSSubscription_NotFound(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/subscriptions/nonexistent", nil)
@@ -827,7 +827,7 @@ func TestGetDMSSubscription_NotFound(t *testing.T) {
 // Deployment Lifecycle Info Test
 
 func TestGetDeploymentLifecycleInfo(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/deploymentLifecycle", nil)
@@ -872,7 +872,7 @@ func TestHandler_NoDefaultAdapter(t *testing.T) {
 }
 
 func TestHandler_AdapterByQueryParam(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -893,7 +893,7 @@ func TestHandler_AdapterByQueryParam(t *testing.T) {
 }
 
 func TestHandler_AdapterByQueryParam_NotFound(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments?adapter=nonexistent", nil)
@@ -905,7 +905,7 @@ func TestHandler_AdapterByQueryParam_NotFound(t *testing.T) {
 }
 
 func TestHandler_InvalidJSONBody(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Send invalid JSON.
@@ -919,7 +919,7 @@ func TestHandler_InvalidJSONBody(t *testing.T) {
 }
 
 func TestHandler_CreateDeploymentError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Set error on mock adapter.
@@ -943,7 +943,7 @@ func TestHandler_CreateDeploymentError(t *testing.T) {
 }
 
 func TestHandler_UpdateDeploymentError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -968,7 +968,7 @@ func TestHandler_UpdateDeploymentError(t *testing.T) {
 }
 
 func TestHandler_DeleteDeploymentError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deleteDeploymentErr = adapter.ErrDeploymentNotFound
@@ -982,7 +982,7 @@ func TestHandler_DeleteDeploymentError(t *testing.T) {
 }
 
 func TestHandler_ScaleDeploymentError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -1004,7 +1004,7 @@ func TestHandler_ScaleDeploymentError(t *testing.T) {
 }
 
 func TestHandler_RollbackDeploymentError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -1026,7 +1026,7 @@ func TestHandler_RollbackDeploymentError(t *testing.T) {
 }
 
 func TestHandler_GetNFDeploymentStatus_NotFound(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments/nonexistent/status", nil)
@@ -1038,7 +1038,7 @@ func TestHandler_GetNFDeploymentStatus_NotFound(t *testing.T) {
 }
 
 func TestHandler_GetNFDeploymentHistory_NotFound(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments/nonexistent/history", nil)
@@ -1050,7 +1050,7 @@ func TestHandler_GetNFDeploymentHistory_NotFound(t *testing.T) {
 }
 
 func TestHandler_GetNFDeploymentDescriptor_NotFound(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeploymentDescriptors/nonexistent", nil)
@@ -1062,7 +1062,7 @@ func TestHandler_GetNFDeploymentDescriptor_NotFound(t *testing.T) {
 }
 
 func TestHandler_DeleteNFDeploymentDescriptor(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.packages = []*adapter.DeploymentPackage{
@@ -1082,7 +1082,7 @@ func TestHandler_DeleteNFDeploymentDescriptor(t *testing.T) {
 }
 
 func TestHandler_DeleteNFDeploymentDescriptor_NotFound(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/nfDeploymentDescriptors/nonexistent", nil)
@@ -1094,7 +1094,7 @@ func TestHandler_DeleteNFDeploymentDescriptor_NotFound(t *testing.T) {
 }
 
 func TestHandler_DeleteDMSSubscription_NotFound(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/subscriptions/nonexistent", nil)
@@ -1106,7 +1106,7 @@ func TestHandler_DeleteDMSSubscription_NotFound(t *testing.T) {
 }
 
 func TestHandler_Health(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 
 	err := handler.Health(context.Background())
 	assert.NoError(t, err)
@@ -1280,7 +1280,7 @@ func TestHandler_DeleteSubscriptionNoStore(t *testing.T) {
 }
 
 func TestHandler_ListWithFilter(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -1302,7 +1302,7 @@ func TestHandler_ListWithFilter(t *testing.T) {
 }
 
 func TestHandler_ListDescriptorsWithFilter(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.packages = []*adapter.DeploymentPackage{
@@ -1322,7 +1322,7 @@ func TestHandler_ListDescriptorsWithFilter(t *testing.T) {
 }
 
 func TestHandler_CreateSubscriptionWithFilter(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	testCallbackURL := "https://google.com/webhook"
@@ -1604,7 +1604,7 @@ func TestValidatePaginationLimit(t *testing.T) {
 // Callback URL validation integration tests
 
 func TestCreateDMSSubscription_HTTPCallbackRejected(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	createReq := models.CreateDMSSubscriptionRequest{
@@ -1629,7 +1629,7 @@ func TestCreateDMSSubscription_HTTPCallbackRejected(t *testing.T) {
 }
 
 func TestCreateDMSSubscription_LocalhostCallbackRejected(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	createReq := models.CreateDMSSubscriptionRequest{
@@ -1654,7 +1654,7 @@ func TestCreateDMSSubscription_LocalhostCallbackRejected(t *testing.T) {
 }
 
 func TestCreateDMSSubscription_LoopbackIPRejected(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	createReq := models.CreateDMSSubscriptionRequest{
@@ -1674,7 +1674,7 @@ func TestCreateDMSSubscription_LoopbackIPRejected(t *testing.T) {
 }
 
 func TestCreateDMSSubscription_InvalidCallbackBody(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Missing callback URL entirely - test binding validation.
@@ -1911,7 +1911,7 @@ func TestValidateDeploymentName(t *testing.T) {
 // Integration tests for deployment name validation
 
 func TestCreateNFDeployment_InvalidName(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	tests := []struct {
@@ -1965,7 +1965,7 @@ func TestCreateNFDeployment_InvalidName(t *testing.T) {
 // Edge case tests
 
 func TestScaleNFDeployment_InvalidReplicas(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -1987,7 +1987,7 @@ func TestScaleNFDeployment_InvalidReplicas(t *testing.T) {
 }
 
 func TestRollbackNFDeployment_InvalidBody(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -2010,7 +2010,7 @@ func TestRollbackNFDeployment_InvalidBody(t *testing.T) {
 }
 
 func TestListNFDeployments_InvalidFilterParams(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Test with invalid limit (string instead of int).
@@ -2023,7 +2023,7 @@ func TestListNFDeployments_InvalidFilterParams(t *testing.T) {
 }
 
 func TestCreateNFDeploymentDescriptor_InvalidBody(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Test with invalid JSON body.
@@ -2037,7 +2037,7 @@ func TestCreateNFDeploymentDescriptor_InvalidBody(t *testing.T) {
 }
 
 func TestUpdateNFDeployment_InvalidBody(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	mockAdp.deployments = []*adapter.Deployment{
@@ -2057,7 +2057,7 @@ func TestUpdateNFDeployment_InvalidBody(t *testing.T) {
 // Error handling differentiation tests (404 vs 500)
 
 func TestGetNFDeployment_InternalError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Set internal error (not ErrDeploymentNotFound).
@@ -2077,7 +2077,7 @@ func TestGetNFDeployment_InternalError(t *testing.T) {
 }
 
 func TestGetNFDeploymentStatus_InternalError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Set internal error (not ErrDeploymentNotFound).
@@ -2097,7 +2097,7 @@ func TestGetNFDeploymentStatus_InternalError(t *testing.T) {
 }
 
 func TestGetNFDeploymentHistory_InternalError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Set internal error (not ErrDeploymentNotFound).
@@ -2117,7 +2117,7 @@ func TestGetNFDeploymentHistory_InternalError(t *testing.T) {
 }
 
 func TestGetNFDeploymentDescriptor_InternalError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Set internal error (not ErrPackageNotFound).
@@ -2137,7 +2137,7 @@ func TestGetNFDeploymentDescriptor_InternalError(t *testing.T) {
 }
 
 func TestUpdateNFDeployment_NotFound(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	updateReq := models.UpdateNFDeploymentRequest{
@@ -2161,7 +2161,7 @@ func TestUpdateNFDeployment_NotFound(t *testing.T) {
 }
 
 func TestUpdateNFDeployment_InternalError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Set internal error (not ErrDeploymentNotFound).
@@ -2188,7 +2188,7 @@ func TestUpdateNFDeployment_InternalError(t *testing.T) {
 }
 
 func TestDeleteNFDeployment_NotFound(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/nfDeployments/nonexistent", nil)
@@ -2205,7 +2205,7 @@ func TestDeleteNFDeployment_NotFound(t *testing.T) {
 }
 
 func TestDeleteNFDeployment_InternalError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Set internal error (not ErrDeploymentNotFound).
@@ -2225,7 +2225,7 @@ func TestDeleteNFDeployment_InternalError(t *testing.T) {
 }
 
 func TestDeleteNFDeploymentDescriptor_NotFound(t *testing.T) {
-	handler, _, _ := setupTestHandler(t)
+	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/nfDeploymentDescriptors/nonexistent", nil)
@@ -2242,7 +2242,7 @@ func TestDeleteNFDeploymentDescriptor_NotFound(t *testing.T) {
 }
 
 func TestDeleteNFDeploymentDescriptor_InternalError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Set internal error (not ErrPackageNotFound).
@@ -2262,7 +2262,7 @@ func TestDeleteNFDeploymentDescriptor_InternalError(t *testing.T) {
 }
 
 func TestScaleNFDeployment_NotFound(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Set not found error.
@@ -2282,7 +2282,7 @@ func TestScaleNFDeployment_NotFound(t *testing.T) {
 }
 
 func TestScaleNFDeployment_InternalError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Set internal error (not ErrDeploymentNotFound).
@@ -2302,7 +2302,7 @@ func TestScaleNFDeployment_InternalError(t *testing.T) {
 }
 
 func TestRollbackNFDeployment_NotFound(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Set not found error.
@@ -2322,7 +2322,7 @@ func TestRollbackNFDeployment_NotFound(t *testing.T) {
 }
 
 func TestRollbackNFDeployment_InternalError(t *testing.T) {
-	handler, _, mockAdp := setupTestHandler(t)
+	handler, mockAdp := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
 	// Set internal error (not ErrDeploymentNotFound).

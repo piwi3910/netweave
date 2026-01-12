@@ -17,7 +17,7 @@ import (
 )
 
 // setupUserTestRouter creates a test Gin router with the UserHandler.
-func setupUserTestRouter(t *testing.T, store *mockAuthStore) (*gin.Engine, *UserHandler) {
+func setupUserTestRouter(t *testing.T, store *mockAuthStore) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -56,7 +56,7 @@ func setupUserTestRouter(t *testing.T, store *mockAuthStore) (*gin.Engine, *User
 	router.DELETE("/tenant/users/:userId", handler.DeleteUser)
 	router.GET("/user", handler.GetCurrentUser)
 
-	return router, handler
+	return router
 }
 
 // TestUserHandler_ListUsers tests listing users.
@@ -136,7 +136,7 @@ func TestUserHandler_ListUsers(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupUserTestRouter(t, store)
+			router := setupUserTestRouter(t, store)
 
 			req := httptest.NewRequest(http.MethodGet, "/tenant/users", nil)
 			req.Header.Set("Accept", "application/json")
@@ -311,7 +311,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupUserTestRouter(t, store)
+			router := setupUserTestRouter(t, store)
 
 			var body []byte
 			var err error
@@ -431,7 +431,7 @@ func TestUserHandler_GetUser(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupUserTestRouter(t, store)
+			router := setupUserTestRouter(t, store)
 
 			url := "/tenant/users/" + tt.userID
 			req := httptest.NewRequest(http.MethodGet, url, nil)
@@ -545,7 +545,7 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupUserTestRouter(t, store)
+			router := setupUserTestRouter(t, store)
 
 			var body []byte
 			var err error
@@ -643,7 +643,7 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupUserTestRouter(t, store)
+			router := setupUserTestRouter(t, store)
 
 			url := "/tenant/users/" + tt.userID
 			req := httptest.NewRequest(http.MethodDelete, url, nil)
@@ -696,7 +696,7 @@ func TestUserHandler_GetCurrentUser(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupUserTestRouter(t, store)
+			router := setupUserTestRouter(t, store)
 
 			req := httptest.NewRequest(http.MethodGet, "/user", nil)
 			req.Header.Set("Accept", "application/json")

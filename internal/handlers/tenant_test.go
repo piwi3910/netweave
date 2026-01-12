@@ -220,7 +220,7 @@ func (m *mockAuthStore) Close() error {
 }
 
 // setupTenantTestRouter creates a test Gin router with the TenantHandler.
-func setupTenantTestRouter(t *testing.T, store *mockAuthStore) (*gin.Engine, *TenantHandler) {
+func setupTenantTestRouter(t *testing.T, store *mockAuthStore) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -236,7 +236,7 @@ func setupTenantTestRouter(t *testing.T, store *mockAuthStore) (*gin.Engine, *Te
 	router.DELETE("/admin/tenants/:tenantId", handler.DeleteTenant)
 	router.GET("/tenant", handler.GetCurrentTenant)
 
-	return router, handler
+	return router
 }
 
 // TestTenantHandler_ListTenants tests listing tenants.
@@ -300,7 +300,7 @@ func TestTenantHandler_ListTenants(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupTenantTestRouter(t, store)
+			router := setupTenantTestRouter(t, store)
 
 			req := httptest.NewRequest(http.MethodGet, "/admin/tenants", nil)
 			req.Header.Set("Accept", "application/json")
@@ -393,7 +393,7 @@ func TestTenantHandler_CreateTenant(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := newMockAuthStore()
-			router, _ := setupTenantTestRouter(t, store)
+			router := setupTenantTestRouter(t, store)
 
 			var body []byte
 			var err error
@@ -480,7 +480,7 @@ func TestTenantHandler_GetTenant(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupTenantTestRouter(t, store)
+			router := setupTenantTestRouter(t, store)
 
 			url := "/admin/tenants/" + tt.tenantID
 			if tt.tenantID == "" {
@@ -593,7 +593,7 @@ func TestTenantHandler_UpdateTenant(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupTenantTestRouter(t, store)
+			router := setupTenantTestRouter(t, store)
 
 			var body []byte
 			var err error
@@ -680,7 +680,7 @@ func TestTenantHandler_DeleteTenant(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupTenantTestRouter(t, store)
+			router := setupTenantTestRouter(t, store)
 
 			url := "/admin/tenants/" + tt.tenantID
 			req := httptest.NewRequest(http.MethodDelete, url, nil)
@@ -716,7 +716,7 @@ func TestTenantHandler_GetCurrentTenant(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := newMockAuthStore()
-			router, _ := setupTenantTestRouter(t, store)
+			router := setupTenantTestRouter(t, store)
 
 			req := httptest.NewRequest(http.MethodGet, "/tenant", nil)
 			req.Header.Set("Accept", "application/json")

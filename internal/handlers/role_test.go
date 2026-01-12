@@ -15,7 +15,7 @@ import (
 )
 
 // setupRoleTestRouter creates a test Gin router with the RoleHandler.
-func setupRoleTestRouter(t *testing.T, store *mockAuthStore) (*gin.Engine, *RoleHandler) {
+func setupRoleTestRouter(t *testing.T, store *mockAuthStore) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -45,7 +45,7 @@ func setupRoleTestRouter(t *testing.T, store *mockAuthStore) (*gin.Engine, *Role
 	router.GET("/roles/:roleId", handler.GetRole)
 	router.GET("/permissions", handler.ListPermissions)
 
-	return router, handler
+	return router
 }
 
 // TestRoleHandler_ListRoles tests listing roles.
@@ -137,7 +137,7 @@ func TestRoleHandler_ListRoles(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupRoleTestRouter(t, store)
+			router := setupRoleTestRouter(t, store)
 
 			req := httptest.NewRequest(http.MethodGet, "/roles", nil)
 			req.Header.Set("Accept", "application/json")
@@ -291,7 +291,7 @@ func TestRoleHandler_GetRole(t *testing.T) {
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router, _ := setupRoleTestRouter(t, store)
+			router := setupRoleTestRouter(t, store)
 
 			url := "/roles/" + tt.roleID
 			if tt.roleID == "" {
