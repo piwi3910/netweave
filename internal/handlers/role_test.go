@@ -318,7 +318,7 @@ func TestRoleHandler_GetRole(t *testing.T) {
 // TestRoleHandler_ListPermissions tests listing all permissions.
 func TestRoleHandler_ListPermissions(t *testing.T) {
 	store := newMockAuthStore()
-	router, _ := setupRoleTestRouter(t, store)
+	router := setupRoleTestRouter(t, store)
 
 	req := httptest.NewRequest(http.MethodGet, "/permissions", nil)
 	req.Header.Set("Accept", "application/json")
