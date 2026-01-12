@@ -23,6 +23,7 @@ import (
 	dmshandlers "github.com/piwi3910/netweave/internal/dms/handlers"
 	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
 	dmsstorage "github.com/piwi3910/netweave/internal/dms/storage"
+	"github.com/piwi3910/netweave/internal/handlers"
 	"github.com/piwi3910/netweave/internal/middleware"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/smo"
@@ -68,6 +69,9 @@ type Server struct {
 	healthCheck      *observability.HealthChecker
 	openAPIValidator *middleware.OpenAPIValidator
 	openAPISpec      []byte
+
+	// Handlers
+	batchHandler *handlers.BatchHandler
 
 	// DMS subsystem.
 	dmsRegistry *dmsregistry.Registry
@@ -137,6 +141,9 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 	// Initialize metrics
 	metrics := initMetrics(cfg)
 
+	// Initialize global observability metrics
+	globalMetrics := observability.InitMetrics(cfg.Observability.Metrics.Namespace)
+
 	// Initialize health checker with adapter and storage checks
 	healthCheck := initHealthChecker(cfg, adp, store)
 
@@ -147,6 +154,9 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 			zap.Error(err),
 		)
 	}
+
+	// Initialize batch handler
+	batchHandler := handlers.NewBatchHandler(adp, store, logger, globalMetrics)
 
 	// Create server instance
 	srv := &Server{
@@ -159,6 +169,7 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 		healthCheck:      healthCheck,
 		openAPIValidator: openAPIValidator,
 		openAPISpec:      o2imsOpenAPISpec,
+		batchHandler:     batchHandler,
 	}
 
 	// Setup middleware

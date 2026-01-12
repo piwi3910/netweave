@@ -4,15 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 // CreateSubscription creates a new event subscription.
-// NOTE: DTIAS does not have a native event/subscription system.
-// This implementation returns an error indicating that subscriptions must be
-// implemented at a higher layer using polling or an external event system.
+// Since DTIAS does not have a native event/subscription system, subscriptions are
+// stored locally and the gateway layer implements polling to detect changes.
+// The polling mechanism should periodically:
+//  1. Call ListResourcePools() and ListResources() to get current state
+//  2. Compare with previous state to detect changes
+//  3. Match changes against subscription filters
+//  4. Send webhook notifications to matching subscription callbacks
 func (a *DTIASAdapter) CreateSubscription(
 	_ context.Context,
 	sub *adapter.Subscription,
@@ -20,34 +25,131 @@ func (a *DTIASAdapter) CreateSubscription(
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback))
 
-	// DTIAS does not support native subscriptions
-	// Subscriptions should be implemented at the gateway layer using:
-	// 1. Polling-based change detection
-	// 2. External event system (e.g., Redis Pub/Sub, Kafka)
-	// 3. Kubernetes informers if DTIAS servers are represented as CRDs
+	// Validate required fields
+	if sub.Callback == "" {
+		return nil, fmt.Errorf("callback URL is required")
+	}
 
-	return nil, fmt.Errorf(
-		"DTIAS adapter does not support native subscriptions - " +
-			"subscriptions must be implemented at the gateway layer using polling or external event system",
-	)
+	// Generate subscription ID if not provided
+	subscriptionID := sub.SubscriptionID
+	if subscriptionID == "" {
+		subscriptionID = uuid.New().String()
+	}
+
+	// Create the subscription
+	newSub := &adapter.Subscription{
+		SubscriptionID:         subscriptionID,
+		Callback:               sub.Callback,
+		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
+		Filter:                 sub.Filter,
+	}
+
+	// Store the subscription atomically with existence check
+	a.subscriptionsMu.Lock()
+	if _, exists := a.subscriptions[subscriptionID]; exists {
+		a.subscriptionsMu.Unlock()
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionExists, subscriptionID)
+	}
+	a.subscriptions[subscriptionID] = newSub
+	a.subscriptionsMu.Unlock()
+
+	a.logger.Info("subscription created (polling-based)",
+		zap.String("subscriptionId", subscriptionID),
+		zap.String("callback", sub.Callback))
+
+	return newSub, nil
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-// NOTE: DTIAS does not have a native subscription system.
 func (a *DTIASAdapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
-	return nil, fmt.Errorf("DTIAS adapter does not support native subscriptions")
+	a.subscriptionsMu.RLock()
+	sub, ok := a.subscriptions[id]
+	a.subscriptionsMu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+	}
+
+	return sub, nil
+}
+
+// UpdateSubscription updates an existing subscription.
+// Returns the updated subscription or an error if not found.
+func (a *DTIASAdapter) UpdateSubscription(
+	_ context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
+	a.logger.Debug("UpdateSubscription called",
+		zap.String("id", id))
+
+	// Validate required fields
+	if sub.Callback == "" {
+		return nil, fmt.Errorf("callback URL is required")
+	}
+
+	// Update the subscription atomically with existence check
+	a.subscriptionsMu.Lock()
+	defer a.subscriptionsMu.Unlock()
+
+	existing, ok := a.subscriptions[id]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+	}
+
+	// Create updated subscription preserving the ID
+	updated := &adapter.Subscription{
+		SubscriptionID:         id,
+		Callback:               sub.Callback,
+		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
+		Filter:                 sub.Filter,
+	}
+
+	a.subscriptions[id] = updated
+
+	a.logger.Info("subscription updated",
+		zap.String("subscriptionId", id),
+		zap.String("oldCallback", existing.Callback),
+		zap.String("newCallback", sub.Callback))
+
+	return updated, nil
 }
 
 // DeleteSubscription deletes a subscription by ID.
-// NOTE: DTIAS does not have a native subscription system.
 func (a *DTIASAdapter) DeleteSubscription(_ context.Context, id string) error {
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
-	return fmt.Errorf("DTIAS adapter does not support native subscriptions")
+	a.subscriptionsMu.Lock()
+	defer a.subscriptionsMu.Unlock()
+
+	if _, ok := a.subscriptions[id]; !ok {
+		return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+	}
+
+	delete(a.subscriptions, id)
+
+	a.logger.Info("subscription deleted",
+		zap.String("subscriptionId", id))
+
+	return nil
+}
+
+// ListSubscriptions returns all active subscriptions.
+// This is useful for the polling mechanism to know which subscriptions need notifications.
+func (a *DTIASAdapter) ListSubscriptions() []*adapter.Subscription {
+	a.subscriptionsMu.RLock()
+	defer a.subscriptionsMu.RUnlock()
+
+	subs := make([]*adapter.Subscription, 0, len(a.subscriptions))
+	for _, sub := range a.subscriptions {
+		subs = append(subs, sub)
+	}
+
+	return subs
 }
 
 // PollingRecommendation provides guidance for implementing subscription-like functionality
@@ -71,13 +173,13 @@ func (a *DTIASAdapter) DeleteSubscription(_ context.Context, id string) error {
 //
 // This approach provides subscription-like functionality without native DTIAS support.
 type PollingRecommendation struct {
-	// RecommendedIntervals provides suggested polling intervals by resource type
+	// RecommendedIntervals provides suggested polling intervals by resource type.
 	RecommendedIntervals map[string]string
 
-	// ChangeDetectionFields lists fields that should be monitored for changes
+	// ChangeDetectionFields lists fields that should be monitored for changes.
 	ChangeDetectionFields map[string][]string
 
-	// OptimizationTips provides tips for efficient polling
+	// OptimizationTips provides tips for efficient polling.
 	OptimizationTips []string
 }
 
