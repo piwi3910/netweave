@@ -37,11 +37,10 @@ jobs:
 
       - name: Install golangci-lint from source
         run: |
-          git clone --depth 1 --branch v2.8.0 https://github.com/golangci/golangci-lint.git /tmp/golangci-lint
+          git clone --depth 1 https://github.com/golangci/golangci-lint.git /tmp/golangci-lint
           cd /tmp/golangci-lint
-          # Patch: Allow Go 1.24 built linter to analyze Go 1.25 code
-          # The version check is overly conservative - linters can analyze newer Go code
-          sed -i 's/if runtimeVersion.LessThan(targetedVersion) {/if false \&\& runtimeVersion.LessThan(targetedVersion) {/' pkg/goutil/version.go
+          # Update go.mod to Go 1.25 for compatibility with our project
+          sed -i 's/^go 1\.24\.0$/go 1.25.0/' go.mod
           cd cmd/golangci-lint
           go build -o $(go env GOPATH)/bin/golangci-lint .
 
