@@ -27,6 +27,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	poolModeCluster = "cluster"
+)
+
 // VMwareAdapter implements the adapter.Adapter interface for VMware vSphere backends.
 // It provides O2-IMS functionality by mapping O2-IMS resources to vSphere resources:
 //   - Resource Pools → vSphere Clusters or Resource Pools
@@ -209,7 +213,7 @@ func applyVMwareDefaults(cfg *Config) (deploymentManagerID, poolMode string, tim
 
 	poolMode = cfg.PoolMode
 	if poolMode == "" {
-		poolMode = "cluster"
+		poolMode = poolModeCluster
 	}
 
 	timeout = cfg.Timeout

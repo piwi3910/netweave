@@ -25,7 +25,6 @@ type mockSMOPlugin struct {
 	vendor       string
 	capabilities []smoapi.Capability
 	healthy      bool
-	healthErr    error
 	closed       bool
 
 	// Return values for methods

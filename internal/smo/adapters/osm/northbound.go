@@ -77,25 +77,6 @@ type InfrastructureEvent struct {
 // syncOSMInfrastructure synchronizes OSM-specific infrastructure inventory to OSM.
 // This is an internal method for VIM account synchronization.
 //
-// Northbound flow:
-//  1. netweave O2-IMS discovers infrastructure (resource pools, resources)
-//  2. netweave transforms infrastructure to VIM account representation
-//  3. This method syncs VIM accounts to OSM
-//  4. OSM can now deploy NS/VNF to the registered infrastructure
-func (p *Plugin) syncOSMInfrastructure(ctx context.Context, inventory *InfrastructureInventory) error {
-	if inventory == nil {
-		return fmt.Errorf("inventory cannot be nil")
-	}
-
-	// Sync each VIM account
-	for _, vim := range inventory.VIMAccounts {
-		if err := p.syncVIMAccount(ctx, vim); err != nil {
-			return fmt.Errorf("failed to sync VIM account %s: %w", vim.Name, err)
-		}
-	}
-
-	return nil
-}
 
 // syncVIMAccount creates or updates a single VIM account in OSM.
 func (p *Plugin) syncVIMAccount(ctx context.Context, vim *VIMAccount) error {

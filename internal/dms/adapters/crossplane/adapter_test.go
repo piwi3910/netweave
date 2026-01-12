@@ -16,6 +16,11 @@ import (
 	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
 )
 
+const (
+	conditionTrue  = "True"
+	conditionFalse = "False"
+)
+
 // TestNewAdapter tests adapter creation with various configurations.
 func TestNewAdapter(t *testing.T) {
 	tests := []struct {
