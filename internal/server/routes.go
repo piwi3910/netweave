@@ -806,10 +806,22 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 
 	// Generate resource pool ID if not provided (sanitized with UUID for uniqueness)
 	// Format: pool-{sanitized-name}-{uuid}
-	// Example: "GPU Pool (Production)" → "pool-gpu-pool--production--a1b2c3d4-e5f6-7890-abcd-1234567890ab"
+	// Example: "GPU Pool (Production)" → "pool-gpu-pool-production-a1b2c3d4-e5f6-7890-abcd-1234567890ab"
 	if req.ResourcePoolID == "" {
-		// Add UUID suffix to prevent collisions from similar names
-		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name) + "-" + uuid.New().String()
+		sanitizedName := sanitizeResourcePoolID(req.Name)
+		// Clean up consecutive hyphens that can occur from sanitization
+		sanitizedName = strings.ReplaceAll(sanitizedName, "--", "-")
+		sanitizedName = strings.Trim(sanitizedName, "-")
+
+		// Ensure total length doesn't exceed 255 chars (per O2-IMS spec)
+		// UUID is 36 chars, "pool-" is 5 chars, we need 2 chars for separating hyphens = 43 chars reserved
+		// This leaves 212 chars for the sanitized name
+		maxNameLength := 212
+		if len(sanitizedName) > maxNameLength {
+			sanitizedName = sanitizedName[:maxNameLength]
+		}
+
+		req.ResourcePoolID = "pool-" + sanitizedName + "-" + uuid.New().String()
 	}
 
 	// Create resource pool via adapter
