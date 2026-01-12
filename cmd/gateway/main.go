@@ -127,7 +127,7 @@ func run() error {
 // ApplicationComponents holds all initialized application components.
 type ApplicationComponents struct {
 	store         *storage.RedisStore
-	k8sAdapter    *kubernetes.KubernetesAdapter
+	k8sAdapter    *kubernetes.Adapter
 	healthChecker *observability.HealthChecker
 	server        *server.Server
 	authStore     *auth.RedisStore
@@ -532,7 +532,7 @@ func verifyRedisConnectivity(store *storage.RedisStore) error {
 }
 
 // initializeKubernetesAdapter creates and initializes the Kubernetes adapter.
-func initializeKubernetesAdapter(cfg *config.Config, logger *zap.Logger) (*kubernetes.KubernetesAdapter, error) {
+func initializeKubernetesAdapter(cfg *config.Config, logger *zap.Logger) (*kubernetes.Adapter, error) {
 	// Build Kubernetes adapter configuration
 	k8sCfg := &kubernetes.Config{
 		Kubeconfig:          cfg.Kubernetes.ConfigPath,

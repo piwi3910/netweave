@@ -1248,7 +1248,7 @@ func (s *Server) getExistingResource(c *gin.Context, resourceID string) (*adapte
 				"message": "Resource not found: " + resourceID,
 				"code":    http.StatusNotFound,
 			})
-			return nil, err
+			return nil, fmt.Errorf("failed to get resource %s: %w", resourceID, err)
 		}
 
 		s.logger.Error("failed to get resource", zap.Error(err))
@@ -1257,7 +1257,7 @@ func (s *Server) getExistingResource(c *gin.Context, resourceID string) (*adapte
 			"message": "Failed to retrieve resource",
 			"code":    http.StatusInternalServerError,
 		})
-		return nil, err
+		return nil, fmt.Errorf("failed to get resource %s: %w", resourceID, err)
 	}
 	return existing, nil
 }
