@@ -362,6 +362,39 @@ func TestHandleGetResource(t *testing.T) {
 	})
 }
 
+// TestHandleDeleteResource tests the handleDeleteResource endpoint.
+func TestHandleDeleteResource(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+	t.Run("resource not found", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resources/res-nonexistent", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), "NotFound")
+	})
+
+	t.Run("successful deletion", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resources/res-existing", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNoContent, w.Code)
+		assert.Empty(t, w.Body.String())
+	})
+}
+
 // TestHandleGetResourceType tests the handleGetResourceType endpoint.
 func TestHandleGetResourceType(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -475,5 +508,241 @@ func TestHandleReadiness_Error(t *testing.T) {
 		srv.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	})
+}
+
+// TestHandleCreateResourcePool tests the handleCreateResourcePool endpoint.
+func TestHandleCreateResourcePool(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("creates resource pool successfully with auto-generated ID", func(t *testing.T) {
+		cfg := &config.Config{
+			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		}
+		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+		body := `{"name":"GPU Pool Production","description":"High-performance GPU resources"}`
+		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		assert.Contains(t, w.Header().Get("Location"), "/resourcePools/pool-")
+	})
+
+	t.Run("creates resource pool with client-provided ID", func(t *testing.T) {
+		cfg := &config.Config{
+			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		}
+		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+		body := `{"resourcePoolId":"pool-custom-123","name":"Custom Pool"}`
+		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		assert.Contains(t, w.Header().Get("Location"), "pool-custom-123")
+	})
+
+	t.Run("returns 400 for invalid JSON", func(t *testing.T) {
+		cfg := &config.Config{
+			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		}
+		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+		body := `{"name":invalid json}`
+		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "BadRequest")
+	})
+
+	t.Run("returns 400 for missing name", func(t *testing.T) {
+		cfg := &config.Config{
+			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		}
+		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+		body := `{"description":"Pool without name"}`
+		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "name is required")
+	})
+}
+
+// TestHandleUpdateResourcePool tests the handleUpdateResourcePool endpoint.
+func TestHandleUpdateResourcePool(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("returns 404 for non-existent pool", func(t *testing.T) {
+		cfg := &config.Config{
+			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		}
+		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+		body := `{"name":"Updated Pool"}`
+		req := httptest.NewRequest(http.MethodPut, "/o2ims-infrastructureInventory/v1/resourcePools/pool-nonexistent", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("returns 400 for invalid JSON", func(t *testing.T) {
+		cfg := &config.Config{
+			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		}
+		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+		body := `{invalid json}`
+		req := httptest.NewRequest(http.MethodPut, "/o2ims-infrastructureInventory/v1/resourcePools/pool-123", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// TestHandleDeleteResourcePool tests the handleDeleteResourcePool endpoint.
+func TestHandleDeleteResourcePool(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("returns 404 for non-existent pool", func(t *testing.T) {
+		cfg := &config.Config{
+			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		}
+		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/pool-nonexistent", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("deletes successfully", func(t *testing.T) {
+		cfg := &config.Config{
+			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		}
+		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/pool-existing", nil)
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNoContent, w.Code)
+	})
+}
+
+// TestHandleCreateResource tests the handleCreateResource endpoint.
+func TestHandleCreateResource(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("creates resource successfully", func(t *testing.T) {
+		cfg := &config.Config{
+			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		}
+		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+		body := `{"resourceTypeId":"compute-node","resourcePoolId":"pool-123","name":"Node 1"}`
+		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		assert.Contains(t, w.Header().Get("Location"), "/resources/")
+	})
+
+	t.Run("returns 400 for missing resourceTypeId", func(t *testing.T) {
+		cfg := &config.Config{
+			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		}
+		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+		body := `{"resourcePoolId":"pool-123","name":"Node 1"}`
+		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "resourceTypeId")
+	})
+
+	t.Run("returns 400 for missing resourcePoolId", func(t *testing.T) {
+		cfg := &config.Config{
+			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		}
+		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+		body := `{"resourceTypeId":"compute-node","name":"Node 1"}`
+		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "resourcePoolId")
+	})
+}
+
+// TestHandleUpdateSubscription tests the handleUpdateSubscription endpoint.
+func TestHandleUpdateSubscription(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("returns 404 for non-existent subscription", func(t *testing.T) {
+		cfg := &config.Config{
+			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		}
+		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+		body := `{"callback":"https://new-callback.example.com/notify"}`
+		req := httptest.NewRequest(http.MethodPut, "/o2ims-infrastructureInventory/v1/subscriptions/sub-nonexistent", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("returns 400 for invalid JSON", func(t *testing.T) {
+		cfg := &config.Config{
+			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		}
+		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+		body := `{invalid json}`
+		req := httptest.NewRequest(http.MethodPut, "/o2ims-infrastructureInventory/v1/subscriptions/sub-123", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		srv.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }

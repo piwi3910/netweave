@@ -57,6 +57,12 @@ var (
 	// ErrSubscriptionNotFound is returned when a subscription does not exist.
 	ErrSubscriptionNotFound = errors.New("subscription not found")
 
+	// ErrSubscriptionExists indicates a subscription with the given ID already exists.
+	ErrSubscriptionExists = errors.New("subscription already exists")
+
+	// ErrDeploymentManagerNotFound indicates the requested deployment manager does not exist.
+	ErrDeploymentManagerNotFound = errors.New("deployment manager not found")
+
 	// ErrInvalidResource indicates the resource has invalid fields or constraints.
 	ErrInvalidResource = errors.New("invalid resource")
 
