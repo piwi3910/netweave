@@ -1,6 +1,7 @@
-package server
+package server_test
 
 import (
+	"context"
 	"net"
 	"testing"
 
@@ -219,7 +220,7 @@ func TestValidateCallbackHost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateCallbackHost(tt.hostname)
+			err := validateCallbackHost(context.Background(), tt.hostname)
 
 			if tt.wantErr {
 				require.Error(t, err)

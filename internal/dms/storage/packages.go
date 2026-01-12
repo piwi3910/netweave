@@ -253,38 +253,9 @@ func (s *MemoryPackageStore) List(ctx context.Context, filter *PackageFilter) ([
 	var results []*adapter.DeploymentPackage
 
 	if filter != nil && filter.LatestOnly {
-		// Return only latest version per package name
-		for name, ids := range s.byName {
-			if filter.Name != "" && name != filter.Name {
-				continue
-			}
-
-			var latest *adapter.DeploymentPackage
-			for _, id := range ids {
-				pkg := s.packages[id]
-				if filter.PackageType != "" && pkg.PackageType != filter.PackageType {
-					continue
-				}
-				if latest == nil || pkg.UploadedAt.After(latest.UploadedAt) {
-					latest = pkg
-				}
-			}
-			if latest != nil {
-				results = append(results, copyPackage(latest))
-			}
-		}
+		results = s.collectLatestPackages(filter)
 	} else {
-		for _, pkg := range s.packages {
-			if filter != nil {
-				if filter.Name != "" && pkg.Name != filter.Name {
-					continue
-				}
-				if filter.PackageType != "" && pkg.PackageType != filter.PackageType {
-					continue
-				}
-			}
-			results = append(results, copyPackage(pkg))
-		}
+		results = s.collectAllPackages(filter)
 	}
 
 	// Apply pagination
@@ -455,6 +426,52 @@ func (s *MemoryPackageStore) Close() error {
 	s.byName = make(map[string][]string)
 
 	return nil
+}
+
+// collectLatestPackages returns only the latest version of each package matching the filter.
+func (s *MemoryPackageStore) collectLatestPackages(filter *adapter.Filter) []*adapter.DeploymentPackage {
+	var results []*adapter.DeploymentPackage
+
+	for name, ids := range s.byName {
+		if filter.Name != "" && name != filter.Name {
+			continue
+		}
+
+		var latest *adapter.DeploymentPackage
+		for _, id := range ids {
+			pkg := s.packages[id]
+			if filter.PackageType != "" && pkg.PackageType != filter.PackageType {
+				continue
+			}
+			if latest == nil || pkg.UploadedAt.After(latest.UploadedAt) {
+				latest = pkg
+			}
+		}
+		if latest != nil {
+			results = append(results, copyPackage(latest))
+		}
+	}
+
+	return results
+}
+
+// collectAllPackages returns all packages matching the filter.
+func (s *MemoryPackageStore) collectAllPackages(filter *adapter.Filter) []*adapter.DeploymentPackage {
+	var results []*adapter.DeploymentPackage
+
+	for _, pkg := range s.packages {
+		if filter != nil {
+			if filter.Name != "" && pkg.Name != filter.Name {
+				continue
+			}
+			if filter.PackageType != "" && pkg.PackageType != filter.PackageType {
+				continue
+			}
+		}
+		results = append(results, copyPackage(pkg))
+	}
+
+	return results
 }
 
 // Helper functions

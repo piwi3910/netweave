@@ -1,5 +1,5 @@
 // Package kubernetes provides tests for the Kubernetes adapter implementation.
-package kubernetes
+package kubernetes_test
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package argocd
+package argocd_test
 
 import (
 	"context"

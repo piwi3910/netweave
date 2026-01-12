@@ -202,17 +202,8 @@ func (h *Adapter) ListDeploymentPackages(
 		latestChart := chartVersions[0]
 
 		// Apply filter if provided (use Extensions for chart-specific filtering)
-		if filter != nil && filter.Extensions != nil {
-			if name, ok := filter.Extensions["helm.chartName"].(string); ok && name != "" {
-				if chartName != name {
-					continue
-				}
-			}
-			if version, ok := filter.Extensions["helm.chartVersion"].(string); ok && version != "" {
-				if latestChart.Version != version {
-					continue
-				}
-			}
+		if !h.matchesChartFilter(chartName, latestChart.Version, filter) {
+			continue
 		}
 
 		pkg := &adapter.DeploymentPackage{
@@ -860,6 +851,27 @@ func (h *Adapter) transformReleaseToStatus(rel *release.Release) *adapter.Deploy
 	status.Conditions = h.buildConditions(rel)
 
 	return status
+}
+
+// matchesChartFilter checks if a chart matches the provided filter criteria.
+func (h *Adapter) matchesChartFilter(chartName, chartVersion string, filter *adapter.Filter) bool {
+	if filter == nil || filter.Extensions == nil {
+		return true
+	}
+
+	if name, ok := filter.Extensions["helm.chartName"].(string); ok && name != "" {
+		if chartName != name {
+			return false
+		}
+	}
+
+	if version, ok := filter.Extensions["helm.chartVersion"].(string); ok && version != "" {
+		if chartVersion != version {
+			return false
+		}
+	}
+
+	return true
 }
 
 // transformHelmStatus converts Helm release status to DMS deployment status.
