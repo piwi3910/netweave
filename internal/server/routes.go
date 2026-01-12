@@ -1716,6 +1716,48 @@ func validateCallbackHost(hostname string) error {
 	return nil
 }
 
+// Pre-computed private IP ranges for SSRF protection.
+// These are computed at package initialization to avoid runtime parsing overhead
+// and ensure error handling happens at startup, not during request processing.
+var (
+	privateIPv4Nets []*net.IPNet
+	privateIPv6Nets []*net.IPNet
+)
+
+func init() {
+	// Parse private IPv4 ranges (RFC 1918 + link-local)
+	privateIPv4CIDRs := []string{
+		"10.0.0.0/8",     // Private class A
+		"172.16.0.0/12",  // Private class B
+		"192.168.0.0/16", // Private class C
+		"169.254.0.0/16", // Link-local
+	}
+
+	for _, cidr := range privateIPv4CIDRs {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			// This should never happen with hardcoded CIDRs
+			panic(fmt.Sprintf("invalid IPv4 CIDR in privateIPv4CIDRs: %s: %v", cidr, err))
+		}
+		privateIPv4Nets = append(privateIPv4Nets, network)
+	}
+
+	// Parse private IPv6 ranges
+	privateIPv6CIDRs := []string{
+		"fc00::/7",  // IPv6 unique local addresses (ULA)
+		"fe80::/10", // IPv6 link-local
+	}
+
+	for _, cidr := range privateIPv6CIDRs {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			// This should never happen with hardcoded CIDRs
+			panic(fmt.Sprintf("invalid IPv6 CIDR in privateIPv6CIDRs: %s: %v", cidr, err))
+		}
+		privateIPv6Nets = append(privateIPv6Nets, network)
+	}
+}
+
 // isPrivateIP checks if an IP address is in a private or reserved range.
 func isPrivateIP(ip net.IP) bool {
 	if ip.IsLoopback() {
@@ -1731,20 +1773,11 @@ func isPrivateIP(ip net.IP) bool {
 
 // isPrivateIPv4 checks if an IPv4 address is in a private range (RFC 1918).
 func isPrivateIPv4(ip net.IP) bool {
-	privateIPv4Ranges := []string{
-		"10.0.0.0/8",     // Private class A
-		"172.16.0.0/12",  // Private class B
-		"192.168.0.0/16", // Private class C
-		"169.254.0.0/16", // Link-local
-	}
-
-	for _, cidr := range privateIPv4Ranges {
-		_, network, _ := net.ParseCIDR(cidr)
+	for _, network := range privateIPv4Nets {
 		if network.Contains(ip) {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -1755,13 +1788,10 @@ func isPrivateIPv6(ip net.IP) bool {
 		return false
 	}
 
-	// IPv6 unique local addresses (fc00::/7)
-	_, ulaNetwork, _ := net.ParseCIDR("fc00::/7")
-	if ulaNetwork.Contains(ip) {
-		return true
+	for _, network := range privateIPv6Nets {
+		if network.Contains(ip) {
+			return true
+		}
 	}
-
-	// IPv6 link-local (fe80::/10)
-	_, linkLocalNetwork, _ := net.ParseCIDR("fe80::/10")
-	return linkLocalNetwork.Contains(ip)
+	return false
 }
