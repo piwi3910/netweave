@@ -430,49 +430,6 @@ func TestHelmAdapter_ApplyPagination(t *testing.T) {
 	}
 }
 
-func TestHelmAdapter_MatchesLabels(t *testing.T) {
-	adapter, err := NewAdapter(&Config{
-		Namespace: "test",
-	})
-	require.NoError(t, err)
-
-	deployment := &dmsadapter.Deployment{
-		ID:   "test-deployment",
-		Name: "test-deployment",
-	}
-
-	tests := []struct {
-		name   string
-		labels map[string]string
-		want   bool
-	}{
-		{
-			name:   "no labels",
-			labels: nil,
-			want:   true,
-		},
-		{
-			name:   "empty labels",
-			labels: map[string]string{},
-			want:   true,
-		},
-		{
-			name: "with labels",
-			labels: map[string]string{
-				"app": "test",
-			},
-			want: true, // Currently always returns true
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := adapter.matchesLabels(deployment, tt.labels)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestHelmAdapter_UploadDeploymentPackage(t *testing.T) {
 	adapter, err := NewAdapter(&Config{
 		Namespace:     "test",

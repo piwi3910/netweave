@@ -408,9 +408,8 @@ func (h *Adapter) matchesDeploymentFilter(
 	if filter.Status != "" && deployment.Status != filter.Status {
 		return false
 	}
-	if !h.matchesLabels(deployment, filter.Labels) {
-		return false
-	}
+	// Label filtering not yet implemented for Helm deployments
+	// (requires checking labels on deployed Kubernetes resources)
 	return true
 }
 
@@ -925,18 +924,6 @@ func (h *Adapter) buildConditions(rel *release.Release) []adapter.DeploymentCond
 	conditions = append(conditions, deployedCondition)
 
 	return conditions
-}
-
-// matchesLabels checks if deployment matches label filters.
-func (h *Adapter) matchesLabels(_ *adapter.Deployment, labels map[string]string) bool {
-	if len(labels) == 0 {
-		return true
-	}
-
-	// Helm doesn't have native label support for releases
-	// This would need to check labels on deployed Kubernetes resources
-	// For now, return true
-	return true
 }
 
 // applyPagination applies limit and offset to deployment list.
