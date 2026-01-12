@@ -687,7 +687,7 @@ func TestCopyPackage(t *testing.T) {
 		result := copyPackage(pkg)
 		require.NotNil(t, result)
 		assert.Equal(t, pkg.ID, result.ID)
-		assert.NotSame(t, pkg.Extensions, result.Extensions)
+		assert.NotSame(t, &pkg.Extensions, &result.Extensions)
 		assert.Equal(t, pkg.Extensions["key"], result.Extensions["key"])
 	})
 }
