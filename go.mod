@@ -24,7 +24,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
-	github.com/vmware/govmomi v0.50.0
+	github.com/vmware/govmomi v0.52.0
 	go.opentelemetry.io/otel v1.39.0
 	go.opentelemetry.io/otel/trace v1.39.0
 	go.uber.org/zap v1.27.1
