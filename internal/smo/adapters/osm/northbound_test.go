@@ -220,46 +220,58 @@ func TestTransformVIMAccountVariations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			vim := TransformVIMAccount(tt.pool, tt.vimType, tt.vimURL, tt.username, tt.password)
 
-			if vim.ID != tt.pool.ID {
-				t.Errorf("VIM ID = %v, want %v", vim.ID, tt.pool.ID)
-			}
-			if vim.Name != tt.wantName {
-				t.Errorf("VIM Name = %v, want %v", vim.Name, tt.wantName)
-			}
-			if vim.VIMType != tt.wantType {
-				t.Errorf("VIM Type = %v, want %v", vim.VIMType, tt.wantType)
-			}
-			if vim.VIMURL != tt.wantURL {
-				t.Errorf("VIM URL = %v, want %v", vim.VIMURL, tt.wantURL)
-			}
-			if vim.VIMUser != tt.wantUser {
-				t.Errorf("VIM User = %v, want %v", vim.VIMUser, tt.wantUser)
-			}
-			if vim.VIMPassword != tt.wantPass {
-				t.Errorf("VIM Password = %v, want %v", vim.VIMPassword, tt.wantPass)
-			}
-
-			// Verify config was initialized
-			if vim.Config == nil {
-				t.Fatal("VIM Config should not be nil")
-			}
-
-			// Verify extensions were copied
-			if tt.pool.Extensions != nil {
-				for k, v := range tt.pool.Extensions {
-					if vim.Config[k] != v {
-						t.Errorf("VIM Config[%s] = %v, want %v", k, vim.Config[k], v)
-					}
-				}
-			}
-
-			// Verify location was added if present
-			if tt.pool.Location != "" {
-				if vim.Config["location"] != tt.pool.Location {
-					t.Errorf("VIM Config[location] = %v, want %v", vim.Config["location"], tt.pool.Location)
-				}
-			}
+			validateVIMAccountFields(t, vim, tt.pool, tt.wantName, tt.wantType, tt.wantURL, tt.wantUser, tt.wantPass)
+			validateVIMAccountConfig(t, vim, tt.pool)
 		})
+	}
+}
+
+// validateVIMAccountFields validates the main fields of a VIM account.
+func validateVIMAccountFields(t *testing.T, vim *VIMAccount, pool *ResourcePool, wantName, wantType, wantURL, wantUser, wantPass string) {
+	t.Helper()
+
+	if vim.ID != pool.ID {
+		t.Errorf("VIM ID = %v, want %v", vim.ID, pool.ID)
+	}
+	if vim.Name != wantName {
+		t.Errorf("VIM Name = %v, want %v", vim.Name, wantName)
+	}
+	if vim.VIMType != wantType {
+		t.Errorf("VIM Type = %v, want %v", vim.VIMType, wantType)
+	}
+	if vim.VIMURL != wantURL {
+		t.Errorf("VIM URL = %v, want %v", vim.VIMURL, wantURL)
+	}
+	if vim.VIMUser != wantUser {
+		t.Errorf("VIM User = %v, want %v", vim.VIMUser, wantUser)
+	}
+	if vim.VIMPassword != wantPass {
+		t.Errorf("VIM Password = %v, want %v", vim.VIMPassword, wantPass)
+	}
+}
+
+// validateVIMAccountConfig validates the configuration and extensions of a VIM account.
+func validateVIMAccountConfig(t *testing.T, vim *VIMAccount, pool *ResourcePool) {
+	t.Helper()
+
+	if vim.Config == nil {
+		t.Fatal("VIM Config should not be nil")
+	}
+
+	// Verify extensions were copied
+	if pool.Extensions != nil {
+		for k, v := range pool.Extensions {
+			if vim.Config[k] != v {
+				t.Errorf("VIM Config[%s] = %v, want %v", k, vim.Config[k], v)
+			}
+		}
+	}
+
+	// Verify location was added if present
+	if pool.Location != "" {
+		if vim.Config["location"] != pool.Location {
+			t.Errorf("VIM Config[location] = %v, want %v", vim.Config["location"], pool.Location)
+		}
 	}
 }
 
