@@ -51,9 +51,9 @@ func DefaultMiddlewareConfig() *MiddlewareConfig {
 
 // Middleware provides authentication and authorization middleware for Gin.
 type Middleware struct {
-	store           Store
-	config          *MiddlewareConfig
-	logger          *zap.Logger
+	store            Store
+	config           *MiddlewareConfig
+	logger           *zap.Logger
 	compiledPatterns []*regexp.Regexp // Pre-compiled regex patterns for skip paths
 }
 
