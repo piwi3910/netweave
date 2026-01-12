@@ -1,4 +1,4 @@
-package flux_test
+package flux
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package onaplcm_test
+package onaplcm
 
 import (
 	"context"

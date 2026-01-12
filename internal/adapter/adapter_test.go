@@ -1,5 +1,5 @@
 // Package adapter provides tests for the adapter interface and types.
-package adapter_test
+package adapter
 
 import (
 	"testing"

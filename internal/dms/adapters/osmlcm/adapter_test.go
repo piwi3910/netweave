@@ -1,4 +1,4 @@
-package osmlcm_test
+package osmlcm
 
 import (
 	"context"

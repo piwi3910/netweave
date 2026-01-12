@@ -3,7 +3,7 @@
 //go:build integration
 // +build integration
 
-package docs_test
+package docs
 
 import (
 	"context"
