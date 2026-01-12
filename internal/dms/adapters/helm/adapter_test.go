@@ -3,6 +3,7 @@ package helm
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -1579,7 +1580,11 @@ func TestHelmAdapter_ScaleDeployment_ZeroReplicas(t *testing.T) {
 	// Zero replicas should be valid
 	err = adapter.ScaleDeployment(ctx, "test-release", 0)
 	// Will fail without K8s but should not fail on validation
-	if err != nil && !assert.Contains(t, err.Error(), "replicas must be non-negative") {
+	if err != nil {
+		// If error contains validation message, test should fail
+		if strings.Contains(err.Error(), "replicas must be non-negative") {
+			t.Fatalf("Zero replicas should be valid, got validation error: %v", err)
+		}
 		// Expected to fail due to missing K8s
 		t.Skip("Skipping - requires Kubernetes")
 	}
@@ -1597,7 +1602,11 @@ func TestHelmAdapter_RollbackDeployment_ZeroRevision(t *testing.T) {
 	// Zero revision should be valid (means latest - 1 in Helm)
 	err = adapter.RollbackDeployment(ctx, "test-release", 0)
 	// Will fail without K8s but should not fail on validation
-	if err != nil && !assert.Contains(t, err.Error(), "revision must be non-negative") {
+	if err != nil {
+		// If error contains validation message, test should fail
+		if strings.Contains(err.Error(), "revision must be non-negative") {
+			t.Fatalf("Zero revision should be valid, got validation error: %v", err)
+		}
 		// Expected to fail due to missing K8s
 		t.Skip("Skipping - requires Kubernetes")
 	}

@@ -153,31 +153,16 @@ curl https://netweave.example.com/openapi.yaml -o o2ims-api.yaml
 
 ### Documentation
 
-📚 **Comprehensive Documentation with Visual Diagrams:**
-- **[Architecture Overview](docs/architecture.md)** - Complete system architecture with Mermaid diagrams
-  - System architecture and components
-  - Data flow diagrams (read, write, subscriptions)
-  - Plugin architecture (25+ backend adapters)
-  - Storage architecture and Redis data model
-- **[Architecture Part 2](docs/architecture-part2.md)** - HA, scalability, and deployment
-  - High availability and disaster recovery
-  - Scalability patterns and multi-cluster
-  - Deployment architecture and strategies
-- **[API Mapping](docs/api-mapping.md)** - O2-IMS ↔ Kubernetes mappings
-  - Complete resource transformation examples
-  - Backend adapter routing
-- **[O2-DMS & O2-SMO Extension](docs/o2dms-o2smo-extension.md)** - Deployment and orchestration
-  - O2-DMS for CNF deployment lifecycle
-  - O2-SMO integration (ONAP, OSM)
-  - Unified subscription system
-- **[Backend Plugins](docs/backend-plugins.md)** - Multi-backend adapter specifications
-  - 10+ O2-IMS infrastructure plugins (Kubernetes, OpenStack, DTIAS, AWS, Azure, etc.)
-  - 7+ O2-DMS deployment plugins (Helm, ArgoCD, Flux, ONAP-LCM, etc.)
-  - 5+ O2-SMO orchestration plugins (ONAP, OSM, etc.)
-- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)** - Enterprise security and isolation
-  - Role-based access control
-  - Multi-tenant architecture
-  - Resource quotas and isolation
+- **[Architecture](docs/architecture.md)**: Comprehensive architecture documentation.
+- **[API Mapping](docs/api-mapping.md)**: O2-IMS ↔ Kubernetes resource mappings.
+- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)**: Enterprise multi-tenancy and access control.
+- **[O2-DMS Extension](docs/o2dms-o2smo-extension.md)**: Deployment management services integration.
+- **[Deployment Guide](docs/deployment.md)**: Single and multi-cluster deployment.
+- **[Security](docs/security.md)**: Security architecture and mTLS configuration.
+- **[Operations](docs/operations.md)**: Operational runbooks and procedures.
+- **[Backend Plugins](docs/backend-plugins.md)**: Specifications for all backend plugins.
+- **[CLAUDE.md](CLAUDE.md)**: Development standards and guidelines.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)**: How to contribute.
 
 ## Quick Start
 

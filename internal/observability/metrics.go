@@ -2,6 +2,7 @@ package observability
 
 import (
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -56,243 +57,248 @@ type Metrics struct {
 var (
 	// globalMetrics is the singleton metrics instance.
 	globalMetrics *Metrics
+	// metricsOnce ensures thread-safe initialization.
+	metricsOnce sync.Once
 )
 
 // InitMetrics initializes and registers all Prometheus metrics.
+// Thread-safe using sync.Once to prevent race conditions.
+// Returns the existing metrics instance if already initialized (idempotent).
 func InitMetrics(namespace string) *Metrics {
-	if namespace == "" {
-		namespace = "o2ims"
-	}
+	metricsOnce.Do(func() {
+		if namespace == "" {
+			namespace = "o2ims"
+		}
 
-	m := &Metrics{
-		// HTTP metrics
-		HTTPRequestsTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "http_requests_total",
-				Help:      "Total number of HTTP requests",
-			},
-			[]string{"method", "path", "status"},
-		),
+		globalMetrics = &Metrics{
+			// HTTP metrics
+			HTTPRequestsTotal: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: namespace,
+					Name:      "http_requests_total",
+					Help:      "Total number of HTTP requests",
+				},
+				[]string{"method", "path", "status"},
+			),
 
-		HTTPRequestDuration: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Namespace: namespace,
-				Name:      "http_request_duration_seconds",
-				Help:      "HTTP request latency in seconds",
-				Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
-			},
-			[]string{"method", "path", "status"},
-		),
+			HTTPRequestDuration: promauto.NewHistogramVec(
+				prometheus.HistogramOpts{
+					Namespace: namespace,
+					Name:      "http_request_duration_seconds",
+					Help:      "HTTP request latency in seconds",
+					Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
+				},
+				[]string{"method", "path", "status"},
+			),
 
-		HTTPRequestsInFlight: promauto.NewGauge(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "http_requests_in_flight",
-				Help:      "Number of HTTP requests currently being processed",
-			},
-		),
+			HTTPRequestsInFlight: promauto.NewGauge(
+				prometheus.GaugeOpts{
+					Namespace: namespace,
+					Name:      "http_requests_in_flight",
+					Help:      "Number of HTTP requests currently being processed",
+				},
+			),
 
-		HTTPResponseSizeBytes: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Namespace: namespace,
-				Name:      "http_response_size_bytes",
-				Help:      "HTTP response size in bytes",
-				Buckets:   prometheus.ExponentialBuckets(100, 10, 8),
-			},
-			[]string{"method", "path"},
-		),
+			HTTPResponseSizeBytes: promauto.NewHistogramVec(
+				prometheus.HistogramOpts{
+					Namespace: namespace,
+					Name:      "http_response_size_bytes",
+					Help:      "HTTP response size in bytes",
+					Buckets:   prometheus.ExponentialBuckets(100, 10, 8),
+				},
+				[]string{"method", "path"},
+			),
 
-		// Adapter metrics
-		AdapterOperationsTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "adapter_operations_total",
-				Help:      "Total number of adapter operations",
-			},
-			[]string{"adapter", "operation", "status"},
-		),
+			// Adapter metrics
+			AdapterOperationsTotal: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: namespace,
+					Name:      "adapter_operations_total",
+					Help:      "Total number of adapter operations",
+				},
+				[]string{"adapter", "operation", "status"},
+			),
 
-		AdapterOperationDuration: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Namespace: namespace,
-				Name:      "adapter_operation_duration_seconds",
-				Help:      "Adapter operation duration in seconds",
-				Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5},
-			},
-			[]string{"adapter", "operation"},
-		),
+			AdapterOperationDuration: promauto.NewHistogramVec(
+				prometheus.HistogramOpts{
+					Namespace: namespace,
+					Name:      "adapter_operation_duration_seconds",
+					Help:      "Adapter operation duration in seconds",
+					Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5},
+				},
+				[]string{"adapter", "operation"},
+			),
 
-		AdapterErrorsTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "adapter_errors_total",
-				Help:      "Total number of adapter errors",
-			},
-			[]string{"adapter", "operation", "error_type"},
-		),
+			AdapterErrorsTotal: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: namespace,
+					Name:      "adapter_errors_total",
+					Help:      "Total number of adapter errors",
+				},
+				[]string{"adapter", "operation", "error_type"},
+			),
 
-		// Subscription metrics
-		SubscriptionsTotal: promauto.NewGauge(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "subscriptions_total",
-				Help:      "Current number of active subscriptions",
-			},
-		),
+			// Subscription metrics
+			SubscriptionsTotal: promauto.NewGauge(
+				prometheus.GaugeOpts{
+					Namespace: namespace,
+					Name:      "subscriptions_total",
+					Help:      "Current number of active subscriptions",
+				},
+			),
 
-		SubscriptionEventsTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "subscription_events_total",
-				Help:      "Total number of subscription events generated",
-			},
-			[]string{"event_type", "resource_type"},
-		),
+			SubscriptionEventsTotal: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: namespace,
+					Name:      "subscription_events_total",
+					Help:      "Total number of subscription events generated",
+				},
+				[]string{"event_type", "resource_type"},
+			),
 
-		WebhookDeliveryDuration: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Namespace: namespace,
-				Name:      "webhook_delivery_duration_seconds",
-				Help:      "Webhook delivery latency in seconds",
-				Buckets:   []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 30},
-			},
-			[]string{"status"},
-		),
+			WebhookDeliveryDuration: promauto.NewHistogramVec(
+				prometheus.HistogramOpts{
+					Namespace: namespace,
+					Name:      "webhook_delivery_duration_seconds",
+					Help:      "Webhook delivery latency in seconds",
+					Buckets:   []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 30},
+				},
+				[]string{"status"},
+			),
 
-		WebhookDeliveryTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "webhook_delivery_total",
-				Help:      "Total number of webhook delivery attempts",
-			},
-			[]string{"status", "http_status"},
-		),
+			WebhookDeliveryTotal: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: namespace,
+					Name:      "webhook_delivery_total",
+					Help:      "Total number of webhook delivery attempts",
+				},
+				[]string{"status", "http_status"},
+			),
 
-		// Redis metrics
-		RedisOperationsTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "redis_operations_total",
-				Help:      "Total number of Redis operations",
-			},
-			[]string{"operation", "status"},
-		),
+			// Redis metrics
+			RedisOperationsTotal: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: namespace,
+					Name:      "redis_operations_total",
+					Help:      "Total number of Redis operations",
+				},
+				[]string{"operation", "status"},
+			),
 
-		RedisOperationDuration: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Namespace: namespace,
-				Name:      "redis_operation_duration_seconds",
-				Help:      "Redis operation duration in seconds",
-				Buckets:   []float64{.0001, .0005, .001, .005, .01, .025, .05, .1, .25},
-			},
-			[]string{"operation"},
-		),
+			RedisOperationDuration: promauto.NewHistogramVec(
+				prometheus.HistogramOpts{
+					Namespace: namespace,
+					Name:      "redis_operation_duration_seconds",
+					Help:      "Redis operation duration in seconds",
+					Buckets:   []float64{.0001, .0005, .001, .005, .01, .025, .05, .1, .25},
+				},
+				[]string{"operation"},
+			),
 
-		RedisConnectionsActive: promauto.NewGauge(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "redis_connections_active",
-				Help:      "Number of active Redis connections",
-			},
-		),
+			RedisConnectionsActive: promauto.NewGauge(
+				prometheus.GaugeOpts{
+					Namespace: namespace,
+					Name:      "redis_connections_active",
+					Help:      "Number of active Redis connections",
+				},
+			),
 
-		RedisErrorsTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "redis_errors_total",
-				Help:      "Total number of Redis errors",
-			},
-			[]string{"operation", "error_type"},
-		),
+			RedisErrorsTotal: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: namespace,
+					Name:      "redis_errors_total",
+					Help:      "Total number of Redis errors",
+				},
+				[]string{"operation", "error_type"},
+			),
 
-		// Kubernetes metrics
-		K8sOperationsTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "k8s_operations_total",
-				Help:      "Total number of Kubernetes API operations",
-			},
-			[]string{"operation", "resource", "status"},
-		),
+			// Kubernetes metrics
+			K8sOperationsTotal: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: namespace,
+					Name:      "k8s_operations_total",
+					Help:      "Total number of Kubernetes API operations",
+				},
+				[]string{"operation", "resource", "status"},
+			),
 
-		K8sOperationDuration: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Namespace: namespace,
-				Name:      "k8s_operation_duration_seconds",
-				Help:      "Kubernetes API operation duration in seconds",
-				Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5},
-			},
-			[]string{"operation", "resource"},
-		),
+			K8sOperationDuration: promauto.NewHistogramVec(
+				prometheus.HistogramOpts{
+					Namespace: namespace,
+					Name:      "k8s_operation_duration_seconds",
+					Help:      "Kubernetes API operation duration in seconds",
+					Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5},
+				},
+				[]string{"operation", "resource"},
+			),
 
-		K8sResourceCacheSize: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "k8s_resource_cache_size",
-				Help:      "Number of Kubernetes resources cached",
-			},
-			[]string{"resource_type"},
-		),
+			K8sResourceCacheSize: promauto.NewGaugeVec(
+				prometheus.GaugeOpts{
+					Namespace: namespace,
+					Name:      "k8s_resource_cache_size",
+					Help:      "Number of Kubernetes resources cached",
+				},
+				[]string{"resource_type"},
+			),
 
-		K8sErrorsTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "k8s_errors_total",
-				Help:      "Total number of Kubernetes API errors",
-			},
-			[]string{"operation", "resource", "error_type"},
-		),
+			K8sErrorsTotal: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: namespace,
+					Name:      "k8s_errors_total",
+					Help:      "Total number of Kubernetes API errors",
+				},
+				[]string{"operation", "resource", "error_type"},
+			),
 
-		// Batch operation metrics
-		BatchOperationsTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "batch_operations_total",
-				Help:      "Total number of batch operations",
-			},
-			[]string{"operation", "atomic", "status"},
-		),
+			// Batch operation metrics
+			BatchOperationsTotal: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: namespace,
+					Name:      "batch_operations_total",
+					Help:      "Total number of batch operations",
+				},
+				[]string{"operation", "atomic", "status"},
+			),
 
-		BatchOperationDuration: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Namespace: namespace,
-				Name:      "batch_operation_duration_seconds",
-				Help:      "Batch operation duration in seconds",
-				Buckets:   []float64{.1, .25, .5, 1, 2.5, 5, 10, 30, 60},
-			},
-			[]string{"operation"},
-		),
+			BatchOperationDuration: promauto.NewHistogramVec(
+				prometheus.HistogramOpts{
+					Namespace: namespace,
+					Name:      "batch_operation_duration_seconds",
+					Help:      "Batch operation duration in seconds",
+					Buckets:   []float64{.1, .25, .5, 1, 2.5, 5, 10, 30, 60},
+				},
+				[]string{"operation"},
+			),
 
-		BatchItemsProcessed: promauto.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "batch_items_processed_total",
-				Help:      "Total number of items processed in batch operations",
-			},
-			[]string{"operation", "status"},
-		),
+			BatchItemsProcessed: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: namespace,
+					Name:      "batch_items_processed_total",
+					Help:      "Total number of items processed in batch operations",
+				},
+				[]string{"operation", "status"},
+			),
 
-		BatchRollbacksTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "batch_rollbacks_total",
-				Help:      "Total number of batch rollbacks",
-			},
-			[]string{"operation", "reason"},
-		),
+			BatchRollbacksTotal: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: namespace,
+					Name:      "batch_rollbacks_total",
+					Help:      "Total number of batch rollbacks",
+				},
+				[]string{"operation", "reason"},
+			),
 
-		BatchConcurrentWorkers: promauto.NewGauge(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "batch_concurrent_workers",
-				Help:      "Number of concurrent workers processing batch items",
-			},
-		),
-	}
+			BatchConcurrentWorkers: promauto.NewGauge(
+				prometheus.GaugeOpts{
+					Namespace: namespace,
+					Name:      "batch_concurrent_workers",
+					Help:      "Number of concurrent workers processing batch items",
+				},
+			),
+		}
+	})
 
-	globalMetrics = m
-	return m
+	return globalMetrics
 }
 
 // GetMetrics returns the global metrics instance.
@@ -342,9 +348,9 @@ func (m *Metrics) RecordWebhookDelivery(duration time.Duration, httpStatusCode i
 
 // RecordRedisOperation records Redis operation metrics.
 func (m *Metrics) RecordRedisOperation(operation string, duration time.Duration, err error) {
-	status := "success"
+	status := statusSuccess
 	if err != nil {
-		status = "error"
+		status = statusError
 		m.RedisErrorsTotal.WithLabelValues(operation, "general").Inc()
 	}
 	m.RedisOperationsTotal.WithLabelValues(operation, status).Inc()
@@ -353,9 +359,9 @@ func (m *Metrics) RecordRedisOperation(operation string, duration time.Duration,
 
 // RecordK8sOperation records Kubernetes API operation metrics.
 func (m *Metrics) RecordK8sOperation(operation, resource string, duration time.Duration, err error) {
-	status := "success"
+	status := statusSuccess
 	if err != nil {
-		status = "error"
+		status = statusError
 		m.K8sErrorsTotal.WithLabelValues(operation, resource, "general").Inc()
 	}
 	m.K8sOperationsTotal.WithLabelValues(operation, resource, status).Inc()
