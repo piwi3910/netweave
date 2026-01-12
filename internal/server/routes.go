@@ -355,12 +355,32 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 		return
 	}
 
+	// Validate callback URL early for fast failure (SSRF protection)
+	if err := s.validateCallback(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
 	// Generate subscription ID
 	req.SubscriptionID = "sub-" + uuid.New().String()
 
 	// Create subscription via adapter
 	created, err := s.adapter.CreateSubscription(c.Request.Context(), &req)
 	if err != nil {
+		// Check for conflict error (subscription already exists)
+		if errors.Is(err, adapter.ErrSubscriptionExists) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "Conflict",
+				"message": "Subscription already exists",
+				"code":    http.StatusConflict,
+			})
+			return
+		}
+
 		s.logger.Error("failed to create subscription", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
@@ -1612,6 +1632,19 @@ func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
 // validateCallback validates a subscription callback URL.
 // It performs early validation to provide fast failure before calling the adapter.
 // Includes SSRF protection to prevent callbacks to localhost and private IP ranges.
+//
+// SECURITY NOTE: DNS Rebinding Time-of-Check-Time-of-Use (TOCTOU) Vulnerability
+// This validation only checks the callback URL at registration time. An attacker could:
+// 1. Register a callback URL pointing to a legitimate public server
+// 2. Pass this validation
+// 3. Change DNS records to point the hostname to localhost/private IPs
+// 4. Receive webhooks at the new (malicious) destination
+//
+// Mitigation strategies for production deployments:
+// - Re-validate callback URLs before EACH webhook delivery attempt
+// - Cache DNS results with short TTL and re-validate on changes
+// - Implement webhook delivery through a dedicated egress proxy that enforces policies
+// - Consider additional authentication mechanisms for webhooks (HMAC signatures, mTLS)
 func (s *Server) validateCallback(sub *adapter.Subscription) error {
 	if sub == nil {
 		return fmt.Errorf("subscription cannot be nil")
