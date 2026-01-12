@@ -49,6 +49,10 @@ import (
 )
 
 const (
+	redisModeSentinel = "sentinel"
+)
+
+const (
 	// Version is the application version (set via build flags).
 	Version = "1.0.0"
 
@@ -389,12 +393,12 @@ func parseLogLevel(level string) zap.AtomicLevel {
 
 // initializeRedisStorage creates and initializes Redis storage.
 func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.RedisStore, error) {
-	password, sentinelPassword, err := getRedisPasswords(cfg, logger)
+	password, redisModeSentinelPassword, err := getRedisPasswords(cfg, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	redisCfg := buildRedisConfig(cfg, password, sentinelPassword)
+	redisCfg := buildRedisConfig(cfg, password, redisModeSentinelPassword)
 	if err := configureRedisMode(redisCfg, cfg, logger); err != nil {
 		return nil, err
 	}
@@ -411,7 +415,7 @@ func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.Re
 }
 
 // getRedisPasswords retrieves Redis and Sentinel passwords and logs deprecation warnings.
-func getRedisPasswords(cfg *config.Config, logger *zap.Logger) (redisPassword, sentinelPassword string, err error) {
+func getRedisPasswords(cfg *config.Config, logger *zap.Logger) (redisPassword, redisModeSentinelPassword string, err error) {
 	// Get Redis password
 	redisPassword, err = cfg.Redis.GetPassword()
 	if err != nil {
@@ -427,8 +431,8 @@ func getRedisPasswords(cfg *config.Config, logger *zap.Logger) (redisPassword, s
 	}
 
 	// Get Sentinel password (only relevant for Sentinel mode)
-	if cfg.Redis.Mode == "sentinel" {
-		sentinelPassword, err = cfg.Redis.GetSentinelPassword()
+	if cfg.Redis.Mode == redisModeSentinel {
+		redisModeSentinelPassword, err = cfg.Redis.GetSentinelPassword()
 		if err != nil {
 			return "", "", fmt.Errorf("failed to get Sentinel password: %w", err)
 		}
@@ -442,15 +446,15 @@ func getRedisPasswords(cfg *config.Config, logger *zap.Logger) (redisPassword, s
 		}
 	}
 
-	return redisPassword, sentinelPassword, nil
+	return redisPassword, redisModeSentinelPassword, nil
 }
 
 // buildRedisConfig creates storage.RedisConfig from config.Config.
-func buildRedisConfig(cfg *config.Config, password, sentinelPassword string) *storage.RedisConfig {
+func buildRedisConfig(cfg *config.Config, password, redisModeSentinelPassword string) *storage.RedisConfig {
 	return &storage.RedisConfig{
 		DB:                     cfg.Redis.DB,
 		Password:               password,
-		SentinelPassword:       sentinelPassword,
+		SentinelPassword:       redisModeSentinelPassword,
 		MaxRetries:             cfg.Redis.MaxRetries,
 		DialTimeout:            cfg.Redis.DialTimeout,
 		ReadTimeout:            cfg.Redis.ReadTimeout,
@@ -463,7 +467,7 @@ func buildRedisConfig(cfg *config.Config, password, sentinelPassword string) *st
 // configureRedisMode sets up Redis mode (standalone/sentinel/cluster).
 func configureRedisMode(redisCfg *storage.RedisConfig, cfg *config.Config, logger *zap.Logger) error {
 	switch cfg.Redis.Mode {
-	case "sentinel":
+	case redisModeSentinel:
 		redisCfg.UseSentinel = true
 		redisCfg.SentinelAddrs = cfg.Redis.Addresses
 		redisCfg.MasterName = cfg.Redis.MasterName
@@ -691,7 +695,7 @@ func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 // This function is only called when cfg.MultiTenancy.Enabled is true.
 func initializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *auth.Middleware, error) {
 	// Get Redis password (reuse the same logic as main storage).
-	password, sentinelPassword, err := getRedisPasswords(cfg, logger)
+	password, redisModeSentinelPassword, err := getRedisPasswords(cfg, logger)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get Redis passwords for auth: %w", err)
 	}
@@ -700,7 +704,7 @@ func initializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *
 	authRedisCfg := &auth.RedisConfig{
 		DB:               cfg.Redis.DB,
 		Password:         password,
-		SentinelPassword: sentinelPassword,
+		SentinelPassword: redisModeSentinelPassword,
 		MaxRetries:       cfg.Redis.MaxRetries,
 		DialTimeout:      cfg.Redis.DialTimeout,
 		ReadTimeout:      cfg.Redis.ReadTimeout,
@@ -710,7 +714,7 @@ func initializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *
 
 	// Configure Redis mode.
 	switch cfg.Redis.Mode {
-	case "sentinel":
+	case redisModeSentinel:
 		authRedisCfg.UseSentinel = true
 		authRedisCfg.SentinelAddrs = cfg.Redis.Addresses
 		authRedisCfg.MasterName = cfg.Redis.MasterName
