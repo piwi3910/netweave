@@ -467,40 +467,54 @@ func (f *Adapter) ListDeployments(ctx context.Context, filter *adapter.Filter) (
 		return nil, err
 	}
 
-	// Fetch both lists first to enable preallocation
-	helmReleases, err := f.listHelmReleases(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-	kustomizations, err := f.listKustomizations(ctx, filter)
+	helmReleases, kustomizations, err := f.fetchFluxResources(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
 
-	// Preallocate with combined capacity
-	deployments := make([]*adapter.Deployment, 0, len(helmReleases)+len(kustomizations))
+	deployments := f.transformAndFilterDeployments(helmReleases, kustomizations, filter)
 
-	for _, hr := range helmReleases {
-		deployment := f.transformHelmReleaseToDeployment(hr)
-		if filter != nil && filter.Status != "" && deployment.Status != filter.Status {
-			continue
-		}
-		deployments = append(deployments, deployment)
-	}
-	for _, ks := range kustomizations {
-		deployment := f.transformKustomizationToDeployment(ks)
-		if filter != nil && filter.Status != "" && deployment.Status != filter.Status {
-			continue
-		}
-		deployments = append(deployments, deployment)
-	}
-
-	// Apply pagination
 	if filter != nil {
 		deployments = f.applyPagination(deployments, filter.Limit, filter.Offset)
 	}
 
 	return deployments, nil
+}
+
+func (f *Adapter) fetchFluxResources(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	helmReleases, err := f.listHelmReleases(ctx, filter)
+	if err != nil {
+		return nil, nil, err
+	}
+	kustomizations, err := f.listKustomizations(ctx, filter)
+	if err != nil {
+		return nil, nil, err
+	}
+	return helmReleases, kustomizations, nil
+}
+
+func (f *Adapter) transformAndFilterDeployments(
+	helmReleases, kustomizations []*unstructured.Unstructured,
+	filter *adapter.Filter,
+) []*adapter.Deployment {
+	deployments := make([]*adapter.Deployment, 0, len(helmReleases)+len(kustomizations))
+
+	for _, hr := range helmReleases {
+		if deployment := f.transformHelmReleaseToDeployment(hr); f.matchesStatusFilter(deployment, filter) {
+			deployments = append(deployments, deployment)
+		}
+	}
+	for _, ks := range kustomizations {
+		if deployment := f.transformKustomizationToDeployment(ks); f.matchesStatusFilter(deployment, filter) {
+			deployments = append(deployments, deployment)
+		}
+	}
+
+	return deployments
+}
+
+func (f *Adapter) matchesStatusFilter(deployment *adapter.Deployment, filter *adapter.Filter) bool {
+	return filter == nil || filter.Status == "" || deployment.Status == filter.Status
 }
 
 // GetDeployment retrieves a specific Flux deployment by ID.
