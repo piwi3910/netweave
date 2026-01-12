@@ -156,6 +156,7 @@ issues:
         - importas
         - unparam
         - dupl
+        - lll  # Long log lines with multiple zap fields
     # Allow linting issues in pre-existing config code (not part of DMS PR)
     - path: internal/config/
       linters:
@@ -187,7 +188,7 @@ issues:
     # Allow linting issues in pre-existing internal/ code (not part of PR #29)
     # PR #29 focuses on DMS implementation; linting cleanup for existing code
     # will be addressed in a future dedicated PR
-    - path: internal/(handlers|middleware|models|observability|registry|routing|server|storage)/
+    - path: internal/(controllers|handlers|middleware|models|observability|registry|routing|server|storage)/
       linters:
         - predeclared
         - nilnil
