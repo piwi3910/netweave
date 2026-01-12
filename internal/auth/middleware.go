@@ -68,25 +68,17 @@ func NewMiddleware(store Store, config *MiddlewareConfig, logger *zap.Logger) *M
 	compiledPatterns := make([]*regexp.Regexp, 0, len(config.SkipPaths))
 	for _, pattern := range config.SkipPaths {
 		if strings.Contains(pattern, "*") {
-			// Convert glob pattern to regex
-			regexPattern := regexp.QuoteMeta(pattern)
-			parts := strings.Split(regexPattern, "\\*")
-
-			// Replace each wildcard with appropriate regex
-			for i := 0; i < len(parts)-1; i++ {
-				if i == len(parts)-2 && parts[i+1] == "" {
-					// Trailing wildcard matches everything
-					parts[i] += ".*"
-				} else {
-					// Non-trailing wildcard matches single segment
-					parts[i] += "[^/]+"
-				}
+			// Convert glob pattern to regex using shared helper
+			regexPattern := patternToRegex(pattern)
+			compiled, err := regexp.Compile(regexPattern)
+			if err != nil {
+				// Log warning for invalid patterns
+				logger.Warn("Failed to compile skip path pattern",
+					zap.String("pattern", pattern),
+					zap.Error(err))
+				continue
 			}
-
-			regexPattern = "^" + strings.Join(parts, "") + "$"
-			if compiled, err := regexp.Compile(regexPattern); err == nil {
-				compiledPatterns = append(compiledPatterns, compiled)
-			}
+			compiledPatterns = append(compiledPatterns, compiled)
 		}
 	}
 
@@ -730,22 +722,11 @@ func (m *Middleware) shouldSkipAuth(path string) bool {
 	return false
 }
 
-// matchesPathPattern checks if a path matches a pattern with wildcards.
+// patternToRegex converts a glob-style pattern to a regex string.
 // Supports both simple trailing wildcards (/api/public/*) and
 // glob-style wildcards (/api/*/public/*).
 // The last * in a pattern can match multiple path segments.
-func matchesPathPattern(path, pattern string) bool {
-	// Exact match
-	if path == pattern {
-		return true
-	}
-
-	// No wildcards - no match
-	if !strings.Contains(pattern, "*") {
-		return false
-	}
-
-	// Convert pattern to regex
+func patternToRegex(pattern string) string {
 	// Escape regex special characters except *
 	regexPattern := regexp.QuoteMeta(pattern)
 
@@ -767,8 +748,25 @@ func matchesPathPattern(path, pattern string) bool {
 	regexPattern = strings.Join(parts, "")
 
 	// Anchor the pattern
-	regexPattern = "^" + regexPattern + "$"
+	return "^" + regexPattern + "$"
+}
 
+// matchesPathPattern checks if a path matches a pattern with wildcards.
+// Used by tests to verify pattern matching logic.
+// Production code uses pre-compiled patterns in shouldSkipAuth for performance.
+func matchesPathPattern(path, pattern string) bool {
+	// Exact match
+	if path == pattern {
+		return true
+	}
+
+	// No wildcards - no match
+	if !strings.Contains(pattern, "*") {
+		return false
+	}
+
+	// Convert pattern to regex and match
+	regexPattern := patternToRegex(pattern)
 	matched, err := regexp.MatchString(regexPattern, path)
 	if err != nil {
 		return false
