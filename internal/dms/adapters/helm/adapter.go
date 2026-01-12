@@ -664,14 +664,38 @@ func (h *Adapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapte
 		return nil, err
 	}
 
-	// Get the release to find its namespace
+	rel, err := h.getRelease(id)
+	if err != nil {
+		return nil, err
+	}
+
+	clientset, err := h.createK8sClientset()
+	if err != nil {
+		return nil, err
+	}
+
+	pods, err := h.listReleasePods(ctx, clientset, rel)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(pods.Items) == 0 {
+		return []byte(fmt.Sprintf("No pods found for release %s in namespace %s", id, rel.Namespace)), nil
+	}
+
+	return h.aggregatePodLogs(ctx, clientset, rel.Namespace, pods.Items, opts), nil
+}
+
+func (h *Adapter) getRelease(id string) (*release.Release, error) {
 	client := action.NewGet(h.actionCfg)
 	rel, err := client.Run(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get release: %w", err)
 	}
+	return rel, nil
+}
 
-	// Create Kubernetes clientset
+func (h *Adapter) createK8sClientset() (*kubernetes.Clientset, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", h.config.Kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes config: %w", err)
@@ -681,8 +705,10 @@ func (h *Adapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapte
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes client: %w", err)
 	}
+	return clientset, nil
+}
 
-	// Find pods for this release using label selector
+func (h *Adapter) listReleasePods(ctx context.Context, clientset *kubernetes.Clientset, rel *release.Release) (*corev1.PodList, error) {
 	labelSelector := fmt.Sprintf("app.kubernetes.io/instance=%s", rel.Name)
 	pods, err := clientset.CoreV1().Pods(rel.Namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
@@ -690,52 +716,54 @@ func (h *Adapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapte
 	if err != nil {
 		return nil, fmt.Errorf("failed to list pods: %w", err)
 	}
+	return pods, nil
+}
 
-	if len(pods.Items) == 0 {
-		return []byte(fmt.Sprintf("No pods found for release %s in namespace %s", id, rel.Namespace)), nil
-	}
-
-	// Aggregate logs from all pods
+func (h *Adapter) aggregatePodLogs(ctx context.Context, clientset *kubernetes.Clientset, namespace string, pods []corev1.Pod, opts *adapter.LogOptions) []byte {
 	var logBuffer bytes.Buffer
 
-	for i, pod := range pods.Items {
+	for i, pod := range pods {
 		if i > 0 {
-			logBuffer.WriteString("\n\n===== Pod: " + pod.Name + " =====\n\n")
-		} else {
-			logBuffer.WriteString("===== Pod: " + pod.Name + " =====\n\n")
+			logBuffer.WriteString("\n\n")
 		}
+		logBuffer.WriteString("===== Pod: " + pod.Name + " =====\n\n")
 
-		// Build log options
-		logOpts := &corev1.PodLogOptions{}
-		if opts != nil {
-			if opts.TailLines > 0 {
-				tail := int64(opts.TailLines)
-				logOpts.TailLines = &tail
-			}
-			if !opts.Since.IsZero() {
-				logOpts.SinceTime = &metav1.Time{Time: opts.Since}
-			}
-			logOpts.Follow = opts.Follow
-		}
-
-		// Get logs for the pod
-		req := clientset.CoreV1().Pods(rel.Namespace).GetLogs(pod.Name, logOpts)
-		logs, err := req.Stream(ctx)
-		if err != nil {
-			logBuffer.WriteString(fmt.Sprintf("Error retrieving logs: %v\n", err))
-			continue
-		}
-
-		// Copy logs to buffer
-		if _, err := io.Copy(&logBuffer, logs); err != nil {
-			_ = logs.Close()
-			logBuffer.WriteString(fmt.Sprintf("Error reading logs: %v\n", err))
-			continue
-		}
-		_ = logs.Close()
+		logOpts := h.buildPodLogOptions(opts)
+		h.streamPodLogs(ctx, clientset, namespace, pod.Name, logOpts, &logBuffer)
 	}
 
-	return logBuffer.Bytes(), nil
+	return logBuffer.Bytes()
+}
+
+func (h *Adapter) buildPodLogOptions(opts *adapter.LogOptions) *corev1.PodLogOptions {
+	logOpts := &corev1.PodLogOptions{}
+	if opts == nil {
+		return logOpts
+	}
+
+	if opts.TailLines > 0 {
+		tail := int64(opts.TailLines)
+		logOpts.TailLines = &tail
+	}
+	if !opts.Since.IsZero() {
+		logOpts.SinceTime = &metav1.Time{Time: opts.Since}
+	}
+	logOpts.Follow = opts.Follow
+	return logOpts
+}
+
+func (h *Adapter) streamPodLogs(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName string, logOpts *corev1.PodLogOptions, logBuffer *bytes.Buffer) {
+	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, logOpts)
+	logs, err := req.Stream(ctx)
+	if err != nil {
+		logBuffer.WriteString(fmt.Sprintf("Error retrieving logs: %v\n", err))
+		return
+	}
+	defer logs.Close()
+
+	if _, err := io.Copy(logBuffer, logs); err != nil {
+		logBuffer.WriteString(fmt.Sprintf("Error reading logs: %v\n", err))
+	}
 }
 
 // SupportsRollback returns true as Helm supports rollback.
