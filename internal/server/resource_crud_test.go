@@ -85,7 +85,7 @@ func (m *mockResourceAdapter) UpdateResource(
 }
 
 func TestResourceCRUD(t *testing.T) {
-	t.Skip("Skipping - Prometheus metrics registration conflict across test files")
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{
@@ -805,7 +805,7 @@ func (e *errorReturningAdapter) GetResource(ctx context.Context, id string) (*ad
 
 // TestResourceConcurrency tests concurrent operations on the same resource.
 func TestResourceConcurrency(t *testing.T) {
-	t.Skip("Skipping - Prometheus metrics registration conflict across test files")
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{

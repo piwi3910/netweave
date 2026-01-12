@@ -51,20 +51,50 @@ func DefaultMiddlewareConfig() *MiddlewareConfig {
 
 // Middleware provides authentication and authorization middleware for Gin.
 type Middleware struct {
-	store  Store
-	config *MiddlewareConfig
-	logger *zap.Logger
+	store           Store
+	config          *MiddlewareConfig
+	logger          *zap.Logger
+	compiledPatterns []*regexp.Regexp // Pre-compiled regex patterns for skip paths
 }
 
 // NewMiddleware creates a new authentication middleware.
+// Pre-compiles regex patterns for skip paths during initialization for performance.
 func NewMiddleware(store Store, config *MiddlewareConfig, logger *zap.Logger) *Middleware {
 	if config == nil {
 		config = DefaultMiddlewareConfig()
 	}
+
+	// Pre-compile regex patterns for paths with wildcards
+	compiledPatterns := make([]*regexp.Regexp, 0, len(config.SkipPaths))
+	for _, pattern := range config.SkipPaths {
+		if strings.Contains(pattern, "*") {
+			// Convert glob pattern to regex
+			regexPattern := regexp.QuoteMeta(pattern)
+			parts := strings.Split(regexPattern, "\\*")
+
+			// Replace each wildcard with appropriate regex
+			for i := 0; i < len(parts)-1; i++ {
+				if i == len(parts)-2 && parts[i+1] == "" {
+					// Trailing wildcard matches everything
+					parts[i] += ".*"
+				} else {
+					// Non-trailing wildcard matches single segment
+					parts[i] += "[^/]+"
+				}
+			}
+
+			regexPattern = "^" + strings.Join(parts, "") + "$"
+			if compiled, err := regexp.Compile(regexPattern); err == nil {
+				compiledPatterns = append(compiledPatterns, compiled)
+			}
+		}
+	}
+
 	return &Middleware{
-		store:  store,
-		config: config,
-		logger: logger,
+		store:            store,
+		config:           config,
+		logger:           logger,
+		compiledPatterns: compiledPatterns,
 	}
 }
 
@@ -681,12 +711,22 @@ func (m *Middleware) extractEmail(emails []string) string {
 }
 
 // shouldSkipAuth checks if the path should skip authentication.
+// Uses pre-compiled regex patterns for performance.
 func (m *Middleware) shouldSkipAuth(path string) bool {
+	// First check exact matches (no wildcard patterns)
 	for _, skipPath := range m.config.SkipPaths {
-		if matchesPathPattern(path, skipPath) {
+		if !strings.Contains(skipPath, "*") && path == skipPath {
 			return true
 		}
 	}
+
+	// Then check cached compiled patterns (wildcard patterns)
+	for _, pattern := range m.compiledPatterns {
+		if pattern.MatchString(path) {
+			return true
+		}
+	}
+
 	return false
 }
 

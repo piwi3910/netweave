@@ -1031,11 +1031,10 @@ func TestSanitizeDNValue(t *testing.T) {
 
 // TestShouldSkipAuth tests path skip logic.
 func TestShouldSkipAuth(t *testing.T) {
-	mw := &Middleware{
-		config: &MiddlewareConfig{
-			SkipPaths: []string{"/health", "/ready", "/api/v1/public/*"},
-		},
-	}
+	// Use NewMiddleware to ensure patterns are compiled
+	mw := NewMiddleware(nil, &MiddlewareConfig{
+		SkipPaths: []string{"/health", "/ready", "/api/v1/public/*"},
+	}, zap.NewNop())
 
 	tests := []struct {
 		name string
@@ -1078,6 +1077,187 @@ func TestShouldSkipAuth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := mw.shouldSkipAuth(tt.path)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestMatchesPathPattern tests the glob-style path pattern matching function.
+func TestMatchesPathPattern(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		pattern string
+		want    bool
+	}{
+		// Exact matches
+		{
+			name:    "exact match",
+			path:    "/api/v1/public",
+			pattern: "/api/v1/public",
+			want:    true,
+		},
+		{
+			name:    "exact match with trailing slash",
+			path:    "/api/v1/public/",
+			pattern: "/api/v1/public/",
+			want:    true,
+		},
+		{
+			name:    "no match different paths",
+			path:    "/api/v1/private",
+			pattern: "/api/v1/public",
+			want:    false,
+		},
+
+		// Single wildcard matching
+		{
+			name:    "single wildcard matches one segment",
+			path:    "/api/v1/public",
+			pattern: "/api/*/public",
+			want:    true,
+		},
+		{
+			name:    "single wildcard at end",
+			path:    "/api/v1/users",
+			pattern: "/api/v1/*",
+			want:    true,
+		},
+		{
+			name:    "single wildcard at beginning",
+			path:    "/api/v1/users",
+			pattern: "/*/v1/users",
+			want:    true,
+		},
+		{
+			name:    "single wildcard does not match multiple segments",
+			path:    "/api/v1/nested/deep/path",
+			pattern: "/api/*/path",
+			want:    false,
+		},
+
+		// Multiple wildcards
+		{
+			name:    "multiple wildcards",
+			path:    "/api/v1/public/resource",
+			pattern: "/api/*/public/*",
+			want:    true,
+		},
+		{
+			name:    "all wildcards",
+			path:    "/a/b/c/d",
+			pattern: "/*/*/*/*",
+			want:    true,
+		},
+
+		// Trailing wildcard matching (matches everything after)
+		{
+			name:    "trailing wildcard matches nested path",
+			path:    "/api/v1/public/nested/deep/path",
+			pattern: "/api/*/public/*",
+			want:    true,
+		},
+		{
+			name:    "trailing wildcard matches empty",
+			path:    "/api/public/",
+			pattern: "/api/public/*",
+			want:    true,
+		},
+		{
+			name:    "trailing wildcard matches single segment",
+			path:    "/api/public/resource",
+			pattern: "/api/public/*",
+			want:    true,
+		},
+
+		// Edge cases
+		{
+			name:    "empty pattern no match",
+			path:    "/api/v1/public",
+			pattern: "",
+			want:    false,
+		},
+		{
+			name:    "empty path exact match",
+			path:    "",
+			pattern: "",
+			want:    true,
+		},
+		{
+			name:    "root path",
+			path:    "/",
+			pattern: "/",
+			want:    true,
+		},
+		{
+			name:    "wildcard only",
+			path:    "/anything",
+			pattern: "/*",
+			want:    true,
+		},
+		{
+			name:    "double slash in path",
+			path:    "/api//v1/public",
+			pattern: "/api/*/v1/public",
+			want:    false,
+		},
+
+		// Security test cases
+		{
+			name:    "path traversal attempt matches pattern",
+			path:    "/api/../admin",
+			pattern: "/api/*/admin",
+			want:    true, // Pattern matching does not sanitize paths - that's done earlier in request pipeline
+		},
+		{
+			name:    "regex special chars in path",
+			path:    "/api/v1/resource.json",
+			pattern: "/api/v1/resource.json",
+			want:    true,
+		},
+		{
+			name:    "regex special chars with wildcard",
+			path:    "/api/v1/resource.json",
+			pattern: "/api/*/resource.json",
+			want:    true,
+		},
+		{
+			name:    "brackets in path",
+			path:    "/api/v1/users[0]",
+			pattern: "/api/v1/users[0]",
+			want:    true,
+		},
+		{
+			name:    "plus sign in path",
+			path:    "/api/v1/search?q=test+query",
+			pattern: "/api/v1/search?q=test+query",
+			want:    true,
+		},
+
+		// Common O2-IMS patterns
+		{
+			name:    "O2-IMS resource pool wildcard",
+			path:    "/o2ims-infrastructureInventory/v1/resourcePools/pool-123",
+			pattern: "/o2ims-infrastructureInventory/v1/resourcePools/*",
+			want:    true,
+		},
+		{
+			name:    "O2-IMS nested resource",
+			path:    "/o2ims-infrastructureInventory/v1/resourcePools/pool-1/resources/res-1",
+			pattern: "/o2ims-infrastructureInventory/v1/resourcePools/*/resources/*",
+			want:    true,
+		},
+		{
+			name:    "DMS deployment wildcard",
+			path:    "/o2ims-deploymentManagement/v1/deployments/deploy-abc",
+			pattern: "/o2ims-deploymentManagement/v1/deployments/*",
+			want:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := matchesPathPattern(tt.path, tt.pattern)
+			assert.Equal(t, tt.want, got, "matchesPathPattern(%q, %q)", tt.path, tt.pattern)
 		})
 	}
 }
