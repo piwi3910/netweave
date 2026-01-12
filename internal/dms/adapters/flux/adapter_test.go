@@ -273,10 +273,11 @@ func createTestHelmRelease(name, chart string, ready bool) *unstructured.Unstruc
 }
 
 // createTestKustomization creates a test Flux Kustomization unstructured object.
-func createTestKustomization(name string, ready bool) *unstructured.Unstructured {
+func createTestKustomization(name string) *unstructured.Unstructured {
 	namespace := "flux-system"
 	path := "./apps"
 	sourceRef := "infra-repo"
+	ready := true
 	readyStatus := "True"
 	reason := "ReconciliationSucceeded"
 	message := "Applied revision: main/abc123"
@@ -389,7 +390,7 @@ func TestListDeployments(t *testing.T) {
 			objects: []runtime.Object{
 				createTestHelmRelease("hr1", "nginx", true),
 				createTestHelmRelease("hr2", "redis", true),
-				createTestKustomization("ks1", true),
+				createTestKustomization("ks1"),
 			},
 			filter:    nil,
 			wantCount: 3,
@@ -474,7 +475,7 @@ func TestGetDeployment(t *testing.T) {
 		{
 			name: "get existing kustomization",
 			objects: []runtime.Object{
-				createTestKustomization("my-kustomization", true),
+				createTestKustomization("my-kustomization"),
 			},
 			deployID: "my-kustomization",
 			wantErr:  false,
@@ -607,7 +608,7 @@ func TestCreateDeployment(t *testing.T) {
 // TestUpdateDeployment tests updating Flux deployments.
 func TestUpdateDeployment(t *testing.T) {
 	existingHR := createTestHelmRelease("existing-hr", "nginx", true)
-	existingKS := createTestKustomization("existing-ks", true)
+	existingKS := createTestKustomization("existing-ks")
 
 	tests := []struct {
 		name        string
@@ -692,7 +693,7 @@ func TestUpdateDeployment(t *testing.T) {
 // TestDeleteDeployment tests deleting Flux deployments.
 func TestDeleteDeployment(t *testing.T) {
 	existingHR := createTestHelmRelease("hr-to-delete", "nginx", true)
-	existingKS := createTestKustomization("ks-to-delete", true)
+	existingKS := createTestKustomization("ks-to-delete")
 
 	tests := []struct {
 		name        string
@@ -866,7 +867,7 @@ func TestRollbackDeployment(t *testing.T) {
 func TestGetDeploymentStatus(t *testing.T) {
 	healthyHR := createTestHelmRelease("healthy-hr", "nginx", true)
 	failedHR := createTestHelmRelease("failed-hr", "nginx", false)
-	healthyKS := createTestKustomization("healthy-ks", true)
+	healthyKS := createTestKustomization("healthy-ks")
 
 	tests := []struct {
 		name         string
@@ -935,7 +936,7 @@ func TestGetDeploymentStatus(t *testing.T) {
 // TestGetDeploymentHistory tests retrieving deployment history.
 func TestGetDeploymentHistory(t *testing.T) {
 	hrWithHistory := createTestHelmRelease("hr-with-history", "nginx", true)
-	ksWithHistory := createTestKustomization("ks-with-history", true)
+	ksWithHistory := createTestKustomization("ks-with-history")
 
 	tests := []struct {
 		name        string
@@ -988,7 +989,7 @@ func TestGetDeploymentHistory(t *testing.T) {
 // TestGetDeploymentLogs tests retrieving deployment logs/status.
 func TestGetDeploymentLogs(t *testing.T) {
 	hr := createTestHelmRelease("hr-for-logs", "nginx", true)
-	ks := createTestKustomization("ks-for-logs", true)
+	ks := createTestKustomization("ks-for-logs")
 
 	tests := []struct {
 		name        string
@@ -1408,7 +1409,7 @@ func TestTransformHelmReleaseToDeployment(t *testing.T) {
 // TestTransformKustomizationToDeployment tests Kustomization transformation.
 func TestTransformKustomizationToDeployment(t *testing.T) {
 	adp := createFakeAdapter(t)
-	ks := createTestKustomization("test-ks", true)
+	ks := createTestKustomization("test-ks")
 
 	deployment := adp.transformKustomizationToDeployment(ks)
 
@@ -1875,7 +1876,7 @@ func TestCreateKustomizationPathValidation(t *testing.T) {
 
 // TestUpdateKustomizationPathValidation tests path validation in kustomization updates.
 func TestUpdateKustomizationPathValidation(t *testing.T) {
-	existingKS := createTestKustomization("existing-ks", true)
+	existingKS := createTestKustomization("existing-ks")
 
 	tests := []struct {
 		name        string
