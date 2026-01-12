@@ -277,9 +277,19 @@ func (p *Plugin) executeScale(ctx context.Context, executionID string, workflow 
 		scaleType = "SCALE_VNF"
 	}
 
-	scaleVnfType, _ := workflow.Parameters["scaleVnfType"].(string)
-	scalingGroupDescriptor, _ := workflow.Parameters["scalingGroupDescriptor"].(string)
-	memberVnfIndex, _ := workflow.Parameters["memberVnfIndex"].(string)
+	// Optional parameters - defaults to empty string if not provided or wrong type
+	scaleVnfType, scaleVnfTypeOK := workflow.Parameters["scaleVnfType"].(string)
+	if !scaleVnfTypeOK {
+		scaleVnfType = ""
+	}
+	scalingGroupDescriptor, scalingGroupDescriptorOK := workflow.Parameters["scalingGroupDescriptor"].(string)
+	if !scalingGroupDescriptorOK {
+		scalingGroupDescriptor = ""
+	}
+	memberVnfIndex, memberVnfIndexOK := workflow.Parameters["memberVnfIndex"].(string)
+	if !memberVnfIndexOK {
+		memberVnfIndex = ""
+	}
 
 	scaleReq := &NSScaleRequest{
 		ScaleType: scaleType,
@@ -315,7 +325,11 @@ func (p *Plugin) executeHeal(ctx context.Context, executionID string, workflow *
 		return nil, fmt.Errorf("nsInstanceId and vnfInstanceID are required for heal workflow")
 	}
 
-	cause, _ := workflow.Parameters["cause"].(string)
+	// Optional parameter - defaults to empty string
+	cause, causeOK := workflow.Parameters["cause"].(string)
+	if !causeOK {
+		cause = ""
+	}
 
 	healReq := &NSHealRequest{
 		VNFInstanceID: vnfInstanceID,
