@@ -37,9 +37,15 @@ jobs:
 
       - name: Install golangci-lint
         run: |
-          # Use stable release v2.8.0 which supports Go 1.25 and respects .golangci.yml exclusions
-          # Previous approach (building from latest source) caused .golangci.yml exclusions to be ignored
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.8.0
+          # Build v1.62.2 from source with Go 1.25 to ensure compatibility
+          # Pre-built v1.62.2 (Go 1.23) can't analyze Go 1.25 code
+          # v2.8.0 has different linter defaults that don't match our .golangci.yml
+          git clone --depth 1 --branch v1.62.2 https://github.com/golangci/golangci-lint.git /tmp/golangci-lint
+          cd /tmp/golangci-lint
+          # Update go.mod to Go 1.25 for compatibility
+          sed -i 's/^go 1\.[0-9]*$/go 1.25/' go.mod
+          cd cmd/golangci-lint
+          go build -o $(go env GOPATH)/bin/golangci-lint .
 
       - name: Run golangci-lint
         run: golangci-lint run --timeout=5m --config=.golangci.yml
