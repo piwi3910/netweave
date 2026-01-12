@@ -37,10 +37,10 @@ func createDocsTestServer(t *testing.T, env *helpers.TestEnvironment) *helpers.T
 		WriteTimeout: 3 * time.Second,
 		PoolSize:     10,
 	})
-	t.Cleanup(func() { redisStore.Close() })
+	t.Cleanup(func() { _ = redisStore.Close() })
 
 	k8sAdapter := kubernetes.NewMockAdapter()
-	t.Cleanup(func() { k8sAdapter.Close() })
+	t.Cleanup(func() { _ = k8sAdapter.Close() })
 
 	return helpers.NewTestServer(t, k8sAdapter, redisStore)
 }
@@ -58,7 +58,7 @@ func TestDocsEndpoints_OpenAPIYAML(t *testing.T) {
 	t.Run("DocsOpenAPIYAML", func(t *testing.T) {
 		resp, err := http.Get(ts.URL() + "/docs/openapi.yaml")
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		// Should return 200 with the OpenAPI spec
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -74,7 +74,7 @@ func TestDocsEndpoints_OpenAPIYAML(t *testing.T) {
 	t.Run("RootOpenAPIYAML", func(t *testing.T) {
 		resp, err := http.Get(ts.URL() + "/openapi.yaml")
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "application/x-yaml", resp.Header.Get("Content-Type"))
@@ -94,7 +94,7 @@ func TestDocsEndpoints_SwaggerUI(t *testing.T) {
 	t.Run("SwaggerUI", func(t *testing.T) {
 		resp, err := http.Get(ts.URL() + "/docs/")
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -136,7 +136,7 @@ func TestDocsEndpoints_SwaggerUI(t *testing.T) {
 
 		resp, err := client.Get(ts.URL() + "/docs")
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		assert.Equal(t, http.StatusMovedPermanently, resp.StatusCode)
 		assert.Equal(t, "/docs/", resp.Header.Get("Location"))
@@ -154,7 +154,7 @@ func TestDocsEndpoints_SecurityHeaders(t *testing.T) {
 
 	resp, err := http.Get(ts.URL() + "/docs/")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Verify all security headers
 	csp := resp.Header.Get("Content-Security-Policy")
@@ -186,7 +186,7 @@ func TestDocsEndpoints_SRIHashes(t *testing.T) {
 
 	resp, err := http.Get(ts.URL() + "/docs/")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -226,7 +226,7 @@ func TestDocsEndpoints_CacheHeaders(t *testing.T) {
 	// This test documents expected behavior when spec IS loaded
 	resp, err := http.Get(ts.URL() + "/docs/openapi.yaml")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// When spec is loaded, expect cache headers
 	// For now, just verify the endpoint is reachable

@@ -124,6 +124,27 @@ func (s *MemoryPackageStore) Create(ctx context.Context, pkg *adapter.Deployment
 		return err
 	}
 
+	// Validate package fields.
+	if err := s.validatePackage(pkg); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Check for conflicts.
+	if err := s.checkPackageConflicts(pkg); err != nil {
+		return err
+	}
+
+	// Store package.
+	s.storePackage(pkg)
+
+	return nil
+}
+
+// validatePackage validates package fields.
+func (s *MemoryPackageStore) validatePackage(pkg *adapter.DeploymentPackage) error {
 	if pkg == nil {
 		return fmt.Errorf("package cannot be nil")
 	}
@@ -144,21 +165,30 @@ func (s *MemoryPackageStore) Create(ctx context.Context, pkg *adapter.Deployment
 		return fmt.Errorf("%w: %s", ErrInvalidPackageVersion, pkg.Version)
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	return nil
+}
 
+// checkPackageConflicts checks if package already exists.
+// Must be called with s.mu held.
+func (s *MemoryPackageStore) checkPackageConflicts(pkg *adapter.DeploymentPackage) error {
 	if _, exists := s.packages[pkg.ID]; exists {
 		return ErrPackageExists
 	}
 
-	// Check if same name+version already exists
+	// Check if same name+version already exists.
 	for _, id := range s.byName[pkg.Name] {
 		if existing, ok := s.packages[id]; ok && existing.Version == pkg.Version {
 			return ErrVersionExists
 		}
 	}
 
-	// Store a copy to prevent external modification
+	return nil
+}
+
+// storePackage stores a package copy in memory.
+// Must be called with s.mu held.
+func (s *MemoryPackageStore) storePackage(pkg *adapter.DeploymentPackage) {
+	// Store a copy to prevent external modification.
 	pkgCopy := copyPackage(pkg)
 	if pkgCopy.UploadedAt.IsZero() {
 		pkgCopy.UploadedAt = time.Now()
@@ -166,10 +196,8 @@ func (s *MemoryPackageStore) Create(ctx context.Context, pkg *adapter.Deployment
 
 	s.packages[pkg.ID] = pkgCopy
 
-	// Index by name
+	// Index by name.
 	s.byName[pkg.Name] = append(s.byName[pkg.Name], pkg.ID)
-
-	return nil
 }
 
 // Get retrieves a package by ID.
