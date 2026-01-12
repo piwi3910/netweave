@@ -101,231 +101,189 @@ func NewMiddleware(store Store, config *MiddlewareConfig, logger *zap.Logger) *M
 // or proxies should ensure proper path sanitization.
 func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Generate request ID.
 		requestID := uuid.New().String()
 		c.Set("request_id", requestID)
 		ctx := ContextWithRequestID(c.Request.Context(), requestID)
 		c.Request = c.Request.WithContext(ctx)
 
-		// Skip authentication for excluded paths.
-		// NOTE: Assumes path has been normalized by upstream middleware (e.g., Gin router).
-		if m.shouldSkipAuth(c.Request.URL.Path) {
+		if m.shouldSkipAuth(c.Request.URL.Path) || !m.config.Enabled {
 			c.Next()
 			return
 		}
 
-		// Check if authentication is enabled.
-		if !m.config.Enabled {
-			c.Next()
-			return
-		}
-
-		// Start timing authentication.
 		authStart := time.Now()
-
-		// Extract client certificate.
 		cert := m.extractCertificate(c)
-		if cert == nil {
-			if m.config.RequireMTLS {
-				m.logger.Warn("no client certificate provided",
-					zap.String("path", c.Request.URL.Path),
-					zap.String("client_ip", c.ClientIP()),
-					zap.String("request_id", requestID),
-				)
 
-				m.logAuthFailure(c, "", "no client certificate")
-				RecordAuthenticationAttempt("failed", "mtls")
-				RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-					"error":   "Unauthorized",
-					"message": "Client certificate required",
-					"code":    http.StatusUnauthorized,
-				})
-				return
-			}
-			c.Next()
+		if cert == nil {
+			m.handleMissingCertificate(c, requestID, authStart)
 			return
 		}
 
-		// Build certificate subject.
 		subject := m.buildSubject(cert)
-		commonName := cert.Subject.CommonName
-
 		m.logger.Debug("authenticating client",
 			zap.String("subject", sanitizeForLogging(subject, 200)),
-			zap.String("common_name", sanitizeForLogging(commonName, 100)),
+			zap.String("common_name", sanitizeForLogging(cert.Subject.CommonName, 100)),
 			zap.String("request_id", requestID),
 		)
 
-		// Look up user by certificate subject.
-		user, err := m.store.GetUserBySubject(c.Request.Context(), subject)
+		user, role, tenant, err := m.authenticateAndLoadContext(c.Request.Context(), subject, requestID)
 		if err != nil {
-			if errors.Is(err, ErrUserNotFound) {
-				m.logger.Warn("unknown user certificate",
-					zap.String("subject", sanitizeForLogging(subject, 200)),
-					zap.String("client_ip", c.ClientIP()),
-					zap.String("request_id", requestID),
-				)
-
-				m.logAuthFailure(c, subject, "user not found")
-				RecordAuthenticationAttempt("failed", "mtls")
-				RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-					"error":   "Forbidden",
-					"message": "Authentication failed",
-					"code":    http.StatusForbidden,
-				})
-				return
-			}
-
-			m.logger.Error("failed to lookup user",
-				zap.String("subject", sanitizeForLogging(subject, 200)),
-				zap.Error(err),
-				zap.String("request_id", requestID),
-			)
-			RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Authentication failed",
-				"code":    http.StatusInternalServerError,
-			})
+			m.handleAuthenticationError(c, err, subject, requestID, authStart)
 			return
 		}
 
-		// Check if user is active.
-		if !user.IsActive {
-			m.logger.Warn("inactive user attempted access",
-				zap.String("user_id", user.ID),
-				zap.String("subject", sanitizeForLogging(subject, 200)),
-				zap.String("request_id", requestID),
-			)
-
-			m.logAuthFailure(c, subject, "user inactive")
-			RecordAuthenticationAttempt("failed", "mtls")
-			RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error":   "Forbidden",
-				"message": "Authentication failed",
-				"code":    http.StatusForbidden,
-			})
-			return
-		}
-
-		// Get user's role.
-		role, err := m.store.GetRole(c.Request.Context(), user.RoleID)
-		if err != nil {
-			m.logger.Error("failed to get user role",
-				zap.String("user_id", user.ID),
-				zap.String("role_id", user.RoleID),
-				zap.Error(err),
-				zap.String("request_id", requestID),
-			)
-			RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Authentication service temporarily unavailable",
-				"code":    http.StatusInternalServerError,
-			})
-			return
-		}
-
-		// Get tenant information.
-		tenant, err := m.store.GetTenant(c.Request.Context(), user.TenantID)
-		if err != nil {
-			if errors.Is(err, ErrTenantNotFound) {
-				m.logger.Warn("user's tenant not found",
-					zap.String("user_id", user.ID),
-					zap.String("tenant_id", user.TenantID),
-					zap.String("request_id", requestID),
-				)
-				RecordAuthenticationAttempt("failed", "mtls")
-				RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-					"error":   "Forbidden",
-					"message": "Authentication failed",
-					"code":    http.StatusForbidden,
-				})
-				return
-			}
-
-			m.logger.Error("failed to get tenant",
-				zap.String("tenant_id", user.TenantID),
-				zap.Error(err),
-				zap.String("request_id", requestID),
-			)
-			RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Authentication service temporarily unavailable",
-				"code":    http.StatusInternalServerError,
-			})
-			return
-		}
-
-		// Check if tenant is active.
-		if !tenant.IsActive() {
-			m.logger.Warn("access to suspended tenant",
-				zap.String("user_id", user.ID),
-				zap.String("tenant_id", user.TenantID),
-				zap.String("request_id", requestID),
-			)
-
-			m.logAuthFailure(c, subject, "tenant suspended")
-			RecordAuthenticationAttempt("failed", "mtls")
-			RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error":   "Forbidden",
-				"message": "Tenant is suspended",
-				"code":    http.StatusForbidden,
-			})
-			return
-		}
-
-		// Create authenticated user context.
-		authUser := &AuthenticatedUser{
-			UserID:          user.ID,
-			TenantID:        user.TenantID,
-			Subject:         subject,
-			CommonName:      commonName,
-			Role:            role,
-			IsPlatformAdmin: role.Type == RoleTypePlatform && role.Name == RolePlatformAdmin,
-		}
-
-		// Store in Gin context and request context.
-		c.Set("user", authUser)
-		c.Set("tenant", tenant)
-		c.Set("tenant_id", user.TenantID)
-		c.Set("user_id", user.ID)
-
-		ctx = ContextWithUser(ctx, authUser)
-		ctx = ContextWithTenant(ctx, tenant)
-		c.Request = c.Request.WithContext(ctx)
-
-		// Update last login timestamp (async, non-blocking).
-		// Use a new context with timeout since the request context may be cancelled.
-		userID := user.ID
-		go func() {
-			asyncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := m.store.UpdateLastLogin(asyncCtx, userID); err != nil {
-				m.logger.Warn("failed to update last login",
-					zap.String("user_id", userID),
-					zap.Error(err),
-				)
-			}
-		}()
-
-		m.logger.Info("user authenticated",
-			zap.String("user_id", user.ID),
-			zap.String("tenant_id", user.TenantID),
-			zap.String("role", sanitizeForLogging(string(role.Name), 50)),
-			zap.String("request_id", requestID),
-		)
-
-		RecordAuthenticationAttempt("success", "mtls")
-		RecordAuthenticationDuration("success", time.Since(authStart).Seconds())
-		c.Next()
+		m.finalizeAuthentication(c, ctx, user, role, tenant, subject, cert.Subject.CommonName, requestID, authStart)
 	}
+}
+
+func (m *Middleware) handleMissingCertificate(c *gin.Context, requestID string, authStart time.Time) {
+	if !m.config.RequireMTLS {
+		c.Next()
+		return
+	}
+
+	m.logger.Warn("no client certificate provided",
+		zap.String("path", c.Request.URL.Path),
+		zap.String("client_ip", c.ClientIP()),
+		zap.String("request_id", requestID),
+	)
+	m.logAuthFailure(c, "", "no client certificate")
+	RecordAuthenticationAttempt("failed", "mtls")
+	RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
+	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+		"error":   "Unauthorized",
+		"message": "Client certificate required",
+		"code":    http.StatusUnauthorized,
+	})
+}
+
+type authContext struct {
+	user   *TenantUser
+	role   *Role
+	tenant *Tenant
+}
+
+func (m *Middleware) authenticateAndLoadContext(ctx context.Context, subject, requestID string) (*TenantUser, *Role, *Tenant, error) {
+	user, err := m.store.GetUserBySubject(ctx, subject)
+	if err != nil {
+		return nil, nil, nil, &authError{kind: "user_lookup", err: err, subject: subject}
+	}
+
+	if !user.IsActive {
+		return nil, nil, nil, &authError{kind: "user_inactive", subject: subject, userID: user.ID}
+	}
+
+	role, err := m.store.GetRole(ctx, user.RoleID)
+	if err != nil {
+		return nil, nil, nil, &authError{kind: "role_lookup", err: err, userID: user.ID, roleID: user.RoleID}
+	}
+
+	tenant, err := m.store.GetTenant(ctx, user.TenantID)
+	if err != nil {
+		return nil, nil, nil, &authError{kind: "tenant_lookup", err: err, userID: user.ID, tenantID: user.TenantID}
+	}
+
+	if !tenant.IsActive() {
+		return nil, nil, nil, &authError{kind: "tenant_inactive", userID: user.ID, tenantID: user.TenantID}
+	}
+
+	return user, role, tenant, nil
+}
+
+type authError struct {
+	kind     string
+	err      error
+	subject  string
+	userID   string
+	roleID   string
+	tenantID string
+}
+
+func (e *authError) Error() string {
+	return e.kind
+}
+
+func (m *Middleware) handleAuthenticationError(c *gin.Context, err error, subject, requestID string, authStart time.Time) {
+	var aErr *authError
+	if !errors.As(err, &aErr) {
+		RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error": "InternalError", "message": "Authentication failed", "code": http.StatusInternalServerError,
+		})
+		return
+	}
+
+	switch aErr.kind {
+	case "user_lookup":
+		if errors.Is(aErr.err, ErrUserNotFound) {
+			m.logger.Warn("unknown user certificate", zap.String("subject", sanitizeForLogging(subject, 200)), zap.String("client_ip", c.ClientIP()), zap.String("request_id", requestID))
+			m.logAuthFailure(c, subject, "user not found")
+			RecordAuthenticationAttempt("failed", "mtls")
+			RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "Authentication failed", "code": http.StatusForbidden})
+		} else {
+			m.logger.Error("failed to lookup user", zap.String("subject", sanitizeForLogging(subject, 200)), zap.Error(aErr.err), zap.String("request_id", requestID))
+			RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "InternalError", "message": "Authentication failed", "code": http.StatusInternalServerError})
+		}
+	case "user_inactive":
+		m.logger.Warn("inactive user attempted access", zap.String("user_id", aErr.userID), zap.String("subject", sanitizeForLogging(subject, 200)), zap.String("request_id", requestID))
+		m.logAuthFailure(c, subject, "user inactive")
+		RecordAuthenticationAttempt("failed", "mtls")
+		RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "Authentication failed", "code": http.StatusForbidden})
+	case "role_lookup":
+		m.logger.Error("failed to get user role", zap.String("user_id", aErr.userID), zap.String("role_id", aErr.roleID), zap.Error(aErr.err), zap.String("request_id", requestID))
+		RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "InternalError", "message": "Authentication service temporarily unavailable", "code": http.StatusInternalServerError})
+	case "tenant_lookup":
+		if errors.Is(aErr.err, ErrTenantNotFound) {
+			m.logger.Warn("user's tenant not found", zap.String("user_id", aErr.userID), zap.String("tenant_id", aErr.tenantID), zap.String("request_id", requestID))
+			RecordAuthenticationAttempt("failed", "mtls")
+			RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "Authentication failed", "code": http.StatusForbidden})
+		} else {
+			m.logger.Error("failed to get tenant", zap.String("tenant_id", aErr.tenantID), zap.Error(aErr.err), zap.String("request_id", requestID))
+			RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "InternalError", "message": "Authentication service temporarily unavailable", "code": http.StatusInternalServerError})
+		}
+	case "tenant_inactive":
+		m.logger.Warn("access to suspended tenant", zap.String("user_id", aErr.userID), zap.String("tenant_id", aErr.tenantID), zap.String("request_id", requestID))
+		m.logAuthFailure(c, subject, "tenant suspended")
+		RecordAuthenticationAttempt("failed", "mtls")
+		RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "Tenant is suspended", "code": http.StatusForbidden})
+	}
+}
+
+func (m *Middleware) finalizeAuthentication(c *gin.Context, ctx context.Context, user *TenantUser, role *Role, tenant *Tenant, subject, commonName, requestID string, authStart time.Time) {
+	authUser := &AuthenticatedUser{
+		UserID: user.ID, TenantID: user.TenantID, Subject: subject, CommonName: commonName,
+		Role: role, IsPlatformAdmin: role.Type == RoleTypePlatform && role.Name == RolePlatformAdmin,
+	}
+
+	c.Set("user", authUser)
+	c.Set("tenant", tenant)
+	c.Set("tenant_id", user.TenantID)
+	c.Set("user_id", user.ID)
+
+	ctx = ContextWithUser(ctx, authUser)
+	ctx = ContextWithTenant(ctx, tenant)
+	c.Request = c.Request.WithContext(ctx)
+
+	userID := user.ID
+	go func() {
+		asyncCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := m.store.UpdateLastLogin(asyncCtx, userID); err != nil {
+			m.logger.Warn("failed to update last login", zap.String("user_id", userID), zap.Error(err))
+		}
+	}()
+
+	m.logger.Info("user authenticated", zap.String("user_id", user.ID), zap.String("tenant_id", user.TenantID), zap.String("role", sanitizeForLogging(string(role.Name), 50)), zap.String("request_id", requestID))
+	RecordAuthenticationAttempt("success", "mtls")
+	RecordAuthenticationDuration("success", time.Since(authStart).Seconds())
+	c.Next()
 }
 
 // RequirePermission returns a middleware that checks if the user has the required permission.
