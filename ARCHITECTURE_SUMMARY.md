@@ -385,12 +385,12 @@ routing:
 
 The gateway supports **parallel API versions** to enable evolution without breaking clients:
 
-- **v1 (Current)**: Base O2-IMS specification, simple resource format
-- **v2 (Future)**: Enhanced features - health metrics, batch operations, rich filtering
-- **v3 (Future)**: Advanced features - multi-tenancy, RBAC, custom resource types
+- **v1 (Stable)**: Base O2-IMS specification, simple resource format
+- **v2 (Production)**: Enhanced features - batch operations, rich filtering, field selection
+- **v3 (Production)**: Advanced features - multi-tenancy, tenant quotas, enhanced RBAC
 
 **Versioning Approach**:
-- URL-based versioning: `/o2ims/v1/...`, `/o2ims/v2/...`
+- URL-based versioning: `/o2ims/v1/...`, `/o2ims/v2/...`, `/o2ims/v3/...`
 - Independent handlers for each version
 - Deprecation policy: 12-month grace period
 - Deprecation headers: `X-API-Deprecated`, `X-API-Sunset-Date`
@@ -398,8 +398,127 @@ The gateway supports **parallel API versions** to enable evolution without break
 **Version Comparison**:
 ```
 v1: Simple     → { resourcePoolId, name, location }
-v2: Enhanced   → { resourcePoolId, name, location, health, metrics, usage }
-v3: Advanced   → + Enhanced RBAC, advanced multi-tenancy, custom types
+v2: Enhanced   → + Batch operations, advanced filtering, field selection
+v3: Advanced   → + Multi-tenancy, tenant quotas, enhanced RBAC
+```
+
+### v2 API Features (Production)
+
+#### Batch Operations
+Atomic bulk operations for creating and deleting multiple resources in a single API call:
+
+- **POST /o2ims/v2/batch/subscriptions**: Create multiple subscriptions atomically
+- **POST /o2ims/v2/batch/subscriptions/delete**: Delete multiple subscriptions
+- **POST /o2ims/v2/batch/resourcePools**: Create multiple resource pools atomically
+- **POST /o2ims/v2/batch/resourcePools/delete**: Delete multiple resource pools
+
+**Features**:
+- Atomic mode: All-or-nothing operations with automatic rollback
+- Non-atomic mode: Partial success with 207 Multi-Status response
+- Worker pool concurrency limiting (MaxWorkers=10)
+- Batch size validation (1-100 items)
+- Per-item status tracking with detailed error messages
+
+**Example Request**:
+```json
+{
+  "subscriptions": [
+    { "callback": "https://smo1.example.com/notify" },
+    { "callback": "https://smo2.example.com/notify" }
+  ],
+  "atomic": true
+}
+```
+
+**Example Response (207 Multi-Status)**:
+```json
+{
+  "successCount": 1,
+  "failureCount": 1,
+  "results": [
+    {
+      "index": 0,
+      "status": 201,
+      "success": true,
+      "data": { "subscriptionId": "sub-001" }
+    },
+    {
+      "index": 1,
+      "status": 400,
+      "success": false,
+      "error": { "error": "BadRequest", "message": "Invalid callback URL" }
+    }
+  ]
+}
+```
+
+#### Advanced Filtering
+Comprehensive query filtering with multiple operators and field selection:
+
+- **Comparison operators**: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`
+- **Pattern matching**: `like`, `ilike` (case-insensitive)
+- **Set membership**: `in`, `nin` (not in)
+- **Logical operators**: `and`, `or`, `not`
+- **Field selection**: Reduce payload size by selecting specific fields
+- **Nested field access**: Use dot notation (e.g., `metadata.labels`)
+- **Sorting**: Multi-field sorting with ascending/descending order
+
+**Example Queries**:
+```
+# Field selection (reduce payload)
+GET /o2ims/v2/resources?fields=resourceId,name,metadata.labels
+
+# Nested filtering with operators
+GET /o2ims/v2/resources?filter=location:like:us-east*,metadata.env:eq:prod
+
+# Multi-field sorting
+GET /o2ims/v2/resources?sortBy=location:asc,name:desc
+
+# Complex filtering
+GET /o2ims/v2/resourcePools?filter=location:in:[us-east,us-west],name:like:prod*
+```
+
+### v3 API Features (Production)
+
+#### Multi-Tenancy
+Full tenant isolation with per-tenant quotas and usage tracking:
+
+- **Tenant Management**: Create, update, delete, list tenants
+- **Quota Management**: Set and enforce per-tenant resource limits
+- **Usage Tracking**: Real-time tenant resource consumption monitoring
+- **Tenant Isolation**: Strict boundaries preventing cross-tenant access
+
+**Tenant Quotas**:
+```json
+{
+  "tenantId": "tenant-001",
+  "quotas": {
+    "maxResourcePools": 10,
+    "maxResources": 100,
+    "maxSubscriptions": 20,
+    "maxCPUCores": 500,
+    "maxMemoryGB": 1000
+  },
+  "usage": {
+    "resourcePools": 5,
+    "resources": 42,
+    "subscriptions": 8,
+    "cpuCores": 150,
+    "memoryGB": 320
+  }
+}
+```
+
+**Tenant API Endpoints**:
+```
+GET    /o2ims/v3/tenants                 - List all tenants
+POST   /o2ims/v3/tenants                 - Create new tenant
+GET    /o2ims/v3/tenants/{id}            - Get tenant details
+PUT    /o2ims/v3/tenants/{id}            - Update tenant
+DELETE /o2ims/v3/tenants/{id}            - Delete tenant
+GET    /o2ims/v3/tenants/{id}/quotas     - Get tenant quotas
+PUT    /o2ims/v3/tenants/{id}/quotas     - Update tenant quotas
+GET    /o2ims/v3/tenants/{id}/usage      - Get current usage
 ```
 
 ## RBAC and Multi-Tenancy (Built-in from Day 1)

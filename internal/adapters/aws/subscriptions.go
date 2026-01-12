@@ -68,10 +68,56 @@ func (a *AWSAdapter) GetSubscription(_ context.Context, id string) (sub *adapter
 	a.subscriptionsMu.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("subscription not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
 	return sub, nil
+}
+
+// UpdateSubscription updates an existing subscription.
+func (a *AWSAdapter) UpdateSubscription(
+	_ context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (result *adapter.Subscription, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "UpdateSubscription", start, err) }()
+
+	a.logger.Debug("UpdateSubscription called",
+		zap.String("id", id),
+		zap.String("callback", sub.Callback))
+
+	// Validate callback URL
+	if sub.Callback == "" {
+		return nil, fmt.Errorf("callback URL is required")
+	}
+
+	a.subscriptionsMu.Lock()
+	defer a.subscriptionsMu.Unlock()
+
+	// Check if subscription exists
+	existing, exists := a.subscriptions[id]
+	if !exists {
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+	}
+
+	// Create updated subscription preserving the ID
+	result = &adapter.Subscription{
+		SubscriptionID:         id,
+		Callback:               sub.Callback,
+		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
+		Filter:                 sub.Filter,
+	}
+
+	// Store updated subscription
+	a.subscriptions[id] = result
+
+	a.logger.Info("updated subscription",
+		zap.String("subscriptionId", id),
+		zap.String("oldCallback", existing.Callback),
+		zap.String("newCallback", sub.Callback))
+
+	return result, nil
 }
 
 // DeleteSubscription deletes a subscription by ID.
@@ -85,7 +131,7 @@ func (a *AWSAdapter) DeleteSubscription(_ context.Context, id string) (err error
 	a.subscriptionsMu.Lock()
 	if _, exists := a.subscriptions[id]; !exists {
 		a.subscriptionsMu.Unlock()
-		return fmt.Errorf("subscription not found: %s", id)
+		return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
 	delete(a.subscriptions, id)

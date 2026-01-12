@@ -22,8 +22,6 @@ type mockAdapter struct {
 	healthErr error
 }
 
-var errNotFound = errors.New("not found")
-
 func (m *mockAdapter) Name() string    { return "mock" }
 func (m *mockAdapter) Version() string { return "1.0.0" }
 func (m *mockAdapter) Capabilities() []adapter.Capability {
@@ -39,7 +37,7 @@ func (m *mockAdapter) ListResourcePools(ctx context.Context, filter *adapter.Fil
 	return nil, nil
 }
 func (m *mockAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
-	return nil, errNotFound
+	return nil, adapter.ErrResourcePoolNotFound
 }
 func (m *mockAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
 	return pool, nil
@@ -54,28 +52,44 @@ func (m *mockAdapter) ListResources(ctx context.Context, filter *adapter.Filter)
 	return nil, nil
 }
 func (m *mockAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
-	return nil, errNotFound
+	return nil, adapter.ErrResourceNotFound
 }
 func (m *mockAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
 	return resource, nil
 }
+func (m *mockAdapter) UpdateResource(ctx context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+	resource.ResourceID = id
+	return resource, nil
+}
 func (m *mockAdapter) DeleteResource(ctx context.Context, id string) error {
+	// Return not found for non-existent resources
+	if id == "res-nonexistent" || id == "res-123" {
+		return adapter.ErrResourceNotFound
+	}
 	return nil
 }
 func (m *mockAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
 	return nil, nil
 }
 func (m *mockAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
-	return nil, errNotFound
+	return nil, adapter.ErrResourceNotFound
 }
 func (m *mockAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
-	return nil, errNotFound
+	return nil, adapter.ErrResourceNotFound
 }
 func (m *mockAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
 	return sub, nil
 }
 func (m *mockAdapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
-	return nil, errNotFound
+	return nil, adapter.ErrResourceNotFound
+}
+func (m *mockAdapter) UpdateSubscription(ctx context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+	// Validate callback URL (consistent with real adapters)
+	if sub.Callback == "" {
+		return nil, errors.New("callback URL is required")
+	}
+	sub.SubscriptionID = id
+	return sub, nil
 }
 func (m *mockAdapter) DeleteSubscription(ctx context.Context, id string) error {
 	return nil
@@ -116,6 +130,40 @@ func (m *mockStore) Close() error {
 }
 func (m *mockStore) Ping(ctx context.Context) error {
 	return nil
+}
+
+// mockAuthStore implements AuthStore interface for testing.
+type mockAuthStore struct {
+	pingErr error
+}
+
+func (m *mockAuthStore) Ping(ctx context.Context) error {
+	return m.pingErr
+}
+
+func (m *mockAuthStore) Close() error {
+	return nil
+}
+
+// mockAuthMiddleware implements AuthMiddleware interface for testing.
+type mockAuthMiddleware struct{}
+
+func (m *mockAuthMiddleware) AuthenticationMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+	}
+}
+
+func (m *mockAuthMiddleware) RequirePermission(_ string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+	}
+}
+
+func (m *mockAuthMiddleware) RequirePlatformAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+	}
 }
 
 func TestNew(t *testing.T) {
@@ -361,4 +409,83 @@ func TestServer_ShutdownWithContext(t *testing.T) {
 	err := srv.ShutdownWithContext(ctx)
 	// Should not error even if server wasn't started
 	assert.NoError(t, err)
+}
+
+func TestServer_SetupAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name         string
+		authStore    AuthStore
+		authMw       AuthMiddleware
+		wantAuthNil  bool
+		wantStoreNil bool
+	}{
+		{
+			name:         "successful setup",
+			authStore:    &mockAuthStore{},
+			authMw:       &mockAuthMiddleware{},
+			wantAuthNil:  false,
+			wantStoreNil: false,
+		},
+		{
+			name:         "with ping error store",
+			authStore:    &mockAuthStore{pingErr: errors.New("connection refused")},
+			authMw:       &mockAuthMiddleware{},
+			wantAuthNil:  false,
+			wantStoreNil: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Server: config.ServerConfig{
+					Port:    8080,
+					GinMode: gin.TestMode,
+				},
+			}
+			srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+			// Call SetupAuth
+			srv.SetupAuth(tt.authStore, tt.authMw)
+
+			// Verify auth store is set
+			if tt.wantStoreNil {
+				assert.Nil(t, srv.AuthStore())
+			} else {
+				assert.NotNil(t, srv.AuthStore())
+				assert.Equal(t, tt.authStore, srv.AuthStore())
+			}
+
+			// Verify auth middleware is set
+			if tt.wantAuthNil {
+				assert.Nil(t, srv.authMw)
+			} else {
+				assert.NotNil(t, srv.authMw)
+			}
+		})
+	}
+}
+
+func TestServer_AuthStore(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+	// Before setup, should be nil
+	assert.Nil(t, srv.AuthStore())
+
+	// After setup
+	authStore := &mockAuthStore{}
+	srv.SetupAuth(authStore, &mockAuthMiddleware{})
+
+	assert.NotNil(t, srv.AuthStore())
+	assert.Equal(t, authStore, srv.AuthStore())
 }

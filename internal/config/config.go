@@ -230,6 +230,20 @@ func (c *RedisConfig) GetPassword() (string, error) {
 	return c.Password, nil
 }
 
+// IsUsingDeprecatedPassword returns true if the deprecated direct Password field
+// is being used instead of the recommended PasswordEnvVar or PasswordFile.
+// This method avoids direct access to sensitive password data for deprecation checks.
+func (c *RedisConfig) IsUsingDeprecatedPassword() bool {
+	return c.Password != "" && c.PasswordEnvVar == "" && c.PasswordFile == ""
+}
+
+// IsUsingDeprecatedSentinelPassword returns true if the deprecated direct SentinelPassword
+// field is being used instead of the recommended SentinelPasswordEnvVar or SentinelPasswordFile.
+// This method avoids direct access to sensitive password data for deprecation checks.
+func (c *RedisConfig) IsUsingDeprecatedSentinelPassword() bool {
+	return c.SentinelPassword != "" && c.SentinelPasswordEnvVar == "" && c.SentinelPasswordFile == ""
+}
+
 // GetSentinelPassword retrieves the Sentinel password from the configured source.
 // Priority order:
 //  1. Environment variable (if SentinelPasswordEnvVar is set)
@@ -417,6 +431,37 @@ type SecurityConfig struct {
 	// This should ONLY be enabled in development/testing environments
 	// Production deployments MUST enforce HTTPS for webhook callbacks
 	AllowInsecureCallbacks bool `mapstructure:"allow_insecure_callbacks"`
+
+	// SecurityHeaders contains configuration for security headers middleware
+	SecurityHeaders SecurityHeadersConfig `mapstructure:"security_headers"`
+}
+
+// SecurityHeadersConfig contains configuration for HTTP security headers.
+type SecurityHeadersConfig struct {
+	// Enabled controls whether security headers are added (default: true)
+	Enabled bool `mapstructure:"enabled"`
+
+	// HSTSMaxAge is the max-age for Strict-Transport-Security header in seconds
+	// Default: 31536000 (1 year)
+	HSTSMaxAge int `mapstructure:"hsts_max_age"`
+
+	// HSTSIncludeSubDomains includes subdomains in HSTS
+	HSTSIncludeSubDomains bool `mapstructure:"hsts_include_subdomains"`
+
+	// HSTSPreload enables HSTS preload
+	HSTSPreload bool `mapstructure:"hsts_preload"`
+
+	// ContentSecurityPolicy is the Content-Security-Policy header value
+	// Default: "default-src 'none'; frame-ancestors 'none'"
+	ContentSecurityPolicy string `mapstructure:"content_security_policy"`
+
+	// FrameOptions is the X-Frame-Options header value
+	// Default: "DENY"
+	FrameOptions string `mapstructure:"frame_options"`
+
+	// ReferrerPolicy is the Referrer-Policy header value
+	// Default: "strict-origin-when-cross-origin"
+	ReferrerPolicy string `mapstructure:"referrer_policy"`
 }
 
 // RateLimitConfig contains comprehensive rate limiting configuration.
@@ -429,6 +474,9 @@ type RateLimitConfig struct {
 
 	// Global configures global rate limits
 	Global GlobalRateLimitConfig `mapstructure:"global"`
+
+	// PerResource configures per-resource-type rate limits
+	PerResource ResourceRateLimitConfig `mapstructure:"resource"`
 }
 
 // TenantRateLimitConfig configures per-tenant rate limits.
@@ -449,6 +497,51 @@ type EndpointRateLimitConfig struct {
 type GlobalRateLimitConfig struct {
 	RequestsPerSecond     int `mapstructure:"requests_per_second"`
 	MaxConcurrentRequests int `mapstructure:"max_concurrent_requests"`
+}
+
+// ResourceRateLimitConfig contains resource-type-specific rate limiting configuration.
+type ResourceRateLimitConfig struct {
+	// Enabled controls whether resource rate limiting is active
+	Enabled bool `mapstructure:"enabled"`
+
+	// DeploymentManagers configures limits for deployment manager operations
+	DeploymentManagers ResourceTypeLimitConfig `mapstructure:"deployment_managers"`
+
+	// ResourcePools configures limits for resource pool operations
+	ResourcePools ResourceTypeLimitConfig `mapstructure:"resource_pools"`
+
+	// Resources configures limits for individual resource operations
+	Resources ResourceTypeLimitConfig `mapstructure:"resources"`
+
+	// ResourceTypes configures limits for resource type operations
+	ResourceTypes ResourceTypeLimitConfig `mapstructure:"resource_types"`
+
+	// Subscriptions configures limits for subscription operations
+	Subscriptions SubscriptionRateLimitConfig `mapstructure:"subscriptions"`
+}
+
+// ResourceTypeLimitConfig defines rate limits for a resource type.
+type ResourceTypeLimitConfig struct {
+	// ReadsPerMinute limits read operations per minute
+	ReadsPerMinute int `mapstructure:"reads_per_minute"`
+
+	// WritesPerMinute limits write operations per minute
+	WritesPerMinute int `mapstructure:"writes_per_minute"`
+
+	// ListPageSizeMax limits the maximum page size for list operations
+	ListPageSizeMax int `mapstructure:"list_page_size_max"`
+}
+
+// SubscriptionRateLimitConfig defines rate limits specific to subscriptions.
+type SubscriptionRateLimitConfig struct {
+	// CreatesPerHour limits subscription creations per hour
+	CreatesPerHour int `mapstructure:"creates_per_hour"`
+
+	// MaxActive limits the maximum number of active subscriptions per tenant
+	MaxActive int `mapstructure:"max_active"`
+
+	// ReadsPerMinute limits read operations per minute
+	ReadsPerMinute int `mapstructure:"reads_per_minute"`
 }
 
 // ValidationConfig contains OpenAPI request/response validation configuration.

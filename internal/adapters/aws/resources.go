@@ -146,6 +146,20 @@ func (a *AWSAdapter) CreateResource(ctx context.Context, resource *adapter.Resou
 	return created, nil
 }
 
+// UpdateResource updates an existing EC2 instance's tags and metadata.
+// Note: Core instance properties (instance type, AMI) cannot be modified after launch.
+func (a *AWSAdapter) UpdateResource(ctx context.Context, id string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
+	start := time.Now()
+	defer func() { adapter.ObserveOperation("aws", "UpdateResource", start, err) }()
+
+	a.logger.Debug("UpdateResource called",
+		zap.String("resourceId", id))
+
+	// TODO(#188): Implement instance tag updates via EC2 CreateTags API
+	// For now, return not supported
+	return nil, fmt.Errorf("updating EC2 instances is not yet implemented")
+}
+
 // extractInstanceType extracts the instance type from the resource type ID.
 func extractInstanceType(resourceTypeID string) string {
 	instanceType := strings.TrimPrefix(resourceTypeID, "aws-instance-type-")
