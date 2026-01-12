@@ -29,7 +29,7 @@ const (
 	poolModeASG = "asg"
 )
 
-// AWSAdapter implements the adapter.Adapter interface for AWS backends.
+// Adapter implements the adapter.Adapter interface for AWS backends.
 // It provides O2-IMS functionality by mapping O2-IMS resources to AWS resources:
 //   - Resource Pools → Availability Zones or Auto Scaling Groups
 //   - Resources → EC2 Instances

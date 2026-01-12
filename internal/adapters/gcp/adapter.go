@@ -26,7 +26,7 @@ const (
 	poolModeZone = "zone"
 )
 
-// GCPAdapter implements the adapter.Adapter interface for GCP backends.
+// Adapter implements the adapter.Adapter interface for GCP backends.
 // It provides O2-IMS functionality by mapping O2-IMS resources to GCP resources:
 //   - Resource Pools → Zones or Managed Instance Groups
 //   - Resources → Compute Engine Instances

@@ -68,7 +68,7 @@ var (
 	}
 )
 
-// KustomizeAdapter implements the DMS adapter interface for Kustomize deployments.
+// Adapter implements the DMS adapter interface for Kustomize deployments.
 type Adapter struct {
 	config        *Config
 	dynamicClient dynamic.Interface
