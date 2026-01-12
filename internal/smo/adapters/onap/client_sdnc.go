@@ -32,7 +32,7 @@ func NewSDNCClient(config *Config, logger *zap.Logger) (*SDNCClient, error) {
 	}
 
 	// Create TLS configuration
-	tlsConfig, err := createTLSConfig(config, logger)
+	tlsConfig, err := createTLSConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TLS config: %w", err)
 	}
