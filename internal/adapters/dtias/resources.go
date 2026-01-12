@@ -111,14 +111,27 @@ func (a *DTIASAdapter) GetResource(ctx context.Context, id string) (*adapter.Res
 	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
-	// Query and parse DTIAS API
-	path := fmt.Sprintf("/v2/inventory/servers/%s", id)
-	var server Server
-	if err := a.getAndParseResource(ctx, path, &server, "server"); err != nil {
-		return nil, err
+	// DTIAS v2.4.0: GET /v2/inventory/servers/{Id} returns JobResponse (async operation)
+	// Instead, use the list endpoint with id filter to get the server directly
+	path := fmt.Sprintf("/v2/inventory/servers?id=%s", id)
+
+	servers, err := a.fetchServers(ctx, path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get server: %w", err)
+	}
+
+	// Should return exactly one server
+	if len(servers) == 0 {
+		return nil, fmt.Errorf("server not found: %s", id)
+	}
+	if len(servers) > 1 {
+		a.logger.Warn("multiple servers returned for ID filter",
+			zap.String("id", id),
+			zap.Int("count", len(servers)))
 	}
 
 	// Transform to O2-IMS resource
+	server := servers[0]
 	resource := a.transformServerToResource(&server)
 
 	a.logger.Debug("retrieved resource",
