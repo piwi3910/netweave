@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -50,25 +51,54 @@ func DefaultMiddlewareConfig() *MiddlewareConfig {
 
 // Middleware provides authentication and authorization middleware for Gin.
 type Middleware struct {
-	store  Store
-	config *MiddlewareConfig
-	logger *zap.Logger
+	store            Store
+	config           *MiddlewareConfig
+	logger           *zap.Logger
+	compiledPatterns []*regexp.Regexp // Pre-compiled regex patterns for skip paths
 }
 
 // NewMiddleware creates a new authentication middleware.
+// Pre-compiles regex patterns for skip paths during initialization for performance.
 func NewMiddleware(store Store, config *MiddlewareConfig, logger *zap.Logger) *Middleware {
 	if config == nil {
 		config = DefaultMiddlewareConfig()
 	}
+
+	// Pre-compile regex patterns for paths with wildcards
+	compiledPatterns := make([]*regexp.Regexp, 0, len(config.SkipPaths))
+	for _, pattern := range config.SkipPaths {
+		if strings.Contains(pattern, "*") {
+			// Convert glob pattern to regex using shared helper
+			regexPattern := patternToRegex(pattern)
+			compiled, err := regexp.Compile(regexPattern)
+			if err != nil {
+				// Log warning for invalid patterns
+				logger.Warn("Failed to compile skip path pattern",
+					zap.String("pattern", pattern),
+					zap.Error(err))
+				continue
+			}
+			compiledPatterns = append(compiledPatterns, compiled)
+		}
+	}
+
 	return &Middleware{
-		store:  store,
-		config: config,
-		logger: logger,
+		store:            store,
+		config:           config,
+		logger:           logger,
+		compiledPatterns: compiledPatterns,
 	}
 }
 
 // AuthenticationMiddleware extracts user identity from the request.
 // It parses mTLS client certificates and looks up the user in the database.
+//
+// SECURITY NOTE: Path Matching and Normalization
+// The shouldSkipAuth() function matches paths as-is without normalization.
+// Path traversal sequences (../, ./, etc.) are NOT sanitized by this middleware.
+// It is the caller's responsibility to ensure paths are normalized BEFORE reaching
+// this middleware. Gin framework normalizes paths by default, but custom routers
+// or proxies should ensure proper path sanitization.
 func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Generate request ID.
@@ -78,6 +108,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 		c.Request = c.Request.WithContext(ctx)
 
 		// Skip authentication for excluded paths.
+		// NOTE: Assumes path has been normalized by upstream middleware (e.g., Gin router).
 		if m.shouldSkipAuth(c.Request.URL.Path) {
 			c.Next()
 			return
@@ -680,17 +711,75 @@ func (m *Middleware) extractEmail(emails []string) string {
 }
 
 // shouldSkipAuth checks if the path should skip authentication.
+// Uses pre-compiled regex patterns for performance.
 func (m *Middleware) shouldSkipAuth(path string) bool {
+	// First check exact matches (no wildcard patterns)
 	for _, skipPath := range m.config.SkipPaths {
-		if path == skipPath {
-			return true
-		}
-		// Support prefix matching with trailing wildcard.
-		if strings.HasSuffix(skipPath, "*") && strings.HasPrefix(path, skipPath[:len(skipPath)-1]) {
+		if !strings.Contains(skipPath, "*") && path == skipPath {
 			return true
 		}
 	}
+
+	// Then check cached compiled patterns (wildcard patterns)
+	for _, pattern := range m.compiledPatterns {
+		if pattern.MatchString(path) {
+			return true
+		}
+	}
+
 	return false
+}
+
+// patternToRegex converts a glob-style pattern to a regex string.
+// Supports both simple trailing wildcards (/api/public/*) and
+// glob-style wildcards (/api/*/public/*).
+// The last * in a pattern can match multiple path segments.
+func patternToRegex(pattern string) string {
+	// Escape regex special characters except *
+	regexPattern := regexp.QuoteMeta(pattern)
+
+	// Split on escaped \* to handle each wildcard separately
+	parts := strings.Split(regexPattern, "\\*")
+
+	// Replace each wildcard:
+	// - Non-trailing wildcards match single path segment: [^/]+
+	// - Trailing wildcard matches everything: .*
+	for i := 0; i < len(parts)-1; i++ {
+		if i == len(parts)-2 && parts[i+1] == "" {
+			// This is the last wildcard and it's at the end (trailing *)
+			parts[i] += ".*"
+		} else {
+			// Non-trailing wildcard - matches single path segment
+			parts[i] += "[^/]+"
+		}
+	}
+	regexPattern = strings.Join(parts, "")
+
+	// Anchor the pattern
+	return "^" + regexPattern + "$"
+}
+
+// matchesPathPattern checks if a path matches a pattern with wildcards.
+// Used by tests to verify pattern matching logic.
+// Production code uses pre-compiled patterns in shouldSkipAuth for performance.
+func matchesPathPattern(path, pattern string) bool {
+	// Exact match
+	if path == pattern {
+		return true
+	}
+
+	// No wildcards - no match
+	if !strings.Contains(pattern, "*") {
+		return false
+	}
+
+	// Convert pattern to regex and match
+	regexPattern := patternToRegex(pattern)
+	matched, err := regexp.MatchString(regexPattern, path)
+	if err != nil {
+		return false
+	}
+	return matched
 }
 
 // logAuthFailure logs an authentication failure audit event.
