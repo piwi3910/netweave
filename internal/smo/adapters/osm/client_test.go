@@ -12,6 +12,8 @@ import (
 const (
 	// testAuthPath is the OSM API endpoint path for token authentication.
 	testAuthPath = "/osm/admin/v1/tokens"
+	// testAPIPath is a test API endpoint path used in client tests.
+	testAPIPath = "/api/test"
 )
 
 // TestNewClient tests the creation of a new OSM client.
@@ -465,7 +467,7 @@ func TestGet(t *testing.T) {
 		}
 
 		// GET endpoint
-		if r.Method == http.MethodGet && r.URL.Path == "/api/test" {
+		if r.Method == http.MethodGet && r.URL.Path == testAPIPath {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"status": "ok"}`))
@@ -497,7 +499,7 @@ func TestGet(t *testing.T) {
 	}
 
 	var result map[string]string
-	err = client.get(ctx, "/api/test", &result)
+	err = client.get(ctx, testAPIPath, &result)
 
 	if err != nil {
 		t.Errorf("get() unexpected error: %v", err)
@@ -639,7 +641,7 @@ func TestDoRequest_Unauthorized(t *testing.T) {
 		}
 
 		// API calls - always return 401 to test auth error handling
-		if r.URL.Path == "/api/test" {
+		if r.URL.Path == testAPIPath {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -669,7 +671,7 @@ func TestDoRequest_Unauthorized(t *testing.T) {
 	}
 
 	var result map[string]string
-	err = client.get(ctx, "/api/test", &result)
+	err = client.get(ctx, testAPIPath, &result)
 
 	// Should fail with authentication error
 	if err == nil {
@@ -696,7 +698,7 @@ func TestDoRequest_RetryableError(t *testing.T) {
 		}
 
 		// API endpoint - return 503 to trigger retry
-		if r.URL.Path == "/api/test" {
+		if r.URL.Path == testAPIPath {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
@@ -728,7 +730,7 @@ func TestDoRequest_RetryableError(t *testing.T) {
 	}
 
 	var result map[string]string
-	err = client.get(ctx, "/api/test", &result)
+	err = client.get(ctx, testAPIPath, &result)
 
 	// Should fail after retries
 	if err == nil {
@@ -760,7 +762,7 @@ func TestDoRequest_NonRetryableError(t *testing.T) {
 		}
 
 		// API endpoint - return 400 (non-retryable)
-		if r.URL.Path == "/api/test" {
+		if r.URL.Path == testAPIPath {
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(`{"detail": "Invalid request"}`))
 			return
@@ -785,7 +787,7 @@ func TestDoRequest_NonRetryableError(t *testing.T) {
 
 	ctx := context.Background()
 	var result map[string]string
-	err = client.get(ctx, "/api/test", &result)
+	err = client.get(ctx, testAPIPath, &result)
 
 	// Should fail immediately without retries
 	if err == nil {

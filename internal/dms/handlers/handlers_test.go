@@ -21,6 +21,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const testCallbackURL = "https://google.com/webhook"
+
 // mockAdapter implements the adapter.DMSAdapter interface for testing.
 type mockAdapter struct {
 	name         string
@@ -699,7 +701,6 @@ func TestCreateDMSSubscription(t *testing.T) {
 
 	// Use a public HTTPS URL that will pass DNS validation.
 	// google.com reliably resolves to public IPs in all environments.
-	testCallbackURL := "https://google.com/webhook"
 
 	createReq := models.CreateDMSSubscriptionRequest{
 		Callback:               testCallbackURL,
@@ -737,7 +738,6 @@ func TestGetDMSSubscription(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	// First create a subscription.
-	testCallbackURL := "https://google.com/webhook"
 	createReq := models.CreateDMSSubscriptionRequest{
 		Callback: testCallbackURL,
 	}
@@ -776,7 +776,6 @@ func TestDeleteDMSSubscription(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	// First create a subscription.
-	testCallbackURL := "https://google.com/webhook"
 	createReq := models.CreateDMSSubscriptionRequest{
 		Callback: testCallbackURL,
 	}
@@ -1223,7 +1222,6 @@ func TestHandler_CreateSubscriptionNoStore(t *testing.T) {
 	handler := NewHandler(reg, nil, logger)
 	router := setupTestRouter(handler)
 
-	testCallbackURL := "https://google.com/webhook"
 	createReq := models.CreateDMSSubscriptionRequest{
 		Callback: testCallbackURL,
 	}
@@ -1325,7 +1323,6 @@ func TestHandler_CreateSubscriptionWithFilter(t *testing.T) {
 	handler, _ := setupTestHandler(t)
 	router := setupTestRouter(handler)
 
-	testCallbackURL := "https://google.com/webhook"
 	createReq := models.CreateDMSSubscriptionRequest{
 		Callback:               testCallbackURL,
 		ConsumerSubscriptionID: "consumer-123",
