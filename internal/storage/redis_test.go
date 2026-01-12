@@ -1056,5 +1056,5 @@ func TestNewRedisStore_InvalidAddress(t *testing.T) {
 	_, err := store.Get(ctx, "test")
 	require.Error(t, err)
 
-	store.Close()
+	require.NoError(t, store.Close())
 }

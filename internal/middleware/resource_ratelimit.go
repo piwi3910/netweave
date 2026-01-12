@@ -398,31 +398,36 @@ func (rl *ResourceRateLimiter) checkPageSize(c *gin.Context, resourceType Resour
 
 // getMaxPageSize returns the maximum page size for a resource type.
 func (rl *ResourceRateLimiter) getMaxPageSize(resourceType ResourceType) int {
+	// Get resource-specific max page size.
+	maxSize := rl.getResourceTypeMaxPageSize(resourceType)
+	if maxSize > 0 {
+		return maxSize
+	}
+
+	// Fall back to default.
+	if rl.config.DefaultLimits.ListPageSizeMax > 0 {
+		return rl.config.DefaultLimits.ListPageSizeMax
+	}
+
+	return DefaultMaxPageSize
+}
+
+// getResourceTypeMaxPageSize returns the configured max page size for a resource type.
+func (rl *ResourceRateLimiter) getResourceTypeMaxPageSize(resourceType ResourceType) int {
 	switch resourceType {
 	case ResourceTypeDeploymentManagers:
-		if rl.config.DeploymentManagers.ListPageSizeMax > 0 {
-			return rl.config.DeploymentManagers.ListPageSizeMax
-		}
+		return rl.config.DeploymentManagers.ListPageSizeMax
 	case ResourceTypeResourcePools:
-		if rl.config.ResourcePools.ListPageSizeMax > 0 {
-			return rl.config.ResourcePools.ListPageSizeMax
-		}
+		return rl.config.ResourcePools.ListPageSizeMax
 	case ResourceTypeResources:
-		if rl.config.Resources.ListPageSizeMax > 0 {
-			return rl.config.Resources.ListPageSizeMax
-		}
+		return rl.config.Resources.ListPageSizeMax
 	case ResourceTypeResourceTypes:
-		if rl.config.ResourceTypes.ListPageSizeMax > 0 {
-			return rl.config.ResourceTypes.ListPageSizeMax
-		}
+		return rl.config.ResourceTypes.ListPageSizeMax
 	case ResourceTypeSubscriptions:
 		return DefaultMaxPageSize // Subscriptions don't have a separate page size config
 	default:
-		if rl.config.DefaultLimits.ListPageSizeMax > 0 {
-			return rl.config.DefaultLimits.ListPageSizeMax
-		}
+		return 0
 	}
-	return DefaultMaxPageSize // Default fallback
 }
 
 // checkResourceLimit checks if the request is within the resource-specific rate limit.
