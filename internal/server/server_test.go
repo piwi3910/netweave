@@ -62,6 +62,10 @@ func (m *mockAdapter) UpdateResource(ctx context.Context, id string, resource *a
 	return resource, nil
 }
 func (m *mockAdapter) DeleteResource(ctx context.Context, id string) error {
+	// Return not found for non-existent resources
+	if id == "res-nonexistent" || id == "res-123" {
+		return adapter.ErrResourceNotFound
+	}
 	return nil
 }
 func (m *mockAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {

@@ -414,7 +414,8 @@ func getRedisPasswords(cfg *config.Config, logger *zap.Logger) (redisPassword, s
 	}
 
 	// Log warning if using deprecated direct password configuration
-	if cfg.Redis.Password != "" && cfg.Redis.PasswordEnvVar == "" && cfg.Redis.PasswordFile == "" {
+	// Use helper method to avoid direct access to sensitive Password field
+	if cfg.Redis.IsUsingDeprecatedPassword() {
 		logger.Warn("SECURITY WARNING: Redis password is stored in plaintext configuration. "+
 			"This is deprecated and insecure. Use password_env_var or password_file instead.",
 			zap.Bool("deprecated_password_field", true))
@@ -428,7 +429,8 @@ func getRedisPasswords(cfg *config.Config, logger *zap.Logger) (redisPassword, s
 		}
 
 		// Log warning if using deprecated direct sentinel password configuration
-		if cfg.Redis.SentinelPassword != "" && cfg.Redis.SentinelPasswordEnvVar == "" && cfg.Redis.SentinelPasswordFile == "" {
+		// Use helper method to avoid direct access to sensitive SentinelPassword field
+		if cfg.Redis.IsUsingDeprecatedSentinelPassword() {
 			logger.Warn("SECURITY WARNING: Sentinel password is stored in plaintext configuration. "+
 				"This is deprecated and insecure. Use sentinel_password_env_var or sentinel_password_file instead.",
 				zap.Bool("deprecated_sentinel_password_field", true))

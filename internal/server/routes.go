@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -95,6 +96,7 @@ func (s *Server) setupV1Routes(v1 *gin.RouterGroup) {
 		resources.POST("", s.handleCreateResource)
 		resources.GET("/:resourceId", s.handleGetResource)
 		resources.PUT("/:resourceId", s.handleUpdateResource)
+		resources.DELETE("/:resourceId", s.handleDeleteResource)
 	}
 
 	// Resource Type Management
@@ -353,12 +355,32 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 		return
 	}
 
+	// Validate callback URL early for fast failure (SSRF protection)
+	if err := s.validateCallback(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
 	// Generate subscription ID
 	req.SubscriptionID = "sub-" + uuid.New().String()
 
 	// Create subscription via adapter
 	created, err := s.adapter.CreateSubscription(c.Request.Context(), &req)
 	if err != nil {
+		// Check for conflict error (subscription already exists)
+		if errors.Is(err, adapter.ErrSubscriptionExists) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "Conflict",
+				"message": "Subscription already exists",
+				"code":    http.StatusConflict,
+			})
+			return
+		}
+
 		s.logger.Error("failed to create subscription", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
@@ -784,10 +806,22 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 
 	// Generate resource pool ID if not provided (sanitized with UUID for uniqueness)
 	// Format: pool-{sanitized-name}-{uuid}
-	// Example: "GPU Pool (Production)" → "pool-gpu-pool--production--a1b2c3d4-e5f6-7890-abcd-1234567890ab"
+	// Example: "GPU Pool (Production)" → "pool-gpu-pool-production-a1b2c3d4-e5f6-7890-abcd-1234567890ab"
 	if req.ResourcePoolID == "" {
-		// Add UUID suffix to prevent collisions from similar names
-		req.ResourcePoolID = "pool-" + sanitizeResourcePoolID(req.Name) + "-" + uuid.New().String()
+		sanitizedName := sanitizeResourcePoolID(req.Name)
+		// Clean up consecutive hyphens that can occur from sanitization
+		sanitizedName = strings.ReplaceAll(sanitizedName, "--", "-")
+		sanitizedName = strings.Trim(sanitizedName, "-")
+
+		// Ensure total length doesn't exceed 255 chars (per O2-IMS spec)
+		// UUID is 36 chars, "pool-" is 5 chars, we need 2 chars for separating hyphens = 43 chars reserved
+		// This leaves 212 chars for the sanitized name
+		maxNameLength := 212
+		if len(sanitizedName) > maxNameLength {
+			sanitizedName = sanitizedName[:maxNameLength]
+		}
+
+		req.ResourcePoolID = "pool-" + sanitizedName + "-" + uuid.New().String()
 	}
 
 	// Create resource pool via adapter
@@ -1171,6 +1205,35 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 
 	// Apply update
 	s.applyResourceUpdate(c, resourceID, &req, existing)
+}
+
+func (s *Server) handleDeleteResource(c *gin.Context) {
+	resourceID := c.Param("resourceId")
+	s.logger.Info("deleting resource", zap.String("resource_id", resourceID))
+
+	// Delete resource via adapter
+	if err := s.adapter.DeleteResource(c.Request.Context(), resourceID); err != nil {
+		// Check for not found error using sentinel error
+		if errors.Is(err, adapter.ErrResourceNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource not found: " + resourceID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+
+		s.logger.Error("failed to delete resource", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to delete resource",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	s.logger.Info("resource deleted", zap.String("resource_id", resourceID))
+	c.Status(http.StatusNoContent)
 }
 
 // getExistingResource retrieves an existing resource and handles errors.
@@ -1580,6 +1643,20 @@ func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
 
 // validateCallback validates a subscription callback URL.
 // It performs early validation to provide fast failure before calling the adapter.
+// Includes SSRF protection to prevent callbacks to localhost and private IP ranges.
+//
+// SECURITY NOTE: DNS Rebinding Time-of-Check-Time-of-Use (TOCTOU) Vulnerability
+// This validation only checks the callback URL at registration time. An attacker could:
+// 1. Register a callback URL pointing to a legitimate public server
+// 2. Pass this validation
+// 3. Change DNS records to point the hostname to localhost/private IPs
+// 4. Receive webhooks at the new (malicious) destination
+//
+// Mitigation strategies for production deployments:
+// - Re-validate callback URLs before EACH webhook delivery attempt
+// - Cache DNS results with short TTL and re-validate on changes
+// - Implement webhook delivery through a dedicated egress proxy that enforces policies
+// - Consider additional authentication mechanisms for webhooks (HMAC signatures, mTLS)
 func (s *Server) validateCallback(sub *adapter.Subscription) error {
 	if sub == nil {
 		return fmt.Errorf("subscription cannot be nil")
@@ -1605,5 +1682,116 @@ func (s *Server) validateCallback(sub *adapter.Subscription) error {
 		return fmt.Errorf("callback URL must have a valid host")
 	}
 
+	// SSRF Protection: Block localhost and private IP ranges
+	if err := validateCallbackHost(parsedURL.Hostname()); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// validateCallbackHost validates that the callback host is not localhost or a private IP address.
+// This prevents SSRF (Server-Side Request Forgery) attacks.
+func validateCallbackHost(hostname string) error {
+	// Block localhost variations
+	if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" {
+		return fmt.Errorf("callback URL cannot be localhost")
+	}
+
+	// Attempt to resolve hostname to IP
+	ips, err := net.LookupIP(hostname)
+	if err != nil {
+		// If DNS lookup fails, allow it - the actual webhook delivery will fail naturally
+		// This prevents blocking valid hostnames that are temporarily unresolvable
+		return nil
+	}
+
+	// Check if any resolved IP is in a private range
+	for _, ip := range ips {
+		if isPrivateIP(ip) {
+			return fmt.Errorf("callback URL cannot be a private IP address")
+		}
+	}
+
+	return nil
+}
+
+// Pre-computed private IP ranges for SSRF protection.
+// These are computed at package initialization to avoid runtime parsing overhead
+// and ensure error handling happens at startup, not during request processing.
+var (
+	privateIPv4Nets []*net.IPNet
+	privateIPv6Nets []*net.IPNet
+)
+
+func init() {
+	// Parse private IPv4 ranges (RFC 1918 + link-local)
+	privateIPv4CIDRs := []string{
+		"10.0.0.0/8",     // Private class A
+		"172.16.0.0/12",  // Private class B
+		"192.168.0.0/16", // Private class C
+		"169.254.0.0/16", // Link-local
+	}
+
+	for _, cidr := range privateIPv4CIDRs {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			// This should never happen with hardcoded CIDRs
+			panic(fmt.Sprintf("invalid IPv4 CIDR in privateIPv4CIDRs: %s: %v", cidr, err))
+		}
+		privateIPv4Nets = append(privateIPv4Nets, network)
+	}
+
+	// Parse private IPv6 ranges
+	privateIPv6CIDRs := []string{
+		"fc00::/7",  // IPv6 unique local addresses (ULA)
+		"fe80::/10", // IPv6 link-local
+	}
+
+	for _, cidr := range privateIPv6CIDRs {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			// This should never happen with hardcoded CIDRs
+			panic(fmt.Sprintf("invalid IPv6 CIDR in privateIPv6CIDRs: %s: %v", cidr, err))
+		}
+		privateIPv6Nets = append(privateIPv6Nets, network)
+	}
+}
+
+// isPrivateIP checks if an IP address is in a private or reserved range.
+func isPrivateIP(ip net.IP) bool {
+	if ip.IsLoopback() {
+		return true
+	}
+
+	if isPrivateIPv4(ip) {
+		return true
+	}
+
+	return isPrivateIPv6(ip)
+}
+
+// isPrivateIPv4 checks if an IPv4 address is in a private range (RFC 1918).
+func isPrivateIPv4(ip net.IP) bool {
+	for _, network := range privateIPv4Nets {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// isPrivateIPv6 checks if an IPv6 address is in a private range.
+func isPrivateIPv6(ip net.IP) bool {
+	// Only check IPv6 addresses
+	if ip.To4() != nil {
+		return false
+	}
+
+	for _, network := range privateIPv6Nets {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }

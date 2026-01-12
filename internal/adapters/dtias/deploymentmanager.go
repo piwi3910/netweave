@@ -16,8 +16,8 @@ func (a *DTIASAdapter) GetDeploymentManager(ctx context.Context, id string) (*ad
 		zap.String("id", id))
 
 	// Validate that the requested ID matches our deployment manager ID
-	if id != a.deploymentManagerID {
-		return nil, fmt.Errorf("deployment manager not found: %s", id)
+	if id != a.deploymentManagerID && id != "default" {
+		return nil, fmt.Errorf("%w: %s", adapter.ErrDeploymentManagerNotFound, id)
 	}
 
 	// Query DTIAS API for datacenter metadata (used to build deployment manager info)
