@@ -21,7 +21,7 @@ func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter)
 		zap.String("poolMode", a.poolMode))
 
 	if a.poolMode == "az" {
-		return a.listAZPools(ctx, filter)
+		return a.listAZPools(ctx, filter), nil
 	}
 	return a.listRGPools(ctx, filter)
 }
@@ -87,7 +87,7 @@ func (a *Adapter) listRGPools(ctx context.Context, filter *adapter.Filter) ([]*a
 }
 
 // listAZPools lists Availability Zones as resource pools.
-func (a *Adapter) listAZPools(_ context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *Adapter) listAZPools(_ context.Context, filter *adapter.Filter) []*adapter.ResourcePool {
 	// Azure has 3 availability zones (1, 2, 3) in supported regions
 	// Not all regions support availability zones, but we'll list them anyway
 	zones := []string{"1", "2", "3"}
@@ -126,7 +126,7 @@ func (a *Adapter) listAZPools(_ context.Context, filter *adapter.Filter) ([]*ada
 	a.logger.Info("listed resource pools (AZ mode)",
 		zap.Int("count", len(pools)))
 
-	return pools, nil
+	return pools
 }
 
 // GetResourcePool retrieves a specific resource pool by ID.
@@ -161,10 +161,7 @@ func (a *Adapter) getRGPool(ctx context.Context, id string) (*adapter.ResourcePo
 
 // getAZPool retrieves an Availability Zone as a resource pool.
 func (a *Adapter) getAZPool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
-	pools, err := a.listAZPools(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
+	pools := a.listAZPools(ctx, nil)
 
 	for _, pool := range pools {
 		if pool.ResourcePoolID == id {
