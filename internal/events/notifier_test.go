@@ -19,23 +19,23 @@ import (
 // mockDeliveryTracker implements DeliveryTracker for testing.
 type mockDeliveryTracker struct{}
 
-func (m *mockDeliveryTracker) Track(ctx context.Context, delivery *NotificationDelivery) error {
+func (m *mockDeliveryTracker) Track(_ context.Context, delivery *NotificationDelivery) error {
 	return nil
 }
 
-func (m *mockDeliveryTracker) Get(ctx context.Context, deliveryID string) (*NotificationDelivery, error) {
+func (m *mockDeliveryTracker) Get(_ context.Context, deliveryID string) (*NotificationDelivery, error) {
 	return nil, errors.New("delivery not found")
 }
 
-func (m *mockDeliveryTracker) ListByEvent(ctx context.Context, eventID string) ([]*NotificationDelivery, error) {
+func (m *mockDeliveryTracker) ListByEvent(_ context.Context, eventID string) ([]*NotificationDelivery, error) {
 	return nil, nil
 }
 
-func (m *mockDeliveryTracker) ListBySubscription(ctx context.Context, subscriptionID string) ([]*NotificationDelivery, error) {
+func (m *mockDeliveryTracker) ListBySubscription(_ context.Context, subscriptionID string) ([]*NotificationDelivery, error) {
 	return nil, nil
 }
 
-func (m *mockDeliveryTracker) ListFailed(ctx context.Context) ([]*NotificationDelivery, error) {
+func (m *mockDeliveryTracker) ListFailed(_ context.Context) ([]*NotificationDelivery, error) {
 	return nil, nil
 }
 
@@ -103,7 +103,7 @@ func TestWebhookNotifier_Notify(t *testing.T) {
 	})
 
 	t.Run("handles delivery failure", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
 		defer server.Close()
@@ -128,7 +128,7 @@ func TestWebhookNotifier_Notify(t *testing.T) {
 	})
 
 	t.Run("handles timeout", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			time.Sleep(5 * time.Second)
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -166,7 +166,7 @@ func TestWebhookNotifier_NotifyWithRetry(t *testing.T) {
 	tracker := &mockDeliveryTracker{}
 
 	t.Run("succeeds on first attempt", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 		defer server.Close()
@@ -192,7 +192,7 @@ func TestWebhookNotifier_NotifyWithRetry(t *testing.T) {
 
 	t.Run("retries on failure", func(t *testing.T) {
 		attemptCount := 0
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			attemptCount++
 			if attemptCount < 2 {
 				w.WriteHeader(http.StatusInternalServerError)

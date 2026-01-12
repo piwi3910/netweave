@@ -55,7 +55,7 @@ var (
 )
 
 // ONAPLCMAdapter implements the DMS adapter interface for ONAP lifecycle management.
-type ONAPLCMAdapter struct {
+type Adapter struct {
 	config      *Config
 	httpClient  *http.Client
 	deployments map[string]*adapter.Deployment
@@ -89,7 +89,7 @@ type Config struct {
 }
 
 // NewAdapter creates a new ONAP-LCM adapter instance.
-func NewAdapter(config *Config) (*ONAPLCMAdapter, error) {
+func NewAdapter(config *Config) (*Adapter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
@@ -99,7 +99,7 @@ func NewAdapter(config *Config) (*ONAPLCMAdapter, error) {
 		config.Timeout = DefaultTimeout
 	}
 
-	return &ONAPLCMAdapter{
+	return &Adapter{
 		config:      config,
 		deployments: make(map[string]*adapter.Deployment),
 		packages:    make(map[string]*adapter.DeploymentPackage),
@@ -107,7 +107,7 @@ func NewAdapter(config *Config) (*ONAPLCMAdapter, error) {
 }
 
 // initialize performs lazy initialization of the HTTP client.
-func (o *ONAPLCMAdapter) initialize() error {
+func (o *Adapter) initialize() error {
 	o.initOnce.Do(func() {
 		o.httpClient = &http.Client{
 			Timeout: o.config.Timeout,
@@ -118,17 +118,17 @@ func (o *ONAPLCMAdapter) initialize() error {
 }
 
 // Name returns the adapter name.
-func (o *ONAPLCMAdapter) Name() string {
+func (o *Adapter) Name() string {
 	return AdapterName
 }
 
 // Version returns the ONAP SO API version supported by this adapter.
-func (o *ONAPLCMAdapter) Version() string {
+func (o *Adapter) Version() string {
 	return AdapterVersion
 }
 
 // Capabilities returns the capabilities supported by the ONAP-LCM adapter.
-func (o *ONAPLCMAdapter) Capabilities() []adapter.Capability {
+func (o *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityPackageManagement,
 		adapter.CapabilityDeploymentLifecycle,
@@ -138,12 +138,12 @@ func (o *ONAPLCMAdapter) Capabilities() []adapter.Capability {
 }
 
 // ListDeploymentPackages retrieves all available VNF/CNF packages.
-func (o *ONAPLCMAdapter) ListDeploymentPackages(
+func (o *Adapter) ListDeploymentPackages(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -167,12 +167,12 @@ func (o *ONAPLCMAdapter) ListDeploymentPackages(
 }
 
 // GetDeploymentPackage retrieves a specific VNF/CNF package by ID.
-func (o *ONAPLCMAdapter) GetDeploymentPackage(
+func (o *Adapter) GetDeploymentPackage(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -191,12 +191,12 @@ func (o *ONAPLCMAdapter) GetDeploymentPackage(
 }
 
 // UploadDeploymentPackage registers a new VNF/CNF package.
-func (o *ONAPLCMAdapter) UploadDeploymentPackage(
+func (o *Adapter) UploadDeploymentPackage(
 	ctx context.Context,
 	pkg *adapter.DeploymentPackageUpload,
 ) (*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if pkg == nil {
@@ -239,12 +239,12 @@ func (o *ONAPLCMAdapter) UploadDeploymentPackage(
 }
 
 // DeleteDeploymentPackage removes a VNF/CNF package.
-func (o *ONAPLCMAdapter) DeleteDeploymentPackage(
+func (o *Adapter) DeleteDeploymentPackage(
 	ctx context.Context,
 	id string,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -263,12 +263,12 @@ func (o *ONAPLCMAdapter) DeleteDeploymentPackage(
 }
 
 // ListDeployments retrieves all VNF/CNF instances.
-func (o *ONAPLCMAdapter) ListDeployments(
+func (o *Adapter) ListDeployments(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.Deployment, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -296,12 +296,12 @@ func (o *ONAPLCMAdapter) ListDeployments(
 }
 
 // GetDeployment retrieves a specific VNF/CNF instance by ID.
-func (o *ONAPLCMAdapter) GetDeployment(
+func (o *Adapter) GetDeployment(
 	ctx context.Context,
 	id string,
 ) (*adapter.Deployment, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -320,12 +320,12 @@ func (o *ONAPLCMAdapter) GetDeployment(
 }
 
 // CreateDeployment instantiates a new VNF/CNF.
-func (o *ONAPLCMAdapter) CreateDeployment(
+func (o *Adapter) CreateDeployment(
 	ctx context.Context,
 	req *adapter.DeploymentRequest,
 ) (*adapter.Deployment, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if req == nil {
@@ -371,13 +371,13 @@ func (o *ONAPLCMAdapter) CreateDeployment(
 }
 
 // UpdateDeployment updates a VNF/CNF instance.
-func (o *ONAPLCMAdapter) UpdateDeployment(
+func (o *Adapter) UpdateDeployment(
 	ctx context.Context,
 	id string,
 	update *adapter.DeploymentUpdate,
 ) (*adapter.Deployment, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if update == nil {
@@ -407,12 +407,12 @@ func (o *ONAPLCMAdapter) UpdateDeployment(
 }
 
 // DeleteDeployment terminates a VNF/CNF instance.
-func (o *ONAPLCMAdapter) DeleteDeployment(
+func (o *Adapter) DeleteDeployment(
 	ctx context.Context,
 	id string,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -431,13 +431,13 @@ func (o *ONAPLCMAdapter) DeleteDeployment(
 }
 
 // ScaleDeployment scales a VNF/CNF instance.
-func (o *ONAPLCMAdapter) ScaleDeployment(
+func (o *Adapter) ScaleDeployment(
 	ctx context.Context,
 	id string,
 	replicas int,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if replicas < 0 {
@@ -467,13 +467,13 @@ func (o *ONAPLCMAdapter) ScaleDeployment(
 }
 
 // RollbackDeployment is not directly supported by ONAP SO.
-func (o *ONAPLCMAdapter) RollbackDeployment(
+func (o *Adapter) RollbackDeployment(
 	ctx context.Context,
 	_ string,
 	revision int,
 ) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if revision < 0 {
@@ -484,12 +484,12 @@ func (o *ONAPLCMAdapter) RollbackDeployment(
 }
 
 // GetDeploymentStatus retrieves detailed status for a VNF/CNF instance.
-func (o *ONAPLCMAdapter) GetDeploymentStatus(
+func (o *Adapter) GetDeploymentStatus(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentStatusDetail, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -521,12 +521,12 @@ func (o *ONAPLCMAdapter) GetDeploymentStatus(
 }
 
 // GetDeploymentHistory retrieves the revision history for a VNF/CNF instance.
-func (o *ONAPLCMAdapter) GetDeploymentHistory(
+func (o *Adapter) GetDeploymentHistory(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentHistory, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -553,13 +553,13 @@ func (o *ONAPLCMAdapter) GetDeploymentHistory(
 }
 
 // GetDeploymentLogs retrieves logs for a VNF/CNF instance.
-func (o *ONAPLCMAdapter) GetDeploymentLogs(
+func (o *Adapter) GetDeploymentLogs(
 	ctx context.Context,
 	id string,
 	_ *adapter.LogOptions,
 ) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -581,28 +581,32 @@ func (o *ONAPLCMAdapter) GetDeploymentLogs(
 		"extensions":   deployment.Extensions,
 	}
 
-	return json.MarshalIndent(info, "", "  ")
+	data, err := json.MarshalIndent(info, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal deployment logs: %w", err)
+	}
+	return data, nil
 }
 
 // SupportsRollback returns false as ONAP SO doesn't support direct rollback.
-func (o *ONAPLCMAdapter) SupportsRollback() bool {
+func (o *Adapter) SupportsRollback() bool {
 	return false
 }
 
 // SupportsScaling returns true as ONAP SO supports VNF scaling.
-func (o *ONAPLCMAdapter) SupportsScaling() bool {
+func (o *Adapter) SupportsScaling() bool {
 	return true
 }
 
 // SupportsGitOps returns false as ONAP SO uses API-driven orchestration.
-func (o *ONAPLCMAdapter) SupportsGitOps() bool {
+func (o *Adapter) SupportsGitOps() bool {
 	return false
 }
 
 // Health performs a health check on the ONAP SO endpoint.
-func (o *ONAPLCMAdapter) Health(ctx context.Context) error {
+func (o *Adapter) Health(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if err := o.initialize(); err != nil {
@@ -634,14 +638,14 @@ func (o *ONAPLCMAdapter) Health(ctx context.Context) error {
 }
 
 // Close cleanly shuts down the adapter.
-func (o *ONAPLCMAdapter) Close() error {
+func (o *Adapter) Close() error {
 	o.httpClient = nil
 	return nil
 }
 
 // Helper functions
 
-func (o *ONAPLCMAdapter) calculateProgress(status adapter.DeploymentStatus) int {
+func (o *Adapter) calculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return 100
@@ -649,6 +653,10 @@ func (o *ONAPLCMAdapter) calculateProgress(status adapter.DeploymentStatus) int 
 		return 50
 	case adapter.DeploymentStatusPending:
 		return 25
+	case adapter.DeploymentStatusRollingBack:
+		return 30
+	case adapter.DeploymentStatusDeleting:
+		return 10
 	case adapter.DeploymentStatusFailed:
 		return 0
 	default:
@@ -656,19 +664,25 @@ func (o *ONAPLCMAdapter) calculateProgress(status adapter.DeploymentStatus) int 
 	}
 }
 
-func (o *ONAPLCMAdapter) conditionStatus(status adapter.DeploymentStatus) string {
+func (o *Adapter) conditionStatus(status adapter.DeploymentStatus) string {
 	if status == adapter.DeploymentStatusDeployed {
 		return "True"
 	}
 	return "False"
 }
 
-func (o *ONAPLCMAdapter) conditionReason(status adapter.DeploymentStatus) string {
+func (o *Adapter) conditionReason(status adapter.DeploymentStatus) string {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return "InstantiationSucceeded"
 	case adapter.DeploymentStatusDeploying:
 		return "Instantiating"
+	case adapter.DeploymentStatusPending:
+		return "Pending"
+	case adapter.DeploymentStatusRollingBack:
+		return "RollingBack"
+	case adapter.DeploymentStatusDeleting:
+		return "Deleting"
 	case adapter.DeploymentStatusFailed:
 		return "InstantiationFailed"
 	default:
@@ -676,7 +690,7 @@ func (o *ONAPLCMAdapter) conditionReason(status adapter.DeploymentStatus) string
 	}
 }
 
-func (o *ONAPLCMAdapter) applyPagination(
+func (o *Adapter) applyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
 ) []*adapter.Deployment {
@@ -694,7 +708,7 @@ func (o *ONAPLCMAdapter) applyPagination(
 	return deployments[start:end]
 }
 
-func (o *ONAPLCMAdapter) applyPackagePagination(
+func (o *Adapter) applyPackagePagination(
 	packages []*adapter.DeploymentPackage,
 	limit, offset int,
 ) []*adapter.DeploymentPackage {

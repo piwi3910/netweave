@@ -301,37 +301,48 @@ func TestRedisStore_Update(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := store.Update(ctx, tt.sub)
-
+			verifyUpdateError(t, err, tt.wantErr)
 			if tt.wantErr != nil {
-				if err == nil {
-					t.Fatalf("expected error %v, got nil", tt.wantErr)
-				}
-				if !errors.Is(err, tt.wantErr) {
-					t.Errorf("expected error type %v, got %v", tt.wantErr, err)
-				}
 				return
 			}
-
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			// Verify update
-			got, err := store.Get(ctx, tt.sub.ID)
-			if err != nil {
-				t.Fatalf("failed to get updated subscription: %v", err)
-			}
-
-			if got.Callback != tt.sub.Callback {
-				t.Errorf("Callback = %v, want %v", got.Callback, tt.sub.Callback)
-			}
-			if got.UpdatedAt.IsZero() {
-				t.Error("UpdatedAt should be set")
-			}
-			if !got.UpdatedAt.After(got.CreatedAt) {
-				t.Error("UpdatedAt should be after CreatedAt")
-			}
+			verifySubscriptionUpdated(ctx, t, store, tt.sub)
 		})
+	}
+}
+
+// verifyUpdateError checks if the error matches expected error type.
+func verifyUpdateError(t *testing.T, err, wantErr error) {
+	t.Helper()
+	if wantErr != nil {
+		if err == nil {
+			t.Fatalf("expected error %v, got nil", wantErr)
+		}
+		if !errors.Is(err, wantErr) {
+			t.Errorf("expected error type %v, got %v", wantErr, err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// verifySubscriptionUpdated verifies the subscription was updated correctly.
+func verifySubscriptionUpdated(ctx context.Context, t *testing.T, store *RedisStore, sub *Subscription) {
+	t.Helper()
+	got, err := store.Get(ctx, sub.ID)
+	if err != nil {
+		t.Fatalf("failed to get updated subscription: %v", err)
+	}
+
+	if got.Callback != sub.Callback {
+		t.Errorf("Callback = %v, want %v", got.Callback, sub.Callback)
+	}
+	if got.UpdatedAt.IsZero() {
+		t.Error("UpdatedAt should be set")
+	}
+	if !got.UpdatedAt.After(got.CreatedAt) {
+		t.Error("UpdatedAt should be after CreatedAt")
 	}
 }
 

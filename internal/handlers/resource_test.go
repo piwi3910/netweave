@@ -34,18 +34,18 @@ func (m *mockResourceAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{adapter.CapabilityResources, adapter.CapabilityResourcePools}
 }
 
-func (m *mockResourceAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
+func (m *mockResourceAdapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
 	if m.deploymentManager == nil {
 		return nil, errors.New("deployment manager not configured")
 	}
 	return m.deploymentManager, nil
 }
 
-func (m *mockResourceAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (m *mockResourceAdapter) ListResourcePools(_ context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	return m.resourcePools, nil
 }
 
-func (m *mockResourceAdapter) GetResourcePool(ctx context.Context, poolID string) (*adapter.ResourcePool, error) {
+func (m *mockResourceAdapter) GetResourcePool(_ context.Context, poolID string) (*adapter.ResourcePool, error) {
 	for _, pool := range m.resourcePools {
 		if pool.ResourcePoolID == poolID {
 			return pool, nil
@@ -54,27 +54,27 @@ func (m *mockResourceAdapter) GetResourcePool(ctx context.Context, poolID string
 	return nil, errors.New("not found")
 }
 
-func (m *mockResourceAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockResourceAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
 	m.resourcePools = append(m.resourcePools, pool)
 	return pool, nil
 }
 
-func (m *mockResourceAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockResourceAdapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
 	return pool, nil
 }
 
-func (m *mockResourceAdapter) DeleteResourcePool(ctx context.Context, poolID string) error {
+func (m *mockResourceAdapter) DeleteResourcePool(_ context.Context, poolID string) error {
 	return nil
 }
 
-func (m *mockResourceAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (m *mockResourceAdapter) ListResources(_ context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
 	return m.resources, nil
 }
 
-func (m *mockResourceAdapter) GetResource(ctx context.Context, resourceID string) (*adapter.Resource, error) {
+func (m *mockResourceAdapter) GetResource(_ context.Context, resourceID string) (*adapter.Resource, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
@@ -86,7 +86,7 @@ func (m *mockResourceAdapter) GetResource(ctx context.Context, resourceID string
 	return nil, errors.New("not found")
 }
 
-func (m *mockResourceAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+func (m *mockResourceAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
@@ -94,7 +94,7 @@ func (m *mockResourceAdapter) CreateResource(ctx context.Context, resource *adap
 	return resource, nil
 }
 
-func (m *mockResourceAdapter) UpdateResource(ctx context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+func (m *mockResourceAdapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
 	for i, res := range m.resources {
 		if res.ResourceID == id {
 			resource.ResourceID = id
@@ -105,18 +105,18 @@ func (m *mockResourceAdapter) UpdateResource(ctx context.Context, id string, res
 	return nil, errors.New("resource not found")
 }
 
-func (m *mockResourceAdapter) DeleteResource(ctx context.Context, resourceID string) error {
+func (m *mockResourceAdapter) DeleteResource(_ context.Context, resourceID string) error {
 	if m.deleteErr != nil {
 		return m.deleteErr
 	}
 	return nil
 }
 
-func (m *mockResourceAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (m *mockResourceAdapter) ListResourceTypes(_ context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
 	return m.resourceTypes, nil
 }
 
-func (m *mockResourceAdapter) GetResourceType(ctx context.Context, typeID string) (*adapter.ResourceType, error) {
+func (m *mockResourceAdapter) GetResourceType(_ context.Context, typeID string) (*adapter.ResourceType, error) {
 	for _, rt := range m.resourceTypes {
 		if rt.ResourceTypeID == typeID {
 			return rt, nil
@@ -125,24 +125,24 @@ func (m *mockResourceAdapter) GetResourceType(ctx context.Context, typeID string
 	return nil, errors.New("not found")
 }
 
-func (m *mockResourceAdapter) CreateSubscription(ctx context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *mockResourceAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
 	return sub, nil
 }
 
-func (m *mockResourceAdapter) GetSubscription(ctx context.Context, subscriptionID string) (*adapter.Subscription, error) {
+func (m *mockResourceAdapter) GetSubscription(_ context.Context, subscriptionID string) (*adapter.Subscription, error) {
 	return &adapter.Subscription{SubscriptionID: subscriptionID}, nil
 }
 
-func (m *mockResourceAdapter) UpdateSubscription(ctx context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *mockResourceAdapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
 	sub.SubscriptionID = id
 	return sub, nil
 }
 
-func (m *mockResourceAdapter) DeleteSubscription(ctx context.Context, subscriptionID string) error {
+func (m *mockResourceAdapter) DeleteSubscription(_ context.Context, subscriptionID string) error {
 	return nil
 }
 
-func (m *mockResourceAdapter) Health(ctx context.Context) error {
+func (m *mockResourceAdapter) Health(_ context.Context) error {
 	return nil
 }
 

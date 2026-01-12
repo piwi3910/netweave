@@ -290,7 +290,7 @@ func (w *WebhookWorker) processNextEvent(ctx context.Context, consumerName strin
 }
 
 // handleMessage processes a single message from the stream.
-func (w *WebhookWorker) handleMessage(ctx context.Context, consumerName string, msg redis.XMessage) error {
+func (w *WebhookWorker) handleMessage(ctx context.Context, _ string, msg redis.XMessage) error {
 	// Parse event data
 	eventData, ok := msg.Values["event"].(string)
 	if !ok {

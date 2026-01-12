@@ -126,7 +126,7 @@ func TestNew(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	adp := &AzureAdapter{
+	adp := &Adapter{
 		logger: zap.NewNop(),
 	}
 
@@ -329,7 +329,7 @@ func TestTagsToMap(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
-	adp := &AzureAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 	}
@@ -404,7 +404,7 @@ func TestSubscriptions(t *testing.T) {
 
 // TestClose tests adapter cleanup.
 func TestClose(t *testing.T) {
-	adp := &AzureAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 	}

@@ -286,7 +286,10 @@ func NewRedisStoreWithClient(client redis.UniversalClient) *RedisStore {
 
 // Close closes the Redis connection.
 func (r *RedisStore) Close() error {
-	return r.client.Close()
+	if err := r.client.Close(); err != nil {
+		return fmt.Errorf("failed to close Redis client: %w", err)
+	}
+	return nil
 }
 
 // Ping checks if Redis is available.
@@ -1196,12 +1199,12 @@ func (r *RedisStore) getAuditEvent(ctx context.Context, id string) (*AuditEvent,
 	key := auditKeyPrefix + id
 	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get audit event from Redis: %w", err)
 	}
 
 	var event AuditEvent
 	if err := json.Unmarshal(data, &event); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal audit event: %w", err)
 	}
 
 	return &event, nil

@@ -12,7 +12,7 @@ import (
 
 // ListResourcePools retrieves all OpenStack host aggregates and transforms them to O2-IMS Resource Pools.
 // Host aggregates in OpenStack are logical groupings of compute hosts, which map naturally to O2-IMS Resource Pools.
-func (a *OpenStackAdapter) ListResourcePools(
+func (a *Adapter) ListResourcePools(
 	_ context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.ResourcePool, error) {
@@ -60,7 +60,7 @@ func (a *OpenStackAdapter) ListResourcePools(
 }
 
 // GetResourcePool retrieves a specific OpenStack host aggregate by ID and transforms it to O2-IMS Resource Pool.
-func (a *OpenStackAdapter) GetResourcePool(_ context.Context, id string) (*adapter.ResourcePool, error) {
+func (a *Adapter) GetResourcePool(_ context.Context, id string) (*adapter.ResourcePool, error) {
 	a.logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
@@ -91,7 +91,7 @@ func (a *OpenStackAdapter) GetResourcePool(_ context.Context, id string) (*adapt
 }
 
 // CreateResourcePool creates a new OpenStack host aggregate from an O2-IMS Resource Pool.
-func (a *OpenStackAdapter) CreateResourcePool(
+func (a *Adapter) CreateResourcePool(
 	_ context.Context,
 	pool *adapter.ResourcePool,
 ) (*adapter.ResourcePool, error) {
@@ -155,7 +155,7 @@ func (a *OpenStackAdapter) CreateResourcePool(
 
 // UpdateResourcePool updates an existing OpenStack host aggregate.
 // Note: Only metadata can be updated; name and availability zone are immutable in OpenStack.
-func (a *OpenStackAdapter) UpdateResourcePool(
+func (a *Adapter) UpdateResourcePool(
 	_ context.Context,
 	id string,
 	pool *adapter.ResourcePool,
@@ -211,7 +211,7 @@ func (a *OpenStackAdapter) UpdateResourcePool(
 }
 
 // DeleteResourcePool deletes an OpenStack host aggregate.
-func (a *OpenStackAdapter) DeleteResourcePool(_ context.Context, id string) error {
+func (a *Adapter) DeleteResourcePool(_ context.Context, id string) error {
 	a.logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 
@@ -239,7 +239,7 @@ func (a *OpenStackAdapter) DeleteResourcePool(_ context.Context, id string) erro
 }
 
 // transformHostAggregateToResourcePool converts an OpenStack host aggregate to O2-IMS Resource Pool.
-func (a *OpenStackAdapter) transformHostAggregateToResourcePool(agg *aggregates.Aggregate) *adapter.ResourcePool {
+func (a *Adapter) transformHostAggregateToResourcePool(agg *aggregates.Aggregate) *adapter.ResourcePool {
 	resourcePoolID := fmt.Sprintf("openstack-aggregate-%d", agg.ID)
 
 	return &adapter.ResourcePool{

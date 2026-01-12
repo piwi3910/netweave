@@ -17,7 +17,7 @@ import (
 // ListResourcePools retrieves all resource pools matching the provided filter.
 // In "az" mode, it lists Availability Zones.
 // In "asg" mode, it lists Auto Scaling Groups.
-func (a *AWSAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) (pools []*adapter.ResourcePool, err error) {
+func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) (pools []*adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "ListResourcePools", start, err) }()
 
@@ -32,7 +32,7 @@ func (a *AWSAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filt
 }
 
 // listAZPools lists Availability Zones as resource pools.
-func (a *AWSAdapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *Adapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	// Get availability zones
 	azsOutput, err := a.ec2Client.DescribeAvailabilityZones(ctx, &ec2.DescribeAvailabilityZonesInput{
 		Filters: []ec2Types.Filter{
@@ -89,7 +89,7 @@ func (a *AWSAdapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([
 }
 
 // listASGPools lists Auto Scaling Groups as resource pools.
-func (a *AWSAdapter) listASGPools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *Adapter) listASGPools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	// Get Auto Scaling Groups
 	var pools []*adapter.ResourcePool
 	paginator := autoscaling.NewDescribeAutoScalingGroupsPaginator(a.asgClient, &autoscaling.DescribeAutoScalingGroupsInput{})
@@ -157,7 +157,7 @@ func (a *AWSAdapter) listASGPools(ctx context.Context, filter *adapter.Filter) (
 }
 
 // GetResourcePool retrieves a specific resource pool by ID.
-func (a *AWSAdapter) GetResourcePool(ctx context.Context, id string) (pool *adapter.ResourcePool, err error) {
+func (a *Adapter) GetResourcePool(ctx context.Context, id string) (pool *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetResourcePool", start, err) }()
 
@@ -171,7 +171,7 @@ func (a *AWSAdapter) GetResourcePool(ctx context.Context, id string) (pool *adap
 }
 
 // getAZPool retrieves an Availability Zone as a resource pool.
-func (a *AWSAdapter) getAZPool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+func (a *Adapter) getAZPool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
 	// Extract zone name from pool ID
 	pools, err := a.listAZPools(ctx, nil)
 	if err != nil {
@@ -188,7 +188,7 @@ func (a *AWSAdapter) getAZPool(ctx context.Context, id string) (*adapter.Resourc
 }
 
 // getASGPool retrieves an Auto Scaling Group as a resource pool.
-func (a *AWSAdapter) getASGPool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+func (a *Adapter) getASGPool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
 	pools, err := a.listASGPools(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -206,7 +206,7 @@ func (a *AWSAdapter) getASGPool(ctx context.Context, id string) (*adapter.Resour
 // CreateResourcePool creates a new resource pool.
 // In "az" mode, this operation is not supported (AZs are AWS-managed).
 // In "asg" mode, this creates a new Auto Scaling Group.
-func (a *AWSAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (created *adapter.ResourcePool, err error) {
+func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (created *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "CreateResourcePool", start, err) }()
 
@@ -225,7 +225,7 @@ func (a *AWSAdapter) CreateResourcePool(_ context.Context, pool *adapter.Resourc
 // UpdateResourcePool updates an existing resource pool.
 // In "az" mode, this operation is not supported.
 // In "asg" mode, this updates ASG capacity settings (desired, min, max).
-func (a *AWSAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (updated *adapter.ResourcePool, err error) {
+func (a *Adapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (updated *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "UpdateResourcePool", start, err) }()
 
@@ -275,7 +275,7 @@ func (a *AWSAdapter) UpdateResourcePool(ctx context.Context, id string, pool *ad
 // In "az" mode, this operation is not supported.
 // In "asg" mode, this deletes an Auto Scaling Group.
 // Note: This is a destructive operation. The ASG must be empty or ForceDelete must be enabled.
-func (a *AWSAdapter) DeleteResourcePool(ctx context.Context, id string) (err error) {
+func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "DeleteResourcePool", start, err) }()
 

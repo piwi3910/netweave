@@ -14,7 +14,7 @@ import (
 
 // ListDeploymentManagers retrieves deployment manager metadata.
 // In Kubernetes, there is typically one deployment manager per cluster.
-func (a *KubernetesAdapter) ListDeploymentManagers(
+func (a *Adapter) ListDeploymentManagers(
 	_ context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.DeploymentManager, error) {
@@ -37,7 +37,7 @@ func (a *KubernetesAdapter) ListDeploymentManagers(
 }
 
 // GetDeploymentManager retrieves metadata about the deployment manager.
-func (a *KubernetesAdapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
+func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
 	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
@@ -71,7 +71,7 @@ func (a *KubernetesAdapter) GetDeploymentManager(_ context.Context, id string) (
 
 // CreateDeploymentManager creates a new deployment manager.
 // This operation is not supported as deployment managers represent the Kubernetes cluster itself.
-func (a *KubernetesAdapter) CreateDeploymentManager(
+func (a *Adapter) CreateDeploymentManager(
 	_ context.Context,
 	dm *adapter.DeploymentManager,
 ) (*adapter.DeploymentManager, error) {
@@ -85,7 +85,7 @@ func (a *KubernetesAdapter) CreateDeploymentManager(
 }
 
 // getDeploymentManager returns the deployment manager metadata for this Kubernetes cluster.
-func (a *KubernetesAdapter) getDeploymentManager() *adapter.DeploymentManager {
+func (a *Adapter) getDeploymentManager() *adapter.DeploymentManager {
 	return &adapter.DeploymentManager{
 		DeploymentManagerID: a.deploymentManagerID,
 		Name:                fmt.Sprintf("Kubernetes Cluster: %s", a.deploymentManagerID),
@@ -109,7 +109,7 @@ func (a *KubernetesAdapter) getDeploymentManager() *adapter.DeploymentManager {
 }
 
 // GetOCloudInfrastructure retrieves O-Cloud infrastructure metadata.
-func (a *KubernetesAdapter) GetOCloudInfrastructure(ctx context.Context) (map[string]interface{}, error) {
+func (a *Adapter) GetOCloudInfrastructure(ctx context.Context) (map[string]interface{}, error) {
 	a.logger.Debug("GetOCloudInfrastructure called")
 
 	// Get server version

@@ -12,7 +12,7 @@ import (
 )
 
 // ListResourceTypes retrieves all resource types (Azure VM sizes) matching the provided filter.
-func (a *AzureAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
+func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "ListResourceTypes", start, err) }()
 
@@ -51,7 +51,7 @@ func (a *AzureAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Fi
 }
 
 // GetResourceType retrieves a specific resource type (Azure VM size) by ID.
-func (a *AzureAdapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
+func (a *Adapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetResourceType", start, err) }()
 
@@ -83,7 +83,7 @@ func (a *AzureAdapter) GetResourceType(ctx context.Context, id string) (resource
 }
 
 // vmSizeToResourceType converts an Azure VM size to an O2-IMS ResourceType.
-func (a *AzureAdapter) vmSizeToResourceType(vmSize *armcompute.VirtualMachineSize) *adapter.ResourceType {
+func (a *Adapter) vmSizeToResourceType(vmSize *armcompute.VirtualMachineSize) *adapter.ResourceType {
 	sizeName := ptrToString(vmSize.Name)
 	resourceTypeID := generateVMSizeID(sizeName)
 

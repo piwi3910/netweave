@@ -425,6 +425,8 @@ func (rl *ResourceRateLimiter) getResourceTypeMaxPageSize(resourceType ResourceT
 		return rl.config.ResourceTypes.ListPageSizeMax
 	case ResourceTypeSubscriptions:
 		return DefaultMaxPageSize // Subscriptions don't have a separate page size config
+	case ResourceTypeUnknown:
+		return 0
 	default:
 		return 0
 	}
@@ -508,6 +510,8 @@ func (rl *ResourceRateLimiter) getLimits(
 		return rl.getTypeLimits(rl.config.ResourceTypes, operation)
 	case ResourceTypeSubscriptions:
 		return rl.getSubscriptionLimits(operation)
+	case ResourceTypeUnknown:
+		return rl.getTypeLimits(rl.config.DefaultLimits, operation)
 	default:
 		return rl.getTypeLimits(rl.config.DefaultLimits, operation)
 	}

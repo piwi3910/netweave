@@ -26,7 +26,7 @@ import (
 //   - Resources → Physical Servers with full hardware inventory
 //   - Resource Types → Server Profiles (compute/storage/network configurations)
 //   - Subscriptions → Polling-based change detection (DTIAS has no native events)
-type DTIASAdapter struct {
+type Adapter struct {
 	// client is the DTIAS REST API client
 	client *Client
 
@@ -109,7 +109,7 @@ type Config struct {
 //	    RetryAttempts:       3,
 //	    RetryDelay:          2 * time.Second,
 //	})
-func New(cfg *Config) (*DTIASAdapter, error) {
+func New(cfg *Config) (*Adapter, error) {
 	if err := validateConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func New(cfg *Config) (*DTIASAdapter, error) {
 		return nil, err
 	}
 
-	adp := &DTIASAdapter{
+	adp := &Adapter{
 		client:              client,
 		logger:              logger,
 		config:              cfg,
@@ -210,12 +210,12 @@ func createDTIASClient(cfg *Config, logger *zap.Logger) (*Client, error) {
 }
 
 // Name returns the adapter name.
-func (a *DTIASAdapter) Name() string {
+func (a *Adapter) Name() string {
 	return "dtias"
 }
 
 // Version returns the DTIAS API version this adapter supports.
-func (a *DTIASAdapter) Version() string {
+func (a *Adapter) Version() string {
 	return "1.0.0"
 }
 
@@ -223,7 +223,7 @@ func (a *DTIASAdapter) Version() string {
 // DTIAS supports resource management with polling-based subscriptions.
 // Note: DTIAS has no native event system, so subscriptions are stored locally
 // and the gateway layer implements polling to detect changes and send notifications.
-func (a *DTIASAdapter) Capabilities() []adapter.Capability {
+func (a *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityResourcePools,
 		adapter.CapabilityResources,
@@ -236,7 +236,7 @@ func (a *DTIASAdapter) Capabilities() []adapter.Capability {
 
 // Health performs a health check on the DTIAS backend.
 // It verifies connectivity and authentication to the DTIAS API.
-func (a *DTIASAdapter) Health(ctx context.Context) error {
+func (a *Adapter) Health(ctx context.Context) error {
 	a.logger.Debug("health check called")
 
 	// Perform health check by querying DTIAS API status endpoint
@@ -251,7 +251,7 @@ func (a *DTIASAdapter) Health(ctx context.Context) error {
 }
 
 // Close cleanly shuts down the adapter and releases resources.
-func (a *DTIASAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.logger.Info("closing DTIAS adapter")
 
 	// Clear subscriptions

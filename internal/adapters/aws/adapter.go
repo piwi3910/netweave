@@ -36,7 +36,7 @@ const (
 //   - Resource Types → EC2 Instance Types
 //   - Deployment Manager → AWS Region metadata
 //   - Subscriptions → EventBridge/CloudWatch Events based (polling as fallback)
-type AWSAdapter struct {
+type Adapter struct {
 	// ec2Client is the AWS EC2 service client.
 	ec2Client *ec2.Client
 
@@ -120,7 +120,7 @@ type Config struct {
 //	    OCloudID:        "ocloud-aws-1",
 //	    PoolMode:        "az",
 //	})
-func New(cfg *Config) (*AWSAdapter, error) {
+func New(cfg *Config) (*Adapter, error) {
 	if err := validateConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -146,7 +146,7 @@ func New(cfg *Config) (*AWSAdapter, error) {
 		return nil, fmt.Errorf("failed to load AWS configuration: %w", err)
 	}
 
-	return &AWSAdapter{
+	return &Adapter{
 		ec2Client:           ec2.NewFromConfig(awsCfg),
 		asgClient:           autoscaling.NewFromConfig(awsCfg),
 		logger:              logger,
@@ -214,11 +214,12 @@ func initializeLogger(logger *zap.Logger) (*zap.Logger, error) {
 func buildAWSConfigOptions(cfg *Config, logger *zap.Logger) []func(*config.LoadOptions) error {
 	opts := []func(*config.LoadOptions) error{config.WithRegion(cfg.Region)}
 
-	if cfg.Profile != "" {
+	switch {
+	case cfg.Profile != "":
 		opts = append(opts, config.WithSharedConfigProfile(cfg.Profile))
 		logger.Info("using AWS profile for authentication",
 			zap.String("profile", cfg.Profile))
-	} else if cfg.AccessKeyID != "" && cfg.SecretAccessKey != "" {
+	case cfg.AccessKeyID != "" && cfg.SecretAccessKey != "":
 		creds := credentials.NewStaticCredentialsProvider(
 			cfg.AccessKeyID,
 			cfg.SecretAccessKey,
@@ -226,7 +227,7 @@ func buildAWSConfigOptions(cfg *Config, logger *zap.Logger) []func(*config.LoadO
 		)
 		opts = append(opts, config.WithCredentialsProvider(creds))
 		logger.Info("using static credentials for authentication")
-	} else {
+	default:
 		logger.Info("using default AWS credential chain")
 	}
 
@@ -234,17 +235,17 @@ func buildAWSConfigOptions(cfg *Config, logger *zap.Logger) []func(*config.LoadO
 }
 
 // Name returns the adapter name.
-func (a *AWSAdapter) Name() string {
+func (a *Adapter) Name() string {
 	return "aws"
 }
 
 // Version returns the AWS API version this adapter supports.
-func (a *AWSAdapter) Version() string {
+func (a *Adapter) Version() string {
 	return "ec2-v2"
 }
 
 // Capabilities returns the list of O2-IMS capabilities supported by this adapter.
-func (a *AWSAdapter) Capabilities() []adapter.Capability {
+func (a *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityResourcePools,
 		adapter.CapabilityResources,
@@ -258,7 +259,7 @@ func (a *AWSAdapter) Capabilities() []adapter.Capability {
 // Health performs a health check on the AWS backend.
 // It verifies connectivity to EC2 and Auto Scaling services.
 // The check uses a 10-second timeout to prevent indefinite blocking.
-func (a *AWSAdapter) Health(ctx context.Context) (err error) {
+func (a *Adapter) Health(ctx context.Context) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveHealthCheck("aws", start, err) }()
 
@@ -289,7 +290,7 @@ func (a *AWSAdapter) Health(ctx context.Context) (err error) {
 }
 
 // Close cleanly shuts down the adapter and releases resources.
-func (a *AWSAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.logger.Info("closing AWS adapter")
 
 	// Clear subscriptions

@@ -13,7 +13,7 @@ import (
 )
 
 // ListResources retrieves all resources (VMs) matching the provided filter.
-func (a *VMwareAdapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
+func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "ListResources", start, err) }()
 
@@ -67,7 +67,7 @@ func (a *VMwareAdapter) ListResources(ctx context.Context, filter *adapter.Filte
 }
 
 // GetResource retrieves a specific resource (VM) by ID.
-func (a *VMwareAdapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
+func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "GetResource", start, err) }()
 
@@ -96,7 +96,7 @@ func (a *VMwareAdapter) GetResource(ctx context.Context, id string) (resource *a
 }
 
 // CreateResource creates a new resource (VM).
-func (a *VMwareAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
+func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "CreateResource", start, err) }()
 
@@ -109,7 +109,7 @@ func (a *VMwareAdapter) CreateResource(_ context.Context, resource *adapter.Reso
 
 // UpdateResource updates an existing vSphere VM's annotations and custom attributes.
 // Note: Core VM properties cannot be modified while VM is running.
-func (a *VMwareAdapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
+func (a *Adapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "UpdateResource", start, err) }()
 
@@ -122,7 +122,7 @@ func (a *VMwareAdapter) UpdateResource(_ context.Context, _ string, resource *ad
 }
 
 // DeleteResource deletes a resource (VM) by ID.
-func (a *VMwareAdapter) DeleteResource(ctx context.Context, id string) (err error) {
+func (a *Adapter) DeleteResource(ctx context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "DeleteResource", start, err) }()
 
@@ -181,7 +181,7 @@ func (a *VMwareAdapter) DeleteResource(ctx context.Context, id string) (err erro
 }
 
 // vmToResource converts a vSphere VM to an O2-IMS Resource.
-func (a *VMwareAdapter) vmToResource(vm *mo.VirtualMachine, vmName string) *adapter.Resource {
+func (a *Adapter) vmToResource(vm *mo.VirtualMachine, vmName string) *adapter.Resource {
 	config := vm.Summary.Config
 
 	// Determine resource pool and type IDs
@@ -206,7 +206,7 @@ func (a *VMwareAdapter) vmToResource(vm *mo.VirtualMachine, vmName string) *adap
 }
 
 // determineVMResourcePoolID determines the resource pool ID based on pool mode.
-func (a *VMwareAdapter) determineVMResourcePoolID(vm *mo.VirtualMachine) string {
+func (a *Adapter) determineVMResourcePoolID(vm *mo.VirtualMachine) string {
 	if a.poolMode == "cluster" {
 		return generateClusterPoolID("default")
 	}

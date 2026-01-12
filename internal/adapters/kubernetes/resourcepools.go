@@ -13,7 +13,7 @@ import (
 
 // ListResourcePools retrieves all Kubernetes namespaces and transforms them to O2-IMS Resource Pools.
 // Namespaces in Kubernetes are logical groupings of resources, which map naturally to O2-IMS Resource Pools.
-func (a *KubernetesAdapter) ListResourcePools(
+func (a *Adapter) ListResourcePools(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.ResourcePool, error) {
@@ -59,7 +59,7 @@ func (a *KubernetesAdapter) ListResourcePools(
 }
 
 // GetResourcePool retrieves a specific Kubernetes namespace by name and transforms it to O2-IMS Resource Pool.
-func (a *KubernetesAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
 	a.logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
@@ -80,7 +80,7 @@ func (a *KubernetesAdapter) GetResourcePool(ctx context.Context, id string) (*ad
 }
 
 // CreateResourcePool creates a new Kubernetes namespace from an O2-IMS Resource Pool.
-func (a *KubernetesAdapter) CreateResourcePool(
+func (a *Adapter) CreateResourcePool(
 	ctx context.Context,
 	pool *adapter.ResourcePool,
 ) (*adapter.ResourcePool, error) {
@@ -131,7 +131,7 @@ func (a *KubernetesAdapter) CreateResourcePool(
 
 // UpdateResourcePool updates an existing Kubernetes namespace.
 // Note: Namespace names are immutable, so only labels and annotations can be updated.
-func (a *KubernetesAdapter) UpdateResourcePool(
+func (a *Adapter) UpdateResourcePool(
 	ctx context.Context,
 	id string,
 	pool *adapter.ResourcePool,
@@ -194,7 +194,7 @@ func (a *KubernetesAdapter) UpdateResourcePool(
 }
 
 // DeleteResourcePool deletes a Kubernetes namespace by ID.
-func (a *KubernetesAdapter) DeleteResourcePool(ctx context.Context, id string) error {
+func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
 	a.logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 
@@ -221,7 +221,7 @@ func (a *KubernetesAdapter) DeleteResourcePool(ctx context.Context, id string) e
 }
 
 // transformNamespaceToResourcePool converts a Kubernetes Namespace to an O2-IMS Resource Pool.
-func (a *KubernetesAdapter) transformNamespaceToResourcePool(ns *corev1.Namespace) *adapter.ResourcePool {
+func (a *Adapter) transformNamespaceToResourcePool(ns *corev1.Namespace) *adapter.ResourcePool {
 	pool := &adapter.ResourcePool{
 		ResourcePoolID: fmt.Sprintf("k8s-namespace-%s", ns.Name),
 		Name:           ns.Name,

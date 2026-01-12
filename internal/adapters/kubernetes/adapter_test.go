@@ -100,11 +100,11 @@ func TestNewWithInvalidKubeconfig(t *testing.T) {
 
 // newTestAdapter creates a KubernetesAdapter with a fake client for testing.
 // It registers a cleanup function to properly close the adapter after the test.
-func newTestAdapter(t *testing.T) *KubernetesAdapter {
+func newTestAdapter(t *testing.T) *Adapter {
 	t.Helper()
 
 	logger := zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))
-	adp := &KubernetesAdapter{
+	adp := &Adapter{
 		client:              fake.NewSimpleClientset(),
 		logger:              logger,
 		oCloudID:            "test-ocloud",
@@ -125,10 +125,10 @@ func newTestAdapter(t *testing.T) *KubernetesAdapter {
 // newTestAdapterSilent creates a test adapter with a no-op logger.
 // Use this for tests that intentionally trigger error conditions to suppress
 // expected ERROR logs in test output.
-func newTestAdapterSilent(t *testing.T) *KubernetesAdapter {
+func newTestAdapterSilent(t *testing.T) *Adapter {
 	t.Helper()
 
-	adp := &KubernetesAdapter{
+	adp := &Adapter{
 		client:              fake.NewSimpleClientset(),
 		logger:              zap.NewNop(), // No-op logger for expected errors
 		oCloudID:            "test-ocloud",
@@ -147,7 +147,7 @@ func newTestAdapterSilent(t *testing.T) *KubernetesAdapter {
 }
 
 // newTestAdapterWithStore creates a test adapter with a Redis store for testing subscriptions.
-func newTestAdapterWithStore(t *testing.T) *KubernetesAdapter {
+func newTestAdapterWithStore(t *testing.T) *Adapter {
 	t.Helper()
 
 	// Create miniredis instance for testing
@@ -159,7 +159,7 @@ func newTestAdapterWithStore(t *testing.T) *KubernetesAdapter {
 	})
 
 	logger := zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))
-	adp := &KubernetesAdapter{
+	adp := &Adapter{
 		client:              fake.NewSimpleClientset(),
 		store:               store,
 		logger:              logger,
@@ -184,7 +184,7 @@ func newTestAdapterWithStore(t *testing.T) *KubernetesAdapter {
 
 // newTestAdapterWithStoreSilent creates a test adapter with Redis store and no-op logger.
 // Use this for tests that intentionally trigger error conditions to suppress expected ERROR logs.
-func newTestAdapterWithStoreSilent(t *testing.T) *KubernetesAdapter {
+func newTestAdapterWithStoreSilent(t *testing.T) *Adapter {
 	t.Helper()
 
 	// Create miniredis instance for testing
@@ -195,7 +195,7 @@ func newTestAdapterWithStoreSilent(t *testing.T) *KubernetesAdapter {
 		Addr: mr.Addr(),
 	})
 
-	adp := &KubernetesAdapter{
+	adp := &Adapter{
 		client:              fake.NewSimpleClientset(),
 		store:               store,
 		logger:              zap.NewNop(), // No-op logger for expected errors
@@ -777,7 +777,7 @@ func TestConfigDefaults(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// We can't fully test New() without kubernetes access,
 			// but we can verify the logic by creating adapter manually
-			adp := &KubernetesAdapter{
+			adp := &Adapter{
 				client:              fake.NewSimpleClientset(),
 				logger:              zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
 				oCloudID:            "test-ocloud",
@@ -1071,7 +1071,7 @@ func TestConfig_Validation(t *testing.T) {
 
 func TestKubernetesAdapter_Close_MultipleCallsAreSafe(t *testing.T) {
 	// Create adapter without using newTestAdapter to avoid double close
-	adp := &KubernetesAdapter{
+	adp := &Adapter{
 		client:              fake.NewSimpleClientset(),
 		logger:              zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
 		oCloudID:            "test-ocloud",
@@ -1611,7 +1611,7 @@ func TestKubernetesAdapter_ConcurrentListOperations(t *testing.T) {
 // Run with: go test -bench=. -benchmem
 
 func BenchmarkKubernetesAdapter_Name(b *testing.B) {
-	adp := &KubernetesAdapter{
+	adp := &Adapter{
 		client:              fake.NewSimpleClientset(),
 		logger:              zap.NewNop(),
 		oCloudID:            "bench-ocloud",
@@ -1626,7 +1626,7 @@ func BenchmarkKubernetesAdapter_Name(b *testing.B) {
 }
 
 func BenchmarkKubernetesAdapter_Version(b *testing.B) {
-	adp := &KubernetesAdapter{
+	adp := &Adapter{
 		client:              fake.NewSimpleClientset(),
 		logger:              zap.NewNop(),
 		oCloudID:            "bench-ocloud",
@@ -1641,7 +1641,7 @@ func BenchmarkKubernetesAdapter_Version(b *testing.B) {
 }
 
 func BenchmarkKubernetesAdapter_Capabilities(b *testing.B) {
-	adp := &KubernetesAdapter{
+	adp := &Adapter{
 		client:              fake.NewSimpleClientset(),
 		logger:              zap.NewNop(),
 		oCloudID:            "bench-ocloud",
@@ -1656,7 +1656,7 @@ func BenchmarkKubernetesAdapter_Capabilities(b *testing.B) {
 }
 
 func BenchmarkKubernetesAdapter_Health(b *testing.B) {
-	adp := &KubernetesAdapter{
+	adp := &Adapter{
 		client:              fake.NewSimpleClientset(),
 		logger:              zap.NewNop(),
 		oCloudID:            "bench-ocloud",
@@ -1675,7 +1675,7 @@ func BenchmarkKubernetesAdapter_Health(b *testing.B) {
 
 func TestKubernetesAdapter_WithNilLogger(t *testing.T) {
 	// Create adapter with nil logger field to test nil handling
-	adp := &KubernetesAdapter{
+	adp := &Adapter{
 		client:              fake.NewSimpleClientset(),
 		logger:              nil, // Intentionally nil
 		oCloudID:            "test-ocloud",
@@ -1693,7 +1693,7 @@ func TestKubernetesAdapter_WithNilLogger(t *testing.T) {
 func TestKubernetesAdapter_LoggerUsedInOperations(t *testing.T) {
 	// Verify logger is properly used in operations
 	logger := zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))
-	adp := &KubernetesAdapter{
+	adp := &Adapter{
 		client:              fake.NewSimpleClientset(),
 		logger:              logger,
 		oCloudID:            "test-ocloud",

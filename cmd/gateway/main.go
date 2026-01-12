@@ -124,8 +124,8 @@ func run() error {
 	return runServerWithShutdown(cfg, logger, components)
 }
 
-// applicationComponents holds all initialized application components.
-type applicationComponents struct {
+// ApplicationComponents holds all initialized application components.
+type ApplicationComponents struct {
 	store         *storage.RedisStore
 	k8sAdapter    *kubernetes.KubernetesAdapter
 	healthChecker *observability.HealthChecker
@@ -134,12 +134,20 @@ type applicationComponents struct {
 	authMw        *auth.Middleware
 }
 
+// NewApplicationComponentsForTest creates an ApplicationComponents instance for testing.
+// This is exported to allow test packages to create instances with controlled values.
+func NewApplicationComponentsForTest(authStore *auth.RedisStore) *ApplicationComponents {
+	return &ApplicationComponents{
+		authStore: authStore,
+	}
+}
+
 // Close closes all components gracefully and returns any errors encountered.
 // All components are closed even if earlier close operations fail.
 // Errors are aggregated using errors.Join and logged as warnings.
 // This ensures cleanup continues for all resources while still surfacing issues
 // for debugging connection leaks or other cleanup problems.
-func (c *applicationComponents) Close(logger *zap.Logger) error {
+func (c *ApplicationComponents) Close(logger *zap.Logger) error {
 	var closeErrors []error
 
 	if c.k8sAdapter != nil {
@@ -182,7 +190,7 @@ func setupLogger(cfg *config.Config) (*zap.Logger, error) {
 }
 
 // initializeComponents initializes all application components.
-func initializeComponents(cfg *config.Config, logger *zap.Logger) (*applicationComponents, error) {
+func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationComponents, error) {
 	// Initialize Redis storage
 	store, err := initializeRedisStorage(cfg, logger)
 	if err != nil {
@@ -235,7 +243,7 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*applicationC
 		zap.Int("size", len(spec)),
 	)
 
-	components := &applicationComponents{
+	components := &ApplicationComponents{
 		store:         store,
 		k8sAdapter:    k8sAdapter,
 		healthChecker: healthChecker,
@@ -244,7 +252,7 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*applicationC
 
 	// Initialize multi-tenancy and RBAC if enabled.
 	if cfg.MultiTenancy.Enabled {
-		authStore, authMw, err := initializeAuth(cfg, logger)
+		authStore, authMw, err := InitializeAuth(cfg, logger)
 		if err != nil {
 			// Log without exposing sensitive credential details from error chain.
 			logger.Error("failed to initialize authentication subsystem")
@@ -272,7 +280,7 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*applicationC
 }
 
 // runServerWithShutdown starts the server and handles graceful shutdown.
-func runServerWithShutdown(cfg *config.Config, logger *zap.Logger, components *applicationComponents) error {
+func runServerWithShutdown(cfg *config.Config, logger *zap.Logger, components *ApplicationComponents) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -673,7 +681,7 @@ func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 	return nil, fmt.Errorf("OpenAPI specification not found in any of the expected locations")
 }
 
-// initializeAuth creates and initializes the authentication store and middleware.
+// InitializeAuth creates and initializes the authentication store and middleware.
 //
 // This function performs the following initialization steps:
 //  1. Retrieves Redis credentials from environment variables, files, or config
@@ -691,9 +699,10 @@ func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 //   - authMw: Configured authentication middleware for request validation
 //   - err: Any error encountered during initialization
 //
+// InitializeAuth initializes the authentication store and middleware.
 // Errors are returned without exposing sensitive credential details in messages.
 // This function is only called when cfg.MultiTenancy.Enabled is true.
-func initializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *auth.Middleware, error) {
+func InitializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *auth.Middleware, error) {
 	// Get Redis password (reuse the same logic as main storage).
 	password, redisModeSentinelPassword, err := getRedisPasswords(cfg, logger)
 	if err != nil {

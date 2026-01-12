@@ -240,11 +240,8 @@ type LogOptions struct {
 	Container string `json:"container,omitempty"`
 }
 
-// Adapter defines the interface that all DMS backend implementations must provide.
-// Implementations include Helm, ArgoCD, Flux, ONAP-LCM, OSM-LCM, etc.
-type Adapter interface {
-	// Metadata methods
-
+// AdapterMetadata provides basic metadata about a DMS adapter.
+type AdapterMetadata interface {
 	// Name returns the unique name of this adapter (e.g., "helm", "argocd", "flux").
 	Name() string
 
@@ -253,9 +250,10 @@ type Adapter interface {
 
 	// Capabilities returns the list of DMS capabilities this adapter supports.
 	Capabilities() []Capability
+}
 
-	// Package Management operations
-
+// PackageManager provides deployment package management operations.
+type PackageManager interface {
 	// ListDeploymentPackages retrieves all packages matching the provided filter.
 	ListDeploymentPackages(ctx context.Context, filter *Filter) ([]*DeploymentPackage, error)
 
@@ -267,9 +265,10 @@ type Adapter interface {
 
 	// DeleteDeploymentPackage deletes a package by ID.
 	DeleteDeploymentPackage(ctx context.Context, id string) error
+}
 
-	// Deployment Lifecycle operations
-
+// DeploymentManager provides deployment lifecycle operations.
+type DeploymentManager interface {
 	// ListDeployments retrieves all deployments matching the provided filter.
 	ListDeployments(ctx context.Context, filter *Filter) ([]*Deployment, error)
 
@@ -284,9 +283,10 @@ type Adapter interface {
 
 	// DeleteDeployment deletes a deployment by ID.
 	DeleteDeployment(ctx context.Context, id string) error
+}
 
-	// Operations
-
+// DeploymentOperator provides advanced deployment operations.
+type DeploymentOperator interface {
 	// ScaleDeployment scales a deployment to the specified number of replicas.
 	// Returns an error if scaling is not supported.
 	ScaleDeployment(ctx context.Context, id string, replicas int) error
@@ -300,9 +300,10 @@ type Adapter interface {
 
 	// GetDeploymentLogs retrieves logs from a deployment.
 	GetDeploymentLogs(ctx context.Context, id string, opts *LogOptions) ([]byte, error)
+}
 
-	// Capability checks
-
+// CapabilityChecker provides capability checks for DMS adapters.
+type CapabilityChecker interface {
 	// SupportsRollback returns true if the adapter supports rollback.
 	SupportsRollback() bool
 
@@ -311,12 +312,25 @@ type Adapter interface {
 
 	// SupportsGitOps returns true if the adapter supports GitOps workflows.
 	SupportsGitOps() bool
+}
 
-	// Lifecycle methods
-
+// AdapterLifecycle provides lifecycle management operations.
+type AdapterLifecycle interface {
 	// Health performs a health check on the backend system.
 	Health(ctx context.Context) error
 
 	// Close cleanly shuts down the adapter and releases resources.
 	Close() error
+}
+
+// Adapter defines the interface that all DMS backend implementations must provide.
+// Implementations include Helm, ArgoCD, Flux, ONAP-LCM, OSM-LCM, etc.
+// This interface is composed of smaller, focused interfaces to reduce complexity.
+type Adapter interface {
+	AdapterMetadata
+	PackageManager
+	DeploymentManager
+	DeploymentOperator
+	CapabilityChecker
+	AdapterLifecycle
 }

@@ -371,7 +371,13 @@ func TestTransformVIMAccount(t *testing.T) {
 		"secret",
 	)
 
-	// Verify basic fields
+	verifyVIMBasicFields(t, vim, pool)
+	verifyVIMConfig(t, vim, pool)
+}
+
+// verifyVIMBasicFields checks basic VIM account fields.
+func verifyVIMBasicFields(t *testing.T, vim *VIMAccount, pool *ResourcePool) {
+	t.Helper()
 	if vim.ID != pool.ID {
 		t.Errorf("VIM ID = %v, want %v", vim.ID, pool.ID)
 	}
@@ -393,8 +399,11 @@ func TestTransformVIMAccount(t *testing.T) {
 	if vim.VIMPassword != "secret" {
 		t.Errorf("VIM Password = %v, want %v", vim.VIMPassword, "secret")
 	}
+}
 
-	// Verify extensions were copied to config
+// verifyVIMConfig checks VIM config fields.
+func verifyVIMConfig(t *testing.T, vim *VIMAccount, pool *ResourcePool) {
+	t.Helper()
 	if vim.Config == nil {
 		t.Fatal("VIM Config is nil")
 	}
@@ -404,8 +413,6 @@ func TestTransformVIMAccount(t *testing.T) {
 	if vim.Config["zone"] != "dallas-1" {
 		t.Errorf("VIM Config[zone] = %v, want %v", vim.Config["zone"], "dallas-1")
 	}
-
-	// Verify location was added to config
 	if vim.Config["location"] != pool.Location {
 		t.Errorf("VIM Config[location] = %v, want %v", vim.Config["location"], pool.Location)
 	}

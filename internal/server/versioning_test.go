@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -90,7 +91,7 @@ func TestVersioningMiddleware(t *testing.T) {
 				c.Status(http.StatusOK)
 			})
 
-			req, _ := http.NewRequest(http.MethodGet, tt.path, nil)
+			req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, tt.path, nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 
@@ -123,7 +124,7 @@ func TestVersioningMiddleware_Deprecation(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -160,7 +161,7 @@ func TestVersioningMiddleware_Sunset(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -327,7 +328,7 @@ func TestRequireVersion(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	req, _ := http.NewRequest(http.MethodGet, "/feature", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/feature", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -350,7 +351,7 @@ func TestRequireVersion_Satisfied(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	req, _ := http.NewRequest(http.MethodGet, "/feature", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/feature", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -420,7 +421,7 @@ func TestTenantMiddleware(t *testing.T) {
 				path += "?tenantId=" + tt.tenantQuery
 			}
 
-			req, _ := http.NewRequest(http.MethodGet, path, nil)
+			req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, path, nil)
 			if tt.tenantHeader != "" {
 				req.Header.Set("X-Tenant-ID", tt.tenantHeader)
 			}

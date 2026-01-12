@@ -247,12 +247,12 @@ func TestRouter_Route(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		routingCtx      *RoutingContext
+		routingCtx      *Context
 		expectedAdapter string
 	}{
 		{
 			name: "match openstack by label",
-			routingCtx: &RoutingContext{
+			routingCtx: &Context{
 				ResourceType: "compute-node",
 				Labels: map[string]string{
 					"infrastructure.type": "openstack",
@@ -262,7 +262,7 @@ func TestRouter_Route(t *testing.T) {
 		},
 		{
 			name: "match dtias by location prefix",
-			routingCtx: &RoutingContext{
+			routingCtx: &Context{
 				ResourceType: "compute-node",
 				Location:     "dc-dallas-1",
 			},
@@ -270,7 +270,7 @@ func TestRouter_Route(t *testing.T) {
 		},
 		{
 			name: "fallback to default kubernetes",
-			routingCtx: &RoutingContext{
+			routingCtx: &Context{
 				ResourceType: "compute-node",
 				Labels:       map[string]string{},
 				Location:     "us-east-1",
@@ -279,7 +279,7 @@ func TestRouter_Route(t *testing.T) {
 		},
 		{
 			name: "priority: openstack wins over default",
-			routingCtx: &RoutingContext{
+			routingCtx: &Context{
 				ResourceType: "compute-node",
 				Labels: map[string]string{
 					"infrastructure.type": "openstack",
@@ -309,7 +309,7 @@ func TestRouter_RouteMultiple(t *testing.T) {
 	// Enable aggregation mode
 	router.EnableAggregation()
 
-	routingCtx := &RoutingContext{
+	routingCtx := &Context{
 		ResourceType: "compute-node",
 		Labels: map[string]string{
 			"infrastructure.type": "openstack",
@@ -600,7 +600,7 @@ func TestRouter_RouteNoMatch(t *testing.T) {
 
 	router := NewRouter(reg, logger, config)
 
-	routingCtx := &RoutingContext{
+	routingCtx := &Context{
 		ResourceType: "compute-node",
 	}
 
@@ -635,7 +635,7 @@ func TestRouter_RulePriority(t *testing.T) {
 
 	// This routing context matches both high-priority (dtias) and openstack-nfv (openstack)
 	// But high-priority should win due to higher priority
-	routingCtx := &RoutingContext{
+	routingCtx := &Context{
 		ResourceType: "compute-node",
 		Labels: map[string]string{
 			"infrastructure.type": "openstack",
@@ -689,7 +689,7 @@ func TestRouter_matchesResourceType(t *testing.T) {
 			rule := &Rule{
 				ResourceType: tt.ruleResType,
 			}
-			ctx := &RoutingContext{
+			ctx := &Context{
 				ResourceType: tt.ctxResType,
 			}
 			match := router.matchesResourceType(rule, ctx)
@@ -706,7 +706,7 @@ func TestRouter_matchesConditions(t *testing.T) {
 	tests := []struct {
 		name      string
 		rule      *Rule
-		ctx       *RoutingContext
+		ctx       *Context
 		wantMatch bool
 	}{
 		{
@@ -719,7 +719,7 @@ func TestRouter_matchesConditions(t *testing.T) {
 					},
 				},
 			},
-			ctx: &RoutingContext{
+			ctx: &Context{
 				Labels: map[string]string{
 					"env": "prod",
 					"app": "test",
@@ -737,7 +737,7 @@ func TestRouter_matchesConditions(t *testing.T) {
 					},
 				},
 			},
-			ctx: &RoutingContext{
+			ctx: &Context{
 				Labels: map[string]string{
 					"env": "dev",
 				},
@@ -754,7 +754,7 @@ func TestRouter_matchesConditions(t *testing.T) {
 					},
 				},
 			},
-			ctx: &RoutingContext{
+			ctx: &Context{
 				Location: "us-east-1",
 			},
 			wantMatch: true,
@@ -769,7 +769,7 @@ func TestRouter_matchesConditions(t *testing.T) {
 					},
 				},
 			},
-			ctx: &RoutingContext{
+			ctx: &Context{
 				Location: "us-east-1",
 			},
 			wantMatch: true,
@@ -784,7 +784,7 @@ func TestRouter_matchesConditions(t *testing.T) {
 					},
 				},
 			},
-			ctx: &RoutingContext{
+			ctx: &Context{
 				Location: "us-west-2",
 			},
 			wantMatch: false,
@@ -799,7 +799,7 @@ func TestRouter_matchesConditions(t *testing.T) {
 					},
 				},
 			},
-			ctx:       &RoutingContext{},
+			ctx:       &Context{},
 			wantMatch: true,
 		},
 		{
@@ -812,7 +812,7 @@ func TestRouter_matchesConditions(t *testing.T) {
 					},
 				},
 			},
-			ctx:       &RoutingContext{},
+			ctx:       &Context{},
 			wantMatch: false,
 		},
 	}
@@ -833,7 +833,7 @@ func TestRouter_matchesRule(t *testing.T) {
 	tests := []struct {
 		name      string
 		rule      *Rule
-		ctx       *RoutingContext
+		ctx       *Context
 		wantMatch bool
 	}{
 		{
@@ -847,7 +847,7 @@ func TestRouter_matchesRule(t *testing.T) {
 					},
 				},
 			},
-			ctx: &RoutingContext{
+			ctx: &Context{
 				ResourceType: "compute-node",
 				Labels: map[string]string{
 					"env": "prod",
@@ -861,7 +861,7 @@ func TestRouter_matchesRule(t *testing.T) {
 				ResourceType: "compute-node",
 				AdapterName:  "kubernetes",
 			},
-			ctx: &RoutingContext{
+			ctx: &Context{
 				ResourceType: "compute-node",
 			},
 			wantMatch: true,
@@ -872,7 +872,7 @@ func TestRouter_matchesRule(t *testing.T) {
 				ResourceType: "compute-node",
 				AdapterName:  "kubernetes",
 			},
-			ctx: &RoutingContext{
+			ctx: &Context{
 				ResourceType: "storage-node",
 			},
 			wantMatch: false,
@@ -888,7 +888,7 @@ func TestRouter_matchesRule(t *testing.T) {
 					},
 				},
 			},
-			ctx: &RoutingContext{
+			ctx: &Context{
 				ResourceType: "compute-node",
 				Labels: map[string]string{
 					"env": "dev",
@@ -1025,7 +1025,7 @@ func TestRouter_getValidatedAdapter(t *testing.T) {
 	tests := []struct {
 		name        string
 		rule        *Rule
-		ctx         *RoutingContext
+		ctx         *Context
 		wantAdapter bool
 		wantName    string
 	}{
@@ -1035,7 +1035,7 @@ func TestRouter_getValidatedAdapter(t *testing.T) {
 				Name:        "test-rule",
 				AdapterName: "healthy",
 			},
-			ctx:         &RoutingContext{},
+			ctx:         &Context{},
 			wantAdapter: true,
 			wantName:    "healthy",
 		},
@@ -1045,7 +1045,7 @@ func TestRouter_getValidatedAdapter(t *testing.T) {
 				Name:        "test-rule",
 				AdapterName: "unhealthy",
 			},
-			ctx:         &RoutingContext{},
+			ctx:         &Context{},
 			wantAdapter: false,
 		},
 		{
@@ -1054,7 +1054,7 @@ func TestRouter_getValidatedAdapter(t *testing.T) {
 				Name:        "test-rule",
 				AdapterName: "nonexistent",
 			},
-			ctx:         &RoutingContext{},
+			ctx:         &Context{},
 			wantAdapter: false,
 		},
 		{
@@ -1063,7 +1063,7 @@ func TestRouter_getValidatedAdapter(t *testing.T) {
 				Name:        "test-rule",
 				AdapterName: "healthy",
 			},
-			ctx: &RoutingContext{
+			ctx: &Context{
 				RequiredCapabilities: []adapter.Capability{
 					adapter.CapabilityDeploymentManagers,
 				},

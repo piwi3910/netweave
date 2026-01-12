@@ -54,40 +54,48 @@ func TestNewClient(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client, err := NewClient(tt.config)
-
+			verifyNewClientError(t, err, tt.wantErr, tt.errMsg)
 			if tt.wantErr {
-				if err == nil {
-					t.Errorf("NewClient() expected error but got none")
-					return
-				}
-				// Check error message contains expected text (not exact match due to wrapping)
-				if tt.errMsg != "" && !contains(err.Error(), tt.errMsg) {
-					t.Errorf("NewClient() error = %v, want to contain %v", err.Error(), tt.errMsg)
-				}
 				return
 			}
-
-			if err != nil {
-				t.Errorf("NewClient() unexpected error: %v", err)
-				return
-			}
-
-			if client == nil {
-				t.Error("NewClient() returned nil client")
-				return
-			}
-
-			// Verify client fields
-			if client.config == nil {
-				t.Error("Client config is nil")
-			}
-			if client.httpClient == nil {
-				t.Error("Client httpClient is nil")
-			}
-			if client.baseURL == "" {
-				t.Error("Client baseURL is empty")
-			}
+			verifyNewClientSuccess(t, client)
 		})
+	}
+}
+
+// verifyNewClientError checks if NewClient returned the expected error.
+func verifyNewClientError(t *testing.T, err error, wantErr bool, errMsg string) {
+	t.Helper()
+	if wantErr {
+		if err == nil {
+			t.Errorf("NewClient() expected error but got none")
+			return
+		}
+		if errMsg != "" && !contains(err.Error(), errMsg) {
+			t.Errorf("NewClient() error = %v, want to contain %v", err.Error(), errMsg)
+		}
+		return
+	}
+	if err != nil {
+		t.Errorf("NewClient() unexpected error: %v", err)
+	}
+}
+
+// verifyNewClientSuccess verifies the client was created correctly.
+func verifyNewClientSuccess(t *testing.T, client *Client) {
+	t.Helper()
+	if client == nil {
+		t.Error("NewClient() returned nil client")
+		return
+	}
+	if client.config == nil {
+		t.Error("Client config is nil")
+	}
+	if client.httpClient == nil {
+		t.Error("Client httpClient is nil")
+	}
+	if client.baseURL == "" {
+		t.Error("Client baseURL is empty")
 	}
 }
 

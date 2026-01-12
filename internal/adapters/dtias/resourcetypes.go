@@ -13,7 +13,7 @@ import (
 
 // ListResourceTypes retrieves all server types matching the provided filter.
 // Maps DTIAS server types to O2-IMS ResourceTypes.
-func (a *DTIASAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
 	a.logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
@@ -73,7 +73,7 @@ func (a *DTIASAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Fi
 
 // GetResourceType retrieves a specific server type by ID.
 // Maps a DTIAS server type to O2-IMS ResourceType.
-func (a *DTIASAdapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
+func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
 	a.logger.Debug("GetResourceType called",
 		zap.String("id", id))
 
@@ -103,7 +103,7 @@ func (a *DTIASAdapter) GetResourceType(ctx context.Context, id string) (*adapter
 }
 
 // transformServerTypeToResourceType transforms a DTIAS ServerType to an O2-IMS ResourceType.
-func (a *DTIASAdapter) transformServerTypeToResourceType(st *ServerType) *adapter.ResourceType {
+func (a *Adapter) transformServerTypeToResourceType(st *ServerType) *adapter.ResourceType {
 	// Determine resource class based on server type
 	resourceClass := "compute"
 	if st.StorageCapacityGB > st.MemoryGB*100 {

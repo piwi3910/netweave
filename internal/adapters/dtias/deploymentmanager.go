@@ -11,7 +11,7 @@ import (
 
 // GetDeploymentManager retrieves metadata about the DTIAS deployment manager.
 // This provides O2-IMS clients with information about the DTIAS backend infrastructure.
-func (a *DTIASAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
+func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
 	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
@@ -86,7 +86,7 @@ type DatacenterInfo struct {
 }
 
 // getDatacenterInfo retrieves datacenter metadata from DTIAS API.
-func (a *DTIASAdapter) getDatacenterInfo(ctx context.Context, datacenterID string) (*DatacenterInfo, error) {
+func (a *Adapter) getDatacenterInfo(ctx context.Context, datacenterID string) (*DatacenterInfo, error) {
 	// Query DTIAS API for site info (DTIAS uses "sites" instead of "datacenters")
 	path := fmt.Sprintf("/v2/inventory/sites/%s", datacenterID)
 	resp, err := a.client.doRequest(ctx, "GET", path, nil)

@@ -86,7 +86,7 @@ func TestNew(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	adp := &GCPAdapter{
+	adp := &Adapter{
 		logger: zap.NewNop(),
 	}
 
@@ -262,7 +262,7 @@ func TestExtractZoneName(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
-	adp := &GCPAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 	}

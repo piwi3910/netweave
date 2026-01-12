@@ -125,7 +125,7 @@ func TestAdapterMetadata(t *testing.T) {
 }
 
 // createTestAdapter creates an adapter for testing.
-func createTestAdapter(t *testing.T) *OSMLCMAdapter {
+func createTestAdapter(t *testing.T) *Adapter {
 	t.Helper()
 
 	adp, err := NewAdapter(&Config{

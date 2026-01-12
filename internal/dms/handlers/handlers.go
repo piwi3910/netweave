@@ -927,7 +927,10 @@ func (h *Handler) Health(ctx context.Context) error {
 	if adp == nil {
 		return errors.New("no DMS adapter available")
 	}
-	return adp.Health(ctx)
+	if err := adp.Health(ctx); err != nil {
+		return fmt.Errorf("DMS adapter health check failed: %w", err)
+	}
+	return nil
 }
 
 // Conversion helpers

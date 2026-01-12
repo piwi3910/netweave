@@ -11,7 +11,7 @@ import (
 
 // GetDeploymentManager retrieves metadata about the GCP deployment manager.
 // It provides information about the GCP project and region.
-func (a *GCPAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
+func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
 	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 

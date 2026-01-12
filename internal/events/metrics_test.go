@@ -76,7 +76,7 @@ func TestRecordNotificationDelivered(t *testing.T) {
 
 // TestRecordNotificationResponseTime tests the RecordNotificationResponseTime function.
 func TestRecordNotificationResponseTime(t *testing.T) {
-	t.Run("records response time", func(t *testing.T) {
+	t.Run("records response time", func(_ *testing.T) {
 		RecordNotificationResponseTime("sub-123", "200", 150.5)
 		RecordNotificationResponseTime("sub-123", "200", 200.3)
 
@@ -84,7 +84,7 @@ func TestRecordNotificationResponseTime(t *testing.T) {
 		// Just ensure it doesn't panic
 	})
 
-	t.Run("records different status codes", func(t *testing.T) {
+	t.Run("records different status codes", func(_ *testing.T) {
 		RecordNotificationResponseTime("sub-123", "404", 50.0)
 		RecordNotificationResponseTime("sub-123", "500", 100.0)
 	})

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -357,7 +358,7 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 	}
 
 	// Validate callback URL early for fast failure (SSRF protection)
-	if err := s.validateCallback(&req); err != nil {
+	if err := s.validateCallback(c.Request.Context(), &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": err.Error(),
@@ -485,7 +486,7 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 	}
 
 	// Validate callback URL early for fast failure
-	if err := s.validateCallback(&req); err != nil {
+	if err := s.validateCallback(c.Request.Context(), &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": err.Error(),
@@ -1658,7 +1659,7 @@ func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
 // - Cache DNS results with short TTL and re-validate on changes
 // - Implement webhook delivery through a dedicated egress proxy that enforces policies
 // - Consider additional authentication mechanisms for webhooks (HMAC signatures, mTLS).
-func (s *Server) validateCallback(sub *adapter.Subscription) error {
+func (s *Server) validateCallback(ctx context.Context, sub *adapter.Subscription) error {
 	if sub == nil {
 		return fmt.Errorf("subscription cannot be nil")
 	}
@@ -1686,7 +1687,7 @@ func (s *Server) validateCallback(sub *adapter.Subscription) error {
 	// SSRF Protection: Block localhost and private IP ranges
 	// Skip SSRF protection if disabled in config (for testing only)
 	if !s.config.Security.DisableSSRFProtection {
-		if err := validateCallbackHost(parsedURL.Hostname()); err != nil {
+		if err := validateCallbackHost(ctx, parsedURL.Hostname()); err != nil {
 			return err
 		}
 	}
@@ -1696,7 +1697,7 @@ func (s *Server) validateCallback(sub *adapter.Subscription) error {
 
 // validateCallbackHost validates that the callback host is not localhost or a private IP address.
 // This prevents SSRF (Server-Side Request Forgery) attacks.
-func validateCallbackHost(hostname string) error {
+func validateCallbackHost(ctx context.Context, hostname string) error {
 	// Block localhost variations
 	if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" {
 		return fmt.Errorf("callback URL cannot be localhost")
@@ -1705,15 +1706,16 @@ func validateCallbackHost(hostname string) error {
 	// Attempt to resolve hostname to IP
 	// If DNS lookup fails, we allow it - the actual webhook delivery will fail naturally
 	// This prevents blocking valid hostnames that are temporarily unresolvable
-	ips, _ := net.LookupIP(hostname)
+	resolver := &net.Resolver{}
+	ips, _ := resolver.LookupIPAddr(ctx, hostname)
 	if len(ips) == 0 {
 		// No IPs resolved (possibly due to DNS failure), allow it
 		return nil
 	}
 
 	// Check if any resolved IP is in a private range
-	for _, ip := range ips {
-		if isPrivateIP(ip) {
+	for _, ipAddr := range ips {
+		if isPrivateIP(ipAddr.IP) {
 			return fmt.Errorf("callback URL cannot be a private IP address")
 		}
 	}

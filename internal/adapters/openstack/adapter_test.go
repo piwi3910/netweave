@@ -148,7 +148,7 @@ func TestNewWithDefaults(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	a := &OpenStackAdapter{
+	a := &Adapter{
 		logger: zap.NewNop(),
 	}
 
@@ -206,7 +206,7 @@ func TestGenerateFlavorID(t *testing.T) {
 
 // TestClose tests adapter cleanup.
 func TestClose(t *testing.T) {
-	adapter := &OpenStackAdapter{
+	adapter := &Adapter{
 		logger: zap.NewNop(),
 	}
 

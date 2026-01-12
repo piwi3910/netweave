@@ -62,7 +62,7 @@ var applicationGVR = schema.GroupVersionResource{
 // ArgoCDAdapter implements the DMS adapter interface for ArgoCD deployments.
 // It uses the Kubernetes dynamic client to manage ArgoCD Application CRDs,
 // avoiding direct ArgoCD library dependencies and their version conflicts.
-type ArgoCDAdapter struct {
+type Adapter struct {
 	config        *Config
 	dynamicClient dynamic.Interface
 	initOnce      sync.Once
@@ -102,7 +102,7 @@ type Config struct {
 
 // NewAdapter creates a new ArgoCD adapter instance.
 // Returns an error if the adapter cannot be initialized.
-func NewAdapter(config *Config) (*ArgoCDAdapter, error) {
+func NewAdapter(config *Config) (*Adapter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
@@ -118,7 +118,7 @@ func NewAdapter(config *Config) (*ArgoCDAdapter, error) {
 		config.SyncTimeout = DefaultSyncTimeout
 	}
 
-	return &ArgoCDAdapter{
+	return &Adapter{
 		config: config,
 	}, nil
 }
@@ -126,7 +126,7 @@ func NewAdapter(config *Config) (*ArgoCDAdapter, error) {
 // Initialize performs lazy initialization of the Kubernetes dynamic client.
 // This allows the adapter to be created without requiring immediate Kubernetes connectivity.
 // This method is thread-safe and ensures initialization happens exactly once.
-func (a *ArgoCDAdapter) Initialize(_ context.Context) error {
+func (a *Adapter) Initialize(_ context.Context) error {
 	a.initOnce.Do(func() {
 		var restConfig *rest.Config
 		var err error
@@ -159,17 +159,17 @@ func (a *ArgoCDAdapter) Initialize(_ context.Context) error {
 }
 
 // Name returns the adapter name.
-func (a *ArgoCDAdapter) Name() string {
+func (a *Adapter) Name() string {
 	return AdapterName
 }
 
 // Version returns the ArgoCD version supported by this adapter.
-func (a *ArgoCDAdapter) Version() string {
+func (a *Adapter) Version() string {
 	return AdapterVersion
 }
 
 // Capabilities returns the capabilities supported by the ArgoCD adapter.
-func (a *ArgoCDAdapter) Capabilities() []adapter.Capability {
+func (a *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityDeploymentLifecycle,
 		adapter.CapabilityGitOps,
@@ -181,7 +181,7 @@ func (a *ArgoCDAdapter) Capabilities() []adapter.Capability {
 
 // ListDeploymentPackages retrieves deployment packages (Git repositories) from ArgoCD.
 // In ArgoCD, packages are Git repositories referenced in Applications.
-func (a *ArgoCDAdapter) ListDeploymentPackages(
+func (a *Adapter) ListDeploymentPackages(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.DeploymentPackage, error) {
@@ -231,7 +231,7 @@ func (a *ArgoCDAdapter) ListDeploymentPackages(
 }
 
 // GetDeploymentPackage retrieves a specific deployment package by ID.
-func (a *ArgoCDAdapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
+func (a *Adapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
 	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -253,7 +253,7 @@ func (a *ArgoCDAdapter) GetDeploymentPackage(ctx context.Context, id string) (*a
 
 // UploadDeploymentPackage is not directly supported in ArgoCD.
 // ArgoCD uses Git repositories as package sources.
-func (a *ArgoCDAdapter) UploadDeploymentPackage(
+func (a *Adapter) UploadDeploymentPackage(
 	ctx context.Context,
 	pkg *adapter.DeploymentPackageUpload,
 ) (*adapter.DeploymentPackage, error) {
@@ -291,14 +291,14 @@ func (a *ArgoCDAdapter) UploadDeploymentPackage(
 
 // DeleteDeploymentPackage is not directly supported in ArgoCD.
 // Packages are Git repositories managed externally.
-func (a *ArgoCDAdapter) DeleteDeploymentPackage(_ context.Context, _ string) error {
+func (a *Adapter) DeleteDeploymentPackage(_ context.Context, _ string) error {
 	// ArgoCD doesn't support deleting packages (Git repos)
 	// This would need to be done in the Git server
 	return fmt.Errorf("ArgoCD does not support package deletion - manage repositories directly")
 }
 
 // ListDeployments retrieves all ArgoCD Applications matching the filter.
-func (a *ArgoCDAdapter) ListDeployments(ctx context.Context, filter *adapter.Filter) ([]*adapter.Deployment, error) {
+func (a *Adapter) ListDeployments(ctx context.Context, filter *adapter.Filter) ([]*adapter.Deployment, error) {
 	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -329,7 +329,7 @@ func (a *ArgoCDAdapter) ListDeployments(ctx context.Context, filter *adapter.Fil
 }
 
 // GetDeployment retrieves a specific ArgoCD Application by name.
-func (a *ArgoCDAdapter) GetDeployment(ctx context.Context, id string) (*adapter.Deployment, error) {
+func (a *Adapter) GetDeployment(ctx context.Context, id string) (*adapter.Deployment, error) {
 	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -343,7 +343,7 @@ func (a *ArgoCDAdapter) GetDeployment(ctx context.Context, id string) (*adapter.
 }
 
 // CreateDeployment creates a new ArgoCD Application.
-func (a *ArgoCDAdapter) CreateDeployment(
+func (a *Adapter) CreateDeployment(
 	ctx context.Context,
 	req *adapter.DeploymentRequest,
 ) (*adapter.Deployment, error) {
@@ -387,7 +387,7 @@ func validateDeploymentRequest(req *adapter.DeploymentRequest) error {
 
 // buildApplicationManifest builds the ArgoCD Application manifest from the request.
 // Assumes validateDeploymentRequest has been called to ensure required extensions exist.
-func (a *ArgoCDAdapter) buildApplicationManifest(req *adapter.DeploymentRequest) (*unstructured.Unstructured, error) {
+func (a *Adapter) buildApplicationManifest(req *adapter.DeploymentRequest) (*unstructured.Unstructured, error) {
 	// Safe to ignore ok values since validateDeploymentRequest ensures repoURL exists
 	repoURL := req.Extensions["argocd.repoURL"].(string)
 	path, _ := req.Extensions["argocd.path"].(string)
@@ -439,7 +439,7 @@ func (a *ArgoCDAdapter) buildApplicationManifest(req *adapter.DeploymentRequest)
 }
 
 // addSyncPolicy adds sync policy to the application if auto-sync is enabled.
-func (a *ArgoCDAdapter) addSyncPolicy(app *unstructured.Unstructured) error {
+func (a *Adapter) addSyncPolicy(app *unstructured.Unstructured) error {
 	if !a.config.AutoSync {
 		return nil
 	}
@@ -457,7 +457,7 @@ func (a *ArgoCDAdapter) addSyncPolicy(app *unstructured.Unstructured) error {
 }
 
 // addHelmValues adds Helm values to the application if provided.
-func (a *ArgoCDAdapter) addHelmValues(
+func (a *Adapter) addHelmValues(
 	app *unstructured.Unstructured,
 	req *adapter.DeploymentRequest,
 	chart string,
@@ -476,7 +476,7 @@ func (a *ArgoCDAdapter) addHelmValues(
 }
 
 // UpdateDeployment updates an existing ArgoCD Application.
-func (a *ArgoCDAdapter) UpdateDeployment(
+func (a *Adapter) UpdateDeployment(
 	ctx context.Context,
 	id string,
 	update *adapter.DeploymentUpdate,
@@ -524,7 +524,7 @@ func (a *ArgoCDAdapter) UpdateDeployment(
 }
 
 // DeleteDeployment deletes an ArgoCD Application.
-func (a *ArgoCDAdapter) DeleteDeployment(ctx context.Context, id string) error {
+func (a *Adapter) DeleteDeployment(ctx context.Context, id string) error {
 	if err := a.Initialize(ctx); err != nil {
 		return err
 	}
@@ -543,7 +543,7 @@ func (a *ArgoCDAdapter) DeleteDeployment(ctx context.Context, id string) error {
 
 // ScaleDeployment scales a deployment by updating Helm values.
 // ArgoCD doesn't directly support scaling, but we can update replica values.
-func (a *ArgoCDAdapter) ScaleDeployment(ctx context.Context, id string, replicas int) error {
+func (a *Adapter) ScaleDeployment(ctx context.Context, id string, replicas int) error {
 	if err := a.Initialize(ctx); err != nil {
 		return err
 	}
@@ -564,7 +564,7 @@ func (a *ArgoCDAdapter) ScaleDeployment(ctx context.Context, id string, replicas
 }
 
 // RollbackDeployment rolls back an ArgoCD Application to a previous revision.
-func (a *ArgoCDAdapter) RollbackDeployment(ctx context.Context, id string, revision int) error {
+func (a *Adapter) RollbackDeployment(ctx context.Context, id string, revision int) error {
 	if err := a.Initialize(ctx); err != nil {
 		return err
 	}
@@ -613,7 +613,7 @@ func (a *ArgoCDAdapter) RollbackDeployment(ctx context.Context, id string, revis
 }
 
 // GetDeploymentStatus retrieves detailed status for an ArgoCD Application.
-func (a *ArgoCDAdapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.DeploymentStatusDetail, error) {
+func (a *Adapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.DeploymentStatusDetail, error) {
 	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -627,7 +627,7 @@ func (a *ArgoCDAdapter) GetDeploymentStatus(ctx context.Context, id string) (*ad
 }
 
 // GetDeploymentHistory retrieves the revision history for an ArgoCD Application.
-func (a *ArgoCDAdapter) GetDeploymentHistory(ctx context.Context, id string) (*adapter.DeploymentHistory, error) {
+func (a *Adapter) GetDeploymentHistory(ctx context.Context, id string) (*adapter.DeploymentHistory, error) {
 	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -673,7 +673,7 @@ func (a *ArgoCDAdapter) GetDeploymentHistory(ctx context.Context, id string) (*a
 
 // GetDeploymentLogs retrieves logs for an ArgoCD Application.
 // Note: ArgoCD doesn't directly provide logs, this returns status information.
-func (a *ArgoCDAdapter) GetDeploymentLogs(ctx context.Context, id string, _ *adapter.LogOptions) ([]byte, error) {
+func (a *Adapter) GetDeploymentLogs(ctx context.Context, id string, _ *adapter.LogOptions) ([]byte, error) {
 	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -695,22 +695,22 @@ func (a *ArgoCDAdapter) GetDeploymentLogs(ctx context.Context, id string, _ *ada
 }
 
 // SupportsRollback returns true as ArgoCD supports rollback via history.
-func (a *ArgoCDAdapter) SupportsRollback() bool {
+func (a *Adapter) SupportsRollback() bool {
 	return true
 }
 
 // SupportsScaling returns true as scaling can be done via Helm value updates.
-func (a *ArgoCDAdapter) SupportsScaling() bool {
+func (a *Adapter) SupportsScaling() bool {
 	return true
 }
 
 // SupportsGitOps returns true as ArgoCD is a GitOps tool.
-func (a *ArgoCDAdapter) SupportsGitOps() bool {
+func (a *Adapter) SupportsGitOps() bool {
 	return true
 }
 
 // Health performs a health check on the ArgoCD backend.
-func (a *ArgoCDAdapter) Health(ctx context.Context) error {
+func (a *Adapter) Health(ctx context.Context) error {
 	if err := a.Initialize(ctx); err != nil {
 		return fmt.Errorf("argocd adapter not healthy: %w", err)
 	}
@@ -729,13 +729,13 @@ func (a *ArgoCDAdapter) Health(ctx context.Context) error {
 // Close cleanly shuts down the adapter.
 // Note: Due to sync.Once semantics, calling Initialize after Close will not re-initialize.
 // Create a new adapter instance if re-initialization is needed.
-func (a *ArgoCDAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.dynamicClient = nil
 	return nil
 }
 
 // listApplications retrieves ArgoCD Applications with optional filtering.
-func (a *ArgoCDAdapter) listApplications(
+func (a *Adapter) listApplications(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*unstructured.Unstructured, error) {
@@ -763,7 +763,7 @@ func (a *ArgoCDAdapter) listApplications(
 }
 
 // getApplication retrieves a single ArgoCD Application by name.
-func (a *ArgoCDAdapter) getApplication(ctx context.Context, name string) (*unstructured.Unstructured, error) {
+func (a *Adapter) getApplication(ctx context.Context, name string) (*unstructured.Unstructured, error) {
 	app, err := a.dynamicClient.Resource(applicationGVR).Namespace(a.config.Namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ArgoCD application %s: %w", name, err)
@@ -772,7 +772,7 @@ func (a *ArgoCDAdapter) getApplication(ctx context.Context, name string) (*unstr
 }
 
 // transformApplicationToDeployment converts an ArgoCD Application to a Deployment.
-func (a *ArgoCDAdapter) transformApplicationToDeployment(app *unstructured.Unstructured) *adapter.Deployment {
+func (a *Adapter) transformApplicationToDeployment(app *unstructured.Unstructured) *adapter.Deployment {
 	name, _, _ := unstructured.NestedString(app.Object, "metadata", "name")
 	namespace, _, _ := unstructured.NestedString(app.Object, "metadata", "namespace")
 
@@ -825,7 +825,7 @@ func (a *ArgoCDAdapter) transformApplicationToDeployment(app *unstructured.Unstr
 }
 
 // transformApplicationToStatus converts an ArgoCD Application to detailed status.
-func (a *ArgoCDAdapter) transformApplicationToStatus(app *unstructured.Unstructured) *adapter.DeploymentStatusDetail {
+func (a *Adapter) transformApplicationToStatus(app *unstructured.Unstructured) *adapter.DeploymentStatusDetail {
 	name, _, _ := unstructured.NestedString(app.Object, "metadata", "name")
 
 	// Extract status fields
@@ -888,7 +888,7 @@ func (a *ArgoCDAdapter) transformApplicationToStatus(app *unstructured.Unstructu
 }
 
 // transformArgoCDStatus converts ArgoCD health and sync status to DMS deployment status.
-func (a *ArgoCDAdapter) transformArgoCDStatus(healthStatus, syncStatus string) adapter.DeploymentStatus {
+func (a *Adapter) transformArgoCDStatus(healthStatus, syncStatus string) adapter.DeploymentStatus {
 	// Health statuses: Healthy, Progressing, Degraded, Suspended, Missing, Unknown
 	// Sync statuses: Synced, OutOfSync, Unknown
 
@@ -913,7 +913,7 @@ func (a *ArgoCDAdapter) transformArgoCDStatus(healthStatus, syncStatus string) a
 }
 
 // calculateProgress estimates deployment progress based on ArgoCD status.
-func (a *ArgoCDAdapter) calculateProgress(healthStatus, syncStatus string) int {
+func (a *Adapter) calculateProgress(healthStatus, syncStatus string) int {
 	switch healthStatus {
 	case "Healthy":
 		if syncStatus == "Synced" {
@@ -930,7 +930,7 @@ func (a *ArgoCDAdapter) calculateProgress(healthStatus, syncStatus string) int {
 }
 
 // extractSource extracts source configuration from an ArgoCD Application.
-func (a *ArgoCDAdapter) extractSource(app *unstructured.Unstructured) ApplicationSource {
+func (a *Adapter) extractSource(app *unstructured.Unstructured) ApplicationSource {
 	repoURL, _, _ := unstructured.NestedString(app.Object, "spec", "source", "repoURL")
 	path, _, _ := unstructured.NestedString(app.Object, "spec", "source", "path")
 	targetRevision, _, _ := unstructured.NestedString(app.Object, "spec", "source", "targetRevision")
@@ -945,7 +945,7 @@ func (a *ArgoCDAdapter) extractSource(app *unstructured.Unstructured) Applicatio
 }
 
 // applyPagination applies limit and offset to deployment list.
-func (a *ArgoCDAdapter) applyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
+func (a *Adapter) applyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
 	if offset >= len(deployments) {
 		return []*adapter.Deployment{}
 	}

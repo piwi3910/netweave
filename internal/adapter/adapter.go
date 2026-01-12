@@ -241,12 +241,8 @@ type SubscriptionFilter struct {
 	ResourceID string `json:"resourceId,omitempty"`
 }
 
-// Adapter defines the interface that all backend implementations must provide.
-// Implementations include Kubernetes, Dell DTIAS, AWS, OpenStack, etc.
-// Each adapter translates O2-IMS operations to backend-specific API calls.
-type Adapter interface {
-	// Metadata methods
-
+// AdapterMetadata provides basic metadata about an adapter.
+type AdapterMetadata interface {
 	// Name returns the unique name of this adapter (e.g., "kubernetes", "dtias", "aws").
 	Name() string
 
@@ -255,15 +251,17 @@ type Adapter interface {
 
 	// Capabilities returns the list of O2-IMS capabilities this adapter supports.
 	Capabilities() []Capability
+}
 
-	// Deployment Manager operations
-
+// DeploymentManagerClient provides deployment manager operations.
+type DeploymentManagerClient interface {
 	// GetDeploymentManager retrieves metadata about the deployment manager.
 	// Returns the deployment manager or an error if not found.
 	GetDeploymentManager(ctx context.Context, id string) (*DeploymentManager, error)
+}
 
-	// Resource Pool operations
-
+// ResourcePoolClient provides resource pool operations.
+type ResourcePoolClient interface {
 	// ListResourcePools retrieves all resource pools matching the provided filter.
 	// The filter parameter can be nil to retrieve all pools.
 	// Returns a slice of resource pools or an error.
@@ -284,9 +282,10 @@ type Adapter interface {
 	// DeleteResourcePool deletes a resource pool by ID.
 	// Returns an error if the pool doesn't exist or cannot be deleted.
 	DeleteResourcePool(ctx context.Context, id string) error
+}
 
-	// Resource operations
-
+// ResourceClient provides resource operations.
+type ResourceClient interface {
 	// ListResources retrieves all resources matching the provided filter.
 	// The filter parameter can be nil to retrieve all resources.
 	// Returns a slice of resources or an error.
@@ -308,9 +307,10 @@ type Adapter interface {
 	// DeleteResource deletes a resource by ID (e.g., deprovision a node).
 	// Returns an error if the resource doesn't exist or cannot be deleted.
 	DeleteResource(ctx context.Context, id string) error
+}
 
-	// Resource Type operations
-
+// ResourceTypeClient provides resource type operations.
+type ResourceTypeClient interface {
 	// ListResourceTypes retrieves all resource types matching the provided filter.
 	// The filter parameter can be nil to retrieve all types.
 	// Returns a slice of resource types or an error.
@@ -319,9 +319,10 @@ type Adapter interface {
 	// GetResourceType retrieves a specific resource type by ID.
 	// Returns the resource type or an error if not found.
 	GetResourceType(ctx context.Context, id string) (*ResourceType, error)
+}
 
-	// Subscription operations
-
+// SubscriptionClient provides subscription operations.
+type SubscriptionClient interface {
 	// CreateSubscription creates a new event subscription.
 	// Returns the created subscription with server-assigned fields populated.
 	CreateSubscription(ctx context.Context, sub *Subscription) (*Subscription, error)
@@ -337,9 +338,10 @@ type Adapter interface {
 	// DeleteSubscription deletes a subscription by ID.
 	// Returns an error if the subscription doesn't exist.
 	DeleteSubscription(ctx context.Context, id string) error
+}
 
-	// Lifecycle methods
-
+// AdapterLifecycle provides lifecycle management operations.
+type AdapterLifecycle interface {
 	// Health performs a health check on the backend system.
 	// Returns nil if healthy, or an error describing the health issue.
 	Health(ctx context.Context) error
@@ -347,4 +349,18 @@ type Adapter interface {
 	// Close cleanly shuts down the adapter and releases resources.
 	// Returns an error if shutdown fails.
 	Close() error
+}
+
+// Adapter defines the interface that all backend implementations must provide.
+// Implementations include Kubernetes, Dell DTIAS, AWS, OpenStack, etc.
+// Each adapter translates O2-IMS operations to backend-specific API calls.
+// This interface is composed of smaller, focused interfaces to reduce complexity.
+type Adapter interface {
+	AdapterMetadata
+	DeploymentManagerClient
+	ResourcePoolClient
+	ResourceClient
+	ResourceTypeClient
+	SubscriptionClient
+	AdapterLifecycle
 }
