@@ -49,11 +49,14 @@ func (a *DTIASAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Fi
 		}
 	}()
 
-	// Parse response
-	var serverTypes []ServerType
-	if err := a.client.parseResponse(resp, &serverTypes); err != nil {
+	// Parse DTIAS wrapped response
+	var dtiasResp ResourceTypesResponse
+	if err := a.client.parseResponse(resp, &dtiasResp); err != nil {
 		return nil, fmt.Errorf("failed to parse server types response: %w", err)
 	}
+
+	// Extract server types from response
+	serverTypes := dtiasResp.ResourceTypes
 
 	// Transform DTIAS server types to O2-IMS resource types
 	resourceTypes := make([]*adapter.ResourceType, 0, len(serverTypes))
@@ -74,12 +77,20 @@ func (a *DTIASAdapter) GetResourceType(ctx context.Context, id string) (*adapter
 	a.logger.Debug("GetResourceType called",
 		zap.String("id", id))
 
-	// Query and parse DTIAS API
-	path := fmt.Sprintf("/v2/resourcetypes/%s", id)
-	var serverType ServerType
-	if err := a.getAndParseResource(ctx, path, &serverType, "server type"); err != nil {
+	// Query and parse DTIAS API using search endpoint
+	// DTIAS doesn't have a direct GET /v2/resourcetypes/{id} endpoint
+	// Instead, use the search endpoint which returns wrapped response
+	path := fmt.Sprintf("/v2/search/resourcetypes/%s", id)
+	var dtiasResp ResourceTypesResponse
+	if err := a.getAndParseResource(ctx, path, &dtiasResp, "server type"); err != nil {
 		return nil, err
 	}
+
+	// The response contains an array, get the first (and should be only) item
+	if len(dtiasResp.ResourceTypes) == 0 {
+		return nil, fmt.Errorf("server type not found: %s", id)
+	}
+	serverType := dtiasResp.ResourceTypes[0]
 
 	// Transform to O2-IMS resource type
 	resourceType := a.transformServerTypeToResourceType(&serverType)

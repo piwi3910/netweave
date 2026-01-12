@@ -435,3 +435,74 @@ type VoltageSensor struct {
 	// Status is the sensor status
 	Status string `json:"status"`
 }
+
+// ServersInventoryResponse represents the DTIAS API response for GET /v2/inventory/servers.
+// The DTIAS API wraps the server array in a response object with Full and Brief arrays.
+type ServersInventoryResponse struct {
+	// ServerCount is the total number of servers matching the query
+	ServerCount string `json:"ServerCount"`
+
+	// Full contains the full server details
+	Full []Server `json:"Full"`
+
+	// Brief contains brief server details (used when full details not requested)
+	Brief []ServerBrief `json:"Brief"`
+
+	// Error contains API error details if the request failed
+	Error *APIError `json:"Error,omitempty"`
+}
+
+// ServerBrief represents a brief server response from DTIAS.
+type ServerBrief struct {
+	ID           string `json:"id"`
+	Hostname     string `json:"hostname"`
+	ServerPoolID string `json:"serverPoolId"`
+	Type         string `json:"type"`
+	State        string `json:"state"`
+	PowerState   string `json:"powerState"`
+	HealthState  string `json:"healthState"`
+}
+
+// ResourcePoolsInventoryResponse represents the DTIAS API response for GET /v2/inventory/resourcepools.
+type ResourcePoolsInventoryResponse struct {
+	// Rps contains the resource pools array
+	Rps []ServerPool `json:"Rps"`
+
+	// Error contains API error details if the request failed
+	Error *APIError `json:"Error,omitempty"`
+
+	// Tenant contains the tenant ID
+	Tenant string `json:"Tenant,omitempty"`
+}
+
+// ResourcePoolInventoryResponse represents the DTIAS API response for GET /v2/inventory/resourcepools/{Id}.
+type ResourcePoolInventoryResponse struct {
+	// Rp contains the single resource pool
+	Rp ServerPool `json:"Rp"`
+
+	// Error contains API error details if the request failed
+	Error *APIError `json:"Error,omitempty"`
+
+	// Tenant contains the tenant ID
+	Tenant string `json:"Tenant,omitempty"`
+}
+
+// ResourceTypesResponse represents the DTIAS API response for GET /v2/resourcetypes.
+type ResourceTypesResponse struct {
+	// ResourceTypes contains the resource types array
+	ResourceTypes []ServerType `json:"ResourceTypes"`
+
+	// Tenant contains the tenant ID
+	Tenant string `json:"Tenant,omitempty"`
+
+	// Pagination contains pagination information
+	Pagination *Pagination `json:"Pagination,omitempty"`
+}
+
+// Pagination represents pagination information in DTIAS responses.
+type Pagination struct {
+	PageNumber int `json:"pageNumber"`
+	PageSize   int `json:"pageSize"`
+	TotalPages int `json:"totalPages"`
+	TotalCount int `json:"totalCount"`
+}
