@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/storage"
 )
+
+var errNotFound = errors.New("subscription not found")
 
 type mockStore struct {
 	subscriptions  []*storage.Subscription
@@ -24,7 +27,7 @@ func (m *mockStore) Create(ctx context.Context, sub *storage.Subscription) error
 }
 
 func (m *mockStore) Get(ctx context.Context, id string) (*storage.Subscription, error) {
-	return nil, nil
+	return nil, errNotFound
 }
 
 func (m *mockStore) Update(ctx context.Context, sub *storage.Subscription) error {

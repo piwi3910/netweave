@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -23,7 +24,7 @@ func (m *mockDeliveryTracker) Track(ctx context.Context, delivery *NotificationD
 }
 
 func (m *mockDeliveryTracker) Get(ctx context.Context, deliveryID string) (*NotificationDelivery, error) {
-	return nil, nil
+	return nil, errors.New("delivery not found")
 }
 
 func (m *mockDeliveryTracker) ListByEvent(ctx context.Context, eventID string) ([]*NotificationDelivery, error) {
