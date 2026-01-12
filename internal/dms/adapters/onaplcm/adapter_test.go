@@ -17,7 +17,7 @@ import (
 // These are not real credentials and should never be used in production.
 const (
 	testUsername   = "admin"
-	testSecretData = "test-credential-data"
+	testSecretData = "test-secret-data"
 )
 
 // TestNewAdapter tests adapter creation with various configurations.

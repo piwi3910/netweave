@@ -89,14 +89,24 @@ func validateCallbackURL(callbackURL string) error {
 		return errors.New("invalid URL format")
 	}
 
-	// Extract host without port.
+	// Extract and validate host.
 	host := parsed.Hostname()
+	if err := validateHost(host, parsed.Scheme); err != nil {
+		return err
+	}
+
+	// Validate host is not a private IP.
+	return validateHostNotPrivate(host)
+}
+
+// validateHost validates the host and scheme.
+func validateHost(host, scheme string) error {
 	if host == "" {
 		return errors.New("callback URL must have a valid host")
 	}
 
 	// Enforce HTTPS for webhook callbacks.
-	if parsed.Scheme != "https" {
+	if scheme != "https" {
 		return errors.New("callback URL must use HTTPS")
 	}
 
@@ -110,17 +120,23 @@ func validateCallbackURL(callbackURL string) error {
 		return errors.New("callback URL cannot point to cloud metadata endpoints")
 	}
 
-	// Resolve the hostname with timeout and check if it's a private IP.
+	return nil
+}
+
+// validateHostNotPrivate resolves hostname and checks if it points to private IPs.
+func validateHostNotPrivate(host string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dnsLookupTimeout)
 	defer cancel()
 
 	resolver := net.Resolver{}
 	ips, err := resolver.LookupIP(ctx, "ip", host)
-	if err == nil {
-		for _, ip := range ips {
-			if isPrivateIP(ip) {
-				return errors.New("callback URL cannot point to private IP addresses")
-			}
+	if err != nil {
+		return nil // DNS lookup failed, but we don't block on that
+	}
+
+	for _, ip := range ips {
+		if isPrivateIP(ip) {
+			return errors.New("callback URL cannot point to private IP addresses")
 		}
 	}
 
@@ -149,28 +165,29 @@ func isCloudMetadataEndpoint(host string) bool {
 
 // isPrivateIP checks if an IP address is in a private range.
 func isPrivateIP(ip net.IP) bool {
-	// Check for loopback.
-	if ip.IsLoopback() {
+	// Check for standard private IP characteristics.
+	if isStandardPrivateIP(ip) {
 		return true
 	}
 
-	// Check for link-local addresses.
-	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-		return true
-	}
-
-	// Check for private addresses using Go's built-in check.
-	if ip.IsPrivate() {
-		return true
-	}
-
-	// Determine if IP is IPv4 or IPv6 based on original representation.
-	// To4() returns non-nil for IPv4 addresses and IPv4-mapped IPv6.
+	// Check additional reserved ranges.
 	ipv4 := ip.To4()
+	if ipv4 != nil {
+		return isReservedIPv4(ipv4)
+	}
 
-	// Additional private/reserved ranges not covered by IsPrivate().
+	return isReservedIPv6(ip)
+}
+
+// isStandardPrivateIP checks standard private IP characteristics.
+func isStandardPrivateIP(ip net.IP) bool {
+	return ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsPrivate()
+}
+
+// isReservedIPv4 checks if IPv4 address is in reserved ranges.
+func isReservedIPv4(ipv4 net.IP) bool {
 	ipv4Blocks := []string{
-		"169.254.0.0/16",  // Link-local (also checked above, but explicit for CIDR matching)
+		"169.254.0.0/16",  // Link-local
 		"100.64.0.0/10",   // Carrier-grade NAT
 		"192.0.0.0/24",    // IETF Protocol Assignments
 		"192.0.2.0/24",    // Documentation (TEST-NET-1)
@@ -180,34 +197,28 @@ func isPrivateIP(ip net.IP) bool {
 		"240.0.0.0/4",     // Reserved for future use
 	}
 
+	return isIPInBlocks(ipv4, ipv4Blocks)
+}
+
+// isReservedIPv6 checks if IPv6 address is in reserved ranges.
+func isReservedIPv6(ip net.IP) bool {
 	ipv6Blocks := []string{
 		"fc00::/7",      // Unique local addresses (ULA)
 		"fe80::/10",     // Link-local
 		"ff00::/8",      // Multicast
 		"::1/128",       // Loopback
-		"::ffff:0:0/96", // IPv4-mapped IPv6 (all instances, regardless of underlying IPv4)
+		"::ffff:0:0/96", // IPv4-mapped IPv6
 		"64:ff9b::/96",  // IPv4/IPv6 translation
 		"100::/64",      // Discard prefix
 		"2001:db8::/32", // Documentation
 	}
 
-	// For IPv4 addresses, check IPv4-specific blocks only.
-	if ipv4 != nil {
-		for _, block := range ipv4Blocks {
-			_, cidr, err := net.ParseCIDR(block)
-			if err != nil {
-				continue
-			}
-			if cidr.Contains(ipv4) {
-				return true
-			}
-		}
-		return false
-	}
+	return isIPInBlocks(ip, ipv6Blocks)
+}
 
-	// For IPv6 addresses, check IPv6-specific blocks.
-	// This includes blocking ALL IPv4-mapped IPv6 addresses.
-	for _, block := range ipv6Blocks {
+// isIPInBlocks checks if an IP is contained in any of the given CIDR blocks.
+func isIPInBlocks(ip net.IP, blocks []string) bool {
+	for _, block := range blocks {
 		_, cidr, err := net.ParseCIDR(block)
 		if err != nil {
 			continue
@@ -216,7 +227,6 @@ func isPrivateIP(ip net.IP) bool {
 			return true
 		}
 	}
-
 	return false
 }
 
