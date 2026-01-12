@@ -994,16 +994,19 @@ func TestResourceConcurrency(t *testing.T) {
 			op := string(parts[0])
 			code := string(parts[1])
 
-			if op == "create" {
-				if code == "201" {
+			switch op {
+			case "create":
+				switch code {
+				case "201":
 					createSuccess++
-				} else if code == "409" {
+				case "409":
 					createConflict++
 				}
-			} else if op == "get" {
-				if code == "200" {
+			case "get":
+				switch code {
+				case "200":
 					getSuccess++
-				} else if code == "404" {
+				case "404":
 					getNotFound++
 				}
 			}

@@ -16,8 +16,8 @@ import (
 // Test credentials constants used only for unit testing.
 // These are not real credentials and should never be used in production.
 const (
-	testUsername       = "admin"
-	testCredentialData = "test-credential-data"
+	testUsername   = "admin"
+	testSecretData = "test-credential-data"
 )
 
 // TestNewAdapter tests adapter creation with various configurations.
@@ -39,7 +39,7 @@ func TestNewAdapter(t *testing.T) {
 			config: &Config{
 				NBIEndpoint: "http://localhost:9999",
 				Username:    testUsername,
-				Password:    testCredentialData,
+				Password:    testSecretData,
 			},
 			wantErr: false,
 		},
@@ -1038,7 +1038,7 @@ func TestDoRequest(t *testing.T) {
 			user, pass, ok := r.BasicAuth()
 			assert.True(t, ok)
 			assert.Equal(t, testUsername, user)
-			assert.Equal(t, testCredentialData, pass)
+			assert.Equal(t, testSecretData, pass)
 			w.WriteHeader(http.StatusOK)
 		}))
 		defer server.Close()
@@ -1046,7 +1046,7 @@ func TestDoRequest(t *testing.T) {
 		adp, err := NewAdapter(&Config{
 			NBIEndpoint: server.URL,
 			Username:    testUsername,
-			Password:    testCredentialData,
+			Password:    testSecretData,
 		})
 		require.NoError(t, err)
 		_ = adp.initialize()

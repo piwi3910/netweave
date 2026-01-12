@@ -16,42 +16,72 @@ func (a *OpenStackAdapter) ListResources(ctx context.Context, filter *adapter.Fi
 	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
-	// Build list options
+	// Build list options with server-side filters
+	listOpts := a.buildListOptions(ctx, filter)
+
+	// Query OpenStack for servers
+	osServers, err := a.queryOpenStackServers(listOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Transform and filter servers to resources
+	resources := a.transformAndFilterServers(osServers, filter)
+
+	// Apply pagination
+	resources = a.applyPaginationIfNeeded(resources, filter)
+
+	a.logger.Info("listed resources",
+		zap.Int("count", len(resources)))
+
+	return resources, nil
+}
+
+// buildListOptions constructs OpenStack list options with server-side filters.
+func (a *OpenStackAdapter) buildListOptions(ctx context.Context, filter *adapter.Filter) servers.ListOpts {
 	listOpts := servers.ListOpts{
 		AllTenants: false, // Only list instances in current project
 	}
 
-	// Apply filters to OpenStack API query for efficient server-side filtering
-	if filter != nil {
-		// Filter by availability zone (from resource pool or location)
-		availabilityZone := ""
-
-		// If filtering by resource pool ID, get the pool's availability zone
-		if filter.ResourcePoolID != "" {
-			pool, err := a.GetResourcePool(ctx, filter.ResourcePoolID)
-			if err != nil {
-				a.logger.Warn("failed to get resource pool for filtering, will filter in memory",
-					zap.String("resourcePoolID", filter.ResourcePoolID),
-					zap.Error(err))
-			} else if pool.Location != "" {
-				availabilityZone = pool.Location
-			}
-		}
-
-		// If filtering by location directly, use that
-		if filter.Location != "" {
-			availabilityZone = filter.Location
-		}
-
-		// Apply availability zone filter to OpenStack query
-		if availabilityZone != "" {
-			listOpts.AvailabilityZone = availabilityZone
-			a.logger.Debug("filtering servers by availability zone",
-				zap.String("availabilityZone", availabilityZone))
-		}
+	if filter == nil {
+		return listOpts
 	}
 
-	// Query all servers from Nova
+	// Determine availability zone from resource pool or location
+	availabilityZone := a.getAvailabilityZoneFromFilter(ctx, filter)
+	if availabilityZone != "" {
+		listOpts.AvailabilityZone = availabilityZone
+		a.logger.Debug("filtering servers by availability zone",
+			zap.String("availabilityZone", availabilityZone))
+	}
+
+	return listOpts
+}
+
+// getAvailabilityZoneFromFilter extracts availability zone from filter parameters.
+func (a *OpenStackAdapter) getAvailabilityZoneFromFilter(ctx context.Context, filter *adapter.Filter) string {
+	// If filtering by location directly, use that
+	if filter.Location != "" {
+		return filter.Location
+	}
+
+	// If filtering by resource pool ID, get the pool's availability zone
+	if filter.ResourcePoolID != "" {
+		pool, err := a.GetResourcePool(ctx, filter.ResourcePoolID)
+		if err != nil {
+			a.logger.Warn("failed to get resource pool for filtering, will filter in memory",
+				zap.String("resourcePoolID", filter.ResourcePoolID),
+				zap.Error(err))
+			return ""
+		}
+		return pool.Location
+	}
+
+	return ""
+}
+
+// queryOpenStackServers retrieves servers from OpenStack Nova API.
+func (a *OpenStackAdapter) queryOpenStackServers(listOpts servers.ListOpts) ([]servers.Server, error) {
 	allPages, err := servers.List(a.compute, listOpts).AllPages()
 	if err != nil {
 		a.logger.Error("failed to list servers",
@@ -69,38 +99,46 @@ func (a *OpenStackAdapter) ListResources(ctx context.Context, filter *adapter.Fi
 	a.logger.Debug("retrieved servers from OpenStack",
 		zap.Int("count", len(osServers)))
 
-	// Transform OpenStack servers to O2-IMS Resources
+	return osServers, nil
+}
+
+// transformAndFilterServers transforms OpenStack servers to resources and applies filters.
+func (a *OpenStackAdapter) transformAndFilterServers(osServers []servers.Server, filter *adapter.Filter) []*adapter.Resource {
 	resources := make([]*adapter.Resource, 0, len(osServers))
 	for i := range osServers {
 		resource := a.transformServerToResource(&osServers[i])
 
-		// Apply additional in-memory filtering for criteria not supported by OpenStack API
-		// Note: Availability zone filtering is already applied at the API level above
-		if filter != nil {
-			// ResourceTypeID filter (by flavor)
-			if filter.ResourceTypeID != "" && filter.ResourceTypeID != resource.ResourceTypeID {
-				continue
-			}
-
-			// Additional filters can be added here (labels, extensions, etc.)
-			if len(filter.Labels) > 0 {
-				// Labels filtering - not typically supported by OpenStack servers directly
-				continue // Skip for now
-			}
+		// Apply additional in-memory filtering
+		if filter != nil && !a.resourceMatchesFilter(resource, filter) {
+			continue
 		}
 
 		resources = append(resources, resource)
 	}
+	return resources
+}
 
-	// Apply pagination
-	if filter != nil {
-		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
+// resourceMatchesFilter checks if a resource matches the given filter criteria.
+func (a *OpenStackAdapter) resourceMatchesFilter(resource *adapter.Resource, filter *adapter.Filter) bool {
+	// ResourceTypeID filter (by flavor)
+	if filter.ResourceTypeID != "" && filter.ResourceTypeID != resource.ResourceTypeID {
+		return false
 	}
 
-	a.logger.Info("listed resources",
-		zap.Int("count", len(resources)))
+	// Labels filtering - not typically supported by OpenStack servers directly
+	if len(filter.Labels) > 0 {
+		return false // Skip for now
+	}
 
-	return resources, nil
+	return true
+}
+
+// applyPaginationIfNeeded applies pagination to resources if filter specifies it.
+func (a *OpenStackAdapter) applyPaginationIfNeeded(resources []*adapter.Resource, filter *adapter.Filter) []*adapter.Resource {
+	if filter != nil {
+		return adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
+	}
+	return resources
 }
 
 // GetResource retrieves a specific OpenStack Nova instance by ID and transforms it to O2-IMS Resource.

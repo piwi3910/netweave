@@ -34,6 +34,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -655,8 +656,7 @@ func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 	}
 
 	for _, path := range specPaths {
-		// G304: path is from hardcoded list above, not user input - safe from path traversal
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(filepath.Clean(path))
 		if err == nil {
 			logger.Debug("loaded OpenAPI spec",
 				zap.String("path", path),
