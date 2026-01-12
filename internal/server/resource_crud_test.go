@@ -946,71 +946,15 @@ func TestResourceConcurrency(t *testing.T) {
 			i := i
 			go func() {
 				if i%2 == 0 {
-					// Create operation
-					resource := adapter.Resource{
-						ResourceID:     resourceID,
-						ResourceTypeID: "machine",
-						ResourcePoolID: "pool-1",
-						Description:    "Test",
-					}
-
-					body, err := json.Marshal(resource)
-					require.NoError(t, err)
-
-					req := httptest.NewRequest(
-						http.MethodPost,
-						"/o2ims-infrastructureInventory/v1/resources",
-						bytes.NewReader(body),
-					)
-					req.Header.Set("Content-Type", "application/json")
-					resp := httptest.NewRecorder()
-
-					srv.router.ServeHTTP(resp, req)
-					results <- fmt.Sprintf("create:%d", resp.Code)
+					executeConcurrentCreate(t, srv, resourceID, results)
 				} else {
-					// Get operation
-					req := httptest.NewRequest(
-						http.MethodGet,
-						"/o2ims-infrastructureInventory/v1/resources/"+resourceID,
-						nil,
-					)
-					resp := httptest.NewRecorder()
-
-					srv.router.ServeHTTP(resp, req)
-					results <- fmt.Sprintf("get:%d", resp.Code)
+					executeConcurrentGet(srv, resourceID, results)
 				}
 			}()
 		}
 
-		// Collect results
-		createSuccess := 0
-		createConflict := 0
-		getSuccess := 0
-		getNotFound := 0
-
-		for i := 0; i < numGoroutines; i++ {
-			result := <-results
-			parts := bytes.Split([]byte(result), []byte(":"))
-			op := string(parts[0])
-			code := string(parts[1])
-
-			switch op {
-			case "create":
-				switch code {
-				case "201":
-					createSuccess++
-				case "409":
-					createConflict++
-				}
-			case "get":
-				switch code {
-				case "200":
-					getSuccess++
-				case "404":
-					getNotFound++
-				}
-			}
-		}
+		// Collect and verify results
+		createSuccess, getSuccess, getNotFound := collectConcurrentResults(results, numGoroutines)
 
 		// Exactly one create should succeed
 		assert.Equal(t, 1, createSuccess, "Exactly one create should succeed")
@@ -1019,4 +963,60 @@ func TestResourceConcurrency(t *testing.T) {
 		assert.Equal(t, numGoroutines/2, getSuccess+getNotFound,
 			"All gets should complete with either 200 or 404")
 	})
+}
+
+// executeConcurrentCreate performs a concurrent create operation for testing.
+func executeConcurrentCreate(t *testing.T, srv *Server, resourceID string, results chan<- string) {
+	resource := adapter.Resource{
+		ResourceID:     resourceID,
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Description:    "Test",
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+	results <- fmt.Sprintf("create:%d", resp.Code)
+}
+
+// executeConcurrentGet performs a concurrent get operation for testing.
+func executeConcurrentGet(srv *Server, resourceID string, results chan<- string) {
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/o2ims-infrastructureInventory/v1/resources/"+resourceID,
+		nil,
+	)
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+	results <- fmt.Sprintf("get:%d", resp.Code)
+}
+
+// collectConcurrentResults collects and tallies results from concurrent operations.
+func collectConcurrentResults(results <-chan string, numGoroutines int) (createSuccess, getSuccess, getNotFound int) {
+	for i := 0; i < numGoroutines; i++ {
+		result := <-results
+		parts := bytes.Split([]byte(result), []byte(":"))
+		op := string(parts[0])
+		code := string(parts[1])
+
+		if op == "create" && code == "201" {
+			createSuccess++
+		} else if op == "get" && code == "200" {
+			getSuccess++
+		} else if op == "get" && code == "404" {
+			getNotFound++
+		}
+	}
+	return createSuccess, getSuccess, getNotFound
 }
