@@ -115,7 +115,7 @@ func NewTestFramework(opts *FrameworkOptions) (*TestFramework, error) {
 	defer cancel()
 
 	// Build Kubernetes client
-	kubeClient, err := buildKubernetesClient(opts.KubeconfigPath)
+	kubeClient, err := BuildKubernetesClient(opts.KubeconfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes client: %w", err)
 	}
@@ -195,7 +195,7 @@ func (f *TestFramework) Cleanup() {
 }
 
 // buildKubernetesClient creates a Kubernetes client from kubeconfig.
-func buildKubernetesClient(kubeconfigPath string) (kubernetes.Interface, error) {
+func BuildKubernetesClient(kubeconfigPath string) (kubernetes.Interface, error) {
 	if kubeconfigPath == "" {
 		kubeconfigPath = filepath.Join(os.Getenv("HOME"), ".kube", "config")
 	}

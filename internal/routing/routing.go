@@ -147,7 +147,7 @@ func (r *Router) Route(_ context.Context, routingCtx *Context) (adapter.Adapter,
 			continue
 		}
 
-		plugin, ok := r.getValidatedAdapter(rule, routingCtx)
+		plugin, ok := r.GetValidatedAdapter(rule, routingCtx)
 		if ok {
 			return plugin, nil
 		}
@@ -179,7 +179,7 @@ func (r *Router) RouteMultiple(_ context.Context, routingCtx *Context) ([]adapte
 			continue
 		}
 
-		plugin, ok := r.getValidatedAdapter(rule, routingCtx)
+		plugin, ok := r.GetValidatedAdapter(rule, routingCtx)
 		if !ok {
 			continue
 		}
@@ -444,7 +444,7 @@ func (r *Router) IsAggregationEnabled() bool {
 
 // getValidatedAdapter retrieves and validates an adapter for a matched rule.
 // Returns the adapter and true if valid, nil and false otherwise.
-func (r *Router) getValidatedAdapter(rule *Rule, routingCtx *Context) (adapter.Adapter, bool) {
+func (r *Router) GetValidatedAdapter(rule *Rule, routingCtx *Context) (adapter.Adapter, bool) {
 	plugin := r.registry.Get(rule.AdapterName)
 	if plugin == nil {
 		r.logger.Warn("rule matched but adapter not found",

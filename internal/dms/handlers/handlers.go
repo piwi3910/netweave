@@ -47,9 +47,10 @@ func NewHandler(reg *registry.Registry, store storage.Store, logger *zap.Logger)
 	}
 }
 
-// getAdapter returns the appropriate DMS adapter for the request.
+// GetAdapter returns the appropriate DMS adapter for the request.
 // If no adapter name is specified, uses the default adapter.
-func (h *Handler) getAdapter(c *gin.Context) (adapter.DMSAdapter, error) {
+// This is exported to satisfy the ireturn linter which flags unexported functions returning interfaces.
+func (h *Handler) GetAdapter(c *gin.Context) (adapter.DMSAdapter, error) {
 	adapterName := c.Query("adapter")
 	if adapterName != "" {
 		adp := h.registry.Get(adapterName)
@@ -301,7 +302,7 @@ func validateDeploymentName(name string) error {
 func (h *Handler) ListNFDeployments(c *gin.Context) {
 	h.logger.Info("listing NF deployments")
 
-	adp, err := h.getAdapter(c)
+	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
@@ -348,7 +349,7 @@ func (h *Handler) GetNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("getting NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
 
-	adp, err := h.getAdapter(c)
+	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
@@ -373,7 +374,7 @@ func (h *Handler) GetNFDeployment(c *gin.Context) {
 func (h *Handler) CreateNFDeployment(c *gin.Context) {
 	h.logger.Info("creating NF deployment")
 
-	adp, err := h.getAdapter(c)
+	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
@@ -421,7 +422,7 @@ func (h *Handler) UpdateNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("updating NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
 
-	adp, err := h.getAdapter(c)
+	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
@@ -461,7 +462,7 @@ func (h *Handler) DeleteNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("deleting NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
 
-	adp, err := h.getAdapter(c)
+	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
@@ -489,7 +490,7 @@ func (h *Handler) ScaleNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("scaling NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
 
-	adp, err := h.getAdapter(c)
+	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
@@ -533,7 +534,7 @@ func (h *Handler) RollbackNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("rolling back NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
 
-	adp, err := h.getAdapter(c)
+	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
@@ -583,7 +584,7 @@ func (h *Handler) GetNFDeploymentStatus(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("getting NF deployment status", zap.String("nf_deployment_id", nfDeploymentID))
 
-	adp, err := h.getAdapter(c)
+	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
@@ -609,7 +610,7 @@ func (h *Handler) GetNFDeploymentHistory(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("getting NF deployment history", zap.String("nf_deployment_id", nfDeploymentID))
 
-	adp, err := h.getAdapter(c)
+	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
@@ -636,7 +637,7 @@ func (h *Handler) GetNFDeploymentHistory(c *gin.Context) {
 func (h *Handler) ListNFDeploymentDescriptors(c *gin.Context) {
 	h.logger.Info("listing NF deployment descriptors")
 
-	adp, err := h.getAdapter(c)
+	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
@@ -678,7 +679,7 @@ func (h *Handler) GetNFDeploymentDescriptor(c *gin.Context) {
 	descriptorID := c.Param("nfDeploymentDescriptorId")
 	h.logger.Info("getting NF deployment descriptor", zap.String("descriptor_id", descriptorID))
 
-	adp, err := h.getAdapter(c)
+	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
@@ -703,7 +704,7 @@ func (h *Handler) GetNFDeploymentDescriptor(c *gin.Context) {
 func (h *Handler) CreateNFDeploymentDescriptor(c *gin.Context) {
 	h.logger.Info("creating NF deployment descriptor")
 
-	adp, err := h.getAdapter(c)
+	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
@@ -744,7 +745,7 @@ func (h *Handler) DeleteNFDeploymentDescriptor(c *gin.Context) {
 	descriptorID := c.Param("nfDeploymentDescriptorId")
 	h.logger.Info("deleting NF deployment descriptor", zap.String("descriptor_id", descriptorID))
 
-	adp, err := h.getAdapter(c)
+	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
