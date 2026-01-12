@@ -13,8 +13,9 @@ import (
 // CreateSubscription creates a new event subscription.
 // GCP adapter uses polling-based subscriptions since Pub/Sub
 // integration would require additional GCP infrastructure setup.
-func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
 	start := time.Now()
+	var err error
 	defer func() { adapter.ObserveOperation("gcp", "CreateSubscription", start, err) }()
 
 	a.logger.Debug("CreateSubscription called",
@@ -56,8 +57,9 @@ func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscriptio
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *Adapter) GetSubscription(_ context.Context, id string) (sub *adapter.Subscription, err error) {
+func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
 	start := time.Now()
+	var err error
 	defer func() { adapter.ObserveOperation("gcp", "GetSubscription", start, err) }()
 
 	a.logger.Debug("GetSubscription called",
@@ -75,8 +77,9 @@ func (a *Adapter) GetSubscription(_ context.Context, id string) (sub *adapter.Su
 }
 
 // UpdateSubscription updates an existing subscription.
-func (a *Adapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+func (a *Adapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
 	start := time.Now()
+	var err error
 	defer func() { adapter.ObserveOperation("gcp", "UpdateSubscription", start, err) }()
 
 	a.logger.Debug("UpdateSubscription called",
@@ -117,8 +120,9 @@ func (a *Adapter) UpdateSubscription(_ context.Context, id string, sub *adapter.
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *Adapter) DeleteSubscription(_ context.Context, id string) (err error) {
+func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
 	start := time.Now()
+	var err error
 	defer func() { adapter.ObserveOperation("gcp", "DeleteSubscription", start, err) }()
 
 	a.logger.Debug("DeleteSubscription called",

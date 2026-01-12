@@ -107,8 +107,9 @@ func (a *Adapter) listMachineTypesInZone(ctx context.Context, zone string, filte
 }
 
 // GetResourceType retrieves a specific resource type (GCP machine type) by ID.
-func (a *Adapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
+func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
 	start := time.Now()
+	var err error
 	defer func() { adapter.ObserveOperation("gcp", "GetResourceType", start, err) }()
 
 	a.logger.Debug("GetResourceType called",
