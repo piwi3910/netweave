@@ -25,7 +25,7 @@ type PluginConfig struct {
 	Config map[string]interface{} `yaml:"config" json:"config"`
 }
 
-// RoutingConfig represents the complete routing configuration.
+// Config represents the complete routing configuration.
 type Config struct {
 	// Default is the name of the default adapter.
 	Default string `yaml:"default" json:"default"`
