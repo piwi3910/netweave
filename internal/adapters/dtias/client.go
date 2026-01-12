@@ -76,9 +76,8 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	}
 
 	// Initialize logger
-	logger := cfg.Logger
-	if logger == nil {
-		logger = zap.NewNop()
+	if cfg.Logger == nil {
+		cfg.Logger = zap.NewNop()
 	}
 
 	// Create secure TLS configuration - always validate certificates

@@ -61,11 +61,19 @@ func (a *DTIASAdapter) fetchServerPools(ctx context.Context, path string) ([]Ser
 		}
 	}()
 
-	var serverPools []ServerPool
-	if err := a.client.parseResponse(resp, &serverPools); err != nil {
+	// Parse DTIAS wrapped response
+	var dtiasResp ResourcePoolsInventoryResponse
+	if err := a.client.parseResponse(resp, &dtiasResp); err != nil {
 		return nil, fmt.Errorf("failed to parse server pools response: %w", err)
 	}
-	return serverPools, nil
+
+	// Check for API errors in response
+	if dtiasResp.Error != nil {
+		return nil, dtiasResp.Error
+	}
+
+	// Return the Rps array (contains resource pools)
+	return dtiasResp.Rps, nil
 }
 
 // transformAndFilterPools transforms server pools and applies client-side filtering.
@@ -99,15 +107,20 @@ func (a *DTIASAdapter) GetResourcePool(ctx context.Context, id string) (*adapter
 	a.logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
-	// Query and parse DTIAS API
+	// Query and parse DTIAS API wrapped response
 	path := fmt.Sprintf("/v2/inventory/resourcepools/%s", id)
-	var serverPool ServerPool
-	if err := a.getAndParseResource(ctx, path, &serverPool, "server pool"); err != nil {
+	var dtiasResp ResourcePoolInventoryResponse
+	if err := a.getAndParseResource(ctx, path, &dtiasResp, "server pool"); err != nil {
 		return nil, err
 	}
 
+	// Check for API errors in response
+	if dtiasResp.Error != nil {
+		return nil, dtiasResp.Error
+	}
+
 	// Transform to O2-IMS resource pool
-	resourcePool := a.transformServerPoolToResourcePool(&serverPool)
+	resourcePool := a.transformServerPoolToResourcePool(&dtiasResp.Rp)
 
 	a.logger.Debug("retrieved resource pool",
 		zap.String("id", resourcePool.ResourcePoolID),
