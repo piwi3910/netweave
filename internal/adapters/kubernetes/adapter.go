@@ -18,7 +18,7 @@ import (
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
-// KubernetesAdapter implements the adapter.Adapter interface for Kubernetes backends.
+// Adapter implements the adapter.Adapter interface for Kubernetes backends.
 // It provides O2-IMS functionality by mapping O2-IMS resources to native Kubernetes resources:
 //   - Resource Pools → MachineSets / NodePools
 //   - Resources → Nodes / Machines

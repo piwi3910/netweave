@@ -164,7 +164,7 @@ func TestRecordStorageOperation(t *testing.T) {
 }
 
 // TestRecordAuthenticationDuration tests the RecordAuthenticationDuration function.
-func TestRecordAuthenticationDuration(t *testing.T) {
+func TestRecordAuthenticationDuration(_ *testing.T) {
 	// Reset the histogram
 	AuthenticationDuration.Reset()
 
@@ -180,7 +180,7 @@ func TestRecordAuthenticationDuration(t *testing.T) {
 }
 
 // TestRecordStorageOperationDuration tests the RecordStorageOperationDuration function.
-func TestRecordStorageOperationDuration(t *testing.T) {
+func TestRecordStorageOperationDuration(_ *testing.T) {
 	// Reset the histogram
 	StorageOperationDuration.Reset()
 

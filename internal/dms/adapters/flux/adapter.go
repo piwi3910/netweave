@@ -137,7 +137,7 @@ var (
 	}
 )
 
-// FluxAdapter implements the DMS adapter interface for Flux deployments.
+// Adapter implements the DMS adapter interface for Flux deployments.
 // It uses the Kubernetes dynamic client to manage Flux HelmRelease and
 // Kustomization CRDs, avoiding direct Flux library dependencies.
 type Adapter struct {

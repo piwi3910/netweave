@@ -148,7 +148,7 @@ func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource
 
 // UpdateResource updates an existing EC2 instance's tags and metadata.
 // Note: Core instance properties (instance type, AMI) cannot be modified after launch.
-func (a *Adapter) UpdateResource(ctx context.Context, id string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
+func (a *Adapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "UpdateResource", start, err) }()
 
