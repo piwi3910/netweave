@@ -197,7 +197,7 @@ func (a *Adapter) determineResourcePoolID(vm *armcompute.VirtualMachine, locatio
 		return generateRGPoolID(resourceGroup)
 	}
 
-	if vm.Zones != nil && len(vm.Zones) > 0 {
+	if len(vm.Zones) > 0 {
 		return generateAZPoolID(location, *vm.Zones[0])
 	}
 	return generateAZPoolID(location, "1")
@@ -220,7 +220,7 @@ func (a *Adapter) buildVMExtensions(
 		a.addVMPropertiesExtensions(vm.Properties, extensions)
 	}
 
-	if vm.Zones != nil && len(vm.Zones) > 0 {
+	if len(vm.Zones) > 0 {
 		extensions["azure.availabilityZone"] = *vm.Zones[0]
 	}
 
