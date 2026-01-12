@@ -54,7 +54,7 @@ var (
 	ErrAuthenticationFailed = errors.New("authentication failed")
 )
 
-// ONAPLCMAdapter implements the DMS adapter interface for ONAP lifecycle management.
+// Adapter implements the DMS adapter interface for ONAP lifecycle management.
 type Adapter struct {
 	config      *Config
 	httpClient  *http.Client

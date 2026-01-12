@@ -24,7 +24,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// AzureAdapter implements the adapter.Adapter interface for Azure backends.
+// Adapter implements the adapter.Adapter interface for Azure backends.
 // It provides O2-IMS functionality by mapping O2-IMS resources to Azure resources:
 //   - Resource Pools → Resource Groups or Availability Zones
 //   - Resources → Azure Virtual Machines

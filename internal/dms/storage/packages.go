@@ -482,7 +482,7 @@ func copyPackage(pkg *adapter.DeploymentPackage) *adapter.DeploymentPackage {
 		return nil
 	}
 
-	copy := &adapter.DeploymentPackage{
+	copied := &adapter.DeploymentPackage{
 		ID:          pkg.ID,
 		Name:        pkg.Name,
 		Version:     pkg.Version,
@@ -492,13 +492,13 @@ func copyPackage(pkg *adapter.DeploymentPackage) *adapter.DeploymentPackage {
 	}
 
 	if pkg.Extensions != nil {
-		copy.Extensions = make(map[string]interface{})
+		copied.Extensions = make(map[string]interface{})
 		for k, v := range pkg.Extensions {
-			copy.Extensions[k] = v
+			copied.Extensions[k] = v
 		}
 	}
 
-	return copy
+	return copied
 }
 
 // validateSemVer validates that a version string follows semantic versioning.

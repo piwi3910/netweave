@@ -20,7 +20,7 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 )
 
-// DTIASAdapter implements the adapter.Adapter interface for Dell DTIAS bare-metal backends.
+// Adapter implements the adapter.Adapter interface for Dell DTIAS bare-metal backends.
 // It provides O2-IMS functionality by mapping O2-IMS resources to DTIAS API resources:
 //   - Resource Pools → DTIAS Server Pools
 //   - Resources → Physical Servers with full hardware inventory

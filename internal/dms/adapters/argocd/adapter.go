@@ -59,7 +59,7 @@ var applicationGVR = schema.GroupVersionResource{
 	Resource: ApplicationResource,
 }
 
-// ArgoCDAdapter implements the DMS adapter interface for ArgoCD deployments.
+// Adapter implements the DMS adapter interface for ArgoCD deployments.
 // It uses the Kubernetes dynamic client to manage ArgoCD Application CRDs,
 // avoiding direct ArgoCD library dependencies and their version conflicts.
 type Adapter struct {

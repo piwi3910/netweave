@@ -42,7 +42,7 @@ const (
 	DefaultMaxHistory = 10
 )
 
-// HelmAdapter implements the DMS adapter interface for Helm deployments.
+// Adapter implements the DMS adapter interface for Helm deployments.
 type Adapter struct {
 	config      *Config
 	settings    *cli.EnvSettings

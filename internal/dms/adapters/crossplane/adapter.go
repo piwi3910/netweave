@@ -88,7 +88,7 @@ var (
 	ErrMissingCompositionRef = errors.New("composition reference is required")
 )
 
-// CrossplaneAdapter implements the DMS adapter interface for Crossplane deployments.
+// Adapter implements the DMS adapter interface for Crossplane deployments.
 type Adapter struct {
 	config        *Config
 	dynamicClient dynamic.Interface

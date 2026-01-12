@@ -53,7 +53,7 @@ var (
 	ErrAuthenticationFailed = errors.New("authentication failed")
 )
 
-// OSMLCMAdapter implements the DMS adapter interface for OSM lifecycle management.
+// Adapter implements the DMS adapter interface for OSM lifecycle management.
 type Adapter struct {
 	config      *Config
 	httpClient  *http.Client

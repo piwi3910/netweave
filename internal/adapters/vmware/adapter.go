@@ -31,7 +31,7 @@ const (
 	poolModeCluster = "cluster"
 )
 
-// VMwareAdapter implements the adapter.Adapter interface for VMware vSphere backends.
+// Adapter implements the adapter.Adapter interface for VMware vSphere backends.
 // It provides O2-IMS functionality by mapping O2-IMS resources to vSphere resources:
 //   - Resource Pools → vSphere Clusters or Resource Pools
 //   - Resources → Virtual Machines

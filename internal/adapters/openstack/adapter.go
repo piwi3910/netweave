@@ -19,7 +19,7 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 )
 
-// OpenStackAdapter implements the adapter.Adapter interface for OpenStack NFVi backends.
+// Adapter implements the adapter.Adapter interface for OpenStack NFVi backends.
 // It provides O2-IMS functionality by mapping O2-IMS resources to OpenStack resources:
 //   - Resource Pools → Host Aggregates (Nova placement)
 //   - Resources → Nova Instances (compute VMs)
