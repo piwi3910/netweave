@@ -1074,7 +1074,7 @@ func TestRouter_getValidatedAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, ok := router.getValidatedAdapter(tt.rule, tt.ctx)
+			adp, ok := router.GetValidatedAdapter(tt.rule, tt.ctx)
 			assert.Equal(t, tt.wantAdapter, ok)
 			if tt.wantAdapter {
 				require.NotNil(t, adp)
