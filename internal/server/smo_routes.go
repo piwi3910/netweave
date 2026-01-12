@@ -51,36 +51,6 @@ var (
 		[]string{"plugin_name"},
 	)
 
-	smoServiceModelsTotal = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "o2ims",
-			Subsystem: "smo",
-			Name:      "service_models_total",
-			Help:      "Total number of service models",
-		},
-		[]string{"plugin"},
-	)
-
-	smoPoliciesTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "o2ims",
-			Subsystem: "smo",
-			Name:      "policies_applied_total",
-			Help:      "Total number of policies applied",
-		},
-		[]string{"policy_type", "status"},
-	)
-
-	smoEventsPublished = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "o2ims",
-			Subsystem: "smo",
-			Name:      "events_published_total",
-			Help:      "Total number of events published",
-		},
-		[]string{"event_type", "status"},
-	)
-
 	smoPluginsRegistered = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "o2ims",

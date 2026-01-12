@@ -25,6 +25,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	poolModeASG = "asg"
+)
+
 // AWSAdapter implements the adapter.Adapter interface for AWS backends.
 // It provides O2-IMS functionality by mapping O2-IMS resources to AWS resources:
 //   - Resource Pools → Availability Zones or Auto Scaling Groups
@@ -167,7 +171,7 @@ func validateConfig(cfg *Config) error {
 	}
 
 	// Validate poolMode if provided
-	if cfg.PoolMode != "" && cfg.PoolMode != "az" && cfg.PoolMode != "asg" {
+	if cfg.PoolMode != "" && cfg.PoolMode != "az" && cfg.PoolMode != poolModeASG {
 		return fmt.Errorf("poolMode must be 'az' or 'asg', got %q", cfg.PoolMode)
 	}
 

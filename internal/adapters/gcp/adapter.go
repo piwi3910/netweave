@@ -22,6 +22,10 @@ import (
 	"google.golang.org/api/option"
 )
 
+const (
+	poolModeZone = "zone"
+)
+
 // GCPAdapter implements the adapter.Adapter interface for GCP backends.
 // It provides O2-IMS functionality by mapping O2-IMS resources to GCP resources:
 //   - Resource Pools → Zones or Managed Instance Groups
@@ -176,7 +180,7 @@ func validateGCPConfig(cfg *Config) error {
 	}
 
 	// Validate poolMode if provided
-	if cfg.PoolMode != "" && cfg.PoolMode != "zone" && cfg.PoolMode != "ig" {
+	if cfg.PoolMode != "" && cfg.PoolMode != poolModeZone && cfg.PoolMode != "ig" {
 		return fmt.Errorf("poolMode must be 'zone' or 'ig', got %q", cfg.PoolMode)
 	}
 
@@ -192,7 +196,7 @@ func applyGCPDefaults(cfg *Config) (deploymentManagerID, poolMode string) {
 
 	poolMode = cfg.PoolMode
 	if poolMode == "" {
-		poolMode = "zone"
+		poolMode = poolModeZone
 	}
 
 	return deploymentManagerID, poolMode
