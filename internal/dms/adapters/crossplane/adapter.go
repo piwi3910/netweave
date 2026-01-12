@@ -343,13 +343,7 @@ func (c *Adapter) CreateDeployment(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if req == nil {
-		return nil, fmt.Errorf("deployment request cannot be nil")
-	}
-	if req.Name == "" {
-		return nil, fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
-	}
-	if err := validateName(req.Name); err != nil {
+	if err := c.validateCreateRequest(req); err != nil {
 		return nil, err
 	}
 
@@ -357,7 +351,32 @@ func (c *Adapter) CreateDeployment(
 		return nil, err
 	}
 
-	// Get package reference from extensions or request
+	packageRef, err := c.getPackageReference(req)
+	if err != nil {
+		return nil, err
+	}
+
+	config := c.buildConfiguration(req.Name, packageRef, req.Extensions)
+
+	created, err := c.dynamicClient.Resource(configurationGVR).Create(ctx, config, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create configuration: %w", err)
+	}
+
+	return c.transformConfigurationToDeployment(created), nil
+}
+
+func (c *Adapter) validateCreateRequest(req *adapter.DeploymentRequest) error {
+	if req == nil {
+		return fmt.Errorf("deployment request cannot be nil")
+	}
+	if req.Name == "" {
+		return fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
+	}
+	return validateName(req.Name)
+}
+
+func (c *Adapter) getPackageReference(req *adapter.DeploymentRequest) (string, error) {
 	packageRef := req.PackageID
 	if req.Extensions != nil {
 		if ref, ok := req.Extensions["crossplane.package"].(string); ok && ref != "" {
@@ -365,19 +384,21 @@ func (c *Adapter) CreateDeployment(
 		}
 	}
 	if packageRef == "" {
-		return nil, fmt.Errorf("package reference is required (packageId or crossplane.package extension)")
+		return "", fmt.Errorf("package reference is required (packageId or crossplane.package extension)")
 	}
+	return packageRef, nil
+}
 
-	// Create Configuration resource
+func (c *Adapter) buildConfiguration(name, packageRef string, extensions map[string]interface{}) *unstructured.Unstructured {
 	config := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": fmt.Sprintf("%s/%s", CrossplaneGroup, CrossplaneVersion),
 			"kind":       "Configuration",
 			"metadata": map[string]interface{}{
-				"name": req.Name,
+				"name": name,
 				"labels": map[string]interface{}{
 					"app.kubernetes.io/managed-by": "crossplane-adapter",
-					"app.kubernetes.io/name":       req.Name,
+					"app.kubernetes.io/name":       name,
 				},
 			},
 			"spec": map[string]interface{}{
@@ -386,21 +407,13 @@ func (c *Adapter) CreateDeployment(
 		},
 	}
 
-	// Add revision activation policy if specified
-	if req.Extensions != nil {
-		if policy, ok := req.Extensions["crossplane.revisionActivationPolicy"].(string); ok {
-			if err := unstructured.SetNestedField(config.Object, policy, "spec", "revisionActivationPolicy"); err != nil {
-				return nil, fmt.Errorf("failed to set revision activation policy: %w", err)
-			}
+	if extensions != nil {
+		if policy, ok := extensions["crossplane.revisionActivationPolicy"].(string); ok {
+			_ = unstructured.SetNestedField(config.Object, policy, "spec", "revisionActivationPolicy")
 		}
 	}
 
-	created, err := c.dynamicClient.Resource(configurationGVR).Create(ctx, config, metav1.CreateOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create configuration: %w", err)
-	}
-
-	return c.transformConfigurationToDeployment(created), nil
+	return config
 }
 
 // UpdateDeployment updates an existing Crossplane Configuration.
@@ -421,25 +434,13 @@ func (c *Adapter) UpdateDeployment(
 		return nil, err
 	}
 
-	// Get existing configuration
-	config, err := c.dynamicClient.Resource(configurationGVR).Get(ctx, id, metav1.GetOptions{})
+	config, err := c.getConfigurationForUpdate(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
+		return nil, err
 	}
 
-	// Update package reference if provided
-	if update.Extensions != nil {
-		if packageRef, ok := update.Extensions["crossplane.package"].(string); ok && packageRef != "" {
-			if err := unstructured.SetNestedField(config.Object, packageRef, "spec", "package"); err != nil {
-				return nil, fmt.Errorf("failed to update package reference: %w", err)
-			}
-		}
-
-		if policy, ok := update.Extensions["crossplane.revisionActivationPolicy"].(string); ok {
-			if err := unstructured.SetNestedField(config.Object, policy, "spec", "revisionActivationPolicy"); err != nil {
-				return nil, fmt.Errorf("failed to update revision activation policy: %w", err)
-			}
-		}
+	if err := c.applyConfigurationUpdates(config, update.Extensions); err != nil {
+		return nil, err
 	}
 
 	updated, err := c.dynamicClient.Resource(configurationGVR).Update(ctx, config, metav1.UpdateOptions{})
@@ -448,6 +449,34 @@ func (c *Adapter) UpdateDeployment(
 	}
 
 	return c.transformConfigurationToDeployment(updated), nil
+}
+
+func (c *Adapter) getConfigurationForUpdate(ctx context.Context, id string) (*unstructured.Unstructured, error) {
+	config, err := c.dynamicClient.Resource(configurationGVR).Get(ctx, id, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
+	}
+	return config, nil
+}
+
+func (c *Adapter) applyConfigurationUpdates(config *unstructured.Unstructured, extensions map[string]interface{}) error {
+	if extensions == nil {
+		return nil
+	}
+
+	if packageRef, ok := extensions["crossplane.package"].(string); ok && packageRef != "" {
+		if err := unstructured.SetNestedField(config.Object, packageRef, "spec", "package"); err != nil {
+			return fmt.Errorf("failed to update package reference: %w", err)
+		}
+	}
+
+	if policy, ok := extensions["crossplane.revisionActivationPolicy"].(string); ok {
+		if err := unstructured.SetNestedField(config.Object, policy, "spec", "revisionActivationPolicy"); err != nil {
+			return fmt.Errorf("failed to update revision activation policy: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // DeleteDeployment deletes a Crossplane Configuration.
