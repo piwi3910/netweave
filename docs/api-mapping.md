@@ -2297,10 +2297,10 @@ func transformMachineSetToResourcePool(ms *machinev1beta1.MachineSet) *models.Re
 
 | O2-IMS Resource | DTIAS Resource | API Endpoint | Transformation Notes |
 |-----------------|----------------|--------------|----------------------|
-| Deployment Manager | Infrastructure Site | `GET /api/v1/sites/{id}` | DTIAS site metadata |
-| Resource Pool | Server Pool | `GET /api/v1/server-pools` | DTIAS pool with bare-metal servers |
-| Resource | Physical Server | `GET /api/v1/servers` | Individual bare-metal server |
-| Resource Type | Server Profile | `GET /api/v1/profiles` | Hardware profile (CPU, RAM, storage) |
+| Deployment Manager | Infrastructure Site | `GET /v2/inventory/sites/{Id}` | DTIAS v2.4.0 site metadata (wrapped response) |
+| Resource Pool | Server Pool | `GET /v2/inventory/resourcepools` | DTIAS v2.4.0 pool with bare-metal servers (wrapped in `Rps` array) |
+| Resource | Physical Server | `GET /v2/inventory/servers` | Individual bare-metal server (wrapped in `Full`/`Brief` arrays). Note: `GET /v2/inventory/servers/{Id}` returns `JobResponse`, use list with `?id=` filter instead |
+| Resource Type | Server Type | `GET /v2/resourcetypes` | Hardware type/profile (wrapped in `ResourceTypes` array) |
 
 **Example Transformation: DTIAS Server Pool → O2-IMS ResourcePool**
 
@@ -2369,7 +2369,7 @@ func (a *DTIASAdapter) transformServerToResource(
 }
 ```
 
-**DTIAS API Flow Example**:
+**DTIAS API v2.4.0 Flow Example**:
 
 ```
 1. O2-IMS Request:
@@ -2380,21 +2380,29 @@ func (a *DTIASAdapter) transformServerToResource(
    location=dc-dallas → route to "dtias" adapter
 
 3. DTIAS Adapter:
-   → Transform O2-IMS request to DTIAS format
-   → POST https://dtias.example.com/api/v1/servers/provision
+   → Transform O2-IMS request to DTIAS v2.4.0 format
+   → POST https://dtias.example.com/v2/resources/allocate
      {
-       "pool_id": "123",
-       "profile_id": "high-memory-profile",
-       "network_config": {...}
+       "serverPoolId": "123",
+       "serverTypeId": "high-memory-type",
+       "hostname": "edge-node-01",
+       "networkConfig": {...},
+       "metadata": {...}
      }
-   → Wait for provisioning (async)
-   → Poll GET /api/v1/servers/{id}/status
+   → Wait for allocation (async)
+   → Parse wrapped response (Server object)
    → Transform DTIAS response to O2-IMS Resource
    → Return to client
 
 4. O2-IMS Response:
    HTTP 201 Created
    { "resourceId": "dtias-server-ABC123", ... }
+
+Note: DTIAS v2.4.0 wraps all responses:
+- GET /v2/inventory/servers returns ServersInventoryResponse{Full: []Server, Brief: []ServerBrief}
+- GET /v2/inventory/resourcepools returns ResourcePoolsInventoryResponse{Rps: []ServerPool}
+- GET /v2/inventory/servers/{Id} returns JobResponse (async operation status, not server data)
+  Use GET /v2/inventory/servers?id={id} to retrieve a specific server instead
 ```
 
 ### AWS EKS Adapter Mappings
