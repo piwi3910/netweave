@@ -282,7 +282,21 @@ func (k *Adapter) ListDeployments(
 		return nil, err
 	}
 
-	// List ConfigMaps that track Kustomize deployments
+	cms, err := k.listConfigMaps(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	deployments := k.filterAndTransformConfigMaps(cms.Items, filter)
+
+	if filter != nil {
+		deployments = k.applyPagination(deployments, filter.Limit, filter.Offset)
+	}
+
+	return deployments, nil
+}
+
+func (k *Adapter) listConfigMaps(ctx context.Context, filter *adapter.Filter) (*unstructured.UnstructuredList, error) {
 	namespace := k.config.Namespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
@@ -294,25 +308,21 @@ func (k *Adapter) ListDeployments(
 	if err != nil {
 		return nil, fmt.Errorf("failed to list deployments: %w", err)
 	}
+	return cms, nil
+}
 
-	deployments := make([]*adapter.Deployment, 0, len(cms.Items))
-	for i := range cms.Items {
-		deployment := k.transformConfigMapToDeployment(&cms.Items[i])
+func (k *Adapter) filterAndTransformConfigMaps(items []unstructured.Unstructured, filter *adapter.Filter) []*adapter.Deployment {
+	deployments := make([]*adapter.Deployment, 0, len(items))
+	for i := range items {
+		deployment := k.transformConfigMapToDeployment(&items[i])
 
-		// Apply status filter
 		if filter != nil && filter.Status != "" && deployment.Status != filter.Status {
 			continue
 		}
 
 		deployments = append(deployments, deployment)
 	}
-
-	// Apply pagination
-	if filter != nil {
-		deployments = k.applyPagination(deployments, filter.Limit, filter.Offset)
-	}
-
-	return deployments, nil
+	return deployments
 }
 
 // GetDeployment retrieves a specific Kustomize deployment by ID.
@@ -349,13 +359,7 @@ func (k *Adapter) CreateDeployment(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if req == nil {
-		return nil, fmt.Errorf("deployment request cannot be nil")
-	}
-	if req.Name == "" {
-		return nil, fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
-	}
-	if err := validateName(req.Name); err != nil {
+	if err := k.validateCreateRequest(req); err != nil {
 		return nil, err
 	}
 
@@ -363,26 +367,59 @@ func (k *Adapter) CreateDeployment(
 		return nil, err
 	}
 
-	// Get path from extensions
-	path := "./"
-	if req.Extensions != nil {
-		if p, ok := req.Extensions["kustomize.path"].(string); ok {
-			path = p
-		}
-	}
-
-	if err := validatePath(path); err != nil {
+	path, err := k.extractAndValidatePath(req.Extensions)
+	if err != nil {
 		return nil, err
 	}
 
-	namespace := req.Namespace
-	if namespace == "" {
-		namespace = k.config.Namespace
+	namespace := k.getNamespaceOrDefault(req.Namespace)
+	cm := k.buildConfigMapForDeployment(req, namespace, path)
+
+	created, err := k.dynamicClient.Resource(configMapGVR).Namespace(namespace).Create(
+		ctx,
+		cm,
+		metav1.CreateOptions{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create deployment: %w", err)
 	}
 
-	// Create a ConfigMap to track this deployment
+	return k.transformConfigMapToDeployment(created), nil
+}
+
+func (k *Adapter) validateCreateRequest(req *adapter.DeploymentRequest) error {
+	if req == nil {
+		return fmt.Errorf("deployment request cannot be nil")
+	}
+	if req.Name == "" {
+		return fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
+	}
+	return validateName(req.Name)
+}
+
+func (k *Adapter) extractAndValidatePath(extensions map[string]interface{}) (string, error) {
+	path := "./"
+	if extensions != nil {
+		if p, ok := extensions["kustomize.path"].(string); ok {
+			path = p
+		}
+	}
+	if err := validatePath(path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func (k *Adapter) getNamespaceOrDefault(namespace string) string {
+	if namespace == "" {
+		return k.config.Namespace
+	}
+	return namespace
+}
+
+func (k *Adapter) buildConfigMapForDeployment(req *adapter.DeploymentRequest, namespace, path string) *unstructured.Unstructured {
 	now := time.Now()
-	cm := &unstructured.Unstructured{
+	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": "v1",
 			"kind":       "ConfigMap",
@@ -406,17 +443,6 @@ func (k *Adapter) CreateDeployment(
 			},
 		},
 	}
-
-	created, err := k.dynamicClient.Resource(configMapGVR).Namespace(namespace).Create(
-		ctx,
-		cm,
-		metav1.CreateOptions{},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create deployment: %w", err)
-	}
-
-	return k.transformConfigMapToDeployment(created), nil
 }
 
 // UpdateDeployment updates an existing Kustomize deployment.
@@ -437,46 +463,17 @@ func (k *Adapter) UpdateDeployment(
 		return nil, err
 	}
 
-	// Get existing deployment
-	cm, err := k.dynamicClient.Resource(configMapGVR).Namespace(k.config.Namespace).Get(
-		ctx,
-		fmt.Sprintf("kustomize-%s", id),
-		metav1.GetOptions{},
-	)
+	cm, err := k.getConfigMapForUpdate(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
+		return nil, err
 	}
 
-	// Update path if provided
-	if update.Extensions != nil {
-		if path, ok := update.Extensions["kustomize.path"].(string); ok {
-			if err := validatePath(path); err != nil {
-				return nil, err
-			}
-			data, _, _ := unstructured.NestedStringMap(cm.Object, "data")
-			data["path"] = path
-			if err := unstructured.SetNestedStringMap(cm.Object, data, "data"); err != nil {
-				return nil, fmt.Errorf("failed to update path: %w", err)
-			}
-		}
+	if err := k.applyPathUpdate(cm, update.Extensions); err != nil {
+		return nil, err
 	}
 
-	// Update version and timestamp
-	data, _, _ := unstructured.NestedStringMap(cm.Object, "data")
-	version := 1
-	if v, ok := data["version"]; ok && v != "" {
-		if parsed, err := strconv.Atoi(v); err == nil {
-			version = parsed
-		}
-		// If parsing fails, continue with default version 1
-	}
-	data["version"] = strconv.Itoa(version + 1)
-	data["updatedAt"] = time.Now().Format(time.RFC3339)
-	if update.Description != "" {
-		data["description"] = update.Description
-	}
-	if err := unstructured.SetNestedStringMap(cm.Object, data, "data"); err != nil {
-		return nil, fmt.Errorf("failed to update data: %w", err)
+	if err := k.applyMetadataUpdates(cm, update); err != nil {
+		return nil, err
 	}
 
 	updated, err := k.dynamicClient.Resource(configMapGVR).Namespace(k.config.Namespace).Update(
@@ -489,6 +486,67 @@ func (k *Adapter) UpdateDeployment(
 	}
 
 	return k.transformConfigMapToDeployment(updated), nil
+}
+
+func (k *Adapter) getConfigMapForUpdate(ctx context.Context, id string) (*unstructured.Unstructured, error) {
+	cm, err := k.dynamicClient.Resource(configMapGVR).Namespace(k.config.Namespace).Get(
+		ctx,
+		fmt.Sprintf("kustomize-%s", id),
+		metav1.GetOptions{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
+	}
+	return cm, nil
+}
+
+func (k *Adapter) applyPathUpdate(cm *unstructured.Unstructured, extensions map[string]interface{}) error {
+	if extensions == nil {
+		return nil
+	}
+
+	path, ok := extensions["kustomize.path"].(string)
+	if !ok {
+		return nil
+	}
+
+	if err := validatePath(path); err != nil {
+		return err
+	}
+
+	data, _, _ := unstructured.NestedStringMap(cm.Object, "data")
+	data["path"] = path
+	if err := unstructured.SetNestedStringMap(cm.Object, data, "data"); err != nil {
+		return fmt.Errorf("failed to update path: %w", err)
+	}
+	return nil
+}
+
+func (k *Adapter) applyMetadataUpdates(cm *unstructured.Unstructured, update *adapter.DeploymentUpdate) error {
+	data, _, _ := unstructured.NestedStringMap(cm.Object, "data")
+
+	version := k.parseVersion(data["version"])
+	data["version"] = strconv.Itoa(version + 1)
+	data["updatedAt"] = time.Now().Format(time.RFC3339)
+
+	if update.Description != "" {
+		data["description"] = update.Description
+	}
+
+	if err := unstructured.SetNestedStringMap(cm.Object, data, "data"); err != nil {
+		return fmt.Errorf("failed to update data: %w", err)
+	}
+	return nil
+}
+
+func (k *Adapter) parseVersion(versionStr string) int {
+	if versionStr == "" {
+		return 1
+	}
+	if parsed, err := strconv.Atoi(versionStr); err == nil {
+		return parsed
+	}
+	return 1
 }
 
 // DeleteDeployment deletes a Kustomize deployment.
