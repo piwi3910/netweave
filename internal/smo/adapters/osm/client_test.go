@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	// testTokenPath is the OSM API endpoint path for token authentication.
-	testTokenPath = "/osm/admin/v1/tokens"
+	// testAuthPath is the OSM API endpoint path for token authentication.
+	testAuthPath = "/osm/admin/v1/tokens"
 )
 
 // TestNewClient tests the creation of a new OSM client.
@@ -111,8 +111,8 @@ func TestAuthenticate(t *testing.T) {
 				if r.Method != http.MethodPost {
 					t.Errorf("Expected POST request, got %s", r.Method)
 				}
-				if r.URL.Path != testTokenPath {
-					t.Errorf("Expected path %s, got %s", testTokenPath, r.URL.Path)
+				if r.URL.Path != testAuthPath {
+					t.Errorf("Expected path %s, got %s", testAuthPath, r.URL.Path)
 				}
 
 				// Parse request body
@@ -340,7 +340,7 @@ func TestHealth(t *testing.T) {
 		{
 			name: "healthy",
 			serverResp: func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == testTokenPath {
+				if r.URL.Path == testAuthPath {
 					// Auth request
 					if r.Method == http.MethodPost {
 						w.Header().Set("Content-Type", "application/json")
@@ -444,7 +444,7 @@ func TestClose(t *testing.T) {
 func TestGet(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Auth endpoint
-		if r.URL.Path == testTokenPath && r.Method == http.MethodPost {
+		if r.URL.Path == testAuthPath && r.Method == http.MethodPost {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			resp := map[string]string{
@@ -504,7 +504,7 @@ func TestGet(t *testing.T) {
 func TestDelete(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Auth endpoint
-		if r.URL.Path == testTokenPath && r.Method == http.MethodPost {
+		if r.URL.Path == testAuthPath && r.Method == http.MethodPost {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			resp := map[string]string{
@@ -557,7 +557,7 @@ func TestDelete(t *testing.T) {
 func TestPatch(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Auth endpoint
-		if r.URL.Path == testTokenPath && r.Method == http.MethodPost {
+		if r.URL.Path == testAuthPath && r.Method == http.MethodPost {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			resp := map[string]string{
@@ -618,7 +618,7 @@ func TestPatch(t *testing.T) {
 func TestDoRequest_Unauthorized(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Auth endpoint - always succeed
-		if r.URL.Path == testTokenPath && r.Method == http.MethodPost {
+		if r.URL.Path == testAuthPath && r.Method == http.MethodPost {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			resp := map[string]string{
@@ -675,7 +675,7 @@ func TestDoRequest_RetryableError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		// Auth endpoint
-		if r.URL.Path == testTokenPath && r.Method == http.MethodPost {
+		if r.URL.Path == testAuthPath && r.Method == http.MethodPost {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			resp := map[string]string{
@@ -739,7 +739,7 @@ func TestDoRequest_NonRetryableError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		// Auth endpoint
-		if r.URL.Path == testTokenPath && r.Method == http.MethodPost {
+		if r.URL.Path == testAuthPath && r.Method == http.MethodPost {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			resp := map[string]string{

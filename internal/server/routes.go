@@ -128,7 +128,7 @@ func (s *Server) setupV1Routes(v1 *gin.RouterGroup) {
 // V2 includes all v1 endpoints plus:
 // - Batch operations for subscriptions and resource pools
 // - Enhanced filtering and field selection
-// - Cursor-based pagination option
+// - Cursor-based pagination option.
 func (s *Server) setupV2Routes(v2 *gin.RouterGroup) {
 	// Include all v1 routes
 	s.setupV1Routes(v2)
@@ -155,7 +155,7 @@ func (s *Server) setupV2Routes(v2 *gin.RouterGroup) {
 // - Multi-tenant isolation
 // - Tenant quotas
 // - Cross-tenant resource sharing
-// - Enhanced audit logging
+// - Enhanced audit logging.
 func (s *Server) setupV3Routes(v3 *gin.RouterGroup) {
 	// Infrastructure Inventory Subscription Management (v1 endpoints)
 	subscriptions := v3.Group("/subscriptions")
@@ -1657,7 +1657,7 @@ func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
 // - Re-validate callback URLs before EACH webhook delivery attempt
 // - Cache DNS results with short TTL and re-validate on changes
 // - Implement webhook delivery through a dedicated egress proxy that enforces policies
-// - Consider additional authentication mechanisms for webhooks (HMAC signatures, mTLS)
+// - Consider additional authentication mechanisms for webhooks (HMAC signatures, mTLS).
 func (s *Server) validateCallback(sub *adapter.Subscription) error {
 	if sub == nil {
 		return fmt.Errorf("subscription cannot be nil")

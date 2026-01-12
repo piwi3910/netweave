@@ -16,8 +16,8 @@ import (
 // Test credentials constants used only for unit testing.
 // These are not real credentials and should never be used in production.
 const (
-	testUsername       = "admin"
-	testCredentialData = "test-credential-data"
+	testUsername   = "admin"
+	testSecretData = "test-credential-data"
 )
 
 // TestNewAdapter tests adapter creation with various configurations.
@@ -39,7 +39,7 @@ func TestNewAdapter(t *testing.T) {
 			config: &Config{
 				SOEndpoint: "http://localhost:8080",
 				Username:   testUsername,
-				Password:   testCredentialData,
+				Password:   testSecretData,
 			},
 			wantErr: false,
 		},

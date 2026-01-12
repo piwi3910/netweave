@@ -34,6 +34,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"go.uber.org/zap"
@@ -175,7 +176,7 @@ func updateReadmeFile(path string, results []compliance.Result, logger *zap.Logg
 	}
 
 	// Read current README
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return fmt.Errorf("failed to read README: %w", err)
 	}
