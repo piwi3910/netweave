@@ -106,43 +106,63 @@ func TestRedisStore_Create(t *testing.T) {
 			err := store.Create(ctx, tt.sub)
 
 			if tt.wantErr != nil {
-				if err == nil {
-					t.Fatalf("expected error %v, got nil", tt.wantErr)
-				}
-				// Check if error is or wraps the expected error
-				if !errors.Is(err, tt.wantErr) {
-					t.Errorf("expected error type %v, got %v", tt.wantErr, err)
-				}
+				validateCreateError(t, err, tt.wantErr)
 				return
 			}
 
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			// Verify subscription was created
-			got, err := store.Get(ctx, tt.sub.ID)
-			if err != nil {
-				t.Fatalf("failed to get created subscription: %v", err)
-			}
-
-			// Verify fields
-			if got.ID != tt.sub.ID {
-				t.Errorf("ID = %v, want %v", got.ID, tt.sub.ID)
-			}
-			if got.Callback != tt.sub.Callback {
-				t.Errorf("Callback = %v, want %v", got.Callback, tt.sub.Callback)
-			}
-			if got.ConsumerSubscriptionID != tt.sub.ConsumerSubscriptionID {
-				t.Errorf("ConsumerSubscriptionID = %v, want %v", got.ConsumerSubscriptionID, tt.sub.ConsumerSubscriptionID)
-			}
-			if got.CreatedAt.IsZero() {
-				t.Error("CreatedAt should be set")
-			}
-			if got.UpdatedAt.IsZero() {
-				t.Error("UpdatedAt should be set")
-			}
+			validateSuccessfulCreate(t, store, ctx, tt.sub, err)
 		})
+	}
+}
+
+// validateCreateError validates that Create returned the expected error.
+func validateCreateError(t *testing.T, err, wantErr error) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatalf("expected error %v, got nil", wantErr)
+	}
+	// Check if error is or wraps the expected error
+	if !errors.Is(err, wantErr) {
+		t.Errorf("expected error type %v, got %v", wantErr, err)
+	}
+}
+
+// validateSuccessfulCreate validates successful subscription creation and retrieval.
+func validateSuccessfulCreate(t *testing.T, store *RedisStore, ctx context.Context, sub *Subscription, err error) {
+	t.Helper()
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify subscription was created
+	got, err := store.Get(ctx, sub.ID)
+	if err != nil {
+		t.Fatalf("failed to get created subscription: %v", err)
+	}
+
+	validateSubscriptionFields(t, got, sub)
+}
+
+// validateSubscriptionFields validates subscription field values.
+func validateSubscriptionFields(t *testing.T, got, want *Subscription) {
+	t.Helper()
+
+	if got.ID != want.ID {
+		t.Errorf("ID = %v, want %v", got.ID, want.ID)
+	}
+	if got.Callback != want.Callback {
+		t.Errorf("Callback = %v, want %v", got.Callback, want.Callback)
+	}
+	if got.ConsumerSubscriptionID != want.ConsumerSubscriptionID {
+		t.Errorf("ConsumerSubscriptionID = %v, want %v", got.ConsumerSubscriptionID, want.ConsumerSubscriptionID)
+	}
+	if got.CreatedAt.IsZero() {
+		t.Error("CreatedAt should be set")
+	}
+	if got.UpdatedAt.IsZero() {
+		t.Error("UpdatedAt should be set")
 	}
 }
 
