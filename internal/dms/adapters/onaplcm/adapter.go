@@ -4,12 +4,10 @@
 package onaplcm
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"sync"
@@ -639,59 +637,6 @@ func (o *ONAPLCMAdapter) Health(ctx context.Context) error {
 func (o *ONAPLCMAdapter) Close() error {
 	o.httpClient = nil
 	return nil
-}
-
-// doRequest performs an HTTP request to the ONAP SO API.
-// The body parameter uses interface{} to accept various request payload types
-// (maps, structs) that are marshaled to JSON - this flexibility is required
-// to support different ONAP API endpoints with varying request schemas.
-func (o *ONAPLCMAdapter) doRequest(
-	ctx context.Context,
-	method, path string,
-	body interface{},
-) ([]byte, error) {
-	var reqBody io.Reader
-	if body != nil {
-		jsonBody, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal request body: %w", err)
-		}
-		reqBody = bytes.NewReader(jsonBody)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, o.config.SOEndpoint+path, reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	if o.config.RequestID != "" {
-		req.Header.Set("X-RequestID", o.config.RequestID)
-	}
-
-	// Set basic auth
-	if o.config.Username != "" {
-		req.SetBasicAuth(o.config.Username, o.config.Password)
-	}
-
-	resp, err := o.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("API error: status %d, body: %s", resp.StatusCode, string(respBody))
-	}
-
-	return respBody, nil
 }
 
 // Helper functions
