@@ -403,9 +403,7 @@ func TestPlugin_Initialize(t *testing.T) {
 
 	err := plugin.Initialize(context.Background(), config)
 	// Will fail without ONAP but tests the code path
-	if err != nil {
-		// Expected - configuration validation
-	}
+	_ = err // Expected - configuration validation
 }
 
 // TestPlugin_Health tests the Health function.
