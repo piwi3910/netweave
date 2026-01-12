@@ -98,8 +98,8 @@ After completing the getting started guides:
 
 - **Troubleshooting:** [Common Issues](../operations/troubleshooting.md)
 - **API Reference:** [Complete API Docs](../api/README.md)
-- **Community:** [GitHub Discussions](https://github.com/watteel/netweave/discussions)
-- **Issues:** [Report Bug](https://github.com/watteel/netweave/issues)
+- **Community:** [GitHub Discussions](https://github.com/piwi3910/netweave/discussions)
+- **Issues:** [Report Bug](https://github.com/piwi3910/netweave/issues)
 
 ## Quick Reference
 

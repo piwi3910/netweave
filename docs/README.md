@@ -2,9 +2,9 @@
 
 **Complete O-RAN O2 Gateway (IMS + DMS + SMO) for Cloud-Native Infrastructure**
 
-[![Go Version](https://img.shields.io/github/go-mod/go-version/watteel/netweave)](https://go.dev/)
-[![License](https://img.shields.io/github/license/watteel/netweave)](../LICENSE)
-[![CI](https://github.com/watteel/netweave/workflows/CI%20Pipeline/badge.svg)](https://github.com/watteel/netweave/actions)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/piwi3910/netweave)](https://go.dev/)
+[![License](https://img.shields.io/github/license/piwi3910/netweave)](../LICENSE)
+[![CI](https://github.com/piwi3910/netweave/workflows/CI%20Pipeline/badge.svg)](https://github.com/piwi3910/netweave/actions)
 
 Welcome to the comprehensive documentation for netweave, a production-grade O-RAN O2 Gateway implementing O2-IMS, O2-DMS, and O2-SMO APIs for telecom-grade cloud-native infrastructure management.
 
@@ -194,9 +194,9 @@ Specifications and references:
 
 ### 🔗 External Resources
 
-- **[GitHub Repository](https://github.com/watteel/netweave)** - Source code
-- **[GitHub Issues](https://github.com/watteel/netweave/issues)** - Bug reports & features
-- **[GitHub Discussions](https://github.com/watteel/netweave/discussions)** - Community support
+- **[GitHub Repository](https://github.com/piwi3910/netweave)** - Source code
+- **[GitHub Issues](https://github.com/piwi3910/netweave/issues)** - Bug reports & features
+- **[GitHub Discussions](https://github.com/piwi3910/netweave/discussions)** - Community support
 - **[Contributing Guide](development/contributing.md)** - How to contribute
 
 ## About netweave
@@ -269,8 +269,8 @@ graph TB
 ## Support
 
 - **Documentation:** You're in the right place!
-- **Issues:** [GitHub Issues](https://github.com/watteel/netweave/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/watteel/netweave/discussions)
+- **Issues:** [GitHub Issues](https://github.com/piwi3910/netweave/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/piwi3910/netweave/discussions)
 - **Contributing:** [Development Guide](development/README.md)
 
 ## License
