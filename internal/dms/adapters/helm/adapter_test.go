@@ -877,12 +877,10 @@ func TestHelmAdapter_DeleteDeployment(t *testing.T) {
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
-			} else {
+			} else if err != nil {
 				// Will fail without K8s but tests the code path
-				if err != nil {
-					// Expected in unit test environment without K8s
-					t.Skip("Skipping - requires Kubernetes")
-				}
+				// Expected in unit test environment without K8s
+				t.Skip("Skipping - requires Kubernetes")
 			}
 		})
 	}

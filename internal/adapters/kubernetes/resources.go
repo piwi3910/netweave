@@ -14,7 +14,7 @@ import (
 
 // ListResources retrieves all Kubernetes nodes and transforms them to O2-IMS Resources.
 // Nodes in Kubernetes are compute resources, which map to O2-IMS Resources.
-func (a *KubernetesAdapter) ListResources(
+func (a *Adapter) ListResources(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.Resource, error) {
@@ -83,7 +83,7 @@ func (a *KubernetesAdapter) ListResources(
 }
 
 // GetResource retrieves a specific Kubernetes node by name and transforms it to O2-IMS Resource.
-func (a *KubernetesAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
 	// Start observability tracing and metrics
 	ctx, span := adapter.StartSpan(ctx, a.Name(), "GetResource")
 	start := time.Now()
@@ -122,7 +122,7 @@ func (a *KubernetesAdapter) GetResource(ctx context.Context, id string) (*adapte
 // CreateResource creates a new Kubernetes node.
 // Note: In Kubernetes, nodes are typically managed by the cluster infrastructure (kubelet).
 // This method is provided for completeness but may have limited practical use.
-func (a *KubernetesAdapter) CreateResource(
+func (a *Adapter) CreateResource(
 	_ context.Context,
 	resource *adapter.Resource,
 ) (*adapter.Resource, error) {
@@ -140,7 +140,7 @@ func (a *KubernetesAdapter) CreateResource(
 
 // UpdateResource updates a Kubernetes node's mutable fields (labels, annotations).
 // Note: Core node properties are managed by kubelet and cannot be modified directly.
-func (a *KubernetesAdapter) UpdateResource(
+func (a *Adapter) UpdateResource(
 	_ context.Context,
 	_ string,
 	resource *adapter.Resource,
@@ -159,7 +159,7 @@ func (a *KubernetesAdapter) UpdateResource(
 
 // DeleteResource deletes a Kubernetes node by ID.
 // This drains the node and then removes it from the cluster.
-func (a *KubernetesAdapter) DeleteResource(ctx context.Context, id string) error {
+func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
@@ -188,7 +188,7 @@ func (a *KubernetesAdapter) DeleteResource(ctx context.Context, id string) error
 }
 
 // transformNodeToResource converts a Kubernetes Node to an O2-IMS Resource.
-func (a *KubernetesAdapter) transformNodeToResource(node *corev1.Node) *adapter.Resource {
+func (a *Adapter) transformNodeToResource(node *corev1.Node) *adapter.Resource {
 	// Determine resource type ID based on node labels
 	resourceTypeID := a.getNodeResourceTypeID(node)
 
@@ -273,7 +273,7 @@ func (a *KubernetesAdapter) transformNodeToResource(node *corev1.Node) *adapter.
 }
 
 // getNodeResourceTypeID determines the resource type ID for a node based on its labels.
-func (a *KubernetesAdapter) getNodeResourceTypeID(node *corev1.Node) string {
+func (a *Adapter) getNodeResourceTypeID(node *corev1.Node) string {
 	// Check for explicit resource type label
 	if typeID, ok := node.Labels["o2ims.io/resource-type"]; ok {
 		return typeID

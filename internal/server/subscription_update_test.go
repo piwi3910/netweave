@@ -20,6 +20,9 @@ import (
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
+// Sentinel error for testing.
+var errNotImplemented = errors.New("not implemented in mock")
+
 // mockSubscriptionStore implements storage.Store for subscription update tests.
 type mockSubscriptionStore struct {
 	subscriptions map[string]*storage.Subscription
@@ -107,7 +110,7 @@ func (m *mockSubscriptionAdapter) ListResourcePools(
 }
 
 func (m *mockSubscriptionAdapter) GetResourcePool(_ context.Context, _ string) (*adapter.ResourcePool, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockSubscriptionAdapter) CreateResourcePool(
@@ -134,7 +137,7 @@ func (m *mockSubscriptionAdapter) ListResources(_ context.Context, _ *adapter.Fi
 }
 
 func (m *mockSubscriptionAdapter) GetResource(_ context.Context, _ string) (*adapter.Resource, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockSubscriptionAdapter) CreateResource(
@@ -164,14 +167,14 @@ func (m *mockSubscriptionAdapter) ListResourceTypes(
 }
 
 func (m *mockSubscriptionAdapter) GetResourceType(_ context.Context, _ string) (*adapter.ResourceType, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockSubscriptionAdapter) GetDeploymentManager(
 	_ context.Context,
 	_ string,
 ) (*adapter.DeploymentManager, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockSubscriptionAdapter) CreateSubscription(
@@ -182,7 +185,7 @@ func (m *mockSubscriptionAdapter) CreateSubscription(
 }
 
 func (m *mockSubscriptionAdapter) GetSubscription(_ context.Context, _ string) (*adapter.Subscription, error) {
-	return nil, nil
+	return nil, errNotImplemented
 }
 
 func (m *mockSubscriptionAdapter) UpdateSubscription(

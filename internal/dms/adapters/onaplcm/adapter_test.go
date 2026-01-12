@@ -114,7 +114,7 @@ func TestAdapterMetadata(t *testing.T) {
 }
 
 // createTestAdapter creates an adapter for testing.
-func createTestAdapter(t *testing.T) *ONAPLCMAdapter {
+func createTestAdapter(t *testing.T) *Adapter {
 	t.Helper()
 
 	adp, err := NewAdapter(&Config{

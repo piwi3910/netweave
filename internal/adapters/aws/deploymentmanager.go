@@ -13,7 +13,7 @@ import (
 
 // GetDeploymentManager retrieves metadata about the AWS deployment manager.
 // It queries the AWS region information to construct the deployment manager metadata.
-func (a *AWSAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
+func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
 	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 

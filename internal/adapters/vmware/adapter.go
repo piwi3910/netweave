@@ -38,7 +38,7 @@ const (
 //   - Resource Types → VM hardware profiles
 //   - Deployment Manager → vCenter/Datacenter metadata
 //   - Subscriptions → Polling-based (vSphere events as fallback)
-type VMwareAdapter struct {
+type Adapter struct {
 	// client is the vSphere API client.
 	client *govmomi.Client
 
@@ -127,7 +127,7 @@ type Config struct {
 //	    OCloudID:           "ocloud-vmware-1",
 //	    PoolMode:           "cluster",
 //	})
-func New(cfg *Config) (*VMwareAdapter, error) {
+func New(cfg *Config) (*Adapter, error) {
 	if err := validateVMwareConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -161,7 +161,7 @@ func New(cfg *Config) (*VMwareAdapter, error) {
 		return nil, err
 	}
 
-	return &VMwareAdapter{
+	return &Adapter{
 		client:              client,
 		finder:              finder,
 		datacenter:          dc,
@@ -278,12 +278,12 @@ func setupVMwareDatacenter(ctx context.Context, client *govmomi.Client, datacent
 }
 
 // Name returns the adapter name.
-func (a *VMwareAdapter) Name() string {
+func (a *Adapter) Name() string {
 	return "vmware"
 }
 
 // Version returns the vSphere API version this adapter supports.
-func (a *VMwareAdapter) Version() string {
+func (a *Adapter) Version() string {
 	if a.client != nil && a.client.Client != nil {
 		return a.client.ServiceContent.About.Version
 	}
@@ -291,7 +291,7 @@ func (a *VMwareAdapter) Version() string {
 }
 
 // Capabilities returns the list of O2-IMS capabilities supported by this adapter.
-func (a *VMwareAdapter) Capabilities() []adapter.Capability {
+func (a *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityResourcePools,
 		adapter.CapabilityResources,
@@ -304,7 +304,7 @@ func (a *VMwareAdapter) Capabilities() []adapter.Capability {
 
 // Health performs a health check on the vSphere backend.
 // It verifies connectivity to vCenter.
-func (a *VMwareAdapter) Health(ctx context.Context) (err error) {
+func (a *Adapter) Health(ctx context.Context) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveHealthCheck("vmware", start, err) }()
 
@@ -326,7 +326,7 @@ func (a *VMwareAdapter) Health(ctx context.Context) (err error) {
 }
 
 // Close cleanly shuts down the adapter and releases resources.
-func (a *VMwareAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.logger.Info("closing VMware adapter")
 
 	// Clear subscriptions

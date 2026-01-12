@@ -171,7 +171,7 @@ func (h *AuditHandler) ListAuditEventsByUser(c *gin.Context) {
 	}
 
 	// Check access permissions.
-	if !h.checkUserAccessPermission(c, ctx, targetUserID) {
+	if !h.checkUserAccessPermission(ctx, c, targetUserID) {
 		return
 	}
 
@@ -204,7 +204,7 @@ func (h *AuditHandler) ListAuditEventsByUser(c *gin.Context) {
 
 // checkUserAccessPermission verifies if current user can access target user's audit events.
 // Returns false and sends error response if access is denied.
-func (h *AuditHandler) checkUserAccessPermission(c *gin.Context, ctx context.Context, targetUserID string) bool {
+func (h *AuditHandler) checkUserAccessPermission(ctx context.Context, c *gin.Context, targetUserID string) bool {
 	tenantID := auth.TenantIDFromContext(ctx)
 	isPlatformAdmin := auth.IsPlatformAdminFromContext(ctx)
 	currentUser := auth.UserFromContext(ctx)

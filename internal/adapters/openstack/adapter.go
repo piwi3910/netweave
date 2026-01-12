@@ -26,7 +26,7 @@ import (
 //   - Resource Types → Flavors
 //   - Deployment Manager → OpenStack Region metadata
 //   - Subscriptions → Polling-based (no native OpenStack subscriptions)
-type OpenStackAdapter struct {
+type Adapter struct {
 	// provider is the authenticated OpenStack provider client.
 	provider *gophercloud.ProviderClient
 
@@ -113,7 +113,7 @@ type Config struct {
 //	    Region:      "RegionOne",
 //	    OCloudID:    "ocloud-openstack-1",
 //	})
-func New(cfg *Config) (*OpenStackAdapter, error) {
+func New(cfg *Config) (*Adapter, error) {
 	if err := validateConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func New(cfg *Config) (*OpenStackAdapter, error) {
 		return nil, err
 	}
 
-	adapter := &OpenStackAdapter{
+	adapter := &Adapter{
 		provider:            provider,
 		compute:             clients.compute,
 		placement:           clients.placement,
@@ -286,19 +286,19 @@ func initializeServiceClients(
 }
 
 // Name returns the adapter name.
-func (a *OpenStackAdapter) Name() string {
+func (a *Adapter) Name() string {
 	return "openstack"
 }
 
 // Version returns the OpenStack API version this adapter supports.
-func (a *OpenStackAdapter) Version() string {
+func (a *Adapter) Version() string {
 	// OpenStack API versions: Nova v2.1, Placement v1.0, Keystone v3
 	return "nova-v2.1"
 }
 
 // Capabilities returns the list of O2-IMS capabilities supported by this adapter.
 // Note: OpenStack does not support native subscriptions, so we use polling-based subscriptions.
-func (a *OpenStackAdapter) Capabilities() []adapter.Capability {
+func (a *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityResourcePools,
 		adapter.CapabilityResources,
@@ -311,7 +311,7 @@ func (a *OpenStackAdapter) Capabilities() []adapter.Capability {
 
 // GetDeploymentManager retrieves metadata about the OpenStack deployment manager.
 // It queries the Keystone region information to construct the deployment manager metadata.
-func (a *OpenStackAdapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
+func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
 	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
@@ -375,7 +375,7 @@ func (a *OpenStackAdapter) GetDeploymentManager(_ context.Context, id string) (*
 
 // Health performs a health check on the OpenStack backend.
 // It verifies connectivity to Nova, Placement, and Keystone services.
-func (a *OpenStackAdapter) Health(ctx context.Context) error {
+func (a *Adapter) Health(ctx context.Context) error {
 	a.logger.Debug("health check called")
 
 	// Check Nova compute service
@@ -401,7 +401,7 @@ func (a *OpenStackAdapter) Health(ctx context.Context) error {
 }
 
 // checkNovaHealth verifies Nova compute service connectivity.
-func (a *OpenStackAdapter) checkNovaHealth(_ context.Context) error {
+func (a *Adapter) checkNovaHealth(_ context.Context) error {
 	// Query a small number of servers to verify connectivity
 	listOpts := servers.ListOpts{
 		Limit: 1,
@@ -416,7 +416,7 @@ func (a *OpenStackAdapter) checkNovaHealth(_ context.Context) error {
 }
 
 // checkPlacementHealth verifies Placement service connectivity.
-func (a *OpenStackAdapter) checkPlacementHealth(_ context.Context) error {
+func (a *Adapter) checkPlacementHealth(_ context.Context) error {
 	// Query resource providers to verify connectivity
 	_, err := resourceproviders.List(a.placement, resourceproviders.ListOpts{}).AllPages()
 	if err != nil {
@@ -427,7 +427,7 @@ func (a *OpenStackAdapter) checkPlacementHealth(_ context.Context) error {
 }
 
 // checkKeystoneHealth verifies Keystone identity service connectivity.
-func (a *OpenStackAdapter) checkKeystoneHealth(_ context.Context) error {
+func (a *Adapter) checkKeystoneHealth(_ context.Context) error {
 	// Query regions to verify connectivity
 	_, err := regions.List(a.identity, nil).AllPages()
 	if err != nil {
@@ -438,7 +438,7 @@ func (a *OpenStackAdapter) checkKeystoneHealth(_ context.Context) error {
 }
 
 // Close cleanly shuts down the adapter and releases resources.
-func (a *OpenStackAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.logger.Info("closing OpenStack adapter")
 
 	// Stop all polling goroutines

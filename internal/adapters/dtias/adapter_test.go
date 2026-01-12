@@ -201,7 +201,7 @@ func TestDTIASAdapter_Health(t *testing.T) {
 }
 
 // createTestAdapter creates a test DTIAS adapter with minimal configuration.
-func createTestAdapter(t *testing.T) *DTIASAdapter {
+func createTestAdapter(t *testing.T) *Adapter {
 	t.Helper()
 
 	config := &Config{

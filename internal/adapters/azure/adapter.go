@@ -31,7 +31,7 @@ import (
 //   - Resource Types → Azure VM Sizes (Standard_D2s_v3, etc.)
 //   - Deployment Manager → Azure Subscription/Region metadata
 //   - Subscriptions → Event Grid based (polling as fallback)
-type AzureAdapter struct {
+type Adapter struct {
 	// vmClient is the Azure VM client.
 	vmClient *armcompute.VirtualMachinesClient
 
@@ -127,7 +127,7 @@ type Config struct {
 //	    OCloudID:       "ocloud-azure-1",
 //	    PoolMode:       "rg",
 //	})
-func New(cfg *Config) (*AzureAdapter, error) {
+func New(cfg *Config) (*Adapter, error) {
 	if err := validateAzureConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func New(cfg *Config) (*AzureAdapter, error) {
 		return nil, err
 	}
 
-	adp := &AzureAdapter{
+	adp := &Adapter{
 		vmClient:            clients.vmClient,
 		vmSizeClient:        clients.vmSizeClient,
 		resourceGroupClient: clients.resourceGroupClient,
@@ -311,17 +311,17 @@ func createAzureClients(subscriptionID string, cred azcore.TokenCredential) (*az
 }
 
 // Name returns the adapter name.
-func (a *AzureAdapter) Name() string {
+func (a *Adapter) Name() string {
 	return "azure"
 }
 
 // Version returns the Azure API version this adapter supports.
-func (a *AzureAdapter) Version() string {
+func (a *Adapter) Version() string {
 	return "compute-2023-09-01"
 }
 
 // Capabilities returns the list of O2-IMS capabilities supported by this adapter.
-func (a *AzureAdapter) Capabilities() []adapter.Capability {
+func (a *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityResourcePools,
 		adapter.CapabilityResources,
@@ -334,7 +334,7 @@ func (a *AzureAdapter) Capabilities() []adapter.Capability {
 
 // Health performs a health check on the Azure backend.
 // It verifies connectivity to Azure services.
-func (a *AzureAdapter) Health(ctx context.Context) (err error) {
+func (a *Adapter) Health(ctx context.Context) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveHealthCheck("azure", start, err) }()
 
@@ -357,7 +357,7 @@ func (a *AzureAdapter) Health(ctx context.Context) (err error) {
 }
 
 // Close cleanly shuts down the adapter and releases resources.
-func (a *AzureAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.logger.Info("closing Azure adapter")
 
 	// Clear subscriptions

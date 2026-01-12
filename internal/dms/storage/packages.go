@@ -121,7 +121,7 @@ func NewMemoryPackageStore() *MemoryPackageStore {
 // Create creates a new package entry.
 func (s *MemoryPackageStore) Create(ctx context.Context, pkg *adapter.DeploymentPackage) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	// Validate package fields.
@@ -203,7 +203,7 @@ func (s *MemoryPackageStore) storePackage(pkg *adapter.DeploymentPackage) {
 // Get retrieves a package by ID.
 func (s *MemoryPackageStore) Get(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	s.mu.RLock()
@@ -220,7 +220,7 @@ func (s *MemoryPackageStore) Get(ctx context.Context, id string) (*adapter.Deplo
 // GetByNameVersion retrieves a package by name and version.
 func (s *MemoryPackageStore) GetByNameVersion(ctx context.Context, name, version string) (*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	s.mu.RLock()
@@ -243,7 +243,7 @@ func (s *MemoryPackageStore) GetByNameVersion(ctx context.Context, name, version
 // List retrieves all packages, optionally filtered.
 func (s *MemoryPackageStore) List(ctx context.Context, filter *PackageFilter) ([]*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	s.mu.RLock()
@@ -298,7 +298,7 @@ func (s *MemoryPackageStore) List(ctx context.Context, filter *PackageFilter) ([
 // ListVersions retrieves all versions of a package by name.
 func (s *MemoryPackageStore) ListVersions(ctx context.Context, name string) ([]*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	s.mu.RLock()
@@ -322,7 +322,7 @@ func (s *MemoryPackageStore) ListVersions(ctx context.Context, name string) ([]*
 // Update updates an existing package.
 func (s *MemoryPackageStore) Update(ctx context.Context, pkg *adapter.DeploymentPackage) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	if pkg == nil {
@@ -343,7 +343,7 @@ func (s *MemoryPackageStore) Update(ctx context.Context, pkg *adapter.Deployment
 // Delete deletes a package by ID.
 func (s *MemoryPackageStore) Delete(ctx context.Context, id string) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	s.mu.Lock()
@@ -379,7 +379,7 @@ func (s *MemoryPackageStore) Delete(ctx context.Context, id string) error {
 // Returns ErrContentTooLarge if content exceeds MaxContentSize.
 func (s *MemoryPackageStore) SaveContent(ctx context.Context, id string, content []byte) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	// Validate content size to prevent memory exhaustion
@@ -405,7 +405,7 @@ func (s *MemoryPackageStore) SaveContent(ctx context.Context, id string, content
 // GetContent retrieves binary content for a package.
 func (s *MemoryPackageStore) GetContent(ctx context.Context, id string) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	s.mu.RLock()
@@ -430,7 +430,7 @@ func (s *MemoryPackageStore) GetContent(ctx context.Context, id string) ([]byte,
 // DeleteContent deletes binary content for a package.
 func (s *MemoryPackageStore) DeleteContent(ctx context.Context, id string) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled: %w", err)
 	}
 
 	s.mu.Lock()

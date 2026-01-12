@@ -14,7 +14,7 @@ import (
 // ListResourcePools retrieves all resource pools matching the provided filter.
 // In "cluster" mode, it lists vSphere Clusters.
 // In "pool" mode, it lists vSphere Resource Pools.
-func (a *VMwareAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) (pools []*adapter.ResourcePool, err error) {
+func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) (pools []*adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "ListResourcePools", start, err) }()
 
@@ -29,7 +29,7 @@ func (a *VMwareAdapter) ListResourcePools(ctx context.Context, filter *adapter.F
 }
 
 // listClusterPools lists vSphere Clusters as resource pools.
-func (a *VMwareAdapter) listClusterPools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *Adapter) listClusterPools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	clusters, err := a.finder.ClusterComputeResourceList(ctx, "*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list clusters: %w", err)
@@ -98,7 +98,7 @@ func (a *VMwareAdapter) listClusterPools(ctx context.Context, filter *adapter.Fi
 }
 
 // listVSpherePools lists vSphere Resource Pools as resource pools.
-func (a *VMwareAdapter) listVSpherePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *Adapter) listVSpherePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	resourcePools, err := a.finder.ResourcePoolList(ctx, "*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list resource pools: %w", err)
@@ -171,7 +171,7 @@ func (a *VMwareAdapter) listVSpherePools(ctx context.Context, filter *adapter.Fi
 }
 
 // GetResourcePool retrieves a specific resource pool by ID.
-func (a *VMwareAdapter) GetResourcePool(ctx context.Context, id string) (pool *adapter.ResourcePool, err error) {
+func (a *Adapter) GetResourcePool(ctx context.Context, id string) (pool *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "GetResourcePool", start, err) }()
 
@@ -193,7 +193,7 @@ func (a *VMwareAdapter) GetResourcePool(ctx context.Context, id string) (pool *a
 }
 
 // CreateResourcePool creates a new resource pool.
-func (a *VMwareAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "CreateResourcePool", start, err) }()
 
@@ -205,7 +205,7 @@ func (a *VMwareAdapter) CreateResourcePool(_ context.Context, pool *adapter.Reso
 }
 
 // UpdateResourcePool updates an existing resource pool.
-func (a *VMwareAdapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "UpdateResourcePool", start, err) }()
 
@@ -217,7 +217,7 @@ func (a *VMwareAdapter) UpdateResourcePool(_ context.Context, id string, pool *a
 }
 
 // DeleteResourcePool deletes a resource pool by ID.
-func (a *VMwareAdapter) DeleteResourcePool(_ context.Context, id string) (err error) {
+func (a *Adapter) DeleteResourcePool(_ context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "DeleteResourcePool", start, err) }()
 

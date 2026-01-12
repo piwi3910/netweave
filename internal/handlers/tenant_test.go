@@ -34,7 +34,7 @@ func newMockAuthStore() *mockAuthStore {
 	}
 }
 
-func (m *mockAuthStore) CreateTenant(ctx context.Context, tenant *auth.Tenant) error {
+func (m *mockAuthStore) CreateTenant(_ context.Context, tenant *auth.Tenant) error {
 	if _, exists := m.tenants[tenant.ID]; exists {
 		return auth.ErrTenantExists
 	}
@@ -42,7 +42,7 @@ func (m *mockAuthStore) CreateTenant(ctx context.Context, tenant *auth.Tenant) e
 	return nil
 }
 
-func (m *mockAuthStore) GetTenant(ctx context.Context, id string) (*auth.Tenant, error) {
+func (m *mockAuthStore) GetTenant(_ context.Context, id string) (*auth.Tenant, error) {
 	tenant, exists := m.tenants[id]
 	if !exists {
 		return nil, auth.ErrTenantNotFound
@@ -50,7 +50,7 @@ func (m *mockAuthStore) GetTenant(ctx context.Context, id string) (*auth.Tenant,
 	return tenant, nil
 }
 
-func (m *mockAuthStore) UpdateTenant(ctx context.Context, tenant *auth.Tenant) error {
+func (m *mockAuthStore) UpdateTenant(_ context.Context, tenant *auth.Tenant) error {
 	if _, exists := m.tenants[tenant.ID]; !exists {
 		return auth.ErrTenantNotFound
 	}
@@ -58,7 +58,7 @@ func (m *mockAuthStore) UpdateTenant(ctx context.Context, tenant *auth.Tenant) e
 	return nil
 }
 
-func (m *mockAuthStore) DeleteTenant(ctx context.Context, id string) error {
+func (m *mockAuthStore) DeleteTenant(_ context.Context, id string) error {
 	if _, exists := m.tenants[id]; !exists {
 		return auth.ErrTenantNotFound
 	}
@@ -66,7 +66,7 @@ func (m *mockAuthStore) DeleteTenant(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m *mockAuthStore) ListTenants(ctx context.Context) ([]*auth.Tenant, error) {
+func (m *mockAuthStore) ListTenants(_ context.Context) ([]*auth.Tenant, error) {
 	result := make([]*auth.Tenant, 0, len(m.tenants))
 	for _, tenant := range m.tenants {
 		result = append(result, tenant)
@@ -74,15 +74,15 @@ func (m *mockAuthStore) ListTenants(ctx context.Context) ([]*auth.Tenant, error)
 	return result, nil
 }
 
-func (m *mockAuthStore) IncrementUsage(ctx context.Context, tenantID, usageType string) error {
+func (m *mockAuthStore) IncrementUsage(_ context.Context, tenantID, usageType string) error {
 	return nil
 }
 
-func (m *mockAuthStore) DecrementUsage(ctx context.Context, tenantID, usageType string) error {
+func (m *mockAuthStore) DecrementUsage(_ context.Context, tenantID, usageType string) error {
 	return nil
 }
 
-func (m *mockAuthStore) CreateUser(ctx context.Context, user *auth.TenantUser) error {
+func (m *mockAuthStore) CreateUser(_ context.Context, user *auth.TenantUser) error {
 	if _, exists := m.users[user.ID]; exists {
 		return auth.ErrUserExists
 	}
@@ -90,7 +90,7 @@ func (m *mockAuthStore) CreateUser(ctx context.Context, user *auth.TenantUser) e
 	return nil
 }
 
-func (m *mockAuthStore) GetUser(ctx context.Context, id string) (*auth.TenantUser, error) {
+func (m *mockAuthStore) GetUser(_ context.Context, id string) (*auth.TenantUser, error) {
 	user, exists := m.users[id]
 	if !exists {
 		return nil, auth.ErrUserNotFound
@@ -98,7 +98,7 @@ func (m *mockAuthStore) GetUser(ctx context.Context, id string) (*auth.TenantUse
 	return user, nil
 }
 
-func (m *mockAuthStore) GetUserBySubject(ctx context.Context, subject string) (*auth.TenantUser, error) {
+func (m *mockAuthStore) GetUserBySubject(_ context.Context, subject string) (*auth.TenantUser, error) {
 	for _, user := range m.users {
 		if user.Subject == subject {
 			return user, nil
@@ -107,7 +107,7 @@ func (m *mockAuthStore) GetUserBySubject(ctx context.Context, subject string) (*
 	return nil, auth.ErrUserNotFound
 }
 
-func (m *mockAuthStore) UpdateUser(ctx context.Context, user *auth.TenantUser) error {
+func (m *mockAuthStore) UpdateUser(_ context.Context, user *auth.TenantUser) error {
 	if _, exists := m.users[user.ID]; !exists {
 		return auth.ErrUserNotFound
 	}
@@ -115,7 +115,7 @@ func (m *mockAuthStore) UpdateUser(ctx context.Context, user *auth.TenantUser) e
 	return nil
 }
 
-func (m *mockAuthStore) DeleteUser(ctx context.Context, id string) error {
+func (m *mockAuthStore) DeleteUser(_ context.Context, id string) error {
 	if _, exists := m.users[id]; !exists {
 		return auth.ErrUserNotFound
 	}
@@ -123,7 +123,7 @@ func (m *mockAuthStore) DeleteUser(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m *mockAuthStore) ListUsersByTenant(ctx context.Context, tenantID string) ([]*auth.TenantUser, error) {
+func (m *mockAuthStore) ListUsersByTenant(_ context.Context, tenantID string) ([]*auth.TenantUser, error) {
 	result := make([]*auth.TenantUser, 0)
 	for _, user := range m.users {
 		if user.TenantID == tenantID {
@@ -133,11 +133,11 @@ func (m *mockAuthStore) ListUsersByTenant(ctx context.Context, tenantID string) 
 	return result, nil
 }
 
-func (m *mockAuthStore) UpdateLastLogin(ctx context.Context, userID string) error {
+func (m *mockAuthStore) UpdateLastLogin(_ context.Context, userID string) error {
 	return nil
 }
 
-func (m *mockAuthStore) CreateRole(ctx context.Context, role *auth.Role) error {
+func (m *mockAuthStore) CreateRole(_ context.Context, role *auth.Role) error {
 	if _, exists := m.roles[role.ID]; exists {
 		return auth.ErrRoleExists
 	}
@@ -145,7 +145,7 @@ func (m *mockAuthStore) CreateRole(ctx context.Context, role *auth.Role) error {
 	return nil
 }
 
-func (m *mockAuthStore) GetRole(ctx context.Context, id string) (*auth.Role, error) {
+func (m *mockAuthStore) GetRole(_ context.Context, id string) (*auth.Role, error) {
 	role, exists := m.roles[id]
 	if !exists {
 		return nil, auth.ErrRoleNotFound
@@ -153,7 +153,7 @@ func (m *mockAuthStore) GetRole(ctx context.Context, id string) (*auth.Role, err
 	return role, nil
 }
 
-func (m *mockAuthStore) GetRoleByName(ctx context.Context, name auth.RoleName) (*auth.Role, error) {
+func (m *mockAuthStore) GetRoleByName(_ context.Context, name auth.RoleName) (*auth.Role, error) {
 	for _, role := range m.roles {
 		if role.Name == name {
 			return role, nil
@@ -162,7 +162,7 @@ func (m *mockAuthStore) GetRoleByName(ctx context.Context, name auth.RoleName) (
 	return nil, auth.ErrRoleNotFound
 }
 
-func (m *mockAuthStore) UpdateRole(ctx context.Context, role *auth.Role) error {
+func (m *mockAuthStore) UpdateRole(_ context.Context, role *auth.Role) error {
 	if _, exists := m.roles[role.ID]; !exists {
 		return auth.ErrRoleNotFound
 	}
@@ -170,7 +170,7 @@ func (m *mockAuthStore) UpdateRole(ctx context.Context, role *auth.Role) error {
 	return nil
 }
 
-func (m *mockAuthStore) DeleteRole(ctx context.Context, id string) error {
+func (m *mockAuthStore) DeleteRole(_ context.Context, id string) error {
 	if _, exists := m.roles[id]; !exists {
 		return auth.ErrRoleNotFound
 	}
@@ -178,7 +178,7 @@ func (m *mockAuthStore) DeleteRole(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m *mockAuthStore) ListRoles(ctx context.Context) ([]*auth.Role, error) {
+func (m *mockAuthStore) ListRoles(_ context.Context) ([]*auth.Role, error) {
 	result := make([]*auth.Role, 0, len(m.roles))
 	for _, role := range m.roles {
 		result = append(result, role)
@@ -186,32 +186,32 @@ func (m *mockAuthStore) ListRoles(ctx context.Context) ([]*auth.Role, error) {
 	return result, nil
 }
 
-func (m *mockAuthStore) ListRolesByTenant(ctx context.Context, tenantID string) ([]*auth.Role, error) {
+func (m *mockAuthStore) ListRolesByTenant(ctx context.Context, _ string) ([]*auth.Role, error) {
 	return m.ListRoles(ctx)
 }
 
-func (m *mockAuthStore) InitializeDefaultRoles(ctx context.Context) error {
+func (m *mockAuthStore) InitializeDefaultRoles(_ context.Context) error {
 	return nil
 }
 
-func (m *mockAuthStore) LogEvent(ctx context.Context, event *auth.AuditEvent) error {
+func (m *mockAuthStore) LogEvent(_ context.Context, event *auth.AuditEvent) error {
 	m.events = append(m.events, event)
 	return nil
 }
 
-func (m *mockAuthStore) ListEvents(ctx context.Context, tenantID string, limit, offset int) ([]*auth.AuditEvent, error) {
+func (m *mockAuthStore) ListEvents(_ context.Context, tenantID string, limit, offset int) ([]*auth.AuditEvent, error) {
 	return m.events, nil
 }
 
-func (m *mockAuthStore) ListEventsByType(ctx context.Context, eventType auth.AuditEventType, limit int) ([]*auth.AuditEvent, error) {
+func (m *mockAuthStore) ListEventsByType(_ context.Context, eventType auth.AuditEventType, limit int) ([]*auth.AuditEvent, error) {
 	return m.events, nil
 }
 
-func (m *mockAuthStore) ListEventsByUser(ctx context.Context, userID string, limit int) ([]*auth.AuditEvent, error) {
+func (m *mockAuthStore) ListEventsByUser(_ context.Context, userID string, limit int) ([]*auth.AuditEvent, error) {
 	return m.events, nil
 }
 
-func (m *mockAuthStore) Ping(ctx context.Context) error {
+func (m *mockAuthStore) Ping(_ context.Context) error {
 	return nil
 }
 
@@ -694,7 +694,7 @@ func TestTenantHandler_GetCurrentTenant(t *testing.T) {
 	}{
 		{
 			name: "get current tenant without context",
-			setupContext: func(c *gin.Context) {
+			setupContext: func(_ *gin.Context) {
 				// No tenant in context.
 			},
 			wantStatus: http.StatusNotFound,

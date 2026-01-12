@@ -43,7 +43,7 @@ const (
 )
 
 // HelmAdapter implements the DMS adapter interface for Helm deployments.
-type HelmAdapter struct {
+type Adapter struct {
 	config      *Config
 	settings    *cli.EnvSettings
 	actionCfg   *action.Configuration
@@ -80,7 +80,7 @@ type Config struct {
 
 // NewAdapter creates a new Helm adapter instance.
 // Returns an error if the adapter cannot be initialized.
-func NewAdapter(config *Config) (*HelmAdapter, error) {
+func NewAdapter(config *Config) (*Adapter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
@@ -104,7 +104,7 @@ func NewAdapter(config *Config) (*HelmAdapter, error) {
 	settings.SetNamespace(config.Namespace)
 	settings.Debug = config.Debug
 
-	adapter := &HelmAdapter{
+	adapter := &Adapter{
 		config:    config,
 		settings:  settings,
 		repoIndex: make(map[string]*repo.IndexFile),
@@ -115,7 +115,7 @@ func NewAdapter(config *Config) (*HelmAdapter, error) {
 
 // Initialize performs lazy initialization of the Helm action configuration.
 // This allows the adapter to be created without requiring immediate Kubernetes connectivity.
-func (h *HelmAdapter) Initialize(_ context.Context) error {
+func (h *Adapter) Initialize(_ context.Context) error {
 	if h.initialized {
 		return nil
 	}
@@ -149,17 +149,17 @@ func (h *HelmAdapter) Initialize(_ context.Context) error {
 }
 
 // Name returns the adapter name.
-func (h *HelmAdapter) Name() string {
+func (h *Adapter) Name() string {
 	return AdapterName
 }
 
 // Version returns the Helm version supported by this adapter.
-func (h *HelmAdapter) Version() string {
+func (h *Adapter) Version() string {
 	return AdapterVersion
 }
 
 // Capabilities returns the capabilities supported by the Helm adapter.
-func (h *HelmAdapter) Capabilities() []adapter.Capability {
+func (h *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityPackageManagement,
 		adapter.CapabilityDeploymentLifecycle,
@@ -171,7 +171,7 @@ func (h *HelmAdapter) Capabilities() []adapter.Capability {
 }
 
 // ListDeploymentPackages retrieves all Helm charts from the configured repository.
-func (h *HelmAdapter) ListDeploymentPackages(
+func (h *Adapter) ListDeploymentPackages(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.DeploymentPackage, error) {
@@ -240,7 +240,7 @@ func (h *HelmAdapter) ListDeploymentPackages(
 
 // GetDeploymentPackage retrieves a specific Helm chart by ID.
 // The ID format is expected to be "{chartName}-{version}".
-func (h *HelmAdapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
+func (h *Adapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -287,7 +287,7 @@ func (h *HelmAdapter) GetDeploymentPackage(ctx context.Context, id string) (*ada
 }
 
 // UploadDeploymentPackage uploads a new Helm chart to the repository.
-func (h *HelmAdapter) UploadDeploymentPackage(
+func (h *Adapter) UploadDeploymentPackage(
 	ctx context.Context,
 	pkg *adapter.DeploymentPackageUpload,
 ) (*adapter.DeploymentPackage, error) {
@@ -322,7 +322,7 @@ func (h *HelmAdapter) UploadDeploymentPackage(
 // DeleteDeploymentPackage deletes a Helm chart from the repository.
 // Note: Chart deletion depends on repository type support (ChartMuseum, Harbor, etc.).
 // OCI registries and some HTTP repositories may not support deletion via API.
-func (h *HelmAdapter) DeleteDeploymentPackage(ctx context.Context, id string) error {
+func (h *Adapter) DeleteDeploymentPackage(ctx context.Context, id string) error {
 	if err := h.Initialize(ctx); err != nil {
 		return err
 	}
@@ -346,7 +346,7 @@ func (h *HelmAdapter) DeleteDeploymentPackage(ctx context.Context, id string) er
 }
 
 // ListDeployments retrieves all Helm releases matching the filter.
-func (h *HelmAdapter) ListDeployments(ctx context.Context, filter *adapter.Filter) ([]*adapter.Deployment, error) {
+func (h *Adapter) ListDeployments(ctx context.Context, filter *adapter.Filter) ([]*adapter.Deployment, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -366,7 +366,7 @@ func (h *HelmAdapter) ListDeployments(ctx context.Context, filter *adapter.Filte
 }
 
 // fetchAllReleases retrieves all Helm releases.
-func (h *HelmAdapter) fetchAllReleases() ([]*release.Release, error) {
+func (h *Adapter) fetchAllReleases() ([]*release.Release, error) {
 	client := action.NewList(h.actionCfg)
 	client.All = true
 	client.AllNamespaces = true
@@ -379,7 +379,7 @@ func (h *HelmAdapter) fetchAllReleases() ([]*release.Release, error) {
 }
 
 // filterAndTransformReleases transforms releases and applies filters.
-func (h *HelmAdapter) filterAndTransformReleases(
+func (h *Adapter) filterAndTransformReleases(
 	releases []*release.Release,
 	filter *adapter.Filter,
 ) []*adapter.Deployment {
@@ -394,7 +394,7 @@ func (h *HelmAdapter) filterAndTransformReleases(
 }
 
 // matchesDeploymentFilter checks if a release matches the filter criteria.
-func (h *HelmAdapter) matchesDeploymentFilter(
+func (h *Adapter) matchesDeploymentFilter(
 	rel *release.Release,
 	deployment *adapter.Deployment,
 	filter *adapter.Filter,
@@ -415,7 +415,7 @@ func (h *HelmAdapter) matchesDeploymentFilter(
 }
 
 // GetDeployment retrieves a specific Helm release by ID.
-func (h *HelmAdapter) GetDeployment(ctx context.Context, id string) (*adapter.Deployment, error) {
+func (h *Adapter) GetDeployment(ctx context.Context, id string) (*adapter.Deployment, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -433,7 +433,7 @@ func (h *HelmAdapter) GetDeployment(ctx context.Context, id string) (*adapter.De
 }
 
 // CreateDeployment installs a new Helm release.
-func (h *HelmAdapter) CreateDeployment(
+func (h *Adapter) CreateDeployment(
 	ctx context.Context,
 	req *adapter.DeploymentRequest,
 ) (*adapter.Deployment, error) {
@@ -482,7 +482,7 @@ func (h *HelmAdapter) CreateDeployment(
 }
 
 // UpdateDeployment upgrades an existing Helm release.
-func (h *HelmAdapter) UpdateDeployment(
+func (h *Adapter) UpdateDeployment(
 	ctx context.Context,
 	id string,
 	update *adapter.DeploymentUpdate,
@@ -517,7 +517,7 @@ func (h *HelmAdapter) UpdateDeployment(
 }
 
 // DeleteDeployment uninstalls a Helm release.
-func (h *HelmAdapter) DeleteDeployment(ctx context.Context, id string) error {
+func (h *Adapter) DeleteDeployment(ctx context.Context, id string) error {
 	if err := h.Initialize(ctx); err != nil {
 		return err
 	}
@@ -538,7 +538,7 @@ func (h *HelmAdapter) DeleteDeployment(ctx context.Context, id string) error {
 }
 
 // ScaleDeployment scales a deployment by updating replica values.
-func (h *HelmAdapter) ScaleDeployment(ctx context.Context, id string, replicas int) error {
+func (h *Adapter) ScaleDeployment(ctx context.Context, id string, replicas int) error {
 	if err := h.Initialize(ctx); err != nil {
 		return err
 	}
@@ -577,7 +577,7 @@ func (h *HelmAdapter) ScaleDeployment(ctx context.Context, id string, replicas i
 }
 
 // RollbackDeployment rolls back a release to a previous revision.
-func (h *HelmAdapter) RollbackDeployment(ctx context.Context, id string, revision int) error {
+func (h *Adapter) RollbackDeployment(ctx context.Context, id string, revision int) error {
 	if err := h.Initialize(ctx); err != nil {
 		return err
 	}
@@ -600,7 +600,7 @@ func (h *HelmAdapter) RollbackDeployment(ctx context.Context, id string, revisio
 }
 
 // GetDeploymentStatus retrieves detailed status for a deployment.
-func (h *HelmAdapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.DeploymentStatusDetail, error) {
+func (h *Adapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.DeploymentStatusDetail, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -615,7 +615,7 @@ func (h *HelmAdapter) GetDeploymentStatus(ctx context.Context, id string) (*adap
 }
 
 // GetDeploymentHistory retrieves the revision history for a deployment.
-func (h *HelmAdapter) GetDeploymentHistory(ctx context.Context, id string) (*adapter.DeploymentHistory, error) {
+func (h *Adapter) GetDeploymentHistory(ctx context.Context, id string) (*adapter.DeploymentHistory, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -647,7 +647,7 @@ func (h *HelmAdapter) GetDeploymentHistory(ctx context.Context, id string) (*ada
 
 // GetDeploymentLogs retrieves logs for a deployment.
 // Note: Helm doesn't directly provide logs, so this queries Kubernetes pods.
-func (h *HelmAdapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapter.LogOptions) ([]byte, error) {
+func (h *Adapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapter.LogOptions) ([]byte, error) {
 	if err := h.Initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -727,22 +727,22 @@ func (h *HelmAdapter) GetDeploymentLogs(ctx context.Context, id string, opts *ad
 }
 
 // SupportsRollback returns true as Helm supports rollback.
-func (h *HelmAdapter) SupportsRollback() bool {
+func (h *Adapter) SupportsRollback() bool {
 	return true
 }
 
 // SupportsScaling returns true as scaling can be done via value updates.
-func (h *HelmAdapter) SupportsScaling() bool {
+func (h *Adapter) SupportsScaling() bool {
 	return true
 }
 
 // SupportsGitOps returns false as this is direct Helm, not GitOps-based.
-func (h *HelmAdapter) SupportsGitOps() bool {
+func (h *Adapter) SupportsGitOps() bool {
 	return false
 }
 
 // Health performs a health check on the Helm backend.
-func (h *HelmAdapter) Health(ctx context.Context) error {
+func (h *Adapter) Health(ctx context.Context) error {
 	if err := h.Initialize(ctx); err != nil {
 		return fmt.Errorf("helm adapter not healthy: %w", err)
 	}
@@ -760,14 +760,14 @@ func (h *HelmAdapter) Health(ctx context.Context) error {
 }
 
 // Close cleanly shuts down the adapter.
-func (h *HelmAdapter) Close() error {
+func (h *Adapter) Close() error {
 	h.initialized = false
 	h.actionCfg = nil
 	return nil
 }
 
 // loadRepositoryIndex loads and caches the Helm chart repository index.
-func (h *HelmAdapter) loadRepositoryIndex(_ context.Context) error {
+func (h *Adapter) loadRepositoryIndex(_ context.Context) error {
 	if h.config.RepositoryURL == "" {
 		return fmt.Errorf("repository URL not configured")
 	}
@@ -818,7 +818,7 @@ func (h *HelmAdapter) loadRepositoryIndex(_ context.Context) error {
 }
 
 // transformReleaseToDeployment converts a Helm release to a Deployment.
-func (h *HelmAdapter) transformReleaseToDeployment(rel *release.Release) *adapter.Deployment {
+func (h *Adapter) transformReleaseToDeployment(rel *release.Release) *adapter.Deployment {
 	return &adapter.Deployment{
 		ID:          rel.Name,
 		Name:        rel.Name,
@@ -841,7 +841,7 @@ func (h *HelmAdapter) transformReleaseToDeployment(rel *release.Release) *adapte
 }
 
 // transformReleaseToStatus converts a Helm release to detailed status.
-func (h *HelmAdapter) transformReleaseToStatus(rel *release.Release) *adapter.DeploymentStatusDetail {
+func (h *Adapter) transformReleaseToStatus(rel *release.Release) *adapter.DeploymentStatusDetail {
 	status := &adapter.DeploymentStatusDetail{
 		DeploymentID: rel.Name,
 		Status:       h.transformHelmStatus(rel.Info.Status),
@@ -863,7 +863,7 @@ func (h *HelmAdapter) transformReleaseToStatus(rel *release.Release) *adapter.De
 }
 
 // transformHelmStatus converts Helm release status to DMS deployment status.
-func (h *HelmAdapter) transformHelmStatus(helmStatus release.Status) adapter.DeploymentStatus {
+func (h *Adapter) transformHelmStatus(helmStatus release.Status) adapter.DeploymentStatus {
 	switch helmStatus {
 	case release.StatusPendingInstall:
 		return adapter.DeploymentStatusPending
@@ -885,7 +885,7 @@ func (h *HelmAdapter) transformHelmStatus(helmStatus release.Status) adapter.Dep
 }
 
 // calculateProgress estimates deployment progress based on Helm status.
-func (h *HelmAdapter) calculateProgress(rel *release.Release) int {
+func (h *Adapter) calculateProgress(rel *release.Release) int {
 	switch rel.Info.Status {
 	case release.StatusDeployed:
 		return 100
@@ -903,7 +903,7 @@ func (h *HelmAdapter) calculateProgress(rel *release.Release) int {
 }
 
 // buildConditions creates deployment conditions from Helm release info.
-func (h *HelmAdapter) buildConditions(rel *release.Release) []adapter.DeploymentCondition {
+func (h *Adapter) buildConditions(rel *release.Release) []adapter.DeploymentCondition {
 	conditions := []adapter.DeploymentCondition{}
 
 	// Add deployment condition
@@ -928,7 +928,7 @@ func (h *HelmAdapter) buildConditions(rel *release.Release) []adapter.Deployment
 }
 
 // matchesLabels checks if deployment matches label filters.
-func (h *HelmAdapter) matchesLabels(_ *adapter.Deployment, labels map[string]string) bool {
+func (h *Adapter) matchesLabels(_ *adapter.Deployment, labels map[string]string) bool {
 	if len(labels) == 0 {
 		return true
 	}
@@ -940,7 +940,7 @@ func (h *HelmAdapter) matchesLabels(_ *adapter.Deployment, labels map[string]str
 }
 
 // applyPagination applies limit and offset to deployment list.
-func (h *HelmAdapter) applyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
+func (h *Adapter) applyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
 	if offset >= len(deployments) {
 		return []*adapter.Deployment{}
 	}

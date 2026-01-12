@@ -343,7 +343,7 @@ func (r *Registry) ListHealthy() []adapter.DMSAdapter {
 }
 
 // FindByCapability returns all DMS plugins that support a specific capability.
-func (r *Registry) FindByCapability(cap adapter.Capability) []adapter.DMSAdapter {
+func (r *Registry) FindByCapability(capability adapter.Capability) []adapter.DMSAdapter {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

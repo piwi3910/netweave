@@ -53,22 +53,23 @@ func (m *mockPlugin) Capabilities() []Capability {
 	return m.capabilities
 }
 
-func (m *mockPlugin) Initialize(ctx context.Context, config map[string]interface{}) error {
+func (m *mockPlugin) Initialize(_ context.Context, config map[string]interface{}) error {
 	return nil
 }
 
-func (m *mockPlugin) Health(ctx context.Context) HealthStatus {
+func (m *mockPlugin) Health(_ context.Context) HealthStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	status := HealthStatus{
 		Healthy:   m.healthy,
 		Timestamp: time.Now(),
 	}
-	if m.healthErr != nil {
+	switch {
+	case m.healthErr != nil:
 		status.Message = m.healthErr.Error()
-	} else if m.healthy {
+	case m.healthy:
 		status.Message = "healthy"
-	} else {
+	default:
 		status.Message = "unhealthy"
 	}
 	return status
@@ -79,27 +80,27 @@ func (m *mockPlugin) Close() error {
 	return m.closeErr
 }
 
-func (m *mockPlugin) SyncInfrastructureInventory(ctx context.Context, inventory *InfrastructureInventory) error {
+func (m *mockPlugin) SyncInfrastructureInventory(_ context.Context, inventory *InfrastructureInventory) error {
 	m.syncInfraCount++
 	return nil
 }
 
-func (m *mockPlugin) SyncDeploymentInventory(ctx context.Context, inventory *DeploymentInventory) error {
+func (m *mockPlugin) SyncDeploymentInventory(_ context.Context, inventory *DeploymentInventory) error {
 	m.syncDeployCount++
 	return nil
 }
 
-func (m *mockPlugin) PublishInfrastructureEvent(ctx context.Context, event *InfrastructureEvent) error {
+func (m *mockPlugin) PublishInfrastructureEvent(_ context.Context, event *InfrastructureEvent) error {
 	m.publishInfraCount++
 	return nil
 }
 
-func (m *mockPlugin) PublishDeploymentEvent(ctx context.Context, event *DeploymentEvent) error {
+func (m *mockPlugin) PublishDeploymentEvent(_ context.Context, event *DeploymentEvent) error {
 	m.publishDeployCount++
 	return nil
 }
 
-func (m *mockPlugin) ExecuteWorkflow(ctx context.Context, workflow *WorkflowRequest) (*WorkflowExecution, error) {
+func (m *mockPlugin) ExecuteWorkflow(_ context.Context, workflow *WorkflowRequest) (*WorkflowExecution, error) {
 	m.executeWorkflowCount++
 	return &WorkflowExecution{
 		ExecutionID:  "exec-123",
@@ -109,7 +110,7 @@ func (m *mockPlugin) ExecuteWorkflow(ctx context.Context, workflow *WorkflowRequ
 	}, nil
 }
 
-func (m *mockPlugin) GetWorkflowStatus(ctx context.Context, executionID string) (*WorkflowStatus, error) {
+func (m *mockPlugin) GetWorkflowStatus(_ context.Context, executionID string) (*WorkflowStatus, error) {
 	m.getWorkflowStatusCount++
 	return &WorkflowStatus{
 		ExecutionID:  executionID,
@@ -120,17 +121,17 @@ func (m *mockPlugin) GetWorkflowStatus(ctx context.Context, executionID string) 
 	}, nil
 }
 
-func (m *mockPlugin) CancelWorkflow(ctx context.Context, executionID string) error {
+func (m *mockPlugin) CancelWorkflow(_ context.Context, executionID string) error {
 	m.cancelWorkflowCount++
 	return nil
 }
 
-func (m *mockPlugin) RegisterServiceModel(ctx context.Context, model *ServiceModel) error {
+func (m *mockPlugin) RegisterServiceModel(_ context.Context, model *ServiceModel) error {
 	m.registerModelCount++
 	return nil
 }
 
-func (m *mockPlugin) GetServiceModel(ctx context.Context, id string) (*ServiceModel, error) {
+func (m *mockPlugin) GetServiceModel(_ context.Context, id string) (*ServiceModel, error) {
 	m.getModelCount++
 	return &ServiceModel{
 		ID:      id,
@@ -139,7 +140,7 @@ func (m *mockPlugin) GetServiceModel(ctx context.Context, id string) (*ServiceMo
 	}, nil
 }
 
-func (m *mockPlugin) ListServiceModels(ctx context.Context) ([]*ServiceModel, error) {
+func (m *mockPlugin) ListServiceModels(_ context.Context) ([]*ServiceModel, error) {
 	m.listModelsCount++
 	return []*ServiceModel{
 		{ID: "model-1", Name: "model-1", Version: "1.0.0"},
@@ -147,12 +148,12 @@ func (m *mockPlugin) ListServiceModels(ctx context.Context) ([]*ServiceModel, er
 	}, nil
 }
 
-func (m *mockPlugin) ApplyPolicy(ctx context.Context, policy *Policy) error {
+func (m *mockPlugin) ApplyPolicy(_ context.Context, policy *Policy) error {
 	m.applyPolicyCount++
 	return nil
 }
 
-func (m *mockPlugin) GetPolicyStatus(ctx context.Context, policyID string) (*PolicyStatus, error) {
+func (m *mockPlugin) GetPolicyStatus(_ context.Context, policyID string) (*PolicyStatus, error) {
 	m.getPolicyStatusCount++
 	now := time.Now()
 	return &PolicyStatus{

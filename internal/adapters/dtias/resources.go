@@ -13,7 +13,7 @@ import (
 
 // ListResources retrieves all physical servers matching the provided filter.
 // Maps DTIAS servers to O2-IMS Resources.
-func (a *DTIASAdapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
 	a.logger.Debug("ListResources called", zap.Any("filter", filter))
 
 	path := buildServersPath(filter)
@@ -66,7 +66,7 @@ func buildServersPath(filter *adapter.Filter) string {
 }
 
 // fetchServers retrieves servers from DTIAS API.
-func (a *DTIASAdapter) fetchServers(ctx context.Context, path string) ([]Server, error) {
+func (a *Adapter) fetchServers(ctx context.Context, path string) ([]Server, error) {
 	resp, err := a.client.doRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list servers: %w", err)
@@ -93,7 +93,7 @@ func (a *DTIASAdapter) fetchServers(ctx context.Context, path string) ([]Server,
 }
 
 // transformAndFilterResources transforms servers and applies client-side filtering.
-func (a *DTIASAdapter) transformAndFilterResources(servers []Server, filter *adapter.Filter) []*adapter.Resource {
+func (a *Adapter) transformAndFilterResources(servers []Server, filter *adapter.Filter) []*adapter.Resource {
 	resources := make([]*adapter.Resource, 0, len(servers))
 	for i := range servers {
 		resource := a.transformServerToResource(&servers[i])
@@ -107,7 +107,7 @@ func (a *DTIASAdapter) transformAndFilterResources(servers []Server, filter *ada
 
 // GetResource retrieves a specific physical server by ID.
 // Maps a DTIAS server to O2-IMS Resource.
-func (a *DTIASAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
 	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
@@ -143,7 +143,7 @@ func (a *DTIASAdapter) GetResource(ctx context.Context, id string) (*adapter.Res
 
 // CreateResource provisions a new physical server.
 // Maps an O2-IMS Resource to a DTIAS server provisioning request.
-func (a *DTIASAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
 	a.logger.Debug("CreateResource called",
 		zap.String("resourceTypeId", resource.ResourceTypeID))
 
@@ -202,7 +202,7 @@ func (a *DTIASAdapter) CreateResource(ctx context.Context, resource *adapter.Res
 
 // UpdateResource updates an existing bare-metal server's metadata.
 // Note: Physical hardware properties cannot be modified.
-func (a *DTIASAdapter) UpdateResource(
+func (a *Adapter) UpdateResource(
 	_ context.Context,
 	_ string,
 	resource *adapter.Resource,
@@ -217,7 +217,7 @@ func (a *DTIASAdapter) UpdateResource(
 
 // DeleteResource deprovisions a physical server.
 // Decommissions the DTIAS server and returns it to the available pool.
-func (a *DTIASAdapter) DeleteResource(ctx context.Context, id string) error {
+func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
@@ -238,7 +238,7 @@ func (a *DTIASAdapter) DeleteResource(ctx context.Context, id string) error {
 }
 
 // transformServerToResource transforms a DTIAS Server to an O2-IMS Resource.
-func (a *DTIASAdapter) transformServerToResource(srv *Server) *adapter.Resource {
+func (a *Adapter) transformServerToResource(srv *Server) *adapter.Resource {
 	// Build global asset ID (URN format)
 	globalAssetID := fmt.Sprintf("urn:dtias:server:%s", srv.ID)
 
@@ -324,7 +324,7 @@ func (a *DTIASAdapter) transformServerToResource(srv *Server) *adapter.Resource 
 }
 
 // matchesResourceFilter checks if a resource matches the provided filter.
-func (a *DTIASAdapter) matchesResourceFilter(resource *adapter.Resource, filter *adapter.Filter) bool {
+func (a *Adapter) matchesResourceFilter(resource *adapter.Resource, filter *adapter.Filter) bool {
 	if filter == nil {
 		return true
 	}
@@ -357,7 +357,7 @@ func (a *DTIASAdapter) matchesResourceFilter(resource *adapter.Resource, filter 
 
 // PowerControl performs a power management operation on a server.
 // This is a DTIAS-specific operation not directly mapped to O2-IMS.
-func (a *DTIASAdapter) PowerControl(ctx context.Context, serverID string, operation ServerPowerOperation) error {
+func (a *Adapter) PowerControl(ctx context.Context, serverID string, operation ServerPowerOperation) error {
 	a.logger.Debug("PowerControl called",
 		zap.String("serverId", serverID),
 		zap.String("operation", string(operation)))
@@ -386,7 +386,7 @@ func (a *DTIASAdapter) PowerControl(ctx context.Context, serverID string, operat
 
 // GetHealthMetrics retrieves hardware health metrics for a server.
 // This is a DTIAS-specific operation for monitoring server health.
-func (a *DTIASAdapter) GetHealthMetrics(ctx context.Context, serverID string) (*HealthMetrics, error) {
+func (a *Adapter) GetHealthMetrics(ctx context.Context, serverID string) (*HealthMetrics, error) {
 	a.logger.Debug("GetHealthMetrics called",
 		zap.String("serverId", serverID))
 

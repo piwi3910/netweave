@@ -12,7 +12,7 @@ import (
 
 // TestTransformFlavorToResourceType tests the transformation from OpenStack flavor to O2-IMS resource type.
 func TestTransformFlavorToResourceType(t *testing.T) {
-	adapter := &OpenStackAdapter{
+	adapter := &Adapter{
 		logger: zap.NewNop(),
 	}
 
@@ -61,7 +61,7 @@ func TestTransformFlavorToResourceType(t *testing.T) {
 
 // TestTransformFlavorToResourceTypeMinimal tests transformation with minimal data.
 func TestTransformFlavorToResourceTypeMinimal(t *testing.T) {
-	adapter := &OpenStackAdapter{
+	adapter := &Adapter{
 		logger: zap.NewNop(),
 	}
 
@@ -80,7 +80,7 @@ func TestTransformFlavorToResourceTypeMinimal(t *testing.T) {
 
 // TestTransformFlavorToResourceTypeStorageClass tests resource class determination.
 func TestTransformFlavorToResourceTypeStorageClass(t *testing.T) {
-	adapter := &OpenStackAdapter{
+	adapter := &Adapter{
 		logger: zap.NewNop(),
 	}
 
@@ -216,7 +216,7 @@ func TestResourceTypeIDParsing(t *testing.T) {
 
 // TestFlavorDescriptionGeneration tests description generation.
 func TestFlavorDescriptionGeneration(t *testing.T) {
-	adapter := &OpenStackAdapter{
+	adapter := &Adapter{
 		logger: zap.NewNop(),
 	}
 
@@ -256,7 +256,7 @@ func TestFlavorDescriptionGeneration(t *testing.T) {
 
 // TestFlavorExtraSpecs tests extra specs handling.
 func TestFlavorExtraSpecs(t *testing.T) {
-	adapter := &OpenStackAdapter{
+	adapter := &Adapter{
 		logger: zap.NewNop(),
 	}
 
@@ -311,7 +311,7 @@ func TestFlavorExtraSpecs(t *testing.T) {
 
 // BenchmarkTransformFlavorToResourceType benchmarks the transformation.
 func BenchmarkTransformFlavorToResourceType(b *testing.B) {
-	adp := &OpenStackAdapter{
+	adp := &Adapter{
 		oCloudID: "ocloud-test",
 		logger:   zap.NewNop(),
 	}

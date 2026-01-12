@@ -13,7 +13,7 @@ import (
 // CreateSubscription creates a new event subscription.
 // Azure adapter uses polling-based subscriptions since Event Grid
 // integration would require additional Azure infrastructure setup.
-func (a *AzureAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "CreateSubscription", start, err) }()
 
@@ -56,7 +56,7 @@ func (a *AzureAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscr
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *AzureAdapter) GetSubscription(_ context.Context, id string) (sub *adapter.Subscription, err error) {
+func (a *Adapter) GetSubscription(_ context.Context, id string) (sub *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetSubscription", start, err) }()
 
@@ -75,7 +75,7 @@ func (a *AzureAdapter) GetSubscription(_ context.Context, id string) (sub *adapt
 }
 
 // UpdateSubscription updates an existing subscription.
-func (a *AzureAdapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+func (a *Adapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "UpdateSubscription", start, err) }()
 
@@ -117,7 +117,7 @@ func (a *AzureAdapter) UpdateSubscription(_ context.Context, id string, sub *ada
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *AzureAdapter) DeleteSubscription(_ context.Context, id string) (err error) {
+func (a *Adapter) DeleteSubscription(_ context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "DeleteSubscription", start, err) }()
 
@@ -145,7 +145,7 @@ func (a *AzureAdapter) DeleteSubscription(_ context.Context, id string) (err err
 
 // ListSubscriptions returns all active subscriptions.
 // This is a helper method not part of the Adapter interface.
-func (a *AzureAdapter) ListSubscriptions() []*adapter.Subscription {
+func (a *Adapter) ListSubscriptions() []*adapter.Subscription {
 	a.subscriptionsMu.RLock()
 	defer a.subscriptionsMu.RUnlock()
 

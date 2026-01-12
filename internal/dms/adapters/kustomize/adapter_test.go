@@ -112,7 +112,7 @@ func TestAdapterMetadata(t *testing.T) {
 }
 
 // createFakeAdapter creates an adapter with a fake dynamic client for testing.
-func createFakeAdapter(t *testing.T, objects ...runtime.Object) *KustomizeAdapter {
+func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 	t.Helper()
 
 	scheme := runtime.NewScheme()

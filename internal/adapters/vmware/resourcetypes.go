@@ -12,7 +12,7 @@ import (
 
 // ListResourceTypes retrieves all resource types (VM profiles) matching the provided filter.
 // Resource types are derived from the existing VMs in the datacenter.
-func (a *VMwareAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
+func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "ListResourceTypes", start, err) }()
 
@@ -75,7 +75,7 @@ func (a *VMwareAdapter) ListResourceTypes(ctx context.Context, filter *adapter.F
 }
 
 // GetResourceType retrieves a specific resource type by ID.
-func (a *VMwareAdapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
+func (a *Adapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "GetResourceType", start, err) }()
 
@@ -97,7 +97,7 @@ func (a *VMwareAdapter) GetResourceType(ctx context.Context, id string) (resourc
 }
 
 // createResourceType creates a resource type from CPU and memory specifications.
-func (a *VMwareAdapter) createResourceType(cpuCount int32, memoryMB int64) *adapter.ResourceType {
+func (a *Adapter) createResourceType(cpuCount int32, memoryMB int64) *adapter.ResourceType {
 	resourceTypeID := generateVMProfileID(cpuCount, memoryMB)
 	memoryGB := memoryMB / 1024
 
@@ -128,7 +128,7 @@ func (a *VMwareAdapter) createResourceType(cpuCount int32, memoryMB int64) *adap
 }
 
 // getDefaultResourceTypes returns common VM profiles.
-func (a *VMwareAdapter) getDefaultResourceTypes() []*adapter.ResourceType {
+func (a *Adapter) getDefaultResourceTypes() []*adapter.ResourceType {
 	profiles := []struct {
 		cpu    int32
 		memory int64

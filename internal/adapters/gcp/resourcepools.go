@@ -16,7 +16,7 @@ import (
 // ListResourcePools retrieves all resource pools matching the provided filter.
 // In "zone" mode, it lists Zones in the region.
 // In "ig" mode, it lists Instance Groups.
-func (a *GCPAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) (pools []*adapter.ResourcePool, err error) {
+func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) (pools []*adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "ListResourcePools", start, err) }()
 
@@ -31,7 +31,7 @@ func (a *GCPAdapter) ListResourcePools(ctx context.Context, filter *adapter.Filt
 }
 
 // listZonePools lists Zones as resource pools.
-func (a *GCPAdapter) listZonePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *Adapter) listZonePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	var pools []*adapter.ResourcePool
 
 	// List all zones in the project
@@ -90,7 +90,7 @@ func (a *GCPAdapter) listZonePools(ctx context.Context, filter *adapter.Filter) 
 }
 
 // listIGPools lists Instance Groups as resource pools.
-func (a *GCPAdapter) listIGPools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *Adapter) listIGPools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	var pools []*adapter.ResourcePool
 
 	// List zones in the region first
@@ -166,7 +166,7 @@ func (a *GCPAdapter) listIGPools(ctx context.Context, filter *adapter.Filter) ([
 }
 
 // GetResourcePool retrieves a specific resource pool by ID.
-func (a *GCPAdapter) GetResourcePool(ctx context.Context, id string) (pool *adapter.ResourcePool, err error) {
+func (a *Adapter) GetResourcePool(ctx context.Context, id string) (pool *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "GetResourcePool", start, err) }()
 
@@ -180,7 +180,7 @@ func (a *GCPAdapter) GetResourcePool(ctx context.Context, id string) (pool *adap
 }
 
 // getZonePool retrieves a Zone as a resource pool.
-func (a *GCPAdapter) getZonePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+func (a *Adapter) getZonePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
 	pools, err := a.listZonePools(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -196,7 +196,7 @@ func (a *GCPAdapter) getZonePool(ctx context.Context, id string) (*adapter.Resou
 }
 
 // getIGPool retrieves an Instance Group as a resource pool.
-func (a *GCPAdapter) getIGPool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+func (a *Adapter) getIGPool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
 	pools, err := a.listIGPools(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -214,7 +214,7 @@ func (a *GCPAdapter) getIGPool(ctx context.Context, id string) (*adapter.Resourc
 // CreateResourcePool creates a new resource pool.
 // In "zone" mode, this operation is not supported (zones are GCP-managed).
 // In "ig" mode, this could create a new Instance Group.
-func (a *GCPAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "CreateResourcePool", start, err) }()
 
@@ -230,7 +230,7 @@ func (a *GCPAdapter) CreateResourcePool(_ context.Context, pool *adapter.Resourc
 }
 
 // UpdateResourcePool updates an existing resource pool.
-func (a *GCPAdapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "UpdateResourcePool", start, err) }()
 
@@ -246,7 +246,7 @@ func (a *GCPAdapter) UpdateResourcePool(_ context.Context, id string, pool *adap
 }
 
 // DeleteResourcePool deletes a resource pool by ID.
-func (a *GCPAdapter) DeleteResourcePool(_ context.Context, id string) (err error) {
+func (a *Adapter) DeleteResourcePool(_ context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "DeleteResourcePool", start, err) }()
 

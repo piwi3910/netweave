@@ -12,7 +12,7 @@ import (
 
 // ListResourceTypes retrieves all OpenStack flavors and transforms them to O2-IMS Resource Types.
 // Flavors in OpenStack define the compute, memory, and storage capacity of instances.
-func (a *OpenStackAdapter) ListResourceTypes(
+func (a *Adapter) ListResourceTypes(
 	_ context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.ResourceType, error) {
@@ -63,7 +63,7 @@ func (a *OpenStackAdapter) ListResourceTypes(
 }
 
 // GetResourceType retrieves a specific OpenStack flavor by ID and transforms it to O2-IMS Resource Type.
-func (a *OpenStackAdapter) GetResourceType(_ context.Context, id string) (*adapter.ResourceType, error) {
+func (a *Adapter) GetResourceType(_ context.Context, id string) (*adapter.ResourceType, error) {
 	a.logger.Debug("GetResourceType called",
 		zap.String("id", id))
 
@@ -94,7 +94,7 @@ func (a *OpenStackAdapter) GetResourceType(_ context.Context, id string) (*adapt
 }
 
 // transformFlavorToResourceType converts an OpenStack flavor to O2-IMS Resource Type.
-func (a *OpenStackAdapter) transformFlavorToResourceType(flavor *flavors.Flavor) *adapter.ResourceType {
+func (a *Adapter) transformFlavorToResourceType(flavor *flavors.Flavor) *adapter.ResourceType {
 	resourceTypeID := generateFlavorID(flavor)
 
 	// Determine resource class based on flavor characteristics

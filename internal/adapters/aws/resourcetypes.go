@@ -14,7 +14,7 @@ import (
 )
 
 // ListResourceTypes retrieves all resource types (EC2 instance types) matching the provided filter.
-func (a *AWSAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
+func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "ListResourceTypes", start, err) }()
 
@@ -54,7 +54,7 @@ func (a *AWSAdapter) ListResourceTypes(ctx context.Context, filter *adapter.Filt
 }
 
 // GetResourceType retrieves a specific resource type (EC2 instance type) by ID.
-func (a *AWSAdapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
+func (a *Adapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetResourceType", start, err) }()
 
@@ -87,7 +87,7 @@ func (a *AWSAdapter) GetResourceType(ctx context.Context, id string) (resourceTy
 }
 
 // instanceTypeToResourceType converts an EC2 instance type to an O2-IMS ResourceType.
-func (a *AWSAdapter) instanceTypeToResourceType(instanceType *ec2Types.InstanceTypeInfo) *adapter.ResourceType {
+func (a *Adapter) instanceTypeToResourceType(instanceType *ec2Types.InstanceTypeInfo) *adapter.ResourceType {
 	typeName := string(instanceType.InstanceType)
 	resourceTypeID := generateInstanceTypeID(typeName)
 

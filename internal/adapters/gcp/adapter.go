@@ -33,7 +33,7 @@ const (
 //   - Resource Types → Machine Types
 //   - Deployment Manager → GCP Project/Region metadata
 //   - Subscriptions → Pub/Sub based (polling as fallback)
-type GCPAdapter struct {
+type Adapter struct {
 	// instancesClient is the GCP Compute Engine instances client.
 	instancesClient *compute.InstancesClient
 
@@ -125,7 +125,7 @@ type Config struct {
 //	    OCloudID:        "ocloud-gcp-1",
 //	    PoolMode:        "zone",
 //	})
-func New(cfg *Config) (*GCPAdapter, error) {
+func New(cfg *Config) (*Adapter, error) {
 	if err := validateGCPConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func New(cfg *Config) (*GCPAdapter, error) {
 		return nil, err
 	}
 
-	return &GCPAdapter{
+	return &Adapter{
 		instancesClient:      clients.instancesClient,
 		machineTypesClient:   clients.machineTypesClient,
 		zonesClient:          clients.zonesClient,
@@ -217,14 +217,15 @@ func initializeGCPLogger(logger *zap.Logger) (*zap.Logger, error) {
 // buildGCPClientOptions builds GCP client options.
 func buildGCPClientOptions(cfg *Config, logger *zap.Logger) []option.ClientOption {
 	var opts []option.ClientOption
-	if len(cfg.CredentialsJSON) > 0 {
+	switch {
+	case len(cfg.CredentialsJSON) > 0:
 		opts = append(opts, option.WithCredentialsJSON(cfg.CredentialsJSON))
 		logger.Info("using JSON credentials for authentication")
-	} else if cfg.CredentialsFile != "" {
+	case cfg.CredentialsFile != "":
 		opts = append(opts, option.WithCredentialsFile(cfg.CredentialsFile))
 		logger.Info("using credentials file for authentication",
 			zap.String("credentialsFile", cfg.CredentialsFile))
-	} else {
+	default:
 		logger.Info("using default GCP credentials (ADC)")
 	}
 	return opts
@@ -297,17 +298,17 @@ func closeClients(logger *zap.Logger, clients ...closer) {
 }
 
 // Name returns the adapter name.
-func (a *GCPAdapter) Name() string {
+func (a *Adapter) Name() string {
 	return "gcp"
 }
 
 // Version returns the GCP API version this adapter supports.
-func (a *GCPAdapter) Version() string {
+func (a *Adapter) Version() string {
 	return "compute-v1"
 }
 
 // Capabilities returns the list of O2-IMS capabilities supported by this adapter.
-func (a *GCPAdapter) Capabilities() []adapter.Capability {
+func (a *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityResourcePools,
 		adapter.CapabilityResources,
@@ -320,7 +321,7 @@ func (a *GCPAdapter) Capabilities() []adapter.Capability {
 
 // Health performs a health check on the GCP backend.
 // It verifies connectivity to GCP services.
-func (a *GCPAdapter) Health(ctx context.Context) (err error) {
+func (a *Adapter) Health(ctx context.Context) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveHealthCheck("gcp", start, err) }()
 
@@ -345,7 +346,7 @@ func (a *GCPAdapter) Health(ctx context.Context) (err error) {
 }
 
 // Close cleanly shuts down the adapter and releases resources.
-func (a *GCPAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.logger.Info("closing GCP adapter")
 
 	// Clear subscriptions

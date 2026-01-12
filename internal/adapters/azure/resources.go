@@ -12,7 +12,7 @@ import (
 )
 
 // ListResources retrieves all resources (Azure VMs) matching the provided filter.
-func (a *AzureAdapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
+func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "ListResources", start, err) }()
 
@@ -60,7 +60,7 @@ func (a *AzureAdapter) ListResources(ctx context.Context, filter *adapter.Filter
 }
 
 // GetResource retrieves a specific resource (Azure VM) by ID.
-func (a *AzureAdapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
+func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetResource", start, err) }()
 
@@ -97,7 +97,7 @@ func (a *AzureAdapter) GetResource(ctx context.Context, id string) (resource *ad
 }
 
 // CreateResource creates a new resource (Azure VM).
-func (a *AzureAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
+func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "CreateResource", start, err) }()
 
@@ -110,7 +110,7 @@ func (a *AzureAdapter) CreateResource(_ context.Context, resource *adapter.Resou
 
 // UpdateResource updates an existing Azure VM's tags and metadata.
 // Note: Core VM properties cannot be modified after creation.
-func (a *AzureAdapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
+func (a *Adapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "UpdateResource", start, err) }()
 
@@ -123,7 +123,7 @@ func (a *AzureAdapter) UpdateResource(_ context.Context, _ string, resource *ada
 }
 
 // DeleteResource deletes a resource (Azure VM) by ID.
-func (a *AzureAdapter) DeleteResource(ctx context.Context, id string) (err error) {
+func (a *Adapter) DeleteResource(ctx context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "DeleteResource", start, err) }()
 
@@ -163,112 +163,17 @@ func (a *AzureAdapter) DeleteResource(ctx context.Context, id string) (err error
 }
 
 // vmToResource converts an Azure VM to an O2-IMS Resource.
-func (a *AzureAdapter) vmToResource(vm *armcompute.VirtualMachine) *adapter.Resource {
+func (a *Adapter) vmToResource(vm *armcompute.VirtualMachine) *adapter.Resource {
 	vmName := ptrToString(vm.Name)
 	location := ptrToString(vm.Location)
-
-	// Extract resource group from the VM ID
-	// Format: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Compute/virtualMachines/{name}
 	resourceGroup := extractResourceGroup(ptrToString(vm.ID))
 
 	resourceID := generateVMID(vmName, resourceGroup)
-
-	// Get VM size as resource type
-	var vmSize string
-	if vm.Properties != nil && vm.Properties.HardwareProfile != nil && vm.Properties.HardwareProfile.VMSize != nil {
-		vmSize = string(*vm.Properties.HardwareProfile.VMSize)
-	}
+	vmSize := a.extractVMSize(vm)
 	resourceTypeID := generateVMSizeID(vmSize)
+	resourcePoolID := a.determineResourcePoolID(vm, location, resourceGroup)
 
-	// Determine resource pool ID based on pool mode
-	var resourcePoolID string
-	if a.poolMode == "rg" {
-		resourcePoolID = generateRGPoolID(resourceGroup)
-	} else {
-		// In AZ mode, check if VM has an availability zone
-		if vm.Zones != nil && len(vm.Zones) > 0 {
-			zone := *vm.Zones[0]
-			resourcePoolID = generateAZPoolID(location, zone)
-		} else {
-			// Fallback to location
-			resourcePoolID = generateAZPoolID(location, "1")
-		}
-	}
-
-	// Build extensions with Azure VM details
-	extensions := map[string]interface{}{
-		"azure.vmId":          ptrToString(vm.ID),
-		"azure.vmName":        vmName,
-		"azure.resourceGroup": resourceGroup,
-		"azure.location":      location,
-		"azure.vmSize":        vmSize,
-		"azure.tags":          tagsToMap(vm.Tags),
-	}
-
-	// Add provisioning and power state
-	if vm.Properties != nil {
-		if vm.Properties.ProvisioningState != nil {
-			extensions["azure.provisioningState"] = *vm.Properties.ProvisioningState
-		}
-		if vm.Properties.VMID != nil {
-			extensions["azure.vmUniqueId"] = *vm.Properties.VMID
-		}
-
-		// Add OS profile
-		if vm.Properties.OSProfile != nil {
-			osProfile := vm.Properties.OSProfile
-			extensions["azure.computerName"] = ptrToString(osProfile.ComputerName)
-			extensions["azure.adminUsername"] = ptrToString(osProfile.AdminUsername)
-		}
-
-		// Add storage profile
-		if vm.Properties.StorageProfile != nil {
-			storage := vm.Properties.StorageProfile
-			if storage.ImageReference != nil {
-				extensions["azure.imagePublisher"] = ptrToString(storage.ImageReference.Publisher)
-				extensions["azure.imageOffer"] = ptrToString(storage.ImageReference.Offer)
-				extensions["azure.imageSku"] = ptrToString(storage.ImageReference.SKU)
-				extensions["azure.imageVersion"] = ptrToString(storage.ImageReference.Version)
-			}
-			if storage.OSDisk != nil {
-				extensions["azure.osDiskName"] = ptrToString(storage.OSDisk.Name)
-				extensions["azure.osDiskType"] = string(*storage.OSDisk.OSType)
-				if storage.OSDisk.DiskSizeGB != nil {
-					extensions["azure.osDiskSizeGB"] = *storage.OSDisk.DiskSizeGB
-				}
-			}
-			if len(storage.DataDisks) > 0 {
-				dataDisks := make([]map[string]interface{}, 0, len(storage.DataDisks))
-				for _, disk := range storage.DataDisks {
-					diskInfo := map[string]interface{}{
-						"name": ptrToString(disk.Name),
-						"lun":  ptrToInt32(disk.Lun),
-					}
-					if disk.DiskSizeGB != nil {
-						diskInfo["sizeGB"] = *disk.DiskSizeGB
-					}
-					dataDisks = append(dataDisks, diskInfo)
-				}
-				extensions["azure.dataDisks"] = dataDisks
-			}
-		}
-
-		// Add network profile
-		if vm.Properties.NetworkProfile != nil && len(vm.Properties.NetworkProfile.NetworkInterfaces) > 0 {
-			nics := make([]string, 0, len(vm.Properties.NetworkProfile.NetworkInterfaces))
-			for _, nic := range vm.Properties.NetworkProfile.NetworkInterfaces {
-				if nic.ID != nil {
-					nics = append(nics, *nic.ID)
-				}
-			}
-			extensions["azure.networkInterfaces"] = nics
-		}
-	}
-
-	// Add availability zone
-	if vm.Zones != nil && len(vm.Zones) > 0 {
-		extensions["azure.availabilityZone"] = *vm.Zones[0]
-	}
+	extensions := a.buildVMExtensions(vm, vmName, location, resourceGroup, vmSize)
 
 	return &adapter.Resource{
 		ResourceID:     resourceID,
@@ -278,6 +183,154 @@ func (a *AzureAdapter) vmToResource(vm *armcompute.VirtualMachine) *adapter.Reso
 		Description:    vmName,
 		Extensions:     extensions,
 	}
+}
+
+func (a *Adapter) extractVMSize(vm *armcompute.VirtualMachine) string {
+	if vm.Properties != nil && vm.Properties.HardwareProfile != nil && vm.Properties.HardwareProfile.VMSize != nil {
+		return string(*vm.Properties.HardwareProfile.VMSize)
+	}
+	return ""
+}
+
+func (a *Adapter) determineResourcePoolID(vm *armcompute.VirtualMachine, location, resourceGroup string) string {
+	if a.poolMode == "rg" {
+		return generateRGPoolID(resourceGroup)
+	}
+
+	if vm.Zones != nil && len(vm.Zones) > 0 {
+		return generateAZPoolID(location, *vm.Zones[0])
+	}
+	return generateAZPoolID(location, "1")
+}
+
+func (a *Adapter) buildVMExtensions(
+	vm *armcompute.VirtualMachine,
+	vmName, location, resourceGroup, vmSize string,
+) map[string]interface{} {
+	extensions := map[string]interface{}{
+		"azure.vmId":          ptrToString(vm.ID),
+		"azure.vmName":        vmName,
+		"azure.resourceGroup": resourceGroup,
+		"azure.location":      location,
+		"azure.vmSize":        vmSize,
+		"azure.tags":          tagsToMap(vm.Tags),
+	}
+
+	if vm.Properties != nil {
+		a.addVMPropertiesExtensions(vm.Properties, extensions)
+	}
+
+	if vm.Zones != nil && len(vm.Zones) > 0 {
+		extensions["azure.availabilityZone"] = *vm.Zones[0]
+	}
+
+	return extensions
+}
+
+func (a *Adapter) addVMPropertiesExtensions(
+	props *armcompute.VirtualMachineProperties,
+	extensions map[string]interface{},
+) {
+	if props.ProvisioningState != nil {
+		extensions["azure.provisioningState"] = *props.ProvisioningState
+	}
+	if props.VMID != nil {
+		extensions["azure.vmUniqueId"] = *props.VMID
+	}
+
+	a.addOSProfileExtensions(props.OSProfile, extensions)
+	a.addStorageProfileExtensions(props.StorageProfile, extensions)
+	a.addNetworkProfileExtensions(props.NetworkProfile, extensions)
+}
+
+func (a *Adapter) addOSProfileExtensions(
+	osProfile *armcompute.OSProfile,
+	extensions map[string]interface{},
+) {
+	if osProfile == nil {
+		return
+	}
+	extensions["azure.computerName"] = ptrToString(osProfile.ComputerName)
+	extensions["azure.adminUsername"] = ptrToString(osProfile.AdminUsername)
+}
+
+func (a *Adapter) addStorageProfileExtensions(
+	storage *armcompute.StorageProfile,
+	extensions map[string]interface{},
+) {
+	if storage == nil {
+		return
+	}
+
+	a.addImageReferenceExtensions(storage.ImageReference, extensions)
+	a.addOSDiskExtensions(storage.OSDisk, extensions)
+	a.addDataDisksExtensions(storage.DataDisks, extensions)
+}
+
+func (a *Adapter) addImageReferenceExtensions(
+	imgRef *armcompute.ImageReference,
+	extensions map[string]interface{},
+) {
+	if imgRef == nil {
+		return
+	}
+	extensions["azure.imagePublisher"] = ptrToString(imgRef.Publisher)
+	extensions["azure.imageOffer"] = ptrToString(imgRef.Offer)
+	extensions["azure.imageSku"] = ptrToString(imgRef.SKU)
+	extensions["azure.imageVersion"] = ptrToString(imgRef.Version)
+}
+
+func (a *Adapter) addOSDiskExtensions(
+	osDisk *armcompute.OSDisk,
+	extensions map[string]interface{},
+) {
+	if osDisk == nil {
+		return
+	}
+	extensions["azure.osDiskName"] = ptrToString(osDisk.Name)
+	extensions["azure.osDiskType"] = string(*osDisk.OSType)
+	if osDisk.DiskSizeGB != nil {
+		extensions["azure.osDiskSizeGB"] = *osDisk.DiskSizeGB
+	}
+}
+
+func (a *Adapter) addDataDisksExtensions(
+	dataDisks []*armcompute.DataDisk,
+	extensions map[string]interface{},
+) {
+	if len(dataDisks) == 0 {
+		return
+	}
+
+	diskInfos := make([]map[string]interface{}, 0, len(dataDisks))
+	for _, disk := range dataDisks {
+		diskInfo := map[string]interface{}{
+			"name": ptrToString(disk.Name),
+			"lun":  ptrToInt32(disk.Lun),
+		}
+		if disk.DiskSizeGB != nil {
+			diskInfo["sizeGB"] = *disk.DiskSizeGB
+		}
+		diskInfos = append(diskInfos, diskInfo)
+	}
+	extensions["azure.dataDisks"] = diskInfos
+}
+
+func (a *Adapter) addNetworkProfileExtensions(
+	network *armcompute.NetworkProfile,
+	extensions map[string]interface{},
+) {
+	if network == nil || len(network.NetworkInterfaces) == 0 {
+		return
+	}
+
+	nics := make([]string, 0, len(network.NetworkInterfaces))
+	for _, nic := range network.NetworkInterfaces {
+		if nic.ID != nil {
+			nics = append(nics, *nic.ID)
+		}
+	}
+	extensions["azure.networkInterfaces"] = nics
 }
 
 // extractResourceGroup extracts the resource group name from an Azure resource ID.

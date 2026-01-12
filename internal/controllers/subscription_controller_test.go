@@ -512,7 +512,7 @@ func TestHandleNodeAdd(t *testing.T) {
 		t.Skip("handleNodeAdd validates input before calling processNodeEvent")
 	})
 
-	t.Run("invalid node type", func(t *testing.T) {
+	t.Run("invalid node type", func(_ *testing.T) {
 		// This test is handled by handleNodeAdd's type checking
 		// Skip testing with processNodeEvent as it expects valid *corev1.Node
 	})
@@ -590,17 +590,17 @@ func TestHandleNodeUpdate(t *testing.T) {
 		assert.Equal(t, "test-node", event.GlobalResourceID)
 	})
 
-	t.Run("nil old node", func(t *testing.T) {
+	t.Run("nil old node", func(_ *testing.T) {
 		// This test is handled by handleNodeUpdate's type checking
 		// Skip testing with processNodeEvent as it expects valid *corev1.Node
 	})
 
-	t.Run("nil new node", func(t *testing.T) {
+	t.Run("nil new node", func(_ *testing.T) {
 		// This test is handled by handleNodeUpdate's type checking
 		// Skip testing with processNodeEvent as it expects valid *corev1.Node
 	})
 
-	t.Run("invalid node types", func(t *testing.T) {
+	t.Run("invalid node types", func(_ *testing.T) {
 		// This test is handled by handleNodeUpdate's type checking
 		// Skip testing with processNodeEvent as it expects valid *corev1.Node
 	})
@@ -669,12 +669,12 @@ func TestHandleNodeDelete(t *testing.T) {
 		assert.Equal(t, "test-node", event.GlobalResourceID)
 	})
 
-	t.Run("nil node", func(t *testing.T) {
+	t.Run("nil node", func(_ *testing.T) {
 		// This test is handled by handleNodeDelete's type checking
 		// Skip testing with processNodeEvent as it expects valid *corev1.Node
 	})
 
-	t.Run("invalid node type", func(t *testing.T) {
+	t.Run("invalid node type", func(_ *testing.T) {
 		// This test is handled by handleNodeDelete's type checking
 		// Skip testing with processNodeEvent as it expects valid *corev1.Node
 	})
@@ -743,12 +743,12 @@ func TestHandleNamespaceAdd(t *testing.T) {
 		assert.Equal(t, "test-namespace", event.GlobalResourceID)
 	})
 
-	t.Run("nil namespace", func(t *testing.T) {
+	t.Run("nil namespace", func(_ *testing.T) {
 		// This test is handled by handleNamespaceAdd's type checking
 		// Skip testing with processNamespaceEvent as it expects valid *corev1.Namespace
 	})
 
-	t.Run("invalid namespace type", func(t *testing.T) {
+	t.Run("invalid namespace type", func(_ *testing.T) {
 		// This test is handled by handleNamespaceAdd's type checking
 		// Skip testing with processNamespaceEvent as it expects valid *corev1.Namespace
 	})
@@ -821,17 +821,17 @@ func TestHandleNamespaceUpdate(t *testing.T) {
 		assert.Equal(t, "test-namespace", event.GlobalResourceID)
 	})
 
-	t.Run("nil old namespace", func(t *testing.T) {
+	t.Run("nil old namespace", func(_ *testing.T) {
 		// This test is handled by handleNamespaceUpdate's type checking
 		// Skip testing with processNamespaceEvent as it expects valid *corev1.Namespace
 	})
 
-	t.Run("nil new namespace", func(t *testing.T) {
+	t.Run("nil new namespace", func(_ *testing.T) {
 		// This test is handled by handleNamespaceUpdate's type checking
 		// Skip testing with processNamespaceEvent as it expects valid *corev1.Namespace
 	})
 
-	t.Run("invalid namespace types", func(t *testing.T) {
+	t.Run("invalid namespace types", func(_ *testing.T) {
 		// This test is handled by handleNamespaceUpdate's type checking
 		// Skip testing with processNamespaceEvent as it expects valid *corev1.Namespace
 	})
@@ -900,12 +900,12 @@ func TestHandleNamespaceDelete(t *testing.T) {
 		assert.Equal(t, "test-namespace", event.GlobalResourceID)
 	})
 
-	t.Run("nil namespace", func(t *testing.T) {
+	t.Run("nil namespace", func(_ *testing.T) {
 		// This test is handled by handleNamespaceDelete's type checking
 		// Skip testing with processNamespaceEvent as it expects valid *corev1.Namespace
 	})
 
-	t.Run("invalid namespace type", func(t *testing.T) {
+	t.Run("invalid namespace type", func(_ *testing.T) {
 		// This test is handled by handleNamespaceDelete's type checking
 		// Skip testing with processNamespaceEvent as it expects valid *corev1.Namespace
 	})
@@ -1033,7 +1033,7 @@ func TestStop(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("stops successfully", func(t *testing.T) {
+	t.Run("stops successfully", func(_ *testing.T) {
 		ctx2, cancel2 := context.WithCancel(context.Background())
 		go func() {
 			_ = ctrl.Start(ctx2)

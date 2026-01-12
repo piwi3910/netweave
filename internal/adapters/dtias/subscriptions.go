@@ -18,7 +18,7 @@ import (
 //  2. Compare with previous state to detect changes
 //  3. Match changes against subscription filters
 //  4. Send webhook notifications to matching subscription callbacks
-func (a *DTIASAdapter) CreateSubscription(
+func (a *Adapter) CreateSubscription(
 	_ context.Context,
 	sub *adapter.Subscription,
 ) (*adapter.Subscription, error) {
@@ -61,7 +61,7 @@ func (a *DTIASAdapter) CreateSubscription(
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *DTIASAdapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
+func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
@@ -78,7 +78,7 @@ func (a *DTIASAdapter) GetSubscription(_ context.Context, id string) (*adapter.S
 
 // UpdateSubscription updates an existing subscription.
 // Returns the updated subscription or an error if not found.
-func (a *DTIASAdapter) UpdateSubscription(
+func (a *Adapter) UpdateSubscription(
 	_ context.Context,
 	id string,
 	sub *adapter.Subscription,
@@ -119,7 +119,7 @@ func (a *DTIASAdapter) UpdateSubscription(
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *DTIASAdapter) DeleteSubscription(_ context.Context, id string) error {
+func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
@@ -140,7 +140,7 @@ func (a *DTIASAdapter) DeleteSubscription(_ context.Context, id string) error {
 
 // ListSubscriptions returns all active subscriptions.
 // This is useful for the polling mechanism to know which subscriptions need notifications.
-func (a *DTIASAdapter) ListSubscriptions() []*adapter.Subscription {
+func (a *Adapter) ListSubscriptions() []*adapter.Subscription {
 	a.subscriptionsMu.RLock()
 	defer a.subscriptionsMu.RUnlock()
 
@@ -185,7 +185,7 @@ type PollingRecommendation struct {
 
 // GetPollingRecommendation returns recommendations for implementing polling-based
 // subscriptions with DTIAS.
-func (a *DTIASAdapter) GetPollingRecommendation() *PollingRecommendation {
+func (a *Adapter) GetPollingRecommendation() *PollingRecommendation {
 	return &PollingRecommendation{
 		RecommendedIntervals: map[string]string{
 			"resource-pools": "60s",

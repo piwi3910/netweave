@@ -10,7 +10,7 @@ import (
 
 // GetDeploymentManager retrieves metadata about the vSphere deployment manager.
 // It provides information about the vCenter and datacenter.
-func (a *VMwareAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
+func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
 	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 

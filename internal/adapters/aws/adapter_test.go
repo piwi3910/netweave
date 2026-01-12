@@ -126,7 +126,7 @@ func TestNewWithDefaults(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	adp := &AWSAdapter{
+	adp := &Adapter{
 		logger: zap.NewNop(),
 	}
 
@@ -225,7 +225,7 @@ func TestGenerateIDs(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
-	adp := &AWSAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 	}
@@ -300,7 +300,7 @@ func TestSubscriptions(t *testing.T) {
 
 // TestClose tests adapter cleanup.
 func TestClose(t *testing.T) {
-	adp := &AWSAdapter{
+	adp := &Adapter{
 		logger:        zap.NewNop(),
 		subscriptions: make(map[string]*adapter.Subscription),
 	}

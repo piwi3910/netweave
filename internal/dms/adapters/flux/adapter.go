@@ -140,7 +140,7 @@ var (
 // FluxAdapter implements the DMS adapter interface for Flux deployments.
 // It uses the Kubernetes dynamic client to manage Flux HelmRelease and
 // Kustomization CRDs, avoiding direct Flux library dependencies.
-type FluxAdapter struct {
+type Adapter struct {
 	config        *Config
 	dynamicClient dynamic.Interface
 	initOnce      sync.Once
@@ -182,7 +182,7 @@ type Config struct {
 
 // NewAdapter creates a new Flux adapter instance.
 // Returns an error if the adapter cannot be initialized.
-func NewAdapter(config *Config) (*FluxAdapter, error) {
+func NewAdapter(config *Config) (*Adapter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
@@ -204,7 +204,7 @@ func NewAdapter(config *Config) (*FluxAdapter, error) {
 		config.TargetNamespace = "default"
 	}
 
-	return &FluxAdapter{
+	return &Adapter{
 		config: config,
 	}, nil
 }
@@ -256,7 +256,7 @@ func validatePath(path string) error {
 // This allows the adapter to be created without requiring immediate Kubernetes connectivity.
 // This method is thread-safe and ensures initialization happens exactly once.
 // The context is checked before starting initialization to fail fast on cancelled contexts.
-func (f *FluxAdapter) Initialize(ctx context.Context) error {
+func (f *Adapter) Initialize(ctx context.Context) error {
 	f.initOnce.Do(func() {
 		// Check context inside Do() to prevent hanging on cancelled contexts
 		if err := checkContext(ctx); err != nil {
@@ -292,17 +292,17 @@ func (f *FluxAdapter) Initialize(ctx context.Context) error {
 }
 
 // Name returns the adapter name.
-func (f *FluxAdapter) Name() string {
+func (f *Adapter) Name() string {
 	return AdapterName
 }
 
 // Version returns the Flux version supported by this adapter.
-func (f *FluxAdapter) Version() string {
+func (f *Adapter) Version() string {
 	return AdapterVersion
 }
 
 // Capabilities returns the capabilities supported by the Flux adapter.
-func (f *FluxAdapter) Capabilities() []adapter.Capability {
+func (f *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityDeploymentLifecycle,
 		adapter.CapabilityGitOps,
@@ -314,7 +314,7 @@ func (f *FluxAdapter) Capabilities() []adapter.Capability {
 
 // ListDeploymentPackages retrieves deployment packages from Flux sources.
 // In Flux, packages are GitRepositories and HelmRepositories.
-func (f *FluxAdapter) ListDeploymentPackages(ctx context.Context, filter *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
+func (f *Adapter) ListDeploymentPackages(ctx context.Context, filter *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
@@ -347,7 +347,7 @@ func (f *FluxAdapter) ListDeploymentPackages(ctx context.Context, filter *adapte
 
 // GetDeploymentPackage retrieves a specific deployment package by ID.
 // The ID format is "{type}-{sanitized-url}" (e.g., "git-https-github-com-example-repo").
-func (f *FluxAdapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
+func (f *Adapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
@@ -359,7 +359,8 @@ func (f *FluxAdapter) GetDeploymentPackage(ctx context.Context, id string) (*ada
 	var gitRepos, helmRepos []*unstructured.Unstructured
 	var err error
 
-	if strings.HasPrefix(id, "git-") {
+	switch {
+	case strings.HasPrefix(id, "git-"):
 		// Only search GitRepositories
 		gitRepos, err = f.listGitRepositories(ctx, nil)
 		if err != nil {
@@ -371,7 +372,7 @@ func (f *FluxAdapter) GetDeploymentPackage(ctx context.Context, id string) (*ada
 				return pkg, nil
 			}
 		}
-	} else if strings.HasPrefix(id, "helm-") {
+	case strings.HasPrefix(id, "helm-"):
 		// Only search HelmRepositories
 		helmRepos, err = f.listHelmRepositories(ctx, nil)
 		if err != nil {
@@ -383,7 +384,7 @@ func (f *FluxAdapter) GetDeploymentPackage(ctx context.Context, id string) (*ada
 				return pkg, nil
 			}
 		}
-	} else {
+	default:
 		// Unknown prefix, search both
 		gitRepos, err = f.listGitRepositories(ctx, nil)
 		if err != nil {
@@ -413,7 +414,7 @@ func (f *FluxAdapter) GetDeploymentPackage(ctx context.Context, id string) (*ada
 
 // UploadDeploymentPackage creates a reference to a Flux source.
 // Flux uses Git and Helm repositories as package sources.
-func (f *FluxAdapter) UploadDeploymentPackage(ctx context.Context, pkg *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
+func (f *Adapter) UploadDeploymentPackage(ctx context.Context, pkg *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
@@ -452,12 +453,12 @@ func (f *FluxAdapter) UploadDeploymentPackage(ctx context.Context, pkg *adapter.
 
 // DeleteDeploymentPackage is not directly supported in Flux.
 // Source resources should be managed directly in the cluster.
-func (f *FluxAdapter) DeleteDeploymentPackage(_ context.Context, id string) error {
+func (f *Adapter) DeleteDeploymentPackage(_ context.Context, _ string) error {
 	return fmt.Errorf("%w: Flux does not support package deletion through this adapter - manage source resources directly", ErrOperationNotSupported)
 }
 
 // ListDeployments retrieves all Flux deployments (HelmReleases and Kustomizations).
-func (f *FluxAdapter) ListDeployments(ctx context.Context, filter *adapter.Filter) ([]*adapter.Deployment, error) {
+func (f *Adapter) ListDeployments(ctx context.Context, filter *adapter.Filter) ([]*adapter.Deployment, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
@@ -502,7 +503,7 @@ func (f *FluxAdapter) ListDeployments(ctx context.Context, filter *adapter.Filte
 }
 
 // GetDeployment retrieves a specific Flux deployment by ID.
-func (f *FluxAdapter) GetDeployment(ctx context.Context, id string) (*adapter.Deployment, error) {
+func (f *Adapter) GetDeployment(ctx context.Context, id string) (*adapter.Deployment, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
@@ -526,7 +527,7 @@ func (f *FluxAdapter) GetDeployment(ctx context.Context, id string) (*adapter.De
 }
 
 // CreateDeployment creates a new Flux HelmRelease or Kustomization.
-func (f *FluxAdapter) CreateDeployment(ctx context.Context, req *adapter.DeploymentRequest) (*adapter.Deployment, error) {
+func (f *Adapter) CreateDeployment(ctx context.Context, req *adapter.DeploymentRequest) (*adapter.Deployment, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
@@ -560,7 +561,7 @@ func (f *FluxAdapter) CreateDeployment(ctx context.Context, req *adapter.Deploym
 }
 
 // UpdateDeployment updates an existing Flux deployment.
-func (f *FluxAdapter) UpdateDeployment(ctx context.Context, id string, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+func (f *Adapter) UpdateDeployment(ctx context.Context, id string, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
@@ -588,7 +589,7 @@ func (f *FluxAdapter) UpdateDeployment(ctx context.Context, id string, update *a
 }
 
 // DeleteDeployment deletes a Flux deployment.
-func (f *FluxAdapter) DeleteDeployment(ctx context.Context, id string) error {
+func (f *Adapter) DeleteDeployment(ctx context.Context, id string) error {
 	if err := checkContext(ctx); err != nil {
 		return err
 	}
@@ -619,7 +620,7 @@ func (f *FluxAdapter) DeleteDeployment(ctx context.Context, id string) error {
 
 // ScaleDeployment scales a deployment by updating the values.
 // Flux doesn't directly support scaling, but we can update values.
-func (f *FluxAdapter) ScaleDeployment(ctx context.Context, id string, replicas int) error {
+func (f *Adapter) ScaleDeployment(ctx context.Context, id string, replicas int) error {
 	if err := checkContext(ctx); err != nil {
 		return err
 	}
@@ -643,7 +644,7 @@ func (f *FluxAdapter) ScaleDeployment(ctx context.Context, id string, replicas i
 
 // RollbackDeployment triggers a rollback by forcing reconciliation.
 // For Flux, this means reverting to a previous Git revision.
-func (f *FluxAdapter) RollbackDeployment(ctx context.Context, id string, revision int) error {
+func (f *Adapter) RollbackDeployment(ctx context.Context, id string, revision int) error {
 	if err := checkContext(ctx); err != nil {
 		return err
 	}
@@ -655,51 +656,69 @@ func (f *FluxAdapter) RollbackDeployment(ctx context.Context, id string, revisio
 		return fmt.Errorf("revision must be non-negative")
 	}
 
-	// Try HelmRelease first
+	// Try HelmRelease first.
 	hr, err := f.getHelmRelease(ctx, id)
 	if err == nil {
-		// Get history to find the target revision
-		history, _, _ := unstructured.NestedSlice(hr.Object, "status", "history")
-		if revision >= len(history) {
-			return fmt.Errorf("revision %d not found in history", revision)
-		}
-
-		// Force reconciliation by adding an annotation
-		annotations, _, _ := unstructured.NestedStringMap(hr.Object, "metadata", "annotations")
-		if annotations == nil {
-			annotations = make(map[string]string)
-		}
-		annotations["reconcile.fluxcd.io/requestedAt"] = time.Now().Format(time.RFC3339)
-		if err := unstructured.SetNestedStringMap(hr.Object, annotations, "metadata", "annotations"); err != nil {
-			return fmt.Errorf("failed to set annotations: %w", err)
-		}
-
-		_, err = f.dynamicClient.Resource(helmReleaseGVR).Namespace(f.config.Namespace).Update(ctx, hr, metav1.UpdateOptions{})
-		return err
+		return f.rollbackHelmRelease(ctx, hr, revision)
 	}
 
-	// Try Kustomization
+	// Try Kustomization.
 	ks, err := f.getKustomization(ctx, id)
 	if err == nil {
-		// Force reconciliation
-		annotations, _, _ := unstructured.NestedStringMap(ks.Object, "metadata", "annotations")
-		if annotations == nil {
-			annotations = make(map[string]string)
-		}
-		annotations["reconcile.fluxcd.io/requestedAt"] = time.Now().Format(time.RFC3339)
-		if err := unstructured.SetNestedStringMap(ks.Object, annotations, "metadata", "annotations"); err != nil {
-			return fmt.Errorf("failed to set annotations: %w", err)
-		}
-
-		_, err = f.dynamicClient.Resource(kustomizationGVR).Namespace(f.config.Namespace).Update(ctx, ks, metav1.UpdateOptions{})
-		return err
+		return f.forceReconciliation(ctx, ks, kustomizationGVR)
 	}
 
 	return fmt.Errorf("%w: %s", ErrDeploymentNotFound, id)
 }
 
+// rollbackHelmRelease rolls back a HelmRelease to the specified revision.
+func (f *Adapter) rollbackHelmRelease(ctx context.Context, hr *unstructured.Unstructured, revision int) error {
+	// Get history to find the target revision.
+	history, _, _ := unstructured.NestedSlice(hr.Object, "status", "history")
+	if revision >= len(history) {
+		return fmt.Errorf("revision %d not found in history", revision)
+	}
+
+	// Force reconciliation.
+	if err := f.addReconciliationAnnotation(hr); err != nil {
+		return err
+	}
+
+	_, err := f.dynamicClient.Resource(helmReleaseGVR).Namespace(f.config.Namespace).Update(ctx, hr, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update helm release: %w", err)
+	}
+	return nil
+}
+
+// forceReconciliation forces Flux to reconcile a resource.
+func (f *Adapter) forceReconciliation(ctx context.Context, obj *unstructured.Unstructured, gvr schema.GroupVersionResource) error {
+	if err := f.addReconciliationAnnotation(obj); err != nil {
+		return err
+	}
+
+	_, err := f.dynamicClient.Resource(gvr).Namespace(f.config.Namespace).Update(ctx, obj, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to force reconciliation: %w", err)
+	}
+	return nil
+}
+
+// addReconciliationAnnotation adds the Flux reconciliation annotation to an object.
+func (f *Adapter) addReconciliationAnnotation(obj *unstructured.Unstructured) error {
+	annotations, _, _ := unstructured.NestedStringMap(obj.Object, "metadata", "annotations")
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations["reconcile.fluxcd.io/requestedAt"] = time.Now().Format(time.RFC3339)
+	if err := unstructured.SetNestedStringMap(obj.Object, annotations, "metadata", "annotations"); err != nil {
+		return fmt.Errorf("failed to set reconciliation annotation: %w", err)
+	}
+	return nil
+}
+
 // GetDeploymentStatus retrieves detailed status for a Flux deployment.
-func (f *FluxAdapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.DeploymentStatusDetail, error) {
+func (f *Adapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.DeploymentStatusDetail, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
@@ -723,7 +742,7 @@ func (f *FluxAdapter) GetDeploymentStatus(ctx context.Context, id string) (*adap
 }
 
 // GetDeploymentHistory retrieves the revision history for a Flux deployment.
-func (f *FluxAdapter) GetDeploymentHistory(ctx context.Context, id string) (*adapter.DeploymentHistory, error) {
+func (f *Adapter) GetDeploymentHistory(ctx context.Context, id string) (*adapter.DeploymentHistory, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
@@ -748,7 +767,7 @@ func (f *FluxAdapter) GetDeploymentHistory(ctx context.Context, id string) (*ada
 
 // GetDeploymentLogs retrieves status information for a Flux deployment.
 // Note: Flux doesn't provide direct log access, this returns status information.
-func (f *FluxAdapter) GetDeploymentLogs(ctx context.Context, id string, _ *adapter.LogOptions) ([]byte, error) {
+func (f *Adapter) GetDeploymentLogs(ctx context.Context, id string, _ *adapter.LogOptions) ([]byte, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
@@ -782,22 +801,22 @@ func (f *FluxAdapter) GetDeploymentLogs(ctx context.Context, id string, _ *adapt
 }
 
 // SupportsRollback returns true as Flux supports rollback via Git revisions.
-func (f *FluxAdapter) SupportsRollback() bool {
+func (f *Adapter) SupportsRollback() bool {
 	return true
 }
 
 // SupportsScaling returns true as scaling can be done via value updates.
-func (f *FluxAdapter) SupportsScaling() bool {
+func (f *Adapter) SupportsScaling() bool {
 	return true
 }
 
 // SupportsGitOps returns true as Flux is a GitOps tool.
-func (f *FluxAdapter) SupportsGitOps() bool {
+func (f *Adapter) SupportsGitOps() bool {
 	return true
 }
 
 // Health performs a health check on the Flux backend.
-func (f *FluxAdapter) Health(ctx context.Context) error {
+func (f *Adapter) Health(ctx context.Context) error {
 	if err := checkContext(ctx); err != nil {
 		return err
 	}
@@ -817,13 +836,13 @@ func (f *FluxAdapter) Health(ctx context.Context) error {
 }
 
 // Close cleanly shuts down the adapter.
-func (f *FluxAdapter) Close() error {
+func (f *Adapter) Close() error {
 	f.dynamicClient = nil
 	return nil
 }
 
 // listHelmReleases retrieves Flux HelmReleases with optional filtering.
-func (f *FluxAdapter) listHelmReleases(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, error) {
+func (f *Adapter) listHelmReleases(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, error) {
 	namespace := f.config.Namespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
@@ -848,7 +867,7 @@ func (f *FluxAdapter) listHelmReleases(ctx context.Context, filter *adapter.Filt
 }
 
 // listKustomizations retrieves Flux Kustomizations with optional filtering.
-func (f *FluxAdapter) listKustomizations(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, error) {
+func (f *Adapter) listKustomizations(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, error) {
 	namespace := f.config.Namespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
@@ -873,7 +892,7 @@ func (f *FluxAdapter) listKustomizations(ctx context.Context, filter *adapter.Fi
 }
 
 // listGitRepositories retrieves Flux GitRepositories.
-func (f *FluxAdapter) listGitRepositories(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, error) {
+func (f *Adapter) listGitRepositories(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, error) {
 	namespace := f.config.SourceNamespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
@@ -898,7 +917,7 @@ func (f *FluxAdapter) listGitRepositories(ctx context.Context, filter *adapter.F
 }
 
 // listHelmRepositories retrieves Flux HelmRepositories.
-func (f *FluxAdapter) listHelmRepositories(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, error) {
+func (f *Adapter) listHelmRepositories(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, error) {
 	namespace := f.config.SourceNamespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
@@ -923,17 +942,25 @@ func (f *FluxAdapter) listHelmRepositories(ctx context.Context, filter *adapter.
 }
 
 // getHelmRelease retrieves a single Flux HelmRelease by name.
-func (f *FluxAdapter) getHelmRelease(ctx context.Context, name string) (*unstructured.Unstructured, error) {
-	return f.dynamicClient.Resource(helmReleaseGVR).Namespace(f.config.Namespace).Get(ctx, name, metav1.GetOptions{})
+func (f *Adapter) getHelmRelease(ctx context.Context, name string) (*unstructured.Unstructured, error) {
+	resource, err := f.dynamicClient.Resource(helmReleaseGVR).Namespace(f.config.Namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get helm release: %w", err)
+	}
+	return resource, nil
 }
 
 // getKustomization retrieves a single Flux Kustomization by name.
-func (f *FluxAdapter) getKustomization(ctx context.Context, name string) (*unstructured.Unstructured, error) {
-	return f.dynamicClient.Resource(kustomizationGVR).Namespace(f.config.Namespace).Get(ctx, name, metav1.GetOptions{})
+func (f *Adapter) getKustomization(ctx context.Context, name string) (*unstructured.Unstructured, error) {
+	resource, err := f.dynamicClient.Resource(kustomizationGVR).Namespace(f.config.Namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kustomization: %w", err)
+	}
+	return resource, nil
 }
 
 // createHelmRelease creates a new Flux HelmRelease.
-func (f *FluxAdapter) createHelmRelease(ctx context.Context, req *adapter.DeploymentRequest) (*adapter.Deployment, error) {
+func (f *Adapter) createHelmRelease(ctx context.Context, req *adapter.DeploymentRequest) (*adapter.Deployment, error) {
 	chart, _ := req.Extensions["flux.chart"].(string)
 	sourceRef, _ := req.Extensions["flux.sourceRef"].(string)
 	sourceKind, _ := req.Extensions["flux.sourceKind"].(string)
@@ -1005,7 +1032,7 @@ func (f *FluxAdapter) createHelmRelease(ctx context.Context, req *adapter.Deploy
 }
 
 // createKustomization creates a new Flux Kustomization.
-func (f *FluxAdapter) createKustomization(ctx context.Context, req *adapter.DeploymentRequest) (*adapter.Deployment, error) {
+func (f *Adapter) createKustomization(ctx context.Context, req *adapter.DeploymentRequest) (*adapter.Deployment, error) {
 	path, _ := req.Extensions["flux.path"].(string)
 	sourceRef, _ := req.Extensions["flux.sourceRef"].(string)
 	sourceKind, _ := req.Extensions["flux.sourceKind"].(string)
@@ -1062,7 +1089,7 @@ func (f *FluxAdapter) createKustomization(ctx context.Context, req *adapter.Depl
 }
 
 // updateHelmRelease updates an existing Flux HelmRelease.
-func (f *FluxAdapter) updateHelmRelease(ctx context.Context, hr *unstructured.Unstructured, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+func (f *Adapter) updateHelmRelease(ctx context.Context, hr *unstructured.Unstructured, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
 	// Update chart version if specified
 	if chartVersion, ok := update.Extensions["flux.chartVersion"].(string); ok && chartVersion != "" {
 		if err := unstructured.SetNestedField(hr.Object, chartVersion, "spec", "chart", "spec", "version"); err != nil {
@@ -1097,7 +1124,7 @@ func (f *FluxAdapter) updateHelmRelease(ctx context.Context, hr *unstructured.Un
 }
 
 // updateKustomization updates an existing Flux Kustomization.
-func (f *FluxAdapter) updateKustomization(ctx context.Context, ks *unstructured.Unstructured, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+func (f *Adapter) updateKustomization(ctx context.Context, ks *unstructured.Unstructured, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
 	// Update path if specified
 	if path, ok := update.Extensions["flux.path"].(string); ok && path != "" {
 		// Validate path to prevent directory traversal attacks
@@ -1130,7 +1157,7 @@ func (f *FluxAdapter) updateKustomization(ctx context.Context, ks *unstructured.
 }
 
 // transformHelmReleaseToDeployment converts a Flux HelmRelease to a Deployment.
-func (f *FluxAdapter) transformHelmReleaseToDeployment(hr *unstructured.Unstructured) *adapter.Deployment {
+func (f *Adapter) transformHelmReleaseToDeployment(hr *unstructured.Unstructured) *adapter.Deployment {
 	name, _, _ := unstructured.NestedString(hr.Object, "metadata", "name")
 	namespace, _, _ := unstructured.NestedString(hr.Object, "metadata", "namespace")
 
@@ -1190,7 +1217,7 @@ func (f *FluxAdapter) transformHelmReleaseToDeployment(hr *unstructured.Unstruct
 }
 
 // transformKustomizationToDeployment converts a Flux Kustomization to a Deployment.
-func (f *FluxAdapter) transformKustomizationToDeployment(ks *unstructured.Unstructured) *adapter.Deployment {
+func (f *Adapter) transformKustomizationToDeployment(ks *unstructured.Unstructured) *adapter.Deployment {
 	name, _, _ := unstructured.NestedString(ks.Object, "metadata", "name")
 	namespace, _, _ := unstructured.NestedString(ks.Object, "metadata", "namespace")
 
@@ -1245,7 +1272,7 @@ func (f *FluxAdapter) transformKustomizationToDeployment(ks *unstructured.Unstru
 }
 
 // transformGitRepoToPackage converts a Flux GitRepository to a DeploymentPackage.
-func (f *FluxAdapter) transformGitRepoToPackage(repo *unstructured.Unstructured) *adapter.DeploymentPackage {
+func (f *Adapter) transformGitRepoToPackage(repo *unstructured.Unstructured) *adapter.DeploymentPackage {
 	name, _, _ := unstructured.NestedString(repo.Object, "metadata", "name")
 	url, _, _ := unstructured.NestedString(repo.Object, "spec", "url")
 	branch, _, _ := unstructured.NestedString(repo.Object, "spec", "ref", "branch")
@@ -1274,7 +1301,7 @@ func (f *FluxAdapter) transformGitRepoToPackage(repo *unstructured.Unstructured)
 }
 
 // transformHelmRepoToPackage converts a Flux HelmRepository to a DeploymentPackage.
-func (f *FluxAdapter) transformHelmRepoToPackage(repo *unstructured.Unstructured) *adapter.DeploymentPackage {
+func (f *Adapter) transformHelmRepoToPackage(repo *unstructured.Unstructured) *adapter.DeploymentPackage {
 	name, _, _ := unstructured.NestedString(repo.Object, "metadata", "name")
 	url, _, _ := unstructured.NestedString(repo.Object, "spec", "url")
 	repoType, _, _ := unstructured.NestedString(repo.Object, "spec", "type")
@@ -1300,7 +1327,7 @@ func (f *FluxAdapter) transformHelmRepoToPackage(repo *unstructured.Unstructured
 }
 
 // transformHelmReleaseToStatus converts a Flux HelmRelease to detailed status.
-func (f *FluxAdapter) transformHelmReleaseToStatus(hr *unstructured.Unstructured) *adapter.DeploymentStatusDetail {
+func (f *Adapter) transformHelmReleaseToStatus(hr *unstructured.Unstructured) *adapter.DeploymentStatusDetail {
 	name, _, _ := unstructured.NestedString(hr.Object, "metadata", "name")
 
 	conditions, _, _ := unstructured.NestedSlice(hr.Object, "status", "conditions")
@@ -1325,7 +1352,7 @@ func (f *FluxAdapter) transformHelmReleaseToStatus(hr *unstructured.Unstructured
 }
 
 // transformKustomizationToStatus converts a Flux Kustomization to detailed status.
-func (f *FluxAdapter) transformKustomizationToStatus(ks *unstructured.Unstructured) *adapter.DeploymentStatusDetail {
+func (f *Adapter) transformKustomizationToStatus(ks *unstructured.Unstructured) *adapter.DeploymentStatusDetail {
 	name, _, _ := unstructured.NestedString(ks.Object, "metadata", "name")
 
 	conditions, _, _ := unstructured.NestedSlice(ks.Object, "status", "conditions")
@@ -1354,7 +1381,7 @@ func (f *FluxAdapter) transformKustomizationToStatus(ks *unstructured.Unstructur
 
 // parseConditions converts Flux conditions to DMS conditions and returns the latest update time.
 // This is a shared helper to avoid code duplication between HelmRelease and Kustomization status extraction.
-func (f *FluxAdapter) parseConditions(conditions []interface{}) ([]adapter.DeploymentCondition, time.Time) {
+func (f *Adapter) parseConditions(conditions []interface{}) ([]adapter.DeploymentCondition, time.Time) {
 	dmsConditions := make([]adapter.DeploymentCondition, 0, len(conditions))
 	var latestUpdate time.Time
 
@@ -1393,7 +1420,7 @@ func (f *FluxAdapter) parseConditions(conditions []interface{}) ([]adapter.Deplo
 }
 
 // extractFluxStatus extracts status and message from Flux conditions.
-func (f *FluxAdapter) extractFluxStatus(conditions []interface{}) (adapter.DeploymentStatus, string) {
+func (f *Adapter) extractFluxStatus(conditions []interface{}) (adapter.DeploymentStatus, string) {
 	for _, c := range conditions {
 		cond, ok := c.(map[string]interface{})
 		if !ok {
@@ -1429,7 +1456,7 @@ func (f *FluxAdapter) extractFluxStatus(conditions []interface{}) (adapter.Deplo
 }
 
 // extractHelmReleaseHistory extracts history from a HelmRelease.
-func (f *FluxAdapter) extractHelmReleaseHistory(id string, hr *unstructured.Unstructured) *adapter.DeploymentHistory {
+func (f *Adapter) extractHelmReleaseHistory(id string, hr *unstructured.Unstructured) *adapter.DeploymentHistory {
 	history, _, _ := unstructured.NestedSlice(hr.Object, "status", "history")
 
 	revisions := make([]adapter.DeploymentRevision, 0, len(history))
@@ -1465,7 +1492,7 @@ func (f *FluxAdapter) extractHelmReleaseHistory(id string, hr *unstructured.Unst
 
 // extractKustomizationHistory extracts history from a Kustomization.
 // Kustomizations don't have versioned history, so we return the current state.
-func (f *FluxAdapter) extractKustomizationHistory(id string, ks *unstructured.Unstructured) *adapter.DeploymentHistory {
+func (f *Adapter) extractKustomizationHistory(id string, ks *unstructured.Unstructured) *adapter.DeploymentHistory {
 	lastAppliedRevision, _, _ := unstructured.NestedString(ks.Object, "status", "lastAppliedRevision")
 
 	conditions, _, _ := unstructured.NestedSlice(ks.Object, "status", "conditions")
@@ -1488,7 +1515,7 @@ func (f *FluxAdapter) extractKustomizationHistory(id string, ks *unstructured.Un
 }
 
 // calculateProgress estimates deployment progress based on status.
-func (f *FluxAdapter) calculateProgress(status adapter.DeploymentStatus) int {
+func (f *Adapter) calculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return progressDeployed
@@ -1508,7 +1535,7 @@ func (f *FluxAdapter) calculateProgress(status adapter.DeploymentStatus) int {
 }
 
 // applyPagination applies limit and offset to deployment list.
-func (f *FluxAdapter) applyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
+func (f *Adapter) applyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
 	if offset >= len(deployments) {
 		return []*adapter.Deployment{}
 	}

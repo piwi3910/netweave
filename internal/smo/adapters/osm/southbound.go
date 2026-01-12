@@ -126,7 +126,7 @@ func (p *Plugin) SyncInfrastructureInventory(ctx context.Context, inventory *smo
 
 // SyncDeploymentInventory synchronizes O2-DMS deployment inventory to OSM.
 // This maps netweave deployments to OSM NS instances for visibility.
-func (p *Plugin) SyncDeploymentInventory(ctx context.Context, inventory *smo.DeploymentInventory) error {
+func (p *Plugin) SyncDeploymentInventory(_ context.Context, inventory *smo.DeploymentInventory) error {
 	if inventory == nil {
 		return fmt.Errorf("inventory cannot be nil")
 	}
@@ -162,7 +162,7 @@ func (p *Plugin) PublishInfrastructureEvent(ctx context.Context, event *smo.Infr
 
 // PublishDeploymentEvent publishes a deployment change event.
 // OSM doesn't have native deployment event publishing, so this is a no-op for now.
-func (p *Plugin) PublishDeploymentEvent(ctx context.Context, event *smo.DeploymentEvent) error {
+func (p *Plugin) PublishDeploymentEvent(_ context.Context, event *smo.DeploymentEvent) error {
 	if event == nil {
 		return fmt.Errorf("event cannot be nil")
 	}
@@ -327,7 +327,7 @@ func (p *Plugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequ
 
 // GetWorkflowStatus retrieves the current status of a workflow execution.
 // For OSM, this maps to checking the NS instance status.
-func (p *Plugin) GetWorkflowStatus(ctx context.Context, executionID string) (*smo.WorkflowStatus, error) {
+func (p *Plugin) GetWorkflowStatus(_ context.Context, executionID string) (*smo.WorkflowStatus, error) {
 	if executionID == "" {
 		return nil, fmt.Errorf("execution id is required")
 	}
@@ -358,7 +358,7 @@ func (p *Plugin) GetWorkflowStatus(ctx context.Context, executionID string) (*sm
 
 // CancelWorkflow cancels a running workflow execution.
 // For OSM, this typically means terminating the associated NS instance.
-func (p *Plugin) CancelWorkflow(ctx context.Context, executionID string) error {
+func (p *Plugin) CancelWorkflow(_ context.Context, executionID string) error {
 	if executionID == "" {
 		return fmt.Errorf("execution id is required")
 	}
@@ -498,7 +498,7 @@ func (p *Plugin) DeleteServiceModel(ctx context.Context, id string) error {
 
 // ApplyPolicy applies a policy to the infrastructure or deployments.
 // OSM doesn't have native policy management, so this is not supported.
-func (p *Plugin) ApplyPolicy(ctx context.Context, policy *smo.Policy) error {
+func (p *Plugin) ApplyPolicy(_ context.Context, policy *smo.Policy) error {
 	if policy == nil {
 		return fmt.Errorf("policy cannot be nil")
 	}
@@ -514,7 +514,7 @@ func (p *Plugin) ApplyPolicy(ctx context.Context, policy *smo.Policy) error {
 
 // GetPolicyStatus retrieves the current status of an applied policy.
 // OSM doesn't have native policy management, so this is not supported.
-func (p *Plugin) GetPolicyStatus(ctx context.Context, policyID string) (*smo.PolicyStatus, error) {
+func (p *Plugin) GetPolicyStatus(_ context.Context, policyID string) (*smo.PolicyStatus, error) {
 	if policyID == "" {
 		return nil, fmt.Errorf("policy id is required")
 	}

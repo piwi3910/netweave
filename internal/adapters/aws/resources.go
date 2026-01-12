@@ -14,7 +14,7 @@ import (
 )
 
 // ListResources retrieves all resources (EC2 instances) matching the provided filter.
-func (a *AWSAdapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
+func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "ListResources", start, err) }()
 
@@ -76,7 +76,7 @@ func (a *AWSAdapter) ListResources(ctx context.Context, filter *adapter.Filter) 
 }
 
 // GetResource retrieves a specific resource (EC2 instance) by ID.
-func (a *AWSAdapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
+func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetResource", start, err) }()
 
@@ -110,7 +110,7 @@ func (a *AWSAdapter) GetResource(ctx context.Context, id string) (resource *adap
 }
 
 // CreateResource creates a new resource (launches an EC2 instance).
-func (a *AWSAdapter) CreateResource(ctx context.Context, resource *adapter.Resource) (created *adapter.Resource, err error) {
+func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource) (created *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "CreateResource", start, err) }()
 
@@ -148,7 +148,7 @@ func (a *AWSAdapter) CreateResource(ctx context.Context, resource *adapter.Resou
 
 // UpdateResource updates an existing EC2 instance's tags and metadata.
 // Note: Core instance properties (instance type, AMI) cannot be modified after launch.
-func (a *AWSAdapter) UpdateResource(ctx context.Context, id string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
+func (a *Adapter) UpdateResource(ctx context.Context, id string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "UpdateResource", start, err) }()
 
@@ -234,7 +234,7 @@ func applyNameTag(input *ec2.RunInstancesInput, description string) {
 }
 
 // DeleteResource deletes a resource (terminates an EC2 instance) by ID.
-func (a *AWSAdapter) DeleteResource(ctx context.Context, id string) (err error) {
+func (a *Adapter) DeleteResource(ctx context.Context, id string) (err error) {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "DeleteResource", start, err) }()
 
@@ -262,20 +262,15 @@ func (a *AWSAdapter) DeleteResource(ctx context.Context, id string) (err error) 
 }
 
 // instanceToResource converts an EC2 instance to an O2-IMS Resource.
-func (a *AWSAdapter) instanceToResource(instance *ec2Types.Instance) *adapter.Resource {
+func (a *Adapter) instanceToResource(instance *ec2Types.Instance) *adapter.Resource {
 	instanceID := aws.ToString(instance.InstanceId)
 	resourceID := generateInstanceID(instanceID)
 	resourceTypeID := generateInstanceTypeID(string(instance.InstanceType))
 
 	// Determine resource pool ID based on pool mode
-	var resourcePoolID string
-	if a.poolMode == "az" {
-		resourcePoolID = generateAZPoolID(aws.ToString(instance.Placement.AvailabilityZone))
-	} else {
-		// In ASG mode, we would need to look up which ASG this instance belongs to
-		// For now, use the AZ as fallback
-		resourcePoolID = generateAZPoolID(aws.ToString(instance.Placement.AvailabilityZone))
-	}
+	// In ASG mode, we would need to look up which ASG this instance belongs to
+	// For now, always use the AZ
+	resourcePoolID := generateAZPoolID(aws.ToString(instance.Placement.AvailabilityZone))
 
 	// Get instance name from tags
 	name := extractTagValue(instance.Tags, "Name")
