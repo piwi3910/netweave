@@ -237,9 +237,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request, result interf
 			continue
 		}
 		defer func() {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				c.logger.Warn("failed to close response body", zap.Error(closeErr))
-			}
+			_ = resp.Body.Close()
 		}()
 
 		newLastErr, err := c.handleResponse(ctx, req, resp, result)
