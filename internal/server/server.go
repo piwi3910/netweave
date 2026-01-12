@@ -791,6 +791,6 @@ func (s *Server) ShutdownWithContext(ctx context.Context) error {
 	case err := <-done:
 		return err
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("server shutdown context cancelled: %w", ctx.Err())
 	}
 }

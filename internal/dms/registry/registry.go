@@ -355,7 +355,7 @@ func (r *Registry) FindByCapability(capability adapter.Capability) []adapter.DMS
 		}
 
 		for _, c := range meta.Capabilities {
-			if c == cap {
+			if c == capability {
 				plugins = append(plugins, p)
 				break
 			}
