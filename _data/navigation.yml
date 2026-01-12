@@ -1,0 +1,61 @@
+main:
+  - title: "Home"
+    url: "/netweave/"
+
+  - title: "Getting Started"
+    children:
+      - title: "README"
+        url: "/netweave/README.html"
+      - title: "Configuration"
+        url: "/netweave/docs/configuration.html"
+      - title: "Deployment"
+        url: "/netweave/docs/deployment.html"
+
+  - title: "Architecture"
+    children:
+      - title: "Architecture Overview"
+        url: "/netweave/ARCHITECTURE_SUMMARY.html"
+      - title: "Architecture Details"
+        url: "/netweave/docs/architecture.html"
+      - title: "Architecture Part 2"
+        url: "/netweave/docs/architecture-part2.html"
+      - title: "API Mapping"
+        url: "/netweave/docs/api-mapping.html"
+      - title: "Backend Plugins"
+        url: "/netweave/docs/backend-plugins.html"
+
+  - title: "Operations"
+    children:
+      - title: "Configuration & State"
+        url: "/netweave/docs/configuration-and-state.html"
+      - title: "Operations Guide"
+        url: "/netweave/docs/operations.html"
+      - title: "Monitoring"
+        url: "/netweave/docs/operations/monitoring.html"
+
+  - title: "Security"
+    children:
+      - title: "Security Overview"
+        url: "/netweave/docs/security.html"
+      - title: "Security Hardening"
+        url: "/netweave/docs/security-hardening.html"
+      - title: "Supply Chain Security"
+        url: "/netweave/docs/supply-chain-security.html"
+      - title: "Webhook Security"
+        url: "/netweave/docs/webhook-security.html"
+      - title: "RBAC & Multi-Tenancy"
+        url: "/netweave/docs/rbac-multitenancy.html"
+
+  - title: "API & Integration"
+    children:
+      - title: "API Mapping"
+        url: "/netweave/docs/api-mapping.html"
+      - title: "O2-DMS & O2-SMO"
+        url: "/netweave/docs/o2dms-o2smo-extension.html"
+      - title: "Subscription Behavior"
+        url: "/netweave/docs/subscription-update-behavior.html"
+
+  - title: "Compliance"
+    children:
+      - title: "Compliance Docs"
+        url: "/netweave/docs/compliance.html"

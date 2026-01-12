@@ -10,6 +10,7 @@
     <meta name="theme-color" content="#157878">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="stylesheet" href="{{ '/assets/css/style.css?v=' | append: site.github.build_revision | relative_url }}">
+    <link rel="stylesheet" href="{{ '/assets/css/sidebar.css' | relative_url }}">
     {% include head-custom.html %}
 
     <!-- Mermaid.js for diagram rendering -->
@@ -43,7 +44,35 @@
     </header>
 
     <main id="content" class="main-content" role="main">
-      {{ content }}
+      <div class="page-wrapper">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar" role="navigation">
+          <ul class="sidebar-nav">
+            {% for item in site.data.navigation.main %}
+              <li class="nav-section">
+                {% if item.url %}
+                  <div class="nav-section-title"><a href="{{ item.url }}">{{ item.title }}</a></div>
+                {% else %}
+                  <div class="nav-section-title">{{ item.title }}</div>
+                {% endif %}
+
+                {% if item.children %}
+                  <ul class="nav-children">
+                    {% for child in item.children %}
+                      <li><a href="{{ child.url }}"{% if page.url == child.url %} class="active"{% endif %}>{{ child.title }}</a></li>
+                    {% endfor %}
+                  </ul>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="content-area">
+          {{ content }}
+        </div>
+      </div>
 
       <footer class="site-footer">
         {% if site.github.is_project_page %}
