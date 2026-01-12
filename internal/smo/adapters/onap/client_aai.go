@@ -34,7 +34,7 @@ func NewAAIClient(config *Config, logger *zap.Logger) (*AAIClient, error) {
 	}
 
 	// Create TLS configuration
-	tlsConfig, err := createTLSConfig(config, logger)
+	tlsConfig, err := createTLSConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TLS config: %w", err)
 	}
@@ -64,7 +64,7 @@ func NewAAIClient(config *Config, logger *zap.Logger) (*AAIClient, error) {
 func (c *AAIClient) Health(ctx context.Context) error {
 	url := fmt.Sprintf("%s/aai/util/echo", c.baseURL)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to create health check request: %w", err)
 	}
@@ -78,7 +78,11 @@ func (c *AAIClient) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("health check request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check returned status %d", resp.StatusCode)
@@ -169,7 +173,8 @@ func (c *AAIClient) putResource(ctx context.Context, url string, resource interf
 			c.waitBeforeRetry(attempt, resourceType)
 		}
 
-		if err := c.executePutRequest(ctx, url, body, resourceType, &lastErr); err == nil {
+		lastErr = c.executePutRequest(ctx, url, body, resourceType)
+		if lastErr == nil {
 			return nil
 		}
 
@@ -197,11 +202,9 @@ func (c *AAIClient) executePutRequest(
 	url string,
 	body []byte,
 	resourceType string,
-	lastErr *error,
 ) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, strings.NewReader(string(body)))
 	if err != nil {
-		*lastErr = fmt.Errorf("failed to create request: %w", err)
 		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
@@ -209,12 +212,15 @@ func (c *AAIClient) executePutRequest(
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		*lastErr = fmt.Errorf("request failed: %w", err)
 		return fmt.Errorf("failed to execute HTTP request: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
-	return c.handlePutResponse(resp, resourceType, lastErr)
+	return c.handlePutResponse(resp, resourceType)
 }
 
 // setRequestHeaders sets the required headers for A&AI requests.
@@ -227,7 +233,7 @@ func (c *AAIClient) setRequestHeaders(req *http.Request) {
 }
 
 // handlePutResponse processes the response from a PUT request.
-func (c *AAIClient) handlePutResponse(resp *http.Response, resourceType string, lastErr *error) error {
+func (c *AAIClient) handlePutResponse(resp *http.Response, resourceType string) error {
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
 		c.logger.Debug("Successfully created/updated resource in A&AI",
 			zap.String("resourceType", resourceType),
@@ -236,9 +242,11 @@ func (c *AAIClient) handlePutResponse(resp *http.Response, resourceType string, 
 		return nil
 	}
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
-	*lastErr = fmt.Errorf("A&AI returned status %d: %s", resp.StatusCode, string(bodyBytes))
-	return *lastErr
+	bodyBytes, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return fmt.Errorf("A&AI returned status %d (failed to read body: %w)", resp.StatusCode, readErr)
+	}
+	return fmt.Errorf("A&AI returned status %d: %s", resp.StatusCode, string(bodyBytes))
 }
 
 // shouldStopRetrying determines if retries should be stopped based on the error.
@@ -253,7 +261,7 @@ func (c *AAIClient) shouldStopRetrying(err error) bool {
 
 // getResource is a helper method to GET a resource from A&AI.
 func (c *AAIClient) getResource(ctx context.Context, url string, result interface{}, _ string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -267,10 +275,17 @@ func (c *AAIClient) getResource(ctx context.Context, url string, result interfac
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("A&AI returned status %d (failed to read body: %w)", resp.StatusCode, readErr)
+		}
 		return fmt.Errorf("A&AI returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -292,7 +307,7 @@ func (c *AAIClient) Close() error {
 // createTLSConfig creates a TLS configuration from the plugin config.
 // Returns nil when TLS is not enabled (uses default HTTP transport).
 // WARNING: InsecureSkipVerify disables certificate validation and should only be used in development/testing.
-func createTLSConfig(config *Config, logger *zap.Logger) (*tls.Config, error) {
+func createTLSConfig(config *Config) (*tls.Config, error) {
 	if !config.TLSEnabled {
 		return &tls.Config{MinVersion: tls.VersionTLS12}, nil
 	}
