@@ -108,7 +108,7 @@ func (g *K8sEventGenerator) watchNodesCycle(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("node watch cancelled: %w", ctx.Err())
 		case <-g.stopChannel:
 			return nil
 		case watchEvent, ok := <-watcher.ResultChan():
@@ -188,7 +188,7 @@ func (g *K8sEventGenerator) handleNodeEvent(ctx context.Context, watchEvent watc
 			zap.String("resource_id", resource.ResourceID),
 		)
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("event generation cancelled: %w", ctx.Err())
 	default:
 		g.logger.Warn("event channel full, dropping event",
 			zap.String("event_id", event.ID),

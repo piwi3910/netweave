@@ -307,7 +307,7 @@ func (n *WebhookNotifier) NotifyWithRetry(ctx context.Context, event *Event, sub
 		case <-ctx.Done():
 			delivery.Status = DeliveryStatusFailed
 			delivery.CompletedAt = time.Now().UTC()
-			return delivery, ctx.Err()
+			return delivery, fmt.Errorf("notification delivery cancelled: %w", ctx.Err())
 		case <-time.After(backoff):
 		}
 
@@ -384,7 +384,10 @@ func (n *WebhookNotifier) executeWithCircuitBreaker(
 	_, err := cb.Execute(func() (interface{}, error) {
 		return nil, n.sendWebhook(ctx, callbackURL, notification)
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("circuit breaker execution failed: %w", err)
+	}
+	return nil
 }
 
 // getCircuitBreaker gets or creates a circuit breaker for a callback URL.
