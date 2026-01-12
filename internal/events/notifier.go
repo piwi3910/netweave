@@ -212,7 +212,9 @@ func (n *WebhookNotifier) NotifyWithRetry(ctx context.Context, event *Event, sub
 
 		// Track attempt
 		if n.deliveryTracker != nil {
-			_ = n.deliveryTracker.Track(ctx, delivery)
+			if err := n.deliveryTracker.Track(ctx, delivery); err != nil {
+				n.logger.Warn("failed to track delivery attempt", zap.Error(err))
+			}
 		}
 
 		// Execute with circuit breaker
@@ -244,7 +246,9 @@ func (n *WebhookNotifier) NotifyWithRetry(ctx context.Context, event *Event, sub
 			)
 
 			if n.deliveryTracker != nil {
-				_ = n.deliveryTracker.Track(ctx, delivery)
+				if err := n.deliveryTracker.Track(ctx, delivery); err != nil {
+					n.logger.Warn("failed to track successful delivery", zap.Error(err))
+				}
 			}
 
 			return delivery, nil
@@ -281,7 +285,9 @@ func (n *WebhookNotifier) NotifyWithRetry(ctx context.Context, event *Event, sub
 			)
 
 			if n.deliveryTracker != nil {
-				_ = n.deliveryTracker.Track(ctx, delivery)
+				if err := n.deliveryTracker.Track(ctx, delivery); err != nil {
+					n.logger.Warn("failed to track failed delivery", zap.Error(err))
+				}
 			}
 
 			return delivery, fmt.Errorf("delivery failed after %d attempts: %w", attempt, err)
@@ -291,7 +297,9 @@ func (n *WebhookNotifier) NotifyWithRetry(ctx context.Context, event *Event, sub
 		delivery.NextAttemptAt = time.Now().Add(backoff)
 
 		if n.deliveryTracker != nil {
-			_ = n.deliveryTracker.Track(ctx, delivery)
+			if err := n.deliveryTracker.Track(ctx, delivery); err != nil {
+				n.logger.Warn("failed to track retry delivery", zap.Error(err))
+			}
 		}
 
 		// Wait before retry
@@ -348,11 +356,18 @@ func (n *WebhookNotifier) sendWebhook(ctx context.Context, callbackURL string, n
 	if err != nil {
 		return fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			n.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Check response status
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("webhook returned non-2xx status: %d, failed to read body: %w", resp.StatusCode, readErr)
+		}
 		return fmt.Errorf("webhook returned non-2xx status: %d, body: %s", resp.StatusCode, string(body))
 	}
 
