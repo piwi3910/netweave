@@ -153,7 +153,7 @@ func (h *UserHandler) validateCreateUserRequest(ctx context.Context, req *Create
 	}
 
 	if !tenant.CanAddUser() {
-		return &handlerError{status: http.StatusForbidden, message: "User quota exceeded for this tenant"}
+		return &handlerError{status: http.StatusForbidden, errorCode: "QuotaExceeded", message: "User quota exceeded for this tenant"}
 	}
 
 	return h.validateRoleForTenantUser(ctx, req.RoleID)
@@ -379,8 +379,9 @@ func (h *UserHandler) validateAndApplyRole(ctx context.Context, user *auth.Tenan
 }
 
 type handlerError struct {
-	status  int
-	message string
+	status    int
+	errorCode string
+	message   string
 }
 
 func (e *handlerError) Error() string {
@@ -390,8 +391,12 @@ func (e *handlerError) Error() string {
 func (h *UserHandler) respondWithError(c *gin.Context, err error) {
 	var hErr *handlerError
 	if errors.As(err, &hErr) {
+		errorCode := hErr.errorCode
+		if errorCode == "" {
+			errorCode = getErrorCode(hErr.status)
+		}
 		c.JSON(hErr.status, models.ErrorResponse{
-			Error:   http.StatusText(hErr.status),
+			Error:   errorCode,
 			Message: hErr.message,
 			Code:    hErr.status,
 		})
@@ -402,6 +407,26 @@ func (h *UserHandler) respondWithError(c *gin.Context, err error) {
 		Message: "Internal server error",
 		Code:    http.StatusInternalServerError,
 	})
+}
+
+// getErrorCode returns the appropriate error code string for HTTP status codes.
+func getErrorCode(status int) string {
+	switch status {
+	case http.StatusBadRequest:
+		return "BadRequest"
+	case http.StatusUnauthorized:
+		return "Unauthorized"
+	case http.StatusForbidden:
+		return "Forbidden"
+	case http.StatusNotFound:
+		return "NotFound"
+	case http.StatusConflict:
+		return "Conflict"
+	case http.StatusInternalServerError:
+		return "InternalError"
+	default:
+		return http.StatusText(status)
+	}
 }
 
 // DeleteUser handles DELETE /tenant/users/:userId.
