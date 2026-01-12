@@ -658,11 +658,13 @@ func (o *Adapter) Close() error {
 // The body parameter uses interface{} to accept various request payload types
 // (maps, structs) that are marshaled to JSON - this flexibility is required
 // to support different OSM NBI endpoints with varying request schemas.
+// Used only in tests for testing HTTP request handling.
 func (o *Adapter) doRequest(
 	ctx context.Context,
-	method, path string,
+	method string,
 	body interface{},
 ) ([]byte, error) {
+	path := "/test"
 	var reqBody io.Reader
 	if body != nil {
 		jsonBody, err := json.Marshal(body)

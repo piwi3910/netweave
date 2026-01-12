@@ -1028,7 +1028,7 @@ func TestDoRequest(t *testing.T) {
 		require.NoError(t, err)
 		_ = adp.initialize()
 
-		resp, err := adp.doRequest(context.Background(), http.MethodGet, "/test", nil)
+		resp, err := adp.doRequest(context.Background(), http.MethodGet, nil)
 		require.NoError(t, err)
 		assert.Contains(t, string(resp), "ok")
 	})
@@ -1051,7 +1051,7 @@ func TestDoRequest(t *testing.T) {
 		require.NoError(t, err)
 		_ = adp.initialize()
 
-		_, err = adp.doRequest(context.Background(), http.MethodGet, "/test", nil)
+		_, err = adp.doRequest(context.Background(), http.MethodGet, nil)
 		require.NoError(t, err)
 	})
 
@@ -1069,7 +1069,7 @@ func TestDoRequest(t *testing.T) {
 		_ = adp.initialize()
 
 		body := map[string]string{"key": "value"}
-		_, err = adp.doRequest(context.Background(), http.MethodPost, "/test", body)
+		_, err = adp.doRequest(context.Background(), http.MethodPost, body)
 		require.NoError(t, err)
 	})
 
@@ -1086,7 +1086,7 @@ func TestDoRequest(t *testing.T) {
 		require.NoError(t, err)
 		_ = adp.initialize()
 
-		_, err = adp.doRequest(context.Background(), http.MethodGet, "/test", nil)
+		_, err = adp.doRequest(context.Background(), http.MethodGet, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "API error")
 	})
