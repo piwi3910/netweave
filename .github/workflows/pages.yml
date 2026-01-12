@@ -9,6 +9,8 @@ on:
       - 'ARCHITECTURE_SUMMARY.md'
       - '_config.yml'
       - '_layouts/**'
+      - '_data/**'
+      - 'assets/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
