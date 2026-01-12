@@ -221,7 +221,7 @@ func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePo
 	a.logger.Debug("CreateResourcePool called",
 		zap.String("name", pool.Name))
 
-	if a.poolMode == "zone" {
+	if a.poolMode == poolModeZone {
 		return nil, fmt.Errorf("cannot create resource pools in 'zone' mode: zones are GCP-managed")
 	}
 
@@ -238,7 +238,7 @@ func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter
 		zap.String("id", id),
 		zap.String("name", pool.Name))
 
-	if a.poolMode == "zone" {
+	if a.poolMode == poolModeZone {
 		return nil, fmt.Errorf("cannot update resource pools in 'zone' mode: zones are GCP-managed")
 	}
 
@@ -253,7 +253,7 @@ func (a *Adapter) DeleteResourcePool(_ context.Context, id string) (err error) {
 	a.logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 
-	if a.poolMode == "zone" {
+	if a.poolMode == poolModeZone {
 		return fmt.Errorf("cannot delete resource pools in 'zone' mode: zones are GCP-managed")
 	}
 
