@@ -802,10 +802,10 @@ func formatBenchString(format string, a ...interface{}) string {
 	return result
 }
 
-func replaceFirst(s, old, new string) string {
+func replaceFirst(s, old, replacement string) string {
 	for i := 0; i <= len(s)-len(old); i++ {
 		if s[i:i+len(old)] == old {
-			return s[:i] + new + s[i+len(old):]
+			return s[:i] + replacement + s[i+len(old):]
 		}
 	}
 	return s
