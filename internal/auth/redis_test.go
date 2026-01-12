@@ -564,7 +564,6 @@ func TestDefaultRedisConfig(t *testing.T) {
 func TestRedisConfig_SentinelPassword(t *testing.T) {
 	t.Run("sentinel password is configurable", func(t *testing.T) {
 		cfg := &RedisConfig{
-			Addr:             "localhost:6379",
 			Password:         "redis-pass",
 			SentinelPassword: "sentinel-pass",
 			UseSentinel:      true,
@@ -583,9 +582,6 @@ func TestRedisConfig_SentinelPassword(t *testing.T) {
 		cfg := &RedisConfig{
 			Password:         "redis-password-123",
 			SentinelPassword: "sentinel-password-456",
-			UseSentinel:      true,
-			MasterName:       "mymaster",
-			SentinelAddrs:    []string{"sentinel:26379"},
 		}
 
 		assert.NotEqual(t, cfg.Password, cfg.SentinelPassword)

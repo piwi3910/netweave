@@ -45,7 +45,7 @@ func TestNewSubscriptionController(t *testing.T) {
 		{
 			name: "nil store",
 			cfg: &Config{
-				K8sClient:   fake.NewSimpleClientset(),
+				K8sClient:   fake.NewClientset(),
 				RedisClient: &redis.Client{},
 				Logger:      zaptest.NewLogger(t),
 				OCloudID:    "test-ocloud",
@@ -56,7 +56,7 @@ func TestNewSubscriptionController(t *testing.T) {
 		{
 			name: "nil redis client",
 			cfg: &Config{
-				K8sClient: fake.NewSimpleClientset(),
+				K8sClient: fake.NewClientset(),
 				Store:     &mockStore{},
 				Logger:    zaptest.NewLogger(t),
 				OCloudID:  "test-ocloud",
@@ -67,7 +67,7 @@ func TestNewSubscriptionController(t *testing.T) {
 		{
 			name: "nil logger",
 			cfg: &Config{
-				K8sClient:   fake.NewSimpleClientset(),
+				K8sClient:   fake.NewClientset(),
 				Store:       &mockStore{},
 				RedisClient: &redis.Client{},
 				OCloudID:    "test-ocloud",
@@ -78,7 +78,7 @@ func TestNewSubscriptionController(t *testing.T) {
 		{
 			name: "empty ocloud id",
 			cfg: &Config{
-				K8sClient:   fake.NewSimpleClientset(),
+				K8sClient:   fake.NewClientset(),
 				Store:       &mockStore{},
 				RedisClient: &redis.Client{},
 				Logger:      zaptest.NewLogger(t),
@@ -89,7 +89,7 @@ func TestNewSubscriptionController(t *testing.T) {
 		{
 			name: "valid config",
 			cfg: &Config{
-				K8sClient:   fake.NewSimpleClientset(),
+				K8sClient:   fake.NewClientset(),
 				Store:       &mockStore{},
 				RedisClient: &redis.Client{},
 				Logger:      zaptest.NewLogger(t),
@@ -132,7 +132,7 @@ func TestSubscriptionController_ProcessNodeEvent(t *testing.T) {
 	}()
 
 	// Create fake K8s client
-	k8sClient := fake.NewSimpleClientset()
+	k8sClient := fake.NewClientset()
 
 	// Create test node
 	node := &corev1.Node{
@@ -212,7 +212,7 @@ func TestSubscriptionController_ProcessNamespaceEvent(t *testing.T) {
 	}()
 
 	// Create fake K8s client
-	k8sClient := fake.NewSimpleClientset()
+	k8sClient := fake.NewClientset()
 
 	// Create test namespace
 	ns := &corev1.Namespace{
@@ -445,7 +445,7 @@ func TestHandleNodeAdd(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
-	clientset := fake.NewSimpleClientset()
+	clientset := fake.NewClientset()
 	store := &mockStore{
 		subscriptions: []*storage.Subscription{
 			{
@@ -528,7 +528,7 @@ func TestHandleNodeUpdate(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
-	clientset := fake.NewSimpleClientset()
+	clientset := fake.NewClientset()
 	store := &mockStore{
 		subscriptions: []*storage.Subscription{
 			{
@@ -616,7 +616,7 @@ func TestHandleNodeDelete(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
-	clientset := fake.NewSimpleClientset()
+	clientset := fake.NewClientset()
 	store := &mockStore{
 		subscriptions: []*storage.Subscription{
 			{
@@ -690,7 +690,7 @@ func TestHandleNamespaceAdd(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
-	clientset := fake.NewSimpleClientset()
+	clientset := fake.NewClientset()
 	store := &mockStore{
 		subscriptions: []*storage.Subscription{
 			{
@@ -764,7 +764,7 @@ func TestHandleNamespaceUpdate(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
-	clientset := fake.NewSimpleClientset()
+	clientset := fake.NewClientset()
 	store := &mockStore{
 		subscriptions: []*storage.Subscription{
 			{
@@ -847,7 +847,7 @@ func TestHandleNamespaceDelete(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
-	clientset := fake.NewSimpleClientset()
+	clientset := fake.NewClientset()
 	store := &mockStore{
 		subscriptions: []*storage.Subscription{
 			{
@@ -913,7 +913,7 @@ func TestHandleNamespaceDelete(t *testing.T) {
 
 // TestGetNodeByName tests the GetNodeByName function.
 func TestGetNodeByName(t *testing.T) {
-	clientset := fake.NewSimpleClientset()
+	clientset := fake.NewClientset()
 	store := &mockStore{}
 	logger := zaptest.NewLogger(t)
 
@@ -967,7 +967,7 @@ func TestGetNodeByName(t *testing.T) {
 
 // TestStart tests the Start function.
 func TestStart(t *testing.T) {
-	clientset := fake.NewSimpleClientset()
+	clientset := fake.NewClientset()
 	store := &mockStore{}
 	logger := zaptest.NewLogger(t)
 
@@ -1012,7 +1012,7 @@ func TestStart(t *testing.T) {
 
 // TestStop tests the Stop function.
 func TestStop(t *testing.T) {
-	clientset := fake.NewSimpleClientset()
+	clientset := fake.NewClientset()
 	store := &mockStore{}
 	logger := zaptest.NewLogger(t)
 
