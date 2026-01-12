@@ -318,12 +318,9 @@ func TestVNFStatus(t *testing.T) {
 func TestDeploymentStatus(t *testing.T) {
 	now := time.Now()
 	status := &DeploymentStatus{
-		DeploymentID:      "ns-123",
-		Status:            "ACTIVE",
-		OperationalStatus: "running",
-		ConfigStatus:      "configured",
-		DetailedStatus:    "NS is operational",
-		UpdatedAt:         now,
+		DeploymentID: "ns-123",
+		Status:       "ACTIVE",
+		UpdatedAt:    now,
 		VNFStatuses: []VNFStatus{
 			{
 				VNFId:             "vnf-1",

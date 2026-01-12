@@ -62,7 +62,7 @@ func NewSOClient(config *Config, logger *zap.Logger) (*SOClient, error) {
 func (c *SOClient) Health(ctx context.Context) error {
 	url := fmt.Sprintf("%s/manage/health", c.baseURL)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to create health check request: %w", err)
 	}
@@ -74,7 +74,11 @@ func (c *SOClient) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("health check request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check returned status %d", resp.StatusCode)
@@ -108,7 +112,7 @@ func (c *SOClient) DeleteServiceInstance(
 func (c *SOClient) GetOrchestrationStatus(ctx context.Context, requestID string) (*OrchestrationStatus, error) {
 	url := fmt.Sprintf("%s/onap/so/infra/orchestrationRequests/v7/%s", c.baseURL, requestID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -122,7 +126,11 @@ func (c *SOClient) GetOrchestrationStatus(ctx context.Context, requestID string)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
@@ -150,7 +158,7 @@ func (c *SOClient) GetOrchestrationStatus(ctx context.Context, requestID string)
 func (c *SOClient) CancelOrchestration(ctx context.Context, requestID string) error {
 	url := fmt.Sprintf("%s/onap/so/infra/orchestrationRequests/v7/%s/cancel", c.baseURL, requestID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -164,10 +172,17 @@ func (c *SOClient) CancelOrchestration(ctx context.Context, requestID string) er
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("SO returned status %d (failed to read body: %w)", resp.StatusCode, readErr)
+		}
 		return fmt.Errorf("SO returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -220,10 +235,17 @@ func (c *SOClient) ExecuteWorkflow(
 	if err != nil {
 		return "", fmt.Errorf("request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return "", fmt.Errorf("SO returned status %d (failed to read body: %w)", resp.StatusCode, readErr)
+		}
 		return "", fmt.Errorf("SO returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -264,10 +286,17 @@ func (c *SOClient) RegisterServiceModel(ctx context.Context, model *ServiceModel
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("SO returned status %d (failed to read body: %w)", resp.StatusCode, readErr)
+		}
 		return fmt.Errorf("SO returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -283,7 +312,7 @@ func (c *SOClient) RegisterServiceModel(ctx context.Context, model *ServiceModel
 func (c *SOClient) GetServiceModel(ctx context.Context, modelID string) (*ServiceModel, error) {
 	url := fmt.Sprintf("%s/onap/so/infra/serviceModels/%s", c.baseURL, modelID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -297,7 +326,11 @@ func (c *SOClient) GetServiceModel(ctx context.Context, modelID string) (*Servic
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
@@ -319,7 +352,7 @@ func (c *SOClient) GetServiceModel(ctx context.Context, modelID string) (*Servic
 func (c *SOClient) ListServiceModels(ctx context.Context) ([]*ServiceModel, error) {
 	url := fmt.Sprintf("%s/onap/so/infra/serviceModels", c.baseURL)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -333,7 +366,11 @@ func (c *SOClient) ListServiceModels(ctx context.Context) ([]*ServiceModel, erro
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
@@ -378,10 +415,17 @@ func (c *SOClient) serviceInstanceOperation(
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("SO returned status %d (failed to read body: %w)", resp.StatusCode, readErr)
+		}
 		return nil, fmt.Errorf("SO returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 

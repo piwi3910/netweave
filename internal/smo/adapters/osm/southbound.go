@@ -205,9 +205,13 @@ func (p *Plugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequ
 }
 
 func (p *Plugin) executeInstantiate(ctx context.Context, executionID string, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
-	nsName, _ := workflow.Parameters["nsName"].(string)
-	nsdID, _ := workflow.Parameters["nsdId"].(string)
-	vimAccountID, _ := workflow.Parameters["vimAccountId"].(string)
+	nsName, nsNameOK := workflow.Parameters["nsName"].(string)
+	nsdID, nsdIDOK := workflow.Parameters["nsdId"].(string)
+	vimAccountID, vimAccountIDOK := workflow.Parameters["vimAccountId"].(string)
+
+	if !nsNameOK || !nsdIDOK || !vimAccountIDOK {
+		return nil, fmt.Errorf("nsName, nsdId, and vimAccountId must be strings")
+	}
 
 	if nsName == "" || nsdID == "" || vimAccountID == "" {
 		return nil, fmt.Errorf("nsName, nsdId, and vimAccountId are required for instantiate workflow")
@@ -241,8 +245,8 @@ func (p *Plugin) executeInstantiate(ctx context.Context, executionID string, wor
 }
 
 func (p *Plugin) executeTerminate(ctx context.Context, executionID string, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
-	nsID, _ := workflow.Parameters["nsInstanceId"].(string)
-	if nsID == "" {
+	nsID, nsIDOK := workflow.Parameters["nsInstanceId"].(string)
+	if !nsIDOK || nsID == "" {
 		return nil, fmt.Errorf("nsInstanceId is required for terminate workflow")
 	}
 
@@ -263,13 +267,13 @@ func (p *Plugin) executeTerminate(ctx context.Context, executionID string, workf
 }
 
 func (p *Plugin) executeScale(ctx context.Context, executionID string, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
-	nsID, _ := workflow.Parameters["nsInstanceId"].(string)
-	if nsID == "" {
+	nsID, nsIDOK := workflow.Parameters["nsInstanceId"].(string)
+	if !nsIDOK || nsID == "" {
 		return nil, fmt.Errorf("nsInstanceId is required for scale workflow")
 	}
 
-	scaleType, _ := workflow.Parameters["scaleType"].(string)
-	if scaleType == "" {
+	scaleType, scaleTypeOK := workflow.Parameters["scaleType"].(string)
+	if !scaleTypeOK || scaleType == "" {
 		scaleType = "SCALE_VNF"
 	}
 
@@ -305,9 +309,9 @@ func (p *Plugin) executeScale(ctx context.Context, executionID string, workflow 
 }
 
 func (p *Plugin) executeHeal(ctx context.Context, executionID string, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
-	nsID, _ := workflow.Parameters["nsInstanceId"].(string)
-	vnfInstanceID, _ := workflow.Parameters["vnfInstanceId"].(string)
-	if nsID == "" || vnfInstanceID == "" {
+	nsID, nsIDOK := workflow.Parameters["nsInstanceId"].(string)
+	vnfInstanceID, vnfInstanceIDOK := workflow.Parameters["vnfInstanceId"].(string)
+	if !nsIDOK || !vnfInstanceIDOK || nsID == "" || vnfInstanceID == "" {
 		return nil, fmt.Errorf("nsInstanceId and vnfInstanceID are required for heal workflow")
 	}
 

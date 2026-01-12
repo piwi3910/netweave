@@ -87,7 +87,11 @@ func (ws *WebhookServer) Start() error {
 	}
 
 	ws.listener = listener
-	ws.port = listener.Addr().(*net.TCPAddr).Port
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		return fmt.Errorf("failed to get TCP address from listener")
+	}
+	ws.port = tcpAddr.Port
 
 	// Create HTTP server
 	mux := http.NewServeMux()

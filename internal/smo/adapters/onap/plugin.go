@@ -205,11 +205,7 @@ func (p *Plugin) initializeClients(cfg *Config) error {
 	}
 
 	// Initialize DMS backend clients
-	if err := p.initializeDMSClients(cfg); err != nil {
-		return err
-	}
-
-	return nil
+	return p.initializeDMSClients(cfg)
 }
 
 // initializeNorthboundClients initializes A&AI and DMaaP clients.
@@ -537,7 +533,7 @@ func parseFeatureFlags(input map[string]interface{}, output *Config) {
 // getStringValue retrieves a string value from config map with default fallback.
 func getStringValue(input map[string]interface{}, key, defaultVal string) string {
 	if val, ok := input[key]; ok {
-		if str, ok := val.(string); ok {
+		if str, strOK := val.(string); strOK {
 			return str
 		}
 	}
@@ -547,7 +543,7 @@ func getStringValue(input map[string]interface{}, key, defaultVal string) string
 // getBoolValue retrieves a bool value from config map with default fallback.
 func getBoolValue(input map[string]interface{}, key string, defaultVal bool) bool {
 	if val, ok := input[key]; ok {
-		if b, ok := val.(bool); ok {
+		if b, boolOK := val.(bool); boolOK {
 			return b
 		}
 	}

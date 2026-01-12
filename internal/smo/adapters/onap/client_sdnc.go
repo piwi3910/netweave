@@ -75,7 +75,11 @@ func (c *SDNCClient) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("health check request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check returned status %d", resp.StatusCode)
@@ -105,7 +109,7 @@ func (c *SDNCClient) CreateNetwork(ctx context.Context, networkInfo *NetworkInfo
 }
 
 // DeleteNetwork deletes a network via SDNC.
-func (c *SDNCClient) DeleteNetwork(ctx context.Context, networkID string, networkType string) (*SDNCResponse, error) {
+func (c *SDNCClient) DeleteNetwork(ctx context.Context, networkID, networkType string) (*SDNCResponse, error) {
 	request := &SDNCRequest{
 		Input: SDNCInput{
 			RequestInformation: RequestInformation{
@@ -230,10 +234,11 @@ func (c *SDNCClient) executeWithRetry(
 			c.waitBeforeRetrySDNC(attempt, operation)
 		}
 
-		response, err := c.executeSDNCRequest(ctx, url, body, operation, &lastErr)
+		response, err := c.executeSDNCRequest(ctx, url, body, operation)
 		if err == nil {
 			return response, nil
 		}
+		lastErr = err
 
 		if c.shouldStopRetryingSDNC(lastErr) {
 			break
@@ -261,11 +266,9 @@ func (c *SDNCClient) executeSDNCRequest(
 	url string,
 	body []byte,
 	operation string,
-	lastErr *error,
 ) (*SDNCResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		*lastErr = fmt.Errorf("failed to create request: %w", err)
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
@@ -275,35 +278,34 @@ func (c *SDNCClient) executeSDNCRequest(
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		*lastErr = fmt.Errorf("request failed: %w", err)
 		return nil, fmt.Errorf("failed to execute HTTP request: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
-	return c.processSDNCResponse(resp, operation, lastErr)
+	return c.processSDNCResponse(resp, operation)
 }
 
 // processSDNCResponse processes the SDNC response.
-func (c *SDNCClient) processSDNCResponse(resp *http.Response, operation string, lastErr *error) (*SDNCResponse, error) {
+func (c *SDNCClient) processSDNCResponse(resp *http.Response, operation string) (*SDNCResponse, error) {
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
-			*lastErr = fmt.Errorf("SDNC returned status %d (failed to read body: %w)", resp.StatusCode, err)
-			return nil, *lastErr
+			return nil, fmt.Errorf("SDNC returned status %d (failed to read body: %w)", resp.StatusCode, err)
 		}
-		*lastErr = fmt.Errorf("SDNC returned status %d: %s", resp.StatusCode, string(bodyBytes))
-		return nil, *lastErr
+		return nil, fmt.Errorf("SDNC returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var response SDNCResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		*lastErr = fmt.Errorf("failed to decode response: %w", err)
 		return nil, fmt.Errorf("failed to decode SDNC response: %w", err)
 	}
 
 	if response.Output.ResponseCode != "200" {
-		*lastErr = fmt.Errorf("SDNC operation failed: %s", response.Output.ResponseMessage)
-		return nil, *lastErr
+		return nil, fmt.Errorf("SDNC operation failed: %s", response.Output.ResponseMessage)
 	}
 
 	c.logger.Info("SDNC operation completed successfully",

@@ -419,7 +419,10 @@ func (w *WebhookWorker) deliverWebhook(ctx context.Context, event *controllers.R
 	}()
 
 	// Read response body for logging
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
 
 	// Check response status
 	if resp.StatusCode < DeliverySuccessStatus || resp.StatusCode >= 300 {

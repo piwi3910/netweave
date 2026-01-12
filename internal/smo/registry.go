@@ -177,8 +177,8 @@ func (r *Registry) Unregister(name string) error {
 	return nil
 }
 
-// Get retrieves a plugin by name.
-func (r *Registry) Get(name string) (Plugin, error) {
+// get retrieves a plugin by name (internal method).
+func (r *Registry) get(name string) (Plugin, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -190,8 +190,13 @@ func (r *Registry) Get(name string) (Plugin, error) {
 	return plugin, nil
 }
 
-// GetDefault retrieves the default plugin.
-func (r *Registry) GetDefault() (Plugin, error) {
+// Get retrieves a plugin by name.
+func (r *Registry) Get(name string) (Plugin, error) {
+	return r.get(name)
+}
+
+// getDefault retrieves the default plugin (internal method).
+func (r *Registry) getDefault() (Plugin, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -205,6 +210,11 @@ func (r *Registry) GetDefault() (Plugin, error) {
 	}
 
 	return plugin, nil
+}
+
+// GetDefault retrieves the default plugin.
+func (r *Registry) GetDefault() (Plugin, error) {
+	return r.getDefault()
 }
 
 // SetDefault sets the default plugin by name.
@@ -354,24 +364,29 @@ func (r *Registry) checkAllPluginsHealth(ctx context.Context) {
 			r.mu.Lock()
 			defer r.mu.Unlock()
 
-			if info, exists := r.pluginInfo[name]; exists {
-				wasHealthy := info.Healthy
-				info.Healthy = health.Healthy
-				info.LastHealthAt = time.Now()
+			info, exists := r.pluginInfo[name]
+			if !exists {
+				return
+			}
 
-				// Log health status changes
-				if wasHealthy != health.Healthy {
-					if health.Healthy {
-						r.logger.Info("SMO plugin became healthy",
-							zap.String("name", name),
-						)
-					} else {
-						r.logger.Warn("SMO plugin became unhealthy",
-							zap.String("name", name),
-							zap.String("message", health.Message),
-						)
-					}
-				}
+			wasHealthy := info.Healthy
+			info.Healthy = health.Healthy
+			info.LastHealthAt = time.Now()
+
+			// Log health status changes
+			if wasHealthy == health.Healthy {
+				return
+			}
+
+			if health.Healthy {
+				r.logger.Info("SMO plugin became healthy",
+					zap.String("name", name),
+				)
+			} else {
+				r.logger.Warn("SMO plugin became unhealthy",
+					zap.String("name", name),
+					zap.String("message", health.Message),
+				)
 			}
 		}()
 	}

@@ -98,7 +98,11 @@ func (c *Client) Authenticate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("auth request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
@@ -152,7 +156,11 @@ func (c *Client) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("health check request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("health check failed (status %d)", resp.StatusCode)
@@ -232,9 +240,17 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request, result interf
 			lastErr = fmt.Errorf("request failed: %w", err)
 			continue
 		}
-		defer func() { _ = resp.Body.Close() }()
+		defer func() {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				c.logger.Warn("failed to close response body", zap.Error(closeErr))
+			}
+		}()
 
-		if err := c.handleResponse(ctx, req, resp, result, &lastErr); err != nil {
+		newLastErr, err := c.handleResponse(ctx, req, resp, result)
+		if newLastErr != nil {
+			lastErr = newLastErr
+		}
+		if err != nil {
 			if errors.Is(err, errRetryable) {
 				continue
 			}
@@ -274,20 +290,19 @@ func (c *Client) handleResponse(
 	req *http.Request,
 	resp *http.Response,
 	result interface{},
-	lastErr *error,
-) error {
+) (error, error) {
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusCreated, http.StatusAccepted, http.StatusNoContent:
-		return c.handleSuccessResponse(resp, result)
+		return c.handleSuccessResponse(resp, result), nil
 
 	case http.StatusUnauthorized:
-		return c.handleUnauthorized(ctx, req, resp, lastErr)
+		return c.handleUnauthorized(ctx, req, resp)
 
 	case http.StatusTooManyRequests, http.StatusServiceUnavailable:
-		return c.handleRetryableError(resp, lastErr)
+		return c.handleRetryableError(resp)
 
 	default:
-		return c.handleNonRetryableError(resp)
+		return c.handleNonRetryableError(resp), nil
 	}
 }
 
@@ -304,29 +319,28 @@ func (c *Client) handleSuccessResponse(resp *http.Response, result interface{}) 
 
 // handleUnauthorized handles 401 responses by refreshing authentication.
 // Note: resp.Body is closed by caller's defer.
-func (c *Client) handleUnauthorized(ctx context.Context, req *http.Request, _ *http.Response, lastErr *error) error {
+// Returns (lastErr, retryableErr).
+func (c *Client) handleUnauthorized(ctx context.Context, req *http.Request, _ *http.Response) (error, error) {
 	if err := c.Authenticate(ctx); err != nil {
-		return fmt.Errorf("failed to refresh authentication: %w", err)
+		return nil, fmt.Errorf("failed to refresh authentication: %w", err)
 	}
 
 	c.mu.RLock()
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	c.mu.RUnlock()
 
-	*lastErr = fmt.Errorf("authentication expired, retrying")
-	return errRetryable
+	return fmt.Errorf("authentication expired, retrying"), errRetryable
 }
 
 // handleRetryableError handles retryable HTTP errors (rate limiting, service unavailable).
 // Note: resp.Body is closed by caller's defer.
-func (c *Client) handleRetryableError(resp *http.Response, lastErr *error) error {
+// Returns (lastErr, retryableErr).
+func (c *Client) handleRetryableError(resp *http.Response) (error, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		*lastErr = fmt.Errorf("request failed (status %d, failed to read body: %w)", resp.StatusCode, err)
-		return errRetryable
+		return fmt.Errorf("request failed (status %d, failed to read body: %w)", resp.StatusCode, err), errRetryable
 	}
-	*lastErr = fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(body))
-	return errRetryable
+	return fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(body)), errRetryable
 }
 
 // handleNonRetryableError handles non-retryable HTTP errors.
@@ -349,7 +363,7 @@ func (c *Client) get(ctx context.Context, path string, result interface{}) error
 }
 
 // post performs a POST request to the specified path with the given body.
-func (c *Client) post(ctx context.Context, path string, body interface{}, result interface{}) error {
+func (c *Client) post(ctx context.Context, path string, body, result interface{}) error {
 	req, err := c.newRequest(ctx, http.MethodPost, path, body)
 	if err != nil {
 		return err
@@ -367,7 +381,7 @@ func (c *Client) delete(ctx context.Context, path string) error {
 }
 
 // patch performs a PATCH request to the specified path with the given body.
-func (c *Client) patch(ctx context.Context, path string, body interface{}, result interface{}) error {
+func (c *Client) patch(ctx context.Context, path string, body, result interface{}) error {
 	req, err := c.newRequest(ctx, http.MethodPatch, path, body)
 	if err != nil {
 		return err

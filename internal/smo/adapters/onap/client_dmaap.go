@@ -63,7 +63,7 @@ func (c *DMaaPClient) Health(ctx context.Context) error {
 	// DMaaP health check endpoint
 	url := fmt.Sprintf("%s/topics", c.baseURL)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to create health check request: %w", err)
 	}
@@ -75,7 +75,11 @@ func (c *DMaaPClient) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("health check request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check returned status %d", resp.StatusCode)
@@ -123,7 +127,7 @@ func (c *DMaaPClient) publishWithRetry(
 			c.waitBeforeRetryDMaaP(attempt, topic)
 		}
 
-		if err := c.executePublishRequest(ctx, url, body, topic, eventCount, &lastErr); err == nil {
+		if err := c.executePublishRequest(ctx, url, body, topic, eventCount); err == nil {
 			return nil
 		}
 
@@ -152,11 +156,9 @@ func (c *DMaaPClient) executePublishRequest(
 	body []byte,
 	topic string,
 	eventCount int,
-	lastErr *error,
 ) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		*lastErr = fmt.Errorf("failed to create request: %w", err)
 		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
@@ -166,16 +168,19 @@ func (c *DMaaPClient) executePublishRequest(
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		*lastErr = fmt.Errorf("request failed: %w", err)
 		return fmt.Errorf("failed to execute HTTP request: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
-	return c.handlePublishResponse(resp, topic, eventCount, lastErr)
+	return c.handlePublishResponse(resp, topic, eventCount)
 }
 
 // handlePublishResponse processes the response from a publish request.
-func (c *DMaaPClient) handlePublishResponse(resp *http.Response, topic string, eventCount int, lastErr *error) error {
+func (c *DMaaPClient) handlePublishResponse(resp *http.Response, topic string, eventCount int) error {
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusAccepted {
 		c.logger.Info("Successfully published events to DMaaP",
 			zap.String("topic", topic),
@@ -185,9 +190,11 @@ func (c *DMaaPClient) handlePublishResponse(resp *http.Response, topic string, e
 		return nil
 	}
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
-	*lastErr = fmt.Errorf("DMaaP returned status %d: %s", resp.StatusCode, string(bodyBytes))
-	return *lastErr
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("DMaaP returned status %d (failed to read body: %w)", resp.StatusCode, err)
+	}
+	return fmt.Errorf("DMaaP returned status %d: %s", resp.StatusCode, string(bodyBytes))
 }
 
 // shouldStopRetryingDMaaP determines if DMaaP retries should be stopped.
@@ -209,7 +216,7 @@ func (c *DMaaPClient) SubscribeTopic(
 ) ([]json.RawMessage, error) {
 	url := fmt.Sprintf("%s/events/%s/%s/%s", c.baseURL, topic, consumerGroup, consumerID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -221,10 +228,17 @@ func (c *DMaaPClient) SubscribeTopic(
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("DMaaP returned status %d (failed to read body: %w)", resp.StatusCode, err)
+		}
 		return nil, fmt.Errorf("DMaaP returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -243,7 +257,7 @@ func (c *DMaaPClient) SubscribeTopic(
 
 // CreateTopic creates a new DMaaP topic.
 // Note: Topic creation typically requires admin privileges and may not be needed for normal operations.
-func (c *DMaaPClient) CreateTopic(ctx context.Context, topic string, partitions int, replicationFactor int) error {
+func (c *DMaaPClient) CreateTopic(ctx context.Context, topic string, partitions, replicationFactor int) error {
 	topicConfig := map[string]interface{}{
 		"topicName":          topic,
 		"topicDescription":   fmt.Sprintf("Topic for netweave O2-IMS/DMS events: %s", topic),
@@ -272,10 +286,17 @@ func (c *DMaaPClient) CreateTopic(ctx context.Context, topic string, partitions 
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("DMaaP returned status %d (failed to read body: %w)", resp.StatusCode, err)
+		}
 		return fmt.Errorf("DMaaP returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 

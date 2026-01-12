@@ -104,6 +104,7 @@ func verifyNewClientSuccess(t *testing.T, client *Client) {
 
 // mockSuccessfulAuthResponse returns a mock HTTP handler for successful authentication.
 func mockSuccessfulAuthResponse(t *testing.T) func(w http.ResponseWriter, r *http.Request) {
+	t.Helper()
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Verify request method and path
 		if err := validateAuthRequest(r); err != nil {

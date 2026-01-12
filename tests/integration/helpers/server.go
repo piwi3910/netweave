@@ -23,7 +23,7 @@ type TestServer struct {
 
 // NewTestServer creates a new test server with the given adapter and storage.
 // It sets up a complete server environment with test configuration and logger.
-func NewTestServer(t *testing.T, adapter adapter.Adapter, store storage.Store) *TestServer {
+func NewTestServer(t *testing.T, adp adapter.Adapter, store storage.Store) *TestServer {
 	t.Helper()
 
 	// Create test configuration
@@ -66,7 +66,7 @@ func NewTestServer(t *testing.T, adapter adapter.Adapter, store storage.Store) *
 	}
 
 	// Create server (use the embedded zap.Logger)
-	srv := server.New(cfg, obsLogger.Logger, adapter, store)
+	srv := server.New(cfg, obsLogger.Logger, adp, store)
 
 	// Create test HTTP server
 	ts := httptest.NewServer(srv.Router())

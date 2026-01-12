@@ -194,8 +194,8 @@ func (f *TestFramework) Cleanup() {
 	}
 }
 
-// buildKubernetesClient creates a Kubernetes client from kubeconfig.
-func BuildKubernetesClient(kubeconfigPath string) (kubernetes.Interface, error) {
+// BuildKubernetesClient creates a Kubernetes client from kubeconfig.
+func BuildKubernetesClient(kubeconfigPath string) (*kubernetes.Clientset, error) {
 	if kubeconfigPath == "" {
 		kubeconfigPath = filepath.Join(os.Getenv("HOME"), ".kube", "config")
 	}

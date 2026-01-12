@@ -370,8 +370,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 	if poolReq != nil {
 		poolReq.Header.Set("Content-Type", "application/json")
 	}
-	httpClient := helpers.NewTestHTTPClient()
-	poolResp, _ := httpClient.Do(poolReq)
+	client := helpers.NewTestHTTPClient()
+	poolResp, _ := client.Do(poolReq)
 	defer func() {
 		if err := poolResp.Body.Close(); err != nil {
 			t.Logf("Failed to close response body: %v", err)
@@ -399,8 +399,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
-		httpClient := helpers.NewTestHTTPClient()
-		resp, err := httpClient.Do(req)
+		testClient := helpers.NewTestHTTPClient()
+		resp, err := testClient.Do(req)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -433,8 +433,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		createReq.Header.Set("Content-Type", "application/json")
 
-		httpClient := helpers.NewTestHTTPClient()
-		createResp, err := httpClient.Do(createReq)
+		testClient := helpers.NewTestHTTPClient()
+		createResp, err := testClient.Do(createReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := createResp.Body.Close(); err != nil {
@@ -457,8 +457,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		httpClient = helpers.NewTestHTTPClient()
-		getResp, err := httpClient.Do(getReq)
+		testClient = helpers.NewTestHTTPClient()
+		getResp, err := testClient.Do(getReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := getResp.Body.Close(); err != nil {
@@ -490,8 +490,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 			if req != nil {
 				req.Header.Set("Content-Type", "application/json")
 			}
-			httpClient := helpers.NewTestHTTPClient()
-			resp, _ := httpClient.Do(req)
+			testClient := helpers.NewTestHTTPClient()
+			resp, _ := testClient.Do(req)
 			if err := resp.Body.Close(); err != nil {
 				t.Logf("Failed to close response body: %v", err)
 			}
@@ -506,8 +506,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		httpClient := helpers.NewTestHTTPClient()
-		resp, err := httpClient.Do(listReq)
+		testClient := helpers.NewTestHTTPClient()
+		resp, err := testClient.Do(listReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
@@ -543,8 +543,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		createReq.Header.Set("Content-Type", "application/json")
 
-		httpClient := helpers.NewTestHTTPClient()
-		createResp, err := httpClient.Do(createReq)
+		testClient := helpers.NewTestHTTPClient()
+		createResp, err := testClient.Do(createReq)
 		require.NoError(t, err)
 		defer func() {
 			if err := createResp.Body.Close(); err != nil {

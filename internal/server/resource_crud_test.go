@@ -1009,7 +1009,8 @@ func executeConcurrentGet(srv *Server, resourceID string, results chan<- string)
 }
 
 // collectConcurrentResults collects and tallies results from concurrent operations.
-func collectConcurrentResults(results <-chan string, numGoroutines int) (createSuccess, getSuccess, getNotFound int) {
+func collectConcurrentResults(results <-chan string, numGoroutines int) (int, int, int) {
+	var createSuccess, getSuccess, getNotFound int
 	for i := 0; i < numGoroutines; i++ {
 		result := <-results
 		parts := bytes.Split([]byte(result), []byte(":"))

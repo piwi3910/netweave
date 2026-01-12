@@ -344,19 +344,9 @@ func (p *Plugin) ApplyPolicy(_ context.Context, policy *smo.Policy) error {
 	// Note: ONAP Policy Framework integration would be implemented here
 	// For now, this is a placeholder that demonstrates the interface
 
-	// Transform policy to ONAP Policy Framework format
-	onapPolicy := &Policy{
-		PolicyID:   policy.PolicyID,
-		PolicyName: policy.Name,
-		PolicyType: policy.PolicyType,
-		Scope:      policy.Scope,
-		Rules:      policy.Rules,
-		Enabled:    policy.Enabled,
-	}
-
 	// In a full implementation, this would call ONAP Policy Framework APIs
-	// to create/update the policy
-	_ = onapPolicy
+	// to create/update the policy with transformed ONAP Policy Framework format
+	// Example fields would be: PolicyID, PolicyName, PolicyType, Scope, Rules, Enabled
 
 	p.logger.Info("Successfully applied policy through ONAP",
 		zap.String("policyId", policy.PolicyID),
