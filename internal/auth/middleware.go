@@ -92,6 +92,13 @@ func NewMiddleware(store Store, config *MiddlewareConfig, logger *zap.Logger) *M
 
 // AuthenticationMiddleware extracts user identity from the request.
 // It parses mTLS client certificates and looks up the user in the database.
+//
+// SECURITY NOTE: Path Matching and Normalization
+// The shouldSkipAuth() function matches paths as-is without normalization.
+// Path traversal sequences (../, ./, etc.) are NOT sanitized by this middleware.
+// It is the caller's responsibility to ensure paths are normalized BEFORE reaching
+// this middleware. Gin framework normalizes paths by default, but custom routers
+// or proxies should ensure proper path sanitization.
 func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Generate request ID.
@@ -101,6 +108,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 		c.Request = c.Request.WithContext(ctx)
 
 		// Skip authentication for excluded paths.
+		// NOTE: Assumes path has been normalized by upstream middleware (e.g., Gin router).
 		if m.shouldSkipAuth(c.Request.URL.Path) {
 			c.Next()
 			return

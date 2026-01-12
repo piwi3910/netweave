@@ -1305,120 +1305,21 @@ func TestContextCancellation(t *testing.T) {
 	}
 }
 
-// TestBuildConditions tests condition building for different app states.
-// TODO: Implement buildConditions method before enabling this test
-func TestBuildConditions(t *testing.T) {
-	t.Skip("Test requires unimplemented buildConditions method - see issue #200")
 
-	// TODO: Re-enable when buildConditions() is implemented
-	// adp, _ := NewAdapter(&Config{})
-	//
-	// tests := []struct {
-	// 	name           string
-	// 	healthStatus   string
-	// 	syncStatus     string
-	// 	wantCondType   string
-	// 	wantCondStatus string
-	// }{
-	// 	{
-	// 		name:           "healthy synced",
-	// 		healthStatus:   "Healthy",
-	// 		syncStatus:     "Synced",
-	// 		wantCondType:   "Healthy",
-	// 		wantCondStatus: "True",
-	// 	},
-	// 	{
-	// 		name:           "degraded",
-	// 		healthStatus:   "Degraded",
-	// 		syncStatus:     "Synced",
-	// 		wantCondType:   "Healthy",
-	// 		wantCondStatus: "False",
-	// 	},
-	// 	{
-	// 		name:           "progressing",
-	// 		healthStatus:   "Progressing",
-	// 		syncStatus:     "OutOfSync",
-	// 		wantCondType:   "Healthy",
-	// 		wantCondStatus: "Unknown",
-	// 	},
-	// }
-	//
-	// for _, tt := range tests {
-	// 	t.Run(tt.name, func(t *testing.T) {
-	// 		conditions := adp.buildConditions(tt.healthStatus, tt.syncStatus)
-	// 		require.NotEmpty(t, conditions)
-	//
-	// 		// Find the health condition
-	// 		var healthCond *dmsadapter.DeploymentCondition
-	// 		for i := range conditions {
-	// 			if conditions[i].Type == tt.wantCondType {
-	// 				healthCond = &conditions[i]
-	// 				break
-	// 			}
-	// 		}
-	// 		require.NotNil(t, healthCond)
-	// 		assert.Equal(t, tt.wantCondStatus, healthCond.Status)
-	// 	})
-	// }
+// TestBuildConditions tests condition building for different app states.
+// TODO(#200): Implement buildConditions method before enabling this test.
+// This test is skipped because the buildConditions() method is not yet implemented in the adapter.
+// Expected test coverage: condition mapping for Healthy/Degraded/Progressing states.
+func TestBuildConditions(t *testing.T) {
+	t.Skip("TODO(#200): Implement buildConditions method in ArgoCD adapter")
 }
 
 // TestExtractSource tests source extraction from Application.
-// TODO: Implement extractSource method before enabling this test
+// TODO(#200): Implement extractSource method before enabling this test.
+// This test is skipped because the extractSource() method is not yet implemented in the adapter.
+// Expected test coverage: Git repos, Helm charts, and path extraction from ArgoCD Applications.
 func TestExtractSource(t *testing.T) {
-	t.Skip("Test requires unimplemented extractSource method - see issue #200")
-
-	// TODO: Re-enable when extractSource() is implemented
-	// adp, _ := NewAdapter(&Config{})
-	//
-	// tests := []struct {
-	// 	name      string
-	// 	app       *unstructured.Unstructured
-	// 	wantRepo  string
-	// 	wantPath  string
-	// 	wantChart string
-	// }{
-	// 	{
-	// 		name:     "standard source",
-	// 		app:      createTestApplication("app", "https://github.com/example/repo", "apps/myapp", "Healthy", "Synced"),
-	// 		wantRepo: "https://github.com/example/repo",
-	// 		wantPath: "apps/myapp",
-	// 	},
-	// 	{
-	// 		name: "helm source",
-	// 		app: &unstructured.Unstructured{
-	// 			Object: map[string]interface{}{
-	// 				"apiVersion": "argoproj.io/v1alpha1",
-	// 				"kind":       "Application",
-	// 				"metadata": map[string]interface{}{
-	// 					"name":      "helm-app",
-	// 					"namespace": "argocd",
-	// 				},
-	// 				"spec": map[string]interface{}{
-	// 					"source": map[string]interface{}{
-	// 						"repoURL":   "https://charts.example.com",
-	// 						"chart":     "nginx",
-	// 						"chartPath": ".",
-	// 					},
-	// 				},
-	// 			},
-	// 		},
-	// 		wantRepo:  "https://charts.example.com",
-	// 		wantChart: "nginx",
-	// 	},
-	// }
-	//
-	// for _, tt := range tests {
-	// 	t.Run(tt.name, func(t *testing.T) {
-	// 		repoURL, path, _, chart := adp.extractSource(tt.app)
-	// 		assert.Equal(t, tt.wantRepo, repoURL)
-	// 		if tt.wantPath != "" {
-	// 			assert.Equal(t, tt.wantPath, path)
-	// 		}
-	// 		if tt.wantChart != "" {
-	// 			assert.Equal(t, tt.wantChart, chart)
-	// 		}
-	// 	})
-	// }
+	t.Skip("TODO(#200): Implement extractSource method in ArgoCD adapter")
 }
 
 // TestTransformApplicationToDeployment tests transformation of ArgoCD Application to Deployment.
