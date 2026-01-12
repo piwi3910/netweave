@@ -581,15 +581,7 @@ func (m *Middleware) parseXFCCHeader(xfcc string) *CertificateInfo {
 
 // parseDNHeader parses a DN (Distinguished Name) string.
 func (m *Middleware) parseDNHeader(dn string) *CertificateInfo {
-	// Validate DN length.
-	if len(dn) == 0 || len(dn) > maxDNLength {
-		m.logger.Warn("invalid DN length", zap.Int("length", len(dn)))
-		return nil
-	}
-
-	// Check for null bytes or other control characters.
-	if !isValidDNString(dn) {
-		m.logger.Warn("invalid characters in DN string")
+	if !m.validateDN(dn) {
 		return nil
 	}
 
@@ -597,6 +589,34 @@ func (m *Middleware) parseDNHeader(dn string) *CertificateInfo {
 		Subject: CertificateSubject{},
 	}
 
+	parseDNParts(dn, cert)
+
+	if cert.Subject.CommonName == "" {
+		return nil
+	}
+
+	return cert
+}
+
+// validateDN validates the DN string format.
+func (m *Middleware) validateDN(dn string) bool {
+	// Validate DN length.
+	if len(dn) == 0 || len(dn) > maxDNLength {
+		m.logger.Warn("invalid DN length", zap.Int("length", len(dn)))
+		return false
+	}
+
+	// Check for null bytes or other control characters.
+	if !isValidDNString(dn) {
+		m.logger.Warn("invalid characters in DN string")
+		return false
+	}
+
+	return true
+}
+
+// parseDNParts parses the DN parts and populates the certificate info.
+func parseDNParts(dn string, cert *CertificateInfo) {
 	// Split by comma, but handle escaped commas.
 	parts := strings.Split(dn, ",")
 	for _, part := range parts {
@@ -620,30 +640,29 @@ func (m *Middleware) parseDNHeader(dn string) *CertificateInfo {
 			continue
 		}
 
-		switch strings.ToUpper(key) {
-		case "CN":
-			cert.Subject.CommonName = value
-			cert.CommonName = value
-		case "O":
-			cert.Subject.Organization = append(cert.Subject.Organization, value)
-		case "OU":
-			cert.Subject.OrganizationalUnit = append(cert.Subject.OrganizationalUnit, value)
-		case "C":
-			cert.Subject.Country = append(cert.Subject.Country, value)
-		case "ST":
-			cert.Subject.Province = append(cert.Subject.Province, value)
-		case "L":
-			cert.Subject.Locality = append(cert.Subject.Locality, value)
-		case "EMAILADDRESS", "EMAIL":
-			cert.Email = value
-		}
+		assignDNValueToField(key, value, cert)
 	}
+}
 
-	if cert.Subject.CommonName == "" {
-		return nil
+// assignDNValueToField assigns a DN key-value pair to the appropriate certificate field.
+func assignDNValueToField(key, value string, cert *CertificateInfo) {
+	switch strings.ToUpper(key) {
+	case "CN":
+		cert.Subject.CommonName = value
+		cert.CommonName = value
+	case "O":
+		cert.Subject.Organization = append(cert.Subject.Organization, value)
+	case "OU":
+		cert.Subject.OrganizationalUnit = append(cert.Subject.OrganizationalUnit, value)
+	case "C":
+		cert.Subject.Country = append(cert.Subject.Country, value)
+	case "ST":
+		cert.Subject.Province = append(cert.Subject.Province, value)
+	case "L":
+		cert.Subject.Locality = append(cert.Subject.Locality, value)
+	case "EMAILADDRESS", "EMAIL":
+		cert.Email = value
 	}
-
-	return cert
 }
 
 // isValidDNString checks if the DN string contains only valid characters.
