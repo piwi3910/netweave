@@ -1,4 +1,4 @@
-package onap_test
+package onap
 
 import (
 	"context"

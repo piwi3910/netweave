@@ -1,4 +1,4 @@
-package workers_test
+package workers
 
 import (
 	"context"
@@ -81,23 +81,22 @@ func TestNewWebhookWorker(t *testing.T) {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
 				assert.Nil(t, worker)
-				return
-			}
-
-			require.NoError(t, err)
-			assert.NotNil(t, worker)
-			assert.NotNil(t, worker.httpClient)
-
-			if tt.cfg.WorkerCount > 0 {
-				assert.Equal(t, tt.cfg.WorkerCount, worker.workerCount)
 			} else {
-				assert.Equal(t, DefaultWorkerCount, worker.workerCount)
-			}
+				require.NoError(t, err)
+				assert.NotNil(t, worker)
+				assert.NotNil(t, worker.httpClient)
 
-			if tt.cfg.MaxRetries > 0 {
-				assert.Equal(t, tt.cfg.MaxRetries, worker.maxRetries)
-			} else {
-				assert.Equal(t, DefaultMaxRetries, worker.maxRetries)
+				if tt.cfg.WorkerCount > 0 {
+					assert.Equal(t, tt.cfg.WorkerCount, worker.workerCount)
+				} else {
+					assert.Equal(t, DefaultWorkerCount, worker.workerCount)
+				}
+
+				if tt.cfg.MaxRetries > 0 {
+					assert.Equal(t, tt.cfg.MaxRetries, worker.maxRetries)
+				} else {
+					assert.Equal(t, DefaultMaxRetries, worker.maxRetries)
+				}
 			}
 		})
 	}

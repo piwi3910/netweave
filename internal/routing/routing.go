@@ -105,21 +105,9 @@ func NewRouter(reg *registry.Registry, logger *zap.Logger, config *Config) *Rout
 		}
 	}
 
-	// Convert RuleConfig to Rule using the existing conversion function
-	rules := make([]*Rule, 0, len(config.Rules))
-	for i := range config.Rules {
-		rule, err := convertRuleConfig(&config.Rules[i])
-		if err != nil {
-			// Log error but continue with other rules
-			logger.Warn("failed to convert rule config", zap.Error(err))
-			continue
-		}
-		rules = append(rules, rule)
-	}
-
 	router := &Router{
 		registry:        reg,
-		rules:           rules,
+		rules:           config.Rules,
 		logger:          logger,
 		fallbackEnabled: config.FallbackEnabled,
 		aggregateMode:   config.AggregateMode,

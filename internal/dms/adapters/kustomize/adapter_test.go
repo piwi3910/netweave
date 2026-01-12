@@ -1,4 +1,4 @@
-package kustomize_test
+package kustomize
 
 import (
 	"context"

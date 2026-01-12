@@ -448,8 +448,17 @@ func (k *Adapter) UpdateDeployment(
 	}
 
 	// Update path if provided
-	if err := k.applyPathExtension(cm, update.Extensions); err != nil {
-		return nil, err
+	if update.Extensions != nil {
+		if path, ok := update.Extensions["kustomize.path"].(string); ok {
+			if err := validatePath(path); err != nil {
+				return nil, err
+			}
+			data, _, _ := unstructured.NestedStringMap(cm.Object, "data")
+			data["path"] = path
+			if err := unstructured.SetNestedStringMap(cm.Object, data, "data"); err != nil {
+				return nil, fmt.Errorf("failed to update path: %w", err)
+			}
+		}
 	}
 
 	// Update version and timestamp
@@ -480,30 +489,6 @@ func (k *Adapter) UpdateDeployment(
 	}
 
 	return k.transformConfigMapToDeployment(updated), nil
-}
-
-// applyPathExtension applies the kustomize path extension update to a ConfigMap.
-func (k *Adapter) applyPathExtension(cm *unstructured.Unstructured, extensions map[string]interface{}) error {
-	if extensions == nil {
-		return nil
-	}
-
-	path, ok := extensions["kustomize.path"].(string)
-	if !ok || path == "" {
-		return nil
-	}
-
-	if err := validatePath(path); err != nil {
-		return err
-	}
-
-	data, _, _ := unstructured.NestedStringMap(cm.Object, "data")
-	data["path"] = path
-	if err := unstructured.SetNestedStringMap(cm.Object, data, "data"); err != nil {
-		return fmt.Errorf("failed to update path: %w", err)
-	}
-
-	return nil
 }
 
 // DeleteDeployment deletes a Kustomize deployment.

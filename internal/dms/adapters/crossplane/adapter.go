@@ -428,8 +428,18 @@ func (c *Adapter) UpdateDeployment(
 	}
 
 	// Update package reference if provided
-	if err := c.applyUpdateExtensions(config, update.Extensions); err != nil {
-		return nil, err
+	if update.Extensions != nil {
+		if packageRef, ok := update.Extensions["crossplane.package"].(string); ok && packageRef != "" {
+			if err := unstructured.SetNestedField(config.Object, packageRef, "spec", "package"); err != nil {
+				return nil, fmt.Errorf("failed to update package reference: %w", err)
+			}
+		}
+
+		if policy, ok := update.Extensions["crossplane.revisionActivationPolicy"].(string); ok {
+			if err := unstructured.SetNestedField(config.Object, policy, "spec", "revisionActivationPolicy"); err != nil {
+				return nil, fmt.Errorf("failed to update revision activation policy: %w", err)
+			}
+		}
 	}
 
 	updated, err := c.dynamicClient.Resource(configurationGVR).Update(ctx, config, metav1.UpdateOptions{})
@@ -438,27 +448,6 @@ func (c *Adapter) UpdateDeployment(
 	}
 
 	return c.transformConfigurationToDeployment(updated), nil
-}
-
-// applyUpdateExtensions applies extension updates to a Crossplane Configuration.
-func (c *Adapter) applyUpdateExtensions(config *unstructured.Unstructured, extensions map[string]interface{}) error {
-	if extensions == nil {
-		return nil
-	}
-
-	if packageRef, ok := extensions["crossplane.package"].(string); ok && packageRef != "" {
-		if err := unstructured.SetNestedField(config.Object, packageRef, "spec", "package"); err != nil {
-			return fmt.Errorf("failed to update package reference: %w", err)
-		}
-	}
-
-	if policy, ok := extensions["crossplane.revisionActivationPolicy"].(string); ok {
-		if err := unstructured.SetNestedField(config.Object, policy, "spec", "revisionActivationPolicy"); err != nil {
-			return fmt.Errorf("failed to update revision activation policy: %w", err)
-		}
-	}
-
-	return nil
 }
 
 // DeleteDeployment deletes a Crossplane Configuration.

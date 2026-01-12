@@ -1,4 +1,4 @@
-package smo_test
+package smo
 
 import (
 	"context"

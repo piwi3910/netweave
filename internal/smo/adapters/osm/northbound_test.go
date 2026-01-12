@@ -1,4 +1,4 @@
-package osm_test
+package osm
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package crossplane_test
+package crossplane
 
 import (
 	"context"
