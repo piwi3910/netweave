@@ -1,0 +1,68 @@
+/* Custom styles for netweave documentation */
+
+/* Wider content area - remove left navigation constraint */
+.container-lg {
+  max-width: 1280px !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+}
+
+.markdown-body {
+  max-width: 100% !important;
+}
+
+/* Better spacing for wide screens */
+@media (min-width: 1280px) {
+  .container-lg {
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+  }
+}
+
+/* Mermaid diagram styling */
+.mermaid {
+  text-align: center;
+  margin: 1.5em 0;
+  background-color: transparent;
+}
+
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Better code block styling */
+.markdown-body pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Responsive tables */
+.markdown-body table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* Navigation improvements */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+  scroll-margin-top: 2rem;
+}
+
+/* Better link visibility */
+.markdown-body a {
+  color: #0366d6;
+  text-decoration: none;
+}
+
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+
+/* Improve emoji visibility */
+.markdown-body img.emoji {
+  vertical-align: middle;
+  margin: 0 0.05em;
+}

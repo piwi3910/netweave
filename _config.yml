@@ -1,6 +1,6 @@
 title: netweave Documentation
 description: Complete O-RAN O2 Gateway (IMS + DMS + SMO) for Cloud-Native Infrastructure
-url: https://watteel.github.io
+url: https://piwi3910.github.io
 baseurl: /netweave
 
 # Jekyll theme
@@ -81,7 +81,7 @@ titles_from_headings:
   collections: true
 
 # GitHub metadata
-repository: watteel/netweave
+repository: piwi3910/netweave
 github:
   is_project_page: true
-  repository_url: https://github.com/watteel/netweave
+  repository_url: https://github.com/piwi3910/netweave
