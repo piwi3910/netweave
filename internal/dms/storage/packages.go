@@ -37,12 +37,8 @@ var (
 	ErrContentTooLarge = errors.New("package content exceeds maximum size limit")
 )
 
-// PackageStore defines the interface for DMS deployment package storage.
-type PackageStore interface {
-	// Create creates a new package entry.
-	// Returns ErrPackageExists if a package with the same ID exists.
-	Create(ctx context.Context, pkg *adapter.DeploymentPackage) error
-
+// PackageReader defines read operations for deployment packages.
+type PackageReader interface {
 	// Get retrieves a package by ID.
 	// Returns ErrPackageNotFound if the package doesn't exist.
 	Get(ctx context.Context, id string) (*adapter.DeploymentPackage, error)
@@ -56,6 +52,13 @@ type PackageStore interface {
 
 	// ListVersions retrieves all versions of a package by name.
 	ListVersions(ctx context.Context, name string) ([]*adapter.DeploymentPackage, error)
+}
+
+// PackageWriter defines write operations for deployment packages.
+type PackageWriter interface {
+	// Create creates a new package entry.
+	// Returns ErrPackageExists if a package with the same ID exists.
+	Create(ctx context.Context, pkg *adapter.DeploymentPackage) error
 
 	// Update updates an existing package.
 	// Returns ErrPackageNotFound if the package doesn't exist.
@@ -64,7 +67,10 @@ type PackageStore interface {
 	// Delete deletes a package by ID.
 	// Returns ErrPackageNotFound if the package doesn't exist.
 	Delete(ctx context.Context, id string) error
+}
 
+// PackageContentStore defines operations for package binary content.
+type PackageContentStore interface {
 	// SaveContent saves binary content for a package.
 	SaveContent(ctx context.Context, id string, content []byte) error
 
@@ -74,10 +80,22 @@ type PackageStore interface {
 
 	// DeleteContent deletes binary content for a package.
 	DeleteContent(ctx context.Context, id string) error
+}
 
+// PackageHealthCheck defines health check operations.
+type PackageHealthCheck interface {
 	// Ping checks if the storage is healthy.
 	Ping(ctx context.Context) error
+}
 
+// PackageStore defines the complete interface for DMS deployment package storage.
+// It composes multiple smaller interfaces to avoid interface bloat while maintaining
+// the full API surface required by the O-RAN O2-DMS specification.
+type PackageStore interface {
+	PackageReader
+	PackageWriter
+	PackageContentStore
+	PackageHealthCheck
 	// Close closes the storage connection.
 	Close() error
 }

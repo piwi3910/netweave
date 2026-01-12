@@ -7,11 +7,8 @@ import (
 	"time"
 )
 
-// Plugin defines the interface that all SMO integration plugins must implement.
-// SMO plugins operate in dual mode:
-// - Northbound: netweave → SMO (inventory sync, event publishing)
-// - Southbound: SMO → netweave (workflow orchestration, deployments).
-type Plugin interface {
+// PluginCore defines core plugin lifecycle and metadata operations.
+type PluginCore interface {
 	// Metadata returns the plugin's identifying information.
 	Metadata() PluginMetadata
 
@@ -29,9 +26,10 @@ type Plugin interface {
 	// Close cleanly shuts down the plugin and releases all resources.
 	// Returns an error if shutdown fails.
 	Close() error
+}
 
-	// === NORTHBOUND MODE: netweave → SMO ===
-
+// PluginNorthboundSync defines inventory synchronization to SMO (netweave → SMO).
+type PluginNorthboundSync interface {
 	// SyncInfrastructureInventory synchronizes O2-IMS infrastructure inventory to the SMO.
 	// This includes deployment managers, resource pools, resources, and resource types.
 	SyncInfrastructureInventory(ctx context.Context, inventory *InfrastructureInventory) error
@@ -39,7 +37,10 @@ type Plugin interface {
 	// SyncDeploymentInventory synchronizes O2-DMS deployment inventory to the SMO.
 	// This includes deployment packages, active deployments, and deployment status.
 	SyncDeploymentInventory(ctx context.Context, inventory *DeploymentInventory) error
+}
 
+// PluginNorthboundEvents defines event publishing to SMO (netweave → SMO).
+type PluginNorthboundEvents interface {
 	// PublishInfrastructureEvent publishes an infrastructure change event to the SMO.
 	// Events are triggered by resource lifecycle changes (created, updated, deleted).
 	PublishInfrastructureEvent(ctx context.Context, event *InfrastructureEvent) error
@@ -47,9 +48,10 @@ type Plugin interface {
 	// PublishDeploymentEvent publishes a deployment change event to the SMO.
 	// Events are triggered by deployment lifecycle changes (started, succeeded, failed).
 	PublishDeploymentEvent(ctx context.Context, event *DeploymentEvent) error
+}
 
-	// === SOUTHBOUND MODE: SMO → netweave ===
-
+// PluginSouthboundWorkflow defines workflow orchestration from SMO (SMO → netweave).
+type PluginSouthboundWorkflow interface {
 	// ExecuteWorkflow executes a workflow orchestrated by the SMO.
 	// Returns WorkflowExecution with execution ID and initial status.
 	ExecuteWorkflow(ctx context.Context, workflow *WorkflowRequest) (*WorkflowExecution, error)
@@ -61,7 +63,10 @@ type Plugin interface {
 	// CancelWorkflow cancels a running workflow execution.
 	// Returns an error if the workflow cannot be canceled (already completed, not found, etc.).
 	CancelWorkflow(ctx context.Context, executionID string) error
+}
 
+// PluginSouthboundServiceModel defines service model management from SMO (SMO → netweave).
+type PluginSouthboundServiceModel interface {
 	// RegisterServiceModel registers a service model with the SMO.
 	// Service models define deployment templates and orchestration logic.
 	RegisterServiceModel(ctx context.Context, model *ServiceModel) error
@@ -73,7 +78,10 @@ type Plugin interface {
 	// ListServiceModels retrieves all registered service models.
 	// Returns a list of service models or an error.
 	ListServiceModels(ctx context.Context) ([]*ServiceModel, error)
+}
 
+// PluginSouthboundPolicy defines policy management from SMO (SMO → netweave).
+type PluginSouthboundPolicy interface {
 	// ApplyPolicy applies a policy to the infrastructure or deployments.
 	// Policies define rules for placement, scaling, healing, and resource management.
 	ApplyPolicy(ctx context.Context, policy *Policy) error
@@ -81,6 +89,22 @@ type Plugin interface {
 	// GetPolicyStatus retrieves the current status of an applied policy.
 	// Returns PolicyStatus with enforcement details and violations.
 	GetPolicyStatus(ctx context.Context, policyID string) (*PolicyStatus, error)
+}
+
+// Plugin defines the complete interface that all SMO integration plugins must implement.
+// SMO plugins operate in dual mode:
+// - Northbound: netweave → SMO (inventory sync, event publishing)
+// - Southbound: SMO → netweave (workflow orchestration, deployments)
+//
+// The interface is composed of smaller focused interfaces to avoid interface bloat
+// while maintaining the full API surface required by O-RAN SMO integration.
+type Plugin interface {
+	PluginCore
+	PluginNorthboundSync
+	PluginNorthboundEvents
+	PluginSouthboundWorkflow
+	PluginSouthboundServiceModel
+	PluginSouthboundPolicy
 }
 
 // PluginMetadata contains identifying information about a plugin.
