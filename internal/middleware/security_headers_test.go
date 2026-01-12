@@ -13,7 +13,7 @@ import (
 	"github.com/piwi3910/netweave/internal/middleware"
 )
 
-func Testmiddleware.SecurityHeaders(t *testing.T) {
+func TestSecurityHeaders(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
