@@ -433,26 +433,38 @@ func (s *MemoryPackageStore) collectLatestPackages(filter *PackageFilter) []*ada
 	var results []*adapter.DeploymentPackage
 
 	for name, ids := range s.byName {
-		if filter != nil && filter.Name != "" && name != filter.Name {
+		if !matchesNameFilter(filter, name) {
 			continue
 		}
 
-		var latest *adapter.DeploymentPackage
-		for _, id := range ids {
-			pkg := s.packages[id]
-			if filter != nil && filter.PackageType != "" && pkg.PackageType != filter.PackageType {
-				continue
-			}
-			if latest == nil || pkg.UploadedAt.After(latest.UploadedAt) {
-				latest = pkg
-			}
-		}
+		latest := s.findLatestPackage(ids, filter)
 		if latest != nil {
 			results = append(results, copyPackage(latest))
 		}
 	}
 
 	return results
+}
+
+func matchesNameFilter(filter *PackageFilter, name string) bool {
+	if filter != nil && filter.Name != "" && name != filter.Name {
+		return false
+	}
+	return true
+}
+
+func (s *MemoryPackageStore) findLatestPackage(ids []string, filter *PackageFilter) *adapter.DeploymentPackage {
+	var latest *adapter.DeploymentPackage
+	for _, id := range ids {
+		pkg := s.packages[id]
+		if filter != nil && filter.PackageType != "" && pkg.PackageType != filter.PackageType {
+			continue
+		}
+		if latest == nil || pkg.UploadedAt.After(latest.UploadedAt) {
+			latest = pkg
+		}
+	}
+	return latest
 }
 
 // collectAllPackages returns all packages matching the filter.
