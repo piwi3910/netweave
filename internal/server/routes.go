@@ -1718,12 +1718,19 @@ func validateCallbackHost(hostname string) error {
 
 // isPrivateIP checks if an IP address is in a private or reserved range.
 func isPrivateIP(ip net.IP) bool {
-	// Check for loopback
 	if ip.IsLoopback() {
 		return true
 	}
 
-	// Check for private IPv4 ranges (RFC 1918)
+	if isPrivateIPv4(ip) {
+		return true
+	}
+
+	return isPrivateIPv6(ip)
+}
+
+// isPrivateIPv4 checks if an IPv4 address is in a private range (RFC 1918).
+func isPrivateIPv4(ip net.IP) bool {
 	privateIPv4Ranges := []string{
 		"10.0.0.0/8",     // Private class A
 		"172.16.0.0/12",  // Private class B
@@ -1738,19 +1745,23 @@ func isPrivateIP(ip net.IP) bool {
 		}
 	}
 
-	// Check for private IPv6 ranges
-	if ip.To4() == nil {
-		// IPv6 unique local addresses (fc00::/7)
-		_, ulaNetwork, _ := net.ParseCIDR("fc00::/7")
-		if ulaNetwork.Contains(ip) {
-			return true
-		}
-		// IPv6 link-local (fe80::/10)
-		_, linkLocalNetwork, _ := net.ParseCIDR("fe80::/10")
-		if linkLocalNetwork.Contains(ip) {
-			return true
-		}
+	return false
+}
+
+// isPrivateIPv6 checks if an IPv6 address is in a private range.
+func isPrivateIPv6(ip net.IP) bool {
+	// Only check IPv6 addresses
+	if ip.To4() != nil {
+		return false
 	}
 
-	return false
+	// IPv6 unique local addresses (fc00::/7)
+	_, ulaNetwork, _ := net.ParseCIDR("fc00::/7")
+	if ulaNetwork.Contains(ip) {
+		return true
+	}
+
+	// IPv6 link-local (fe80::/10)
+	_, linkLocalNetwork, _ := net.ParseCIDR("fe80::/10")
+	return linkLocalNetwork.Contains(ip)
 }
