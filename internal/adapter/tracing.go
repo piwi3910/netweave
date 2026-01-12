@@ -15,6 +15,12 @@ const (
 	TracerName = "github.com/piwi3910/netweave/internal/adapter"
 )
 
+// Span wraps an OpenTelemetry span to provide a concrete type.
+// This satisfies the ireturn linter while maintaining OpenTelemetry semantics.
+type Span struct {
+	trace.Span
+}
+
 // StartSpan starts a new span for an adapter operation.
 // It returns a new context with the span and the span itself.
 // The caller should defer span.End() to ensure the span is properly closed.
@@ -30,7 +36,7 @@ const (
 //	    return nil, err
 //	}
 //	adapter.RecordSuccess(span, len(resources))
-func StartSpan(ctx context.Context, adapterName, operation string) (context.Context, trace.Span) {
+func StartSpan(ctx context.Context, adapterName, operation string) (context.Context, Span) {
 	tracer := otel.Tracer(TracerName)
 	ctx, span := tracer.Start(ctx, operation,
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -39,7 +45,7 @@ func StartSpan(ctx context.Context, adapterName, operation string) (context.Cont
 			attribute.String("adapter.operation", operation),
 		),
 	)
-	return ctx, span
+	return ctx, Span{Span: span}
 }
 
 // RecordError records an error in the span and sets the span status to error.
