@@ -47,10 +47,10 @@ func NewTestServer(t *testing.T, adapter adapter.Adapter, store storage.Store) *
 			},
 		},
 		Security: config.SecurityConfig{
-			EnableCORS:               false,
-			RateLimitEnabled:         false,
-			DisableSSRFProtection:    true, // Allow localhost callbacks in tests
-			AllowInsecureCallbacks:   true, // Allow HTTP callbacks in tests
+			EnableCORS:             false,
+			RateLimitEnabled:       false,
+			DisableSSRFProtection:  true, // Allow localhost callbacks in tests
+			AllowInsecureCallbacks: true, // Allow HTTP callbacks in tests
 		},
 		Validation: config.ValidationConfig{
 			Enabled:          true,
