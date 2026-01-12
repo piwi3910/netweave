@@ -1,14 +1,12 @@
-package models_test
+package models
 
 import (
 	"testing"
-
-	"github.com/piwi3910/netweave/internal/models"
 )
 
 // BenchmarkSelectFields_NoSelection benchmarks field selection with no fields specified.
 func BenchmarkSelectFields_NoSelection(b *testing.B) {
-	filter := &models.Filter{Fields: nil}
+	filter := &Filter{Fields: nil}
 	data := map[string]interface{}{
 		"id":             "resource-1",
 		"name":           "Production Resource",
@@ -35,7 +33,7 @@ func BenchmarkSelectFields_NoSelection(b *testing.B) {
 
 // BenchmarkSelectFields_TopLevel benchmarks top-level field selection.
 func BenchmarkSelectFields_TopLevel(b *testing.B) {
-	filter := &models.Filter{Fields: []string{"id", "name"}}
+	filter := &Filter{Fields: []string{"id", "name"}}
 	data := map[string]interface{}{
 		"id":             "resource-1",
 		"name":           "Production Resource",
@@ -56,7 +54,7 @@ func BenchmarkSelectFields_TopLevel(b *testing.B) {
 
 // BenchmarkSelectFields_Nested benchmarks nested field selection.
 func BenchmarkSelectFields_Nested(b *testing.B) {
-	filter := &models.Filter{Fields: []string{"extensions.cpu", "metadata.labels"}}
+	filter := &Filter{Fields: []string{"extensions.cpu", "metadata.labels"}}
 	data := map[string]interface{}{
 		"id":   "resource-1",
 		"name": "Production Resource",
@@ -84,7 +82,7 @@ func BenchmarkSelectFields_Nested(b *testing.B) {
 
 // BenchmarkSelectFields_DeeplyNested benchmarks deeply nested field selection (5 levels).
 func BenchmarkSelectFields_DeeplyNested(b *testing.B) {
-	filter := &models.Filter{Fields: []string{"level1.level2.level3.level4.level5"}}
+	filter := &Filter{Fields: []string{"level1.level2.level3.level4.level5"}}
 	data := map[string]interface{}{
 		"id": "root",
 		"level1": map[string]interface{}{
@@ -113,7 +111,7 @@ func BenchmarkSelectFields_DeeplyNested(b *testing.B) {
 
 // BenchmarkSelectFields_MultipleNested benchmarks multiple nested field selections.
 func BenchmarkSelectFields_MultipleNested(b *testing.B) {
-	filter := &models.Filter{Fields: []string{
+	filter := &Filter{Fields: []string{
 		"id",
 		"extensions.cpu",
 		"extensions.memory",
@@ -150,7 +148,7 @@ func BenchmarkSelectFields_MultipleNested(b *testing.B) {
 
 // BenchmarkSelectFields_WithArrays benchmarks field selection with arrays.
 func BenchmarkSelectFields_WithArrays(b *testing.B) {
-	filter := &models.Filter{Fields: []string{"id", "items"}}
+	filter := &Filter{Fields: []string{"id", "items"}}
 	data := map[string]interface{}{
 		"id": "collection-1",
 		"items": []interface{}{
@@ -182,7 +180,7 @@ func BenchmarkDeepCopy_Simple(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = models.deepCopyValue(data)
+		_ = deepCopyValue(data)
 	}
 }
 
@@ -208,7 +206,7 @@ func BenchmarkDeepCopy_Complex(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = models.deepCopyValue(data)
+		_ = deepCopyValue(data)
 	}
 }
 
@@ -229,6 +227,6 @@ func BenchmarkDeepCopy_LargeSlice(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = models.deepCopyValue(data)
+		_ = deepCopyValue(data)
 	}
 }
