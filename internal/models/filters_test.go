@@ -4,20 +4,18 @@ import (
 	"net/url"
 	"reflect"
 	"testing"
-
-	"github.com/piwi3910/netweave/internal/models"
 )
 
 func TestParseQueryParams(t *testing.T) {
 	tests := []struct {
 		name     string
 		query    string
-		expected *models.Filter
+		expected *Filter
 	}{
 		{
 			name:  "empty query",
 			query: "",
-			expected: &models.Filter{
+			expected: &Filter{
 				Limit:      100,
 				SortOrder:  "asc",
 				Labels:     map[string]string{},
@@ -27,7 +25,7 @@ func TestParseQueryParams(t *testing.T) {
 		{
 			name:  "single resource pool ID",
 			query: "resourcePoolId=pool-1",
-			expected: &models.Filter{
+			expected: &Filter{
 				ResourcePoolID: []string{"pool-1"},
 				Limit:          100,
 				SortOrder:      "asc",
@@ -38,7 +36,7 @@ func TestParseQueryParams(t *testing.T) {
 		{
 			name:  "multiple resource pool IDs",
 			query: "resourcePoolId=pool-1&resourcePoolId=pool-2",
-			expected: &models.Filter{
+			expected: &Filter{
 				ResourcePoolID: []string{"pool-1", "pool-2"},
 				Limit:          100,
 				SortOrder:      "asc",
@@ -49,7 +47,7 @@ func TestParseQueryParams(t *testing.T) {
 		{
 			name:  "location filter",
 			query: "location=us-east-1a",
-			expected: &models.Filter{
+			expected: &Filter{
 				Location:   "us-east-1a",
 				Limit:      100,
 				SortOrder:  "asc",
@@ -60,7 +58,7 @@ func TestParseQueryParams(t *testing.T) {
 		{
 			name:  "labels filter",
 			query: "labels=env:prod,tier:gold",
-			expected: &models.Filter{
+			expected: &Filter{
 				Limit:     100,
 				SortOrder: "asc",
 				Labels: map[string]string{
@@ -73,7 +71,7 @@ func TestParseQueryParams(t *testing.T) {
 		{
 			name:  "custom limit",
 			query: "limit=50",
-			expected: &models.Filter{
+			expected: &Filter{
 				Limit:      50,
 				SortOrder:  "asc",
 				Labels:     map[string]string{},
@@ -83,7 +81,7 @@ func TestParseQueryParams(t *testing.T) {
 		{
 			name:  "limit exceeds max",
 			query: "limit=2000",
-			expected: &models.Filter{
+			expected: &Filter{
 				Limit:      1000, // Should be capped at max
 				SortOrder:  "asc",
 				Labels:     map[string]string{},
@@ -93,7 +91,7 @@ func TestParseQueryParams(t *testing.T) {
 		{
 			name:  "offset and sorting",
 			query: "offset=100&sortBy=name&sortOrder=desc",
-			expected: &models.Filter{
+			expected: &Filter{
 				Limit:      100,
 				Offset:     100,
 				SortBy:     "name",
@@ -105,7 +103,7 @@ func TestParseQueryParams(t *testing.T) {
 		{
 			name:  "resource class and kind",
 			query: "resourceClass=compute&resourceKind=physical",
-			expected: &models.Filter{
+			expected: &Filter{
 				ResourceClass: "compute",
 				ResourceKind:  "physical",
 				Limit:         100,
@@ -117,7 +115,7 @@ func TestParseQueryParams(t *testing.T) {
 		{
 			name:  "vendor and model",
 			query: "vendor=AWS&model=m5.4xlarge",
-			expected: &models.Filter{
+			expected: &Filter{
 				Vendor:     "AWS",
 				Model:      "m5.4xlarge",
 				Limit:      100,
@@ -129,7 +127,7 @@ func TestParseQueryParams(t *testing.T) {
 		{
 			name:  "invalid sort order falls back to asc",
 			query: "sortOrder=invalid",
-			expected: &models.Filter{
+			expected: &Filter{
 				Limit:      100,
 				SortOrder:  "asc",
 				Labels:     map[string]string{},
@@ -157,17 +155,17 @@ func TestParseQueryParams(t *testing.T) {
 func TestFilter_ToQueryParams(t *testing.T) {
 	tests := []struct {
 		name     string
-		filter   *models.Filter
+		filter   *Filter
 		expected map[string][]string
 	}{
 		{
 			name:     "empty filter",
-			filter:   &models.Filter{},
+			filter:   &Filter{},
 			expected: map[string][]string{},
 		},
 		{
 			name: "resource pool IDs",
-			filter: &models.Filter{
+			filter: &Filter{
 				ResourcePoolID: []string{"pool-1", "pool-2"},
 			},
 			expected: map[string][]string{
@@ -176,7 +174,7 @@ func TestFilter_ToQueryParams(t *testing.T) {
 		},
 		{
 			name: "location and limit",
-			filter: &models.Filter{
+			filter: &Filter{
 				Location: "us-east-1a",
 				Limit:    50,
 			},
@@ -187,7 +185,7 @@ func TestFilter_ToQueryParams(t *testing.T) {
 		},
 		{
 			name: "labels",
-			filter: &models.Filter{
+			filter: &Filter{
 				Labels: map[string]string{
 					"env":  "prod",
 					"tier": "gold",
@@ -199,7 +197,7 @@ func TestFilter_ToQueryParams(t *testing.T) {
 		},
 		{
 			name: "sorting parameters",
-			filter: &models.Filter{
+			filter: &Filter{
 				SortBy:    "name",
 				SortOrder: "desc",
 			},
@@ -246,13 +244,13 @@ func TestFilter_ToQueryParams(t *testing.T) {
 func TestFilter_MatchesResourcePool(t *testing.T) {
 	tests := []struct {
 		name     string
-		filter   *models.Filter
+		filter   *Filter
 		pool     *ResourcePool
 		expected bool
 	}{
 		{
 			name:   "empty filter matches all",
-			filter: &models.Filter{},
+			filter: &Filter{},
 			pool: &ResourcePool{
 				ResourcePoolID: "pool-1",
 				Location:       "us-east-1a",
@@ -262,7 +260,7 @@ func TestFilter_MatchesResourcePool(t *testing.T) {
 		},
 		{
 			name: "matching pool ID",
-			filter: &models.Filter{
+			filter: &Filter{
 				ResourcePoolID: []string{"pool-1", "pool-2"},
 			},
 			pool: &ResourcePool{
@@ -272,7 +270,7 @@ func TestFilter_MatchesResourcePool(t *testing.T) {
 		},
 		{
 			name: "non-matching pool ID",
-			filter: &models.Filter{
+			filter: &Filter{
 				ResourcePoolID: []string{"pool-1", "pool-2"},
 			},
 			pool: &ResourcePool{
@@ -282,7 +280,7 @@ func TestFilter_MatchesResourcePool(t *testing.T) {
 		},
 		{
 			name: "matching location prefix",
-			filter: &models.Filter{
+			filter: &Filter{
 				Location: "us-east",
 			},
 			pool: &ResourcePool{
@@ -293,7 +291,7 @@ func TestFilter_MatchesResourcePool(t *testing.T) {
 		},
 		{
 			name: "non-matching location",
-			filter: &models.Filter{
+			filter: &Filter{
 				Location: "us-west",
 			},
 			pool: &ResourcePool{
@@ -304,7 +302,7 @@ func TestFilter_MatchesResourcePool(t *testing.T) {
 		},
 		{
 			name: "matching O-Cloud ID",
-			filter: &models.Filter{
+			filter: &Filter{
 				OCloudID: "ocloud-1",
 			},
 			pool: &ResourcePool{
@@ -315,7 +313,7 @@ func TestFilter_MatchesResourcePool(t *testing.T) {
 		},
 		{
 			name: "non-matching O-Cloud ID",
-			filter: &models.Filter{
+			filter: &Filter{
 				OCloudID: "ocloud-2",
 			},
 			pool: &ResourcePool{
@@ -339,13 +337,13 @@ func TestFilter_MatchesResourcePool(t *testing.T) {
 func TestFilter_MatchesResource(t *testing.T) {
 	tests := []struct {
 		name     string
-		filter   *models.Filter
+		filter   *Filter
 		resource *Resource
 		expected bool
 	}{
 		{
 			name:   "empty filter matches all",
-			filter: &models.Filter{},
+			filter: &Filter{},
 			resource: &Resource{
 				ResourceID:     "resource-1",
 				ResourceTypeID: "compute-node",
@@ -355,7 +353,7 @@ func TestFilter_MatchesResource(t *testing.T) {
 		},
 		{
 			name: "matching resource ID",
-			filter: &models.Filter{
+			filter: &Filter{
 				ResourceID: []string{"resource-1"},
 			},
 			resource: &Resource{
@@ -365,7 +363,7 @@ func TestFilter_MatchesResource(t *testing.T) {
 		},
 		{
 			name: "non-matching resource ID",
-			filter: &models.Filter{
+			filter: &Filter{
 				ResourceID: []string{"resource-2"},
 			},
 			resource: &Resource{
@@ -375,7 +373,7 @@ func TestFilter_MatchesResource(t *testing.T) {
 		},
 		{
 			name: "matching resource type ID",
-			filter: &models.Filter{
+			filter: &Filter{
 				ResourceTypeID: []string{"compute-node"},
 			},
 			resource: &Resource{
@@ -386,7 +384,7 @@ func TestFilter_MatchesResource(t *testing.T) {
 		},
 		{
 			name: "matching resource pool ID",
-			filter: &models.Filter{
+			filter: &Filter{
 				ResourcePoolID: []string{"pool-1"},
 			},
 			resource: &Resource{
@@ -410,13 +408,13 @@ func TestFilter_MatchesResource(t *testing.T) {
 func TestFilter_MatchesResourceType(t *testing.T) {
 	tests := []struct {
 		name     string
-		filter   *models.Filter
+		filter   *Filter
 		rt       *ResourceType
 		expected bool
 	}{
 		{
 			name:   "empty filter matches all",
-			filter: &models.Filter{},
+			filter: &Filter{},
 			rt: &ResourceType{
 				ResourceTypeID: "compute-node",
 				ResourceClass:  "compute",
@@ -428,7 +426,7 @@ func TestFilter_MatchesResourceType(t *testing.T) {
 		},
 		{
 			name: "matching resource type ID",
-			filter: &models.Filter{
+			filter: &Filter{
 				ResourceTypeID: []string{"compute-node"},
 			},
 			rt: &ResourceType{
@@ -438,7 +436,7 @@ func TestFilter_MatchesResourceType(t *testing.T) {
 		},
 		{
 			name: "matching resource class",
-			filter: &models.Filter{
+			filter: &Filter{
 				ResourceClass: "compute",
 			},
 			rt: &ResourceType{
@@ -449,7 +447,7 @@ func TestFilter_MatchesResourceType(t *testing.T) {
 		},
 		{
 			name: "non-matching resource class",
-			filter: &models.Filter{
+			filter: &Filter{
 				ResourceClass: "storage",
 			},
 			rt: &ResourceType{
@@ -460,7 +458,7 @@ func TestFilter_MatchesResourceType(t *testing.T) {
 		},
 		{
 			name: "matching vendor and model",
-			filter: &models.Filter{
+			filter: &Filter{
 				Vendor: "AWS",
 				Model:  "m5.4xlarge",
 			},
@@ -486,13 +484,13 @@ func TestFilter_MatchesResourceType(t *testing.T) {
 func TestFilter_MatchesSubscription(t *testing.T) {
 	tests := []struct {
 		name     string
-		filter   *models.Filter
+		filter   *Filter
 		sub      *Subscription
 		expected bool
 	}{
 		{
 			name:   "empty filter matches all",
-			filter: &models.Filter{},
+			filter: &Filter{},
 			sub: &Subscription{
 				SubscriptionID: "sub-1",
 			},
@@ -500,7 +498,7 @@ func TestFilter_MatchesSubscription(t *testing.T) {
 		},
 		{
 			name: "matching resource pool ID in subscription filter",
-			filter: &models.Filter{
+			filter: &Filter{
 				ResourcePoolID: []string{"pool-1"},
 			},
 			sub: &Subscription{
@@ -513,7 +511,7 @@ func TestFilter_MatchesSubscription(t *testing.T) {
 		},
 		{
 			name: "non-matching resource pool ID",
-			filter: &models.Filter{
+			filter: &Filter{
 				ResourcePoolID: []string{"pool-2"},
 			},
 			sub: &Subscription{
@@ -539,31 +537,31 @@ func TestFilter_MatchesSubscription(t *testing.T) {
 func TestFilter_IsEmpty(t *testing.T) {
 	tests := []struct {
 		name     string
-		filter   *models.Filter
+		filter   *Filter
 		expected bool
 	}{
 		{
 			name:     "completely empty filter",
-			filter:   &models.Filter{},
+			filter:   &Filter{},
 			expected: true,
 		},
 		{
 			name: "filter with resource pool ID",
-			filter: &models.Filter{
+			filter: &Filter{
 				ResourcePoolID: []string{"pool-1"},
 			},
 			expected: false,
 		},
 		{
 			name: "filter with location",
-			filter: &models.Filter{
+			filter: &Filter{
 				Location: "us-east-1a",
 			},
 			expected: false,
 		},
 		{
 			name: "filter with labels",
-			filter: &models.Filter{
+			filter: &Filter{
 				Labels: map[string]string{"env": "prod"},
 			},
 			expected: false,
@@ -581,7 +579,7 @@ func TestFilter_IsEmpty(t *testing.T) {
 }
 
 func TestFilter_Clone(t *testing.T) {
-	original := &models.Filter{
+	original := &Filter{
 		ResourcePoolID: []string{"pool-1", "pool-2"},
 		ResourceTypeID: []string{"type-1"},
 		ResourceID:     []string{"res-1"},
@@ -613,7 +611,7 @@ func TestFilter_Clone(t *testing.T) {
 }
 
 // verifyClonedFields checks that all fields in clone match original.
-func verifyClonedFields(t *testing.T, original, clone *models.Filter) {
+func verifyClonedFields(t *testing.T, original, clone *Filter) {
 	t.Helper()
 
 	if len(clone.ResourcePoolID) != len(original.ResourcePoolID) {
@@ -643,7 +641,7 @@ func verifyClonedFields(t *testing.T, original, clone *models.Filter) {
 }
 
 // verifyDeepCopy checks that modifications to clone don't affect original.
-func verifyDeepCopy(t *testing.T, original, clone *models.Filter) {
+func verifyDeepCopy(t *testing.T, original, clone *Filter) {
 	t.Helper()
 
 	const modifiedValue = "modified"
@@ -755,22 +753,22 @@ func TestParseQueryParams_FieldSelection(t *testing.T) {
 func TestFilter_HasFieldSelection(t *testing.T) {
 	tests := []struct {
 		name     string
-		filter   *models.Filter
+		filter   *Filter
 		expected bool
 	}{
 		{
 			name:     "nil fields",
-			filter:   &models.Filter{Fields: nil},
+			filter:   &Filter{Fields: nil},
 			expected: false,
 		},
 		{
 			name:     "empty fields",
-			filter:   &models.Filter{Fields: []string{}},
+			filter:   &Filter{Fields: []string{}},
 			expected: false,
 		},
 		{
 			name:     "has fields",
-			filter:   &models.Filter{Fields: []string{"resourceId", "name"}},
+			filter:   &Filter{Fields: []string{"resourceId", "name"}},
 			expected: true,
 		},
 	}
@@ -788,37 +786,37 @@ func TestFilter_HasFieldSelection(t *testing.T) {
 func TestFilter_ShouldIncludeField(t *testing.T) {
 	tests := []struct {
 		name      string
-		filter    *models.Filter
+		filter    *Filter
 		fieldName string
 		expected  bool
 	}{
 		{
 			name:      "no field selection includes all",
-			filter:    &models.Filter{Fields: nil},
+			filter:    &Filter{Fields: nil},
 			fieldName: "anyField",
 			expected:  true,
 		},
 		{
 			name:      "exact match",
-			filter:    &models.Filter{Fields: []string{"resourceId", "name"}},
+			filter:    &Filter{Fields: []string{"resourceId", "name"}},
 			fieldName: "resourceId",
 			expected:  true,
 		},
 		{
 			name:      "field not in list",
-			filter:    &models.Filter{Fields: []string{"resourceId", "name"}},
+			filter:    &Filter{Fields: []string{"resourceId", "name"}},
 			fieldName: "description",
 			expected:  false,
 		},
 		{
 			name:      "nested field prefix match",
-			filter:    &models.Filter{Fields: []string{"extensions.cpu"}},
+			filter:    &Filter{Fields: []string{"extensions.cpu"}},
 			fieldName: "extensions.cpu.cores",
 			expected:  true,
 		},
 		{
 			name:      "parent field includes nested",
-			filter:    &models.Filter{Fields: []string{"extensions.cpu"}},
+			filter:    &Filter{Fields: []string{"extensions.cpu"}},
 			fieldName: "extensions",
 			expected:  true,
 		},
@@ -837,13 +835,13 @@ func TestFilter_ShouldIncludeField(t *testing.T) {
 func TestFilter_SelectFields(t *testing.T) {
 	tests := []struct {
 		name     string
-		filter   *models.Filter
+		filter   *Filter
 		input    map[string]interface{}
 		expected map[string]interface{}
 	}{
 		{
 			name:   "no field selection returns all",
-			filter: &models.Filter{Fields: nil},
+			filter: &Filter{Fields: nil},
 			input: map[string]interface{}{
 				"id":   "123",
 				"name": "test",
@@ -855,7 +853,7 @@ func TestFilter_SelectFields(t *testing.T) {
 		},
 		{
 			name:   "select specific fields",
-			filter: &models.Filter{Fields: []string{"id"}},
+			filter: &Filter{Fields: []string{"id"}},
 			input: map[string]interface{}{
 				"id":   "123",
 				"name": "test",
@@ -866,7 +864,7 @@ func TestFilter_SelectFields(t *testing.T) {
 		},
 		{
 			name:   "select multiple fields",
-			filter: &models.Filter{Fields: []string{"id", "name"}},
+			filter: &Filter{Fields: []string{"id", "name"}},
 			input: map[string]interface{}{
 				"id":          "123",
 				"name":        "test",
@@ -879,7 +877,7 @@ func TestFilter_SelectFields(t *testing.T) {
 		},
 		{
 			name:   "select nested field",
-			filter: &models.Filter{Fields: []string{"extensions.cpu"}},
+			filter: &Filter{Fields: []string{"extensions.cpu"}},
 			input: map[string]interface{}{
 				"id": "123",
 				"extensions": map[string]interface{}{
@@ -895,7 +893,7 @@ func TestFilter_SelectFields(t *testing.T) {
 		},
 		{
 			name:   "field not found is ignored",
-			filter: &models.Filter{Fields: []string{"nonexistent"}},
+			filter: &Filter{Fields: []string{"nonexistent"}},
 			input: map[string]interface{}{
 				"id":   "123",
 				"name": "test",
@@ -904,7 +902,7 @@ func TestFilter_SelectFields(t *testing.T) {
 		},
 		{
 			name:   "deeply nested field selection (5 levels)",
-			filter: &models.Filter{Fields: []string{"level1.level2.level3.level4.level5"}},
+			filter: &Filter{Fields: []string{"level1.level2.level3.level4.level5"}},
 			input: map[string]interface{}{
 				"id": "root",
 				"level1": map[string]interface{}{
@@ -945,7 +943,7 @@ func TestFilter_SelectFields(t *testing.T) {
 		},
 		{
 			name:   "multiple deeply nested fields",
-			filter: &models.Filter{Fields: []string{"a.b.c.value", "x.y.z.value"}},
+			filter: &Filter{Fields: []string{"a.b.c.value", "x.y.z.value"}},
 			input: map[string]interface{}{
 				"a": map[string]interface{}{
 					"b": map[string]interface{}{
@@ -984,7 +982,7 @@ func TestFilter_SelectFields(t *testing.T) {
 		},
 		{
 			name:   "deeply nested with arrays",
-			filter: &models.Filter{Fields: []string{"data.items"}},
+			filter: &Filter{Fields: []string{"data.items"}},
 			input: map[string]interface{}{
 				"id": "123",
 				"data": map[string]interface{}{
@@ -1017,7 +1015,7 @@ func TestFilter_SelectFields(t *testing.T) {
 }
 
 func TestFilter_ToQueryParams_WithFields(t *testing.T) {
-	filter := &models.Filter{
+	filter := &Filter{
 		ResourcePoolID: []string{"pool-1"},
 		Limit:          50,
 		Offset:         10,
@@ -1044,7 +1042,7 @@ func TestFilter_ToQueryParams_WithFields(t *testing.T) {
 }
 
 func TestFilter_Clone_WithFields(t *testing.T) {
-	original := &models.Filter{
+	original := &Filter{
 		ResourcePoolID: []string{"pool-1"},
 		Location:       "us-east-1a",
 		Fields:         []string{"id", "name", "extensions"},
