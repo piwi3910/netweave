@@ -567,8 +567,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		client := &http.Client{}
-		deleteResp, err := client.Do(req)
+		deleteClient := &http.Client{}
+		deleteResp, err := deleteClient.Do(req)
 		require.NoError(t, err)
 		defer func() {
 			if err := deleteResp.Body.Close(); err != nil {

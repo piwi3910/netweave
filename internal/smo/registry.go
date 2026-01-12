@@ -177,8 +177,8 @@ func (r *Registry) Unregister(name string) error {
 	return nil
 }
 
-// get retrieves a plugin by name (internal method).
-func (r *Registry) get(name string) (Plugin, error) {
+// Get retrieves a plugin by name.
+func (r *Registry) Get(name string) (Plugin, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -190,13 +190,8 @@ func (r *Registry) get(name string) (Plugin, error) {
 	return plugin, nil
 }
 
-// Get retrieves a plugin by name.
-func (r *Registry) Get(name string) (Plugin, error) {
-	return r.get(name)
-}
-
-// getDefault retrieves the default plugin (internal method).
-func (r *Registry) getDefault() (Plugin, error) {
+// GetDefault retrieves the default plugin.
+func (r *Registry) GetDefault() (Plugin, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -210,11 +205,6 @@ func (r *Registry) getDefault() (Plugin, error) {
 	}
 
 	return plugin, nil
-}
-
-// GetDefault retrieves the default plugin.
-func (r *Registry) GetDefault() (Plugin, error) {
-	return r.getDefault()
 }
 
 // SetDefault sets the default plugin by name.
