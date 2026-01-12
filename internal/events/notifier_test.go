@@ -133,10 +133,10 @@ func TestWebhookNotifier_Notify(t *testing.T) {
 		}))
 		defer server.Close()
 
-		cfg := DefaultNotifierConfig()
-		cfg.HTTPTimeout = 100 * time.Millisecond
+		timeoutCfg := DefaultNotifierConfig()
+		timeoutCfg.HTTPTimeout = 100 * time.Millisecond
 
-		notifier, err := NewWebhookNotifier(cfg, tracker, logger)
+		notifier, err := NewWebhookNotifier(timeoutCfg, tracker, logger)
 		require.NoError(t, err)
 
 		event := &Event{
