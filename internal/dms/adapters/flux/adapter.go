@@ -1607,16 +1607,28 @@ func tryConvertToFloat64(v interface{}) (float64, bool) {
 	rv := reflect.ValueOf(v)
 	kind := rv.Kind()
 
-	if kind >= reflect.Int && kind <= reflect.Int64 {
+	if isIntKind(kind) {
 		return float64(rv.Int()), true
 	}
-	if kind >= reflect.Uint && kind <= reflect.Uintptr {
+	if isUintKind(kind) {
 		return float64(rv.Uint()), true
 	}
-	if kind >= reflect.Float32 && kind <= reflect.Float64 {
+	if isFloatKind(kind) {
 		return rv.Float(), true
 	}
 	return 0, false
+}
+
+func isIntKind(kind reflect.Kind) bool {
+	return kind >= reflect.Int && kind <= reflect.Int64
+}
+
+func isUintKind(kind reflect.Kind) bool {
+	return kind >= reflect.Uint && kind <= reflect.Uintptr
+}
+
+func isFloatKind(kind reflect.Kind) bool {
+	return kind >= reflect.Float32 && kind <= reflect.Float64
 }
 
 func normalizeMap(val map[string]interface{}) map[string]interface{} {

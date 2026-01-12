@@ -179,63 +179,76 @@ func (h *Adapter) ListDeploymentPackages(
 		return nil, err
 	}
 
-	// Load repository index
+	idx, err := h.getRepositoryIndex(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return h.buildPackageList(idx, filter), nil
+}
+
+func (h *Adapter) getRepositoryIndex(ctx context.Context) (*repo.IndexFile, error) {
 	if err := h.loadRepositoryIndex(ctx); err != nil {
 		return nil, fmt.Errorf("failed to load repository index: %w", err)
 	}
 
-	// Get the index
 	idx, exists := h.repoIndex[h.config.RepositoryURL]
 	if !exists {
 		return nil, fmt.Errorf("repository index not loaded")
 	}
+	return idx, nil
+}
 
+func (h *Adapter) buildPackageList(idx *repo.IndexFile, filter *adapter.Filter) []*adapter.DeploymentPackage {
 	packages := make([]*adapter.DeploymentPackage, 0)
 
-	// Iterate through all chart entries
 	for chartName, chartVersions := range idx.Entries {
-		// For each chart, get the latest version (first in the list as it's sorted)
 		if len(chartVersions) == 0 {
 			continue
 		}
 
 		latestChart := chartVersions[0]
-
-		// Apply filter if provided (use Extensions for chart-specific filtering)
-		if filter != nil && filter.Extensions != nil {
-			if name, ok := filter.Extensions["helm.chartName"].(string); ok && name != "" {
-				if chartName != name {
-					continue
-				}
-			}
-			if version, ok := filter.Extensions["helm.chartVersion"].(string); ok && version != "" {
-				if latestChart.Version != version {
-					continue
-				}
-			}
+		if !h.matchesChartFilter(chartName, latestChart.Version, filter) {
+			continue
 		}
 
-		pkg := &adapter.DeploymentPackage{
-			ID:          fmt.Sprintf("%s-%s", chartName, latestChart.Version),
-			Name:        chartName,
-			Version:     latestChart.Version,
-			PackageType: "helm-chart",
-			Description: latestChart.Description,
-			UploadedAt:  latestChart.Created,
-			Extensions: map[string]interface{}{
-				"helm.chartName":    chartName,
-				"helm.chartVersion": latestChart.Version,
-				"helm.appVersion":   latestChart.AppVersion,
-				"helm.repository":   h.config.RepositoryURL,
-				"helm.apiVersion":   latestChart.APIVersion,
-				"helm.deprecated":   latestChart.Deprecated,
-			},
-		}
-
-		packages = append(packages, pkg)
+		packages = append(packages, h.buildPackage(chartName, latestChart))
 	}
 
-	return packages, nil
+	return packages
+}
+
+func (h *Adapter) matchesChartFilter(chartName, chartVersion string, filter *adapter.Filter) bool {
+	if filter == nil || filter.Extensions == nil {
+		return true
+	}
+
+	if name, ok := filter.Extensions["helm.chartName"].(string); ok && name != "" && chartName != name {
+		return false
+	}
+	if version, ok := filter.Extensions["helm.chartVersion"].(string); ok && version != "" && chartVersion != version {
+		return false
+	}
+	return true
+}
+
+func (h *Adapter) buildPackage(chartName string, chart *repo.ChartVersion) *adapter.DeploymentPackage {
+	return &adapter.DeploymentPackage{
+		ID:          fmt.Sprintf("%s-%s", chartName, chart.Version),
+		Name:        chartName,
+		Version:     chart.Version,
+		PackageType: "helm-chart",
+		Description: chart.Description,
+		UploadedAt:  chart.Created,
+		Extensions: map[string]interface{}{
+			"helm.chartName":    chartName,
+			"helm.chartVersion": chart.Version,
+			"helm.appVersion":   chart.AppVersion,
+			"helm.repository":   h.config.RepositoryURL,
+			"helm.apiVersion":   chart.APIVersion,
+			"helm.deprecated":   chart.Deprecated,
+		},
+	}
 }
 
 // GetDeploymentPackage retrieves a specific Helm chart by ID.
