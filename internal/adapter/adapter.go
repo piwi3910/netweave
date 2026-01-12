@@ -241,8 +241,8 @@ type SubscriptionFilter struct {
 	ResourceID string `json:"resourceId,omitempty"`
 }
 
-// AdapterMetadata provides basic metadata about an adapter.
-type AdapterMetadata interface {
+// Metadata provides basic metadata about an adapter.
+type Metadata interface {
 	// Name returns the unique name of this adapter (e.g., "kubernetes", "dtias", "aws").
 	Name() string
 
@@ -340,8 +340,8 @@ type SubscriptionClient interface {
 	DeleteSubscription(ctx context.Context, id string) error
 }
 
-// AdapterLifecycle provides lifecycle management operations.
-type AdapterLifecycle interface {
+// Lifecycle provides lifecycle management operations.
+type Lifecycle interface {
 	// Health performs a health check on the backend system.
 	// Returns nil if healthy, or an error describing the health issue.
 	Health(ctx context.Context) error
@@ -356,11 +356,11 @@ type AdapterLifecycle interface {
 // Each adapter translates O2-IMS operations to backend-specific API calls.
 // This interface is composed of smaller, focused interfaces to reduce complexity.
 type Adapter interface {
-	AdapterMetadata
+	Metadata
 	DeploymentManagerClient
 	ResourcePoolClient
 	ResourceClient
 	ResourceTypeClient
 	SubscriptionClient
-	AdapterLifecycle
+	Lifecycle
 }
