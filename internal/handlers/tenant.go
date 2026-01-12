@@ -266,7 +266,7 @@ func (h *TenantHandler) validateUpdateTenantRequest(c *gin.Context, req *UpdateT
 	return nil
 }
 
-func (h *TenantHandler) getTenantForUpdate(c *gin.Context, ctx context.Context, tenantID string) (*auth.Tenant, error) {
+func (h *TenantHandler) getTenantForUpdate(ctx context.Context, c *gin.Context, tenantID string) (*auth.Tenant, error) {
 	tenant, err := h.store.GetTenant(ctx, tenantID)
 	if err != nil {
 		if errors.Is(err, auth.ErrTenantNotFound) {
@@ -341,7 +341,7 @@ func (h *TenantHandler) UpdateTenant(c *gin.Context) {
 		return
 	}
 
-	tenant, err := h.getTenantForUpdate(c, ctx, tenantID)
+	tenant, err := h.getTenantForUpdate(ctx, c, tenantID)
 	if err != nil {
 		return
 	}
