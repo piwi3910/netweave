@@ -550,10 +550,16 @@ func (p *OpenStackPlugin) transformNovaInstanceToResource(instance *servers.Serv
 **Directory:** `internal/plugins/ims/dtias/`
 
 **Mapping:**
-- **Resource Pool** → DTIAS Resource Group / Server Pool
-- **Resource** → Physical Server
-- **Resource Type** → Server Type (compute/storage/network)
+- **Resource Pool** → DTIAS Server Pool (`GET /v2/inventory/resourcepools`)
+- **Resource** → Physical Server (`GET /v2/inventory/servers`)
+- **Resource Type** → Server Type (`GET /v2/resourcetypes`)
 - **Deployment Manager** → DTIAS Datacenter metadata
+
+**DTIAS v2.4.0 API Specifics:**
+- All responses are wrapped in envelope objects (e.g., `ServersInventoryResponse`, `ResourcePoolsInventoryResponse`)
+- `GET /v2/inventory/servers/{Id}` returns `JobResponse` (async job status), not server data
+- Use `GET /v2/inventory/servers?id={id}` with query parameter to retrieve a specific server
+- Query parameters: `resourcePool`, `resourceProfileId`, `location`, `pageSize`, `pageNumber`
 
 **Capabilities:**
 ```go
@@ -573,11 +579,14 @@ plugins:
       type: dtias
       enabled: true
       config:
-        endpoint: https://dtias.dell.com/api/v1
+        endpoint: https://dtias.dell.com  # Base URL (v2 prefix added by client)
         apiKey: ${DTIAS_API_KEY}
         timeout: 30s
         ocloudId: ocloud-dtias-edge-1
         datacenter: dc-dallas-1
+        clientCert: /etc/dtias/client.crt  # Optional mTLS
+        clientKey: /etc/dtias/client.key   # Optional mTLS
+        caCert: /etc/dtias/ca.crt          # Optional CA verification
 ```
 
 **Implementation Spec:**
@@ -621,18 +630,21 @@ func NewPlugin(config *Config) (*DTIASPlugin, error) {
     }, nil
 }
 
-// ListResourcePools → List DTIAS Resource Groups
+// ListResourcePools → List DTIAS Server Pools (v2.4.0 API)
 func (p *DTIASPlugin) ListResourcePools(ctx context.Context, filter *ims.Filter) ([]*ims.ResourcePool, error) {
-    dtiasGroups, err := p.client.ListResourceGroups(ctx)
+    // DTIAS v2.4.0: GET /v2/inventory/resourcepools returns wrapped response
+    path := "/v2/inventory/resourcepools"
+
+    serverPools, err := p.client.FetchServerPools(ctx, path)
     if err != nil {
         return nil, fmt.Errorf("dtias api error: %w", err)
     }
 
-    pools := make([]*ims.ResourcePool, 0, len(dtiasGroups))
-    for _, group := range dtiasGroups {
-        pool := p.transformResourceGroupToPool(group)
-        if filter.Matches(pool) {
-            pools = append(pools, pool)
+    pools := make([]*ims.ResourcePool, 0, len(serverPools))
+    for _, pool := range serverPools {
+        resourcePool := p.transformServerPoolToPool(&pool)
+        if filter.Matches(resourcePool) {
+            pools = append(pools, resourcePool)
         }
     }
 
@@ -655,22 +667,75 @@ func (p *DTIASPlugin) transformResourceGroupToPool(group *dtias.ResourceGroup) *
     }
 }
 
-// ListResources → List DTIAS Physical Servers
+// ListResources → List DTIAS Physical Servers (v2.4.0 API)
 func (p *DTIASPlugin) ListResources(ctx context.Context, filter *ims.Filter) ([]*ims.Resource, error) {
-    servers, err := p.client.ListServers(ctx)
+    // DTIAS v2.4.0: GET /v2/inventory/servers returns ServersInventoryResponse{Full: []Server, Brief: []ServerBrief}
+    path := p.buildServersPath(filter)
+
+    servers, err := p.client.FetchServers(ctx, path)
     if err != nil {
         return nil, fmt.Errorf("dtias api error: %w", err)
     }
 
     resources := make([]*ims.Resource, 0, len(servers))
     for _, server := range servers {
-        resource := p.transformServerToResource(server)
+        resource := p.transformServerToResource(&server)
         if filter.Matches(resource) {
             resources = append(resources, resource)
         }
     }
 
     return resources, nil
+}
+
+// buildServersPath builds the API path with query parameters
+func (p *DTIASPlugin) buildServersPath(filter *ims.Filter) string {
+    path := "/v2/inventory/servers"
+    if filter == nil {
+        return path
+    }
+
+    queryParams := url.Values{}
+    if filter.ResourcePoolID != "" {
+        queryParams.Set("resourcePool", filter.ResourcePoolID)
+    }
+    if filter.ResourceTypeID != "" {
+        queryParams.Set("resourceProfileId", filter.ResourceTypeID)
+    }
+    if filter.Location != "" {
+        queryParams.Set("location", filter.Location)
+    }
+    if filter.Limit > 0 {
+        queryParams.Set("pageSize", fmt.Sprintf("%d", filter.Limit))
+    }
+    if filter.Offset > 0 {
+        pageNumber := (filter.Offset / filter.Limit) + 1
+        queryParams.Set("pageNumber", fmt.Sprintf("%d", pageNumber))
+    }
+
+    if len(queryParams) > 0 {
+        path += "?" + queryParams.Encode()
+    }
+    return path
+}
+
+// GetResource → Retrieve specific server (v2.4.0 workaround)
+func (p *DTIASPlugin) GetResource(ctx context.Context, id string) (*ims.Resource, error) {
+    // DTIAS v2.4.0: GET /v2/inventory/servers/{Id} returns JobResponse (async operation)
+    // Instead, use the list endpoint with id filter to get the server directly
+    path := fmt.Sprintf("/v2/inventory/servers?id=%s", id)
+
+    servers, err := p.client.FetchServers(ctx, path)
+    if err != nil {
+        return nil, fmt.Errorf("dtias api error: %w", err)
+    }
+
+    if len(servers) == 0 {
+        return nil, fmt.Errorf("server not found: %s", id)
+    }
+
+    // Should return exactly one server
+    return p.transformServerToResource(&servers[0]), nil
 }
 
 func (p *DTIASPlugin) transformServerToResource(server *dtias.Server) *ims.Resource {
