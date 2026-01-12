@@ -329,7 +329,7 @@ func (s *Server) securityHeadersMiddleware() gin.HandlerFunc {
 		ContentSecurityPolicy: s.config.Security.SecurityHeaders.ContentSecurityPolicy,
 		FrameOptions:          s.config.Security.SecurityHeaders.FrameOptions,
 		ReferrerPolicy:        s.config.Security.SecurityHeaders.ReferrerPolicy,
-		TLSEnabled:            s.config.Server.TLSEnabled,
+		TLSEnabled:            s.config.TLS.Enabled,
 	}
 
 	// Apply defaults if not configured

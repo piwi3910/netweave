@@ -344,8 +344,15 @@ func (rl *ResourceRateLimiter) Middleware() gin.HandlerFunc {
 
 		ctx := c.Request.Context()
 		tenantID := getResourceTenantID(c)
-		resourceType := extractResourceType(c.FullPath())
-		operation := extractOperation(c.Request.Method, c.FullPath())
+
+		// Use FullPath() for matched routes, fallback to Request.URL.Path for unmatched
+		path := c.FullPath()
+		if path == "" {
+			path = c.Request.URL.Path
+		}
+
+		resourceType := extractResourceType(path)
+		operation := extractOperation(c.Request.Method, path)
 
 		// Check page size for list operations
 		if operation == OperationList {
