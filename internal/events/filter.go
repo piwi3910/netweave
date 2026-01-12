@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"fmt"
 
 	"go.uber.org/zap"
 
@@ -40,7 +41,7 @@ func (f *SubscriptionFilter) MatchSubscriptions(ctx context.Context, event *Even
 	// Get all subscriptions
 	allSubscriptions, err := f.store.List(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list subscriptions: %w", err)
 	}
 
 	// Filter subscriptions by tenant if applicable

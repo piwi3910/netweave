@@ -95,7 +95,7 @@ func (p *Processor) Start(ctx context.Context) error {
 	// Start event generator
 	eventCh, err := p.generator.Start(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to start event generator: %w", err)
 	}
 
 	// Start event publisher
@@ -234,7 +234,7 @@ func (p *Processor) processEvent(ctx context.Context, event *Event) error {
 	// Find matching subscriptions
 	subscriptions, err := p.filter.MatchSubscriptions(ctx, event)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to match subscriptions: %w", err)
 	}
 
 	if len(subscriptions) == 0 {

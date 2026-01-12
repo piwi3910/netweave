@@ -59,12 +59,12 @@ var (
 		[]string{"status", "subscription_id"},
 	)
 
-	notificationAttemptsTotal = promauto.NewHistogramVec(
+	notificationAttempts = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "o2ims",
 			Subsystem: "notifications",
-			Name:      "attempts_total",
-			Help:      "Total number of delivery attempts per notification",
+			Name:      "attempts",
+			Help:      "Number of delivery attempts per notification",
 			Buckets:   []float64{1, 2, 3, 4, 5, 10},
 		},
 		[]string{"status", "subscription_id"},
@@ -74,9 +74,9 @@ var (
 		prometheus.HistogramOpts{
 			Namespace: "o2ims",
 			Subsystem: "notifications",
-			Name:      "response_time_milliseconds",
-			Help:      "Webhook endpoint response time in milliseconds",
-			Buckets:   []float64{10, 25, 50, 100, 250, 500, 1000, 2000, 5000},
+			Name:      "response_time_seconds",
+			Help:      "Webhook endpoint response time in seconds",
+			Buckets:   []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0},
 		},
 		[]string{"subscription_id", "http_status"},
 	)
@@ -93,11 +93,11 @@ var (
 	)
 
 	// Subscription filtering metrics.
-	subscriptionsMatchedTotal = promauto.NewHistogramVec(
+	subscriptionsMatched = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "o2ims",
 			Subsystem: "subscriptions",
-			Name:      "matched_total",
+			Name:      "matched",
 			Help:      "Number of subscriptions matched per event",
 			Buckets:   []float64{0, 1, 2, 5, 10, 20, 50, 100},
 		},
@@ -144,12 +144,13 @@ func RecordQueueDepth(depth float64) {
 func RecordNotificationDelivered(status, subscriptionID string, duration float64, attempts int) {
 	notificationsDeliveredTotal.WithLabelValues(status, subscriptionID).Inc()
 	notificationDeliveryDuration.WithLabelValues(status, subscriptionID).Observe(duration)
-	notificationAttemptsTotal.WithLabelValues(status, subscriptionID).Observe(float64(attempts))
+	notificationAttempts.WithLabelValues(status, subscriptionID).Observe(float64(attempts))
 }
 
 // RecordNotificationResponseTime records the response time of a webhook endpoint.
+// responseTimeMs is in milliseconds and will be converted to seconds for the metric.
 func RecordNotificationResponseTime(subscriptionID, httpStatus string, responseTimeMs float64) {
-	notificationResponseTime.WithLabelValues(subscriptionID, httpStatus).Observe(responseTimeMs)
+	notificationResponseTime.WithLabelValues(subscriptionID, httpStatus).Observe(responseTimeMs / 1000.0)
 }
 
 // RecordCircuitBreakerState records the state of a circuit breaker.
@@ -160,7 +161,7 @@ func RecordCircuitBreakerState(callbackURL string, state float64) {
 
 // RecordSubscriptionsMatched records the number of subscriptions matched for an event.
 func RecordSubscriptionsMatched(eventType string, count int) {
-	subscriptionsMatchedTotal.WithLabelValues(eventType).Observe(float64(count))
+	subscriptionsMatched.WithLabelValues(eventType).Observe(float64(count))
 }
 
 // RecordNotificationWorkersActive records the number of active notification workers.
