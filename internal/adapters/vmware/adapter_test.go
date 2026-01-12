@@ -1,4 +1,4 @@
-package vmware
+package vmware_test
 
 import (
 	"context"

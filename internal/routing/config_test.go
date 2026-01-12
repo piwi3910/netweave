@@ -1,4 +1,4 @@
-package routing
+package routing_test
 
 import (
 	"testing"
@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/routing"
 )
 
 func TestLoadRulesFromConfig(t *testing.T) {

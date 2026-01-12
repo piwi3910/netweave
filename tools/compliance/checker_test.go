@@ -1,4 +1,4 @@
-package compliance
+package compliance_test
 
 import (
 	"context"

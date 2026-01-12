@@ -3,7 +3,7 @@
 //go:build integration
 // +build integration
 
-package o2ims
+package o2ims_test
 
 import (
 	"bytes"
