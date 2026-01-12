@@ -1424,7 +1424,6 @@ func BenchmarkListDeployments(b *testing.B) {
 	for i := 0; i < 100; i++ {
 		objects[i] = createTestHelmRelease(
 			fmt.Sprintf("hr-%d", i),
-			"flux-system",
 			"nginx",
 			"bitnami",
 			true,
