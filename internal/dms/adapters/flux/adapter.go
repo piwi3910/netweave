@@ -357,60 +357,59 @@ func (f *Adapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter
 	}
 
 	// Determine package type from ID prefix for more efficient lookup
-	var gitRepos, helmRepos []*unstructured.Unstructured
-	var err error
-
 	switch {
 	case strings.HasPrefix(id, "git-"):
-		// Only search GitRepositories
-		gitRepos, err = f.listGitRepositories(ctx, nil)
-		if err != nil {
-			return nil, err
-		}
-		for _, repo := range gitRepos {
-			pkg := f.transformGitRepoToPackage(repo)
-			if pkg.ID == id {
-				return pkg, nil
-			}
-		}
+		return f.searchGitRepositories(ctx, id)
 	case strings.HasPrefix(id, "helm-"):
-		// Only search HelmRepositories
-		helmRepos, err = f.listHelmRepositories(ctx, nil)
-		if err != nil {
-			return nil, err
-		}
-		for _, repo := range helmRepos {
-			pkg := f.transformHelmRepoToPackage(repo)
-			if pkg.ID == id {
-				return pkg, nil
-			}
-		}
+		return f.searchHelmRepositories(ctx, id)
 	default:
-		// Unknown prefix, search both
-		gitRepos, err = f.listGitRepositories(ctx, nil)
-		if err != nil {
-			return nil, err
-		}
-		for _, repo := range gitRepos {
-			pkg := f.transformGitRepoToPackage(repo)
-			if pkg.ID == id {
-				return pkg, nil
-			}
-		}
+		return f.searchAllRepositories(ctx, id)
+	}
+}
 
-		helmRepos, err = f.listHelmRepositories(ctx, nil)
-		if err != nil {
-			return nil, err
-		}
-		for _, repo := range helmRepos {
-			pkg := f.transformHelmRepoToPackage(repo)
-			if pkg.ID == id {
-				return pkg, nil
-			}
+// searchGitRepositories searches only Git repositories for the given package ID.
+func (f *Adapter) searchGitRepositories(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
+	gitRepos, err := f.listGitRepositories(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, repo := range gitRepos {
+		pkg := f.transformGitRepoToPackage(repo)
+		if pkg.ID == id {
+			return pkg, nil
 		}
 	}
 
 	return nil, fmt.Errorf("%w: %s", ErrPackageNotFound, id)
+}
+
+// searchHelmRepositories searches only Helm repositories for the given package ID.
+func (f *Adapter) searchHelmRepositories(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
+	helmRepos, err := f.listHelmRepositories(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, repo := range helmRepos {
+		pkg := f.transformHelmRepoToPackage(repo)
+		if pkg.ID == id {
+			return pkg, nil
+		}
+	}
+
+	return nil, fmt.Errorf("%w: %s", ErrPackageNotFound, id)
+}
+
+// searchAllRepositories searches both Git and Helm repositories for the given package ID.
+func (f *Adapter) searchAllRepositories(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
+	// Try Git repositories first
+	if pkg, err := f.searchGitRepositories(ctx, id); err == nil {
+		return pkg, nil
+	}
+
+	// Then try Helm repositories
+	return f.searchHelmRepositories(ctx, id)
 }
 
 // UploadDeploymentPackage creates a reference to a Flux source.
