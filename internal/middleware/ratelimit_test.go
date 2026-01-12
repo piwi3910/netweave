@@ -13,6 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const testRemoteAddr = "192.168.1.100:12345"
+
 // TestNewRateLimiter tests rate limiter creation.
 func TestNewRateLimiter(t *testing.T) {
 	mr := miniredis.RunT(t)
@@ -289,7 +291,7 @@ func TestGetTenantID(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet, "/test", nil)
-		c.Request.RemoteAddr = "192.168.1.100:12345"
+		c.Request.RemoteAddr = testRemoteAddr
 
 		tenantID := getTenantID(c)
 		assert.Contains(t, tenantID, "192.168.1.100")
@@ -300,7 +302,7 @@ func TestGetTenantID(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Set("tenant_id", "")
 		c.Request = httptest.NewRequest(http.MethodGet, "/test", nil)
-		c.Request.RemoteAddr = "192.168.1.100:12345"
+		c.Request.RemoteAddr = testRemoteAddr
 
 		tenantID := getTenantID(c)
 		assert.Contains(t, tenantID, "192.168.1.100")
@@ -311,7 +313,7 @@ func TestGetTenantID(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Set("tenant_id", 123)
 		c.Request = httptest.NewRequest(http.MethodGet, "/test", nil)
-		c.Request.RemoteAddr = "192.168.1.100:12345"
+		c.Request.RemoteAddr = testRemoteAddr
 
 		tenantID := getTenantID(c)
 		assert.Contains(t, tenantID, "192.168.1.100")

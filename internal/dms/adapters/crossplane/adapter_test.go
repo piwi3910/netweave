@@ -16,6 +16,8 @@ import (
 	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
 )
 
+const healthyStatusTrue = "True"
+
 // TestNewAdapter tests adapter creation with various configurations.
 func TestNewAdapter(t *testing.T) {
 	tests := []struct {
@@ -188,7 +190,7 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 
 // createTestConfiguration creates a test Crossplane Configuration.
 func createTestConfiguration(name, packageRef string, healthy bool) *unstructured.Unstructured {
-	healthyStatus := "True"
+	healthyStatus := healthyStatusTrue
 	if !healthy {
 		healthyStatus = "False"
 	}

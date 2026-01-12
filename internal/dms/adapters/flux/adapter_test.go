@@ -16,6 +16,11 @@ import (
 	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
 )
 
+const (
+	readyStatusTrue  = "True"
+	readyStatusFalse = "False"
+)
+
 // TestNewAdapter tests adapter creation with various configurations.
 func TestNewAdapter(t *testing.T) {
 	tests := []struct {
@@ -217,11 +222,11 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 func createTestHelmRelease(name, chart string, ready bool) *unstructured.Unstructured {
 	namespace := "flux-system"
 	sourceRef := "bitnami"
-	readyStatus := "True"
+	readyStatus := readyStatusTrue
 	reason := "ReconciliationSucceeded"
 	message := "Release reconciliation succeeded"
 	if !ready {
-		readyStatus = "False"
+		readyStatus = readyStatusFalse
 		reason = "ReconciliationFailed"
 		message = "Release reconciliation failed"
 	}
@@ -278,11 +283,11 @@ func createTestKustomization(name string) *unstructured.Unstructured {
 	path := "./apps"
 	sourceRef := "infra-repo"
 	ready := true
-	readyStatus := "True"
+	readyStatus := readyStatusTrue
 	reason := "ReconciliationSucceeded"
 	message := "Applied revision: main/abc123"
 	if !ready {
-		readyStatus = "False"
+		readyStatus = readyStatusFalse
 		reason = "ReconciliationFailed"
 		message = "Kustomization reconciliation failed"
 	}

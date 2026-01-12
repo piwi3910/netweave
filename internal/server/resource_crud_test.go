@@ -21,6 +21,12 @@ import (
 	"github.com/piwi3910/netweave/internal/config"
 )
 
+const (
+	errorOnCreate = "create"
+	errorOnUpdate = "update"
+	errorOnGet    = "get"
+)
+
 // mockResourceAdapter implements adapter.Adapter for resource CRUD tests.
 type mockResourceAdapter struct {
 	mockAdapter
@@ -708,7 +714,7 @@ func TestResourceCRUD(t *testing.T) {
 		mockAdp := &mockResourceAdapter{
 			resources: map[string]*adapter.Resource{},
 		}
-		srv := New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, "create"}, &mockStore{})
+		srv := New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, errorOnCreate}, &mockStore{})
 
 		resource := adapter.Resource{
 			ResourceTypeID: "machine",
@@ -745,7 +751,7 @@ func TestResourceCRUD(t *testing.T) {
 				},
 			},
 		}
-		srv := New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, "update"}, &mockStore{})
+		srv := New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, errorOnUpdate}, &mockStore{})
 
 		resource := adapter.Resource{
 			Description: "Updated description",
@@ -772,14 +778,14 @@ func TestResourceCRUD(t *testing.T) {
 // errorReturningAdapter wraps a mock adapter and returns errors for specific operations.
 type errorReturningAdapter struct {
 	*mockResourceAdapter
-	errorOn string // "create", "update", "get"
+	errorOn string // errorOnCreate, errorOnUpdate, errorOnGet
 }
 
 func (e *errorReturningAdapter) CreateResource(
 	ctx context.Context,
 	resource *adapter.Resource,
 ) (*adapter.Resource, error) {
-	if e.errorOn == "create" {
+	if e.errorOn == errorOnCreate {
 		return nil, errors.New("simulated adapter create error")
 	}
 	return e.mockResourceAdapter.CreateResource(ctx, resource)
@@ -790,14 +796,14 @@ func (e *errorReturningAdapter) UpdateResource(
 	id string,
 	resource *adapter.Resource,
 ) (*adapter.Resource, error) {
-	if e.errorOn == "update" {
+	if e.errorOn == errorOnUpdate {
 		return nil, errors.New("simulated adapter update error")
 	}
 	return e.mockResourceAdapter.UpdateResource(ctx, id, resource)
 }
 
 func (e *errorReturningAdapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
-	if e.errorOn == "get" {
+	if e.errorOn == errorOnGet {
 		return nil, errors.New("simulated adapter get error")
 	}
 	return e.mockResourceAdapter.GetResource(ctx, id)
@@ -1010,11 +1016,11 @@ func collectConcurrentResults(results <-chan string, numGoroutines int) (createS
 		op := string(parts[0])
 		code := string(parts[1])
 
-		if op == "create" && code == "201" {
+		if op == errorOnCreate && code == "201" {
 			createSuccess++
-		} else if op == "get" && code == "200" {
+		} else if op == errorOnGet && code == "200" {
 			getSuccess++
-		} else if op == "get" && code == "404" {
+		} else if op == errorOnGet && code == "404" {
 			getNotFound++
 		}
 	}
