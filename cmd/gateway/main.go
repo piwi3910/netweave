@@ -571,7 +571,7 @@ func initializeKubernetesAdapter(cfg *config.Config, logger *zap.Logger) (*kuber
 // initializeHealthChecker creates and configures the health checker.
 func initializeHealthChecker(
 	store *storage.RedisStore,
-	adapter *kubernetes.KubernetesAdapter,
+	adapter *kubernetes.Adapter,
 	logger *zap.Logger,
 ) *observability.HealthChecker {
 	healthChecker := observability.NewHealthChecker(Version)

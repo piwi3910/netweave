@@ -1,4 +1,4 @@
-package dtias
+package dtias_test
 
 import (
 	"context"

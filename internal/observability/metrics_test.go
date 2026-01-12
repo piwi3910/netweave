@@ -1,4 +1,4 @@
-package observability
+package observability_test
 
 import (
 	"errors"

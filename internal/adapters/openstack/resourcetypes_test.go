@@ -1,4 +1,4 @@
-package openstack
+package openstack_test
 
 import (
 	"fmt"
