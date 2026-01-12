@@ -432,6 +432,12 @@ type SecurityConfig struct {
 	// Production deployments MUST enforce HTTPS for webhook callbacks
 	AllowInsecureCallbacks bool `mapstructure:"allow_insecure_callbacks"`
 
+	// DisableSSRFProtection disables SSRF protection for webhook callbacks
+	// This allows callbacks to localhost and private IP addresses
+	// WARNING: This should ONLY be enabled in development/testing environments
+	// Production deployments MUST keep SSRF protection enabled to prevent attacks
+	DisableSSRFProtection bool `mapstructure:"disable_ssrf_protection"`
+
 	// SecurityHeaders contains configuration for security headers middleware
 	SecurityHeaders SecurityHeadersConfig `mapstructure:"security_headers"`
 }
