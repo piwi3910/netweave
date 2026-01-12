@@ -75,7 +75,11 @@ func TestDocsEndpoints_OpenAPIYAML(t *testing.T) {
 
 	// Test /openapi.yaml root endpoint
 	t.Run("RootOpenAPIYAML", func(t *testing.T) {
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL()+"/openapi.yaml")
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL()+"/openapi.yaml", nil)
+		require.NoError(t, err)
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
@@ -95,7 +99,11 @@ func TestDocsEndpoints_SwaggerUI(t *testing.T) {
 
 	// Test /docs/ endpoint (Swagger UI)
 	t.Run("SwaggerUI", func(t *testing.T) {
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL()+"/docs/")
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL()+"/docs/", nil)
+		require.NoError(t, err)
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
@@ -155,7 +163,10 @@ func TestDocsEndpoints_SecurityHeaders(t *testing.T) {
 	env := helpers.SetupTestEnvironment(t)
 	ts := createDocsTestServer(t, env)
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL()+"/docs/")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL()+"/docs/", nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -187,7 +198,10 @@ func TestDocsEndpoints_SRIHashes(t *testing.T) {
 	env := helpers.SetupTestEnvironment(t)
 	ts := createDocsTestServer(t, env)
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL()+"/docs/")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL()+"/docs/", nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -227,7 +241,10 @@ func TestDocsEndpoints_CacheHeaders(t *testing.T) {
 
 	// Note: Since no spec is loaded, we won't get cache headers on 404 responses
 	// This test documents expected behavior when spec IS loaded
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL()+"/docs/openapi.yaml")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL()+"/docs/openapi.yaml", nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

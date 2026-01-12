@@ -80,6 +80,7 @@ func TestUserHandler_ListUsers(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Users []*auth.TenantUser `json:"users"`
 					Total int                `json:"total"`
@@ -111,6 +112,7 @@ func TestUserHandler_ListUsers(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response struct {
 					Users []*auth.TenantUser `json:"users"`
 					Total int                `json:"total"`
@@ -192,6 +194,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 			},
 			wantStatus: http.StatusCreated,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response auth.TenantUser
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -218,6 +221,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 			},
 			wantStatus: http.StatusBadRequest,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -247,6 +251,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 			},
 			wantStatus: http.StatusBadRequest,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -278,6 +283,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 			},
 			wantStatus: http.StatusForbidden,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -364,6 +370,7 @@ func TestUserHandler_GetUser(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response auth.TenantUser
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -384,6 +391,7 @@ func TestUserHandler_GetUser(t *testing.T) {
 			},
 			wantStatus: http.StatusNotFound,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -408,6 +416,7 @@ func TestUserHandler_GetUser(t *testing.T) {
 			},
 			wantStatus: http.StatusForbidden,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response models.ErrorResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -476,6 +485,7 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response auth.TenantUser
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
@@ -504,6 +514,7 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
 				var response auth.TenantUser
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)

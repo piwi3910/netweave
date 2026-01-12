@@ -81,6 +81,7 @@ func TestListDeploymentManagers(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
+				t.Helper()
 				assert.Contains(t, w.Body.String(), "dm-1")
 				assert.Contains(t, w.Body.String(), "Test DM")
 				assert.Contains(t, w.Body.String(), "totalCount")
@@ -97,6 +98,7 @@ func TestListDeploymentManagers(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
+				t.Helper()
 				assert.Contains(t, w.Body.String(), "dm-1")
 			},
 		},
@@ -108,6 +110,7 @@ func TestListDeploymentManagers(t *testing.T) {
 			},
 			expectedStatus: http.StatusInternalServerError,
 			checkResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
+				t.Helper()
 				assert.Contains(t, w.Body.String(), "InternalError")
 				assert.Contains(t, w.Body.String(), "Failed to retrieve deployment managers")
 			},
@@ -123,6 +126,7 @@ func TestListDeploymentManagers(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
+				t.Helper()
 				// Should return empty items array when offset > total
 				assert.Contains(t, w.Body.String(), "\"items\":[]")
 			},
@@ -183,6 +187,7 @@ func TestGetDeploymentManager(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
+				t.Helper()
 				assert.Contains(t, w.Body.String(), "dm-123")
 				assert.Contains(t, w.Body.String(), "Test DM")
 				assert.Contains(t, w.Body.String(), "ocloud-1")
@@ -197,6 +202,7 @@ func TestGetDeploymentManager(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			checkResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
+				t.Helper()
 				assert.Contains(t, w.Body.String(), "BadRequest")
 				assert.Contains(t, w.Body.String(), "cannot be empty")
 			},
@@ -209,6 +215,7 @@ func TestGetDeploymentManager(t *testing.T) {
 			},
 			expectedStatus: http.StatusNotFound,
 			checkResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
+				t.Helper()
 				assert.Contains(t, w.Body.String(), "NotFound")
 				assert.Contains(t, w.Body.String(), "dm-404")
 			},
@@ -221,6 +228,7 @@ func TestGetDeploymentManager(t *testing.T) {
 			},
 			expectedStatus: http.StatusInternalServerError,
 			checkResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
+				t.Helper()
 				assert.Contains(t, w.Body.String(), "InternalError")
 				assert.Contains(t, w.Body.String(), "Failed to retrieve deployment manager")
 			},
