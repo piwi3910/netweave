@@ -598,10 +598,10 @@ func TestSMOHandler_PluginNotFound(t *testing.T) {
 		t.Run(ep.method+" "+ep.path, func(t *testing.T) {
 			var req *http.Request
 			if ep.body != "" {
-				req, _ = http.NewRequest(ep.method, ep.path, bytes.NewBufferString(ep.body))
+				req, _ = http.NewRequestWithContext(context.Background(), ep.method, ep.path, bytes.NewBufferString(ep.body))
 				req.Header.Set("Content-Type", "application/json")
 			} else {
-				req, _ = http.NewRequest(ep.method, ep.path, nil)
+				req, _ = http.NewRequestWithContext(context.Background(), ep.method, ep.path, nil)
 			}
 			resp := httptest.NewRecorder()
 			router.ServeHTTP(resp, req)

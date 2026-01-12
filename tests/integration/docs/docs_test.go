@@ -145,7 +145,10 @@ func TestDocsEndpoints_SwaggerUI(t *testing.T) {
 			},
 		}
 
-		resp, err := client.Get(ts.URL() + "/docs")
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL()+"/docs", nil)
+		require.NoError(t, err)
+
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
