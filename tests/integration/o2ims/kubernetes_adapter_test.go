@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -21,6 +22,59 @@ import (
 	"github.com/piwi3910/netweave/internal/storage"
 	"github.com/piwi3910/netweave/tests/integration/helpers"
 )
+
+// doHTTPRequest performs an HTTP request and decodes the JSON response.
+func doHTTPRequest(t *testing.T, method, url string, body interface{}, result interface{}) *http.Response {
+	t.Helper()
+	var reqBody io.Reader
+	if body != nil {
+		jsonBytes, err := json.Marshal(body)
+		require.NoError(t, err)
+		reqBody = bytes.NewReader(jsonBytes)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), method, url, reqBody)
+	require.NoError(t, err)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	client := helpers.NewTestHTTPClient()
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	})
+
+	if result != nil && resp.StatusCode != http.StatusNoContent {
+		err = json.NewDecoder(resp.Body).Decode(result)
+		require.NoError(t, err)
+	}
+
+	return resp
+}
+
+// createResourcePool creates a resource pool and returns its ID.
+func createResourcePool(t *testing.T, ts *helpers.TestServer, name string) string {
+	t.Helper()
+	poolData := helpers.TestResourcePool(name)
+	var result map[string]interface{}
+	resp := doHTTPRequest(t, http.MethodPost, ts.O2IMSURL()+"/resourcePools", poolData, &result)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	return result["resourcePoolId"].(string)
+}
+
+// createResource creates a resource and returns its ID.
+func createResource(t *testing.T, ts *helpers.TestServer, poolID, resourceType string) string {
+	t.Helper()
+	resourceData := helpers.TestResource(poolID, resourceType)
+	var result map[string]interface{}
+	resp := doHTTPRequest(t, http.MethodPost, ts.O2IMSURL()+"/resources", resourceData, &result)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	return result["resourceId"].(string)
+}
 
 // TestKubernetesAdapter_ResourcePoolLifecycle tests the complete CRUD lifecycle
 // for resource pools using the Kubernetes adapter with real Redis storage.
@@ -76,34 +130,10 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 	t.Run("CreateResourcePool", func(t *testing.T) {
 		t.Skip("Skipping until server routes are properly implemented (issue #19)")
 		poolData := helpers.TestResourcePool("test-pool-1")
-
-		body, err := json.Marshal(poolData)
-		require.NoError(t, err)
-
-		req, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodPost,
-			ts.O2IMSURL()+"/resourcePools",
-			bytes.NewReader(body),
-		)
-		require.NoError(t, err)
-		req.Header.Set("Content-Type", "application/json")
-
-		httpClient := helpers.NewTestHTTPClient()
-		resp, err := httpClient.Do(req)
-		require.NoError(t, err)
-		defer func() {
-			if err := resp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
+		var result map[string]interface{}
+		resp := doHTTPRequest(t, http.MethodPost, ts.O2IMSURL()+"/resourcePools", poolData, &result)
 
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		require.NoError(t, err)
-
 		assert.NotEmpty(t, result["resourcePoolId"])
 		assert.Equal(t, "test-pool-1", result["name"])
 	})
@@ -111,220 +141,46 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 	// Test 2: Get resource pool
 	t.Run("GetResourcePool", func(t *testing.T) {
 		t.Skip("Skipping until server routes are properly implemented (issue #19)")
-		// First create a pool
-		poolData := helpers.TestResourcePool("test-pool-2")
-		body, _ := json.Marshal(poolData)
-
-		createReq, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodPost,
-			ts.O2IMSURL()+"/resourcePools",
-			bytes.NewReader(body),
-		)
-		require.NoError(t, err)
-		createReq.Header.Set("Content-Type", "application/json")
-
-		httpClient := helpers.NewTestHTTPClient()
-		createResp, err := httpClient.Do(createReq)
-		require.NoError(t, err)
-		defer func() {
-			if err := createResp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
-
-		var created map[string]interface{}
-		if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
-			t.Logf("Failed to decode response: %v", err)
-		}
-		poolID := created["resourcePoolId"].(string)
-
-		// Get the pool
-		getReq, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodGet,
-			ts.O2IMSURL()+"/resourcePools/"+poolID,
-			nil,
-		)
-		require.NoError(t, err)
-
-		httpClient = helpers.NewTestHTTPClient()
-		getResp, err := httpClient.Do(getReq)
-		require.NoError(t, err)
-		defer func() {
-			if err := getResp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
-
-		assert.Equal(t, http.StatusOK, getResp.StatusCode)
+		poolID := createResourcePool(t, ts, "test-pool-2")
 
 		var result map[string]interface{}
-		err = json.NewDecoder(getResp.Body).Decode(&result)
-		require.NoError(t, err)
+		resp := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resourcePools/"+poolID, nil, &result)
 
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, poolID, result["resourcePoolId"])
 		assert.Equal(t, "test-pool-2", result["name"])
 	})
 
 	// Test 3: List resource pools
 	t.Run("ListResourcePools", func(t *testing.T) {
-		listReq, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodGet,
-			ts.O2IMSURL()+"/resourcePools",
-			nil,
-		)
-		require.NoError(t, err)
-
-		httpClient := helpers.NewTestHTTPClient()
-		resp, err := httpClient.Do(listReq)
-		require.NoError(t, err)
-		defer func() {
-			if err := resp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
+		var result []map[string]interface{}
+		resp := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resourcePools", nil, &result)
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-		var result []map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		require.NoError(t, err)
-
-		// We created at least 2 pools in previous tests
 		assert.GreaterOrEqual(t, len(result), 2)
 	})
 
 	// Test 4: Update resource pool
 	t.Run("UpdateResourcePool", func(t *testing.T) {
-		// Create a pool first
-		poolData := helpers.TestResourcePool("test-pool-update")
-		body, _ := json.Marshal(poolData)
+		poolID := createResourcePool(t, ts, "test-pool-update")
 
-		createReq, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodPost,
-			ts.O2IMSURL()+"/resourcePools",
-			bytes.NewReader(body),
-		)
-		require.NoError(t, err)
-		createReq.Header.Set("Content-Type", "application/json")
-
-		httpClient := helpers.NewTestHTTPClient()
-		createResp, err := httpClient.Do(createReq)
-		require.NoError(t, err)
-		defer func() {
-			if err := createResp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
-
-		var created map[string]interface{}
-		if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
-			t.Logf("Failed to decode response: %v", err)
-		}
-		poolID := created["resourcePoolId"].(string)
-
-		// Update the pool
-		updateData := map[string]interface{}{
-			"name":        "test-pool-updated",
-			"description": "Updated description",
-		}
-		updateBody, _ := json.Marshal(updateData)
-
-		req, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodPut,
-			ts.O2IMSURL()+"/resourcePools/"+poolID,
-			bytes.NewReader(updateBody),
-		)
-		require.NoError(t, err)
-		req.Header.Set("Content-Type", "application/json")
-
-		client := &http.Client{}
-		updateResp, err := client.Do(req)
-		require.NoError(t, err)
-		defer func() {
-			if err := updateResp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
-
-		assert.Equal(t, http.StatusOK, updateResp.StatusCode)
-
+		updateData := map[string]interface{}{"name": "test-pool-updated", "description": "Updated description"}
 		var result map[string]interface{}
-		err = json.NewDecoder(updateResp.Body).Decode(&result)
-		require.NoError(t, err)
+		resp := doHTTPRequest(t, http.MethodPut, ts.O2IMSURL()+"/resourcePools/"+poolID, updateData, &result)
 
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "test-pool-updated", result["name"])
 		assert.Equal(t, "Updated description", result["description"])
 	})
 
 	// Test 5: Delete resource pool
 	t.Run("DeleteResourcePool", func(t *testing.T) {
-		// Create a pool first
-		poolData := helpers.TestResourcePool("test-pool-delete")
-		body, _ := json.Marshal(poolData)
+		poolID := createResourcePool(t, ts, "test-pool-delete")
 
-		createReq, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodPost,
-			ts.O2IMSURL()+"/resourcePools",
-			bytes.NewReader(body),
-		)
-		require.NoError(t, err)
-		createReq.Header.Set("Content-Type", "application/json")
-
-		httpClient := helpers.NewTestHTTPClient()
-		createResp, err := httpClient.Do(createReq)
-		require.NoError(t, err)
-		defer func() {
-			if err := createResp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
-
-		var created map[string]interface{}
-		if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
-			t.Logf("Failed to decode response: %v", err)
-		}
-		poolID := created["resourcePoolId"].(string)
-
-		// Delete the pool
-		req, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodDelete,
-			ts.O2IMSURL()+"/resourcePools/"+poolID,
-			nil,
-		)
-		require.NoError(t, err)
-
-		client := &http.Client{}
-		deleteResp, err := client.Do(req)
-		require.NoError(t, err)
-		defer func() {
-			if err := deleteResp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
-
+		deleteResp := doHTTPRequest(t, http.MethodDelete, ts.O2IMSURL()+"/resourcePools/"+poolID, nil, nil)
 		assert.Equal(t, http.StatusNoContent, deleteResp.StatusCode)
 
-		// Verify deletion - GET should return 404
-		verifyReq, _ := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodGet,
-			ts.O2IMSURL()+"/resourcePools/"+poolID,
-			nil,
-		)
-		verifyClient := helpers.NewTestHTTPClient()
-		getResp, _ := verifyClient.Do(verifyReq)
-		defer func() {
-			if err := getResp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
+		getResp := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resourcePools/"+poolID, nil, nil)
 		assert.Equal(t, http.StatusNotFound, getResp.StatusCode)
 	})
 }
@@ -357,63 +213,15 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 	}()
 
 	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
-
-	// First create a resource pool and resource type
-	poolData := helpers.TestResourcePool("resource-test-pool")
-	poolBody, _ := json.Marshal(poolData)
-	poolReq, _ := http.NewRequestWithContext(
-		context.Background(),
-		http.MethodPost,
-		ts.O2IMSURL()+"/resourcePools",
-		bytes.NewReader(poolBody),
-	)
-	if poolReq != nil {
-		poolReq.Header.Set("Content-Type", "application/json")
-	}
-	client := helpers.NewTestHTTPClient()
-	poolResp, _ := client.Do(poolReq)
-	defer func() {
-		if err := poolResp.Body.Close(); err != nil {
-			t.Logf("Failed to close response body: %v", err)
-		}
-	}()
-
-	var pool map[string]interface{}
-	if err := json.NewDecoder(poolResp.Body).Decode(&pool); err != nil {
-		t.Logf("Failed to decode response: %v", err)
-	}
-	poolID := pool["resourcePoolId"].(string)
+	poolID := createResourcePool(t, ts, "resource-test-pool")
 
 	// Test 1: Create resource
 	t.Run("CreateResource", func(t *testing.T) {
 		resourceData := helpers.TestResource(poolID, "compute-node")
-		body, err := json.Marshal(resourceData)
-		require.NoError(t, err)
-
-		req, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodPost,
-			ts.O2IMSURL()+"/resources",
-			bytes.NewReader(body),
-		)
-		require.NoError(t, err)
-		req.Header.Set("Content-Type", "application/json")
-
-		testClient := helpers.NewTestHTTPClient()
-		resp, err := testClient.Do(req)
-		require.NoError(t, err)
-		defer func() {
-			if err := resp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
+		var result map[string]interface{}
+		resp := doHTTPRequest(t, http.MethodPost, ts.O2IMSURL()+"/resources", resourceData, &result)
 
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		require.NoError(t, err)
-
 		assert.NotEmpty(t, result["resourceId"])
 		assert.Equal(t, poolID, result["resourcePoolId"])
 		assert.Equal(t, "compute-node", result["resourceTypeId"])
@@ -421,58 +229,14 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 
 	// Test 2: Get resource
 	t.Run("GetResource", func(t *testing.T) {
-		resourceData := helpers.TestResource(poolID, "compute-node")
-		body, _ := json.Marshal(resourceData)
-
-		createReq, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodPost,
-			ts.O2IMSURL()+"/resources",
-			bytes.NewReader(body),
-		)
-		require.NoError(t, err)
-		createReq.Header.Set("Content-Type", "application/json")
-
-		testClient := helpers.NewTestHTTPClient()
-		createResp, err := testClient.Do(createReq)
-		require.NoError(t, err)
-		defer func() {
-			if err := createResp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
-
-		var created map[string]interface{}
-		if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
-			t.Logf("Failed to decode response: %v", err)
-		}
-		resourceID := created["resourceId"].(string)
-
-		// Get the resource
-		getReq, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodGet,
-			ts.O2IMSURL()+"/resources/"+resourceID,
-			nil,
-		)
-		require.NoError(t, err)
-
-		testClient = helpers.NewTestHTTPClient()
-		getResp, err := testClient.Do(getReq)
-		require.NoError(t, err)
-		defer func() {
-			if err := getResp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
-
-		assert.Equal(t, http.StatusOK, getResp.StatusCode)
+		resourceID := createResource(t, ts, poolID, "compute-node")
 
 		var result map[string]interface{}
-		err = json.NewDecoder(getResp.Body).Decode(&result)
-		require.NoError(t, err)
+		resp := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resources/"+resourceID, nil, &result)
 
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, resourceID, result["resourceId"])
+		assert.Equal(t, poolID, result["resourcePoolId"])
 	})
 
 	// Test 3: List resources with filter
