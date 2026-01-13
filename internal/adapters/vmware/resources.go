@@ -83,7 +83,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter
 	// List all resources and find the matching one
 	resources, err := a.ListResources(ctx, nil)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	for _, res := range resources {

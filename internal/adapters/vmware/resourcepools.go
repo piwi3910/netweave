@@ -180,7 +180,7 @@ func (a *Adapter) GetResourcePool(ctx context.Context, id string) (pool *adapter
 
 	pools, err := a.ListResourcePools(ctx, nil)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	for _, p := range pools {

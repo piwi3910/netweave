@@ -84,7 +84,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (resourceType 
 
 	resourceTypes, err := a.ListResourceTypes(ctx, nil)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	for _, rt := range resourceTypes {
