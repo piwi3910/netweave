@@ -300,6 +300,56 @@ func (r *RedisStore) Ping(ctx context.Context) error {
 	return nil
 }
 
+// batchListFromSet is a generic helper for listing entities stored in Redis.
+// It retrieves IDs from a set, uses MGET for batch retrieval, and unmarshals JSON results.
+func batchListFromSet[T any](
+	ctx context.Context,
+	client redis.UniversalClient,
+	logger *zap.Logger,
+	setKey string,
+	keyPrefix string,
+	entityType string,
+	idFieldName string,
+) ([]T, error) {
+	ids, err := client.SMembers(ctx, setKey).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list %s IDs: %w", entityType, err)
+	}
+	if len(ids) == 0 {
+		return []T{}, nil
+	}
+
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = keyPrefix + id
+	}
+
+	results, err := client.MGet(ctx, keys...).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch get %ss: %w", entityType, err)
+	}
+
+	items := make([]T, 0, len(ids))
+	for i, result := range results {
+		if result == nil {
+			logger.Warn(entityType+" data not found during list operation", zap.String(idFieldName, ids[i]))
+			continue
+		}
+		data, ok := result.(string)
+		if !ok {
+			logger.Warn("unexpected "+entityType+" data type during list operation", zap.String(idFieldName, ids[i]))
+			continue
+		}
+		var item T
+		if err := json.Unmarshal([]byte(data), &item); err != nil {
+			logger.Warn("failed to unmarshal "+entityType+" during list operation", zap.String(idFieldName, ids[i]), zap.Error(err))
+			continue
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
 // CreateTenant creates a new tenant in Redis.
 // Uses SetNX for atomic creation to prevent race conditions.
 func (r *RedisStore) CreateTenant(ctx context.Context, tenant *Tenant) error {
@@ -427,56 +477,10 @@ func (r *RedisStore) DeleteTenant(ctx context.Context, id string) error {
 // ListTenants retrieves all tenants.
 // Uses MGET for efficient batch retrieval instead of N+1 queries.
 func (r *RedisStore) ListTenants(ctx context.Context) ([]*Tenant, error) {
-	ids, err := r.client.SMembers(ctx, tenantSetKey).Result()
+	tenants, err := batchListFromSet[*Tenant](ctx, r.client, r.logger, tenantSetKey, tenantKeyPrefix, "tenant", "tenant_id")
 	if err != nil {
-		return nil, fmt.Errorf("failed to list tenant IDs: %w", err)
+		return nil, err
 	}
-
-	if len(ids) == 0 {
-		return []*Tenant{}, nil
-	}
-
-	// Build keys for batch retrieval.
-	keys := make([]string, len(ids))
-	for i, id := range ids {
-		keys[i] = tenantKeyPrefix + id
-	}
-
-	// Use MGET for efficient batch retrieval.
-	results, err := r.client.MGet(ctx, keys...).Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to batch get tenants: %w", err)
-	}
-
-	tenants := make([]*Tenant, 0, len(ids))
-	for i, result := range results {
-		if result == nil {
-			r.logger.Warn("tenant data not found during list operation",
-				zap.String("tenant_id", ids[i]),
-			)
-			continue
-		}
-
-		data, ok := result.(string)
-		if !ok {
-			r.logger.Warn("unexpected tenant data type during list operation",
-				zap.String("tenant_id", ids[i]),
-			)
-			continue
-		}
-
-		var tenant Tenant
-		if err := json.Unmarshal([]byte(data), &tenant); err != nil {
-			r.logger.Warn("failed to unmarshal tenant during list operation",
-				zap.String("tenant_id", ids[i]),
-				zap.Error(err),
-			)
-			continue
-		}
-
-		tenants = append(tenants, &tenant)
-	}
-
 	return tenants, nil
 }
 
@@ -938,56 +942,10 @@ func (r *RedisStore) DeleteRole(ctx context.Context, id string) error {
 // ListRoles retrieves all roles.
 // Uses MGET for efficient batch retrieval instead of N+1 queries.
 func (r *RedisStore) ListRoles(ctx context.Context) ([]*Role, error) {
-	ids, err := r.client.SMembers(ctx, roleSetKey).Result()
+	roles, err := batchListFromSet[*Role](ctx, r.client, r.logger, roleSetKey, roleKeyPrefix, "role", "role_id")
 	if err != nil {
-		return nil, fmt.Errorf("failed to list role IDs: %w", err)
+		return nil, err
 	}
-
-	if len(ids) == 0 {
-		return []*Role{}, nil
-	}
-
-	// Build keys for batch retrieval.
-	keys := make([]string, len(ids))
-	for i, id := range ids {
-		keys[i] = roleKeyPrefix + id
-	}
-
-	// Use MGET for efficient batch retrieval.
-	results, err := r.client.MGet(ctx, keys...).Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to batch get roles: %w", err)
-	}
-
-	roles := make([]*Role, 0, len(ids))
-	for i, result := range results {
-		if result == nil {
-			r.logger.Warn("role data not found during list operation",
-				zap.String("role_id", ids[i]),
-			)
-			continue
-		}
-
-		data, ok := result.(string)
-		if !ok {
-			r.logger.Warn("unexpected role data type during list operation",
-				zap.String("role_id", ids[i]),
-			)
-			continue
-		}
-
-		var role Role
-		if err := json.Unmarshal([]byte(data), &role); err != nil {
-			r.logger.Warn("failed to unmarshal role during list operation",
-				zap.String("role_id", ids[i]),
-				zap.Error(err),
-			)
-			continue
-		}
-
-		roles = append(roles, &role)
-	}
-
 	return roles, nil
 }
 
