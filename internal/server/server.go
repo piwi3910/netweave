@@ -563,8 +563,9 @@ func (s *Server) SetupAuth(authStore AuthStore, authMw AuthMiddleware) {
 	s.logger.Info("multi-tenancy and RBAC enabled")
 }
 
-// AuthStore returns the authentication store.
+// AuthStore returns the authentication store interface.
 // Returns nil if auth is not configured.
+// This method returns an interface by design (registry pattern).
 func (s *Server) AuthStore() AuthStore {
 	return s.authStore
 }

@@ -138,6 +138,7 @@ func (h *SMOHandler) respondWithNotFound(c *gin.Context, err error) {
 }
 
 // getPlugin retrieves a plugin from the registry by name or returns the default.
+// This method returns an interface by design (factory pattern).
 func (h *SMOHandler) getPlugin(pluginName string) (smo.Plugin, error) {
 	var plugin smo.Plugin
 	var err error
