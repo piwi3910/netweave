@@ -107,17 +107,44 @@ func (e *errorReturningResourcePoolAdapter) DeleteResourcePool(ctx context.Conte
 	return e.mockResourcePoolAdapter.DeleteResourcePool(ctx, id)
 }
 
-func TestResourcePoolCreateResourcePool(t *testing.T) {
-	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+// setupResourcePoolTestServer creates a test server with mock adapter and config.
+func setupResourcePoolTestServer(t *testing.T, adp adapter.Adapter) *Server {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
-
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Port:    8080,
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	return New(cfg, zap.NewNop(), adp, &mockStore{})
+}
+
+// makeResourcePoolPostRequest creates and executes a POST request to /resourcePools.
+func makeResourcePoolPostRequest(t *testing.T, srv *Server, body []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resourcePools",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	srv.router.ServeHTTP(resp, req)
+	return resp
+}
+
+// marshalResourcePoolToJSON marshals a resource pool to JSON bytes.
+func marshalResourcePoolToJSON(t *testing.T, pool adapter.ResourcePool) []byte {
+	t.Helper()
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+	return body
+}
+
+func TestResourcePoolCreateResourcePool(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		Name:        "test-pool",
@@ -125,19 +152,13 @@ func TestResourcePoolCreateResourcePool(t *testing.T) {
 		Location:    "us-west-1",
 	}
 
-	body, err := json.Marshal(pool)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourcePoolToJSON(t, pool)
+	resp := makeResourcePoolPostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusCreated, resp.Code)
 
 	var created adapter.ResourcePool
-	err = json.Unmarshal(resp.Body.Bytes(), &created)
+	err := json.Unmarshal(resp.Body.Bytes(), &created)
 	require.NoError(t, err)
 	assert.Equal(t, pool.Name, created.Name)
 	assert.Equal(t, pool.Description, created.Description)
@@ -150,15 +171,7 @@ func TestResourcePoolCreateResourcePool(t *testing.T) {
 
 func TestResourcePoolCreateWithCustomID(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		ResourcePoolID: "custom-pool-123",
@@ -166,34 +179,20 @@ func TestResourcePoolCreateWithCustomID(t *testing.T) {
 		Description:    "Test resource pool",
 	}
 
-	body, err := json.Marshal(pool)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourcePoolToJSON(t, pool)
+	resp := makeResourcePoolPostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusCreated, resp.Code)
 
 	var created adapter.ResourcePool
-	err = json.Unmarshal(resp.Body.Bytes(), &created)
+	err := json.Unmarshal(resp.Body.Bytes(), &created)
 	require.NoError(t, err)
 	assert.Equal(t, "custom-pool-123", created.ResourcePoolID)
 }
 
 func TestResourcePoolDuplicateResourcePool(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		ResourcePoolID: "existing-pool",
@@ -201,14 +200,8 @@ func TestResourcePoolDuplicateResourcePool(t *testing.T) {
 		Description:    "Test resource pool",
 	}
 
-	body, err := json.Marshal(pool)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourcePoolToJSON(t, pool)
+	resp := makeResourcePoolPostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusConflict, resp.Code)
 	assert.Contains(t, resp.Body.String(), "already exists")
@@ -216,28 +209,14 @@ func TestResourcePoolDuplicateResourcePool(t *testing.T) {
 
 func TestResourcePoolValidationErrorEmptyName(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		Description: "Test pool",
 	}
 
-	body, err := json.Marshal(pool)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourcePoolToJSON(t, pool)
+	resp := makeResourcePoolPostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "name is required")
@@ -245,28 +224,14 @@ func TestResourcePoolValidationErrorEmptyName(t *testing.T) {
 
 func TestResourcePoolValidationErrorNameTooLong(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		Name: strings.Repeat("a", MaxResourcePoolNameLength+1), // Exceeds max length
 	}
 
-	body, err := json.Marshal(pool)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourcePoolToJSON(t, pool)
+	resp := makeResourcePoolPostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "name must not exceed 255 characters")
@@ -274,29 +239,15 @@ func TestResourcePoolValidationErrorNameTooLong(t *testing.T) {
 
 func TestResourcePoolValidationErrorInvalidIDCharacters(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		ResourcePoolID: "invalid/pool/../id", // Contains invalid characters
 		Name:           "test-pool",
 	}
 
-	body, err := json.Marshal(pool)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourcePoolToJSON(t, pool)
+	resp := makeResourcePoolPostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "resourcePoolId must contain only alphanumeric characters")
@@ -304,29 +255,15 @@ func TestResourcePoolValidationErrorInvalidIDCharacters(t *testing.T) {
 
 func TestResourcePoolValidationErrorDescriptionTooLong(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		Name:        "test-pool",
 		Description: strings.Repeat("a", MaxResourcePoolDescriptionLength+1), // Exceeds max length
 	}
 
-	body, err := json.Marshal(pool)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourcePoolToJSON(t, pool)
+	resp := makeResourcePoolPostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "description must not exceed 1000 characters")
@@ -334,29 +271,15 @@ func TestResourcePoolValidationErrorDescriptionTooLong(t *testing.T) {
 
 func TestResourcePoolMultipleValidationErrors(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		Name:        strings.Repeat("a", 256),  // Name too long
 		Description: strings.Repeat("b", 1001), // Description too long
 	}
 
-	body, err := json.Marshal(pool)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourcePoolToJSON(t, pool)
+	resp := makeResourcePoolPostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	// Should contain both error messages
@@ -367,34 +290,20 @@ func TestResourcePoolMultipleValidationErrors(t *testing.T) {
 
 func TestResourcePoolSanitizeNameWithSpecialCharacters(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		Name:        "Test Pool / With * Special <> Chars",
 		Description: "Testing sanitization",
 	}
 
-	body, err := json.Marshal(pool)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourcePoolToJSON(t, pool)
+	resp := makeResourcePoolPostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusCreated, resp.Code)
 
 	var created adapter.ResourcePool
-	err = json.Unmarshal(resp.Body.Bytes(), &created)
+	err := json.Unmarshal(resp.Body.Bytes(), &created)
 	require.NoError(t, err)
 	// ID should be sanitized (no special characters)
 	assert.NotContains(t, created.ResourcePoolID, "/")
@@ -405,15 +314,7 @@ func TestResourcePoolSanitizeNameWithSpecialCharacters(t *testing.T) {
 
 func TestResourcePoolInvalidJSON(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -431,15 +332,7 @@ func TestResourcePoolInvalidJSON(t *testing.T) {
 
 func TestResourcePoolUpdateResourcePool(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		Name:        "Updated Pool",
@@ -473,15 +366,7 @@ func TestResourcePoolUpdateResourcePool(t *testing.T) {
 
 func TestResourcePoolUpdateResourcePoolNotFound(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		Name:        "Updated Pool",
@@ -507,15 +392,7 @@ func TestResourcePoolUpdateResourcePoolNotFound(t *testing.T) {
 
 func TestResourcePoolUpdateInvalidJSON(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	req := httptest.NewRequest(
 		http.MethodPut,
@@ -533,15 +410,7 @@ func TestResourcePoolUpdateInvalidJSON(t *testing.T) {
 
 func TestResourcePoolUpdateValidationErrorEmptyName(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		Name: "", // Empty name - should fail validation
@@ -566,15 +435,7 @@ func TestResourcePoolUpdateValidationErrorEmptyName(t *testing.T) {
 
 func TestResourcePoolUpdateValidationErrorNameTooLong(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		Name: strings.Repeat("a", 256), // Name too long
@@ -599,15 +460,7 @@ func TestResourcePoolUpdateValidationErrorNameTooLong(t *testing.T) {
 
 func TestResourcePoolUpdateValidationErrorInvalidIDCharacters(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		Name:           "Valid Name",
@@ -633,15 +486,7 @@ func TestResourcePoolUpdateValidationErrorInvalidIDCharacters(t *testing.T) {
 
 func TestResourcePoolUpdateValidationErrorDescriptionTooLong(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
 		Name:        "Valid Name",
@@ -667,15 +512,7 @@ func TestResourcePoolUpdateValidationErrorDescriptionTooLong(t *testing.T) {
 
 func TestResourcePoolDeleteResourcePool(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/existing-pool", nil)
 	resp := httptest.NewRecorder()
@@ -688,15 +525,7 @@ func TestResourcePoolDeleteResourcePool(t *testing.T) {
 
 func TestResourcePoolDeleteResourcePoolNotFound(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/nonexistent-pool", nil)
 	resp := httptest.NewRecorder()
@@ -727,14 +556,8 @@ func TestResourcePoolCreateAdapterError(t *testing.T) {
 		Name: "test-pool",
 	}
 
-	body, err := json.Marshal(pool)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourcePoolToJSON(t, pool)
+	resp := makeResourcePoolPostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusInternalServerError, resp.Code)
 	assert.Contains(t, resp.Body.String(), "Failed to create resource pool")

@@ -133,17 +133,65 @@ func createTestResource(
 	return &created, resp
 }
 
-func TestResourceCreateResource(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
+// Test helper functions to reduce code duplication
 
+// setupResourceTestServer creates a test server with mock adapter and config.
+func setupResourceTestServer(t *testing.T, adp adapter.Adapter) *Server {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Port:    8080,
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	return New(cfg, zap.NewNop(), adp, &mockStore{})
+}
+
+// makeResourcePostRequest creates and executes a POST request to /resources.
+func makeResourcePostRequest(t *testing.T, srv *Server, body []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	srv.router.ServeHTTP(recorder, req)
+	return recorder
+}
+
+// marshalResourceToJSON marshals a resource to JSON bytes.
+func marshalResourceToJSON(t *testing.T, resource adapter.Resource) []byte {
+	t.Helper()
+	data, err := json.Marshal(resource)
+	require.NoError(t, err)
+	return data
+}
+
+// testInvalidResourceID tests resource creation with invalid ID and expected error.
+func testInvalidResourceID(t *testing.T, resourceID, expectedError string) {
+	t.Helper()
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
+
+	res := adapter.Resource{
+		ResourceID:     resourceID,
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Description:    "Test resource",
+	}
+
+	body := marshalResourceToJSON(t, res)
+	resp := makeResourcePostRequest(t, srv, body)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), expectedError)
+}
+
+func TestResourceCreateResource(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	resource := adapter.Resource{
@@ -160,15 +208,7 @@ func TestResourceCreateResource(t *testing.T) {
 
 func TestResourceVerifyLocationHeader(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	resource := adapter.Resource{
@@ -187,15 +227,7 @@ func TestResourceVerifyLocationHeader(t *testing.T) {
 
 func TestResourceValidationErrorEmptyResourceTypeID(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	resource := adapter.Resource{
@@ -210,15 +242,7 @@ func TestResourceValidationErrorEmptyResourceTypeID(t *testing.T) {
 
 func TestResourceValidationErrorEmptyResourcePoolID(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	resource := adapter.Resource{
@@ -233,91 +257,17 @@ func TestResourceValidationErrorEmptyResourcePoolID(t *testing.T) {
 
 func TestResourceSecurityRejectInvalidUUIDPathTraversal(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
-
-	// Test POST /resources
-	// Test path traversal attack attempt
-	resource := adapter.Resource{
-		ResourceID:     "../../../etc/passwd",
-		ResourceTypeID: "machine",
-		ResourcePoolID: "pool-1",
-		Description:    "Malicious resource",
-	}
-
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
-
-	assert.Equal(t, http.StatusBadRequest, resp.Code)
-	assert.Contains(t, resp.Body.String(), "resourceId must be a valid UUID")
+	testInvalidResourceID(t, "../../../etc/passwd", "resourceId must be a valid UUID")
 }
 
 func TestResourceSecurityRejectInvalidUUIDSQLInjection(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
-
-	// Test POST /resources
-	// Test SQL injection attempt
-	resource := adapter.Resource{
-		ResourceID:     "'; DROP TABLE resources; --",
-		ResourceTypeID: "machine",
-		ResourcePoolID: "pool-1",
-		Description:    "Malicious resource",
-	}
-
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
-
-	assert.Equal(t, http.StatusBadRequest, resp.Code)
-	assert.Contains(t, resp.Body.String(), "resourceId must be a valid UUID")
+	testInvalidResourceID(t, "'; DROP TABLE resources; --", "resourceId must be a valid UUID")
 }
 
 func TestResourceAcceptValidClientProvidedUUID(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	// Test valid UUID is accepted
@@ -329,38 +279,20 @@ func TestResourceAcceptValidClientProvidedUUID(t *testing.T) {
 		Description:    "Resource with client-provided UUID",
 	}
 
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourceToJSON(t, resource)
+	resp := makeResourcePostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusCreated, resp.Code)
 
 	var created adapter.Resource
-	err = json.Unmarshal(resp.Body.Bytes(), &created)
+	err := json.Unmarshal(resp.Body.Bytes(), &created)
 	require.NoError(t, err)
 	assert.Equal(t, validUUID, created.ResourceID)
 }
 
 func TestResourceUpdateUpdateResourceDescription(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	resource := adapter.Resource{
@@ -396,15 +328,7 @@ func TestResourceUpdateUpdateResourceDescription(t *testing.T) {
 
 func TestResourceUpdateUpdateExtensions(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	resource := adapter.Resource{
@@ -441,15 +365,7 @@ func TestResourceUpdateUpdateExtensions(t *testing.T) {
 
 func TestResourceUpdateInvalidJSON(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	req := httptest.NewRequest(
@@ -468,15 +384,7 @@ func TestResourceUpdateInvalidJSON(t *testing.T) {
 
 func TestResourceUpdateResourceNotFound(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	resource := adapter.Resource{
@@ -502,15 +410,7 @@ func TestResourceUpdateResourceNotFound(t *testing.T) {
 
 func TestResourceUpdatePreserveImmutableFields(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	resource := adapter.Resource{
@@ -543,15 +443,7 @@ func TestResourceUpdatePreserveImmutableFields(t *testing.T) {
 
 func TestResourceUpdateRejectImmutableFieldModification(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	resource := adapter.Resource{
@@ -578,15 +470,7 @@ func TestResourceUpdateRejectImmutableFieldModification(t *testing.T) {
 
 func TestResourceInvalidGlobalAssetIDFormat(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	resource := adapter.Resource{
@@ -596,18 +480,8 @@ func TestResourceInvalidGlobalAssetIDFormat(t *testing.T) {
 		Description:    "Test resource",
 	}
 
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourceToJSON(t, resource)
+	resp := makeResourcePostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "urn:")
@@ -615,15 +489,7 @@ func TestResourceInvalidGlobalAssetIDFormat(t *testing.T) {
 
 func TestResourceDescriptionTooLong(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	longDesc := strings.Repeat("a", 1001) // Exceeds 1000 char limit
@@ -633,18 +499,8 @@ func TestResourceDescriptionTooLong(t *testing.T) {
 		Description:    longDesc,
 	}
 
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourceToJSON(t, resource)
+	resp := makeResourcePostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "description")
@@ -652,15 +508,7 @@ func TestResourceDescriptionTooLong(t *testing.T) {
 
 func TestResourceTooManyExtensions(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	// Create 101 extensions (exceeds 100 limit)
@@ -675,18 +523,8 @@ func TestResourceTooManyExtensions(t *testing.T) {
 		Extensions:     extensions,
 	}
 
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourceToJSON(t, resource)
+	resp := makeResourcePostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "extensions")
@@ -694,15 +532,7 @@ func TestResourceTooManyExtensions(t *testing.T) {
 
 func TestResourceExtensionKeyExceedsTwoFiftySixCharacters(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	// Create extension with key longer than 256 characters
@@ -717,18 +547,8 @@ func TestResourceExtensionKeyExceedsTwoFiftySixCharacters(t *testing.T) {
 		Extensions:     extensions,
 	}
 
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourceToJSON(t, resource)
+	resp := makeResourcePostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "extension keys must not exceed 256 characters")
@@ -736,15 +556,7 @@ func TestResourceExtensionKeyExceedsTwoFiftySixCharacters(t *testing.T) {
 
 func TestResourceExtensionValueExceedsFourKB(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	// Create extension with value larger than 4096 bytes when JSON-encoded
@@ -759,18 +571,8 @@ func TestResourceExtensionValueExceedsFourKB(t *testing.T) {
 		Extensions:     extensions,
 	}
 
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourceToJSON(t, resource)
+	resp := makeResourcePostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "extension values must not exceed 4096 bytes")
@@ -802,18 +604,8 @@ func TestResourceExtensionsExceedsHundredKeys(t *testing.T) {
 		Extensions:     extensions,
 	}
 
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourceToJSON(t, resource)
+	resp := makeResourcePostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "extensions map must not exceed 100 keys")
@@ -847,18 +639,8 @@ func TestResourceTotalExtensionsPayloadExceedsFiftyKB(t *testing.T) {
 		Extensions:     extensions,
 	}
 
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourceToJSON(t, resource)
+	resp := makeResourcePostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "total extensions payload must not exceed 50000 bytes")
@@ -866,15 +648,7 @@ func TestResourceTotalExtensionsPayloadExceedsFiftyKB(t *testing.T) {
 
 func TestResourceCustomResourceID(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	resource := adapter.Resource{
@@ -884,38 +658,20 @@ func TestResourceCustomResourceID(t *testing.T) {
 		Description:    "Resource with custom ID",
 	}
 
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourceToJSON(t, resource)
+	resp := makeResourcePostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusCreated, resp.Code)
 
 	var created adapter.Resource
-	err = json.Unmarshal(resp.Body.Bytes(), &created)
+	err := json.Unmarshal(resp.Body.Bytes(), &created)
 	require.NoError(t, err)
 	assert.Equal(t, "custom-resource-id", created.ResourceID)
 }
 
 func TestResourceDuplicateResourceID(t *testing.T) {
 	t.Skip("Skipping due to issue #204 - refactoring needed")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
 	// Use the existing resource ID from the mock
@@ -926,18 +682,8 @@ func TestResourceDuplicateResourceID(t *testing.T) {
 		Description:    "Duplicate resource",
 	}
 
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourceToJSON(t, resource)
+	resp := makeResourcePostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusConflict, resp.Code)
 	assert.Contains(t, resp.Body.String(), "already exists")
@@ -967,18 +713,8 @@ func TestResourceAdapterErrorOnCreate(t *testing.T) {
 		Description:    "Test resource",
 	}
 
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourceToJSON(t, resource)
+	resp := makeResourcePostRequest(t, srv, body)
 
 	assert.Equal(t, http.StatusInternalServerError, resp.Code)
 	assert.Contains(t, resp.Body.String(), "Failed to create resource")
@@ -1097,18 +833,8 @@ func TestResourceConcurrency(t *testing.T) {
 
 		for i := 0; i < numGoroutines; i++ {
 			go func() {
-				body, err := json.Marshal(resource)
-				require.NoError(t, err)
-
-				req := httptest.NewRequest(
-					http.MethodPost,
-					"/o2ims-infrastructureInventory/v1/resources",
-					bytes.NewReader(body),
-				)
-				req.Header.Set("Content-Type", "application/json")
-				resp := httptest.NewRecorder()
-
-				srv.router.ServeHTTP(resp, req)
+				body := marshalResourceToJSON(t, resource)
+				resp := makeResourcePostRequest(t, srv, body)
 				results <- resp.Code
 			}()
 		}
@@ -1236,18 +962,8 @@ func executeConcurrentCreate(t *testing.T, srv *Server, resourceID string, resul
 		Description:    "Test",
 	}
 
-	body, err := json.Marshal(resource)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/o2ims-infrastructureInventory/v1/resources",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(resp, req)
+	body := marshalResourceToJSON(t, resource)
+	resp := makeResourcePostRequest(t, srv, body)
 	results <- fmt.Sprintf("create:%d", resp.Code)
 }
 
