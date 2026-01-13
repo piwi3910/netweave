@@ -1187,16 +1187,7 @@ func (f *Adapter) transformHelmReleaseToDeployment(hr *unstructured.Unstructured
 
 	// Get timestamps
 	creationTimestamp := hr.GetCreationTimestamp().Time
-	var updatedAt time.Time
-	if len(conditions) > 0 {
-		if lastCond, ok := conditions[len(conditions)-1].(map[string]interface{}); ok {
-			if lastTime, ok := lastCond["lastTransitionTime"].(string); ok {
-				if parsed, err := time.Parse(time.RFC3339, lastTime); err == nil {
-					updatedAt = parsed
-				}
-			}
-		}
-	}
+	updatedAt := extractUpdatedAtFromConditions(conditions)
 	if updatedAt.IsZero() {
 		updatedAt = creationTimestamp
 	}
@@ -1249,16 +1240,7 @@ func (f *Adapter) transformKustomizationToDeployment(ks *unstructured.Unstructur
 
 	// Get timestamps
 	creationTimestamp := ks.GetCreationTimestamp().Time
-	var updatedAt time.Time
-	if len(conditions) > 0 {
-		if lastCond, ok := conditions[len(conditions)-1].(map[string]interface{}); ok {
-			if lastTime, ok := lastCond["lastTransitionTime"].(string); ok {
-				if parsed, err := time.Parse(time.RFC3339, lastTime); err == nil {
-					updatedAt = parsed
-				}
-			}
-		}
-	}
+	updatedAt := extractUpdatedAtFromConditions(conditions)
 	if updatedAt.IsZero() {
 		updatedAt = creationTimestamp
 	}
@@ -1467,6 +1449,26 @@ func (f *Adapter) extractFluxStatus(conditions []interface{}) (adapter.Deploymen
 	}
 
 	return adapter.DeploymentStatusPending, "Waiting for reconciliation"
+}
+
+// extractUpdatedAtFromConditions extracts the last transition time from conditions.
+func extractUpdatedAtFromConditions(conditions []interface{}) time.Time {
+	if len(conditions) == 0 {
+		return time.Time{}
+	}
+	lastCond, ok := conditions[len(conditions)-1].(map[string]interface{})
+	if !ok {
+		return time.Time{}
+	}
+	lastTime, ok := lastCond["lastTransitionTime"].(string)
+	if !ok {
+		return time.Time{}
+	}
+	parsed, err := time.Parse(time.RFC3339, lastTime)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
 }
 
 // extractHelmReleaseHistory extracts history from a HelmRelease.
