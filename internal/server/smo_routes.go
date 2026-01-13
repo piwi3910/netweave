@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"regexp"
 	"time"
@@ -138,10 +139,17 @@ func (h *SMOHandler) respondWithNotFound(c *gin.Context, err error) {
 
 // getPlugin retrieves a plugin from the registry by name or returns the default.
 func (h *SMOHandler) getPlugin(pluginName string) (smo.Plugin, error) {
+	var plugin smo.Plugin
+	var err error
 	if pluginName != "" {
-		return h.registry.Get(pluginName)
+		plugin, err = h.registry.Get(pluginName)
+	} else {
+		plugin, err = h.registry.GetDefault()
 	}
-	return h.registry.GetDefault()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get SMO plugin: %w", err)
+	}
+	return plugin, nil
 }
 
 // setEventDefaults sets default event ID and timestamp if not provided.

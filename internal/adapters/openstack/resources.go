@@ -142,7 +142,7 @@ func (a *Adapter) applyPaginationIfNeeded(resources []*adapter.Resource, filter 
 }
 
 // GetResource retrieves a specific OpenStack Nova instance by ID and transforms it to O2-IMS Resource.
-func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+func (a *Adapter) GetResource(_ context.Context, id string) (*adapter.Resource, error) {
 	var serverID string
 	if _, err := fmt.Sscanf(id, "openstack-server-%s", &serverID); err != nil {
 		return nil, fmt.Errorf("invalid resource ID format: %s", id)
