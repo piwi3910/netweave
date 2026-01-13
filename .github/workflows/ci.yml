@@ -76,11 +76,10 @@ jobs:
       - name: Run gosec
         uses: securego/gosec@master
         with:
-          # Exclude G104 (errors unhandled), G304 (file path injection), G402 (TLS InsecureSkipVerify) - documented exceptions
-          # G104: Checked by errcheck linter (resp.Body.Close errors intentionally ignored when response already processed)
+          # Exclude G304 (file path injection) and G402 (TLS InsecureSkipVerify) - documented exceptions
           # G304: cmd/ has hardcoded paths or validated input (no ".." traversal)
           # G402: adapters have configurable InsecureSkipVerify with runtime warnings for dev/test
-          args: '-exclude=G104,G304,G402 -exclude-dir=vendor -exclude-dir=third_party ./...'
+          args: '-exclude=G304,G402 -exclude-dir=vendor -exclude-dir=third_party ./...'
 
       - name: Run govulncheck
         run: |

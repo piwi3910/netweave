@@ -89,10 +89,6 @@ issues:
         - gosec
       path: internal/smo/adapters/onap/
       text: "G402"
-    # Allow dupl in ONAP adapter (client factories share structure intentionally)
-    - linters:
-        - dupl
-      path: internal/smo/adapters/onap/
     # Allow go.mod replacements (needed for K8s compatibility)
     - text: "replacement are not allowed"
       linters:
@@ -160,7 +156,6 @@ issues:
         - importas
         - unparam
         - dupl
-        - lll  # Long log lines with multiple zap fields
     # Allow linting issues in pre-existing config code (not part of DMS PR)
     - path: internal/config/
       linters:
@@ -192,7 +187,7 @@ issues:
     # Allow linting issues in pre-existing internal/ code (not part of PR #29)
     # PR #29 focuses on DMS implementation; linting cleanup for existing code
     # will be addressed in a future dedicated PR
-    - path: internal/(controllers|handlers|middleware|models|observability|registry|routing|server|storage)/
+    - path: internal/(handlers|middleware|models|observability|registry|routing|server|storage)/
       linters:
         - predeclared
         - nilnil
@@ -242,12 +237,6 @@ issues:
         - predeclared   # Parameter names matching builtins
         - nilnil        # Test helpers returning nil, nil
         - dupl          # Code duplication in handler patterns
-        - lll           # Long lines in K8s resource specifications
-    # SMO registry must return Plugin interface (public API design)
-    - path: internal/smo/registry\.go
-      linters:
-        - ireturn       # Registry.Get/GetDefault return Plugin interface by design
-      text: "Get.*returns interface"
 
 output:
   sort-results: true
@@ -336,7 +325,6 @@ linters-settings:
     exclude-functions:
       - (*github.com/redis/go-redis/v9.Client).Close
       - (*github.com/gin-gonic/gin.Context).Error
-      - (io.ReadCloser).Close  # HTTP response bodies - already processed when deferred
 
   govet:
     enable-all: true
