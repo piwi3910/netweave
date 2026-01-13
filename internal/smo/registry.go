@@ -28,10 +28,10 @@ type PluginInfo struct {
 // It provides thread-safe access to registered plugins and handles
 // plugin lifecycle, health monitoring, and capability-based lookups.
 type Registry struct {
-	mu            sync.RWMutex
-	plugins       map[string]Plugin
+	Mu            sync.RWMutex
+	Plugins       map[string]Plugin
 	pluginInfo    map[string]*PluginInfo
-	defaultPlugin string
+	DefaultPlugin string
 	logger        *zap.Logger
 
 	// Health check configuration
@@ -71,7 +71,7 @@ func NewRegistry(logger *zap.Logger, opts ...RegistryOption) *Registry {
 	}
 
 	r := &Registry{
-		plugins:             make(map[string]Plugin),
+		Plugins:             make(map[string]Plugin),
 		pluginInfo:          make(map[string]*PluginInfo),
 		logger:              logger,
 		healthCheckInterval: 30 * time.Second, // Default: 30 seconds
@@ -90,8 +90,8 @@ func NewRegistry(logger *zap.Logger, opts ...RegistryOption) *Registry {
 // Register registers a new SMO plugin with the registry.
 // If isDefault is true, this plugin becomes the default for operations.
 func (r *Registry) Register(ctx context.Context, name string, plugin Plugin, isDefault bool) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
 	if name == "" {
 		return fmt.Errorf("plugin name cannot be empty")
@@ -101,7 +101,7 @@ func (r *Registry) Register(ctx context.Context, name string, plugin Plugin, isD
 		return fmt.Errorf("plugin cannot be nil")
 	}
 
-	if _, exists := r.plugins[name]; exists {
+	if _, exists := r.Plugins[name]; exists {
 		return fmt.Errorf("plugin %s already registered", name)
 	}
 
@@ -112,7 +112,7 @@ func (r *Registry) Register(ctx context.Context, name string, plugin Plugin, isD
 	health := plugin.Health(ctx)
 
 	// Store plugin and its info
-	r.plugins[name] = plugin
+	r.Plugins[name] = plugin
 	r.pluginInfo[name] = &PluginInfo{
 		Name:         metadata.Name,
 		Version:      metadata.Version,
@@ -125,8 +125,8 @@ func (r *Registry) Register(ctx context.Context, name string, plugin Plugin, isD
 		LastHealthAt: time.Now(),
 	}
 
-	if isDefault || r.defaultPlugin == "" {
-		r.defaultPlugin = name
+	if isDefault || r.DefaultPlugin == "" {
+		r.DefaultPlugin = name
 	}
 
 	r.logger.Info("registered SMO plugin",
@@ -141,10 +141,10 @@ func (r *Registry) Register(ctx context.Context, name string, plugin Plugin, isD
 
 // Unregister removes a plugin from the registry.
 func (r *Registry) Unregister(name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
-	plugin, exists := r.plugins[name]
+	plugin, exists := r.Plugins[name]
 	if !exists {
 		return fmt.Errorf("plugin %s not found", name)
 	}
@@ -157,14 +157,14 @@ func (r *Registry) Unregister(name string) error {
 		)
 	}
 
-	delete(r.plugins, name)
+	delete(r.Plugins, name)
 	delete(r.pluginInfo, name)
 
 	// Update default plugin if necessary
-	if r.defaultPlugin == name {
-		r.defaultPlugin = ""
-		for n := range r.plugins {
-			r.defaultPlugin = n
+	if r.DefaultPlugin == name {
+		r.DefaultPlugin = ""
+		for n := range r.Plugins {
+			r.DefaultPlugin = n
 			if info, ok := r.pluginInfo[n]; ok {
 				info.IsDefault = true
 			}
@@ -178,50 +178,24 @@ func (r *Registry) Unregister(name string) error {
 }
 
 // Get retrieves a plugin by name.
-func (r *Registry) Get(name string) (Plugin, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	plugin, exists := r.plugins[name]
-	if !exists {
-		return nil, fmt.Errorf("plugin %s not found", name)
-	}
-
-	return plugin, nil
-}
 
 // GetDefault retrieves the default plugin.
-func (r *Registry) GetDefault() (Plugin, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	if r.defaultPlugin == "" {
-		return nil, fmt.Errorf("no default plugin configured")
-	}
-
-	plugin, exists := r.plugins[r.defaultPlugin]
-	if !exists {
-		return nil, fmt.Errorf("default plugin %s not found", r.defaultPlugin)
-	}
-
-	return plugin, nil
-}
 
 // SetDefault sets the default plugin by name.
 func (r *Registry) SetDefault(name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
-	if _, exists := r.plugins[name]; !exists {
+	if _, exists := r.Plugins[name]; !exists {
 		return fmt.Errorf("plugin %s not found", name)
 	}
 
 	// Update previous default
-	if prevInfo, ok := r.pluginInfo[r.defaultPlugin]; ok {
+	if prevInfo, ok := r.pluginInfo[r.DefaultPlugin]; ok {
 		prevInfo.IsDefault = false
 	}
 
-	r.defaultPlugin = name
+	r.DefaultPlugin = name
 	if info, ok := r.pluginInfo[name]; ok {
 		info.IsDefault = true
 	}
@@ -234,8 +208,8 @@ func (r *Registry) SetDefault(name string) error {
 // List returns information about all registered plugins.
 // Returns deep copies to prevent external modification of internal state.
 func (r *Registry) List() []*PluginInfo {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
 	result := make([]*PluginInfo, 0, len(r.pluginInfo))
 	for _, info := range r.pluginInfo {
@@ -254,11 +228,11 @@ func (r *Registry) List() []*PluginInfo {
 
 // FindByCapability finds all plugins that support the given capability.
 func (r *Registry) FindByCapability(capability Capability) []Plugin {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
 	result := make([]Plugin, 0)
-	for name, plugin := range r.plugins {
+	for name, plugin := range r.Plugins {
 		info := r.pluginInfo[name]
 		if info == nil || !info.Healthy {
 			continue
@@ -277,11 +251,11 @@ func (r *Registry) FindByCapability(capability Capability) []Plugin {
 
 // GetHealthy returns all healthy plugins.
 func (r *Registry) GetHealthy() []Plugin {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
 	result := make([]Plugin, 0)
-	for name, plugin := range r.plugins {
+	for name, plugin := range r.Plugins {
 		info := r.pluginInfo[name]
 		if info != nil && info.Healthy {
 			result = append(result, plugin)
@@ -336,12 +310,12 @@ func (r *Registry) healthCheckLoop(ctx context.Context) {
 
 // checkAllPluginsHealth checks health of all registered plugins.
 func (r *Registry) checkAllPluginsHealth(ctx context.Context) {
-	r.mu.RLock()
-	plugins := make(map[string]Plugin, len(r.plugins))
-	for name, plugin := range r.plugins {
+	r.Mu.RLock()
+	plugins := make(map[string]Plugin, len(r.Plugins))
+	for name, plugin := range r.Plugins {
 		plugins[name] = plugin
 	}
-	r.mu.RUnlock()
+	r.Mu.RUnlock()
 
 	for name, plugin := range plugins {
 		// Use anonymous function to ensure cancel is always called via defer
@@ -351,8 +325,8 @@ func (r *Registry) checkAllPluginsHealth(ctx context.Context) {
 
 			health := plugin.Health(checkCtx)
 
-			r.mu.Lock()
-			defer r.mu.Unlock()
+			r.Mu.Lock()
+			defer r.Mu.Unlock()
 
 			info, exists := r.pluginInfo[name]
 			if !exists {
@@ -386,22 +360,22 @@ func (r *Registry) checkAllPluginsHealth(ctx context.Context) {
 func (r *Registry) Close() error {
 	r.StopHealthChecks()
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
 	var errs []error
-	for name, plugin := range r.plugins {
+	for name, plugin := range r.Plugins {
 		if err := plugin.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to close plugin %s: %w", name, err))
 		}
 	}
 
-	r.plugins = make(map[string]Plugin)
+	r.Plugins = make(map[string]Plugin)
 	r.pluginInfo = make(map[string]*PluginInfo)
-	r.defaultPlugin = ""
+	r.DefaultPlugin = ""
 
 	if len(errs) > 0 {
-		return fmt.Errorf("errors closing plugins: %v", errs)
+		return fmt.Errorf("errors closing Plugins: %v", errs)
 	}
 
 	return nil
@@ -409,7 +383,7 @@ func (r *Registry) Close() error {
 
 // Count returns the number of registered plugins.
 func (r *Registry) Count() int {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return len(r.plugins)
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
+	return len(r.Plugins)
 }

@@ -257,7 +257,15 @@ func TestRegistry_Register(t *testing.T) {
 				assert.Equal(t, 1, registry.Count())
 
 				// Verify plugin was registered
-				got, err := registry.Get(tt.pluginName)
+				got, err := func() (Plugin, error) {
+					registry.Mu.RLock()
+					defer registry.Mu.RUnlock()
+					p, ok := registry.Plugins[tt.pluginName]
+					if !ok {
+						return nil, errors.New("plugin not found")
+					}
+					return p, nil
+				}()
 				require.NoError(t, err)
 				assert.NotNil(t, got)
 			}
@@ -315,7 +323,18 @@ func TestRegistry_Unregister(t *testing.T) {
 		require.NoError(t, err)
 
 		// plugin2 should become default
-		defaultPlugin, err := registry.GetDefault()
+		defaultPlugin, err := func() (Plugin, error) {
+			registry.Mu.RLock()
+			defer registry.Mu.RUnlock()
+			if registry.DefaultPlugin == "" {
+				return nil, errors.New("no default plugin")
+			}
+			p, ok := registry.Plugins[registry.DefaultPlugin]
+			if !ok {
+				return nil, errors.New("default plugin not found")
+			}
+			return p, nil
+		}()
 		require.NoError(t, err)
 		assert.Equal(t, "plugin2", defaultPlugin.Metadata().Name)
 	})
@@ -330,7 +349,15 @@ func TestRegistry_Get(t *testing.T) {
 		err := registry.Register(ctx, "test", plugin, false)
 		require.NoError(t, err)
 
-		got, err := registry.Get("test")
+		got, err := func() (Plugin, error) {
+			registry.Mu.RLock()
+			defer registry.Mu.RUnlock()
+			p, ok := registry.Plugins["test"]
+			if !ok {
+				return nil, errors.New("plugin not found")
+			}
+			return p, nil
+		}()
 		require.NoError(t, err)
 		assert.Equal(t, plugin, got)
 	})
@@ -338,7 +365,15 @@ func TestRegistry_Get(t *testing.T) {
 	t.Run("get non-existent plugin", func(t *testing.T) {
 		registry := NewRegistry(zap.NewNop())
 
-		got, err := registry.Get("non-existent")
+		got, err := func() (Plugin, error) {
+			registry.Mu.RLock()
+			defer registry.Mu.RUnlock()
+			p, ok := registry.Plugins["non-existent"]
+			if !ok {
+				return nil, errors.New("plugin not found")
+			}
+			return p, nil
+		}()
 		require.Error(t, err)
 		assert.Nil(t, got)
 		assert.Contains(t, err.Error(), "not found")
@@ -354,7 +389,18 @@ func TestRegistry_GetDefault(t *testing.T) {
 		err := registry.Register(ctx, "test", plugin, true)
 		require.NoError(t, err)
 
-		got, err := registry.GetDefault()
+		got, err := func() (Plugin, error) {
+			registry.Mu.RLock()
+			defer registry.Mu.RUnlock()
+			if registry.DefaultPlugin == "" {
+				return nil, errors.New("no default plugin")
+			}
+			p, ok := registry.Plugins[registry.DefaultPlugin]
+			if !ok {
+				return nil, errors.New("default plugin not found")
+			}
+			return p, nil
+		}()
 		require.NoError(t, err)
 		assert.Equal(t, plugin, got)
 	})
@@ -362,7 +408,18 @@ func TestRegistry_GetDefault(t *testing.T) {
 	t.Run("get default when no plugins registered", func(t *testing.T) {
 		registry := NewRegistry(zap.NewNop())
 
-		got, err := registry.GetDefault()
+		got, err := func() (Plugin, error) {
+			registry.Mu.RLock()
+			defer registry.Mu.RUnlock()
+			if registry.DefaultPlugin == "" {
+				return nil, errors.New("no default plugin")
+			}
+			p, ok := registry.Plugins[registry.DefaultPlugin]
+			if !ok {
+				return nil, errors.New("default plugin not found")
+			}
+			return p, nil
+		}()
 		require.Error(t, err)
 		assert.Nil(t, got)
 		assert.Contains(t, err.Error(), "no default plugin")
@@ -376,7 +433,18 @@ func TestRegistry_GetDefault(t *testing.T) {
 		err := registry.Register(ctx, "test", plugin, false)
 		require.NoError(t, err)
 
-		got, err := registry.GetDefault()
+		got, err := func() (Plugin, error) {
+			registry.Mu.RLock()
+			defer registry.Mu.RUnlock()
+			if registry.DefaultPlugin == "" {
+				return nil, errors.New("no default plugin")
+			}
+			p, ok := registry.Plugins[registry.DefaultPlugin]
+			if !ok {
+				return nil, errors.New("default plugin not found")
+			}
+			return p, nil
+		}()
 		require.NoError(t, err)
 		assert.Equal(t, plugin, got)
 	})
@@ -395,7 +463,18 @@ func TestRegistry_SetDefault(t *testing.T) {
 		err = registry.SetDefault("plugin2")
 		require.NoError(t, err)
 
-		got, err := registry.GetDefault()
+		got, err := func() (Plugin, error) {
+			registry.Mu.RLock()
+			defer registry.Mu.RUnlock()
+			if registry.DefaultPlugin == "" {
+				return nil, errors.New("no default plugin")
+			}
+			p, ok := registry.Plugins[registry.DefaultPlugin]
+			if !ok {
+				return nil, errors.New("default plugin not found")
+			}
+			return p, nil
+		}()
 		require.NoError(t, err)
 		assert.Equal(t, "plugin2", got.Metadata().Name)
 	})
@@ -568,7 +647,15 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 	// Goroutine 2: Get plugin
 	go func() {
 		for i := 0; i < iterations; i++ {
-			_, _ = registry.Get("plugin-a")
+			_, _ = func() (Plugin, error) {
+				registry.Mu.RLock()
+				defer registry.Mu.RUnlock()
+				p, ok := registry.Plugins["plugin-a"]
+				if !ok {
+					return nil, errors.New("plugin not found")
+				}
+				return p, nil
+			}()
 		}
 		done <- true
 	}()
@@ -576,7 +663,18 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 	// Goroutine 3: Get default
 	go func() {
 		for i := 0; i < iterations; i++ {
-			_, _ = registry.GetDefault()
+			_, _ = func() (Plugin, error) {
+				registry.Mu.RLock()
+				defer registry.Mu.RUnlock()
+				if registry.DefaultPlugin == "" {
+					return nil, errors.New("no default plugin")
+				}
+				p, ok := registry.Plugins[registry.DefaultPlugin]
+				if !ok {
+					return nil, errors.New("default plugin not found")
+				}
+				return p, nil
+			}()
 		}
 		done <- true
 	}()

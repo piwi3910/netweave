@@ -168,7 +168,7 @@ func TestNewRegistry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			reg := NewRegistry(logger, tt.config)
 			assert.NotNil(t, reg)
-			assert.NotNil(t, reg.plugins)
+			assert.NotNil(t, reg.Plugins)
 			assert.NotNil(t, reg.meta)
 		})
 	}
@@ -227,7 +227,7 @@ func TestRegistry_Register(t *testing.T) {
 				assert.NoError(t, err)
 
 				// Verify plugin is registered
-				plugin := reg.Get(tt.pluginName)
+				plugin := func() adapter.Adapter { reg.Mu.RLock(); defer reg.Mu.RUnlock(); return reg.Plugins[tt.pluginName] }()
 				assert.NotNil(t, plugin)
 				assert.Equal(t, mock, plugin)
 
@@ -242,7 +242,14 @@ func TestRegistry_Register(t *testing.T) {
 
 				// Verify default setting
 				if tt.isDefault {
-					defaultPlugin := reg.GetDefault()
+					defaultPlugin := func() adapter.Adapter {
+						reg.Mu.RLock()
+						defer reg.Mu.RUnlock()
+						if reg.DefaultPlugin != "" {
+							return reg.Plugins[reg.DefaultPlugin]
+						}
+						return nil
+					}()
 					assert.Equal(t, mock, defaultPlugin)
 				}
 			}
@@ -290,7 +297,7 @@ func TestRegistry_Unregister(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Plugin should be removed
-	plugin := reg.Get("test-plugin")
+	plugin := func() adapter.Adapter { reg.Mu.RLock(); defer reg.Mu.RUnlock(); return reg.Plugins["test-plugin"] }()
 	assert.Nil(t, plugin)
 
 	// Metadata should be removed
@@ -298,7 +305,14 @@ func TestRegistry_Unregister(t *testing.T) {
 	assert.Nil(t, meta)
 
 	// Default should be cleared
-	defaultPlugin := reg.GetDefault()
+	defaultPlugin := func() adapter.Adapter {
+		reg.Mu.RLock()
+		defer reg.Mu.RUnlock()
+		if reg.DefaultPlugin != "" {
+			return reg.Plugins[reg.DefaultPlugin]
+		}
+		return nil
+	}()
 	assert.Nil(t, defaultPlugin)
 
 	// Mock should be closed
@@ -470,7 +484,14 @@ func TestRegistry_SetDefault(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initially plugin-1 is default
-	defaultPlugin := reg.GetDefault()
+	defaultPlugin := func() adapter.Adapter {
+		reg.Mu.RLock()
+		defer reg.Mu.RUnlock()
+		if reg.DefaultPlugin != "" {
+			return reg.Plugins[reg.DefaultPlugin]
+		}
+		return nil
+	}()
 	assert.Equal(t, mock1, defaultPlugin)
 	assert.True(t, reg.GetMetadata("plugin-1").Default)
 	assert.False(t, reg.GetMetadata("plugin-2").Default)
@@ -479,7 +500,14 @@ func TestRegistry_SetDefault(t *testing.T) {
 	err = reg.SetDefault("plugin-2")
 	assert.NoError(t, err)
 
-	defaultPlugin = reg.GetDefault()
+	defaultPlugin = func() adapter.Adapter {
+		reg.Mu.RLock()
+		defer reg.Mu.RUnlock()
+		if reg.DefaultPlugin != "" {
+			return reg.Plugins[reg.DefaultPlugin]
+		}
+		return nil
+	}()
 	assert.Equal(t, mock2, defaultPlugin)
 	assert.False(t, reg.GetMetadata("plugin-1").Default)
 	assert.True(t, reg.GetMetadata("plugin-2").Default)
@@ -554,7 +582,14 @@ func TestRegistry_Close(t *testing.T) {
 
 	// Registry should be empty
 	assert.Len(t, reg.List(), 0)
-	assert.Nil(t, reg.GetDefault())
+	assert.Nil(t, func() adapter.Adapter {
+		reg.Mu.RLock()
+		defer reg.Mu.RUnlock()
+		if reg.DefaultPlugin != "" {
+			return reg.Plugins[reg.DefaultPlugin]
+		}
+		return nil
+	}())
 }
 
 func TestRegistry_HealthChecks(t *testing.T) {

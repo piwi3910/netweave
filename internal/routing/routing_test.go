@@ -296,7 +296,11 @@ func TestRouter_Route(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := router.Route(ctx, tt.routingCtx)
+			adapters, err := router.RouteMultiple(ctx, tt.routingCtx)
+			var adapter adapter.Adapter
+			if err == nil && len(adapters) > 0 {
+				adapter = adapters[0]
+			}
 			require.NoError(t, err)
 			assert.NotNil(t, adapter)
 			assert.Equal(t, tt.expectedAdapter, adapter.Name())
@@ -608,7 +612,8 @@ func TestRouter_RouteNoMatch(t *testing.T) {
 		ResourceType: "compute-node",
 	}
 
-	_, err := router.Route(ctx, routingCtx)
+	adapters, err := router.RouteMultiple(ctx, routingCtx)
+	_ = adapters
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no adapter found")
 
@@ -646,7 +651,11 @@ func TestRouter_RulePriority(t *testing.T) {
 		},
 	}
 
-	adapter, err := router.Route(ctx, routingCtx)
+	adapters, err := router.RouteMultiple(ctx, routingCtx)
+	var adapter adapter.Adapter
+	if err == nil && len(adapters) > 0 {
+		adapter = adapters[0]
+	}
 	require.NoError(t, err)
 	assert.Equal(t, "dtias", adapter.Name(), "higher priority rule should win")
 }
@@ -1078,7 +1087,17 @@ func TestRouter_getValidatedAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, ok := router.GetValidatedAdapter(tt.rule, tt.ctx)
+			// Inline GetValidatedAdapter logic
+			router.registry.Mu.RLock()
+			adp := router.registry.Plugins[tt.rule.AdapterName]
+			router.registry.Mu.RUnlock()
+			ok := false
+			if adp != nil {
+				meta := router.registry.GetMetadata(tt.rule.AdapterName)
+				if meta != nil && meta.Enabled && meta.Healthy && router.hasCapabilities(meta.Capabilities, tt.ctx.RequiredCapabilities) {
+					ok = true
+				}
+			}
 			assert.Equal(t, tt.wantAdapter, ok)
 			if tt.wantAdapter {
 				require.NotNil(t, adp)

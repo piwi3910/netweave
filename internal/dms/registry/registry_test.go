@@ -139,7 +139,7 @@ func TestRegistry_Register(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify registration.
-	adp := reg.Get("test-adapter")
+	adp := func() adapter.DMSAdapter { reg.Mu.RLock(); defer reg.Mu.RUnlock(); return reg.Plugins["test-adapter"] }()
 	assert.NotNil(t, adp)
 	assert.Equal(t, "test-adapter", adp.Name())
 }
@@ -171,7 +171,14 @@ func TestRegistry_RegisterDefault(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify it's set as default.
-	defaultAdp := reg.GetDefault()
+	defaultAdp := func() adapter.DMSAdapter {
+		reg.Mu.RLock()
+		defer reg.Mu.RUnlock()
+		if reg.DefaultPlugin != "" {
+			return reg.Plugins[reg.DefaultPlugin]
+		}
+		return nil
+	}()
 	assert.NotNil(t, defaultAdp)
 	assert.Equal(t, "default-adapter", defaultAdp.Name())
 }
@@ -190,7 +197,7 @@ func TestRegistry_Unregister(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify it's removed.
-	adp := reg.Get("test-adapter")
+	adp := func() adapter.DMSAdapter { reg.Mu.RLock(); defer reg.Mu.RUnlock(); return reg.Plugins["test-adapter"] }()
 	assert.Nil(t, adp)
 	assert.True(t, mockAdp.closed)
 }
@@ -216,11 +223,11 @@ func TestRegistry_Get(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get existing adapter.
-	adp := reg.Get("test-adapter")
+	adp := func() adapter.DMSAdapter { reg.Mu.RLock(); defer reg.Mu.RUnlock(); return reg.Plugins["test-adapter"] }()
 	assert.NotNil(t, adp)
 
 	// Get non-existent adapter.
-	adp = reg.Get("nonexistent")
+	adp = func() adapter.DMSAdapter { reg.Mu.RLock(); defer reg.Mu.RUnlock(); return reg.Plugins["nonexistent"] }()
 	assert.Nil(t, adp)
 }
 
@@ -230,7 +237,14 @@ func TestRegistry_GetDefault(t *testing.T) {
 	defer func() { _ = reg.Close() }()
 
 	// No default set yet.
-	adp := reg.GetDefault()
+	adp := func() adapter.DMSAdapter {
+		reg.Mu.RLock()
+		defer reg.Mu.RUnlock()
+		if reg.DefaultPlugin != "" {
+			return reg.Plugins[reg.DefaultPlugin]
+		}
+		return nil
+	}()
 	assert.Nil(t, adp)
 
 	// Register a default adapter.
@@ -238,7 +252,14 @@ func TestRegistry_GetDefault(t *testing.T) {
 	err := reg.Register(context.Background(), "default-adapter", "mock", mockAdp, nil, true)
 	require.NoError(t, err)
 
-	adp = reg.GetDefault()
+	adp = func() adapter.DMSAdapter {
+		reg.Mu.RLock()
+		defer reg.Mu.RUnlock()
+		if reg.DefaultPlugin != "" {
+			return reg.Plugins[reg.DefaultPlugin]
+		}
+		return nil
+	}()
 	assert.NotNil(t, adp)
 	assert.Equal(t, "default-adapter", adp.Name())
 }
@@ -440,13 +461,27 @@ func TestRegistry_SetDefault(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify initial default.
-	assert.Equal(t, "adapter-1", reg.GetDefault().Name())
+	assert.Equal(t, "adapter-1", func() string {
+		reg.Mu.RLock()
+		defer reg.Mu.RUnlock()
+		if reg.DefaultPlugin != "" && reg.Plugins[reg.DefaultPlugin] != nil {
+			return reg.Plugins[reg.DefaultPlugin].Name()
+		}
+		return ""
+	}())
 
 	// Change default.
 	err = reg.SetDefault("adapter-2")
 	require.NoError(t, err)
 
-	assert.Equal(t, "adapter-2", reg.GetDefault().Name())
+	assert.Equal(t, "adapter-2", func() string {
+		reg.Mu.RLock()
+		defer reg.Mu.RUnlock()
+		if reg.DefaultPlugin != "" && reg.Plugins[reg.DefaultPlugin] != nil {
+			return reg.Plugins[reg.DefaultPlugin].Name()
+		}
+		return ""
+	}())
 
 	// Verify metadata updated.
 	meta1 := reg.GetMetadata("adapter-1")
@@ -653,7 +688,14 @@ func TestRegistry_UnregisterDefault(t *testing.T) {
 
 	// Default should be cleared.
 	assert.Equal(t, "", reg.GetDefaultName())
-	assert.Nil(t, reg.GetDefault())
+	assert.Nil(t, func() adapter.DMSAdapter {
+		reg.Mu.RLock()
+		defer reg.Mu.RUnlock()
+		if reg.DefaultPlugin != "" {
+			return reg.Plugins[reg.DefaultPlugin]
+		}
+		return nil
+	}())
 }
 
 func TestRegistry_FindByCapabilityWithDisabled(t *testing.T) {

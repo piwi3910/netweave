@@ -52,10 +52,10 @@ type PluginMetadata struct {
 // Registry manages adapter plugins and their lifecycle.
 // It provides thread-safe plugin registration, lookup, and health monitoring.
 type Registry struct {
-	mu            sync.RWMutex
-	plugins       map[string]adapter.Adapter
+	Mu            sync.RWMutex
+	Plugins       map[string]adapter.Adapter
 	meta          map[string]*PluginMetadata
-	defaultPlugin string
+	DefaultPlugin string
 	logger        *zap.Logger
 
 	// Health check configuration
@@ -89,7 +89,7 @@ func NewRegistry(logger *zap.Logger, config *Config) *Registry {
 	}
 
 	return &Registry{
-		plugins:             make(map[string]adapter.Adapter),
+		Plugins:             make(map[string]adapter.Adapter),
 		meta:                make(map[string]*PluginMetadata),
 		logger:              logger,
 		healthCheckInterval: config.HealthCheckInterval,
@@ -108,10 +108,10 @@ func (r *Registry) Register(
 	config map[string]interface{},
 	isDefault bool,
 ) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
-	if _, exists := r.plugins[name]; exists {
+	if _, exists := r.Plugins[name]; exists {
 		return fmt.Errorf("plugin %s already registered", name)
 	}
 
@@ -144,11 +144,11 @@ func (r *Registry) Register(
 		Config:          config,
 	}
 
-	r.plugins[name] = plugin
+	r.Plugins[name] = plugin
 	r.meta[name] = meta
 
 	if isDefault {
-		r.defaultPlugin = name
+		r.DefaultPlugin = name
 	}
 
 	r.logger.Info("plugin registered",
@@ -165,10 +165,10 @@ func (r *Registry) Register(
 // Unregister removes a plugin from the registry.
 // It closes the plugin before removing it.
 func (r *Registry) Unregister(name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
-	plugin, exists := r.plugins[name]
+	plugin, exists := r.Plugins[name]
 	if !exists {
 		return fmt.Errorf("plugin %s not found", name)
 	}
@@ -180,11 +180,11 @@ func (r *Registry) Unregister(name string) error {
 		)
 	}
 
-	delete(r.plugins, name)
+	delete(r.Plugins, name)
 	delete(r.meta, name)
 
-	if r.defaultPlugin == name {
-		r.defaultPlugin = ""
+	if r.DefaultPlugin == name {
+		r.DefaultPlugin = ""
 	}
 
 	r.logger.Info("plugin unregistered",
@@ -196,31 +196,15 @@ func (r *Registry) Unregister(name string) error {
 
 // Get retrieves a plugin by name.
 // Returns nil if the plugin is not found.
-func (r *Registry) Get(name string) adapter.Adapter {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	return r.plugins[name]
-}
 
 // GetDefault returns the default plugin.
 // Returns nil if no default is set.
-func (r *Registry) GetDefault() adapter.Adapter {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	if r.defaultPlugin == "" {
-		return nil
-	}
-
-	return r.plugins[r.defaultPlugin]
-}
 
 // GetMetadata retrieves metadata for a plugin.
 // Returns nil if the plugin is not found.
 func (r *Registry) GetMetadata(name string) *PluginMetadata {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
 	meta := r.meta[name]
 	if meta == nil {
@@ -234,11 +218,11 @@ func (r *Registry) GetMetadata(name string) *PluginMetadata {
 
 // List returns all registered plugins.
 func (r *Registry) List() []adapter.Adapter {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
-	plugins := make([]adapter.Adapter, 0, len(r.plugins))
-	for _, p := range r.plugins {
+	plugins := make([]adapter.Adapter, 0, len(r.Plugins))
+	for _, p := range r.Plugins {
 		plugins = append(plugins, p)
 	}
 
@@ -247,8 +231,8 @@ func (r *Registry) List() []adapter.Adapter {
 
 // ListMetadata returns metadata for all registered plugins.
 func (r *Registry) ListMetadata() []*PluginMetadata {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
 	metadata := make([]*PluginMetadata, 0, len(r.meta))
 	for _, m := range r.meta {
@@ -260,11 +244,11 @@ func (r *Registry) ListMetadata() []*PluginMetadata {
 
 // ListHealthy returns all healthy plugins.
 func (r *Registry) ListHealthy() []adapter.Adapter {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
-	plugins := make([]adapter.Adapter, 0, len(r.plugins))
-	for name, p := range r.plugins {
+	plugins := make([]adapter.Adapter, 0, len(r.Plugins))
+	for name, p := range r.Plugins {
 		if meta := r.meta[name]; meta != nil && meta.Healthy {
 			plugins = append(plugins, p)
 		}
@@ -275,11 +259,11 @@ func (r *Registry) ListHealthy() []adapter.Adapter {
 
 // FindByCapability returns all plugins that support a specific capability.
 func (r *Registry) FindByCapability(capability adapter.Capability) []adapter.Adapter {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
 	plugins := make([]adapter.Adapter, 0)
-	for name, p := range r.plugins {
+	for name, p := range r.Plugins {
 		meta := r.meta[name]
 		if meta == nil || !meta.Enabled || !meta.Healthy {
 			continue
@@ -298,11 +282,11 @@ func (r *Registry) FindByCapability(capability adapter.Capability) []adapter.Ada
 
 // FindByType returns all plugins of a specific type.
 func (r *Registry) FindByType(typ string) []adapter.Adapter {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
 	plugins := make([]adapter.Adapter, 0)
-	for name, p := range r.plugins {
+	for name, p := range r.Plugins {
 		if meta := r.meta[name]; meta != nil && meta.Type == typ && meta.Enabled {
 			plugins = append(plugins, p)
 		}
@@ -313,8 +297,8 @@ func (r *Registry) FindByType(typ string) []adapter.Adapter {
 
 // Enable enables a plugin.
 func (r *Registry) Enable(name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
 	meta := r.meta[name]
 	if meta == nil {
@@ -332,8 +316,8 @@ func (r *Registry) Enable(name string) error {
 
 // Disable disables a plugin without unregistering it.
 func (r *Registry) Disable(name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
 	meta := r.meta[name]
 	if meta == nil {
@@ -351,21 +335,21 @@ func (r *Registry) Disable(name string) error {
 
 // SetDefault sets the default plugin.
 func (r *Registry) SetDefault(name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
-	if _, exists := r.plugins[name]; !exists {
+	if _, exists := r.Plugins[name]; !exists {
 		return fmt.Errorf("plugin %s not found", name)
 	}
 
 	// Clear previous default
-	if r.defaultPlugin != "" {
-		if meta := r.meta[r.defaultPlugin]; meta != nil {
+	if r.DefaultPlugin != "" {
+		if meta := r.meta[r.DefaultPlugin]; meta != nil {
 			meta.Default = false
 		}
 	}
 
-	r.defaultPlugin = name
+	r.DefaultPlugin = name
 	if meta := r.meta[name]; meta != nil {
 		meta.Default = true
 	}
@@ -424,12 +408,12 @@ func (r *Registry) healthCheckLoop(ctx context.Context) {
 
 // performHealthChecks checks health of all registered plugins.
 func (r *Registry) performHealthChecks(ctx context.Context) {
-	r.mu.RLock()
-	plugins := make(map[string]adapter.Adapter, len(r.plugins))
-	for name, p := range r.plugins {
+	r.Mu.RLock()
+	plugins := make(map[string]adapter.Adapter, len(r.Plugins))
+	for name, p := range r.Plugins {
 		plugins[name] = p
 	}
-	r.mu.RUnlock()
+	r.Mu.RUnlock()
 
 	for name, plugin := range plugins {
 		r.checkPluginHealth(ctx, name, plugin)
@@ -444,7 +428,7 @@ func (r *Registry) checkPluginHealth(ctx context.Context, name string, plugin ad
 	err := plugin.Health(healthCtx)
 	healthy := err == nil
 
-	r.mu.Lock()
+	r.Mu.Lock()
 	meta := r.meta[name]
 	if meta != nil {
 		previouslyHealthy := meta.Healthy
@@ -466,18 +450,18 @@ func (r *Registry) checkPluginHealth(ctx context.Context, name string, plugin ad
 			}
 		}
 	}
-	r.mu.Unlock()
+	r.Mu.Unlock()
 }
 
 // Close closes all registered plugins and stops health checks.
 func (r *Registry) Close() error {
 	r.StopHealthChecks()
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
 	var lastErr error
-	for name, plugin := range r.plugins {
+	for name, plugin := range r.Plugins {
 		if err := plugin.Close(); err != nil {
 			r.logger.Error("error closing plugin",
 				zap.String("plugin", name),
@@ -487,9 +471,9 @@ func (r *Registry) Close() error {
 		}
 	}
 
-	r.plugins = make(map[string]adapter.Adapter)
+	r.Plugins = make(map[string]adapter.Adapter)
 	r.meta = make(map[string]*PluginMetadata)
-	r.defaultPlugin = ""
+	r.DefaultPlugin = ""
 
 	r.logger.Info("registry closed")
 

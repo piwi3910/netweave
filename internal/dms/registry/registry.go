@@ -60,10 +60,10 @@ type PluginMetadata struct {
 // Registry manages DMS adapter plugins and their lifecycle.
 // It provides thread-safe plugin registration, lookup, and health monitoring.
 type Registry struct {
-	mu            sync.RWMutex
-	plugins       map[string]adapter.DMSAdapter
+	Mu            sync.RWMutex
+	Plugins       map[string]adapter.DMSAdapter
 	meta          map[string]*PluginMetadata
-	defaultPlugin string
+	DefaultPlugin string
 	logger        *zap.Logger
 
 	// Health check configuration.
@@ -96,7 +96,7 @@ func NewRegistry(logger *zap.Logger, config *Config) *Registry {
 	}
 
 	return &Registry{
-		plugins:             make(map[string]adapter.DMSAdapter),
+		Plugins:             make(map[string]adapter.DMSAdapter),
 		meta:                make(map[string]*PluginMetadata),
 		logger:              logger,
 		healthCheckInterval: config.HealthCheckInterval,
@@ -115,10 +115,10 @@ func (r *Registry) Register(
 	config map[string]interface{},
 	isDefault bool,
 ) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
-	if _, exists := r.plugins[name]; exists {
+	if _, exists := r.Plugins[name]; exists {
 		return fmt.Errorf("DMS plugin %s already registered", name)
 	}
 
@@ -151,11 +151,11 @@ func (r *Registry) Register(
 		Config:          config,
 	}
 
-	r.plugins[name] = plugin
+	r.Plugins[name] = plugin
 	r.meta[name] = meta
 
 	if isDefault {
-		r.defaultPlugin = name
+		r.DefaultPlugin = name
 	}
 
 	r.logger.Info("DMS plugin registered",
@@ -172,10 +172,10 @@ func (r *Registry) Register(
 // Unregister removes a DMS plugin from the registry.
 // It closes the plugin before removing it.
 func (r *Registry) Unregister(name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
-	plugin, exists := r.plugins[name]
+	plugin, exists := r.Plugins[name]
 	if !exists {
 		return fmt.Errorf("DMS plugin %s not found", name)
 	}
@@ -187,11 +187,11 @@ func (r *Registry) Unregister(name string) error {
 		)
 	}
 
-	delete(r.plugins, name)
+	delete(r.Plugins, name)
 	delete(r.meta, name)
 
-	if r.defaultPlugin == name {
-		r.defaultPlugin = ""
+	if r.DefaultPlugin == name {
+		r.DefaultPlugin = ""
 	}
 
 	r.logger.Info("DMS plugin unregistered",
@@ -203,40 +203,24 @@ func (r *Registry) Unregister(name string) error {
 
 // Get retrieves a DMS plugin by name.
 // Returns nil if the plugin is not found.
-func (r *Registry) Get(name string) adapter.DMSAdapter {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	return r.plugins[name]
-}
 
 // GetDefault returns the default DMS plugin.
 // Returns nil if no default is set.
-func (r *Registry) GetDefault() adapter.DMSAdapter {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	if r.defaultPlugin == "" {
-		return nil
-	}
-
-	return r.plugins[r.defaultPlugin]
-}
 
 // GetDefaultName returns the name of the default DMS plugin.
 // Returns empty string if no default is set.
 func (r *Registry) GetDefaultName() string {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
-	return r.defaultPlugin
+	return r.DefaultPlugin
 }
 
 // GetMetadata retrieves metadata for a DMS plugin.
 // Returns nil if the plugin is not found.
 func (r *Registry) GetMetadata(name string) *PluginMetadata {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
 	meta := r.meta[name]
 	if meta == nil {
@@ -275,11 +259,11 @@ func (r *Registry) GetMetadata(name string) *PluginMetadata {
 
 // List returns all registered DMS plugins.
 func (r *Registry) List() []adapter.DMSAdapter {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
-	plugins := make([]adapter.DMSAdapter, 0, len(r.plugins))
-	for _, p := range r.plugins {
+	plugins := make([]adapter.DMSAdapter, 0, len(r.Plugins))
+	for _, p := range r.Plugins {
 		plugins = append(plugins, p)
 	}
 
@@ -289,8 +273,8 @@ func (r *Registry) List() []adapter.DMSAdapter {
 // ListMetadata returns metadata for all registered DMS plugins.
 // Returns deep copies to prevent data races and external mutations.
 func (r *Registry) ListMetadata() []*PluginMetadata {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
 	metadata := make([]*PluginMetadata, 0, len(r.meta))
 	for _, m := range r.meta {
@@ -329,11 +313,11 @@ func (r *Registry) ListMetadata() []*PluginMetadata {
 
 // ListHealthy returns all healthy DMS plugins.
 func (r *Registry) ListHealthy() []adapter.DMSAdapter {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
-	plugins := make([]adapter.DMSAdapter, 0, len(r.plugins))
-	for name, p := range r.plugins {
+	plugins := make([]adapter.DMSAdapter, 0, len(r.Plugins))
+	for name, p := range r.Plugins {
 		if meta := r.meta[name]; meta != nil && meta.Healthy {
 			plugins = append(plugins, p)
 		}
@@ -344,11 +328,11 @@ func (r *Registry) ListHealthy() []adapter.DMSAdapter {
 
 // FindByCapability returns all DMS plugins that support a specific capability.
 func (r *Registry) FindByCapability(capability adapter.Capability) []adapter.DMSAdapter {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
 	plugins := make([]adapter.DMSAdapter, 0)
-	for name, p := range r.plugins {
+	for name, p := range r.Plugins {
 		meta := r.meta[name]
 		if meta == nil || !meta.Enabled || !meta.Healthy {
 			continue
@@ -367,11 +351,11 @@ func (r *Registry) FindByCapability(capability adapter.Capability) []adapter.DMS
 
 // FindByType returns all DMS plugins of a specific type.
 func (r *Registry) FindByType(typ string) []adapter.DMSAdapter {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
 
 	plugins := make([]adapter.DMSAdapter, 0)
-	for name, p := range r.plugins {
+	for name, p := range r.Plugins {
 		if meta := r.meta[name]; meta != nil && meta.Type == typ && meta.Enabled {
 			plugins = append(plugins, p)
 		}
@@ -382,8 +366,8 @@ func (r *Registry) FindByType(typ string) []adapter.DMSAdapter {
 
 // Enable enables a DMS plugin.
 func (r *Registry) Enable(name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
 	meta := r.meta[name]
 	if meta == nil {
@@ -401,8 +385,8 @@ func (r *Registry) Enable(name string) error {
 
 // Disable disables a DMS plugin without unregistering it.
 func (r *Registry) Disable(name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
 	meta := r.meta[name]
 	if meta == nil {
@@ -420,21 +404,21 @@ func (r *Registry) Disable(name string) error {
 
 // SetDefault sets the default DMS plugin.
 func (r *Registry) SetDefault(name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
-	if _, exists := r.plugins[name]; !exists {
+	if _, exists := r.Plugins[name]; !exists {
 		return fmt.Errorf("DMS plugin %s not found", name)
 	}
 
 	// Clear previous default.
-	if r.defaultPlugin != "" {
-		if meta := r.meta[r.defaultPlugin]; meta != nil {
+	if r.DefaultPlugin != "" {
+		if meta := r.meta[r.DefaultPlugin]; meta != nil {
 			meta.Default = false
 		}
 	}
 
-	r.defaultPlugin = name
+	r.DefaultPlugin = name
 	if meta := r.meta[name]; meta != nil {
 		meta.Default = true
 	}
@@ -488,12 +472,12 @@ func (r *Registry) healthCheckLoop(ctx context.Context) {
 
 // performHealthChecks checks health of all registered DMS plugins.
 func (r *Registry) performHealthChecks(ctx context.Context) {
-	r.mu.RLock()
-	plugins := make(map[string]adapter.DMSAdapter, len(r.plugins))
-	for name, p := range r.plugins {
+	r.Mu.RLock()
+	plugins := make(map[string]adapter.DMSAdapter, len(r.Plugins))
+	for name, p := range r.Plugins {
 		plugins[name] = p
 	}
-	r.mu.RUnlock()
+	r.Mu.RUnlock()
 
 	for name, plugin := range plugins {
 		r.checkPluginHealth(ctx, name, plugin)
@@ -508,7 +492,7 @@ func (r *Registry) checkPluginHealth(ctx context.Context, name string, plugin ad
 	err := plugin.Health(healthCtx)
 	healthy := err == nil
 
-	r.mu.Lock()
+	r.Mu.Lock()
 	meta := r.meta[name]
 	if meta != nil {
 		previouslyHealthy := meta.Healthy
@@ -530,18 +514,18 @@ func (r *Registry) checkPluginHealth(ctx context.Context, name string, plugin ad
 			}
 		}
 	}
-	r.mu.Unlock()
+	r.Mu.Unlock()
 }
 
 // Close closes all registered DMS plugins and stops health checks.
 func (r *Registry) Close() error {
 	r.StopHealthChecks()
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 
 	var lastErr error
-	for name, plugin := range r.plugins {
+	for name, plugin := range r.Plugins {
 		if err := plugin.Close(); err != nil {
 			r.logger.Error("error closing DMS plugin",
 				zap.String("plugin", name),
@@ -551,9 +535,9 @@ func (r *Registry) Close() error {
 		}
 	}
 
-	r.plugins = make(map[string]adapter.DMSAdapter)
+	r.Plugins = make(map[string]adapter.DMSAdapter)
 	r.meta = make(map[string]*PluginMetadata)
-	r.defaultPlugin = ""
+	r.DefaultPlugin = ""
 
 	r.logger.Info("DMS registry closed")
 
