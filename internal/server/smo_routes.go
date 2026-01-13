@@ -3,6 +3,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 	"time"
@@ -133,6 +134,38 @@ func (h *SMOHandler) respondWithNotFound(c *gin.Context, err error) {
 		zap.Error(err),
 	)
 	respondWithError(c, http.StatusNotFound, "NotFound", resourceType+" not found")
+}
+
+// getPlugin retrieves a plugin from the registry by name or returns the default.
+func (h *SMOHandler) getPlugin(pluginName string) (smo.Plugin, error) {
+	if pluginName != "" {
+		return h.registry.Get(pluginName)
+	}
+	return h.registry.GetDefault()
+}
+
+// setEventDefaults sets default event ID and timestamp if not provided.
+func (h *SMOHandler) setEventDefaults(eventID *string, timestamp *time.Time) {
+	if *eventID == "" {
+		*eventID = "event-" + uuid.New().String()
+	}
+	if timestamp.IsZero() {
+		*timestamp = time.Now()
+	}
+}
+
+// publishEvent publishes an event using the provided plugin function.
+func (h *SMOHandler) publishEvent(c *gin.Context, publishFn func(context.Context, smo.Plugin) error) error {
+	plugin, err := h.getPlugin(c.Query("plugin"))
+	if err != nil {
+		h.respondWithNotFound(c, err)
+		return err
+	}
+	if err := publishFn(c.Request.Context(), plugin); err != nil {
+		h.respondWithInternalError(c, "publishEvent", err)
+		return err
+	}
+	return nil
 }
 
 // SMOHandler handles O2-SMO API requests.
@@ -323,38 +356,20 @@ func (h *SMOHandler) handleExecuteWorkflow(c *gin.Context) {
 // GET /o2smo/v1/workflows/:executionId.
 func (h *SMOHandler) handleGetWorkflowStatus(c *gin.Context) {
 	executionID := c.Param("executionId")
-	pluginName := c.Query("plugin")
-
-	// Validate execution ID
 	if !isValidIdentifier(executionID) {
 		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid execution ID format")
 		return
 	}
-
-	h.logger.Info("getting workflow status", zap.String("execution_id", executionID))
-
-	// Get plugin
-	var plugin smo.Plugin
-	var err error
-	if pluginName != "" {
-		plugin, err = h.registry.Get(pluginName)
-	} else {
-		plugin, err = h.registry.GetDefault()
-	}
-
+	plugin, err := h.getPlugin(c.Query("plugin"))
 	if err != nil {
 		h.respondWithNotFound(c, err)
 		return
 	}
-
-	// Get workflow status
 	status, err := plugin.GetWorkflowStatus(c.Request.Context(), executionID)
 	if err != nil {
-		h.logger.Error("failed to get workflow status", zap.String("execution_id", executionID), zap.Error(err))
 		respondWithError(c, http.StatusNotFound, "NotFound", "Workflow execution not found")
 		return
 	}
-
 	c.JSON(http.StatusOK, status)
 }
 
@@ -495,38 +510,20 @@ func (h *SMOHandler) handleCreateServiceModel(c *gin.Context) {
 // GET /o2smo/v1/serviceModels/:modelId.
 func (h *SMOHandler) handleGetServiceModel(c *gin.Context) {
 	modelID := c.Param("modelId")
-	pluginName := c.Query("plugin")
-
-	// Validate model ID
 	if !isValidIdentifier(modelID) {
 		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid model ID format")
 		return
 	}
-
-	h.logger.Info("getting service model", zap.String("model_id", modelID))
-
-	// Get plugin
-	var plugin smo.Plugin
-	var err error
-	if pluginName != "" {
-		plugin, err = h.registry.Get(pluginName)
-	} else {
-		plugin, err = h.registry.GetDefault()
-	}
-
+	plugin, err := h.getPlugin(c.Query("plugin"))
 	if err != nil {
 		h.respondWithNotFound(c, err)
 		return
 	}
-
-	// Get service model
 	model, err := plugin.GetServiceModel(c.Request.Context(), modelID)
 	if err != nil {
-		h.logger.Error("failed to get service model", zap.String("model_id", modelID), zap.Error(err))
 		respondWithError(c, http.StatusNotFound, "NotFound", "Service model not found")
 		return
 	}
-
 	c.JSON(http.StatusOK, model)
 }
 
@@ -623,38 +620,20 @@ func (h *SMOHandler) handleApplyPolicy(c *gin.Context) {
 // GET /o2smo/v1/policies/:policyId/status.
 func (h *SMOHandler) handleGetPolicyStatus(c *gin.Context) {
 	policyID := c.Param("policyId")
-	pluginName := c.Query("plugin")
-
-	// Validate policy ID
 	if !isValidIdentifier(policyID) {
 		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid policy ID format")
 		return
 	}
-
-	h.logger.Info("getting policy status", zap.String("policy_id", policyID))
-
-	// Get plugin
-	var plugin smo.Plugin
-	var err error
-	if pluginName != "" {
-		plugin, err = h.registry.Get(pluginName)
-	} else {
-		plugin, err = h.registry.GetDefault()
-	}
-
+	plugin, err := h.getPlugin(c.Query("plugin"))
 	if err != nil {
 		h.respondWithNotFound(c, err)
 		return
 	}
-
-	// Get policy status
 	status, err := plugin.GetPolicyStatus(c.Request.Context(), policyID)
 	if err != nil {
-		h.logger.Error("failed to get policy status", zap.String("policy_id", policyID), zap.Error(err))
 		respondWithError(c, http.StatusNotFound, "NotFound", "Policy not found")
 		return
 	}
-
 	c.JSON(http.StatusOK, status)
 }
 
@@ -752,107 +731,35 @@ func (h *SMOHandler) handleSyncDeployments(c *gin.Context) {
 // handlePublishInfrastructureEvent publishes an infrastructure event.
 // POST /o2smo/v1/events/infrastructure.
 func (h *SMOHandler) handlePublishInfrastructureEvent(c *gin.Context) {
-	pluginName := c.Query("plugin")
-	h.logger.Info("publishing infrastructure event")
-
 	var event smo.InfrastructureEvent
 	if err := c.ShouldBindJSON(&event); err != nil {
 		h.respondWithBadRequest(c, "publishInfrastructureEvent", err)
 		return
 	}
-
-	// Generate event ID if not provided
-	if event.EventID == "" {
-		event.EventID = "event-" + uuid.New().String()
-	}
-
-	// Set timestamp if not provided
-	if event.Timestamp.IsZero() {
-		event.Timestamp = time.Now()
-	}
-
-	// Get plugin
-	var plugin smo.Plugin
-	var err error
-	if pluginName != "" {
-		plugin, err = h.registry.Get(pluginName)
-	} else {
-		plugin, err = h.registry.GetDefault()
-	}
-
-	if err != nil {
-		h.respondWithNotFound(c, err)
+	h.setEventDefaults(&event.EventID, &event.Timestamp)
+	if err := h.publishEvent(c, func(ctx context.Context, p smo.Plugin) error {
+		return p.PublishInfrastructureEvent(ctx, &event)
+	}); err != nil {
 		return
 	}
-
-	// Publish event
-	if err := plugin.PublishInfrastructureEvent(c.Request.Context(), &event); err != nil {
-		h.respondWithInternalError(c, "publishInfrastructureEvent", err)
-		return
-	}
-
-	h.logger.Info("infrastructure event published",
-		zap.String("event_id", event.EventID),
-		zap.String("event_type", event.EventType),
-	)
-
-	c.JSON(http.StatusAccepted, gin.H{
-		"eventId": event.EventID,
-		"status":  "published",
-	})
+	c.JSON(http.StatusAccepted, gin.H{"eventId": event.EventID, "status": "published"})
 }
 
 // handlePublishDeploymentEvent publishes a deployment event.
 // POST /o2smo/v1/events/deployment.
 func (h *SMOHandler) handlePublishDeploymentEvent(c *gin.Context) {
-	pluginName := c.Query("plugin")
-	h.logger.Info("publishing deployment event")
-
 	var event smo.DeploymentEvent
 	if err := c.ShouldBindJSON(&event); err != nil {
 		h.respondWithBadRequest(c, "publishDeploymentEvent", err)
 		return
 	}
-
-	// Generate event ID if not provided
-	if event.EventID == "" {
-		event.EventID = "event-" + uuid.New().String()
-	}
-
-	// Set timestamp if not provided
-	if event.Timestamp.IsZero() {
-		event.Timestamp = time.Now()
-	}
-
-	// Get plugin
-	var plugin smo.Plugin
-	var err error
-	if pluginName != "" {
-		plugin, err = h.registry.Get(pluginName)
-	} else {
-		plugin, err = h.registry.GetDefault()
-	}
-
-	if err != nil {
-		h.respondWithNotFound(c, err)
+	h.setEventDefaults(&event.EventID, &event.Timestamp)
+	if err := h.publishEvent(c, func(ctx context.Context, p smo.Plugin) error {
+		return p.PublishDeploymentEvent(ctx, &event)
+	}); err != nil {
 		return
 	}
-
-	// Publish event
-	if err := plugin.PublishDeploymentEvent(c.Request.Context(), &event); err != nil {
-		h.respondWithInternalError(c, "publishDeploymentEvent", err)
-		return
-	}
-
-	h.logger.Info("deployment event published",
-		zap.String("event_id", event.EventID),
-		zap.String("event_type", event.EventType),
-	)
-
-	c.JSON(http.StatusAccepted, gin.H{
-		"eventId": event.EventID,
-		"status":  "published",
-	})
+	c.JSON(http.StatusAccepted, gin.H{"eventId": event.EventID, "status": "published"})
 }
 
 // === Health Check Handler ===

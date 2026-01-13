@@ -129,72 +129,36 @@ func (c *Checker) CheckAll(ctx context.Context) ([]Result, error) {
 	return results, nil
 }
 
+// checkAPIEndpoints validates API endpoints for a given specification.
+func (c *Checker) checkAPIEndpoints(ctx context.Context, spec SpecVersion, apiName string, endpoints []EndpointTest) (Result, error) {
+	c.logger.Info("validating " + apiName + " API endpoints")
+	return c.validateEndpoints(ctx, spec, endpoints)
+}
+
 // checkO2IMS validates O2-IMS API compliance.
 func (c *Checker) checkO2IMS(ctx context.Context, spec SpecVersion) (Result, error) {
-	c.logger.Info("validating O2-IMS API endpoints")
-
-	// Define required O2-IMS endpoints according to spec
-	endpoints := []EndpointTest{
-		// Infrastructure Inventory Subscription Management
-		{Method: "GET", Path: "/o2ims/v1/subscriptions", RequiredStatus: http.StatusOK},
-		{Method: "POST", Path: "/o2ims/v1/subscriptions", RequiredStatus: http.StatusCreated},
-		{Method: "GET", Path: "/o2ims/v1/subscriptions/{subscriptionId}", RequiredStatus: http.StatusOK},
-		{Method: "DELETE", Path: "/o2ims/v1/subscriptions/{subscriptionId}", RequiredStatus: http.StatusNoContent},
-
-		// Resource Pool Management
-		{Method: "GET", Path: "/o2ims/v1/resourcePools", RequiredStatus: http.StatusOK},
-		{Method: "GET", Path: "/o2ims/v1/resourcePools/{resourcePoolId}", RequiredStatus: http.StatusOK},
-		{Method: "GET", Path: "/o2ims/v1/resourcePools/{resourcePoolId}/resources", RequiredStatus: http.StatusOK},
-
-		// Resource Management
-		{Method: "GET", Path: "/o2ims/v1/resources", RequiredStatus: http.StatusOK},
-		{Method: "GET", Path: "/o2ims/v1/resources/{resourceId}", RequiredStatus: http.StatusOK},
-
-		// Resource Type Management
-		{Method: "GET", Path: "/o2ims/v1/resourceTypes", RequiredStatus: http.StatusOK},
-		{Method: "GET", Path: "/o2ims/v1/resourceTypes/{resourceTypeId}", RequiredStatus: http.StatusOK},
-
-		// Deployment Manager Management
-		{Method: "GET", Path: "/o2ims/v1/deploymentManagers", RequiredStatus: http.StatusOK},
-		{Method: "GET", Path: "/o2ims/v1/deploymentManagers/{deploymentManagerId}", RequiredStatus: http.StatusOK},
-
-		// O-Cloud Infrastructure Information
-		{Method: "GET", Path: "/o2ims/v1/oCloudInfrastructure", RequiredStatus: http.StatusOK},
-	}
-
-	return c.validateEndpoints(ctx, spec, endpoints)
+	return c.checkAPIEndpoints(ctx, spec, "O2-IMS", []EndpointTest{
+		{Method: "GET", Path: "/o2ims/v1/subscriptions", RequiredStatus: http.StatusOK}, {Method: "POST", Path: "/o2ims/v1/subscriptions", RequiredStatus: http.StatusCreated},
+		{Method: "GET", Path: "/o2ims/v1/subscriptions/{subscriptionId}", RequiredStatus: http.StatusOK}, {Method: "DELETE", Path: "/o2ims/v1/subscriptions/{subscriptionId}", RequiredStatus: http.StatusNoContent},
+		{Method: "GET", Path: "/o2ims/v1/resourcePools", RequiredStatus: http.StatusOK}, {Method: "GET", Path: "/o2ims/v1/resourcePools/{resourcePoolId}", RequiredStatus: http.StatusOK},
+		{Method: "GET", Path: "/o2ims/v1/resourcePools/{resourcePoolId}/resources", RequiredStatus: http.StatusOK}, {Method: "GET", Path: "/o2ims/v1/resources", RequiredStatus: http.StatusOK},
+		{Method: "GET", Path: "/o2ims/v1/resources/{resourceId}", RequiredStatus: http.StatusOK}, {Method: "GET", Path: "/o2ims/v1/resourceTypes", RequiredStatus: http.StatusOK},
+		{Method: "GET", Path: "/o2ims/v1/resourceTypes/{resourceTypeId}", RequiredStatus: http.StatusOK}, {Method: "GET", Path: "/o2ims/v1/deploymentManagers", RequiredStatus: http.StatusOK},
+		{Method: "GET", Path: "/o2ims/v1/deploymentManagers/{deploymentManagerId}", RequiredStatus: http.StatusOK}, {Method: "GET", Path: "/o2ims/v1/oCloudInfrastructure", RequiredStatus: http.StatusOK},
+	})
 }
 
 // checkO2DMS validates O2-DMS API compliance.
 func (c *Checker) checkO2DMS(ctx context.Context, spec SpecVersion) (Result, error) {
-	c.logger.Info("validating O2-DMS API endpoints")
-
-	// Define required O2-DMS endpoints according to spec
-	endpoints := []EndpointTest{
-		// Deployment Package Management
-		{Method: "GET", Path: "/o2dms/v1/deploymentPackages", RequiredStatus: http.StatusOK},
-		{Method: "GET", Path: "/o2dms/v1/deploymentPackages/{packageId}", RequiredStatus: http.StatusOK},
-		{Method: "POST", Path: "/o2dms/v1/deploymentPackages", RequiredStatus: http.StatusCreated},
-		{Method: "DELETE", Path: "/o2dms/v1/deploymentPackages/{packageId}", RequiredStatus: http.StatusNoContent},
-
-		// Deployment Management
-		{Method: "GET", Path: "/o2dms/v1/deployments", RequiredStatus: http.StatusOK},
-		{Method: "GET", Path: "/o2dms/v1/deployments/{deploymentId}", RequiredStatus: http.StatusOK},
-		{Method: "POST", Path: "/o2dms/v1/deployments", RequiredStatus: http.StatusCreated},
-		{Method: "PUT", Path: "/o2dms/v1/deployments/{deploymentId}", RequiredStatus: http.StatusOK},
-		{Method: "DELETE", Path: "/o2dms/v1/deployments/{deploymentId}", RequiredStatus: http.StatusNoContent},
-
-		// Lifecycle Operations
-		{Method: "POST", Path: "/o2dms/v1/deployments/{deploymentId}/scale", RequiredStatus: http.StatusOK},
-		{Method: "POST", Path: "/o2dms/v1/deployments/{deploymentId}/rollback", RequiredStatus: http.StatusOK},
-		{Method: "POST", Path: "/o2dms/v1/deployments/{deploymentId}/upgrade", RequiredStatus: http.StatusOK},
-
-		// Deployment Status
-		{Method: "GET", Path: "/o2dms/v1/deployments/{deploymentId}/status", RequiredStatus: http.StatusOK},
-		{Method: "GET", Path: "/o2dms/v1/deployments/{deploymentId}/logs", RequiredStatus: http.StatusOK},
-	}
-
-	return c.validateEndpoints(ctx, spec, endpoints)
+	return c.checkAPIEndpoints(ctx, spec, "O2-DMS", []EndpointTest{
+		{Method: "GET", Path: "/o2dms/v1/deploymentPackages", RequiredStatus: http.StatusOK}, {Method: "GET", Path: "/o2dms/v1/deploymentPackages/{packageId}", RequiredStatus: http.StatusOK},
+		{Method: "POST", Path: "/o2dms/v1/deploymentPackages", RequiredStatus: http.StatusCreated}, {Method: "DELETE", Path: "/o2dms/v1/deploymentPackages/{packageId}", RequiredStatus: http.StatusNoContent},
+		{Method: "GET", Path: "/o2dms/v1/deployments", RequiredStatus: http.StatusOK}, {Method: "GET", Path: "/o2dms/v1/deployments/{deploymentId}", RequiredStatus: http.StatusOK},
+		{Method: "POST", Path: "/o2dms/v1/deployments", RequiredStatus: http.StatusCreated}, {Method: "PUT", Path: "/o2dms/v1/deployments/{deploymentId}", RequiredStatus: http.StatusOK},
+		{Method: "DELETE", Path: "/o2dms/v1/deployments/{deploymentId}", RequiredStatus: http.StatusNoContent}, {Method: "POST", Path: "/o2dms/v1/deployments/{deploymentId}/scale", RequiredStatus: http.StatusOK},
+		{Method: "POST", Path: "/o2dms/v1/deployments/{deploymentId}/rollback", RequiredStatus: http.StatusOK}, {Method: "POST", Path: "/o2dms/v1/deployments/{deploymentId}/upgrade", RequiredStatus: http.StatusOK},
+		{Method: "GET", Path: "/o2dms/v1/deployments/{deploymentId}/status", RequiredStatus: http.StatusOK}, {Method: "GET", Path: "/o2dms/v1/deployments/{deploymentId}/logs", RequiredStatus: http.StatusOK},
+	})
 }
 
 // checkO2SMO validates O2-SMO integration compliance.
