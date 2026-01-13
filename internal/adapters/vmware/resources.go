@@ -13,7 +13,11 @@ import (
 )
 
 // ListResources retrieves all resources (VMs) matching the provided filter.
-func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
+func (a *Adapter) ListResources(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.Resource, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "ListResources", start, err) }()
 
@@ -25,6 +29,8 @@ func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (re
 	if err != nil {
 		return nil, fmt.Errorf("failed to list VMs: %w", err)
 	}
+
+	var resources []*adapter.Resource
 
 	for _, vm := range vms {
 		vmName := vm.Name()
@@ -111,7 +117,12 @@ func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) 
 
 // UpdateResource updates an existing vSphere VM's annotations and custom attributes.
 // Note: Core VM properties cannot be modified while VM is running.
-func (a *Adapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
+func (a *Adapter) UpdateResource(
+	_ context.Context,
+	_ string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "UpdateResource", start, err) }()
 
@@ -120,7 +131,8 @@ func (a *Adapter) UpdateResource(_ context.Context, _ string, resource *adapter.
 
 	// TODO(#192): Implement VM custom attribute updates via vSphere API
 	// For now, return not supported
-	return nil, fmt.Errorf("updating vSphere VMs is not yet implemented")
+	err = fmt.Errorf("updating vSphere VMs is not yet implemented")
+	return nil, err
 }
 
 // DeleteResource deletes a resource (VM) by ID.

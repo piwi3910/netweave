@@ -11,8 +11,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// ListResourceTypes retrieves all resource types (Azure VM sizes) matching the provided filter.
-func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
+// ListResourceTypes retrieves all resource types (Azure VM sizes) matching
+// the provided filter.
+func (a *Adapter) ListResourceTypes(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourceType, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "ListResourceTypes", start, err) }()
 
@@ -20,11 +25,13 @@ func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter)
 		zap.Any("filter", filter))
 
 	// List VM sizes for the configured location
+	var resourceTypes []*adapter.ResourceType
 	pager := a.vmSizeClient.NewListPager(a.location, nil)
 	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list VM sizes: %w", err)
+		page, pageErr := pager.NextPage(ctx)
+		if pageErr != nil {
+			err = fmt.Errorf("failed to list VM sizes: %w", pageErr)
+			return nil, err
 		}
 
 		for _, vmSize := range page.Value {

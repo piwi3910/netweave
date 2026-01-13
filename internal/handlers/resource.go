@@ -137,7 +137,11 @@ func (h *ResourceHandler) ListResources(c *gin.Context) {
 func (h *ResourceHandler) GetResource(c *gin.Context) {
 	resourceID := c.Param("resourceId")
 	if resourceID == "" {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "BadRequest", Message: "Resource ID cannot be empty", Code: http.StatusBadRequest})
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: "Resource ID cannot be empty",
+			Code:    http.StatusBadRequest,
+		})
 		return
 	}
 

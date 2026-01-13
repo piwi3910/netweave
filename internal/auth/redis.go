@@ -342,7 +342,10 @@ func batchListFromSet[T any](
 		}
 		var item T
 		if err := json.Unmarshal([]byte(data), &item); err != nil {
-			logger.Warn("failed to unmarshal "+entityType+" during list operation", zap.String(idFieldName, ids[i]), zap.Error(err))
+			logger.Warn("failed to unmarshal "+entityType+" during list operation",
+				zap.String(idFieldName, ids[i]),
+				zap.Error(err),
+			)
 			continue
 		}
 		items = append(items, item)
@@ -477,7 +480,9 @@ func (r *RedisStore) DeleteTenant(ctx context.Context, id string) error {
 // ListTenants retrieves all tenants.
 // Uses MGET for efficient batch retrieval instead of N+1 queries.
 func (r *RedisStore) ListTenants(ctx context.Context) ([]*Tenant, error) {
-	tenants, err := batchListFromSet[*Tenant](ctx, r.client, r.logger, tenantSetKey, tenantKeyPrefix, "tenant", "tenant_id")
+	tenants, err := batchListFromSet[*Tenant](
+		ctx, r.client, r.logger, tenantSetKey, tenantKeyPrefix, "tenant", "tenant_id",
+	)
 	if err != nil {
 		return nil, err
 	}

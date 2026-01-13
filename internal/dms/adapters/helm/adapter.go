@@ -708,7 +708,9 @@ func (h *Adapter) createK8sClientset() (*kubernetes.Clientset, error) {
 	return clientset, nil
 }
 
-func (h *Adapter) listReleasePods(ctx context.Context, clientset *kubernetes.Clientset, rel *release.Release) (*corev1.PodList, error) {
+func (h *Adapter) listReleasePods(
+	ctx context.Context, clientset *kubernetes.Clientset, rel *release.Release,
+) (*corev1.PodList, error) {
 	labelSelector := fmt.Sprintf("app.kubernetes.io/instance=%s", rel.Name)
 	pods, err := clientset.CoreV1().Pods(rel.Namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
@@ -719,7 +721,10 @@ func (h *Adapter) listReleasePods(ctx context.Context, clientset *kubernetes.Cli
 	return pods, nil
 }
 
-func (h *Adapter) aggregatePodLogs(ctx context.Context, clientset *kubernetes.Clientset, namespace string, pods []corev1.Pod, opts *adapter.LogOptions) []byte {
+func (h *Adapter) aggregatePodLogs(
+	ctx context.Context, clientset *kubernetes.Clientset, namespace string,
+	pods []corev1.Pod, opts *adapter.LogOptions,
+) []byte {
 	var logBuffer bytes.Buffer
 
 	for i, pod := range pods {
@@ -752,7 +757,10 @@ func (h *Adapter) buildPodLogOptions(opts *adapter.LogOptions) *corev1.PodLogOpt
 	return logOpts
 }
 
-func (h *Adapter) streamPodLogs(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName string, logOpts *corev1.PodLogOptions, logBuffer *bytes.Buffer) {
+func (h *Adapter) streamPodLogs(
+	ctx context.Context, clientset *kubernetes.Clientset, namespace, podName string,
+	logOpts *corev1.PodLogOptions, logBuffer *bytes.Buffer,
+) {
 	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, logOpts)
 	logs, err := req.Stream(ctx)
 	if err != nil {

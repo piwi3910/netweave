@@ -13,7 +13,11 @@ import (
 // CreateSubscription creates a new event subscription.
 // AWS adapter uses polling-based subscriptions since CloudWatch Events
 // integration would require additional AWS infrastructure setup.
-func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (created *adapter.Subscription, err error) {
+func (a *Adapter) CreateSubscription(
+	_ context.Context,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "CreateSubscription", start, err) }()
 
@@ -22,7 +26,8 @@ func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscriptio
 
 	// Validate callback URL
 	if sub.Callback == "" {
-		return nil, fmt.Errorf("callback URL is required")
+		err = fmt.Errorf("callback URL is required")
+		return nil, err
 	}
 
 	// Generate subscription ID if not provided

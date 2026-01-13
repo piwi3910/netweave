@@ -91,7 +91,13 @@ func (m *mockResourceAdapter) UpdateResource(
 }
 
 // doResourceRequest is a test helper for making HTTP requests to resource endpoints.
-func doResourceRequest(t *testing.T, srv *Server, method, path string, body interface{}) (*httptest.ResponseRecorder, []byte) {
+func doResourceRequest(
+	t *testing.T,
+	srv *Server,
+	method,
+	path string,
+	body interface{},
+) (*httptest.ResponseRecorder, []byte) {
 	t.Helper()
 	var reqBody *bytes.Reader
 	if body != nil {
@@ -111,7 +117,11 @@ func doResourceRequest(t *testing.T, srv *Server, method, path string, body inte
 }
 
 // createTestResource is a helper that creates a test resource and returns the response.
-func createTestResource(t *testing.T, srv *Server, resource adapter.Resource) (*adapter.Resource, *httptest.ResponseRecorder) {
+func createTestResource(
+	t *testing.T,
+	srv *Server,
+	resource adapter.Resource,
+) (*adapter.Resource, *httptest.ResponseRecorder) {
 	t.Helper()
 	resp, respBody := doResourceRequest(t, srv, http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", resource)
 	if resp.Code != http.StatusCreated {

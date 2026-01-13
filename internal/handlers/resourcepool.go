@@ -116,7 +116,11 @@ func (h *ResourcePoolHandler) ListResourcePools(c *gin.Context) {
 func (h *ResourcePoolHandler) GetResourcePool(c *gin.Context) {
 	resourcePoolID := c.Param("resourcePoolId")
 	if resourcePoolID == "" {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "BadRequest", Message: "Resource pool ID cannot be empty", Code: http.StatusBadRequest})
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: "Resource pool ID cannot be empty",
+			Code:    http.StatusBadRequest,
+		})
 		return
 	}
 

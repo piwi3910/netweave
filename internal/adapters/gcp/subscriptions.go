@@ -77,7 +77,11 @@ func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscr
 }
 
 // UpdateSubscription updates an existing subscription.
-func (a *Adapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *Adapter) UpdateSubscription(
+	_ context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	start := time.Now()
 	var err error
 	defer func() { adapter.ObserveOperation("gcp", "UpdateSubscription", start, err) }()

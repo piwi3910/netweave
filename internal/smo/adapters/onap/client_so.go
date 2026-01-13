@@ -28,7 +28,10 @@ type SOClient struct {
 func NewSOClient(config *Config, logger *zap.Logger) (*SOClient, error) {
 	// Warn about insecure TLS configuration
 	if config.TLSInsecureSkipVerify {
-		logger.Warn("TLS certificate validation is disabled - this is insecure and should only be used in development/testing environments")
+		logger.Warn(
+			"TLS certificate validation is disabled - " +
+				"this is insecure and should only be used in development/testing environments",
+		)
 	}
 
 	// Create TLS configuration

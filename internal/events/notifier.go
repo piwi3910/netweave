@@ -82,7 +82,11 @@ type WebhookNotifier struct {
 }
 
 // NewWebhookNotifier creates a new WebhookNotifier instance.
-func NewWebhookNotifier(config *NotifierConfig, deliveryTracker DeliveryTracker, logger *zap.Logger) (*WebhookNotifier, error) {
+func NewWebhookNotifier(
+	config *NotifierConfig,
+	deliveryTracker DeliveryTracker,
+	logger *zap.Logger,
+) (*WebhookNotifier, error) {
 	if config == nil {
 		config = DefaultNotifierConfig()
 	}
@@ -180,7 +184,11 @@ func (n *WebhookNotifier) Notify(ctx context.Context, event *Event, subscription
 }
 
 // NotifyWithRetry sends a notification with automatic retry logic.
-func (n *WebhookNotifier) NotifyWithRetry(ctx context.Context, event *Event, subscription *storage.Subscription) (*NotificationDelivery, error) {
+func (n *WebhookNotifier) NotifyWithRetry(
+	ctx context.Context,
+	event *Event,
+	subscription *storage.Subscription,
+) (*NotificationDelivery, error) {
 	if event == nil {
 		return nil, errors.New("event cannot be nil")
 	}
@@ -392,7 +400,11 @@ func (n *WebhookNotifier) buildNotification(event *Event, subscription *storage.
 }
 
 // sendWebhook sends an HTTP POST request to the webhook URL.
-func (n *WebhookNotifier) sendWebhook(ctx context.Context, callbackURL string, notification *models.Notification) error {
+func (n *WebhookNotifier) sendWebhook(
+	ctx context.Context,
+	callbackURL string,
+	notification *models.Notification,
+) error {
 	// Serialize notification
 	payload, err := json.Marshal(notification)
 	if err != nil {

@@ -13,8 +13,13 @@ import (
 	"google.golang.org/api/iterator"
 )
 
-// ListResourceTypes retrieves all resource types (GCP machine types) matching the provided filter.
-func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
+// ListResourceTypes retrieves all resource types (GCP machine types)
+// matching the provided filter.
+func (a *Adapter) ListResourceTypes(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourceType, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "ListResourceTypes", start, err) }()
 
@@ -28,7 +33,7 @@ func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter)
 	}
 
 	// List and filter machine types
-	resourceTypes, err = a.listMachineTypesInZone(ctx, firstZone, filter)
+	resourceTypes, err := a.listMachineTypesInZone(ctx, firstZone, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -68,8 +73,13 @@ func (a *Adapter) getFirstZoneInRegion(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("no zones found in region %s", a.region)
 }
 
-// listMachineTypesInZone lists machine types in a zone and applies filtering.
-func (a *Adapter) listMachineTypesInZone(ctx context.Context, zone string, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+// listMachineTypesInZone lists machine types in a zone and applies
+// filtering.
+func (a *Adapter) listMachineTypesInZone(
+	ctx context.Context,
+	zone string,
+	filter *adapter.Filter,
+) ([]*adapter.ResourceType, error) {
 	var resourceTypes []*adapter.ResourceType
 	seen := make(map[string]bool)
 

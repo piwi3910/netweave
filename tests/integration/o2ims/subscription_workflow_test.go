@@ -150,7 +150,16 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 }
 
 // setupFilterTestEnvironment sets up the test environment and creates a resource pool.
-func setupFilterTestEnvironment(t *testing.T) (*helpers.TestEnvironment, *storage.RedisStore, *helpers.WebhookServer, *kubernetes.MockAdapter, *helpers.TestServer, string) {
+func setupFilterTestEnvironment(
+	t *testing.T,
+) (
+	*helpers.TestEnvironment,
+	*storage.RedisStore,
+	*helpers.WebhookServer,
+	*kubernetes.MockAdapter,
+	*helpers.TestServer,
+	string,
+) {
 	t.Helper()
 	env := helpers.SetupTestEnvironment(t)
 

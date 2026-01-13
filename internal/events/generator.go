@@ -164,7 +164,11 @@ func (g *K8sEventGenerator) mapWatchEventType(watchType watch.EventType) (models
 	}
 }
 
-func (g *K8sEventGenerator) getResourceForNode(ctx context.Context, node *corev1.Node, watchType watch.EventType) (*adapter.Resource, error) {
+func (g *K8sEventGenerator) getResourceForNode(
+	ctx context.Context,
+	node *corev1.Node,
+	watchType watch.EventType,
+) (*adapter.Resource, error) {
 	resource, err := g.adapter.GetResource(ctx, node.Name)
 	if err == nil {
 		return resource, nil
@@ -177,7 +181,11 @@ func (g *K8sEventGenerator) getResourceForNode(ctx context.Context, node *corev1
 	return nil, fmt.Errorf("failed to get resource from adapter: %w", err)
 }
 
-func (g *K8sEventGenerator) buildEvent(eventType models.EventType, resource *adapter.Resource, node *corev1.Node) *Event {
+func (g *K8sEventGenerator) buildEvent(
+	eventType models.EventType,
+	resource *adapter.Resource,
+	node *corev1.Node,
+) *Event {
 	return &Event{
 		ID:             uuid.New().String(),
 		Type:           eventType,

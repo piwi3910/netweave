@@ -151,7 +151,8 @@ type RedisConfig struct {
 	// The file should contain only the password, whitespace will be trimmed
 	PasswordFile string `mapstructure:"password_file"`
 
-	// SentinelPassword for Sentinel authentication (optional, DEPRECATED: use SentinelPasswordEnvVar or SentinelPasswordFile)
+	// SentinelPassword for Sentinel authentication (optional, DEPRECATED: use SentinelPasswordEnvVar
+	// or SentinelPasswordFile)
 	// WARNING: Storing passwords in config files is insecure. Use environment variables or secret files instead.
 	// Best practice: Use different passwords for Sentinel and Redis.
 	SentinelPassword string `mapstructure:"sentinel_password"`

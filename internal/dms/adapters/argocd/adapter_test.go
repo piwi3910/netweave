@@ -1331,18 +1331,24 @@ func TestTransformApplicationToDeployment(t *testing.T) {
 		wantStatus dmsadapter.DeploymentStatus
 	}{
 		{
-			name:       "healthy synced app",
-			app:        createTestApplication("healthy-app", "https://github.com/example/repo", "apps/healthy", "Healthy", "Synced"),
+			name: "healthy synced app",
+			app: createTestApplication(
+				"healthy-app", "https://github.com/example/repo", "apps/healthy", "Healthy", "Synced",
+			),
 			wantStatus: dmsadapter.DeploymentStatusDeployed,
 		},
 		{
-			name:       "progressing app",
-			app:        createTestApplication("progressing-app", "https://github.com/example/repo", "apps/progress", "Progressing", "OutOfSync"),
+			name: "progressing app",
+			app: createTestApplication(
+				"progressing-app", "https://github.com/example/repo", "apps/progress", "Progressing", "OutOfSync",
+			),
 			wantStatus: dmsadapter.DeploymentStatusDeploying,
 		},
 		{
-			name:       "degraded app",
-			app:        createTestApplication("degraded-app", "https://github.com/example/repo", "apps/degraded", "Degraded", "Synced"),
+			name: "degraded app",
+			app: createTestApplication(
+				"degraded-app", "https://github.com/example/repo", "apps/degraded", "Degraded", "Synced",
+			),
 			wantStatus: dmsadapter.DeploymentStatusFailed,
 		},
 	}
@@ -1362,7 +1368,9 @@ func TestTransformApplicationToDeployment(t *testing.T) {
 
 // TestScaleDeployment_ZeroReplicas tests scaling to zero replicas.
 func TestScaleDeployment_ZeroReplicas(t *testing.T) {
-	existingApp := createTestApplication("zero-scale-app", "https://github.com/example/repo", "apps/zero", "Healthy", "Synced")
+	existingApp := createTestApplication(
+		"zero-scale-app", "https://github.com/example/repo", "apps/zero", "Healthy", "Synced",
+	)
 	adp := createFakeAdapter(t, existingApp)
 
 	err := adp.ScaleDeployment(context.Background(), "zero-scale-app", 0)

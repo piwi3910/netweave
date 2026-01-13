@@ -11,8 +11,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// ListResources retrieves all resources (Azure VMs) matching the provided filter.
-func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
+// ListResources retrieves all resources (Azure VMs) matching the
+// provided filter.
+func (a *Adapter) ListResources(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.Resource, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "ListResources", start, err) }()
 
@@ -20,11 +25,13 @@ func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (re
 		zap.Any("filter", filter))
 
 	// List all VMs in the subscription
+	var resources []*adapter.Resource
 	pager := a.vmClient.NewListAllPager(nil)
 	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list VMs: %w", err)
+		page, pageErr := pager.NextPage(ctx)
+		if pageErr != nil {
+			err = fmt.Errorf("failed to list VMs: %w", pageErr)
+			return nil, err
 		}
 
 		for _, vm := range page.Value {
@@ -110,12 +117,20 @@ func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) 
 		zap.String("resourceTypeId", resource.ResourceTypeID))
 
 	// Creating Azure VMs requires extensive configuration not available in the O2-IMS model
-	return nil, fmt.Errorf("creating Azure VMs requires additional configuration: use Azure portal or CLI")
+	return nil, fmt.Errorf(
+		"creating Azure VMs requires additional configuration: " +
+			"use Azure portal or CLI",
+	)
 }
 
 // UpdateResource updates an existing Azure VM's tags and metadata.
 // Note: Core VM properties cannot be modified after creation.
-func (a *Adapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
+func (a *Adapter) UpdateResource(
+	_ context.Context,
+	_ string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "UpdateResource", start, err) }()
 
@@ -124,7 +139,8 @@ func (a *Adapter) UpdateResource(_ context.Context, _ string, resource *adapter.
 
 	// TODO(#189): Implement VM tag updates via Azure API
 	// For now, return not supported
-	return nil, fmt.Errorf("updating Azure VMs is not yet implemented")
+	err = fmt.Errorf("updating Azure VMs is not yet implemented")
+	return nil, err
 }
 
 // DeleteResource deletes a resource (Azure VM) by ID.

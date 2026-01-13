@@ -146,7 +146,12 @@ func TestInfrastructureDiscovery(t *testing.T) {
 		assert.Equal(t, poolID, resource["resourcePoolId"])
 		assert.Contains(t, resource, "resourceType")
 
-		fw.Logger.Info("Successfully retrieved resource", zap.String("poolId", poolID), zap.String("resourceId", resourceID), zap.Any("resourceType", resource["resourceType"]))
+		fw.Logger.Info(
+			"Successfully retrieved resource",
+			zap.String("poolId", poolID),
+			zap.String("resourceId", resourceID),
+			zap.Any("resourceType", resource["resourceType"]),
+		)
 	})
 
 	t.Run("filter resources by type", func(t *testing.T) {
@@ -160,7 +165,12 @@ func TestInfrastructureDiscovery(t *testing.T) {
 			assert.Equal(t, "Node", resource["resourceType"])
 		}
 
-		fw.Logger.Info("Successfully filtered resources by type", zap.String("poolId", poolID), zap.String("filter", "resourceType==Node"), zap.Int("count", len(resources)))
+		fw.Logger.Info(
+			"Successfully filtered resources by type",
+			zap.String("poolId", poolID),
+			zap.String("filter", "resourceType==Node"),
+			zap.Int("count", len(resources)),
+		)
 	})
 
 	t.Run("pagination support", func(t *testing.T) {
@@ -172,7 +182,12 @@ func TestInfrastructureDiscovery(t *testing.T) {
 		assert.Equal(t, http.StatusOK, statusCode)
 		assert.LessOrEqual(t, len(resources), 5)
 
-		fw.Logger.Info("Successfully tested pagination", zap.String("poolId", poolID), zap.Int("limit", 5), zap.Int("returned", len(resources)))
+		fw.Logger.Info(
+			"Successfully tested pagination",
+			zap.String("poolId", poolID),
+			zap.Int("limit", 5),
+			zap.Int("returned", len(resources)),
+		)
 	})
 }
 

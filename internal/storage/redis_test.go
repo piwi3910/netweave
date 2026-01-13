@@ -906,8 +906,11 @@ func TestSubscription_UnmarshalBinary(t *testing.T) {
 		wantID  string
 	}{
 		{
-			name:    "valid subscription data",
-			data:    []byte(`{"subscriptionId":"sub-123","callback":"https://example.com/callback","filter":{"resourceTypeId":"compute"}}`),
+			name: "valid subscription data",
+			data: []byte(
+				`{"subscriptionId":"sub-123","callback":"https://example.com/callback",` +
+					`"filter":{"resourceTypeId":"compute"}}`,
+			),
 			wantErr: false,
 			wantID:  "sub-123",
 		},

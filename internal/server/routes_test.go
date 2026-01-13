@@ -276,7 +276,9 @@ func TestHandleCreateSubscription(t *testing.T) {
 
 	t.Run("creates subscription successfully", func(t *testing.T) {
 		body := `{"callback":"https://smo.example.com/notify","filter":{}}`
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/subscriptions", strings.NewReader(body))
+		req := httptest.NewRequest(
+			http.MethodPost, "/o2ims-infrastructureInventory/v1/subscriptions", strings.NewReader(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -472,7 +474,11 @@ func TestHandleListSubscriptions_WithFilter(t *testing.T) {
 	srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
 
 	t.Run("list subscriptions with filter", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/subscriptions?filter=(eq,callback,'https://example.com/callback')", nil)
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/o2ims-infrastructureInventory/v1/subscriptions?filter=(eq,callback,'https://example.com/callback')",
+			nil,
+		)
 		w := httptest.NewRecorder()
 
 		srv.router.ServeHTTP(w, req)
@@ -545,7 +551,9 @@ func TestHandleCreateResourcePool(t *testing.T) {
 		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
 
 		body := `{"name":"GPU Pool Production","description":"High-performance GPU resources"}`
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body))
+		req := httptest.NewRequest(
+			http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -562,7 +570,9 @@ func TestHandleCreateResourcePool(t *testing.T) {
 		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
 
 		body := `{"resourcePoolId":"pool-custom-123","name":"Custom Pool"}`
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body))
+		req := httptest.NewRequest(
+			http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -579,7 +589,9 @@ func TestHandleCreateResourcePool(t *testing.T) {
 		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
 
 		body := `{"name":invalid json}`
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body))
+		req := httptest.NewRequest(
+			http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -596,7 +608,9 @@ func TestHandleCreateResourcePool(t *testing.T) {
 		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
 
 		body := `{"description":"Pool without name"}`
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body))
+		req := httptest.NewRequest(
+			http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -619,7 +633,11 @@ func TestHandleUpdateResourcePool(t *testing.T) {
 		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
 
 		body := `{"name":"Updated Pool"}`
-		req := httptest.NewRequest(http.MethodPut, "/o2ims-infrastructureInventory/v1/resourcePools/pool-nonexistent", strings.NewReader(body))
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/resourcePools/pool-nonexistent",
+			strings.NewReader(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -635,7 +653,11 @@ func TestHandleUpdateResourcePool(t *testing.T) {
 		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
 
 		body := `{invalid json}`
-		req := httptest.NewRequest(http.MethodPut, "/o2ims-infrastructureInventory/v1/resourcePools/pool-123", strings.NewReader(body))
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/resourcePools/pool-123",
+			strings.NewReader(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -764,7 +786,11 @@ func TestHandleUpdateSubscription(t *testing.T) {
 		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
 
 		body := `{"callback":"https://new-callback.example.com/notify"}`
-		req := httptest.NewRequest(http.MethodPut, "/o2ims-infrastructureInventory/v1/subscriptions/sub-nonexistent", strings.NewReader(body))
+		req := httptest.NewRequest(
+			http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/subscriptions/sub-nonexistent",
+			strings.NewReader(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -780,7 +806,9 @@ func TestHandleUpdateSubscription(t *testing.T) {
 		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
 
 		body := `{invalid json}`
-		req := httptest.NewRequest(http.MethodPut, "/o2ims-infrastructureInventory/v1/subscriptions/sub-123", strings.NewReader(body))
+		req := httptest.NewRequest(
+			http.MethodPut, "/o2ims-infrastructureInventory/v1/subscriptions/sub-123", strings.NewReader(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 

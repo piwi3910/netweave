@@ -95,7 +95,10 @@ func (m *mockSMOPlugin) PublishDeploymentEvent(_ context.Context, _ *smoapi.Depl
 	return m.publishDeployErr
 }
 
-func (m *mockSMOPlugin) ExecuteWorkflow(_ context.Context, workflow *smoapi.WorkflowRequest) (*smoapi.WorkflowExecution, error) {
+func (m *mockSMOPlugin) ExecuteWorkflow(
+	_ context.Context,
+	workflow *smoapi.WorkflowRequest,
+) (*smoapi.WorkflowExecution, error) {
 	if m.executeWorkflowErr != nil {
 		return nil, m.executeWorkflowErr
 	}
@@ -283,7 +286,9 @@ func TestSMOHandler_ExecuteWorkflow(t *testing.T) {
 
 	t.Run("execute workflow successfully", func(t *testing.T) {
 		body := `{"workflowName": "test-workflow", "parameters": {"key": "value"}}`
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/workflows", bytes.NewBufferString(body))
+		req, _ := http.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/o2smo/v1/workflows", bytes.NewBufferString(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
 		router.ServeHTTP(resp, req)
@@ -301,7 +306,9 @@ func TestSMOHandler_ExecuteWorkflow(t *testing.T) {
 
 	t.Run("execute workflow with invalid body", func(t *testing.T) {
 		body := invalidJSONBody
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/workflows", bytes.NewBufferString(body))
+		req, _ := http.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/o2smo/v1/workflows", bytes.NewBufferString(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
 		router.ServeHTTP(resp, req)
@@ -362,7 +369,9 @@ func TestSMOHandler_CreateServiceModel(t *testing.T) {
 
 	t.Run("create service model successfully", func(t *testing.T) {
 		body := `{"name": "new-model", "version": "1.0.0", "description": "Test model"}`
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/serviceModels", bytes.NewBufferString(body))
+		req, _ := http.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/o2smo/v1/serviceModels", bytes.NewBufferString(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
 		router.ServeHTTP(resp, req)
@@ -380,7 +389,9 @@ func TestSMOHandler_CreateServiceModel(t *testing.T) {
 
 	t.Run("create service model with invalid body", func(t *testing.T) {
 		body := invalidJSONBody
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/serviceModels", bytes.NewBufferString(body))
+		req, _ := http.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/o2smo/v1/serviceModels", bytes.NewBufferString(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
 		router.ServeHTTP(resp, req)
@@ -424,7 +435,9 @@ func TestSMOHandler_ApplyPolicy(t *testing.T) {
 
 	t.Run("apply policy successfully", func(t *testing.T) {
 		body := `{"name": "test-policy", "policyType": "placement", "enabled": true}`
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/policies", bytes.NewBufferString(body))
+		req, _ := http.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/o2smo/v1/policies", bytes.NewBufferString(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
 		router.ServeHTTP(resp, req)
@@ -441,7 +454,9 @@ func TestSMOHandler_ApplyPolicy(t *testing.T) {
 
 	t.Run("apply policy with invalid body", func(t *testing.T) {
 		body := invalidJSONBody
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/policies", bytes.NewBufferString(body))
+		req, _ := http.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/o2smo/v1/policies", bytes.NewBufferString(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
 		router.ServeHTTP(resp, req)
@@ -478,7 +493,9 @@ func TestSMOHandler_SyncInfrastructure(t *testing.T) {
 		"resources": [],
 		"resourceTypes": []
 	}`
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/sync/infrastructure", bytes.NewBufferString(body))
+	req, _ := http.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/o2smo/v1/sync/infrastructure", bytes.NewBufferString(body),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
@@ -500,7 +517,9 @@ func TestSMOHandler_SyncDeployments(t *testing.T) {
 		"packages": [{"id": "pkg-1", "name": "test-pkg"}],
 		"deployments": [{"id": "deploy-1", "name": "test-deploy"}]
 	}`
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/sync/deployments", bytes.NewBufferString(body))
+	req, _ := http.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/o2smo/v1/sync/deployments", bytes.NewBufferString(body),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
@@ -517,7 +536,9 @@ func TestSMOHandler_PublishInfrastructureEvent(t *testing.T) {
 		"resourceType": "compute-node",
 		"resourceId": "node-1"
 	}`
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/events/infrastructure", bytes.NewBufferString(body))
+	req, _ := http.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/o2smo/v1/events/infrastructure", bytes.NewBufferString(body),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
@@ -540,7 +561,9 @@ func TestSMOHandler_PublishDeploymentEvent(t *testing.T) {
 		"eventType": "DeploymentCreated",
 		"deploymentId": "deploy-1"
 	}`
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/events/deployment", bytes.NewBufferString(body))
+	req, _ := http.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/o2smo/v1/events/deployment", bytes.NewBufferString(body),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
@@ -723,7 +746,9 @@ func TestSMOHandler_PluginErrors(t *testing.T) {
 
 	t.Run("workflow execution error", func(t *testing.T) {
 		body := `{"workflowName": "test-workflow"}`
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/workflows", bytes.NewBufferString(body))
+		req, _ := http.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/o2smo/v1/workflows", bytes.NewBufferString(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
 		router.ServeHTTP(resp, req)
@@ -732,7 +757,9 @@ func TestSMOHandler_PluginErrors(t *testing.T) {
 	})
 
 	t.Run("get workflow status error", func(t *testing.T) {
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v1/workflows/exec-123", nil)
+		req, _ := http.NewRequestWithContext(
+			context.Background(), http.MethodGet, "/o2smo/v1/workflows/exec-123", nil,
+		)
 		resp := httptest.NewRecorder()
 		router.ServeHTTP(resp, req)
 
@@ -749,7 +776,9 @@ func TestSMOHandler_PluginErrors(t *testing.T) {
 
 	t.Run("apply policy error", func(t *testing.T) {
 		body := `{"name": "test-policy", "policyType": "placement"}`
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2smo/v1/policies", bytes.NewBufferString(body))
+		req, _ := http.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/o2smo/v1/policies", bytes.NewBufferString(body),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
 		router.ServeHTTP(resp, req)

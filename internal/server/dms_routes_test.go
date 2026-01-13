@@ -38,13 +38,19 @@ func (m *mockDMSAdapter) Name() string                       { return m.name }
 func (m *mockDMSAdapter) Version() string                    { return m.version }
 func (m *mockDMSAdapter) Capabilities() []adapter.Capability { return m.capabilities }
 
-func (m *mockDMSAdapter) ListDeploymentPackages(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
+func (m *mockDMSAdapter) ListDeploymentPackages(
+	_ context.Context,
+	_ *adapter.Filter,
+) ([]*adapter.DeploymentPackage, error) {
 	return []*adapter.DeploymentPackage{}, nil
 }
 func (m *mockDMSAdapter) GetDeploymentPackage(_ context.Context, _ string) (*adapter.DeploymentPackage, error) {
 	return nil, errNotImplemented
 }
-func (m *mockDMSAdapter) UploadDeploymentPackage(_ context.Context, _ *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
+func (m *mockDMSAdapter) UploadDeploymentPackage(
+	_ context.Context,
+	_ *adapter.DeploymentPackageUpload,
+) (*adapter.DeploymentPackage, error) {
 	return nil, errNotImplemented
 }
 func (m *mockDMSAdapter) DeleteDeploymentPackage(_ context.Context, _ string) error { return nil }
@@ -54,10 +60,17 @@ func (m *mockDMSAdapter) ListDeployments(_ context.Context, _ *adapter.Filter) (
 func (m *mockDMSAdapter) GetDeployment(_ context.Context, _ string) (*adapter.Deployment, error) {
 	return nil, errNotImplemented
 }
-func (m *mockDMSAdapter) CreateDeployment(_ context.Context, _ *adapter.DeploymentRequest) (*adapter.Deployment, error) {
+func (m *mockDMSAdapter) CreateDeployment(
+	_ context.Context,
+	_ *adapter.DeploymentRequest,
+) (*adapter.Deployment, error) {
 	return nil, errNotImplemented
 }
-func (m *mockDMSAdapter) UpdateDeployment(_ context.Context, _ string, _ *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+func (m *mockDMSAdapter) UpdateDeployment(
+	_ context.Context,
+	_ string,
+	_ *adapter.DeploymentUpdate,
+) (*adapter.Deployment, error) {
 	return nil, errNotImplemented
 }
 func (m *mockDMSAdapter) DeleteDeployment(_ context.Context, _ string) error { return nil }

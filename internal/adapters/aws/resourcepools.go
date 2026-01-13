@@ -17,7 +17,11 @@ import (
 // ListResourcePools retrieves all resource pools matching the provided filter.
 // In "az" mode, it lists Availability Zones.
 // In "asg" mode, it lists Auto Scaling Groups.
-func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) (pools []*adapter.ResourcePool, err error) {
+func (a *Adapter) ListResourcePools(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "ListResourcePools", start, err) }()
 
@@ -26,9 +30,11 @@ func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter)
 		zap.String("poolMode", a.poolMode))
 
 	if a.poolMode == "asg" {
-		return a.listASGPools(ctx, filter)
+		pools, err := a.listASGPools(ctx, filter)
+		return pools, err
 	}
-	return a.listAZPools(ctx, filter)
+	pools, err := a.listAZPools(ctx, filter)
+	return pools, err
 }
 
 // listAZPools lists Availability Zones as resource pools.
@@ -89,10 +95,16 @@ func (a *Adapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([]*a
 }
 
 // listASGPools lists Auto Scaling Groups as resource pools.
-func (a *Adapter) listASGPools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *Adapter) listASGPools(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
 	// Get Auto Scaling Groups
 	var pools []*adapter.ResourcePool
-	paginator := autoscaling.NewDescribeAutoScalingGroupsPaginator(a.asgClient, &autoscaling.DescribeAutoScalingGroupsInput{})
+	paginator := autoscaling.NewDescribeAutoScalingGroupsPaginator(
+		a.asgClient,
+		&autoscaling.DescribeAutoScalingGroupsInput{},
+	)
 
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
@@ -185,7 +197,10 @@ func (a *Adapter) getAZPool(ctx context.Context, id string) (*adapter.ResourcePo
 		}
 	}
 
-	return nil, fmt.Errorf("resource pool not found: %s", id)
+	return nil, fmt.Errorf(
+		"resource pool not found: %s",
+		id,
+	)
 }
 
 // getASGPool retrieves an Auto Scaling Group as a resource pool.
@@ -201,13 +216,20 @@ func (a *Adapter) getASGPool(ctx context.Context, id string) (*adapter.ResourceP
 		}
 	}
 
-	return nil, fmt.Errorf("resource pool not found: %s", id)
+	return nil, fmt.Errorf(
+		"resource pool not found: %s",
+		id,
+	)
 }
 
 // CreateResourcePool creates a new resource pool.
 // In "az" mode, this operation is not supported (AZs are AWS-managed).
 // In "asg" mode, this creates a new Auto Scaling Group.
-func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (created *adapter.ResourcePool, err error) {
+func (a *Adapter) CreateResourcePool(
+	_ context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "CreateResourcePool", start, err) }()
 
@@ -215,18 +237,28 @@ func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePo
 		zap.String("name", pool.Name))
 
 	if a.poolMode == "az" {
-		return nil, fmt.Errorf("cannot create resource pools in 'az' mode: availability zones are AWS-managed")
+		err = fmt.Errorf(
+			"cannot create resource pools in 'az' mode: " +
+				"availability zones are AWS-managed",
+		)
+		return nil, err
 	}
 
 	// In ASG mode, we would create an Auto Scaling Group
 	// This requires additional configuration not available in the O2-IMS model
-	return nil, fmt.Errorf("creating Auto Scaling Groups requires additional configuration: use AWS console or CLI")
+	err = fmt.Errorf("creating Auto Scaling Groups requires additional configuration: use AWS console or CLI")
+	return nil, err
 }
 
 // UpdateResourcePool updates an existing resource pool.
 // In "az" mode, this operation is not supported.
 // In "asg" mode, this updates ASG capacity settings (desired, min, max).
-func (a *Adapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (updated *adapter.ResourcePool, err error) {
+func (a *Adapter) UpdateResourcePool(
+	ctx context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "UpdateResourcePool", start, err) }()
 
@@ -235,13 +267,15 @@ func (a *Adapter) UpdateResourcePool(ctx context.Context, id string, pool *adapt
 		zap.String("name", pool.Name))
 
 	if a.poolMode == "az" {
-		return nil, fmt.Errorf("cannot update resource pools in 'az' mode: availability zones are AWS-managed")
+		err = fmt.Errorf("cannot update resource pools in 'az' mode: availability zones are AWS-managed")
+		return nil, err
 	}
 
 	// Extract ASG name from pool ID
 	asgName := extractASGNameFromPoolID(id)
 	if asgName == "" {
-		return nil, fmt.Errorf("invalid resource pool ID format: %s", id)
+		err = fmt.Errorf("invalid resource pool ID format: %s", id)
+		return nil, err
 	}
 
 	// Build update input from pool extensions

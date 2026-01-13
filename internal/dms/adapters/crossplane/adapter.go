@@ -389,7 +389,10 @@ func (c *Adapter) getPackageReference(req *adapter.DeploymentRequest) (string, e
 	return packageRef, nil
 }
 
-func (c *Adapter) buildConfiguration(name, packageRef string, extensions map[string]interface{}) *unstructured.Unstructured {
+func (c *Adapter) buildConfiguration(
+	name, packageRef string,
+	extensions map[string]interface{},
+) *unstructured.Unstructured {
 	config := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": fmt.Sprintf("%s/%s", CrossplaneGroup, CrossplaneVersion),
@@ -451,7 +454,10 @@ func (c *Adapter) UpdateDeployment(
 	return c.transformConfigurationToDeployment(updated), nil
 }
 
-func (c *Adapter) getConfigurationForUpdate(ctx context.Context, id string) (*unstructured.Unstructured, error) {
+func (c *Adapter) getConfigurationForUpdate(
+	ctx context.Context,
+	id string,
+) (*unstructured.Unstructured, error) {
 	config, err := c.dynamicClient.Resource(configurationGVR).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
@@ -459,7 +465,10 @@ func (c *Adapter) getConfigurationForUpdate(ctx context.Context, id string) (*un
 	return config, nil
 }
 
-func (c *Adapter) applyConfigurationUpdates(config *unstructured.Unstructured, extensions map[string]interface{}) error {
+func (c *Adapter) applyConfigurationUpdates(
+	config *unstructured.Unstructured,
+	extensions map[string]interface{},
+) error {
 	if extensions == nil {
 		return nil
 	}
@@ -531,7 +540,10 @@ func (c *Adapter) RollbackDeployment(
 		return fmt.Errorf("revision must be non-negative")
 	}
 
-	return fmt.Errorf("crossplane adapter %w: rollback must be done through package version changes", ErrOperationNotSupported)
+	return fmt.Errorf(
+		"crossplane adapter %w: rollback must be done through package version changes",
+		ErrOperationNotSupported,
+	)
 }
 
 // GetDeploymentStatus retrieves detailed status for a deployment.

@@ -42,7 +42,11 @@ func (m *mockAdapter) GetResourcePool(_ context.Context, _ string) (*adapter.Res
 func (m *mockAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
 	return pool, nil
 }
-func (m *mockAdapter) UpdateResourcePool(_ context.Context, _ string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockAdapter) UpdateResourcePool(
+	_ context.Context,
+	_ string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	return pool, nil
 }
 func (m *mockAdapter) DeleteResourcePool(_ context.Context, _ string) error {
@@ -57,7 +61,11 @@ func (m *mockAdapter) GetResource(_ context.Context, _ string) (*adapter.Resourc
 func (m *mockAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
 	return resource, nil
 }
-func (m *mockAdapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+func (m *mockAdapter) UpdateResource(
+	_ context.Context,
+	id string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
 	resource.ResourceID = id
 	return resource, nil
 }
@@ -83,7 +91,11 @@ func (m *mockAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscri
 func (m *mockAdapter) GetSubscription(_ context.Context, _ string) (*adapter.Subscription, error) {
 	return nil, adapter.ErrResourceNotFound
 }
-func (m *mockAdapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *mockAdapter) UpdateSubscription(
+	_ context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	// Validate callback URL (consistent with real adapters)
 	if sub.Callback == "" {
 		return nil, errors.New("callback URL is required")

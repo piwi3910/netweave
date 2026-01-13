@@ -13,8 +13,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// ListResourceTypes retrieves all resource types (EC2 instance types) matching the provided filter.
-func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
+// ListResourceTypes retrieves all resource types (EC2 instance types)
+// matching the provided filter.
+func (a *Adapter) ListResourceTypes(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourceType, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "ListResourceTypes", start, err) }()
 
@@ -24,10 +29,12 @@ func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter)
 	// Get EC2 instance types
 	paginator := ec2.NewDescribeInstanceTypesPaginator(a.ec2Client, &ec2.DescribeInstanceTypesInput{})
 
+	var resourceTypes []*adapter.ResourceType
 	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to describe instance types: %w", err)
+		page, pageErr := paginator.NextPage(ctx)
+		if pageErr != nil {
+			err = fmt.Errorf("failed to describe instance types: %w", pageErr)
+			return nil, err
 		}
 
 		for _, instanceType := range page.InstanceTypes {
@@ -187,12 +194,16 @@ func addStorageInfo(extensions map[string]interface{}, storageInfo *ec2Types.Ins
 }
 
 // addNetworkInfo adds network information to extensions.
-func addNetworkInfo(extensions map[string]interface{}, networkInfo *ec2Types.NetworkInfo) {
+func addNetworkInfo(
+	extensions map[string]interface{},
+	networkInfo *ec2Types.NetworkInfo,
+) {
 	if networkInfo != nil {
 		extensions["aws.networkPerformance"] = aws.ToString(networkInfo.NetworkPerformance)
 		extensions["aws.maxNetworkInterfaces"] = aws.ToInt32(networkInfo.MaximumNetworkInterfaces)
 		extensions["aws.ipv4AddressesPerInterface"] = aws.ToInt32(networkInfo.Ipv4AddressesPerInterface)
-		extensions["aws.enaSupported"] = networkInfo.EnaSupport == ec2Types.EnaSupportRequired || networkInfo.EnaSupport == ec2Types.EnaSupportSupported
+		extensions["aws.enaSupported"] = networkInfo.EnaSupport == ec2Types.EnaSupportRequired ||
+			networkInfo.EnaSupport == ec2Types.EnaSupportSupported
 	}
 }
 

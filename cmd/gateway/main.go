@@ -422,10 +422,14 @@ func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.Re
 	return store, nil
 }
 
-// getRedisPasswords retrieves Redis and Sentinel passwords and logs deprecation warnings.
-func getRedisPasswords(cfg *config.Config, logger *zap.Logger) (redisPassword, redisModeSentinelPassword string, err error) {
+// getRedisPasswords retrieves Redis and Sentinel passwords and logs
+// deprecation warnings.
+func getRedisPasswords(
+	cfg *config.Config,
+	logger *zap.Logger,
+) (string, string, error) {
 	// Get Redis password
-	redisPassword, err = cfg.Redis.GetPassword()
+	redisPassword, err := cfg.Redis.GetPassword()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get Redis password: %w", err)
 	}
@@ -439,6 +443,7 @@ func getRedisPasswords(cfg *config.Config, logger *zap.Logger) (redisPassword, r
 	}
 
 	// Get Sentinel password (only relevant for Sentinel mode)
+	var redisModeSentinelPassword string
 	if cfg.Redis.Mode == redisModeSentinel {
 		redisModeSentinelPassword, err = cfg.Redis.GetSentinelPassword()
 		if err != nil {

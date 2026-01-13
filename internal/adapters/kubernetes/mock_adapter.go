@@ -229,7 +229,11 @@ func (m *MockAdapter) CreateResource(_ context.Context, resource *adapter.Resour
 }
 
 // UpdateResource updates an existing resource.
-func (m *MockAdapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+func (m *MockAdapter) UpdateResource(
+	_ context.Context,
+	id string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -316,7 +320,11 @@ func (m *MockAdapter) GetSubscription(_ context.Context, id string) (*adapter.Su
 }
 
 // UpdateSubscription updates an existing subscription.
-func (m *MockAdapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *MockAdapter) UpdateSubscription(
+	_ context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

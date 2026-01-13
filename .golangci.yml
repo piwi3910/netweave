@@ -360,7 +360,7 @@ linters-settings:
       - kubernetes
 
   lll:
-    line-length: 160  # Allow longer lines for AWS/Azure SDK calls
+    line-length: 120
     tab-width: 4
 
   gomnd:

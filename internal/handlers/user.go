@@ -145,7 +145,9 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	c.JSON(http.StatusCreated, user)
 }
 
-func (h *UserHandler) validateCreateUserRequest(ctx context.Context, req *CreateUserRequest, tenant *auth.Tenant) error {
+func (h *UserHandler) validateCreateUserRequest(
+	ctx context.Context, req *CreateUserRequest, tenant *auth.Tenant,
+) error {
 	if req.Email != "" {
 		if err := h.validateEmail(req.Email); err != nil {
 			return err
@@ -153,7 +155,11 @@ func (h *UserHandler) validateCreateUserRequest(ctx context.Context, req *Create
 	}
 
 	if !tenant.CanAddUser() {
-		return &handlerError{status: http.StatusForbidden, errorCode: "QuotaExceeded", message: "User quota exceeded for this tenant"}
+		return &handlerError{
+			status:    http.StatusForbidden,
+			errorCode: "QuotaExceeded",
+			message:   "User quota exceeded for this tenant",
+		}
 	}
 
 	return h.validateRoleForTenantUser(ctx, req.RoleID)
@@ -325,13 +331,18 @@ func (h *UserHandler) fetchAndValidateUser(ctx context.Context, userID, tenantID
 	}
 
 	if !auth.IsPlatformAdminFromContext(ctx) && user.TenantID != tenantID {
-		return nil, &handlerError{status: http.StatusForbidden, message: "Access denied to user from different tenant"}
+		return nil, &handlerError{
+			status:  http.StatusForbidden,
+			message: "Access denied to user from different tenant",
+		}
 	}
 
 	return user, nil
 }
 
-func (h *UserHandler) validateAndApplyUpdates(ctx context.Context, user *auth.TenantUser, req *UpdateUserRequest) error {
+func (h *UserHandler) validateAndApplyUpdates(
+	ctx context.Context, user *auth.TenantUser, req *UpdateUserRequest,
+) error {
 	if req.Email != "" {
 		if err := h.validateEmail(req.Email); err != nil {
 			return err
@@ -552,7 +563,12 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 }
 
 // logAuditEvent logs an audit event for user operations.
-func (h *UserHandler) logAuditEvent(c *gin.Context, eventType auth.AuditEventType, resourceID, resourceType, action string, details map[string]string) {
+func (h *UserHandler) logAuditEvent(
+	c *gin.Context,
+	eventType auth.AuditEventType,
+	resourceID, resourceType, action string,
+	details map[string]string,
+) {
 	user := auth.UserFromContext(c.Request.Context())
 
 	event := &auth.AuditEvent{

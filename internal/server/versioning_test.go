@@ -124,7 +124,9 @@ func TestVersioningMiddleware_Deprecation(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil)
+	req, _ := http.NewRequestWithContext(
+		context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil,
+	)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -161,7 +163,9 @@ func TestVersioningMiddleware_Sunset(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil)
+	req, _ := http.NewRequestWithContext(
+		context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil,
+	)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

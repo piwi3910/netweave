@@ -204,7 +204,11 @@ func (p *Plugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequ
 	}
 }
 
-func (p *Plugin) executeInstantiate(ctx context.Context, executionID string, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
+func (p *Plugin) executeInstantiate(
+	ctx context.Context,
+	executionID string,
+	workflow *smo.WorkflowRequest,
+) (*smo.WorkflowExecution, error) {
 	nsName, nsNameOK := workflow.Parameters["nsName"].(string)
 	nsdID, nsdIDOK := workflow.Parameters["nsdId"].(string)
 	vimAccountID, vimAccountIDOK := workflow.Parameters["vimAccountId"].(string)
@@ -244,7 +248,11 @@ func (p *Plugin) executeInstantiate(ctx context.Context, executionID string, wor
 	}, nil
 }
 
-func (p *Plugin) executeTerminate(ctx context.Context, executionID string, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
+func (p *Plugin) executeTerminate(
+	ctx context.Context,
+	executionID string,
+	workflow *smo.WorkflowRequest,
+) (*smo.WorkflowExecution, error) {
 	nsID, nsIDOK := workflow.Parameters["nsInstanceId"].(string)
 	if !nsIDOK || nsID == "" {
 		return nil, fmt.Errorf("nsInstanceId is required for terminate workflow")
@@ -266,7 +274,11 @@ func (p *Plugin) executeTerminate(ctx context.Context, executionID string, workf
 	}, nil
 }
 
-func (p *Plugin) executeScale(ctx context.Context, executionID string, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
+func (p *Plugin) executeScale(
+	ctx context.Context,
+	executionID string,
+	workflow *smo.WorkflowRequest,
+) (*smo.WorkflowExecution, error) {
 	nsID, nsIDOK := workflow.Parameters["nsInstanceId"].(string)
 	if !nsIDOK || nsID == "" {
 		return nil, fmt.Errorf("nsInstanceId is required for scale workflow")
@@ -318,7 +330,11 @@ func (p *Plugin) executeScale(ctx context.Context, executionID string, workflow 
 	}, nil
 }
 
-func (p *Plugin) executeHeal(ctx context.Context, executionID string, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
+func (p *Plugin) executeHeal(
+	ctx context.Context,
+	executionID string,
+	workflow *smo.WorkflowRequest,
+) (*smo.WorkflowExecution, error) {
 	nsID, nsIDOK := workflow.Parameters["nsInstanceId"].(string)
 	vnfInstanceID, vnfInstanceIDOK := workflow.Parameters["vnfInstanceId"].(string)
 	if !nsIDOK || !vnfInstanceIDOK || nsID == "" || vnfInstanceID == "" {

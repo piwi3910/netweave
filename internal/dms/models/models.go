@@ -230,7 +230,7 @@ type DMSSubscriptionFilter struct {
 	NFDeploymentIDs []string `json:"nfDeploymentIds,omitempty" yaml:"nfDeploymentIds,omitempty"`
 
 	// NFDeploymentDescriptorIDs filters to specific descriptors.
-	NFDeploymentDescriptorIDs []string `json:"nfDeploymentDescriptorIds,omitempty" yaml:"nfDeploymentDescriptorIds,omitempty"`
+	NFDeploymentDescriptorIDs []string `json:"nfDeploymentDescriptorIds,omitempty"`
 
 	// EventTypes filters to specific event types.
 	EventTypes []DMSEventType `json:"eventTypes,omitempty" yaml:"eventTypes,omitempty"`
@@ -296,8 +296,9 @@ type DMSNotification struct {
 	// NFDeployment contains the NF deployment that triggered the event (if applicable).
 	NFDeployment *NFDeployment `json:"nfDeployment,omitempty" yaml:"nfDeployment,omitempty"`
 
-	// NFDeploymentDescriptor contains the descriptor that triggered the event (if applicable).
-	NFDeploymentDescriptor *NFDeploymentDescriptor `json:"nfDeploymentDescriptor,omitempty" yaml:"nfDeploymentDescriptor,omitempty"`
+	// NFDeploymentDescriptor contains the descriptor that triggered the event
+	// (if applicable).
+	NFDeploymentDescriptor *NFDeploymentDescriptor `json:"nfDeploymentDescriptor,omitempty"`
 
 	// Timestamp is when the event occurred.
 	Timestamp time.Time `json:"timestamp" yaml:"timestamp"`

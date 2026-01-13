@@ -54,12 +54,19 @@ func (m *mockResourceAdapter) GetResourcePool(_ context.Context, poolID string) 
 	return nil, errors.New("not found")
 }
 
-func (m *mockResourceAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockResourceAdapter) CreateResourcePool(
+	_ context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	m.resourcePools = append(m.resourcePools, pool)
 	return pool, nil
 }
 
-func (m *mockResourceAdapter) UpdateResourcePool(_ context.Context, _ string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockResourceAdapter) UpdateResourcePool(
+	_ context.Context,
+	_ string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	return pool, nil
 }
 
@@ -94,7 +101,11 @@ func (m *mockResourceAdapter) CreateResource(_ context.Context, resource *adapte
 	return resource, nil
 }
 
-func (m *mockResourceAdapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+func (m *mockResourceAdapter) UpdateResource(
+	_ context.Context,
+	id string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
 	for i, res := range m.resources {
 		if res.ResourceID == id {
 			resource.ResourceID = id
@@ -125,7 +136,10 @@ func (m *mockResourceAdapter) GetResourceType(_ context.Context, typeID string) 
 	return nil, errors.New("not found")
 }
 
-func (m *mockResourceAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *mockResourceAdapter) CreateSubscription(
+	_ context.Context,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	return sub, nil
 }
 
@@ -133,7 +147,11 @@ func (m *mockResourceAdapter) GetSubscription(_ context.Context, subscriptionID 
 	return &adapter.Subscription{SubscriptionID: subscriptionID}, nil
 }
 
-func (m *mockResourceAdapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *mockResourceAdapter) UpdateSubscription(
+	_ context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	sub.SubscriptionID = id
 	return sub, nil
 }

@@ -13,8 +13,13 @@ import (
 	"google.golang.org/api/iterator"
 )
 
-// ListResources retrieves all resources (GCP instances) matching the provided filter.
-func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
+// ListResources retrieves all resources (GCP instances) matching the
+// provided filter.
+func (a *Adapter) ListResources(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.Resource, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "ListResources", start, err) }()
 
@@ -22,7 +27,7 @@ func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (re
 		zap.Any("filter", filter))
 
 	// List instances across all zones in the region
-	resources, err = a.listInstancesInRegion(ctx, filter)
+	resources, err := a.listInstancesInRegion(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +77,11 @@ func (a *Adapter) listInstancesInRegion(ctx context.Context, filter *adapter.Fil
 }
 
 // listInstancesInZone lists instances in a specific zone and applies filtering.
-func (a *Adapter) listInstancesInZone(ctx context.Context, zoneName string, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (a *Adapter) listInstancesInZone(
+	ctx context.Context,
+	zoneName string,
+	filter *adapter.Filter,
+) ([]*adapter.Resource, error) {
 	var resources []*adapter.Resource
 
 	instanceIt := a.instancesClient.List(ctx, &computepb.ListInstancesRequest{
@@ -158,12 +167,20 @@ func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) 
 		zap.String("resourceTypeId", resource.ResourceTypeID))
 
 	// Creating GCP instances requires extensive configuration
-	return nil, fmt.Errorf("creating GCP instances requires additional configuration: use gcloud CLI or console")
+	return nil, fmt.Errorf(
+		"creating GCP instances requires additional configuration: " +
+			"use gcloud CLI or console",
+	)
 }
 
 // UpdateResource updates an existing GCP instance's labels and metadata.
 // Note: Core instance properties cannot be modified after creation.
-func (a *Adapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (updated *adapter.Resource, err error) {
+func (a *Adapter) UpdateResource(
+	_ context.Context,
+	_ string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "UpdateResource", start, err) }()
 
@@ -172,7 +189,8 @@ func (a *Adapter) UpdateResource(_ context.Context, _ string, resource *adapter.
 
 	// TODO(#190): Implement instance metadata updates via GCP API
 	// For now, return not supported
-	return nil, fmt.Errorf("updating GCP instances is not yet implemented")
+	err = fmt.Errorf("updating GCP instances is not yet implemented")
+	return nil, err
 }
 
 // DeleteResource deletes a resource (GCP instance) by ID.
@@ -251,7 +269,8 @@ func (a *Adapter) instanceToResource(instance *computepb.Instance, zone string) 
 	}
 }
 
-// determineResourcePoolID determines the resource pool ID based on pool mode.
+// determineResourcePoolID determines the resource pool ID based on pool
+// mode.
 func (a *Adapter) determineResourcePoolID(zone string) string {
 	if a.poolMode == "zone" {
 		return generateZonePoolID(zone)
@@ -262,7 +281,10 @@ func (a *Adapter) determineResourcePoolID(zone string) string {
 }
 
 // buildInstanceExtensions builds the extensions map with GCP instance details.
-func buildInstanceExtensions(instance *computepb.Instance, instanceName, zone, machineType string) map[string]interface{} {
+func buildInstanceExtensions(
+	instance *computepb.Instance,
+	instanceName, zone, machineType string,
+) map[string]interface{} {
 	var instanceID uint64
 	if instance.Id != nil {
 		instanceID = *instance.Id

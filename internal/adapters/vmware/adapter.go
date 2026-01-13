@@ -264,7 +264,12 @@ func createVMwareClient(ctx context.Context, cfg *Config, logger *zap.Logger) (*
 }
 
 // setupVMwareDatacenter creates a finder and locates the datacenter.
-func setupVMwareDatacenter(ctx context.Context, client *govmomi.Client, datacenterName string, logger *zap.Logger) (*find.Finder, *object.Datacenter, error) {
+func setupVMwareDatacenter(
+	ctx context.Context,
+	client *govmomi.Client,
+	datacenterName string,
+	logger *zap.Logger,
+) (*find.Finder, *object.Datacenter, error) {
 	finder := find.NewFinder(client.Client, true)
 
 	dc, err := finder.Datacenter(ctx, datacenterName)

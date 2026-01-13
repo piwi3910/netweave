@@ -13,7 +13,11 @@ import (
 // CreateSubscription creates a new event subscription.
 // Azure adapter uses polling-based subscriptions since Event Grid
 // integration would require additional Azure infrastructure setup.
-func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+func (a *Adapter) CreateSubscription(
+	_ context.Context,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "CreateSubscription", start, err) }()
 
@@ -22,7 +26,8 @@ func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscriptio
 
 	// Validate callback URL
 	if sub.Callback == "" {
-		return nil, fmt.Errorf("callback URL is required")
+		err = fmt.Errorf("callback URL is required")
+		return nil, err
 	}
 
 	// Generate subscription ID if not provided
@@ -79,7 +84,12 @@ func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscr
 }
 
 // UpdateSubscription updates an existing subscription.
-func (a *Adapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (result *adapter.Subscription, err error) {
+func (a *Adapter) UpdateSubscription(
+	_ context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "UpdateSubscription", start, err) }()
 
@@ -89,7 +99,8 @@ func (a *Adapter) UpdateSubscription(_ context.Context, id string, sub *adapter.
 
 	// Validate callback URL
 	if sub.Callback == "" {
-		return nil, fmt.Errorf("callback URL is required")
+		err = fmt.Errorf("callback URL is required")
+		return nil, err
 	}
 
 	a.subscriptionsMu.Lock()
@@ -98,7 +109,8 @@ func (a *Adapter) UpdateSubscription(_ context.Context, id string, sub *adapter.
 	// Check if subscription exists
 	existing, exists := a.subscriptions[id]
 	if !exists {
-		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+		err = fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+		return nil, err
 	}
 
 	// Create updated subscription preserving the ID

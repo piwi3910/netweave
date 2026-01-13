@@ -140,7 +140,10 @@ func (t *RedisDeliveryTracker) ListByEvent(ctx context.Context, eventID string) 
 }
 
 // ListBySubscription retrieves all deliveries for a specific subscription.
-func (t *RedisDeliveryTracker) ListBySubscription(ctx context.Context, subscriptionID string) ([]*NotificationDelivery, error) {
+func (t *RedisDeliveryTracker) ListBySubscription(
+	ctx context.Context,
+	subscriptionID string,
+) ([]*NotificationDelivery, error) {
 	if subscriptionID == "" {
 		return nil, errors.New("subscription ID cannot be empty")
 	}
@@ -178,7 +181,10 @@ func (t *RedisDeliveryTracker) ListFailed(ctx context.Context) ([]*NotificationD
 }
 
 // getDeliveriesByIDs retrieves multiple deliveries by their IDs.
-func (t *RedisDeliveryTracker) getDeliveriesByIDs(ctx context.Context, deliveryIDs []string) ([]*NotificationDelivery, error) {
+func (t *RedisDeliveryTracker) getDeliveriesByIDs(
+	ctx context.Context,
+	deliveryIDs []string,
+) ([]*NotificationDelivery, error) {
 	deliveries := make([]*NotificationDelivery, 0, len(deliveryIDs))
 
 	for _, deliveryID := range deliveryIDs {

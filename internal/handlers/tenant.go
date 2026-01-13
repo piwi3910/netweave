@@ -480,7 +480,14 @@ func (h *TenantHandler) GetCurrentTenant(c *gin.Context) {
 }
 
 // logAuditEvent logs an audit event for tenant operations.
-func (h *TenantHandler) logAuditEvent(c *gin.Context, eventType auth.AuditEventType, resourceID, resourceType, action string, details map[string]string) {
+func (h *TenantHandler) logAuditEvent(
+	c *gin.Context,
+	eventType auth.AuditEventType,
+	resourceID,
+	resourceType,
+	action string,
+	details map[string]string,
+) {
 	user := auth.UserFromContext(c.Request.Context())
 
 	event := &auth.AuditEvent{

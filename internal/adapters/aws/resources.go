@@ -13,8 +13,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// ListResources retrieves all resources (EC2 instances) matching the provided filter.
-func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (resources []*adapter.Resource, err error) {
+// ListResources retrieves all resources (EC2 instances) matching the
+// provided filter.
+func (a *Adapter) ListResources(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.Resource, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "ListResources", start, err) }()
 
@@ -43,10 +48,12 @@ func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (re
 		Filters: ec2Filters,
 	})
 
+	var resources []*adapter.Resource
 	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to describe instances: %w", err)
+		page, pageErr := paginator.NextPage(ctx)
+		if pageErr != nil {
+			err = fmt.Errorf("failed to describe instances: %w", pageErr)
+			return nil, err
 		}
 
 		for _, reservation := range page.Reservations {
@@ -55,7 +62,13 @@ func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (re
 
 				// Apply additional filters using shared helper
 				labels := tagsToMap(instance.Tags)
-				if !adapter.MatchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, extractTagValue(instance.Tags, "Location"), labels) {
+				if !adapter.MatchesFilter(
+					filter,
+					resource.ResourcePoolID,
+					resource.ResourceTypeID,
+					extractTagValue(instance.Tags, "Location"),
+					labels,
+				) {
 					continue
 				}
 
@@ -105,7 +118,9 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 		return nil, fmt.Errorf("resource not found: %s", id)
 	}
 
-	resource = a.instanceToResource(&output.Reservations[0].Instances[0])
+	resource = a.instanceToResource(
+		&output.Reservations[0].Instances[0],
+	)
 
 	a.logger.Info("retrieved resource",
 		zap.String("resourceId", resource.ResourceID))
@@ -114,7 +129,11 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 }
 
 // CreateResource creates a new resource (launches an EC2 instance).
-func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource) (created *adapter.Resource, err error) {
+func (a *Adapter) CreateResource(
+	ctx context.Context,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "CreateResource", start, err) }()
 
@@ -138,10 +157,13 @@ func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource
 	}
 
 	if len(output.Instances) == 0 {
-		return nil, fmt.Errorf("no instance was launched")
+		err = fmt.Errorf("no instance was launched")
+		return nil, err
 	}
 
-	created = a.instanceToResource(&output.Instances[0])
+	created := a.instanceToResource(
+		&output.Instances[0],
+	)
 
 	a.logger.Info("created resource",
 		zap.String("resourceId", created.ResourceID),
@@ -152,7 +174,12 @@ func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource
 
 // UpdateResource updates an existing EC2 instance's tags and metadata.
 // Note: Core instance properties (instance type, AMI) cannot be modified after launch.
-func (a *Adapter) UpdateResource(_ context.Context, id string, _ *adapter.Resource) (updated *adapter.Resource, err error) {
+func (a *Adapter) UpdateResource(
+	_ context.Context,
+	id string,
+	_ *adapter.Resource,
+) (*adapter.Resource, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "UpdateResource", start, err) }()
 
@@ -161,7 +188,8 @@ func (a *Adapter) UpdateResource(_ context.Context, id string, _ *adapter.Resour
 
 	// TODO(#188): Implement instance tag updates via EC2 CreateTags API
 	// For now, return not supported
-	return nil, fmt.Errorf("updating EC2 instances is not yet implemented")
+	err = fmt.Errorf("updating EC2 instances is not yet implemented")
+	return nil, err
 }
 
 // extractInstanceType extracts the instance type from the resource type ID.

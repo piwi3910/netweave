@@ -12,7 +12,11 @@ import (
 // ListResourcePools retrieves all resource pools matching the provided filter.
 // In "rg" mode, it lists Resource Groups.
 // In "az" mode, it lists Availability Zones.
-func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) (pools []*adapter.ResourcePool, err error) {
+func (a *Adapter) ListResourcePools(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "ListResourcePools", start, err) }()
 
@@ -21,9 +25,11 @@ func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter)
 		zap.String("poolMode", a.poolMode))
 
 	if a.poolMode == "az" {
-		return a.listAZPools(ctx, filter), nil
+		pools := a.listAZPools(ctx, filter)
+		return pools, nil
 	}
-	return a.listRGPools(ctx, filter)
+	pools, err := a.listRGPools(ctx, filter)
+	return pools, err
 }
 
 // listRGPools lists Resource Groups as resource pools.
@@ -176,7 +182,11 @@ func (a *Adapter) getAZPool(ctx context.Context, id string) (*adapter.ResourcePo
 // CreateResourcePool creates a new resource pool.
 // In "rg" mode, this creates a new Resource Group.
 // In "az" mode, this operation is not supported (AZs are Azure-managed).
-func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *Adapter) CreateResourcePool(
+	_ context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "CreateResourcePool", start, err) }()
 
@@ -184,16 +194,26 @@ func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePo
 		zap.String("name", pool.Name))
 
 	if a.poolMode == "az" {
-		return nil, fmt.Errorf("cannot create resource pools in 'az' mode: availability zones are Azure-managed")
+		err = fmt.Errorf(
+			"cannot create resource pools in 'az' mode: " +
+				"availability zones are Azure-managed",
+		)
+		return nil, err
 	}
 
 	// In RG mode, we could create a Resource Group
 	// This requires the Resource Group name and location
-	return nil, fmt.Errorf("creating Resource Groups is not yet implemented")
+	err = fmt.Errorf("creating Resource Groups is not yet implemented")
+	return nil, err
 }
 
 // UpdateResourcePool updates an existing resource pool.
-func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *Adapter) UpdateResourcePool(
+	_ context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "UpdateResourcePool", start, err) }()
 
@@ -202,10 +222,12 @@ func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter
 		zap.String("name", pool.Name))
 
 	if a.poolMode == "az" {
-		return nil, fmt.Errorf("cannot update resource pools in 'az' mode: availability zones are Azure-managed")
+		err = fmt.Errorf("cannot update resource pools in 'az' mode: availability zones are Azure-managed")
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("updating Resource Groups is not yet implemented")
+	err = fmt.Errorf("updating Resource Groups is not yet implemented")
+	return nil, err
 }
 
 // DeleteResourcePool deletes a resource pool by ID.

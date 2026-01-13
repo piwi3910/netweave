@@ -227,7 +227,16 @@ func TestTransformVIMAccountVariations(t *testing.T) {
 }
 
 // validateVIMAccountFields validates the main fields of a VIM account.
-func validateVIMAccountFields(t *testing.T, vim *VIMAccount, pool *ResourcePool, wantName, wantType, wantURL, wantUser, wantPass string) {
+func validateVIMAccountFields(
+	t *testing.T,
+	vim *VIMAccount,
+	pool *ResourcePool,
+	wantName,
+	wantType,
+	wantURL,
+	wantUser,
+	wantPass string,
+) {
 	t.Helper()
 
 	if vim.ID != pool.ID {

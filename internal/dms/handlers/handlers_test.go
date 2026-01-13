@@ -48,12 +48,14 @@ type mockAdapter struct {
 
 func newMockAdapter() *mockAdapter {
 	return &mockAdapter{
-		name:         "mock",
-		version:      "1.0.0",
-		capabilities: []adapter.Capability{adapter.CapabilityDeploymentLifecycle, adapter.CapabilityRollback, adapter.CapabilityScaling},
-		healthy:      true,
-		deployments:  make([]*adapter.Deployment, 0),
-		packages:     make([]*adapter.DeploymentPackage, 0),
+		name:    "mock",
+		version: "1.0.0",
+		capabilities: []adapter.Capability{
+			adapter.CapabilityDeploymentLifecycle, adapter.CapabilityRollback, adapter.CapabilityScaling,
+		},
+		healthy:     true,
+		deployments: make([]*adapter.Deployment, 0),
+		packages:    make([]*adapter.DeploymentPackage, 0),
 	}
 }
 
@@ -61,7 +63,9 @@ func (m *mockAdapter) Name() string                       { return m.name }
 func (m *mockAdapter) Version() string                    { return m.version }
 func (m *mockAdapter) Capabilities() []adapter.Capability { return m.capabilities }
 
-func (m *mockAdapter) ListDeploymentPackages(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
+func (m *mockAdapter) ListDeploymentPackages(
+	_ context.Context, _ *adapter.Filter,
+) ([]*adapter.DeploymentPackage, error) {
 	return m.packages, nil
 }
 
@@ -77,7 +81,9 @@ func (m *mockAdapter) GetDeploymentPackage(_ context.Context, id string) (*adapt
 	return nil, adapter.ErrPackageNotFound
 }
 
-func (m *mockAdapter) UploadDeploymentPackage(_ context.Context, pkg *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
+func (m *mockAdapter) UploadDeploymentPackage(
+	_ context.Context, pkg *adapter.DeploymentPackageUpload,
+) (*adapter.DeploymentPackage, error) {
 	newPkg := &adapter.DeploymentPackage{
 		ID:          "pkg-" + pkg.Name,
 		Name:        pkg.Name,
@@ -138,7 +144,9 @@ func (m *mockAdapter) CreateDeployment(_ context.Context, req *adapter.Deploymen
 	return deployment, nil
 }
 
-func (m *mockAdapter) UpdateDeployment(_ context.Context, id string, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+func (m *mockAdapter) UpdateDeployment(
+	_ context.Context, id string, update *adapter.DeploymentUpdate,
+) (*adapter.Deployment, error) {
 	if m.updateDeploymentErr != nil {
 		return nil, m.updateDeploymentErr
 	}
@@ -1291,7 +1299,11 @@ func TestHandler_ListWithFilter(t *testing.T) {
 	}
 
 	// Test with namespace filter.
-	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments?namespace=default&status=deployed&limit=10&offset=0", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/o2dms/v1/nfDeployments?namespace=default&status=deployed&limit=10&offset=0",
+		nil,
+	)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -1997,7 +2009,9 @@ func TestRollbackNFDeployment_InvalidBody(t *testing.T) {
 	}
 
 	// Test with invalid JSON body.
-	req := httptest.NewRequest(http.MethodPost, "/o2dms/v1/nfDeployments/dep-1/rollback", bytes.NewReader([]byte("invalid")))
+	req := httptest.NewRequest(
+		http.MethodPost, "/o2dms/v1/nfDeployments/dep-1/rollback", bytes.NewReader([]byte("invalid")),
+	)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 

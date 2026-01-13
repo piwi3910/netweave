@@ -14,7 +14,11 @@ import (
 // ListResourcePools retrieves all resource pools matching the provided filter.
 // In "cluster" mode, it lists vSphere Clusters.
 // In "pool" mode, it lists vSphere Resource Pools.
-func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) (pools []*adapter.ResourcePool, err error) {
+func (a *Adapter) ListResourcePools(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "ListResourcePools", start, err) }()
 
@@ -23,9 +27,11 @@ func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter)
 		zap.String("poolMode", a.poolMode))
 
 	if a.poolMode == "pool" {
-		return a.listVSpherePools(ctx, filter)
+		pools, err := a.listVSpherePools(ctx, filter)
+		return pools, err
 	}
-	return a.listClusterPools(ctx, filter)
+	pools, err := a.listClusterPools(ctx, filter)
+	return pools, err
 }
 
 // listClusterPools lists vSphere Clusters as resource pools.
@@ -194,7 +200,11 @@ func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.Reso
 }
 
 // CreateResourcePool creates a new resource pool.
-func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *Adapter) CreateResourcePool(
+	_ context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "CreateResourcePool", start, err) }()
 
@@ -202,11 +212,17 @@ func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePo
 		zap.String("name", pool.Name))
 
 	// Creating vSphere resource pools/clusters requires additional vSphere configuration
-	return nil, fmt.Errorf("creating vSphere resource pools is not yet implemented")
+	err = fmt.Errorf("creating vSphere resource pools is not yet implemented")
+	return nil, err
 }
 
 // UpdateResourcePool updates an existing resource pool.
-func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *Adapter) UpdateResourcePool(
+	_ context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "UpdateResourcePool", start, err) }()
 
@@ -214,7 +230,8 @@ func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter
 		zap.String("id", id),
 		zap.String("name", pool.Name))
 
-	return nil, fmt.Errorf("updating vSphere resource pools is not yet implemented")
+	err = fmt.Errorf("updating vSphere resource pools is not yet implemented")
+	return nil, err
 }
 
 // DeleteResourcePool deletes a resource pool by ID.

@@ -213,20 +213,34 @@ func TestDocsEndpoints_SRIHashes(t *testing.T) {
 	bodyStr := string(body)
 
 	// Verify CSS has SRI hash
-	assert.True(t, strings.Contains(bodyStr, `href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" integrity="sha384-`),
-		"CSS should have integrity hash")
+	assert.True(t,
+		strings.Contains(
+			bodyStr, `href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" integrity="sha384-`,
+		),
+		"CSS should have integrity hash",
+	)
 
 	// Verify JS bundle has SRI hash
-	assert.True(t, strings.Contains(bodyStr, `src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js" integrity="sha384-`),
-		"JS bundle should have integrity hash")
+	assert.True(t,
+		strings.Contains(
+			bodyStr, `src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js" integrity="sha384-`,
+		),
+		"JS bundle should have integrity hash",
+	)
 
 	// Verify JS preset has SRI hash
-	assert.True(t, strings.Contains(bodyStr, `src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js" integrity="sha384-`),
-		"JS preset should have integrity hash")
+	assert.True(t,
+		strings.Contains(
+			bodyStr,
+			`src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js" integrity="sha384-`,
+		),
+		"JS preset should have integrity hash",
+	)
 
 	// Count total integrity attributes
 	integrityCount := strings.Count(bodyStr, `integrity="sha384-`)
-	assert.Equal(t, expectedCDNResourceCount, integrityCount, "Should have exactly 3 integrity hashes (CSS, bundle JS, preset JS)")
+	assert.Equal(t, expectedCDNResourceCount, integrityCount,
+		"Should have exactly 3 integrity hashes (CSS, bundle JS, preset JS)")
 
 	// Verify crossorigin attribute on all CDN resources
 	crossoriginCount := strings.Count(bodyStr, `crossorigin="anonymous"`)

@@ -16,7 +16,11 @@ import (
 // ListResourcePools retrieves all resource pools matching the provided filter.
 // In "zone" mode, it lists Zones in the region.
 // In "ig" mode, it lists Instance Groups.
-func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) (pools []*adapter.ResourcePool, err error) {
+func (a *Adapter) ListResourcePools(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "ListResourcePools", start, err) }()
 
@@ -25,9 +29,11 @@ func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter)
 		zap.String("poolMode", a.poolMode))
 
 	if a.poolMode == "ig" {
-		return a.listIGPools(ctx, filter)
+		pools, err := a.listIGPools(ctx, filter)
+		return pools, err
 	}
-	return a.listZonePools(ctx, filter)
+	pools, err := a.listZonePools(ctx, filter)
+	return pools, err
 }
 
 // listZonePools lists Zones as resource pools.
@@ -215,7 +221,11 @@ func (a *Adapter) getIGPool(ctx context.Context, id string) (*adapter.ResourcePo
 // CreateResourcePool creates a new resource pool.
 // In "zone" mode, this operation is not supported (zones are GCP-managed).
 // In "ig" mode, this could create a new Instance Group.
-func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *Adapter) CreateResourcePool(
+	_ context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "CreateResourcePool", start, err) }()
 
@@ -223,15 +233,25 @@ func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePo
 		zap.String("name", pool.Name))
 
 	if a.poolMode == poolModeZone {
-		return nil, fmt.Errorf("cannot create resource pools in 'zone' mode: zones are GCP-managed")
+		err = fmt.Errorf(
+			"cannot create resource pools in 'zone' mode: " +
+				"zones are GCP-managed",
+		)
+		return nil, err
 	}
 
 	// In IG mode, we could create an Instance Group
-	return nil, fmt.Errorf("creating Instance Groups is not yet implemented")
+	err = fmt.Errorf("creating Instance Groups is not yet implemented")
+	return nil, err
 }
 
 // UpdateResourcePool updates an existing resource pool.
-func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (result *adapter.ResourcePool, err error) {
+func (a *Adapter) UpdateResourcePool(
+	_ context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "UpdateResourcePool", start, err) }()
 
@@ -240,10 +260,12 @@ func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter
 		zap.String("name", pool.Name))
 
 	if a.poolMode == poolModeZone {
-		return nil, fmt.Errorf("cannot update resource pools in 'zone' mode: zones are GCP-managed")
+		err = fmt.Errorf("cannot update resource pools in 'zone' mode: zones are GCP-managed")
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("updating Instance Groups is not yet implemented")
+	err = fmt.Errorf("updating Instance Groups is not yet implemented")
+	return nil, err
 }
 
 // DeleteResourcePool deletes a resource pool by ID.

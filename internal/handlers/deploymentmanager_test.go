@@ -21,7 +21,10 @@ type mockDeploymentManagerAdapter struct {
 	getDeploymentManagerFunc func(ctx context.Context, id string) (*adapter.DeploymentManager, error)
 }
 
-func (m *mockDeploymentManagerAdapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
+func (m *mockDeploymentManagerAdapter) GetDeploymentManager(
+	ctx context.Context,
+	id string,
+) (*adapter.DeploymentManager, error) {
 	if m.getDeploymentManagerFunc != nil {
 		return m.getDeploymentManagerFunc(ctx, id)
 	}

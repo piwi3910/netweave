@@ -39,15 +39,24 @@ func newMockResourcePoolAdapter() *mockResourcePoolAdapter {
 	}
 }
 
-func (m *mockResourcePoolAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockResourcePoolAdapter) CreateResourcePool(
+	_ context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	if _, exists := m.pools[pool.ResourcePoolID]; exists {
-		return nil, fmt.Errorf("resource pool with ID %s already exists: %w", pool.ResourcePoolID, adapter.ErrResourcePoolExists)
+		return nil, fmt.Errorf(
+			"resource pool with ID %s already exists: %w", pool.ResourcePoolID, adapter.ErrResourcePoolExists,
+		)
 	}
 	m.pools[pool.ResourcePoolID] = pool
 	return pool, nil
 }
 
-func (m *mockResourcePoolAdapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockResourcePoolAdapter) UpdateResourcePool(
+	_ context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	if _, exists := m.pools[id]; !exists {
 		return nil, adapter.ErrResourcePoolNotFound
 	}
@@ -623,14 +632,21 @@ type errorReturningResourcePoolAdapter struct {
 	errorOn string // "create", "update", "delete"
 }
 
-func (e *errorReturningResourcePoolAdapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (e *errorReturningResourcePoolAdapter) CreateResourcePool(
+	ctx context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	if e.errorOn == "create" {
 		return nil, errors.New("simulated adapter create error")
 	}
 	return e.mockResourcePoolAdapter.CreateResourcePool(ctx, pool)
 }
 
-func (e *errorReturningResourcePoolAdapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (e *errorReturningResourcePoolAdapter) UpdateResourcePool(
+	ctx context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	if e.errorOn == "update" {
 		return nil, errors.New("simulated adapter update error")
 	}

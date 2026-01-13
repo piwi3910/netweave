@@ -905,11 +905,19 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 	resourcePoolID := c.Param("resourcePoolId")
 	if err := s.adapter.DeleteResourcePool(c.Request.Context(), resourcePoolID); err != nil {
 		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "NotFound", "message": "Resource pool not found: " + resourcePoolID, "code": http.StatusNotFound})
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource pool not found: " + resourcePoolID,
+				"code":    http.StatusNotFound,
+			})
 			return
 		}
 		s.logger.Error("failed to delete resource pool", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "InternalError", "message": "Failed to delete resource pool", "code": http.StatusInternalServerError})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to delete resource pool",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -1198,11 +1206,19 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 	resourceID := c.Param("resourceId")
 	if err := s.adapter.DeleteResource(c.Request.Context(), resourceID); err != nil {
 		if errors.Is(err, adapter.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "NotFound", "message": "Resource not found: " + resourceID, "code": http.StatusNotFound})
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource not found: " + resourceID,
+				"code":    http.StatusNotFound,
+			})
 			return
 		}
 		s.logger.Error("failed to delete resource", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "InternalError", "message": "Failed to delete resource", "code": http.StatusInternalServerError})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to delete resource",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 	c.Status(http.StatusNoContent)

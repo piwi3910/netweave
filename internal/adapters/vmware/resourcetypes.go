@@ -12,7 +12,11 @@ import (
 
 // ListResourceTypes retrieves all resource types (VM profiles) matching the provided filter.
 // Resource types are derived from the existing VMs in the datacenter.
-func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter) (resourceTypes []*adapter.ResourceType, err error) {
+func (a *Adapter) ListResourceTypes(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourceType, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "ListResourceTypes", start, err) }()
 
@@ -24,6 +28,8 @@ func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list VMs: %w", err)
 	}
+
+	var resourceTypes []*adapter.ResourceType
 
 	// Map to track unique resource types
 	seen := make(map[string]bool)

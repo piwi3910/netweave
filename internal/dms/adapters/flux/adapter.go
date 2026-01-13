@@ -315,7 +315,9 @@ func (f *Adapter) Capabilities() []adapter.Capability {
 
 // ListDeploymentPackages retrieves deployment packages from Flux sources.
 // In Flux, packages are GitRepositories and HelmRepositories.
-func (f *Adapter) ListDeploymentPackages(ctx context.Context, filter *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
+func (f *Adapter) ListDeploymentPackages(
+	ctx context.Context, filter *adapter.Filter,
+) ([]*adapter.DeploymentPackage, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
@@ -414,7 +416,9 @@ func (f *Adapter) searchAllRepositories(ctx context.Context, id string) (*adapte
 
 // UploadDeploymentPackage creates a reference to a Flux source.
 // Flux uses Git and Helm repositories as package sources.
-func (f *Adapter) UploadDeploymentPackage(ctx context.Context, pkg *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
+func (f *Adapter) UploadDeploymentPackage(
+	ctx context.Context, pkg *adapter.DeploymentPackageUpload,
+) (*adapter.DeploymentPackage, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
@@ -454,7 +458,8 @@ func (f *Adapter) UploadDeploymentPackage(ctx context.Context, pkg *adapter.Depl
 // DeleteDeploymentPackage is not directly supported in Flux.
 // Source resources should be managed directly in the cluster.
 func (f *Adapter) DeleteDeploymentPackage(_ context.Context, _ string) error {
-	return fmt.Errorf("%w: Flux does not support package deletion through this adapter - manage source resources directly", ErrOperationNotSupported)
+	return fmt.Errorf("%w: Flux does not support package deletion through this adapter "+
+		"- manage source resources directly", ErrOperationNotSupported)
 }
 
 // ListDeployments retrieves all Flux deployments (HelmReleases and Kustomizations).
@@ -480,7 +485,9 @@ func (f *Adapter) ListDeployments(ctx context.Context, filter *adapter.Filter) (
 	return deployments, nil
 }
 
-func (f *Adapter) fetchFluxResources(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+func (f *Adapter) fetchFluxResources(
+	ctx context.Context, filter *adapter.Filter,
+) ([]*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	helmReleases, err := f.listHelmReleases(ctx, filter)
 	if err != nil {
 		return nil, nil, err
@@ -575,7 +582,9 @@ func (f *Adapter) CreateDeployment(ctx context.Context, req *adapter.DeploymentR
 }
 
 // UpdateDeployment updates an existing Flux deployment.
-func (f *Adapter) UpdateDeployment(ctx context.Context, id string, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+func (f *Adapter) UpdateDeployment(
+	ctx context.Context, id string, update *adapter.DeploymentUpdate,
+) (*adapter.Deployment, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
@@ -698,7 +707,8 @@ func (f *Adapter) rollbackHelmRelease(ctx context.Context, hr *unstructured.Unst
 		return err
 	}
 
-	_, err := f.dynamicClient.Resource(helmReleaseGVR).Namespace(f.config.Namespace).Update(ctx, hr, metav1.UpdateOptions{})
+	_, err := f.dynamicClient.Resource(helmReleaseGVR).
+		Namespace(f.config.Namespace).Update(ctx, hr, metav1.UpdateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to update helm release: %w", err)
 	}
@@ -706,7 +716,9 @@ func (f *Adapter) rollbackHelmRelease(ctx context.Context, hr *unstructured.Unst
 }
 
 // forceReconciliation forces Flux to reconcile a resource.
-func (f *Adapter) forceReconciliation(ctx context.Context, obj *unstructured.Unstructured, gvr schema.GroupVersionResource) error {
+func (f *Adapter) forceReconciliation(
+	ctx context.Context, obj *unstructured.Unstructured, gvr schema.GroupVersionResource,
+) error {
 	if err := f.addReconciliationAnnotation(obj); err != nil {
 		return err
 	}
@@ -881,7 +893,9 @@ func (f *Adapter) listHelmReleases(ctx context.Context, filter *adapter.Filter) 
 }
 
 // listKustomizations retrieves Flux Kustomizations with optional filtering.
-func (f *Adapter) listKustomizations(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, error) {
+func (f *Adapter) listKustomizations(
+	ctx context.Context, filter *adapter.Filter,
+) ([]*unstructured.Unstructured, error) {
 	namespace := f.config.Namespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
@@ -906,7 +920,9 @@ func (f *Adapter) listKustomizations(ctx context.Context, filter *adapter.Filter
 }
 
 // listGitRepositories retrieves Flux GitRepositories.
-func (f *Adapter) listGitRepositories(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, error) {
+func (f *Adapter) listGitRepositories(
+	ctx context.Context, filter *adapter.Filter,
+) ([]*unstructured.Unstructured, error) {
 	namespace := f.config.SourceNamespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
@@ -931,7 +947,9 @@ func (f *Adapter) listGitRepositories(ctx context.Context, filter *adapter.Filte
 }
 
 // listHelmRepositories retrieves Flux HelmRepositories.
-func (f *Adapter) listHelmRepositories(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, error) {
+func (f *Adapter) listHelmRepositories(
+	ctx context.Context, filter *adapter.Filter,
+) ([]*unstructured.Unstructured, error) {
 	namespace := f.config.SourceNamespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
@@ -957,7 +975,8 @@ func (f *Adapter) listHelmRepositories(ctx context.Context, filter *adapter.Filt
 
 // getHelmRelease retrieves a single Flux HelmRelease by name.
 func (f *Adapter) getHelmRelease(ctx context.Context, name string) (*unstructured.Unstructured, error) {
-	resource, err := f.dynamicClient.Resource(helmReleaseGVR).Namespace(f.config.Namespace).Get(ctx, name, metav1.GetOptions{})
+	resource, err := f.dynamicClient.Resource(helmReleaseGVR).
+		Namespace(f.config.Namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get helm release: %w", err)
 	}
@@ -966,7 +985,8 @@ func (f *Adapter) getHelmRelease(ctx context.Context, name string) (*unstructure
 
 // getKustomization retrieves a single Flux Kustomization by name.
 func (f *Adapter) getKustomization(ctx context.Context, name string) (*unstructured.Unstructured, error) {
-	resource, err := f.dynamicClient.Resource(kustomizationGVR).Namespace(f.config.Namespace).Get(ctx, name, metav1.GetOptions{})
+	resource, err := f.dynamicClient.Resource(kustomizationGVR).
+		Namespace(f.config.Namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kustomization: %w", err)
 	}
@@ -1037,7 +1057,8 @@ func (f *Adapter) createHelmRelease(ctx context.Context, req *adapter.Deployment
 		}
 	}
 
-	result, err := f.dynamicClient.Resource(helmReleaseGVR).Namespace(f.config.Namespace).Create(ctx, hr, metav1.CreateOptions{})
+	result, err := f.dynamicClient.Resource(helmReleaseGVR).
+		Namespace(f.config.Namespace).Create(ctx, hr, metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Flux HelmRelease: %w", err)
 	}
@@ -1046,7 +1067,9 @@ func (f *Adapter) createHelmRelease(ctx context.Context, req *adapter.Deployment
 }
 
 // createKustomization creates a new Flux Kustomization.
-func (f *Adapter) createKustomization(ctx context.Context, req *adapter.DeploymentRequest) (*adapter.Deployment, error) {
+func (f *Adapter) createKustomization(
+	ctx context.Context, req *adapter.DeploymentRequest,
+) (*adapter.Deployment, error) {
 	path, _ := req.Extensions["flux.path"].(string)
 	sourceRef, _ := req.Extensions["flux.sourceRef"].(string)
 	sourceKind, _ := req.Extensions["flux.sourceKind"].(string)
@@ -1094,7 +1117,8 @@ func (f *Adapter) createKustomization(ctx context.Context, req *adapter.Deployme
 		},
 	}
 
-	result, err := f.dynamicClient.Resource(kustomizationGVR).Namespace(f.config.Namespace).Create(ctx, ks, metav1.CreateOptions{})
+	result, err := f.dynamicClient.Resource(kustomizationGVR).
+		Namespace(f.config.Namespace).Create(ctx, ks, metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Flux Kustomization: %w", err)
 	}
@@ -1103,7 +1127,9 @@ func (f *Adapter) createKustomization(ctx context.Context, req *adapter.Deployme
 }
 
 // updateHelmRelease updates an existing Flux HelmRelease.
-func (f *Adapter) updateHelmRelease(ctx context.Context, hr *unstructured.Unstructured, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+func (f *Adapter) updateHelmRelease(
+	ctx context.Context, hr *unstructured.Unstructured, update *adapter.DeploymentUpdate,
+) (*adapter.Deployment, error) {
 	// Update chart version if specified
 	if chartVersion, ok := update.Extensions["flux.chartVersion"].(string); ok && chartVersion != "" {
 		if err := unstructured.SetNestedField(hr.Object, chartVersion, "spec", "chart", "spec", "version"); err != nil {
@@ -1129,7 +1155,8 @@ func (f *Adapter) updateHelmRelease(ctx context.Context, hr *unstructured.Unstru
 		}
 	}
 
-	result, err := f.dynamicClient.Resource(helmReleaseGVR).Namespace(f.config.Namespace).Update(ctx, hr, metav1.UpdateOptions{})
+	result, err := f.dynamicClient.Resource(helmReleaseGVR).
+		Namespace(f.config.Namespace).Update(ctx, hr, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update Flux HelmRelease: %w", err)
 	}
@@ -1138,7 +1165,9 @@ func (f *Adapter) updateHelmRelease(ctx context.Context, hr *unstructured.Unstru
 }
 
 // updateKustomization updates an existing Flux Kustomization.
-func (f *Adapter) updateKustomization(ctx context.Context, ks *unstructured.Unstructured, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+func (f *Adapter) updateKustomization(
+	ctx context.Context, ks *unstructured.Unstructured, update *adapter.DeploymentUpdate,
+) (*adapter.Deployment, error) {
 	// Update path if specified
 	if path, ok := update.Extensions["flux.path"].(string); ok && path != "" {
 		// Validate path to prevent directory traversal attacks
@@ -1162,7 +1191,8 @@ func (f *Adapter) updateKustomization(ctx context.Context, ks *unstructured.Unst
 		}
 	}
 
-	result, err := f.dynamicClient.Resource(kustomizationGVR).Namespace(f.config.Namespace).Update(ctx, ks, metav1.UpdateOptions{})
+	result, err := f.dynamicClient.Resource(kustomizationGVR).
+		Namespace(f.config.Namespace).Update(ctx, ks, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update Flux Kustomization: %w", err)
 	}

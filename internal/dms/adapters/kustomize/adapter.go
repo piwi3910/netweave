@@ -311,7 +311,9 @@ func (k *Adapter) listConfigMaps(ctx context.Context, filter *adapter.Filter) (*
 	return cms, nil
 }
 
-func (k *Adapter) filterAndTransformConfigMaps(items []unstructured.Unstructured, filter *adapter.Filter) []*adapter.Deployment {
+func (k *Adapter) filterAndTransformConfigMaps(
+	items []unstructured.Unstructured, filter *adapter.Filter,
+) []*adapter.Deployment {
 	deployments := make([]*adapter.Deployment, 0, len(items))
 	for i := range items {
 		deployment := k.transformConfigMapToDeployment(&items[i])
@@ -417,7 +419,9 @@ func (k *Adapter) getNamespaceOrDefault(namespace string) string {
 	return namespace
 }
 
-func (k *Adapter) buildConfigMapForDeployment(req *adapter.DeploymentRequest, namespace, path string) *unstructured.Unstructured {
+func (k *Adapter) buildConfigMapForDeployment(
+	req *adapter.DeploymentRequest, namespace, path string,
+) *unstructured.Unstructured {
 	now := time.Now()
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{

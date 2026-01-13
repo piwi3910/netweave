@@ -256,8 +256,14 @@ func TestMemoryPackageStore_List(t *testing.T) {
 
 	// Create test packages
 	packages := []*adapter.DeploymentPackage{
-		{ID: "helm-1", Name: "nginx", Version: "1.0.0", PackageType: "helm-chart", UploadedAt: time.Now().Add(-2 * time.Hour)},
-		{ID: "helm-2", Name: "nginx", Version: "2.0.0", PackageType: "helm-chart", UploadedAt: time.Now().Add(-1 * time.Hour)},
+		{
+			ID: "helm-1", Name: "nginx", Version: "1.0.0", PackageType: "helm-chart",
+			UploadedAt: time.Now().Add(-2 * time.Hour),
+		},
+		{
+			ID: "helm-2", Name: "nginx", Version: "2.0.0", PackageType: "helm-chart",
+			UploadedAt: time.Now().Add(-1 * time.Hour),
+		},
 		{ID: "helm-3", Name: "redis", Version: "1.0.0", PackageType: "helm-chart", UploadedAt: time.Now()},
 		{ID: "git-1", Name: "my-app", Version: "1.0.0", PackageType: "git-repo", UploadedAt: time.Now()},
 	}

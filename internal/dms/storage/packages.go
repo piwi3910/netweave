@@ -236,7 +236,11 @@ func (s *MemoryPackageStore) Get(ctx context.Context, id string) (*adapter.Deplo
 }
 
 // GetByNameVersion retrieves a package by name and version.
-func (s *MemoryPackageStore) GetByNameVersion(ctx context.Context, name, version string) (*adapter.DeploymentPackage, error) {
+func (s *MemoryPackageStore) GetByNameVersion(
+	ctx context.Context,
+	name,
+	version string,
+) (*adapter.DeploymentPackage, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}

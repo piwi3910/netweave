@@ -96,7 +96,9 @@ func (s *Server) handleSwaggerUI(c *gin.Context) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>O2-IMS API Documentation</title>
-    <link rel="stylesheet" type="text/css" href="` + swaggerUICSSURL + `" integrity="` + swaggerUICSSSRI + `" crossorigin="anonymous">
+//	@SecurityDefinitions.apikey BearerAuth
+//	@in header
+//	@name Authorization
     <style>
         html { box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }
         *, *:before, *:after { box-sizing: inherit; }
