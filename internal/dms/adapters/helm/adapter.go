@@ -756,17 +756,17 @@ func (h *Adapter) streamPodLogs(ctx context.Context, clientset *kubernetes.Clien
 	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, logOpts)
 	logs, err := req.Stream(ctx)
 	if err != nil {
-		logBuffer.WriteString(fmt.Sprintf("Error retrieving logs: %v\n", err))
+		fmt.Fprintf(logBuffer, "Error retrieving logs: %v\n", err)
 		return
 	}
 	defer func() {
 		if err := logs.Close(); err != nil {
-			logBuffer.WriteString(fmt.Sprintf("\nError closing log stream: %v\n", err))
+			fmt.Fprintf(logBuffer, "\nError closing log stream: %v\n", err)
 		}
 	}()
 
 	if _, err := io.Copy(logBuffer, logs); err != nil {
-		logBuffer.WriteString(fmt.Sprintf("Error reading logs: %v\n", err))
+		fmt.Fprintf(logBuffer, "Error reading logs: %v\n", err)
 	}
 }
 
