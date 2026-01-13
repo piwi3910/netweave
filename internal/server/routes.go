@@ -903,30 +903,15 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 // DELETE /o2ims/v1/resourcePools/:resourcePoolId.
 func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 	resourcePoolID := c.Param("resourcePoolId")
-	s.logger.Info("deleting resource pool", zap.String("resource_pool_id", resourcePoolID))
-
-	// Delete resource pool via adapter
 	if err := s.adapter.DeleteResourcePool(c.Request.Context(), resourcePoolID); err != nil {
-		// Check for not found error using sentinel error
 		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Resource pool not found: " + resourcePoolID,
-				"code":    http.StatusNotFound,
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": "NotFound", "message": "Resource pool not found: " + resourcePoolID, "code": http.StatusNotFound})
 			return
 		}
-
 		s.logger.Error("failed to delete resource pool", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to delete resource pool",
-			"code":    http.StatusInternalServerError,
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "InternalError", "message": "Failed to delete resource pool", "code": http.StatusInternalServerError})
 		return
 	}
-
-	s.logger.Info("resource pool deleted", zap.String("resource_pool_id", resourcePoolID))
 	c.Status(http.StatusNoContent)
 }
 
@@ -1211,30 +1196,15 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 
 func (s *Server) handleDeleteResource(c *gin.Context) {
 	resourceID := c.Param("resourceId")
-	s.logger.Info("deleting resource", zap.String("resource_id", resourceID))
-
-	// Delete resource via adapter
 	if err := s.adapter.DeleteResource(c.Request.Context(), resourceID); err != nil {
-		// Check for not found error using sentinel error
 		if errors.Is(err, adapter.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Resource not found: " + resourceID,
-				"code":    http.StatusNotFound,
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": "NotFound", "message": "Resource not found: " + resourceID, "code": http.StatusNotFound})
 			return
 		}
-
 		s.logger.Error("failed to delete resource", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to delete resource",
-			"code":    http.StatusInternalServerError,
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "InternalError", "message": "Failed to delete resource", "code": http.StatusInternalServerError})
 		return
 	}
-
-	s.logger.Info("resource deleted", zap.String("resource_id", resourceID))
 	c.Status(http.StatusNoContent)
 }
 
