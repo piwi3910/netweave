@@ -90,6 +90,39 @@ func (m *mockResourceAdapter) UpdateResource(
 	return resource, nil
 }
 
+// doResourceRequest is a test helper for making HTTP requests to resource endpoints.
+func doResourceRequest(t *testing.T, srv *Server, method, path string, body interface{}) (*httptest.ResponseRecorder, []byte) {
+	t.Helper()
+	var reqBody *bytes.Reader
+	if body != nil {
+		jsonBytes, err := json.Marshal(body)
+		require.NoError(t, err)
+		reqBody = bytes.NewReader(jsonBytes)
+		req := httptest.NewRequest(method, path, reqBody)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+		srv.router.ServeHTTP(resp, req)
+		return resp, resp.Body.Bytes()
+	}
+	req := httptest.NewRequest(method, path, nil)
+	resp := httptest.NewRecorder()
+	srv.router.ServeHTTP(resp, req)
+	return resp, resp.Body.Bytes()
+}
+
+// createTestResource is a helper that creates a test resource and returns the response.
+func createTestResource(t *testing.T, srv *Server, resource adapter.Resource) (*adapter.Resource, *httptest.ResponseRecorder) {
+	t.Helper()
+	resp, respBody := doResourceRequest(t, srv, http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", resource)
+	if resp.Code != http.StatusCreated {
+		return nil, resp
+	}
+	var created adapter.Resource
+	err := json.Unmarshal(respBody, &created)
+	require.NoError(t, err)
+	return &created, resp
+}
+
 func TestResourceCRUD(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
 	gin.SetMode(gin.TestMode)
@@ -110,24 +143,8 @@ func TestResourceCRUD(t *testing.T) {
 			Description:    "Test compute resource",
 		}
 
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
+		created, resp := createTestResource(t, srv, resource)
 		assert.Equal(t, http.StatusCreated, resp.Code)
-
-		var created adapter.Resource
-		err = json.Unmarshal(resp.Body.Bytes(), &created)
-		require.NoError(t, err)
 		assert.Equal(t, resource.ResourceTypeID, created.ResourceTypeID)
 		assert.NotEmpty(t, created.ResourceID)
 	})
@@ -138,30 +155,12 @@ func TestResourceCRUD(t *testing.T) {
 			ResourcePoolID: "pool-1",
 		}
 
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
+		created, resp := createTestResource(t, srv, resource)
 		require.Equal(t, http.StatusCreated, resp.Code)
 
-		// Verify Location header is set
 		location := resp.Header().Get("Location")
 		require.NotEmpty(t, location, "Location header should be set")
 		require.Contains(t, location, "/o2ims/v1/resources/", "Location header should contain resource path")
-
-		// Verify Location header contains the resource ID
-		var created adapter.Resource
-		err = json.Unmarshal(resp.Body.Bytes(), &created)
-		require.NoError(t, err)
 		require.Contains(t, location, created.ResourceID, "Location header should contain the created resource ID")
 	})
 
@@ -171,21 +170,9 @@ func TestResourceCRUD(t *testing.T) {
 			Description:    "Test resource",
 		}
 
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
+		resp, respBody := doResourceRequest(t, srv, http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", resource)
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "resource type ID is required")
+		assert.Contains(t, string(respBody), "resource type ID is required")
 	})
 
 	t.Run("POST /resources - validation error (empty resourcePoolId)", func(t *testing.T) {
@@ -194,21 +181,9 @@ func TestResourceCRUD(t *testing.T) {
 			Description:    "Test resource",
 		}
 
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
+		resp, respBody := doResourceRequest(t, srv, http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", resource)
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "resource pool ID is required")
+		assert.Contains(t, string(respBody), "resource pool ID is required")
 	})
 
 	t.Run("POST /resources - security: reject invalid UUID (path traversal)", func(t *testing.T) {
