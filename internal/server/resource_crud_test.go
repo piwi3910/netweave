@@ -973,6 +973,7 @@ func TestResourceConcurrency(t *testing.T) {
 
 // executeConcurrentCreate performs a concurrent create operation for testing.
 func executeConcurrentCreate(t *testing.T, srv *Server, resourceID string, results chan<- string) {
+	t.Helper()
 	resource := adapter.Resource{
 		ResourceID:     resourceID,
 		ResourceTypeID: "machine",
