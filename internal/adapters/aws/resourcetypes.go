@@ -54,7 +54,11 @@ func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter)
 }
 
 // GetResourceType retrieves a specific resource type (EC2 instance type) by ID.
-func (a *Adapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
+func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
+	var (
+		resourceType *adapter.ResourceType
+		err          error
+	)
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetResourceType", start, err) }()
 
@@ -121,7 +125,7 @@ func determineResourceKind(instanceType *ec2Types.InstanceTypeInfo) string {
 }
 
 // parseInstanceType extracts family and size from instance type name.
-func parseInstanceType(typeName string) (family, size string) {
+func parseInstanceType(typeName string) (string, string) {
 	parts := strings.Split(typeName, ".")
 	if len(parts) >= 2 {
 		return parts[0], parts[1]

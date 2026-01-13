@@ -76,7 +76,11 @@ func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (re
 }
 
 // GetResource retrieves a specific resource (EC2 instance) by ID.
-func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
+func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+	var (
+		resource *adapter.Resource
+		err      error
+	)
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetResource", start, err) }()
 
@@ -234,7 +238,8 @@ func applyNameTag(input *ec2.RunInstancesInput, description string) {
 }
 
 // DeleteResource deletes a resource (terminates an EC2 instance) by ID.
-func (a *Adapter) DeleteResource(ctx context.Context, id string) (err error) {
+func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "DeleteResource", start, err) }()
 

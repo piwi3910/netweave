@@ -56,7 +56,11 @@ func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscriptio
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *Adapter) GetSubscription(_ context.Context, id string) (sub *adapter.Subscription, err error) {
+func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
+	var (
+		sub *adapter.Subscription
+		err error
+	)
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetSubscription", start, err) }()
 
@@ -117,7 +121,8 @@ func (a *Adapter) UpdateSubscription(_ context.Context, id string, sub *adapter.
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *Adapter) DeleteSubscription(_ context.Context, id string) (err error) {
+func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "DeleteSubscription", start, err) }()
 

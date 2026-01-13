@@ -188,13 +188,13 @@ func validateGCPConfig(cfg *Config) error {
 }
 
 // applyGCPDefaults applies default values to configuration.
-func applyGCPDefaults(cfg *Config) (deploymentManagerID, poolMode string) {
-	deploymentManagerID = cfg.DeploymentManagerID
+func applyGCPDefaults(cfg *Config) (string, string) {
+	deploymentManagerID := cfg.DeploymentManagerID
 	if deploymentManagerID == "" {
 		deploymentManagerID = fmt.Sprintf("ocloud-gcp-%s", cfg.Region)
 	}
 
-	poolMode = cfg.PoolMode
+	poolMode := cfg.PoolMode
 	if poolMode == "" {
 		poolMode = poolModeZone
 	}
@@ -321,7 +321,8 @@ func (a *Adapter) Capabilities() []adapter.Capability {
 
 // Health performs a health check on the GCP backend.
 // It verifies connectivity to GCP services.
-func (a *Adapter) Health(ctx context.Context) (err error) {
+func (a *Adapter) Health(ctx context.Context) error {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveHealthCheck("gcp", start, err) }()
 

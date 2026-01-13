@@ -304,7 +304,8 @@ func (a *Adapter) Capabilities() []adapter.Capability {
 
 // Health performs a health check on the vSphere backend.
 // It verifies connectivity to vCenter.
-func (a *Adapter) Health(ctx context.Context) (err error) {
+func (a *Adapter) Health(ctx context.Context) error {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveHealthCheck("vmware", start, err) }()
 

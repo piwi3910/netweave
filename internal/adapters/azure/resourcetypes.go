@@ -51,7 +51,8 @@ func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter)
 }
 
 // GetResourceType retrieves a specific resource type (Azure VM size) by ID.
-func (a *Adapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
+func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetResourceType", start, err) }()
 

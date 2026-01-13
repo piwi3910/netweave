@@ -171,7 +171,8 @@ func (a *Adapter) listVSpherePools(ctx context.Context, filter *adapter.Filter) 
 }
 
 // GetResourcePool retrieves a specific resource pool by ID.
-func (a *Adapter) GetResourcePool(ctx context.Context, id string) (pool *adapter.ResourcePool, err error) {
+func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "GetResourcePool", start, err) }()
 
@@ -180,7 +181,7 @@ func (a *Adapter) GetResourcePool(ctx context.Context, id string) (pool *adapter
 
 	pools, err := a.ListResourcePools(ctx, nil)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	for _, p := range pools {
@@ -217,7 +218,8 @@ func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter
 }
 
 // DeleteResourcePool deletes a resource pool by ID.
-func (a *Adapter) DeleteResourcePool(_ context.Context, id string) (err error) {
+func (a *Adapter) DeleteResourcePool(_ context.Context, id string) error {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "DeleteResourcePool", start, err) }()
 

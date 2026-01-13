@@ -75,7 +75,8 @@ func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter)
 }
 
 // GetResourceType retrieves a specific resource type by ID.
-func (a *Adapter) GetResourceType(ctx context.Context, id string) (resourceType *adapter.ResourceType, err error) {
+func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "GetResourceType", start, err) }()
 
@@ -84,7 +85,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (resourceType 
 
 	resourceTypes, err := a.ListResourceTypes(ctx, nil)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	for _, rt := range resourceTypes {

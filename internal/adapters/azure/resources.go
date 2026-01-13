@@ -60,7 +60,11 @@ func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (re
 }
 
 // GetResource retrieves a specific resource (Azure VM) by ID.
-func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
+func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+	var (
+		resource *adapter.Resource
+		err      error
+	)
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetResource", start, err) }()
 
@@ -97,7 +101,8 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter
 }
 
 // CreateResource creates a new resource (Azure VM).
-func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
+func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "CreateResource", start, err) }()
 
@@ -123,7 +128,8 @@ func (a *Adapter) UpdateResource(_ context.Context, _ string, resource *adapter.
 }
 
 // DeleteResource deletes a resource (Azure VM) by ID.
-func (a *Adapter) DeleteResource(ctx context.Context, id string) (err error) {
+func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "DeleteResource", start, err) }()
 

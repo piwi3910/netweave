@@ -67,7 +67,8 @@ func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) (re
 }
 
 // GetResource retrieves a specific resource (VM) by ID.
-func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
+func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "GetResource", start, err) }()
 
@@ -83,7 +84,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter
 	// List all resources and find the matching one
 	resources, err := a.ListResources(ctx, nil)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	for _, res := range resources {
@@ -96,7 +97,8 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter
 }
 
 // CreateResource creates a new resource (VM).
-func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
+func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "CreateResource", start, err) }()
 
@@ -122,7 +124,8 @@ func (a *Adapter) UpdateResource(_ context.Context, _ string, resource *adapter.
 }
 
 // DeleteResource deletes a resource (VM) by ID.
-func (a *Adapter) DeleteResource(ctx context.Context, id string) (err error) {
+func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "DeleteResource", start, err) }()
 

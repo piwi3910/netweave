@@ -245,13 +245,13 @@ func validateAzureAuth(cfg *Config) error {
 }
 
 // applyAzureDefaults applies default values to configuration.
-func applyAzureDefaults(cfg *Config) (deploymentManagerID, poolMode string) {
-	deploymentManagerID = cfg.DeploymentManagerID
+func applyAzureDefaults(cfg *Config) (string, string) {
+	deploymentManagerID := cfg.DeploymentManagerID
 	if deploymentManagerID == "" {
 		deploymentManagerID = fmt.Sprintf("ocloud-azure-%s", cfg.Location)
 	}
 
-	poolMode = cfg.PoolMode
+	poolMode := cfg.PoolMode
 	if poolMode == "" {
 		poolMode = "rg"
 	}
@@ -328,7 +328,8 @@ func (a *Adapter) Capabilities() []adapter.Capability {
 
 // Health performs a health check on the Azure backend.
 // It verifies connectivity to Azure services.
-func (a *Adapter) Health(ctx context.Context) (err error) {
+func (a *Adapter) Health(ctx context.Context) error {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveHealthCheck("azure", start, err) }()
 

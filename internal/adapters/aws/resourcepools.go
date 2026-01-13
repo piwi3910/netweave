@@ -157,7 +157,8 @@ func (a *Adapter) listASGPools(ctx context.Context, filter *adapter.Filter) ([]*
 }
 
 // GetResourcePool retrieves a specific resource pool by ID.
-func (a *Adapter) GetResourcePool(ctx context.Context, id string) (pool *adapter.ResourcePool, err error) {
+func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetResourcePool", start, err) }()
 
@@ -275,7 +276,8 @@ func (a *Adapter) UpdateResourcePool(ctx context.Context, id string, pool *adapt
 // In "az" mode, this operation is not supported.
 // In "asg" mode, this deletes an Auto Scaling Group.
 // Note: This is a destructive operation. The ASG must be empty or ForceDelete must be enabled.
-func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) (err error) {
+func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "DeleteResourcePool", start, err) }()
 

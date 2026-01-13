@@ -107,7 +107,11 @@ func (a *Adapter) listInstancesInZone(ctx context.Context, zoneName string, filt
 }
 
 // GetResource retrieves a specific resource (GCP instance) by ID.
-func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter.Resource, err error) {
+func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
+	var (
+		resource *adapter.Resource
+		err      error
+	)
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "GetResource", start, err) }()
 
@@ -135,7 +139,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter
 		return nil, err
 	}
 
-	for _, resource := range resources {
+	for _, resource = range resources {
 		if resource.ResourceID == id {
 			return resource, nil
 		}
@@ -145,7 +149,8 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (resource *adapter
 }
 
 // CreateResource creates a new resource (GCP instance).
-func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) (result *adapter.Resource, err error) {
+func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "CreateResource", start, err) }()
 
@@ -171,7 +176,8 @@ func (a *Adapter) UpdateResource(_ context.Context, _ string, resource *adapter.
 }
 
 // DeleteResource deletes a resource (GCP instance) by ID.
-func (a *Adapter) DeleteResource(ctx context.Context, id string) (err error) {
+func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "DeleteResource", start, err) }()
 

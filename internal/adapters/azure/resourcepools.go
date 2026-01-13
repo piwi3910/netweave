@@ -130,7 +130,8 @@ func (a *Adapter) listAZPools(_ context.Context, filter *adapter.Filter) []*adap
 }
 
 // GetResourcePool retrieves a specific resource pool by ID.
-func (a *Adapter) GetResourcePool(ctx context.Context, id string) (pool *adapter.ResourcePool, err error) {
+func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetResourcePool", start, err) }()
 
@@ -208,7 +209,8 @@ func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter
 }
 
 // DeleteResourcePool deletes a resource pool by ID.
-func (a *Adapter) DeleteResourcePool(_ context.Context, id string) (err error) {
+func (a *Adapter) DeleteResourcePool(_ context.Context, id string) error {
+	var err error
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "DeleteResourcePool", start, err) }()
 
