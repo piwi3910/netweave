@@ -442,7 +442,7 @@ func (r *Router) IsAggregationEnabled() bool {
 	return r.aggregateMode
 }
 
-// getValidatedAdapter retrieves and validates an adapter for a matched rule.
+// GetValidatedAdapter retrieves and validates an adapter for a matched rule.
 // Returns the adapter and true if valid, nil and false otherwise.
 func (r *Router) GetValidatedAdapter(rule *Rule, routingCtx *Context) (adapter.Adapter, bool) {
 	plugin := r.registry.Get(rule.AdapterName)

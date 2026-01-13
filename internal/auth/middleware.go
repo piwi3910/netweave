@@ -132,7 +132,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		m.finalizeAuthentication(c, ctx, user, role, tenant, subject, cert.Subject.CommonName, requestID, authStart)
+		m.finalizeAuthentication(ctx, c, user, role, tenant, subject, cert.Subject.CommonName, requestID, authStart)
 	}
 }
 
@@ -157,7 +157,7 @@ func (m *Middleware) handleMissingCertificate(c *gin.Context, requestID string, 
 	})
 }
 
-func (m *Middleware) authenticateAndLoadContext(ctx context.Context, subject, requestID string) (*TenantUser, *Role, *Tenant, error) {
+func (m *Middleware) authenticateAndLoadContext(ctx context.Context, subject, _ string) (*TenantUser, *Role, *Tenant, error) {
 	user, err := m.store.GetUserBySubject(ctx, subject)
 	if err != nil {
 		return nil, nil, nil, &authError{kind: "user_lookup", err: err, subject: subject}
@@ -250,7 +250,7 @@ func (m *Middleware) handleAuthenticationError(c *gin.Context, err error, subjec
 	}
 }
 
-func (m *Middleware) finalizeAuthentication(c *gin.Context, ctx context.Context, user *TenantUser, role *Role, tenant *Tenant, subject, commonName, requestID string, authStart time.Time) {
+func (m *Middleware) finalizeAuthentication(ctx context.Context, c *gin.Context, user *TenantUser, role *Role, tenant *Tenant, subject, commonName, requestID string, authStart time.Time) {
 	authUser := &AuthenticatedUser{
 		UserID: user.ID, TenantID: user.TenantID, Subject: subject, CommonName: commonName,
 		Role: role, IsPlatformAdmin: role.Type == RoleTypePlatform && role.Name == RolePlatformAdmin,

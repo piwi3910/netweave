@@ -110,7 +110,7 @@ func TestRedisStore_Create(t *testing.T) {
 				return
 			}
 
-			validateSuccessfulCreate(t, store, ctx, tt.sub, err)
+			validateSuccessfulCreate(ctx, t, store, tt.sub, err)
 		})
 	}
 }
@@ -129,7 +129,7 @@ func validateCreateError(t *testing.T, err, wantErr error) {
 }
 
 // validateSuccessfulCreate validates successful subscription creation and retrieval.
-func validateSuccessfulCreate(t *testing.T, store *RedisStore, ctx context.Context, sub *Subscription, err error) {
+func validateSuccessfulCreate(ctx context.Context, t *testing.T, store *RedisStore, sub *Subscription, err error) {
 	t.Helper()
 
 	if err != nil {
