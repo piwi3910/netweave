@@ -24,7 +24,7 @@ import (
 )
 
 // doHTTPRequest performs an HTTP request and decodes the JSON response.
-func doHTTPRequest(t *testing.T, method, url string, body interface{}, result interface{}) *http.Response {
+func doHTTPRequest(t *testing.T, method, url string, body interface{}, result interface{}) int {
 	t.Helper()
 	var reqBody io.Reader
 	if body != nil {
@@ -42,18 +42,18 @@ func doHTTPRequest(t *testing.T, method, url string, body interface{}, result in
 	client := helpers.NewTestHTTPClient()
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	t.Cleanup(func() {
+	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			t.Logf("Failed to close response body: %v", err)
 		}
-	})
+	}()
 
 	if result != nil && resp.StatusCode != http.StatusNoContent {
 		err = json.NewDecoder(resp.Body).Decode(result)
 		require.NoError(t, err)
 	}
 
-	return resp
+	return resp.StatusCode
 }
 
 // createResourcePool creates a resource pool and returns its ID.
@@ -61,8 +61,8 @@ func createResourcePool(t *testing.T, ts *helpers.TestServer, name string) strin
 	t.Helper()
 	poolData := helpers.TestResourcePool(name)
 	var result map[string]interface{}
-	resp := doHTTPRequest(t, http.MethodPost, ts.O2IMSURL()+"/resourcePools", poolData, &result)
-	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	statusCode := doHTTPRequest(t, http.MethodPost, ts.O2IMSURL()+"/resourcePools", poolData, &result)
+	require.Equal(t, http.StatusCreated, statusCode)
 	return result["resourcePoolId"].(string)
 }
 
@@ -71,8 +71,8 @@ func createResource(t *testing.T, ts *helpers.TestServer, poolID, resourceType s
 	t.Helper()
 	resourceData := helpers.TestResource(poolID, resourceType)
 	var result map[string]interface{}
-	resp := doHTTPRequest(t, http.MethodPost, ts.O2IMSURL()+"/resources", resourceData, &result)
-	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	statusCode := doHTTPRequest(t, http.MethodPost, ts.O2IMSURL()+"/resources", resourceData, &result)
+	require.Equal(t, http.StatusCreated, statusCode)
 	return result["resourceId"].(string)
 }
 
@@ -131,9 +131,8 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		t.Skip("Skipping until server routes are properly implemented (issue #19)")
 		poolData := helpers.TestResourcePool("test-pool-1")
 		var result map[string]interface{}
-		resp := doHTTPRequest(t, http.MethodPost, ts.O2IMSURL()+"/resourcePools", poolData, &result)
-
-		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+		statusCode := doHTTPRequest(t, http.MethodPost, ts.O2IMSURL()+"/resourcePools", poolData, &result)
+		assert.Equal(t, http.StatusCreated, statusCode)
 		assert.NotEmpty(t, result["resourcePoolId"])
 		assert.Equal(t, "test-pool-1", result["name"])
 	})
@@ -144,9 +143,8 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 		poolID := createResourcePool(t, ts, "test-pool-2")
 
 		var result map[string]interface{}
-		resp := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resourcePools/"+poolID, nil, &result)
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		statusCode := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resourcePools/"+poolID, nil, &result)
+		assert.Equal(t, http.StatusOK, statusCode)
 		assert.Equal(t, poolID, result["resourcePoolId"])
 		assert.Equal(t, "test-pool-2", result["name"])
 	})
@@ -154,9 +152,8 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 	// Test 3: List resource pools
 	t.Run("ListResourcePools", func(t *testing.T) {
 		var result []map[string]interface{}
-		resp := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resourcePools", nil, &result)
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		statusCode := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resourcePools", nil, &result)
+		assert.Equal(t, http.StatusOK, statusCode)
 		assert.GreaterOrEqual(t, len(result), 2)
 	})
 
@@ -166,9 +163,8 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 
 		updateData := map[string]interface{}{"name": "test-pool-updated", "description": "Updated description"}
 		var result map[string]interface{}
-		resp := doHTTPRequest(t, http.MethodPut, ts.O2IMSURL()+"/resourcePools/"+poolID, updateData, &result)
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		statusCode := doHTTPRequest(t, http.MethodPut, ts.O2IMSURL()+"/resourcePools/"+poolID, updateData, &result)
+		assert.Equal(t, http.StatusOK, statusCode)
 		assert.Equal(t, "test-pool-updated", result["name"])
 		assert.Equal(t, "Updated description", result["description"])
 	})
@@ -177,11 +173,11 @@ func TestKubernetesAdapter_ResourcePoolLifecycle(t *testing.T) {
 	t.Run("DeleteResourcePool", func(t *testing.T) {
 		poolID := createResourcePool(t, ts, "test-pool-delete")
 
-		deleteResp := doHTTPRequest(t, http.MethodDelete, ts.O2IMSURL()+"/resourcePools/"+poolID, nil, nil)
-		assert.Equal(t, http.StatusNoContent, deleteResp.StatusCode)
+		deleteStatus := doHTTPRequest(t, http.MethodDelete, ts.O2IMSURL()+"/resourcePools/"+poolID, nil, nil)
+		assert.Equal(t, http.StatusNoContent, deleteStatus)
 
-		getResp := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resourcePools/"+poolID, nil, nil)
-		assert.Equal(t, http.StatusNotFound, getResp.StatusCode)
+		getStatus := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resourcePools/"+poolID, nil, nil)
+		assert.Equal(t, http.StatusNotFound, getStatus)
 	})
 }
 
@@ -219,9 +215,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 	t.Run("CreateResource", func(t *testing.T) {
 		resourceData := helpers.TestResource(poolID, "compute-node")
 		var result map[string]interface{}
-		resp := doHTTPRequest(t, http.MethodPost, ts.O2IMSURL()+"/resources", resourceData, &result)
-
-		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+		statusCode := doHTTPRequest(t, http.MethodPost, ts.O2IMSURL()+"/resources", resourceData, &result)
+		assert.Equal(t, http.StatusCreated, statusCode)
 		assert.NotEmpty(t, result["resourceId"])
 		assert.Equal(t, poolID, result["resourcePoolId"])
 		assert.Equal(t, "compute-node", result["resourceTypeId"])
@@ -232,9 +227,8 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 		resourceID := createResource(t, ts, poolID, "compute-node")
 
 		var result map[string]interface{}
-		resp := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resources/"+resourceID, nil, &result)
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		statusCode := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resources/"+resourceID, nil, &result)
+		assert.Equal(t, http.StatusOK, statusCode)
 		assert.Equal(t, resourceID, result["resourceId"])
 		assert.Equal(t, poolID, result["resourcePoolId"])
 	})
@@ -243,48 +237,13 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 	t.Run("ListResourcesWithFilter", func(t *testing.T) {
 		// Create multiple resources
 		for i := 0; i < 3; i++ {
-			resourceData := helpers.TestResource(poolID, "compute-node")
-			body, _ := json.Marshal(resourceData)
-			req, _ := http.NewRequestWithContext(
-				context.Background(),
-				http.MethodPost,
-				ts.O2IMSURL()+"/resources",
-				bytes.NewReader(body),
-			)
-			if req != nil {
-				req.Header.Set("Content-Type", "application/json")
-			}
-			testClient := helpers.NewTestHTTPClient()
-			resp, _ := testClient.Do(req)
-			if err := resp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
+			createResource(t, ts, poolID, "compute-node")
 		}
 
 		// List with pool filter
-		listReq, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodGet,
-			ts.O2IMSURL()+"/resources?resourcePoolId="+poolID,
-			nil,
-		)
-		require.NoError(t, err)
-
-		testClient := helpers.NewTestHTTPClient()
-		resp, err := testClient.Do(listReq)
-		require.NoError(t, err)
-		defer func() {
-			if err := resp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-
 		var result []map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		require.NoError(t, err)
-
+		statusCode := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resources?resourcePoolId="+poolID, nil, &result)
+		assert.Equal(t, http.StatusOK, statusCode)
 		assert.GreaterOrEqual(t, len(result), 3)
 
 		// All resources should belong to the specified pool
@@ -295,68 +254,15 @@ func TestKubernetesAdapter_ResourceLifecycle(t *testing.T) {
 
 	// Test 4: Delete resource
 	t.Run("DeleteResource", func(t *testing.T) {
-		resourceData := helpers.TestResource(poolID, "compute-node")
-		body, _ := json.Marshal(resourceData)
-
-		createReq, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodPost,
-			ts.O2IMSURL()+"/resources",
-			bytes.NewReader(body),
-		)
-		require.NoError(t, err)
-		createReq.Header.Set("Content-Type", "application/json")
-
-		testClient := helpers.NewTestHTTPClient()
-		createResp, err := testClient.Do(createReq)
-		require.NoError(t, err)
-		defer func() {
-			if err := createResp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
-
-		var created map[string]interface{}
-		if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
-			t.Logf("Failed to decode response: %v", err)
-		}
-		resourceID := created["resourceId"].(string)
+		resourceID := createResource(t, ts, poolID, "compute-node")
 
 		// Delete the resource
-		req, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodDelete,
-			ts.O2IMSURL()+"/resources/"+resourceID,
-			nil,
-		)
-		require.NoError(t, err)
-
-		deleteClient := &http.Client{}
-		deleteResp, err := deleteClient.Do(req)
-		require.NoError(t, err)
-		defer func() {
-			if err := deleteResp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
-
-		assert.Equal(t, http.StatusNoContent, deleteResp.StatusCode)
+		deleteStatus := doHTTPRequest(t, http.MethodDelete, ts.O2IMSURL()+"/resources/"+resourceID, nil, nil)
+		assert.Equal(t, http.StatusNoContent, deleteStatus)
 
 		// Verify deletion
-		verifyReq, _ := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodGet,
-			ts.O2IMSURL()+"/resources/"+resourceID,
-			nil,
-		)
-		verifyClient := helpers.NewTestHTTPClient()
-		getResp, _ := verifyClient.Do(verifyReq)
-		defer func() {
-			if err := getResp.Body.Close(); err != nil {
-				t.Logf("Failed to close response body: %v", err)
-			}
-		}()
-		assert.Equal(t, http.StatusNotFound, getResp.StatusCode)
+		getStatus := doHTTPRequest(t, http.MethodGet, ts.O2IMSURL()+"/resources/"+resourceID, nil, nil)
+		assert.Equal(t, http.StatusNotFound, getStatus)
 	})
 }
 

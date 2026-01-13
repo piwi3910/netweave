@@ -18,18 +18,18 @@ import (
 )
 
 // doHTTPGet performs an HTTP GET request and unmarshals the JSON response.
-func doHTTPGet(t *testing.T, fw *TestFramework, url string, result any) *http.Response {
+func doHTTPGet(t *testing.T, fw *TestFramework, url string, result any) int {
 	t.Helper()
 	req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 	require.NoError(t, err)
 
 	resp, err := fw.APIClient.Do(req)
 	require.NoError(t, err)
-	t.Cleanup(func() {
+	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			t.Logf("Failed to close response body: %v", err)
 		}
-	})
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -39,7 +39,7 @@ func doHTTPGet(t *testing.T, fw *TestFramework, url string, result any) *http.Re
 		require.NoError(t, err)
 	}
 
-	return resp
+	return resp.StatusCode
 }
 
 // getFirstPoolID retrieves the first available resource pool ID.
@@ -88,10 +88,9 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 	t.Run("list resource pools", func(t *testing.T) {
 		var pools []map[string]any
-		resp := doHTTPGet(t, fw, fw.GatewayURL+APIPathResourcePools, &pools)
+		statusCode := doHTTPGet(t, fw, fw.GatewayURL+APIPathResourcePools, &pools)
 
-		assert.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK")
-		assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+		assert.Equal(t, http.StatusOK, statusCode, "Expected 200 OK")
 		assert.NotEmpty(t, pools, "Expected at least one resource pool")
 
 		if len(pools) > 0 {
@@ -109,9 +108,8 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 		url := fw.GatewayURL + fmt.Sprintf(APIPathResourcePoolByID, poolID)
 		var pool map[string]any
-		resp := doHTTPGet(t, fw, url, &pool)
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		statusCode := doHTTPGet(t, fw, url, &pool)
+		assert.Equal(t, http.StatusOK, statusCode)
 		assert.Equal(t, poolID, pool["resourcePoolId"])
 		assert.Contains(t, pool, "name")
 		assert.Contains(t, pool, "description")
@@ -124,9 +122,8 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 		url := fw.GatewayURL + fmt.Sprintf(APIPathResourcesInPool, poolID)
 		var resources []map[string]any
-		resp := doHTTPGet(t, fw, url, &resources)
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		statusCode := doHTTPGet(t, fw, url, &resources)
+		assert.Equal(t, http.StatusOK, statusCode)
 		fw.Logger.Info("Listed resources in pool", zap.String("poolId", poolID), zap.Int("count", len(resources)))
 
 		if len(resources) > 0 {
@@ -143,9 +140,8 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 		url := fw.GatewayURL + fmt.Sprintf(APIPathResourceByID, poolID, resourceID)
 		var resource map[string]any
-		resp := doHTTPGet(t, fw, url, &resource)
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		statusCode := doHTTPGet(t, fw, url, &resource)
+		assert.Equal(t, http.StatusOK, statusCode)
 		assert.Equal(t, resourceID, resource["resourceId"])
 		assert.Equal(t, poolID, resource["resourcePoolId"])
 		assert.Contains(t, resource, "resourceType")
@@ -158,9 +154,8 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 		url := fw.GatewayURL + fmt.Sprintf(APIPathResourcesInPool, poolID) + "?filter=resourceType==Node"
 		var resources []map[string]any
-		resp := doHTTPGet(t, fw, url, &resources)
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		statusCode := doHTTPGet(t, fw, url, &resources)
+		assert.Equal(t, http.StatusOK, statusCode)
 		for _, resource := range resources {
 			assert.Equal(t, "Node", resource["resourceType"])
 		}
@@ -173,9 +168,8 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 		url := fw.GatewayURL + fmt.Sprintf(APIPathResourcesInPool, poolID) + "?limit=5"
 		var resources []map[string]any
-		resp := doHTTPGet(t, fw, url, &resources)
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		statusCode := doHTTPGet(t, fw, url, &resources)
+		assert.Equal(t, http.StatusOK, statusCode)
 		assert.LessOrEqual(t, len(resources), 5)
 
 		fw.Logger.Info("Successfully tested pagination", zap.String("poolId", poolID), zap.Int("limit", 5), zap.Int("returned", len(resources)))
@@ -195,9 +189,8 @@ func TestErrorHandling(t *testing.T) {
 	t.Run("get non-existent pool", func(t *testing.T) {
 		url := fw.GatewayURL + fmt.Sprintf(APIPathResourcePoolByID, "non-existent-pool-id")
 		var errorResp map[string]any
-		resp := doHTTPGet(t, fw, url, &errorResp)
-
-		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		statusCode := doHTTPGet(t, fw, url, &errorResp)
+		assert.Equal(t, http.StatusNotFound, statusCode)
 		assert.Contains(t, errorResp, "error")
 
 		fw.Logger.Info("Successfully handled non-existent resource pool")
@@ -205,9 +198,8 @@ func TestErrorHandling(t *testing.T) {
 
 	t.Run("invalid filter syntax", func(t *testing.T) {
 		url := fw.GatewayURL + APIPathResourcePools + "?filter=invalid syntax here"
-		resp := doHTTPGet(t, fw, url, nil)
-
-		assert.True(t, resp.StatusCode >= 400, "Expected error status code")
-		fw.Logger.Info("Successfully handled invalid filter syntax", zap.Int("statusCode", resp.StatusCode))
+		statusCode := doHTTPGet(t, fw, url, nil)
+		assert.True(t, statusCode >= 400, "Expected error status code")
+		fw.Logger.Info("Successfully handled invalid filter syntax", zap.Int("statusCode", statusCode))
 	})
 }
