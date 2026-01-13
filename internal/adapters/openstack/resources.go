@@ -143,33 +143,15 @@ func (a *Adapter) applyPaginationIfNeeded(resources []*adapter.Resource, filter 
 
 // GetResource retrieves a specific OpenStack Nova instance by ID and transforms it to O2-IMS Resource.
 func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource, error) {
-	a.logger.Debug("GetResource called",
-		zap.String("id", id))
-
-	// Parse resource ID to extract OpenStack server ID
 	var serverID string
-	_, err := fmt.Sscanf(id, "openstack-server-%s", &serverID)
-	if err != nil {
+	if _, err := fmt.Sscanf(id, "openstack-server-%s", &serverID); err != nil {
 		return nil, fmt.Errorf("invalid resource ID format: %s", id)
 	}
-
-	// Get server from OpenStack
 	osServer, err := servers.Get(a.compute, serverID).Extract()
 	if err != nil {
-		a.logger.Error("failed to get server",
-			zap.String("serverID", serverID),
-			zap.Error(err))
 		return nil, fmt.Errorf("failed to get OpenStack server %s: %w", serverID, err)
 	}
-
-	// Transform to O2-IMS Resource
-	resource := a.transformServerToResource(osServer)
-
-	a.logger.Info("retrieved resource",
-		zap.String("resourceID", resource.ResourceID),
-		zap.String("name", osServer.Name))
-
-	return resource, nil
+	return a.transformServerToResource(osServer), nil
 }
 
 // CreateResource creates a new OpenStack Nova instance from an O2-IMS Resource.

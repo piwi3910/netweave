@@ -61,33 +61,15 @@ func (a *Adapter) ListResourcePools(
 
 // GetResourcePool retrieves a specific OpenStack host aggregate by ID and transforms it to O2-IMS Resource Pool.
 func (a *Adapter) GetResourcePool(_ context.Context, id string) (*adapter.ResourcePool, error) {
-	a.logger.Debug("GetResourcePool called",
-		zap.String("id", id))
-
-	// Parse resource pool ID to extract OpenStack aggregate ID
 	var aggregateID int
-	_, err := fmt.Sscanf(id, "openstack-aggregate-%d", &aggregateID)
-	if err != nil {
+	if _, err := fmt.Sscanf(id, "openstack-aggregate-%d", &aggregateID); err != nil {
 		return nil, fmt.Errorf("invalid resource pool ID format: %s", id)
 	}
-
-	// Get host aggregate from OpenStack
 	osAggregate, err := aggregates.Get(a.compute, aggregateID).Extract()
 	if err != nil {
-		a.logger.Error("failed to get host aggregate",
-			zap.Int("aggregateID", aggregateID),
-			zap.Error(err))
 		return nil, fmt.Errorf("failed to get OpenStack host aggregate %d: %w", aggregateID, err)
 	}
-
-	// Transform to O2-IMS Resource Pool
-	pool := a.transformHostAggregateToResourcePool(osAggregate)
-
-	a.logger.Info("retrieved resource pool",
-		zap.String("resourcePoolID", pool.ResourcePoolID),
-		zap.String("name", pool.Name))
-
-	return pool, nil
+	return a.transformHostAggregateToResourcePool(osAggregate), nil
 }
 
 // CreateResourcePool creates a new OpenStack host aggregate from an O2-IMS Resource Pool.

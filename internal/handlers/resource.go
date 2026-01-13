@@ -34,6 +34,23 @@ func NewResourceHandler(adp adapter.Adapter, logger *zap.Logger) *ResourceHandle
 	}
 }
 
+// handleGetError handles errors in Get* endpoints with standard error responses.
+func handleGetError(c *gin.Context, err error, entityType, entityID string) {
+	if strings.Contains(err.Error(), "not found") {
+		c.JSON(http.StatusNotFound, models.ErrorResponse{
+			Error:   "NotFound",
+			Message: entityType + " not found: " + entityID,
+			Code:    http.StatusNotFound,
+		})
+	} else {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to retrieve " + entityType,
+			Code:    http.StatusInternalServerError,
+		})
+	}
+}
+
 // ListResources handles GET /o2ims/v1/resources.
 // Lists all available infrastructure resources with optional filtering.
 //
@@ -118,67 +135,25 @@ func (h *ResourceHandler) ListResources(c *gin.Context) {
 //   - 404 Not Found: Resource does not exist
 //   - 500 Internal Server Error: Server error occurred
 func (h *ResourceHandler) GetResource(c *gin.Context) {
-	ctx := c.Request.Context()
 	resourceID := c.Param("resourceId")
-
-	h.logger.Info("getting resource",
-		zap.String("resource_id", resourceID),
-		zap.String("request_id", c.GetString("request_id")),
-	)
-
-	// Validate resource ID
 	if resourceID == "" {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "BadRequest",
-			Message: "Resource ID cannot be empty",
-			Code:    http.StatusBadRequest,
-		})
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "BadRequest", Message: "Resource ID cannot be empty", Code: http.StatusBadRequest})
 		return
 	}
 
-	// Get resource from adapter
-	resource, err := h.adapter.GetResource(ctx, resourceID)
+	resource, err := h.adapter.GetResource(c.Request.Context(), resourceID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			h.logger.Warn("resource not found",
-				zap.String("resource_id", resourceID),
-			)
-
-			c.JSON(http.StatusNotFound, models.ErrorResponse{
-				Error:   "NotFound",
-				Message: "Resource not found: " + resourceID,
-				Code:    http.StatusNotFound,
-			})
-			return
-		}
-
-		h.logger.Error("failed to get resource",
-			zap.String("resource_id", resourceID),
-			zap.Error(err),
-		)
-
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "InternalError",
-			Message: "Failed to retrieve resource",
-			Code:    http.StatusInternalServerError,
-		})
+		handleGetError(c, err, "Resource", resourceID)
 		return
 	}
 
-	// Convert adapter.Resource to models.Resource
-	response := models.Resource{
+	c.JSON(http.StatusOK, models.Resource{
 		ResourceID:     resource.ResourceID,
 		ResourceTypeID: resource.ResourceTypeID,
 		ResourcePoolID: resource.ResourcePoolID,
-		Name:           resource.ResourceID, // Use ResourceID as name if not provided
+		Name:           resource.ResourceID,
 		Description:    resource.Description,
 		GlobalAssetID:  resource.GlobalAssetID,
 		Extensions:     resource.Extensions,
-	}
-
-	h.logger.Info("resource retrieved",
-		zap.String("resource_id", resourceID),
-	)
-
-	c.JSON(http.StatusOK, response)
+	})
 }

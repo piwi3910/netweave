@@ -114,55 +114,19 @@ func (h *ResourcePoolHandler) ListResourcePools(c *gin.Context) {
 //   - 200 OK: ResourcePool object
 //   - 404 Not Found: Resource pool does not exist
 func (h *ResourcePoolHandler) GetResourcePool(c *gin.Context) {
-	ctx := c.Request.Context()
 	resourcePoolID := c.Param("resourcePoolId")
-
-	h.logger.Info("getting resource pool",
-		zap.String("resource_pool_id", resourcePoolID),
-		zap.String("request_id", c.GetString("request_id")),
-	)
-
-	// Validate resource pool ID
 	if resourcePoolID == "" {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "BadRequest",
-			Message: "Resource pool ID cannot be empty",
-			Code:    http.StatusBadRequest,
-		})
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "BadRequest", Message: "Resource pool ID cannot be empty", Code: http.StatusBadRequest})
 		return
 	}
 
-	// Get resource pool from adapter
-	pool, err := h.adapter.GetResourcePool(ctx, resourcePoolID)
+	pool, err := h.adapter.GetResourcePool(c.Request.Context(), resourcePoolID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			h.logger.Warn("resource pool not found",
-				zap.String("resource_pool_id", resourcePoolID),
-			)
-
-			c.JSON(http.StatusNotFound, models.ErrorResponse{
-				Error:   "NotFound",
-				Message: "Resource pool not found: " + resourcePoolID,
-				Code:    http.StatusNotFound,
-			})
-			return
-		}
-
-		h.logger.Error("failed to get resource pool",
-			zap.String("resource_pool_id", resourcePoolID),
-			zap.Error(err),
-		)
-
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "InternalError",
-			Message: "Failed to retrieve resource pool",
-			Code:    http.StatusInternalServerError,
-		})
+		handleGetError(c, err, "Resource pool", resourcePoolID)
 		return
 	}
 
-	// Convert adapter.ResourcePool to models.ResourcePool
-	response := models.ResourcePool{
+	c.JSON(http.StatusOK, models.ResourcePool{
 		ResourcePoolID: pool.ResourcePoolID,
 		Name:           pool.Name,
 		Description:    pool.Description,
@@ -170,13 +134,7 @@ func (h *ResourcePoolHandler) GetResourcePool(c *gin.Context) {
 		OCloudID:       pool.OCloudID,
 		GlobalAssetID:  pool.GlobalLocationID,
 		Extensions:     pool.Extensions,
-	}
-
-	h.logger.Info("resource pool retrieved",
-		zap.String("resource_pool_id", resourcePoolID),
-	)
-
-	c.JSON(http.StatusOK, response)
+	})
 }
 
 // CreateResourcePool handles POST /o2ims/v1/resourcePools.

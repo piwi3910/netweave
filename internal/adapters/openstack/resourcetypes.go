@@ -64,33 +64,15 @@ func (a *Adapter) ListResourceTypes(
 
 // GetResourceType retrieves a specific OpenStack flavor by ID and transforms it to O2-IMS Resource Type.
 func (a *Adapter) GetResourceType(_ context.Context, id string) (*adapter.ResourceType, error) {
-	a.logger.Debug("GetResourceType called",
-		zap.String("id", id))
-
-	// Parse resource type ID to extract OpenStack flavor ID
 	var flavorID string
-	_, err := fmt.Sscanf(id, "openstack-flavor-%s", &flavorID)
-	if err != nil {
+	if _, err := fmt.Sscanf(id, "openstack-flavor-%s", &flavorID); err != nil {
 		return nil, fmt.Errorf("invalid resource type ID format: %s", id)
 	}
-
-	// Get flavor from OpenStack
 	osFlavor, err := flavors.Get(a.compute, flavorID).Extract()
 	if err != nil {
-		a.logger.Error("failed to get flavor",
-			zap.String("flavorID", flavorID),
-			zap.Error(err))
 		return nil, fmt.Errorf("failed to get OpenStack flavor %s: %w", flavorID, err)
 	}
-
-	// Transform to O2-IMS Resource Type
-	resourceType := a.transformFlavorToResourceType(osFlavor)
-
-	a.logger.Info("retrieved resource type",
-		zap.String("resourceTypeID", resourceType.ResourceTypeID),
-		zap.String("name", resourceType.Name))
-
-	return resourceType, nil
+	return a.transformFlavorToResourceType(osFlavor), nil
 }
 
 // transformFlavorToResourceType converts an OpenStack flavor to O2-IMS Resource Type.

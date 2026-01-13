@@ -76,6 +76,34 @@ func (h *Handler) errorResponse(c *gin.Context, code int, errType, message strin
 	})
 }
 
+// handleDelete is a generic delete handler that handles common delete patterns.
+// It calls the delete function and handles errors appropriately.
+func (h *Handler) handleDelete(
+	c *gin.Context,
+	paramName string,
+	logMsg string,
+	deleteFn func(context.Context, string) error,
+	notFoundErr error,
+	notFoundMsg string,
+	errorMsg string,
+) {
+	id := c.Param(paramName)
+	h.logger.Info(logMsg, zap.String(paramName, id))
+
+	if err := deleteFn(c.Request.Context(), id); err != nil {
+		h.logger.Error(errorMsg, zap.String("id", id), zap.Error(err))
+		if errors.Is(err, notFoundErr) {
+			h.errorResponse(c, http.StatusNotFound, "NotFound", notFoundMsg)
+		} else {
+			h.errorResponse(c, http.StatusInternalServerError, "InternalError", errorMsg)
+		}
+		return
+	}
+
+	h.logger.Info(logMsg+" success", zap.String(paramName, id))
+	c.Status(http.StatusNoContent)
+}
+
 // DNS lookup timeout for callback URL validation.
 const dnsLookupTimeout = 5 * time.Second
 
@@ -459,27 +487,21 @@ func (h *Handler) UpdateNFDeployment(c *gin.Context) {
 // DeleteNFDeployment deletes an NF deployment.
 // DELETE /o2dms/v1/nfDeployments/:nfDeploymentId.
 func (h *Handler) DeleteNFDeployment(c *gin.Context) {
-	nfDeploymentID := c.Param("nfDeploymentId")
-	h.logger.Info("deleting NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
-
 	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
 	}
 
-	if err := adp.DeleteDeployment(c.Request.Context(), nfDeploymentID); err != nil {
-		h.logger.Error("failed to delete NF deployment", zap.String("id", nfDeploymentID), zap.Error(err))
-		if errors.Is(err, adapter.ErrDeploymentNotFound) {
-			h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment not found")
-		} else {
-			h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to delete NF deployment")
-		}
-		return
-	}
-
-	h.logger.Info("NF deployment deleted", zap.String("nf_deployment_id", nfDeploymentID))
-	c.Status(http.StatusNoContent)
+	h.handleDelete(
+		c,
+		"nfDeploymentId",
+		"deleting NF deployment",
+		adp.DeleteDeployment,
+		adapter.ErrDeploymentNotFound,
+		"NF deployment not found",
+		"failed to delete NF deployment",
+	)
 }
 
 // Lifecycle Operations
@@ -742,27 +764,21 @@ func (h *Handler) CreateNFDeploymentDescriptor(c *gin.Context) {
 // DeleteNFDeploymentDescriptor deletes an NF deployment descriptor.
 // DELETE /o2dms/v1/nfDeploymentDescriptors/:nfDeploymentDescriptorId.
 func (h *Handler) DeleteNFDeploymentDescriptor(c *gin.Context) {
-	descriptorID := c.Param("nfDeploymentDescriptorId")
-	h.logger.Info("deleting NF deployment descriptor", zap.String("descriptor_id", descriptorID))
-
 	adp, err := h.GetAdapter(c)
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
 		return
 	}
 
-	if err := adp.DeleteDeploymentPackage(c.Request.Context(), descriptorID); err != nil {
-		h.logger.Error("failed to delete NF deployment descriptor", zap.String("id", descriptorID), zap.Error(err))
-		if errors.Is(err, adapter.ErrPackageNotFound) {
-			h.errorResponse(c, http.StatusNotFound, "NotFound", "NF deployment descriptor not found")
-		} else {
-			h.errorResponse(c, http.StatusInternalServerError, "InternalError", "Failed to delete NF deployment descriptor")
-		}
-		return
-	}
-
-	h.logger.Info("NF deployment descriptor deleted", zap.String("descriptor_id", descriptorID))
-	c.Status(http.StatusNoContent)
+	h.handleDelete(
+		c,
+		"nfDeploymentDescriptorId",
+		"deleting NF deployment descriptor",
+		adp.DeleteDeploymentPackage,
+		adapter.ErrPackageNotFound,
+		"NF deployment descriptor not found",
+		"failed to delete NF deployment descriptor",
+	)
 }
 
 // DMS Subscription Handlers
