@@ -133,8 +133,8 @@ func createTestResource(
 	return &created, resp
 }
 
-func TestResourceCRUD(t *testing.T) {
-	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+func TestResourceCreateResource(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{
@@ -146,621 +146,888 @@ func TestResourceCRUD(t *testing.T) {
 	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
 
 	// Test POST /resources
-	t.Run("POST /resources - create resource", func(t *testing.T) {
-		resource := adapter.Resource{
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			Description:    "Test compute resource",
-		}
+	resource := adapter.Resource{
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Description:    "Test compute resource",
+	}
 
-		created, resp := createTestResource(t, srv, resource)
-		assert.Equal(t, http.StatusCreated, resp.Code)
-		assert.Equal(t, resource.ResourceTypeID, created.ResourceTypeID)
-		assert.NotEmpty(t, created.ResourceID)
-	})
+	created, resp := createTestResource(t, srv, resource)
+	assert.Equal(t, http.StatusCreated, resp.Code)
+	assert.Equal(t, resource.ResourceTypeID, created.ResourceTypeID)
+	assert.NotEmpty(t, created.ResourceID)
+}
 
-	t.Run("POST /resources - verify Location header", func(t *testing.T) {
-		resource := adapter.Resource{
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-		}
+func TestResourceVerifyLocationHeader(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
 
-		created, resp := createTestResource(t, srv, resource)
-		require.Equal(t, http.StatusCreated, resp.Code)
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
 
-		location := resp.Header().Get("Location")
-		require.NotEmpty(t, location, "Location header should be set")
-		require.Contains(t, location, "/o2ims/v1/resources/", "Location header should contain resource path")
-		require.Contains(t, location, created.ResourceID, "Location header should contain the created resource ID")
-	})
+	// Test POST /resources
+	resource := adapter.Resource{
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+	}
 
-	t.Run("POST /resources - validation error (empty resourceTypeId)", func(t *testing.T) {
-		resource := adapter.Resource{
-			ResourcePoolID: "pool-1",
-			Description:    "Test resource",
-		}
+	created, resp := createTestResource(t, srv, resource)
+	require.Equal(t, http.StatusCreated, resp.Code)
 
-		resp, respBody := doResourceRequest(t, srv, http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", resource)
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, string(respBody), "resource type ID is required")
-	})
+	location := resp.Header().Get("Location")
+	require.NotEmpty(t, location, "Location header should be set")
+	require.Contains(t, location, "/o2ims/v1/resources/", "Location header should contain resource path")
+	require.Contains(t, location, created.ResourceID, "Location header should contain the created resource ID")
+}
 
-	t.Run("POST /resources - validation error (empty resourcePoolId)", func(t *testing.T) {
-		resource := adapter.Resource{
-			ResourceTypeID: "machine",
-			Description:    "Test resource",
-		}
+func TestResourceValidationErrorEmptyResourceTypeID(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
 
-		resp, respBody := doResourceRequest(t, srv, http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", resource)
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, string(respBody), "resource pool ID is required")
-	})
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
 
-	t.Run("POST /resources - security: reject invalid UUID (path traversal)", func(t *testing.T) {
-		// Test path traversal attack attempt
-		resource := adapter.Resource{
-			ResourceID:     "../../../etc/passwd",
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			Description:    "Malicious resource",
-		}
+	// Test POST /resources
+	resource := adapter.Resource{
+		ResourcePoolID: "pool-1",
+		Description:    "Test resource",
+	}
 
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
+	resp, respBody := doResourceRequest(t, srv, http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", resource)
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, string(respBody), "resource type ID is required")
+}
 
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
+func TestResourceValidationErrorEmptyResourcePoolID(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
 
-		srv.router.ServeHTTP(resp, req)
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
 
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "resourceId must be a valid UUID")
-	})
+	// Test POST /resources
+	resource := adapter.Resource{
+		ResourceTypeID: "machine",
+		Description:    "Test resource",
+	}
 
-	t.Run("POST /resources - security: reject invalid UUID (SQL injection)", func(t *testing.T) {
-		// Test SQL injection attempt
-		resource := adapter.Resource{
-			ResourceID:     "'; DROP TABLE resources; --",
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			Description:    "Malicious resource",
-		}
+	resp, respBody := doResourceRequest(t, srv, http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", resource)
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, string(respBody), "resource pool ID is required")
+}
 
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
+func TestResourceSecurityRejectInvalidUUIDPathTraversal(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
 
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
 
-		srv.router.ServeHTTP(resp, req)
+	// Test POST /resources
+	// Test path traversal attack attempt
+	resource := adapter.Resource{
+		ResourceID:     "../../../etc/passwd",
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Description:    "Malicious resource",
+	}
 
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "resourceId must be a valid UUID")
-	})
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
 
-	t.Run("POST /resources - accept valid client-provided UUID", func(t *testing.T) {
-		// Test valid UUID is accepted
-		validUUID := "550e8400-e29b-41d4-a716-446655440001"
-		resource := adapter.Resource{
-			ResourceID:     validUUID,
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			Description:    "Resource with client-provided UUID",
-		}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
 
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
+	srv.router.ServeHTTP(resp, req)
 
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "resourceId must be a valid UUID")
+}
 
-		srv.router.ServeHTTP(resp, req)
+func TestResourceSecurityRejectInvalidUUIDSQLInjection(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
 
-		assert.Equal(t, http.StatusCreated, resp.Code)
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
 
-		var created adapter.Resource
-		err = json.Unmarshal(resp.Body.Bytes(), &created)
-		require.NoError(t, err)
-		assert.Equal(t, validUUID, created.ResourceID)
-	})
+	// Test POST /resources
+	// Test SQL injection attempt
+	resource := adapter.Resource{
+		ResourceID:     "'; DROP TABLE resources; --",
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Description:    "Malicious resource",
+	}
 
-	// Test PUT /resources/:id
-	t.Run("PUT /resources/:id - update resource description", func(t *testing.T) {
-		resource := adapter.Resource{
-			Description:   "Updated description",
-			GlobalAssetID: "urn:updated:asset:123",
-		}
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
 
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
 
-		resourceID := "550e8400-e29b-41d4-a716-446655440000"
-		url := "/o2ims-infrastructureInventory/v1/resources/" + resourceID
+	srv.router.ServeHTTP(resp, req)
 
-		req := httptest.NewRequest(
-			http.MethodPut,
-			url,
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "resourceId must be a valid UUID")
+}
 
-		srv.router.ServeHTTP(resp, req)
+func TestResourceAcceptValidClientProvidedUUID(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
 
-		require.Equal(t, http.StatusOK, resp.Code)
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
 
-		var updated adapter.Resource
-		err = json.Unmarshal(resp.Body.Bytes(), &updated)
-		require.NoError(t, err)
-		assert.Equal(t, resourceID, updated.ResourceID)
-		assert.Equal(t, resource.Description, updated.Description)
-		assert.Equal(t, resource.GlobalAssetID, updated.GlobalAssetID)
-	})
+	// Test POST /resources
+	// Test valid UUID is accepted
+	validUUID := "550e8400-e29b-41d4-a716-446655440001"
+	resource := adapter.Resource{
+		ResourceID:     validUUID,
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Description:    "Resource with client-provided UUID",
+	}
 
-	t.Run("PUT /resources/:id - update extensions", func(t *testing.T) {
-		resource := adapter.Resource{
-			Description: "Resource with updated extensions",
-			Extensions: map[string]interface{}{
-				"cpu":    "32 cores",
-				"memory": "128GB",
-				"status": "active",
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusCreated, resp.Code)
+
+	var created adapter.Resource
+	err = json.Unmarshal(resp.Body.Bytes(), &created)
+	require.NoError(t, err)
+	assert.Equal(t, validUUID, created.ResourceID)
+}
+
+func TestResourceUpdateUpdateResourceDescription(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Test POST /resources
+	resource := adapter.Resource{
+		Description:   "Updated description",
+		GlobalAssetID: "urn:updated:asset:123",
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	resourceID := "550e8400-e29b-41d4-a716-446655440000"
+	url := "/o2ims-infrastructureInventory/v1/resources/" + resourceID
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		url,
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusOK, resp.Code)
+
+	var updated adapter.Resource
+	err = json.Unmarshal(resp.Body.Bytes(), &updated)
+	require.NoError(t, err)
+	assert.Equal(t, resourceID, updated.ResourceID)
+	assert.Equal(t, resource.Description, updated.Description)
+	assert.Equal(t, resource.GlobalAssetID, updated.GlobalAssetID)
+}
+
+func TestResourceUpdateUpdateExtensions(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Test POST /resources
+	resource := adapter.Resource{
+		Description: "Resource with updated extensions",
+		Extensions: map[string]interface{}{
+			"cpu":    "32 cores",
+			"memory": "128GB",
+			"status": "active",
+		},
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var updated adapter.Resource
+	err = json.Unmarshal(resp.Body.Bytes(), &updated)
+	require.NoError(t, err)
+	assert.NotNil(t, updated.Extensions)
+	assert.Equal(t, "32 cores", updated.Extensions["cpu"])
+	assert.Equal(t, "128GB", updated.Extensions["memory"])
+}
+
+func TestResourceUpdateInvalidJSON(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Test POST /resources
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
+		bytes.NewReader([]byte("invalid json")),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "Invalid request body")
+}
+
+func TestResourceUpdateResourceNotFound(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Test POST /resources
+	resource := adapter.Resource{
+		Description: "Test resource",
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resources/nonexistent-res",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusNotFound, resp.Code)
+	assert.Contains(t, resp.Body.String(), "Resource not found")
+}
+
+func TestResourceUpdatePreserveImmutableFields(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Test POST /resources
+	resource := adapter.Resource{
+		Description: "Updated resource",
+		// Not providing ResourceTypeID or ResourcePoolID - should be preserved
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var updated adapter.Resource
+	err = json.Unmarshal(resp.Body.Bytes(), &updated)
+	require.NoError(t, err)
+	// ResourceTypeID and ResourcePoolID should be preserved from existing resource
+	assert.NotEmpty(t, updated.ResourceTypeID)
+	assert.NotEmpty(t, updated.ResourcePoolID)
+}
+
+func TestResourceUpdateRejectImmutableFieldModification(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Test POST /resources
+	resource := adapter.Resource{
+		ResourceTypeID: "different-type", // Attempt to change immutable field
+		Description:    "Updated resource",
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "immutable")
+}
+
+func TestResourceInvalidGlobalAssetIDFormat(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Test POST /resources
+	resource := adapter.Resource{
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		GlobalAssetID:  "invalid-not-urn",
+		Description:    "Test resource",
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "urn:")
+}
+
+func TestResourceDescriptionTooLong(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Test POST /resources
+	longDesc := strings.Repeat("a", 1001) // Exceeds 1000 char limit
+	resource := adapter.Resource{
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Description:    longDesc,
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "description")
+}
+
+func TestResourceTooManyExtensions(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Test POST /resources
+	// Create 101 extensions (exceeds 100 limit)
+	extensions := make(map[string]interface{})
+	for i := 0; i < 101; i++ {
+		extensions[fmt.Sprintf("key%d", i)] = "value"
+	}
+
+	resource := adapter.Resource{
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Extensions:     extensions,
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "extensions")
+}
+
+func TestResourceExtensionKeyExceedsTwoFiftySixCharacters(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Test POST /resources
+	// Create extension with key longer than 256 characters
+	longKey := strings.Repeat("a", 257)
+	extensions := map[string]interface{}{
+		longKey: "value",
+	}
+
+	resource := adapter.Resource{
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Extensions:     extensions,
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "extension keys must not exceed 256 characters")
+}
+
+func TestResourceExtensionValueExceedsFourKB(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Test POST /resources
+	// Create extension with value larger than 4096 bytes when JSON-encoded
+	largeValue := strings.Repeat("x", 4100)
+	extensions := map[string]interface{}{
+		"key": largeValue,
+	}
+
+	resource := adapter.Resource{
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Extensions:     extensions,
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "extension values must not exceed 4096 bytes")
+}
+
+func TestResourceExtensionsExceedsHundredKeys(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+
+	// Test POST /resources
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Create map with 101 keys
+	extensions := make(map[string]interface{})
+	for i := 0; i < 101; i++ {
+		extensions[fmt.Sprintf("key%d", i)] = "value"
+	}
+
+	resource := adapter.Resource{
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Extensions:     extensions,
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "extensions map must not exceed 100 keys")
+}
+
+func TestResourceTotalExtensionsPayloadExceedsFiftyKB(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+
+	// Test POST /resources
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Create extensions with total size > 50KB
+	// Each value ~2KB, 26 keys = ~52KB total
+	extensions := make(map[string]interface{})
+	largeValue := strings.Repeat("x", 2000)
+	for i := 0; i < 26; i++ {
+		extensions[fmt.Sprintf("key%d", i)] = largeValue
+	}
+
+	resource := adapter.Resource{
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Extensions:     extensions,
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "total extensions payload must not exceed 50000 bytes")
+}
+
+func TestResourceCustomResourceID(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Test POST /resources
+	resource := adapter.Resource{
+		ResourceID:     "custom-resource-id",
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Description:    "Resource with custom ID",
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusCreated, resp.Code)
+
+	var created adapter.Resource
+	err = json.Unmarshal(resp.Body.Bytes(), &created)
+	require.NoError(t, err)
+	assert.Equal(t, "custom-resource-id", created.ResourceID)
+}
+
+func TestResourceDuplicateResourceID(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+
+	// Test POST /resources
+	// Use the existing resource ID from the mock
+	resource := adapter.Resource{
+		ResourceID:     "550e8400-e29b-41d4-a716-446655440000", // Already exists in mock
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Description:    "Duplicate resource",
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusConflict, resp.Code)
+	assert.Contains(t, resp.Body.String(), "already exists")
+}
+
+func TestResourceAdapterErrorOnCreate(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+
+	// Test POST /resources
+	// Create a mock that returns an error
+	mockAdp := &mockResourceAdapter{
+		resources: map[string]*adapter.Resource{},
+	}
+	srv := New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, errorOnCreate}, &mockStore{})
+
+	resource := adapter.Resource{
+		ResourceTypeID: "machine",
+		ResourcePoolID: "pool-1",
+		Description:    "Test resource",
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.Code)
+	assert.Contains(t, resp.Body.String(), "Failed to create resource")
+}
+
+func TestResourceUpdateAdapterErrorOnUpdate(t *testing.T) {
+	t.Skip("Skipping due to issue #204 - refactoring needed")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+
+	// Test POST /resources
+	// Create a mock with existing resource that returns error on update
+	mockAdp := &mockResourceAdapter{
+		resources: map[string]*adapter.Resource{
+			"550e8400-e29b-41d4-a716-446655440000": {
+				ResourceID:     "550e8400-e29b-41d4-a716-446655440000",
+				ResourceTypeID: "machine",
+				ResourcePoolID: "pool-1",
+				Description:    "Original",
 			},
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusOK, resp.Code)
-
-		var updated adapter.Resource
-		err = json.Unmarshal(resp.Body.Bytes(), &updated)
-		require.NoError(t, err)
-		assert.NotNil(t, updated.Extensions)
-		assert.Equal(t, "32 cores", updated.Extensions["cpu"])
-		assert.Equal(t, "128GB", updated.Extensions["memory"])
-	})
-
-	t.Run("PUT /resources/:id - invalid JSON", func(t *testing.T) {
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
-			bytes.NewReader([]byte("invalid json")),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Invalid request body")
-	})
-
-	t.Run("PUT /resources/:id - resource not found", func(t *testing.T) {
-		resource := adapter.Resource{
-			Description: "Test resource",
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resources/nonexistent-res",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusNotFound, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Resource not found")
-	})
-
-	t.Run("PUT /resources/:id - preserve immutable fields", func(t *testing.T) {
-		resource := adapter.Resource{
-			Description: "Updated resource",
-			// Not providing ResourceTypeID or ResourcePoolID - should be preserved
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusOK, resp.Code)
-
-		var updated adapter.Resource
-		err = json.Unmarshal(resp.Body.Bytes(), &updated)
-		require.NoError(t, err)
-		// ResourceTypeID and ResourcePoolID should be preserved from existing resource
-		assert.NotEmpty(t, updated.ResourceTypeID)
-		assert.NotEmpty(t, updated.ResourcePoolID)
-	})
-
-	t.Run("PUT /resources/:id - reject immutable field modification", func(t *testing.T) {
-		resource := adapter.Resource{
-			ResourceTypeID: "different-type", // Attempt to change immutable field
-			Description:    "Updated resource",
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "immutable")
-	})
-
-	// Validation tests
-	t.Run("POST /resources - invalid GlobalAssetID format", func(t *testing.T) {
-		resource := adapter.Resource{
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			GlobalAssetID:  "invalid-not-urn",
-			Description:    "Test resource",
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "urn:")
-	})
-
-	t.Run("POST /resources - description too long", func(t *testing.T) {
-		longDesc := strings.Repeat("a", 1001) // Exceeds 1000 char limit
-		resource := adapter.Resource{
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			Description:    longDesc,
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "description")
-	})
-
-	t.Run("POST /resources - too many extensions", func(t *testing.T) {
-		// Create 101 extensions (exceeds 100 limit)
-		extensions := make(map[string]interface{})
-		for i := 0; i < 101; i++ {
-			extensions[fmt.Sprintf("key%d", i)] = "value"
-		}
-
-		resource := adapter.Resource{
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			Extensions:     extensions,
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "extensions")
-	})
-
-	t.Run("POST /resources - extension key exceeds 256 characters", func(t *testing.T) {
-		// Create extension with key longer than 256 characters
-		longKey := strings.Repeat("a", 257)
-		extensions := map[string]interface{}{
-			longKey: "value",
-		}
-
-		resource := adapter.Resource{
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			Extensions:     extensions,
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "extension keys must not exceed 256 characters")
-	})
-
-	t.Run("POST /resources - extension value exceeds 4KB", func(t *testing.T) {
-		// Create extension with value larger than 4096 bytes when JSON-encoded
-		largeValue := strings.Repeat("x", 4100)
-		extensions := map[string]interface{}{
-			"key": largeValue,
-		}
-
-		resource := adapter.Resource{
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			Extensions:     extensions,
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "extension values must not exceed 4096 bytes")
-	})
-
-	t.Run("POST /resources - extensions exceeds 100 keys", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
-
-		// Create map with 101 keys
-		extensions := make(map[string]interface{})
-		for i := 0; i < 101; i++ {
-			extensions[fmt.Sprintf("key%d", i)] = "value"
-		}
-
-		resource := adapter.Resource{
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			Extensions:     extensions,
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "extensions map must not exceed 100 keys")
-	})
-
-	t.Run("POST /resources - total extensions payload exceeds 50KB", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
-
-		// Create extensions with total size > 50KB
-		// Each value ~2KB, 26 keys = ~52KB total
-		extensions := make(map[string]interface{})
-		largeValue := strings.Repeat("x", 2000)
-		for i := 0; i < 26; i++ {
-			extensions[fmt.Sprintf("key%d", i)] = largeValue
-		}
-
-		resource := adapter.Resource{
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			Extensions:     extensions,
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "total extensions payload must not exceed 50000 bytes")
-	})
-
-	t.Run("POST /resources - custom resource ID", func(t *testing.T) {
-		resource := adapter.Resource{
-			ResourceID:     "custom-resource-id",
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			Description:    "Resource with custom ID",
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusCreated, resp.Code)
-
-		var created adapter.Resource
-		err = json.Unmarshal(resp.Body.Bytes(), &created)
-		require.NoError(t, err)
-		assert.Equal(t, "custom-resource-id", created.ResourceID)
-	})
-
-	t.Run("POST /resources - duplicate resource ID", func(t *testing.T) {
-		// Use the existing resource ID from the mock
-		resource := adapter.Resource{
-			ResourceID:     "550e8400-e29b-41d4-a716-446655440000", // Already exists in mock
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			Description:    "Duplicate resource",
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusConflict, resp.Code)
-		assert.Contains(t, resp.Body.String(), "already exists")
-	})
-
-	// Adapter error scenario tests
-	t.Run("POST /resources - adapter error on create", func(t *testing.T) {
-		// Create a mock that returns an error
-		mockAdp := &mockResourceAdapter{
-			resources: map[string]*adapter.Resource{},
-		}
-		srv := New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, errorOnCreate}, &mockStore{})
-
-		resource := adapter.Resource{
-			ResourceTypeID: "machine",
-			ResourcePoolID: "pool-1",
-			Description:    "Test resource",
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusInternalServerError, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Failed to create resource")
-	})
-
-	t.Run("PUT /resources/:id - adapter error on update", func(t *testing.T) {
-		// Create a mock with existing resource that returns error on update
-		mockAdp := &mockResourceAdapter{
-			resources: map[string]*adapter.Resource{
-				"550e8400-e29b-41d4-a716-446655440000": {
-					ResourceID:     "550e8400-e29b-41d4-a716-446655440000",
-					ResourceTypeID: "machine",
-					ResourcePoolID: "pool-1",
-					Description:    "Original",
-				},
-			},
-		}
-		srv := New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, errorOnUpdate}, &mockStore{})
-
-		resource := adapter.Resource{
-			Description: "Updated description",
-		}
-
-		body, err := json.Marshal(resource)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusInternalServerError, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Failed to update resource")
-	})
+		},
+	}
+	srv := New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, errorOnUpdate}, &mockStore{})
+
+	resource := adapter.Resource{
+		Description: "Updated description",
+	}
+
+	body, err := json.Marshal(resource)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.Code)
+	assert.Contains(t, resp.Body.String(), "Failed to update resource")
 }
 
 // errorReturningAdapter wraps a mock adapter and returns errors for specific operations.

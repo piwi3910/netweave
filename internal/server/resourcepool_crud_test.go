@@ -73,7 +73,41 @@ func (m *mockResourcePoolAdapter) DeleteResourcePool(_ context.Context, id strin
 	return nil
 }
 
-func TestResourcePoolCRUD(t *testing.T) {
+// errorReturningResourcePoolAdapter is a mock that returns errors for specific operations.
+type errorReturningResourcePoolAdapter struct {
+	mockResourcePoolAdapter
+	errorOn string // "create", "update", "delete"
+}
+
+func (e *errorReturningResourcePoolAdapter) CreateResourcePool(
+	ctx context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
+	if e.errorOn == "create" {
+		return nil, errors.New("simulated adapter create error")
+	}
+	return e.mockResourcePoolAdapter.CreateResourcePool(ctx, pool)
+}
+
+func (e *errorReturningResourcePoolAdapter) UpdateResourcePool(
+	ctx context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
+	if e.errorOn == "update" {
+		return nil, errors.New("simulated adapter update error")
+	}
+	return e.mockResourcePoolAdapter.UpdateResourcePool(ctx, id, pool)
+}
+
+func (e *errorReturningResourcePoolAdapter) DeleteResourcePool(ctx context.Context, id string) error {
+	if e.errorOn == "delete" {
+		return errors.New("simulated adapter delete error")
+	}
+	return e.mockResourcePoolAdapter.DeleteResourcePool(ctx, id)
+}
+
+func TestResourcePoolCreateResourcePool(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
 	gin.SetMode(gin.TestMode)
 
@@ -83,435 +117,689 @@ func TestResourcePoolCRUD(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-
-	t.Run("POST /resourcePools - create resource pool", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Name:        "test-pool",
-			Description: "Test resource pool",
-			Location:    "us-west-1",
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusCreated, resp.Code)
-
-		var created adapter.ResourcePool
-		err = json.Unmarshal(resp.Body.Bytes(), &created)
-		require.NoError(t, err)
-		assert.Equal(t, pool.Name, created.Name)
-		assert.Equal(t, pool.Description, created.Description)
-		assert.Equal(t, pool.Location, created.Location)
-		assert.NotEmpty(t, created.ResourcePoolID)
-		// ID should start with "pool-test-pool-" followed by full UUID (36 chars)
-		assert.Contains(t, created.ResourcePoolID, "pool-test-pool-")
-		assert.Len(t, created.ResourcePoolID, len("pool-test-pool-")+36)
-	})
-
-	t.Run("POST /resourcePools - create with custom ID", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			ResourcePoolID: "custom-pool-123",
-			Name:           "test-pool",
-			Description:    "Test resource pool",
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusCreated, resp.Code)
-
-		var created adapter.ResourcePool
-		err = json.Unmarshal(resp.Body.Bytes(), &created)
-		require.NoError(t, err)
-		assert.Equal(t, "custom-pool-123", created.ResourcePoolID)
-	})
-
-	t.Run("POST /resourcePools - duplicate resource pool (409 Conflict)", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			ResourcePoolID: "existing-pool",
-			Name:           "test-pool",
-			Description:    "Test resource pool",
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusConflict, resp.Code)
-		assert.Contains(t, resp.Body.String(), "already exists")
-	})
-
-	t.Run("POST /resourcePools - validation error (empty name)", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Description: "Test pool",
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "name is required")
-	})
-
-	t.Run("POST /resourcePools - validation error (name too long)", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Name: strings.Repeat("a", MaxResourcePoolNameLength+1), // Exceeds max length
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "name must not exceed 255 characters")
-	})
-
-	t.Run("POST /resourcePools - validation error (invalid ID characters)", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			ResourcePoolID: "invalid/pool/../id", // Contains invalid characters
-			Name:           "test-pool",
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "resourcePoolId must contain only alphanumeric characters")
-	})
-
-	t.Run("POST /resourcePools - validation error (description too long)", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Name:        "test-pool",
-			Description: strings.Repeat("a", MaxResourcePoolDescriptionLength+1), // Exceeds max length
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "description must not exceed 1000 characters")
-	})
-
-	t.Run("POST /resourcePools - multiple validation errors", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Name:        strings.Repeat("a", 256),  // Name too long
-			Description: strings.Repeat("b", 1001), // Description too long
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		// Should contain both error messages
-		assert.Contains(t, resp.Body.String(), "name must not exceed 255 characters")
-		assert.Contains(t, resp.Body.String(), "description must not exceed 1000 characters")
-		assert.Contains(t, resp.Body.String(), ";")
-	})
-
-	t.Run("POST /resourcePools - sanitize name with special characters", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Name:        "Test Pool / With * Special <> Chars",
-			Description: "Testing sanitization",
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusCreated, resp.Code)
-
-		var created adapter.ResourcePool
-		err = json.Unmarshal(resp.Body.Bytes(), &created)
-		require.NoError(t, err)
-		// ID should be sanitized (no special characters)
-		assert.NotContains(t, created.ResourcePoolID, "/")
-		assert.NotContains(t, created.ResourcePoolID, "*")
-		assert.NotContains(t, created.ResourcePoolID, "<")
-		assert.NotContains(t, created.ResourcePoolID, ">")
-	})
-
-	t.Run("POST /resourcePools - invalid JSON", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/o2ims-infrastructureInventory/v1/resourcePools",
-			bytes.NewReader([]byte("invalid json")),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Invalid request body")
-	})
-
-	t.Run("PUT /resourcePools/:id - update resource pool", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Name:        "Updated Pool",
-			Description: "Updated description",
-			Location:    "us-east-1",
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusOK, resp.Code)
-
-		var updated adapter.ResourcePool
-		err = json.Unmarshal(resp.Body.Bytes(), &updated)
-		require.NoError(t, err)
-		assert.Equal(t, "existing-pool", updated.ResourcePoolID)
-		assert.Equal(t, pool.Name, updated.Name)
-		assert.Equal(t, pool.Description, updated.Description)
-		assert.Equal(t, pool.Location, updated.Location)
-	})
-
-	t.Run("PUT /resourcePools/:id - resource pool not found (404)", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Name:        "Updated Pool",
-			Description: "Updated description",
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resourcePools/nonexistent-pool",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusNotFound, resp.Code)
-		assert.Contains(t, resp.Body.String(), "not found")
-	})
-
-	t.Run("PUT /resourcePools/:id - invalid JSON", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
-			bytes.NewReader([]byte("invalid json")),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Invalid request body")
-	})
-
-	t.Run("PUT /resourcePools/:id - validation error (empty name)", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Name: "", // Empty name - should fail validation
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "name is required")
-	})
-
-	t.Run("PUT /resourcePools/:id - validation error (name too long)", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Name: strings.Repeat("a", 256), // Name too long
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "name must not exceed 255 characters")
-	})
-
-	t.Run("PUT /resourcePools/:id - validation error (invalid ID characters)", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Name:           "Valid Name",
-			ResourcePoolID: "invalid@id!", // Invalid characters
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "resourcePoolId must contain only alphanumeric characters")
-	})
-
-	t.Run("PUT /resourcePools/:id - validation error (description too long)", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Name:        "Valid Name",
-			Description: strings.Repeat("b", 1001), // Description too long
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "description must not exceed 1000 characters")
-	})
-
-	t.Run("DELETE /resourcePools/:id - delete resource pool", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/existing-pool", nil)
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusNoContent, resp.Code)
-		assert.Empty(t, resp.Body.String())
-	})
-
-	t.Run("DELETE /resourcePools/:id - resource pool not found (404)", func(t *testing.T) {
-		srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
-
-		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/nonexistent-pool", nil)
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusNotFound, resp.Code)
-		assert.Contains(t, resp.Body.String(), "not found")
-	})
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Name:        "test-pool",
+		Description: "Test resource pool",
+		Location:    "us-west-1",
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusCreated, resp.Code)
+
+	var created adapter.ResourcePool
+	err = json.Unmarshal(resp.Body.Bytes(), &created)
+	require.NoError(t, err)
+	assert.Equal(t, pool.Name, created.Name)
+	assert.Equal(t, pool.Description, created.Description)
+	assert.Equal(t, pool.Location, created.Location)
+	assert.NotEmpty(t, created.ResourcePoolID)
+	// ID should start with "pool-test-pool-" followed by full UUID (36 chars)
+	assert.Contains(t, created.ResourcePoolID, "pool-test-pool-")
+	assert.Len(t, created.ResourcePoolID, len("pool-test-pool-")+36)
+}
+
+func TestResourcePoolCreateWithCustomID(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		ResourcePoolID: "custom-pool-123",
+		Name:           "test-pool",
+		Description:    "Test resource pool",
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusCreated, resp.Code)
+
+	var created adapter.ResourcePool
+	err = json.Unmarshal(resp.Body.Bytes(), &created)
+	require.NoError(t, err)
+	assert.Equal(t, "custom-pool-123", created.ResourcePoolID)
+}
+
+func TestResourcePoolDuplicateResourcePool(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		ResourcePoolID: "existing-pool",
+		Name:           "test-pool",
+		Description:    "Test resource pool",
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusConflict, resp.Code)
+	assert.Contains(t, resp.Body.String(), "already exists")
+}
+
+func TestResourcePoolValidationErrorEmptyName(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Description: "Test pool",
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "name is required")
+}
+
+func TestResourcePoolValidationErrorNameTooLong(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Name: strings.Repeat("a", MaxResourcePoolNameLength+1), // Exceeds max length
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "name must not exceed 255 characters")
+}
+
+func TestResourcePoolValidationErrorInvalidIDCharacters(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		ResourcePoolID: "invalid/pool/../id", // Contains invalid characters
+		Name:           "test-pool",
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "resourcePoolId must contain only alphanumeric characters")
+}
+
+func TestResourcePoolValidationErrorDescriptionTooLong(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Name:        "test-pool",
+		Description: strings.Repeat("a", MaxResourcePoolDescriptionLength+1), // Exceeds max length
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "description must not exceed 1000 characters")
+}
+
+func TestResourcePoolMultipleValidationErrors(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Name:        strings.Repeat("a", 256),  // Name too long
+		Description: strings.Repeat("b", 1001), // Description too long
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	// Should contain both error messages
+	assert.Contains(t, resp.Body.String(), "name must not exceed 255 characters")
+	assert.Contains(t, resp.Body.String(), "description must not exceed 1000 characters")
+	assert.Contains(t, resp.Body.String(), ";")
+}
+
+func TestResourcePoolSanitizeNameWithSpecialCharacters(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Name:        "Test Pool / With * Special <> Chars",
+		Description: "Testing sanitization",
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusCreated, resp.Code)
+
+	var created adapter.ResourcePool
+	err = json.Unmarshal(resp.Body.Bytes(), &created)
+	require.NoError(t, err)
+	// ID should be sanitized (no special characters)
+	assert.NotContains(t, created.ResourcePoolID, "/")
+	assert.NotContains(t, created.ResourcePoolID, "*")
+	assert.NotContains(t, created.ResourcePoolID, "<")
+	assert.NotContains(t, created.ResourcePoolID, ">")
+}
+
+func TestResourcePoolInvalidJSON(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resourcePools",
+		bytes.NewReader([]byte("invalid json")),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "Invalid request body")
+}
+
+func TestResourcePoolUpdateResourcePool(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Name:        "Updated Pool",
+		Description: "Updated description",
+		Location:    "us-east-1",
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var updated adapter.ResourcePool
+	err = json.Unmarshal(resp.Body.Bytes(), &updated)
+	require.NoError(t, err)
+	assert.Equal(t, "existing-pool", updated.ResourcePoolID)
+	assert.Equal(t, pool.Name, updated.Name)
+	assert.Equal(t, pool.Description, updated.Description)
+	assert.Equal(t, pool.Location, updated.Location)
+}
+
+func TestResourcePoolUpdateResourcePoolNotFound(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Name:        "Updated Pool",
+		Description: "Updated description",
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resourcePools/nonexistent-pool",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusNotFound, resp.Code)
+	assert.Contains(t, resp.Body.String(), "not found")
+}
+
+func TestResourcePoolUpdateInvalidJSON(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
+		bytes.NewReader([]byte("invalid json")),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "Invalid request body")
+}
+
+func TestResourcePoolUpdateValidationErrorEmptyName(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Name: "", // Empty name - should fail validation
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "name is required")
+}
+
+func TestResourcePoolUpdateValidationErrorNameTooLong(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Name: strings.Repeat("a", 256), // Name too long
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "name must not exceed 255 characters")
+}
+
+func TestResourcePoolUpdateValidationErrorInvalidIDCharacters(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Name:           "Valid Name",
+		ResourcePoolID: "invalid@id!", // Invalid characters
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "resourcePoolId must contain only alphanumeric characters")
+}
+
+func TestResourcePoolUpdateValidationErrorDescriptionTooLong(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Name:        "Valid Name",
+		Description: strings.Repeat("b", 1001), // Description too long
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "description must not exceed 1000 characters")
+}
+
+func TestResourcePoolDeleteResourcePool(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/existing-pool", nil)
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusNoContent, resp.Code)
+	assert.Empty(t, resp.Body.String())
+}
+
+func TestResourcePoolDeleteResourcePoolNotFound(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	srv := New(cfg, zap.NewNop(), newMockResourcePoolAdapter(), &mockStore{})
+
+	req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/nonexistent-pool", nil)
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusNotFound, resp.Code)
+	assert.Contains(t, resp.Body.String(), "not found")
+}
+
+func TestResourcePoolCreateAdapterError(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	mockAdp := &errorReturningResourcePoolAdapter{
+		mockResourcePoolAdapter: *newMockResourcePoolAdapter(),
+		errorOn:                 "create",
+	}
+	srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Name: "test-pool",
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.Code)
+	assert.Contains(t, resp.Body.String(), "Failed to create resource pool")
+}
+
+func TestResourcePoolUpdateAdapterError(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	mockAdp := &errorReturningResourcePoolAdapter{
+		mockResourcePoolAdapter: *newMockResourcePoolAdapter(),
+		errorOn:                 "update",
+	}
+	srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+
+	pool := adapter.ResourcePool{
+		Name: "test-pool",
+	}
+
+	body, err := json.Marshal(pool)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.Code)
+	assert.Contains(t, resp.Body.String(), "Failed to update resource pool")
+}
+
+func TestResourcePoolDeleteAdapterError(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: gin.TestMode,
+		},
+	}
+	mockAdp := &errorReturningResourcePoolAdapter{
+		mockResourcePoolAdapter: *newMockResourcePoolAdapter(),
+		errorOn:                 "delete",
+	}
+	srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+
+	req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/existing-pool", nil)
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.Code)
+	assert.Contains(t, resp.Body.String(), "Failed to delete resource pool")
 }
 
 // TestSanitizeResourcePoolID tests the ID sanitization function.
@@ -624,118 +912,4 @@ func TestValidateResourcePoolFields(t *testing.T) {
 			}
 		})
 	}
-}
-
-// errorReturningResourcePoolAdapter is a mock that returns errors for specific operations.
-type errorReturningResourcePoolAdapter struct {
-	mockResourcePoolAdapter
-	errorOn string // "create", "update", "delete"
-}
-
-func (e *errorReturningResourcePoolAdapter) CreateResourcePool(
-	ctx context.Context,
-	pool *adapter.ResourcePool,
-) (*adapter.ResourcePool, error) {
-	if e.errorOn == "create" {
-		return nil, errors.New("simulated adapter create error")
-	}
-	return e.mockResourcePoolAdapter.CreateResourcePool(ctx, pool)
-}
-
-func (e *errorReturningResourcePoolAdapter) UpdateResourcePool(
-	ctx context.Context,
-	id string,
-	pool *adapter.ResourcePool,
-) (*adapter.ResourcePool, error) {
-	if e.errorOn == "update" {
-		return nil, errors.New("simulated adapter update error")
-	}
-	return e.mockResourcePoolAdapter.UpdateResourcePool(ctx, id, pool)
-}
-
-func (e *errorReturningResourcePoolAdapter) DeleteResourcePool(ctx context.Context, id string) error {
-	if e.errorOn == "delete" {
-		return errors.New("simulated adapter delete error")
-	}
-	return e.mockResourcePoolAdapter.DeleteResourcePool(ctx, id)
-}
-
-func TestResourcePoolErrorHandling(t *testing.T) {
-	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-
-	t.Run("POST /resourcePools - adapter error", func(t *testing.T) {
-		mockAdp := &errorReturningResourcePoolAdapter{
-			mockResourcePoolAdapter: *newMockResourcePoolAdapter(),
-			errorOn:                 "create",
-		}
-		srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Name: "test-pool",
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resourcePools", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusInternalServerError, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Failed to create resource pool")
-	})
-
-	t.Run("PUT /resourcePools/:id - adapter error", func(t *testing.T) {
-		mockAdp := &errorReturningResourcePoolAdapter{
-			mockResourcePoolAdapter: *newMockResourcePoolAdapter(),
-			errorOn:                 "update",
-		}
-		srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
-
-		pool := adapter.ResourcePool{
-			Name: "test-pool",
-		}
-
-		body, err := json.Marshal(pool)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resourcePools/existing-pool",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusInternalServerError, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Failed to update resource pool")
-	})
-
-	t.Run("DELETE /resourcePools/:id - adapter error", func(t *testing.T) {
-		mockAdp := &errorReturningResourcePoolAdapter{
-			mockResourcePoolAdapter: *newMockResourcePoolAdapter(),
-			errorOn:                 "delete",
-		}
-		srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
-
-		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/existing-pool", nil)
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusInternalServerError, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Failed to delete resource pool")
-	})
 }

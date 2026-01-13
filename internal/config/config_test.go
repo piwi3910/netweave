@@ -190,357 +190,376 @@ func TestLoadWithoutConfigFile(t *testing.T) {
 	assert.Equal(t, 8080, cfg.Server.Port)
 }
 
-// TestValidate tests the Validate function with various configurations.
-func TestValidate(t *testing.T) {
-	tests := []struct {
-		name    string
-		config  *config.Config
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name: "valid config",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    8080,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "standalone",
-					Addresses: []string{"localhost:6379"},
-					DB:        0,
-				},
-				Observability: config.ObservabilityConfig{
-					Logging: config.LoggingConfig{
-						Level:  "info",
-						Format: "json",
-					},
-					Metrics: config.MetricsConfig{
-						Enabled: true,
-						Path:    "/metrics",
-						Port:    0,
-					},
-					Tracing: config.TracingConfig{
-						Enabled:      false,
-						SamplingRate: 0.1,
-					},
-				},
-				Security: config.SecurityConfig{
-					RateLimitEnabled: true,
-					RateLimit: config.RateLimitConfig{
-						PerTenant: config.TenantRateLimitConfig{
-							RequestsPerSecond: 100,
-							BurstSize:         200,
-						},
-					},
-				},
-			},
-			wantErr: false,
+// TestValidateValidConfig tests validation with a fully valid configuration.
+func TestValidateValidConfig(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: "release",
 		},
-		{
-			name: "invalid server port - too low",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    0,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "standalone",
-					Addresses: []string{"localhost:6379"},
-				},
-			},
-			wantErr: true,
-			errMsg:  "invalid server port",
+		Redis: config.RedisConfig{
+			Mode:      "standalone",
+			Addresses: []string{"localhost:6379"},
+			DB:        0,
 		},
-		{
-			name: "invalid server port - too high",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    70000,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "standalone",
-					Addresses: []string{"localhost:6379"},
-				},
+		Observability: config.ObservabilityConfig{
+			Logging: config.LoggingConfig{
+				Level:  "info",
+				Format: "json",
 			},
-			wantErr: true,
-			errMsg:  "invalid server port",
+			Metrics: config.MetricsConfig{
+				Enabled: true,
+				Path:    "/metrics",
+				Port:    0,
+			},
+			Tracing: config.TracingConfig{
+				Enabled:      false,
+				SamplingRate: 0.1,
+			},
 		},
-		{
-			name: "invalid gin mode",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    8080,
-					GinMode: "invalid",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "standalone",
-					Addresses: []string{"localhost:6379"},
+		Security: config.SecurityConfig{
+			RateLimitEnabled: true,
+			RateLimit: config.RateLimitConfig{
+				PerTenant: config.TenantRateLimitConfig{
+					RequestsPerSecond: 100,
+					BurstSize:         200,
 				},
 			},
-			wantErr: true,
-			errMsg:  "invalid gin_mode",
-		},
-		{
-			name: "invalid redis mode",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    8080,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "invalid",
-					Addresses: []string{"localhost:6379"},
-				},
-			},
-			wantErr: true,
-			errMsg:  "invalid redis mode",
-		},
-		{
-			name: "empty redis addresses",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    8080,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "standalone",
-					Addresses: []string{},
-				},
-			},
-			wantErr: true,
-			errMsg:  "redis addresses cannot be empty",
-		},
-		{
-			name: "sentinel mode without master name",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    8080,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:       "sentinel",
-					Addresses:  []string{"sentinel:26379"},
-					MasterName: "",
-				},
-			},
-			wantErr: true,
-			errMsg:  "master_name is required for sentinel mode",
-		},
-		{
-			name: "invalid redis db",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    8080,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "standalone",
-					Addresses: []string{"localhost:6379"},
-					DB:        20,
-				},
-			},
-			wantErr: true,
-			errMsg:  "invalid redis db",
-		},
-		{
-			name: "invalid logging level",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    8080,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "standalone",
-					Addresses: []string{"localhost:6379"},
-				},
-				Observability: config.ObservabilityConfig{
-					Logging: config.LoggingConfig{
-						Level:  "invalid",
-						Format: "json",
-					},
-				},
-			},
-			wantErr: true,
-			errMsg:  "invalid logging level",
-		},
-		{
-			name: "invalid logging format",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    8080,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "standalone",
-					Addresses: []string{"localhost:6379"},
-				},
-				Observability: config.ObservabilityConfig{
-					Logging: config.LoggingConfig{
-						Level:  "info",
-						Format: "xml",
-					},
-				},
-			},
-			wantErr: true,
-			errMsg:  "invalid logging format",
-		},
-		{
-			name: "invalid metrics port",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    8080,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "standalone",
-					Addresses: []string{"localhost:6379"},
-				},
-				Observability: config.ObservabilityConfig{
-					Logging: config.LoggingConfig{
-						Level:  "info",
-						Format: "json",
-					},
-					Metrics: config.MetricsConfig{
-						Enabled: true,
-						Path:    "/metrics",
-						Port:    70000,
-					},
-				},
-			},
-			wantErr: true,
-			errMsg:  "invalid metrics port",
-		},
-		{
-			name: "tracing enabled without endpoint",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    8080,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "standalone",
-					Addresses: []string{"localhost:6379"},
-				},
-				Observability: config.ObservabilityConfig{
-					Logging: config.LoggingConfig{
-						Level:  "info",
-						Format: "json",
-					},
-					Tracing: config.TracingConfig{
-						Enabled:  true,
-						Provider: "otlp",
-						Endpoint: "",
-					},
-				},
-			},
-			wantErr: true,
-			errMsg:  "tracing endpoint is required",
-		},
-		{
-			name: "invalid tracing sampling rate",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    8080,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "standalone",
-					Addresses: []string{"localhost:6379"},
-				},
-				Observability: config.ObservabilityConfig{
-					Logging: config.LoggingConfig{
-						Level:  "info",
-						Format: "json",
-					},
-					Tracing: config.TracingConfig{
-						Enabled:      true,
-						Provider:     "otlp",
-						Endpoint:     "http://localhost:4318",
-						SamplingRate: 1.5,
-					},
-				},
-			},
-			wantErr: true,
-			errMsg:  "invalid tracing sampling_rate",
-		},
-		{
-			name: "invalid rate limit requests per second",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    8080,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "standalone",
-					Addresses: []string{"localhost:6379"},
-				},
-				Observability: config.ObservabilityConfig{
-					Logging: config.LoggingConfig{
-						Level:  "info",
-						Format: "json",
-					},
-				},
-				Security: config.SecurityConfig{
-					RateLimitEnabled: true,
-					RateLimit: config.RateLimitConfig{
-						PerTenant: config.TenantRateLimitConfig{
-							RequestsPerSecond: -1,
-							BurstSize:         100,
-						},
-					},
-				},
-			},
-			wantErr: true,
-			errMsg:  "invalid tenant requests_per_second",
-		},
-		{
-			name: "invalid rate limit burst size",
-			config: &config.Config{
-				Server: config.ServerConfig{
-					Port:    8080,
-					GinMode: "release",
-				},
-				Redis: config.RedisConfig{
-					Mode:      "standalone",
-					Addresses: []string{"localhost:6379"},
-				},
-				Observability: config.ObservabilityConfig{
-					Logging: config.LoggingConfig{
-						Level:  "info",
-						Format: "json",
-					},
-				},
-				Security: config.SecurityConfig{
-					RateLimitEnabled: true,
-					RateLimit: config.RateLimitConfig{
-						PerTenant: config.TenantRateLimitConfig{
-							RequestsPerSecond: 100,
-							BurstSize:         -1,
-						},
-					},
-				},
-			},
-			wantErr: true,
-			errMsg:  "invalid tenant burst_size",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate()
+	err := cfg.Validate()
+	require.NoError(t, err)
+}
 
-			if tt.wantErr {
-				require.Error(t, err)
-				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg)
-				}
-			} else {
-				require.NoError(t, err)
-			}
-		})
+// TestValidateInvalidServerPortTooLow tests validation with server port too low.
+func TestValidateInvalidServerPortTooLow(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    0,
+			GinMode: "release",
+		},
+		Redis: config.RedisConfig{
+			Mode:      "standalone",
+			Addresses: []string{"localhost:6379"},
+		},
 	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid server port")
+}
+
+// TestValidateInvalidServerPortTooHigh tests validation with server port too high.
+func TestValidateInvalidServerPortTooHigh(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    70000,
+			GinMode: "release",
+		},
+		Redis: config.RedisConfig{
+			Mode:      "standalone",
+			Addresses: []string{"localhost:6379"},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid server port")
+}
+
+// TestValidateInvalidGinMode tests validation with invalid gin mode.
+func TestValidateInvalidGinMode(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: "invalid",
+		},
+		Redis: config.RedisConfig{
+			Mode:      "standalone",
+			Addresses: []string{"localhost:6379"},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid gin_mode")
+}
+
+// TestValidateInvalidRedisMode tests validation with invalid redis mode.
+func TestValidateInvalidRedisMode(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: "release",
+		},
+		Redis: config.RedisConfig{
+			Mode:      "invalid",
+			Addresses: []string{"localhost:6379"},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid redis mode")
+}
+
+// TestValidateEmptyRedisAddresses tests validation with empty redis addresses.
+func TestValidateEmptyRedisAddresses(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: "release",
+		},
+		Redis: config.RedisConfig{
+			Mode:      "standalone",
+			Addresses: []string{},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "redis addresses cannot be empty")
+}
+
+// TestValidateSentinelModeWithoutMasterName tests validation with sentinel mode but no master name.
+func TestValidateSentinelModeWithoutMasterName(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: "release",
+		},
+		Redis: config.RedisConfig{
+			Mode:       "sentinel",
+			Addresses:  []string{"sentinel:26379"},
+			MasterName: "",
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "master_name is required for sentinel mode")
+}
+
+// TestValidateInvalidRedisDB tests validation with invalid redis database number.
+func TestValidateInvalidRedisDB(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: "release",
+		},
+		Redis: config.RedisConfig{
+			Mode:      "standalone",
+			Addresses: []string{"localhost:6379"},
+			DB:        20,
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid redis db")
+}
+
+// TestValidateInvalidLoggingLevel tests validation with invalid logging level.
+func TestValidateInvalidLoggingLevel(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: "release",
+		},
+		Redis: config.RedisConfig{
+			Mode:      "standalone",
+			Addresses: []string{"localhost:6379"},
+		},
+		Observability: config.ObservabilityConfig{
+			Logging: config.LoggingConfig{
+				Level:  "invalid",
+				Format: "json",
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid logging level")
+}
+
+// TestValidateInvalidLoggingFormat tests validation with invalid logging format.
+func TestValidateInvalidLoggingFormat(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: "release",
+		},
+		Redis: config.RedisConfig{
+			Mode:      "standalone",
+			Addresses: []string{"localhost:6379"},
+		},
+		Observability: config.ObservabilityConfig{
+			Logging: config.LoggingConfig{
+				Level:  "info",
+				Format: "xml",
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid logging format")
+}
+
+// TestValidateInvalidMetricsPort tests validation with invalid metrics port.
+func TestValidateInvalidMetricsPort(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: "release",
+		},
+		Redis: config.RedisConfig{
+			Mode:      "standalone",
+			Addresses: []string{"localhost:6379"},
+		},
+		Observability: config.ObservabilityConfig{
+			Logging: config.LoggingConfig{
+				Level:  "info",
+				Format: "json",
+			},
+			Metrics: config.MetricsConfig{
+				Enabled: true,
+				Path:    "/metrics",
+				Port:    70000,
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid metrics port")
+}
+
+// TestValidateTracingEnabledWithoutEndpoint tests validation with tracing enabled but no endpoint.
+func TestValidateTracingEnabledWithoutEndpoint(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: "release",
+		},
+		Redis: config.RedisConfig{
+			Mode:      "standalone",
+			Addresses: []string{"localhost:6379"},
+		},
+		Observability: config.ObservabilityConfig{
+			Logging: config.LoggingConfig{
+				Level:  "info",
+				Format: "json",
+			},
+			Tracing: config.TracingConfig{
+				Enabled:  true,
+				Provider: "otlp",
+				Endpoint: "",
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tracing endpoint is required")
+}
+
+// TestValidateInvalidTracingSamplingRate tests validation with invalid tracing sampling rate.
+func TestValidateInvalidTracingSamplingRate(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: "release",
+		},
+		Redis: config.RedisConfig{
+			Mode:      "standalone",
+			Addresses: []string{"localhost:6379"},
+		},
+		Observability: config.ObservabilityConfig{
+			Logging: config.LoggingConfig{
+				Level:  "info",
+				Format: "json",
+			},
+			Tracing: config.TracingConfig{
+				Enabled:      true,
+				Provider:     "otlp",
+				Endpoint:     "http://localhost:4318",
+				SamplingRate: 1.5,
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid tracing sampling_rate")
+}
+
+// TestValidateInvalidRateLimitRequestsPerSecond tests validation with invalid rate limit requests per second.
+func TestValidateInvalidRateLimitRequestsPerSecond(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: "release",
+		},
+		Redis: config.RedisConfig{
+			Mode:      "standalone",
+			Addresses: []string{"localhost:6379"},
+		},
+		Observability: config.ObservabilityConfig{
+			Logging: config.LoggingConfig{
+				Level:  "info",
+				Format: "json",
+			},
+		},
+		Security: config.SecurityConfig{
+			RateLimitEnabled: true,
+			RateLimit: config.RateLimitConfig{
+				PerTenant: config.TenantRateLimitConfig{
+					RequestsPerSecond: -1,
+					BurstSize:         100,
+				},
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid tenant requests_per_second")
+}
+
+// TestValidateInvalidRateLimitBurstSize tests validation with invalid rate limit burst size.
+func TestValidateInvalidRateLimitBurstSize(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Port:    8080,
+			GinMode: "release",
+		},
+		Redis: config.RedisConfig{
+			Mode:      "standalone",
+			Addresses: []string{"localhost:6379"},
+		},
+		Observability: config.ObservabilityConfig{
+			Logging: config.LoggingConfig{
+				Level:  "info",
+				Format: "json",
+			},
+		},
+		Security: config.SecurityConfig{
+			RateLimitEnabled: true,
+			RateLimit: config.RateLimitConfig{
+				PerTenant: config.TenantRateLimitConfig{
+					RequestsPerSecond: 100,
+					BurstSize:         -1,
+				},
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid tenant burst_size")
 }
 
 // TestValidateTLSConfig tests TLS-specific validation.

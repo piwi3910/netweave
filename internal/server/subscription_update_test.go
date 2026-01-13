@@ -224,10 +224,9 @@ func (m *mockSubscriptionAdapter) DeleteSubscription(_ context.Context, _ string
 	return nil
 }
 
-func TestSubscriptionUPDATE(t *testing.T) {
-	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+// setupSubscriptionUpdateServer creates a test server instance for subscription update tests.
+func setupSubscriptionUpdateServer() (*Server, *mockSubscriptionStore) {
 	gin.SetMode(gin.TestMode)
-
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Port:    8080,
@@ -236,390 +235,447 @@ func TestSubscriptionUPDATE(t *testing.T) {
 	}
 	store := newMockSubscriptionStore()
 	srv := New(cfg, zap.NewNop(), &mockSubscriptionAdapter{store: store}, store)
+	return srv, store
+}
 
-	t.Run("PUT /subscriptions/:id - update subscription callback", func(t *testing.T) {
-		subscription := adapter.Subscription{
-			Callback:               "https://smo-new.example.com/notify",
-			ConsumerSubscriptionID: "consumer-sub-123",
-		}
-
-		subscriptionID := "test-sub-123"
-		endpoint := "/o2ims-infrastructureInventory/v1/subscriptions/" + subscriptionID
-
-		reqBody, marshalErr := json.Marshal(subscription)
-		require.NoError(t, marshalErr)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			endpoint,
-			bytes.NewReader(reqBody),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusOK, resp.Code)
-
-		var updated adapter.Subscription
-		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &updated))
-		assert.Equal(t, subscriptionID, updated.SubscriptionID)
-		assert.Equal(t, subscription.Callback, updated.Callback)
-		assert.Equal(t, subscription.ConsumerSubscriptionID, updated.ConsumerSubscriptionID)
-	})
-
-	t.Run("PUT /subscriptions/:id - update subscription filter", func(t *testing.T) {
-		subscription := adapter.Subscription{
-			Callback: "https://smo.example.com/notify",
-			Filter: &adapter.SubscriptionFilter{
-				ResourcePoolID: "pool-new",
-				ResourceTypeID: "machine",
-			},
-		}
-
-		body, err := json.Marshal(subscription)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusOK, resp.Code)
-
-		var updated adapter.Subscription
-		err = json.Unmarshal(resp.Body.Bytes(), &updated)
-		require.NoError(t, err)
-		assert.NotNil(t, updated.Filter)
-		assert.Equal(t, "pool-new", updated.Filter.ResourcePoolID)
-		assert.Equal(t, "machine", updated.Filter.ResourceTypeID)
-	})
-
-	t.Run("PUT /subscriptions/:id - invalid JSON", func(t *testing.T) {
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
-			bytes.NewReader([]byte("invalid json")),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Invalid request body")
-	})
-
-	t.Run("PUT /subscriptions/:id - subscription not found", func(t *testing.T) {
-		subscription := adapter.Subscription{
-			Callback: "https://smo.example.com/notify",
-		}
-
-		body, err := json.Marshal(subscription)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/nonexistent-sub",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusNotFound, resp.Code)
-		assert.Contains(t, resp.Body.String(), "Subscription not found")
-	})
-
-	t.Run("PUT /subscriptions/:id - update all fields", func(t *testing.T) {
-		subscription := adapter.Subscription{
-			Callback:               "https://smo-updated.example.com/webhooks",
-			ConsumerSubscriptionID: "new-consumer-id",
-			Filter: &adapter.SubscriptionFilter{
-				ResourcePoolID: "pool-updated",
-				ResourceTypeID: "compute",
-				ResourceID:     "res-123",
-			},
-		}
-
-		body, err := json.Marshal(subscription)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusOK, resp.Code)
-
-		var updated adapter.Subscription
-		err = json.Unmarshal(resp.Body.Bytes(), &updated)
-		require.NoError(t, err)
-		assert.Equal(t, subscription.Callback, updated.Callback)
-		assert.Equal(t, subscription.ConsumerSubscriptionID, updated.ConsumerSubscriptionID)
-		assert.NotNil(t, updated.Filter)
-		assert.Equal(t, subscription.Filter.ResourcePoolID, updated.Filter.ResourcePoolID)
-		assert.Equal(t, subscription.Filter.ResourceTypeID, updated.Filter.ResourceTypeID)
-		assert.Equal(t, subscription.Filter.ResourceID, updated.Filter.ResourceID)
-	})
-
-	t.Run("PUT /subscriptions/:id - empty callback URL", func(t *testing.T) {
-		subscription := adapter.Subscription{
-			Callback: "", // Empty callback should fail validation
-			Filter: &adapter.SubscriptionFilter{
-				ResourcePoolID: "pool-test",
-			},
-		}
-
-		body, err := json.Marshal(subscription)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		// Handler validation should reject empty callback with 400 Bad Request
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "callback URL is required")
-	})
-
-	t.Run("PUT /subscriptions/:id - update only callback (no filter)", func(t *testing.T) {
-		subscription := adapter.Subscription{
-			Callback:               "https://new-callback.example.com/webhook",
-			ConsumerSubscriptionID: "consumer-456",
-			Filter:                 nil, // No filter update
-		}
-
-		body, err := json.Marshal(subscription)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusOK, resp.Code)
-
-		var updated adapter.Subscription
-		err = json.Unmarshal(resp.Body.Bytes(), &updated)
-		require.NoError(t, err)
-		assert.Equal(t, subscription.Callback, updated.Callback)
-		assert.Equal(t, subscription.ConsumerSubscriptionID, updated.ConsumerSubscriptionID)
-	})
-
-	t.Run("PUT /subscriptions/:id - invalid callback URL format", func(t *testing.T) {
-		subscription := adapter.Subscription{
-			Callback: "not-a-valid-url",
-			Filter: &adapter.SubscriptionFilter{
-				ResourcePoolID: "pool-test",
-			},
-		}
-
-		body, err := json.Marshal(subscription)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		// Should reject invalid URL format
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "callback URL must use http or https scheme")
-	})
-
-	t.Run("PUT /subscriptions/:id - callback with unsupported scheme", func(t *testing.T) {
-		subscription := adapter.Subscription{
-			Callback: "ftp://example.com/webhook",
-			Filter: &adapter.SubscriptionFilter{
-				ResourcePoolID: "pool-test",
-			},
-		}
-
-		body, err := json.Marshal(subscription)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		// Should reject unsupported scheme
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-		assert.Contains(t, resp.Body.String(), "callback URL must use http or https scheme")
-	})
-
-	t.Run("PUT /subscriptions/:id - remove filter with null", func(t *testing.T) {
-		subscription := adapter.Subscription{
-			Callback:               "https://smo.example.com/notify",
-			ConsumerSubscriptionID: "consumer-789",
-			Filter:                 nil, // Explicitly remove filter
-		}
-
-		body, err := json.Marshal(subscription)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusOK, resp.Code)
-
-		var updated adapter.Subscription
-		err = json.Unmarshal(resp.Body.Bytes(), &updated)
-		require.NoError(t, err)
-		assert.Equal(t, subscription.Callback, updated.Callback)
-		// Filter should be nil since we removed it
-		assert.Nil(t, updated.Filter)
-	})
-
-	t.Run("PUT /subscriptions/:id - empty filter object", func(t *testing.T) {
-		subscription := adapter.Subscription{
-			Callback:               "https://smo.example.com/notify",
-			ConsumerSubscriptionID: "consumer-101",
-			Filter:                 &adapter.SubscriptionFilter{}, // Empty filter (same as nil)
-		}
-
-		body, err := json.Marshal(subscription)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusOK, resp.Code)
-
-		var updated adapter.Subscription
-		err = json.Unmarshal(resp.Body.Bytes(), &updated)
-		require.NoError(t, err)
-		assert.Equal(t, subscription.Callback, updated.Callback)
-	})
-
-	t.Run("PUT /subscriptions/:id - partial filter (pool only)", func(t *testing.T) {
-		subscription := adapter.Subscription{
-			Callback: "https://smo.example.com/notify",
-			Filter: &adapter.SubscriptionFilter{
-				ResourcePoolID: "pool-123",
-				// ResourceTypeID and ResourceID intentionally omitted
-			},
-		}
-
-		body, err := json.Marshal(subscription)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusOK, resp.Code)
-
-		var updated adapter.Subscription
-		err = json.Unmarshal(resp.Body.Bytes(), &updated)
-		require.NoError(t, err)
-		assert.NotNil(t, updated.Filter)
-		assert.Equal(t, "pool-123", updated.Filter.ResourcePoolID)
-		assert.Equal(t, "", updated.Filter.ResourceTypeID) // Empty but not nil
-	})
-
-	t.Run("PUT /subscriptions/:id - callback URL with port", func(t *testing.T) {
-		subscription := adapter.Subscription{
-			Callback: "https://smo.example.com:8443/webhooks/o2ims",
-		}
-
-		body, err := json.Marshal(subscription)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusOK, resp.Code)
-
-		var updated adapter.Subscription
-		err = json.Unmarshal(resp.Body.Bytes(), &updated)
-		require.NoError(t, err)
-		assert.Equal(t, subscription.Callback, updated.Callback)
-	})
-
-	t.Run("PUT /subscriptions/:id - callback URL with query params", func(t *testing.T) {
-		subscription := adapter.Subscription{
-			Callback: "https://smo.example.com/notify?token=abc123&env=prod",
-		}
-
-		body, err := json.Marshal(subscription)
-		require.NoError(t, err)
-
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
-			bytes.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusOK, resp.Code)
-
-		var updated adapter.Subscription
-		err = json.Unmarshal(resp.Body.Bytes(), &updated)
-		require.NoError(t, err)
-		assert.Equal(t, subscription.Callback, updated.Callback)
-	})
+func TestSubscriptionUpdateCallback(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	subscription := adapter.Subscription{
+		Callback:               "https://smo-new.example.com/notify",
+		ConsumerSubscriptionID: "consumer-sub-123",
+	}
+
+	subscriptionID := "test-sub-123"
+	endpoint := "/o2ims-infrastructureInventory/v1/subscriptions/" + subscriptionID
+
+	reqBody, marshalErr := json.Marshal(subscription)
+	require.NoError(t, marshalErr)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		endpoint,
+		bytes.NewReader(reqBody),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var updated adapter.Subscription
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &updated))
+	assert.Equal(t, subscriptionID, updated.SubscriptionID)
+	assert.Equal(t, subscription.Callback, updated.Callback)
+	assert.Equal(t, subscription.ConsumerSubscriptionID, updated.ConsumerSubscriptionID)
+}
+
+func TestSubscriptionUpdateFilter(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	subscription := adapter.Subscription{
+		Callback: "https://smo.example.com/notify",
+		Filter: &adapter.SubscriptionFilter{
+			ResourcePoolID: "pool-new",
+			ResourceTypeID: "machine",
+		},
+	}
+
+	body, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var updated adapter.Subscription
+	err = json.Unmarshal(resp.Body.Bytes(), &updated)
+	require.NoError(t, err)
+	assert.NotNil(t, updated.Filter)
+	assert.Equal(t, "pool-new", updated.Filter.ResourcePoolID)
+	assert.Equal(t, "machine", updated.Filter.ResourceTypeID)
+}
+
+func TestSubscriptionUpdateInvalidJSON(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+		bytes.NewReader([]byte("invalid json")),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "Invalid request body")
+}
+
+func TestSubscriptionUpdateNotFound(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	subscription := adapter.Subscription{
+		Callback: "https://smo.example.com/notify",
+	}
+
+	body, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/subscriptions/nonexistent-sub",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusNotFound, resp.Code)
+	assert.Contains(t, resp.Body.String(), "Subscription not found")
+}
+
+func TestSubscriptionUpdateAllFields(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	subscription := adapter.Subscription{
+		Callback:               "https://smo-updated.example.com/webhooks",
+		ConsumerSubscriptionID: "new-consumer-id",
+		Filter: &adapter.SubscriptionFilter{
+			ResourcePoolID: "pool-updated",
+			ResourceTypeID: "compute",
+			ResourceID:     "res-123",
+		},
+	}
+
+	body, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var updated adapter.Subscription
+	err = json.Unmarshal(resp.Body.Bytes(), &updated)
+	require.NoError(t, err)
+	assert.Equal(t, subscription.Callback, updated.Callback)
+	assert.Equal(t, subscription.ConsumerSubscriptionID, updated.ConsumerSubscriptionID)
+	assert.NotNil(t, updated.Filter)
+	assert.Equal(t, subscription.Filter.ResourcePoolID, updated.Filter.ResourcePoolID)
+	assert.Equal(t, subscription.Filter.ResourceTypeID, updated.Filter.ResourceTypeID)
+	assert.Equal(t, subscription.Filter.ResourceID, updated.Filter.ResourceID)
+}
+
+func TestSubscriptionUpdateEmptyCallback(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	subscription := adapter.Subscription{
+		Callback: "", // Empty callback should fail validation
+		Filter: &adapter.SubscriptionFilter{
+			ResourcePoolID: "pool-test",
+		},
+	}
+
+	body, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	// Handler validation should reject empty callback with 400 Bad Request
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "callback URL is required")
+}
+
+func TestSubscriptionUpdateCallbackOnly(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	subscription := adapter.Subscription{
+		Callback:               "https://new-callback.example.com/webhook",
+		ConsumerSubscriptionID: "consumer-456",
+		Filter:                 nil, // No filter update
+	}
+
+	body, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var updated adapter.Subscription
+	err = json.Unmarshal(resp.Body.Bytes(), &updated)
+	require.NoError(t, err)
+	assert.Equal(t, subscription.Callback, updated.Callback)
+	assert.Equal(t, subscription.ConsumerSubscriptionID, updated.ConsumerSubscriptionID)
+}
+
+func TestSubscriptionUpdateInvalidCallbackFormat(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	subscription := adapter.Subscription{
+		Callback: "not-a-valid-url",
+		Filter: &adapter.SubscriptionFilter{
+			ResourcePoolID: "pool-test",
+		},
+	}
+
+	body, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	// Should reject invalid URL format
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "callback URL must use http or https scheme")
+}
+
+func TestSubscriptionUpdateUnsupportedScheme(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	subscription := adapter.Subscription{
+		Callback: "ftp://example.com/webhook",
+		Filter: &adapter.SubscriptionFilter{
+			ResourcePoolID: "pool-test",
+		},
+	}
+
+	body, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	// Should reject unsupported scheme
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), "callback URL must use http or https scheme")
+}
+
+func TestSubscriptionUpdateRemoveFilter(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	subscription := adapter.Subscription{
+		Callback:               "https://smo.example.com/notify",
+		ConsumerSubscriptionID: "consumer-789",
+		Filter:                 nil, // Explicitly remove filter
+	}
+
+	body, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var updated adapter.Subscription
+	err = json.Unmarshal(resp.Body.Bytes(), &updated)
+	require.NoError(t, err)
+	assert.Equal(t, subscription.Callback, updated.Callback)
+	// Filter should be nil since we removed it
+	assert.Nil(t, updated.Filter)
+}
+
+func TestSubscriptionUpdateEmptyFilter(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	subscription := adapter.Subscription{
+		Callback:               "https://smo.example.com/notify",
+		ConsumerSubscriptionID: "consumer-101",
+		Filter:                 &adapter.SubscriptionFilter{}, // Empty filter (same as nil)
+	}
+
+	body, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var updated adapter.Subscription
+	err = json.Unmarshal(resp.Body.Bytes(), &updated)
+	require.NoError(t, err)
+	assert.Equal(t, subscription.Callback, updated.Callback)
+}
+
+func TestSubscriptionUpdatePartialFilter(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	subscription := adapter.Subscription{
+		Callback: "https://smo.example.com/notify",
+		Filter: &adapter.SubscriptionFilter{
+			ResourcePoolID: "pool-123",
+			// ResourceTypeID and ResourceID intentionally omitted
+		},
+	}
+
+	body, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var updated adapter.Subscription
+	err = json.Unmarshal(resp.Body.Bytes(), &updated)
+	require.NoError(t, err)
+	assert.NotNil(t, updated.Filter)
+	assert.Equal(t, "pool-123", updated.Filter.ResourcePoolID)
+	assert.Equal(t, "", updated.Filter.ResourceTypeID) // Empty but not nil
+}
+
+func TestSubscriptionUpdateCallbackWithPort(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	subscription := adapter.Subscription{
+		Callback: "https://smo.example.com:8443/webhooks/o2ims",
+	}
+
+	body, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var updated adapter.Subscription
+	err = json.Unmarshal(resp.Body.Bytes(), &updated)
+	require.NoError(t, err)
+	assert.Equal(t, subscription.Callback, updated.Callback)
+}
+
+func TestSubscriptionUpdateCallbackWithQueryParams(t *testing.T) {
+	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
+
+	srv, _ := setupSubscriptionUpdateServer()
+
+	subscription := adapter.Subscription{
+		Callback: "https://smo.example.com/notify?token=abc123&env=prod",
+	}
+
+	body, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var updated adapter.Subscription
+	err = json.Unmarshal(resp.Body.Bytes(), &updated)
+	require.NoError(t, err)
+	assert.Equal(t, subscription.Callback, updated.Callback)
 }
