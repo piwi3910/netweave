@@ -149,40 +149,41 @@ func TestSubscriptionWorkflow_CreateAndNotify(t *testing.T) {
 	t.Log("and worker to be running. See internal/controllers and internal/workers.")
 }
 
-// TestSubscriptionWorkflow_WithFilters tests filtered subscriptions.
-func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
-	t.Skip("Skipping: Event notification system requires Kubernetes watch/informer integration (future work)")
-
+// setupFilterTestEnvironment sets up the test environment and creates a resource pool.
+func setupFilterTestEnvironment(t *testing.T) (*helpers.TestEnvironment, *storage.RedisStore, *helpers.WebhookServer, *kubernetes.MockAdapter, *helpers.TestServer, string) {
+	t.Helper()
 	env := helpers.SetupTestEnvironment(t)
 
 	redisStore := storage.NewRedisStore(&storage.RedisConfig{
 		Addr:                   env.Redis.Addr(),
 		PoolSize:               10,
-		AllowInsecureCallbacks: true, // Allow HTTP callbacks in tests
+		AllowInsecureCallbacks: true,
 	})
-	defer func() {
+	t.Cleanup(func() {
 		if err := redisStore.Close(); err != nil {
 			t.Logf("Failed to close Redis store: %v", err)
 		}
-	}()
+	})
 
 	webhookServer := helpers.NewWebhookServer(t)
-	defer webhookServer.Close()
+	t.Cleanup(webhookServer.Close)
 
 	k8sAdapter := kubernetes.NewMockAdapter()
-	defer func() {
+	t.Cleanup(func() {
 		if err := k8sAdapter.Close(); err != nil {
 			t.Logf("Failed to close Kubernetes adapter: %v", err)
 		}
-	}()
+	})
 
 	ts := helpers.NewTestServer(t, k8sAdapter, redisStore)
+	poolID := createTestResourcePool(t, ts)
 
-	// Create a resource pool first
+	return env, redisStore, webhookServer, k8sAdapter, ts, poolID
+}
+
+// createTestResourcePool creates a resource pool for testing and returns its ID.
+func createTestResourcePool(t *testing.T, ts *helpers.TestServer) string {
+	t.Helper()
 	poolData := helpers.TestResourcePool("filter-test-pool")
 	poolBody, _ := json.Marshal(poolData)
 	poolReq, _ := http.NewRequestWithContext(
@@ -205,7 +206,18 @@ func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
 	if err := json.NewDecoder(poolResp.Body).Decode(&pool); err != nil {
 		t.Logf("Failed to decode response: %v", err)
 	}
-	poolID := pool["resourcePoolId"].(string)
+	return pool["resourcePoolId"].(string)
+}
+
+// TestSubscriptionWorkflow_WithFilters tests filtered subscriptions.
+func TestSubscriptionWorkflow_WithFilters(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	t.Skip("Skipping: Event notification system requires Kubernetes watch/informer integration (future work)")
+
+	_, _, webhookServer, _, ts, poolID := setupFilterTestEnvironment(t)
 
 	// Test 1: Subscription with pool filter (should match)
 	t.Run("MatchingPoolFilter", func(t *testing.T) {
