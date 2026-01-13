@@ -611,19 +611,13 @@ func TestHandleNodeDelete(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr: mr.Addr(),
-	})
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer func() { _ = rdb.Close() }()
 
 	clientset := fake.NewClientset()
 	store := &mockStore{
 		subscriptions: []*storage.Subscription{
-			{
-				ID:       "sub-123",
-				Callback: "http://example.com/callback",
-				Filter:   storage.SubscriptionFilter{},
-			},
+			{ID: "sub-123", Callback: "http://example.com/callback", Filter: storage.SubscriptionFilter{}},
 		},
 	}
 	logger := zaptest.NewLogger(t)
@@ -640,6 +634,7 @@ func TestHandleNodeDelete(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("valid node delete", func(t *testing.T) {
+		// Test node deletion event
 		node := &corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-node",
@@ -655,7 +650,10 @@ func TestHandleNodeDelete(t *testing.T) {
 			Streams: []string{EventStreamKey, "0"},
 			Count:   1,
 		}).Result()
-		require.NoError(t, err)
+		if err != nil {
+			require.NoError(t, err)
+			return
+		}
 		require.Len(t, streams, 1)
 		require.Len(t, streams[0].Messages, 1)
 
@@ -664,9 +662,9 @@ func TestHandleNodeDelete(t *testing.T) {
 		err = json.Unmarshal([]byte(eventData), &event)
 		require.NoError(t, err)
 
-		assert.Contains(t, event.EventType, string(EventTypeDeleted))
-		assert.Equal(t, "k8s-node", event.ResourceTypeID)
 		assert.Equal(t, "test-node", event.GlobalResourceID)
+		assert.Equal(t, "k8s-node", event.ResourceTypeID)
+		assert.Contains(t, event.EventType, string(EventTypeDeleted))
 	})
 
 	t.Run("nil node", func(_ *testing.T) {
@@ -685,11 +683,13 @@ func TestHandleNamespaceAdd(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	rdb := redis.NewClient(&redis.Options{
+	redisOpts := &redis.Options{
 		Addr: mr.Addr(),
-	})
+	}
+	rdb := redis.NewClient(redisOpts)
 	defer func() { _ = rdb.Close() }()
 
+	logger := zaptest.NewLogger(t)
 	clientset := fake.NewClientset()
 	store := &mockStore{
 		subscriptions: []*storage.Subscription{
@@ -700,7 +700,6 @@ func TestHandleNamespaceAdd(t *testing.T) {
 			},
 		},
 	}
-	logger := zaptest.NewLogger(t)
 
 	ctrl, err := NewSubscriptionController(&Config{
 		K8sClient:   clientset,
@@ -725,21 +724,22 @@ func TestHandleNamespaceAdd(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond)
 
-		streams, err := rdb.XRead(ctx, &redis.XReadArgs{
+		readArgs := &redis.XReadArgs{
 			Streams: []string{EventStreamKey, "0"},
 			Count:   1,
-		}).Result()
+		}
+		streams, err := rdb.XRead(ctx, readArgs).Result()
 		require.NoError(t, err)
 		require.Len(t, streams, 1)
 		require.Len(t, streams[0].Messages, 1)
 
-		var event ResourceEvent
 		eventData := streams[0].Messages[0].Values["event"].(string)
+		var event ResourceEvent
 		err = json.Unmarshal([]byte(eventData), &event)
 		require.NoError(t, err)
 
-		assert.Contains(t, event.EventType, string(EventTypeCreated))
 		assert.Equal(t, "k8s-namespace", event.ResourceTypeID)
+		assert.Contains(t, event.EventType, string(EventTypeCreated))
 		assert.Equal(t, "test-namespace", event.GlobalResourceID)
 	})
 
@@ -847,7 +847,9 @@ func TestHandleNamespaceDelete(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
+	// Setup test dependencies
 	clientset := fake.NewClientset()
+	logger := zaptest.NewLogger(t)
 	store := &mockStore{
 		subscriptions: []*storage.Subscription{
 			{
@@ -857,7 +859,6 @@ func TestHandleNamespaceDelete(t *testing.T) {
 			},
 		},
 	}
-	logger := zaptest.NewLogger(t)
 
 	ctrl, err := NewSubscriptionController(&Config{
 		K8sClient:   clientset,
@@ -880,34 +881,35 @@ func TestHandleNamespaceDelete(t *testing.T) {
 
 		ctrl.processNamespaceEvent(ctx, ns, EventTypeDeleted)
 
+		// Wait for async processing
 		time.Sleep(100 * time.Millisecond)
 
-		streams, err := rdb.XRead(ctx, &redis.XReadArgs{
+		streams, streamErr := rdb.XRead(ctx, &redis.XReadArgs{
 			Streams: []string{EventStreamKey, "0"},
 			Count:   1,
 		}).Result()
-		require.NoError(t, err)
+		require.NoError(t, streamErr)
 		require.Len(t, streams, 1)
 		require.Len(t, streams[0].Messages, 1)
 
-		var event ResourceEvent
 		eventData := streams[0].Messages[0].Values["event"].(string)
-		err = json.Unmarshal([]byte(eventData), &event)
-		require.NoError(t, err)
+		var event ResourceEvent
+		unmarshalErr := json.Unmarshal([]byte(eventData), &event)
+		require.NoError(t, unmarshalErr)
 
 		assert.Contains(t, event.EventType, string(EventTypeDeleted))
-		assert.Equal(t, "k8s-namespace", event.ResourceTypeID)
 		assert.Equal(t, "test-namespace", event.GlobalResourceID)
+		assert.Equal(t, "k8s-namespace", event.ResourceTypeID)
 	})
 
 	t.Run("nil namespace", func(_ *testing.T) {
 		// This test is handled by handleNamespaceDelete's type checking
-		// Skip testing with processNamespaceEvent as it expects valid *corev1.Namespace
+		// Skip testing with processNodeEvent as it expects valid *corev1.Namespace
 	})
 
 	t.Run("invalid namespace type", func(_ *testing.T) {
 		// This test is handled by handleNamespaceDelete's type checking
-		// Skip testing with processNamespaceEvent as it expects valid *corev1.Namespace
+		// Skip testing with processNodeEvent as it expects valid *corev1.Namespace
 	})
 }
 

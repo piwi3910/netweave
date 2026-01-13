@@ -22,54 +22,48 @@ func setupTestAdapter(t *testing.T) *Adapter {
 }
 
 func TestGetNamespaceByID(t *testing.T) {
-	tests := []struct {
-		name         string
+	testCases := map[string]struct {
 		id           string
 		existingNS   *corev1.Namespace
 		expectedName string
 		wantErr      bool
 	}{
-		{
-			name: "formatted ID with k8s-namespace prefix",
-			id:   "k8s-namespace-default",
-			existingNS: &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{Name: "default"},
-			},
+		"formatted ID with k8s-namespace prefix": {
+			id:           "k8s-namespace-default",
+			existingNS:   &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}},
 			expectedName: "default",
 		},
-		{
-			name: "direct namespace name",
-			id:   "kube-system",
-			existingNS: &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{Name: "kube-system"},
-			},
+		"direct namespace name": {
+			id:           "kube-system",
+			existingNS:   &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "kube-system"}},
 			expectedName: "kube-system",
 		},
-		{
-			name:    "non-existent namespace",
+		"non-existent namespace": {
 			id:      "nonexistent",
 			wantErr: true,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tc := range testCases {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
 			adapter := setupTestAdapter(t)
+			ctx := context.Background()
 
-			if tt.existingNS != nil {
-				_, err := adapter.client.CoreV1().Namespaces().Create(context.Background(), tt.existingNS, metav1.CreateOptions{})
-				require.NoError(t, err)
+			if tc.existingNS != nil {
+				_, createErr := adapter.client.CoreV1().Namespaces().Create(ctx, tc.existingNS, metav1.CreateOptions{})
+				require.NoError(t, createErr)
 			}
 
-			ns, err := adapter.getNamespaceByID(context.Background(), tt.id)
+			result, err := adapter.getNamespaceByID(ctx, tc.id)
 
-			if tt.wantErr {
+			if tc.wantErr {
 				assert.Error(t, err)
-				assert.Nil(t, ns)
+				assert.Nil(t, result)
 			} else {
 				require.NoError(t, err)
-				assert.NotNil(t, ns)
-				assert.Equal(t, tt.expectedName, ns.Name)
+				require.NotNil(t, result)
+				assert.Equal(t, tc.expectedName, result.Name)
 			}
 		})
 	}
@@ -107,11 +101,16 @@ func TestGetNodeByID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			adapter := setupTestAdapter(t)
 
 			if tt.existingNode != nil {
-				_, err := adapter.client.CoreV1().Nodes().Create(context.Background(), tt.existingNode, metav1.CreateOptions{})
+				_, err := adapter.client.CoreV1().Nodes().Create(
+					context.Background(),
+					tt.existingNode,
+					metav1.CreateOptions{},
+				)
 				require.NoError(t, err)
 			}
 
@@ -120,11 +119,11 @@ func TestGetNodeByID(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, node)
-			} else {
-				require.NoError(t, err)
-				assert.NotNil(t, node)
-				assert.Equal(t, tt.expectedName, node.Name)
+				return
 			}
+			require.NoError(t, err)
+			assert.NotNil(t, node)
+			assert.Equal(t, tt.expectedName, node.Name)
 		})
 	}
 }

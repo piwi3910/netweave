@@ -293,10 +293,15 @@ func TestRoleHandler_GetRole(t *testing.T) {
 			}
 			router := setupRoleTestRouter(t, store)
 
-			url := "/roles/" + tt.roleID
+			// Construct URL
+			var url string
 			if tt.roleID == "" {
 				url = "/roles/"
+			} else {
+				url = "/roles/" + tt.roleID
 			}
+
+			// Setup request with headers
 			req := httptest.NewRequest(http.MethodGet, url, nil)
 			req.Header.Set("Accept", "application/json")
 			req.Header.Set("X-Tenant-ID", tt.tenantID)

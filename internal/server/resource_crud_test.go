@@ -289,9 +289,12 @@ func TestResourceCRUD(t *testing.T) {
 		body, err := json.Marshal(resource)
 		require.NoError(t, err)
 
+		resourceID := "550e8400-e29b-41d4-a716-446655440000"
+		url := "/o2ims-infrastructureInventory/v1/resources/" + resourceID
+
 		req := httptest.NewRequest(
 			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resources/550e8400-e29b-41d4-a716-446655440000",
+			url,
 			bytes.NewReader(body),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -299,12 +302,12 @@ func TestResourceCRUD(t *testing.T) {
 
 		srv.router.ServeHTTP(resp, req)
 
-		assert.Equal(t, http.StatusOK, resp.Code)
+		require.Equal(t, http.StatusOK, resp.Code)
 
 		var updated adapter.Resource
 		err = json.Unmarshal(resp.Body.Bytes(), &updated)
 		require.NoError(t, err)
-		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", updated.ResourceID)
+		assert.Equal(t, resourceID, updated.ResourceID)
 		assert.Equal(t, resource.Description, updated.Description)
 		assert.Equal(t, resource.GlobalAssetID, updated.GlobalAssetID)
 	})

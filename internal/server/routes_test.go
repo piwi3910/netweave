@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/config"
@@ -626,45 +627,48 @@ func TestHandleUpdateResourcePool(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
 	gin.SetMode(gin.TestMode)
 
-	t.Run("returns 404 for non-existent pool", func(t *testing.T) {
-		cfg := &config.Config{
-			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
-		}
-		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	tests := []struct {
+		name           string
+		poolID         string
+		body           string
+		expectedStatus int
+	}{
+		{
+			name:           "returns 404 for non-existent pool",
+			poolID:         "pool-nonexistent",
+			body:           `{"name":"Updated Pool"}`,
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "returns 400 for invalid JSON",
+			poolID:         "pool-123",
+			body:           `{invalid json}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+	}
 
-		body := `{"name":"Updated Pool"}`
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resourcePools/pool-nonexistent",
-			strings.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			srv := New(
+				&config.Config{Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode}},
+				zap.NewNop(),
+				&mockAdapter{},
+				&mockStore{},
+			)
 
-		srv.router.ServeHTTP(w, req)
+			req := httptest.NewRequest(
+				http.MethodPut,
+				"/o2ims-infrastructureInventory/v1/resourcePools/"+tt.poolID,
+				strings.NewReader(tt.body),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			srv.router.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("returns 400 for invalid JSON", func(t *testing.T) {
-		cfg := &config.Config{
-			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
-		}
-		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
-
-		body := `{invalid json}`
-		req := httptest.NewRequest(
-			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/resourcePools/pool-123",
-			strings.NewReader(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-
-		srv.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
+			assert.Equal(t, tt.expectedStatus, w.Code)
+		})
+	}
 }
 
 // TestHandleDeleteResourcePool tests the handleDeleteResourcePool endpoint.
@@ -785,18 +789,19 @@ func TestHandleUpdateSubscription(t *testing.T) {
 		}
 		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
 
-		body := `{"callback":"https://new-callback.example.com/notify"}`
+		subID := "sub-nonexistent"
+		updatePayload := `{"callback":"https://new-callback.example.com/notify"}`
 		req := httptest.NewRequest(
 			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/sub-nonexistent",
-			strings.NewReader(body),
+			"/o2ims-infrastructureInventory/v1/subscriptions/"+subID,
+			strings.NewReader(updatePayload),
 		)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
 		srv.router.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
+		require.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("returns 400 for invalid JSON", func(t *testing.T) {
@@ -805,15 +810,14 @@ func TestHandleUpdateSubscription(t *testing.T) {
 		}
 		srv := New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
 
-		body := `{invalid json}`
-		req := httptest.NewRequest(
-			http.MethodPut, "/o2ims-infrastructureInventory/v1/subscriptions/sub-123", strings.NewReader(body),
-		)
+		malformedJSON := `{invalid json}`
+		subscriptionEndpoint := "/o2ims-infrastructureInventory/v1/subscriptions/sub-123"
+		req := httptest.NewRequest(http.MethodPut, subscriptionEndpoint, strings.NewReader(malformedJSON))
 		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
+		response := httptest.NewRecorder()
 
-		srv.router.ServeHTTP(w, req)
+		srv.router.ServeHTTP(response, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
 	})
 }

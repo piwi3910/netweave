@@ -284,37 +284,50 @@ func TestSMOHandler_ExecuteWorkflow(t *testing.T) {
 	handler := setupTestSMOHandler(t)
 	router := setupTestRouter(handler)
 
-	t.Run("execute workflow successfully", func(t *testing.T) {
-		body := `{"workflowName": "test-workflow", "parameters": {"key": "value"}}`
-		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodPost, "/o2smo/v1/workflows", bytes.NewBufferString(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-		router.ServeHTTP(resp, req)
+	testCases := []struct {
+		name           string
+		body           string
+		expectedStatus int
+		checkResult    bool
+	}{
+		{
+			name:           "execute workflow successfully",
+			body:           `{"workflowName": "test-workflow", "parameters": {"key": "value"}}`,
+			expectedStatus: http.StatusAccepted,
+			checkResult:    true,
+		},
+		{
+			name:           "execute workflow with invalid body",
+			body:           invalidJSONBody,
+			expectedStatus: http.StatusBadRequest,
+			checkResult:    false,
+		},
+	}
 
-		assert.Equal(t, http.StatusAccepted, resp.Code)
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			req, _ := http.NewRequestWithContext(
+				context.Background(),
+				http.MethodPost,
+				"/o2smo/v1/workflows",
+				bytes.NewBufferString(tc.body),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
 
-		var result smoapi.WorkflowExecution
-		err := json.Unmarshal(resp.Body.Bytes(), &result)
-		require.NoError(t, err)
+			assert.Equal(t, tc.expectedStatus, w.Code)
 
-		assert.Equal(t, "test-workflow", result.WorkflowName)
-		assert.Equal(t, "RUNNING", result.Status)
-		assert.NotEmpty(t, result.ExecutionID)
-	})
-
-	t.Run("execute workflow with invalid body", func(t *testing.T) {
-		body := invalidJSONBody
-		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodPost, "/o2smo/v1/workflows", bytes.NewBufferString(body),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-		router.ServeHTTP(resp, req)
-
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
-	})
+			if tc.checkResult {
+				var result smoapi.WorkflowExecution
+				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+				assert.Equal(t, "test-workflow", result.WorkflowName)
+				assert.Equal(t, "RUNNING", result.Status)
+				assert.NotEmpty(t, result.ExecutionID)
+			}
+		})
+	}
 }
 
 func TestSMOHandler_GetWorkflowStatus(t *testing.T) {
@@ -368,15 +381,16 @@ func TestSMOHandler_CreateServiceModel(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	t.Run("create service model successfully", func(t *testing.T) {
-		body := `{"name": "new-model", "version": "1.0.0", "description": "Test model"}`
-		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodPost, "/o2smo/v1/serviceModels", bytes.NewBufferString(body),
+		modelPayload := `{"name": "new-model", "version": "1.0.0", "description": "Test model"}`
+		serviceModelsEndpoint := "/o2smo/v1/serviceModels"
+		request, _ := http.NewRequestWithContext(
+			context.Background(), http.MethodPost, serviceModelsEndpoint, bytes.NewBufferString(modelPayload),
 		)
-		req.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
-		router.ServeHTTP(resp, req)
+		router.ServeHTTP(resp, request)
 
-		assert.Equal(t, http.StatusCreated, resp.Code)
+		require.Equal(t, http.StatusCreated, resp.Code)
 
 		var result smoapi.ServiceModel
 		err := json.Unmarshal(resp.Body.Bytes(), &result)
@@ -388,15 +402,16 @@ func TestSMOHandler_CreateServiceModel(t *testing.T) {
 	})
 
 	t.Run("create service model with invalid body", func(t *testing.T) {
-		body := invalidJSONBody
+		badPayload := invalidJSONBody
+		modelsURL := "/o2smo/v1/serviceModels"
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodPost, "/o2smo/v1/serviceModels", bytes.NewBufferString(body),
+			context.Background(), http.MethodPost, modelsURL, bytes.NewBufferString(badPayload),
 		)
 		req.Header.Set("Content-Type", "application/json")
-		resp := httptest.NewRecorder()
-		router.ServeHTTP(resp, req)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
 
-		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
 	})
 }
 

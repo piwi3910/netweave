@@ -331,26 +331,32 @@ func TestAuditHandler_ListAuditEventsByType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock store
 			store := newMockAuthStore()
 			if tt.setupStore != nil {
 				tt.setupStore(store)
 			}
-			router := setupAuditTestRouter(t, store)
 
+			// Build request URL for audit events
 			url := "/audit/events/type/" + tt.eventType
 			if tt.eventType == "" {
 				url = "/audit/events/type/"
 			}
+
+			// Create HTTP request
 			req := httptest.NewRequest(http.MethodGet, url, nil)
 			req.Header.Set("Accept", "application/json")
 			req.Header.Set("X-Tenant-ID", tt.tenantID)
 			if tt.isPlatformAdmin {
 				req.Header.Set("X-Is-Platform-Admin", "true")
 			}
-			w := httptest.NewRecorder()
 
+			// Execute request
+			router := setupAuditTestRouter(t, store)
+			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 
+			// Verify response
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if tt.validateBody != nil {
 				tt.validateBody(t, w.Body.Bytes())

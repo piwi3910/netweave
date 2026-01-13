@@ -953,26 +953,27 @@ func TestApplyPagination(t *testing.T) {
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
 	}
 
-	tests := []struct {
-		name      string
-		limit     int
-		offset    int
-		wantCount int
-		wantFirst string
+	testCases := []struct {
+		scenario    string
+		limitParam  int
+		offsetParam int
+		expectedLen int
+		expectedID  string
 	}{
-		{"no pagination", 0, 0, 5, "1"},
-		{"limit only", 2, 0, 2, "1"},
-		{"offset only", 10, 2, 3, "3"},
-		{"limit and offset", 2, 1, 2, "2"},
-		{"offset beyond length", 10, 10, 0, ""},
+		{scenario: "no pagination", limitParam: 0, offsetParam: 0, expectedLen: 5, expectedID: "1"},
+		{scenario: "limit only", limitParam: 2, offsetParam: 0, expectedLen: 2, expectedID: "1"},
+		{scenario: "offset only", limitParam: 10, offsetParam: 2, expectedLen: 3, expectedID: "3"},
+		{scenario: "limit and offset", limitParam: 2, offsetParam: 1, expectedLen: 2, expectedID: "2"},
+		{scenario: "offset beyond length", limitParam: 10, offsetParam: 10, expectedLen: 0, expectedID: ""},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := adp.applyPagination(deployments, tt.limit, tt.offset)
-			assert.Len(t, result, tt.wantCount)
-			if tt.wantCount > 0 {
-				assert.Equal(t, tt.wantFirst, result[0].ID)
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.scenario, func(t *testing.T) {
+			paginatedResult := adp.applyPagination(deployments, tc.limitParam, tc.offsetParam)
+
+			if assert.Len(t, paginatedResult, tc.expectedLen) && tc.expectedLen > 0 {
+				assert.Equal(t, tc.expectedID, paginatedResult[0].ID)
 			}
 		})
 	}
@@ -982,7 +983,7 @@ func TestApplyPagination(t *testing.T) {
 func TestApplyPackagePagination(t *testing.T) {
 	adp, _ := NewAdapter(&Config{})
 
-	packages := []*dmsadapter.DeploymentPackage{
+	pkgs := []*dmsadapter.DeploymentPackage{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
 	}
 
@@ -1001,12 +1002,18 @@ func TestApplyPackagePagination(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			result := adp.applyPackagePagination(packages, tt.limit, tt.offset)
-			assert.Len(t, result, tt.wantCount)
-			if tt.wantCount > 0 {
-				assert.Equal(t, tt.wantFirst, result[0].ID)
+			pkgResult := adp.applyPackagePagination(pkgs, tt.limit, tt.offset)
+
+			// Early return pattern - check length first
+			if !assert.Len(t, pkgResult, tt.wantCount) {
+				return
 			}
+			if tt.wantCount == 0 {
+				return
+			}
+			assert.Equal(t, tt.wantFirst, pkgResult[0].ID)
 		})
 	}
 }

@@ -243,13 +243,16 @@ func TestSubscriptionUPDATE(t *testing.T) {
 			ConsumerSubscriptionID: "consumer-sub-123",
 		}
 
-		body, err := json.Marshal(subscription)
-		require.NoError(t, err)
+		subscriptionID := "test-sub-123"
+		endpoint := "/o2ims-infrastructureInventory/v1/subscriptions/" + subscriptionID
+
+		reqBody, marshalErr := json.Marshal(subscription)
+		require.NoError(t, marshalErr)
 
 		req := httptest.NewRequest(
 			http.MethodPut,
-			"/o2ims-infrastructureInventory/v1/subscriptions/test-sub-123",
-			bytes.NewReader(body),
+			endpoint,
+			bytes.NewReader(reqBody),
 		)
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
@@ -259,9 +262,8 @@ func TestSubscriptionUPDATE(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.Code)
 
 		var updated adapter.Subscription
-		err = json.Unmarshal(resp.Body.Bytes(), &updated)
-		require.NoError(t, err)
-		assert.Equal(t, "test-sub-123", updated.SubscriptionID)
+		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &updated))
+		assert.Equal(t, subscriptionID, updated.SubscriptionID)
 		assert.Equal(t, subscription.Callback, updated.Callback)
 		assert.Equal(t, subscription.ConsumerSubscriptionID, updated.ConsumerSubscriptionID)
 	})

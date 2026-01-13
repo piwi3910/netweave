@@ -1022,59 +1022,41 @@ func TestRedisConfig_GetSentinelPassword(t *testing.T) {
 
 // TestRedisConfig_IsUsingDeprecatedPassword tests the IsUsingDeprecatedPassword method.
 func TestRedisConfig_IsUsingDeprecatedPassword(t *testing.T) {
-	tests := []struct {
-		name     string
+	testCases := map[string]struct {
 		cfg      config.RedisConfig
 		expected bool
 	}{
-		{
-			name: "using deprecated direct password",
-			cfg: config.RedisConfig{
-				Password: "secret",
-			},
+		"using deprecated direct password": {
+			cfg:      config.RedisConfig{Password: "secret"},
 			expected: true,
 		},
-		{
-			name: "using password env var (recommended)",
-			cfg: config.RedisConfig{
-				PasswordEnvVar: "REDIS_PASSWORD",
-			},
+		"using password env var (recommended)": {
+			cfg:      config.RedisConfig{PasswordEnvVar: "REDIS_PASSWORD"},
 			expected: false,
 		},
-		{
-			name: "using password file (recommended)",
-			cfg: config.RedisConfig{
-				PasswordFile: "/run/secrets/redis-password",
-			},
+		"using password file (recommended)": {
+			cfg:      config.RedisConfig{PasswordFile: "/run/secrets/redis-password"},
 			expected: false,
 		},
-		{
-			name: "using direct password with env var fallback",
-			cfg: config.RedisConfig{
-				Password:       "secret",
-				PasswordEnvVar: "REDIS_PASSWORD",
-			},
+		"using direct password with env var fallback": {
+			cfg:      config.RedisConfig{Password: "secret", PasswordEnvVar: "REDIS_PASSWORD"},
 			expected: false,
 		},
-		{
-			name: "using direct password with file fallback",
-			cfg: config.RedisConfig{
-				Password:     "secret",
-				PasswordFile: "/run/secrets/redis-password",
-			},
+		"using direct password with file fallback": {
+			cfg:      config.RedisConfig{Password: "secret", PasswordFile: "/run/secrets/redis-password"},
 			expected: false,
 		},
-		{
-			name:     "no password configured",
+		"no password configured": {
 			cfg:      config.RedisConfig{},
 			expected: false,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.cfg.IsUsingDeprecatedPassword()
-			assert.Equal(t, tt.expected, result)
+	for name, tc := range testCases {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			result := tc.cfg.IsUsingDeprecatedPassword()
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
@@ -1087,24 +1069,18 @@ func TestRedisConfig_IsUsingDeprecatedSentinelPassword(t *testing.T) {
 		expected bool
 	}{
 		{
-			name: "using deprecated direct sentinel password",
-			cfg: config.RedisConfig{
-				SentinelPassword: "secret",
-			},
+			name:     "using deprecated direct sentinel password",
+			cfg:      config.RedisConfig{SentinelPassword: "secret"},
 			expected: true,
 		},
 		{
-			name: "using sentinel password env var (recommended)",
-			cfg: config.RedisConfig{
-				SentinelPasswordEnvVar: "SENTINEL_PASSWORD",
-			},
+			name:     "using sentinel password env var (recommended)",
+			cfg:      config.RedisConfig{SentinelPasswordEnvVar: "SENTINEL_PASSWORD"},
 			expected: false,
 		},
 		{
-			name: "using sentinel password file (recommended)",
-			cfg: config.RedisConfig{
-				SentinelPasswordFile: "/run/secrets/sentinel-password",
-			},
+			name:     "using sentinel password file (recommended)",
+			cfg:      config.RedisConfig{SentinelPasswordFile: "/run/secrets/sentinel-password"},
 			expected: false,
 		},
 		{
@@ -1131,9 +1107,9 @@ func TestRedisConfig_IsUsingDeprecatedSentinelPassword(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.cfg.IsUsingDeprecatedSentinelPassword()
-			assert.Equal(t, tt.expected, result)
+			assert.Equal(t, tt.expected, tt.cfg.IsUsingDeprecatedSentinelPassword())
 		})
 	}
 }
