@@ -203,9 +203,24 @@ func (r *Registry) Unregister(name string) error {
 
 // Get retrieves a DMS plugin by name.
 // Returns nil if the plugin is not found.
+func (r *Registry) Get(name string) adapter.DMSAdapter {
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
+
+	return r.Plugins[name]
+}
 
 // GetDefault returns the default DMS plugin.
 // Returns nil if no default is set.
+func (r *Registry) GetDefault() adapter.DMSAdapter {
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
+
+	if r.DefaultPlugin == "" {
+		return nil
+	}
+	return r.Plugins[r.DefaultPlugin]
+}
 
 // GetDefaultName returns the name of the default DMS plugin.
 // Returns empty string if no default is set.
