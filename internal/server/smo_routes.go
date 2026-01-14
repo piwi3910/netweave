@@ -208,7 +208,8 @@ func NewSMOHandler(registry *smo.Registry, logger *zap.Logger) *SMOHandler {
 }
 
 // getPluginFromQuery retrieves a plugin from the registry using the plugin query parameter.
-// Returns error if plugin lookup fails.
+// Returns smo.Plugin interface (factory/lookup pattern).
+// Note: Returning interface is idiomatic for factory/lookup methods.
 func (h *SMOHandler) getPluginFromQuery(c *gin.Context) (smo.Plugin, error) {
 	pluginName := c.Query("plugin")
 	var plugin smo.Plugin

@@ -48,7 +48,8 @@ func NewHandler(reg *registry.Registry, store storage.Store, logger *zap.Logger)
 }
 
 // getAdapterFromQuery retrieves a DMS adapter using the adapter query parameter.
-// Returns error if adapter lookup fails.
+// Returns adapter.DMSAdapter interface (factory/lookup pattern).
+// Note: Returning interface is idiomatic for factory/lookup methods.
 func (h *Handler) getAdapterFromQuery(c *gin.Context) (adapter.DMSAdapter, error) {
 	adapterName := c.Query("adapter")
 	var adp adapter.DMSAdapter
