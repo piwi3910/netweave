@@ -125,7 +125,9 @@ go test -v -tags=e2e ./tests/e2e/ -run TestInfrastructureDiscovery
 
 ### Subscription Workflow (`subscription_test.go`)
 
-Tests the subscription lifecycle:
+Comprehensive tests covering the complete subscription lifecycle and notification delivery:
+
+#### Basic CRUD Operations
 
 - ✅ Create subscription
 - ✅ List subscriptions
@@ -133,10 +135,69 @@ Tests the subscription lifecycle:
 - ✅ Delete subscription
 - ⏸️ Webhook notifications (requires resource changes)
 
+#### Advanced Subscription Tests
+
+**TestSubscriptionFiltering** - Tests subscription filtering by resource attributes:
+- Creates two webhook servers
+- Subscription 1: Filters for `Node` resources
+- Subscription 2: Filters for `Namespace` resources
+- Validates that each subscription receives only matching events
+- Status: ⏸️ Framework ready, requires K8s resource creation
+
+**TestConcurrentSubscriptions** - Tests multiple concurrent subscriptions:
+- Creates 5 subscriptions in parallel using goroutines
+- Each subscription has unique webhook server
+- Validates thread-safe subscription creation
+- Ensures all subscriptions are created successfully
+- Tests mutex-protected concurrent access patterns
+- Status: ✅ Complete
+
+**TestSubscriptionInvalidCallback** - Tests error handling for invalid callback URLs:
+- Invalid URL format: `"not-a-valid-url"`
+- Empty callback: `""`
+- Non-HTTP scheme: `"ftp://example.com/webhook"`
+- Validates appropriate HTTP status codes (400 Bad Request)
+- Status: ✅ Complete
+
+**TestWebhookRetryLogic** - Tests webhook delivery with retry on failure:
+- Creates webhook server that fails first 2 attempts
+- Validates exponential backoff retry mechanism
+- Ensures notification eventually succeeds after retries
+- Tests resilience to temporary webhook failures
+- Status: ⏸️ Framework ready, requires event triggering
+
+**TestResourceLifecycleEvents** - Tests full resource lifecycle notification flow:
+- Create resource → notification sent
+- Update resource → notification sent
+- Delete resource → notification sent
+- Validates complete event stream for resource lifecycle
+- Status: ⏸️ Framework ready, requires K8s resource creation
+
+**TestSubscriptionFilterByResourcePool** - Tests filtering by resource pool ID:
+- Creates subscription with pool-specific filter
+- Validates events filtered by resource pool membership
+- Tests hierarchical filtering (pool → resources)
+- Status: ⏸️ Framework ready, requires K8s resource creation
+
+**TestSubscriptionDeletionStopsNotifications** - Tests notification cessation:
+- Creates subscription and receives initial notifications
+- Deletes subscription
+- Validates no further notifications received after deletion
+- Tests cleanup of notification delivery
+- Status: ⏸️ Framework ready, requires event triggering
+
 **Example:**
 ```bash
-go test -v -tags=e2e ./tests/e2e/ -run TestSubscriptionWorkflow
+# Run all subscription tests
+go test -v -tags=e2e ./tests/e2e/ -run TestSubscription
+
+# Run specific advanced test
+go test -v -tags=e2e ./tests/e2e/ -run TestSubscriptionFiltering
+go test -v -tags=e2e ./tests/e2e/ -run TestConcurrentSubscriptions
+go test -v -tags=e2e ./tests/e2e/ -run TestWebhookRetryLogic
 ```
+
+**Note**: Tests marked with ⏸️ have complete framework implementation but are currently skipped pending Kubernetes resource creation functionality. These tests will be enabled once the test infrastructure supports creating/modifying/deleting actual Kubernetes resources to trigger events.
 
 ## Running Tests
 
