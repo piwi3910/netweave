@@ -23,6 +23,12 @@ info:
     - `X-RateLimit-Limit`: Maximum requests per window
     - `X-RateLimit-Remaining`: Remaining requests in current window
     - `X-RateLimit-Reset`: Unix timestamp when the window resets
+
+    ## Webhook Security
+
+    Webhook notifications use HMAC-SHA256 signatures for authentication. All webhook consumers
+    MUST verify signatures before processing events. See the WebhookSignature security scheme
+    and [Webhook Security Guide](https://docs.netweave.io/webhook-security) for implementation details.
   version: 1.0.0
   contact:
     name: Netweave Project
@@ -131,6 +137,18 @@ paths:
                   resourceTypeId:
                     - "compute-node"
                   resourceId: []
+                security:
+                  type: "hmac-sha256"
+                  secret: "7d3e9f2a8c1b4e6d5f8a9c2b7e1d4f3a"
+                  headers:
+                    signature: "X-O2IMS-Signature"
+                    timestamp: "X-O2IMS-Timestamp"
+                    eventType: "X-O2IMS-Event-Type"
+                  algorithm: "HMAC-SHA256"
+                  encoding: "hex"
+                  payload_format: "{timestamp}.{body}"
+                  timestamp_tolerance: 300
+                  documentation: "https://docs.netweave.io/webhook-security"
                 createdAt: "2024-01-15T10:30:00Z"
         '400':
           $ref: '#/components/responses/BadRequest'
@@ -1042,6 +1060,8 @@ components:
           example: "smo-sub-123"
         filter:
           $ref: '#/components/schemas/SubscriptionFilter'
+        security:
+          $ref: '#/components/schemas/WebhookSecurity'
         createdAt:
           type: string
           format: date-time
@@ -1070,6 +1090,64 @@ components:
             type: string
           description: Filter by specific resource IDs
           example: ["node-001"]
+
+    WebhookSecurity:
+      type: object
+      description: |
+        Webhook security configuration returned upon subscription creation.
+
+        **IMPORTANT**: Store the `secret` value securely. It cannot be retrieved later.
+      required:
+        - type
+        - secret
+        - headers
+        - algorithm
+      properties:
+        type:
+          type: string
+          enum: [hmac-sha256]
+          description: Signature type
+          example: "hmac-sha256"
+        secret:
+          type: string
+          description: |
+            Shared secret for HMAC signature verification.
+            This value is only returned during subscription creation.
+          example: "7d3e9f2a8c1b4e6d5f8a9c2b7e1d4f3a"
+        headers:
+          type: object
+          description: Header names used for webhook verification
+          properties:
+            signature:
+              type: string
+              example: "X-O2IMS-Signature"
+            timestamp:
+              type: string
+              example: "X-O2IMS-Timestamp"
+            eventType:
+              type: string
+              example: "X-O2IMS-Event-Type"
+        algorithm:
+          type: string
+          description: HMAC algorithm
+          example: "HMAC-SHA256"
+        encoding:
+          type: string
+          description: Signature encoding format
+          example: "hex"
+        payload_format:
+          type: string
+          description: Format string for signed payload
+          example: "{timestamp}.{body}"
+        timestamp_tolerance:
+          type: integer
+          description: Maximum age of timestamp in seconds (replay protection)
+          example: 300
+        documentation:
+          type: string
+          format: uri
+          description: Link to webhook security documentation
+          example: "https://docs.netweave.io/webhook-security"
 
     CreateSubscriptionRequest:
       type: object
@@ -1827,3 +1905,44 @@ components:
       description: |
         Mutual TLS authentication. Clients must present a valid X.509 certificate
         signed by a trusted Certificate Authority.
+
+    WebhookSignature:
+      type: apiKey
+      in: header
+      name: X-O2IMS-Signature
+      description: |
+        HMAC-SHA256 signature for webhook verification.
+
+        ## Signature Computation
+
+        ```
+        signature = HMAC-SHA256(secret, timestamp + "." + body)
+        ```
+
+        Where:
+        - `secret` - Shared secret from subscription creation
+        - `timestamp` - Value from X-O2IMS-Timestamp header
+        - `body` - Raw JSON request body
+
+        ## Verification Process
+
+        Webhook consumers MUST:
+        1. Extract signature from `X-O2IMS-Signature` header
+        2. Extract timestamp from `X-O2IMS-Timestamp` header
+        3. Verify timestamp is within 5 minutes (replay protection)
+        4. Reconstruct payload: `timestamp + "." + body`
+        5. Compute HMAC-SHA256 using subscription secret
+        6. Compare signatures using constant-time comparison
+
+        ## Additional Headers
+
+        - `X-O2IMS-Timestamp` - Unix timestamp (seconds) for replay protection
+        - `X-O2IMS-Event-Type` - Event type identifier (e.g., "resource.created")
+
+        ## Documentation
+
+        See [Webhook Security Guide](https://docs.netweave.io/webhook-security) for:
+        - Complete implementation examples (Python, Go, Java, Node.js)
+        - Security best practices
+        - Testing tools
+        - Troubleshooting guidance
