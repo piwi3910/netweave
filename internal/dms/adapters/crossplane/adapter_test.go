@@ -763,7 +763,7 @@ func TestListDeploymentPackages(t *testing.T) {
 
 	for _, pkg := range packages {
 		assert.NotEmpty(t, pkg.ID)
-		assert.Equal(t, "crossplane.crossplane-composition", pkg.PackageType)
+		assert.Equal(t, "crossplane-composition", pkg.PackageType)
 	}
 }
 
@@ -776,7 +776,7 @@ func TestGetDeploymentPackage(t *testing.T) {
 		pkg, err := adp.GetDeploymentPackage(context.Background(), "my-composition")
 		require.NoError(t, err)
 		require.NotNil(t, pkg)
-		assert.Equal(t, "crossplane.crossplane-composition", pkg.PackageType)
+		assert.Equal(t, "crossplane-composition", pkg.PackageType)
 	})
 
 	t.Run("package not found", func(t *testing.T) {
@@ -837,7 +837,7 @@ func TestUploadDeploymentPackage(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, pkg)
 				assert.Equal(t, tt.pkg.Name, pkg.Name)
-				assert.Equal(t, "crossplane.crossplane-composition", pkg.PackageType)
+				assert.Equal(t, "crossplane-composition", pkg.PackageType)
 			}
 		})
 	}
