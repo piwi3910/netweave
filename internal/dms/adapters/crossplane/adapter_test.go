@@ -1052,11 +1052,13 @@ func BenchmarkListDeployments(b *testing.B) {
 
 	scheme := runtime.NewScheme()
 	scheme.AddKnownTypeWithName(
-		schema.GroupVersionKind{Group: crossplane.CrossplaneGroup, Version: crossplane.CrossplaneVersion, Kind: "Configuration"},
+		schema.GroupVersionKind{
+			Group: crossplane.CrossplaneGroup, Version: crossplane.CrossplaneVersion, Kind: "Configuration"},
 		&unstructured.Unstructured{},
 	)
 	scheme.AddKnownTypeWithName(
-		schema.GroupVersionKind{Group: crossplane.CrossplaneGroup, Version: crossplane.CrossplaneVersion, Kind: "ConfigurationList"},
+		schema.GroupVersionKind{
+			Group: crossplane.CrossplaneGroup, Version: crossplane.CrossplaneVersion, Kind: "ConfigurationList"},
 		&unstructured.UnstructuredList{},
 	)
 

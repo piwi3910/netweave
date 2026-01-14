@@ -131,7 +131,8 @@ func validateCreateError(t *testing.T, err, wantErr error) {
 }
 
 // validateSuccessfulCreate validates successful subscription creation and retrieval.
-func validateSuccessfulCreate(ctx context.Context, t *testing.T, store *storage.RedisStore, sub *storage.Subscription, err error) {
+func validateSuccessfulCreate(
+	ctx context.Context, t *testing.T, store *storage.RedisStore, sub *storage.Subscription, err error) {
 	t.Helper()
 
 	if err != nil {
@@ -350,7 +351,8 @@ func verifyUpdateError(t *testing.T, err, wantErr error) {
 }
 
 // verifySubscriptionUpdated verifies the subscription was updated correctly.
-func verifySubscriptionUpdated(ctx context.Context, t *testing.T, store *storage.RedisStore, sub *storage.Subscription) {
+func verifySubscriptionUpdated(
+	ctx context.Context, t *testing.T, store *storage.RedisStore, sub *storage.Subscription) {
 	t.Helper()
 	got, err := store.Get(ctx, sub.ID)
 	if err != nil {

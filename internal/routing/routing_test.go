@@ -1096,7 +1096,8 @@ func TestRouter_getValidatedAdapter(t *testing.T) {
 			ok := false
 			if adp != nil {
 				meta := router.Registry.GetMetadata(tt.rule.AdapterName)
-				if meta != nil && meta.Enabled && meta.Healthy && router.HasCapabilities(meta.Capabilities, tt.ctx.RequiredCapabilities) {
+				if meta != nil && meta.Enabled && meta.Healthy &&
+					router.HasCapabilities(meta.Capabilities, tt.ctx.RequiredCapabilities) {
 					ok = true
 				}
 			}

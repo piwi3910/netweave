@@ -160,7 +160,8 @@ func (r *Router) RouteMultiple(_ context.Context, routingCtx *Context) ([]adapte
 		var ok bool
 		if plugin != nil {
 			meta := r.Registry.GetMetadata(rule.AdapterName)
-			if meta != nil && meta.Enabled && meta.Healthy && r.HasCapabilities(meta.Capabilities, routingCtx.RequiredCapabilities) {
+			if meta != nil && meta.Enabled && meta.Healthy &&
+				r.HasCapabilities(meta.Capabilities, routingCtx.RequiredCapabilities) {
 				ok = true
 			}
 		}
