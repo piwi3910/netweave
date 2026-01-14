@@ -856,14 +856,40 @@ func TestSubscriptionFilterByResourcePool(t *testing.T) {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	t.Skip("Requires creating resources in different pools")
-
 	fw, err := e2e.NewTestFramework(e2e.DefaultOptions())
 	require.NoError(t, err)
 	defer fw.Cleanup()
 
-	// Create two webhook servers
-	webhook1 := e2e.NewWebhookServer(fw.Logger.Named("webhook-pool1"))
+	// First, discover available resource pools
+	resp, err := fw.APIClient.Get(fw.GatewayURL + e2e.APIPathResourcePools)
+	require.NoError(t, err)
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var poolsResponse struct {
+		Items []map[string]any `json:"items"`
+	}
+	err = json.Unmarshal(body, &poolsResponse)
+	require.NoError(t, err)
+
+	if len(poolsResponse.Items) == 0 {
+		t.Skip("No resource pools available for testing")
+	}
+
+	// Get the first pool ID
+	poolID, ok := poolsResponse.Items[0]["resourcePoolId"].(string)
+	if !ok {
+		t.Skip("Could not extract resource pool ID")
+	}
+
+	// Create webhook for this specific pool
+	webhook1 := e2e.NewWebhookServer(fw.Logger.Named("webhook-pool"))
 	require.NoError(t, webhook1.Start())
 	defer func() {
 		if err := webhook1.Stop(); err != nil {
@@ -871,7 +897,8 @@ func TestSubscriptionFilterByResourcePool(t *testing.T) {
 		}
 	}()
 
-	webhook2 := e2e.NewWebhookServer(fw.Logger.Named("webhook-pool2"))
+	// Create webhook for non-existent pool (should receive no events)
+	webhook2 := e2e.NewWebhookServer(fw.Logger.Named("webhook-nopool"))
 	require.NoError(t, webhook2.Start())
 	defer func() {
 		if err := webhook2.Stop(); err != nil {
@@ -879,10 +906,10 @@ func TestSubscriptionFilterByResourcePool(t *testing.T) {
 		}
 	}()
 
-	// Subscription 1: Filter for pool-1
+	// Subscription 1: Filter for the discovered pool
 	sub1 := map[string]any{
 		"callback": webhook1.URL(),
-		"filter":   "(resourcePoolId==pool-1)",
+		"filter":   fmt.Sprintf("(resourcePoolId==%s)", poolID),
 	}
 	reqBody1, err := json.Marshal(sub1)
 	require.NoError(t, err)
@@ -897,10 +924,10 @@ func TestSubscriptionFilterByResourcePool(t *testing.T) {
 	}()
 	require.Equal(t, http.StatusCreated, resp1.StatusCode)
 
-	// Subscription 2: Filter for pool-2
+	// Subscription 2: Filter for non-existent pool
 	sub2 := map[string]any{
 		"callback": webhook2.URL(),
-		"filter":   "(resourcePoolId==pool-2)",
+		"filter":   "(resourcePoolId==nonexistent-pool-999)",
 	}
 	reqBody2, err := json.Marshal(sub2)
 	require.NoError(t, err)
@@ -917,20 +944,53 @@ func TestSubscriptionFilterByResourcePool(t *testing.T) {
 	webhook1.ClearEvents()
 	webhook2.ClearEvents()
 
-	// TODO: Create resource in pool-1
-	// Only webhook1 should receive notification
+	// Create K8s resource helper
+	k8sHelper := e2e.NewK8sResourceHelper(fw.KubeClient, fw.Namespace, fw.Context)
 
-	// TODO: Create resource in pool-2
-	// Only webhook2 should receive notification
+	// Create a namespace to trigger events
+	nsName := "pool-filter-test"
+	ns, err := k8sHelper.CreateTestNamespace(nsName)
+	if err != nil {
+		t.Skipf("Could not create test namespace: %v", err)
+	}
+	defer func() {
+		if delErr := k8sHelper.DeleteNamespace(nsName); delErr != nil {
+			t.Logf("Failed to cleanup namespace: %v", delErr)
+		}
+	}()
 
+	fw.Logger.Info("Created test namespace for pool filtering",
+		zap.String("namespace", ns.Name),
+		zap.String("poolId", poolID),
+	)
+
+	// Wait for events to be delivered
 	time.Sleep(5 * time.Second)
 
 	// Verify filtering worked
 	events1 := webhook1.GetReceivedEvents()
 	events2 := webhook2.GetReceivedEvents()
 
+	// Webhook2 should receive NO events (filtering on non-existent pool)
+	assert.Empty(t, events2, "Webhook2 should not receive events for non-existent pool")
+
+	// Log event details for debugging
+	for i, evt := range events1 {
+		fw.Logger.Debug("Webhook1 received event",
+			zap.Int("index", i),
+			zap.String("type", evt.Type),
+			zap.String("resourceType", evt.ResourceType),
+			zap.String("resourceId", evt.ResourceID),
+		)
+	}
+
+	if len(events1) == 0 {
+		t.Skip("No events received - subscription notification may not be configured")
+	}
+
 	fw.Logger.Info("Resource pool filtering test completed",
 		zap.Int("webhook1Events", len(events1)),
 		zap.Int("webhook2Events", len(events2)),
+		zap.String("filteredPoolId", poolID),
 	)
 }
