@@ -158,14 +158,12 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *kustomize.Adapt
 
 	adp, err := kustomize.NewAdapter(&kustomize.Config{
 		Namespace: "default",
-		BaseURL:   "https://github.com/example/kustomize.kustomize-repo",
+		BaseURL:   "https://github.com/example/kustomize-repo",
 	})
 	require.NoError(t, err)
 
-	// Set up fake client and mark as initialized
-	adp.InitOnce.Do(func() {
-		adp.DynamicClient = client
-	})
+	// Set up fake client directly (InitOnce was already called in NewAdapter)
+	adp.DynamicClient = client
 
 	return adp
 }
@@ -178,17 +176,17 @@ func createTestConfigMap(name, path string, version int) *unstructured.Unstructu
 			"apiVersion": "v1",
 			"kind":       "ConfigMap",
 			"metadata": map[string]interface{}{
-				"name":              fmt.Sprintf("kustomize.kustomize-%s", name),
+				"name":              fmt.Sprintf("kustomize-%s", name),
 				"namespace":         namespace,
 				"creationTimestamp": time.Now().Format(time.RFC3339),
 				"labels": map[string]interface{}{
-					"app.kubernetes.io/managed-by": "kustomize.kustomize-adapter",
+					"app.kubernetes.io/managed-by": "kustomize-adapter",
 					"app.kubernetes.io/name":       name,
 				},
 			},
 			"data": map[string]interface{}{
 				"name":        name,
-				"packageId":   "kustomize.kustomize-base",
+				"packageId":   "kustomize-base",
 				"path":        path,
 				"status":      string(dmsadapter.DeploymentStatusDeployed),
 				"version":     fmt.Sprintf("%d", version),
@@ -708,7 +706,7 @@ func TestListDeploymentPackages(t *testing.T) {
 
 	for _, pkg := range packages {
 		assert.NotEmpty(t, pkg.ID)
-		assert.Equal(t, "kustomize.kustomize", pkg.PackageType)
+		assert.Equal(t, "kustomize", pkg.PackageType)
 	}
 }
 
@@ -717,11 +715,11 @@ func TestGetDeploymentPackage(t *testing.T) {
 	adp := createFakeAdapter(t)
 
 	t.Run("package found", func(t *testing.T) {
-		expectedID := kustomize.GeneratePackageID("https://github.com/example/kustomize.kustomize-repo")
+		expectedID := kustomize.GeneratePackageID("https://github.com/example/kustomize-repo")
 		pkg, err := adp.GetDeploymentPackage(context.Background(), expectedID)
 		require.NoError(t, err)
 		require.NotNil(t, pkg)
-		assert.Equal(t, "kustomize.kustomize", pkg.PackageType)
+		assert.Equal(t, "kustomize", pkg.PackageType)
 	})
 
 	t.Run("package not found", func(t *testing.T) {
@@ -742,7 +740,7 @@ func TestUploadDeploymentPackage(t *testing.T) {
 		{
 			name: "valid package",
 			pkg: &dmsadapter.DeploymentPackageUpload{
-				Name:    "my-kustomize.kustomize",
+				Name:    "my-kustomize-kustomize",
 				Version: "v1.0.0",
 				Extensions: map[string]interface{}{
 					"kustomize.url": "https://github.com/example/repo",
@@ -759,7 +757,7 @@ func TestUploadDeploymentPackage(t *testing.T) {
 		{
 			name: "missing url",
 			pkg: &dmsadapter.DeploymentPackageUpload{
-				Name:       "my-kustomize.kustomize",
+				Name:       "my-kustomize-kustomize",
 				Extensions: map[string]interface{}{},
 			},
 			wantErr:     true,
@@ -781,7 +779,7 @@ func TestUploadDeploymentPackage(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, pkg)
 				assert.Equal(t, tt.pkg.Name, pkg.Name)
-				assert.Equal(t, "kustomize.kustomize", pkg.PackageType)
+				assert.Equal(t, "kustomize", pkg.PackageType)
 			}
 		})
 	}
@@ -999,12 +997,12 @@ func TestGeneratePackageID(t *testing.T) {
 		{
 			name: "github url",
 			url:  "https://github.com/example/repo",
-			want: "kustomize.kustomize-https-github-com-example-repo",
+			want: "kustomize-https-github-com-example-repo",
 		},
 		{
 			name: "simple url",
-			url:  "http://example.com/kustomize.kustomize",
-			want: "kustomize.kustomize-http-example-com-kustomize.kustomize",
+			url:  "http://example.com/kustomize-kustomize",
+			want: "kustomize-http-example-com-kustomize-kustomize",
 		},
 	}
 

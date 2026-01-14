@@ -118,6 +118,11 @@ func NewAdapter(config *Config) (*Adapter, error) {
 
 // initialize performs lazy initialization of the Kubernetes client.
 func (k *Adapter) initialize() error {
+	// Skip initialization if DynamicClient is already set (e.g., in tests)
+	if k.DynamicClient != nil {
+		return nil
+	}
+
 	k.InitOnce.Do(func() {
 		var cfg *rest.Config
 		var err error

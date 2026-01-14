@@ -1065,7 +1065,7 @@ func TestListDeploymentPackages(t *testing.T) {
 
 	for _, pkg := range packages {
 		assert.NotEmpty(t, pkg.ID)
-		assert.True(t, pkg.PackageType == "flux.flux-git" || pkg.PackageType == "flux.flux-helm")
+		assert.True(t, pkg.PackageType == "flux-git" || pkg.PackageType == "flux-helm")
 		assert.NotNil(t, pkg.Extensions)
 	}
 }
@@ -1588,7 +1588,7 @@ func TestGetDeploymentPackage(t *testing.T) {
 		pkg, err := adp.GetDeploymentPackage(context.Background(), "git-https-github-com-example-infra")
 		require.NoError(t, err)
 		require.NotNil(t, pkg)
-		assert.Equal(t, "flux.flux-git", pkg.PackageType)
+		assert.Equal(t, "flux-git", pkg.PackageType)
 	})
 
 	t.Run("helm package found", func(t *testing.T) {
@@ -1596,7 +1596,7 @@ func TestGetDeploymentPackage(t *testing.T) {
 		pkg, err := adp.GetDeploymentPackage(context.Background(), "helm-https-charts-bitnami-com-bitnami")
 		require.NoError(t, err)
 		require.NotNil(t, pkg)
-		assert.Equal(t, "flux.flux-helm", pkg.PackageType)
+		assert.Equal(t, "flux-helm", pkg.PackageType)
 	})
 
 	t.Run("package not found with git prefix", func(t *testing.T) {
