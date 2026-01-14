@@ -276,18 +276,16 @@ func TestSwaggerUISRIHashes(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Verify SRI hashes are present
-	assert.Contains(t, body, server.SwaggerUICSSSRI)
+	// Verify SRI hashes are present (only JS files, CSS is inline)
 	assert.Contains(t, body, server.SwaggerUIBundleSRI)
 	assert.Contains(t, body, server.SwaggerUIPresetSRI)
 
 	// Verify integrity attributes are properly formatted
-	assert.Contains(t, body, `integrity="`+server.SwaggerUICSSSRI+`"`)
 	assert.Contains(t, body, `integrity="`+server.SwaggerUIBundleSRI+`"`)
 	assert.Contains(t, body, `integrity="`+server.SwaggerUIPresetSRI+`"`)
 
-	// Verify crossorigin attributes
-	assert.Equal(t, 3, strings.Count(body, `crossorigin="anonymous"`))
+	// Verify crossorigin attributes (2 JS files)
+	assert.Equal(t, 2, strings.Count(body, `crossorigin="anonymous"`))
 }
 
 func TestSwaggerUICSPConstants(t *testing.T) {

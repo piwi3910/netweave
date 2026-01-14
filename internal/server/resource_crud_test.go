@@ -618,9 +618,10 @@ func TestResourceTotalExtensionsPayloadExceedsFiftyKB(t *testing.T) {
 func TestResourceCustomResourceID(t *testing.T) {
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
-	// Test POST /resources
+	// Test POST /resources with custom UUID
+	customID := "550e8400-e29b-41d4-a716-446655440099"
 	resource := adapter.Resource{
-		ResourceID:     "custom-resource-id",
+		ResourceID:     customID,
 		ResourceTypeID: "machine",
 		ResourcePoolID: "pool-1",
 		Description:    "Resource with custom ID",
@@ -634,7 +635,7 @@ func TestResourceCustomResourceID(t *testing.T) {
 	var created adapter.Resource
 	err := json.Unmarshal(resp.Body.Bytes(), &created)
 	require.NoError(t, err)
-	assert.Equal(t, "custom-resource-id", created.ResourceID)
+	assert.Equal(t, customID, created.ResourceID)
 }
 
 func TestResourceDuplicateResourceID(t *testing.T) {
@@ -761,8 +762,8 @@ func TestResourceConcurrency(t *testing.T) {
 		}
 		srv := setupResourceTestServer(t, mockAdp)
 
-		// Use a specific resource ID
-		resourceID := "test-concurrent-123"
+		// Use a valid UUID for resource ID (required by handler validation)
+		resourceID := "550e8400-e29b-41d4-a716-446655440001"
 		resource := adapter.Resource{
 			ResourceID:     resourceID,
 			ResourceTypeID: "machine",
@@ -803,7 +804,8 @@ func TestResourceConcurrency(t *testing.T) {
 	})
 
 	t.Run("concurrent updates to same resource", func(t *testing.T) {
-		resourceID := "test-update-concurrent"
+		// Use a valid UUID for resource ID (required by handler validation)
+		resourceID := "550e8400-e29b-41d4-a716-446655440002"
 		mockAdp := &mockResourceAdapter{
 			resources: map[string]*adapter.Resource{
 				resourceID: {
@@ -866,7 +868,8 @@ func TestResourceConcurrency(t *testing.T) {
 		}
 		srv := setupResourceTestServer(t, mockAdp)
 
-		resourceID := "test-create-get-concurrent"
+		// Use a valid UUID for resource ID (required by handler validation)
+		resourceID := "550e8400-e29b-41d4-a716-446655440003"
 		const numGoroutines = 20
 
 		results := make(chan string, numGoroutines)
