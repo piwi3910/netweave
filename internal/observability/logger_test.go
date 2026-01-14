@@ -1,10 +1,11 @@
-package observability
+package observability_test
 
 import (
 	"context"
 	"os"
 	"testing"
 
+	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -41,9 +42,9 @@ func TestInitLogger(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset global logger
-			globalLogger = nil
+			observability.GlobalLogger = nil
 
-			logger, err := InitLogger(tt.env)
+			logger, err := observability.InitLogger(tt.env)
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Nil(t, logger)
@@ -62,13 +63,13 @@ func TestInitLogger(t *testing.T) {
 
 func TestInitLoggerWithLogLevel(t *testing.T) {
 	// Reset global logger
-	globalLogger = nil
+	observability.GlobalLogger = nil
 
 	// Set log level via environment variable
 	_ = os.Setenv("LOG_LEVEL", "warn")
 	defer func() { _ = os.Unsetenv("LOG_LEVEL") }()
 
-	logger, err := InitLogger("production")
+	logger, err := observability.InitLogger("production")
 	require.NoError(t, err)
 	require.NotNil(t, logger)
 
@@ -78,13 +79,13 @@ func TestInitLoggerWithLogLevel(t *testing.T) {
 
 func TestInitLoggerInvalidLogLevel(t *testing.T) {
 	// Reset global logger
-	globalLogger = nil
+	observability.GlobalLogger = nil
 
 	// Set invalid log level
 	_ = os.Setenv("LOG_LEVEL", "invalid")
 	defer func() { _ = os.Unsetenv("LOG_LEVEL") }()
 
-	logger, err := InitLogger("production")
+	logger, err := observability.InitLogger("production")
 	require.Error(t, err)
 	assert.Nil(t, logger)
 	assert.Contains(t, err.Error(), "invalid log level")
@@ -92,29 +93,29 @@ func TestInitLoggerInvalidLogLevel(t *testing.T) {
 
 func TestGetLogger(t *testing.T) {
 	// Reset and initialize global logger
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
 	// Get logger
-	retrieved := GetLogger()
+	retrieved := observability.GetLogger()
 	require.NotNil(t, retrieved)
 	assert.Equal(t, logger, retrieved)
 }
 
 func TestGetLoggerPanicsWhenNotInitialized(t *testing.T) {
 	// Reset global logger
-	globalLogger = nil
+	observability.GlobalLogger = nil
 
 	assert.Panics(t, func() {
-		GetLogger()
+		observability.GetLogger()
 	})
 }
 
 func TestLoggerWithContext(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -124,8 +125,8 @@ func TestLoggerWithContext(t *testing.T) {
 }
 
 func TestLoggerWithFields(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -138,8 +139,8 @@ func TestLoggerWithFields(t *testing.T) {
 }
 
 func TestLoggerWithError(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -149,8 +150,8 @@ func TestLoggerWithError(t *testing.T) {
 }
 
 func TestLoggerWithComponent(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -159,37 +160,37 @@ func TestLoggerWithComponent(t *testing.T) {
 }
 
 func TestContextWithLogger(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
 	ctx := context.Background()
-	ctxWithLogger := ContextWithLogger(ctx, logger)
+	ctxWithLogger := observability.ContextWithLogger(ctx, logger)
 	require.NotNil(t, ctxWithLogger)
 
 	// Verify we can retrieve the logger
-	retrieved := LoggerFromContext(ctxWithLogger)
+	retrieved := observability.LoggerFromContext(ctxWithLogger)
 	require.NotNil(t, retrieved)
 	assert.Equal(t, logger, retrieved)
 }
 
 func TestLoggerFromContextFallsBackToGlobal(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
 	// Context without logger
 	ctx := context.Background()
-	retrieved := LoggerFromContext(ctx)
+	retrieved := observability.LoggerFromContext(ctx)
 	require.NotNil(t, retrieved)
 	assert.Equal(t, logger, retrieved)
 }
 
 func TestLogRequest(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -198,8 +199,8 @@ func TestLogRequest(t *testing.T) {
 }
 
 func TestLogAdapterOperation(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -211,8 +212,8 @@ func TestLogAdapterOperation(t *testing.T) {
 }
 
 func TestLogSubscriptionEvent(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -225,8 +226,8 @@ func TestLogSubscriptionEvent(t *testing.T) {
 }
 
 func TestLogRedisOperation(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -238,8 +239,8 @@ func TestLogRedisOperation(t *testing.T) {
 }
 
 func TestLogKubernetesOperation(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -251,8 +252,8 @@ func TestLogKubernetesOperation(t *testing.T) {
 }
 
 func TestLogLevels(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -266,8 +267,8 @@ func TestLogLevels(t *testing.T) {
 }
 
 func TestLoggerConfigDevelopment(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -276,8 +277,8 @@ func TestLoggerConfigDevelopment(t *testing.T) {
 }
 
 func TestLoggerConfigProduction(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("production")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("production")
 	require.NoError(t, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -287,7 +288,7 @@ func TestLoggerConfigProduction(t *testing.T) {
 
 func TestExtractContextFields(t *testing.T) {
 	ctx := context.Background()
-	fields := extractContextFields(ctx)
+	fields := observability.ExtractContextFields(ctx)
 
 	// Currently returns nil or empty array (both are valid), but function should not panic
 	// A nil slice is valid and has length 0
@@ -296,8 +297,8 @@ func TestExtractContextFields(t *testing.T) {
 }
 
 func TestLoggerSync(t *testing.T) {
-	globalLogger = nil
-	logger, err := InitLogger("development")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("development")
 	require.NoError(t, err)
 
 	// Sync should not fail (may return error for stdout/stderr, which is acceptable)
@@ -306,8 +307,8 @@ func TestLoggerSync(t *testing.T) {
 
 // Benchmark tests for performance validation.
 func BenchmarkLoggerInfo(b *testing.B) {
-	globalLogger = nil
-	logger, err := InitLogger("production")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("production")
 	require.NoError(b, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -321,8 +322,8 @@ func BenchmarkLoggerInfo(b *testing.B) {
 }
 
 func BenchmarkLoggerWithFields(b *testing.B) {
-	globalLogger = nil
-	logger, err := InitLogger("production")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("production")
 	require.NoError(b, err)
 	defer func() { _ = logger.Sync() }()
 
@@ -337,8 +338,8 @@ func BenchmarkLoggerWithFields(b *testing.B) {
 }
 
 func BenchmarkLogRequest(b *testing.B) {
-	globalLogger = nil
-	logger, err := InitLogger("production")
+	observability.GlobalLogger = nil
+	logger, err := observability.InitLogger("production")
 	require.NoError(b, err)
 	defer func() { _ = logger.Sync() }()
 

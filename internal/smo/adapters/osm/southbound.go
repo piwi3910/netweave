@@ -144,7 +144,7 @@ func (p *Plugin) PublishInfrastructureEvent(ctx context.Context, event *smo.Infr
 		return fmt.Errorf("event cannot be nil")
 	}
 
-	if !p.config.EnableEventPublish {
+	if !p.Config.EnableEventPublish {
 		return nil
 	}
 

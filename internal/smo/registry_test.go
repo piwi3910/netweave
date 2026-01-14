@@ -1,4 +1,4 @@
-package smo
+package smo_test
 
 import (
 	"context"
@@ -7,19 +7,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/piwi3910/netweave/internal/smo"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-// mockPlugin implements the Plugin interface for testing.
+// mockPlugin implements the smo.Plugin interface for testing.
 type mockPlugin struct {
 	mu           sync.RWMutex
 	name         string
 	version      string
 	description  string
 	vendor       string
-	capabilities []Capability
+	capabilities []smo.Capability
 	healthy      bool
 	healthErr    error
 	closed       bool
@@ -40,8 +42,8 @@ type mockPlugin struct {
 	getPolicyStatusCount   int
 }
 
-func (m *mockPlugin) Metadata() PluginMetadata {
-	return PluginMetadata{
+func (m *mockPlugin) Metadata() smo.PluginMetadata {
+	return smo.PluginMetadata{
 		Name:        m.name,
 		Version:     m.version,
 		Description: m.description,
@@ -49,7 +51,7 @@ func (m *mockPlugin) Metadata() PluginMetadata {
 	}
 }
 
-func (m *mockPlugin) Capabilities() []Capability {
+func (m *mockPlugin) Capabilities() []smo.Capability {
 	return m.capabilities
 }
 
@@ -57,10 +59,10 @@ func (m *mockPlugin) Initialize(_ context.Context, _ map[string]interface{}) err
 	return nil
 }
 
-func (m *mockPlugin) Health(_ context.Context) HealthStatus {
+func (m *mockPlugin) Health(_ context.Context) smo.HealthStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	status := HealthStatus{
+	status := smo.HealthStatus{
 		Healthy:   m.healthy,
 		Timestamp: time.Now(),
 	}
@@ -80,29 +82,29 @@ func (m *mockPlugin) Close() error {
 	return m.closeErr
 }
 
-func (m *mockPlugin) SyncInfrastructureInventory(_ context.Context, _ *InfrastructureInventory) error {
+func (m *mockPlugin) SyncInfrastructureInventory(_ context.Context, _ *smo.InfrastructureInventory) error {
 	m.syncInfraCount++
 	return nil
 }
 
-func (m *mockPlugin) SyncDeploymentInventory(_ context.Context, _ *DeploymentInventory) error {
+func (m *mockPlugin) SyncDeploymentInventory(_ context.Context, _ *smo.DeploymentInventory) error {
 	m.syncDeployCount++
 	return nil
 }
 
-func (m *mockPlugin) PublishInfrastructureEvent(_ context.Context, _ *InfrastructureEvent) error {
+func (m *mockPlugin) PublishInfrastructureEvent(_ context.Context, _ *smo.InfrastructureEvent) error {
 	m.publishInfraCount++
 	return nil
 }
 
-func (m *mockPlugin) PublishDeploymentEvent(_ context.Context, _ *DeploymentEvent) error {
+func (m *mockPlugin) PublishDeploymentEvent(_ context.Context, _ *smo.DeploymentEvent) error {
 	m.publishDeployCount++
 	return nil
 }
 
-func (m *mockPlugin) ExecuteWorkflow(_ context.Context, workflow *WorkflowRequest) (*WorkflowExecution, error) {
+func (m *mockPlugin) ExecuteWorkflow(_ context.Context, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
 	m.executeWorkflowCount++
-	return &WorkflowExecution{
+	return &smo.WorkflowExecution{
 		ExecutionID:  "exec-123",
 		WorkflowName: workflow.WorkflowName,
 		Status:       "RUNNING",
@@ -110,9 +112,9 @@ func (m *mockPlugin) ExecuteWorkflow(_ context.Context, workflow *WorkflowReques
 	}, nil
 }
 
-func (m *mockPlugin) GetWorkflowStatus(_ context.Context, executionID string) (*WorkflowStatus, error) {
+func (m *mockPlugin) GetWorkflowStatus(_ context.Context, executionID string) (*smo.WorkflowStatus, error) {
 	m.getWorkflowStatusCount++
-	return &WorkflowStatus{
+	return &smo.WorkflowStatus{
 		ExecutionID:  executionID,
 		WorkflowName: "test-workflow",
 		Status:       "RUNNING",
@@ -126,43 +128,43 @@ func (m *mockPlugin) CancelWorkflow(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *mockPlugin) RegisterServiceModel(_ context.Context, _ *ServiceModel) error {
+func (m *mockPlugin) RegisterServiceModel(_ context.Context, _ *smo.ServiceModel) error {
 	m.registerModelCount++
 	return nil
 }
 
-func (m *mockPlugin) GetServiceModel(_ context.Context, id string) (*ServiceModel, error) {
+func (m *mockPlugin) GetServiceModel(_ context.Context, id string) (*smo.ServiceModel, error) {
 	m.getModelCount++
-	return &ServiceModel{
+	return &smo.ServiceModel{
 		ID:      id,
 		Name:    "test-model",
 		Version: "1.0.0",
 	}, nil
 }
 
-func (m *mockPlugin) ListServiceModels(_ context.Context) ([]*ServiceModel, error) {
+func (m *mockPlugin) ListServiceModels(_ context.Context) ([]*smo.ServiceModel, error) {
 	m.listModelsCount++
-	return []*ServiceModel{
+	return []*smo.ServiceModel{
 		{ID: "model-1", Name: "model-1", Version: "1.0.0"},
 		{ID: "model-2", Name: "model-2", Version: "2.0.0"},
 	}, nil
 }
 
-func (m *mockPlugin) ApplyPolicy(_ context.Context, _ *Policy) error {
+func (m *mockPlugin) ApplyPolicy(_ context.Context, _ *smo.Policy) error {
 	m.applyPolicyCount++
 	return nil
 }
 
-func (m *mockPlugin) GetPolicyStatus(_ context.Context, policyID string) (*PolicyStatus, error) {
+func (m *mockPlugin) GetPolicyStatus(_ context.Context, policyID string) (*smo.PolicyStatus, error) {
 	m.getPolicyStatusCount++
 	now := time.Now()
-	return &PolicyStatus{
+	return &smo.PolicyStatus{
 		PolicyID:         policyID,
 		Status:           "active",
 		EnforcementCount: 10,
 		ViolationCount:   2,
 		LastEnforced:     &now,
-		Message:          "Policy is active",
+		Message:          "smo.Policy is active",
 	}, nil
 }
 
@@ -172,7 +174,7 @@ func newMockPlugin(name string, healthy bool) *mockPlugin {
 		version:      "1.0.0",
 		description:  "Test plugin: " + name,
 		vendor:       "Test Vendor",
-		capabilities: []Capability{CapInventorySync, CapEventPublishing},
+		capabilities: []smo.Capability{smo.CapInventorySync, smo.CapEventPublishing},
 		healthy:      healthy,
 	}
 }
@@ -187,14 +189,14 @@ func (m *mockPlugin) setHealthy(healthy bool) {
 func TestNewRegistry(t *testing.T) {
 	t.Run("with logger", func(t *testing.T) {
 		logger := zap.NewNop()
-		registry := NewRegistry(logger)
+		registry := smo.NewRegistry(logger)
 
 		require.NotNil(t, registry)
 		assert.Equal(t, 0, registry.Count())
 	})
 
 	t.Run("without logger", func(t *testing.T) {
-		registry := NewRegistry(nil)
+		registry := smo.NewRegistry(nil)
 
 		require.NotNil(t, registry)
 		assert.Equal(t, 0, registry.Count())
@@ -205,7 +207,7 @@ func TestRegistry_Register(t *testing.T) {
 	tests := []struct {
 		name       string
 		pluginName string
-		plugin     Plugin
+		plugin     smo.Plugin
 		isDefault  bool
 		wantErr    bool
 		errMsg     string
@@ -244,7 +246,7 @@ func TestRegistry_Register(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			registry := NewRegistry(zap.NewNop())
+			registry := smo.NewRegistry(zap.NewNop())
 			ctx := context.Background()
 
 			err := registry.Register(ctx, tt.pluginName, tt.plugin, tt.isDefault)
@@ -257,7 +259,7 @@ func TestRegistry_Register(t *testing.T) {
 				assert.Equal(t, 1, registry.Count())
 
 				// Verify plugin was registered
-				got, err := func() (Plugin, error) {
+				got, err := func() (smo.Plugin, error) {
 					registry.Mu.RLock()
 					defer registry.Mu.RUnlock()
 					p, ok := registry.Plugins[tt.pluginName]
@@ -273,7 +275,7 @@ func TestRegistry_Register(t *testing.T) {
 	}
 
 	t.Run("register duplicate plugin", func(t *testing.T) {
-		registry := NewRegistry(zap.NewNop())
+		registry := smo.NewRegistry(zap.NewNop())
 		ctx := context.Background()
 
 		plugin := newMockPlugin("test", true)
@@ -289,7 +291,7 @@ func TestRegistry_Register(t *testing.T) {
 
 func TestRegistry_Unregister(t *testing.T) {
 	t.Run("unregister existing plugin", func(t *testing.T) {
-		registry := NewRegistry(zap.NewNop())
+		registry := smo.NewRegistry(zap.NewNop())
 		ctx := context.Background()
 
 		plugin := newMockPlugin("test", true)
@@ -303,7 +305,7 @@ func TestRegistry_Unregister(t *testing.T) {
 	})
 
 	t.Run("unregister non-existent plugin", func(t *testing.T) {
-		registry := NewRegistry(zap.NewNop())
+		registry := smo.NewRegistry(zap.NewNop())
 
 		err := registry.Unregister("non-existent")
 		require.Error(t, err)
@@ -311,7 +313,7 @@ func TestRegistry_Unregister(t *testing.T) {
 	})
 
 	t.Run("unregister default updates default", func(t *testing.T) {
-		registry := NewRegistry(zap.NewNop())
+		registry := smo.NewRegistry(zap.NewNop())
 		ctx := context.Background()
 
 		err := registry.Register(ctx, "plugin1", newMockPlugin("plugin1", true), true)
@@ -323,7 +325,7 @@ func TestRegistry_Unregister(t *testing.T) {
 		require.NoError(t, err)
 
 		// plugin2 should become default
-		defaultPlugin, err := func() (Plugin, error) {
+		defaultPlugin, err := func() (smo.Plugin, error) {
 			registry.Mu.RLock()
 			defer registry.Mu.RUnlock()
 			if registry.DefaultPlugin == "" {
@@ -342,14 +344,14 @@ func TestRegistry_Unregister(t *testing.T) {
 
 func TestRegistry_Get(t *testing.T) {
 	t.Run("get existing plugin", func(t *testing.T) {
-		registry := NewRegistry(zap.NewNop())
+		registry := smo.NewRegistry(zap.NewNop())
 		ctx := context.Background()
 
 		plugin := newMockPlugin("test", true)
 		err := registry.Register(ctx, "test", plugin, false)
 		require.NoError(t, err)
 
-		got, err := func() (Plugin, error) {
+		got, err := func() (smo.Plugin, error) {
 			registry.Mu.RLock()
 			defer registry.Mu.RUnlock()
 			p, ok := registry.Plugins["test"]
@@ -363,9 +365,9 @@ func TestRegistry_Get(t *testing.T) {
 	})
 
 	t.Run("get non-existent plugin", func(t *testing.T) {
-		registry := NewRegistry(zap.NewNop())
+		registry := smo.NewRegistry(zap.NewNop())
 
-		got, err := func() (Plugin, error) {
+		got, err := func() (smo.Plugin, error) {
 			registry.Mu.RLock()
 			defer registry.Mu.RUnlock()
 			p, ok := registry.Plugins["non-existent"]
@@ -382,14 +384,14 @@ func TestRegistry_Get(t *testing.T) {
 
 func TestRegistry_GetDefault(t *testing.T) {
 	t.Run("get default plugin", func(t *testing.T) {
-		registry := NewRegistry(zap.NewNop())
+		registry := smo.NewRegistry(zap.NewNop())
 		ctx := context.Background()
 
 		plugin := newMockPlugin("test", true)
 		err := registry.Register(ctx, "test", plugin, true)
 		require.NoError(t, err)
 
-		got, err := func() (Plugin, error) {
+		got, err := func() (smo.Plugin, error) {
 			registry.Mu.RLock()
 			defer registry.Mu.RUnlock()
 			if registry.DefaultPlugin == "" {
@@ -406,9 +408,9 @@ func TestRegistry_GetDefault(t *testing.T) {
 	})
 
 	t.Run("get default when no plugins registered", func(t *testing.T) {
-		registry := NewRegistry(zap.NewNop())
+		registry := smo.NewRegistry(zap.NewNop())
 
-		got, err := func() (Plugin, error) {
+		got, err := func() (smo.Plugin, error) {
 			registry.Mu.RLock()
 			defer registry.Mu.RUnlock()
 			if registry.DefaultPlugin == "" {
@@ -426,14 +428,14 @@ func TestRegistry_GetDefault(t *testing.T) {
 	})
 
 	t.Run("first registered becomes default", func(t *testing.T) {
-		registry := NewRegistry(zap.NewNop())
+		registry := smo.NewRegistry(zap.NewNop())
 		ctx := context.Background()
 
 		plugin := newMockPlugin("test", true)
 		err := registry.Register(ctx, "test", plugin, false)
 		require.NoError(t, err)
 
-		got, err := func() (Plugin, error) {
+		got, err := func() (smo.Plugin, error) {
 			registry.Mu.RLock()
 			defer registry.Mu.RUnlock()
 			if registry.DefaultPlugin == "" {
@@ -452,7 +454,7 @@ func TestRegistry_GetDefault(t *testing.T) {
 
 func TestRegistry_SetDefault(t *testing.T) {
 	t.Run("set default to existing plugin", func(t *testing.T) {
-		registry := NewRegistry(zap.NewNop())
+		registry := smo.NewRegistry(zap.NewNop())
 		ctx := context.Background()
 
 		err := registry.Register(ctx, "plugin1", newMockPlugin("plugin1", true), true)
@@ -463,7 +465,7 @@ func TestRegistry_SetDefault(t *testing.T) {
 		err = registry.SetDefault("plugin2")
 		require.NoError(t, err)
 
-		got, err := func() (Plugin, error) {
+		got, err := func() (smo.Plugin, error) {
 			registry.Mu.RLock()
 			defer registry.Mu.RUnlock()
 			if registry.DefaultPlugin == "" {
@@ -480,7 +482,7 @@ func TestRegistry_SetDefault(t *testing.T) {
 	})
 
 	t.Run("set default to non-existent plugin", func(t *testing.T) {
-		registry := NewRegistry(zap.NewNop())
+		registry := smo.NewRegistry(zap.NewNop())
 
 		err := registry.SetDefault("non-existent")
 		require.Error(t, err)
@@ -489,7 +491,7 @@ func TestRegistry_SetDefault(t *testing.T) {
 }
 
 func TestRegistry_List(t *testing.T) {
-	registry := NewRegistry(zap.NewNop())
+	registry := smo.NewRegistry(zap.NewNop())
 	ctx := context.Background()
 
 	// Register multiple plugins
@@ -511,20 +513,20 @@ func TestRegistry_List(t *testing.T) {
 }
 
 func TestRegistry_FindByCapability(t *testing.T) {
-	registry := NewRegistry(zap.NewNop())
+	registry := smo.NewRegistry(zap.NewNop())
 	ctx := context.Background()
 
-	// Plugin with inventory sync capability
+	// smo.Plugin with inventory sync capability
 	plugin1 := newMockPlugin("plugin1", true)
-	plugin1.capabilities = []Capability{CapInventorySync}
+	plugin1.capabilities = []smo.Capability{smo.CapInventorySync}
 
-	// Plugin with workflow capability
+	// smo.Plugin with workflow capability
 	plugin2 := newMockPlugin("plugin2", true)
-	plugin2.capabilities = []Capability{CapWorkflowOrchestration}
+	plugin2.capabilities = []smo.Capability{smo.CapWorkflowOrchestration}
 
 	// Unhealthy plugin with inventory sync
 	plugin3 := newMockPlugin("plugin3", false)
-	plugin3.capabilities = []Capability{CapInventorySync}
+	plugin3.capabilities = []smo.Capability{smo.CapInventorySync}
 
 	err := registry.Register(ctx, "plugin1", plugin1, false)
 	require.NoError(t, err)
@@ -534,22 +536,22 @@ func TestRegistry_FindByCapability(t *testing.T) {
 	require.NoError(t, err)
 
 	// Find inventory sync capable (only healthy)
-	found := registry.FindByCapability(CapInventorySync)
+	found := registry.FindByCapability(smo.CapInventorySync)
 	assert.Len(t, found, 1)
 	assert.Equal(t, plugin1, found[0])
 
 	// Find workflow capable
-	found = registry.FindByCapability(CapWorkflowOrchestration)
+	found = registry.FindByCapability(smo.CapWorkflowOrchestration)
 	assert.Len(t, found, 1)
 	assert.Equal(t, plugin2, found[0])
 
 	// Find non-existent capability
-	found = registry.FindByCapability(CapPolicyManagement)
+	found = registry.FindByCapability(smo.CapPolicyManagement)
 	assert.Len(t, found, 0)
 }
 
 func TestRegistry_GetHealthy(t *testing.T) {
-	registry := NewRegistry(zap.NewNop())
+	registry := smo.NewRegistry(zap.NewNop())
 	ctx := context.Background()
 
 	healthyPlugin := newMockPlugin("healthy", true)
@@ -566,7 +568,7 @@ func TestRegistry_GetHealthy(t *testing.T) {
 }
 
 func TestRegistry_Close(t *testing.T) {
-	registry := NewRegistry(zap.NewNop())
+	registry := smo.NewRegistry(zap.NewNop())
 	ctx := context.Background()
 
 	plugin1 := newMockPlugin("plugin1", true)
@@ -586,7 +588,7 @@ func TestRegistry_Close(t *testing.T) {
 }
 
 func TestRegistry_CloseWithError(t *testing.T) {
-	registry := NewRegistry(zap.NewNop())
+	registry := smo.NewRegistry(zap.NewNop())
 	ctx := context.Background()
 
 	plugin := newMockPlugin("plugin", true)
@@ -601,7 +603,7 @@ func TestRegistry_CloseWithError(t *testing.T) {
 }
 
 func TestRegistry_Count(t *testing.T) {
-	registry := NewRegistry(zap.NewNop())
+	registry := smo.NewRegistry(zap.NewNop())
 	ctx := context.Background()
 
 	assert.Equal(t, 0, registry.Count())
@@ -622,7 +624,7 @@ func TestRegistry_Count(t *testing.T) {
 // TestRegistry_ConcurrentAccess tests thread-safety of registry operations.
 // Run with -race flag: go test -race ./internal/smo/...
 func TestRegistry_ConcurrentAccess(t *testing.T) {
-	registry := NewRegistry(zap.NewNop())
+	registry := smo.NewRegistry(zap.NewNop())
 	ctx := context.Background()
 
 	// Register initial plugins
@@ -647,7 +649,7 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 	// Goroutine 2: Get plugin
 	go func() {
 		for i := 0; i < iterations; i++ {
-			_, _ = func() (Plugin, error) {
+			_, _ = func() (smo.Plugin, error) {
 				registry.Mu.RLock()
 				defer registry.Mu.RUnlock()
 				p, ok := registry.Plugins["plugin-a"]
@@ -663,7 +665,7 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 	// Goroutine 3: Get default
 	go func() {
 		for i := 0; i < iterations; i++ {
-			_, _ = func() (Plugin, error) {
+			_, _ = func() (smo.Plugin, error) {
 				registry.Mu.RLock()
 				defer registry.Mu.RUnlock()
 				if registry.DefaultPlugin == "" {
@@ -682,7 +684,7 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 	// Goroutine 4: Find by capability
 	go func() {
 		for i := 0; i < iterations; i++ {
-			_ = registry.FindByCapability(CapInventorySync)
+			_ = registry.FindByCapability(smo.CapInventorySync)
 		}
 		done <- true
 	}()
@@ -715,9 +717,9 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 // TestRegistry_StartHealthChecksIdempotent tests that multiple calls to StartHealthChecks
 // do not spawn duplicate goroutines (atomic.Bool protection).
 func TestRegistry_StartHealthChecksIdempotent(t *testing.T) {
-	registry := NewRegistry(zap.NewNop(),
-		WithHealthCheckInterval(100*time.Millisecond),
-		WithHealthCheckTimeout(50*time.Millisecond),
+	registry := smo.NewRegistry(zap.NewNop(),
+		smo.WithHealthCheckInterval(100*time.Millisecond),
+		smo.WithHealthCheckTimeout(50*time.Millisecond),
 	)
 	ctx := context.Background()
 
@@ -751,9 +753,9 @@ func TestRegistry_StartHealthChecksIdempotent(t *testing.T) {
 
 // TestRegistry_HealthStateTransitions tests health status transitions.
 func TestRegistry_HealthStateTransitions(t *testing.T) {
-	registry := NewRegistry(zap.NewNop(),
-		WithHealthCheckInterval(50*time.Millisecond),
-		WithHealthCheckTimeout(25*time.Millisecond),
+	registry := smo.NewRegistry(zap.NewNop(),
+		smo.WithHealthCheckInterval(50*time.Millisecond),
+		smo.WithHealthCheckTimeout(25*time.Millisecond),
 	)
 	ctx := context.Background()
 
@@ -795,23 +797,23 @@ func TestRegistry_WithOptions(t *testing.T) {
 	customInterval := 10 * time.Second
 	customTimeout := 2 * time.Second
 
-	registry := NewRegistry(zap.NewNop(),
-		WithHealthCheckInterval(customInterval),
-		WithHealthCheckTimeout(customTimeout),
+	registry := smo.NewRegistry(zap.NewNop(),
+		smo.WithHealthCheckInterval(customInterval),
+		smo.WithHealthCheckTimeout(customTimeout),
 	)
 
-	// Verify options were applied (internal fields)
-	assert.Equal(t, customInterval, registry.healthCheckInterval)
-	assert.Equal(t, customTimeout, registry.healthCheckTimeout)
+	// Verify options were applied (exported fields for testing)
+	assert.Equal(t, customInterval, registry.HealthCheckInterval)
+	assert.Equal(t, customTimeout, registry.HealthCheckTimeout)
 }
 
 // TestRegistry_ListDeepCopy tests that List() returns deep copies.
 func TestRegistry_ListDeepCopy(t *testing.T) {
-	registry := NewRegistry(zap.NewNop())
+	registry := smo.NewRegistry(zap.NewNop())
 	ctx := context.Background()
 
 	plugin := newMockPlugin("test", true)
-	plugin.capabilities = []Capability{CapInventorySync, CapEventPublishing}
+	plugin.capabilities = []smo.Capability{smo.CapInventorySync, smo.CapEventPublishing}
 
 	err := registry.Register(ctx, "test", plugin, true)
 	require.NoError(t, err)
@@ -822,7 +824,7 @@ func TestRegistry_ListDeepCopy(t *testing.T) {
 
 	// Modify the returned capabilities slice
 	originalLen := len(info[0].Capabilities)
-	info[0].Capabilities = append(info[0].Capabilities, CapWorkflowOrchestration)
+	info[0].Capabilities = append(info[0].Capabilities, smo.CapWorkflowOrchestration)
 
 	// Get list again - should be unchanged
 	info2 := registry.List()

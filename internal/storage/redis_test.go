@@ -1,4 +1,4 @@
-package storage
+package storage_test
 
 import (
 	"context"
@@ -7,17 +7,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/piwi3910/netweave/internal/storage"
+
 	"github.com/alicebob/miniredis/v2"
 	"github.com/stretchr/testify/require"
 )
 
 // setupTestRedis creates a miniredis instance for testing.
-func setupTestRedis(t *testing.T) (*RedisStore, *miniredis.Miniredis) {
+func setupTestRedis(t *testing.T) (*storage.RedisStore, *miniredis.Miniredis) {
 	t.Helper()
 
 	mr := miniredis.RunT(t)
 
-	cfg := &RedisConfig{
+	cfg := &storage.RedisConfig{
 		Addr:                   mr.Addr(),
 		Password:               "",
 		DB:                     0,
@@ -30,7 +32,7 @@ func setupTestRedis(t *testing.T) (*RedisStore, *miniredis.Miniredis) {
 		AllowInsecureCallbacks: true, // Allow HTTP in tests
 	}
 
-	store := NewRedisStore(cfg)
+	store := storage.NewRedisStore(cfg)
 
 	return store, mr
 }
@@ -38,16 +40,16 @@ func setupTestRedis(t *testing.T) (*RedisStore, *miniredis.Miniredis) {
 func TestRedisStore_Create(t *testing.T) {
 	tests := []struct {
 		name    string
-		sub     *Subscription
+		sub     *storage.Subscription
 		wantErr error
 	}{
 		{
 			name: "valid subscription",
-			sub: &Subscription{
+			sub: &storage.Subscription{
 				ID:                     "sub-123",
 				Callback:               "https://smo.example.com/notify",
 				ConsumerSubscriptionID: "consumer-456",
-				Filter: SubscriptionFilter{
+				Filter: storage.SubscriptionFilter{
 					ResourcePoolID: "pool-abc",
 					ResourceTypeID: "compute-node",
 				},
@@ -56,7 +58,7 @@ func TestRedisStore_Create(t *testing.T) {
 		},
 		{
 			name: "valid subscription with minimal fields",
-			sub: &Subscription{
+			sub: &storage.Subscription{
 				ID:       "sub-minimal",
 				Callback: "http://localhost:8080/webhook",
 			},
@@ -64,35 +66,35 @@ func TestRedisStore_Create(t *testing.T) {
 		},
 		{
 			name: "empty ID",
-			sub: &Subscription{
+			sub: &storage.Subscription{
 				ID:       "",
 				Callback: "https://smo.example.com/notify",
 			},
-			wantErr: ErrInvalidID,
+			wantErr: storage.ErrInvalidID,
 		},
 		{
 			name: "invalid callback - empty",
-			sub: &Subscription{
+			sub: &storage.Subscription{
 				ID:       "sub-456",
 				Callback: "",
 			},
-			wantErr: ErrInvalidCallback,
+			wantErr: storage.ErrInvalidCallback,
 		},
 		{
 			name: "invalid callback - no scheme",
-			sub: &Subscription{
+			sub: &storage.Subscription{
 				ID:       "sub-789",
 				Callback: "smo.example.com/notify",
 			},
-			wantErr: ErrInvalidCallback,
+			wantErr: storage.ErrInvalidCallback,
 		},
 		{
 			name: "invalid callback - invalid scheme",
-			sub: &Subscription{
+			sub: &storage.Subscription{
 				ID:       "sub-999",
 				Callback: "ftp://smo.example.com/notify",
 			},
-			wantErr: ErrInvalidCallback,
+			wantErr: storage.ErrInvalidCallback,
 		},
 	}
 
@@ -129,7 +131,7 @@ func validateCreateError(t *testing.T, err, wantErr error) {
 }
 
 // validateSuccessfulCreate validates successful subscription creation and retrieval.
-func validateSuccessfulCreate(ctx context.Context, t *testing.T, store *RedisStore, sub *Subscription, err error) {
+func validateSuccessfulCreate(ctx context.Context, t *testing.T, store *storage.RedisStore, sub *storage.Subscription, err error) {
 	t.Helper()
 
 	if err != nil {
@@ -146,7 +148,7 @@ func validateSuccessfulCreate(ctx context.Context, t *testing.T, store *RedisSto
 }
 
 // validateSubscriptionFields validates subscription field values.
-func validateSubscriptionFields(t *testing.T, got, want *Subscription) {
+func validateSubscriptionFields(t *testing.T, got, want *storage.Subscription) {
 	t.Helper()
 
 	if got.ID != want.ID {
@@ -173,7 +175,7 @@ func TestRedisStore_Create_Duplicate(t *testing.T) {
 
 	ctx := context.Background()
 
-	sub := &Subscription{
+	sub := &storage.Subscription{
 		ID:       "sub-duplicate",
 		Callback: "https://smo.example.com/notify",
 	}
@@ -186,8 +188,8 @@ func TestRedisStore_Create_Duplicate(t *testing.T) {
 
 	// Attempt duplicate
 	err = store.Create(ctx, sub)
-	if !errors.Is(err, ErrSubscriptionExists) {
-		t.Errorf("expected ErrSubscriptionExists, got %v", err)
+	if !errors.Is(err, storage.ErrSubscriptionExists) {
+		t.Errorf("expected storage.ErrSubscriptionExists, got %v", err)
 	}
 }
 
@@ -199,10 +201,10 @@ func TestRedisStore_Get(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a subscription first
-	sub := &Subscription{
+	sub := &storage.Subscription{
 		ID:       "sub-get-test",
 		Callback: "https://smo.example.com/notify",
-		Filter: SubscriptionFilter{
+		Filter: storage.SubscriptionFilter{
 			ResourcePoolID: "pool-123",
 		},
 	}
@@ -225,12 +227,12 @@ func TestRedisStore_Get(t *testing.T) {
 		{
 			name:    "non-existent subscription",
 			id:      "sub-nonexistent",
-			wantErr: ErrSubscriptionNotFound,
+			wantErr: storage.ErrSubscriptionNotFound,
 		},
 		{
 			name:    "empty ID",
 			id:      "",
-			wantErr: ErrInvalidID,
+			wantErr: storage.ErrInvalidID,
 		},
 	}
 
@@ -267,10 +269,10 @@ func TestRedisStore_Update(t *testing.T) {
 	ctx := context.Background()
 
 	// Create initial subscription
-	sub := &Subscription{
+	sub := &storage.Subscription{
 		ID:       "sub-update-test",
 		Callback: "https://smo.example.com/notify",
-		Filter: SubscriptionFilter{
+		Filter: storage.SubscriptionFilter{
 			ResourcePoolID: "pool-old",
 		},
 	}
@@ -285,15 +287,15 @@ func TestRedisStore_Update(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		sub     *Subscription
+		sub     *storage.Subscription
 		wantErr error
 	}{
 		{
 			name: "valid update",
-			sub: &Subscription{
+			sub: &storage.Subscription{
 				ID:       "sub-update-test",
 				Callback: "https://smo-new.example.com/notify",
-				Filter: SubscriptionFilter{
+				Filter: storage.SubscriptionFilter{
 					ResourcePoolID: "pool-new",
 					ResourceTypeID: "compute-node",
 				},
@@ -302,19 +304,19 @@ func TestRedisStore_Update(t *testing.T) {
 		},
 		{
 			name: "non-existent subscription",
-			sub: &Subscription{
+			sub: &storage.Subscription{
 				ID:       "sub-nonexistent",
 				Callback: "https://smo.example.com/notify",
 			},
-			wantErr: ErrSubscriptionNotFound,
+			wantErr: storage.ErrSubscriptionNotFound,
 		},
 		{
 			name: "invalid callback",
-			sub: &Subscription{
+			sub: &storage.Subscription{
 				ID:       "sub-update-test",
 				Callback: "invalid-url",
 			},
-			wantErr: ErrInvalidCallback,
+			wantErr: storage.ErrInvalidCallback,
 		},
 	}
 
@@ -348,7 +350,7 @@ func verifyUpdateError(t *testing.T, err, wantErr error) {
 }
 
 // verifySubscriptionUpdated verifies the subscription was updated correctly.
-func verifySubscriptionUpdated(ctx context.Context, t *testing.T, store *RedisStore, sub *Subscription) {
+func verifySubscriptionUpdated(ctx context.Context, t *testing.T, store *storage.RedisStore, sub *storage.Subscription) {
 	t.Helper()
 	got, err := store.Get(ctx, sub.ID)
 	if err != nil {
@@ -374,10 +376,10 @@ func TestRedisStore_Delete(t *testing.T) {
 	ctx := context.Background()
 
 	// Create subscription
-	sub := &Subscription{
+	sub := &storage.Subscription{
 		ID:       "sub-delete-test",
 		Callback: "https://smo.example.com/notify",
-		Filter: SubscriptionFilter{
+		Filter: storage.SubscriptionFilter{
 			ResourcePoolID: "pool-123",
 			ResourceTypeID: "compute-node",
 		},
@@ -401,12 +403,12 @@ func TestRedisStore_Delete(t *testing.T) {
 		{
 			name:    "non-existent subscription",
 			id:      "sub-nonexistent",
-			wantErr: ErrSubscriptionNotFound,
+			wantErr: storage.ErrSubscriptionNotFound,
 		},
 		{
 			name:    "empty ID",
 			id:      "",
-			wantErr: ErrInvalidID,
+			wantErr: storage.ErrInvalidID,
 		},
 	}
 
@@ -430,8 +432,8 @@ func TestRedisStore_Delete(t *testing.T) {
 
 			// Verify deletion
 			_, err = store.Get(ctx, tt.id)
-			if !errors.Is(err, ErrSubscriptionNotFound) {
-				t.Errorf("expected ErrSubscriptionNotFound after delete, got %v", err)
+			if !errors.Is(err, storage.ErrSubscriptionNotFound) {
+				t.Errorf("expected storage.ErrSubscriptionNotFound after delete, got %v", err)
 			}
 		})
 	}
@@ -445,7 +447,7 @@ func TestRedisStore_List(t *testing.T) {
 	ctx := context.Background()
 
 	// Create multiple subscriptions
-	subs := []*Subscription{
+	subs := []*storage.Subscription{
 		{
 			ID:       "sub-1",
 			Callback: "https://smo1.example.com/notify",
@@ -515,25 +517,25 @@ func TestRedisStore_ListByResourcePool(t *testing.T) {
 	ctx := context.Background()
 
 	// Create subscriptions with different pool filters
-	subs := []*Subscription{
+	subs := []*storage.Subscription{
 		{
 			ID:       "sub-pool-1",
 			Callback: "https://smo.example.com/notify",
-			Filter: SubscriptionFilter{
+			Filter: storage.SubscriptionFilter{
 				ResourcePoolID: "pool-a",
 			},
 		},
 		{
 			ID:       "sub-pool-2",
 			Callback: "https://smo.example.com/notify",
-			Filter: SubscriptionFilter{
+			Filter: storage.SubscriptionFilter{
 				ResourcePoolID: "pool-a",
 			},
 		},
 		{
 			ID:       "sub-pool-3",
 			Callback: "https://smo.example.com/notify",
-			Filter: SubscriptionFilter{
+			Filter: storage.SubscriptionFilter{
 				ResourcePoolID: "pool-b",
 			},
 		},
@@ -617,25 +619,25 @@ func TestRedisStore_ListByResourceType(t *testing.T) {
 	ctx := context.Background()
 
 	// Create subscriptions with different type filters
-	subs := []*Subscription{
+	subs := []*storage.Subscription{
 		{
 			ID:       "sub-type-1",
 			Callback: "https://smo.example.com/notify",
-			Filter: SubscriptionFilter{
+			Filter: storage.SubscriptionFilter{
 				ResourceTypeID: "compute-node",
 			},
 		},
 		{
 			ID:       "sub-type-2",
 			Callback: "https://smo.example.com/notify",
-			Filter: SubscriptionFilter{
+			Filter: storage.SubscriptionFilter{
 				ResourceTypeID: "compute-node",
 			},
 		},
 		{
 			ID:       "sub-type-3",
 			Callback: "https://smo.example.com/notify",
-			Filter: SubscriptionFilter{
+			Filter: storage.SubscriptionFilter{
 				ResourceTypeID: "storage-node",
 			},
 		},
@@ -719,8 +721,8 @@ func TestRedisStore_Ping(t *testing.T) {
 	if err == nil {
 		t.Error("expected error after closing Redis, got nil")
 	}
-	if !errors.Is(err, ErrStorageUnavailable) {
-		t.Errorf("expected ErrStorageUnavailable, got %v", err)
+	if !errors.Is(err, storage.ErrStorageUnavailable) {
+		t.Errorf("expected storage.ErrStorageUnavailable, got %v", err)
 	}
 }
 
@@ -735,7 +737,7 @@ func TestRedisStore_Close(t *testing.T) {
 }
 
 func TestDefaultRedisConfig(t *testing.T) {
-	cfg := DefaultRedisConfig()
+	cfg := storage.DefaultRedisConfig()
 
 	if cfg.Addr != "localhost:6379" {
 		t.Errorf("default Addr = %v, want localhost:6379", cfg.Addr)
@@ -757,7 +759,7 @@ func TestDefaultRedisConfig(t *testing.T) {
 func TestSubscriptionFilter_MatchesFilter(t *testing.T) {
 	tests := []struct {
 		name           string
-		filter         SubscriptionFilter
+		filter         storage.SubscriptionFilter
 		resourcePoolID string
 		resourceTypeID string
 		resourceID     string
@@ -765,7 +767,7 @@ func TestSubscriptionFilter_MatchesFilter(t *testing.T) {
 	}{
 		{
 			name:           "empty filter matches all",
-			filter:         SubscriptionFilter{},
+			filter:         storage.SubscriptionFilter{},
 			resourcePoolID: "pool-123",
 			resourceTypeID: "compute-node",
 			resourceID:     "node-456",
@@ -773,7 +775,7 @@ func TestSubscriptionFilter_MatchesFilter(t *testing.T) {
 		},
 		{
 			name: "pool filter matches",
-			filter: SubscriptionFilter{
+			filter: storage.SubscriptionFilter{
 				ResourcePoolID: "pool-123",
 			},
 			resourcePoolID: "pool-123",
@@ -783,7 +785,7 @@ func TestSubscriptionFilter_MatchesFilter(t *testing.T) {
 		},
 		{
 			name: "pool filter does not match",
-			filter: SubscriptionFilter{
+			filter: storage.SubscriptionFilter{
 				ResourcePoolID: "pool-123",
 			},
 			resourcePoolID: "pool-456",
@@ -793,7 +795,7 @@ func TestSubscriptionFilter_MatchesFilter(t *testing.T) {
 		},
 		{
 			name: "type filter matches",
-			filter: SubscriptionFilter{
+			filter: storage.SubscriptionFilter{
 				ResourceTypeID: "compute-node",
 			},
 			resourcePoolID: "pool-123",
@@ -803,7 +805,7 @@ func TestSubscriptionFilter_MatchesFilter(t *testing.T) {
 		},
 		{
 			name: "multiple filters all match",
-			filter: SubscriptionFilter{
+			filter: storage.SubscriptionFilter{
 				ResourcePoolID: "pool-123",
 				ResourceTypeID: "compute-node",
 			},
@@ -814,7 +816,7 @@ func TestSubscriptionFilter_MatchesFilter(t *testing.T) {
 		},
 		{
 			name: "multiple filters one does not match",
-			filter: SubscriptionFilter{
+			filter: storage.SubscriptionFilter{
 				ResourcePoolID: "pool-123",
 				ResourceTypeID: "storage-node",
 			},
@@ -839,15 +841,15 @@ func TestSubscriptionFilter_MatchesFilter(t *testing.T) {
 func TestSubscription_MarshalBinary(t *testing.T) {
 	tests := []struct {
 		name    string
-		sub     *Subscription
+		sub     *storage.Subscription
 		wantErr bool
 	}{
 		{
 			name: "valid subscription",
-			sub: &Subscription{
+			sub: &storage.Subscription{
 				ID:       "sub-123",
 				Callback: "https://example.com/callback",
-				Filter: SubscriptionFilter{
+				Filter: storage.SubscriptionFilter{
 					ResourceTypeID: "compute",
 				},
 			},
@@ -855,10 +857,10 @@ func TestSubscription_MarshalBinary(t *testing.T) {
 		},
 		{
 			name: "subscription with all fields",
-			sub: &Subscription{
+			sub: &storage.Subscription{
 				ID:       "sub-456",
 				Callback: "https://example.com/notify",
-				Filter: SubscriptionFilter{
+				Filter: storage.SubscriptionFilter{
 					ResourcePoolID: "pool-1",
 					ResourceTypeID: "storage",
 					ResourceID:     "res-1",
@@ -889,7 +891,7 @@ func TestSubscription_MarshalBinary(t *testing.T) {
 			}
 
 			// Verify we can unmarshal it back
-			var decoded Subscription
+			var decoded storage.Subscription
 			if err := json.Unmarshal(data, &decoded); err != nil {
 				t.Errorf("Failed to unmarshal marshaled data: %v", err)
 			}
@@ -928,7 +930,7 @@ func TestSubscription_UnmarshalBinary(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var sub Subscription
+			var sub storage.Subscription
 			err := sub.UnmarshalBinary(tt.data)
 
 			if tt.wantErr {
@@ -956,7 +958,7 @@ func TestRedisStore_ListByTenant(t *testing.T) {
 	defer mr.Close()
 
 	// Create test subscriptions with different tenants
-	testSubs := []*Subscription{
+	testSubs := []*storage.Subscription{
 		{
 			ID:       "sub-tenant1-1",
 			Callback: "https://tenant1.example.com/callback",
@@ -1029,7 +1031,7 @@ func TestRedisStore_Client(t *testing.T) {
 	store, mr := setupTestRedis(t)
 	defer mr.Close()
 
-	client := store.Client()
+	client := store.Client
 	if client == nil {
 		t.Error("Client() returned nil")
 	}
@@ -1049,10 +1051,10 @@ func TestRedisStore_UpdateResourceTypeIndex(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a subscription with resource type filter
-	sub := &Subscription{
+	sub := &storage.Subscription{
 		ID:       "sub-update-type",
 		Callback: "https://example.com/callback",
-		Filter: SubscriptionFilter{
+		Filter: storage.SubscriptionFilter{
 			ResourceTypeID: "compute",
 		},
 	}
@@ -1076,13 +1078,13 @@ func TestRedisStore_UpdateResourceTypeIndex(t *testing.T) {
 	require.Len(t, subs, 0)
 }
 
-// TestNewRedisStore_InvalidAddress tests error handling in NewRedisStore.
+// TestNewRedisStore_InvalidAddress tests error handling in storage.NewRedisStore.
 func TestNewRedisStore_InvalidAddress(t *testing.T) {
 	// Test with invalid configuration
-	cfg := &RedisConfig{
+	cfg := &storage.RedisConfig{
 		Addr: "invalid://address:999",
 	}
-	store := NewRedisStore(cfg)
+	store := storage.NewRedisStore(cfg)
 	require.NotNil(t, store)
 
 	// Operations should fail with invalid address

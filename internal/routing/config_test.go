@@ -1,7 +1,9 @@
-package routing
+package routing_test
 
 import (
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/routing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,23 +14,23 @@ import (
 func TestLoadRulesFromConfig(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      *Config
+		config      *routing.Config
 		expectError bool
 		expectCount int
 	}{
 		{
 			name: "valid configuration",
-			config: &Config{
+			config: &routing.Config{
 				Default:         "kubernetes",
 				FallbackEnabled: true,
-				Rules: []RuleConfig{
+				Rules: []routing.RuleConfig{
 					{
 						Name:         "test-rule",
 						Priority:     100,
 						Plugin:       "kubernetes",
 						ResourceType: "compute-node",
 						Enabled:      true,
-						Conditions: ConditionsConfig{
+						Conditions: routing.ConditionsConfig{
 							Labels: map[string]string{
 								"type": "compute",
 							},
@@ -47,17 +49,17 @@ func TestLoadRulesFromConfig(t *testing.T) {
 		},
 		{
 			name: "empty rules",
-			config: &Config{
+			config: &routing.Config{
 				Default: "kubernetes",
-				Rules:   []RuleConfig{},
+				Rules:   []routing.RuleConfig{},
 			},
 			expectError: false,
 			expectCount: 0,
 		},
 		{
 			name: "rule without name",
-			config: &Config{
-				Rules: []RuleConfig{
+			config: &routing.Config{
+				Rules: []routing.RuleConfig{
 					{
 						Priority: 100,
 						Plugin:   "kubernetes",
@@ -69,8 +71,8 @@ func TestLoadRulesFromConfig(t *testing.T) {
 		},
 		{
 			name: "rule without plugin",
-			config: &Config{
-				Rules: []RuleConfig{
+			config: &routing.Config{
+				Rules: []routing.RuleConfig{
 					{
 						Name:     "test-rule",
 						Priority: 100,
@@ -84,7 +86,7 @@ func TestLoadRulesFromConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rules, err := LoadRulesFromConfig(tt.config)
+			rules, err := routing.LoadRulesFromConfig(tt.config)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -99,13 +101,13 @@ func TestLoadRulesFromConfig(t *testing.T) {
 func TestConvertRuleConfig(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      *RuleConfig
+		config      *routing.RuleConfig
 		expectError bool
-		validate    func(*testing.T, *Rule)
+		validate    func(*testing.T, *routing.Rule)
 	}{
 		{
 			name: "basic rule",
-			config: &RuleConfig{
+			config: &routing.RuleConfig{
 				Name:         "test-rule",
 				Priority:     100,
 				Plugin:       "kubernetes",
@@ -113,7 +115,7 @@ func TestConvertRuleConfig(t *testing.T) {
 				Enabled:      true,
 			},
 			expectError: false,
-			validate: func(t *testing.T, rule *Rule) {
+			validate: func(t *testing.T, rule *routing.Rule) {
 				t.Helper()
 				assert.Equal(t, "test-rule", rule.Name)
 				assert.Equal(t, 100, rule.Priority)
@@ -124,25 +126,25 @@ func TestConvertRuleConfig(t *testing.T) {
 		},
 		{
 			name: "rule with default priority",
-			config: &RuleConfig{
+			config: &routing.RuleConfig{
 				Name:    "test-rule",
 				Plugin:  "kubernetes",
 				Enabled: true,
 			},
 			expectError: false,
-			validate: func(t *testing.T, rule *Rule) {
+			validate: func(t *testing.T, rule *routing.Rule) {
 				t.Helper()
 				assert.Equal(t, 50, rule.Priority, "default priority should be 50")
 			},
 		},
 		{
 			name: "rule with label conditions",
-			config: &RuleConfig{
+			config: &routing.RuleConfig{
 				Name:     "test-rule",
 				Priority: 100,
 				Plugin:   "openstack",
 				Enabled:  true,
-				Conditions: ConditionsConfig{
+				Conditions: routing.ConditionsConfig{
 					Labels: map[string]string{
 						"type":     "compute",
 						"location": "us-east",
@@ -150,7 +152,7 @@ func TestConvertRuleConfig(t *testing.T) {
 				},
 			},
 			expectError: false,
-			validate: func(t *testing.T, rule *Rule) {
+			validate: func(t *testing.T, rule *routing.Rule) {
 				t.Helper()
 				require.NotNil(t, rule.Conditions)
 				assert.Equal(t, "compute", rule.Conditions.Labels["type"])
@@ -159,19 +161,19 @@ func TestConvertRuleConfig(t *testing.T) {
 		},
 		{
 			name: "rule with location prefix condition",
-			config: &RuleConfig{
+			config: &routing.RuleConfig{
 				Name:     "test-rule",
 				Priority: 100,
 				Plugin:   "dtias",
 				Enabled:  true,
-				Conditions: ConditionsConfig{
-					Location: LocationConditionConfig{
+				Conditions: routing.ConditionsConfig{
+					Location: routing.LocationConditionConfig{
 						Prefix: "dc-",
 					},
 				},
 			},
 			expectError: false,
-			validate: func(t *testing.T, rule *Rule) {
+			validate: func(t *testing.T, rule *routing.Rule) {
 				t.Helper()
 				require.NotNil(t, rule.Conditions)
 				require.NotNil(t, rule.Conditions.Location)
@@ -180,12 +182,12 @@ func TestConvertRuleConfig(t *testing.T) {
 		},
 		{
 			name: "rule with capabilities",
-			config: &RuleConfig{
+			config: &routing.RuleConfig{
 				Name:     "test-rule",
 				Priority: 100,
 				Plugin:   "kubernetes",
 				Enabled:  true,
-				Conditions: ConditionsConfig{
+				Conditions: routing.ConditionsConfig{
 					Capabilities: []string{
 						"resource-pools",
 						"resources",
@@ -193,7 +195,7 @@ func TestConvertRuleConfig(t *testing.T) {
 				},
 			},
 			expectError: false,
-			validate: func(t *testing.T, rule *Rule) {
+			validate: func(t *testing.T, rule *routing.Rule) {
 				t.Helper()
 				require.NotNil(t, rule.Conditions)
 				assert.Len(t, rule.Conditions.Capabilities, 2)
@@ -203,7 +205,7 @@ func TestConvertRuleConfig(t *testing.T) {
 		},
 		{
 			name: "rule without name",
-			config: &RuleConfig{
+			config: &routing.RuleConfig{
 				Priority: 100,
 				Plugin:   "kubernetes",
 				Enabled:  true,
@@ -212,7 +214,7 @@ func TestConvertRuleConfig(t *testing.T) {
 		},
 		{
 			name: "rule without plugin",
-			config: &RuleConfig{
+			config: &routing.RuleConfig{
 				Name:     "test-rule",
 				Priority: 100,
 				Enabled:  true,
@@ -223,7 +225,7 @@ func TestConvertRuleConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rule, err := convertRuleConfig(tt.config)
+			rule, err := routing.ConvertRuleConfig(tt.config)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -241,17 +243,17 @@ func TestConvertRuleConfig(t *testing.T) {
 func TestConvertConditions(t *testing.T) {
 	tests := []struct {
 		name     string
-		config   *ConditionsConfig
-		validate func(*testing.T, *Conditions)
+		config   *routing.ConditionsConfig
+		validate func(*testing.T, *routing.Conditions)
 	}{
 		{
 			name: "labels only",
-			config: &ConditionsConfig{
+			config: &routing.ConditionsConfig{
 				Labels: map[string]string{
 					"type": "compute",
 				},
 			},
-			validate: func(t *testing.T, cond *Conditions) {
+			validate: func(t *testing.T, cond *routing.Conditions) {
 				t.Helper()
 				assert.Equal(t, "compute", cond.Labels["type"])
 				assert.Nil(t, cond.Location)
@@ -260,12 +262,12 @@ func TestConvertConditions(t *testing.T) {
 		},
 		{
 			name: "location prefix",
-			config: &ConditionsConfig{
-				Location: LocationConditionConfig{
+			config: &routing.ConditionsConfig{
+				Location: routing.LocationConditionConfig{
 					Prefix: "dc-",
 				},
 			},
-			validate: func(t *testing.T, cond *Conditions) {
+			validate: func(t *testing.T, cond *routing.Conditions) {
 				t.Helper()
 				require.NotNil(t, cond.Location)
 				assert.Equal(t, "dc-", cond.Location.Prefix)
@@ -273,12 +275,12 @@ func TestConvertConditions(t *testing.T) {
 		},
 		{
 			name: "location suffix",
-			config: &ConditionsConfig{
-				Location: LocationConditionConfig{
+			config: &routing.ConditionsConfig{
+				Location: routing.LocationConditionConfig{
 					Suffix: "-prod",
 				},
 			},
-			validate: func(t *testing.T, cond *Conditions) {
+			validate: func(t *testing.T, cond *routing.Conditions) {
 				t.Helper()
 				require.NotNil(t, cond.Location)
 				assert.Equal(t, "-prod", cond.Location.Suffix)
@@ -286,12 +288,12 @@ func TestConvertConditions(t *testing.T) {
 		},
 		{
 			name: "location contains",
-			config: &ConditionsConfig{
-				Location: LocationConditionConfig{
+			config: &routing.ConditionsConfig{
+				Location: routing.LocationConditionConfig{
 					Contains: "dallas",
 				},
 			},
-			validate: func(t *testing.T, cond *Conditions) {
+			validate: func(t *testing.T, cond *routing.Conditions) {
 				t.Helper()
 				require.NotNil(t, cond.Location)
 				assert.Equal(t, "dallas", cond.Location.Contains)
@@ -299,12 +301,12 @@ func TestConvertConditions(t *testing.T) {
 		},
 		{
 			name: "location exact",
-			config: &ConditionsConfig{
-				Location: LocationConditionConfig{
+			config: &routing.ConditionsConfig{
+				Location: routing.LocationConditionConfig{
 					Exact: "dc-dallas-1",
 				},
 			},
-			validate: func(t *testing.T, cond *Conditions) {
+			validate: func(t *testing.T, cond *routing.Conditions) {
 				t.Helper()
 				require.NotNil(t, cond.Location)
 				assert.Equal(t, "dc-dallas-1", cond.Location.Exact)
@@ -312,13 +314,13 @@ func TestConvertConditions(t *testing.T) {
 		},
 		{
 			name: "capabilities",
-			config: &ConditionsConfig{
+			config: &routing.ConditionsConfig{
 				Capabilities: []string{
 					"resource-pools",
 					"resources",
 				},
 			},
-			validate: func(t *testing.T, cond *Conditions) {
+			validate: func(t *testing.T, cond *routing.Conditions) {
 				t.Helper()
 				assert.Len(t, cond.Capabilities, 2)
 				assert.Contains(t, cond.Capabilities, adapter.Capability("resource-pools"))
@@ -326,11 +328,11 @@ func TestConvertConditions(t *testing.T) {
 		},
 		{
 			name: "all conditions",
-			config: &ConditionsConfig{
+			config: &routing.ConditionsConfig{
 				Labels: map[string]string{
 					"type": "compute",
 				},
-				Location: LocationConditionConfig{
+				Location: routing.LocationConditionConfig{
 					Prefix: "dc-",
 				},
 				Capabilities: []string{
@@ -340,7 +342,7 @@ func TestConvertConditions(t *testing.T) {
 					"custom": "value",
 				},
 			},
-			validate: func(t *testing.T, cond *Conditions) {
+			validate: func(t *testing.T, cond *routing.Conditions) {
 				t.Helper()
 				assert.Equal(t, "compute", cond.Labels["type"])
 				require.NotNil(t, cond.Location)
@@ -353,7 +355,7 @@ func TestConvertConditions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cond := convertConditions(tt.config)
+			cond := routing.ConvertConditions(tt.config)
 			require.NotNil(t, cond)
 			if tt.validate != nil {
 				tt.validate(t, cond)
@@ -365,12 +367,12 @@ func TestConvertConditions(t *testing.T) {
 func TestValidatePluginConfig(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      *PluginConfig
+		config      *routing.PluginConfig
 		expectError bool
 	}{
 		{
 			name: "valid config",
-			config: &PluginConfig{
+			config: &routing.PluginConfig{
 				Name:    "kubernetes",
 				Type:    "kubernetes",
 				Enabled: true,
@@ -380,7 +382,7 @@ func TestValidatePluginConfig(t *testing.T) {
 		},
 		{
 			name: "missing name",
-			config: &PluginConfig{
+			config: &routing.PluginConfig{
 				Type:    "kubernetes",
 				Enabled: true,
 			},
@@ -388,7 +390,7 @@ func TestValidatePluginConfig(t *testing.T) {
 		},
 		{
 			name: "missing type",
-			config: &PluginConfig{
+			config: &routing.PluginConfig{
 				Name:    "kubernetes",
 				Enabled: true,
 			},
@@ -398,7 +400,7 @@ func TestValidatePluginConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidatePluginConfig(tt.config)
+			err := routing.ValidatePluginConfig(tt.config)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -412,15 +414,15 @@ func TestValidatePluginConfig(t *testing.T) {
 func TestValidateRoutingConfig(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      *Config
+		config      *routing.Config
 		expectError bool
 	}{
 		{
 			name: "valid config",
-			config: &Config{
+			config: &routing.Config{
 				Default:         "kubernetes",
 				FallbackEnabled: true,
-				Rules: []RuleConfig{
+				Rules: []routing.RuleConfig{
 					{
 						Name:     "test-rule",
 						Priority: 100,
@@ -438,8 +440,8 @@ func TestValidateRoutingConfig(t *testing.T) {
 		},
 		{
 			name: "invalid rule",
-			config: &Config{
-				Rules: []RuleConfig{
+			config: &routing.Config{
+				Rules: []routing.RuleConfig{
 					{
 						Priority: 100,
 						Enabled:  true,
@@ -450,8 +452,8 @@ func TestValidateRoutingConfig(t *testing.T) {
 		},
 		{
 			name: "negative priority",
-			config: &Config{
-				Rules: []RuleConfig{
+			config: &routing.Config{
+				Rules: []routing.RuleConfig{
 					{
 						Name:     "test-rule",
 						Priority: -1,
@@ -466,7 +468,7 @@ func TestValidateRoutingConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateRoutingConfig(tt.config)
+			err := routing.ValidateRoutingConfig(tt.config)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -480,25 +482,25 @@ func TestValidateRoutingConfig(t *testing.T) {
 func TestIsEmptyConditions(t *testing.T) {
 	tests := []struct {
 		name     string
-		config   *ConditionsConfig
+		config   *routing.ConditionsConfig
 		expected bool
 	}{
 		{
 			name:     "completely empty",
-			config:   &ConditionsConfig{},
+			config:   &routing.ConditionsConfig{},
 			expected: true,
 		},
 		{
 			name: "with labels",
-			config: &ConditionsConfig{
+			config: &routing.ConditionsConfig{
 				Labels: map[string]string{"type": "compute"},
 			},
 			expected: false,
 		},
 		{
 			name: "with location",
-			config: &ConditionsConfig{
-				Location: LocationConditionConfig{
+			config: &routing.ConditionsConfig{
+				Location: routing.LocationConditionConfig{
 					Prefix: "dc-",
 				},
 			},
@@ -506,14 +508,14 @@ func TestIsEmptyConditions(t *testing.T) {
 		},
 		{
 			name: "with capabilities",
-			config: &ConditionsConfig{
+			config: &routing.ConditionsConfig{
 				Capabilities: []string{"resource-pools"},
 			},
 			expected: false,
 		},
 		{
 			name: "with extensions",
-			config: &ConditionsConfig{
+			config: &routing.ConditionsConfig{
 				Extensions: map[string]interface{}{"key": "value"},
 			},
 			expected: false,
@@ -522,7 +524,7 @@ func TestIsEmptyConditions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isEmptyConditions(tt.config)
+			result := routing.IsEmptyConditions(tt.config)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -531,38 +533,38 @@ func TestIsEmptyConditions(t *testing.T) {
 func TestIsEmptyLocationCondition(t *testing.T) {
 	tests := []struct {
 		name     string
-		config   *LocationConditionConfig
+		config   *routing.LocationConditionConfig
 		expected bool
 	}{
 		{
 			name:     "completely empty",
-			config:   &LocationConditionConfig{},
+			config:   &routing.LocationConditionConfig{},
 			expected: true,
 		},
 		{
 			name: "with prefix",
-			config: &LocationConditionConfig{
+			config: &routing.LocationConditionConfig{
 				Prefix: "dc-",
 			},
 			expected: false,
 		},
 		{
 			name: "with suffix",
-			config: &LocationConditionConfig{
+			config: &routing.LocationConditionConfig{
 				Suffix: "-prod",
 			},
 			expected: false,
 		},
 		{
 			name: "with contains",
-			config: &LocationConditionConfig{
+			config: &routing.LocationConditionConfig{
 				Contains: "dallas",
 			},
 			expected: false,
 		},
 		{
 			name: "with exact",
-			config: &LocationConditionConfig{
+			config: &routing.LocationConditionConfig{
 				Exact: "dc-dallas-1",
 			},
 			expected: false,
@@ -571,7 +573,7 @@ func TestIsEmptyLocationCondition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isEmptyLocationCondition(tt.config)
+			result := routing.IsEmptyLocationCondition(tt.config)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

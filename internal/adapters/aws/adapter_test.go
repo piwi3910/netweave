@@ -1,9 +1,11 @@
-package aws
+package aws_test
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	awsadapter "github.com/piwi3910/netweave/internal/adapters/aws"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	autoscalingTypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
@@ -18,7 +20,7 @@ import (
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *awsadapter.Config
 		wantErr bool
 		errMsg  string
 	}{
@@ -30,7 +32,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing region",
-			config: &Config{
+			config: &awsadapter.Config{
 				OCloudID: "ocloud-1",
 			},
 			wantErr: true,
@@ -38,7 +40,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing oCloudID",
-			config: &Config{
+			config: &awsadapter.Config{
 				Region: "us-east-1",
 			},
 			wantErr: true,
@@ -46,7 +48,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "invalid pool mode",
-			config: &Config{
+			config: &awsadapter.Config{
 				Region:   "us-east-1",
 				OCloudID: "ocloud-1",
 				PoolMode: "invalid",
@@ -56,7 +58,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "valid config with az pool mode",
-			config: &Config{
+			config: &awsadapter.Config{
 				Region:   "us-east-1",
 				OCloudID: "ocloud-1",
 				PoolMode: "az",
@@ -66,7 +68,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "valid config with asg pool mode",
-			config: &Config{
+			config: &awsadapter.Config{
 				Region:   "us-east-1",
 				OCloudID: "ocloud-1",
 				PoolMode: "asg",
@@ -76,7 +78,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "valid config with defaults",
-			config: &Config{
+			config: &awsadapter.Config{
 				Region:   "us-west-2",
 				OCloudID: "ocloud-test",
 				Logger:   zap.NewNop(),
@@ -87,7 +89,7 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := New(tt.config)
+			adp, err := awsadapter.New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -106,28 +108,28 @@ func TestNew(t *testing.T) {
 
 // TestNewWithDefaults tests default value initialization.
 func TestNewWithDefaults(t *testing.T) {
-	config := &Config{
+	config := &awsadapter.Config{
 		Region:   "us-east-1",
 		OCloudID: "test-ocloud",
 		Logger:   zap.NewNop(),
 	}
 
-	adp, err := New(config)
+	adp, err := awsadapter.New(config)
 	require.NoError(t, err)
 	require.NotNil(t, adp)
 	defer func() { _ = adp.Close() }()
 
 	// Check defaults
-	assert.Equal(t, "test-ocloud", adp.oCloudID)
-	assert.Equal(t, "ocloud-aws-us-east-1", adp.deploymentManagerID)
-	assert.Equal(t, "az", adp.poolMode)
-	assert.Equal(t, "us-east-1", adp.region)
+	assert.Equal(t, "test-ocloud", adp.OCloudID)
+	assert.Equal(t, "ocloud-aws-us-east-1", adp.DeploymentManagerID)
+	assert.Equal(t, "az", adp.PoolMode)
+	assert.Equal(t, "us-east-1", adp.Region)
 }
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	adp := &Adapter{
-		logger: zap.NewNop(),
+	adp := &awsadapter.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	t.Run("Name", func(t *testing.T) {
@@ -170,7 +172,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateInstanceTypeID(tt.instanceType)
+			got := awsadapter.GenerateInstanceTypeID(tt.instanceType)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -185,7 +187,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateInstanceID(tt.instanceID)
+			got := awsadapter.GenerateInstanceID(tt.instanceID)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -201,7 +203,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateAZPoolID(tt.az)
+			got := awsadapter.GenerateAZPoolID(tt.az)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -217,7 +219,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateASGPoolID(tt.asgName)
+			got := awsadapter.GenerateASGPoolID(tt.asgName)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -225,9 +227,9 @@ func TestGenerateIDs(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
+	adp := &awsadapter.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
 	}
 	ctx := context.Background()
 
@@ -300,20 +302,20 @@ func TestSubscriptions(t *testing.T) {
 
 // TestClose tests adapter cleanup.
 func TestClose(t *testing.T) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
+	adp := &awsadapter.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
 	}
 
 	// Add some subscriptions
-	adp.subscriptions["sub-1"] = &adapter.Subscription{SubscriptionID: "sub-1"}
-	adp.subscriptions["sub-2"] = &adapter.Subscription{SubscriptionID: "sub-2"}
+	adp.Subscriptions["sub-1"] = &adapter.Subscription{SubscriptionID: "sub-1"}
+	adp.Subscriptions["sub-2"] = &adapter.Subscription{SubscriptionID: "sub-2"}
 
 	err := adp.Close()
 	assert.NoError(t, err)
 
 	// Verify subscriptions are cleared
-	assert.Empty(t, adp.subscriptions)
+	assert.Empty(t, adp.Subscriptions)
 }
 
 // TestConfigValidation tests configuration validation.
@@ -321,7 +323,7 @@ func TestConfigValidation(t *testing.T) {
 	t.Run("valid config with all fields", func(t *testing.T) {
 		// NOTE: These are AWS documentation example credentials, NOT real credentials.
 		// See: https://docs.aws.amazon.com/IAM/latest/UserGuide/security-creds.html
-		config := &Config{
+		config := &awsadapter.Config{
 			Region:              "us-east-1",
 			AccessKeyID:         "AKIAIOSFODNN7EXAMPLE",                     // Example key from AWS docs
 			SecretAccessKey:     "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", // Example secret from AWS docs
@@ -333,30 +335,30 @@ func TestConfigValidation(t *testing.T) {
 			Logger:              zap.NewNop(),
 		}
 
-		adp, err := New(config)
+		adp, err := awsadapter.New(config)
 		require.NoError(t, err)
 		require.NotNil(t, adp)
 		defer func() { _ = adp.Close() }()
 
-		assert.Equal(t, "dm-test", adp.deploymentManagerID)
-		assert.Equal(t, "asg", adp.poolMode)
+		assert.Equal(t, "dm-test", adp.DeploymentManagerID)
+		assert.Equal(t, "asg", adp.PoolMode)
 	})
 
 	t.Run("valid config with minimal fields", func(t *testing.T) {
-		config := &Config{
+		config := &awsadapter.Config{
 			Region:   "us-west-2",
 			OCloudID: "ocloud-test",
 			Logger:   zap.NewNop(),
 		}
 
-		adp, err := New(config)
+		adp, err := awsadapter.New(config)
 		require.NoError(t, err)
 		require.NotNil(t, adp)
 		defer func() { _ = adp.Close() }()
 
 		// Check defaults are applied
-		assert.Equal(t, "ocloud-aws-us-west-2", adp.deploymentManagerID)
-		assert.Equal(t, "az", adp.poolMode)
+		assert.Equal(t, "ocloud-aws-us-west-2", adp.DeploymentManagerID)
+		assert.Equal(t, "az", adp.PoolMode)
 	})
 }
 
@@ -364,7 +366,7 @@ func TestConfigValidation(t *testing.T) {
 
 // TestAWSAdapter_Health tests the Health function.
 func TestAWSAdapter_Health(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := awsadapter.New(&awsadapter.Config{
 		Region:   "us-east-1",
 		OCloudID: "test-cloud",
 	})
@@ -378,7 +380,7 @@ func TestAWSAdapter_Health(t *testing.T) {
 
 // TestAWSAdapter_ListResourcePools tests the ListResourcePools function.
 func TestAWSAdapter_ListResourcePools(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := awsadapter.New(&awsadapter.Config{
 		Region:   "us-east-1",
 		OCloudID: "test-cloud",
 		PoolMode: "az",
@@ -394,7 +396,7 @@ func TestAWSAdapter_ListResourcePools(t *testing.T) {
 
 // TestAWSAdapter_ListResources tests the ListResources function.
 func TestAWSAdapter_ListResources(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := awsadapter.New(&awsadapter.Config{
 		Region:   "us-east-1",
 		OCloudID: "test-cloud",
 	})
@@ -409,7 +411,7 @@ func TestAWSAdapter_ListResources(t *testing.T) {
 
 // TestAWSAdapter_ListResourceTypes tests the ListResourceTypes function.
 func TestAWSAdapter_ListResourceTypes(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := awsadapter.New(&awsadapter.Config{
 		Region:   "us-east-1",
 		OCloudID: "test-cloud",
 	})
@@ -424,7 +426,7 @@ func TestAWSAdapter_ListResourceTypes(t *testing.T) {
 
 // TestAWSAdapter_GetDeploymentManager tests the GetDeploymentManager function.
 func TestAWSAdapter_GetDeploymentManager(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := awsadapter.New(&awsadapter.Config{
 		Region:   "us-east-1",
 		OCloudID: "test-cloud",
 	})
@@ -472,7 +474,7 @@ func TestExtractTagValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := extractTagValue(tt.tags, tt.key)
+			got := awsadapter.ExtractTagValue(tt.tags, tt.key)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -505,7 +507,7 @@ func TestTagsToMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tagsToMap(tt.tags)
+			got := awsadapter.TagsToMap(tt.tags)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -537,7 +539,7 @@ func TestExtractASGNameFromPoolID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := extractASGNameFromPoolID(tt.poolID)
+			got := awsadapter.ExtractASGNameFromPoolID(tt.poolID)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -593,7 +595,7 @@ func TestExtractInt32FromExtensions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := extractInt32FromExtensions(tt.extensions, tt.key)
+			got := awsadapter.ExtractInt32FromExtensions(tt.extensions, tt.key)
 			if tt.want == nil {
 				assert.Nil(t, got)
 			} else {
@@ -634,7 +636,7 @@ func TestGetLaunchTemplateName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getLaunchTemplateName(tt.lt)
+			got := awsadapter.GetLaunchTemplateName(tt.lt)
 			assert.Equal(t, tt.want, got)
 		})
 	}

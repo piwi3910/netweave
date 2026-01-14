@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/server"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -93,7 +95,7 @@ func (m *mockResourceAdapter) UpdateResource(
 // doResourceRequest is a test helper for making HTTP requests to resource endpoints.
 func doResourceRequest(
 	t *testing.T,
-	srv *Server,
+	srv *server.Server,
 	method,
 	path string,
 	body interface{},
@@ -107,19 +109,19 @@ func doResourceRequest(
 		req := httptest.NewRequest(method, path, reqBody)
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
-		srv.router.ServeHTTP(resp, req)
+		srv.Router().ServeHTTP(resp, req)
 		return resp, resp.Body.Bytes()
 	}
 	req := httptest.NewRequest(method, path, nil)
 	resp := httptest.NewRecorder()
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 	return resp, resp.Body.Bytes()
 }
 
 // createTestResource is a helper that creates a test resource and returns the response.
 func createTestResource(
 	t *testing.T,
-	srv *Server,
+	srv *server.Server,
 	resource adapter.Resource,
 ) (*adapter.Resource, *httptest.ResponseRecorder) {
 	t.Helper()
@@ -135,8 +137,8 @@ func createTestResource(
 
 // Test helper functions to reduce code duplication
 
-// setupResourceTestServer creates a test server with mock adapter and config.
-func setupResourceTestServer(t *testing.T, adp adapter.Adapter) *Server {
+// setupResourceTestServer creates a test server.server with mock adapter and config.
+func setupResourceTestServer(t *testing.T, adp adapter.Adapter) *server.Server {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
@@ -145,11 +147,11 @@ func setupResourceTestServer(t *testing.T, adp adapter.Adapter) *Server {
 			GinMode: gin.TestMode,
 		},
 	}
-	return New(cfg, zap.NewNop(), adp, &mockStore{})
+	return server.New(cfg, zap.NewNop(), adp, &mockStore{})
 }
 
 // makeResourcePostRequest creates and executes a POST request to /resources.
-func makeResourcePostRequest(t *testing.T, srv *Server, body []byte) *httptest.ResponseRecorder {
+func makeResourcePostRequest(t *testing.T, srv *server.Server, body []byte) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -158,7 +160,7 @@ func makeResourcePostRequest(t *testing.T, srv *Server, body []byte) *httptest.R
 	)
 	req.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
-	srv.router.ServeHTTP(recorder, req)
+	srv.Router().ServeHTTP(recorder, req)
 	return recorder
 }
 
@@ -314,7 +316,7 @@ func TestResourceUpdateUpdateResourceDescription(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	require.Equal(t, http.StatusOK, resp.Code)
 
@@ -351,7 +353,7 @@ func TestResourceUpdateUpdateExtensions(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -376,7 +378,7 @@ func TestResourceUpdateInvalidJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "Invalid request body")
@@ -402,7 +404,7 @@ func TestResourceUpdateResourceNotFound(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusNotFound, resp.Code)
 	assert.Contains(t, resp.Body.String(), "Resource not found")
@@ -429,7 +431,7 @@ func TestResourceUpdatePreserveImmutableFields(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -462,7 +464,7 @@ func TestResourceUpdateRejectImmutableFieldModification(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "immutable")
@@ -590,7 +592,7 @@ func TestResourceExtensionsExceedsHundredKeys(t *testing.T) {
 	}
 
 	// Test POST /resources
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
 
 	// Create map with 101 keys
 	extensions := make(map[string]interface{})
@@ -623,7 +625,7 @@ func TestResourceTotalExtensionsPayloadExceedsFiftyKB(t *testing.T) {
 	}
 
 	// Test POST /resources
-	srv := New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
 
 	// Create extensions with total size > 50KB
 	// Each value ~2KB, 26 keys = ~52KB total
@@ -705,7 +707,7 @@ func TestResourceAdapterErrorOnCreate(t *testing.T) {
 	mockAdp := &mockResourceAdapter{
 		resources: map[string]*adapter.Resource{},
 	}
-	srv := New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, errorOnCreate}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, errorOnCreate}, &mockStore{})
 
 	resource := adapter.Resource{
 		ResourceTypeID: "machine",
@@ -743,7 +745,7 @@ func TestResourceUpdateAdapterErrorOnUpdate(t *testing.T) {
 			},
 		},
 	}
-	srv := New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, errorOnUpdate}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, errorOnUpdate}, &mockStore{})
 
 	resource := adapter.Resource{
 		Description: "Updated description",
@@ -760,7 +762,7 @@ func TestResourceUpdateAdapterErrorOnUpdate(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusInternalServerError, resp.Code)
 	assert.Contains(t, resp.Body.String(), "Failed to update resource")
@@ -816,7 +818,7 @@ func TestResourceConcurrency(t *testing.T) {
 		mockAdp := &mockResourceAdapter{
 			resources: make(map[string]*adapter.Resource),
 		}
-		srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
 
 		// Use a specific resource ID
 		resourceID := "test-concurrent-123"
@@ -871,7 +873,7 @@ func TestResourceConcurrency(t *testing.T) {
 				},
 			},
 		}
-		srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
 
 		// Run 10 concurrent updates
 		const numGoroutines = 10
@@ -895,7 +897,7 @@ func TestResourceConcurrency(t *testing.T) {
 				req.Header.Set("Content-Type", "application/json")
 				resp := httptest.NewRecorder()
 
-				srv.router.ServeHTTP(resp, req)
+				srv.Router().ServeHTTP(resp, req)
 				results <- resp.Code
 			}()
 		}
@@ -921,7 +923,7 @@ func TestResourceConcurrency(t *testing.T) {
 		mockAdp := &mockResourceAdapter{
 			resources: make(map[string]*adapter.Resource),
 		}
-		srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
 
 		resourceID := "test-create-get-concurrent"
 		const numGoroutines = 20
@@ -953,7 +955,7 @@ func TestResourceConcurrency(t *testing.T) {
 }
 
 // executeConcurrentCreate performs a concurrent create operation for testing.
-func executeConcurrentCreate(t *testing.T, srv *Server, resourceID string, results chan<- string) {
+func executeConcurrentCreate(t *testing.T, srv *server.Server, resourceID string, results chan<- string) {
 	t.Helper()
 	resource := adapter.Resource{
 		ResourceID:     resourceID,
@@ -968,7 +970,7 @@ func executeConcurrentCreate(t *testing.T, srv *Server, resourceID string, resul
 }
 
 // executeConcurrentGet performs a concurrent get operation for testing.
-func executeConcurrentGet(srv *Server, resourceID string, results chan<- string) {
+func executeConcurrentGet(srv *server.Server, resourceID string, results chan<- string) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/o2ims-infrastructureInventory/v1/resources/"+resourceID,
@@ -976,7 +978,7 @@ func executeConcurrentGet(srv *Server, resourceID string, results chan<- string)
 	)
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 	results <- fmt.Sprintf("get:%d", resp.Code)
 }
 

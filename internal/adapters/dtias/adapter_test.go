@@ -1,4 +1,4 @@
-package dtias
+package dtias_test
 
 import (
 	"context"
@@ -12,18 +12,19 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/adapters/dtias"
 )
 
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *dtias.Config
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "valid configuration",
-			config: &Config{
+			config: &dtias.Config{
 				Endpoint:            "https://dtias.example.com/api/v1",
 				APIKey:              "test-api-key",
 				OCloudID:            "ocloud-dtias-1",
@@ -44,7 +45,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing endpoint",
-			config: &Config{
+			config: &dtias.Config{
 				APIKey:   "test-api-key",
 				OCloudID: "ocloud-dtias-1",
 			},
@@ -53,7 +54,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing API key",
-			config: &Config{
+			config: &dtias.Config{
 				Endpoint: "https://dtias.example.com/api/v1",
 				OCloudID: "ocloud-dtias-1",
 			},
@@ -62,7 +63,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing oCloudID",
-			config: &Config{
+			config: &dtias.Config{
 				Endpoint: "https://dtias.example.com/api/v1",
 				APIKey:   "test-api-key",
 			},
@@ -71,7 +72,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "configuration with defaults",
-			config: &Config{
+			config: &dtias.Config{
 				Endpoint: "https://dtias.example.com/api/v1",
 				APIKey:   "test-api-key",
 				OCloudID: "ocloud-dtias-1",
@@ -83,7 +84,7 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := New(tt.config)
+			adp, err := dtias.New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -102,16 +103,16 @@ func TestNew(t *testing.T) {
 
 			// Verify configuration defaults were applied
 			if tt.config.Timeout == 0 {
-				assert.Equal(t, 30*time.Second, adp.config.Timeout)
+				assert.Equal(t, 30*time.Second, adp.Config.Timeout)
 			}
 			if tt.config.RetryAttempts == 0 {
-				assert.Equal(t, 3, adp.config.RetryAttempts)
+				assert.Equal(t, 3, adp.Config.RetryAttempts)
 			}
 			if tt.config.RetryDelay == 0 {
-				assert.Equal(t, 2*time.Second, adp.config.RetryDelay)
+				assert.Equal(t, 2*time.Second, adp.Config.RetryDelay)
 			}
 			if tt.config.DeploymentManagerID == "" {
-				assert.NotEmpty(t, adp.deploymentManagerID)
+				assert.NotEmpty(t, adp.DeploymentManagerID)
 			}
 
 			// Cleanup
@@ -172,7 +173,7 @@ func TestDTIASAdapter_Close(t *testing.T) {
 func TestDTIASAdapter_Health(t *testing.T) {
 	// Create adapter with no-op logger to suppress expected ERROR logs
 	// from intentionally failing health checks
-	config := &Config{
+	config := &dtias.Config{
 		Endpoint:            "https://dtias.example.com/api/v1",
 		APIKey:              "test-api-key",
 		OCloudID:            "ocloud-test",
@@ -184,7 +185,7 @@ func TestDTIASAdapter_Health(t *testing.T) {
 		Logger:              zap.NewNop(), // No-op logger for expected errors
 	}
 
-	a, err := New(config)
+	a, err := dtias.New(config)
 	require.NoError(t, err)
 	require.NotNil(t, a)
 
@@ -202,10 +203,10 @@ func TestDTIASAdapter_Health(t *testing.T) {
 }
 
 // createTestAdapter creates a test DTIAS adapter with minimal configuration.
-func createTestAdapter(t *testing.T) *Adapter {
+func createTestAdapter(t *testing.T) *dtias.Adapter {
 	t.Helper()
 
-	config := &Config{
+	config := &dtias.Config{
 		Endpoint:            "https://dtias.example.com/api/v1",
 		APIKey:              "test-api-key",
 		OCloudID:            "ocloud-test",
@@ -218,7 +219,7 @@ func createTestAdapter(t *testing.T) *Adapter {
 		Logger: zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
 	}
 
-	adp, err := New(config)
+	adp, err := dtias.New(config)
 	require.NoError(t, err)
 	require.NotNil(t, adp)
 
@@ -435,5 +436,5 @@ func TestCloseWithSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify subscriptions are cleared
-	assert.Empty(t, adp.subscriptions)
+	assert.Empty(t, adp.Subscriptions)
 }

@@ -1,4 +1,4 @@
-package handlers
+package handlers_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/handlers"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -172,10 +174,10 @@ func TestNewResourceHandler(t *testing.T) {
 	adp := &mockResourceAdapter{}
 	logger := zap.NewNop()
 
-	handler := NewResourceHandler(adp, logger)
+	handler := handlers.NewResourceHandler(adp, logger)
 	assert.NotNil(t, handler)
-	assert.Equal(t, adp, handler.adapter)
-	assert.Equal(t, logger, handler.logger)
+	assert.Equal(t, adp, handler.Adapter)
+	assert.Equal(t, logger, handler.Logger)
 }
 
 func TestNewResourceHandler_Panics(t *testing.T) {
@@ -194,7 +196,7 @@ func TestNewResourceHandler_Panics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Panics(t, func() {
-				NewResourceHandler(tt.adapter, tt.logger)
+				handlers.NewResourceHandler(tt.adapter, tt.logger)
 			})
 		})
 	}
@@ -220,7 +222,7 @@ func TestListResources_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewResourceHandler(adp, zap.NewNop())
+	handler := handlers.NewResourceHandler(adp, zap.NewNop())
 
 	router := gin.New()
 	router.GET("/o2ims/v1/resources", handler.ListResources)
@@ -251,7 +253,7 @@ func TestListResources_WithFilter(t *testing.T) {
 		},
 	}
 
-	handler := NewResourceHandler(adp, zap.NewNop())
+	handler := handlers.NewResourceHandler(adp, zap.NewNop())
 
 	router := gin.New()
 	router.GET("/o2ims/v1/resources", handler.ListResources)
@@ -275,7 +277,7 @@ func TestListResources_AdapterError(t *testing.T) {
 		listErr: errors.New("database error"),
 	}
 
-	handler := NewResourceHandler(adp, zap.NewNop())
+	handler := handlers.NewResourceHandler(adp, zap.NewNop())
 
 	router := gin.New()
 	router.GET("/o2ims/v1/resources", handler.ListResources)
@@ -307,7 +309,7 @@ func TestGetResource_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewResourceHandler(adp, zap.NewNop())
+	handler := handlers.NewResourceHandler(adp, zap.NewNop())
 
 	router := gin.New()
 	router.GET("/o2ims/v1/resources/:resourceId", handler.GetResource)
@@ -335,7 +337,7 @@ func TestGetResource_NotFound(t *testing.T) {
 		resources: []*adapter.Resource{},
 	}
 
-	handler := NewResourceHandler(adp, zap.NewNop())
+	handler := handlers.NewResourceHandler(adp, zap.NewNop())
 
 	router := gin.New()
 	router.GET("/o2ims/v1/resources/:resourceId", handler.GetResource)
@@ -356,7 +358,7 @@ func TestGetResource_EmptyID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	adp := &mockResourceAdapter{}
-	handler := NewResourceHandler(adp, zap.NewNop())
+	handler := handlers.NewResourceHandler(adp, zap.NewNop())
 
 	router := gin.New()
 	router.GET("/o2ims/v1/resources/:resourceId", handler.GetResource)
@@ -376,7 +378,7 @@ func TestGetResource_AdapterError(t *testing.T) {
 		getErr: errors.New("database connection failed"),
 	}
 
-	handler := NewResourceHandler(adp, zap.NewNop())
+	handler := handlers.NewResourceHandler(adp, zap.NewNop())
 
 	router := gin.New()
 	router.GET("/o2ims/v1/resources/:resourceId", handler.GetResource)

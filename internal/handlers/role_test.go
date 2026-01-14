@@ -1,10 +1,12 @@
-package handlers
+package handlers_test
 
 import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/handlers"
 
 	"github.com/gin-gonic/gin"
 	"github.com/piwi3910/netweave/internal/auth"
@@ -21,7 +23,7 @@ func setupRoleTestRouter(t *testing.T, store *mockAuthStore) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	logger := zap.NewNop()
-	handler := NewRoleHandler(store, logger)
+	handler := handlers.NewRoleHandler(store, logger)
 
 	// Middleware to set context from headers for tests.
 	router.Use(func(c *gin.Context) {
@@ -378,7 +380,7 @@ func TestGetResourceFromPermission(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.permission), func(t *testing.T) {
-			got := getResourceFromPermission(tt.permission)
+			got := handlers.GetResourceFromPermission(tt.permission)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -406,7 +408,7 @@ func TestGetActionFromPermission(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.permission), func(t *testing.T) {
-			got := getActionFromPermission(tt.permission)
+			got := handlers.GetActionFromPermission(tt.permission)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -418,19 +420,19 @@ func TestNewRoleHandler(t *testing.T) {
 	logger := zap.NewNop()
 
 	t.Run("valid creation", func(t *testing.T) {
-		handler := NewRoleHandler(store, logger)
+		handler := handlers.NewRoleHandler(store, logger)
 		assert.NotNil(t, handler)
 	})
 
 	t.Run("nil store panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewRoleHandler(nil, logger)
+			handlers.NewRoleHandler(nil, logger)
 		})
 	})
 
 	t.Run("nil logger panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewRoleHandler(store, nil)
+			handlers.NewRoleHandler(store, nil)
 		})
 	})
 }

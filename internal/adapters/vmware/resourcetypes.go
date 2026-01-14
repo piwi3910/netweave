@@ -20,7 +20,7 @@ func (a *Adapter) ListResourceTypes(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "ListResourceTypes", start, err) }()
 
-	a.logger.Debug("ListResourceTypes called",
+	a.Logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
 	// Find all VMs to derive resource types
@@ -46,7 +46,7 @@ func (a *Adapter) ListResourceTypes(
 		cpuCount := config.NumCpu
 		memoryMB := int64(config.MemorySizeMB)
 
-		resourceTypeID := generateVMProfileID(cpuCount, memoryMB)
+		resourceTypeID := GenerateVMProfileID(cpuCount, memoryMB)
 
 		// Skip if already seen
 		if seen[resourceTypeID] {
@@ -54,7 +54,7 @@ func (a *Adapter) ListResourceTypes(
 		}
 		seen[resourceTypeID] = true
 
-		resourceType := a.createResourceType(cpuCount, memoryMB)
+		resourceType := a.CreateResourceType(cpuCount, memoryMB)
 
 		// Apply filter
 		if !adapter.MatchesFilter(filter, "", resourceType.ResourceTypeID, "", nil) {
@@ -66,7 +66,7 @@ func (a *Adapter) ListResourceTypes(
 
 	// Add some common VM profiles if no VMs exist
 	if len(resourceTypes) == 0 {
-		resourceTypes = a.getDefaultResourceTypes()
+		resourceTypes = a.GetDefaultResourceTypes()
 	}
 
 	// Apply pagination
@@ -74,7 +74,7 @@ func (a *Adapter) ListResourceTypes(
 		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
 	}
 
-	a.logger.Info("listed resource types",
+	a.Logger.Info("listed resource types",
 		zap.Int("count", len(resourceTypes)))
 
 	return resourceTypes, nil
@@ -86,7 +86,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "GetResourceType", start, err) }()
 
-	a.logger.Debug("GetResourceType called",
+	a.Logger.Debug("GetResourceType called",
 		zap.String("id", id))
 
 	resourceTypes, err := a.ListResourceTypes(ctx, nil)
@@ -104,8 +104,8 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 }
 
 // createResourceType creates a resource type from CPU and memory specifications.
-func (a *Adapter) createResourceType(cpuCount int32, memoryMB int64) *adapter.ResourceType {
-	resourceTypeID := generateVMProfileID(cpuCount, memoryMB)
+func (a *Adapter) CreateResourceType(cpuCount int32, memoryMB int64) *adapter.ResourceType {
+	resourceTypeID := GenerateVMProfileID(cpuCount, memoryMB)
 	memoryGB := memoryMB / 1024
 
 	// All vSphere VMs are virtual
@@ -135,7 +135,7 @@ func (a *Adapter) createResourceType(cpuCount int32, memoryMB int64) *adapter.Re
 }
 
 // getDefaultResourceTypes returns common VM profiles.
-func (a *Adapter) getDefaultResourceTypes() []*adapter.ResourceType {
+func (a *Adapter) GetDefaultResourceTypes() []*adapter.ResourceType {
 	profiles := []struct {
 		cpu    int32
 		memory int64
@@ -154,7 +154,7 @@ func (a *Adapter) getDefaultResourceTypes() []*adapter.ResourceType {
 
 	resourceTypes := make([]*adapter.ResourceType, 0, len(profiles))
 	for _, p := range profiles {
-		resourceTypes = append(resourceTypes, a.createResourceType(p.cpu, p.memory))
+		resourceTypes = append(resourceTypes, a.CreateResourceType(p.cpu, p.memory))
 	}
 
 	return resourceTypes

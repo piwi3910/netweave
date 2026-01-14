@@ -25,11 +25,11 @@ func (a *Adapter) ListResourcePools(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "ListResourcePools", start, err) }()
 
-	a.logger.Debug("ListResourcePools called",
+	a.Logger.Debug("ListResourcePools called",
 		zap.Any("filter", filter),
-		zap.String("poolMode", a.poolMode))
+		zap.String("poolMode", a.PoolMode))
 
-	if a.poolMode == "asg" {
+	if a.PoolMode == "asg" {
 		pools, err := a.listASGPools(ctx, filter)
 		return pools, err
 	}
@@ -44,7 +44,7 @@ func (a *Adapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([]*a
 		Filters: []ec2Types.Filter{
 			{
 				Name:   aws.String("region-name"),
-				Values: []string{a.region},
+				Values: []string{a.Region},
 			},
 			{
 				Name:   aws.String("state"),
@@ -58,7 +58,7 @@ func (a *Adapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([]*a
 
 	pools := make([]*adapter.ResourcePool, 0, len(azsOutput.AvailabilityZones))
 	for _, az := range azsOutput.AvailabilityZones {
-		poolID := generateAZPoolID(aws.ToString(az.ZoneName))
+		poolID := GenerateAZPoolID(aws.ToString(az.ZoneName))
 		location := aws.ToString(az.ZoneName)
 
 		// Apply filter using shared helper
@@ -71,11 +71,11 @@ func (a *Adapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([]*a
 			Name:           aws.ToString(az.ZoneName),
 			Description:    fmt.Sprintf("AWS Availability Zone %s", aws.ToString(az.ZoneName)),
 			Location:       location,
-			OCloudID:       a.oCloudID,
+			OCloudID:       a.OCloudID,
 			Extensions: map[string]interface{}{
 				"aws.zoneId":   aws.ToString(az.ZoneId),
 				"aws.zoneType": aws.ToString(az.ZoneType),
-				"aws.region":   aws.ToString(az.RegionName),
+				"aws.Region":   aws.ToString(az.RegionName),
 				"aws.state":    string(az.State),
 			},
 		}
@@ -88,7 +88,7 @@ func (a *Adapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([]*a
 		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
-	a.logger.Info("listed resource pools (AZ mode)",
+	a.Logger.Info("listed resource pools (AZ mode)",
 		zap.Int("count", len(pools)))
 
 	return pools, nil
@@ -113,7 +113,7 @@ func (a *Adapter) listASGPools(
 		}
 
 		for _, asg := range page.AutoScalingGroups {
-			poolID := generateASGPoolID(aws.ToString(asg.AutoScalingGroupName))
+			poolID := GenerateASGPoolID(aws.ToString(asg.AutoScalingGroupName))
 
 			// Get first AZ as location
 			var location string
@@ -137,14 +137,14 @@ func (a *Adapter) listASGPools(
 				Name:           aws.ToString(asg.AutoScalingGroupName),
 				Description:    fmt.Sprintf("AWS Auto Scaling Group %s", aws.ToString(asg.AutoScalingGroupName)),
 				Location:       location,
-				OCloudID:       a.oCloudID,
+				OCloudID:       a.OCloudID,
 				Extensions: map[string]interface{}{
 					"aws.asgArn":              aws.ToString(asg.AutoScalingGroupARN),
 					"aws.desiredCapacity":     aws.ToInt32(asg.DesiredCapacity),
 					"aws.minSize":             aws.ToInt32(asg.MinSize),
 					"aws.maxSize":             aws.ToInt32(asg.MaxSize),
 					"aws.availabilityZones":   asg.AvailabilityZones,
-					"aws.launchTemplate":      getLaunchTemplateName(asg.LaunchTemplate),
+					"aws.launchTemplate":      GetLaunchTemplateName(asg.LaunchTemplate),
 					"aws.healthCheckType":     aws.ToString(asg.HealthCheckType),
 					"aws.status":              aws.ToString(asg.Status),
 					"aws.createdTime":         asg.CreatedTime,
@@ -162,7 +162,7 @@ func (a *Adapter) listASGPools(
 		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
-	a.logger.Info("listed resource pools (ASG mode)",
+	a.Logger.Info("listed resource pools (ASG mode)",
 		zap.Int("count", len(pools)))
 
 	return pools, nil
@@ -174,10 +174,10 @@ func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.Reso
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetResourcePool", start, err) }()
 
-	a.logger.Debug("GetResourcePool called",
+	a.Logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
-	if a.poolMode == "asg" {
+	if a.PoolMode == "asg" {
 		return a.getASGPool(ctx, id)
 	}
 	return a.getAZPool(ctx, id)
@@ -233,10 +233,10 @@ func (a *Adapter) CreateResourcePool(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "CreateResourcePool", start, err) }()
 
-	a.logger.Debug("CreateResourcePool called",
+	a.Logger.Debug("CreateResourcePool called",
 		zap.String("name", pool.Name))
 
-	if a.poolMode == "az" {
+	if a.PoolMode == "az" {
 		err = fmt.Errorf(
 			"cannot create resource pools in 'az' mode: " +
 				"availability zones are AWS-managed",
@@ -262,17 +262,17 @@ func (a *Adapter) UpdateResourcePool(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "UpdateResourcePool", start, err) }()
 
-	a.logger.Debug("UpdateResourcePool called",
+	a.Logger.Debug("UpdateResourcePool called",
 		zap.String("id", id),
 		zap.String("name", pool.Name))
 
-	if a.poolMode == "az" {
+	if a.PoolMode == "az" {
 		err = fmt.Errorf("cannot update resource pools in 'az' mode: availability zones are AWS-managed")
 		return nil, err
 	}
 
 	// Extract ASG name from pool ID
-	asgName := extractASGNameFromPoolID(id)
+	asgName := ExtractASGNameFromPoolID(id)
 	if asgName == "" {
 		err = fmt.Errorf("invalid resource pool ID format: %s", id)
 		return nil, err
@@ -285,21 +285,21 @@ func (a *Adapter) UpdateResourcePool(
 
 	// Extract capacity settings from extensions if provided
 	if pool.Extensions != nil {
-		updateInput.DesiredCapacity = extractInt32FromExtensions(pool.Extensions, "aws.desiredCapacity")
-		updateInput.MinSize = extractInt32FromExtensions(pool.Extensions, "aws.minSize")
-		updateInput.MaxSize = extractInt32FromExtensions(pool.Extensions, "aws.maxSize")
+		updateInput.DesiredCapacity = ExtractInt32FromExtensions(pool.Extensions, "aws.desiredCapacity")
+		updateInput.MinSize = ExtractInt32FromExtensions(pool.Extensions, "aws.minSize")
+		updateInput.MaxSize = ExtractInt32FromExtensions(pool.Extensions, "aws.maxSize")
 	}
 
 	// Update the Auto Scaling Group
 	_, err = a.asgClient.UpdateAutoScalingGroup(ctx, updateInput)
 	if err != nil {
-		a.logger.Error("failed to update auto scaling group",
+		a.Logger.Error("failed to update auto scaling group",
 			zap.String("asgName", asgName),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to update Auto Scaling Group %s: %w", asgName, err)
 	}
 
-	a.logger.Info("updated auto scaling group",
+	a.Logger.Info("updated auto scaling group",
 		zap.String("asgName", asgName))
 
 	// Retrieve and return the updated pool
@@ -315,15 +315,15 @@ func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "DeleteResourcePool", start, err) }()
 
-	a.logger.Debug("DeleteResourcePool called",
+	a.Logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 
-	if a.poolMode == "az" {
+	if a.PoolMode == "az" {
 		return fmt.Errorf("cannot delete resource pools in 'az' mode: availability zones are AWS-managed")
 	}
 
 	// Extract ASG name from pool ID
-	asgName := extractASGNameFromPoolID(id)
+	asgName := ExtractASGNameFromPoolID(id)
 	if asgName == "" {
 		return fmt.Errorf("invalid resource pool ID format: %s", id)
 	}
@@ -337,13 +337,13 @@ func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
 
 	_, err = a.asgClient.DeleteAutoScalingGroup(ctx, deleteInput)
 	if err != nil {
-		a.logger.Error("failed to delete auto scaling group",
+		a.Logger.Error("failed to delete auto scaling group",
 			zap.String("asgName", asgName),
 			zap.Error(err))
 		return fmt.Errorf("failed to delete Auto Scaling Group %s: %w", asgName, err)
 	}
 
-	a.logger.Info("deleted auto scaling group",
+	a.Logger.Info("deleted auto scaling group",
 		zap.String("asgName", asgName))
 
 	return nil
@@ -351,7 +351,7 @@ func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
 
 // extractASGNameFromPoolID extracts the ASG name from a resource pool ID.
 // Pool ID format: aws-asg-{asgName}.
-func extractASGNameFromPoolID(poolID string) string {
+func ExtractASGNameFromPoolID(poolID string) string {
 	const prefix = "aws-asg-"
 	if len(poolID) > len(prefix) && poolID[:len(prefix)] == prefix {
 		return poolID[len(prefix):]
@@ -361,7 +361,7 @@ func extractASGNameFromPoolID(poolID string) string {
 
 // extractInt32FromExtensions extracts an int32 value from extensions map.
 // Handles both int32 and float64 types (JSON unmarshaling can produce either).
-func extractInt32FromExtensions(extensions map[string]interface{}, key string) *int32 {
+func ExtractInt32FromExtensions(extensions map[string]interface{}, key string) *int32 {
 	if val, ok := extensions[key].(int32); ok {
 		return aws.Int32(val)
 	}
@@ -372,7 +372,7 @@ func extractInt32FromExtensions(extensions map[string]interface{}, key string) *
 }
 
 // getLaunchTemplateName extracts the launch template name from LaunchTemplateSpecification.
-func getLaunchTemplateName(lt *autoscalingTypes.LaunchTemplateSpecification) string {
+func GetLaunchTemplateName(lt *autoscalingTypes.LaunchTemplateSpecification) string {
 	if lt == nil {
 		return ""
 	}

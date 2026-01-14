@@ -111,7 +111,7 @@ func (p *Plugin) CreateVIMAccount(ctx context.Context, vim *VIMAccount) error {
 
 	// Create VIM account via OSM NBI
 	var result VIMAccount
-	if err := p.client.post(ctx, "/osm/admin/v1/vim_accounts", vim, &result); err != nil {
+	if err := p.Client.Post(ctx, "/osm/admin/v1/vim_accounts", vim, &result); err != nil {
 		return fmt.Errorf("failed to create VIM account: %w", err)
 	}
 
@@ -130,7 +130,7 @@ func (p *Plugin) GetVIMAccount(ctx context.Context, id string) (*VIMAccount, err
 	}
 
 	var vim VIMAccount
-	if err := p.client.get(ctx, fmt.Sprintf("/osm/admin/v1/vim_accounts/%s", id), &vim); err != nil {
+	if err := p.Client.Get(ctx, fmt.Sprintf("/osm/admin/v1/vim_accounts/%s", id), &vim); err != nil {
 		return nil, fmt.Errorf("failed to get VIM account: %w", err)
 	}
 
@@ -140,7 +140,7 @@ func (p *Plugin) GetVIMAccount(ctx context.Context, id string) (*VIMAccount, err
 // ListVIMAccounts retrieves all VIM accounts from OSM.
 func (p *Plugin) ListVIMAccounts(ctx context.Context) ([]*VIMAccount, error) {
 	var vims []*VIMAccount
-	if err := p.client.get(ctx, "/osm/admin/v1/vim_accounts", &vims); err != nil {
+	if err := p.Client.Get(ctx, "/osm/admin/v1/vim_accounts", &vims); err != nil {
 		return nil, fmt.Errorf("failed to list VIM accounts: %w", err)
 	}
 
@@ -157,7 +157,7 @@ func (p *Plugin) UpdateVIMAccount(ctx context.Context, id string, vim *VIMAccoun
 	}
 
 	// Update via OSM NBI (using PATCH for partial update)
-	if err := p.client.patch(ctx, fmt.Sprintf("/osm/admin/v1/vim_accounts/%s", id), vim, nil); err != nil {
+	if err := p.Client.Patch(ctx, fmt.Sprintf("/osm/admin/v1/vim_accounts/%s", id), vim, nil); err != nil {
 		return fmt.Errorf("failed to update VIM account: %w", err)
 	}
 
@@ -170,7 +170,7 @@ func (p *Plugin) DeleteVIMAccount(ctx context.Context, id string) error {
 		return fmt.Errorf("vim id is required")
 	}
 
-	if err := p.client.delete(ctx, fmt.Sprintf("/osm/admin/v1/vim_accounts/%s", id)); err != nil {
+	if err := p.Client.Delete(ctx, fmt.Sprintf("/osm/admin/v1/vim_accounts/%s", id)); err != nil {
 		return fmt.Errorf("failed to delete VIM account: %w", err)
 	}
 
@@ -193,7 +193,7 @@ func (p *Plugin) publishOSMEvent(ctx context.Context, event *InfrastructureEvent
 		return fmt.Errorf("event cannot be nil")
 	}
 
-	if !p.config.EnableEventPublish {
+	if !p.Config.EnableEventPublish {
 		// Event publishing is disabled
 		return nil
 	}

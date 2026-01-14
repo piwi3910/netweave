@@ -22,11 +22,11 @@ func (p *Plugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequ
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.closed {
+	if p.Closed {
 		return nil, fmt.Errorf("plugin is closed")
 	}
 
-	if !p.config.EnableDMSBackend {
+	if !p.Config.EnableDMSBackend {
 		return nil, fmt.Errorf("DMS backend mode is not enabled")
 	}
 
@@ -60,7 +60,7 @@ func (p *Plugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequ
 		Extensions: map[string]interface{}{
 			"onap.processInstanceId": processInstanceID,
 			"onap.engineName":        "camunda",
-			"onap.soUrl":             p.config.SOURL,
+			"onap.soUrl":             p.Config.SOURL,
 		},
 	}
 
@@ -78,11 +78,11 @@ func (p *Plugin) GetWorkflowStatus(ctx context.Context, executionID string) (*sm
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.closed {
+	if p.Closed {
 		return nil, fmt.Errorf("plugin is closed")
 	}
 
-	if !p.config.EnableDMSBackend {
+	if !p.Config.EnableDMSBackend {
 		return nil, fmt.Errorf("DMS backend mode is not enabled")
 	}
 
@@ -107,7 +107,7 @@ func (p *Plugin) GetWorkflowStatus(ctx context.Context, executionID string) (*sm
 	status := &smo.WorkflowStatus{
 		ExecutionID:  executionID,
 		WorkflowName: orchestrationStatus.ServiceName,
-		Status:       p.mapONAPRequestStateToStatus(orchestrationStatus.RequestState),
+		Status:       p.MapONAPRequestStateToStatus(orchestrationStatus.RequestState),
 		Progress:     orchestrationStatus.PercentProgress,
 		Message:      orchestrationStatus.StatusMessage,
 		StartedAt:    orchestrationStatus.StartTime,
@@ -147,11 +147,11 @@ func (p *Plugin) CancelWorkflow(ctx context.Context, executionID string) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.closed {
+	if p.Closed {
 		return fmt.Errorf("plugin is closed")
 	}
 
-	if !p.config.EnableDMSBackend {
+	if !p.Config.EnableDMSBackend {
 		return fmt.Errorf("DMS backend mode is not enabled")
 	}
 
@@ -184,11 +184,11 @@ func (p *Plugin) RegisterServiceModel(ctx context.Context, model *smo.ServiceMod
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.closed {
+	if p.Closed {
 		return fmt.Errorf("plugin is closed")
 	}
 
-	if !p.config.EnableDMSBackend {
+	if !p.Config.EnableDMSBackend {
 		return fmt.Errorf("DMS backend mode is not enabled")
 	}
 
@@ -234,11 +234,11 @@ func (p *Plugin) GetServiceModel(ctx context.Context, id string) (*smo.ServiceMo
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.closed {
+	if p.Closed {
 		return nil, fmt.Errorf("plugin is closed")
 	}
 
-	if !p.config.EnableDMSBackend {
+	if !p.Config.EnableDMSBackend {
 		return nil, fmt.Errorf("DMS backend mode is not enabled")
 	}
 
@@ -284,11 +284,11 @@ func (p *Plugin) ListServiceModels(ctx context.Context) ([]*smo.ServiceModel, er
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.closed {
+	if p.Closed {
 		return nil, fmt.Errorf("plugin is closed")
 	}
 
-	if !p.config.EnableDMSBackend {
+	if !p.Config.EnableDMSBackend {
 		return nil, fmt.Errorf("DMS backend mode is not enabled")
 	}
 
@@ -332,7 +332,7 @@ func (p *Plugin) ApplyPolicy(_ context.Context, policy *smo.Policy) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.closed {
+	if p.Closed {
 		return fmt.Errorf("plugin is closed")
 	}
 
@@ -360,7 +360,7 @@ func (p *Plugin) GetPolicyStatus(_ context.Context, policyID string) (*smo.Polic
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.closed {
+	if p.Closed {
 		return nil, fmt.Errorf("plugin is closed")
 	}
 
@@ -395,7 +395,7 @@ func (p *Plugin) GetPolicyStatus(_ context.Context, policyID string) (*smo.Polic
 // === Helper methods for status mapping ===
 
 // mapONAPRequestStateToStatus maps ONAP orchestration request state to workflow status.
-func (p *Plugin) mapONAPRequestStateToStatus(requestState string) string {
+func (p *Plugin) MapONAPRequestStateToStatus(requestState string) string {
 	statusMap := map[string]string{
 		"PENDING":     "PENDING",
 		"IN_PROGRESS": "RUNNING",

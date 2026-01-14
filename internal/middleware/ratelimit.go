@@ -16,9 +16,9 @@ import (
 // RateLimiter provides distributed rate limiting using Redis.
 // It implements token bucket algorithm with sliding window for accurate limiting.
 type RateLimiter struct {
-	client redis.UniversalClient
-	logger *zap.Logger
-	config *RateLimitConfig
+	Client redis.UniversalClient // Exported for testing
+	Logger *zap.Logger           // Exported for testing
+	Config *RateLimitConfig      // Exported for testing
 }
 
 // RateLimitConfig contains rate limiting configuration.
@@ -80,16 +80,16 @@ func NewRateLimiter(config *RateLimitConfig, logger *zap.Logger) (*RateLimiter, 
 	}
 
 	return &RateLimiter{
-		client: config.RedisClient,
-		logger: logger,
-		config: config,
+		Client: config.RedisClient,
+		Logger: logger,
+		Config: config,
 	}, nil
 }
 
 // Middleware returns a Gin middleware function for rate limiting.
 func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !rl.config.Enabled {
+		if !rl.Config.Enabled {
 			c.Next()
 			return
 		}
@@ -97,10 +97,10 @@ func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 		ctx := c.Request.Context()
 
 		// Extract tenant ID from context or use default
-		tenantID := getTenantID(c)
+		tenantID := GetTenantID(c)
 
 		// Check endpoint-specific limits first
-		if endpointLimit := rl.getEndpointLimit(c.Request.Method, c.FullPath()); endpointLimit != nil {
+		if endpointLimit := rl.GetEndpointLimit(c.Request.Method, c.FullPath()); endpointLimit != nil {
 			if !rl.checkLimit(ctx, c, fmt.Sprintf("endpoint:%s:%s:%s", tenantID, c.Request.Method, c.FullPath()),
 				endpointLimit.RequestsPerSecond, endpointLimit.BurstSize) {
 				return
@@ -108,17 +108,17 @@ func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 		}
 
 		// Check per-tenant limits
-		if rl.config.PerTenant.RequestsPerSecond > 0 {
+		if rl.Config.PerTenant.RequestsPerSecond > 0 {
 			if !rl.checkLimit(ctx, c, fmt.Sprintf("tenant:%s", tenantID),
-				rl.config.PerTenant.RequestsPerSecond, rl.config.PerTenant.BurstSize) {
+				rl.Config.PerTenant.RequestsPerSecond, rl.Config.PerTenant.BurstSize) {
 				return
 			}
 		}
 
 		// Check global limits
-		if rl.config.Global.RequestsPerSecond > 0 {
+		if rl.Config.Global.RequestsPerSecond > 0 {
 			if !rl.checkLimit(ctx, c, "global",
-				rl.config.Global.RequestsPerSecond, rl.config.Global.BurstSize()) {
+				rl.Config.Global.RequestsPerSecond, rl.Config.Global.BurstSize()) {
 				return
 			}
 		}
@@ -166,9 +166,9 @@ func (rl *RateLimiter) checkLimit(
 		end
 	`
 
-	result, err := rl.client.Eval(ctx, script, []string{key}, now, requestsPerSecond, burstSize, windowSize).Result()
+	result, err := rl.Client.Eval(ctx, script, []string{key}, now, requestsPerSecond, burstSize, windowSize).Result()
 	if err != nil {
-		rl.logger.Error("rate limit check failed",
+		rl.Logger.Error("rate limit check failed",
 			zap.String("key", key),
 			zap.Error(err),
 		)
@@ -178,7 +178,7 @@ func (rl *RateLimiter) checkLimit(
 
 	resultSlice, ok := result.([]interface{})
 	if !ok || len(resultSlice) < 3 {
-		rl.logger.Error("invalid rate limit result format")
+		rl.Logger.Error("invalid rate limit result format")
 		return true
 	}
 
@@ -194,9 +194,9 @@ func (rl *RateLimiter) checkLimit(
 	if !allowed {
 		c.Header("Retry-After", strconv.FormatInt(windowSize, 10))
 
-		rl.logger.Warn("rate limit exceeded",
+		rl.Logger.Warn("rate limit exceeded",
 			zap.String("key", key),
-			zap.String("tenant", getTenantID(c)),
+			zap.String("tenant", GetTenantID(c)),
 			zap.String("method", c.Request.Method),
 			zap.String("path", c.FullPath()),
 			zap.String("client_ip", c.ClientIP()),
@@ -214,8 +214,8 @@ func (rl *RateLimiter) checkLimit(
 }
 
 // getEndpointLimit returns the rate limit config for a specific endpoint if configured.
-func (rl *RateLimiter) getEndpointLimit(method, path string) *EndpointLimitConfig {
-	for _, limit := range rl.config.PerEndpoint {
+func (rl *RateLimiter) GetEndpointLimit(method, path string) *EndpointLimitConfig {
+	for _, limit := range rl.Config.PerEndpoint {
 		if limit.Method == method && limit.Path == path {
 			return &limit
 		}
@@ -226,7 +226,7 @@ func (rl *RateLimiter) getEndpointLimit(method, path string) *EndpointLimitConfi
 // getTenantID extracts the tenant ID from the Gin context.
 // It first checks for a tenant ID in the context (set by auth middleware),
 // then falls back to client IP as a default identifier.
-func getTenantID(c *gin.Context) string {
+func GetTenantID(c *gin.Context) string {
 	// Try to get tenant from auth context
 	if tenantID, exists := c.Get("tenant_id"); exists {
 		if id, ok := tenantID.(string); ok && id != "" {

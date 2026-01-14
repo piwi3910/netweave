@@ -87,7 +87,7 @@ type Context struct {
 // Router handles adapter selection based on routing rules.
 type Router struct {
 	mu       sync.RWMutex
-	registry *registry.Registry
+	Registry *registry.Registry
 	rules    []*Rule
 	logger   *zap.Logger
 
@@ -108,7 +108,7 @@ func NewRouter(reg *registry.Registry, logger *zap.Logger, config *Config) *Rout
 	// Convert RuleConfig to Rule using the existing conversion function
 	rules := make([]*Rule, 0, len(config.Rules))
 	for i := range config.Rules {
-		rule, err := convertRuleConfig(&config.Rules[i])
+		rule, err := ConvertRuleConfig(&config.Rules[i])
 		if err != nil {
 			// Log error but continue with other rules
 			logger.Warn("failed to convert rule config", zap.Error(err))
@@ -118,7 +118,7 @@ func NewRouter(reg *registry.Registry, logger *zap.Logger, config *Config) *Rout
 	}
 
 	router := &Router{
-		registry:        reg,
+		Registry:        reg,
 		rules:           rules,
 		logger:          logger,
 		fallbackEnabled: config.FallbackEnabled,
@@ -149,18 +149,18 @@ func (r *Router) RouteMultiple(_ context.Context, routingCtx *Context) ([]adapte
 
 	// Match all applicable routing rules
 	for _, rule := range r.rules {
-		if !rule.Enabled || !r.matchesRule(rule, routingCtx) || seen[rule.AdapterName] {
+		if !rule.Enabled || !r.MatchesRule(rule, routingCtx) || seen[rule.AdapterName] {
 			continue
 		}
 
 		// Inline adapter lookup and validation (avoid ireturn linter)
-		r.registry.Mu.RLock()
-		plugin := r.registry.Plugins[rule.AdapterName]
-		r.registry.Mu.RUnlock()
+		r.Registry.Mu.RLock()
+		plugin := r.Registry.Plugins[rule.AdapterName]
+		r.Registry.Mu.RUnlock()
 		var ok bool
 		if plugin != nil {
-			meta := r.registry.GetMetadata(rule.AdapterName)
-			if meta != nil && meta.Enabled && meta.Healthy && r.hasCapabilities(meta.Capabilities, routingCtx.RequiredCapabilities) {
+			meta := r.Registry.GetMetadata(rule.AdapterName)
+			if meta != nil && meta.Enabled && meta.Healthy && r.HasCapabilities(meta.Capabilities, routingCtx.RequiredCapabilities) {
 				ok = true
 			}
 		}
@@ -179,12 +179,12 @@ func (r *Router) RouteMultiple(_ context.Context, routingCtx *Context) ([]adapte
 
 	// If no adapters matched and fallback is enabled, use default
 	if len(adapters) == 0 && r.fallbackEnabled {
-		r.registry.Mu.RLock()
+		r.Registry.Mu.RLock()
 		var defaultAdapter adapter.Adapter
-		if r.registry.DefaultPlugin != "" {
-			defaultAdapter = r.registry.Plugins[r.registry.DefaultPlugin]
+		if r.Registry.DefaultPlugin != "" {
+			defaultAdapter = r.Registry.Plugins[r.Registry.DefaultPlugin]
 		}
-		r.registry.Mu.RUnlock()
+		r.Registry.Mu.RUnlock()
 		if defaultAdapter != nil {
 			adapters = append(adapters, defaultAdapter)
 			r.logger.Debug("using default adapter for aggregation")
@@ -199,8 +199,8 @@ func (r *Router) RouteMultiple(_ context.Context, routingCtx *Context) ([]adapte
 }
 
 // matchesRule checks if a routing context matches a rule.
-func (r *Router) matchesRule(rule *Rule, ctx *Context) bool {
-	if !r.matchesResourceType(rule, ctx) {
+func (r *Router) MatchesRule(rule *Rule, ctx *Context) bool {
+	if !r.MatchesResourceType(rule, ctx) {
 		return false
 	}
 
@@ -208,11 +208,11 @@ func (r *Router) matchesRule(rule *Rule, ctx *Context) bool {
 		return true
 	}
 
-	return r.matchesConditions(rule, ctx)
+	return r.MatchesConditions(rule, ctx)
 }
 
 // matchesResourceType checks if resource type matches the rule.
-func (r *Router) matchesResourceType(rule *Rule, ctx *Context) bool {
+func (r *Router) MatchesResourceType(rule *Rule, ctx *Context) bool {
 	if rule.ResourceType == "" || rule.ResourceType == "*" {
 		return true
 	}
@@ -220,25 +220,25 @@ func (r *Router) matchesResourceType(rule *Rule, ctx *Context) bool {
 }
 
 // matchesConditions checks if all conditions match.
-func (r *Router) matchesConditions(rule *Rule, ctx *Context) bool {
+func (r *Router) MatchesConditions(rule *Rule, ctx *Context) bool {
 	// Check label matching
 	if len(rule.Conditions.Labels) > 0 {
-		if !r.matchesLabels(rule.Conditions.Labels, ctx.Labels) {
+		if !r.MatchesLabels(rule.Conditions.Labels, ctx.Labels) {
 			return false
 		}
 	}
 
 	// Check location matching
 	if rule.Conditions.Location != nil {
-		if !r.matchesLocation(rule.Conditions.Location, ctx.Location) {
+		if !r.MatchesLocation(rule.Conditions.Location, ctx.Location) {
 			return false
 		}
 	}
 
 	// Check capability requirements
 	if len(rule.Conditions.Capabilities) > 0 {
-		if !r.hasCapabilities(
-			r.getAdapterCapabilities(rule.AdapterName),
+		if !r.HasCapabilities(
+			r.GetAdapterCapabilities(rule.AdapterName),
 			rule.Conditions.Capabilities,
 		) {
 			return false
@@ -249,7 +249,7 @@ func (r *Router) matchesConditions(rule *Rule, ctx *Context) bool {
 }
 
 // matchesLabels checks if request labels match rule label criteria.
-func (r *Router) matchesLabels(ruleLabels, requestLabels map[string]string) bool {
+func (r *Router) MatchesLabels(ruleLabels, requestLabels map[string]string) bool {
 	if len(ruleLabels) == 0 {
 		return true
 	}
@@ -264,7 +264,7 @@ func (r *Router) matchesLabels(ruleLabels, requestLabels map[string]string) bool
 }
 
 // matchesLocation checks if a location matches location criteria.
-func (r *Router) matchesLocation(locCondition *LocationCondition, location string) bool {
+func (r *Router) MatchesLocation(locCondition *LocationCondition, location string) bool {
 	if location == "" {
 		return false
 	}
@@ -289,7 +289,7 @@ func (r *Router) matchesLocation(locCondition *LocationCondition, location strin
 }
 
 // hasCapabilities checks if an adapter has all required capabilities.
-func (r *Router) hasCapabilities(adapterCaps, requiredCaps []adapter.Capability) bool {
+func (r *Router) HasCapabilities(adapterCaps, requiredCaps []adapter.Capability) bool {
 	if len(requiredCaps) == 0 {
 		return true
 	}
@@ -309,8 +309,8 @@ func (r *Router) hasCapabilities(adapterCaps, requiredCaps []adapter.Capability)
 }
 
 // getAdapterCapabilities retrieves capabilities for an adapter.
-func (r *Router) getAdapterCapabilities(name string) []adapter.Capability {
-	meta := r.registry.GetMetadata(name)
+func (r *Router) GetAdapterCapabilities(name string) []adapter.Capability {
+	meta := r.Registry.GetMetadata(name)
 	if meta == nil {
 		return nil
 	}
@@ -440,7 +440,7 @@ func (r *Router) IsAggregationEnabled() bool {
 // Check if adapter has required capabilities
 
 // capabilitiesToStrings converts capabilities to string slice.
-func capabilitiesToStrings(caps []adapter.Capability) []string {
+func CapabilitiesToStrings(caps []adapter.Capability) []string {
 	strs := make([]string, len(caps))
 	for i, cap := range caps {
 		strs[i] = string(cap)

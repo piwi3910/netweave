@@ -1,4 +1,4 @@
-package handlers
+package handlers_test
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/piwi3910/netweave/internal/auth"
+	"github.com/piwi3910/netweave/internal/handlers"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ func setupUserTestRouter(t *testing.T, store *mockAuthStore) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	logger := zap.NewNop()
-	handler := NewUserHandler(store, logger)
+	handler := handlers.NewUserHandler(store, logger)
 
 	// Middleware to set user and tenant context for tests.
 	router.Use(func(c *gin.Context) {
@@ -168,7 +169,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 		{
 			name:     "create valid user",
 			tenantID: "tenant-123",
-			requestBody: CreateUserRequest{
+			requestBody: handlers.CreateUserRequest{
 				Subject:    "CN=newuser,O=test",
 				CommonName: "New User",
 				Email:      "newuser@test.com",
@@ -206,7 +207,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 		{
 			name:     "create user with invalid role ID",
 			tenantID: "tenant-123",
-			requestBody: CreateUserRequest{
+			requestBody: handlers.CreateUserRequest{
 				Subject:    "CN=newuser,O=test",
 				CommonName: "New User",
 				RoleID:     "invalid-role",
@@ -231,7 +232,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 		{
 			name:     "create user with platform role",
 			tenantID: "tenant-123",
-			requestBody: CreateUserRequest{
+			requestBody: handlers.CreateUserRequest{
 				Subject:    "CN=newuser,O=test",
 				CommonName: "New User",
 				RoleID:     "role-platform-admin",
@@ -262,7 +263,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 		{
 			name:     "create user quota exceeded",
 			tenantID: "tenant-123",
-			requestBody: CreateUserRequest{
+			requestBody: handlers.CreateUserRequest{
 				Subject:    "CN=newuser,O=test",
 				CommonName: "New User",
 				RoleID:     "role-viewer",
@@ -293,7 +294,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 		{
 			name:        "create with missing required fields",
 			tenantID:    "tenant-123",
-			requestBody: CreateUserRequest{},
+			requestBody: handlers.CreateUserRequest{},
 			setupStore: func(s *mockAuthStore) {
 				s.tenants["tenant-123"] = &auth.Tenant{
 					ID:     "tenant-123",
@@ -466,7 +467,7 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 			name:     "update user email",
 			tenantID: "tenant-123",
 			userID:   "user-123",
-			requestBody: UpdateUserRequest{
+			requestBody: handlers.UpdateUserRequest{
 				Email: "updated@test.com",
 			},
 			setupStore: func(s *mockAuthStore) {
@@ -496,9 +497,9 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 			name:     "deactivate user",
 			tenantID: "tenant-123",
 			userID:   "user-123",
-			requestBody: func() UpdateUserRequest {
+			requestBody: func() handlers.UpdateUserRequest {
 				isActive := false
-				return UpdateUserRequest{IsActive: &isActive}
+				return handlers.UpdateUserRequest{IsActive: &isActive}
 			}(),
 			setupStore: func(s *mockAuthStore) {
 				s.tenants["tenant-123"] = &auth.Tenant{
@@ -525,7 +526,7 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 			name:     "update non-existent user",
 			tenantID: "tenant-123",
 			userID:   "user-nonexistent",
-			requestBody: UpdateUserRequest{
+			requestBody: handlers.UpdateUserRequest{
 				Email: "test@test.com",
 			},
 			setupStore: func(s *mockAuthStore) {

@@ -1,4 +1,4 @@
-package azure
+package azure_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/adapters/azure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -15,7 +16,7 @@ import (
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *azure.Config
 		wantErr bool
 		errMsg  string
 	}{
@@ -27,7 +28,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing subscriptionID",
-			config: &Config{
+			config: &azure.Config{
 				Location: "eastus",
 				OCloudID: "ocloud-1",
 			},
@@ -36,7 +37,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing location",
-			config: &Config{
+			config: &azure.Config{
 				SubscriptionID: "sub-123",
 				OCloudID:       "ocloud-1",
 			},
@@ -45,7 +46,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing oCloudID",
-			config: &Config{
+			config: &azure.Config{
 				SubscriptionID: "sub-123",
 				Location:       "eastus",
 			},
@@ -54,7 +55,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing tenantID without managed identity",
-			config: &Config{
+			config: &azure.Config{
 				SubscriptionID:     "sub-123",
 				Location:           "eastus",
 				OCloudID:           "ocloud-1",
@@ -65,7 +66,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing clientID without managed identity",
-			config: &Config{
+			config: &azure.Config{
 				SubscriptionID:     "sub-123",
 				Location:           "eastus",
 				OCloudID:           "ocloud-1",
@@ -77,7 +78,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing clientSecret without managed identity",
-			config: &Config{
+			config: &azure.Config{
 				SubscriptionID:     "sub-123",
 				Location:           "eastus",
 				OCloudID:           "ocloud-1",
@@ -90,7 +91,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "invalid pool mode",
-			config: &Config{
+			config: &azure.Config{
 				SubscriptionID:     "sub-123",
 				Location:           "eastus",
 				OCloudID:           "ocloud-1",
@@ -107,7 +108,7 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := New(tt.config)
+			adp, err := azure.New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -126,8 +127,8 @@ func TestNew(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	adp := &Adapter{
-		logger: zap.NewNop(),
+	adp := &azure.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	t.Run("Name", func(t *testing.T) {
@@ -170,7 +171,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateVMSizeID(tt.vmSize)
+			got := azure.GenerateVMSizeID(tt.vmSize)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -186,7 +187,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateVMID(tt.vmName, tt.rg)
+			got := azure.GenerateVMID(tt.vmName, tt.rg)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -201,7 +202,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateRGPoolID(tt.rg)
+			got := azure.GenerateRGPoolID(tt.rg)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -217,7 +218,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateAZPoolID(tt.location, tt.zone)
+			got := azure.GenerateAZPoolID(tt.location, tt.zone)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -239,7 +240,7 @@ func TestExtractVMFamily(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.sizeName, func(t *testing.T) {
-			got := extractVMFamily(tt.sizeName)
+			got := azure.ExtractVMFamily(tt.sizeName)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -271,7 +272,7 @@ func TestExtractResourceGroup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.resourceID, func(t *testing.T) {
-			got := extractResourceGroup(tt.resourceID)
+			got := azure.ExtractResourceGroup(tt.resourceID)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -321,7 +322,7 @@ func TestTagsToMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tagsToMap(tt.tags)
+			got := azure.TagsToMap(tt.tags)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -329,9 +330,9 @@ func TestTagsToMap(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
+	adp := &azure.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
 	}
 	ctx := context.Background()
 
@@ -404,41 +405,41 @@ func TestSubscriptions(t *testing.T) {
 
 // TestClose tests adapter cleanup.
 func TestClose(t *testing.T) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
+	adp := &azure.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
 	}
 
 	// Add some subscriptions
-	adp.subscriptions["sub-1"] = &adapter.Subscription{SubscriptionID: "sub-1"}
-	adp.subscriptions["sub-2"] = &adapter.Subscription{SubscriptionID: "sub-2"}
+	adp.Subscriptions["sub-1"] = &adapter.Subscription{SubscriptionID: "sub-1"}
+	adp.Subscriptions["sub-2"] = &adapter.Subscription{SubscriptionID: "sub-2"}
 
 	err := adp.Close()
 	assert.NoError(t, err)
 
 	// Verify subscriptions are cleared
-	assert.Empty(t, adp.subscriptions)
+	assert.Empty(t, adp.Subscriptions)
 }
 
 // TestPtrHelpers tests pointer helper functions.
 func TestPtrHelpers(t *testing.T) {
 	t.Run("ptrToString", func(t *testing.T) {
 		s := "hello"
-		assert.Equal(t, "hello", ptrToString(&s))
-		assert.Equal(t, "", ptrToString(nil))
+		assert.Equal(t, "hello", azure.PtrToString(&s))
+		assert.Equal(t, "", azure.PtrToString(nil))
 	})
 
 	t.Run("ptrToInt32", func(t *testing.T) {
 		i := int32(42)
-		assert.Equal(t, int32(42), ptrToInt32(&i))
-		assert.Equal(t, int32(0), ptrToInt32(nil))
+		assert.Equal(t, int32(42), azure.PtrToInt32(&i))
+		assert.Equal(t, int32(0), azure.PtrToInt32(nil))
 	})
 }
 
 // NOTE: BenchmarkMatchesFilter and BenchmarkApplyPagination moved to internal/adapter/helpers_test.go
 // TestAzureAdapter_Health tests the Health function.
 func TestAzureAdapter_Health(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := azure.New(&azure.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -457,7 +458,7 @@ func TestAzureAdapter_Health(t *testing.T) {
 
 // TestAzureAdapter_ListResourcePools tests the ListResourcePools function.
 func TestAzureAdapter_ListResourcePools(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := azure.New(&azure.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -478,7 +479,7 @@ func TestAzureAdapter_ListResourcePools(t *testing.T) {
 
 // TestAzureAdapter_ListResources tests the ListResources function.
 func TestAzureAdapter_ListResources(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := azure.New(&azure.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -498,7 +499,7 @@ func TestAzureAdapter_ListResources(t *testing.T) {
 
 // TestAzureAdapter_ListResourceTypes tests the ListResourceTypes function.
 func TestAzureAdapter_ListResourceTypes(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := azure.New(&azure.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -518,7 +519,7 @@ func TestAzureAdapter_ListResourceTypes(t *testing.T) {
 
 // TestAzureAdapter_GetDeploymentManager tests the GetDeploymentManager function.
 func TestAzureAdapter_GetDeploymentManager(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := azure.New(&azure.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",

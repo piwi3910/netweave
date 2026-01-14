@@ -1,4 +1,4 @@
-package openstack
+package openstack_test
 
 import (
 	"context"
@@ -12,14 +12,15 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/adapters/openstack"
 )
 
 // TestTransformHostAggregateToResourcePool tests the transformation from
 // OpenStack host aggregate to O2-IMS resource pool.
 func TestTransformHostAggregateToResourcePool(t *testing.T) {
-	adp := &Adapter{
-		oCloudID: "ocloud-test",
-		logger:   zap.NewNop(),
+	adp := &openstack.Adapter{
+		OCloudID: "ocloud-test",
+		Logger:   zap.NewNop(),
 	}
 
 	now := time.Now()
@@ -36,7 +37,7 @@ func TestTransformHostAggregateToResourcePool(t *testing.T) {
 		UpdatedAt: now,
 	}
 
-	pool := adp.transformHostAggregateToResourcePool(osAggregate)
+	pool := adp.TransformHostAggregateToResourcePool(osAggregate)
 
 	// Test basic fields
 	assert.Equal(t, "openstack-aggregate-42", pool.ResourcePoolID)
@@ -66,9 +67,9 @@ func TestTransformHostAggregateToResourcePool(t *testing.T) {
 
 // TestTransformHostAggregateToResourcePoolEmpty tests transformation with minimal data.
 func TestTransformHostAggregateToResourcePoolEmpty(t *testing.T) {
-	adp := &Adapter{
-		oCloudID: "ocloud-test",
-		logger:   zap.NewNop(),
+	adp := &openstack.Adapter{
+		OCloudID: "ocloud-test",
+		Logger:   zap.NewNop(),
 	}
 
 	osAggregate := &aggregates.Aggregate{
@@ -79,7 +80,7 @@ func TestTransformHostAggregateToResourcePoolEmpty(t *testing.T) {
 		Metadata:         map[string]string{},
 	}
 
-	pool := adp.transformHostAggregateToResourcePool(osAggregate)
+	pool := adp.TransformHostAggregateToResourcePool(osAggregate)
 
 	assert.Equal(t, "openstack-aggregate-1", pool.ResourcePoolID)
 	assert.Equal(t, "minimal-aggregate", pool.Name)
@@ -146,9 +147,9 @@ func TestResourcePoolIDParsing(t *testing.T) {
 
 // TestListResourcePoolsFilter tests filtering logic for ListResourcePools.
 func TestListResourcePoolsFilter(t *testing.T) {
-	adp := &Adapter{
-		oCloudID: "ocloud-test",
-		logger:   zap.NewNop(),
+	adp := &openstack.Adapter{
+		OCloudID: "ocloud-test",
+		Logger:   zap.NewNop(),
 	}
 
 	// Create test aggregates
@@ -173,7 +174,7 @@ func TestListResourcePoolsFilter(t *testing.T) {
 	t.Run("no filter returns all", func(t *testing.T) {
 		count := 0
 		for _, agg := range aggregates {
-			pool := adp.transformHostAggregateToResourcePool(agg)
+			pool := adp.TransformHostAggregateToResourcePool(agg)
 			if adapter.MatchesFilter(nil, pool.ResourcePoolID, "", pool.Location, nil) {
 				count++
 			}
@@ -188,7 +189,7 @@ func TestListResourcePoolsFilter(t *testing.T) {
 
 		count := 0
 		for _, agg := range aggregates {
-			pool := adp.transformHostAggregateToResourcePool(agg)
+			pool := adp.TransformHostAggregateToResourcePool(agg)
 			if adapter.MatchesFilter(filter, pool.ResourcePoolID, "", pool.Location, nil) {
 				count++
 			}
@@ -203,7 +204,7 @@ func TestListResourcePoolsFilter(t *testing.T) {
 
 		count := 0
 		for _, agg := range aggregates {
-			pool := adp.transformHostAggregateToResourcePool(agg)
+			pool := adp.TransformHostAggregateToResourcePool(agg)
 			if adapter.MatchesFilter(filter, pool.ResourcePoolID, "", pool.Location, nil) {
 				count++
 			}
@@ -271,8 +272,8 @@ func TestListResourcePoolsPagination(t *testing.T) {
 
 // TestCreateResourcePoolValidation tests validation for CreateResourcePool.
 func TestCreateResourcePoolValidation(t *testing.T) {
-	adp := &Adapter{
-		logger: zap.NewNop(),
+	adp := &openstack.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	ctx := context.Background()
@@ -290,9 +291,9 @@ func TestCreateResourcePoolValidation(t *testing.T) {
 
 // BenchmarkTransformHostAggregateToResourcePool benchmarks the transformation.
 func BenchmarkTransformHostAggregateToResourcePool(b *testing.B) {
-	adp := &Adapter{
-		oCloudID: "ocloud-test",
-		logger:   zap.NewNop(),
+	adp := &openstack.Adapter{
+		OCloudID: "ocloud-test",
+		Logger:   zap.NewNop(),
 	}
 
 	now := time.Now()
@@ -311,6 +312,6 @@ func BenchmarkTransformHostAggregateToResourcePool(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		adp.transformHostAggregateToResourcePool(osAggregate)
+		adp.TransformHostAggregateToResourcePool(osAggregate)
 	}
 }

@@ -55,10 +55,10 @@ var (
 
 // Adapter implements the DMS adapter interface for OSM lifecycle management.
 type Adapter struct {
-	config      *Config
+	Config      *Config // Exported for testing
 	httpClient  *http.Client
-	deployments map[string]*adapter.Deployment
-	packages    map[string]*adapter.DeploymentPackage
+	Deployments map[string]*adapter.Deployment        // Exported for testing
+	Packages    map[string]*adapter.DeploymentPackage // Exported for testing
 	mu          sync.RWMutex
 	initOnce    sync.Once
 	initErr     error
@@ -102,17 +102,17 @@ func NewAdapter(config *Config) (*Adapter, error) {
 	}
 
 	return &Adapter{
-		config:      config,
-		deployments: make(map[string]*adapter.Deployment),
-		packages:    make(map[string]*adapter.DeploymentPackage),
+		Config:      config,
+		Deployments: make(map[string]*adapter.Deployment),
+		Packages:    make(map[string]*adapter.DeploymentPackage),
 	}, nil
 }
 
-// initialize performs lazy initialization of the HTTP client.
-func (o *Adapter) initialize() error {
+// Initialize performs lazy initialization of the HTTP client. Exported for testing.
+func (o *Adapter) Initialize() error {
 	o.initOnce.Do(func() {
 		o.httpClient = &http.Client{
-			Timeout: o.config.Timeout,
+			Timeout: o.Config.Timeout,
 		}
 	})
 
@@ -148,21 +148,21 @@ func (o *Adapter) ListDeploymentPackages(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
-	packages := make([]*adapter.DeploymentPackage, 0, len(o.packages))
-	for _, pkg := range o.packages {
+	packages := make([]*adapter.DeploymentPackage, 0, len(o.Packages))
+	for _, pkg := range o.Packages {
 		packages = append(packages, pkg)
 	}
 
 	// Apply pagination
 	if filter != nil && (filter.Limit > 0 || filter.Offset > 0) {
-		packages = o.applyPackagePagination(packages, filter.Limit, filter.Offset)
+		packages = o.ApplyPackagePagination(packages, filter.Limit, filter.Offset)
 	}
 
 	return packages, nil
@@ -177,14 +177,14 @@ func (o *Adapter) GetDeploymentPackage(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
-	pkg, exists := o.packages[id]
+	pkg, exists := o.Packages[id]
 	if !exists {
 		return nil, fmt.Errorf("package %s: %w", id, ErrPackageNotFound)
 	}
@@ -205,7 +205,7 @@ func (o *Adapter) UploadDeploymentPackage(
 		return nil, fmt.Errorf("package cannot be nil")
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -229,12 +229,12 @@ func (o *Adapter) UploadDeploymentPackage(
 		UploadedAt:  time.Now(),
 		Extensions: map[string]interface{}{
 			"osm.packageType": pkgType,
-			"osm.project":     o.config.Project,
+			"osm.project":     o.Config.Project,
 		},
 	}
 
 	o.mu.Lock()
-	o.packages[pkgID] = deploymentPkg
+	o.Packages[pkgID] = deploymentPkg
 	o.mu.Unlock()
 
 	return deploymentPkg, nil
@@ -249,18 +249,18 @@ func (o *Adapter) DeleteDeploymentPackage(
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return err
 	}
 
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	if _, exists := o.packages[id]; !exists {
+	if _, exists := o.Packages[id]; !exists {
 		return fmt.Errorf("package %s: %w", id, ErrPackageNotFound)
 	}
 
-	delete(o.packages, id)
+	delete(o.Packages, id)
 	return nil
 }
 
@@ -273,15 +273,15 @@ func (o *Adapter) ListDeployments(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
-	deployments := make([]*adapter.Deployment, 0, len(o.deployments))
-	for _, dep := range o.deployments {
+	deployments := make([]*adapter.Deployment, 0, len(o.Deployments))
+	for _, dep := range o.Deployments {
 		// Apply status filter
 		if filter != nil && filter.Status != "" && dep.Status != filter.Status {
 			continue
@@ -291,7 +291,7 @@ func (o *Adapter) ListDeployments(
 
 	// Apply pagination
 	if filter != nil {
-		deployments = o.applyPagination(deployments, filter.Limit, filter.Offset)
+		deployments = o.ApplyPagination(deployments, filter.Limit, filter.Offset)
 	}
 
 	return deployments, nil
@@ -306,14 +306,14 @@ func (o *Adapter) GetDeployment(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
-	dep, exists := o.deployments[id]
+	dep, exists := o.Deployments[id]
 	if !exists {
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -336,11 +336,11 @@ func (o *Adapter) CreateDeployment(
 	if req.Name == "" {
 		return nil, fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
 	}
-	if err := validateName(req.Name); err != nil {
+	if err := ValidateName(req.Name); err != nil {
 		return nil, err
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -370,12 +370,12 @@ func (o *Adapter) CreateDeployment(
 			"osm.nsInstanceId": nsInstanceID,
 			"osm.nsdId":        req.PackageID,
 			"osm.vimAccount":   vimAccount,
-			"osm.project":      o.config.Project,
+			"osm.project":      o.Config.Project,
 		},
 	}
 
 	o.mu.Lock()
-	o.deployments[nsInstanceID] = deployment
+	o.Deployments[nsInstanceID] = deployment
 	o.mu.Unlock()
 
 	return deployment, nil
@@ -395,14 +395,14 @@ func (o *Adapter) UpdateDeployment(
 		return nil, fmt.Errorf("update cannot be nil")
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	dep, exists := o.deployments[id]
+	dep, exists := o.Deployments[id]
 	if !exists {
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -426,18 +426,18 @@ func (o *Adapter) DeleteDeployment(
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return err
 	}
 
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	if _, exists := o.deployments[id]; !exists {
+	if _, exists := o.Deployments[id]; !exists {
 		return fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
 
-	delete(o.deployments, id)
+	delete(o.Deployments, id)
 	return nil
 }
 
@@ -455,14 +455,14 @@ func (o *Adapter) ScaleDeployment(
 		return fmt.Errorf("replicas must be non-negative")
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return err
 	}
 
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	dep, exists := o.deployments[id]
+	dep, exists := o.Deployments[id]
 	if !exists {
 		return fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -503,7 +503,7 @@ func (o *Adapter) GetDeploymentStatus(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -516,13 +516,13 @@ func (o *Adapter) GetDeploymentStatus(
 		DeploymentID: deployment.ID,
 		Status:       deployment.Status,
 		Message:      deployment.Description,
-		Progress:     o.calculateProgress(deployment.Status),
+		Progress:     o.CalculateProgress(deployment.Status),
 		UpdatedAt:    deployment.UpdatedAt,
 		Conditions: []adapter.DeploymentCondition{
 			{
 				Type:               "Ready",
-				Status:             o.conditionStatus(deployment.Status),
-				Reason:             o.conditionReason(deployment.Status),
+				Status:             o.ConditionStatus(deployment.Status),
+				Reason:             o.ConditionReason(deployment.Status),
 				Message:            deployment.Description,
 				LastTransitionTime: deployment.UpdatedAt,
 			},
@@ -540,7 +540,7 @@ func (o *Adapter) GetDeploymentHistory(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -573,7 +573,7 @@ func (o *Adapter) GetDeploymentLogs(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -620,17 +620,17 @@ func (o *Adapter) Health(ctx context.Context) error {
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return fmt.Errorf("osm-lcm adapter not healthy: %w", err)
 	}
 
 	// If no endpoint configured, just verify initialization
-	if o.config.NBIEndpoint == "" {
+	if o.Config.NBIEndpoint == "" {
 		return nil
 	}
 
 	// Try to reach the OSM NBI health endpoint
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.config.NBIEndpoint+"/version", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.Config.NBIEndpoint+"/version", nil)
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}
@@ -654,12 +654,17 @@ func (o *Adapter) Close() error {
 	return nil
 }
 
+// HTTPClient returns the HTTP client. Exported for testing.
+func (o *Adapter) HTTPClient() *http.Client {
+	return o.httpClient
+}
+
 // doRequest performs an HTTP request to the OSM NBI API.
 // The body parameter uses interface{} to accept various request payload types
 // (maps, structs) that are marshaled to JSON - this flexibility is required
 // to support different OSM NBI endpoints with varying request schemas.
 // Used only in tests for testing HTTP request handling.
-func (o *Adapter) doRequest(
+func (o *Adapter) DoRequest(
 	ctx context.Context,
 	method string,
 	body interface{},
@@ -674,7 +679,7 @@ func (o *Adapter) doRequest(
 		reqBody = bytes.NewReader(jsonBody)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, o.config.NBIEndpoint+path, reqBody)
+	req, err := http.NewRequestWithContext(ctx, method, o.Config.NBIEndpoint+path, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -684,8 +689,8 @@ func (o *Adapter) doRequest(
 	req.Header.Set("Accept", "application/json")
 
 	// Set basic auth
-	if o.config.Username != "" {
-		req.SetBasicAuth(o.config.Username, o.config.Password)
+	if o.Config.Username != "" {
+		req.SetBasicAuth(o.Config.Username, o.Config.Password)
 	}
 
 	resp, err := o.httpClient.Do(req)
@@ -708,7 +713,7 @@ func (o *Adapter) doRequest(
 
 // Helper functions
 
-func (o *Adapter) calculateProgress(status adapter.DeploymentStatus) int {
+func (o *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return 100
@@ -727,14 +732,14 @@ func (o *Adapter) calculateProgress(status adapter.DeploymentStatus) int {
 	}
 }
 
-func (o *Adapter) conditionStatus(status adapter.DeploymentStatus) string {
+func (o *Adapter) ConditionStatus(status adapter.DeploymentStatus) string {
 	if status == adapter.DeploymentStatusDeployed {
 		return "True"
 	}
 	return "False"
 }
 
-func (o *Adapter) conditionReason(status adapter.DeploymentStatus) string {
+func (o *Adapter) ConditionReason(status adapter.DeploymentStatus) string {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return "InstantiationSucceeded"
@@ -753,7 +758,7 @@ func (o *Adapter) conditionReason(status adapter.DeploymentStatus) string {
 	}
 }
 
-func (o *Adapter) applyPagination(
+func (o *Adapter) ApplyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
 ) []*adapter.Deployment {
@@ -771,7 +776,7 @@ func (o *Adapter) applyPagination(
 	return deployments[start:end]
 }
 
-func (o *Adapter) applyPackagePagination(
+func (o *Adapter) ApplyPackagePagination(
 	packages []*adapter.DeploymentPackage,
 	limit, offset int,
 ) []*adapter.DeploymentPackage {
@@ -790,7 +795,8 @@ func (o *Adapter) applyPackagePagination(
 }
 
 // validateName validates the deployment name.
-func validateName(name string) error {
+// ValidateName validates deployment/package names. Exported for testing.
+func ValidateName(name string) error {
 	if name == "" {
 		return fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
 	}

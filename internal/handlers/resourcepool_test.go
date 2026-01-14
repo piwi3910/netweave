@@ -1,4 +1,4 @@
-package handlers
+package handlers_test
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/handlers"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -148,7 +150,7 @@ func setupTestRouter(t *testing.T) *gin.Engine {
 	logger := zap.NewNop()
 
 	// Create handler
-	handler := NewResourcePoolHandler(mockAdp, logger)
+	handler := handlers.NewResourcePoolHandler(mockAdp, logger)
 
 	// Register routes
 	router.GET("/o2ims/v1/resourcePools", handler.ListResourcePools)

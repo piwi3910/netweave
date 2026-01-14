@@ -79,19 +79,19 @@ type ResourceEvent struct {
 // SubscriptionController watches Kubernetes resources and delivers webhook notifications.
 type SubscriptionController struct {
 	// k8sClient is the Kubernetes client for API operations.
-	k8sClient kubernetes.Interface
+	K8sClient kubernetes.Interface // Exported for testing
 
 	// store is the subscription storage backend.
-	store storage.Store
+	Store storage.Store // Exported for testing
 
 	// redisClient is used for event queue operations.
-	redisClient *redis.Client
+	RedisClient *redis.Client // Exported for testing
 
 	// logger provides structured logging.
-	logger *zap.Logger
+	Logger *zap.Logger // Exported for testing
 
 	// oCloudID is the identifier of the parent O-Cloud.
-	oCloudID string
+	OCloudID string // Exported for testing
 
 	// informerFactory creates Kubernetes informers.
 	informerFactory informers.SharedInformerFactory
@@ -145,11 +145,11 @@ func NewSubscriptionController(cfg *Config) (*SubscriptionController, error) {
 	factory := informers.NewSharedInformerFactory(cfg.K8sClient, InformerResyncPeriod)
 
 	return &SubscriptionController{
-		k8sClient:       cfg.K8sClient,
-		store:           cfg.Store,
-		redisClient:     cfg.RedisClient,
-		logger:          cfg.Logger,
-		oCloudID:        cfg.OCloudID,
+		K8sClient:       cfg.K8sClient,
+		Store:           cfg.Store,
+		RedisClient:     cfg.RedisClient,
+		Logger:          cfg.Logger,
+		OCloudID:        cfg.OCloudID,
 		informerFactory: factory,
 		stopCh:          make(chan struct{}),
 	}, nil
@@ -157,7 +157,7 @@ func NewSubscriptionController(cfg *Config) (*SubscriptionController, error) {
 
 // Start starts the subscription controller and begins watching resources.
 func (c *SubscriptionController) Start(ctx context.Context) error {
-	c.logger.Info("starting subscription controller")
+	c.Logger.Info("starting subscription controller")
 
 	// Set up Kubernetes informers for watched resources
 	if err := c.setupInformers(); err != nil {
@@ -168,7 +168,7 @@ func (c *SubscriptionController) Start(ctx context.Context) error {
 	c.informerFactory.Start(c.stopCh)
 
 	// Wait for informer caches to sync
-	c.logger.Info("waiting for informer caches to sync")
+	c.Logger.Info("waiting for informer caches to sync")
 	if ok := cache.WaitForCacheSync(c.stopCh,
 		c.informerFactory.Core().V1().Nodes().Informer().HasSynced,
 		c.informerFactory.Core().V1().Namespaces().Informer().HasSynced,
@@ -176,7 +176,7 @@ func (c *SubscriptionController) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
-	c.logger.Info("subscription controller started successfully")
+	c.Logger.Info("subscription controller started successfully")
 
 	// Wait for context cancellation
 	<-ctx.Done()
@@ -187,7 +187,7 @@ func (c *SubscriptionController) Start(ctx context.Context) error {
 
 // Stop stops the subscription controller and waits for all goroutines to finish.
 func (c *SubscriptionController) Stop() error {
-	c.logger.Info("stopping subscription controller")
+	c.Logger.Info("stopping subscription controller")
 
 	// Signal shutdown
 	close(c.stopCh)
@@ -195,7 +195,7 @@ func (c *SubscriptionController) Stop() error {
 	// Wait for all goroutines to finish
 	c.wg.Wait()
 
-	c.logger.Info("subscription controller stopped")
+	c.Logger.Info("subscription controller stopped")
 	return nil
 }
 
@@ -228,28 +228,28 @@ func (c *SubscriptionController) setupInformers() error {
 func (c *SubscriptionController) handleNodeAdd(obj interface{}) {
 	node, ok := obj.(*corev1.Node)
 	if !ok {
-		c.logger.Error("invalid object type in handleNodeAdd")
+		c.Logger.Error("invalid object type in handleNodeAdd")
 		return
 	}
 
-	c.logger.Debug("node created",
+	c.Logger.Debug("node created",
 		zap.String("node", node.Name))
 
 	ctx := context.Background()
-	c.processNodeEvent(ctx, node, EventTypeCreated)
+	c.ProcessNodeEvent(ctx, node, EventTypeCreated)
 }
 
 // handleNodeUpdate handles node update events.
 func (c *SubscriptionController) handleNodeUpdate(oldObj, newObj interface{}) {
 	oldNode, ok := oldObj.(*corev1.Node)
 	if !ok {
-		c.logger.Error("invalid old object type in handleNodeUpdate")
+		c.Logger.Error("invalid old object type in handleNodeUpdate")
 		return
 	}
 
 	newNode, ok := newObj.(*corev1.Node)
 	if !ok {
-		c.logger.Error("invalid new object type in handleNodeUpdate")
+		c.Logger.Error("invalid new object type in handleNodeUpdate")
 		return
 	}
 
@@ -258,11 +258,11 @@ func (c *SubscriptionController) handleNodeUpdate(oldObj, newObj interface{}) {
 		return
 	}
 
-	c.logger.Debug("node updated",
+	c.Logger.Debug("node updated",
 		zap.String("node", newNode.Name))
 
 	ctx := context.Background()
-	c.processNodeEvent(ctx, newNode, EventTypeUpdated)
+	c.ProcessNodeEvent(ctx, newNode, EventTypeUpdated)
 }
 
 // handleNodeDelete handles node deletion events.
@@ -272,49 +272,49 @@ func (c *SubscriptionController) handleNodeDelete(obj interface{}) {
 		// Handle DeletedFinalStateUnknown
 		tombstone, tombstoneOk := obj.(cache.DeletedFinalStateUnknown)
 		if !tombstoneOk {
-			c.logger.Error("invalid object type in handleNodeDelete")
+			c.Logger.Error("invalid object type in handleNodeDelete")
 			return
 		}
 		node, ok = tombstone.Obj.(*corev1.Node)
 		if !ok {
-			c.logger.Error("invalid tombstone object type")
+			c.Logger.Error("invalid tombstone object type")
 			return
 		}
 	}
 
-	c.logger.Debug("node deleted",
+	c.Logger.Debug("node deleted",
 		zap.String("node", node.Name))
 
 	ctx := context.Background()
-	c.processNodeEvent(ctx, node, EventTypeDeleted)
+	c.ProcessNodeEvent(ctx, node, EventTypeDeleted)
 }
 
 // handleNamespaceAdd handles namespace creation events.
 func (c *SubscriptionController) handleNamespaceAdd(obj interface{}) {
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok {
-		c.logger.Error("invalid object type in handleNamespaceAdd")
+		c.Logger.Error("invalid object type in handleNamespaceAdd")
 		return
 	}
 
-	c.logger.Debug("namespace created",
+	c.Logger.Debug("namespace created",
 		zap.String("namespace", ns.Name))
 
 	ctx := context.Background()
-	c.processNamespaceEvent(ctx, ns, EventTypeCreated)
+	c.ProcessNamespaceEvent(ctx, ns, EventTypeCreated)
 }
 
 // handleNamespaceUpdate handles namespace update events.
 func (c *SubscriptionController) handleNamespaceUpdate(oldObj, newObj interface{}) {
 	oldNs, ok := oldObj.(*corev1.Namespace)
 	if !ok {
-		c.logger.Error("invalid old object type in handleNamespaceUpdate")
+		c.Logger.Error("invalid old object type in handleNamespaceUpdate")
 		return
 	}
 
 	newNs, ok := newObj.(*corev1.Namespace)
 	if !ok {
-		c.logger.Error("invalid new object type in handleNamespaceUpdate")
+		c.Logger.Error("invalid new object type in handleNamespaceUpdate")
 		return
 	}
 
@@ -323,11 +323,11 @@ func (c *SubscriptionController) handleNamespaceUpdate(oldObj, newObj interface{
 		return
 	}
 
-	c.logger.Debug("namespace updated",
+	c.Logger.Debug("namespace updated",
 		zap.String("namespace", newNs.Name))
 
 	ctx := context.Background()
-	c.processNamespaceEvent(ctx, newNs, EventTypeUpdated)
+	c.ProcessNamespaceEvent(ctx, newNs, EventTypeUpdated)
 }
 
 // handleNamespaceDelete handles namespace deletion events.
@@ -337,32 +337,32 @@ func (c *SubscriptionController) handleNamespaceDelete(obj interface{}) {
 		// Handle DeletedFinalStateUnknown
 		tombstone, tombstoneOk := obj.(cache.DeletedFinalStateUnknown)
 		if !tombstoneOk {
-			c.logger.Error("invalid object type in handleNamespaceDelete")
+			c.Logger.Error("invalid object type in handleNamespaceDelete")
 			return
 		}
 		ns, ok = tombstone.Obj.(*corev1.Namespace)
 		if !ok {
-			c.logger.Error("invalid tombstone object type")
+			c.Logger.Error("invalid tombstone object type")
 			return
 		}
 	}
 
-	c.logger.Debug("namespace deleted",
+	c.Logger.Debug("namespace deleted",
 		zap.String("namespace", ns.Name))
 
 	ctx := context.Background()
-	c.processNamespaceEvent(ctx, ns, EventTypeDeleted)
+	c.ProcessNamespaceEvent(ctx, ns, EventTypeDeleted)
 }
 
 // processNodeEvent finds matching subscriptions and queues webhook notifications.
-func (c *SubscriptionController) processNodeEvent(ctx context.Context, node *corev1.Node, eventType EventType) {
+func (c *SubscriptionController) ProcessNodeEvent(ctx context.Context, node *corev1.Node, eventType EventType) {
 	// Track event processing
 	EventsProcessedTotal.WithLabelValues("k8s-node", string(eventType)).Inc()
 
 	// Get all subscriptions
-	subs, err := c.store.List(ctx)
+	subs, err := c.Store.List(ctx)
 	if err != nil {
-		c.logger.Error("failed to list subscriptions",
+		c.Logger.Error("failed to list subscriptions",
 			zap.Error(err))
 		return
 	}
@@ -378,7 +378,7 @@ func (c *SubscriptionController) processNodeEvent(ctx context.Context, node *cor
 
 	// Find matching subscriptions and queue events
 	for _, sub := range subs {
-		if c.matchesFilter(sub, "k8s-node", resourcePoolID, node.Name) {
+		if c.MatchesFilter(sub, "k8s-node", resourcePoolID, node.Name) {
 			event := &ResourceEvent{
 				SubscriptionID:   sub.ID,
 				EventType:        fmt.Sprintf("o2ims.Resource.%s", eventType),
@@ -392,7 +392,7 @@ func (c *SubscriptionController) processNodeEvent(ctx context.Context, node *cor
 			}
 
 			if err := c.queueEvent(ctx, event); err != nil {
-				c.logger.Error("failed to queue event",
+				c.Logger.Error("failed to queue event",
 					zap.Error(err),
 					zap.String("subscription", sub.ID))
 			} else {
@@ -404,14 +404,14 @@ func (c *SubscriptionController) processNodeEvent(ctx context.Context, node *cor
 }
 
 // processNamespaceEvent finds matching subscriptions and queues webhook notifications.
-func (c *SubscriptionController) processNamespaceEvent(ctx context.Context, ns *corev1.Namespace, eventType EventType) {
+func (c *SubscriptionController) ProcessNamespaceEvent(ctx context.Context, ns *corev1.Namespace, eventType EventType) {
 	// Track event processing
 	EventsProcessedTotal.WithLabelValues("k8s-namespace", string(eventType)).Inc()
 
 	// Get all subscriptions
-	subs, err := c.store.List(ctx)
+	subs, err := c.Store.List(ctx)
 	if err != nil {
-		c.logger.Error("failed to list subscriptions",
+		c.Logger.Error("failed to list subscriptions",
 			zap.Error(err))
 		return
 	}
@@ -421,7 +421,7 @@ func (c *SubscriptionController) processNamespaceEvent(ctx context.Context, ns *
 
 	// Find matching subscriptions and queue events
 	for _, sub := range subs {
-		if c.matchesFilter(sub, "k8s-namespace", "", ns.Name) {
+		if c.MatchesFilter(sub, "k8s-namespace", "", ns.Name) {
 			event := &ResourceEvent{
 				SubscriptionID:   sub.ID,
 				EventType:        fmt.Sprintf("o2ims.ResourcePool.%s", eventType),
@@ -434,7 +434,7 @@ func (c *SubscriptionController) processNamespaceEvent(ctx context.Context, ns *
 			}
 
 			if err := c.queueEvent(ctx, event); err != nil {
-				c.logger.Error("failed to queue event",
+				c.Logger.Error("failed to queue event",
 					zap.Error(err),
 					zap.String("subscription", sub.ID))
 			} else {
@@ -446,7 +446,7 @@ func (c *SubscriptionController) processNamespaceEvent(ctx context.Context, ns *
 }
 
 // matchesFilter checks if a resource matches the subscription filter.
-func (c *SubscriptionController) matchesFilter(
+func (c *SubscriptionController) MatchesFilter(
 	sub *storage.Subscription,
 	resourceTypeID, resourcePoolID, resourceID string,
 ) bool {
@@ -471,11 +471,11 @@ func (c *SubscriptionController) queueEvent(ctx context.Context, event *Resource
 		},
 	}
 
-	if _, err := c.redisClient.XAdd(ctx, args).Result(); err != nil {
+	if _, err := c.RedisClient.XAdd(ctx, args).Result(); err != nil {
 		return fmt.Errorf("failed to add event to stream: %w", err)
 	}
 
-	c.logger.Debug("event queued",
+	c.Logger.Debug("event queued",
 		zap.String("subscription", event.SubscriptionID),
 		zap.String("event_type", event.EventType))
 
@@ -484,7 +484,7 @@ func (c *SubscriptionController) queueEvent(ctx context.Context, event *Resource
 
 // GetNodeByName retrieves a Kubernetes node by name (helper for testing).
 func (c *SubscriptionController) GetNodeByName(ctx context.Context, name string) (*corev1.Node, error) {
-	node, err := c.k8sClient.CoreV1().Nodes().Get(ctx, name, metav1.GetOptions{})
+	node, err := c.K8sClient.CoreV1().Nodes().Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil, fmt.Errorf("node not found: %s", name)

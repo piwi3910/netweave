@@ -1,4 +1,4 @@
-package handlers
+package handlers_test
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/handlers"
 
 	"github.com/gin-gonic/gin"
 	"github.com/piwi3910/netweave/internal/auth"
@@ -226,7 +228,7 @@ func setupTenantTestRouter(t *testing.T, store *mockAuthStore) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	logger := zap.NewNop()
-	handler := NewTenantHandler(store, logger)
+	handler := handlers.NewTenantHandler(store, logger)
 
 	// Register routes.
 	router.GET("/admin/tenants", handler.ListTenants)
@@ -326,7 +328,7 @@ func TestTenantHandler_CreateTenant(t *testing.T) {
 	}{
 		{
 			name: "create valid tenant",
-			requestBody: CreateTenantRequest{
+			requestBody: handlers.CreateTenantRequest{
 				Name:         "Test Tenant",
 				Description:  "A test tenant",
 				ContactEmail: "admin@test.com",
@@ -345,7 +347,7 @@ func TestTenantHandler_CreateTenant(t *testing.T) {
 		},
 		{
 			name: "create tenant with custom quota",
-			requestBody: CreateTenantRequest{
+			requestBody: handlers.CreateTenantRequest{
 				Name: "Quota Tenant",
 				Quota: &auth.TenantQuota{
 					MaxSubscriptions: 100,
@@ -378,7 +380,7 @@ func TestTenantHandler_CreateTenant(t *testing.T) {
 		},
 		{
 			name:        "create with missing required field",
-			requestBody: CreateTenantRequest{},
+			requestBody: handlers.CreateTenantRequest{},
 			wantStatus:  http.StatusBadRequest,
 			validateBody: func(t *testing.T, body []byte) {
 				t.Helper()
@@ -513,7 +515,7 @@ func TestTenantHandler_UpdateTenant(t *testing.T) {
 		{
 			name:     "update existing tenant",
 			tenantID: "tenant-123",
-			requestBody: UpdateTenantRequest{
+			requestBody: handlers.UpdateTenantRequest{
 				Name:        "Updated Tenant",
 				Description: "Updated description",
 			},
@@ -537,7 +539,7 @@ func TestTenantHandler_UpdateTenant(t *testing.T) {
 		{
 			name:     "update non-existent tenant",
 			tenantID: "tenant-nonexistent",
-			requestBody: UpdateTenantRequest{
+			requestBody: handlers.UpdateTenantRequest{
 				Name: "Updated Tenant",
 			},
 			setupStore: func(_ *mockAuthStore) {},
@@ -566,7 +568,7 @@ func TestTenantHandler_UpdateTenant(t *testing.T) {
 		{
 			name:     "update tenant status",
 			tenantID: "tenant-123",
-			requestBody: UpdateTenantRequest{
+			requestBody: handlers.UpdateTenantRequest{
 				Status: auth.TenantStatusSuspended,
 			},
 			setupStore: func(s *mockAuthStore) {

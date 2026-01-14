@@ -31,17 +31,17 @@ func NewBadgeGenerator() *BadgeGenerator {
 // GenerateBadge generates a shields.io badge URL for a compliance result.
 func (g *BadgeGenerator) GenerateBadge(result *Result) string {
 	// Determine badge color based on compliance level
-	color := g.getColor(result.Level)
+	color := g.GetColor(result.Level)
 
 	// Generate badge label and message
 	label := fmt.Sprintf("O-RAN %s", result.SpecName)
-	message := g.getMessage(result)
+	message := g.GetMessage(result)
 
 	// Generate shields.io badge URL
 	// Format: https://img.shields.io/badge/{label}-{message}-{color}
 	badgeURL := fmt.Sprintf("https://img.shields.io/badge/%s-%s-%s",
-		urlEncode(label),
-		urlEncode(message),
+		URLEncode(label),
+		URLEncode(message),
 		string(color))
 
 	return badgeURL
@@ -102,7 +102,7 @@ func (g *BadgeGenerator) GenerateBadgeSection(results []*Result) string {
 }
 
 // getColor determines badge color based on compliance level.
-func (g *BadgeGenerator) getColor(level Level) BadgeColor {
+func (g *BadgeGenerator) GetColor(level Level) BadgeColor {
 	switch level {
 	case ComplianceFull:
 		return BadgeColorGreen
@@ -116,7 +116,7 @@ func (g *BadgeGenerator) getColor(level Level) BadgeColor {
 }
 
 // getMessage generates badge message based on compliance result.
-func (g *BadgeGenerator) getMessage(result *Result) string {
+func (g *BadgeGenerator) GetMessage(result *Result) string {
 	switch result.Level {
 	case ComplianceFull:
 		return fmt.Sprintf("%s compliant", result.SpecVersion)
@@ -130,7 +130,7 @@ func (g *BadgeGenerator) getMessage(result *Result) string {
 }
 
 // urlEncode encodes a string for use in URL (shields.io badge).
-func urlEncode(s string) string {
+func URLEncode(s string) string {
 	// Replace spaces with underscores for shields.io
 	s = strings.ReplaceAll(s, " ", "_")
 

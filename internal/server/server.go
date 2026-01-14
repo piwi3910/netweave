@@ -78,9 +78,10 @@ type Server struct {
 	dmsStore    dmsstorage.Store
 	dmsHandler  *dmshandlers.Handler
 
-	smoRegistry  *smo.Registry
-	smoHandler   *SMOHandler
-	authStore    AuthStore
+	smoRegistry *smo.Registry
+	smoHandler  *SMOHandler
+	// AuthStore is the authentication store interface (public for testing)
+	AuthStore    AuthStore
 	authMw       AuthMiddleware
 	shutdownOnce sync.Once // Ensures shutdown logic runs only once
 }
@@ -300,17 +301,17 @@ func initOpenAPIValidator(cfg *config.Config, logger *zap.Logger) (*middleware.O
 // Middleware is executed in the order they are added.
 func (s *Server) setupMiddleware() {
 	// Recovery middleware - must be first to catch panics
-	s.router.Use(s.recoveryMiddleware())
+	s.router.Use(s.RecoveryMiddleware())
 
 	// Security headers middleware - add early to ensure headers are set
 	s.router.Use(s.securityHeadersMiddleware())
 
 	// Request logging middleware
-	s.router.Use(s.loggingMiddleware())
+	s.router.Use(s.LoggingMiddleware())
 
 	// Metrics middleware (if enabled)
 	if s.config.Observability.Metrics.Enabled {
-		s.router.Use(s.metricsMiddleware())
+		s.router.Use(s.MetricsMiddleware())
 	}
 
 	// CORS middleware (if enabled)
@@ -547,16 +548,16 @@ func (s *Server) SetupAuth(authStore AuthStore, authMw AuthMiddleware) {
 		return
 	}
 
-	s.authStore = authStore
+	s.AuthStore = authStore
 	s.authMw = authMw
 
 	// Register auth store health check.
 	if s.healthCheck != nil {
 		s.healthCheck.RegisterHealthCheck("auth_store", func(ctx context.Context) error {
-			return s.authStore.Ping(ctx)
+			return s.AuthStore.Ping(ctx)
 		})
 		s.healthCheck.RegisterReadinessCheck("auth_store", func(ctx context.Context) error {
-			return s.authStore.Ping(ctx)
+			return s.AuthStore.Ping(ctx)
 		})
 	}
 
@@ -566,12 +567,9 @@ func (s *Server) SetupAuth(authStore AuthStore, authMw AuthMiddleware) {
 // AuthStore returns the authentication store interface.
 // Returns nil if auth is not configured.
 // This method returns an interface by design (registry pattern).
-func (s *Server) AuthStore() AuthStore {
-	return s.authStore
-}
 
 // recoveryMiddleware recovers from panics and logs the error.
-func (s *Server) recoveryMiddleware() gin.HandlerFunc {
+func (s *Server) RecoveryMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
@@ -592,7 +590,7 @@ func (s *Server) recoveryMiddleware() gin.HandlerFunc {
 }
 
 // loggingMiddleware logs HTTP requests and responses.
-func (s *Server) loggingMiddleware() gin.HandlerFunc {
+func (s *Server) LoggingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
@@ -626,7 +624,7 @@ func (s *Server) loggingMiddleware() gin.HandlerFunc {
 }
 
 // metricsMiddleware collects Prometheus metrics for HTTP requests.
-func (s *Server) metricsMiddleware() gin.HandlerFunc {
+func (s *Server) MetricsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if s.metrics == nil {
 			c.Next()
@@ -686,9 +684,9 @@ func (s *Server) corsMiddleware() gin.HandlerFunc {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 			c.Writer.Header().Set("Access-Control-Allow-Headers",
-				joinStrings(s.config.Security.AllowedHeaders, ", "))
+				JoinStrings(s.config.Security.AllowedHeaders, ", "))
 			c.Writer.Header().Set("Access-Control-Allow-Methods",
-				joinStrings(s.config.Security.AllowedMethods, ", "))
+				JoinStrings(s.config.Security.AllowedMethods, ", "))
 		}
 
 		// Handle preflight requests
@@ -715,7 +713,7 @@ func (s *Server) rateLimitMiddleware() gin.HandlerFunc {
 	// Convert config types to middleware types
 	rateLimitConfig := &middleware.RateLimitConfig{
 		Enabled:     s.config.Security.RateLimitEnabled,
-		RedisClient: redisStore.Client(),
+		RedisClient: redisStore.Client,
 		PerTenant: middleware.TenantLimitConfig{
 			RequestsPerSecond: s.config.Security.RateLimit.PerTenant.RequestsPerSecond,
 			BurstSize:         s.config.Security.RateLimit.PerTenant.BurstSize,
@@ -752,7 +750,7 @@ func (s *Server) rateLimitMiddleware() gin.HandlerFunc {
 }
 
 // joinStrings joins a slice of strings with the given separator.
-func joinStrings(strs []string, sep string) string {
+func JoinStrings(strs []string, sep string) string {
 	if len(strs) == 0 {
 		return ""
 	}

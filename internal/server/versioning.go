@@ -65,7 +65,7 @@ func NewVersionConfig() *VersionConfig {
 func VersioningMiddleware(config *VersionConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Extract version from path
-		version := extractVersionFromPath(c.Request.URL.Path)
+		version := ExtractVersionFromPath(c.Request.URL.Path)
 		if version == "" {
 			version = config.DefaultVersion
 		}
@@ -116,13 +116,13 @@ func VersioningMiddleware(config *VersionConfig) gin.HandlerFunc {
 }
 
 // extractVersionFromPath extracts the API version from the URL path.
-func extractVersionFromPath(path string) string {
+func ExtractVersionFromPath(path string) string {
 	parts := strings.Split(path, "/")
 	for _, part := range parts {
 		if strings.HasPrefix(part, "v") && len(part) >= 2 {
 			// Check if it's a valid version format (v1, v2, v3, etc.)
 			versionNum := part[1:]
-			if len(versionNum) > 0 && isNumeric(versionNum) {
+			if len(versionNum) > 0 && IsNumeric(versionNum) {
 				return part
 			}
 		}
@@ -131,7 +131,7 @@ func extractVersionFromPath(path string) string {
 }
 
 // isNumeric checks if a string contains only numeric characters.
-func isNumeric(s string) bool {
+func IsNumeric(s string) bool {
 	// Prevent potential DoS from extremely long strings
 	if len(s) > 10 {
 		return false
@@ -199,7 +199,7 @@ func RequireVersion(minVersion string) gin.HandlerFunc {
 			currentVersion = "v1"
 		}
 
-		if !isVersionAtLeast(currentVersion, minVersion) {
+		if !IsVersionAtLeast(currentVersion, minVersion) {
 			c.JSON(http.StatusNotImplemented, gin.H{
 				"error":   "NotImplemented",
 				"message": "This feature requires API version " + minVersion + " or higher",
@@ -214,14 +214,14 @@ func RequireVersion(minVersion string) gin.HandlerFunc {
 }
 
 // isVersionAtLeast checks if currentVersion is at least minVersion.
-func isVersionAtLeast(current, minimum string) bool {
-	currentNum := extractVersionNumber(current)
-	minNum := extractVersionNumber(minimum)
+func IsVersionAtLeast(current, minimum string) bool {
+	currentNum := ExtractVersionNumber(current)
+	minNum := ExtractVersionNumber(minimum)
 	return currentNum >= minNum
 }
 
 // extractVersionNumber extracts the numeric version from a version string.
-func extractVersionNumber(version string) int {
+func ExtractVersionNumber(version string) int {
 	version = strings.TrimPrefix(version, "v")
 	num := 0
 	for _, c := range version {

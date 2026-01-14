@@ -55,8 +55,8 @@ type Metrics struct {
 }
 
 var (
-	// globalMetrics is the singleton metrics instance.
-	globalMetrics *Metrics
+	// GlobalMetrics is the singleton metrics instance.
+	GlobalMetrics *Metrics
 	// metricsOnce ensures thread-safe initialization.
 	metricsOnce sync.Once
 )
@@ -70,7 +70,7 @@ func InitMetrics(namespace string) *Metrics {
 			namespace = "o2ims"
 		}
 
-		globalMetrics = &Metrics{
+		GlobalMetrics = &Metrics{
 			// HTTP metrics
 			HTTPRequestsTotal: promauto.NewCounterVec(
 				prometheus.CounterOpts{
@@ -298,15 +298,15 @@ func InitMetrics(namespace string) *Metrics {
 		}
 	})
 
-	return globalMetrics
+	return GlobalMetrics
 }
 
 // GetMetrics returns the global metrics instance.
 func GetMetrics() *Metrics {
-	if globalMetrics == nil {
+	if GlobalMetrics == nil {
 		panic("metrics not initialized - call InitMetrics first")
 	}
-	return globalMetrics
+	return GlobalMetrics
 }
 
 // RecordHTTPRequest records HTTP request metrics.

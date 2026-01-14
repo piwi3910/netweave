@@ -100,7 +100,7 @@ func LoadRulesFromConfig(config *Config) ([]*Rule, error) {
 	rules := make([]*Rule, 0, len(config.Rules))
 
 	for i, ruleConfig := range config.Rules {
-		rule, err := convertRuleConfig(&ruleConfig)
+		rule, err := ConvertRuleConfig(&ruleConfig)
 		if err != nil {
 			return nil, fmt.Errorf("invalid rule at index %d: %w", i, err)
 		}
@@ -111,7 +111,7 @@ func LoadRulesFromConfig(config *Config) ([]*Rule, error) {
 }
 
 // convertRuleConfig converts a RuleConfig to a Rule.
-func convertRuleConfig(config *RuleConfig) (*Rule, error) {
+func ConvertRuleConfig(config *RuleConfig) (*Rule, error) {
 	if config.Name == "" {
 		return nil, fmt.Errorf("rule name is required")
 	}
@@ -128,8 +128,8 @@ func convertRuleConfig(config *RuleConfig) (*Rule, error) {
 
 	// Convert conditions
 	var conditions *Conditions
-	if !isEmptyConditions(&config.Conditions) {
-		conditions = convertConditions(&config.Conditions)
+	if !IsEmptyConditions(&config.Conditions) {
+		conditions = ConvertConditions(&config.Conditions)
 	}
 
 	return &Rule{
@@ -143,14 +143,14 @@ func convertRuleConfig(config *RuleConfig) (*Rule, error) {
 }
 
 // convertConditions converts ConditionsConfig to Conditions.
-func convertConditions(config *ConditionsConfig) *Conditions {
+func ConvertConditions(config *ConditionsConfig) *Conditions {
 	conditions := &Conditions{
 		Labels:     config.Labels,
 		Extensions: config.Extensions,
 	}
 
 	// Convert location conditions
-	if !isEmptyLocationCondition(&config.Location) {
+	if !IsEmptyLocationCondition(&config.Location) {
 		conditions.Location = &LocationCondition{
 			Prefix:   config.Location.Prefix,
 			Suffix:   config.Location.Suffix,
@@ -172,15 +172,15 @@ func convertConditions(config *ConditionsConfig) *Conditions {
 }
 
 // isEmptyConditions checks if a ConditionsConfig is empty.
-func isEmptyConditions(config *ConditionsConfig) bool {
+func IsEmptyConditions(config *ConditionsConfig) bool {
 	return len(config.Labels) == 0 &&
-		isEmptyLocationCondition(&config.Location) &&
+		IsEmptyLocationCondition(&config.Location) &&
 		len(config.Capabilities) == 0 &&
 		len(config.Extensions) == 0
 }
 
 // isEmptyLocationCondition checks if a LocationConditionConfig is empty.
-func isEmptyLocationCondition(config *LocationConditionConfig) bool {
+func IsEmptyLocationCondition(config *LocationConditionConfig) bool {
 	return config.Prefix == "" &&
 		config.Suffix == "" &&
 		config.Contains == "" &&

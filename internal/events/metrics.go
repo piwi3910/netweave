@@ -7,7 +7,7 @@ import (
 
 var (
 	// Event generation metrics.
-	eventsGeneratedTotal = promauto.NewCounterVec(
+	EventsGeneratedTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "o2ims",
 			Subsystem: "events",
@@ -28,7 +28,7 @@ var (
 		[]string{"status"},
 	)
 
-	eventsQueueDepth = promauto.NewGauge(
+	EventsQueueDepth = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "o2ims",
 			Subsystem: "events",
@@ -38,7 +38,7 @@ var (
 	)
 
 	// Notification delivery metrics.
-	notificationsDeliveredTotal = promauto.NewCounterVec(
+	NotificationsDeliveredTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "o2ims",
 			Subsystem: "notifications",
@@ -82,7 +82,7 @@ var (
 	)
 
 	// Circuit breaker metrics.
-	circuitBreakerState = promauto.NewGaugeVec(
+	CircuitBreakerState = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "o2ims",
 			Subsystem: "notifications",
@@ -105,7 +105,7 @@ var (
 	)
 
 	// Worker metrics.
-	notificationWorkersActive = promauto.NewGauge(
+	NotificationWorkersActive = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "o2ims",
 			Subsystem: "notifications",
@@ -115,7 +115,7 @@ var (
 	)
 
 	// Failed deliveries.
-	notificationFailedCurrent = promauto.NewGauge(
+	NotificationFailedCurrent = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "o2ims",
 			Subsystem: "notifications",
@@ -127,7 +127,7 @@ var (
 
 // RecordEventGenerated records an event generation.
 func RecordEventGenerated(eventType, resourceType string) {
-	eventsGeneratedTotal.WithLabelValues(eventType, resourceType).Inc()
+	EventsGeneratedTotal.WithLabelValues(eventType, resourceType).Inc()
 }
 
 // RecordEventQueued records an event being queued.
@@ -137,12 +137,12 @@ func RecordEventQueued(status string) {
 
 // RecordQueueDepth updates the current queue depth.
 func RecordQueueDepth(depth float64) {
-	eventsQueueDepth.Set(depth)
+	EventsQueueDepth.Set(depth)
 }
 
 // RecordNotificationDelivered records a notification delivery.
 func RecordNotificationDelivered(status, subscriptionID string, duration float64, attempts int) {
-	notificationsDeliveredTotal.WithLabelValues(status, subscriptionID).Inc()
+	NotificationsDeliveredTotal.WithLabelValues(status, subscriptionID).Inc()
 	notificationDeliveryDuration.WithLabelValues(status, subscriptionID).Observe(duration)
 	notificationAttempts.WithLabelValues(status, subscriptionID).Observe(float64(attempts))
 }
@@ -156,7 +156,7 @@ func RecordNotificationResponseTime(subscriptionID, httpStatus string, responseT
 // RecordCircuitBreakerState records the state of a circuit breaker.
 // state: 0=closed, 1=half-open, 2=open
 func RecordCircuitBreakerState(callbackURL string, state float64) {
-	circuitBreakerState.WithLabelValues(callbackURL).Set(state)
+	CircuitBreakerState.WithLabelValues(callbackURL).Set(state)
 }
 
 // RecordSubscriptionsMatched records the number of subscriptions matched for an event.
@@ -166,10 +166,10 @@ func RecordSubscriptionsMatched(eventType string, count int) {
 
 // RecordNotificationWorkersActive records the number of active notification workers.
 func RecordNotificationWorkersActive(count int) {
-	notificationWorkersActive.Set(float64(count))
+	NotificationWorkersActive.Set(float64(count))
 }
 
 // RecordFailedDeliveries records the current number of failed deliveries.
 func RecordFailedDeliveries(count int) {
-	notificationFailedCurrent.Set(float64(count))
+	NotificationFailedCurrent.Set(float64(count))
 }

@@ -212,44 +212,44 @@ func (s *Server) setupSMORoutes(smoHandler *SMOHandler) {
 		// Plugin Management
 		plugins := v1.Group("/plugins")
 		{
-			plugins.GET("", smoHandler.handleListPlugins)
-			plugins.GET("/:pluginId", smoHandler.handleGetPlugin)
+			plugins.GET("", smoHandler.HandleListPlugins)
+			plugins.GET("/:pluginId", smoHandler.HandleGetPlugin)
 		}
 
 		// Workflow Orchestration
 		workflows := v1.Group("/workflows")
 		{
-			workflows.POST("", smoHandler.handleExecuteWorkflow)
-			workflows.GET("/:executionId", smoHandler.handleGetWorkflowStatus)
-			workflows.DELETE("/:executionId", smoHandler.handleCancelWorkflow)
+			workflows.POST("", smoHandler.HandleExecuteWorkflow)
+			workflows.GET("/:executionId", smoHandler.HandleGetWorkflowStatus)
+			workflows.DELETE("/:executionId", smoHandler.HandleCancelWorkflow)
 		}
 
 		// Service Modeling
 		serviceModels := v1.Group("/serviceModels")
 		{
-			serviceModels.GET("", smoHandler.handleListServiceModels)
-			serviceModels.POST("", smoHandler.handleCreateServiceModel)
-			serviceModels.GET("/:modelId", smoHandler.handleGetServiceModel)
-			serviceModels.DELETE("/:modelId", smoHandler.handleDeleteServiceModel)
+			serviceModels.GET("", smoHandler.HandleListServiceModels)
+			serviceModels.POST("", smoHandler.HandleCreateServiceModel)
+			serviceModels.GET("/:modelId", smoHandler.HandleGetServiceModel)
+			serviceModels.DELETE("/:modelId", smoHandler.HandleDeleteServiceModel)
 		}
 
 		// Policy Management
 		policies := v1.Group("/policies")
 		{
-			policies.POST("", smoHandler.handleApplyPolicy)
-			policies.GET("/:policyId/status", smoHandler.handleGetPolicyStatus)
+			policies.POST("", smoHandler.HandleApplyPolicy)
+			policies.GET("/:policyId/status", smoHandler.HandleGetPolicyStatus)
 		}
 
 		// Infrastructure Synchronization
-		v1.POST("/sync/infrastructure", smoHandler.handleSyncInfrastructure)
-		v1.POST("/sync/deployments", smoHandler.handleSyncDeployments)
+		v1.POST("/sync/infrastructure", smoHandler.HandleSyncInfrastructure)
+		v1.POST("/sync/deployments", smoHandler.HandleSyncDeployments)
 
 		// Event Publishing
-		v1.POST("/events/infrastructure", smoHandler.handlePublishInfrastructureEvent)
-		v1.POST("/events/deployment", smoHandler.handlePublishDeploymentEvent)
+		v1.POST("/events/infrastructure", smoHandler.HandlePublishInfrastructureEvent)
+		v1.POST("/events/deployment", smoHandler.HandlePublishDeploymentEvent)
 
 		// Health check for SMO components
-		v1.GET("/health", smoHandler.handleSMOHealth)
+		v1.GET("/health", smoHandler.HandleSMOHealth)
 	}
 }
 
@@ -257,7 +257,7 @@ func (s *Server) setupSMORoutes(smoHandler *SMOHandler) {
 
 // handleListPlugins lists all registered SMO plugins.
 // GET /o2smo/v1/plugins.
-func (h *SMOHandler) handleListPlugins(c *gin.Context) {
+func (h *SMOHandler) HandleListPlugins(c *gin.Context) {
 	h.logger.Info("listing SMO plugins")
 
 	plugins := h.registry.List()
@@ -270,7 +270,7 @@ func (h *SMOHandler) handleListPlugins(c *gin.Context) {
 
 // handleGetPlugin retrieves a specific SMO plugin.
 // GET /o2smo/v1/plugins/:pluginId.
-func (h *SMOHandler) handleGetPlugin(c *gin.Context) {
+func (h *SMOHandler) HandleGetPlugin(c *gin.Context) {
 	pluginID := c.Param("pluginId")
 	h.logger.Info("getting SMO plugin", zap.String("plugin_id", pluginID))
 
@@ -312,7 +312,7 @@ type WorkflowRequest struct {
 
 // handleExecuteWorkflow executes a workflow.
 // POST /o2smo/v1/workflows.
-func (h *SMOHandler) handleExecuteWorkflow(c *gin.Context) {
+func (h *SMOHandler) HandleExecuteWorkflow(c *gin.Context) {
 	start := time.Now()
 	h.logger.Info("executing workflow")
 
@@ -396,7 +396,7 @@ func (h *SMOHandler) handleExecuteWorkflow(c *gin.Context) {
 
 // handleGetWorkflowStatus retrieves workflow execution status.
 // GET /o2smo/v1/workflows/:executionId.
-func (h *SMOHandler) handleGetWorkflowStatus(c *gin.Context) {
+func (h *SMOHandler) HandleGetWorkflowStatus(c *gin.Context) {
 	executionID := c.Param("executionId")
 	if !isValidIdentifier(executionID) {
 		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid execution ID format")
@@ -440,7 +440,7 @@ func (h *SMOHandler) handleGetWorkflowStatus(c *gin.Context) {
 
 // handleCancelWorkflow cancels a workflow execution.
 // DELETE /o2smo/v1/workflows/:executionId.
-func (h *SMOHandler) handleCancelWorkflow(c *gin.Context) {
+func (h *SMOHandler) HandleCancelWorkflow(c *gin.Context) {
 	executionID := c.Param("executionId")
 	pluginName := c.Query("plugin")
 
@@ -507,7 +507,7 @@ type ServiceModelRequest struct {
 
 // handleListServiceModels lists all service models.
 // GET /o2smo/v1/serviceModels.
-func (h *SMOHandler) handleListServiceModels(c *gin.Context) {
+func (h *SMOHandler) HandleListServiceModels(c *gin.Context) {
 	pluginName := c.Query("plugin")
 	h.logger.Info("listing service models")
 
@@ -556,7 +556,7 @@ func (h *SMOHandler) handleListServiceModels(c *gin.Context) {
 
 // handleCreateServiceModel creates a new service model.
 // POST /o2smo/v1/serviceModels.
-func (h *SMOHandler) handleCreateServiceModel(c *gin.Context) {
+func (h *SMOHandler) HandleCreateServiceModel(c *gin.Context) {
 	h.logger.Info("creating service model")
 
 	var req ServiceModelRequest
@@ -621,7 +621,7 @@ func (h *SMOHandler) handleCreateServiceModel(c *gin.Context) {
 
 // handleGetServiceModel retrieves a specific service model.
 // GET /o2smo/v1/serviceModels/:modelId.
-func (h *SMOHandler) handleGetServiceModel(c *gin.Context) {
+func (h *SMOHandler) HandleGetServiceModel(c *gin.Context) {
 	modelID := c.Param("modelId")
 	if !isValidIdentifier(modelID) {
 		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid model ID format")
@@ -666,7 +666,7 @@ func (h *SMOHandler) handleGetServiceModel(c *gin.Context) {
 // handleDeleteServiceModel deletes a service model.
 // DELETE /o2smo/v1/serviceModels/:modelId
 // NOTE: Service model deletion is planned for future release - see GitHub issue #33.
-func (h *SMOHandler) handleDeleteServiceModel(c *gin.Context) {
+func (h *SMOHandler) HandleDeleteServiceModel(c *gin.Context) {
 	modelID := c.Param("modelId")
 
 	// Validate model ID
@@ -700,7 +700,7 @@ type PolicyRequest struct {
 
 // handleApplyPolicy applies a policy.
 // POST /o2smo/v1/policies.
-func (h *SMOHandler) handleApplyPolicy(c *gin.Context) {
+func (h *SMOHandler) HandleApplyPolicy(c *gin.Context) {
 	h.logger.Info("applying policy")
 
 	var req PolicyRequest
@@ -770,7 +770,7 @@ func (h *SMOHandler) handleApplyPolicy(c *gin.Context) {
 
 // handleGetPolicyStatus retrieves policy status.
 // GET /o2smo/v1/policies/:policyId/status.
-func (h *SMOHandler) handleGetPolicyStatus(c *gin.Context) {
+func (h *SMOHandler) HandleGetPolicyStatus(c *gin.Context) {
 	policyID := c.Param("policyId")
 	if !isValidIdentifier(policyID) {
 		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid policy ID format")
@@ -816,7 +816,7 @@ func (h *SMOHandler) handleGetPolicyStatus(c *gin.Context) {
 
 // handleSyncInfrastructure syncs infrastructure inventory to SMO.
 // POST /o2smo/v1/sync/infrastructure.
-func (h *SMOHandler) handleSyncInfrastructure(c *gin.Context) {
+func (h *SMOHandler) HandleSyncInfrastructure(c *gin.Context) {
 	pluginName := c.Query("plugin")
 	h.logger.Info("syncing infrastructure inventory")
 
@@ -876,7 +876,7 @@ func (h *SMOHandler) handleSyncInfrastructure(c *gin.Context) {
 
 // handleSyncDeployments syncs deployment inventory to SMO.
 // POST /o2smo/v1/sync/deployments.
-func (h *SMOHandler) handleSyncDeployments(c *gin.Context) {
+func (h *SMOHandler) HandleSyncDeployments(c *gin.Context) {
 	pluginName := c.Query("plugin")
 	h.logger.Info("syncing deployment inventory")
 
@@ -937,7 +937,7 @@ func (h *SMOHandler) handleSyncDeployments(c *gin.Context) {
 
 // handlePublishInfrastructureEvent publishes an infrastructure event.
 // POST /o2smo/v1/events/infrastructure.
-func (h *SMOHandler) handlePublishInfrastructureEvent(c *gin.Context) {
+func (h *SMOHandler) HandlePublishInfrastructureEvent(c *gin.Context) {
 	var event smo.InfrastructureEvent
 	if err := c.ShouldBindJSON(&event); err != nil {
 		h.respondWithBadRequest(c, "publishInfrastructureEvent", err)
@@ -954,7 +954,7 @@ func (h *SMOHandler) handlePublishInfrastructureEvent(c *gin.Context) {
 
 // handlePublishDeploymentEvent publishes a deployment event.
 // POST /o2smo/v1/events/deployment.
-func (h *SMOHandler) handlePublishDeploymentEvent(c *gin.Context) {
+func (h *SMOHandler) HandlePublishDeploymentEvent(c *gin.Context) {
 	var event smo.DeploymentEvent
 	if err := c.ShouldBindJSON(&event); err != nil {
 		h.respondWithBadRequest(c, "publishDeploymentEvent", err)
@@ -973,7 +973,7 @@ func (h *SMOHandler) handlePublishDeploymentEvent(c *gin.Context) {
 
 // handleSMOHealth returns the health status of SMO components.
 // GET /o2smo/v1/health.
-func (h *SMOHandler) handleSMOHealth(c *gin.Context) {
+func (h *SMOHandler) HandleSMOHealth(c *gin.Context) {
 	h.logger.Info("checking SMO health")
 
 	plugins := h.registry.List()

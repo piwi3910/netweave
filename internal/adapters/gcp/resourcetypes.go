@@ -23,7 +23,7 @@ func (a *Adapter) ListResourceTypes(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "ListResourceTypes", start, err) }()
 
-	a.logger.Debug("ListResourceTypes called",
+	a.Logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
 	// Get the first zone in the region
@@ -43,7 +43,7 @@ func (a *Adapter) ListResourceTypes(
 		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
 	}
 
-	a.logger.Info("listed resource types",
+	a.Logger.Info("listed resource types",
 		zap.Int("count", len(resourceTypes)))
 
 	return resourceTypes, nil
@@ -64,7 +64,7 @@ func (a *Adapter) getFirstZoneInRegion(ctx context.Context) (string, error) {
 			return "", fmt.Errorf("failed to list zones: %w", err)
 		}
 
-		zoneName := ptrToString(zone.Name)
+		zoneName := PtrToString(zone.Name)
 		if strings.HasPrefix(zoneName, a.region) {
 			return zoneName, nil
 		}
@@ -97,7 +97,7 @@ func (a *Adapter) listMachineTypesInZone(
 			return nil, fmt.Errorf("failed to list machine types: %w", err)
 		}
 
-		machineType := ptrToString(mt.Name)
+		machineType := PtrToString(mt.Name)
 		if seen[machineType] {
 			continue
 		}
@@ -122,7 +122,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 	var err error
 	defer func() { adapter.ObserveOperation("gcp", "GetResourceType", start, err) }()
 
-	a.logger.Debug("GetResourceType called",
+	a.Logger.Debug("GetResourceType called",
 		zap.String("id", id))
 
 	// Extract machine type name from the ID
@@ -146,7 +146,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 			return nil, fmt.Errorf("failed to list zones: %w", err)
 		}
 
-		zoneName := ptrToString(zone.Name)
+		zoneName := PtrToString(zone.Name)
 		if strings.HasPrefix(zoneName, a.region) {
 			firstZone = zoneName
 			break
@@ -172,30 +172,30 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 
 // machineTypeToResourceType converts a GCP machine type to an O2-IMS ResourceType.
 func (a *Adapter) machineTypeToResourceType(mt *computepb.MachineType) *adapter.ResourceType {
-	machineType := ptrToString(mt.Name)
-	resourceTypeID := generateMachineTypeID(machineType)
+	machineType := PtrToString(mt.Name)
+	resourceTypeID := GenerateMachineTypeID(machineType)
 
 	// Parse machine family from type name (e.g., "n1" from "n1-standard-1")
-	family := extractMachineFamily(machineType)
+	family := ExtractMachineFamily(machineType)
 
 	// All GCP VMs are virtual
 	resourceKind := "virtual"
 
 	// Calculate memory in GiB
-	memoryMB := ptrToInt32(mt.MemoryMb)
+	memoryMB := PtrToInt32(mt.MemoryMb)
 	memoryGiB := memoryMB / 1024
 
 	// Build extensions with machine type details
 	extensions := map[string]interface{}{
 		"gcp.machineType":                  machineType,
 		"gcp.family":                       family,
-		"gcp.guestCpus":                    ptrToInt32(mt.GuestCpus),
+		"gcp.guestCpus":                    PtrToInt32(mt.GuestCpus),
 		"gcp.memoryMb":                     memoryMB,
 		"gcp.memoryGb":                     memoryGiB,
-		"gcp.maximumPersistentDisks":       ptrToInt32(mt.MaximumPersistentDisks),
-		"gcp.maximumPersistentDisksSizeGb": ptrToInt64(mt.MaximumPersistentDisksSizeGb),
-		"gcp.isSharedCpu":                  ptrToBool(mt.IsSharedCpu),
-		"gcp.description":                  ptrToString(mt.Description),
+		"gcp.maximumPersistentDisks":       PtrToInt32(mt.MaximumPersistentDisks),
+		"gcp.maximumPersistentDisksSizeGb": PtrToInt64(mt.MaximumPersistentDisksSizeGb),
+		"gcp.isSharedCpu":                  PtrToBool(mt.IsSharedCpu),
+		"gcp.description":                  PtrToString(mt.Description),
 	}
 
 	// Add accelerator info if available
@@ -203,8 +203,8 @@ func (a *Adapter) machineTypeToResourceType(mt *computepb.MachineType) *adapter.
 		accs := make([]map[string]interface{}, 0, len(mt.Accelerators))
 		for _, acc := range mt.Accelerators {
 			accInfo := map[string]interface{}{
-				"type":  ptrToString(acc.GuestAcceleratorType),
-				"count": ptrToInt32(acc.GuestAcceleratorCount),
+				"type":  PtrToString(acc.GuestAcceleratorType),
+				"count": PtrToInt32(acc.GuestAcceleratorCount),
 			}
 			accs = append(accs, accInfo)
 		}
@@ -212,9 +212,9 @@ func (a *Adapter) machineTypeToResourceType(mt *computepb.MachineType) *adapter.
 	}
 
 	// Build description
-	cpus := ptrToInt32(mt.GuestCpus)
+	cpus := PtrToInt32(mt.GuestCpus)
 	description := fmt.Sprintf("GCP %s: %d vCPUs, %d GiB RAM", machineType, cpus, memoryGiB)
-	if ptrToBool(mt.IsSharedCpu) {
+	if PtrToBool(mt.IsSharedCpu) {
 		description += " (shared CPU)"
 	}
 
@@ -233,7 +233,7 @@ func (a *Adapter) machineTypeToResourceType(mt *computepb.MachineType) *adapter.
 
 // extractMachineFamily extracts the machine family from a GCP machine type name.
 // e.g., "n1-standard-1" -> "n1", "e2-micro" -> "e2".
-func extractMachineFamily(machineType string) string {
+func ExtractMachineFamily(machineType string) string {
 	parts := strings.Split(machineType, "-")
 	if len(parts) > 0 {
 		return parts[0]

@@ -1,4 +1,4 @@
-package middleware
+package middleware_test
 
 import (
 	"bytes"
@@ -9,6 +9,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/piwi3910/netweave/internal/middleware"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,20 +20,20 @@ import (
 // ExampleNewOpenAPIValidator demonstrates creating a new OpenAPI validator.
 func ExampleNewOpenAPIValidator() {
 	// Create with default configuration
-	validator, err := NewOpenAPIValidator(nil)
+	validator, err := middleware.NewOpenAPIValidator(nil)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("Validator created: %v\n", validator != nil)
 
 	// Create with custom configuration
-	cfg := &ValidationConfig{
+	cfg := &middleware.ValidationConfig{
 		ValidateRequest:  true,
 		ValidateResponse: false,           // Only enable in development
 		MaxBodySize:      2 * 1024 * 1024, // 2MB
 		ExcludePaths:     []string{"/health", "/metrics"},
 	}
-	validator, err = NewOpenAPIValidator(cfg)
+	validator, err = middleware.NewOpenAPIValidator(cfg)
 	if err != nil {
 		panic(err)
 	}
@@ -43,7 +45,7 @@ func ExampleNewOpenAPIValidator() {
 
 // ExampleOpenAPIValidator_LoadSpec demonstrates loading an OpenAPI spec from bytes.
 func ExampleOpenAPIValidator_LoadSpec() {
-	validator, _ := NewOpenAPIValidator(nil)
+	validator, _ := middleware.NewOpenAPIValidator(nil)
 
 	// Load OpenAPI spec from bytes (typically embedded or read from file)
 	specContent := []byte(`
@@ -69,7 +71,7 @@ paths:
 
 // ExampleDefaultValidationConfig demonstrates the default configuration values.
 func ExampleDefaultValidationConfig() {
-	cfg := DefaultValidationConfig()
+	cfg := middleware.DefaultValidationConfig()
 	fmt.Printf("ValidateRequest: %v\n", cfg.ValidateRequest)
 	fmt.Printf("ValidateResponse: %v\n", cfg.ValidateResponse)
 	fmt.Printf("MaxBodySize: %d bytes\n", cfg.MaxBodySize)
@@ -160,20 +162,20 @@ components:
           type: string
 `
 
-func setupTestRouter(t *testing.T, cfg *ValidationConfig) *gin.Engine {
+func setupTestRouter(t *testing.T, cfg *middleware.ValidationConfig) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
 	if cfg == nil {
-		cfg = DefaultValidationConfig()
+		cfg = middleware.DefaultValidationConfig()
 	}
 
 	logger := zap.NewNop()
 	cfg.Logger = logger
 
-	validator, err := NewOpenAPIValidator(cfg)
+	validator, err := middleware.NewOpenAPIValidator(cfg)
 	require.NoError(t, err)
 
 	err = validator.LoadSpec([]byte(testOpenAPISpec))
@@ -186,29 +188,29 @@ func setupTestRouter(t *testing.T, cfg *ValidationConfig) *gin.Engine {
 
 func TestNewOpenAPIValidator(t *testing.T) {
 	t.Run("creates validator with default config", func(t *testing.T) {
-		validator, err := NewOpenAPIValidator(nil)
+		validator, err := middleware.NewOpenAPIValidator(nil)
 		require.NoError(t, err)
 		assert.NotNil(t, validator)
 	})
 
 	t.Run("creates validator with custom config", func(t *testing.T) {
-		cfg := &ValidationConfig{
+		cfg := &middleware.ValidationConfig{
 			ValidateRequest:  true,
 			ValidateResponse: false,
 			ExcludePaths:     []string{"/health"},
 		}
 
-		validator, err := NewOpenAPIValidator(cfg)
+		validator, err := middleware.NewOpenAPIValidator(cfg)
 		require.NoError(t, err)
 		assert.NotNil(t, validator)
-		assert.True(t, validator.config.ValidateRequest)
-		assert.False(t, validator.config.ValidateResponse)
+		assert.True(t, validator.Config.ValidateRequest)
+		assert.False(t, validator.Config.ValidateResponse)
 	})
 }
 
 func TestOpenAPIValidator_LoadSpec(t *testing.T) {
 	t.Run("loads valid spec from content", func(t *testing.T) {
-		validator, err := NewOpenAPIValidator(nil)
+		validator, err := middleware.NewOpenAPIValidator(nil)
 		require.NoError(t, err)
 
 		err = validator.LoadSpec([]byte(testOpenAPISpec))
@@ -218,7 +220,7 @@ func TestOpenAPIValidator_LoadSpec(t *testing.T) {
 	})
 
 	t.Run("fails on invalid spec", func(t *testing.T) {
-		validator, err := NewOpenAPIValidator(nil)
+		validator, err := middleware.NewOpenAPIValidator(nil)
 		require.NoError(t, err)
 
 		err = validator.LoadSpec([]byte("invalid yaml content"))
@@ -226,7 +228,7 @@ func TestOpenAPIValidator_LoadSpec(t *testing.T) {
 	})
 
 	t.Run("fails on empty spec", func(t *testing.T) {
-		validator, err := NewOpenAPIValidator(nil)
+		validator, err := middleware.NewOpenAPIValidator(nil)
 		require.NoError(t, err)
 
 		err = validator.LoadSpec([]byte(""))
@@ -319,7 +321,7 @@ func TestOpenAPIValidator_Middleware(t *testing.T) {
 	})
 
 	t.Run("allows request to excluded paths", func(t *testing.T) {
-		cfg := DefaultValidationConfig()
+		cfg := middleware.DefaultValidationConfig()
 		cfg.ExcludePaths = []string{"/health", "/metrics"}
 		router := setupTestRouter(t, cfg)
 
@@ -371,7 +373,7 @@ func TestOpenAPIValidator_Middleware(t *testing.T) {
 
 func TestOpenAPIValidator_DisabledValidation(t *testing.T) {
 	t.Run("skips validation when disabled", func(t *testing.T) {
-		cfg := &ValidationConfig{
+		cfg := &middleware.ValidationConfig{
 			ValidateRequest:  false,
 			ValidateResponse: false,
 		}
@@ -400,7 +402,7 @@ func TestOpenAPIValidator_NoSpec(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		router := gin.New()
 
-		validator, err := NewOpenAPIValidator(nil)
+		validator, err := middleware.NewOpenAPIValidator(nil)
 		require.NoError(t, err)
 
 		router.Use(validator.Middleware())
@@ -418,11 +420,11 @@ func TestOpenAPIValidator_NoSpec(t *testing.T) {
 }
 
 func TestDefaultValidationConfig(t *testing.T) {
-	cfg := DefaultValidationConfig()
+	cfg := middleware.DefaultValidationConfig()
 
 	assert.True(t, cfg.ValidateRequest)
 	assert.False(t, cfg.ValidateResponse)
-	assert.Equal(t, DefaultMaxBodySize, cfg.MaxBodySize)
+	assert.Equal(t, middleware.DefaultMaxBodySize, cfg.MaxBodySize)
 	assert.Contains(t, cfg.ExcludePaths, "/health")
 	assert.Contains(t, cfg.ExcludePaths, "/metrics")
 }
@@ -466,7 +468,7 @@ func TestFormatValidationError(t *testing.T) {
 			if tt.errStr != "" {
 				err = &mockError{msg: tt.errStr}
 			}
-			result := formatValidationError(err)
+			result := middleware.FormatValidationError(err)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -481,10 +483,10 @@ func (e *mockError) Error() string {
 }
 
 func TestOpenAPIValidator_IsExcludedPath(t *testing.T) {
-	cfg := &ValidationConfig{
+	cfg := &middleware.ValidationConfig{
 		ExcludePaths: []string{"/health", "/metrics", "/api/v1/internal"},
 	}
-	validator, err := NewOpenAPIValidator(cfg)
+	validator, err := middleware.NewOpenAPIValidator(cfg)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -504,7 +506,7 @@ func TestOpenAPIValidator_IsExcludedPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			result := validator.isExcludedPath(tt.path)
+			result := validator.IsExcludedPath(tt.path)
 			assert.Equal(t, tt.excluded, result)
 		})
 	}
@@ -537,7 +539,7 @@ func TestOpenAPIValidator_ConcurrentAccess(t *testing.T) {
 
 func TestOpenAPIValidator_MaxBodySize(t *testing.T) {
 	t.Run("rejects request exceeding max body size", func(t *testing.T) {
-		cfg := &ValidationConfig{
+		cfg := &middleware.ValidationConfig{
 			ValidateRequest: true,
 			MaxBodySize:     100, // 100 bytes limit
 		}
@@ -568,7 +570,7 @@ func TestOpenAPIValidator_MaxBodySize(t *testing.T) {
 	})
 
 	t.Run("accepts request within max body size", func(t *testing.T) {
-		cfg := &ValidationConfig{
+		cfg := &middleware.ValidationConfig{
 			ValidateRequest: true,
 			MaxBodySize:     1024, // 1KB limit
 		}
@@ -597,14 +599,14 @@ func TestOpenAPIValidator_MaxBodySize(t *testing.T) {
 	})
 
 	t.Run("uses default max body size when not configured", func(t *testing.T) {
-		cfg := DefaultValidationConfig()
-		assert.Equal(t, DefaultMaxBodySize, cfg.MaxBodySize)
+		cfg := middleware.DefaultValidationConfig()
+		assert.Equal(t, middleware.DefaultMaxBodySize, cfg.MaxBodySize)
 	})
 }
 
 func TestOpenAPIValidator_LoadSpecFromFile(t *testing.T) {
 	t.Run("fails on non-existent file", func(t *testing.T) {
-		validator, err := NewOpenAPIValidator(nil)
+		validator, err := middleware.NewOpenAPIValidator(nil)
 		require.NoError(t, err)
 
 		err = validator.LoadSpecFromFile("/non/existent/path.yaml")
@@ -622,7 +624,7 @@ func TestOpenAPIValidator_LoadSpecFromFile(t *testing.T) {
 		err = tmpFile.Close()
 		require.NoError(t, err)
 
-		validator, err := NewOpenAPIValidator(nil)
+		validator, err := middleware.NewOpenAPIValidator(nil)
 		require.NoError(t, err)
 
 		err = validator.LoadSpecFromFile(tmpFile.Name())
@@ -634,7 +636,7 @@ func TestOpenAPIValidator_LoadSpecFromFile(t *testing.T) {
 
 func TestOpenAPIValidator_CorruptedSpec(t *testing.T) {
 	t.Run("fails on corrupted YAML spec", func(t *testing.T) {
-		validator, err := NewOpenAPIValidator(nil)
+		validator, err := middleware.NewOpenAPIValidator(nil)
 		require.NoError(t, err)
 
 		corruptedSpec := []byte(`
@@ -653,7 +655,7 @@ paths:
 	})
 
 	t.Run("fails on semantically invalid spec", func(t *testing.T) {
-		validator, err := NewOpenAPIValidator(nil)
+		validator, err := middleware.NewOpenAPIValidator(nil)
 		require.NoError(t, err)
 
 		// Missing required info section
@@ -673,7 +675,7 @@ paths:
 
 func TestOpenAPIValidator_ResponseValidation(t *testing.T) {
 	t.Run("validates response when enabled", func(t *testing.T) {
-		cfg := &ValidationConfig{
+		cfg := &middleware.ValidationConfig{
 			ValidateRequest:  true,
 			ValidateResponse: true,
 		}
@@ -697,7 +699,7 @@ func TestOpenAPIValidator_ResponseValidation(t *testing.T) {
 	})
 
 	t.Run("logs warning for invalid response schema", func(t *testing.T) {
-		cfg := &ValidationConfig{
+		cfg := &middleware.ValidationConfig{
 			ValidateRequest:  true,
 			ValidateResponse: true,
 		}
@@ -722,7 +724,7 @@ func TestOpenAPIValidator_ResponseValidation(t *testing.T) {
 	})
 
 	t.Run("skips response validation when disabled", func(t *testing.T) {
-		cfg := &ValidationConfig{
+		cfg := &middleware.ValidationConfig{
 			ValidateRequest:  true,
 			ValidateResponse: false, // Disabled
 		}
@@ -742,9 +744,9 @@ func TestOpenAPIValidator_ResponseValidation(t *testing.T) {
 	})
 }
 
-// TestResponseRecorder_Write tests the Write method of responseRecorder.
+// TestResponseRecorder_Write tests the Write method of middleware.ResponseRecorder.
 
-// TestResponseRecorder_Write tests the Write method of responseRecorder.
+// TestResponseRecorder_Write tests the Write method of middleware.ResponseRecorder.
 func TestResponseRecorder_Write(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -770,22 +772,22 @@ func TestResponseRecorder_Write(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
 
-			recorder := &responseRecorder{
+			recorder := &middleware.ResponseRecorder{
 				ResponseWriter: c.Writer,
-				body:           &bytes.Buffer{},
-				statusCode:     http.StatusOK,
+				Body:           &bytes.Buffer{},
+				StatusCode:     http.StatusOK,
 			}
 
 			n, err := recorder.Write(tt.input)
 
 			require.NoError(t, err)
 			assert.Equal(t, len(tt.input), n)
-			assert.Equal(t, string(tt.input), recorder.body.String())
+			assert.Equal(t, string(tt.input), recorder.Body.String())
 		})
 	}
 }
 
-// TestResponseRecorder_WriteHeader tests the WriteHeader method of responseRecorder.
+// TestResponseRecorder_WriteHeader tests the WriteHeader method of middleware.ResponseRecorder.
 func TestResponseRecorder_WriteHeader(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -819,15 +821,15 @@ func TestResponseRecorder_WriteHeader(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
 
-			recorder := &responseRecorder{
+			recorder := &middleware.ResponseRecorder{
 				ResponseWriter: c.Writer,
-				body:           &bytes.Buffer{},
-				statusCode:     http.StatusOK,
+				Body:           &bytes.Buffer{},
+				StatusCode:     http.StatusOK,
 			}
 
 			recorder.WriteHeader(tt.statusCode)
 
-			assert.Equal(t, tt.statusCode, recorder.statusCode)
+			assert.Equal(t, tt.statusCode, recorder.StatusCode)
 		})
 	}
 }

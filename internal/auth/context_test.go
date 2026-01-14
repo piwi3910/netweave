@@ -1,30 +1,31 @@
-package auth
+package auth_test
 
 import (
 	"context"
 	"testing"
 
+	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestContextWithUser(t *testing.T) {
-	user := &AuthenticatedUser{
+	user := &auth.AuthenticatedUser{
 		UserID:          "user-123",
 		TenantID:        "tenant-456",
 		Subject:         "CN=test,O=Org",
 		CommonName:      "test",
 		IsPlatformAdmin: false,
-		Role: &Role{
-			Name:        RoleOperator,
-			Permissions: []Permission{PermissionSubscriptionRead},
+		Role: &auth.Role{
+			Name:        auth.RoleOperator,
+			Permissions: []auth.Permission{auth.PermissionSubscriptionRead},
 		},
 	}
 
 	ctx := context.Background()
-	ctx = ContextWithUser(ctx, user)
+	ctx = auth.ContextWithUser(ctx, user)
 
 	// Retrieve user from context.
-	retrieved := UserFromContext(ctx)
+	retrieved := auth.UserFromContext(ctx)
 	assert.NotNil(t, retrieved)
 	assert.Equal(t, user.UserID, retrieved.UserID)
 	assert.Equal(t, user.TenantID, retrieved.TenantID)
@@ -35,22 +36,22 @@ func TestUserFromContext_Nil(t *testing.T) {
 	ctx := context.Background()
 
 	// No user in context.
-	retrieved := UserFromContext(ctx)
+	retrieved := auth.UserFromContext(ctx)
 	assert.Nil(t, retrieved)
 }
 
 func TestContextWithTenant(t *testing.T) {
-	tenant := &Tenant{
+	tenant := &auth.Tenant{
 		ID:     "tenant-789",
-		Name:   "Test Tenant",
-		Status: TenantStatusActive,
+		Name:   "Test auth.Tenant",
+		Status: auth.TenantStatusActive,
 	}
 
 	ctx := context.Background()
-	ctx = ContextWithTenant(ctx, tenant)
+	ctx = auth.ContextWithTenant(ctx, tenant)
 
 	// Retrieve tenant from context.
-	retrieved := TenantFromContext(ctx)
+	retrieved := auth.TenantFromContext(ctx)
 	assert.NotNil(t, retrieved)
 	assert.Equal(t, tenant.ID, retrieved.ID)
 	assert.Equal(t, tenant.Name, retrieved.Name)
@@ -60,7 +61,7 @@ func TestTenantFromContext_Nil(t *testing.T) {
 	ctx := context.Background()
 
 	// No tenant in context.
-	retrieved := TenantFromContext(ctx)
+	retrieved := auth.TenantFromContext(ctx)
 	assert.Nil(t, retrieved)
 }
 
@@ -68,10 +69,10 @@ func TestContextWithRequestID(t *testing.T) {
 	requestID := "req-12345-abcde"
 
 	ctx := context.Background()
-	ctx = ContextWithRequestID(ctx, requestID)
+	ctx = auth.ContextWithRequestID(ctx, requestID)
 
 	// Retrieve request ID from context.
-	retrieved := RequestIDFromContext(ctx)
+	retrieved := auth.RequestIDFromContext(ctx)
 	assert.Equal(t, requestID, retrieved)
 }
 
@@ -79,19 +80,19 @@ func TestRequestIDFromContext_Empty(t *testing.T) {
 	ctx := context.Background()
 
 	// No request ID in context.
-	retrieved := RequestIDFromContext(ctx)
+	retrieved := auth.RequestIDFromContext(ctx)
 	assert.Empty(t, retrieved)
 }
 
 func TestTenantIDFromContext(t *testing.T) {
 	tests := []struct {
 		name     string
-		user     *AuthenticatedUser
+		user     *auth.AuthenticatedUser
 		expected string
 	}{
 		{
 			name: "user with tenant",
-			user: &AuthenticatedUser{
+			user: &auth.AuthenticatedUser{
 				UserID:   "user-1",
 				TenantID: "tenant-abc",
 			},
@@ -104,7 +105,7 @@ func TestTenantIDFromContext(t *testing.T) {
 		},
 		{
 			name: "user with empty tenant",
-			user: &AuthenticatedUser{
+			user: &auth.AuthenticatedUser{
 				UserID:   "user-2",
 				TenantID: "",
 			},
@@ -116,10 +117,10 @@ func TestTenantIDFromContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			if tt.user != nil {
-				ctx = ContextWithUser(ctx, tt.user)
+				ctx = auth.ContextWithUser(ctx, tt.user)
 			}
 
-			result := TenantIDFromContext(ctx)
+			result := auth.TenantIDFromContext(ctx)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -128,12 +129,12 @@ func TestTenantIDFromContext(t *testing.T) {
 func TestIsPlatformAdminFromContext(t *testing.T) {
 	tests := []struct {
 		name     string
-		user     *AuthenticatedUser
+		user     *auth.AuthenticatedUser
 		expected bool
 	}{
 		{
 			name: "platform admin",
-			user: &AuthenticatedUser{
+			user: &auth.AuthenticatedUser{
 				UserID:          "admin-1",
 				IsPlatformAdmin: true,
 			},
@@ -141,7 +142,7 @@ func TestIsPlatformAdminFromContext(t *testing.T) {
 		},
 		{
 			name: "regular user",
-			user: &AuthenticatedUser{
+			user: &auth.AuthenticatedUser{
 				UserID:          "user-1",
 				IsPlatformAdmin: false,
 			},
@@ -158,10 +159,10 @@ func TestIsPlatformAdminFromContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			if tt.user != nil {
-				ctx = ContextWithUser(ctx, tt.user)
+				ctx = auth.ContextWithUser(ctx, tt.user)
 			}
 
-			result := IsPlatformAdminFromContext(ctx)
+			result := auth.IsPlatformAdminFromContext(ctx)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -170,46 +171,46 @@ func TestIsPlatformAdminFromContext(t *testing.T) {
 func TestHasPermissionFromContext(t *testing.T) {
 	tests := []struct {
 		name       string
-		user       *AuthenticatedUser
-		permission Permission
+		user       *auth.AuthenticatedUser
+		permission auth.Permission
 		expected   bool
 	}{
 		{
 			name: "user has permission",
-			user: &AuthenticatedUser{
+			user: &auth.AuthenticatedUser{
 				UserID: "user-1",
-				Role: &Role{
-					Permissions: []Permission{PermissionSubscriptionRead, PermissionSubscriptionCreate},
+				Role: &auth.Role{
+					Permissions: []auth.Permission{auth.PermissionSubscriptionRead, auth.PermissionSubscriptionCreate},
 				},
 			},
-			permission: PermissionSubscriptionRead,
+			permission: auth.PermissionSubscriptionRead,
 			expected:   true,
 		},
 		{
 			name: "user lacks permission",
-			user: &AuthenticatedUser{
+			user: &auth.AuthenticatedUser{
 				UserID: "user-2",
-				Role: &Role{
-					Permissions: []Permission{PermissionSubscriptionRead},
+				Role: &auth.Role{
+					Permissions: []auth.Permission{auth.PermissionSubscriptionRead},
 				},
 			},
-			permission: PermissionSubscriptionDelete,
+			permission: auth.PermissionSubscriptionDelete,
 			expected:   false,
 		},
 		{
 			name: "platform admin has all permissions",
-			user: &AuthenticatedUser{
+			user: &auth.AuthenticatedUser{
 				UserID:          "admin-1",
 				IsPlatformAdmin: true,
-				Role:            &Role{Permissions: []Permission{}},
+				Role:            &auth.Role{Permissions: []auth.Permission{}},
 			},
-			permission: PermissionTenantDelete,
+			permission: auth.PermissionTenantDelete,
 			expected:   true,
 		},
 		{
 			name:       "no user in context",
 			user:       nil,
-			permission: PermissionSubscriptionRead,
+			permission: auth.PermissionSubscriptionRead,
 			expected:   false,
 		},
 	}
@@ -218,10 +219,10 @@ func TestHasPermissionFromContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			if tt.user != nil {
-				ctx = ContextWithUser(ctx, tt.user)
+				ctx = auth.ContextWithUser(ctx, tt.user)
 			}
 
-			result := HasPermissionFromContext(ctx, tt.permission)
+			result := auth.HasPermissionFromContext(ctx, tt.permission)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -229,23 +230,23 @@ func TestHasPermissionFromContext(t *testing.T) {
 
 func TestContextChaining(t *testing.T) {
 	// Test that multiple values can be stored in context.
-	user := &AuthenticatedUser{
+	user := &auth.AuthenticatedUser{
 		UserID:   "user-1",
 		TenantID: "tenant-1",
 	}
-	tenant := &Tenant{
+	tenant := &auth.Tenant{
 		ID:   "tenant-1",
 		Name: "Test",
 	}
 	requestID := "req-123"
 
 	ctx := context.Background()
-	ctx = ContextWithUser(ctx, user)
-	ctx = ContextWithTenant(ctx, tenant)
-	ctx = ContextWithRequestID(ctx, requestID)
+	ctx = auth.ContextWithUser(ctx, user)
+	ctx = auth.ContextWithTenant(ctx, tenant)
+	ctx = auth.ContextWithRequestID(ctx, requestID)
 
 	// All values should be retrievable.
-	assert.Equal(t, user.UserID, UserFromContext(ctx).UserID)
-	assert.Equal(t, tenant.ID, TenantFromContext(ctx).ID)
-	assert.Equal(t, requestID, RequestIDFromContext(ctx))
+	assert.Equal(t, user.UserID, auth.UserFromContext(ctx).UserID)
+	assert.Equal(t, tenant.ID, auth.TenantFromContext(ctx).ID)
+	assert.Equal(t, requestID, auth.RequestIDFromContext(ctx))
 }

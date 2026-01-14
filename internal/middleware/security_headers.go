@@ -91,7 +91,7 @@ func SecurityHeaders(config *SecurityHeadersConfig) gin.HandlerFunc {
 
 		// HSTS - only set if TLS is enabled
 		if config.TLSEnabled && config.HSTSMaxAge > 0 {
-			hstsValue := buildHSTSValue(config)
+			hstsValue := BuildHSTSValue(config)
 			c.Header("Strict-Transport-Security", hstsValue)
 		}
 
@@ -111,8 +111,8 @@ func SecurityHeaders(config *SecurityHeadersConfig) gin.HandlerFunc {
 	}
 }
 
-// buildHSTSValue constructs the Strict-Transport-Security header value.
-func buildHSTSValue(config *SecurityHeadersConfig) string {
+// BuildHSTSValue constructs the Strict-Transport-Security header value.
+func BuildHSTSValue(config *SecurityHeadersConfig) string {
 	value := "max-age=" + strconv.Itoa(config.HSTSMaxAge)
 	if config.HSTSIncludeSubDomains {
 		value += "; includeSubDomains"

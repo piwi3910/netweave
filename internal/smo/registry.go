@@ -35,8 +35,8 @@ type Registry struct {
 	logger        *zap.Logger
 
 	// Health check configuration
-	healthCheckInterval time.Duration
-	healthCheckTimeout  time.Duration
+	HealthCheckInterval time.Duration // Exported for testing
+	HealthCheckTimeout  time.Duration // Exported for testing
 	stopHealthCheck     chan struct{}
 	healthCheckWg       sync.WaitGroup
 	healthCheckRunning  atomic.Bool // Prevents duplicate health check loops
@@ -49,7 +49,7 @@ type RegistryOption func(*Registry)
 func WithHealthCheckInterval(interval time.Duration) RegistryOption {
 	return func(r *Registry) {
 		if interval > 0 {
-			r.healthCheckInterval = interval
+			r.HealthCheckInterval = interval
 		}
 	}
 }
@@ -58,7 +58,7 @@ func WithHealthCheckInterval(interval time.Duration) RegistryOption {
 func WithHealthCheckTimeout(timeout time.Duration) RegistryOption {
 	return func(r *Registry) {
 		if timeout > 0 {
-			r.healthCheckTimeout = timeout
+			r.HealthCheckTimeout = timeout
 		}
 	}
 }
@@ -74,8 +74,8 @@ func NewRegistry(logger *zap.Logger, opts ...RegistryOption) *Registry {
 		Plugins:             make(map[string]Plugin),
 		pluginInfo:          make(map[string]*PluginInfo),
 		logger:              logger,
-		healthCheckInterval: 30 * time.Second, // Default: 30 seconds
-		healthCheckTimeout:  5 * time.Second,  // Default: 5 seconds
+		HealthCheckInterval: 30 * time.Second, // Default: 30 seconds
+		HealthCheckTimeout:  5 * time.Second,  // Default: 5 seconds
 		stopHealthCheck:     make(chan struct{}),
 	}
 
@@ -293,7 +293,7 @@ func (r *Registry) StopHealthChecks() {
 func (r *Registry) healthCheckLoop(ctx context.Context) {
 	defer r.healthCheckWg.Done()
 
-	ticker := time.NewTicker(r.healthCheckInterval)
+	ticker := time.NewTicker(r.HealthCheckInterval)
 	defer ticker.Stop()
 
 	for {
@@ -320,7 +320,7 @@ func (r *Registry) checkAllPluginsHealth(ctx context.Context) {
 	for name, plugin := range plugins {
 		// Use anonymous function to ensure cancel is always called via defer
 		func() {
-			checkCtx, cancel := context.WithTimeout(ctx, r.healthCheckTimeout)
+			checkCtx, cancel := context.WithTimeout(ctx, r.HealthCheckTimeout)
 			defer cancel()
 
 			health := plugin.Health(checkCtx)

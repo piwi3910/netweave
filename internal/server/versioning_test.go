@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/piwi3910/netweave/internal/server"
 )
 
 func TestMain(m *testing.M) {
@@ -17,7 +18,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestNewVersionConfig(t *testing.T) {
-	config := NewVersionConfig()
+	config := server.NewVersionConfig()
 
 	// Verify default version
 	if config.DefaultVersion != "v1" {
@@ -33,23 +34,23 @@ func TestNewVersionConfig(t *testing.T) {
 	}
 
 	// Verify v1 is stable
-	if config.Versions["v1"].Status != VersionStatusStable {
-		t.Errorf("v1 Status = %s, want %s", config.Versions["v1"].Status, VersionStatusStable)
+	if config.Versions["v1"].Status != server.VersionStatusStable {
+		t.Errorf("v1 Status = %s, want %s", config.Versions["v1"].Status, server.VersionStatusStable)
 	}
 
 	// Verify v2 is stable
-	if config.Versions["v2"].Status != VersionStatusStable {
-		t.Errorf("v2 Status = %s, want %s", config.Versions["v2"].Status, VersionStatusStable)
+	if config.Versions["v2"].Status != server.VersionStatusStable {
+		t.Errorf("v2 Status = %s, want %s", config.Versions["v2"].Status, server.VersionStatusStable)
 	}
 
 	// Verify v3 is stable
-	if config.Versions["v3"].Status != VersionStatusStable {
-		t.Errorf("v3 Status = %s, want %s", config.Versions["v3"].Status, VersionStatusStable)
+	if config.Versions["v3"].Status != server.VersionStatusStable {
+		t.Errorf("v3 Status = %s, want %s", config.Versions["v3"].Status, server.VersionStatusStable)
 	}
 }
 
 func TestVersioningMiddleware(t *testing.T) {
-	config := NewVersionConfig()
+	config := server.NewVersionConfig()
 
 	tests := []struct {
 		name           string
@@ -86,7 +87,7 @@ func TestVersioningMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			router := gin.New()
-			router.Use(VersioningMiddleware(config))
+			router.Use(server.VersioningMiddleware(config))
 			router.GET("/*path", func(c *gin.Context) {
 				c.Status(http.StatusOK)
 			})
@@ -110,16 +111,16 @@ func TestVersioningMiddleware(t *testing.T) {
 }
 
 func TestVersioningMiddleware_Deprecation(t *testing.T) {
-	config := NewVersionConfig()
+	config := server.NewVersionConfig()
 
 	// Mark v1 as deprecated
 	sunsetDate := time.Now().AddDate(0, 6, 0) // 6 months from now
-	config.Versions["v1"].Status = VersionStatusDeprecated
+	config.Versions["v1"].Status = server.VersionStatusDeprecated
 	config.Versions["v1"].SunsetDate = &sunsetDate
 	config.Versions["v1"].DeprecationMessage = "Please migrate to v2"
 
 	router := gin.New()
-	router.Use(VersioningMiddleware(config))
+	router.Use(server.VersioningMiddleware(config))
 	router.GET("/*path", func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
@@ -152,13 +153,13 @@ func TestVersioningMiddleware_Deprecation(t *testing.T) {
 }
 
 func TestVersioningMiddleware_Sunset(t *testing.T) {
-	config := NewVersionConfig()
+	config := server.NewVersionConfig()
 
 	// Mark v1 as sunset (removed)
-	config.Versions["v1"].Status = VersionStatusSunset
+	config.Versions["v1"].Status = server.VersionStatusSunset
 
 	router := gin.New()
-	router.Use(VersioningMiddleware(config))
+	router.Use(server.VersioningMiddleware(config))
 	router.GET("/*path", func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
@@ -240,9 +241,9 @@ func TestExtractVersionFromPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := extractVersionFromPath(tt.path)
+			result := server.ExtractVersionFromPath(tt.path)
 			if result != tt.expected {
-				t.Errorf("extractVersionFromPath(%q) = %q, want %q", tt.path, result, tt.expected)
+				t.Errorf("server.ExtractVersionFromPath(%q) = %q, want %q", tt.path, result, tt.expected)
 			}
 		})
 	}
@@ -265,9 +266,9 @@ func TestIsNumeric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := isNumeric(tt.input)
+			result := server.IsNumeric(tt.input)
 			if result != tt.expected {
-				t.Errorf("isNumeric(%q) = %v, want %v", tt.input, result, tt.expected)
+				t.Errorf("server.IsNumeric(%q) = %v, want %v", tt.input, result, tt.expected)
 			}
 		})
 	}
@@ -289,9 +290,9 @@ func TestIsVersionAtLeast(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.current+">="+tt.min, func(t *testing.T) {
-			result := isVersionAtLeast(tt.current, tt.min)
+			result := server.IsVersionAtLeast(tt.current, tt.min)
 			if result != tt.expected {
-				t.Errorf("isVersionAtLeast(%q, %q) = %v, want %v", tt.current, tt.min, result, tt.expected)
+				t.Errorf("server.IsVersionAtLeast(%q, %q) = %v, want %v", tt.current, tt.min, result, tt.expected)
 			}
 		})
 	}
@@ -311,9 +312,9 @@ func TestExtractVersionNumber(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := extractVersionNumber(tt.input)
+			result := server.ExtractVersionNumber(tt.input)
 			if result != tt.expected {
-				t.Errorf("extractVersionNumber(%q) = %d, want %d", tt.input, result, tt.expected)
+				t.Errorf("server.ExtractVersionNumber(%q) = %d, want %d", tt.input, result, tt.expected)
 			}
 		})
 	}
@@ -327,7 +328,7 @@ func TestRequireVersion(t *testing.T) {
 		c.Set("api_version", "v1")
 		c.Next()
 	})
-	router.Use(RequireVersion("v2"))
+	router.Use(server.RequireVersion("v2"))
 	router.GET("/feature", func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
@@ -350,7 +351,7 @@ func TestRequireVersion_Satisfied(t *testing.T) {
 		c.Set("api_version", "v3")
 		c.Next()
 	})
-	router.Use(RequireVersion("v2"))
+	router.Use(server.RequireVersion("v2"))
 	router.GET("/feature", func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
@@ -414,7 +415,7 @@ func TestTenantMiddleware(t *testing.T) {
 				c.Set("api_version", tt.version)
 				c.Next()
 			})
-			router.Use(TenantMiddleware())
+			router.Use(server.TenantMiddleware())
 			router.GET("/test", func(c *gin.Context) {
 				capturedTenant = c.GetString("tenant_id")
 				c.Status(http.StatusOK)
@@ -441,7 +442,7 @@ func TestTenantMiddleware(t *testing.T) {
 }
 
 func TestGetV2Features(t *testing.T) {
-	features := GetV2Features()
+	features := server.GetV2Features()
 
 	if !features.EnhancedFiltering {
 		t.Error("V2 EnhancedFiltering should be true")
@@ -458,7 +459,7 @@ func TestGetV2Features(t *testing.T) {
 }
 
 func TestGetV3Features(t *testing.T) {
-	features := GetV3Features()
+	features := server.GetV3Features()
 
 	// Should include all V2 features
 	if !features.EnhancedFiltering {

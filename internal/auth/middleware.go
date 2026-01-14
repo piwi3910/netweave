@@ -14,8 +14,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// maxDNLength is the maximum allowed length for a DN string.
-const maxDNLength = 2048
+// MaxDNLength is the maximum allowed length for a DN string.
+const MaxDNLength = 2048
 
 // maxDNValueLength is the maximum allowed length for a single DN attribute value.
 const maxDNValueLength = 256
@@ -52,9 +52,9 @@ func DefaultMiddlewareConfig() *MiddlewareConfig {
 // Middleware provides authentication and authorization middleware for Gin.
 type Middleware struct {
 	store            Store
-	config           *MiddlewareConfig
-	logger           *zap.Logger
-	compiledPatterns []*regexp.Regexp // Pre-compiled regex patterns for skip paths
+	Config           *MiddlewareConfig // Exported for testing
+	Logger           *zap.Logger       // Exported for testing
+	compiledPatterns []*regexp.Regexp  // Pre-compiled regex patterns for skip paths
 }
 
 // NewMiddleware creates a new authentication middleware.
@@ -84,8 +84,8 @@ func NewMiddleware(store Store, config *MiddlewareConfig, logger *zap.Logger) *M
 
 	return &Middleware{
 		store:            store,
-		config:           config,
-		logger:           logger,
+		Config:           config,
+		Logger:           logger,
 		compiledPatterns: compiledPatterns,
 	}
 }
@@ -106,7 +106,7 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 		ctx := ContextWithRequestID(c.Request.Context(), requestID)
 		c.Request = c.Request.WithContext(ctx)
 
-		if m.shouldSkipAuth(c.Request.URL.Path) || !m.config.Enabled {
+		if m.ShouldSkipAuth(c.Request.URL.Path) || !m.Config.Enabled {
 			c.Next()
 			return
 		}
@@ -119,10 +119,10 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		subject := m.buildSubject(cert)
-		m.logger.Debug("authenticating client",
-			zap.String("subject", sanitizeForLogging(subject, 200)),
-			zap.String("common_name", sanitizeForLogging(cert.Subject.CommonName, 100)),
+		subject := m.BuildSubject(cert)
+		m.Logger.Debug("authenticating client",
+			zap.String("subject", SanitizeForLogging(subject, 200)),
+			zap.String("common_name", SanitizeForLogging(cert.Subject.CommonName, 100)),
 			zap.String("request_id", requestID),
 		)
 
@@ -137,12 +137,12 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 }
 
 func (m *Middleware) handleMissingCertificate(c *gin.Context, requestID string, authStart time.Time) {
-	if !m.config.RequireMTLS {
+	if !m.Config.RequireMTLS {
 		c.Next()
 		return
 	}
 
-	m.logger.Warn("no client certificate provided",
+	m.Logger.Warn("no client certificate provided",
 		zap.String("path", c.Request.URL.Path),
 		zap.String("client_ip", c.ClientIP()),
 		zap.String("request_id", requestID),
@@ -218,8 +218,8 @@ func (m *Middleware) handleAuthenticationError(
 	switch aErr.kind {
 	case "user_lookup":
 		if errors.Is(aErr.err, ErrUserNotFound) {
-			m.logger.Warn("unknown user certificate",
-				zap.String("subject", sanitizeForLogging(subject, 200)),
+			m.Logger.Warn("unknown user certificate",
+				zap.String("subject", SanitizeForLogging(subject, 200)),
 				zap.String("client_ip", c.ClientIP()),
 				zap.String("request_id", requestID),
 			)
@@ -231,8 +231,8 @@ func (m *Middleware) handleAuthenticationError(
 				gin.H{"error": "Forbidden", "message": "Authentication failed", "code": http.StatusForbidden},
 			)
 		} else {
-			m.logger.Error("failed to lookup user",
-				zap.String("subject", sanitizeForLogging(subject, 200)),
+			m.Logger.Error("failed to lookup user",
+				zap.String("subject", SanitizeForLogging(subject, 200)),
 				zap.Error(aErr.err),
 				zap.String("request_id", requestID),
 			)
@@ -243,9 +243,9 @@ func (m *Middleware) handleAuthenticationError(
 			)
 		}
 	case "user_inactive":
-		m.logger.Warn("inactive user attempted access",
+		m.Logger.Warn("inactive user attempted access",
 			zap.String("user_id", aErr.userID),
-			zap.String("subject", sanitizeForLogging(subject, 200)),
+			zap.String("subject", SanitizeForLogging(subject, 200)),
 			zap.String("request_id", requestID),
 		)
 		m.logAuthFailure(c, subject, "user inactive")
@@ -256,7 +256,7 @@ func (m *Middleware) handleAuthenticationError(
 			gin.H{"error": "Forbidden", "message": "Authentication failed", "code": http.StatusForbidden},
 		)
 	case "role_lookup":
-		m.logger.Error("failed to get user role",
+		m.Logger.Error("failed to get user role",
 			zap.String("user_id", aErr.userID),
 			zap.String("role_id", aErr.roleID),
 			zap.Error(aErr.err),
@@ -273,7 +273,7 @@ func (m *Middleware) handleAuthenticationError(
 		)
 	case "tenant_lookup":
 		if errors.Is(aErr.err, ErrTenantNotFound) {
-			m.logger.Warn("user's tenant not found",
+			m.Logger.Warn("user's tenant not found",
 				zap.String("user_id", aErr.userID),
 				zap.String("tenant_id", aErr.tenantID),
 				zap.String("request_id", requestID),
@@ -285,7 +285,7 @@ func (m *Middleware) handleAuthenticationError(
 				gin.H{"error": "Forbidden", "message": "Authentication failed", "code": http.StatusForbidden},
 			)
 		} else {
-			m.logger.Error("failed to get tenant",
+			m.Logger.Error("failed to get tenant",
 				zap.String("tenant_id", aErr.tenantID),
 				zap.Error(aErr.err),
 				zap.String("request_id", requestID),
@@ -301,7 +301,7 @@ func (m *Middleware) handleAuthenticationError(
 			)
 		}
 	case "tenant_inactive":
-		m.logger.Warn("access to suspended tenant",
+		m.Logger.Warn("access to suspended tenant",
 			zap.String("user_id", aErr.userID),
 			zap.String("tenant_id", aErr.tenantID),
 			zap.String("request_id", requestID),
@@ -347,14 +347,14 @@ func (m *Middleware) finalizeAuthentication(
 		asyncCtx, cancel := context.WithTimeout(context.WithoutCancel(parentCtx), 5*time.Second)
 		defer cancel()
 		if err := m.store.UpdateLastLogin(asyncCtx, id); err != nil {
-			m.logger.Warn("failed to update last login", zap.String("user_id", id), zap.Error(err))
+			m.Logger.Warn("failed to update last login", zap.String("user_id", id), zap.Error(err))
 		}
 	}(ctx, userID)
 
-	m.logger.Info("user authenticated",
+	m.Logger.Info("user authenticated",
 		zap.String("user_id", user.ID),
 		zap.String("tenant_id", user.TenantID),
-		zap.String("role", sanitizeForLogging(string(role.Name), 50)),
+		zap.String("role", SanitizeForLogging(string(role.Name), 50)),
 		zap.String("request_id", requestID),
 	)
 	RecordAuthenticationAttempt("success", "mtls")
@@ -370,7 +370,7 @@ func (m *Middleware) RequirePermission(permission string) gin.HandlerFunc {
 		// Get authenticated user from context.
 		user := UserFromContext(c.Request.Context())
 		if user == nil {
-			m.logger.Warn("no authenticated user in context",
+			m.Logger.Warn("no authenticated user in context",
 				zap.String("path", c.Request.URL.Path),
 				zap.String("request_id", requestID),
 			)
@@ -384,7 +384,7 @@ func (m *Middleware) RequirePermission(permission string) gin.HandlerFunc {
 
 		// Check permission.
 		if !user.HasPermission(Permission(permission)) {
-			m.logger.Warn("permission denied",
+			m.Logger.Warn("permission denied",
 				zap.String("user_id", user.UserID),
 				zap.String("tenant_id", user.TenantID),
 				zap.String("permission", permission),
@@ -430,7 +430,7 @@ func (m *Middleware) RequireAnyPermission(permissions ...Permission) gin.Handler
 			}
 		}
 
-		m.logger.Warn("permission denied (none of required permissions)",
+		m.Logger.Warn("permission denied (none of required permissions)",
 			zap.String("user_id", user.UserID),
 			zap.Strings("required", permissionsToStrings(permissions)),
 			zap.String("path", c.Request.URL.Path),
@@ -461,7 +461,7 @@ func (m *Middleware) RequirePlatformAdmin() gin.HandlerFunc {
 		}
 
 		if !user.IsPlatformAdmin {
-			m.logger.Warn("platform admin access denied",
+			m.Logger.Warn("platform admin access denied",
 				zap.String("user_id", user.UserID),
 				zap.String("tenant_id", user.TenantID),
 				zap.String("path", c.Request.URL.Path),
@@ -505,7 +505,7 @@ func (m *Middleware) RequireTenantAccess(tenantIDParam string) gin.HandlerFunc {
 
 		// Regular users can only access their own tenant.
 		if user.TenantID != targetTenantID {
-			m.logger.Warn("cross-tenant access denied",
+			m.Logger.Warn("cross-tenant access denied",
 				zap.String("user_id", user.UserID),
 				zap.String("user_tenant", user.TenantID),
 				zap.String("target_tenant", targetTenantID),
@@ -557,27 +557,27 @@ func (m *Middleware) extractCertificate(c *gin.Context) *CertificateInfo {
 				Locality:           cert.Subject.Locality,
 			},
 			CommonName: cert.Subject.CommonName,
-			Email:      m.extractEmail(cert.EmailAddresses),
+			Email:      m.ExtractEmail(cert.EmailAddresses),
 		}
 	}
 
 	// Try to get from X-Forwarded-Client-Cert header (Envoy/Istio).
 	xfcc := c.GetHeader("X-Forwarded-Client-Cert")
 	if xfcc != "" {
-		return m.parseXFCCHeader(xfcc)
+		return m.ParseXFCCHeader(xfcc)
 	}
 
 	// Try to get from X-SSL-Client-DN header (Nginx).
 	clientDN := c.GetHeader("X-SSL-Client-DN")
 	if clientDN != "" {
-		return m.parseDNHeader(clientDN)
+		return m.ParseDNHeader(clientDN)
 	}
 
 	return nil
 }
 
-// buildSubject constructs a normalized subject string from certificate info.
-func (m *Middleware) buildSubject(cert *CertificateInfo) string {
+// BuildSubject constructs a normalized subject string from certificate info.
+func (m *Middleware) BuildSubject(cert *CertificateInfo) string {
 	parts := make([]string, 0)
 
 	if cert.Subject.CommonName != "" {
@@ -593,8 +593,8 @@ func (m *Middleware) buildSubject(cert *CertificateInfo) string {
 	return strings.Join(parts, ",")
 }
 
-// parseXFCCHeader parses the X-Forwarded-Client-Cert header.
-func (m *Middleware) parseXFCCHeader(xfcc string) *CertificateInfo {
+// ParseXFCCHeader parses the X-Forwarded-Client-Cert header.
+func (m *Middleware) ParseXFCCHeader(xfcc string) *CertificateInfo {
 	// XFCC format: By=spiffe://..;Hash=...;Subject="CN=...,O=...";URI=spiffe://...
 
 	// Extract Subject field.
@@ -610,11 +610,11 @@ func (m *Middleware) parseXFCCHeader(xfcc string) *CertificateInfo {
 	subject := xfcc[subjectStart : subjectStart+subjectEnd]
 
 	// Parse the subject DN.
-	return m.parseDNHeader(subject)
+	return m.ParseDNHeader(subject)
 }
 
-// parseDNHeader parses a DN (Distinguished Name) string.
-func (m *Middleware) parseDNHeader(dn string) *CertificateInfo {
+// ParseDNHeader parses a DN (Distinguished Name) string.
+func (m *Middleware) ParseDNHeader(dn string) *CertificateInfo {
 	if !m.validateDN(dn) {
 		return nil
 	}
@@ -635,14 +635,14 @@ func (m *Middleware) parseDNHeader(dn string) *CertificateInfo {
 // validateDN validates the DN string format.
 func (m *Middleware) validateDN(dn string) bool {
 	// Validate DN length.
-	if len(dn) == 0 || len(dn) > maxDNLength {
-		m.logger.Warn("invalid DN length", zap.Int("length", len(dn)))
+	if len(dn) == 0 || len(dn) > MaxDNLength {
+		m.Logger.Warn("invalid DN length", zap.Int("length", len(dn)))
 		return false
 	}
 
 	// Check for null bytes or other control characters.
-	if !isValidDNString(dn) {
-		m.logger.Warn("invalid characters in DN string")
+	if !IsValidDNString(dn) {
+		m.Logger.Warn("invalid characters in DN string")
 		return false
 	}
 
@@ -664,12 +664,12 @@ func parseDNParts(dn string, cert *CertificateInfo) {
 		value := strings.TrimSpace(kv[1])
 
 		// Validate key format (should be short attribute name).
-		if len(key) == 0 || len(key) > 20 || !isValidDNKey(key) {
+		if len(key) == 0 || len(key) > 20 || !IsValidDNKey(key) {
 			continue
 		}
 
 		// Validate and sanitize value.
-		value = sanitizeDNValue(value)
+		value = SanitizeDNValue(value)
 		if len(value) == 0 || len(value) > maxDNValueLength {
 			continue
 		}
@@ -699,8 +699,8 @@ func assignDNValueToField(key, value string, cert *CertificateInfo) {
 	}
 }
 
-// isValidDNString checks if the DN string contains only valid characters.
-func isValidDNString(s string) bool {
+// IsValidDNString checks if the DN string contains only valid characters.
+func IsValidDNString(s string) bool {
 	for _, r := range s {
 		// Reject control characters except for common whitespace.
 		if unicode.IsControl(r) && r != '\t' && r != ' ' {
@@ -710,8 +710,8 @@ func isValidDNString(s string) bool {
 	return true
 }
 
-// isValidDNKey checks if the DN attribute key is valid.
-func isValidDNKey(key string) bool {
+// IsValidDNKey checks if the DN attribute key is valid.
+func IsValidDNKey(key string) bool {
 	for _, r := range key {
 		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
 			return false
@@ -720,8 +720,8 @@ func isValidDNKey(key string) bool {
 	return true
 }
 
-// sanitizeDNValue sanitizes a DN attribute value.
-func sanitizeDNValue(value string) string {
+// SanitizeDNValue sanitizes a DN attribute value.
+func SanitizeDNValue(value string) string {
 	// Remove any control characters.
 	var result strings.Builder
 	for _, r := range value {
@@ -732,14 +732,14 @@ func sanitizeDNValue(value string) string {
 	return strings.TrimSpace(result.String())
 }
 
-// sanitizeForLogging sanitizes a string for safe logging by removing control characters
+// SanitizeForLogging sanitizes a string for safe logging by removing control characters
 // and enforcing a maximum length. This prevents log injection attacks and keeps logs readable.
 // Parameters:
 //   - s: the string to sanitize
 //   - maxLen: maximum length (truncated with "..." if exceeded)
 //
 // Returns sanitized string safe for logging.
-func sanitizeForLogging(s string, maxLen int) string {
+func SanitizeForLogging(s string, maxLen int) string {
 	// Remove control characters except space and tab
 	clean := strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) && r != ' ' && r != '\t' {
@@ -755,19 +755,19 @@ func sanitizeForLogging(s string, maxLen int) string {
 	return clean
 }
 
-// extractEmail returns the first email from the list.
-func (m *Middleware) extractEmail(emails []string) string {
+// ExtractEmail returns the first email from the list.
+func (m *Middleware) ExtractEmail(emails []string) string {
 	if len(emails) > 0 {
 		return emails[0]
 	}
 	return ""
 }
 
-// shouldSkipAuth checks if the path should skip authentication.
+// ShouldSkipAuth checks if the path should skip authentication.
 // Uses pre-compiled regex patterns for performance.
-func (m *Middleware) shouldSkipAuth(path string) bool {
+func (m *Middleware) ShouldSkipAuth(path string) bool {
 	// First check exact matches (no wildcard patterns)
-	for _, skipPath := range m.config.SkipPaths {
+	for _, skipPath := range m.Config.SkipPaths {
 		if !strings.Contains(skipPath, "*") && path == skipPath {
 			return true
 		}
@@ -812,10 +812,10 @@ func patternToRegex(pattern string) string {
 	return "^" + regexPattern + "$"
 }
 
-// matchesPathPattern checks if a path matches a pattern with wildcards.
+// MatchesPathPattern checks if a path matches a pattern with wildcards.
 // Used by tests to verify pattern matching logic.
-// Production code uses pre-compiled patterns in shouldSkipAuth for performance.
-func matchesPathPattern(path, pattern string) bool {
+// Production code uses pre-compiled patterns in ShouldSkipAuth for performance.
+func MatchesPathPattern(path, pattern string) bool {
 	// Exact match
 	if path == pattern {
 		return true
@@ -848,7 +848,7 @@ func (m *Middleware) logAuthFailure(c *gin.Context, subject, reason string) {
 	}
 
 	if err := m.store.LogEvent(c.Request.Context(), event); err != nil {
-		m.logger.Warn("failed to log auth failure event", zap.Error(err))
+		m.Logger.Warn("failed to log auth failure event", zap.Error(err))
 	}
 }
 
@@ -871,7 +871,7 @@ func (m *Middleware) logAccessDenied(c *gin.Context, user *AuthenticatedUser, pe
 	}
 
 	if err := m.store.LogEvent(c.Request.Context(), event); err != nil {
-		m.logger.Warn("failed to log access denied event", zap.Error(err))
+		m.Logger.Warn("failed to log access denied event", zap.Error(err))
 	}
 }
 

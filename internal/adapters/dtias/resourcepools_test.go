@@ -1,4 +1,4 @@
-package dtias
+package dtias_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/adapters/dtias"
 )
 
 func TestDTIASAdapter_transformServerPoolToResourcePool(t *testing.T) {
@@ -16,7 +17,7 @@ func TestDTIASAdapter_transformServerPoolToResourcePool(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, adp.Close()) })
 
 	now := time.Now()
-	serverPool := &ServerPool{
+	serverPool := &dtias.ServerPool{
 		ID:               "pool-123",
 		Name:             "Test Pool",
 		Description:      "Test server pool",
@@ -25,7 +26,7 @@ func TestDTIASAdapter_transformServerPoolToResourcePool(t *testing.T) {
 		State:            "active",
 		ServerCount:      10,
 		AvailableServers: 3,
-		Location: Location{
+		Location: dtias.Location{
 			Datacenter: "dc-test-1",
 			City:       "Dallas",
 			Country:    "US",
@@ -40,14 +41,14 @@ func TestDTIASAdapter_transformServerPoolToResourcePool(t *testing.T) {
 		UpdatedAt: now,
 	}
 
-	resourcePool := adp.transformServerPoolToResourcePool(serverPool)
+	resourcePool := adp.TransformServerPoolToResourcePool(serverPool)
 
 	// Verify basic fields
 	assert.Equal(t, "pool-123", resourcePool.ResourcePoolID)
 	assert.Equal(t, "Test Pool", resourcePool.Name)
 	assert.Equal(t, "Test server pool", resourcePool.Description)
 	assert.Equal(t, "Dallas, dc-test-1", resourcePool.Location)
-	assert.Equal(t, adp.oCloudID, resourcePool.OCloudID)
+	assert.Equal(t, adp.OCloudID, resourcePool.OCloudID)
 	assert.Equal(t, "geo:32.776700,-96.797000", resourcePool.GlobalLocationID)
 
 	// Verify extensions

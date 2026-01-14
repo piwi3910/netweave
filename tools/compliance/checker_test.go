@@ -1,10 +1,12 @@
-package compliance
+package compliance_test
 
 import (
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/piwi3910/netweave/tools/compliance"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,14 +49,14 @@ func TestChecker_CheckO2IMS(t *testing.T) {
 	server := httptest.NewServer(mockO2IMSHandler())
 	defer server.Close()
 
-	checker := NewChecker(server.URL, zap.NewNop())
-	spec := SpecVersion{
+	checker := compliance.NewChecker(server.URL, zap.NewNop())
+	spec := compliance.SpecVersion{
 		Name:    "O2-IMS",
 		Version: "v3.0.0",
 		SpecURL: "https://specifications.o-ran.org/o2ims",
 	}
 
-	result, err := checker.checkO2IMS(context.Background(), spec)
+	result, err := checker.CheckO2IMS(context.Background(), spec)
 	require.NoError(t, err)
 
 	// Verify result
@@ -74,19 +76,19 @@ func TestChecker_CheckO2DMS(t *testing.T) {
 	}))
 	defer server.Close()
 
-	checker := NewChecker(server.URL, zap.NewNop())
-	spec := SpecVersion{
+	checker := compliance.NewChecker(server.URL, zap.NewNop())
+	spec := compliance.SpecVersion{
 		Name:    "O2-DMS",
 		Version: "v3.0.0",
 		SpecURL: "https://specifications.o-ran.org/o2dms",
 	}
 
-	result, err := checker.checkO2DMS(context.Background(), spec)
+	result, err := checker.CheckO2DMS(context.Background(), spec)
 	require.NoError(t, err)
 
-	// Verify result - should have low compliance since O2-DMS not implemented
+	// Verify result - should have low compliance.compliance since O2-DMS not implemented
 	assert.Equal(t, "O2-DMS", result.SpecName)
-	assert.Equal(t, ComplianceNone, result.Level)
+	assert.Equal(t, compliance.ComplianceNone, result.Level)
 	// Note: Some endpoints may return non-404 status due to partial implementation
 	assert.Greater(t, result.TotalEndpoints, 0, "Should have tested at least some endpoints")
 	assert.Greater(t, result.FailedEndpoints, 0, "Should have some failures with mock 404 responses")
@@ -113,7 +115,7 @@ func TestChecker_CheckAll(t *testing.T) {
 	}))
 	defer server.Close()
 
-	checker := NewChecker(server.URL, zap.NewNop())
+	checker := compliance.NewChecker(server.URL, zap.NewNop())
 
 	results, err := checker.CheckAll(context.Background())
 	require.NoError(t, err)
@@ -167,7 +169,7 @@ func TestReplacePlaceholders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := replacePlaceholders(tt.path)
+			result := compliance.ReplacePlaceholders(tt.path)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -175,13 +177,13 @@ func TestReplacePlaceholders(t *testing.T) {
 
 func TestEndpointTest_Coverage(t *testing.T) {
 	// Ensure we're testing all required O2-IMS endpoints
-	checker := NewChecker("http://localhost:8080", zap.NewNop())
-	spec := SpecVersion{Name: "O2-IMS", Version: "v3.0.0"}
+	checker := compliance.NewChecker("http://localhost:8080", zap.NewNop())
+	spec := compliance.SpecVersion{Name: "O2-IMS", Version: "v3.0.0"}
 
-	// Get endpoint tests (via checkO2IMS)
+	// Get endpoint tests (via CheckO2IMS)
 	// This verifies that we have comprehensive endpoint coverage
 	ctx := context.Background()
-	_, err := checker.checkO2IMS(ctx, spec)
+	_, err := checker.CheckO2IMS(ctx, spec)
 
 	// Should not error (even if server is down, endpoint definition should work)
 	// Error would indicate a problem with endpoint test definitions

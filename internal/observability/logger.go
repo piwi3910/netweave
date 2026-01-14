@@ -18,8 +18,8 @@ type Logger struct {
 type loggerContextKey struct{}
 
 var (
-	// globalLogger is the default logger instance.
-	globalLogger *Logger
+	// GlobalLogger is the default logger instance. Exported for testing.
+	GlobalLogger *Logger
 )
 
 // InitLogger initializes the global logger with the specified environment
@@ -58,7 +58,7 @@ func InitLogger(env string) (*Logger, error) {
 	}
 
 	logger := &Logger{Logger: zapLogger}
-	globalLogger = logger
+	GlobalLogger = logger
 
 	return logger, nil
 }
@@ -66,16 +66,16 @@ func InitLogger(env string) (*Logger, error) {
 // GetLogger returns the global logger instance
 // Panics if InitLogger has not been called.
 func GetLogger() *Logger {
-	if globalLogger == nil {
+	if GlobalLogger == nil {
 		panic("logger not initialized - call InitLogger first")
 	}
-	return globalLogger
+	return GlobalLogger
 }
 
 // WithContext creates a new logger with fields from contex.
 func (l *Logger) WithContext(ctx context.Context) *Logger {
 	// Extract request ID, trace ID, or other contextual information
-	fields := extractContextFields(ctx)
+	fields := ExtractContextFields(ctx)
 	if len(fields) > 0 {
 		return &Logger{Logger: l.With(fields...)}
 	}
@@ -113,7 +113,7 @@ func LoggerFromContext(ctx context.Context) *Logger {
 
 // extractContextFields extracts logging fields from context
 // This can be extended to include request ID, trace ID, user ID, etc.
-func extractContextFields(_ context.Context) []zap.Field {
+func ExtractContextFields(_ context.Context) []zap.Field {
 	var fields []zap.Field
 
 	// Example: Extract request ID if available

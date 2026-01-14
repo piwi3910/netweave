@@ -1,4 +1,4 @@
-package handlers
+package handlers_test
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/handlers"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -37,21 +39,21 @@ func TestNewDeploymentManagerHandler(t *testing.T) {
 	mockAdapter := &mockDeploymentManagerAdapter{}
 
 	t.Run("valid creation", func(t *testing.T) {
-		handler := NewDeploymentManagerHandler(mockAdapter, logger)
+		handler := handlers.NewDeploymentManagerHandler(mockAdapter, logger)
 		assert.NotNil(t, handler)
-		assert.Equal(t, mockAdapter, handler.adapter)
-		assert.Equal(t, logger, handler.logger)
+		assert.Equal(t, mockAdapter, handler.Adapter)
+		assert.Equal(t, logger, handler.Logger)
 	})
 
 	t.Run("nil adapter panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewDeploymentManagerHandler(nil, logger)
+			handlers.NewDeploymentManagerHandler(nil, logger)
 		})
 	})
 
 	t.Run("nil logger panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewDeploymentManagerHandler(mockAdapter, nil)
+			handlers.NewDeploymentManagerHandler(mockAdapter, nil)
 		})
 	})
 }
@@ -141,7 +143,7 @@ func TestListDeploymentManagers(t *testing.T) {
 			mockAdapter := &mockDeploymentManagerAdapter{
 				getDeploymentManagerFunc: tt.mockFunc,
 			}
-			handler := NewDeploymentManagerHandler(mockAdapter, logger)
+			handler := handlers.NewDeploymentManagerHandler(mockAdapter, logger)
 
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
@@ -243,7 +245,7 @@ func TestGetDeploymentManager(t *testing.T) {
 			mockAdapter := &mockDeploymentManagerAdapter{
 				getDeploymentManagerFunc: tt.mockFunc,
 			}
-			handler := NewDeploymentManagerHandler(mockAdapter, logger)
+			handler := handlers.NewDeploymentManagerHandler(mockAdapter, logger)
 
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)

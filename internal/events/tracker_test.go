@@ -1,9 +1,11 @@
-package events
+package events_test
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/events"
 
 	"github.com/alicebob/miniredis/v2"
 	redis "github.com/redis/go-redis/v9"
@@ -11,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestTracker(t *testing.T) (*RedisDeliveryTracker, *miniredis.Miniredis) {
+func setupTestTracker(t *testing.T) (*events.RedisDeliveryTracker, *miniredis.Miniredis) {
 	t.Helper()
 
 	mr := miniredis.RunT(t)
@@ -19,7 +21,7 @@ func setupTestTracker(t *testing.T) (*RedisDeliveryTracker, *miniredis.Miniredis
 		Addr: mr.Addr(),
 	})
 
-	tracker := NewRedisDeliveryTracker(client)
+	tracker := events.NewRedisDeliveryTracker(client)
 
 	return tracker, mr
 }
@@ -34,7 +36,7 @@ func TestNewRedisDeliveryTracker(t *testing.T) {
 
 	t.Run("nil client panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewRedisDeliveryTracker(nil)
+			events.NewRedisDeliveryTracker(nil)
 		})
 	})
 }
@@ -42,18 +44,18 @@ func TestNewRedisDeliveryTracker(t *testing.T) {
 func TestRedisDeliveryTrackerTrack(t *testing.T) {
 	tests := []struct {
 		name     string
-		delivery *NotificationDelivery
+		delivery *events.NotificationDelivery
 		wantErr  bool
 		errMsg   string
 	}{
 		{
 			name: "valid delivery",
-			delivery: &NotificationDelivery{
+			delivery: &events.NotificationDelivery{
 				ID:             "delivery-123",
 				EventID:        "event-456",
 				SubscriptionID: "sub-789",
 				CallbackURL:    "https://example.com/callback",
-				Status:         DeliveryStatusPending,
+				Status:         events.DeliveryStatusPending,
 				Attempts:       0,
 				MaxAttempts:    3,
 				CreatedAt:      time.Now().UTC(),
@@ -68,11 +70,11 @@ func TestRedisDeliveryTrackerTrack(t *testing.T) {
 		},
 		{
 			name: "empty delivery ID",
-			delivery: &NotificationDelivery{
+			delivery: &events.NotificationDelivery{
 				ID:             "",
 				EventID:        "event-456",
 				SubscriptionID: "sub-789",
-				Status:         DeliveryStatusPending,
+				Status:         events.DeliveryStatusPending,
 			},
 			wantErr: true,
 			errMsg:  "delivery ID cannot be empty",
@@ -105,12 +107,12 @@ func TestRedisDeliveryTrackerGet(t *testing.T) {
 		ctx := context.Background()
 
 		// Track a delivery
-		delivery := &NotificationDelivery{
+		delivery := &events.NotificationDelivery{
 			ID:             "delivery-123",
 			EventID:        "event-456",
 			SubscriptionID: "sub-789",
 			CallbackURL:    "https://example.com/callback",
-			Status:         DeliveryStatusDelivered,
+			Status:         events.DeliveryStatusDelivered,
 			Attempts:       1,
 			MaxAttempts:    3,
 			CreatedAt:      time.Now().UTC(),
@@ -159,11 +161,11 @@ func TestRedisDeliveryTrackerListByEvent(t *testing.T) {
 
 		// Track multiple deliveries for the same event
 		for i := 0; i < 3; i++ {
-			delivery := &NotificationDelivery{
+			delivery := &events.NotificationDelivery{
 				ID:             "delivery-" + string(rune('1'+i)),
 				EventID:        eventID,
 				SubscriptionID: "sub-" + string(rune('1'+i)),
-				Status:         DeliveryStatusDelivered,
+				Status:         events.DeliveryStatusDelivered,
 				CreatedAt:      time.Now().UTC(),
 			}
 			err := tracker.Track(ctx, delivery)
@@ -195,10 +197,10 @@ func TestRedisDeliveryTrackerListFailed(t *testing.T) {
 		ctx := context.Background()
 
 		// Track successful delivery
-		successDelivery := &NotificationDelivery{
+		successDelivery := &events.NotificationDelivery{
 			ID:          "delivery-success",
 			EventID:     "event-1",
-			Status:      DeliveryStatusDelivered,
+			Status:      events.DeliveryStatusDelivered,
 			CreatedAt:   time.Now().UTC(),
 			CompletedAt: time.Now().UTC(),
 		}
@@ -206,10 +208,10 @@ func TestRedisDeliveryTrackerListFailed(t *testing.T) {
 		require.NoError(t, err)
 
 		// Track failed delivery
-		failedDelivery := &NotificationDelivery{
+		failedDelivery := &events.NotificationDelivery{
 			ID:          "delivery-failed",
 			EventID:     "event-2",
-			Status:      DeliveryStatusFailed,
+			Status:      events.DeliveryStatusFailed,
 			CreatedAt:   time.Now().UTC(),
 			CompletedAt: time.Now().UTC(),
 		}

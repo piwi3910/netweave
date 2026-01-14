@@ -1,4 +1,4 @@
-package osm
+package osm_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/smo/adapters/osm"
 
 	"github.com/piwi3910/netweave/internal/smo"
 )
@@ -77,13 +79,13 @@ func TestSyncInfrastructureInventory(t *testing.T) {
 func TestCreateVIMAccount(t *testing.T) {
 	tests := []struct {
 		name    string
-		vim     *VIMAccount
+		vim     *osm.VIMAccount
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "valid VIM account",
-			vim: &VIMAccount{
+			vim: &osm.VIMAccount{
 				Name:        "k8s-vim",
 				VIMType:     "kubernetes",
 				VIMURL:      "https://k8s.example.com:6443",
@@ -100,7 +102,7 @@ func TestCreateVIMAccount(t *testing.T) {
 		},
 		{
 			name: "missing VIM name",
-			vim: &VIMAccount{
+			vim: &osm.VIMAccount{
 				VIMType:     "kubernetes",
 				VIMURL:      "https://k8s.example.com:6443",
 				VIMUser:     "admin",
@@ -111,7 +113,7 @@ func TestCreateVIMAccount(t *testing.T) {
 		},
 		{
 			name: "missing VIM type",
-			vim: &VIMAccount{
+			vim: &osm.VIMAccount{
 				Name:        "k8s-vim",
 				VIMURL:      "https://k8s.example.com:6443",
 				VIMUser:     "admin",
@@ -122,7 +124,7 @@ func TestCreateVIMAccount(t *testing.T) {
 		},
 		{
 			name: "missing VIM URL",
-			vim: &VIMAccount{
+			vim: &osm.VIMAccount{
 				Name:        "k8s-vim",
 				VIMType:     "kubernetes",
 				VIMUser:     "admin",
@@ -165,7 +167,7 @@ func TestCreateVIMAccount(t *testing.T) {
 func TestTransformVIMAccountVariations(t *testing.T) {
 	tests := []struct {
 		name     string
-		pool     *ResourcePool
+		pool     *osm.ResourcePool
 		vimType  string
 		vimURL   string
 		username string
@@ -178,7 +180,7 @@ func TestTransformVIMAccountVariations(t *testing.T) {
 	}{
 		{
 			name: "full resource pool",
-			pool: &ResourcePool{
+			pool: &osm.ResourcePool{
 				ID:          "pool-1",
 				Name:        "production-pool",
 				Description: "Production infrastructure",
@@ -200,7 +202,7 @@ func TestTransformVIMAccountVariations(t *testing.T) {
 		},
 		{
 			name: "minimal resource pool",
-			pool: &ResourcePool{
+			pool: &osm.ResourcePool{
 				ID:   "pool-2",
 				Name: "dev-pool",
 			},
@@ -218,7 +220,7 @@ func TestTransformVIMAccountVariations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			vim := TransformVIMAccount(tt.pool, tt.vimType, tt.vimURL, tt.username, tt.password)
+			vim := osm.TransformVIMAccount(tt.pool, tt.vimType, tt.vimURL, tt.username, tt.password)
 
 			validateVIMAccountFields(t, vim, tt.pool, tt.wantName, tt.wantType, tt.wantURL, tt.wantUser, tt.wantPass)
 			validateVIMAccountConfig(t, vim, tt.pool)
@@ -229,8 +231,8 @@ func TestTransformVIMAccountVariations(t *testing.T) {
 // validateVIMAccountFields validates the main fields of a VIM account.
 func validateVIMAccountFields(
 	t *testing.T,
-	vim *VIMAccount,
-	pool *ResourcePool,
+	vim *osm.VIMAccount,
+	pool *osm.ResourcePool,
 	wantName,
 	wantType,
 	wantURL,
@@ -260,18 +262,18 @@ func validateVIMAccountFields(
 }
 
 // validateVIMAccountConfig validates the configuration and extensions of a VIM account.
-func validateVIMAccountConfig(t *testing.T, vim *VIMAccount, pool *ResourcePool) {
+func validateVIMAccountConfig(t *testing.T, vim *osm.VIMAccount, pool *osm.ResourcePool) {
 	t.Helper()
 
 	if vim.Config == nil {
-		t.Fatal("VIM Config should not be nil")
+		t.Fatal("VIM osm.Config should not be nil")
 	}
 
 	// Verify extensions were copied
 	if pool.Extensions != nil {
 		for k, v := range pool.Extensions {
 			if vim.Config[k] != v {
-				t.Errorf("VIM Config[%s] = %v, want %v", k, vim.Config[k], v)
+				t.Errorf("VIM osm.Config[%s] = %v, want %v", k, vim.Config[k], v)
 			}
 		}
 	}
@@ -279,7 +281,7 @@ func validateVIMAccountConfig(t *testing.T, vim *VIMAccount, pool *ResourcePool)
 	// Verify location was added if present
 	if pool.Location != "" {
 		if vim.Config["location"] != pool.Location {
-			t.Errorf("VIM Config[location] = %v, want %v", vim.Config["location"], pool.Location)
+			t.Errorf("VIM osm.Config[location] = %v, want %v", vim.Config["location"], pool.Location)
 		}
 	}
 }
@@ -297,7 +299,7 @@ func TestPublishInfrastructureEvent(t *testing.T) {
 			event: &smo.InfrastructureEvent{
 				EventID:      "event-1",
 				EventType:    "ResourceCreated",
-				ResourceType: "ResourcePool",
+				ResourceType: "osm.ResourcePool",
 				ResourceID:   "pool-123",
 				Timestamp:    time.Now(),
 			},
@@ -330,7 +332,7 @@ func TestPublishInfrastructureEvent(t *testing.T) {
 			t.Cleanup(func() { server.Close() })
 
 			plugin := createTestPlugin(t, server.URL)
-			plugin.config.EnableEventPublish = tt.enableEventPublish
+			plugin.Config.EnableEventPublish = tt.enableEventPublish
 
 			ctx := context.Background()
 			err := plugin.PublishInfrastructureEvent(ctx, tt.event)
@@ -386,7 +388,7 @@ func handleMockHealthCheck(w http.ResponseWriter) {
 
 // handleMockCreateVIM handles mock VIM account creation.
 func handleMockCreateVIM(w http.ResponseWriter, r *http.Request) {
-	var vim VIMAccount
+	var vim osm.VIMAccount
 	if err := json.NewDecoder(r.Body).Decode(&vim); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -399,7 +401,7 @@ func handleMockCreateVIM(w http.ResponseWriter, r *http.Request) {
 // handleMockListVIM handles mock VIM account listing.
 func handleMockListVIM(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode([]*VIMAccount{})
+	_ = json.NewEncoder(w).Encode([]*osm.VIMAccount{})
 }
 
 // handleMockNotFound handles mock 404 responses.
@@ -412,9 +414,9 @@ func handleMockNotFound(w http.ResponseWriter, r *http.Request) {
 }
 
 // createTestPlugin creates a plugin configured for testing.
-func createTestPlugin(t *testing.T, serverURL string) *Plugin {
+func createTestPlugin(t *testing.T, serverURL string) *osm.Plugin {
 	t.Helper()
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:              serverURL,
 		Username:            "admin",
 		Password:            "secret",
@@ -424,14 +426,14 @@ func createTestPlugin(t *testing.T, serverURL string) *Plugin {
 		EnableEventPublish:  true,
 	}
 
-	plugin, err := NewPlugin(config)
+	plugin, err := osm.NewPlugin(config)
 	if err != nil {
 		t.Fatalf("Failed to create test plugin: %v", err)
 	}
 
 	// Authenticate for tests
 	ctx := context.Background()
-	if err := plugin.client.Authenticate(ctx); err != nil {
+	if err := plugin.Client.Authenticate(ctx); err != nil {
 		t.Logf("Warning: Authentication failed in test setup: %v", err)
 		// Don't fail - some tests may not need authentication
 	}

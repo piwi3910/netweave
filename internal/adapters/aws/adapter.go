@@ -44,28 +44,28 @@ type Adapter struct {
 	asgClient *autoscaling.Client
 
 	// logger provides structured logging.
-	logger *zap.Logger
+	Logger *zap.Logger
 
 	// oCloudID is the identifier of the parent O-Cloud.
-	oCloudID string
+	OCloudID string
 
 	// deploymentManagerID is the identifier for this deployment manager.
-	deploymentManagerID string
+	DeploymentManagerID string
 
 	// region is the AWS region this adapter manages.
-	region string
+	Region string
 
 	// subscriptions holds active subscriptions (polling-based fallback).
 	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
 	// For production use, consider implementing persistent storage via Redis.
-	subscriptions map[string]*adapter.Subscription
+	Subscriptions map[string]*adapter.Subscription
 
 	// subscriptionsMu protects the subscriptions map.
-	subscriptionsMu sync.RWMutex
+	SubscriptionsMu sync.RWMutex
 
 	// poolMode determines how resource pools are mapped.
 	// "az" maps to Availability Zones, "asg" maps to Auto Scaling Groups.
-	poolMode string
+	PoolMode string
 }
 
 // Config holds configuration for creating an AWSAdapter.
@@ -149,12 +149,12 @@ func New(cfg *Config) (*Adapter, error) {
 	return &Adapter{
 		ec2Client:           ec2.NewFromConfig(awsCfg),
 		asgClient:           autoscaling.NewFromConfig(awsCfg),
-		logger:              logger,
-		oCloudID:            cfg.OCloudID,
-		deploymentManagerID: deploymentManagerID,
-		region:              cfg.Region,
-		subscriptions:       make(map[string]*adapter.Subscription),
-		poolMode:            poolMode,
+		Logger:              logger,
+		OCloudID:            cfg.OCloudID,
+		DeploymentManagerID: deploymentManagerID,
+		Region:              cfg.Region,
+		Subscriptions:       make(map[string]*adapter.Subscription),
+		PoolMode:            poolMode,
 	}, nil
 }
 
@@ -205,7 +205,7 @@ func initializeLogger(logger *zap.Logger) (*zap.Logger, error) {
 	}
 	logger, err := zap.NewProduction()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create logger: %w", err)
+		return nil, fmt.Errorf("failed to create Logger: %w", err)
 	}
 	return logger, nil
 }
@@ -264,7 +264,7 @@ func (a *Adapter) Health(ctx context.Context) error {
 	var err error
 	defer func() { adapter.ObserveHealthCheck("aws", start, err) }()
 
-	a.logger.Debug("health check called")
+	a.Logger.Debug("health check called")
 
 	// Use a timeout to prevent indefinite blocking
 	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -272,10 +272,10 @@ func (a *Adapter) Health(ctx context.Context) error {
 
 	// Check EC2 service by describing regions
 	_, err = a.ec2Client.DescribeRegions(healthCtx, &ec2.DescribeRegionsInput{
-		RegionNames: []string{a.region},
+		RegionNames: []string{a.Region},
 	})
 	if err != nil {
-		a.logger.Error("EC2 health check failed", zap.Error(err))
+		a.Logger.Error("EC2 health check failed", zap.Error(err))
 		err = fmt.Errorf("ec2 API unreachable: %w", err)
 		return err
 	}
@@ -283,53 +283,53 @@ func (a *Adapter) Health(ctx context.Context) error {
 	// Check Auto Scaling service by describing account limits
 	_, err = a.asgClient.DescribeAccountLimits(healthCtx, &autoscaling.DescribeAccountLimitsInput{})
 	if err != nil {
-		a.logger.Error("Auto Scaling health check failed", zap.Error(err))
+		a.Logger.Error("Auto Scaling health check failed", zap.Error(err))
 		err = fmt.Errorf("auto scaling API unreachable: %w", err)
 		return err
 	}
 
-	a.logger.Debug("health check passed")
+	a.Logger.Debug("health check passed")
 	return nil
 }
 
 // Close cleanly shuts down the adapter and releases resources.
 func (a *Adapter) Close() error {
-	a.logger.Info("closing AWS adapter")
+	a.Logger.Info("closing AWS adapter")
 
 	// Clear subscriptions
-	a.subscriptionsMu.Lock()
-	a.subscriptions = make(map[string]*adapter.Subscription)
-	a.subscriptionsMu.Unlock()
+	a.SubscriptionsMu.Lock()
+	a.Subscriptions = make(map[string]*adapter.Subscription)
+	a.SubscriptionsMu.Unlock()
 
 	// Sync logger before shutdown
 	// Ignore sync errors on stderr/stdout
-	_ = a.logger.Sync()
+	_ = a.Logger.Sync()
 
 	return nil
 }
 
 // generateInstanceTypeID generates a consistent resource type ID for an instance type.
-func generateInstanceTypeID(instanceType string) string {
+func GenerateInstanceTypeID(instanceType string) string {
 	return fmt.Sprintf("aws-instance-type-%s", instanceType)
 }
 
 // generateInstanceID generates a consistent resource ID for an EC2 instance.
-func generateInstanceID(instanceID string) string {
+func GenerateInstanceID(instanceID string) string {
 	return fmt.Sprintf("aws-instance-%s", instanceID)
 }
 
 // generateAZPoolID generates a consistent resource pool ID for an Availability Zone.
-func generateAZPoolID(az string) string {
+func GenerateAZPoolID(az string) string {
 	return fmt.Sprintf("aws-az-%s", az)
 }
 
 // generateASGPoolID generates a consistent resource pool ID for an Auto Scaling Group.
-func generateASGPoolID(asgName string) string {
+func GenerateASGPoolID(asgName string) string {
 	return fmt.Sprintf("aws-asg-%s", asgName)
 }
 
 // extractTagValue extracts a value from AWS tags.
-func extractTagValue(tags []ec2Types.Tag, key string) string {
+func ExtractTagValue(tags []ec2Types.Tag, key string) string {
 	for _, tag := range tags {
 		if aws.ToString(tag.Key) == key {
 			return aws.ToString(tag.Value)
@@ -339,7 +339,7 @@ func extractTagValue(tags []ec2Types.Tag, key string) string {
 }
 
 // tagsToMap converts AWS tags to a map.
-func tagsToMap(tags []ec2Types.Tag) map[string]string {
+func TagsToMap(tags []ec2Types.Tag) map[string]string {
 	result := make(map[string]string)
 	for _, tag := range tags {
 		result[aws.ToString(tag.Key)] = aws.ToString(tag.Value)

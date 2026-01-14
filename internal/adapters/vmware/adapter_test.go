@@ -1,4 +1,4 @@
-package vmware
+package vmware_test
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+
+	"github.com/piwi3910/netweave/internal/adapters/vmware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -15,7 +17,7 @@ import (
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *vmware.Config
 		wantErr bool
 		errMsg  string
 	}{
@@ -27,7 +29,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing vCenterURL",
-			config: &Config{
+			config: &vmware.Config{
 				Username:   "admin",
 				Password:   "password",
 				Datacenter: "DC1",
@@ -38,7 +40,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing username",
-			config: &Config{
+			config: &vmware.Config{
 				VCenterURL: "https://vcenter.example.com/sdk",
 				Password:   "password",
 				Datacenter: "DC1",
@@ -49,7 +51,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing password",
-			config: &Config{
+			config: &vmware.Config{
 				VCenterURL: "https://vcenter.example.com/sdk",
 				Username:   "admin",
 				Datacenter: "DC1",
@@ -60,7 +62,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing datacenter",
-			config: &Config{
+			config: &vmware.Config{
 				VCenterURL: "https://vcenter.example.com/sdk",
 				Username:   "admin",
 				Password:   "password",
@@ -71,7 +73,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing oCloudID",
-			config: &Config{
+			config: &vmware.Config{
 				VCenterURL: "https://vcenter.example.com/sdk",
 				Username:   "admin",
 				Password:   "password",
@@ -82,7 +84,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "invalid pool mode",
-			config: &Config{
+			config: &vmware.Config{
 				VCenterURL: "https://vcenter.example.com/sdk",
 				Username:   "admin",
 				Password:   "password",
@@ -97,7 +99,7 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := New(tt.config)
+			adp, err := vmware.New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -116,8 +118,8 @@ func TestNew(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	adp := &Adapter{
-		logger: zap.NewNop(),
+	adp := &vmware.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	t.Run("Name", func(t *testing.T) {
@@ -149,7 +151,7 @@ func TestMetadata(t *testing.T) {
 
 // TestGenerateIDs tests ID generation functions.
 func TestGenerateIDs(t *testing.T) {
-	t.Run("generateVMProfileID", func(t *testing.T) {
+	t.Run("vmware.GenerateVMProfileID", func(t *testing.T) {
 		tests := []struct {
 			cpus     int32
 			memoryMB int64
@@ -161,7 +163,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateVMProfileID(tt.cpus, tt.memoryMB)
+			got := vmware.GenerateVMProfileID(tt.cpus, tt.memoryMB)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -177,7 +179,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateVMID(tt.vmName, tt.clusterOrPool)
+			got := vmware.GenerateVMID(tt.vmName, tt.clusterOrPool)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -192,7 +194,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateClusterPoolID(tt.clusterName)
+			got := vmware.GenerateClusterPoolID(tt.clusterName)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -208,7 +210,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateResourcePoolID(tt.poolName, tt.clusterName)
+			got := vmware.GenerateResourcePoolID(tt.poolName, tt.clusterName)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -216,9 +218,9 @@ func TestGenerateIDs(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
+	adp := &vmware.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
 	}
 	ctx := context.Background()
 
@@ -291,12 +293,12 @@ func TestSubscriptions(t *testing.T) {
 
 // TestCreateResourceType tests resource type creation.
 func TestCreateResourceType(t *testing.T) {
-	adp := &Adapter{
-		logger: zap.NewNop(),
+	adp := &vmware.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	t.Run("creates valid resource type", func(t *testing.T) {
-		rt := adp.createResourceType(4, 8192)
+		rt := adp.CreateResourceType(4, 8192)
 
 		assert.Equal(t, "vmware-profile-4cpu-8192MB", rt.ResourceTypeID)
 		assert.Equal(t, "VM-4cpu-8GB", rt.Name)
@@ -310,11 +312,11 @@ func TestCreateResourceType(t *testing.T) {
 
 // TestGetDefaultResourceTypes tests default resource type generation.
 func TestGetDefaultResourceTypes(t *testing.T) {
-	adp := &Adapter{
-		logger: zap.NewNop(),
+	adp := &vmware.Adapter{
+		Logger: zap.NewNop(),
 	}
 
-	rts := adp.getDefaultResourceTypes()
+	rts := adp.GetDefaultResourceTypes()
 
 	assert.Len(t, rts, 10)
 
@@ -327,7 +329,7 @@ func TestGetDefaultResourceTypes(t *testing.T) {
 
 // TestVMwareAdapter_Health tests the Health function.
 func TestVMwareAdapter_Health(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := vmware.New(&vmware.Config{
 		VCenterURL: "https://vcenter.example.com",
 		Username:   "test",
 		Password:   "test",
@@ -349,7 +351,7 @@ func TestVMwareAdapter_Health(t *testing.T) {
 
 // TestVMwareAdapter_ListResourcePools tests the ListResourcePools function.
 func TestVMwareAdapter_ListResourcePools(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := vmware.New(&vmware.Config{
 		VCenterURL: "https://vcenter.example.com",
 		Username:   "test",
 		Password:   "test",
@@ -372,7 +374,7 @@ func TestVMwareAdapter_ListResourcePools(t *testing.T) {
 
 // TestVMwareAdapter_ListResources tests the ListResources function.
 func TestVMwareAdapter_ListResources(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := vmware.New(&vmware.Config{
 		VCenterURL: "https://vcenter.example.com",
 		Username:   "test",
 		Password:   "test",
@@ -395,7 +397,7 @@ func TestVMwareAdapter_ListResources(t *testing.T) {
 
 // TestVMwareAdapter_ListResourceTypes tests the ListResourceTypes function.
 func TestVMwareAdapter_ListResourceTypes(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := vmware.New(&vmware.Config{
 		VCenterURL: "https://vcenter.example.com",
 		Username:   "test",
 		Password:   "test",
@@ -418,7 +420,7 @@ func TestVMwareAdapter_ListResourceTypes(t *testing.T) {
 
 // TestVMwareAdapter_GetDeploymentManager tests the GetDeploymentManager function.
 func TestVMwareAdapter_GetDeploymentManager(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := vmware.New(&vmware.Config{
 		VCenterURL: "https://vcenter.example.com",
 		Username:   "test",
 		Password:   "test",

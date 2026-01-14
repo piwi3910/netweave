@@ -1,10 +1,11 @@
-package openstack
+package openstack_test
 
 import (
 	"fmt"
 	"testing"
 
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/flavors"
+	"github.com/piwi3910/netweave/internal/adapters/openstack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -12,8 +13,8 @@ import (
 
 // TestTransformFlavorToResourceType tests the transformation from OpenStack flavor to O2-IMS resource type.
 func TestTransformFlavorToResourceType(t *testing.T) {
-	adapter := &Adapter{
-		logger: zap.NewNop(),
+	adapter := &openstack.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	osFlavor := &flavors.Flavor{
@@ -28,7 +29,7 @@ func TestTransformFlavorToResourceType(t *testing.T) {
 		RxTxFactor: 1.0,
 	}
 
-	resourceType := adapter.transformFlavorToResourceType(osFlavor)
+	resourceType := adapter.TransformFlavorToResourceType(osFlavor)
 
 	// Test basic fields
 	assert.Equal(t, "openstack-flavor-m1.small", resourceType.ResourceTypeID)
@@ -61,8 +62,8 @@ func TestTransformFlavorToResourceType(t *testing.T) {
 
 // TestTransformFlavorToResourceTypeMinimal tests transformation with minimal data.
 func TestTransformFlavorToResourceTypeMinimal(t *testing.T) {
-	adapter := &Adapter{
-		logger: zap.NewNop(),
+	adapter := &openstack.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	osFlavor := &flavors.Flavor{
@@ -70,7 +71,7 @@ func TestTransformFlavorToResourceTypeMinimal(t *testing.T) {
 		Name: "minimal",
 	}
 
-	resourceType := adapter.transformFlavorToResourceType(osFlavor)
+	resourceType := adapter.TransformFlavorToResourceType(osFlavor)
 
 	assert.Equal(t, "openstack-flavor-minimal-flavor", resourceType.ResourceTypeID)
 	assert.Equal(t, "minimal", resourceType.Name)
@@ -80,8 +81,8 @@ func TestTransformFlavorToResourceTypeMinimal(t *testing.T) {
 
 // TestTransformFlavorToResourceTypeStorageClass tests resource class determination.
 func TestTransformFlavorToResourceTypeStorageClass(t *testing.T) {
-	adapter := &Adapter{
-		logger: zap.NewNop(),
+	adapter := &openstack.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	tests := []struct {
@@ -122,7 +123,7 @@ func TestTransformFlavorToResourceTypeStorageClass(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resourceType := adapter.transformFlavorToResourceType(tt.flavor)
+			resourceType := adapter.TransformFlavorToResourceType(tt.flavor)
 			assert.Equal(t, tt.wantClass, resourceType.ResourceClass)
 		})
 	}
@@ -160,7 +161,7 @@ func TestResourceTypeIDGeneration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			flavor := &flavors.Flavor{ID: tt.flavorID}
-			got := generateFlavorID(flavor)
+			got := openstack.GenerateFlavorID(flavor)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -216,8 +217,8 @@ func TestResourceTypeIDParsing(t *testing.T) {
 
 // TestFlavorDescriptionGeneration tests description generation.
 func TestFlavorDescriptionGeneration(t *testing.T) {
-	adapter := &Adapter{
-		logger: zap.NewNop(),
+	adapter := &openstack.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	tests := []struct {
@@ -246,7 +247,7 @@ func TestFlavorDescriptionGeneration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resourceType := adapter.transformFlavorToResourceType(tt.flavor)
+			resourceType := adapter.TransformFlavorToResourceType(tt.flavor)
 			for _, substr := range tt.want {
 				assert.Contains(t, resourceType.Description, substr)
 			}
@@ -256,8 +257,8 @@ func TestFlavorDescriptionGeneration(t *testing.T) {
 
 // TestFlavorExtraSpecs tests extra specs handling.
 func TestFlavorExtraSpecs(t *testing.T) {
-	adapter := &Adapter{
-		logger: zap.NewNop(),
+	adapter := &openstack.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	t.Run("flavor with extra specs", func(t *testing.T) {
@@ -269,7 +270,7 @@ func TestFlavorExtraSpecs(t *testing.T) {
 			Disk:  100,
 		}
 
-		resourceType := adapter.transformFlavorToResourceType(flavor)
+		resourceType := adapter.TransformFlavorToResourceType(flavor)
 
 		// Extra specs are not currently supported in the basic transformation
 		// as they require separate API calls using flavors/extraspecs package
@@ -288,7 +289,7 @@ func TestFlavorExtraSpecs(t *testing.T) {
 			Name: "without-specs",
 		}
 
-		resourceType := adapter.transformFlavorToResourceType(flavor)
+		resourceType := adapter.TransformFlavorToResourceType(flavor)
 
 		// Extra specs should not be present in extensions
 		_, ok := resourceType.Extensions["openstack.extraSpecs"]
@@ -301,7 +302,7 @@ func TestFlavorExtraSpecs(t *testing.T) {
 			Name: "empty-specs",
 		}
 
-		resourceType := adapter.transformFlavorToResourceType(flavor)
+		resourceType := adapter.TransformFlavorToResourceType(flavor)
 
 		// Empty extra specs should not be present in extensions
 		_, ok := resourceType.Extensions["openstack.extraSpecs"]
@@ -311,9 +312,9 @@ func TestFlavorExtraSpecs(t *testing.T) {
 
 // BenchmarkTransformFlavorToResourceType benchmarks the transformation.
 func BenchmarkTransformFlavorToResourceType(b *testing.B) {
-	adp := &Adapter{
-		oCloudID: "ocloud-test",
-		logger:   zap.NewNop(),
+	adp := &openstack.Adapter{
+		OCloudID: "ocloud-test",
+		Logger:   zap.NewNop(),
 	}
 
 	osFlavor := &flavors.Flavor{
@@ -330,7 +331,7 @@ func BenchmarkTransformFlavorToResourceType(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		adp.transformFlavorToResourceType(osFlavor)
+		adp.TransformFlavorToResourceType(osFlavor)
 	}
 }
 
@@ -342,6 +343,6 @@ func BenchmarkGenerateFlavorID(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		generateFlavorID(flavor)
+		openstack.GenerateFlavorID(flavor)
 	}
 }

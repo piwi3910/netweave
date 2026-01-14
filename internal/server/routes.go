@@ -62,7 +62,7 @@ func (s *Server) setupRoutes() {
 	s.router.GET("/", s.handleRoot)
 
 	// Documentation endpoints (Swagger UI, OpenAPI spec)
-	s.setupDocsRoutes()
+	s.SetupDocsRoutes()
 }
 
 // setupV1Routes configures the O2-IMS API v1 endpoints.
@@ -358,7 +358,7 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 	}
 
 	// Validate callback URL early for fast failure (SSRF protection)
-	if err := s.validateCallback(c.Request.Context(), &req); err != nil {
+	if err := s.ValidateCallback(c.Request.Context(), &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": err.Error(),
@@ -486,7 +486,7 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 	}
 
 	// Validate callback URL early for fast failure
-	if err := s.validateCallback(c.Request.Context(), &req); err != nil {
+	if err := s.ValidateCallback(c.Request.Context(), &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": err.Error(),
@@ -671,7 +671,7 @@ const (
 // sanitizeResourcePoolID sanitizes a string for use in resource pool IDs.
 // Removes special characters that could cause security issues (path traversal, injection).
 // Spaces and slashes are replaced with hyphens, all other special characters are dropped.
-func sanitizeResourcePoolID(name string) string {
+func SanitizeResourcePoolID(name string) string {
 	var result strings.Builder
 	for _, ch := range name {
 		if isAlphanumericOrAllowed(ch) {
@@ -693,7 +693,7 @@ func isAlphanumericOrAllowed(ch rune) bool {
 
 // sanitizeForLogging removes CRLF characters to prevent log injection attacks.
 // This prevents attackers from injecting fake log entries via user-controlled input.
-func sanitizeForLogging(s string) string {
+func SanitizeForLogging(s string) string {
 	// Remove CR, LF, and other control characters
 	sanitized := strings.NewReplacer(
 		"\r", "",
@@ -733,7 +733,7 @@ func validateResourcePoolID(id string) error {
 	return nil
 }
 
-func validateResourcePoolFields(pool *adapter.ResourcePool) error {
+func ValidateResourcePoolFields(pool *adapter.ResourcePool) error {
 	var validationErrors []string
 
 	// Validate Name is required
@@ -784,7 +784,7 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 	}
 
 	// Validate resource pool fields
-	if err := validateResourcePoolFields(&req); err != nil {
+	if err := ValidateResourcePoolFields(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": err.Error(),
@@ -797,7 +797,7 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 	// Format: pool-{sanitized-name}-{uuid}
 	// Example: "GPU Pool (Production)" → "pool-gpu-pool-production-a1b2c3d4-e5f6-7890-abcd-1234567890ab"
 	if req.ResourcePoolID == "" {
-		sanitizedName := sanitizeResourcePoolID(req.Name)
+		sanitizedName := SanitizeResourcePoolID(req.Name)
 		// Clean up consecutive hyphens that can occur from sanitization
 		sanitizedName = strings.ReplaceAll(sanitizedName, "--", "-")
 		sanitizedName = strings.Trim(sanitizedName, "-")
@@ -820,7 +820,7 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 		if errors.Is(err, adapter.ErrResourcePoolExists) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error":   "Conflict",
-				"message": "Resource pool with ID " + sanitizeForLogging(req.ResourcePoolID) + " already exists",
+				"message": "Resource pool with ID " + SanitizeForLogging(req.ResourcePoolID) + " already exists",
 				"code":    http.StatusConflict,
 			})
 			return
@@ -837,7 +837,7 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 
 	s.logger.Info("resource pool created",
 		zap.String("resource_pool_id", created.ResourcePoolID),
-		zap.String("name", sanitizeForLogging(created.Name)))
+		zap.String("name", SanitizeForLogging(created.Name)))
 
 	// Set Location header for REST compliance
 	c.Header("Location", "/o2ims/v1/resourcePools/"+created.ResourcePoolID)
@@ -861,7 +861,7 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 	}
 
 	// Validate field constraints
-	if err := validateResourcePoolFields(&req); err != nil {
+	if err := ValidateResourcePoolFields(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": err.Error(),
@@ -894,7 +894,7 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 
 	s.logger.Info("resource pool updated",
 		zap.String("resource_pool_id", updated.ResourcePoolID),
-		zap.String("name", sanitizeForLogging(updated.Name)))
+		zap.String("name", SanitizeForLogging(updated.Name)))
 
 	c.JSON(http.StatusOK, updated)
 }
@@ -1130,7 +1130,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 		// This prevents path traversal attacks (e.g., "../../../etc/passwd")
 		if _, err := uuid.Parse(req.ResourceID); err != nil {
 			s.logger.Warn("invalid resource ID format",
-				zap.String("resource_id", sanitizeForLogging(req.ResourceID)))
+				zap.String("resource_id", SanitizeForLogging(req.ResourceID)))
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":   "BadRequest",
 				"message": "resourceId must be a valid UUID",
@@ -1147,7 +1147,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 		if errors.Is(err, adapter.ErrResourceExists) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error":   "Conflict",
-				"message": "Resource with ID " + sanitizeForLogging(req.ResourceID) + " already exists",
+				"message": "Resource with ID " + SanitizeForLogging(req.ResourceID) + " already exists",
 				"code":    http.StatusConflict,
 			})
 			return
@@ -1164,7 +1164,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 
 	s.logger.Info("resource created",
 		zap.String("resource_id", created.ResourceID),
-		zap.String("resource_type_id", sanitizeForLogging(created.ResourceTypeID)))
+		zap.String("resource_type_id", SanitizeForLogging(created.ResourceTypeID)))
 
 	// Set Location header for REST compliance
 	c.Header("Location", "/o2ims/v1/resources/"+created.ResourceID)
@@ -1309,7 +1309,7 @@ func (s *Server) applyResourceUpdate(c *gin.Context, resourceID string, req, exi
 
 	s.logger.Info("resource updated",
 		zap.String("resource_id", updated.ResourceID),
-		zap.String("resource_type_id", sanitizeForLogging(updated.ResourceTypeID)))
+		zap.String("resource_type_id", SanitizeForLogging(updated.ResourceTypeID)))
 
 	c.JSON(http.StatusOK, updated)
 }
@@ -1645,7 +1645,7 @@ func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
 // - Cache DNS results with short TTL and re-validate on changes
 // - Implement webhook delivery through a dedicated egress proxy that enforces policies
 // - Consider additional authentication mechanisms for webhooks (HMAC signatures, mTLS).
-func (s *Server) validateCallback(ctx context.Context, sub *adapter.Subscription) error {
+func (s *Server) ValidateCallback(ctx context.Context, sub *adapter.Subscription) error {
 	if sub == nil {
 		return fmt.Errorf("subscription cannot be nil")
 	}
@@ -1673,7 +1673,7 @@ func (s *Server) validateCallback(ctx context.Context, sub *adapter.Subscription
 	// SSRF Protection: Block localhost and private IP ranges
 	// Skip SSRF protection if disabled in config (for testing only)
 	if !s.config.Security.DisableSSRFProtection {
-		if err := validateCallbackHost(ctx, parsedURL.Hostname()); err != nil {
+		if err := ValidateCallbackHost(ctx, parsedURL.Hostname()); err != nil {
 			return err
 		}
 	}
@@ -1683,7 +1683,7 @@ func (s *Server) validateCallback(ctx context.Context, sub *adapter.Subscription
 
 // validateCallbackHost validates that the callback host is not localhost or a private IP address.
 // This prevents SSRF (Server-Side Request Forgery) attacks.
-func validateCallbackHost(ctx context.Context, hostname string) error {
+func ValidateCallbackHost(ctx context.Context, hostname string) error {
 	// Block localhost variations
 	if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" {
 		return fmt.Errorf("callback URL cannot be localhost")
@@ -1701,7 +1701,7 @@ func validateCallbackHost(ctx context.Context, hostname string) error {
 
 	// Check if any resolved IP is in a private range
 	for _, ipAddr := range ips {
-		if isPrivateIP(ipAddr.IP) {
+		if IsPrivateIP(ipAddr.IP) {
 			return fmt.Errorf("callback URL cannot be a private IP address")
 		}
 	}
@@ -1754,7 +1754,7 @@ func initPrivateIPRanges() {
 }
 
 // isPrivateIP checks if an IP address is in a private or reserved range.
-func isPrivateIP(ip net.IP) bool {
+func IsPrivateIP(ip net.IP) bool {
 	if ip.IsLoopback() {
 		return true
 	}

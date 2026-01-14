@@ -45,7 +45,7 @@ type Adapter struct {
 	credential azcore.TokenCredential
 
 	// logger provides structured logging.
-	logger *zap.Logger
+	Logger *zap.Logger
 
 	// oCloudID is the identifier of the parent O-Cloud.
 	oCloudID string
@@ -62,10 +62,10 @@ type Adapter struct {
 	// subscriptions holds active O2-IMS subscriptions (polling-based fallback).
 	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
 	// For production use, consider implementing persistent storage via Redis.
-	subscriptions map[string]*adapter.Subscription
+	Subscriptions map[string]*adapter.Subscription
 
 	// subscriptionsMu protects the subscriptions map.
-	subscriptionsMu sync.RWMutex
+	SubscriptionsMu sync.RWMutex
 
 	// poolMode determines how resource pools are mapped.
 	// "rg" maps to Resource Groups, "az" maps to Availability Zones.
@@ -180,12 +180,12 @@ func New(cfg *Config) (*Adapter, error) {
 		vmSizeClient:        clients.vmSizeClient,
 		resourceGroupClient: clients.resourceGroupClient,
 		credential:          cred,
-		logger:              logger,
+		Logger:              logger,
 		oCloudID:            cfg.OCloudID,
 		deploymentManagerID: deploymentManagerID,
 		subscriptionID:      cfg.SubscriptionID,
 		location:            cfg.Location,
-		subscriptions:       make(map[string]*adapter.Subscription),
+		Subscriptions:       make(map[string]*adapter.Subscription),
 		poolMode:            poolMode,
 	}
 
@@ -333,7 +333,7 @@ func (a *Adapter) Health(ctx context.Context) error {
 	start := time.Now()
 	defer func() { adapter.ObserveHealthCheck("azure", start, err) }()
 
-	a.logger.Debug("health check called")
+	a.Logger.Debug("health check called")
 
 	// Use a timeout to prevent indefinite blocking
 	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -343,26 +343,26 @@ func (a *Adapter) Health(ctx context.Context) error {
 	pager := a.vmSizeClient.NewListPager(a.location, nil)
 	_, err = pager.NextPage(healthCtx)
 	if err != nil {
-		a.logger.Error("Azure health check failed", zap.Error(err))
+		a.Logger.Error("Azure health check failed", zap.Error(err))
 		return fmt.Errorf("azure API unreachable: %w", err)
 	}
 
-	a.logger.Debug("health check passed")
+	a.Logger.Debug("health check passed")
 	return nil
 }
 
 // Close cleanly shuts down the adapter and releases resources.
 func (a *Adapter) Close() error {
-	a.logger.Info("closing Azure adapter")
+	a.Logger.Info("closing Azure adapter")
 
 	// Clear subscriptions
-	a.subscriptionsMu.Lock()
-	a.subscriptions = make(map[string]*adapter.Subscription)
-	a.subscriptionsMu.Unlock()
+	a.SubscriptionsMu.Lock()
+	a.Subscriptions = make(map[string]*adapter.Subscription)
+	a.SubscriptionsMu.Unlock()
 
 	// Sync logger before shutdown
 	// Ignore sync errors on stderr/stdout
-	_ = a.logger.Sync()
+	_ = a.Logger.Sync()
 
 	return nil
 }
@@ -371,27 +371,27 @@ func (a *Adapter) Close() error {
 // Use adapter.MatchesFilter() and adapter.ApplyPagination() instead of local implementations.
 
 // generateVMSizeID generates a consistent resource type ID for a VM size.
-func generateVMSizeID(vmSize string) string {
+func GenerateVMSizeID(vmSize string) string {
 	return fmt.Sprintf("azure-vm-size-%s", vmSize)
 }
 
 // generateVMID generates a consistent resource ID for an Azure VM.
-func generateVMID(vmName, resourceGroup string) string {
+func GenerateVMID(vmName, resourceGroup string) string {
 	return fmt.Sprintf("azure-vm-%s-%s", resourceGroup, vmName)
 }
 
 // generateRGPoolID generates a consistent resource pool ID for a Resource Group.
-func generateRGPoolID(resourceGroup string) string {
+func GenerateRGPoolID(resourceGroup string) string {
 	return fmt.Sprintf("azure-rg-%s", resourceGroup)
 }
 
 // generateAZPoolID generates a consistent resource pool ID for an Availability Zone.
-func generateAZPoolID(location, zone string) string {
+func GenerateAZPoolID(location, zone string) string {
 	return fmt.Sprintf("azure-az-%s-%s", location, zone)
 }
 
 // tagsToMap converts Azure tags (map[string]*string) to a map[string]string.
-func tagsToMap(tags map[string]*string) map[string]string {
+func TagsToMap(tags map[string]*string) map[string]string {
 	result := make(map[string]string)
 	for k, v := range tags {
 		if v != nil {
@@ -402,7 +402,7 @@ func tagsToMap(tags map[string]*string) map[string]string {
 }
 
 // ptrToString safely converts a *string to string.
-func ptrToString(s *string) string {
+func PtrToString(s *string) string {
 	if s == nil {
 		return ""
 	}
@@ -410,7 +410,7 @@ func ptrToString(s *string) string {
 }
 
 // ptrToInt32 safely converts a *int32 to int32.
-func ptrToInt32(i *int32) int32 {
+func PtrToInt32(i *int32) int32 {
 	if i == nil {
 		return 0
 	}

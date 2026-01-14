@@ -1,7 +1,9 @@
-package events
+package events_test
 
 import (
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/events"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zaptest"
@@ -23,19 +25,19 @@ func TestNewK8sEventGenerator_NilParams(t *testing.T) {
 
 	t.Run("nil clientset panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewK8sEventGenerator(nil, mockAdp, logger)
+			events.NewK8sEventGenerator(nil, mockAdp, logger)
 		})
 	})
 
 	t.Run("nil adapter panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewK8sEventGenerator(nil, nil, logger)
+			events.NewK8sEventGenerator(nil, nil, logger)
 		})
 	})
 
 	t.Run("nil logger panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewK8sEventGenerator(nil, mockAdp, nil)
+			events.NewK8sEventGenerator(nil, mockAdp, nil)
 		})
 	})
 }

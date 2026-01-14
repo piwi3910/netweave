@@ -1,4 +1,4 @@
-package registry
+package registry_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/registry"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -149,7 +151,7 @@ func TestNewRegistry(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		config *Config
+		config *registry.Config
 	}{
 		{
 			name:   "with nil config uses defaults",
@@ -157,7 +159,7 @@ func TestNewRegistry(t *testing.T) {
 		},
 		{
 			name: "with custom config",
-			config: &Config{
+			config: &registry.Config{
 				HealthCheckInterval: 10 * time.Second,
 				HealthCheckTimeout:  2 * time.Second,
 			},
@@ -166,10 +168,9 @@ func TestNewRegistry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reg := NewRegistry(logger, tt.config)
+			reg := registry.NewRegistry(logger, tt.config)
 			assert.NotNil(t, reg)
 			assert.NotNil(t, reg.Plugins)
-			assert.NotNil(t, reg.meta)
 		})
 	}
 }
@@ -206,7 +207,7 @@ func TestRegistry_Register(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reg := NewRegistry(logger, nil)
+			reg := registry.NewRegistry(logger, nil)
 
 			mock := &mockAdapter{
 				name:    tt.pluginName,
@@ -260,7 +261,7 @@ func TestRegistry_Register(t *testing.T) {
 func TestRegistry_RegisterDuplicate(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	ctx := context.Background()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 
 	mock := &mockAdapter{
 		name:    "test-plugin",
@@ -281,7 +282,7 @@ func TestRegistry_RegisterDuplicate(t *testing.T) {
 func TestRegistry_Unregister(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	ctx := context.Background()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 
 	mock := &mockAdapter{
 		name:    "test-plugin",
@@ -321,7 +322,7 @@ func TestRegistry_Unregister(t *testing.T) {
 
 func TestRegistry_UnregisterNotFound(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 
 	err := reg.Unregister("non-existent")
 	assert.Error(t, err)
@@ -331,7 +332,7 @@ func TestRegistry_UnregisterNotFound(t *testing.T) {
 func TestRegistry_List(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	ctx := context.Background()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 
 	// Register multiple plugins
 	for i := 0; i < 3; i++ {
@@ -351,7 +352,7 @@ func TestRegistry_List(t *testing.T) {
 func TestRegistry_FindByCapability(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	ctx := context.Background()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 
 	// Register plugin with specific capabilities
 	mock1 := &mockAdapter{
@@ -395,7 +396,7 @@ func TestRegistry_FindByCapability(t *testing.T) {
 func TestRegistry_FindByType(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	ctx := context.Background()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 
 	// Register plugins of different types
 	mock1 := &mockAdapter{
@@ -432,7 +433,7 @@ func TestRegistry_FindByType(t *testing.T) {
 func TestRegistry_EnableDisable(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	ctx := context.Background()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 
 	mock := &mockAdapter{
 		name:    "test-plugin",
@@ -463,7 +464,7 @@ func TestRegistry_EnableDisable(t *testing.T) {
 func TestRegistry_SetDefault(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	ctx := context.Background()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 
 	mock1 := &mockAdapter{
 		name:    "plugin-1",
@@ -520,7 +521,7 @@ func TestRegistry_SetDefault(t *testing.T) {
 func TestRegistry_ListHealthy(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	ctx := context.Background()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 
 	// Register healthy plugin
 	mock1 := &mockAdapter{
@@ -552,7 +553,7 @@ func TestRegistry_ListHealthy(t *testing.T) {
 func TestRegistry_Close(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	ctx := context.Background()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 
 	mock1 := &mockAdapter{
 		name:    "plugin-1",
@@ -597,12 +598,12 @@ func TestRegistry_HealthChecks(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	config := &Config{
+	config := &registry.Config{
 		HealthCheckInterval: 100 * time.Millisecond,
 		HealthCheckTimeout:  50 * time.Millisecond,
 	}
 
-	reg := NewRegistry(logger, config)
+	reg := registry.NewRegistry(logger, config)
 
 	mock := &mockAdapter{
 		name:    "test-plugin",

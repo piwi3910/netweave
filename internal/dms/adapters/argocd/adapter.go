@@ -52,8 +52,8 @@ const (
 	ApplicationResource = "applications"
 )
 
-// applicationGVR is the GroupVersionResource for ArgoCD Applications.
-var applicationGVR = schema.GroupVersionResource{
+// ApplicationGVR is the GroupVersionResource for ArgoCD Applications.
+var ApplicationGVR = schema.GroupVersionResource{
 	Group:    ApplicationGroup,
 	Version:  ApplicationVersion,
 	Resource: ApplicationResource,
@@ -63,9 +63,9 @@ var applicationGVR = schema.GroupVersionResource{
 // It uses the Kubernetes dynamic client to manage ArgoCD Application CRDs,
 // avoiding direct ArgoCD library dependencies and their version conflicts.
 type Adapter struct {
-	config        *Config
-	dynamicClient dynamic.Interface
-	initOnce      sync.Once
+	Config        *Config           // Exported for testing
+	DynamicClient dynamic.Interface // Exported for testing
+	InitOnce      sync.Once         // Exported for testing
 	initError     error
 }
 
@@ -119,7 +119,7 @@ func NewAdapter(config *Config) (*Adapter, error) {
 	}
 
 	return &Adapter{
-		config: config,
+		Config: config,
 	}, nil
 }
 
@@ -127,13 +127,13 @@ func NewAdapter(config *Config) (*Adapter, error) {
 // This allows the adapter to be created without requiring immediate Kubernetes connectivity.
 // This method is thread-safe and ensures initialization happens exactly once.
 func (a *Adapter) Initialize(_ context.Context) error {
-	a.initOnce.Do(func() {
+	a.InitOnce.Do(func() {
 		var restConfig *rest.Config
 		var err error
 
-		if a.config.Kubeconfig != "" {
+		if a.Config.Kubeconfig != "" {
 			// Use kubeconfig file
-			restConfig, err = clientcmd.BuildConfigFromFlags("", a.config.Kubeconfig)
+			restConfig, err = clientcmd.BuildConfigFromFlags("", a.Config.Kubeconfig)
 			if err != nil {
 				a.initError = fmt.Errorf("failed to build config from kubeconfig: %w", err)
 				return
@@ -148,7 +148,7 @@ func (a *Adapter) Initialize(_ context.Context) error {
 		}
 
 		// Create dynamic client
-		a.dynamicClient, err = dynamic.NewForConfig(restConfig)
+		a.DynamicClient, err = dynamic.NewForConfig(restConfig)
 		if err != nil {
 			a.initError = fmt.Errorf("failed to create dynamic client: %w", err)
 			return
@@ -203,7 +203,7 @@ func (a *Adapter) ListDeploymentPackages(
 			continue
 		}
 
-		id := generatePackageID(source.RepoURL, source.Path)
+		id := GeneratePackageID(source.RepoURL, source.Path)
 		if _, exists := repoMap[id]; !exists {
 			repoMap[id] = &adapter.DeploymentPackage{
 				ID:          id,
@@ -275,7 +275,7 @@ func (a *Adapter) UploadDeploymentPackage(
 	path, _ := pkg.Extensions["argocd.path"].(string)
 
 	return &adapter.DeploymentPackage{
-		ID:          generatePackageID(repoURL, path),
+		ID:          GeneratePackageID(repoURL, path),
 		Name:        pkg.Name,
 		Version:     pkg.Version,
 		PackageType: "git-repo",
@@ -310,7 +310,7 @@ func (a *Adapter) ListDeployments(ctx context.Context, filter *adapter.Filter) (
 
 	deployments := make([]*adapter.Deployment, 0, len(apps))
 	for _, app := range apps {
-		deployment := a.transformApplicationToDeployment(app)
+		deployment := a.TransformApplicationToDeployment(app)
 
 		// Apply status filter if specified
 		if filter != nil && filter.Status != "" && deployment.Status != filter.Status {
@@ -322,7 +322,7 @@ func (a *Adapter) ListDeployments(ctx context.Context, filter *adapter.Filter) (
 
 	// Apply pagination
 	if filter != nil {
-		deployments = a.applyPagination(deployments, filter.Limit, filter.Offset)
+		deployments = a.ApplyPagination(deployments, filter.Limit, filter.Offset)
 	}
 
 	return deployments, nil
@@ -339,7 +339,7 @@ func (a *Adapter) GetDeployment(ctx context.Context, id string) (*adapter.Deploy
 		return nil, fmt.Errorf("deployment not found: %s: %w", id, err)
 	}
 
-	return a.transformApplicationToDeployment(app), nil
+	return a.TransformApplicationToDeployment(app), nil
 }
 
 // CreateDeployment creates a new ArgoCD Application.
@@ -360,14 +360,14 @@ func (a *Adapter) CreateDeployment(
 		return nil, err
 	}
 
-	result, err := a.dynamicClient.Resource(applicationGVR).
-		Namespace(a.config.Namespace).
+	result, err := a.DynamicClient.Resource(ApplicationGVR).
+		Namespace(a.Config.Namespace).
 		Create(ctx, app, metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ArgoCD Application: %w", err)
 	}
 
-	return a.transformApplicationToDeployment(result), nil
+	return a.TransformApplicationToDeployment(result), nil
 }
 
 // validateDeploymentRequest validates the deployment request.
@@ -409,10 +409,10 @@ func (a *Adapter) buildApplicationManifest(req *adapter.DeploymentRequest) (*uns
 			"kind":       "Application",
 			"metadata": map[string]interface{}{
 				"name":      req.Name,
-				"namespace": a.config.Namespace,
+				"namespace": a.Config.Namespace,
 			},
 			"spec": map[string]interface{}{
-				"project": a.config.DefaultProject,
+				"project": a.Config.DefaultProject,
 				"source": map[string]interface{}{
 					"repoURL":        repoURL,
 					"path":           path,
@@ -440,14 +440,14 @@ func (a *Adapter) buildApplicationManifest(req *adapter.DeploymentRequest) (*uns
 
 // addSyncPolicy adds sync policy to the application if auto-sync is enabled.
 func (a *Adapter) addSyncPolicy(app *unstructured.Unstructured) error {
-	if !a.config.AutoSync {
+	if !a.Config.AutoSync {
 		return nil
 	}
 
 	syncPolicy := map[string]interface{}{
 		"automated": map[string]interface{}{
-			"prune":    a.config.Prune,
-			"selfHeal": a.config.SelfHeal,
+			"prune":    a.Config.Prune,
+			"selfHeal": a.Config.SelfHeal,
 		},
 	}
 	if err := unstructured.SetNestedField(app.Object, syncPolicy, "spec", "syncPolicy"); err != nil {
@@ -467,7 +467,7 @@ func (a *Adapter) addHelmValues(
 	}
 
 	helmParams := map[string]interface{}{
-		"values": mustMarshalYAML(req.Values),
+		"values": MustMarshalYAML(req.Values),
 	}
 	if err := unstructured.SetNestedField(app.Object, helmParams, "spec", "source", "helm"); err != nil {
 		return fmt.Errorf("failed to set helm values: %w", err)
@@ -505,7 +505,7 @@ func (a *Adapter) UpdateDeployment(
 	// Update Helm values if provided
 	if len(update.Values) > 0 {
 		helmParams := map[string]interface{}{
-			"values": mustMarshalYAML(update.Values),
+			"values": MustMarshalYAML(update.Values),
 		}
 		if err := unstructured.SetNestedField(app.Object, helmParams, "spec", "source", "helm"); err != nil {
 			return nil, fmt.Errorf("failed to update helm values: %w", err)
@@ -513,14 +513,14 @@ func (a *Adapter) UpdateDeployment(
 	}
 
 	// Update the Application
-	result, err := a.dynamicClient.Resource(applicationGVR).
-		Namespace(a.config.Namespace).
+	result, err := a.DynamicClient.Resource(ApplicationGVR).
+		Namespace(a.Config.Namespace).
 		Update(ctx, app, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update ArgoCD Application: %w", err)
 	}
 
-	return a.transformApplicationToDeployment(result), nil
+	return a.TransformApplicationToDeployment(result), nil
 }
 
 // DeleteDeployment deletes an ArgoCD Application.
@@ -531,7 +531,7 @@ func (a *Adapter) DeleteDeployment(ctx context.Context, id string) error {
 
 	// Set cascade deletion to delete associated resources
 	propagation := metav1.DeletePropagationForeground
-	err := a.dynamicClient.Resource(applicationGVR).Namespace(a.config.Namespace).Delete(ctx, id, metav1.DeleteOptions{
+	err := a.DynamicClient.Resource(ApplicationGVR).Namespace(a.Config.Namespace).Delete(ctx, id, metav1.DeleteOptions{
 		PropagationPolicy: &propagation,
 	})
 	if err != nil {
@@ -602,8 +602,8 @@ func (a *Adapter) RollbackDeployment(ctx context.Context, id string, revision in
 	}
 
 	// Update the Application
-	_, err = a.dynamicClient.Resource(applicationGVR).
-		Namespace(a.config.Namespace).
+	_, err = a.DynamicClient.Resource(ApplicationGVR).
+		Namespace(a.Config.Namespace).
 		Update(ctx, app, metav1.UpdateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to rollback ArgoCD Application: %w", err)
@@ -716,7 +716,7 @@ func (a *Adapter) Health(ctx context.Context) error {
 	}
 
 	// Try to list applications to verify connectivity
-	_, err := a.dynamicClient.Resource(applicationGVR).Namespace(a.config.Namespace).List(ctx, metav1.ListOptions{
+	_, err := a.DynamicClient.Resource(ApplicationGVR).Namespace(a.Config.Namespace).List(ctx, metav1.ListOptions{
 		Limit: 1,
 	})
 	if err != nil {
@@ -730,7 +730,7 @@ func (a *Adapter) Health(ctx context.Context) error {
 // Note: Due to sync.Once semantics, calling Initialize after Close will not re-initialize.
 // Create a new adapter instance if re-initialization is needed.
 func (a *Adapter) Close() error {
-	a.dynamicClient = nil
+	a.DynamicClient = nil
 	return nil
 }
 
@@ -739,17 +739,17 @@ func (a *Adapter) listApplications(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*unstructured.Unstructured, error) {
-	namespace := a.config.Namespace
+	namespace := a.Config.Namespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
 	}
 
 	opts := metav1.ListOptions{}
 	if filter != nil && len(filter.Labels) > 0 {
-		opts.LabelSelector = buildLabelSelector(filter.Labels)
+		opts.LabelSelector = BuildLabelSelector(filter.Labels)
 	}
 
-	list, err := a.dynamicClient.Resource(applicationGVR).Namespace(namespace).List(ctx, opts)
+	list, err := a.DynamicClient.Resource(ApplicationGVR).Namespace(namespace).List(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list ArgoCD Applications: %w", err)
 	}
@@ -764,7 +764,7 @@ func (a *Adapter) listApplications(
 
 // getApplication retrieves a single ArgoCD Application by name.
 func (a *Adapter) getApplication(ctx context.Context, name string) (*unstructured.Unstructured, error) {
-	app, err := a.dynamicClient.Resource(applicationGVR).Namespace(a.config.Namespace).Get(ctx, name, metav1.GetOptions{})
+	app, err := a.DynamicClient.Resource(ApplicationGVR).Namespace(a.Config.Namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ArgoCD application %s: %w", name, err)
 	}
@@ -772,7 +772,7 @@ func (a *Adapter) getApplication(ctx context.Context, name string) (*unstructure
 }
 
 // transformApplicationToDeployment converts an ArgoCD Application to a Deployment.
-func (a *Adapter) transformApplicationToDeployment(app *unstructured.Unstructured) *adapter.Deployment {
+func (a *Adapter) TransformApplicationToDeployment(app *unstructured.Unstructured) *adapter.Deployment {
 	name, _, _ := unstructured.NestedString(app.Object, "metadata", "name")
 	namespace, _, _ := unstructured.NestedString(app.Object, "metadata", "namespace")
 
@@ -806,9 +806,9 @@ func (a *Adapter) transformApplicationToDeployment(app *unstructured.Unstructure
 	return &adapter.Deployment{
 		ID:          name,
 		Name:        name,
-		PackageID:   generatePackageID(source.RepoURL, source.Path),
+		PackageID:   GeneratePackageID(source.RepoURL, source.Path),
 		Namespace:   destNamespace,
-		Status:      a.transformArgoCDStatus(healthStatus, syncStatus),
+		Status:      a.TransformArgoCDStatus(healthStatus, syncStatus),
 		Version:     version,
 		Description: fmt.Sprintf("ArgoCD Application from %s", source.RepoURL),
 		CreatedAt:   creationTimestamp,
@@ -864,7 +864,7 @@ func (a *Adapter) transformApplicationToStatus(app *unstructured.Unstructured) *
 	}
 
 	// Calculate progress
-	progress := a.calculateProgress(healthStatus, syncStatus)
+	progress := a.CalculateProgress(healthStatus, syncStatus)
 
 	// Build message
 	message := fmt.Sprintf("Health: %s, Sync: %s", healthStatus, syncStatus)
@@ -874,7 +874,7 @@ func (a *Adapter) transformApplicationToStatus(app *unstructured.Unstructured) *
 
 	return &adapter.DeploymentStatusDetail{
 		DeploymentID: name,
-		Status:       a.transformArgoCDStatus(healthStatus, syncStatus),
+		Status:       a.TransformArgoCDStatus(healthStatus, syncStatus),
 		Message:      message,
 		Progress:     progress,
 		Conditions:   conditions,
@@ -888,7 +888,7 @@ func (a *Adapter) transformApplicationToStatus(app *unstructured.Unstructured) *
 }
 
 // transformArgoCDStatus converts ArgoCD health and sync status to DMS deployment status.
-func (a *Adapter) transformArgoCDStatus(healthStatus, syncStatus string) adapter.DeploymentStatus {
+func (a *Adapter) TransformArgoCDStatus(healthStatus, syncStatus string) adapter.DeploymentStatus {
 	// Health statuses: Healthy, Progressing, Degraded, Suspended, Missing, Unknown
 	// Sync statuses: Synced, OutOfSync, Unknown
 
@@ -913,7 +913,7 @@ func (a *Adapter) transformArgoCDStatus(healthStatus, syncStatus string) adapter
 }
 
 // calculateProgress estimates deployment progress based on ArgoCD status.
-func (a *Adapter) calculateProgress(healthStatus, syncStatus string) int {
+func (a *Adapter) CalculateProgress(healthStatus, syncStatus string) int {
 	switch healthStatus {
 	case "Healthy":
 		if syncStatus == "Synced" {
@@ -945,7 +945,7 @@ func (a *Adapter) extractSource(app *unstructured.Unstructured) ApplicationSourc
 }
 
 // applyPagination applies limit and offset to deployment list.
-func (a *Adapter) applyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
+func (a *Adapter) ApplyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
 	if offset >= len(deployments) {
 		return []*adapter.Deployment{}
 	}
@@ -969,7 +969,7 @@ type ApplicationSource struct {
 }
 
 // generatePackageID creates a unique package ID from repository URL and path.
-func generatePackageID(repoURL, path string) string {
+func GeneratePackageID(repoURL, path string) string {
 	// Create a simple ID from repo and path
 	id := repoURL
 	if path != "" {
@@ -983,7 +983,7 @@ func generatePackageID(repoURL, path string) string {
 }
 
 // buildLabelSelector creates a Kubernetes label selector string from a map.
-func buildLabelSelector(labels map[string]string) string {
+func BuildLabelSelector(labels map[string]string) string {
 	selectors := make([]string, 0, len(labels))
 	for k, v := range labels {
 		selectors = append(selectors, fmt.Sprintf("%s=%s", k, v))
@@ -992,7 +992,7 @@ func buildLabelSelector(labels map[string]string) string {
 }
 
 // mustMarshalYAML converts a map to YAML string, returning empty on error.
-func mustMarshalYAML(values map[string]interface{}) string {
+func MustMarshalYAML(values map[string]interface{}) string {
 	// Convert to JSON first (easier than full YAML)
 	data, err := json.Marshal(values)
 	if err != nil {

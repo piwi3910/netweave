@@ -45,13 +45,13 @@ func (a *Adapter) CreateSubscription(
 	}
 
 	// Store the subscription atomically with existence check
-	a.subscriptionsMu.Lock()
-	if _, exists := a.subscriptions[subscriptionID]; exists {
-		a.subscriptionsMu.Unlock()
+	a.SubscriptionsMu.Lock()
+	if _, exists := a.Subscriptions[subscriptionID]; exists {
+		a.SubscriptionsMu.Unlock()
 		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionExists, subscriptionID)
 	}
-	a.subscriptions[subscriptionID] = newSub
-	a.subscriptionsMu.Unlock()
+	a.Subscriptions[subscriptionID] = newSub
+	a.SubscriptionsMu.Unlock()
 
 	a.logger.Info("subscription created (polling-based)",
 		zap.String("subscriptionId", subscriptionID),
@@ -65,9 +65,9 @@ func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscr
 	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
-	a.subscriptionsMu.RLock()
-	sub, ok := a.subscriptions[id]
-	a.subscriptionsMu.RUnlock()
+	a.SubscriptionsMu.RLock()
+	sub, ok := a.Subscriptions[id]
+	a.SubscriptionsMu.RUnlock()
 
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
@@ -92,10 +92,10 @@ func (a *Adapter) UpdateSubscription(
 	}
 
 	// Update the subscription atomically with existence check
-	a.subscriptionsMu.Lock()
-	defer a.subscriptionsMu.Unlock()
+	a.SubscriptionsMu.Lock()
+	defer a.SubscriptionsMu.Unlock()
 
-	existing, ok := a.subscriptions[id]
+	existing, ok := a.Subscriptions[id]
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
@@ -108,7 +108,7 @@ func (a *Adapter) UpdateSubscription(
 		Filter:                 sub.Filter,
 	}
 
-	a.subscriptions[id] = updated
+	a.Subscriptions[id] = updated
 
 	a.logger.Info("subscription updated",
 		zap.String("subscriptionId", id),
@@ -123,14 +123,14 @@ func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
 	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
-	a.subscriptionsMu.Lock()
-	defer a.subscriptionsMu.Unlock()
+	a.SubscriptionsMu.Lock()
+	defer a.SubscriptionsMu.Unlock()
 
-	if _, ok := a.subscriptions[id]; !ok {
+	if _, ok := a.Subscriptions[id]; !ok {
 		return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
-	delete(a.subscriptions, id)
+	delete(a.Subscriptions, id)
 
 	a.logger.Info("subscription deleted",
 		zap.String("subscriptionId", id))
@@ -141,11 +141,11 @@ func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
 // ListSubscriptions returns all active subscriptions.
 // This is useful for the polling mechanism to know which subscriptions need notifications.
 func (a *Adapter) ListSubscriptions() []*adapter.Subscription {
-	a.subscriptionsMu.RLock()
-	defer a.subscriptionsMu.RUnlock()
+	a.SubscriptionsMu.RLock()
+	defer a.SubscriptionsMu.RUnlock()
 
-	subs := make([]*adapter.Subscription, 0, len(a.subscriptions))
-	for _, sub := range a.subscriptions {
+	subs := make([]*adapter.Subscription, 0, len(a.Subscriptions))
+	for _, sub := range a.Subscriptions {
 		subs = append(subs, sub)
 	}
 

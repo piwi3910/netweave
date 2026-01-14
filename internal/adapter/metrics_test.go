@@ -1,10 +1,11 @@
-package adapter
+package adapter_test
 
 import (
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -41,11 +42,11 @@ func TestObserveOperation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset metrics
-			Metrics.OperationTotal.Reset()
-			Metrics.OperationDuration.Reset()
+			adapter.Metrics.OperationTotal.Reset()
+			adapter.Metrics.OperationDuration.Reset()
 
 			start := time.Now().Add(-tt.duration)
-			ObserveOperation(tt.adapterName, tt.operation, start, tt.err)
+			adapter.ObserveOperation(tt.adapterName, tt.operation, start, tt.err)
 
 			// Verify counter incremented
 			status := "success"
@@ -53,7 +54,7 @@ func TestObserveOperation(t *testing.T) {
 				status = "error"
 			}
 
-			count := testutil.ToFloat64(Metrics.OperationTotal.WithLabelValues(
+			count := testutil.ToFloat64(adapter.Metrics.OperationTotal.WithLabelValues(
 				tt.adapterName, tt.operation, status,
 			))
 			assert.Equal(t, tt.expectedCount, count)
@@ -92,14 +93,14 @@ func TestObserveHealthCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset metrics
-			Metrics.HealthCheckStatus.Reset()
-			Metrics.HealthCheckDuration.Reset()
+			adapter.Metrics.HealthCheckStatus.Reset()
+			adapter.Metrics.HealthCheckDuration.Reset()
 
 			start := time.Now().Add(-tt.duration)
-			ObserveHealthCheck(tt.adapterName, start, tt.err)
+			adapter.ObserveHealthCheck(tt.adapterName, start, tt.err)
 
 			// Verify status gauge
-			status := testutil.ToFloat64(Metrics.HealthCheckStatus.WithLabelValues(
+			status := testutil.ToFloat64(adapter.Metrics.HealthCheckStatus.WithLabelValues(
 				tt.adapterName,
 			))
 			assert.Equal(t, tt.expectedStatus, status)
@@ -132,12 +133,12 @@ func TestUpdateSubscriptionCount(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset metrics
-			Metrics.SubscriptionCount.Reset()
+			adapter.Metrics.SubscriptionCount.Reset()
 
-			UpdateSubscriptionCount(tt.adapterName, tt.count)
+			adapter.UpdateSubscriptionCount(tt.adapterName, tt.count)
 
 			// Verify gauge value
-			value := testutil.ToFloat64(Metrics.SubscriptionCount.WithLabelValues(
+			value := testutil.ToFloat64(adapter.Metrics.SubscriptionCount.WithLabelValues(
 				tt.adapterName,
 			))
 			assert.Equal(t, float64(tt.count), value)
@@ -147,11 +148,11 @@ func TestUpdateSubscriptionCount(t *testing.T) {
 
 func TestRecordCacheHit(t *testing.T) {
 	// Reset metrics
-	Metrics.CacheHits.Reset()
+	adapter.Metrics.CacheHits.Reset()
 
-	RecordCacheHit("kubernetes", "ListResources")
+	adapter.RecordCacheHit("kubernetes", "ListResources")
 
-	count := testutil.ToFloat64(Metrics.CacheHits.WithLabelValues(
+	count := testutil.ToFloat64(adapter.Metrics.CacheHits.WithLabelValues(
 		"kubernetes", "ListResources",
 	))
 	assert.Equal(t, 1.0, count)
@@ -159,11 +160,11 @@ func TestRecordCacheHit(t *testing.T) {
 
 func TestRecordCacheMiss(t *testing.T) {
 	// Reset metrics
-	Metrics.CacheMisses.Reset()
+	adapter.Metrics.CacheMisses.Reset()
 
-	RecordCacheMiss("kubernetes", "GetResource")
+	adapter.RecordCacheMiss("kubernetes", "GetResource")
 
-	count := testutil.ToFloat64(Metrics.CacheMisses.WithLabelValues(
+	count := testutil.ToFloat64(adapter.Metrics.CacheMisses.WithLabelValues(
 		"kubernetes", "GetResource",
 	))
 	assert.Equal(t, 1.0, count)
@@ -193,11 +194,11 @@ func TestUpdateResourceCount(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset metrics
-			Metrics.ResourcesTotal.Reset()
+			adapter.Metrics.ResourcesTotal.Reset()
 
-			UpdateResourceCount(tt.adapterName, tt.resourceType, tt.count)
+			adapter.UpdateResourceCount(tt.adapterName, tt.resourceType, tt.count)
 
-			value := testutil.ToFloat64(Metrics.ResourcesTotal.WithLabelValues(
+			value := testutil.ToFloat64(adapter.Metrics.ResourcesTotal.WithLabelValues(
 				tt.adapterName, tt.resourceType,
 			))
 			assert.Equal(t, float64(tt.count), value)
@@ -226,11 +227,11 @@ func TestUpdateResourcePoolCount(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset metrics
-			Metrics.ResourcePoolsTotal.Reset()
+			adapter.Metrics.ResourcePoolsTotal.Reset()
 
-			UpdateResourcePoolCount(tt.adapterName, tt.count)
+			adapter.UpdateResourcePoolCount(tt.adapterName, tt.count)
 
-			value := testutil.ToFloat64(Metrics.ResourcePoolsTotal.WithLabelValues(
+			value := testutil.ToFloat64(adapter.Metrics.ResourcePoolsTotal.WithLabelValues(
 				tt.adapterName,
 			))
 			assert.Equal(t, float64(tt.count), value)
@@ -294,15 +295,15 @@ func TestObserveBackendRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset metrics
-			Metrics.BackendRequestsTotal.Reset()
-			Metrics.BackendLatency.Reset()
-			Metrics.BackendErrors.Reset()
+			adapter.Metrics.BackendRequestsTotal.Reset()
+			adapter.Metrics.BackendLatency.Reset()
+			adapter.Metrics.BackendErrors.Reset()
 
 			start := time.Now().Add(-10 * time.Millisecond)
-			ObserveBackendRequest(tt.adapterName, tt.endpoint, tt.method, start, tt.statusCode, tt.err)
+			adapter.ObserveBackendRequest(tt.adapterName, tt.endpoint, tt.method, start, tt.statusCode, tt.err)
 
 			// Verify request counter
-			count := testutil.ToFloat64(Metrics.BackendRequestsTotal.WithLabelValues(
+			count := testutil.ToFloat64(adapter.Metrics.BackendRequestsTotal.WithLabelValues(
 				tt.adapterName, tt.endpoint, tt.method, tt.expectedStatus,
 			))
 			assert.Equal(t, 1.0, count)
@@ -314,7 +315,7 @@ func TestObserveBackendRequest(t *testing.T) {
 			// Verify error counter if expected
 			if tt.expectError {
 				// Collect all error types for this adapter/endpoint/method
-				errorMetric := Metrics.BackendErrors.MustCurryWith(prometheus.Labels{
+				errorMetric := adapter.Metrics.BackendErrors.MustCurryWith(prometheus.Labels{
 					"adapter":  tt.adapterName,
 					"endpoint": tt.endpoint,
 					"method":   tt.method,
@@ -330,42 +331,42 @@ func TestMetricsLabels(t *testing.T) {
 	// Test that all metrics have the expected labels
 
 	t.Run("OperationTotal labels", func(t *testing.T) {
-		Metrics.OperationTotal.Reset()
-		Metrics.OperationTotal.WithLabelValues("kubernetes", "ListResources", "success").Inc()
+		adapter.Metrics.OperationTotal.Reset()
+		adapter.Metrics.OperationTotal.WithLabelValues("kubernetes", "ListResources", "success").Inc()
 
-		count := testutil.ToFloat64(Metrics.OperationTotal.WithLabelValues(
+		count := testutil.ToFloat64(adapter.Metrics.OperationTotal.WithLabelValues(
 			"kubernetes", "ListResources", "success",
 		))
 		assert.Equal(t, 1.0, count)
 	})
 
 	t.Run("CacheHits labels", func(t *testing.T) {
-		Metrics.CacheHits.Reset()
-		Metrics.CacheHits.WithLabelValues("kubernetes", "GetResource").Inc()
+		adapter.Metrics.CacheHits.Reset()
+		adapter.Metrics.CacheHits.WithLabelValues("kubernetes", "GetResource").Inc()
 
-		count := testutil.ToFloat64(Metrics.CacheHits.WithLabelValues(
+		count := testutil.ToFloat64(adapter.Metrics.CacheHits.WithLabelValues(
 			"kubernetes", "GetResource",
 		))
 		assert.Equal(t, 1.0, count)
 	})
 
 	t.Run("ResourcesTotal labels", func(t *testing.T) {
-		Metrics.ResourcesTotal.Reset()
-		Metrics.ResourcesTotal.WithLabelValues("kubernetes", "node").Set(10)
+		adapter.Metrics.ResourcesTotal.Reset()
+		adapter.Metrics.ResourcesTotal.WithLabelValues("kubernetes", "node").Set(10)
 
-		value := testutil.ToFloat64(Metrics.ResourcesTotal.WithLabelValues(
+		value := testutil.ToFloat64(adapter.Metrics.ResourcesTotal.WithLabelValues(
 			"kubernetes", "node",
 		))
 		assert.Equal(t, 10.0, value)
 	})
 
 	t.Run("BackendRequestsTotal labels", func(t *testing.T) {
-		Metrics.BackendRequestsTotal.Reset()
-		Metrics.BackendRequestsTotal.WithLabelValues(
+		adapter.Metrics.BackendRequestsTotal.Reset()
+		adapter.Metrics.BackendRequestsTotal.WithLabelValues(
 			"kubernetes", "/api/v1/nodes", "GET", "success",
 		).Inc()
 
-		count := testutil.ToFloat64(Metrics.BackendRequestsTotal.WithLabelValues(
+		count := testutil.ToFloat64(adapter.Metrics.BackendRequestsTotal.WithLabelValues(
 			"kubernetes", "/api/v1/nodes", "GET", "success",
 		))
 		assert.Equal(t, 1.0, count)
@@ -375,19 +376,19 @@ func TestMetricsLabels(t *testing.T) {
 func TestMetricsInitialization(t *testing.T) {
 	// Verify all metrics are properly initialized
 
-	require.NotNil(t, Metrics.OperationDuration)
-	require.NotNil(t, Metrics.OperationTotal)
-	require.NotNil(t, Metrics.OperationErrors)
-	require.NotNil(t, Metrics.HealthCheckDuration)
-	require.NotNil(t, Metrics.HealthCheckStatus)
-	require.NotNil(t, Metrics.SubscriptionCount)
-	require.NotNil(t, Metrics.CacheHits)
-	require.NotNil(t, Metrics.CacheMisses)
-	require.NotNil(t, Metrics.ResourcesTotal)
-	require.NotNil(t, Metrics.ResourcePoolsTotal)
-	require.NotNil(t, Metrics.BackendRequestsTotal)
-	require.NotNil(t, Metrics.BackendLatency)
-	require.NotNil(t, Metrics.BackendErrors)
+	require.NotNil(t, adapter.Metrics.OperationDuration)
+	require.NotNil(t, adapter.Metrics.OperationTotal)
+	require.NotNil(t, adapter.Metrics.OperationErrors)
+	require.NotNil(t, adapter.Metrics.HealthCheckDuration)
+	require.NotNil(t, adapter.Metrics.HealthCheckStatus)
+	require.NotNil(t, adapter.Metrics.SubscriptionCount)
+	require.NotNil(t, adapter.Metrics.CacheHits)
+	require.NotNil(t, adapter.Metrics.CacheMisses)
+	require.NotNil(t, adapter.Metrics.ResourcesTotal)
+	require.NotNil(t, adapter.Metrics.ResourcePoolsTotal)
+	require.NotNil(t, adapter.Metrics.BackendRequestsTotal)
+	require.NotNil(t, adapter.Metrics.BackendLatency)
+	require.NotNil(t, adapter.Metrics.BackendErrors)
 }
 
 func BenchmarkObserveOperation(b *testing.B) {
@@ -395,7 +396,7 @@ func BenchmarkObserveOperation(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		ObserveOperation("kubernetes", "ListResources", start, nil)
+		adapter.ObserveOperation("kubernetes", "ListResources", start, nil)
 	}
 }
 
@@ -403,7 +404,7 @@ func BenchmarkRecordCacheHit(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		RecordCacheHit("kubernetes", "ListResources")
+		adapter.RecordCacheHit("kubernetes", "ListResources")
 	}
 }
 
@@ -412,6 +413,6 @@ func BenchmarkObserveBackendRequest(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		ObserveBackendRequest("kubernetes", "/api/v1/nodes", "GET", start, 200, nil)
+		adapter.ObserveBackendRequest("kubernetes", "/api/v1/nodes", "GET", start, 200, nil)
 	}
 }

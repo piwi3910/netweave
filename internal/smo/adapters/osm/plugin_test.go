@@ -1,9 +1,11 @@
-package osm
+package osm_test
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/smo/adapters/osm"
 )
 
 const (
@@ -14,13 +16,13 @@ const (
 func TestNewPlugin(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *osm.Config
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "valid config",
-			config: &Config{
+			config: &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
@@ -36,7 +38,7 @@ func TestNewPlugin(t *testing.T) {
 		},
 		{
 			name: "missing nbiUrl",
-			config: &Config{
+			config: &osm.Config{
 				Username: "admin",
 				Password: "secret",
 			},
@@ -45,7 +47,7 @@ func TestNewPlugin(t *testing.T) {
 		},
 		{
 			name: "missing username",
-			config: &Config{
+			config: &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Password: "secret",
 			},
@@ -54,7 +56,7 @@ func TestNewPlugin(t *testing.T) {
 		},
 		{
 			name: "missing password",
-			config: &Config{
+			config: &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 			},
@@ -63,7 +65,7 @@ func TestNewPlugin(t *testing.T) {
 		},
 		{
 			name: "config with defaults applied",
-			config: &Config{
+			config: &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
@@ -75,7 +77,7 @@ func TestNewPlugin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			plugin, err := NewPlugin(tt.config)
+			plugin, err := osm.NewPlugin(tt.config)
 
 			if tt.wantErr {
 				validateExpectedError(t, err, tt.errMsg)
@@ -92,25 +94,25 @@ func validateExpectedError(t *testing.T, err error, errMsg string) {
 	t.Helper()
 
 	if err == nil {
-		t.Error("NewPlugin() expected error but got none")
+		t.Error("osm.NewPlugin() expected error but got none")
 		return
 	}
 	if errMsg != "" && err.Error() != errMsg {
-		t.Errorf("NewPlugin() error = %v, want %v", err.Error(), errMsg)
+		t.Errorf("osm.NewPlugin() error = %v, want %v", err.Error(), errMsg)
 	}
 }
 
 // validatePluginCreation validates successful plugin creation and configuration.
-func validatePluginCreation(t *testing.T, plugin *Plugin, err error) {
+func validatePluginCreation(t *testing.T, plugin *osm.Plugin, err error) {
 	t.Helper()
 
 	if err != nil {
-		t.Errorf("NewPlugin() unexpected error: %v", err)
+		t.Errorf("osm.NewPlugin() unexpected error: %v", err)
 		return
 	}
 
 	if plugin == nil {
-		t.Error("NewPlugin() returned nil plugin")
+		t.Error("osm.NewPlugin() returned nil plugin")
 		return
 	}
 
@@ -119,7 +121,7 @@ func validatePluginCreation(t *testing.T, plugin *Plugin, err error) {
 }
 
 // validatePluginMetadata validates plugin metadata fields.
-func validatePluginMetadata(t *testing.T, plugin *Plugin) {
+func validatePluginMetadata(t *testing.T, plugin *osm.Plugin) {
 	t.Helper()
 
 	if plugin.Name() != "osm" {
@@ -137,31 +139,31 @@ func validatePluginMetadata(t *testing.T, plugin *Plugin) {
 }
 
 // validatePluginDefaults validates that default configuration values were applied.
-func validatePluginDefaults(t *testing.T, plugin *Plugin) {
+func validatePluginDefaults(t *testing.T, plugin *osm.Plugin) {
 	t.Helper()
 
-	if plugin.config.Project == "" {
+	if plugin.Config.Project == "" {
 		t.Error("Project default was not applied")
 	}
-	if plugin.config.RequestTimeout == 0 {
+	if plugin.Config.RequestTimeout == 0 {
 		t.Error("RequestTimeout default was not applied")
 	}
-	if plugin.config.InventorySyncInterval == 0 {
+	if plugin.Config.InventorySyncInterval == 0 {
 		t.Error("InventorySyncInterval default was not applied")
 	}
 }
 
 // TestPluginMetadata tests plugin metadata methods.
 func TestPluginMetadata(t *testing.T) {
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:   "https://osm.example.com:9999",
 		Username: "admin",
 		Password: "secret",
 	}
 
-	plugin, err := NewPlugin(config)
+	plugin, err := osm.NewPlugin(config)
 	if err != nil {
-		t.Fatalf("NewPlugin() failed: %v", err)
+		t.Fatalf("osm.NewPlugin() failed: %v", err)
 	}
 
 	// Test Name
@@ -204,15 +206,15 @@ func TestPluginMetadata(t *testing.T) {
 
 // TestPluginCapabilityChecks tests capability check methods.
 func TestPluginCapabilityChecks(t *testing.T) {
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:   "https://osm.example.com:9999",
 		Username: "admin",
 		Password: "secret",
 	}
 
-	plugin, err := NewPlugin(config)
+	plugin, err := osm.NewPlugin(config)
 	if err != nil {
-		t.Fatalf("NewPlugin() failed: %v", err)
+		t.Fatalf("osm.NewPlugin() failed: %v", err)
 	}
 
 	tests := []struct {
@@ -264,7 +266,7 @@ func TestPluginCapabilityChecks(t *testing.T) {
 
 // TestPluginLifecycle tests plugin initialization and shutdown.
 func TestPluginLifecycle(t *testing.T) {
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:   "https://osm.example.com:9999",
 		Username: "admin",
 		Password: "secret",
@@ -272,9 +274,9 @@ func TestPluginLifecycle(t *testing.T) {
 		EnableInventorySync: false,
 	}
 
-	plugin, err := NewPlugin(config)
+	plugin, err := osm.NewPlugin(config)
 	if err != nil {
-		t.Fatalf("NewPlugin() failed: %v", err)
+		t.Fatalf("osm.NewPlugin() failed: %v", err)
 	}
 
 	// Test Health before initialization (should fail)
@@ -302,10 +304,10 @@ func TestPluginLifecycle(t *testing.T) {
 
 // TestDefaultConfig tests the DefaultConfig function.
 func TestDefaultConfig(t *testing.T) {
-	config := DefaultConfig()
+	config := osm.DefaultConfig()
 
 	if config == nil {
-		t.Fatal("DefaultConfig() returned nil")
+		t.Fatal("osm.DefaultConfig() returned nil")
 	}
 
 	// Verify all defaults are set
@@ -329,7 +331,7 @@ func TestDefaultConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.value != tt.want {
-				t.Errorf("DefaultConfig().%s = %v, want %v", tt.name, tt.value, tt.want)
+				t.Errorf("osm.DefaultConfig().%s = %v, want %v", tt.name, tt.value, tt.want)
 			}
 		})
 	}
@@ -337,15 +339,15 @@ func TestDefaultConfig(t *testing.T) {
 
 // TestMapOSMStatus tests the OSM status mapping function.
 func TestMapOSMStatus(t *testing.T) {
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:   "https://osm.example.com:9999",
 		Username: "admin",
 		Password: "secret",
 	}
 
-	plugin, err := NewPlugin(config)
+	plugin, err := osm.NewPlugin(config)
 	if err != nil {
-		t.Fatalf("NewPlugin() failed: %v", err)
+		t.Fatalf("osm.NewPlugin() failed: %v", err)
 	}
 
 	tests := []struct {
@@ -367,7 +369,7 @@ func TestMapOSMStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.osmStatus, func(t *testing.T) {
-			result := plugin.mapOSMStatus(tt.osmStatus)
+			result := plugin.MapOSMStatus(tt.osmStatus)
 			if result != tt.wantStatus {
 				t.Errorf("mapOSMStatus(%s) = %v, want %v", tt.osmStatus, result, tt.wantStatus)
 			}
@@ -377,7 +379,7 @@ func TestMapOSMStatus(t *testing.T) {
 
 // TestTransformVIMAccount tests the VIM account transformation function.
 func TestTransformVIMAccount(t *testing.T) {
-	pool := &ResourcePool{
+	pool := &osm.ResourcePool{
 		ID:          "pool-123",
 		Name:        "edge-pool-1",
 		Description: "Edge computing pool",
@@ -388,7 +390,7 @@ func TestTransformVIMAccount(t *testing.T) {
 		},
 	}
 
-	vim := TransformVIMAccount(
+	vim := osm.TransformVIMAccount(
 		pool,
 		"openstack",
 		"https://openstack.example.com:5000/v3",
@@ -401,7 +403,7 @@ func TestTransformVIMAccount(t *testing.T) {
 }
 
 // verifyVIMBasicFields checks basic VIM account fields.
-func verifyVIMBasicFields(t *testing.T, vim *VIMAccount, pool *ResourcePool) {
+func verifyVIMBasicFields(t *testing.T, vim *osm.VIMAccount, pool *osm.ResourcePool) {
 	t.Helper()
 	if vim.ID != pool.ID {
 		t.Errorf("VIM ID = %v, want %v", vim.ID, pool.ID)
@@ -427,30 +429,30 @@ func verifyVIMBasicFields(t *testing.T, vim *VIMAccount, pool *ResourcePool) {
 }
 
 // verifyVIMConfig checks VIM config fields.
-func verifyVIMConfig(t *testing.T, vim *VIMAccount, pool *ResourcePool) {
+func verifyVIMConfig(t *testing.T, vim *osm.VIMAccount, pool *osm.ResourcePool) {
 	t.Helper()
 	if vim.Config == nil {
-		t.Fatal("VIM Config is nil")
+		t.Fatal("VIM osm.Config is nil")
 	}
 	if vim.Config["region"] != "us-south" {
-		t.Errorf("VIM Config[region] = %v, want %v", vim.Config["region"], "us-south")
+		t.Errorf("VIM osm.Config[region] = %v, want %v", vim.Config["region"], "us-south")
 	}
 	if vim.Config["zone"] != "dallas-1" {
-		t.Errorf("VIM Config[zone] = %v, want %v", vim.Config["zone"], "dallas-1")
+		t.Errorf("VIM osm.Config[zone] = %v, want %v", vim.Config["zone"], "dallas-1")
 	}
 	if vim.Config["location"] != pool.Location {
-		t.Errorf("VIM Config[location] = %v, want %v", vim.Config["location"], pool.Location)
+		t.Errorf("VIM osm.Config[location] = %v, want %v", vim.Config["location"], pool.Location)
 	}
 }
 
 // TestTransformVIMAccountWithMinimalData tests transformation with minimal data.
 func TestTransformVIMAccountWithMinimalData(t *testing.T) {
-	pool := &ResourcePool{
+	pool := &osm.ResourcePool{
 		ID:   "pool-456",
 		Name: "minimal-pool",
 	}
 
-	vim := TransformVIMAccount(
+	vim := osm.TransformVIMAccount(
 		pool,
 		"kubernetes",
 		"https://k8s.example.com:6443",
@@ -468,8 +470,8 @@ func TestTransformVIMAccountWithMinimalData(t *testing.T) {
 		t.Errorf("VIM Type = %v, want %v", vim.VIMType, "kubernetes")
 	}
 
-	// Config should still be initialized (even if empty)
+	// osm.Config should still be initialized (even if empty)
 	if vim.Config == nil {
-		t.Error("VIM Config should be initialized even with minimal data")
+		t.Error("VIM osm.Config should be initialized even with minimal data")
 	}
 }

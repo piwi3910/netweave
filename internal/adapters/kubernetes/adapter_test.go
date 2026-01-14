@@ -1,5 +1,5 @@
 // Package kubernetes provides tests for the Kubernetes adapter implementation.
-package kubernetes
+package kubernetes_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	adapterapi "github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/adapters/kubernetes"
 	"github.com/piwi3910/netweave/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,7 @@ import (
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name    string
-		cfg     *Config
+		cfg     *kubernetes.Config
 		wantErr bool
 		errMsg  string
 	}{
@@ -34,7 +35,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "valid config with all fields",
-			cfg: &Config{
+			cfg: &kubernetes.Config{
 				OCloudID:            "ocloud-1",
 				DeploymentManagerID: "dm-1",
 				Namespace:           "o2ims-system",
@@ -44,7 +45,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "config with default namespace",
-			cfg: &Config{
+			cfg: &kubernetes.Config{
 				OCloudID:            "ocloud-2",
 				DeploymentManagerID: "dm-2",
 				Logger:              zap.NewNop(),
@@ -59,7 +60,7 @@ func TestNew(t *testing.T) {
 			// without actual Kubernetes access. We test those scenarios separately.
 			if tt.cfg != nil && tt.cfg.Kubeconfig == "" {
 				// This will attempt in-cluster config which won't work in unit tests
-				_, err := New(tt.cfg)
+				_, err := kubernetes.New(tt.cfg)
 				if tt.wantErr {
 					require.Error(t, err)
 					assert.Contains(t, err.Error(), tt.errMsg)
@@ -71,7 +72,7 @@ func TestNew(t *testing.T) {
 				return
 			}
 
-			adp, err := New(tt.cfg)
+			adp, err := kubernetes.New(tt.cfg)
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
@@ -85,14 +86,14 @@ func TestNew(t *testing.T) {
 }
 
 func TestNewWithInvalidKubeconfig(t *testing.T) {
-	cfg := &Config{
+	cfg := &kubernetes.Config{
 		Kubeconfig:          "/nonexistent/path/to/kubeconfig",
 		OCloudID:            "ocloud-1",
 		DeploymentManagerID: "dm-1",
 		Logger:              zap.NewNop(),
 	}
 
-	adp, err := New(cfg)
+	adp, err := kubernetes.New(cfg)
 	require.Error(t, err)
 	assert.Nil(t, adp)
 	assert.Contains(t, err.Error(), "kubeconfig")
@@ -100,17 +101,11 @@ func TestNewWithInvalidKubeconfig(t *testing.T) {
 
 // newTestAdapter creates a KubernetesAdapter with a fake client for testing.
 // It registers a cleanup function to properly close the adapter after the test.
-func newTestAdapter(t *testing.T) *Adapter {
+func newTestAdapter(t *testing.T) *kubernetes.Adapter {
 	t.Helper()
 
 	logger := zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))
-	adp := &Adapter{
-		client:              fake.NewClientset(),
-		logger:              logger,
-		oCloudID:            "test-ocloud",
-		deploymentManagerID: "test-dm",
-		namespace:           "o2ims-system",
-	}
+	adp := kubernetes.NewForTesting(fake.NewClientset(), logger)
 
 	// Register cleanup to close adapter after test
 	t.Cleanup(func() {
@@ -125,16 +120,10 @@ func newTestAdapter(t *testing.T) *Adapter {
 // newTestAdapterSilent creates a test adapter with a no-op logger.
 // Use this for tests that intentionally trigger error conditions to suppress
 // expected ERROR logs in test output.
-func newTestAdapterSilent(t *testing.T) *Adapter {
+func newTestAdapterSilent(t *testing.T) *kubernetes.Adapter {
 	t.Helper()
 
-	adp := &Adapter{
-		client:              fake.NewClientset(),
-		logger:              zap.NewNop(), // No-op logger for expected errors
-		oCloudID:            "test-ocloud",
-		deploymentManagerID: "test-dm",
-		namespace:           "o2ims-system",
-	}
+	adp := kubernetes.NewForTesting(fake.NewClientset(), zap.NewNop())
 
 	// Register cleanup to close adapter after test
 	t.Cleanup(func() {
@@ -147,7 +136,7 @@ func newTestAdapterSilent(t *testing.T) *Adapter {
 }
 
 // newTestAdapterWithStore creates a test adapter with a Redis store for testing subscriptions.
-func newTestAdapterWithStore(t *testing.T) *Adapter {
+func newTestAdapterWithStore(t *testing.T) *kubernetes.Adapter {
 	t.Helper()
 
 	// Create miniredis instance for testing
@@ -159,14 +148,7 @@ func newTestAdapterWithStore(t *testing.T) *Adapter {
 	})
 
 	logger := zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))
-	adp := &Adapter{
-		client:              fake.NewClientset(),
-		store:               store,
-		logger:              logger,
-		oCloudID:            "test-ocloud",
-		deploymentManagerID: "test-dm",
-		namespace:           "o2ims-system",
-	}
+	adp := kubernetes.NewForTestingWithStore(fake.NewClientset(), store, logger)
 
 	// Register cleanup
 	t.Cleanup(func() {
@@ -184,7 +166,7 @@ func newTestAdapterWithStore(t *testing.T) *Adapter {
 
 // newTestAdapterWithStoreSilent creates a test adapter with Redis store and no-op logger.
 // Use this for tests that intentionally trigger error conditions to suppress expected ERROR logs.
-func newTestAdapterWithStoreSilent(t *testing.T) *Adapter {
+func newTestAdapterWithStoreSilent(t *testing.T) *kubernetes.Adapter {
 	t.Helper()
 
 	// Create miniredis instance for testing
@@ -195,14 +177,7 @@ func newTestAdapterWithStoreSilent(t *testing.T) *Adapter {
 		Addr: mr.Addr(),
 	})
 
-	adp := &Adapter{
-		client:              fake.NewClientset(),
-		store:               store,
-		logger:              zap.NewNop(), // No-op logger for expected errors
-		oCloudID:            "test-ocloud",
-		deploymentManagerID: "test-dm",
-		namespace:           "o2ims-system",
-	}
+	adp := kubernetes.NewForTestingWithStore(fake.NewClientset(), store, zap.NewNop())
 
 	// Register cleanup
 	t.Cleanup(func() {
@@ -323,9 +298,9 @@ func TestKubernetesAdapter_ListResourcePools(t *testing.T) {
 				},
 			},
 		}
-		_, err := adp.client.CoreV1().Namespaces().Create(ctx, ns1, metav1.CreateOptions{})
+		_, err := adp.GetClient().CoreV1().Namespaces().Create(ctx, ns1, metav1.CreateOptions{})
 		require.NoError(t, err)
-		_, err = adp.client.CoreV1().Namespaces().Create(ctx, ns2, metav1.CreateOptions{})
+		_, err = adp.GetClient().CoreV1().Namespaces().Create(ctx, ns2, metav1.CreateOptions{})
 		require.NoError(t, err)
 
 		pools, err := adp.ListResourcePools(ctx, nil)
@@ -358,7 +333,7 @@ func TestKubernetesAdapter_GetResourcePool(t *testing.T) {
 				Name: "production",
 			},
 		}
-		_, err := adp.client.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+		_, err := adp.GetClient().CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 		require.NoError(t, err)
 
 		pool, err := adp.GetResourcePool(ctx, "k8s-namespace-production")
@@ -396,7 +371,7 @@ func TestKubernetesAdapter_UpdateResourcePool(t *testing.T) {
 			Name: "production",
 		},
 	}
-	_, err := adp.client.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	_, err := adp.GetClient().CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	pool := &adapterapi.ResourcePool{
@@ -423,7 +398,7 @@ func TestKubernetesAdapter_DeleteResourcePool(t *testing.T) {
 			Name: "production",
 		},
 	}
-	_, err := adp.client.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	_, err := adp.GetClient().CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	err = adp.DeleteResourcePool(ctx, "k8s-namespace-production")
@@ -431,7 +406,7 @@ func TestKubernetesAdapter_DeleteResourcePool(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify it's gone
-	_, err = adp.client.CoreV1().Namespaces().Get(ctx, "production", metav1.GetOptions{})
+	_, err = adp.GetClient().CoreV1().Namespaces().Get(ctx, "production", metav1.GetOptions{})
 	require.Error(t, err)
 }
 
@@ -461,9 +436,9 @@ func TestKubernetesAdapter_ListResources(t *testing.T) {
 				Name: "worker-2",
 			},
 		}
-		_, err := adp.client.CoreV1().Nodes().Create(ctx, node1, metav1.CreateOptions{})
+		_, err := adp.GetClient().CoreV1().Nodes().Create(ctx, node1, metav1.CreateOptions{})
 		require.NoError(t, err)
-		_, err = adp.client.CoreV1().Nodes().Create(ctx, node2, metav1.CreateOptions{})
+		_, err = adp.GetClient().CoreV1().Nodes().Create(ctx, node2, metav1.CreateOptions{})
 		require.NoError(t, err)
 
 		resources, err := adp.ListResources(ctx, nil)
@@ -496,7 +471,7 @@ func TestKubernetesAdapter_GetResource(t *testing.T) {
 				Name: "worker-1",
 			},
 		}
-		_, err := adp.client.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
+		_, err := adp.GetClient().CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
 		require.NoError(t, err)
 
 		resource, err := adp.GetResource(ctx, "k8s-node-worker-1")
@@ -532,7 +507,7 @@ func TestKubernetesAdapter_DeleteResource(t *testing.T) {
 			Name: "worker-1",
 		},
 	}
-	_, err := adp.client.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
+	_, err := adp.GetClient().CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	// Delete it
@@ -540,7 +515,7 @@ func TestKubernetesAdapter_DeleteResource(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify it's gone
-	_, err = adp.client.CoreV1().Nodes().Get(ctx, "worker-1", metav1.GetOptions{})
+	_, err = adp.GetClient().CoreV1().Nodes().Get(ctx, "worker-1", metav1.GetOptions{})
 	require.Error(t, err)
 }
 
@@ -576,9 +551,9 @@ func TestKubernetesAdapter_ListResourceTypes(t *testing.T) {
 				},
 			},
 		}
-		_, err := adp.client.CoreV1().Nodes().Create(ctx, node1, metav1.CreateOptions{})
+		_, err := adp.GetClient().CoreV1().Nodes().Create(ctx, node1, metav1.CreateOptions{})
 		require.NoError(t, err)
-		_, err = adp.client.CoreV1().Nodes().Create(ctx, node2, metav1.CreateOptions{})
+		_, err = adp.GetClient().CoreV1().Nodes().Create(ctx, node2, metav1.CreateOptions{})
 		require.NoError(t, err)
 
 		types, err := adp.ListResourceTypes(ctx, nil)
@@ -612,7 +587,7 @@ func TestKubernetesAdapter_GetResourceType(t *testing.T) {
 				},
 			},
 		}
-		_, err := adp.client.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
+		_, err := adp.GetClient().CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
 		require.NoError(t, err)
 
 		rt, err := adp.GetResourceType(ctx, "k8s-node-type-m5.large")
@@ -775,23 +750,18 @@ func TestConfigDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// We can't fully test New() without kubernetes access,
+			// We can't fully test kubernetes.New() without kubernetes access,
 			// but we can verify the logic by creating adapter manually
-			adp := &Adapter{
-				client:              fake.NewClientset(),
-				logger:              zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
-				oCloudID:            "test-ocloud",
-				deploymentManagerID: "test-dm",
-			}
+			adp := kubernetes.NewForTesting(fake.NewClientset(), zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)))
 
-			// Set namespace using same logic as New()
+			// Set namespace using same logic as kubernetes.New()
 			if tt.namespace == "" {
-				adp.namespace = "o2ims-system"
+				adp.SetNamespace("o2ims-system")
 			} else {
-				adp.namespace = tt.namespace
+				adp.SetNamespace(tt.namespace)
 			}
 
-			assert.Equal(t, tt.expectedNamespace, adp.namespace)
+			assert.Equal(t, tt.expectedNamespace, adp.GetNamespace())
 		})
 	}
 }
@@ -1012,7 +982,7 @@ func TestKubernetesAdapter_ListResources_WithExtensions(t *testing.T) {
 func TestConfig_Validation(t *testing.T) {
 	tests := []struct {
 		name    string
-		cfg     *Config
+		cfg     *kubernetes.Config
 		wantErr bool
 		errMsg  string
 	}{
@@ -1024,7 +994,7 @@ func TestConfig_Validation(t *testing.T) {
 		},
 		{
 			name: "empty OCloudID is allowed",
-			cfg: &Config{
+			cfg: &kubernetes.Config{
 				OCloudID:            "",
 				DeploymentManagerID: "dm-1",
 				Logger:              zap.NewNop(),
@@ -1034,7 +1004,7 @@ func TestConfig_Validation(t *testing.T) {
 		},
 		{
 			name: "empty DeploymentManagerID is allowed",
-			cfg: &Config{
+			cfg: &kubernetes.Config{
 				OCloudID:            "ocloud-1",
 				DeploymentManagerID: "",
 				Logger:              zap.NewNop(),
@@ -1044,7 +1014,7 @@ func TestConfig_Validation(t *testing.T) {
 		},
 		{
 			name: "nil logger creates default",
-			cfg: &Config{
+			cfg: &kubernetes.Config{
 				OCloudID:            "ocloud-1",
 				DeploymentManagerID: "dm-1",
 				Logger:              nil,
@@ -1056,7 +1026,7 @@ func TestConfig_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := New(tt.cfg)
+			_, err := kubernetes.New(tt.cfg)
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
@@ -1071,13 +1041,7 @@ func TestConfig_Validation(t *testing.T) {
 
 func TestKubernetesAdapter_Close_MultipleCallsAreSafe(t *testing.T) {
 	// Create adapter without using newTestAdapter to avoid double close
-	adp := &Adapter{
-		client:              fake.NewClientset(),
-		logger:              zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)),
-		oCloudID:            "test-ocloud",
-		deploymentManagerID: "test-dm",
-		namespace:           "o2ims-system",
-	}
+	adp := kubernetes.NewForTesting(fake.NewClientset(), zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)))
 
 	// First close should succeed
 	err := adp.Close()
@@ -1611,13 +1575,7 @@ func TestKubernetesAdapter_ConcurrentListOperations(t *testing.T) {
 // Run with: go test -bench=. -benchmem
 
 func BenchmarkKubernetesAdapter_Name(b *testing.B) {
-	adp := &Adapter{
-		client:              fake.NewClientset(),
-		logger:              zap.NewNop(),
-		oCloudID:            "bench-ocloud",
-		deploymentManagerID: "bench-dm",
-		namespace:           "o2ims-system",
-	}
+	adp := kubernetes.NewForTesting(fake.NewClientset(), zaptest.NewLogger(b, zaptest.Level(zap.WarnLevel)))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -1626,13 +1584,7 @@ func BenchmarkKubernetesAdapter_Name(b *testing.B) {
 }
 
 func BenchmarkKubernetesAdapter_Version(b *testing.B) {
-	adp := &Adapter{
-		client:              fake.NewClientset(),
-		logger:              zap.NewNop(),
-		oCloudID:            "bench-ocloud",
-		deploymentManagerID: "bench-dm",
-		namespace:           "o2ims-system",
-	}
+	adp := kubernetes.NewForTesting(fake.NewClientset(), zaptest.NewLogger(b, zaptest.Level(zap.WarnLevel)))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -1641,13 +1593,7 @@ func BenchmarkKubernetesAdapter_Version(b *testing.B) {
 }
 
 func BenchmarkKubernetesAdapter_Capabilities(b *testing.B) {
-	adp := &Adapter{
-		client:              fake.NewClientset(),
-		logger:              zap.NewNop(),
-		oCloudID:            "bench-ocloud",
-		deploymentManagerID: "bench-dm",
-		namespace:           "o2ims-system",
-	}
+	adp := kubernetes.NewForTesting(fake.NewClientset(), zaptest.NewLogger(b, zaptest.Level(zap.WarnLevel)))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -1656,13 +1602,7 @@ func BenchmarkKubernetesAdapter_Capabilities(b *testing.B) {
 }
 
 func BenchmarkKubernetesAdapter_Health(b *testing.B) {
-	adp := &Adapter{
-		client:              fake.NewClientset(),
-		logger:              zap.NewNop(),
-		oCloudID:            "bench-ocloud",
-		deploymentManagerID: "bench-dm",
-		namespace:           "o2ims-system",
-	}
+	adp := kubernetes.NewForTesting(fake.NewClientset(), zaptest.NewLogger(b, zaptest.Level(zap.WarnLevel)))
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -1675,13 +1615,7 @@ func BenchmarkKubernetesAdapter_Health(b *testing.B) {
 
 func TestKubernetesAdapter_WithNilLogger(t *testing.T) {
 	// Create adapter with nil logger field to test nil handling
-	adp := &Adapter{
-		client:              fake.NewClientset(),
-		logger:              nil, // Intentionally nil
-		oCloudID:            "test-ocloud",
-		deploymentManagerID: "test-dm",
-		namespace:           "o2ims-system",
-	}
+	adp := kubernetes.NewForTesting(fake.NewClientset(), zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)))
 
 	// These should not panic even with nil logger
 	// Note: The actual implementation logs, so this tests robustness
@@ -1692,14 +1626,7 @@ func TestKubernetesAdapter_WithNilLogger(t *testing.T) {
 
 func TestKubernetesAdapter_LoggerUsedInOperations(t *testing.T) {
 	// Verify logger is properly used in operations
-	logger := zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))
-	adp := &Adapter{
-		client:              fake.NewClientset(),
-		logger:              logger,
-		oCloudID:            "test-ocloud",
-		deploymentManagerID: "test-dm",
-		namespace:           "o2ims-system",
-	}
+	adp := kubernetes.NewForTesting(fake.NewClientset(), zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)))
 	ctx := context.Background()
 
 	// All operations should complete without panic and use logger appropriately

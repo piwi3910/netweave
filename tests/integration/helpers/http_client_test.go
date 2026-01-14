@@ -1,4 +1,4 @@
-package helpers
+package helpers_test
 
 import (
 	"crypto/tls"
@@ -6,13 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/piwi3910/netweave/tests/integration/helpers"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // TestNewTestHTTPClient verifies the test HTTP client is properly configured.
 func TestNewTestHTTPClient(t *testing.T) {
-	client := NewTestHTTPClient()
+	client := helpers.NewTestHTTPClient()
 	require.NotNil(t, client, "Client should not be nil")
 
 	// Verify timeout configuration
@@ -43,7 +45,7 @@ func TestNewTestHTTPClient(t *testing.T) {
 // TestNewTestHTTPClientWithTimeout verifies custom timeout configuration.
 func TestNewTestHTTPClientWithTimeout(t *testing.T) {
 	customTimeout := 60 * time.Second
-	client := NewTestHTTPClientWithTimeout(customTimeout)
+	client := helpers.NewTestHTTPClientWithTimeout(customTimeout)
 
 	require.NotNil(t, client, "Client should not be nil")
 	assert.Equal(t, customTimeout, client.Timeout,
@@ -61,7 +63,7 @@ func TestNewTestHTTPClientWithTimeout(t *testing.T) {
 
 // TestHTTPClientNotDefaultClient ensures we're not using http.DefaultClient.
 func TestHTTPClientNotDefaultClient(t *testing.T) {
-	client := NewTestHTTPClient()
+	client := helpers.NewTestHTTPClient()
 	assert.NotEqual(t, http.DefaultClient, client,
 		"Test client should not be the default client")
 

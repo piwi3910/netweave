@@ -1,4 +1,4 @@
-package auth
+package auth_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -17,35 +18,35 @@ import (
 
 // mockStore is a mock implementation of auth.Store for testing.
 type mockStore struct {
-	users   map[string]*TenantUser
-	roles   map[string]*Role
-	tenants map[string]*Tenant
-	events  []*AuditEvent
+	users   map[string]*auth.TenantUser
+	roles   map[string]*auth.Role
+	tenants map[string]*auth.Tenant
+	events  []*auth.AuditEvent
 }
 
 func newMockStore() *mockStore {
 	return &mockStore{
-		users:   make(map[string]*TenantUser),
-		roles:   make(map[string]*Role),
-		tenants: make(map[string]*Tenant),
-		events:  make([]*AuditEvent, 0),
+		users:   make(map[string]*auth.TenantUser),
+		roles:   make(map[string]*auth.Role),
+		tenants: make(map[string]*auth.Tenant),
+		events:  make([]*auth.AuditEvent, 0),
 	}
 }
 
-func (m *mockStore) CreateTenant(_ context.Context, tenant *Tenant) error {
+func (m *mockStore) CreateTenant(_ context.Context, tenant *auth.Tenant) error {
 	m.tenants[tenant.ID] = tenant
 	return nil
 }
 
-func (m *mockStore) GetTenant(_ context.Context, id string) (*Tenant, error) {
+func (m *mockStore) GetTenant(_ context.Context, id string) (*auth.Tenant, error) {
 	tenant, ok := m.tenants[id]
 	if !ok {
-		return nil, ErrTenantNotFound
+		return nil, auth.ErrTenantNotFound
 	}
 	return tenant, nil
 }
 
-func (m *mockStore) UpdateTenant(_ context.Context, tenant *Tenant) error {
+func (m *mockStore) UpdateTenant(_ context.Context, tenant *auth.Tenant) error {
 	m.tenants[tenant.ID] = tenant
 	return nil
 }
@@ -55,8 +56,8 @@ func (m *mockStore) DeleteTenant(_ context.Context, id string) error {
 	return nil
 }
 
-func (m *mockStore) ListTenants(_ context.Context) ([]*Tenant, error) {
-	result := make([]*Tenant, 0, len(m.tenants))
+func (m *mockStore) ListTenants(_ context.Context) ([]*auth.Tenant, error) {
+	result := make([]*auth.Tenant, 0, len(m.tenants))
 	for _, t := range m.tenants {
 		result = append(result, t)
 	}
@@ -71,29 +72,29 @@ func (m *mockStore) DecrementUsage(_ context.Context, _, _ string) error {
 	return nil
 }
 
-func (m *mockStore) CreateUser(_ context.Context, user *TenantUser) error {
+func (m *mockStore) CreateUser(_ context.Context, user *auth.TenantUser) error {
 	m.users[user.ID] = user
 	return nil
 }
 
-func (m *mockStore) GetUser(_ context.Context, id string) (*TenantUser, error) {
+func (m *mockStore) GetUser(_ context.Context, id string) (*auth.TenantUser, error) {
 	user, ok := m.users[id]
 	if !ok {
-		return nil, ErrUserNotFound
+		return nil, auth.ErrUserNotFound
 	}
 	return user, nil
 }
 
-func (m *mockStore) GetUserBySubject(_ context.Context, subject string) (*TenantUser, error) {
+func (m *mockStore) GetUserBySubject(_ context.Context, subject string) (*auth.TenantUser, error) {
 	for _, user := range m.users {
 		if user.Subject == subject {
 			return user, nil
 		}
 	}
-	return nil, ErrUserNotFound
+	return nil, auth.ErrUserNotFound
 }
 
-func (m *mockStore) UpdateUser(_ context.Context, user *TenantUser) error {
+func (m *mockStore) UpdateUser(_ context.Context, user *auth.TenantUser) error {
 	m.users[user.ID] = user
 	return nil
 }
@@ -103,8 +104,8 @@ func (m *mockStore) DeleteUser(_ context.Context, id string) error {
 	return nil
 }
 
-func (m *mockStore) ListUsersByTenant(_ context.Context, tenantID string) ([]*TenantUser, error) {
-	result := make([]*TenantUser, 0)
+func (m *mockStore) ListUsersByTenant(_ context.Context, tenantID string) ([]*auth.TenantUser, error) {
+	result := make([]*auth.TenantUser, 0)
 	for _, user := range m.users {
 		if user.TenantID == tenantID {
 			result = append(result, user)
@@ -117,29 +118,29 @@ func (m *mockStore) UpdateLastLogin(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *mockStore) CreateRole(_ context.Context, role *Role) error {
+func (m *mockStore) CreateRole(_ context.Context, role *auth.Role) error {
 	m.roles[role.ID] = role
 	return nil
 }
 
-func (m *mockStore) GetRole(_ context.Context, id string) (*Role, error) {
+func (m *mockStore) GetRole(_ context.Context, id string) (*auth.Role, error) {
 	role, ok := m.roles[id]
 	if !ok {
-		return nil, ErrRoleNotFound
+		return nil, auth.ErrRoleNotFound
 	}
 	return role, nil
 }
 
-func (m *mockStore) GetRoleByName(_ context.Context, name RoleName) (*Role, error) {
+func (m *mockStore) GetRoleByName(_ context.Context, name auth.RoleName) (*auth.Role, error) {
 	for _, role := range m.roles {
 		if role.Name == name {
 			return role, nil
 		}
 	}
-	return nil, ErrRoleNotFound
+	return nil, auth.ErrRoleNotFound
 }
 
-func (m *mockStore) UpdateRole(_ context.Context, role *Role) error {
+func (m *mockStore) UpdateRole(_ context.Context, role *auth.Role) error {
 	m.roles[role.ID] = role
 	return nil
 }
@@ -149,15 +150,15 @@ func (m *mockStore) DeleteRole(_ context.Context, id string) error {
 	return nil
 }
 
-func (m *mockStore) ListRoles(_ context.Context) ([]*Role, error) {
-	result := make([]*Role, 0, len(m.roles))
+func (m *mockStore) ListRoles(_ context.Context) ([]*auth.Role, error) {
+	result := make([]*auth.Role, 0, len(m.roles))
 	for _, r := range m.roles {
 		result = append(result, r)
 	}
 	return result, nil
 }
 
-func (m *mockStore) ListRolesByTenant(ctx context.Context, _ string) ([]*Role, error) {
+func (m *mockStore) ListRolesByTenant(ctx context.Context, _ string) ([]*auth.Role, error) {
 	return m.ListRoles(ctx)
 }
 
@@ -165,20 +166,20 @@ func (m *mockStore) InitializeDefaultRoles(_ context.Context) error {
 	return nil
 }
 
-func (m *mockStore) LogEvent(_ context.Context, event *AuditEvent) error {
+func (m *mockStore) LogEvent(_ context.Context, event *auth.AuditEvent) error {
 	m.events = append(m.events, event)
 	return nil
 }
 
-func (m *mockStore) ListEvents(_ context.Context, _ string, _, _ int) ([]*AuditEvent, error) {
+func (m *mockStore) ListEvents(_ context.Context, _ string, _, _ int) ([]*auth.AuditEvent, error) {
 	return m.events, nil
 }
 
-func (m *mockStore) ListEventsByType(_ context.Context, _ AuditEventType, _ int) ([]*AuditEvent, error) {
+func (m *mockStore) ListEventsByType(_ context.Context, _ auth.AuditEventType, _ int) ([]*auth.AuditEvent, error) {
 	return m.events, nil
 }
 
-func (m *mockStore) ListEventsByUser(_ context.Context, _ string, _ int) ([]*AuditEvent, error) {
+func (m *mockStore) ListEventsByUser(_ context.Context, _ string, _ int) ([]*auth.AuditEvent, error) {
 	return m.events, nil
 }
 
@@ -191,13 +192,13 @@ func (m *mockStore) Close() error {
 }
 
 // setupTestMiddleware creates a middleware instance for testing.
-func setupTestMiddleware(t *testing.T, store *mockStore, config *MiddlewareConfig) *Middleware {
+func setupTestMiddleware(t *testing.T, store *mockStore, config *auth.MiddlewareConfig) *auth.Middleware {
 	t.Helper()
 	logger := zap.NewNop()
 	if config == nil {
-		config = DefaultMiddlewareConfig()
+		config = auth.DefaultMiddlewareConfig()
 	}
-	return NewMiddleware(store, config, logger)
+	return auth.NewMiddleware(store, config, logger)
 }
 
 // TestMiddleware_AuthenticationMiddleware_SkipPaths tests that excluded paths skip auth.
@@ -237,7 +238,7 @@ func TestMiddleware_AuthenticationMiddleware_SkipPaths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := newMockStore()
-			config := &MiddlewareConfig{
+			config := &auth.MiddlewareConfig{
 				Enabled:     true,
 				SkipPaths:   tt.skipPaths,
 				RequireMTLS: true,
@@ -340,7 +341,7 @@ func TestMiddleware_AuthenticationMiddleware_SkipPaths_EdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := newMockStore()
-			config := &MiddlewareConfig{
+			config := &auth.MiddlewareConfig{
 				Enabled:     true,
 				SkipPaths:   tt.skipPaths,
 				RequireMTLS: true,
@@ -393,7 +394,7 @@ func TestMiddleware_AuthenticationMiddleware_NoCertificate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := newMockStore()
-			config := &MiddlewareConfig{
+			config := &auth.MiddlewareConfig{
 				Enabled:     true,
 				SkipPaths:   []string{},
 				RequireMTLS: tt.requireMTLS,
@@ -422,25 +423,25 @@ func TestMiddleware_AuthenticationMiddleware_WithCertificate(t *testing.T) {
 	store := newMockStore()
 
 	// Setup test data.
-	testTenant := &Tenant{
+	testTenant := &auth.Tenant{
 		ID:     "tenant-1",
-		Name:   "Test Tenant",
-		Status: TenantStatusActive,
+		Name:   "Test auth.Tenant",
+		Status: auth.TenantStatusActive,
 	}
 	store.tenants[testTenant.ID] = testTenant
 
-	testRole := &Role{
+	testRole := &auth.Role{
 		ID:   "role-1",
-		Name: RoleTenantAdmin,
-		Type: RoleTypeTenant,
-		Permissions: []Permission{
-			PermissionSubscriptionRead,
-			PermissionSubscriptionCreate,
+		Name: auth.RoleTenantAdmin,
+		Type: auth.RoleTypeTenant,
+		Permissions: []auth.Permission{
+			auth.PermissionSubscriptionRead,
+			auth.PermissionSubscriptionCreate,
 		},
 	}
 	store.roles[testRole.ID] = testRole
 
-	testUser := &TenantUser{
+	testUser := &auth.TenantUser{
 		ID:       "user-1",
 		TenantID: testTenant.ID,
 		Subject:  "CN=testuser,O=TestOrg",
@@ -449,7 +450,7 @@ func TestMiddleware_AuthenticationMiddleware_WithCertificate(t *testing.T) {
 	}
 	store.users[testUser.ID] = testUser
 
-	config := &MiddlewareConfig{
+	config := &auth.MiddlewareConfig{
 		Enabled:     true,
 		SkipPaths:   []string{},
 		RequireMTLS: true,
@@ -460,7 +461,7 @@ func TestMiddleware_AuthenticationMiddleware_WithCertificate(t *testing.T) {
 	router := gin.New()
 	router.Use(mw.AuthenticationMiddleware())
 	router.GET("/test", func(c *gin.Context) {
-		user := UserFromContext(c.Request.Context())
+		user := auth.UserFromContext(c.Request.Context())
 		if user != nil {
 			c.JSON(http.StatusOK, gin.H{"user_id": user.UserID})
 		} else {
@@ -491,7 +492,7 @@ func TestMiddleware_AuthenticationMiddleware_WithCertificate(t *testing.T) {
 func TestMiddleware_AuthenticationMiddleware_UserNotFound(t *testing.T) {
 	store := newMockStore()
 
-	config := &MiddlewareConfig{
+	config := &auth.MiddlewareConfig{
 		Enabled:     true,
 		SkipPaths:   []string{},
 		RequireMTLS: true,
@@ -527,7 +528,7 @@ func TestMiddleware_AuthenticationMiddleware_UserNotFound(t *testing.T) {
 func TestMiddleware_AuthenticationMiddleware_InactiveUser(t *testing.T) {
 	store := newMockStore()
 
-	testUser := &TenantUser{
+	testUser := &auth.TenantUser{
 		ID:       "user-1",
 		TenantID: "tenant-1",
 		Subject:  "CN=inactiveuser,O=TestOrg",
@@ -536,7 +537,7 @@ func TestMiddleware_AuthenticationMiddleware_InactiveUser(t *testing.T) {
 	}
 	store.users[testUser.ID] = testUser
 
-	config := &MiddlewareConfig{
+	config := &auth.MiddlewareConfig{
 		Enabled:     true,
 		SkipPaths:   []string{},
 		RequireMTLS: true,
@@ -572,26 +573,26 @@ func TestMiddleware_AuthenticationMiddleware_InactiveUser(t *testing.T) {
 func TestMiddleware_RequirePermission(t *testing.T) {
 	tests := []struct {
 		name            string
-		userPermissions []Permission
-		requiredPerm    Permission
+		userPermissions []auth.Permission
+		requiredPerm    auth.Permission
 		wantStatus      int
 	}{
 		{
 			name:            "user has permission",
-			userPermissions: []Permission{PermissionSubscriptionRead, PermissionSubscriptionCreate},
-			requiredPerm:    PermissionSubscriptionRead,
+			userPermissions: []auth.Permission{auth.PermissionSubscriptionRead, auth.PermissionSubscriptionCreate},
+			requiredPerm:    auth.PermissionSubscriptionRead,
 			wantStatus:      http.StatusOK,
 		},
 		{
 			name:            "user lacks permission",
-			userPermissions: []Permission{PermissionSubscriptionRead},
-			requiredPerm:    PermissionSubscriptionCreate,
+			userPermissions: []auth.Permission{auth.PermissionSubscriptionRead},
+			requiredPerm:    auth.PermissionSubscriptionCreate,
 			wantStatus:      http.StatusForbidden,
 		},
 		{
 			name:            "user has no permissions",
-			userPermissions: []Permission{},
-			requiredPerm:    PermissionSubscriptionRead,
+			userPermissions: []auth.Permission{},
+			requiredPerm:    auth.PermissionSubscriptionRead,
 			wantStatus:      http.StatusForbidden,
 		},
 	}
@@ -606,16 +607,16 @@ func TestMiddleware_RequirePermission(t *testing.T) {
 
 			// Inject authenticated user directly.
 			router.Use(func(c *gin.Context) {
-				user := &AuthenticatedUser{
+				user := &auth.AuthenticatedUser{
 					UserID:   "user-1",
 					TenantID: "tenant-1",
-					Role: &Role{
+					Role: &auth.Role{
 						ID:          "role-1",
-						Name:        RoleTenantAdmin,
+						Name:        auth.RoleTenantAdmin,
 						Permissions: tt.userPermissions,
 					},
 				}
-				ctx := ContextWithUser(c.Request.Context(), user)
+				ctx := auth.ContextWithUser(c.Request.Context(), user)
 				c.Request = c.Request.WithContext(ctx)
 				c.Next()
 			})
@@ -641,7 +642,7 @@ func TestMiddleware_RequirePermission_NoUser(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(mw.RequirePermission(string(PermissionSubscriptionRead)))
+	router.Use(mw.RequirePermission(string(auth.PermissionSubscriptionRead)))
 	router.GET("/test", func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
@@ -682,13 +683,13 @@ func TestMiddleware_RequirePlatformAdmin(t *testing.T) {
 			router := gin.New()
 
 			router.Use(func(c *gin.Context) {
-				user := &AuthenticatedUser{
+				user := &auth.AuthenticatedUser{
 					UserID:          "user-1",
 					TenantID:        "tenant-1",
 					IsPlatformAdmin: tt.isPlatformAdmin,
-					Role:            &Role{},
+					Role:            &auth.Role{},
 				}
-				ctx := ContextWithUser(c.Request.Context(), user)
+				ctx := auth.ContextWithUser(c.Request.Context(), user)
 				c.Request = c.Request.WithContext(ctx)
 				c.Next()
 			})
@@ -748,13 +749,13 @@ func TestMiddleware_RequireTenantAccess(t *testing.T) {
 			router := gin.New()
 
 			router.Use(func(c *gin.Context) {
-				user := &AuthenticatedUser{
+				user := &auth.AuthenticatedUser{
 					UserID:          "user-1",
 					TenantID:        tt.userTenantID,
 					IsPlatformAdmin: tt.isPlatformAdmin,
-					Role:            &Role{},
+					Role:            &auth.Role{},
 				}
-				ctx := ContextWithUser(c.Request.Context(), user)
+				ctx := auth.ContextWithUser(c.Request.Context(), user)
 				c.Request = c.Request.WithContext(ctx)
 				c.Next()
 			})
@@ -777,26 +778,26 @@ func TestMiddleware_RequireTenantAccess(t *testing.T) {
 func TestMiddleware_RequireAnyPermission(t *testing.T) {
 	tests := []struct {
 		name            string
-		userPermissions []Permission
-		requiredPerms   []Permission
+		userPermissions []auth.Permission
+		requiredPerms   []auth.Permission
 		wantStatus      int
 	}{
 		{
 			name:            "has first permission",
-			userPermissions: []Permission{PermissionSubscriptionRead},
-			requiredPerms:   []Permission{PermissionSubscriptionRead, PermissionSubscriptionCreate},
+			userPermissions: []auth.Permission{auth.PermissionSubscriptionRead},
+			requiredPerms:   []auth.Permission{auth.PermissionSubscriptionRead, auth.PermissionSubscriptionCreate},
 			wantStatus:      http.StatusOK,
 		},
 		{
 			name:            "has second permission",
-			userPermissions: []Permission{PermissionSubscriptionCreate},
-			requiredPerms:   []Permission{PermissionSubscriptionRead, PermissionSubscriptionCreate},
+			userPermissions: []auth.Permission{auth.PermissionSubscriptionCreate},
+			requiredPerms:   []auth.Permission{auth.PermissionSubscriptionRead, auth.PermissionSubscriptionCreate},
 			wantStatus:      http.StatusOK,
 		},
 		{
 			name:            "has neither permission",
-			userPermissions: []Permission{PermissionSubscriptionDelete},
-			requiredPerms:   []Permission{PermissionSubscriptionRead, PermissionSubscriptionCreate},
+			userPermissions: []auth.Permission{auth.PermissionSubscriptionDelete},
+			requiredPerms:   []auth.Permission{auth.PermissionSubscriptionRead, auth.PermissionSubscriptionCreate},
 			wantStatus:      http.StatusForbidden,
 		},
 	}
@@ -810,15 +811,15 @@ func TestMiddleware_RequireAnyPermission(t *testing.T) {
 			router := gin.New()
 
 			router.Use(func(c *gin.Context) {
-				user := &AuthenticatedUser{
+				user := &auth.AuthenticatedUser{
 					UserID:   "user-1",
 					TenantID: "tenant-1",
-					Role: &Role{
+					Role: &auth.Role{
 						ID:          "role-1",
 						Permissions: tt.userPermissions,
 					},
 				}
-				ctx := ContextWithUser(c.Request.Context(), user)
+				ctx := auth.ContextWithUser(c.Request.Context(), user)
 				c.Request = c.Request.WithContext(ctx)
 				c.Next()
 			})
@@ -839,7 +840,7 @@ func TestMiddleware_RequireAnyPermission(t *testing.T) {
 
 // TestParseDNHeader tests DN header parsing with various inputs.
 func TestParseDNHeader(t *testing.T) {
-	mw := &Middleware{logger: zap.NewNop()}
+	mw := &auth.Middleware{Logger: zap.NewNop()}
 
 	tests := []struct {
 		name    string
@@ -869,7 +870,7 @@ func TestParseDNHeader(t *testing.T) {
 		},
 		{
 			name:    "DN too long",
-			dn:      string(make([]byte, maxDNLength+1)),
+			dn:      string(make([]byte, auth.MaxDNLength+1)),
 			wantNil: true,
 		},
 		{
@@ -892,7 +893,7 @@ func TestParseDNHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := mw.parseDNHeader(tt.dn)
+			result := mw.ParseDNHeader(tt.dn)
 
 			if tt.wantNil {
 				assert.Nil(t, result)
@@ -944,7 +945,7 @@ func TestIsValidDNString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isValidDNString(tt.input)
+			got := auth.IsValidDNString(tt.input)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -986,7 +987,7 @@ func TestIsValidDNKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isValidDNKey(tt.input)
+			got := auth.IsValidDNKey(tt.input)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -1023,7 +1024,7 @@ func TestSanitizeDNValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := sanitizeDNValue(tt.input)
+			got := auth.SanitizeDNValue(tt.input)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -1032,7 +1033,7 @@ func TestSanitizeDNValue(t *testing.T) {
 // TestShouldSkipAuth tests path skip logic.
 func TestShouldSkipAuth(t *testing.T) {
 	// Use NewMiddleware to ensure patterns are compiled
-	mw := NewMiddleware(nil, &MiddlewareConfig{
+	mw := auth.NewMiddleware(nil, &auth.MiddlewareConfig{
 		SkipPaths: []string{"/health", "/ready", "/api/v1/public/*"},
 	}, zap.NewNop())
 
@@ -1075,7 +1076,7 @@ func TestShouldSkipAuth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mw.shouldSkipAuth(tt.path)
+			got := mw.ShouldSkipAuth(tt.path)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -1256,25 +1257,25 @@ func TestMatchesPathPattern(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := matchesPathPattern(tt.path, tt.pattern)
-			assert.Equal(t, tt.want, got, "matchesPathPattern(%q, %q)", tt.path, tt.pattern)
+			got := auth.MatchesPathPattern(tt.path, tt.pattern)
+			assert.Equal(t, tt.want, got, "auth.MatchesPathPattern(%q, %q)", tt.path, tt.pattern)
 		})
 	}
 }
 
 // TestBuildSubject tests subject string building.
 func TestBuildSubject(t *testing.T) {
-	mw := &Middleware{}
+	mw := &auth.Middleware{}
 
 	tests := []struct {
 		name string
-		cert *CertificateInfo
+		cert *auth.CertificateInfo
 		want string
 	}{
 		{
 			name: "full subject",
-			cert: &CertificateInfo{
-				Subject: CertificateSubject{
+			cert: &auth.CertificateInfo{
+				Subject: auth.CertificateSubject{
 					CommonName:         "testuser",
 					Organization:       []string{"TestOrg"},
 					OrganizationalUnit: []string{"Engineering"},
@@ -1284,8 +1285,8 @@ func TestBuildSubject(t *testing.T) {
 		},
 		{
 			name: "CN only",
-			cert: &CertificateInfo{
-				Subject: CertificateSubject{
+			cert: &auth.CertificateInfo{
+				Subject: auth.CertificateSubject{
 					CommonName: "testuser",
 				},
 			},
@@ -1293,8 +1294,8 @@ func TestBuildSubject(t *testing.T) {
 		},
 		{
 			name: "CN and O",
-			cert: &CertificateInfo{
-				Subject: CertificateSubject{
+			cert: &auth.CertificateInfo{
+				Subject: auth.CertificateSubject{
 					CommonName:   "testuser",
 					Organization: []string{"TestOrg"},
 				},
@@ -1305,15 +1306,15 @@ func TestBuildSubject(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mw.buildSubject(tt.cert)
+			got := mw.BuildSubject(tt.cert)
 			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-// TestDefaultMiddlewareConfig tests default configuration.
+// Testauth.DefaultMiddlewareConfig tests default configuration.
 func TestDefaultMiddlewareConfig(t *testing.T) {
-	config := DefaultMiddlewareConfig()
+	config := auth.DefaultMiddlewareConfig()
 
 	assert.True(t, config.Enabled)
 	assert.True(t, config.RequireMTLS)
@@ -1327,16 +1328,16 @@ func TestNewMiddleware(t *testing.T) {
 	logger := zap.NewNop()
 
 	t.Run("with config", func(t *testing.T) {
-		config := &MiddlewareConfig{Enabled: false}
-		mw := NewMiddleware(store, config, logger)
+		config := &auth.MiddlewareConfig{Enabled: false}
+		mw := auth.NewMiddleware(store, config, logger)
 		assert.NotNil(t, mw)
-		assert.False(t, mw.config.Enabled)
+		assert.False(t, mw.Config.Enabled)
 	})
 
 	t.Run("without config uses defaults", func(t *testing.T) {
-		mw := NewMiddleware(store, nil, logger)
+		mw := auth.NewMiddleware(store, nil, logger)
 		assert.NotNil(t, mw)
-		assert.True(t, mw.config.Enabled)
+		assert.True(t, mw.Config.Enabled)
 	})
 }
 
@@ -1344,7 +1345,7 @@ func TestNewMiddleware(t *testing.T) {
 func TestParseXFCCHeader(t *testing.T) {
 	store := newMockStore()
 	logger := zap.NewNop()
-	mw := NewMiddleware(store, nil, logger)
+	mw := auth.NewMiddleware(store, nil, logger)
 
 	tests := []struct {
 		name      string
@@ -1383,7 +1384,7 @@ func TestParseXFCCHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			certInfo := mw.parseXFCCHeader(tt.xfcc)
+			certInfo := mw.ParseXFCCHeader(tt.xfcc)
 			if tt.wantNil {
 				assert.Nil(t, certInfo)
 				return
@@ -1404,7 +1405,7 @@ func TestParseXFCCHeader(t *testing.T) {
 func TestExtractEmail(t *testing.T) {
 	store := newMockStore()
 	logger := zap.NewNop()
-	mw := NewMiddleware(store, nil, logger)
+	mw := auth.NewMiddleware(store, nil, logger)
 
 	tests := []struct {
 		name      string
@@ -1435,7 +1436,7 @@ func TestExtractEmail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			email := mw.extractEmail(tt.emails)
+			email := mw.ExtractEmail(tt.emails)
 			assert.Equal(t, tt.wantEmail, email)
 		})
 	}
@@ -1513,7 +1514,7 @@ func TestSanitizeForLogging(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := sanitizeForLogging(tt.input, tt.maxLen)
+			got := auth.SanitizeForLogging(tt.input, tt.maxLen)
 			assert.Equal(t, tt.want, got)
 		})
 	}

@@ -67,7 +67,7 @@ func DefaultValidationConfig() *ValidationConfig {
 
 // OpenAPIValidator provides OpenAPI-based request/response validation.
 type OpenAPIValidator struct {
-	config *ValidationConfig
+	Config *ValidationConfig // Exported for testing
 	router routers.Router
 	spec   *openapi3.T
 	mu     sync.RWMutex
@@ -86,7 +86,7 @@ func NewOpenAPIValidator(cfg *ValidationConfig) (*OpenAPIValidator, error) {
 	}
 
 	validator := &OpenAPIValidator{
-		config: cfg,
+		Config: cfg,
 		logger: logger,
 	}
 
@@ -165,8 +165,8 @@ func (v *OpenAPIValidator) Spec() *openapi3.T {
 
 // isExcludedPath checks if the given path should be excluded from validation.
 // It matches exact paths or path prefixes followed by a slash.
-func (v *OpenAPIValidator) isExcludedPath(path string) bool {
-	for _, excluded := range v.config.ExcludePaths {
+func (v *OpenAPIValidator) IsExcludedPath(path string) bool {
+	for _, excluded := range v.Config.ExcludePaths {
 		// Exact match
 		if path == excluded {
 			return true
@@ -193,18 +193,18 @@ func (v *OpenAPIValidator) Middleware() gin.HandlerFunc {
 		}
 
 		path := c.Request.URL.Path
-		if v.isExcludedPath(path) {
+		if v.IsExcludedPath(path) {
 			c.Next()
 			return
 		}
 
-		if v.config.ValidateRequest {
+		if v.Config.ValidateRequest {
 			if err := v.validateRequest(c); err != nil {
 				return
 			}
 		}
 
-		if v.config.ValidateResponse {
+		if v.Config.ValidateResponse {
 			v.validateResponseWithCapture(c)
 			return
 		}
@@ -242,7 +242,7 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 
 	if c.Request.Body != nil && c.Request.ContentLength > 0 {
 		// Check content length against max body size
-		maxBodySize := v.config.MaxBodySize
+		maxBodySize := v.Config.MaxBodySize
 		if maxBodySize <= 0 {
 			maxBodySize = DefaultMaxBodySize
 		}
@@ -298,7 +298,7 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 			zap.Error(err),
 		)
 
-		errorMessage := formatValidationError(err)
+		errorMessage := FormatValidationError(err)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error":   "ValidationError",
 			"message": errorMessage,
@@ -312,15 +312,15 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 }
 
 // responseRecorder captures the response for validation.
-type responseRecorder struct {
+type ResponseRecorder struct {
 	gin.ResponseWriter
-	body       *bytes.Buffer
-	statusCode int
+	Body       *bytes.Buffer // Exported for testing
+	StatusCode int           // Exported for testing
 }
 
 // Write captures the response body.
-func (r *responseRecorder) Write(b []byte) (int, error) {
-	if _, err := r.body.Write(b); err != nil {
+func (r *ResponseRecorder) Write(b []byte) (int, error) {
+	if _, err := r.Body.Write(b); err != nil {
 		return 0, fmt.Errorf("failed to write to response buffer: %w", err)
 	}
 	n, err := r.ResponseWriter.Write(b)
@@ -331,8 +331,8 @@ func (r *responseRecorder) Write(b []byte) (int, error) {
 }
 
 // WriteHeader captures the status code.
-func (r *responseRecorder) WriteHeader(code int) {
-	r.statusCode = code
+func (r *ResponseRecorder) WriteHeader(code int) {
+	r.StatusCode = code
 	r.ResponseWriter.WriteHeader(code)
 }
 
@@ -342,10 +342,10 @@ func (v *OpenAPIValidator) validateResponseWithCapture(c *gin.Context) {
 	router := v.router
 	v.mu.RUnlock()
 
-	recorder := &responseRecorder{
+	recorder := &ResponseRecorder{
 		ResponseWriter: c.Writer,
-		body:           &bytes.Buffer{},
-		statusCode:     http.StatusOK,
+		Body:           &bytes.Buffer{},
+		StatusCode:     http.StatusOK,
 	}
 	c.Writer = recorder
 
@@ -362,9 +362,9 @@ func (v *OpenAPIValidator) validateResponseWithCapture(c *gin.Context) {
 			PathParams: pathParams,
 			Route:      route,
 		},
-		Status: recorder.statusCode,
+		Status: recorder.StatusCode,
 		Header: c.Writer.Header(),
-		Body:   io.NopCloser(bytes.NewBuffer(recorder.body.Bytes())),
+		Body:   io.NopCloser(bytes.NewBuffer(recorder.Body.Bytes())),
 		Options: &openapi3filter.Options{
 			MultiError: true,
 		},
@@ -374,7 +374,7 @@ func (v *OpenAPIValidator) validateResponseWithCapture(c *gin.Context) {
 		v.logger.Warn("response validation failed",
 			zap.String("method", c.Request.Method),
 			zap.String("path", c.Request.URL.Path),
-			zap.Int("status", recorder.statusCode),
+			zap.Int("status", recorder.StatusCode),
 			zap.Error(err),
 		)
 	}
@@ -382,7 +382,7 @@ func (v *OpenAPIValidator) validateResponseWithCapture(c *gin.Context) {
 
 // formatValidationError formats validation errors for the API response.
 // It uses typed error checking from kin-openapi for more reliable error handling.
-func formatValidationError(err error) string {
+func FormatValidationError(err error) string {
 	if err == nil {
 		return ""
 	}
@@ -398,7 +398,7 @@ func formatValidationError(err error) string {
 	if errors.As(err, &multiErr) {
 		if len(multiErr) > 0 {
 			// Format the first error for a cleaner message
-			return formatValidationError(multiErr[0])
+			return FormatValidationError(multiErr[0])
 		}
 	}
 

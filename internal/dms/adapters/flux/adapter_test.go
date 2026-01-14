@@ -1,10 +1,12 @@
-package flux
+package flux_test
 
 import (
 	"context"
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/dms/adapters/flux"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,19 +27,19 @@ const (
 func TestNewAdapter(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *flux.Config
 		wantErr bool
 	}{
 		{
 			name: "valid config",
-			config: &Config{
-				Namespace: "flux-system",
+			config: &flux.Config{
+				Namespace: "flux.flux-system",
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid config with defaults",
-			config: &Config{
+			config: &flux.Config{
 				Kubeconfig: "/path/to/kubeconfig",
 			},
 			wantErr: false,
@@ -49,7 +51,7 @@ func TestNewAdapter(t *testing.T) {
 		},
 		{
 			name: "config with custom settings",
-			config: &Config{
+			config: &flux.Config{
 				Namespace:        "custom-ns",
 				SourceNamespace:  "sources",
 				ReconcileTimeout: 5 * time.Minute,
@@ -63,7 +65,7 @@ func TestNewAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := NewAdapter(tt.config)
+			adp, err := flux.NewAdapter(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -74,13 +76,13 @@ func TestNewAdapter(t *testing.T) {
 
 				// Verify defaults are applied
 				if tt.config.Namespace == "" {
-					assert.Equal(t, DefaultNamespace, adp.config.Namespace)
+					assert.Equal(t, flux.DefaultNamespace, adp.Config.Namespace)
 				}
 				if tt.config.ReconcileTimeout == 0 {
-					assert.Equal(t, DefaultReconcileTimeout, adp.config.ReconcileTimeout)
+					assert.Equal(t, flux.DefaultReconcileTimeout, adp.Config.ReconcileTimeout)
 				}
 				if tt.config.Interval == 0 {
-					assert.Equal(t, DefaultInterval, adp.config.Interval)
+					assert.Equal(t, flux.DefaultInterval, adp.Config.Interval)
 				}
 			}
 		})
@@ -89,15 +91,15 @@ func TestNewAdapter(t *testing.T) {
 
 // TestAdapterMetadata tests adapter metadata methods.
 func TestAdapterMetadata(t *testing.T) {
-	adp, err := NewAdapter(&Config{})
+	adp, err := flux.NewAdapter(&flux.Config{})
 	require.NoError(t, err)
 
 	t.Run("Name", func(t *testing.T) {
-		assert.Equal(t, AdapterName, adp.Name())
+		assert.Equal(t, flux.AdapterName, adp.Name())
 	})
 
 	t.Run("Version", func(t *testing.T) {
-		assert.Equal(t, AdapterVersion, adp.Version())
+		assert.Equal(t, flux.AdapterVersion, adp.Version())
 	})
 
 	t.Run("Capabilities", func(t *testing.T) {
@@ -123,7 +125,7 @@ func TestAdapterMetadata(t *testing.T) {
 }
 
 // createFakeAdapter creates an adapter with a fake dynamic client for testing.
-func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
+func createFakeAdapter(t *testing.T, objects ...runtime.Object) *flux.Adapter {
 	t.Helper()
 
 	scheme := runtime.NewScheme()
@@ -131,16 +133,16 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 	// Register Flux HelmRelease CRD kinds with the scheme
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   HelmReleaseGroup,
-			Version: HelmReleaseVersion,
+			Group:   flux.HelmReleaseGroup,
+			Version: flux.HelmReleaseVersion,
 			Kind:    "HelmRelease",
 		},
 		&unstructured.Unstructured{},
 	)
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   HelmReleaseGroup,
-			Version: HelmReleaseVersion,
+			Group:   flux.HelmReleaseGroup,
+			Version: flux.HelmReleaseVersion,
 			Kind:    "HelmReleaseList",
 		},
 		&unstructured.UnstructuredList{},
@@ -149,16 +151,16 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 	// Register Flux Kustomization CRD kinds with the scheme
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   KustomizationGroup,
-			Version: KustomizationVersion,
+			Group:   flux.KustomizationGroup,
+			Version: flux.KustomizationVersion,
 			Kind:    "Kustomization",
 		},
 		&unstructured.Unstructured{},
 	)
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   KustomizationGroup,
-			Version: KustomizationVersion,
+			Group:   flux.KustomizationGroup,
+			Version: flux.KustomizationVersion,
 			Kind:    "KustomizationList",
 		},
 		&unstructured.UnstructuredList{},
@@ -167,16 +169,16 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 	// Register Flux GitRepository CRD kinds with the scheme
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   GitRepositoryGroup,
-			Version: GitRepositoryVersion,
+			Group:   flux.GitRepositoryGroup,
+			Version: flux.GitRepositoryVersion,
 			Kind:    "GitRepository",
 		},
 		&unstructured.Unstructured{},
 	)
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   GitRepositoryGroup,
-			Version: GitRepositoryVersion,
+			Group:   flux.GitRepositoryGroup,
+			Version: flux.GitRepositoryVersion,
 			Kind:    "GitRepositoryList",
 		},
 		&unstructured.UnstructuredList{},
@@ -185,16 +187,16 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 	// Register Flux HelmRepository CRD kinds with the scheme
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   GitRepositoryGroup,
-			Version: GitRepositoryVersion,
+			Group:   flux.GitRepositoryGroup,
+			Version: flux.GitRepositoryVersion,
 			Kind:    "HelmRepository",
 		},
 		&unstructured.Unstructured{},
 	)
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   GitRepositoryGroup,
-			Version: GitRepositoryVersion,
+			Group:   flux.GitRepositoryGroup,
+			Version: flux.GitRepositoryVersion,
 			Kind:    "HelmRepositoryList",
 		},
 		&unstructured.UnstructuredList{},
@@ -203,16 +205,16 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 	// Create fake dynamic client
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adp, err := NewAdapter(&Config{
-		Namespace:       "flux-system",
-		SourceNamespace: "flux-system",
+	adp, err := flux.NewAdapter(&flux.Config{
+		Namespace:       "flux.flux-system",
+		SourceNamespace: "flux.flux-system",
 	})
 	require.NoError(t, err)
 
 	// Use initOnce to set up fake client atomically to prevent race conditions.
 	// Setting the client inside the Do() ensures thread-safe initialization.
-	adp.initOnce.Do(func() {
-		adp.dynamicClient = client
+	adp.InitOnce.Do(func() {
+		adp.DynamicClient = client
 	})
 
 	return adp
@@ -220,7 +222,7 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 
 // createTestHelmRelease creates a test Flux HelmRelease unstructured object.
 func createTestHelmRelease(name, chart string, ready bool) *unstructured.Unstructured {
-	namespace := "flux-system"
+	namespace := "flux.flux-system"
 	sourceRef := "bitnami"
 	readyStatus := readyStatusTrue
 	reason := "ReconciliationSucceeded"
@@ -233,7 +235,7 @@ func createTestHelmRelease(name, chart string, ready bool) *unstructured.Unstruc
 
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
-			"apiVersion": fmt.Sprintf("%s/%s", HelmReleaseGroup, HelmReleaseVersion),
+			"apiVersion": fmt.Sprintf("%s/%s", flux.HelmReleaseGroup, flux.HelmReleaseVersion),
 			"kind":       "HelmRelease",
 			"metadata": map[string]interface{}{
 				"name":              name,
@@ -279,7 +281,7 @@ func createTestHelmRelease(name, chart string, ready bool) *unstructured.Unstruc
 
 // createTestKustomization creates a test Flux Kustomization unstructured object.
 func createTestKustomization(name string) *unstructured.Unstructured {
-	namespace := "flux-system"
+	namespace := "flux.flux-system"
 	path := "./apps"
 	sourceRef := "infra-repo"
 	ready := true
@@ -294,7 +296,7 @@ func createTestKustomization(name string) *unstructured.Unstructured {
 
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
-			"apiVersion": fmt.Sprintf("%s/%s", KustomizationGroup, KustomizationVersion),
+			"apiVersion": fmt.Sprintf("%s/%s", flux.KustomizationGroup, flux.KustomizationVersion),
 			"kind":       "Kustomization",
 			"metadata": map[string]interface{}{
 				"name":              name,
@@ -332,7 +334,7 @@ func createTestKustomization(name string) *unstructured.Unstructured {
 func createTestGitRepository(name, namespace, url, branch string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
-			"apiVersion": fmt.Sprintf("%s/%s", GitRepositoryGroup, GitRepositoryVersion),
+			"apiVersion": fmt.Sprintf("%s/%s", flux.GitRepositoryGroup, flux.GitRepositoryVersion),
 			"kind":       "GitRepository",
 			"metadata": map[string]interface{}{
 				"name":              name,
@@ -359,7 +361,7 @@ func createTestGitRepository(name, namespace, url, branch string) *unstructured.
 func createTestHelmRepository(name, namespace, url string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
-			"apiVersion": fmt.Sprintf("%s/%s", GitRepositoryGroup, GitRepositoryVersion),
+			"apiVersion": fmt.Sprintf("%s/%s", flux.GitRepositoryGroup, flux.GitRepositoryVersion),
 			"kind":       "HelmRepository",
 			"metadata": map[string]interface{}{
 				"name":              name,
@@ -1048,8 +1050,8 @@ func TestGetDeploymentLogs(t *testing.T) {
 
 // TestListDeploymentPackages tests package listing functionality.
 func TestListDeploymentPackages(t *testing.T) {
-	gitRepo := createTestGitRepository("infra-repo", "flux-system", "https://github.com/example/infra", "main")
-	helmRepo := createTestHelmRepository("bitnami", "flux-system", "https://charts.bitnami.com/bitnami")
+	gitRepo := createTestGitRepository("infra-repo", "flux.flux-system", "https://github.com/example/infra", "main")
+	helmRepo := createTestHelmRepository("bitnami", "flux.flux-system", "https://charts.bitnami.com/bitnami")
 
 	objects := []runtime.Object{gitRepo, helmRepo}
 
@@ -1063,7 +1065,7 @@ func TestListDeploymentPackages(t *testing.T) {
 
 	for _, pkg := range packages {
 		assert.NotEmpty(t, pkg.ID)
-		assert.True(t, pkg.PackageType == "flux-git" || pkg.PackageType == "flux-helm")
+		assert.True(t, pkg.PackageType == "flux.flux-git" || pkg.PackageType == "flux.flux-helm")
 		assert.NotNil(t, pkg.Extensions)
 	}
 }
@@ -1167,12 +1169,12 @@ func TestClose(t *testing.T) {
 
 	err := adp.Close()
 	require.NoError(t, err)
-	assert.Nil(t, adp.dynamicClient)
+	assert.Nil(t, adp.DynamicClient)
 }
 
 // TestExtractFluxStatus tests status extraction from conditions.
 func TestExtractFluxStatus(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := flux.NewAdapter(&flux.Config{})
 
 	tests := []struct {
 		name       string
@@ -1224,7 +1226,7 @@ func TestExtractFluxStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			status, _ := adp.extractFluxStatus(tt.conditions)
+			status, _ := adp.ExtractFluxStatus(tt.conditions)
 			assert.Equal(t, tt.wantStatus, status)
 		})
 	}
@@ -1232,7 +1234,7 @@ func TestExtractFluxStatus(t *testing.T) {
 
 // TestCalculateProgress tests progress calculation.
 func TestCalculateProgress(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := flux.NewAdapter(&flux.Config{})
 
 	tests := []struct {
 		name   string
@@ -1247,7 +1249,7 @@ func TestCalculateProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := adp.calculateProgress(tt.status)
+			got := adp.CalculateProgress(tt.status)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -1277,7 +1279,7 @@ func TestGeneratePackageID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := generatePackageID(tt.pkgType, tt.url)
+			got := flux.GeneratePackageID(tt.pkgType, tt.url)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -1304,7 +1306,7 @@ func TestBuildLabelSelector(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildLabelSelector(tt.labels)
+			got := flux.BuildLabelSelector(tt.labels)
 			if len(tt.labels) <= 1 {
 				assert.Equal(t, tt.want, got)
 			}
@@ -1314,7 +1316,7 @@ func TestBuildLabelSelector(t *testing.T) {
 
 // TestApplyPagination tests pagination logic.
 func TestApplyPagination(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := flux.NewAdapter(&flux.Config{})
 
 	deployments := []*dmsadapter.Deployment{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
@@ -1366,7 +1368,7 @@ func TestApplyPagination(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := adp.applyPagination(deployments, tt.limit, tt.offset)
+			result := adp.ApplyPagination(deployments, tt.limit, tt.offset)
 			assert.Len(t, result, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, tt.wantFirst, result[0].ID)
@@ -1378,21 +1380,21 @@ func TestApplyPagination(t *testing.T) {
 // TestGVRs verifies the GVRs are correctly defined.
 func TestGVRs(t *testing.T) {
 	t.Run("helmReleaseGVR", func(t *testing.T) {
-		assert.Equal(t, "helm.toolkit.fluxcd.io", helmReleaseGVR.Group)
-		assert.Equal(t, "v2", helmReleaseGVR.Version)
-		assert.Equal(t, "helmreleases", helmReleaseGVR.Resource)
+		assert.Equal(t, "helm.toolkit.fluxcd.io", flux.HelmReleaseGVR.Group)
+		assert.Equal(t, "v2", flux.HelmReleaseGVR.Version)
+		assert.Equal(t, "helmreleases", flux.HelmReleaseGVR.Resource)
 	})
 
 	t.Run("kustomizationGVR", func(t *testing.T) {
-		assert.Equal(t, "kustomize.toolkit.fluxcd.io", kustomizationGVR.Group)
-		assert.Equal(t, "v1", kustomizationGVR.Version)
-		assert.Equal(t, "kustomizations", kustomizationGVR.Resource)
+		assert.Equal(t, "kustomize.toolkit.fluxcd.io", flux.KustomizationGVR.Group)
+		assert.Equal(t, "v1", flux.KustomizationGVR.Version)
+		assert.Equal(t, "kustomizations", flux.KustomizationGVR.Resource)
 	})
 
 	t.Run("gitRepositoryGVR", func(t *testing.T) {
-		assert.Equal(t, "source.toolkit.fluxcd.io", gitRepositoryGVR.Group)
-		assert.Equal(t, "v1", gitRepositoryGVR.Version)
-		assert.Equal(t, "gitrepositories", gitRepositoryGVR.Resource)
+		assert.Equal(t, "source.toolkit.fluxcd.io", flux.GitRepositoryGVR.Group)
+		assert.Equal(t, "v1", flux.GitRepositoryGVR.Version)
+		assert.Equal(t, "gitrepositories", flux.GitRepositoryGVR.Resource)
 	})
 }
 
@@ -1401,7 +1403,7 @@ func TestTransformHelmReleaseToDeployment(t *testing.T) {
 	adp := createFakeAdapter(t)
 	hr := createTestHelmRelease("test-release", "nginx", true)
 
-	deployment := adp.transformHelmReleaseToDeployment(hr)
+	deployment := adp.TransformHelmReleaseToDeployment(hr)
 
 	assert.Equal(t, "test-release", deployment.ID)
 	assert.Equal(t, "test-release", deployment.Name)
@@ -1416,7 +1418,7 @@ func TestTransformKustomizationToDeployment(t *testing.T) {
 	adp := createFakeAdapter(t)
 	ks := createTestKustomization("test-ks")
 
-	deployment := adp.transformKustomizationToDeployment(ks)
+	deployment := adp.TransformKustomizationToDeployment(ks)
 
 	assert.Equal(t, "test-ks", deployment.ID)
 	assert.Equal(t, "test-ks", deployment.Name)
@@ -1441,32 +1443,32 @@ func BenchmarkListDeployments(b *testing.B) {
 	scheme := runtime.NewScheme()
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   HelmReleaseGroup,
-			Version: HelmReleaseVersion,
+			Group:   flux.HelmReleaseGroup,
+			Version: flux.HelmReleaseVersion,
 			Kind:    "HelmRelease",
 		},
 		&unstructured.Unstructured{},
 	)
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   HelmReleaseGroup,
-			Version: HelmReleaseVersion,
+			Group:   flux.HelmReleaseGroup,
+			Version: flux.HelmReleaseVersion,
 			Kind:    "HelmReleaseList",
 		},
 		&unstructured.UnstructuredList{},
 	)
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   KustomizationGroup,
-			Version: KustomizationVersion,
+			Group:   flux.KustomizationGroup,
+			Version: flux.KustomizationVersion,
 			Kind:    "Kustomization",
 		},
 		&unstructured.Unstructured{},
 	)
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   KustomizationGroup,
-			Version: KustomizationVersion,
+			Group:   flux.KustomizationGroup,
+			Version: flux.KustomizationVersion,
 			Kind:    "KustomizationList",
 		},
 		&unstructured.UnstructuredList{},
@@ -1474,8 +1476,8 @@ func BenchmarkListDeployments(b *testing.B) {
 
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adp, _ := NewAdapter(&Config{Namespace: "flux-system"})
-	adp.dynamicClient = client
+	adp, _ := flux.NewAdapter(&flux.Config{Namespace: "flux.flux-system"})
+	adp.DynamicClient = client
 
 	ctx := context.Background()
 
@@ -1578,15 +1580,15 @@ func TestContextCancellation(t *testing.T) {
 
 // TestGetDeploymentPackage tests getting a specific package.
 func TestGetDeploymentPackage(t *testing.T) {
-	gitRepo := createTestGitRepository("infra-repo", "flux-system", "https://github.com/example/infra", "main")
-	helmRepo := createTestHelmRepository("bitnami", "flux-system", "https://charts.bitnami.com/bitnami")
+	gitRepo := createTestGitRepository("infra-repo", "flux.flux-system", "https://github.com/example/infra", "main")
+	helmRepo := createTestHelmRepository("bitnami", "flux.flux-system", "https://charts.bitnami.com/bitnami")
 
 	t.Run("git package found", func(t *testing.T) {
 		adp := createFakeAdapter(t, gitRepo)
 		pkg, err := adp.GetDeploymentPackage(context.Background(), "git-https-github-com-example-infra")
 		require.NoError(t, err)
 		require.NotNil(t, pkg)
-		assert.Equal(t, "flux-git", pkg.PackageType)
+		assert.Equal(t, "flux.flux-git", pkg.PackageType)
 	})
 
 	t.Run("helm package found", func(t *testing.T) {
@@ -1594,7 +1596,7 @@ func TestGetDeploymentPackage(t *testing.T) {
 		pkg, err := adp.GetDeploymentPackage(context.Background(), "helm-https-charts-bitnami-com-bitnami")
 		require.NoError(t, err)
 		require.NotNil(t, pkg)
-		assert.Equal(t, "flux-helm", pkg.PackageType)
+		assert.Equal(t, "flux.flux-helm", pkg.PackageType)
 	})
 
 	t.Run("package not found with git prefix", func(t *testing.T) {
@@ -1651,55 +1653,55 @@ func TestValidateName(t *testing.T) {
 			name:    "empty name",
 			input:   "",
 			wantErr: true,
-			errType: ErrInvalidName,
+			errType: flux.ErrInvalidName,
 		},
 		{
 			name:    "name too long",
 			input:   "a234567890123456789012345678901234567890123456789012345678901234", // 64 chars
 			wantErr: true,
-			errType: ErrInvalidName,
+			errType: flux.ErrInvalidName,
 		},
 		{
 			name:    "uppercase letters",
 			input:   "MyApp",
 			wantErr: true,
-			errType: ErrInvalidName,
+			errType: flux.ErrInvalidName,
 		},
 		{
 			name:    "starts with hyphen",
 			input:   "-myapp",
 			wantErr: true,
-			errType: ErrInvalidName,
+			errType: flux.ErrInvalidName,
 		},
 		{
 			name:    "ends with hyphen",
 			input:   "myapp-",
 			wantErr: true,
-			errType: ErrInvalidName,
+			errType: flux.ErrInvalidName,
 		},
 		{
 			name:    "contains underscore",
 			input:   "my_app",
 			wantErr: true,
-			errType: ErrInvalidName,
+			errType: flux.ErrInvalidName,
 		},
 		{
 			name:    "contains space",
 			input:   "my app",
 			wantErr: true,
-			errType: ErrInvalidName,
+			errType: flux.ErrInvalidName,
 		},
 		{
 			name:    "contains special chars",
 			input:   "my@app",
 			wantErr: true,
-			errType: ErrInvalidName,
+			errType: flux.ErrInvalidName,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateName(tt.input)
+			err := flux.ValidateName(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.ErrorIs(t, err, tt.errType)
@@ -1742,31 +1744,31 @@ func TestValidatePath(t *testing.T) {
 			name:    "path traversal attack",
 			input:   "../../../etc/passwd",
 			wantErr: true,
-			errType: ErrInvalidPath,
+			errType: flux.ErrInvalidPath,
 		},
 		{
 			name:    "path traversal in middle",
 			input:   "apps/../secrets",
 			wantErr: true,
-			errType: ErrInvalidPath,
+			errType: flux.ErrInvalidPath,
 		},
 		{
 			name:    "absolute path",
 			input:   "/etc/passwd",
 			wantErr: true,
-			errType: ErrInvalidPath,
+			errType: flux.ErrInvalidPath,
 		},
 		{
 			name:    "double dot only",
 			input:   "..",
 			wantErr: true,
-			errType: ErrInvalidPath,
+			errType: flux.ErrInvalidPath,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validatePath(tt.input)
+			err := flux.ValidatePath(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.ErrorIs(t, err, tt.errType)
@@ -1783,21 +1785,21 @@ func TestTypedErrors(t *testing.T) {
 		adp := createFakeAdapter(t)
 		_, err := adp.GetDeployment(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+		assert.ErrorIs(t, err, flux.ErrDeploymentNotFound)
 	})
 
 	t.Run("ErrPackageNotFound", func(t *testing.T) {
 		adp := createFakeAdapter(t)
 		_, err := adp.GetDeploymentPackage(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, flux.ErrPackageNotFound)
 	})
 
 	t.Run("ErrOperationNotSupported", func(t *testing.T) {
 		adp := createFakeAdapter(t)
 		err := adp.DeleteDeploymentPackage(context.Background(), "any-id")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrOperationNotSupported)
+		assert.ErrorIs(t, err, flux.ErrOperationNotSupported)
 	})
 
 	t.Run("ErrInvalidName on CreateDeployment", func(t *testing.T) {
@@ -1810,7 +1812,7 @@ func TestTypedErrors(t *testing.T) {
 			},
 		})
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrInvalidName)
+		assert.ErrorIs(t, err, flux.ErrInvalidName)
 	})
 
 	t.Run("ErrInvalidPath on CreateKustomization", func(t *testing.T) {
@@ -1824,7 +1826,7 @@ func TestTypedErrors(t *testing.T) {
 			},
 		})
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrInvalidPath)
+		assert.ErrorIs(t, err, flux.ErrInvalidPath)
 	})
 }
 

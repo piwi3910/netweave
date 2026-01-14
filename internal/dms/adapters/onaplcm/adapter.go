@@ -56,10 +56,10 @@ var (
 
 // Adapter implements the DMS adapter interface for ONAP lifecycle management.
 type Adapter struct {
-	config      *Config
+	Config      *Config // Exported for testing
 	httpClient  *http.Client
-	deployments map[string]*adapter.Deployment
-	packages    map[string]*adapter.DeploymentPackage
+	Deployments map[string]*adapter.Deployment        // Exported for testing
+	Packages    map[string]*adapter.DeploymentPackage // Exported for testing
 	mu          sync.RWMutex
 	initOnce    sync.Once
 	initErr     error
@@ -100,17 +100,18 @@ func NewAdapter(config *Config) (*Adapter, error) {
 	}
 
 	return &Adapter{
-		config:      config,
-		deployments: make(map[string]*adapter.Deployment),
-		packages:    make(map[string]*adapter.DeploymentPackage),
+		Config:      config,
+		Deployments: make(map[string]*adapter.Deployment),
+		Packages:    make(map[string]*adapter.DeploymentPackage),
 	}, nil
 }
 
 // initialize performs lazy initialization of the HTTP client.
-func (o *Adapter) initialize() error {
+// Initialize performs lazy initialization of the adapter. Exported for testing.
+func (o *Adapter) Initialize() error {
 	o.initOnce.Do(func() {
 		o.httpClient = &http.Client{
-			Timeout: o.config.Timeout,
+			Timeout: o.Config.Timeout,
 		}
 	})
 
@@ -146,15 +147,15 @@ func (o *Adapter) ListDeploymentPackages(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
-	packages := make([]*adapter.DeploymentPackage, 0, len(o.packages))
-	for _, pkg := range o.packages {
+	packages := make([]*adapter.DeploymentPackage, 0, len(o.Packages))
+	for _, pkg := range o.Packages {
 		packages = append(packages, pkg)
 	}
 
@@ -175,14 +176,14 @@ func (o *Adapter) GetDeploymentPackage(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
-	pkg, exists := o.packages[id]
+	pkg, exists := o.Packages[id]
 	if !exists {
 		return nil, fmt.Errorf("package %s: %w", id, ErrPackageNotFound)
 	}
@@ -203,7 +204,7 @@ func (o *Adapter) UploadDeploymentPackage(
 		return nil, fmt.Errorf("package cannot be nil")
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -232,7 +233,7 @@ func (o *Adapter) UploadDeploymentPackage(
 	}
 
 	o.mu.Lock()
-	o.packages[vnfDescriptorID] = deploymentPkg
+	o.Packages[vnfDescriptorID] = deploymentPkg
 	o.mu.Unlock()
 
 	return deploymentPkg, nil
@@ -247,18 +248,18 @@ func (o *Adapter) DeleteDeploymentPackage(
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return err
 	}
 
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	if _, exists := o.packages[id]; !exists {
+	if _, exists := o.Packages[id]; !exists {
 		return fmt.Errorf("package %s: %w", id, ErrPackageNotFound)
 	}
 
-	delete(o.packages, id)
+	delete(o.Packages, id)
 	return nil
 }
 
@@ -271,15 +272,15 @@ func (o *Adapter) ListDeployments(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
-	deployments := make([]*adapter.Deployment, 0, len(o.deployments))
-	for _, dep := range o.deployments {
+	deployments := make([]*adapter.Deployment, 0, len(o.Deployments))
+	for _, dep := range o.Deployments {
 		// Apply status filter
 		if filter != nil && filter.Status != "" && dep.Status != filter.Status {
 			continue
@@ -289,7 +290,7 @@ func (o *Adapter) ListDeployments(
 
 	// Apply pagination
 	if filter != nil {
-		deployments = o.applyPagination(deployments, filter.Limit, filter.Offset)
+		deployments = o.ApplyPagination(deployments, filter.Limit, filter.Offset)
 	}
 
 	return deployments, nil
@@ -304,14 +305,14 @@ func (o *Adapter) GetDeployment(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
-	dep, exists := o.deployments[id]
+	dep, exists := o.Deployments[id]
 	if !exists {
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -334,11 +335,11 @@ func (o *Adapter) CreateDeployment(
 	if req.Name == "" {
 		return nil, fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
 	}
-	if err := validateName(req.Name); err != nil {
+	if err := ValidateName(req.Name); err != nil {
 		return nil, err
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -364,7 +365,7 @@ func (o *Adapter) CreateDeployment(
 	}
 
 	o.mu.Lock()
-	o.deployments[vnfInstanceID] = deployment
+	o.Deployments[vnfInstanceID] = deployment
 	o.mu.Unlock()
 
 	return deployment, nil
@@ -384,14 +385,14 @@ func (o *Adapter) UpdateDeployment(
 		return nil, fmt.Errorf("update cannot be nil")
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	dep, exists := o.deployments[id]
+	dep, exists := o.Deployments[id]
 	if !exists {
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -415,18 +416,18 @@ func (o *Adapter) DeleteDeployment(
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return err
 	}
 
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	if _, exists := o.deployments[id]; !exists {
+	if _, exists := o.Deployments[id]; !exists {
 		return fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
 
-	delete(o.deployments, id)
+	delete(o.Deployments, id)
 	return nil
 }
 
@@ -444,14 +445,14 @@ func (o *Adapter) ScaleDeployment(
 		return fmt.Errorf("replicas must be non-negative")
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return err
 	}
 
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	dep, exists := o.deployments[id]
+	dep, exists := o.Deployments[id]
 	if !exists {
 		return fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -492,7 +493,7 @@ func (o *Adapter) GetDeploymentStatus(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -505,7 +506,7 @@ func (o *Adapter) GetDeploymentStatus(
 		DeploymentID: deployment.ID,
 		Status:       deployment.Status,
 		Message:      deployment.Description,
-		Progress:     o.calculateProgress(deployment.Status),
+		Progress:     o.CalculateProgress(deployment.Status),
 		UpdatedAt:    deployment.UpdatedAt,
 		Conditions: []adapter.DeploymentCondition{
 			{
@@ -529,7 +530,7 @@ func (o *Adapter) GetDeploymentHistory(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -562,7 +563,7 @@ func (o *Adapter) GetDeploymentLogs(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -609,17 +610,17 @@ func (o *Adapter) Health(ctx context.Context) error {
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.initialize(); err != nil {
+	if err := o.Initialize(); err != nil {
 		return fmt.Errorf("onap-lcm adapter not healthy: %w", err)
 	}
 
 	// If no endpoint configured, just verify initialization
-	if o.config.SOEndpoint == "" {
+	if o.Config.SOEndpoint == "" {
 		return nil
 	}
 
 	// Try to reach the ONAP SO health endpoint
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.config.SOEndpoint+"/manage/health", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.Config.SOEndpoint+"/manage/health", nil)
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}
@@ -643,9 +644,15 @@ func (o *Adapter) Close() error {
 	return nil
 }
 
+// HTTPClient returns the HTTP client. Exported for testing.
+func (o *Adapter) HTTPClient() *http.Client {
+	return o.httpClient
+}
+
 // Helper functions
 
-func (o *Adapter) calculateProgress(status adapter.DeploymentStatus) int {
+// CalculateProgress calculates deployment progress percentage. Exported for testing.
+func (o *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return 100
@@ -690,7 +697,8 @@ func (o *Adapter) conditionReason(status adapter.DeploymentStatus) string {
 	}
 }
 
-func (o *Adapter) applyPagination(
+// ApplyPagination applies pagination to deployment list. Exported for testing.
+func (o *Adapter) ApplyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
 ) []*adapter.Deployment {
@@ -726,8 +734,8 @@ func (o *Adapter) applyPackagePagination(
 	return packages[start:end]
 }
 
-// validateName validates the deployment name.
-func validateName(name string) error {
+// ValidateName validates deployment/package names. Exported for testing.
+func ValidateName(name string) error {
 	if name == "" {
 		return fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
 	}

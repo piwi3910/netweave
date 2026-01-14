@@ -1,4 +1,4 @@
-package openstack
+package openstack_test
 
 import (
 	"context"
@@ -11,14 +11,15 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/adapters/openstack"
 )
 
 // TestCreateSubscription tests subscription creation.
 func TestCreateSubscription(t *testing.T) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
-		pollingStates: make(map[string]*subscriptionState),
+	adp := &openstack.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
+		PollingStates: make(map[string]*openstack.SubscriptionState),
 	}
 
 	ctx := context.Background()
@@ -91,10 +92,10 @@ func TestCreateSubscription(t *testing.T) {
 
 // TestGetSubscription tests subscription retrieval.
 func TestGetSubscription(t *testing.T) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
-		pollingStates: make(map[string]*subscriptionState),
+	adp := &openstack.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
+		PollingStates: make(map[string]*openstack.SubscriptionState),
 	}
 
 	ctx := context.Background()
@@ -126,10 +127,10 @@ func TestGetSubscription(t *testing.T) {
 
 // TestDeleteSubscription tests subscription deletion.
 func TestDeleteSubscription(t *testing.T) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
-		pollingStates: make(map[string]*subscriptionState),
+	adp := &openstack.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
+		PollingStates: make(map[string]*openstack.SubscriptionState),
 	}
 
 	ctx := context.Background()
@@ -167,10 +168,10 @@ func TestDeleteSubscription(t *testing.T) {
 
 // TestListSubscriptions tests listing all subscriptions.
 func TestListSubscriptions(t *testing.T) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
-		pollingStates: make(map[string]*subscriptionState),
+	adp := &openstack.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
+		PollingStates: make(map[string]*openstack.SubscriptionState),
 	}
 
 	ctx := context.Background()
@@ -209,10 +210,10 @@ func TestListSubscriptions(t *testing.T) {
 
 // TestSubscriptionFilters tests subscription filter handling.
 func TestSubscriptionFilters(t *testing.T) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
-		pollingStates: make(map[string]*subscriptionState),
+	adp := &openstack.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
+		PollingStates: make(map[string]*openstack.SubscriptionState),
 	}
 
 	ctx := context.Background()
@@ -281,10 +282,10 @@ func TestSubscriptionFilters(t *testing.T) {
 
 // TestSubscriptionConcurrency tests concurrent subscription operations.
 func TestSubscriptionConcurrency(t *testing.T) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
-		pollingStates: make(map[string]*subscriptionState),
+	adp := &openstack.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
+		PollingStates: make(map[string]*openstack.SubscriptionState),
 	}
 
 	ctx := context.Background()
@@ -358,10 +359,10 @@ func TestSubscriptionConcurrency(t *testing.T) {
 
 // BenchmarkCreateSubscription benchmarks subscription creation.
 func BenchmarkCreateSubscription(b *testing.B) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
-		pollingStates: make(map[string]*subscriptionState),
+	adp := &openstack.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
+		PollingStates: make(map[string]*openstack.SubscriptionState),
 	}
 
 	ctx := context.Background()
@@ -381,10 +382,10 @@ func BenchmarkCreateSubscription(b *testing.B) {
 
 // BenchmarkGetSubscription benchmarks subscription retrieval.
 func BenchmarkGetSubscription(b *testing.B) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
-		pollingStates: make(map[string]*subscriptionState),
+	adp := &openstack.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
+		PollingStates: make(map[string]*openstack.SubscriptionState),
 	}
 
 	ctx := context.Background()

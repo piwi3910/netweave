@@ -20,7 +20,7 @@ func (a *Adapter) ListResourcePools(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "ListResourcePools", start, err) }()
 
-	a.logger.Debug("ListResourcePools called",
+	a.Logger.Debug("ListResourcePools called",
 		zap.Any("filter", filter),
 		zap.String("poolMode", a.poolMode))
 
@@ -45,16 +45,16 @@ func (a *Adapter) listRGPools(ctx context.Context, filter *adapter.Filter) ([]*a
 
 		for _, rg := range page.Value {
 			// Only include resource groups in the configured location
-			location := ptrToString(rg.Location)
+			location := PtrToString(rg.Location)
 			if location != a.location {
 				continue
 			}
 
-			rgName := ptrToString(rg.Name)
-			poolID := generateRGPoolID(rgName)
+			rgName := PtrToString(rg.Name)
+			poolID := GenerateRGPoolID(rgName)
 
 			// Convert tags to labels
-			labels := tagsToMap(rg.Tags)
+			labels := TagsToMap(rg.Tags)
 
 			// Apply filter
 			if !adapter.MatchesFilter(filter, poolID, "", location, labels) {
@@ -68,11 +68,11 @@ func (a *Adapter) listRGPools(ctx context.Context, filter *adapter.Filter) ([]*a
 				Location:       location,
 				OCloudID:       a.oCloudID,
 				Extensions: map[string]interface{}{
-					"azure.resourceGroupId":   ptrToString(rg.ID),
+					"azure.resourceGroupId":   PtrToString(rg.ID),
 					"azure.resourceGroupName": rgName,
 					"azure.location":          location,
 					"azure.provisioningState": *rg.Properties.ProvisioningState,
-					"azure.managedBy":         ptrToString(rg.ManagedBy),
+					"azure.managedBy":         PtrToString(rg.ManagedBy),
 					"azure.tags":              labels,
 				},
 			}
@@ -86,7 +86,7 @@ func (a *Adapter) listRGPools(ctx context.Context, filter *adapter.Filter) ([]*a
 		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
-	a.logger.Info("listed resource pools (RG mode)",
+	a.Logger.Info("listed resource pools (RG mode)",
 		zap.Int("count", len(pools)))
 
 	return pools, nil
@@ -100,7 +100,7 @@ func (a *Adapter) listAZPools(_ context.Context, filter *adapter.Filter) []*adap
 
 	pools := make([]*adapter.ResourcePool, 0, len(zones))
 	for _, zone := range zones {
-		poolID := generateAZPoolID(a.location, zone)
+		poolID := GenerateAZPoolID(a.location, zone)
 		zoneName := fmt.Sprintf("%s-%s", a.location, zone)
 
 		// Apply filter
@@ -129,7 +129,7 @@ func (a *Adapter) listAZPools(_ context.Context, filter *adapter.Filter) []*adap
 		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
-	a.logger.Info("listed resource pools (AZ mode)",
+	a.Logger.Info("listed resource pools (AZ mode)",
 		zap.Int("count", len(pools)))
 
 	return pools
@@ -141,7 +141,7 @@ func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.Reso
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetResourcePool", start, err) }()
 
-	a.logger.Debug("GetResourcePool called",
+	a.Logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
 	if a.poolMode == "az" {
@@ -190,7 +190,7 @@ func (a *Adapter) CreateResourcePool(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "CreateResourcePool", start, err) }()
 
-	a.logger.Debug("CreateResourcePool called",
+	a.Logger.Debug("CreateResourcePool called",
 		zap.String("name", pool.Name))
 
 	if a.poolMode == "az" {
@@ -217,7 +217,7 @@ func (a *Adapter) UpdateResourcePool(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "UpdateResourcePool", start, err) }()
 
-	a.logger.Debug("UpdateResourcePool called",
+	a.Logger.Debug("UpdateResourcePool called",
 		zap.String("id", id),
 		zap.String("name", pool.Name))
 
@@ -236,7 +236,7 @@ func (a *Adapter) DeleteResourcePool(_ context.Context, id string) error {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "DeleteResourcePool", start, err) }()
 
-	a.logger.Debug("DeleteResourcePool called",
+	a.Logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 
 	if a.poolMode == "az" {

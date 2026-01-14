@@ -14,23 +14,23 @@ import (
 // GetDeploymentManager retrieves metadata about the AWS deployment manager.
 // It queries the AWS region information to construct the deployment manager metadata.
 func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
-	a.logger.Debug("GetDeploymentManager called",
+	a.Logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
-	if id != a.deploymentManagerID {
+	if id != a.DeploymentManagerID {
 		return nil, fmt.Errorf("deployment manager not found: %s", id)
 	}
 
 	// Query AWS region information
 	regionsOutput, err := a.ec2Client.DescribeRegions(ctx, &ec2.DescribeRegionsInput{
-		RegionNames: []string{a.region},
+		RegionNames: []string{a.Region},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to describe regions: %w", err)
 	}
 
 	if len(regionsOutput.Regions) == 0 {
-		return nil, fmt.Errorf("region not found: %s", a.region)
+		return nil, fmt.Errorf("region not found: %s", a.Region)
 	}
 
 	currentRegion := regionsOutput.Regions[0]
@@ -40,7 +40,7 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 		Filters: []ec2Types.Filter{
 			{
 				Name:   aws.String("region-name"),
-				Values: []string{a.region},
+				Values: []string{a.Region},
 			},
 		},
 	})
@@ -56,11 +56,11 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 
 	// Construct deployment manager metadata
 	dm := &adapter.DeploymentManager{
-		DeploymentManagerID: a.deploymentManagerID,
-		Name:                fmt.Sprintf("AWS %s", a.region),
-		Description:         fmt.Sprintf("AWS cloud deployment in region %s", a.region),
-		OCloudID:            a.oCloudID,
-		ServiceURI:          fmt.Sprintf("https://ec2.%s.amazonaws.com", a.region),
+		DeploymentManagerID: a.DeploymentManagerID,
+		Name:                fmt.Sprintf("AWS %s", a.Region),
+		Description:         fmt.Sprintf("AWS cloud deployment in region %s", a.Region),
+		OCloudID:            a.OCloudID,
+		ServiceURI:          fmt.Sprintf("https://ec2.%s.amazonaws.com", a.Region),
 		SupportedLocations:  supportedLocations,
 		Capabilities: []string{
 			"resource-pools",
@@ -69,16 +69,16 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 			"subscriptions",
 		},
 		Extensions: map[string]interface{}{
-			"aws.region":         a.region,
-			"aws.regionEndpoint": aws.ToString(currentRegion.Endpoint),
-			"aws.poolMode":       a.poolMode,
+			"aws.Region":         a.Region,
+			"aws.RegionEndpoint": aws.ToString(currentRegion.Endpoint),
+			"aws.PoolMode":       a.PoolMode,
 			"aws.optInStatus":    aws.ToString(currentRegion.OptInStatus),
 		},
 	}
 
-	a.logger.Info("retrieved deployment manager",
+	a.Logger.Info("retrieved deployment manager",
 		zap.String("deploymentManagerID", dm.DeploymentManagerID),
-		zap.String("region", a.region),
+		zap.String("region", a.Region),
 		zap.Int("supportedLocations", len(supportedLocations)))
 
 	return dm, nil

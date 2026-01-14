@@ -1,9 +1,11 @@
-package middleware
+package middleware_test
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/middleware"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
@@ -28,44 +30,44 @@ func TestNewRateLimiter(t *testing.T) {
 	logger := zap.NewNop()
 
 	t.Run("valid creation", func(t *testing.T) {
-		config := &RateLimitConfig{
+		config := &middleware.RateLimitConfig{
 			Enabled:     true,
 			RedisClient: redisClient,
 		}
 
-		rl, err := NewRateLimiter(config, logger)
+		rl, err := middleware.NewRateLimiter(config, logger)
 		require.NoError(t, err)
 		assert.NotNil(t, rl)
-		assert.Equal(t, redisClient, rl.client)
-		assert.Equal(t, logger, rl.logger)
-		assert.Equal(t, config, rl.config)
+		assert.Equal(t, redisClient, rl.Client)
+		assert.Equal(t, logger, rl.Logger)
+		assert.Equal(t, config, rl.Config)
 	})
 
 	t.Run("nil config", func(t *testing.T) {
-		rl, err := NewRateLimiter(nil, logger)
+		rl, err := middleware.NewRateLimiter(nil, logger)
 		assert.Error(t, err)
 		assert.Nil(t, rl)
 		assert.Contains(t, err.Error(), "config cannot be nil")
 	})
 
 	t.Run("nil redis client", func(t *testing.T) {
-		config := &RateLimitConfig{
+		config := &middleware.RateLimitConfig{
 			Enabled: true,
 		}
 
-		rl, err := NewRateLimiter(config, logger)
+		rl, err := middleware.NewRateLimiter(config, logger)
 		assert.Error(t, err)
 		assert.Nil(t, rl)
 		assert.Contains(t, err.Error(), "redis client cannot be nil")
 	})
 
 	t.Run("nil logger", func(t *testing.T) {
-		config := &RateLimitConfig{
+		config := &middleware.RateLimitConfig{
 			Enabled:     true,
 			RedisClient: redisClient,
 		}
 
-		rl, err := NewRateLimiter(config, nil)
+		rl, err := middleware.NewRateLimiter(config, nil)
 		assert.Error(t, err)
 		assert.Nil(t, rl)
 		assert.Contains(t, err.Error(), "logger cannot be nil")
@@ -78,12 +80,12 @@ func TestNewRateLimiter(t *testing.T) {
 		})
 		defer func() { require.NoError(t, badClient.Close()) }()
 
-		config := &RateLimitConfig{
+		config := &middleware.RateLimitConfig{
 			Enabled:     true,
 			RedisClient: badClient,
 		}
 
-		rl, err := NewRateLimiter(config, logger)
+		rl, err := middleware.NewRateLimiter(config, logger)
 		assert.Error(t, err)
 		assert.Nil(t, rl)
 		assert.Contains(t, err.Error(), "redis connection failed")
@@ -105,12 +107,12 @@ func TestMiddleware(t *testing.T) {
 	logger := zap.NewNop()
 
 	t.Run("disabled rate limiter allows all requests", func(t *testing.T) {
-		config := &RateLimitConfig{
+		config := &middleware.RateLimitConfig{
 			Enabled:     false,
 			RedisClient: redisClient,
 		}
 
-		rl, err := NewRateLimiter(config, logger)
+		rl, err := middleware.NewRateLimiter(config, logger)
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()
@@ -128,16 +130,16 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("per-tenant rate limit", func(t *testing.T) {
-		config := &RateLimitConfig{
+		config := &middleware.RateLimitConfig{
 			Enabled: true,
-			PerTenant: TenantLimitConfig{
+			PerTenant: middleware.TenantLimitConfig{
 				RequestsPerSecond: 2,
 				BurstSize:         2,
 			},
 			RedisClient: redisClient,
 		}
 
-		rl, err := NewRateLimiter(config, logger)
+		rl, err := middleware.NewRateLimiter(config, logger)
 		require.NoError(t, err)
 
 		router := gin.New()
@@ -161,9 +163,9 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("endpoint-specific rate limit", func(t *testing.T) {
-		config := &RateLimitConfig{
+		config := &middleware.RateLimitConfig{
 			Enabled: true,
-			PerEndpoint: []EndpointLimitConfig{
+			PerEndpoint: []middleware.EndpointLimitConfig{
 				{
 					Path:              "/limited",
 					Method:            "GET",
@@ -174,7 +176,7 @@ func TestMiddleware(t *testing.T) {
 			RedisClient: redisClient,
 		}
 
-		rl, err := NewRateLimiter(config, logger)
+		rl, err := middleware.NewRateLimiter(config, logger)
 		require.NoError(t, err)
 
 		router := gin.New()
@@ -191,15 +193,15 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("global rate limit", func(t *testing.T) {
-		config := &RateLimitConfig{
+		config := &middleware.RateLimitConfig{
 			Enabled: true,
-			Global: GlobalLimitConfig{
+			Global: middleware.GlobalLimitConfig{
 				RequestsPerSecond: 10,
 			},
 			RedisClient: redisClient,
 		}
 
-		rl, err := NewRateLimiter(config, logger)
+		rl, err := middleware.NewRateLimiter(config, logger)
 		require.NoError(t, err)
 
 		router := gin.New()
@@ -227,9 +229,9 @@ func TestGetEndpointLimit(t *testing.T) {
 
 	logger := zap.NewNop()
 
-	config := &RateLimitConfig{
+	config := &middleware.RateLimitConfig{
 		Enabled: true,
-		PerEndpoint: []EndpointLimitConfig{
+		PerEndpoint: []middleware.EndpointLimitConfig{
 			{
 				Path:              "/api/v1/users",
 				Method:            "GET",
@@ -246,30 +248,30 @@ func TestGetEndpointLimit(t *testing.T) {
 		RedisClient: redisClient,
 	}
 
-	rl, err := NewRateLimiter(config, logger)
+	rl, err := middleware.NewRateLimiter(config, logger)
 	require.NoError(t, err)
 
 	t.Run("finds matching endpoint", func(t *testing.T) {
-		limit := rl.getEndpointLimit("GET", "/api/v1/users")
+		limit := rl.GetEndpointLimit("GET", "/api/v1/users")
 		require.NotNil(t, limit)
 		assert.Equal(t, 10, limit.RequestsPerSecond)
 		assert.Equal(t, 20, limit.BurstSize)
 	})
 
 	t.Run("finds different method", func(t *testing.T) {
-		limit := rl.getEndpointLimit("POST", "/api/v1/users")
+		limit := rl.GetEndpointLimit("POST", "/api/v1/users")
 		require.NotNil(t, limit)
 		assert.Equal(t, 5, limit.RequestsPerSecond)
 		assert.Equal(t, 10, limit.BurstSize)
 	})
 
 	t.Run("returns nil for non-existent endpoint", func(t *testing.T) {
-		limit := rl.getEndpointLimit("DELETE", "/api/v1/users")
+		limit := rl.GetEndpointLimit("DELETE", "/api/v1/users")
 		assert.Nil(t, limit)
 	})
 
 	t.Run("returns nil for non-existent path", func(t *testing.T) {
-		limit := rl.getEndpointLimit("GET", "/api/v1/posts")
+		limit := rl.GetEndpointLimit("GET", "/api/v1/posts")
 		assert.Nil(t, limit)
 	})
 }
@@ -283,7 +285,7 @@ func TestGetTenantID(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Set("tenant_id", "tenant-123")
 
-		tenantID := getTenantID(c)
+		tenantID := middleware.GetTenantID(c)
 		assert.Equal(t, "tenant-123", tenantID)
 	})
 
@@ -293,7 +295,7 @@ func TestGetTenantID(t *testing.T) {
 		c.Request = httptest.NewRequest(http.MethodGet, "/test", nil)
 		c.Request.RemoteAddr = testRemoteAddr
 
-		tenantID := getTenantID(c)
+		tenantID := middleware.GetTenantID(c)
 		assert.Contains(t, tenantID, "192.168.1.100")
 	})
 
@@ -304,7 +306,7 @@ func TestGetTenantID(t *testing.T) {
 		c.Request = httptest.NewRequest(http.MethodGet, "/test", nil)
 		c.Request.RemoteAddr = testRemoteAddr
 
-		tenantID := getTenantID(c)
+		tenantID := middleware.GetTenantID(c)
 		assert.Contains(t, tenantID, "192.168.1.100")
 	})
 
@@ -315,7 +317,7 @@ func TestGetTenantID(t *testing.T) {
 		c.Request = httptest.NewRequest(http.MethodGet, "/test", nil)
 		c.Request.RemoteAddr = testRemoteAddr
 
-		tenantID := getTenantID(c)
+		tenantID := middleware.GetTenantID(c)
 		assert.Contains(t, tenantID, "192.168.1.100")
 	})
 }
@@ -323,21 +325,21 @@ func TestGetTenantID(t *testing.T) {
 // TestGlobalLimitConfig_BurstSize tests burst size calculation.
 func TestGlobalLimitConfig_BurstSize(t *testing.T) {
 	t.Run("returns double the rate", func(t *testing.T) {
-		config := GlobalLimitConfig{
+		config := middleware.GlobalLimitConfig{
 			RequestsPerSecond: 10,
 		}
 		assert.Equal(t, 20, config.BurstSize())
 	})
 
 	t.Run("returns 0 for 0 rate", func(t *testing.T) {
-		config := GlobalLimitConfig{
+		config := middleware.GlobalLimitConfig{
 			RequestsPerSecond: 0,
 		}
 		assert.Equal(t, 0, config.BurstSize())
 	})
 
 	t.Run("handles large rates", func(t *testing.T) {
-		config := GlobalLimitConfig{
+		config := middleware.GlobalLimitConfig{
 			RequestsPerSecond: 1000,
 		}
 		assert.Equal(t, 2000, config.BurstSize())

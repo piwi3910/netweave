@@ -1,8 +1,9 @@
-package adapter
+package adapter_test
 
 import (
 	"testing"
 
+	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -10,7 +11,7 @@ import (
 func TestMatchesFilter(t *testing.T) {
 	tests := []struct {
 		name           string
-		filter         *Filter
+		filter         *adapter.Filter
 		resourcePoolID string
 		resourceTypeID string
 		location       string
@@ -25,7 +26,7 @@ func TestMatchesFilter(t *testing.T) {
 		},
 		{
 			name: "resource pool filter matches",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				ResourcePoolID: "pool-1",
 			},
 			resourcePoolID: "pool-1",
@@ -33,7 +34,7 @@ func TestMatchesFilter(t *testing.T) {
 		},
 		{
 			name: "resource pool filter doesn't match",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				ResourcePoolID: "pool-1",
 			},
 			resourcePoolID: "pool-2",
@@ -41,7 +42,7 @@ func TestMatchesFilter(t *testing.T) {
 		},
 		{
 			name: "resource type filter matches",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				ResourceTypeID: "type-1",
 			},
 			resourceTypeID: "type-1",
@@ -49,7 +50,7 @@ func TestMatchesFilter(t *testing.T) {
 		},
 		{
 			name: "resource type filter doesn't match",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				ResourceTypeID: "type-1",
 			},
 			resourceTypeID: "type-2",
@@ -57,7 +58,7 @@ func TestMatchesFilter(t *testing.T) {
 		},
 		{
 			name: "location filter matches",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				Location: "us-east-1a",
 			},
 			location: "us-east-1a",
@@ -65,7 +66,7 @@ func TestMatchesFilter(t *testing.T) {
 		},
 		{
 			name: "location filter doesn't match",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				Location: "us-east-1a",
 			},
 			location: "us-east-1b",
@@ -73,7 +74,7 @@ func TestMatchesFilter(t *testing.T) {
 		},
 		{
 			name: "labels filter matches",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				Labels: map[string]string{
 					"env": "prod",
 				},
@@ -86,7 +87,7 @@ func TestMatchesFilter(t *testing.T) {
 		},
 		{
 			name: "labels filter doesn't match",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				Labels: map[string]string{
 					"env": "prod",
 				},
@@ -98,7 +99,7 @@ func TestMatchesFilter(t *testing.T) {
 		},
 		{
 			name: "multiple filters all match",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				ResourcePoolID: "pool-1",
 				Location:       "us-east-1a",
 			},
@@ -108,7 +109,7 @@ func TestMatchesFilter(t *testing.T) {
 		},
 		{
 			name: "multiple filters one doesn't match",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				ResourcePoolID: "pool-1",
 				Location:       "us-east-1a",
 			},
@@ -120,7 +121,7 @@ func TestMatchesFilter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := MatchesFilter(
+			got := adapter.MatchesFilter(
 				tt.filter,
 				tt.resourcePoolID,
 				tt.resourceTypeID,
@@ -182,7 +183,7 @@ func TestApplyPagination(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ApplyPagination(items, tt.limit, tt.offset)
+			got := adapter.ApplyPagination(items, tt.limit, tt.offset)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -190,7 +191,7 @@ func TestApplyPagination(t *testing.T) {
 
 // BenchmarkMatchesFilter benchmarks the filter matching logic.
 func BenchmarkMatchesFilter(b *testing.B) {
-	filter := &Filter{
+	filter := &adapter.Filter{
 		ResourcePoolID: "pool-1",
 		ResourceTypeID: "type-1",
 		Location:       "us-east-1a",
@@ -208,7 +209,7 @@ func BenchmarkMatchesFilter(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		MatchesFilter(filter, "pool-1", "type-1", "us-east-1a", labels)
+		adapter.MatchesFilter(filter, "pool-1", "type-1", "us-east-1a", labels)
 	}
 }
 
@@ -221,6 +222,6 @@ func BenchmarkApplyPagination(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ApplyPagination(items, 10, 50)
+		adapter.ApplyPagination(items, 10, 50)
 	}
 }

@@ -1,10 +1,12 @@
-package middleware
+package middleware_test
 
 import (
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -16,13 +18,13 @@ func TestSecurityHeaders(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		config         *SecurityHeadersConfig
+		config         *middleware.SecurityHeadersConfig
 		expectedHeader map[string]string
 		notExpected    []string
 	}{
 		{
 			name:   "default config adds all security headers",
-			config: DefaultSecurityHeadersConfig(),
+			config: middleware.DefaultSecurityHeadersConfig(),
 			expectedHeader: map[string]string{
 				"X-Content-Type-Options":  "nosniff",
 				"X-Frame-Options":         "DENY",
@@ -36,7 +38,7 @@ func TestSecurityHeaders(t *testing.T) {
 		},
 		{
 			name: "HSTS header added when TLS enabled",
-			config: &SecurityHeadersConfig{
+			config: &middleware.SecurityHeadersConfig{
 				Enabled:               true,
 				TLSEnabled:            true,
 				HSTSMaxAge:            31536000,
@@ -53,7 +55,7 @@ func TestSecurityHeaders(t *testing.T) {
 		},
 		{
 			name: "HSTS header with preload",
-			config: &SecurityHeadersConfig{
+			config: &middleware.SecurityHeadersConfig{
 				Enabled:               true,
 				TLSEnabled:            true,
 				HSTSMaxAge:            63072000, // 2 years
@@ -69,7 +71,7 @@ func TestSecurityHeaders(t *testing.T) {
 		},
 		{
 			name: "custom frame options",
-			config: &SecurityHeadersConfig{
+			config: &middleware.SecurityHeadersConfig{
 				Enabled:               true,
 				ContentSecurityPolicy: "default-src 'self'",
 				FrameOptions:          "SAMEORIGIN",
@@ -83,7 +85,7 @@ func TestSecurityHeaders(t *testing.T) {
 		},
 		{
 			name: "disabled config skips headers",
-			config: &SecurityHeadersConfig{
+			config: &middleware.SecurityHeadersConfig{
 				Enabled: false,
 			},
 			notExpected: []string{
@@ -99,7 +101,7 @@ func TestSecurityHeaders(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			router := gin.New()
-			router.Use(SecurityHeaders(tt.config))
+			router.Use(middleware.SecurityHeaders(tt.config))
 			router.GET("/test", func(c *gin.Context) {
 				c.String(http.StatusOK, "OK")
 			})
@@ -129,7 +131,7 @@ func TestSecurityHeadersNilConfig(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	router.Use(SecurityHeaders(nil))
+	router.Use(middleware.SecurityHeaders(nil))
 	router.GET("/test", func(c *gin.Context) {
 		c.String(http.StatusOK, "OK")
 	})
@@ -146,7 +148,7 @@ func TestSecurityHeadersNilConfig(t *testing.T) {
 }
 
 func TestDefaultSecurityHeadersConfig(t *testing.T) {
-	config := DefaultSecurityHeadersConfig()
+	config := middleware.DefaultSecurityHeadersConfig()
 
 	assert.True(t, config.Enabled)
 	assert.Equal(t, 31536000, config.HSTSMaxAge)
@@ -161,12 +163,12 @@ func TestDefaultSecurityHeadersConfig(t *testing.T) {
 func TestBuildHSTSValue(t *testing.T) {
 	tests := []struct {
 		name     string
-		config   *SecurityHeadersConfig
+		config   *middleware.SecurityHeadersConfig
 		expected string
 	}{
 		{
 			name: "basic max-age",
-			config: &SecurityHeadersConfig{
+			config: &middleware.SecurityHeadersConfig{
 				HSTSMaxAge:            31536000,
 				HSTSIncludeSubDomains: false,
 				HSTSPreload:           false,
@@ -175,7 +177,7 @@ func TestBuildHSTSValue(t *testing.T) {
 		},
 		{
 			name: "with includeSubDomains",
-			config: &SecurityHeadersConfig{
+			config: &middleware.SecurityHeadersConfig{
 				HSTSMaxAge:            31536000,
 				HSTSIncludeSubDomains: true,
 				HSTSPreload:           false,
@@ -184,7 +186,7 @@ func TestBuildHSTSValue(t *testing.T) {
 		},
 		{
 			name: "with preload",
-			config: &SecurityHeadersConfig{
+			config: &middleware.SecurityHeadersConfig{
 				HSTSMaxAge:            63072000,
 				HSTSIncludeSubDomains: true,
 				HSTSPreload:           true,
@@ -193,7 +195,7 @@ func TestBuildHSTSValue(t *testing.T) {
 		},
 		{
 			name: "zero max-age",
-			config: &SecurityHeadersConfig{
+			config: &middleware.SecurityHeadersConfig{
 				HSTSMaxAge:            0,
 				HSTSIncludeSubDomains: true,
 				HSTSPreload:           false,
@@ -204,7 +206,7 @@ func TestBuildHSTSValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := buildHSTSValue(tt.config)
+			result := middleware.BuildHSTSValue(tt.config)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -215,7 +217,7 @@ func TestServerHeaderRemoved(t *testing.T) {
 
 	t.Run("server header is empty by default", func(t *testing.T) {
 		router := gin.New()
-		router.Use(SecurityHeaders(DefaultSecurityHeadersConfig()))
+		router.Use(middleware.SecurityHeaders(middleware.DefaultSecurityHeadersConfig()))
 		router.GET("/test", func(c *gin.Context) {
 			c.String(http.StatusOK, "OK")
 		})
@@ -232,7 +234,7 @@ func TestServerHeaderRemoved(t *testing.T) {
 
 	t.Run("server header remains empty after full request cycle", func(t *testing.T) {
 		router := gin.New()
-		router.Use(SecurityHeaders(DefaultSecurityHeadersConfig()))
+		router.Use(middleware.SecurityHeaders(middleware.DefaultSecurityHeadersConfig()))
 
 		// Simulate a handler that might try to set headers
 		router.GET("/test", func(c *gin.Context) {
@@ -260,7 +262,7 @@ func TestServerHeaderRemoved(t *testing.T) {
 
 	t.Run("all security headers present after full request cycle", func(t *testing.T) {
 		router := gin.New()
-		router.Use(SecurityHeaders(DefaultSecurityHeadersConfig()))
+		router.Use(middleware.SecurityHeaders(middleware.DefaultSecurityHeadersConfig()))
 		router.GET("/test", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"data": "test"})
 		})

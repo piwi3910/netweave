@@ -309,7 +309,7 @@ func (f *Filter) addFieldsParam(params url.Values) {
 // Returns true if the pool matches all specified filter conditions.
 func (f *Filter) MatchesResourcePool(pool *ResourcePool) bool {
 	// Check resource pool ID
-	if len(f.ResourcePoolID) > 0 && !contains(f.ResourcePoolID, pool.ResourcePoolID) {
+	if len(f.ResourcePoolID) > 0 && !Contains(f.ResourcePoolID, pool.ResourcePoolID) {
 		return false
 	}
 
@@ -331,17 +331,17 @@ func (f *Filter) MatchesResourcePool(pool *ResourcePool) bool {
 // Returns true if the resource matches all specified filter conditions.
 func (f *Filter) MatchesResource(resource *Resource) bool {
 	// Check resource ID
-	if len(f.ResourceID) > 0 && !contains(f.ResourceID, resource.ResourceID) {
+	if len(f.ResourceID) > 0 && !Contains(f.ResourceID, resource.ResourceID) {
 		return false
 	}
 
 	// Check resource type ID
-	if len(f.ResourceTypeID) > 0 && !contains(f.ResourceTypeID, resource.ResourceTypeID) {
+	if len(f.ResourceTypeID) > 0 && !Contains(f.ResourceTypeID, resource.ResourceTypeID) {
 		return false
 	}
 
 	// Check resource pool ID
-	if len(f.ResourcePoolID) > 0 && !contains(f.ResourcePoolID, resource.ResourcePoolID) {
+	if len(f.ResourcePoolID) > 0 && !Contains(f.ResourcePoolID, resource.ResourcePoolID) {
 		return false
 	}
 
@@ -361,7 +361,7 @@ func (f *Filter) MatchesResourceType(rt *ResourceType) bool {
 
 // matchesResourceTypeID checks if resource type ID matches filter.
 func (f *Filter) matchesResourceTypeID(rt *ResourceType) bool {
-	return len(f.ResourceTypeID) == 0 || contains(f.ResourceTypeID, rt.ResourceTypeID)
+	return len(f.ResourceTypeID) == 0 || Contains(f.ResourceTypeID, rt.ResourceTypeID)
 }
 
 // matchesResourceClass checks if resource class matches filter.
@@ -402,7 +402,7 @@ func (f *Filter) MatchesSubscription(sub *Subscription) bool {
 
 	// Check if any filter pool ID matches subscription filter
 	for _, filterPoolID := range f.ResourcePoolID {
-		if contains(sub.Filter.ResourcePoolID, filterPoolID) {
+		if Contains(sub.Filter.ResourcePoolID, filterPoolID) {
 			return true
 		}
 	}
@@ -461,8 +461,8 @@ func (f *Filter) Clone() *Filter {
 	return clone
 }
 
-// contains is a helper function to check if a slice contains a string.
-func contains(slice []string, item string) bool {
+// Contains is a helper function to check if a slice contains a string.
+func Contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {
 			return true
@@ -507,9 +507,9 @@ func (f *Filter) ShouldIncludeField(fieldName string) bool {
 	return false
 }
 
-// deepCopyValue creates a deep copy of a value to prevent shared references.
+// DeepCopyValue creates a deep copy of a value to prevent shared references.
 // This prevents memory leaks where modifications to filtered data affect the original.
-func deepCopyValue(value interface{}) interface{} {
+func DeepCopyValue(value interface{}) interface{} {
 	if value == nil {
 		return nil
 	}
@@ -534,7 +534,7 @@ func deepCopyValue(value interface{}) interface{} {
 func deepCopyMap(m map[string]interface{}) map[string]interface{} {
 	copied := make(map[string]interface{}, len(m))
 	for key, val := range m {
-		copied[key] = deepCopyValue(val)
+		copied[key] = DeepCopyValue(val)
 	}
 	return copied
 }
@@ -543,7 +543,7 @@ func deepCopyMap(m map[string]interface{}) map[string]interface{} {
 func deepCopyInterfaceSlice(s []interface{}) []interface{} {
 	copied := make([]interface{}, len(s))
 	for i, val := range s {
-		copied[i] = deepCopyValue(val)
+		copied[i] = DeepCopyValue(val)
 	}
 	return copied
 }
@@ -552,7 +552,7 @@ func deepCopyInterfaceSlice(s []interface{}) []interface{} {
 func deepCopyMapSlice(s []map[string]interface{}) []map[string]interface{} {
 	copied := make([]map[string]interface{}, len(s))
 	for i, m := range s {
-		copied[i] = deepCopyValue(m).(map[string]interface{})
+		copied[i] = DeepCopyValue(m).(map[string]interface{})
 	}
 	return copied
 }
@@ -618,7 +618,7 @@ func (f *Filter) SelectFields(data map[string]interface{}) map[string]interface{
 	// map don't affect the original data. This prevents subtle bugs where filtered
 	// results share memory with source data structures.
 	if !f.HasFieldSelection() {
-		return deepCopyValue(data).(map[string]interface{})
+		return DeepCopyValue(data).(map[string]interface{})
 	}
 
 	result := make(map[string]interface{})
@@ -641,7 +641,7 @@ func (f *Filter) selectField(data, result map[string]interface{}, field string) 
 
 	if len(parts) == 1 {
 		// Direct field, include it with deep copy
-		result[key] = deepCopyValue(value)
+		result[key] = DeepCopyValue(value)
 		return
 	}
 
@@ -662,7 +662,7 @@ func (f *Filter) selectNestedField(value interface{}, result map[string]interfac
 	if existing, ok := result[key].(map[string]interface{}); ok {
 		// Merge with existing (deep copy values during merge)
 		for k, v := range nestedResult {
-			existing[k] = deepCopyValue(v)
+			existing[k] = DeepCopyValue(v)
 		}
 	} else {
 		result[key] = nestedResult

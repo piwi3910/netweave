@@ -113,25 +113,25 @@ const (
 
 // GVR definitions for Flux resources.
 var (
-	helmReleaseGVR = schema.GroupVersionResource{
+	HelmReleaseGVR = schema.GroupVersionResource{
 		Group:    HelmReleaseGroup,
 		Version:  HelmReleaseVersion,
 		Resource: HelmReleaseResource,
 	}
 
-	kustomizationGVR = schema.GroupVersionResource{
+	KustomizationGVR = schema.GroupVersionResource{
 		Group:    KustomizationGroup,
 		Version:  KustomizationVersion,
 		Resource: KustomizationResource,
 	}
 
-	gitRepositoryGVR = schema.GroupVersionResource{
+	GitRepositoryGVR = schema.GroupVersionResource{
 		Group:    GitRepositoryGroup,
 		Version:  GitRepositoryVersion,
 		Resource: GitRepositoryResource,
 	}
 
-	helmRepositoryGVR = schema.GroupVersionResource{
+	HelmRepositoryGVR = schema.GroupVersionResource{
 		Group:    GitRepositoryGroup,
 		Version:  GitRepositoryVersion,
 		Resource: HelmRepositoryResource,
@@ -142,9 +142,9 @@ var (
 // It uses the Kubernetes dynamic client to manage Flux HelmRelease and
 // Kustomization CRDs, avoiding direct Flux library dependencies.
 type Adapter struct {
-	config        *Config
-	dynamicClient dynamic.Interface
-	initOnce      sync.Once
+	Config        *Config           // Exported for testing
+	DynamicClient dynamic.Interface // Exported for testing
+	InitOnce      sync.Once         // Exported for testing
 	initError     error
 }
 
@@ -206,7 +206,7 @@ func NewAdapter(config *Config) (*Adapter, error) {
 	}
 
 	return &Adapter{
-		config: config,
+		Config: config,
 	}, nil
 }
 
@@ -223,7 +223,7 @@ func checkContext(ctx context.Context) error {
 
 // validateName validates that a resource name conforms to DNS-1123 label format.
 // Kubernetes resource names must be lowercase alphanumeric with hyphens, max 63 chars.
-func validateName(name string) error {
+func ValidateName(name string) error {
 	if name == "" {
 		return fmt.Errorf("%w: name cannot be empty", ErrInvalidName)
 	}
@@ -238,7 +238,7 @@ func validateName(name string) error {
 
 // validatePath validates that a path does not contain directory traversal attempts.
 // This prevents security issues with path manipulation.
-func validatePath(path string) error {
+func ValidatePath(path string) error {
 	if path == "" {
 		return nil // Empty path is allowed (defaults to "./")
 	}
@@ -258,7 +258,7 @@ func validatePath(path string) error {
 // This method is thread-safe and ensures initialization happens exactly once.
 // The context is checked before starting initialization to fail fast on cancelled contexts.
 func (f *Adapter) Initialize(ctx context.Context) error {
-	f.initOnce.Do(func() {
+	f.InitOnce.Do(func() {
 		// Check context inside Do() to prevent hanging on cancelled contexts
 		if err := checkContext(ctx); err != nil {
 			f.initError = fmt.Errorf("initialization cancelled: %w", err)
@@ -268,8 +268,8 @@ func (f *Adapter) Initialize(ctx context.Context) error {
 		var restConfig *rest.Config
 		var err error
 
-		if f.config.Kubeconfig != "" {
-			restConfig, err = clientcmd.BuildConfigFromFlags("", f.config.Kubeconfig)
+		if f.Config.Kubeconfig != "" {
+			restConfig, err = clientcmd.BuildConfigFromFlags("", f.Config.Kubeconfig)
 			if err != nil {
 				f.initError = fmt.Errorf("failed to build config from kubeconfig: %w", err)
 				return
@@ -282,7 +282,7 @@ func (f *Adapter) Initialize(ctx context.Context) error {
 			}
 		}
 
-		f.dynamicClient, err = dynamic.NewForConfig(restConfig)
+		f.DynamicClient, err = dynamic.NewForConfig(restConfig)
 		if err != nil {
 			f.initError = fmt.Errorf("failed to create dynamic client: %w", err)
 			return
@@ -441,7 +441,7 @@ func (f *Adapter) UploadDeploymentPackage(
 	}
 
 	return &adapter.DeploymentPackage{
-		ID:          generatePackageID(repoType, repoURL),
+		ID:          GeneratePackageID(repoType, repoURL),
 		Name:        pkg.Name,
 		Version:     pkg.Version,
 		PackageType: fmt.Sprintf("flux-%s", repoType),
@@ -479,7 +479,7 @@ func (f *Adapter) ListDeployments(ctx context.Context, filter *adapter.Filter) (
 	deployments := f.transformAndFilterDeployments(helmReleases, kustomizations, filter)
 
 	if filter != nil {
-		deployments = f.applyPagination(deployments, filter.Limit, filter.Offset)
+		deployments = f.ApplyPagination(deployments, filter.Limit, filter.Offset)
 	}
 
 	return deployments, nil
@@ -506,12 +506,12 @@ func (f *Adapter) transformAndFilterDeployments(
 	deployments := make([]*adapter.Deployment, 0, len(helmReleases)+len(kustomizations))
 
 	for _, hr := range helmReleases {
-		if deployment := f.transformHelmReleaseToDeployment(hr); f.matchesStatusFilter(deployment, filter) {
+		if deployment := f.TransformHelmReleaseToDeployment(hr); f.matchesStatusFilter(deployment, filter) {
 			deployments = append(deployments, deployment)
 		}
 	}
 	for _, ks := range kustomizations {
-		if deployment := f.transformKustomizationToDeployment(ks); f.matchesStatusFilter(deployment, filter) {
+		if deployment := f.TransformKustomizationToDeployment(ks); f.matchesStatusFilter(deployment, filter) {
 			deployments = append(deployments, deployment)
 		}
 	}
@@ -535,13 +535,13 @@ func (f *Adapter) GetDeployment(ctx context.Context, id string) (*adapter.Deploy
 	// Try HelmRelease first
 	hr, err := f.getHelmRelease(ctx, id)
 	if err == nil {
-		return f.transformHelmReleaseToDeployment(hr), nil
+		return f.TransformHelmReleaseToDeployment(hr), nil
 	}
 
 	// Try Kustomization
 	ks, err := f.getKustomization(ctx, id)
 	if err == nil {
-		return f.transformKustomizationToDeployment(ks), nil
+		return f.TransformKustomizationToDeployment(ks), nil
 	}
 
 	return nil, fmt.Errorf("%w: %s", ErrDeploymentNotFound, id)
@@ -561,7 +561,7 @@ func (f *Adapter) CreateDeployment(ctx context.Context, req *adapter.DeploymentR
 	}
 
 	// Validate deployment name using DNS-1123 label format
-	if err := validateName(req.Name); err != nil {
+	if err := ValidateName(req.Name); err != nil {
 		return nil, err
 	}
 
@@ -623,7 +623,7 @@ func (f *Adapter) DeleteDeployment(ctx context.Context, id string) error {
 	propagation := metav1.DeletePropagationForeground
 
 	// Try HelmRelease first
-	err := f.dynamicClient.Resource(helmReleaseGVR).Namespace(f.config.Namespace).Delete(ctx, id, metav1.DeleteOptions{
+	err := f.DynamicClient.Resource(HelmReleaseGVR).Namespace(f.Config.Namespace).Delete(ctx, id, metav1.DeleteOptions{
 		PropagationPolicy: &propagation,
 	})
 	if err == nil {
@@ -631,7 +631,7 @@ func (f *Adapter) DeleteDeployment(ctx context.Context, id string) error {
 	}
 
 	// Try Kustomization
-	err = f.dynamicClient.Resource(kustomizationGVR).Namespace(f.config.Namespace).Delete(ctx, id, metav1.DeleteOptions{
+	err = f.DynamicClient.Resource(KustomizationGVR).Namespace(f.Config.Namespace).Delete(ctx, id, metav1.DeleteOptions{
 		PropagationPolicy: &propagation,
 	})
 	if err == nil {
@@ -688,7 +688,7 @@ func (f *Adapter) RollbackDeployment(ctx context.Context, id string, revision in
 	// Try Kustomization.
 	ks, err := f.getKustomization(ctx, id)
 	if err == nil {
-		return f.forceReconciliation(ctx, ks, kustomizationGVR)
+		return f.forceReconciliation(ctx, ks, KustomizationGVR)
 	}
 
 	return fmt.Errorf("%w: %s", ErrDeploymentNotFound, id)
@@ -707,8 +707,8 @@ func (f *Adapter) rollbackHelmRelease(ctx context.Context, hr *unstructured.Unst
 		return err
 	}
 
-	_, err := f.dynamicClient.Resource(helmReleaseGVR).
-		Namespace(f.config.Namespace).Update(ctx, hr, metav1.UpdateOptions{})
+	_, err := f.DynamicClient.Resource(HelmReleaseGVR).
+		Namespace(f.Config.Namespace).Update(ctx, hr, metav1.UpdateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to update helm release: %w", err)
 	}
@@ -723,7 +723,7 @@ func (f *Adapter) forceReconciliation(
 		return err
 	}
 
-	_, err := f.dynamicClient.Resource(gvr).Namespace(f.config.Namespace).Update(ctx, obj, metav1.UpdateOptions{})
+	_, err := f.DynamicClient.Resource(gvr).Namespace(f.Config.Namespace).Update(ctx, obj, metav1.UpdateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to force reconciliation: %w", err)
 	}
@@ -851,7 +851,7 @@ func (f *Adapter) Health(ctx context.Context) error {
 	}
 
 	// Try to list HelmReleases to verify connectivity
-	_, err := f.dynamicClient.Resource(helmReleaseGVR).Namespace(f.config.Namespace).List(ctx, metav1.ListOptions{
+	_, err := f.DynamicClient.Resource(HelmReleaseGVR).Namespace(f.Config.Namespace).List(ctx, metav1.ListOptions{
 		Limit: 1,
 	})
 	if err != nil {
@@ -863,23 +863,23 @@ func (f *Adapter) Health(ctx context.Context) error {
 
 // Close cleanly shuts down the adapter.
 func (f *Adapter) Close() error {
-	f.dynamicClient = nil
+	f.DynamicClient = nil
 	return nil
 }
 
 // listHelmReleases retrieves Flux HelmReleases with optional filtering.
 func (f *Adapter) listHelmReleases(ctx context.Context, filter *adapter.Filter) ([]*unstructured.Unstructured, error) {
-	namespace := f.config.Namespace
+	namespace := f.Config.Namespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
 	}
 
 	opts := metav1.ListOptions{}
 	if filter != nil && len(filter.Labels) > 0 {
-		opts.LabelSelector = buildLabelSelector(filter.Labels)
+		opts.LabelSelector = BuildLabelSelector(filter.Labels)
 	}
 
-	list, err := f.dynamicClient.Resource(helmReleaseGVR).Namespace(namespace).List(ctx, opts)
+	list, err := f.DynamicClient.Resource(HelmReleaseGVR).Namespace(namespace).List(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Flux HelmReleases: %w", err)
 	}
@@ -896,17 +896,17 @@ func (f *Adapter) listHelmReleases(ctx context.Context, filter *adapter.Filter) 
 func (f *Adapter) listKustomizations(
 	ctx context.Context, filter *adapter.Filter,
 ) ([]*unstructured.Unstructured, error) {
-	namespace := f.config.Namespace
+	namespace := f.Config.Namespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
 	}
 
 	opts := metav1.ListOptions{}
 	if filter != nil && len(filter.Labels) > 0 {
-		opts.LabelSelector = buildLabelSelector(filter.Labels)
+		opts.LabelSelector = BuildLabelSelector(filter.Labels)
 	}
 
-	list, err := f.dynamicClient.Resource(kustomizationGVR).Namespace(namespace).List(ctx, opts)
+	list, err := f.DynamicClient.Resource(KustomizationGVR).Namespace(namespace).List(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Flux Kustomizations: %w", err)
 	}
@@ -923,17 +923,17 @@ func (f *Adapter) listKustomizations(
 func (f *Adapter) listGitRepositories(
 	ctx context.Context, filter *adapter.Filter,
 ) ([]*unstructured.Unstructured, error) {
-	namespace := f.config.SourceNamespace
+	namespace := f.Config.SourceNamespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
 	}
 
 	opts := metav1.ListOptions{}
 	if filter != nil && len(filter.Labels) > 0 {
-		opts.LabelSelector = buildLabelSelector(filter.Labels)
+		opts.LabelSelector = BuildLabelSelector(filter.Labels)
 	}
 
-	list, err := f.dynamicClient.Resource(gitRepositoryGVR).Namespace(namespace).List(ctx, opts)
+	list, err := f.DynamicClient.Resource(GitRepositoryGVR).Namespace(namespace).List(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Flux GitRepositories: %w", err)
 	}
@@ -950,17 +950,17 @@ func (f *Adapter) listGitRepositories(
 func (f *Adapter) listHelmRepositories(
 	ctx context.Context, filter *adapter.Filter,
 ) ([]*unstructured.Unstructured, error) {
-	namespace := f.config.SourceNamespace
+	namespace := f.Config.SourceNamespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
 	}
 
 	opts := metav1.ListOptions{}
 	if filter != nil && len(filter.Labels) > 0 {
-		opts.LabelSelector = buildLabelSelector(filter.Labels)
+		opts.LabelSelector = BuildLabelSelector(filter.Labels)
 	}
 
-	list, err := f.dynamicClient.Resource(helmRepositoryGVR).Namespace(namespace).List(ctx, opts)
+	list, err := f.DynamicClient.Resource(HelmRepositoryGVR).Namespace(namespace).List(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Flux HelmRepositories: %w", err)
 	}
@@ -975,8 +975,8 @@ func (f *Adapter) listHelmRepositories(
 
 // getHelmRelease retrieves a single Flux HelmRelease by name.
 func (f *Adapter) getHelmRelease(ctx context.Context, name string) (*unstructured.Unstructured, error) {
-	resource, err := f.dynamicClient.Resource(helmReleaseGVR).
-		Namespace(f.config.Namespace).Get(ctx, name, metav1.GetOptions{})
+	resource, err := f.DynamicClient.Resource(HelmReleaseGVR).
+		Namespace(f.Config.Namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get helm release: %w", err)
 	}
@@ -985,8 +985,8 @@ func (f *Adapter) getHelmRelease(ctx context.Context, name string) (*unstructure
 
 // getKustomization retrieves a single Flux Kustomization by name.
 func (f *Adapter) getKustomization(ctx context.Context, name string) (*unstructured.Unstructured, error) {
-	resource, err := f.dynamicClient.Resource(kustomizationGVR).
-		Namespace(f.config.Namespace).Get(ctx, name, metav1.GetOptions{})
+	resource, err := f.DynamicClient.Resource(KustomizationGVR).
+		Namespace(f.Config.Namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kustomization: %w", err)
 	}
@@ -1012,7 +1012,7 @@ func (f *Adapter) createHelmRelease(ctx context.Context, req *adapter.Deployment
 
 	targetNamespace := req.Namespace
 	if targetNamespace == "" {
-		targetNamespace = f.config.TargetNamespace
+		targetNamespace = f.Config.TargetNamespace
 	}
 
 	hr := &unstructured.Unstructured{
@@ -1021,10 +1021,10 @@ func (f *Adapter) createHelmRelease(ctx context.Context, req *adapter.Deployment
 			"kind":       "HelmRelease",
 			"metadata": map[string]interface{}{
 				"name":      req.Name,
-				"namespace": f.config.Namespace,
+				"namespace": f.Config.Namespace,
 			},
 			"spec": map[string]interface{}{
-				"interval": f.config.Interval.String(),
+				"interval": f.Config.Interval.String(),
 				"chart": map[string]interface{}{
 					"spec": map[string]interface{}{
 						"chart":   chart,
@@ -1032,12 +1032,12 @@ func (f *Adapter) createHelmRelease(ctx context.Context, req *adapter.Deployment
 						"sourceRef": map[string]interface{}{
 							"kind":      sourceKind,
 							"name":      sourceRef,
-							"namespace": f.config.SourceNamespace,
+							"namespace": f.Config.SourceNamespace,
 						},
 					},
 				},
 				"targetNamespace": targetNamespace,
-				"suspend":         f.config.Suspend,
+				"suspend":         f.Config.Suspend,
 			},
 		},
 	}
@@ -1057,13 +1057,13 @@ func (f *Adapter) createHelmRelease(ctx context.Context, req *adapter.Deployment
 		}
 	}
 
-	result, err := f.dynamicClient.Resource(helmReleaseGVR).
-		Namespace(f.config.Namespace).Create(ctx, hr, metav1.CreateOptions{})
+	result, err := f.DynamicClient.Resource(HelmReleaseGVR).
+		Namespace(f.Config.Namespace).Create(ctx, hr, metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Flux HelmRelease: %w", err)
 	}
 
-	return f.transformHelmReleaseToDeployment(result), nil
+	return f.TransformHelmReleaseToDeployment(result), nil
 }
 
 // createKustomization creates a new Flux Kustomization.
@@ -1081,7 +1081,7 @@ func (f *Adapter) createKustomization(
 		sourceKind = "GitRepository"
 	}
 	// Validate path to prevent directory traversal attacks
-	if err := validatePath(path); err != nil {
+	if err := ValidatePath(path); err != nil {
 		return nil, err
 	}
 	if path == "" {
@@ -1090,7 +1090,7 @@ func (f *Adapter) createKustomization(
 
 	targetNamespace := req.Namespace
 	if targetNamespace == "" {
-		targetNamespace = f.config.TargetNamespace
+		targetNamespace = f.Config.TargetNamespace
 	}
 
 	ks := &unstructured.Unstructured{
@@ -1099,31 +1099,31 @@ func (f *Adapter) createKustomization(
 			"kind":       "Kustomization",
 			"metadata": map[string]interface{}{
 				"name":      req.Name,
-				"namespace": f.config.Namespace,
+				"namespace": f.Config.Namespace,
 			},
 			"spec": map[string]interface{}{
-				"interval": f.config.Interval.String(),
+				"interval": f.Config.Interval.String(),
 				"path":     path,
 				"sourceRef": map[string]interface{}{
 					"kind":      sourceKind,
 					"name":      sourceRef,
-					"namespace": f.config.SourceNamespace,
+					"namespace": f.Config.SourceNamespace,
 				},
 				"targetNamespace": targetNamespace,
-				"prune":           f.config.Prune,
-				"force":           f.config.Force,
-				"suspend":         f.config.Suspend,
+				"prune":           f.Config.Prune,
+				"force":           f.Config.Force,
+				"suspend":         f.Config.Suspend,
 			},
 		},
 	}
 
-	result, err := f.dynamicClient.Resource(kustomizationGVR).
-		Namespace(f.config.Namespace).Create(ctx, ks, metav1.CreateOptions{})
+	result, err := f.DynamicClient.Resource(KustomizationGVR).
+		Namespace(f.Config.Namespace).Create(ctx, ks, metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Flux Kustomization: %w", err)
 	}
 
-	return f.transformKustomizationToDeployment(result), nil
+	return f.TransformKustomizationToDeployment(result), nil
 }
 
 // updateHelmRelease updates an existing Flux HelmRelease.
@@ -1155,13 +1155,13 @@ func (f *Adapter) updateHelmRelease(
 		}
 	}
 
-	result, err := f.dynamicClient.Resource(helmReleaseGVR).
-		Namespace(f.config.Namespace).Update(ctx, hr, metav1.UpdateOptions{})
+	result, err := f.DynamicClient.Resource(HelmReleaseGVR).
+		Namespace(f.Config.Namespace).Update(ctx, hr, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update Flux HelmRelease: %w", err)
 	}
 
-	return f.transformHelmReleaseToDeployment(result), nil
+	return f.TransformHelmReleaseToDeployment(result), nil
 }
 
 // updateKustomization updates an existing Flux Kustomization.
@@ -1171,7 +1171,7 @@ func (f *Adapter) updateKustomization(
 	// Update path if specified
 	if path, ok := update.Extensions["flux.path"].(string); ok && path != "" {
 		// Validate path to prevent directory traversal attacks
-		if err := validatePath(path); err != nil {
+		if err := ValidatePath(path); err != nil {
 			return nil, err
 		}
 		if err := unstructured.SetNestedField(ks.Object, path, "spec", "path"); err != nil {
@@ -1191,17 +1191,17 @@ func (f *Adapter) updateKustomization(
 		}
 	}
 
-	result, err := f.dynamicClient.Resource(kustomizationGVR).
-		Namespace(f.config.Namespace).Update(ctx, ks, metav1.UpdateOptions{})
+	result, err := f.DynamicClient.Resource(KustomizationGVR).
+		Namespace(f.Config.Namespace).Update(ctx, ks, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update Flux Kustomization: %w", err)
 	}
 
-	return f.transformKustomizationToDeployment(result), nil
+	return f.TransformKustomizationToDeployment(result), nil
 }
 
 // transformHelmReleaseToDeployment converts a Flux HelmRelease to a Deployment.
-func (f *Adapter) transformHelmReleaseToDeployment(hr *unstructured.Unstructured) *adapter.Deployment {
+func (f *Adapter) TransformHelmReleaseToDeployment(hr *unstructured.Unstructured) *adapter.Deployment {
 	name, _, _ := unstructured.NestedString(hr.Object, "metadata", "name")
 	namespace, _, _ := unstructured.NestedString(hr.Object, "metadata", "namespace")
 
@@ -1213,7 +1213,7 @@ func (f *Adapter) transformHelmReleaseToDeployment(hr *unstructured.Unstructured
 
 	// Extract status
 	conditions, _, _ := unstructured.NestedSlice(hr.Object, "status", "conditions")
-	status, message := f.extractFluxStatus(conditions)
+	status, message := f.ExtractFluxStatus(conditions)
 
 	// Get timestamps
 	creationTimestamp := hr.GetCreationTimestamp().Time
@@ -1232,7 +1232,7 @@ func (f *Adapter) transformHelmReleaseToDeployment(hr *unstructured.Unstructured
 	return &adapter.Deployment{
 		ID:          name,
 		Name:        name,
-		PackageID:   generatePackageID("helm", fmt.Sprintf("%s/%s", sourceRef, chart)),
+		PackageID:   GeneratePackageID("helm", fmt.Sprintf("%s/%s", sourceRef, chart)),
 		Namespace:   targetNamespace,
 		Status:      status,
 		Version:     version,
@@ -1252,7 +1252,7 @@ func (f *Adapter) transformHelmReleaseToDeployment(hr *unstructured.Unstructured
 }
 
 // transformKustomizationToDeployment converts a Flux Kustomization to a Deployment.
-func (f *Adapter) transformKustomizationToDeployment(ks *unstructured.Unstructured) *adapter.Deployment {
+func (f *Adapter) TransformKustomizationToDeployment(ks *unstructured.Unstructured) *adapter.Deployment {
 	name, _, _ := unstructured.NestedString(ks.Object, "metadata", "name")
 	namespace, _, _ := unstructured.NestedString(ks.Object, "metadata", "namespace")
 
@@ -1263,7 +1263,7 @@ func (f *Adapter) transformKustomizationToDeployment(ks *unstructured.Unstructur
 
 	// Extract status
 	conditions, _, _ := unstructured.NestedSlice(ks.Object, "status", "conditions")
-	status, message := f.extractFluxStatus(conditions)
+	status, message := f.ExtractFluxStatus(conditions)
 
 	// Get last applied revision
 	lastAppliedRevision, _, _ := unstructured.NestedString(ks.Object, "status", "lastAppliedRevision")
@@ -1278,7 +1278,7 @@ func (f *Adapter) transformKustomizationToDeployment(ks *unstructured.Unstructur
 	return &adapter.Deployment{
 		ID:          name,
 		Name:        name,
-		PackageID:   generatePackageID("git", fmt.Sprintf("%s/%s", sourceRef, path)),
+		PackageID:   GeneratePackageID("git", fmt.Sprintf("%s/%s", sourceRef, path)),
 		Namespace:   targetNamespace,
 		Status:      status,
 		Version:     1, // Kustomizations don't have version history
@@ -1312,7 +1312,7 @@ func (f *Adapter) transformGitRepoToPackage(repo *unstructured.Unstructured) *ad
 	creationTimestamp := repo.GetCreationTimestamp().Time
 
 	return &adapter.DeploymentPackage{
-		ID:          generatePackageID("git", url),
+		ID:          GeneratePackageID("git", url),
 		Name:        name,
 		Version:     version,
 		PackageType: "flux-git",
@@ -1339,7 +1339,7 @@ func (f *Adapter) transformHelmRepoToPackage(repo *unstructured.Unstructured) *a
 	creationTimestamp := repo.GetCreationTimestamp().Time
 
 	return &adapter.DeploymentPackage{
-		ID:          generatePackageID("helm", url),
+		ID:          GeneratePackageID("helm", url),
 		Name:        name,
 		Version:     "latest",
 		PackageType: "flux-helm",
@@ -1357,7 +1357,7 @@ func (f *Adapter) transformHelmReleaseToStatus(hr *unstructured.Unstructured) *a
 	name, _, _ := unstructured.NestedString(hr.Object, "metadata", "name")
 
 	conditions, _, _ := unstructured.NestedSlice(hr.Object, "status", "conditions")
-	status, message := f.extractFluxStatus(conditions)
+	status, message := f.ExtractFluxStatus(conditions)
 	dmsConditions, updatedAt := f.parseConditions(conditions)
 
 	if updatedAt.IsZero() {
@@ -1368,7 +1368,7 @@ func (f *Adapter) transformHelmReleaseToStatus(hr *unstructured.Unstructured) *a
 		DeploymentID: name,
 		Status:       status,
 		Message:      message,
-		Progress:     f.calculateProgress(status),
+		Progress:     f.CalculateProgress(status),
 		Conditions:   dmsConditions,
 		UpdatedAt:    updatedAt,
 		Extensions: map[string]interface{}{
@@ -1382,7 +1382,7 @@ func (f *Adapter) transformKustomizationToStatus(ks *unstructured.Unstructured) 
 	name, _, _ := unstructured.NestedString(ks.Object, "metadata", "name")
 
 	conditions, _, _ := unstructured.NestedSlice(ks.Object, "status", "conditions")
-	status, message := f.extractFluxStatus(conditions)
+	status, message := f.ExtractFluxStatus(conditions)
 	dmsConditions, updatedAt := f.parseConditions(conditions)
 
 	lastAppliedRevision, _, _ := unstructured.NestedString(ks.Object, "status", "lastAppliedRevision")
@@ -1395,7 +1395,7 @@ func (f *Adapter) transformKustomizationToStatus(ks *unstructured.Unstructured) 
 		DeploymentID: name,
 		Status:       status,
 		Message:      message,
-		Progress:     f.calculateProgress(status),
+		Progress:     f.CalculateProgress(status),
 		Conditions:   dmsConditions,
 		UpdatedAt:    updatedAt,
 		Extensions: map[string]interface{}{
@@ -1446,7 +1446,7 @@ func (f *Adapter) parseConditions(conditions []interface{}) ([]adapter.Deploymen
 }
 
 // extractFluxStatus extracts status and message from Flux conditions.
-func (f *Adapter) extractFluxStatus(conditions []interface{}) (adapter.DeploymentStatus, string) {
+func (f *Adapter) ExtractFluxStatus(conditions []interface{}) (adapter.DeploymentStatus, string) {
 	for _, c := range conditions {
 		cond, ok := c.(map[string]interface{})
 		if !ok {
@@ -1542,7 +1542,7 @@ func (f *Adapter) extractKustomizationHistory(id string, ks *unstructured.Unstru
 	lastAppliedRevision, _, _ := unstructured.NestedString(ks.Object, "status", "lastAppliedRevision")
 
 	conditions, _, _ := unstructured.NestedSlice(ks.Object, "status", "conditions")
-	status, _ := f.extractFluxStatus(conditions)
+	status, _ := f.ExtractFluxStatus(conditions)
 
 	revisions := []adapter.DeploymentRevision{
 		{
@@ -1561,7 +1561,7 @@ func (f *Adapter) extractKustomizationHistory(id string, ks *unstructured.Unstru
 }
 
 // calculateProgress estimates deployment progress based on status.
-func (f *Adapter) calculateProgress(status adapter.DeploymentStatus) int {
+func (f *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return progressDeployed
@@ -1581,7 +1581,7 @@ func (f *Adapter) calculateProgress(status adapter.DeploymentStatus) int {
 }
 
 // applyPagination applies limit and offset to deployment list.
-func (f *Adapter) applyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
+func (f *Adapter) ApplyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
 	if offset >= len(deployments) {
 		return []*adapter.Deployment{}
 	}
@@ -1597,7 +1597,7 @@ func (f *Adapter) applyPagination(deployments []*adapter.Deployment, limit, offs
 }
 
 // generatePackageID creates a unique package ID from type and URL.
-func generatePackageID(pkgType, url string) string {
+func GeneratePackageID(pkgType, url string) string {
 	id := fmt.Sprintf("%s-%s", pkgType, url)
 	id = strings.ReplaceAll(id, "://", "-")
 	id = strings.ReplaceAll(id, "/", "-")
@@ -1606,7 +1606,7 @@ func generatePackageID(pkgType, url string) string {
 }
 
 // buildLabelSelector creates a Kubernetes label selector string from a map.
-func buildLabelSelector(labels map[string]string) string {
+func BuildLabelSelector(labels map[string]string) string {
 	selectors := make([]string, 0, len(labels))
 	for k, v := range labels {
 		selectors = append(selectors, fmt.Sprintf("%s=%s", k, v))

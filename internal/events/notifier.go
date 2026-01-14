@@ -23,10 +23,10 @@ import (
 
 const (
 	// Default timeout for HTTP requests.
-	defaultHTTPTimeout = 10 * time.Second
+	DefaultHTTPTimeout = 10 * time.Second
 
 	// Default maximum retries.
-	defaultMaxRetries = 3
+	DefaultMaxRetries = 3
 
 	// Initial retry backoff.
 	initialBackoff = 1 * time.Second
@@ -65,8 +65,8 @@ type NotifierConfig struct {
 // DefaultNotifierConfig returns a NotifierConfig with sensible defaults.
 func DefaultNotifierConfig() *NotifierConfig {
 	return &NotifierConfig{
-		HTTPTimeout:        defaultHTTPTimeout,
-		MaxRetries:         defaultMaxRetries,
+		HTTPTimeout:        DefaultHTTPTimeout,
+		MaxRetries:         DefaultMaxRetries,
 		EnableMTLS:         false,
 		InsecureSkipVerify: false,
 	}

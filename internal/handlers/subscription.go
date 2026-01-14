@@ -19,8 +19,8 @@ import (
 
 // SubscriptionHandler handles Subscription API endpoints.
 type SubscriptionHandler struct {
-	store  storage.Store
-	logger *zap.Logger
+	Store  storage.Store // Exported for testing
+	Logger *zap.Logger   // Exported for testing
 }
 
 // NewSubscriptionHandler creates a new SubscriptionHandler.
@@ -34,8 +34,8 @@ func NewSubscriptionHandler(store storage.Store, logger *zap.Logger) *Subscripti
 	}
 
 	return &SubscriptionHandler{
-		store:  store,
-		logger: logger,
+		Store:  store,
+		Logger: logger,
 	}
 }
 
@@ -51,7 +51,7 @@ func NewSubscriptionHandler(store storage.Store, logger *zap.Logger) *Subscripti
 func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	h.logger.Info("listing subscriptions",
+	h.Logger.Info("listing subscriptions",
 		zap.String("request_id", c.GetString("request_id")),
 	)
 
@@ -59,9 +59,9 @@ func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
 	filter := internalmodels.ParseQueryParams(c.Request.URL.Query())
 
 	// Get all subscriptions from storage
-	storageSubs, err := h.store.List(ctx)
+	storageSubs, err := h.Store.List(ctx)
 	if err != nil {
-		h.logger.Error("failed to list subscriptions",
+		h.Logger.Error("failed to list subscriptions",
 			zap.Error(err),
 		)
 
@@ -122,7 +122,7 @@ func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
 		TotalCount: totalCount,
 	}
 
-	h.logger.Info("subscriptions retrieved",
+	h.Logger.Info("subscriptions retrieved",
 		zap.Int("count", len(pagedSubscriptions)),
 		zap.Int("total", totalCount),
 	)
@@ -142,7 +142,7 @@ func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
 func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	h.logger.Info("creating subscription",
+	h.Logger.Info("creating subscription",
 		zap.String("request_id", c.GetString("request_id")),
 	)
 
@@ -156,14 +156,14 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 	subscriptionID := uuid.New().String()
 	storageSub := h.convertToStorageSubscription(sub, subscriptionID)
 
-	if err := h.storeSubscription(ctx, c, storageSub); err != nil {
+	if err := h.StoreSubscription(ctx, c, storageSub); err != nil {
 		return // Error response already sent
 	}
 
 	// Build and send response
 	response := h.buildSubscriptionResponse(subscriptionID, storageSub)
 
-	h.logger.Info("subscription created",
+	h.Logger.Info("subscription created",
 		zap.String("subscription_id", subscriptionID),
 		zap.String("callback", sub.Callback),
 	)
@@ -177,7 +177,7 @@ func (h *SubscriptionHandler) parseAndValidateRequest(c *gin.Context) (*models.S
 
 	// Parse request body
 	if err := c.ShouldBindJSON(&sub); err != nil {
-		h.logger.Warn("invalid request body", zap.Error(err))
+		h.Logger.Warn("invalid request body", zap.Error(err))
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
 			Message: "Invalid request body: " + err.Error(),
@@ -207,7 +207,7 @@ func (h *SubscriptionHandler) validateCallbackURL(c *gin.Context, callback strin
 
 	callbackURL, err := url.Parse(callback)
 	if err != nil || (callbackURL.Scheme != "http" && callbackURL.Scheme != "https") {
-		h.logger.Warn("invalid callback URL",
+		h.Logger.Warn("invalid callback URL",
 			zap.String("callback", callback),
 			zap.Error(err),
 		)
@@ -248,15 +248,15 @@ func (h *SubscriptionHandler) convertToStorageSubscription(
 }
 
 // storeSubscription stores the subscription and handles errors.
-func (h *SubscriptionHandler) storeSubscription(
+func (h *SubscriptionHandler) StoreSubscription(
 	ctx context.Context,
 	c *gin.Context,
 	storageSub *storage.Subscription,
 ) error {
-	err := h.store.Create(ctx, storageSub)
+	err := h.Store.Create(ctx, storageSub)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionExists) {
-			h.logger.Warn("subscription already exists",
+			h.Logger.Warn("subscription already exists",
 				zap.String("consumer_subscription_id", storageSub.ConsumerSubscriptionID),
 			)
 			c.JSON(http.StatusConflict, models.ErrorResponse{
@@ -267,7 +267,7 @@ func (h *SubscriptionHandler) storeSubscription(
 			return fmt.Errorf("subscription already exists: %w", err)
 		}
 
-		h.logger.Error("failed to create subscription", zap.Error(err))
+		h.Logger.Error("failed to create subscription", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 			Error:   "InternalError",
 			Message: "Failed to create subscription",
@@ -311,7 +311,7 @@ func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
 	ctx := c.Request.Context()
 	subscriptionID := c.Param("subscriptionId")
 
-	h.logger.Info("getting subscription",
+	h.Logger.Info("getting subscription",
 		zap.String("subscription_id", subscriptionID),
 		zap.String("request_id", c.GetString("request_id")),
 	)
@@ -327,10 +327,10 @@ func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
 	}
 
 	// Get subscription from storage
-	storageSub, err := h.store.Get(ctx, subscriptionID)
+	storageSub, err := h.Store.Get(ctx, subscriptionID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
-			h.logger.Warn("subscription not found",
+			h.Logger.Warn("subscription not found",
 				zap.String("subscription_id", subscriptionID),
 			)
 
@@ -342,7 +342,7 @@ func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
 			return
 		}
 
-		h.logger.Error("failed to get subscription",
+		h.Logger.Error("failed to get subscription",
 			zap.String("subscription_id", subscriptionID),
 			zap.Error(err),
 		)
@@ -368,7 +368,7 @@ func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
 		CreatedAt: storageSub.CreatedAt,
 	}
 
-	h.logger.Info("subscription retrieved",
+	h.Logger.Info("subscription retrieved",
 		zap.String("subscription_id", subscriptionID),
 	)
 
@@ -389,7 +389,7 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 	ctx := c.Request.Context()
 	subscriptionID := c.Param("subscriptionId")
 
-	h.logger.Info("deleting subscription",
+	h.Logger.Info("deleting subscription",
 		zap.String("subscription_id", subscriptionID),
 		zap.String("request_id", c.GetString("request_id")),
 	)
@@ -405,10 +405,10 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 	}
 
 	// Delete subscription from storage
-	err := h.store.Delete(ctx, subscriptionID)
+	err := h.Store.Delete(ctx, subscriptionID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
-			h.logger.Warn("subscription not found",
+			h.Logger.Warn("subscription not found",
 				zap.String("subscription_id", subscriptionID),
 			)
 
@@ -420,7 +420,7 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 			return
 		}
 
-		h.logger.Error("failed to delete subscription",
+		h.Logger.Error("failed to delete subscription",
 			zap.String("subscription_id", subscriptionID),
 			zap.Error(err),
 		)
@@ -433,7 +433,7 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 		return
 	}
 
-	h.logger.Info("subscription deleted",
+	h.Logger.Info("subscription deleted",
 		zap.String("subscription_id", subscriptionID),
 	)
 

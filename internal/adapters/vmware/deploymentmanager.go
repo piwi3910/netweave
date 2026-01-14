@@ -11,7 +11,7 @@ import (
 // GetDeploymentManager retrieves metadata about the vSphere deployment manager.
 // It provides information about the vCenter and datacenter.
 func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
-	a.logger.Debug("GetDeploymentManager called",
+	a.Logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
 	if id != a.deploymentManagerID {
@@ -59,7 +59,7 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 		},
 	}
 
-	a.logger.Info("retrieved deployment manager",
+	a.Logger.Info("retrieved deployment manager",
 		zap.String("deploymentManagerID", dm.DeploymentManagerID),
 		zap.String("datacenter", a.datacenterName))
 

@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"bytes"
@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/server"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -224,8 +226,8 @@ func (m *mockSubscriptionAdapter) DeleteSubscription(_ context.Context, _ string
 	return nil
 }
 
-// setupSubscriptionUpdateServer creates a test server instance for subscription update tests.
-func setupSubscriptionUpdateServer() (*Server, *mockSubscriptionStore) {
+// setupSubscriptionUpdateServer creates a test server.server instance for subscription update tests.
+func setupSubscriptionUpdateServer() (*server.Server, *mockSubscriptionStore) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
 		Server: config.ServerConfig{
@@ -234,7 +236,7 @@ func setupSubscriptionUpdateServer() (*Server, *mockSubscriptionStore) {
 		},
 	}
 	store := newMockSubscriptionStore()
-	srv := New(cfg, zap.NewNop(), &mockSubscriptionAdapter{store: store}, store)
+	srv := server.New(cfg, zap.NewNop(), &mockSubscriptionAdapter{store: store}, store)
 	return srv, store
 }
 
@@ -262,7 +264,7 @@ func TestSubscriptionUpdateCallback(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -297,7 +299,7 @@ func TestSubscriptionUpdateFilter(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -322,7 +324,7 @@ func TestSubscriptionUpdateInvalidJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "Invalid request body")
@@ -348,7 +350,7 @@ func TestSubscriptionUpdateNotFound(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusNotFound, resp.Code)
 	assert.Contains(t, resp.Body.String(), "Subscription not found")
@@ -380,7 +382,7 @@ func TestSubscriptionUpdateAllFields(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -418,7 +420,7 @@ func TestSubscriptionUpdateEmptyCallback(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	// Handler validation should reject empty callback with 400 Bad Request
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
@@ -447,7 +449,7 @@ func TestSubscriptionUpdateCallbackOnly(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -481,7 +483,7 @@ func TestSubscriptionUpdateInvalidCallbackFormat(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	// Should reject invalid URL format
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
@@ -511,7 +513,7 @@ func TestSubscriptionUpdateUnsupportedScheme(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	// Should reject unsupported scheme
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
@@ -540,7 +542,7 @@ func TestSubscriptionUpdateRemoveFilter(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -574,7 +576,7 @@ func TestSubscriptionUpdateEmptyFilter(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -608,7 +610,7 @@ func TestSubscriptionUpdatePartialFilter(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -640,7 +642,7 @@ func TestSubscriptionUpdateCallbackWithPort(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -670,7 +672,7 @@ func TestSubscriptionUpdateCallbackWithQueryParams(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 

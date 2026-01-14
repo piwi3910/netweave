@@ -83,7 +83,7 @@ func (a *Adapter) transformAndFilterPools(
 ) []*adapter.ResourcePool {
 	resourcePools := make([]*adapter.ResourcePool, 0, len(serverPools))
 	for _, sp := range serverPools {
-		pool := a.transformServerPoolToResourcePool(&sp)
+		pool := a.TransformServerPoolToResourcePool(&sp)
 
 		// Apply client-side filtering using shared helper
 		// Extract dtias metadata for label matching
@@ -120,7 +120,7 @@ func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.Reso
 	}
 
 	// Transform to O2-IMS resource pool
-	resourcePool := a.transformServerPoolToResourcePool(&dtiasResp.Rp)
+	resourcePool := a.TransformServerPoolToResourcePool(&dtiasResp.Rp)
 
 	a.logger.Debug("retrieved resource pool",
 		zap.String("id", resourcePool.ResourcePoolID),
@@ -142,7 +142,7 @@ func (a *Adapter) CreateResourcePool(
 	createReq := map[string]interface{}{
 		"name":        pool.Name,
 		"description": pool.Description,
-		"datacenter":  a.config.Datacenter,
+		"datacenter":  a.Config.Datacenter,
 		"type":        "compute", // Default type
 		"metadata":    map[string]string{},
 	}
@@ -180,7 +180,7 @@ func (a *Adapter) CreateResourcePool(
 	}
 
 	// Transform to O2-IMS resource pool
-	resourcePool := a.transformServerPoolToResourcePool(&serverPool)
+	resourcePool := a.TransformServerPoolToResourcePool(&serverPool)
 
 	a.logger.Info("created resource pool",
 		zap.String("id", resourcePool.ResourcePoolID),
@@ -233,7 +233,7 @@ func (a *Adapter) UpdateResourcePool(
 	}
 
 	// Transform to O2-IMS resource pool
-	resourcePool := a.transformServerPoolToResourcePool(&serverPool)
+	resourcePool := a.TransformServerPoolToResourcePool(&serverPool)
 
 	a.logger.Info("updated resource pool",
 		zap.String("id", resourcePool.ResourcePoolID),
@@ -262,7 +262,7 @@ func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
 }
 
 // transformServerPoolToResourcePool transforms a DTIAS ServerPool to an O2-IMS ResourcePool.
-func (a *Adapter) transformServerPoolToResourcePool(sp *ServerPool) *adapter.ResourcePool {
+func (a *Adapter) TransformServerPoolToResourcePool(sp *ServerPool) *adapter.ResourcePool {
 	// Build global location ID (geo URI format)
 	globalLocationID := ""
 	if sp.Location.Latitude != 0 && sp.Location.Longitude != 0 {
@@ -280,7 +280,7 @@ func (a *Adapter) transformServerPoolToResourcePool(sp *ServerPool) *adapter.Res
 		Name:             sp.Name,
 		Description:      sp.Description,
 		Location:         location,
-		OCloudID:         a.oCloudID,
+		OCloudID:         a.OCloudID,
 		GlobalLocationID: globalLocationID,
 		Extensions: map[string]interface{}{
 			"dtias.poolId":           sp.ID,

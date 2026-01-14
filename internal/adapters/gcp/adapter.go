@@ -50,7 +50,7 @@ type Adapter struct {
 	instanceGroupsClient *compute.InstanceGroupsClient
 
 	// logger provides structured logging.
-	logger *zap.Logger
+	Logger *zap.Logger
 
 	// oCloudID is the identifier of the parent O-Cloud.
 	oCloudID string
@@ -67,10 +67,10 @@ type Adapter struct {
 	// subscriptions holds active O2-IMS subscriptions (polling-based fallback).
 	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
 	// For production use, consider implementing persistent storage via Redis.
-	subscriptions map[string]*adapter.Subscription
+	Subscriptions map[string]*adapter.Subscription
 
 	// subscriptionsMu protects the subscriptions map.
-	subscriptionsMu sync.RWMutex
+	SubscriptionsMu sync.RWMutex
 
 	// poolMode determines how resource pools are mapped.
 	// "zone" maps to Zones, "ig" maps to Instance Groups.
@@ -154,12 +154,12 @@ func New(cfg *Config) (*Adapter, error) {
 		zonesClient:          clients.zonesClient,
 		regionsClient:        clients.regionsClient,
 		instanceGroupsClient: clients.instanceGroupsClient,
-		logger:               logger,
+		Logger:               logger,
 		oCloudID:             cfg.OCloudID,
 		deploymentManagerID:  deploymentManagerID,
 		projectID:            cfg.ProjectID,
 		region:               cfg.Region,
-		subscriptions:        make(map[string]*adapter.Subscription),
+		Subscriptions:        make(map[string]*adapter.Subscription),
 		poolMode:             poolMode,
 	}, nil
 }
@@ -209,7 +209,7 @@ func initializeGCPLogger(logger *zap.Logger) (*zap.Logger, error) {
 	}
 	logger, err := zap.NewProduction()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create logger: %w", err)
+		return nil, fmt.Errorf("failed to create Logger: %w", err)
 	}
 	return logger, nil
 }
@@ -326,7 +326,7 @@ func (a *Adapter) Health(ctx context.Context) error {
 	start := time.Now()
 	defer func() { adapter.ObserveHealthCheck("gcp", start, err) }()
 
-	a.logger.Debug("health check called")
+	a.Logger.Debug("health check called")
 
 	// Use a timeout to prevent indefinite blocking
 	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -338,22 +338,22 @@ func (a *Adapter) Health(ctx context.Context) error {
 		Region:  a.region,
 	})
 	if err != nil {
-		a.logger.Error("GCP health check failed", zap.Error(err))
+		a.Logger.Error("GCP health check failed", zap.Error(err))
 		return fmt.Errorf("gcp API unreachable: %w", err)
 	}
 
-	a.logger.Debug("health check passed")
+	a.Logger.Debug("health check passed")
 	return nil
 }
 
 // Close cleanly shuts down the adapter and releases resources.
 func (a *Adapter) Close() error {
-	a.logger.Info("closing GCP adapter")
+	a.Logger.Info("closing GCP adapter")
 
 	// Clear subscriptions
-	a.subscriptionsMu.Lock()
-	a.subscriptions = make(map[string]*adapter.Subscription)
-	a.subscriptionsMu.Unlock()
+	a.SubscriptionsMu.Lock()
+	a.Subscriptions = make(map[string]*adapter.Subscription)
+	a.SubscriptionsMu.Unlock()
 
 	// Close all clients
 	var errs []error
@@ -379,7 +379,7 @@ func (a *Adapter) Close() error {
 
 	// Sync logger before shutdown
 	// Ignore sync errors on stderr/stdout
-	_ = a.logger.Sync()
+	_ = a.Logger.Sync()
 
 	return nil
 }
@@ -388,27 +388,27 @@ func (a *Adapter) Close() error {
 // Use adapter.MatchesFilter() and adapter.ApplyPagination() instead of local implementations.
 
 // generateMachineTypeID generates a consistent resource type ID for a machine type.
-func generateMachineTypeID(machineType string) string {
+func GenerateMachineTypeID(machineType string) string {
 	return fmt.Sprintf("gcp-machine-type-%s", machineType)
 }
 
 // generateInstanceID generates a consistent resource ID for a GCP instance.
-func generateInstanceID(instanceName, zone string) string {
+func GenerateInstanceID(instanceName, zone string) string {
 	return fmt.Sprintf("gcp-instance-%s-%s", zone, instanceName)
 }
 
 // generateZonePoolID generates a consistent resource pool ID for a Zone.
-func generateZonePoolID(zone string) string {
+func GenerateZonePoolID(zone string) string {
 	return fmt.Sprintf("gcp-zone-%s", zone)
 }
 
 // generateIGPoolID generates a consistent resource pool ID for an Instance Group.
-func generateIGPoolID(igName, zone string) string {
+func GenerateIGPoolID(igName, zone string) string {
 	return fmt.Sprintf("gcp-ig-%s-%s", zone, igName)
 }
 
 // ptrToString safely converts a *string to string.
-func ptrToString(s *string) string {
+func PtrToString(s *string) string {
 	if s == nil {
 		return ""
 	}
@@ -416,23 +416,23 @@ func ptrToString(s *string) string {
 }
 
 // ptrToInt64 safely converts a *int64 to int64.
-func ptrToInt64(i *int64) int64 {
+func PtrToInt64(i *int64) int64 {
 	if i == nil {
 		return 0
 	}
 	return *i
 }
 
-// ptrToInt32 safely converts a *int32 to int32.
-func ptrToInt32(i *int32) int32 {
+// PtrToInt32 safely converts a *int32 to int32.
+func PtrToInt32(i *int32) int32 {
 	if i == nil {
 		return 0
 	}
 	return *i
 }
 
-// ptrToBool safely converts a *bool to bool.
-func ptrToBool(b *bool) bool {
+// PtrToBool safely converts a *bool to bool.
+func PtrToBool(b *bool) bool {
 	if b == nil {
 		return false
 	}

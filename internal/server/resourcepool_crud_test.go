@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"bytes"
@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/server"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -107,8 +109,8 @@ func (e *errorReturningResourcePoolAdapter) DeleteResourcePool(ctx context.Conte
 	return e.mockResourcePoolAdapter.DeleteResourcePool(ctx, id)
 }
 
-// setupResourcePoolTestServer creates a test server with mock adapter and config.
-func setupResourcePoolTestServer(t *testing.T, adp adapter.Adapter) *Server {
+// setupResourcePoolTestServer creates a test server.server with mock adapter and config.
+func setupResourcePoolTestServer(t *testing.T, adp adapter.Adapter) *server.Server {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
@@ -117,11 +119,11 @@ func setupResourcePoolTestServer(t *testing.T, adp adapter.Adapter) *Server {
 			GinMode: gin.TestMode,
 		},
 	}
-	return New(cfg, zap.NewNop(), adp, &mockStore{})
+	return server.New(cfg, zap.NewNop(), adp, &mockStore{})
 }
 
 // makeResourcePoolPostRequest creates and executes a POST request to /resourcePools.
-func makeResourcePoolPostRequest(t *testing.T, srv *Server, body []byte) *httptest.ResponseRecorder {
+func makeResourcePoolPostRequest(t *testing.T, srv *server.Server, body []byte) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -130,7 +132,7 @@ func makeResourcePoolPostRequest(t *testing.T, srv *Server, body []byte) *httpte
 	)
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 	return resp
 }
 
@@ -227,7 +229,7 @@ func TestResourcePoolValidationErrorNameTooLong(t *testing.T) {
 	srv := setupResourcePoolTestServer(t, newMockResourcePoolAdapter())
 
 	pool := adapter.ResourcePool{
-		Name: strings.Repeat("a", MaxResourcePoolNameLength+1), // Exceeds max length
+		Name: strings.Repeat("a", server.MaxResourcePoolNameLength+1), // Exceeds max length
 	}
 
 	body := marshalResourcePoolToJSON(t, pool)
@@ -259,7 +261,7 @@ func TestResourcePoolValidationErrorDescriptionTooLong(t *testing.T) {
 
 	pool := adapter.ResourcePool{
 		Name:        "test-pool",
-		Description: strings.Repeat("a", MaxResourcePoolDescriptionLength+1), // Exceeds max length
+		Description: strings.Repeat("a", server.MaxResourcePoolDescriptionLength+1), // Exceeds max length
 	}
 
 	body := marshalResourcePoolToJSON(t, pool)
@@ -324,7 +326,7 @@ func TestResourcePoolInvalidJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "Invalid request body")
@@ -351,7 +353,7 @@ func TestResourcePoolUpdateResourcePool(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -384,7 +386,7 @@ func TestResourcePoolUpdateResourcePoolNotFound(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusNotFound, resp.Code)
 	assert.Contains(t, resp.Body.String(), "not found")
@@ -402,7 +404,7 @@ func TestResourcePoolUpdateInvalidJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "Invalid request body")
@@ -427,7 +429,7 @@ func TestResourcePoolUpdateValidationErrorEmptyName(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "name is required")
@@ -452,7 +454,7 @@ func TestResourcePoolUpdateValidationErrorNameTooLong(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "name must not exceed 255 characters")
@@ -478,7 +480,7 @@ func TestResourcePoolUpdateValidationErrorInvalidIDCharacters(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "resourcePoolId must contain only alphanumeric characters")
@@ -504,7 +506,7 @@ func TestResourcePoolUpdateValidationErrorDescriptionTooLong(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), "description must not exceed 1000 characters")
@@ -517,7 +519,7 @@ func TestResourcePoolDeleteResourcePool(t *testing.T) {
 	req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/existing-pool", nil)
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusNoContent, resp.Code)
 	assert.Empty(t, resp.Body.String())
@@ -530,7 +532,7 @@ func TestResourcePoolDeleteResourcePoolNotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/nonexistent-pool", nil)
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusNotFound, resp.Code)
 	assert.Contains(t, resp.Body.String(), "not found")
@@ -550,7 +552,7 @@ func TestResourcePoolCreateAdapterError(t *testing.T) {
 		mockResourcePoolAdapter: *newMockResourcePoolAdapter(),
 		errorOn:                 "create",
 	}
-	srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
 
 	pool := adapter.ResourcePool{
 		Name: "test-pool",
@@ -577,7 +579,7 @@ func TestResourcePoolUpdateAdapterError(t *testing.T) {
 		mockResourcePoolAdapter: *newMockResourcePoolAdapter(),
 		errorOn:                 "update",
 	}
-	srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
 
 	pool := adapter.ResourcePool{
 		Name: "test-pool",
@@ -594,7 +596,7 @@ func TestResourcePoolUpdateAdapterError(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusInternalServerError, resp.Code)
 	assert.Contains(t, resp.Body.String(), "Failed to update resource pool")
@@ -614,12 +616,12 @@ func TestResourcePoolDeleteAdapterError(t *testing.T) {
 		mockResourcePoolAdapter: *newMockResourcePoolAdapter(),
 		errorOn:                 "delete",
 	}
-	srv := New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/existing-pool", nil)
 	resp := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(resp, req)
+	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusInternalServerError, resp.Code)
 	assert.Contains(t, resp.Body.String(), "Failed to delete resource pool")
@@ -666,7 +668,7 @@ func TestSanitizeResourcePoolID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := sanitizeResourcePoolID(tt.input)
+			result := server.SanitizeResourcePoolID(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -726,7 +728,7 @@ func TestValidateResourcePoolFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateResourcePoolFields(tt.pool)
+			err := server.ValidateResourcePoolFields(tt.pool)
 			if tt.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)

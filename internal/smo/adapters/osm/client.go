@@ -18,14 +18,14 @@ import (
 // It handles authentication, request/response marshaling, error handling,
 // and automatic token refresh.
 type Client struct {
-	config     *Config
-	httpClient *http.Client
-	baseURL    string
+	Config     *Config      // Exported for testing
+	HTTPClient *http.Client // Exported for testing
+	BaseURL    string       // Exported for testing
 
 	// Authentication state
-	mu          sync.RWMutex
-	token       string
-	tokenExpiry time.Time
+	Mu          sync.RWMutex // Exported for testing
+	Token       string       // Exported for testing
+	TokenExpiry time.Time    // Exported for testing
 }
 
 // NewClient creates a new OSM NBI API client with the provided configuration.
@@ -50,28 +50,28 @@ func NewClient(config *Config) (*Client, error) {
 	}
 
 	return &Client{
-		config:     config,
-		httpClient: httpClient,
-		baseURL:    baseURL,
+		Config:     config,
+		HTTPClient: httpClient,
+		BaseURL:    baseURL,
 	}, nil
 }
 
 // Authenticate authenticates with the OSM NBI and obtains an access token.
 // The token is cached and automatically refreshed when expired.
 func (c *Client) Authenticate(ctx context.Context) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
 
 	// Check if we have a valid token
-	if c.token != "" && time.Now().Before(c.tokenExpiry) {
+	if c.Token != "" && time.Now().Before(c.TokenExpiry) {
 		return nil
 	}
 
 	// Prepare authentication request
 	authReq := map[string]string{
-		"username": c.config.Username,
-		"password": c.config.Password,
-		"project":  c.config.Project,
+		"username": c.Config.Username,
+		"password": c.Config.Password,
+		"project":  c.Config.Project,
 	}
 
 	reqBody, err := json.Marshal(authReq)
@@ -83,7 +83,7 @@ func (c *Client) Authenticate(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		c.baseURL+"/osm/admin/v1/tokens",
+		c.BaseURL+"/osm/admin/v1/tokens",
 		bytes.NewReader(reqBody),
 	)
 	if err != nil {
@@ -94,7 +94,7 @@ func (c *Client) Authenticate(ctx context.Context) error {
 	req.Header.Set("Accept", "application/json")
 
 	// Execute request
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("auth request failed: %w", err)
 	}
@@ -128,8 +128,8 @@ func (c *Client) Authenticate(ctx context.Context) error {
 	}
 
 	// Store token
-	c.token = authResp.ID
-	c.tokenExpiry = expiry
+	c.Token = authResp.ID
+	c.TokenExpiry = expiry
 
 	return nil
 }
@@ -148,7 +148,7 @@ func (c *Client) Health(ctx context.Context) error {
 		return fmt.Errorf("failed to create health check request: %w", err)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("health check request failed: %w", err)
 	}
@@ -163,15 +163,15 @@ func (c *Client) Health(ctx context.Context) error {
 
 // Close closes the HTTP client and releases resources.
 func (c *Client) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
 
 	// Invalidate token
-	c.token = ""
-	c.tokenExpiry = time.Time{}
+	c.Token = ""
+	c.TokenExpiry = time.Time{}
 
 	// Close idle connections
-	c.httpClient.CloseIdleConnections()
+	c.HTTPClient.CloseIdleConnections()
 
 	return nil
 }
@@ -179,16 +179,16 @@ func (c *Client) Close() error {
 // newRequest creates a new HTTP request with authentication and common headers.
 func (c *Client) newRequest(ctx context.Context, method, path string, body interface{}) (*http.Request, error) {
 	// Ensure we have a valid token
-	c.mu.RLock()
-	token := c.token
-	c.mu.RUnlock()
+	c.Mu.RLock()
+	token := c.Token
+	c.Mu.RUnlock()
 
 	if token == "" {
 		return nil, fmt.Errorf("not authenticated")
 	}
 
 	// Build URL
-	u, err := url.Parse(c.baseURL + path)
+	u, err := url.Parse(c.BaseURL + path)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL path: %w", err)
 	}
@@ -222,12 +222,12 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body inter
 func (c *Client) doRequest(ctx context.Context, req *http.Request, result interface{}) error {
 	var lastErr error
 
-	for attempt := 0; attempt <= c.config.MaxRetries; attempt++ {
+	for attempt := 0; attempt <= c.Config.MaxRetries; attempt++ {
 		if err := c.waitForRetry(ctx, attempt); err != nil {
 			return err
 		}
 
-		resp, err := c.httpClient.Do(req)
+		resp, err := c.HTTPClient.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("request failed: %w", err)
 			continue
@@ -250,7 +250,7 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request, result interf
 		return nil
 	}
 
-	return fmt.Errorf("request failed after %d attempts: %w", c.config.MaxRetries+1, lastErr)
+	return fmt.Errorf("request failed after %d attempts: %w", c.Config.MaxRetries+1, lastErr)
 }
 
 // errRetryable is a sentinel error indicating the request should be retried.
@@ -262,9 +262,9 @@ func (c *Client) waitForRetry(ctx context.Context, attempt int) error {
 		return nil
 	}
 
-	delay := time.Duration(float64(c.config.RetryDelay) * float64(attempt) * c.config.RetryMultiplier)
-	if delay > c.config.RetryMaxDelay {
-		delay = c.config.RetryMaxDelay
+	delay := time.Duration(float64(c.Config.RetryDelay) * float64(attempt) * c.Config.RetryMultiplier)
+	if delay > c.Config.RetryMaxDelay {
+		delay = c.Config.RetryMaxDelay
 	}
 
 	select {
@@ -316,9 +316,9 @@ func (c *Client) handleUnauthorized(ctx context.Context, req *http.Request, _ *h
 		return nil, fmt.Errorf("failed to refresh authentication: %w", err)
 	}
 
-	c.mu.RLock()
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	c.mu.RUnlock()
+	c.Mu.RLock()
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	c.Mu.RUnlock()
 
 	return fmt.Errorf("authentication expired, retrying"), errRetryable
 }
@@ -345,7 +345,7 @@ func (c *Client) handleNonRetryableError(resp *http.Response) error {
 }
 
 // get performs a GET request to the specified path.
-func (c *Client) get(ctx context.Context, path string, result interface{}) error {
+func (c *Client) Get(ctx context.Context, path string, result interface{}) error {
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return err
@@ -353,8 +353,8 @@ func (c *Client) get(ctx context.Context, path string, result interface{}) error
 	return c.doRequest(ctx, req, result)
 }
 
-// post performs a POST request to the specified path with the given body.
-func (c *Client) post(ctx context.Context, path string, body, result interface{}) error {
+// Post performs a POST request to the specified path with the given body. Exported for testing.
+func (c *Client) Post(ctx context.Context, path string, body, result interface{}) error {
 	req, err := c.newRequest(ctx, http.MethodPost, path, body)
 	if err != nil {
 		return err
@@ -363,7 +363,7 @@ func (c *Client) post(ctx context.Context, path string, body, result interface{}
 }
 
 // delete performs a DELETE request to the specified path.
-func (c *Client) delete(ctx context.Context, path string) error {
+func (c *Client) Delete(ctx context.Context, path string) error {
 	req, err := c.newRequest(ctx, http.MethodDelete, path, nil)
 	if err != nil {
 		return err
@@ -372,7 +372,7 @@ func (c *Client) delete(ctx context.Context, path string) error {
 }
 
 // patch performs a PATCH request to the specified path with the given body.
-func (c *Client) patch(ctx context.Context, path string, body, result interface{}) error {
+func (c *Client) Patch(ctx context.Context, path string, body, result interface{}) error {
 	req, err := c.newRequest(ctx, http.MethodPatch, path, body)
 	if err != nil {
 		return err

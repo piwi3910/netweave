@@ -1,10 +1,12 @@
-package controllers
+package controllers_test
 
 import (
 	"context"
 	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/controllers"
 
 	"github.com/alicebob/miniredis/v2"
 	redis "github.com/redis/go-redis/v9"
@@ -21,7 +23,7 @@ import (
 func TestNewSubscriptionController(t *testing.T) {
 	tests := []struct {
 		name    string
-		cfg     *Config
+		cfg     *controllers.Config
 		wantErr bool
 		errMsg  string
 	}{
@@ -33,7 +35,7 @@ func TestNewSubscriptionController(t *testing.T) {
 		},
 		{
 			name: "nil k8s client",
-			cfg: &Config{
+			cfg: &controllers.Config{
 				Store:       &mockStore{},
 				RedisClient: &redis.Client{},
 				Logger:      zaptest.NewLogger(t),
@@ -44,7 +46,7 @@ func TestNewSubscriptionController(t *testing.T) {
 		},
 		{
 			name: "nil store",
-			cfg: &Config{
+			cfg: &controllers.Config{
 				K8sClient:   fake.NewClientset(),
 				RedisClient: &redis.Client{},
 				Logger:      zaptest.NewLogger(t),
@@ -55,7 +57,7 @@ func TestNewSubscriptionController(t *testing.T) {
 		},
 		{
 			name: "nil redis client",
-			cfg: &Config{
+			cfg: &controllers.Config{
 				K8sClient: fake.NewClientset(),
 				Store:     &mockStore{},
 				Logger:    zaptest.NewLogger(t),
@@ -66,7 +68,7 @@ func TestNewSubscriptionController(t *testing.T) {
 		},
 		{
 			name: "nil logger",
-			cfg: &Config{
+			cfg: &controllers.Config{
 				K8sClient:   fake.NewClientset(),
 				Store:       &mockStore{},
 				RedisClient: &redis.Client{},
@@ -77,7 +79,7 @@ func TestNewSubscriptionController(t *testing.T) {
 		},
 		{
 			name: "empty ocloud id",
-			cfg: &Config{
+			cfg: &controllers.Config{
 				K8sClient:   fake.NewClientset(),
 				Store:       &mockStore{},
 				RedisClient: &redis.Client{},
@@ -88,7 +90,7 @@ func TestNewSubscriptionController(t *testing.T) {
 		},
 		{
 			name: "valid config",
-			cfg: &Config{
+			cfg: &controllers.Config{
 				K8sClient:   fake.NewClientset(),
 				Store:       &mockStore{},
 				RedisClient: &redis.Client{},
@@ -101,7 +103,7 @@ func TestNewSubscriptionController(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl, err := NewSubscriptionController(tt.cfg)
+			ctrl, err := controllers.NewSubscriptionController(tt.cfg)
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
@@ -109,11 +111,11 @@ func TestNewSubscriptionController(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, ctrl)
-				assert.Equal(t, tt.cfg.K8sClient, ctrl.k8sClient)
-				assert.Equal(t, tt.cfg.Store, ctrl.store)
-				assert.Equal(t, tt.cfg.RedisClient, ctrl.redisClient)
-				assert.Equal(t, tt.cfg.Logger, ctrl.logger)
-				assert.Equal(t, tt.cfg.OCloudID, ctrl.oCloudID)
+				assert.Equal(t, tt.cfg.K8sClient, ctrl.K8sClient)
+				assert.Equal(t, tt.cfg.Store, ctrl.Store)
+				assert.Equal(t, tt.cfg.RedisClient, ctrl.RedisClient)
+				assert.Equal(t, tt.cfg.Logger, ctrl.Logger)
+				assert.Equal(t, tt.cfg.OCloudID, ctrl.OCloudID)
 			}
 		})
 	}
@@ -160,7 +162,7 @@ func TestSubscriptionController_ProcessNodeEvent(t *testing.T) {
 	}
 
 	// Create controller
-	ctrl, err := NewSubscriptionController(&Config{
+	ctrl, err := controllers.NewSubscriptionController(&controllers.Config{
 		K8sClient:   k8sClient,
 		Store:       store,
 		RedisClient: rdb,
@@ -172,11 +174,11 @@ func TestSubscriptionController_ProcessNodeEvent(t *testing.T) {
 	ctx := context.Background()
 
 	// Process node creation event
-	ctrl.processNodeEvent(ctx, node, EventTypeCreated)
+	ctrl.ProcessNodeEvent(ctx, node, controllers.EventTypeCreated)
 
 	// Verify event was queued to Redis Stream
 	streams, err := rdb.XRead(ctx, &redis.XReadArgs{
-		Streams: []string{EventStreamKey, "0"},
+		Streams: []string{controllers.EventStreamKey, "0"},
 		Count:   1,
 	}).Result()
 	require.NoError(t, err)
@@ -185,7 +187,7 @@ func TestSubscriptionController_ProcessNodeEvent(t *testing.T) {
 
 	// Parse event
 	eventData := streams[0].Messages[0].Values["event"].(string)
-	var event ResourceEvent
+	var event controllers.ResourceEvent
 	err = json.Unmarshal([]byte(eventData), &event)
 	require.NoError(t, err)
 
@@ -236,7 +238,7 @@ func TestSubscriptionController_ProcessNamespaceEvent(t *testing.T) {
 	}
 
 	// Create controller
-	ctrl, err := NewSubscriptionController(&Config{
+	ctrl, err := controllers.NewSubscriptionController(&controllers.Config{
 		K8sClient:   k8sClient,
 		Store:       store,
 		RedisClient: rdb,
@@ -248,11 +250,11 @@ func TestSubscriptionController_ProcessNamespaceEvent(t *testing.T) {
 	ctx := context.Background()
 
 	// Process namespace creation event
-	ctrl.processNamespaceEvent(ctx, ns, EventTypeCreated)
+	ctrl.ProcessNamespaceEvent(ctx, ns, controllers.EventTypeCreated)
 
 	// Verify event was queued to Redis Stream
 	streams, err := rdb.XRead(ctx, &redis.XReadArgs{
-		Streams: []string{EventStreamKey, "0"},
+		Streams: []string{controllers.EventStreamKey, "0"},
 		Count:   1,
 	}).Result()
 	require.NoError(t, err)
@@ -261,7 +263,7 @@ func TestSubscriptionController_ProcessNamespaceEvent(t *testing.T) {
 
 	// Parse event
 	eventData := streams[0].Messages[0].Values["event"].(string)
-	var event ResourceEvent
+	var event controllers.ResourceEvent
 	err = json.Unmarshal([]byte(eventData), &event)
 	require.NoError(t, err)
 
@@ -275,7 +277,7 @@ func TestSubscriptionController_ProcessNamespaceEvent(t *testing.T) {
 }
 
 func TestSubscriptionController_MatchesFilter(t *testing.T) {
-	ctrl := &SubscriptionController{}
+	ctrl := &controllers.SubscriptionController{}
 
 	tests := []struct {
 		name         string
@@ -373,7 +375,7 @@ func TestSubscriptionController_MatchesFilter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			matches := ctrl.matchesFilter(tt.sub, tt.resourceType, tt.resourcePool, tt.resourceID)
+			matches := ctrl.MatchesFilter(tt.sub, tt.resourceType, tt.resourcePool, tt.resourceID)
 			assert.Equal(t, tt.wantMatch, matches)
 		})
 	}
@@ -457,7 +459,7 @@ func TestHandleNodeAdd(t *testing.T) {
 	}
 	logger := zaptest.NewLogger(t)
 
-	ctrl, err := NewSubscriptionController(&Config{
+	ctrl, err := controllers.NewSubscriptionController(&controllers.Config{
 		K8sClient:   clientset,
 		Store:       store,
 		RedisClient: rdb,
@@ -484,24 +486,24 @@ func TestHandleNodeAdd(t *testing.T) {
 			},
 		}
 
-		ctrl.processNodeEvent(ctx, node, EventTypeCreated)
+		ctrl.ProcessNodeEvent(ctx, node, controllers.EventTypeCreated)
 
 		time.Sleep(100 * time.Millisecond)
 
 		streams, err := rdb.XRead(ctx, &redis.XReadArgs{
-			Streams: []string{EventStreamKey, "0"},
+			Streams: []string{controllers.EventStreamKey, "0"},
 			Count:   1,
 		}).Result()
 		require.NoError(t, err)
 		require.Len(t, streams, 1)
 		require.Len(t, streams[0].Messages, 1)
 
-		var event ResourceEvent
+		var event controllers.ResourceEvent
 		eventData := streams[0].Messages[0].Values["event"].(string)
 		err = json.Unmarshal([]byte(eventData), &event)
 		require.NoError(t, err)
 
-		assert.Contains(t, event.EventType, string(EventTypeCreated))
+		assert.Contains(t, event.EventType, string(controllers.EventTypeCreated))
 		assert.Equal(t, "k8s-node", event.ResourceTypeID)
 		assert.Equal(t, "test-node", event.GlobalResourceID)
 	})
@@ -540,7 +542,7 @@ func TestHandleNodeUpdate(t *testing.T) {
 	}
 	logger := zaptest.NewLogger(t)
 
-	ctrl, err := NewSubscriptionController(&Config{
+	ctrl, err := controllers.NewSubscriptionController(&controllers.Config{
 		K8sClient:   clientset,
 		Store:       store,
 		RedisClient: rdb,
@@ -568,24 +570,24 @@ func TestHandleNodeUpdate(t *testing.T) {
 			},
 		}
 
-		ctrl.processNodeEvent(ctx, newNode, EventTypeUpdated)
+		ctrl.ProcessNodeEvent(ctx, newNode, controllers.EventTypeUpdated)
 
 		time.Sleep(100 * time.Millisecond)
 
 		streams, err := rdb.XRead(ctx, &redis.XReadArgs{
-			Streams: []string{EventStreamKey, "0"},
+			Streams: []string{controllers.EventStreamKey, "0"},
 			Count:   1,
 		}).Result()
 		require.NoError(t, err)
 		require.Len(t, streams, 1)
 		require.Len(t, streams[0].Messages, 1)
 
-		var event ResourceEvent
+		var event controllers.ResourceEvent
 		eventData := streams[0].Messages[0].Values["event"].(string)
 		err = json.Unmarshal([]byte(eventData), &event)
 		require.NoError(t, err)
 
-		assert.Contains(t, event.EventType, string(EventTypeUpdated))
+		assert.Contains(t, event.EventType, string(controllers.EventTypeUpdated))
 		assert.Equal(t, "k8s-node", event.ResourceTypeID)
 		assert.Equal(t, "test-node", event.GlobalResourceID)
 	})
@@ -622,7 +624,7 @@ func TestHandleNodeDelete(t *testing.T) {
 	}
 	logger := zaptest.NewLogger(t)
 
-	ctrl, err := NewSubscriptionController(&Config{
+	ctrl, err := controllers.NewSubscriptionController(&controllers.Config{
 		K8sClient:   clientset,
 		Store:       store,
 		RedisClient: rdb,
@@ -642,12 +644,12 @@ func TestHandleNodeDelete(t *testing.T) {
 			},
 		}
 
-		ctrl.processNodeEvent(ctx, node, EventTypeDeleted)
+		ctrl.ProcessNodeEvent(ctx, node, controllers.EventTypeDeleted)
 
 		time.Sleep(100 * time.Millisecond)
 
 		streams, err := rdb.XRead(ctx, &redis.XReadArgs{
-			Streams: []string{EventStreamKey, "0"},
+			Streams: []string{controllers.EventStreamKey, "0"},
 			Count:   1,
 		}).Result()
 		if err != nil {
@@ -657,14 +659,14 @@ func TestHandleNodeDelete(t *testing.T) {
 		require.Len(t, streams, 1)
 		require.Len(t, streams[0].Messages, 1)
 
-		var event ResourceEvent
+		var event controllers.ResourceEvent
 		eventData := streams[0].Messages[0].Values["event"].(string)
 		err = json.Unmarshal([]byte(eventData), &event)
 		require.NoError(t, err)
 
 		assert.Equal(t, "test-node", event.GlobalResourceID)
 		assert.Equal(t, "k8s-node", event.ResourceTypeID)
-		assert.Contains(t, event.EventType, string(EventTypeDeleted))
+		assert.Contains(t, event.EventType, string(controllers.EventTypeDeleted))
 	})
 
 	t.Run("nil node", func(_ *testing.T) {
@@ -701,7 +703,7 @@ func TestHandleNamespaceAdd(t *testing.T) {
 		},
 	}
 
-	ctrl, err := NewSubscriptionController(&Config{
+	ctrl, err := controllers.NewSubscriptionController(&controllers.Config{
 		K8sClient:   clientset,
 		Store:       store,
 		RedisClient: rdb,
@@ -720,12 +722,12 @@ func TestHandleNamespaceAdd(t *testing.T) {
 			},
 		}
 
-		ctrl.processNamespaceEvent(ctx, ns, EventTypeCreated)
+		ctrl.ProcessNamespaceEvent(ctx, ns, controllers.EventTypeCreated)
 
 		time.Sleep(100 * time.Millisecond)
 
 		readArgs := &redis.XReadArgs{
-			Streams: []string{EventStreamKey, "0"},
+			Streams: []string{controllers.EventStreamKey, "0"},
 			Count:   1,
 		}
 		streams, err := rdb.XRead(ctx, readArgs).Result()
@@ -734,12 +736,12 @@ func TestHandleNamespaceAdd(t *testing.T) {
 		require.Len(t, streams[0].Messages, 1)
 
 		eventData := streams[0].Messages[0].Values["event"].(string)
-		var event ResourceEvent
+		var event controllers.ResourceEvent
 		err = json.Unmarshal([]byte(eventData), &event)
 		require.NoError(t, err)
 
 		assert.Equal(t, "k8s-namespace", event.ResourceTypeID)
-		assert.Contains(t, event.EventType, string(EventTypeCreated))
+		assert.Contains(t, event.EventType, string(controllers.EventTypeCreated))
 		assert.Equal(t, "test-namespace", event.GlobalResourceID)
 	})
 
@@ -776,7 +778,7 @@ func TestHandleNamespaceUpdate(t *testing.T) {
 	}
 	logger := zaptest.NewLogger(t)
 
-	ctrl, err := NewSubscriptionController(&Config{
+	ctrl, err := controllers.NewSubscriptionController(&controllers.Config{
 		K8sClient:   clientset,
 		Store:       store,
 		RedisClient: rdb,
@@ -799,24 +801,24 @@ func TestHandleNamespaceUpdate(t *testing.T) {
 			},
 		}
 
-		ctrl.processNamespaceEvent(ctx, newNs, EventTypeUpdated)
+		ctrl.ProcessNamespaceEvent(ctx, newNs, controllers.EventTypeUpdated)
 
 		time.Sleep(100 * time.Millisecond)
 
 		streams, err := rdb.XRead(ctx, &redis.XReadArgs{
-			Streams: []string{EventStreamKey, "0"},
+			Streams: []string{controllers.EventStreamKey, "0"},
 			Count:   1,
 		}).Result()
 		require.NoError(t, err)
 		require.Len(t, streams, 1)
 		require.Len(t, streams[0].Messages, 1)
 
-		var event ResourceEvent
+		var event controllers.ResourceEvent
 		eventData := streams[0].Messages[0].Values["event"].(string)
 		err = json.Unmarshal([]byte(eventData), &event)
 		require.NoError(t, err)
 
-		assert.Contains(t, event.EventType, string(EventTypeUpdated))
+		assert.Contains(t, event.EventType, string(controllers.EventTypeUpdated))
 		assert.Equal(t, "k8s-namespace", event.ResourceTypeID)
 		assert.Equal(t, "test-namespace", event.GlobalResourceID)
 	})
@@ -860,7 +862,7 @@ func TestHandleNamespaceDelete(t *testing.T) {
 		},
 	}
 
-	ctrl, err := NewSubscriptionController(&Config{
+	ctrl, err := controllers.NewSubscriptionController(&controllers.Config{
 		K8sClient:   clientset,
 		Store:       store,
 		RedisClient: rdb,
@@ -879,13 +881,13 @@ func TestHandleNamespaceDelete(t *testing.T) {
 			},
 		}
 
-		ctrl.processNamespaceEvent(ctx, ns, EventTypeDeleted)
+		ctrl.ProcessNamespaceEvent(ctx, ns, controllers.EventTypeDeleted)
 
 		// Wait for async processing
 		time.Sleep(100 * time.Millisecond)
 
 		streams, streamErr := rdb.XRead(ctx, &redis.XReadArgs{
-			Streams: []string{EventStreamKey, "0"},
+			Streams: []string{controllers.EventStreamKey, "0"},
 			Count:   1,
 		}).Result()
 		require.NoError(t, streamErr)
@@ -893,11 +895,11 @@ func TestHandleNamespaceDelete(t *testing.T) {
 		require.Len(t, streams[0].Messages, 1)
 
 		eventData := streams[0].Messages[0].Values["event"].(string)
-		var event ResourceEvent
+		var event controllers.ResourceEvent
 		unmarshalErr := json.Unmarshal([]byte(eventData), &event)
 		require.NoError(t, unmarshalErr)
 
-		assert.Contains(t, event.EventType, string(EventTypeDeleted))
+		assert.Contains(t, event.EventType, string(controllers.EventTypeDeleted))
 		assert.Equal(t, "test-namespace", event.GlobalResourceID)
 		assert.Equal(t, "k8s-namespace", event.ResourceTypeID)
 	})
@@ -927,7 +929,7 @@ func TestGetNodeByName(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
-	ctrl, err := NewSubscriptionController(&Config{
+	ctrl, err := controllers.NewSubscriptionController(&controllers.Config{
 		K8sClient:   clientset,
 		Store:       store,
 		RedisClient: rdb,
@@ -981,7 +983,7 @@ func TestStart(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
-	ctrl, err := NewSubscriptionController(&Config{
+	ctrl, err := controllers.NewSubscriptionController(&controllers.Config{
 		K8sClient:   clientset,
 		Store:       store,
 		RedisClient: rdb,
@@ -1026,7 +1028,7 @@ func TestStop(t *testing.T) {
 	})
 	defer func() { _ = rdb.Close() }()
 
-	ctrl, err := NewSubscriptionController(&Config{
+	ctrl, err := controllers.NewSubscriptionController(&controllers.Config{
 		K8sClient:   clientset,
 		Store:       store,
 		RedisClient: rdb,
@@ -1048,7 +1050,7 @@ func TestStop(t *testing.T) {
 	})
 
 	t.Run("stop before start", func(t *testing.T) {
-		ctrl2, err := NewSubscriptionController(&Config{
+		ctrl2, err := controllers.NewSubscriptionController(&controllers.Config{
 			K8sClient:   clientset,
 			Store:       store,
 			RedisClient: rdb,

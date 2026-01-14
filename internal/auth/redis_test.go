@@ -1,4 +1,4 @@
-package auth
+package auth_test
 
 import (
 	"context"
@@ -6,12 +6,13 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestRedis(t *testing.T) *RedisStore {
+func setupTestRedis(t *testing.T) *auth.RedisStore {
 	t.Helper()
 
 	mr := miniredis.RunT(t)
@@ -20,7 +21,7 @@ func setupTestRedis(t *testing.T) *RedisStore {
 		Addr: mr.Addr(),
 	})
 
-	store := NewRedisStoreWithClient(client)
+	store := auth.NewRedisStoreWithClient(client)
 	return store
 }
 
@@ -31,12 +32,12 @@ func TestRedisStore_TenantOperations(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("create tenant", func(t *testing.T) {
-		tenant := &Tenant{
+		tenant := &auth.Tenant{
 			ID:          "tenant-1",
-			Name:        "Test Tenant",
+			Name:        "Test auth.Tenant",
 			Description: "A test tenant",
-			Status:      TenantStatusActive,
-			Quota:       DefaultQuota(),
+			Status:      auth.TenantStatusActive,
+			Quota:       auth.DefaultQuota(),
 		}
 
 		err := store.CreateTenant(ctx, tenant)
@@ -46,36 +47,36 @@ func TestRedisStore_TenantOperations(t *testing.T) {
 	})
 
 	t.Run("create duplicate tenant fails", func(t *testing.T) {
-		tenant := &Tenant{
+		tenant := &auth.Tenant{
 			ID:     "tenant-1",
 			Name:   "Duplicate",
-			Status: TenantStatusActive,
+			Status: auth.TenantStatusActive,
 		}
 
 		err := store.CreateTenant(ctx, tenant)
-		assert.ErrorIs(t, err, ErrTenantExists)
+		assert.ErrorIs(t, err, auth.ErrTenantExists)
 	})
 
 	t.Run("create tenant with empty ID fails", func(t *testing.T) {
-		tenant := &Tenant{
+		tenant := &auth.Tenant{
 			ID:   "",
 			Name: "No ID",
 		}
 
 		err := store.CreateTenant(ctx, tenant)
-		assert.ErrorIs(t, err, ErrInvalidTenantID)
+		assert.ErrorIs(t, err, auth.ErrInvalidTenantID)
 	})
 
 	t.Run("get tenant", func(t *testing.T) {
 		tenant, err := store.GetTenant(ctx, "tenant-1")
 		require.NoError(t, err)
 		assert.Equal(t, "tenant-1", tenant.ID)
-		assert.Equal(t, "Test Tenant", tenant.Name)
+		assert.Equal(t, "Test auth.Tenant", tenant.Name)
 	})
 
 	t.Run("get non-existent tenant", func(t *testing.T) {
 		_, err := store.GetTenant(ctx, "non-existent")
-		assert.ErrorIs(t, err, ErrTenantNotFound)
+		assert.ErrorIs(t, err, auth.ErrTenantNotFound)
 	})
 
 	t.Run("update tenant", func(t *testing.T) {
@@ -83,8 +84,8 @@ func TestRedisStore_TenantOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		originalCreatedAt := tenant.CreatedAt
-		tenant.Name = "Updated Tenant"
-		tenant.Status = TenantStatusSuspended
+		tenant.Name = "Updated auth.Tenant"
+		tenant.Status = auth.TenantStatusSuspended
 
 		time.Sleep(10 * time.Millisecond) // Ensure time difference.
 
@@ -93,18 +94,18 @@ func TestRedisStore_TenantOperations(t *testing.T) {
 
 		updated, err := store.GetTenant(ctx, "tenant-1")
 		require.NoError(t, err)
-		assert.Equal(t, "Updated Tenant", updated.Name)
-		assert.Equal(t, TenantStatusSuspended, updated.Status)
+		assert.Equal(t, "Updated auth.Tenant", updated.Name)
+		assert.Equal(t, auth.TenantStatusSuspended, updated.Status)
 		assert.Equal(t, originalCreatedAt.UTC(), updated.CreatedAt.UTC())
 		assert.True(t, updated.UpdatedAt.After(originalCreatedAt))
 	})
 
 	t.Run("list tenants", func(t *testing.T) {
 		// Create another tenant.
-		tenant2 := &Tenant{
+		tenant2 := &auth.Tenant{
 			ID:     "tenant-2",
-			Name:   "Second Tenant",
-			Status: TenantStatusActive,
+			Name:   "Second auth.Tenant",
+			Status: auth.TenantStatusActive,
 		}
 		err := store.CreateTenant(ctx, tenant2)
 		require.NoError(t, err)
@@ -119,12 +120,12 @@ func TestRedisStore_TenantOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = store.GetTenant(ctx, "tenant-2")
-		assert.ErrorIs(t, err, ErrTenantNotFound)
+		assert.ErrorIs(t, err, auth.ErrTenantNotFound)
 	})
 
 	t.Run("delete non-existent tenant", func(t *testing.T) {
 		err := store.DeleteTenant(ctx, "non-existent")
-		assert.ErrorIs(t, err, ErrTenantNotFound)
+		assert.ErrorIs(t, err, auth.ErrTenantNotFound)
 	})
 }
 
@@ -135,11 +136,11 @@ func TestRedisStore_UsageOperations(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a tenant.
-	tenant := &Tenant{
+	tenant := &auth.Tenant{
 		ID:     "tenant-usage",
 		Name:   "Usage Test",
-		Status: TenantStatusActive,
-		Quota: TenantQuota{
+		Status: auth.TenantStatusActive,
+		Quota: auth.TenantQuota{
 			MaxSubscriptions: 2,
 			MaxResourcePools: 2,
 			MaxDeployments:   2,
@@ -174,7 +175,7 @@ func TestRedisStore_UsageOperations(t *testing.T) {
 
 		// Should fail now.
 		err = store.IncrementUsage(ctx, "tenant-usage", "subscriptions")
-		assert.ErrorIs(t, err, ErrQuotaExceeded)
+		assert.ErrorIs(t, err, auth.ErrQuotaExceeded)
 	})
 
 	t.Run("decrement usage", func(t *testing.T) {
@@ -199,16 +200,16 @@ func TestRedisStore_UserOperations(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a tenant first.
-	tenant := &Tenant{
+	tenant := &auth.Tenant{
 		ID:     "tenant-users",
 		Name:   "User Test",
-		Status: TenantStatusActive,
+		Status: auth.TenantStatusActive,
 	}
 	err := store.CreateTenant(ctx, tenant)
 	require.NoError(t, err)
 
 	t.Run("create user", func(t *testing.T) {
-		user := &TenantUser{
+		user := &auth.TenantUser{
 			ID:         "user-1",
 			TenantID:   "tenant-users",
 			Subject:    "CN=alice,O=ACME",
@@ -224,7 +225,7 @@ func TestRedisStore_UserOperations(t *testing.T) {
 	})
 
 	t.Run("create duplicate user fails", func(t *testing.T) {
-		user := &TenantUser{
+		user := &auth.TenantUser{
 			ID:         "user-1",
 			TenantID:   "tenant-users",
 			Subject:    "CN=alice,O=ACME",
@@ -232,11 +233,11 @@ func TestRedisStore_UserOperations(t *testing.T) {
 		}
 
 		err := store.CreateUser(ctx, user)
-		assert.ErrorIs(t, err, ErrUserExists)
+		assert.ErrorIs(t, err, auth.ErrUserExists)
 	})
 
 	t.Run("create user with duplicate subject fails", func(t *testing.T) {
-		user := &TenantUser{
+		user := &auth.TenantUser{
 			ID:         "user-2",
 			TenantID:   "tenant-users",
 			Subject:    "CN=alice,O=ACME", // Same subject as user-1.
@@ -244,7 +245,7 @@ func TestRedisStore_UserOperations(t *testing.T) {
 		}
 
 		err := store.CreateUser(ctx, user)
-		assert.ErrorIs(t, err, ErrUserExists)
+		assert.ErrorIs(t, err, auth.ErrUserExists)
 	})
 
 	t.Run("get user", func(t *testing.T) {
@@ -262,7 +263,7 @@ func TestRedisStore_UserOperations(t *testing.T) {
 
 	t.Run("get non-existent user", func(t *testing.T) {
 		_, err := store.GetUser(ctx, "non-existent")
-		assert.ErrorIs(t, err, ErrUserNotFound)
+		assert.ErrorIs(t, err, auth.ErrUserNotFound)
 	})
 
 	t.Run("update user", func(t *testing.T) {
@@ -283,7 +284,7 @@ func TestRedisStore_UserOperations(t *testing.T) {
 
 	t.Run("list users by tenant", func(t *testing.T) {
 		// Create another user.
-		user2 := &TenantUser{
+		user2 := &auth.TenantUser{
 			ID:         "user-3",
 			TenantID:   "tenant-users",
 			Subject:    "CN=bob,O=ACME",
@@ -303,11 +304,11 @@ func TestRedisStore_UserOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = store.GetUser(ctx, "user-3")
-		assert.ErrorIs(t, err, ErrUserNotFound)
+		assert.ErrorIs(t, err, auth.ErrUserNotFound)
 
 		// Verify subject index is cleaned up.
 		_, err = store.GetUserBySubject(ctx, "CN=bob,O=ACME")
-		assert.ErrorIs(t, err, ErrUserNotFound)
+		assert.ErrorIs(t, err, auth.ErrUserNotFound)
 	})
 }
 
@@ -318,12 +319,12 @@ func TestRedisStore_RoleOperations(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("create role", func(t *testing.T) {
-		role := &Role{
+		role := &auth.Role{
 			ID:          "role-1",
 			Name:        "custom-role",
-			Type:        RoleTypeTenant,
+			Type:        auth.RoleTypeTenant,
 			Description: "Custom role",
-			Permissions: []Permission{PermissionSubscriptionRead},
+			Permissions: []auth.Permission{auth.PermissionSubscriptionRead},
 		}
 
 		err := store.CreateRole(ctx, role)
@@ -332,21 +333,21 @@ func TestRedisStore_RoleOperations(t *testing.T) {
 	})
 
 	t.Run("create duplicate role fails", func(t *testing.T) {
-		role := &Role{
+		role := &auth.Role{
 			ID:   "role-1",
 			Name: "duplicate",
-			Type: RoleTypeTenant,
+			Type: auth.RoleTypeTenant,
 		}
 
 		err := store.CreateRole(ctx, role)
-		assert.ErrorIs(t, err, ErrRoleExists)
+		assert.ErrorIs(t, err, auth.ErrRoleExists)
 	})
 
 	t.Run("get role", func(t *testing.T) {
 		role, err := store.GetRole(ctx, "role-1")
 		require.NoError(t, err)
 		assert.Equal(t, "role-1", role.ID)
-		assert.Equal(t, RoleName("custom-role"), role.Name)
+		assert.Equal(t, auth.RoleName("custom-role"), role.Name)
 	})
 
 	t.Run("get role by name", func(t *testing.T) {
@@ -357,7 +358,7 @@ func TestRedisStore_RoleOperations(t *testing.T) {
 
 	t.Run("get non-existent role", func(t *testing.T) {
 		_, err := store.GetRole(ctx, "non-existent")
-		assert.ErrorIs(t, err, ErrRoleNotFound)
+		assert.ErrorIs(t, err, auth.ErrRoleNotFound)
 	})
 
 	t.Run("update role", func(t *testing.T) {
@@ -365,7 +366,7 @@ func TestRedisStore_RoleOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		role.Description = "Updated description"
-		role.Permissions = append(role.Permissions, PermissionSubscriptionCreate)
+		role.Permissions = append(role.Permissions, auth.PermissionSubscriptionCreate)
 
 		err = store.UpdateRole(ctx, role)
 		require.NoError(t, err)
@@ -391,9 +392,9 @@ func TestRedisStore_RoleOperations(t *testing.T) {
 		assert.GreaterOrEqual(t, len(roles), 6) // 6 default roles + 1 custom.
 
 		// Verify we can get default roles by name.
-		platformAdmin, err := store.GetRoleByName(ctx, RolePlatformAdmin)
+		platformAdmin, err := store.GetRoleByName(ctx, auth.RolePlatformAdmin)
 		require.NoError(t, err)
-		assert.Equal(t, RoleTypePlatform, platformAdmin.Type)
+		assert.Equal(t, auth.RoleTypePlatform, platformAdmin.Type)
 	})
 
 	t.Run("initialize default roles is idempotent", func(t *testing.T) {
@@ -409,7 +410,7 @@ func TestRedisStore_RoleOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = store.GetRole(ctx, "role-1")
-		assert.ErrorIs(t, err, ErrRoleNotFound)
+		assert.ErrorIs(t, err, auth.ErrRoleNotFound)
 	})
 }
 
@@ -420,9 +421,9 @@ func TestRedisStore_AuditOperations(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("log event", func(t *testing.T) {
-		event := &AuditEvent{
+		event := &auth.AuditEvent{
 			ID:           "event-1",
-			Type:         AuditEventUserCreated,
+			Type:         auth.AuditEventUserCreated,
 			TenantID:     "tenant-1",
 			UserID:       "user-1",
 			Subject:      "CN=admin,O=ACME",
@@ -439,9 +440,9 @@ func TestRedisStore_AuditOperations(t *testing.T) {
 
 	t.Run("log multiple events", func(t *testing.T) {
 		for i := 2; i <= 5; i++ {
-			event := &AuditEvent{
+			event := &auth.AuditEvent{
 				ID:       "event-" + string(rune('0'+i)),
-				Type:     AuditEventUserCreated,
+				Type:     auth.AuditEventUserCreated,
 				TenantID: "tenant-1",
 				UserID:   "user-1",
 				Action:   "create",
@@ -468,12 +469,12 @@ func TestRedisStore_AuditOperations(t *testing.T) {
 	})
 
 	t.Run("list events by type", func(t *testing.T) {
-		events, err := store.ListEventsByType(ctx, AuditEventUserCreated, 10)
+		events, err := store.ListEventsByType(ctx, auth.AuditEventUserCreated, 10)
 		require.NoError(t, err)
 		assert.NotEmpty(t, events)
 
 		for _, event := range events {
-			assert.Equal(t, AuditEventUserCreated, event.Type)
+			assert.Equal(t, auth.AuditEventUserCreated, event.Type)
 		}
 	})
 
@@ -520,10 +521,10 @@ func TestRedisStore_Ping(t *testing.T) {
 
 func TestNewRedisStore(t *testing.T) {
 	t.Run("with nil config uses defaults", func(t *testing.T) {
-		store := NewRedisStore(nil)
+		store := auth.NewRedisStore(nil)
 		assert.NotNil(t, store)
-		assert.NotNil(t, store.config)
-		assert.Equal(t, "localhost:6379", store.config.Addr)
+		assert.NotNil(t, store.Config)
+		assert.Equal(t, "localhost:6379", store.Config.Addr)
 		_ = store.Close()
 	})
 
@@ -531,13 +532,13 @@ func TestNewRedisStore(t *testing.T) {
 		mr := miniredis.RunT(t)
 		defer mr.Close()
 
-		cfg := &RedisConfig{
+		cfg := &auth.RedisConfig{
 			Addr:        mr.Addr(),
 			MaxRetries:  5,
 			DialTimeout: 10 * time.Second,
 		}
 
-		store := NewRedisStore(cfg)
+		store := auth.NewRedisStore(cfg)
 		assert.NotNil(t, store)
 
 		err := store.Ping(context.Background())
@@ -547,7 +548,7 @@ func TestNewRedisStore(t *testing.T) {
 }
 
 func TestDefaultRedisConfig(t *testing.T) {
-	cfg := DefaultRedisConfig()
+	cfg := auth.DefaultRedisConfig()
 
 	assert.Equal(t, "localhost:6379", cfg.Addr)
 	assert.Empty(t, cfg.Password)
@@ -563,7 +564,7 @@ func TestDefaultRedisConfig(t *testing.T) {
 
 func TestRedisConfig_SentinelPassword(t *testing.T) {
 	t.Run("sentinel password is configurable", func(t *testing.T) {
-		cfg := &RedisConfig{
+		cfg := &auth.RedisConfig{
 			Password:         "redis-pass",
 			SentinelPassword: "sentinel-pass",
 			UseSentinel:      true,
@@ -579,7 +580,7 @@ func TestRedisConfig_SentinelPassword(t *testing.T) {
 	})
 
 	t.Run("sentinel and redis passwords can be different", func(t *testing.T) {
-		cfg := &RedisConfig{
+		cfg := &auth.RedisConfig{
 			Password:         "redis-password-123",
 			SentinelPassword: "sentinel-password-456",
 		}
@@ -593,27 +594,27 @@ func TestListTenants(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	cfg := &RedisConfig{Addr: mr.Addr()}
-	store := NewRedisStore(cfg)
+	cfg := &auth.RedisConfig{Addr: mr.Addr()}
+	store := auth.NewRedisStore(cfg)
 	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
 	// Create multiple tenants
-	tenant1 := &Tenant{
+	tenant1 := &auth.Tenant{
 		ID:           "tenant-1",
-		Name:         "Tenant One",
+		Name:         "auth.Tenant One",
 		Description:  "First tenant",
-		Status:       TenantStatusActive,
-		Quota:        TenantQuota{MaxSubscriptions: 100},
+		Status:       auth.TenantStatusActive,
+		Quota:        auth.TenantQuota{MaxSubscriptions: 100},
 		ContactEmail: "admin@tenant1.com",
 	}
-	tenant2 := &Tenant{
+	tenant2 := &auth.Tenant{
 		ID:           "tenant-2",
-		Name:         "Tenant Two",
+		Name:         "auth.Tenant Two",
 		Description:  "Second tenant",
-		Status:       TenantStatusActive,
-		Quota:        TenantQuota{MaxSubscriptions: 50},
+		Status:       auth.TenantStatusActive,
+		Quota:        auth.TenantQuota{MaxSubscriptions: 50},
 		ContactEmail: "admin@tenant2.com",
 	}
 
@@ -641,18 +642,18 @@ func TestIncrementUsage(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	cfg := &RedisConfig{Addr: mr.Addr()}
-	store := NewRedisStore(cfg)
+	cfg := &auth.RedisConfig{Addr: mr.Addr()}
+	store := auth.NewRedisStore(cfg)
 	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
-	tenant := &Tenant{
+	tenant := &auth.Tenant{
 		ID:          "tenant-incr",
-		Name:        "Test Tenant",
+		Name:        "Test auth.Tenant",
 		Description: "Test tenant for increment",
-		Status:      TenantStatusActive,
-		Quota:       TenantQuota{MaxSubscriptions: 100, MaxUsers: 50},
+		Status:      auth.TenantStatusActive,
+		Quota:       auth.TenantQuota{MaxSubscriptions: 100, MaxUsers: 50},
 	}
 
 	err := store.CreateTenant(ctx, tenant)
@@ -680,19 +681,19 @@ func TestDecrementUsage(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	cfg := &RedisConfig{Addr: mr.Addr()}
-	store := NewRedisStore(cfg)
+	cfg := &auth.RedisConfig{Addr: mr.Addr()}
+	store := auth.NewRedisStore(cfg)
 	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
-	tenant := &Tenant{
+	tenant := &auth.Tenant{
 		ID:          "tenant-decr",
-		Name:        "Test Tenant",
+		Name:        "Test auth.Tenant",
 		Description: "Test tenant for decrement",
-		Status:      TenantStatusActive,
-		Usage:       TenantUsage{Subscriptions: 5, Users: 10},
-		Quota:       TenantQuota{MaxSubscriptions: 100, MaxUsers: 50},
+		Status:      auth.TenantStatusActive,
+		Usage:       auth.TenantUsage{Subscriptions: 5, Users: 10},
+		Quota:       auth.TenantQuota{MaxSubscriptions: 100, MaxUsers: 50},
 	}
 
 	err := store.CreateTenant(ctx, tenant)
@@ -720,19 +721,19 @@ func TestUpdateTenant(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	cfg := &RedisConfig{Addr: mr.Addr()}
-	store := NewRedisStore(cfg)
+	cfg := &auth.RedisConfig{Addr: mr.Addr()}
+	store := auth.NewRedisStore(cfg)
 	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
-	tenant := &Tenant{
+	tenant := &auth.Tenant{
 		ID:           "tenant-update",
 		Name:         "Original Name",
 		Description:  "Original description",
-		Status:       TenantStatusActive,
+		Status:       auth.TenantStatusActive,
 		ContactEmail: "original@example.com",
-		Quota:        TenantQuota{MaxSubscriptions: 100},
+		Quota:        auth.TenantQuota{MaxSubscriptions: 100},
 	}
 
 	err := store.CreateTenant(ctx, tenant)
@@ -761,17 +762,17 @@ func TestDeleteTenant(t *testing.T) {
 	mr := miniredis.RunT(t)
 	defer mr.Close()
 
-	cfg := &RedisConfig{Addr: mr.Addr()}
-	store := NewRedisStore(cfg)
+	cfg := &auth.RedisConfig{Addr: mr.Addr()}
+	store := auth.NewRedisStore(cfg)
 	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
-	tenant := &Tenant{
+	tenant := &auth.Tenant{
 		ID:          "tenant-delete",
 		Name:        "To Delete",
-		Description: "Tenant for deletion test",
-		Status:      TenantStatusActive,
+		Description: "auth.Tenant for deletion test",
+		Status:      auth.TenantStatusActive,
 	}
 
 	err := store.CreateTenant(ctx, tenant)
@@ -784,5 +785,5 @@ func TestDeleteTenant(t *testing.T) {
 	// Verify deletion
 	_, err = store.GetTenant(ctx, "tenant-delete")
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrTenantNotFound)
+	assert.ErrorIs(t, err, auth.ErrTenantNotFound)
 }

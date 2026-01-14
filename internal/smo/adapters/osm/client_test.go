@@ -1,4 +1,4 @@
-package osm
+package osm_test
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/smo/adapters/osm"
 )
 
 const (
@@ -21,13 +23,13 @@ const (
 func TestNewClient(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *osm.Config
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "valid config",
-			config: &Config{
+			config: &osm.Config{
 				NBIURL:         "https://osm.example.com:9999",
 				Username:       "admin",
 				Password:       "secret",
@@ -43,7 +45,7 @@ func TestNewClient(t *testing.T) {
 		},
 		{
 			name: "invalid URL",
-			config: &Config{
+			config: &osm.Config{
 				NBIURL:         "://invalid-url",
 				Username:       "admin",
 				Password:       "secret",
@@ -56,7 +58,7 @@ func TestNewClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := NewClient(tt.config)
+			client, err := osm.NewClient(tt.config)
 			verifyNewClientError(t, err, tt.wantErr, tt.errMsg)
 			if tt.wantErr {
 				return
@@ -66,39 +68,39 @@ func TestNewClient(t *testing.T) {
 	}
 }
 
-// verifyNewClientError checks if NewClient returned the expected error.
+// verifyNewClientError checks if osm.NewClient returned the expected error.
 func verifyNewClientError(t *testing.T, err error, wantErr bool, errMsg string) {
 	t.Helper()
 	if wantErr {
 		if err == nil {
-			t.Errorf("NewClient() expected error but got none")
+			t.Errorf("osm.NewClient() expected error but got none")
 			return
 		}
 		if errMsg != "" && !contains(err.Error(), errMsg) {
-			t.Errorf("NewClient() error = %v, want to contain %v", err.Error(), errMsg)
+			t.Errorf("osm.NewClient() error = %v, want to contain %v", err.Error(), errMsg)
 		}
 		return
 	}
 	if err != nil {
-		t.Errorf("NewClient() unexpected error: %v", err)
+		t.Errorf("osm.NewClient() unexpected error: %v", err)
 	}
 }
 
 // verifyNewClientSuccess verifies the client was created correctly.
-func verifyNewClientSuccess(t *testing.T, client *Client) {
+func verifyNewClientSuccess(t *testing.T, client *osm.Client) {
 	t.Helper()
 	if client == nil {
-		t.Error("NewClient() returned nil client")
+		t.Error("osm.NewClient() returned nil client")
 		return
 	}
-	if client.config == nil {
-		t.Error("Client config is nil")
+	if client.Config == nil {
+		t.Error("osm.Client config is nil")
 	}
-	if client.httpClient == nil {
-		t.Error("Client httpClient is nil")
+	if client.HTTPClient == nil {
+		t.Error("osm.Client httpClient is nil")
 	}
-	if client.baseURL == "" {
-		t.Error("Client baseURL is empty")
+	if client.BaseURL == "" {
+		t.Error("osm.Client baseURL is empty")
 	}
 }
 
@@ -211,7 +213,7 @@ func TestAuthenticate(t *testing.T) {
 			t.Cleanup(func() { server.Close() })
 
 			// Create client
-			config := &Config{
+			config := &osm.Config{
 				NBIURL:         server.URL,
 				Username:       tt.username,
 				Password:       tt.password,
@@ -219,9 +221,9 @@ func TestAuthenticate(t *testing.T) {
 				RequestTimeout: 5 * time.Second,
 			}
 
-			client, err := NewClient(config)
+			client, err := osm.NewClient(config)
 			if err != nil {
-				t.Fatalf("NewClient() failed: %v", err)
+				t.Fatalf("osm.NewClient() failed: %v", err)
 			}
 
 			// Test authentication
@@ -241,14 +243,14 @@ func TestAuthenticate(t *testing.T) {
 			}
 
 			// Verify token was stored
-			client.mu.RLock()
-			if client.token == "" {
+			client.Mu.RLock()
+			if client.Token == "" {
 				t.Error("Token was not stored after successful authentication")
 			}
-			if client.tokenExpiry.IsZero() {
+			if client.TokenExpiry.IsZero() {
 				t.Error("Token expiry was not set")
 			}
-			client.mu.RUnlock()
+			client.Mu.RUnlock()
 		})
 	}
 }
@@ -270,7 +272,7 @@ func TestAuthenticateWithCachedToken(t *testing.T) {
 	}))
 	t.Cleanup(func() { server.Close() })
 
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:         server.URL,
 		Username:       "admin",
 		Password:       "secret",
@@ -278,9 +280,9 @@ func TestAuthenticateWithCachedToken(t *testing.T) {
 		RequestTimeout: 5 * time.Second,
 	}
 
-	client, err := NewClient(config)
+	client, err := osm.NewClient(config)
 	if err != nil {
-		t.Fatalf("NewClient() failed: %v", err)
+		t.Fatalf("osm.NewClient() failed: %v", err)
 	}
 
 	ctx := context.Background()
@@ -330,7 +332,7 @@ func TestAuthenticateTokenExpiry(t *testing.T) {
 	}))
 	t.Cleanup(func() { server.Close() })
 
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:         server.URL,
 		Username:       "admin",
 		Password:       "secret",
@@ -338,9 +340,9 @@ func TestAuthenticateTokenExpiry(t *testing.T) {
 		RequestTimeout: 5 * time.Second,
 	}
 
-	client, err := NewClient(config)
+	client, err := osm.NewClient(config)
 	if err != nil {
-		t.Fatalf("NewClient() failed: %v", err)
+		t.Fatalf("osm.NewClient() failed: %v", err)
 	}
 
 	ctx := context.Background()
@@ -412,7 +414,7 @@ func TestHealth(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(tt.serverResp))
 			t.Cleanup(func() { server.Close() })
 
-			config := &Config{
+			config := &osm.Config{
 				NBIURL:         server.URL,
 				Username:       "admin",
 				Password:       "secret",
@@ -420,9 +422,9 @@ func TestHealth(t *testing.T) {
 				RequestTimeout: 5 * time.Second,
 			}
 
-			client, err := NewClient(config)
+			client, err := osm.NewClient(config)
 			if err != nil {
-				t.Fatalf("NewClient() failed: %v", err)
+				t.Fatalf("osm.NewClient() failed: %v", err)
 			}
 
 			ctx := context.Background()
@@ -444,23 +446,23 @@ func TestHealth(t *testing.T) {
 
 // TestClose tests client cleanup.
 func TestClose(t *testing.T) {
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:         "https://osm.example.com:9999",
 		Username:       "admin",
 		Password:       "secret",
 		RequestTimeout: 5 * time.Second,
 	}
 
-	client, err := NewClient(config)
+	client, err := osm.NewClient(config)
 	if err != nil {
-		t.Fatalf("NewClient() failed: %v", err)
+		t.Fatalf("osm.NewClient() failed: %v", err)
 	}
 
 	// Manually set a token to verify it's cleared
-	client.mu.Lock()
-	client.token = "test-token"
-	client.tokenExpiry = time.Now().Add(1 * time.Hour)
-	client.mu.Unlock()
+	client.Mu.Lock()
+	client.Token = "test-token"
+	client.TokenExpiry = time.Now().Add(1 * time.Hour)
+	client.Mu.Unlock()
 
 	// Close the client
 	err = client.Close()
@@ -469,14 +471,14 @@ func TestClose(t *testing.T) {
 	}
 
 	// Verify token was cleared
-	client.mu.RLock()
-	if client.token != "" {
+	client.Mu.RLock()
+	if client.Token != "" {
 		t.Error("Token was not cleared after Close()")
 	}
-	if !client.tokenExpiry.IsZero() {
+	if !client.TokenExpiry.IsZero() {
 		t.Error("Token expiry was not cleared after Close()")
 	}
-	client.mu.RUnlock()
+	client.Mu.RUnlock()
 }
 
 // TestGet tests HTTP GET requests.
@@ -507,16 +509,16 @@ func TestGet(t *testing.T) {
 	}))
 	t.Cleanup(func() { server.Close() })
 
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:         server.URL,
 		Username:       "admin",
 		Password:       "secret",
 		RequestTimeout: 5 * time.Second,
 	}
 
-	client, err := NewClient(config)
+	client, err := osm.NewClient(config)
 	if err != nil {
-		t.Fatalf("NewClient() failed: %v", err)
+		t.Fatalf("osm.NewClient() failed: %v", err)
 	}
 
 	ctx := context.Background()
@@ -528,7 +530,7 @@ func TestGet(t *testing.T) {
 	}
 
 	var result map[string]string
-	err = client.get(ctx, testAPIPath, &result)
+	err = client.Get(ctx, testAPIPath, &result)
 
 	if err != nil {
 		t.Errorf("get() unexpected error: %v", err)
@@ -565,16 +567,16 @@ func TestDelete(t *testing.T) {
 	}))
 	t.Cleanup(func() { server.Close() })
 
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:         server.URL,
 		Username:       "admin",
 		Password:       "secret",
 		RequestTimeout: 5 * time.Second,
 	}
 
-	client, err := NewClient(config)
+	client, err := osm.NewClient(config)
 	if err != nil {
-		t.Fatalf("NewClient() failed: %v", err)
+		t.Fatalf("osm.NewClient() failed: %v", err)
 	}
 
 	ctx := context.Background()
@@ -585,7 +587,7 @@ func TestDelete(t *testing.T) {
 		t.Fatalf("Authenticate() failed: %v", err)
 	}
 
-	err = client.delete(ctx, "/api/test/123")
+	err = client.Delete(ctx, "/api/test/123")
 
 	if err != nil {
 		t.Errorf("delete() unexpected error: %v", err)
@@ -620,16 +622,16 @@ func TestPatch(t *testing.T) {
 	}))
 	t.Cleanup(func() { server.Close() })
 
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:         server.URL,
 		Username:       "admin",
 		Password:       "secret",
 		RequestTimeout: 5 * time.Second,
 	}
 
-	client, err := NewClient(config)
+	client, err := osm.NewClient(config)
 	if err != nil {
-		t.Fatalf("NewClient() failed: %v", err)
+		t.Fatalf("osm.NewClient() failed: %v", err)
 	}
 
 	ctx := context.Background()
@@ -642,7 +644,7 @@ func TestPatch(t *testing.T) {
 
 	payload := map[string]string{"field": "value"}
 	var result map[string]string
-	err = client.patch(ctx, "/api/test/123", payload, &result)
+	err = client.Patch(ctx, "/api/test/123", payload, &result)
 
 	if err != nil {
 		t.Errorf("patch() unexpected error: %v", err)
@@ -679,16 +681,16 @@ func TestDoRequest_Unauthorized(t *testing.T) {
 	}))
 	t.Cleanup(func() { server.Close() })
 
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:         server.URL,
 		Username:       "admin",
 		Password:       "secret",
 		RequestTimeout: 5 * time.Second,
 	}
 
-	client, err := NewClient(config)
+	client, err := osm.NewClient(config)
 	if err != nil {
-		t.Fatalf("NewClient() failed: %v", err)
+		t.Fatalf("osm.NewClient() failed: %v", err)
 	}
 
 	ctx := context.Background()
@@ -700,7 +702,7 @@ func TestDoRequest_Unauthorized(t *testing.T) {
 	}
 
 	var result map[string]string
-	err = client.get(ctx, testAPIPath, &result)
+	err = client.Get(ctx, testAPIPath, &result)
 
 	// Should fail with authentication error
 	if err == nil {
@@ -736,7 +738,7 @@ func TestDoRequest_RetryableError(t *testing.T) {
 	}))
 	t.Cleanup(func() { server.Close() })
 
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:         server.URL,
 		Username:       "admin",
 		Password:       "secret",
@@ -745,9 +747,9 @@ func TestDoRequest_RetryableError(t *testing.T) {
 		RetryDelay:     1 * time.Millisecond,
 	}
 
-	client, err := NewClient(config)
+	client, err := osm.NewClient(config)
 	if err != nil {
-		t.Fatalf("NewClient() failed: %v", err)
+		t.Fatalf("osm.NewClient() failed: %v", err)
 	}
 
 	ctx := context.Background()
@@ -759,7 +761,7 @@ func TestDoRequest_RetryableError(t *testing.T) {
 	}
 
 	var result map[string]string
-	err = client.get(ctx, testAPIPath, &result)
+	err = client.Get(ctx, testAPIPath, &result)
 
 	// Should fail after retries
 	if err == nil {
@@ -801,7 +803,7 @@ func TestDoRequest_NonRetryableError(t *testing.T) {
 	}))
 	t.Cleanup(func() { server.Close() })
 
-	config := &Config{
+	config := &osm.Config{
 		NBIURL:         server.URL,
 		Username:       "admin",
 		Password:       "secret",
@@ -809,14 +811,14 @@ func TestDoRequest_NonRetryableError(t *testing.T) {
 		MaxRetries:     3,
 	}
 
-	client, err := NewClient(config)
+	client, err := osm.NewClient(config)
 	if err != nil {
-		t.Fatalf("NewClient() failed: %v", err)
+		t.Fatalf("osm.NewClient() failed: %v", err)
 	}
 
 	ctx := context.Background()
 	var result map[string]string
-	err = client.get(ctx, testAPIPath, &result)
+	err = client.Get(ctx, testAPIPath, &result)
 
 	// Should fail immediately without retries
 	if err == nil {

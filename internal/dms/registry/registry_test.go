@@ -1,4 +1,4 @@
-package registry
+package registry_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/dms/registry"
 
 	"github.com/piwi3910/netweave/internal/dms/adapter"
 	"github.com/stretchr/testify/assert"
@@ -130,7 +132,7 @@ func (m *mockDMSAdapter) Close() error {
 
 func TestRegistry_Register(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("test-adapter")
@@ -146,7 +148,7 @@ func TestRegistry_Register(t *testing.T) {
 
 func TestRegistry_RegisterDuplicate(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("test-adapter")
@@ -162,7 +164,7 @@ func TestRegistry_RegisterDuplicate(t *testing.T) {
 
 func TestRegistry_RegisterDefault(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("default-adapter")
@@ -185,7 +187,7 @@ func TestRegistry_RegisterDefault(t *testing.T) {
 
 func TestRegistry_Unregister(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("test-adapter")
@@ -204,7 +206,7 @@ func TestRegistry_Unregister(t *testing.T) {
 
 func TestRegistry_UnregisterNotFound(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	err := reg.Unregister("nonexistent")
@@ -214,7 +216,7 @@ func TestRegistry_UnregisterNotFound(t *testing.T) {
 
 func TestRegistry_Get(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("test-adapter")
@@ -233,7 +235,7 @@ func TestRegistry_Get(t *testing.T) {
 
 func TestRegistry_GetDefault(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	// No default set yet.
@@ -266,7 +268,7 @@ func TestRegistry_GetDefault(t *testing.T) {
 
 func TestRegistry_GetMetadata(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("test-adapter")
@@ -293,7 +295,7 @@ func TestRegistry_GetMetadata(t *testing.T) {
 
 func TestRegistry_GetMetadataNotFound(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	meta := reg.GetMetadata("nonexistent")
@@ -302,7 +304,7 @@ func TestRegistry_GetMetadataNotFound(t *testing.T) {
 
 func TestRegistry_List(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	// Register multiple adapters.
@@ -318,7 +320,7 @@ func TestRegistry_List(t *testing.T) {
 
 func TestRegistry_ListMetadata(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	// Register multiple adapters.
@@ -334,7 +336,7 @@ func TestRegistry_ListMetadata(t *testing.T) {
 
 func TestRegistry_ListHealthy(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	// Register healthy adapter.
@@ -356,7 +358,7 @@ func TestRegistry_ListHealthy(t *testing.T) {
 
 func TestRegistry_FindByCapability(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	// Register adapter with rollback capability.
@@ -379,7 +381,7 @@ func TestRegistry_FindByCapability(t *testing.T) {
 
 func TestRegistry_FindByType(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	// Register helm adapter.
@@ -400,7 +402,7 @@ func TestRegistry_FindByType(t *testing.T) {
 
 func TestRegistry_EnableDisable(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("test-adapter")
@@ -428,7 +430,7 @@ func TestRegistry_EnableDisable(t *testing.T) {
 
 func TestRegistry_EnableNotFound(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	err := reg.Enable("nonexistent")
@@ -438,7 +440,7 @@ func TestRegistry_EnableNotFound(t *testing.T) {
 
 func TestRegistry_DisableNotFound(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	err := reg.Disable("nonexistent")
@@ -448,7 +450,7 @@ func TestRegistry_DisableNotFound(t *testing.T) {
 
 func TestRegistry_SetDefault(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	// Register two adapters.
@@ -493,7 +495,7 @@ func TestRegistry_SetDefault(t *testing.T) {
 
 func TestRegistry_SetDefaultNotFound(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	err := reg.SetDefault("nonexistent")
@@ -503,7 +505,7 @@ func TestRegistry_SetDefaultNotFound(t *testing.T) {
 
 func TestRegistry_Close(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 
 	// Register multiple adapters.
 	adapters := make([]*mockDMSAdapter, 3)
@@ -529,31 +531,31 @@ func TestRegistry_Close(t *testing.T) {
 func TestRegistry_Config(t *testing.T) {
 	logger := zap.NewNop()
 
-	config := &Config{
+	config := &registry.Config{
 		HealthCheckInterval: 10 * time.Second,
 		HealthCheckTimeout:  2 * time.Second,
 	}
 
-	reg := NewRegistry(logger, config)
+	reg := registry.NewRegistry(logger, config)
 	defer func() { _ = reg.Close() }()
 
-	assert.Equal(t, 10*time.Second, reg.healthCheckInterval)
-	assert.Equal(t, 2*time.Second, reg.healthCheckTimeout)
+	assert.Equal(t, 10*time.Second, reg.HealthCheckInterval)
+	assert.Equal(t, 2*time.Second, reg.HealthCheckTimeout)
 }
 
 func TestRegistry_ConfigDefaults(t *testing.T) {
 	logger := zap.NewNop()
 
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
-	assert.Equal(t, 30*time.Second, reg.healthCheckInterval)
-	assert.Equal(t, 5*time.Second, reg.healthCheckTimeout)
+	assert.Equal(t, 30*time.Second, reg.HealthCheckInterval)
+	assert.Equal(t, 5*time.Second, reg.HealthCheckTimeout)
 }
 
 func TestRegistry_GetDefaultName(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	// No default set.
@@ -569,12 +571,12 @@ func TestRegistry_GetDefaultName(t *testing.T) {
 
 func TestRegistry_StartStopHealthChecks(t *testing.T) {
 	logger := zap.NewNop()
-	config := &Config{
+	config := &registry.Config{
 		HealthCheckInterval: 50 * time.Millisecond,
 		HealthCheckTimeout:  10 * time.Millisecond,
 	}
 
-	reg := NewRegistry(logger, config)
+	reg := registry.NewRegistry(logger, config)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("test-adapter")
@@ -599,12 +601,12 @@ func TestRegistry_StartStopHealthChecks(t *testing.T) {
 
 func TestRegistry_HealthCheckWithUnhealthyAdapter(t *testing.T) {
 	logger := zap.NewNop()
-	config := &Config{
+	config := &registry.Config{
 		HealthCheckInterval: 50 * time.Millisecond,
 		HealthCheckTimeout:  10 * time.Millisecond,
 	}
 
-	reg := NewRegistry(logger, config)
+	reg := registry.NewRegistry(logger, config)
 	defer func() { _ = reg.Close() }()
 
 	// Register an initially unhealthy adapter.
@@ -623,12 +625,12 @@ func TestRegistry_HealthCheckWithUnhealthyAdapter(t *testing.T) {
 
 func TestRegistry_HealthCheckStateChanges(t *testing.T) {
 	logger := zap.NewNop()
-	config := &Config{
+	config := &registry.Config{
 		HealthCheckInterval: 50 * time.Millisecond,
 		HealthCheckTimeout:  10 * time.Millisecond,
 	}
 
-	reg := NewRegistry(logger, config)
+	reg := registry.NewRegistry(logger, config)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("state-change-adapter")
@@ -672,7 +674,7 @@ func TestRegistry_HealthCheckStateChanges(t *testing.T) {
 
 func TestRegistry_UnregisterDefault(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("default-adapter")
@@ -700,7 +702,7 @@ func TestRegistry_UnregisterDefault(t *testing.T) {
 
 func TestRegistry_FindByCapabilityWithDisabled(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	// Register adapter with capability.
@@ -724,7 +726,7 @@ func TestRegistry_FindByCapabilityWithDisabled(t *testing.T) {
 
 func TestRegistry_FindByCapabilityWithUnhealthy(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	// Register an unhealthy adapter with capability.
@@ -743,7 +745,7 @@ func TestRegistry_FindByCapabilityWithUnhealthy(t *testing.T) {
 
 func TestRegistry_FindByTypeDisabled(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("helm-adapter")
@@ -765,12 +767,12 @@ func TestRegistry_FindByTypeDisabled(t *testing.T) {
 
 func TestRegistry_HealthCheckContextCancellation(t *testing.T) {
 	logger := zap.NewNop()
-	config := &Config{
+	config := &registry.Config{
 		HealthCheckInterval: 1 * time.Second,
 		HealthCheckTimeout:  100 * time.Millisecond,
 	}
 
-	reg := NewRegistry(logger, config)
+	reg := registry.NewRegistry(logger, config)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("context-adapter")
@@ -792,7 +794,7 @@ func TestRegistry_HealthCheckContextCancellation(t *testing.T) {
 
 func TestRegistry_GetMetadataDeepCopy(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("deep-copy-adapter")
@@ -832,7 +834,7 @@ func TestRegistry_GetMetadataDeepCopy(t *testing.T) {
 	assert.Contains(t, meta2.Capabilities, adapter.CapabilityRollback)
 	assert.NotContains(t, meta2.Capabilities, adapter.CapabilityScaling)
 
-	// Config should be unchanged.
+	// registry.Config should be unchanged.
 	assert.Equal(t, "value1", meta2.Config["key1"])
 	assert.Equal(t, "value2", meta2.Config["key2"])
 	_, exists := meta2.Config["key3"]
@@ -844,7 +846,7 @@ func TestRegistry_GetMetadataDeepCopy(t *testing.T) {
 
 func TestRegistry_GetMetadataDeepCopy_NilFields(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("nil-fields-adapter")
@@ -861,13 +863,13 @@ func TestRegistry_GetMetadataDeepCopy_NilFields(t *testing.T) {
 	// Capabilities should be nil (not panic).
 	assert.Nil(t, meta.Capabilities)
 
-	// Config should be nil (not panic).
+	// registry.Config should be nil (not panic).
 	assert.Nil(t, meta.Config)
 }
 
 func TestRegistry_ListMetadataDeepCopy(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	mockAdp := newMockDMSAdapter("list-copy-adapter")
@@ -909,7 +911,7 @@ func TestRegistry_ListMetadataDeepCopy(t *testing.T) {
 	assert.Contains(t, meta2.Capabilities, adapter.CapabilityRollback)
 	assert.NotContains(t, meta2.Capabilities, adapter.CapabilityScaling)
 
-	// Config should be unchanged.
+	// registry.Config should be unchanged.
 	assert.Equal(t, "value1", meta2.Config["key1"])
 	assert.Equal(t, "value2", meta2.Config["key2"])
 	_, exists := meta2.Config["key3"]
@@ -921,7 +923,7 @@ func TestRegistry_ListMetadataDeepCopy(t *testing.T) {
 
 func TestRegistry_ListMetadataDeepCopy_MultipleAdapters(t *testing.T) {
 	logger := zap.NewNop()
-	reg := NewRegistry(logger, nil)
+	reg := registry.NewRegistry(logger, nil)
 	defer func() { _ = reg.Close() }()
 
 	// Register multiple adapters.

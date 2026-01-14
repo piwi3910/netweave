@@ -1,10 +1,12 @@
-package events
+package events_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/events"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,7 +75,7 @@ func TestNewSubscriptionFilter(t *testing.T) {
 		store := &mockStore{}
 		logger := zaptest.NewLogger(t)
 
-		filter := NewSubscriptionFilter(store, logger)
+		filter := events.NewSubscriptionFilter(store, logger)
 		assert.NotNil(t, filter)
 	})
 
@@ -81,7 +83,7 @@ func TestNewSubscriptionFilter(t *testing.T) {
 		logger := zaptest.NewLogger(t)
 
 		assert.Panics(t, func() {
-			NewSubscriptionFilter(nil, logger)
+			events.NewSubscriptionFilter(nil, logger)
 		})
 	})
 
@@ -89,7 +91,7 @@ func TestNewSubscriptionFilter(t *testing.T) {
 		store := &mockStore{}
 
 		assert.Panics(t, func() {
-			NewSubscriptionFilter(store, nil)
+			events.NewSubscriptionFilter(store, nil)
 		})
 	})
 }
@@ -97,16 +99,16 @@ func TestNewSubscriptionFilter(t *testing.T) {
 func TestSubscriptionFilterMatchSubscriptions(t *testing.T) {
 	tests := []struct {
 		name          string
-		event         *Event
+		event         *events.Event
 		subscriptions []*storage.Subscription
 		wantCount     int
 	}{
 		{
 			name: "no subscriptions",
-			event: &Event{
+			event: &events.Event{
 				ID:             "event-1",
 				Type:           models.EventTypeResourceCreated,
-				ResourceType:   ResourceTypeResource,
+				ResourceType:   events.ResourceTypeResource,
 				ResourceID:     "node-1",
 				ResourcePoolID: "pool-1",
 				ResourceTypeID: "compute-node",
@@ -117,10 +119,10 @@ func TestSubscriptionFilterMatchSubscriptions(t *testing.T) {
 		},
 		{
 			name: "match all filters",
-			event: &Event{
+			event: &events.Event{
 				ID:             "event-1",
 				Type:           models.EventTypeResourceCreated,
-				ResourceType:   ResourceTypeResource,
+				ResourceType:   events.ResourceTypeResource,
 				ResourceID:     "node-1",
 				ResourcePoolID: "pool-1",
 				ResourceTypeID: "compute-node",
@@ -141,10 +143,10 @@ func TestSubscriptionFilterMatchSubscriptions(t *testing.T) {
 		},
 		{
 			name: "match resource pool only",
-			event: &Event{
+			event: &events.Event{
 				ID:             "event-1",
 				Type:           models.EventTypeResourceCreated,
-				ResourceType:   ResourceTypeResource,
+				ResourceType:   events.ResourceTypeResource,
 				ResourceID:     "node-1",
 				ResourcePoolID: "pool-1",
 				ResourceTypeID: "compute-node",
@@ -163,10 +165,10 @@ func TestSubscriptionFilterMatchSubscriptions(t *testing.T) {
 		},
 		{
 			name: "match resource type only",
-			event: &Event{
+			event: &events.Event{
 				ID:             "event-1",
 				Type:           models.EventTypeResourceCreated,
-				ResourceType:   ResourceTypeResource,
+				ResourceType:   events.ResourceTypeResource,
 				ResourceID:     "node-1",
 				ResourcePoolID: "pool-1",
 				ResourceTypeID: "compute-node",
@@ -185,10 +187,10 @@ func TestSubscriptionFilterMatchSubscriptions(t *testing.T) {
 		},
 		{
 			name: "no match - wrong pool",
-			event: &Event{
+			event: &events.Event{
 				ID:             "event-1",
 				Type:           models.EventTypeResourceCreated,
-				ResourceType:   ResourceTypeResource,
+				ResourceType:   events.ResourceTypeResource,
 				ResourceID:     "node-1",
 				ResourcePoolID: "pool-1",
 				ResourceTypeID: "compute-node",
@@ -207,10 +209,10 @@ func TestSubscriptionFilterMatchSubscriptions(t *testing.T) {
 		},
 		{
 			name: "match multiple subscriptions",
-			event: &Event{
+			event: &events.Event{
 				ID:             "event-1",
 				Type:           models.EventTypeResourceCreated,
-				ResourceType:   ResourceTypeResource,
+				ResourceType:   events.ResourceTypeResource,
 				ResourceID:     "node-1",
 				ResourcePoolID: "pool-1",
 				ResourceTypeID: "compute-node",
@@ -243,10 +245,10 @@ func TestSubscriptionFilterMatchSubscriptions(t *testing.T) {
 		},
 		{
 			name: "empty filters match all",
-			event: &Event{
+			event: &events.Event{
 				ID:             "event-1",
 				Type:           models.EventTypeResourceCreated,
-				ResourceType:   ResourceTypeResource,
+				ResourceType:   events.ResourceTypeResource,
 				ResourceID:     "node-1",
 				ResourcePoolID: "pool-1",
 				ResourceTypeID: "compute-node",
@@ -269,7 +271,7 @@ func TestSubscriptionFilterMatchSubscriptions(t *testing.T) {
 				subscriptions: tt.subscriptions,
 			}
 			logger := zaptest.NewLogger(t)
-			filter := NewSubscriptionFilter(store, logger)
+			filter := events.NewSubscriptionFilter(store, logger)
 
 			ctx := context.Background()
 			matched, err := filter.MatchSubscriptions(ctx, tt.event)

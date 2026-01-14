@@ -1,4 +1,4 @@
-package openstack
+package openstack_test
 
 import (
 	"context"
@@ -12,14 +12,15 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/adapters/openstack"
 )
 
 // TestTransformServerToResource tests the transformation from OpenStack server to O2-IMS resource.
 func TestTransformServerToResource(t *testing.T) {
-	adp := &Adapter{
-		oCloudID: "ocloud-test",
-		region:   "RegionOne",
-		logger:   zap.NewNop(),
+	adp := &openstack.Adapter{
+		OCloudID: "ocloud-test",
+		Region:   "RegionOne",
+		Logger:   zap.NewNop(),
 	}
 
 	now := time.Now()
@@ -52,7 +53,7 @@ func TestTransformServerToResource(t *testing.T) {
 		},
 	}
 
-	resource := adp.transformServerToResource(osServer)
+	resource := adp.TransformServerToResource(osServer)
 
 	// Test basic fields
 	assert.Equal(t, "openstack-server-550e8400-e29b-41d4-a716-446655440000", resource.ResourceID)
@@ -91,10 +92,10 @@ func TestTransformServerToResource(t *testing.T) {
 
 // TestTransformServerToResourceMinimal tests transformation with minimal data.
 func TestTransformServerToResourceMinimal(t *testing.T) {
-	adp := &Adapter{
-		oCloudID: "ocloud-test",
-		region:   "RegionOne",
-		logger:   zap.NewNop(),
+	adp := &openstack.Adapter{
+		OCloudID: "ocloud-test",
+		Region:   "RegionOne",
+		Logger:   zap.NewNop(),
 	}
 
 	osServer := &servers.Server{
@@ -103,7 +104,7 @@ func TestTransformServerToResourceMinimal(t *testing.T) {
 		Status: "BUILD",
 	}
 
-	resource := adp.transformServerToResource(osServer)
+	resource := adp.TransformServerToResource(osServer)
 
 	assert.Equal(t, "openstack-server-minimal-server-id", resource.ResourceID)
 	assert.Contains(t, resource.Description, "minimal-vm")
@@ -166,10 +167,10 @@ func TestResourceIDParsing(t *testing.T) {
 
 // TestListResourcesFilter tests filtering logic for ListResources.
 func TestListResourcesFilter(t *testing.T) {
-	adp := &Adapter{
-		oCloudID: "ocloud-test",
-		region:   "RegionOne",
-		logger:   zap.NewNop(),
+	adp := &openstack.Adapter{
+		OCloudID: "ocloud-test",
+		Region:   "RegionOne",
+		Logger:   zap.NewNop(),
 	}
 
 	// Create test servers
@@ -197,7 +198,7 @@ func TestListResourcesFilter(t *testing.T) {
 	t.Run("no filter returns all", func(t *testing.T) {
 		count := 0
 		for _, srv := range servers {
-			resource := adp.transformServerToResource(srv)
+			resource := adp.TransformServerToResource(srv)
 			if adapter.MatchesFilter(nil, "", resource.ResourceTypeID, "", nil) {
 				count++
 			}
@@ -212,7 +213,7 @@ func TestListResourcesFilter(t *testing.T) {
 
 		count := 0
 		for _, srv := range servers {
-			resource := adp.transformServerToResource(srv)
+			resource := adp.TransformServerToResource(srv)
 			if adapter.MatchesFilter(filter, "", resource.ResourceTypeID, "", nil) {
 				count++
 			}
@@ -227,7 +228,7 @@ func TestListResourcesFilter(t *testing.T) {
 
 		count := 0
 		for _, srv := range servers {
-			resource := adp.transformServerToResource(srv)
+			resource := adp.TransformServerToResource(srv)
 			// Simulate the in-memory filtering that happens in ListResources
 			if filter.ResourceTypeID == "" || filter.ResourceTypeID == resource.ResourceTypeID {
 				count++
@@ -278,8 +279,8 @@ func TestResourcePoolFiltering(t *testing.T) {
 
 // TestCreateResourceValidation tests validation for CreateResource.
 func TestCreateResourceValidation(t *testing.T) {
-	adp := &Adapter{
-		logger: zap.NewNop(),
+	adp := &openstack.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	ctx := context.Background()
@@ -332,8 +333,8 @@ func TestCreateResourceValidation(t *testing.T) {
 
 // TestGetResourcePoolIDFromServer tests resource pool ID derivation.
 func TestGetResourcePoolIDFromServer(t *testing.T) {
-	adp := &Adapter{
-		logger: zap.NewNop(),
+	adp := &openstack.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	tests := []struct {
@@ -359,7 +360,7 @@ func TestGetResourcePoolIDFromServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := adp.getResourcePoolIDFromServer(tt.server)
+			got := adp.GetResourcePoolIDFromServer(tt.server)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -367,10 +368,10 @@ func TestGetResourcePoolIDFromServer(t *testing.T) {
 
 // BenchmarkTransformServerToResource benchmarks the transformation.
 func BenchmarkTransformServerToResource(b *testing.B) {
-	adp := &Adapter{
-		oCloudID: "ocloud-test",
-		region:   "RegionOne",
-		logger:   zap.NewNop(),
+	adp := &openstack.Adapter{
+		OCloudID: "ocloud-test",
+		Region:   "RegionOne",
+		Logger:   zap.NewNop(),
 	}
 
 	now := time.Now()
@@ -405,6 +406,6 @@ func BenchmarkTransformServerToResource(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		adp.transformServerToResource(osServer)
+		adp.TransformServerToResource(osServer)
 	}
 }

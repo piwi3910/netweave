@@ -1,9 +1,11 @@
-package storage
+package storage_test
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/dms/storage"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,11 +15,11 @@ import (
 
 // TestNewMemoryPackageStore tests store creation.
 func TestNewMemoryPackageStore(t *testing.T) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 	require.NotNil(t, store)
-	assert.NotNil(t, store.packages)
-	assert.NotNil(t, store.content)
-	assert.NotNil(t, store.byName)
+	assert.NotNil(t, store.Packages)
+	assert.NotNil(t, store.Content)
+	assert.NotNil(t, store.ByName)
 }
 
 // TestMemoryPackageStore_Create tests package creation.
@@ -100,13 +102,13 @@ func TestMemoryPackageStore_Create(t *testing.T) {
 				Version: "invalid",
 			},
 			wantErr: true,
-			errIs:   ErrInvalidPackageVersion,
+			errIs:   storage.ErrInvalidPackageVersion,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store := NewMemoryPackageStore()
+			store := storage.NewMemoryPackageStore()
 			err := store.Create(context.Background(), tt.pkg)
 
 			if tt.wantErr {
@@ -126,7 +128,7 @@ func TestMemoryPackageStore_Create(t *testing.T) {
 
 // TestMemoryPackageStore_Create_Duplicates tests duplicate handling.
 func TestMemoryPackageStore_Create_Duplicates(t *testing.T) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 
 	pkg := &adapter.DeploymentPackage{
 		ID:          "pkg-1",
@@ -143,7 +145,7 @@ func TestMemoryPackageStore_Create_Duplicates(t *testing.T) {
 	t.Run("duplicate ID", func(t *testing.T) {
 		err := store.Create(context.Background(), pkg)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageExists)
+		assert.ErrorIs(t, err, storage.ErrPackageExists)
 	})
 
 	// Same name+version but different ID should fail
@@ -156,7 +158,7 @@ func TestMemoryPackageStore_Create_Duplicates(t *testing.T) {
 		}
 		err := store.Create(context.Background(), dupPkg)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrVersionExists)
+		assert.ErrorIs(t, err, storage.ErrVersionExists)
 	})
 
 	// Same name but different version should succeed
@@ -174,7 +176,7 @@ func TestMemoryPackageStore_Create_Duplicates(t *testing.T) {
 
 // TestMemoryPackageStore_Get tests package retrieval.
 func TestMemoryPackageStore_Get(t *testing.T) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 
 	pkg := &adapter.DeploymentPackage{
 		ID:          "pkg-1",
@@ -202,13 +204,13 @@ func TestMemoryPackageStore_Get(t *testing.T) {
 	t.Run("get nonexistent", func(t *testing.T) {
 		_, err := store.Get(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, storage.ErrPackageNotFound)
 	})
 }
 
 // TestMemoryPackageStore_GetByNameVersion tests retrieval by name and version.
 func TestMemoryPackageStore_GetByNameVersion(t *testing.T) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 
 	pkg1 := &adapter.DeploymentPackage{
 		ID:          "pkg-1",
@@ -240,19 +242,19 @@ func TestMemoryPackageStore_GetByNameVersion(t *testing.T) {
 	t.Run("nonexistent name", func(t *testing.T) {
 		_, err := store.GetByNameVersion(context.Background(), "nonexistent", "1.0.0")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, storage.ErrPackageNotFound)
 	})
 
 	t.Run("nonexistent version", func(t *testing.T) {
 		_, err := store.GetByNameVersion(context.Background(), "test-package", "9.9.9")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, storage.ErrPackageNotFound)
 	})
 }
 
 // TestMemoryPackageStore_List tests package listing.
 func TestMemoryPackageStore_List(t *testing.T) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 
 	// Create test packages
 	packages := []*adapter.DeploymentPackage{
@@ -278,27 +280,27 @@ func TestMemoryPackageStore_List(t *testing.T) {
 	})
 
 	t.Run("filter by name", func(t *testing.T) {
-		results, err := store.List(context.Background(), &PackageFilter{Name: "nginx"})
+		results, err := store.List(context.Background(), &storage.PackageFilter{Name: "nginx"})
 		require.NoError(t, err)
 		assert.Len(t, results, 2)
 	})
 
 	t.Run("filter by package type", func(t *testing.T) {
-		results, err := store.List(context.Background(), &PackageFilter{PackageType: "git-repo"})
+		results, err := store.List(context.Background(), &storage.PackageFilter{PackageType: "git-repo"})
 		require.NoError(t, err)
 		assert.Len(t, results, 1)
 		assert.Equal(t, "my-app", results[0].Name)
 	})
 
 	t.Run("latest only", func(t *testing.T) {
-		results, err := store.List(context.Background(), &PackageFilter{LatestOnly: true})
+		results, err := store.List(context.Background(), &storage.PackageFilter{LatestOnly: true})
 		require.NoError(t, err)
 		// Should return latest version of each: nginx 2.0.0, redis 1.0.0, my-app 1.0.0
 		assert.Len(t, results, 3)
 	})
 
 	t.Run("latest only filtered by name", func(t *testing.T) {
-		results, err := store.List(context.Background(), &PackageFilter{
+		results, err := store.List(context.Background(), &storage.PackageFilter{
 			Name:       "nginx",
 			LatestOnly: true,
 		})
@@ -308,13 +310,13 @@ func TestMemoryPackageStore_List(t *testing.T) {
 	})
 
 	t.Run("pagination limit", func(t *testing.T) {
-		results, err := store.List(context.Background(), &PackageFilter{Limit: 2})
+		results, err := store.List(context.Background(), &storage.PackageFilter{Limit: 2})
 		require.NoError(t, err)
 		assert.Len(t, results, 2)
 	})
 
 	t.Run("pagination offset", func(t *testing.T) {
-		results, err := store.List(context.Background(), &PackageFilter{Offset: 2, Limit: 10})
+		results, err := store.List(context.Background(), &storage.PackageFilter{Offset: 2, Limit: 10})
 		require.NoError(t, err)
 		assert.Len(t, results, 2)
 	})
@@ -322,7 +324,7 @@ func TestMemoryPackageStore_List(t *testing.T) {
 
 // TestMemoryPackageStore_ListVersions tests version listing.
 func TestMemoryPackageStore_ListVersions(t *testing.T) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 
 	// Create multiple versions
 	_ = store.Create(context.Background(), &adapter.DeploymentPackage{
@@ -350,7 +352,7 @@ func TestMemoryPackageStore_ListVersions(t *testing.T) {
 
 // TestMemoryPackageStore_Update tests package updates.
 func TestMemoryPackageStore_Update(t *testing.T) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 
 	pkg := &adapter.DeploymentPackage{
 		ID:          "pkg-1",
@@ -383,7 +385,7 @@ func TestMemoryPackageStore_Update(t *testing.T) {
 		}
 		err := store.Update(context.Background(), updatedPkg)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, storage.ErrPackageNotFound)
 	})
 
 	t.Run("update nil package", func(t *testing.T) {
@@ -395,7 +397,7 @@ func TestMemoryPackageStore_Update(t *testing.T) {
 
 // TestMemoryPackageStore_Delete tests package deletion.
 func TestMemoryPackageStore_Delete(t *testing.T) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 
 	pkg := &adapter.DeploymentPackage{
 		ID:          "pkg-1",
@@ -412,7 +414,7 @@ func TestMemoryPackageStore_Delete(t *testing.T) {
 
 		// Verify package is deleted
 		_, err = store.Get(context.Background(), "pkg-1")
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, storage.ErrPackageNotFound)
 
 		// Verify content is also deleted
 		_, err = store.GetContent(context.Background(), "pkg-1")
@@ -426,13 +428,13 @@ func TestMemoryPackageStore_Delete(t *testing.T) {
 	t.Run("delete nonexistent", func(t *testing.T) {
 		err := store.Delete(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, storage.ErrPackageNotFound)
 	})
 }
 
 // TestMemoryPackageStore_Content tests content operations.
 func TestMemoryPackageStore_Content(t *testing.T) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 
 	pkg := &adapter.DeploymentPackage{
 		ID:          "pkg-1",
@@ -455,13 +457,13 @@ func TestMemoryPackageStore_Content(t *testing.T) {
 	t.Run("save content for nonexistent package", func(t *testing.T) {
 		err := store.SaveContent(context.Background(), "nonexistent", []byte("data"))
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, storage.ErrPackageNotFound)
 	})
 
 	t.Run("get content for nonexistent package", func(t *testing.T) {
 		_, err := store.GetContent(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, storage.ErrPackageNotFound)
 	})
 
 	t.Run("get content when not uploaded", func(t *testing.T) {
@@ -496,12 +498,12 @@ func TestMemoryPackageStore_Content(t *testing.T) {
 		}
 		_ = store.Create(context.Background(), pkg3)
 
-		// Create content that exceeds MaxContentSize
-		// Use MaxContentSize + 1 to just exceed the limit
-		largeContent := make([]byte, MaxContentSize+1)
+		// Create content that exceeds storage.MaxContentSize
+		// Use storage.MaxContentSize + 1 to just exceed the limit
+		largeContent := make([]byte, storage.MaxContentSize+1)
 		err := store.SaveContent(context.Background(), "pkg-3", largeContent)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrContentTooLarge)
+		assert.ErrorIs(t, err, storage.ErrContentTooLarge)
 	})
 
 	t.Run("save content at max size succeeds", func(t *testing.T) {
@@ -514,28 +516,28 @@ func TestMemoryPackageStore_Content(t *testing.T) {
 		}
 		_ = store.Create(context.Background(), pkg4)
 
-		// Create content exactly at MaxContentSize (should succeed)
-		maxContent := make([]byte, MaxContentSize)
+		// Create content exactly at storage.MaxContentSize (should succeed)
+		maxContent := make([]byte, storage.MaxContentSize)
 		err := store.SaveContent(context.Background(), "pkg-4", maxContent)
 		require.NoError(t, err)
 
 		// Verify we can retrieve it
 		result, err := store.GetContent(context.Background(), "pkg-4")
 		require.NoError(t, err)
-		assert.Len(t, result, MaxContentSize)
+		assert.Len(t, result, storage.MaxContentSize)
 	})
 }
 
 // TestMemoryPackageStore_Ping tests health check.
 func TestMemoryPackageStore_Ping(t *testing.T) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 	err := store.Ping(context.Background())
 	require.NoError(t, err)
 }
 
 // TestMemoryPackageStore_Close tests store closure.
 func TestMemoryPackageStore_Close(t *testing.T) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 
 	// Add some data
 	_ = store.Create(context.Background(), &adapter.DeploymentPackage{
@@ -553,7 +555,7 @@ func TestMemoryPackageStore_Close(t *testing.T) {
 
 // TestMemoryPackageStore_ContextCancellation tests context handling.
 func TestMemoryPackageStore_ContextCancellation(t *testing.T) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -664,7 +666,7 @@ func TestValidateSemVer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.version, func(t *testing.T) {
-			err := validateSemVer(tt.version)
+			err := storage.ValidateSemVer(tt.version)
 			if tt.valid {
 				assert.NoError(t, err)
 			} else {
@@ -677,7 +679,7 @@ func TestValidateSemVer(t *testing.T) {
 // TestCopyPackage tests package copying.
 func TestCopyPackage(t *testing.T) {
 	t.Run("nil package", func(t *testing.T) {
-		result := copyPackage(nil)
+		result := storage.CopyPackage(nil)
 		assert.Nil(t, result)
 	})
 
@@ -690,7 +692,7 @@ func TestCopyPackage(t *testing.T) {
 				"key": "value",
 			},
 		}
-		result := copyPackage(pkg)
+		result := storage.CopyPackage(pkg)
 		require.NotNil(t, result)
 		assert.Equal(t, pkg.ID, result.ID)
 		assert.NotSame(t, &pkg.Extensions, &result.Extensions)
@@ -720,7 +722,7 @@ func TestApplyPackagePagination(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := applyPackagePagination(packages, tt.limit, tt.offset)
+			result := storage.ApplyPackagePagination(packages, tt.limit, tt.offset)
 			assert.Len(t, result, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, tt.wantFirst, result[0].ID)
@@ -732,7 +734,7 @@ func TestApplyPackagePagination(t *testing.T) {
 // Benchmark tests.
 
 func BenchmarkMemoryPackageStore_Create(b *testing.B) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 	ctx := context.Background()
 
 	b.ResetTimer()
@@ -748,7 +750,7 @@ func BenchmarkMemoryPackageStore_Create(b *testing.B) {
 }
 
 func BenchmarkMemoryPackageStore_Get(b *testing.B) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 	ctx := context.Background()
 
 	// Create test packages
@@ -769,7 +771,7 @@ func BenchmarkMemoryPackageStore_Get(b *testing.B) {
 }
 
 func BenchmarkMemoryPackageStore_List(b *testing.B) {
-	store := NewMemoryPackageStore()
+	store := storage.NewMemoryPackageStore()
 	ctx := context.Background()
 
 	// Create test packages

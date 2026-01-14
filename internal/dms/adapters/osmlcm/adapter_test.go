@@ -1,4 +1,4 @@
-package osmlcm
+package osmlcm_test
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/dms/adapters/osmlcm"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,19 +26,19 @@ const (
 func TestNewAdapter(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *osmlcm.Config
 		wantErr bool
 	}{
 		{
 			name: "valid config",
-			config: &Config{
+			config: &osmlcm.Config{
 				NBIEndpoint: "http://localhost:9999",
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid config with auth",
-			config: &Config{
+			config: &osmlcm.Config{
 				NBIEndpoint: "http://localhost:9999",
 				Username:    testUsername,
 				Password:    testSecretData,
@@ -50,7 +52,7 @@ func TestNewAdapter(t *testing.T) {
 		},
 		{
 			name: "config with timeout",
-			config: &Config{
+			config: &osmlcm.Config{
 				NBIEndpoint: "http://localhost:9999",
 				Timeout:     5 * time.Minute,
 			},
@@ -58,7 +60,7 @@ func TestNewAdapter(t *testing.T) {
 		},
 		{
 			name: "config with project",
-			config: &Config{
+			config: &osmlcm.Config{
 				NBIEndpoint: "http://localhost:9999",
 				Project:     "custom-project",
 			},
@@ -68,7 +70,7 @@ func TestNewAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := NewAdapter(tt.config)
+			adp, err := osmlcm.NewAdapter(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -79,10 +81,10 @@ func TestNewAdapter(t *testing.T) {
 
 				// Verify defaults are applied
 				if tt.config.Timeout == 0 {
-					assert.Equal(t, DefaultTimeout, adp.config.Timeout)
+					assert.Equal(t, osmlcm.DefaultTimeout, adp.Config.Timeout)
 				}
 				if tt.config.Project == "" {
-					assert.Equal(t, "admin", adp.config.Project)
+					assert.Equal(t, "admin", adp.Config.Project)
 				}
 			}
 		})
@@ -91,15 +93,15 @@ func TestNewAdapter(t *testing.T) {
 
 // TestAdapterMetadata tests adapter metadata methods.
 func TestAdapterMetadata(t *testing.T) {
-	adp, err := NewAdapter(&Config{})
+	adp, err := osmlcm.NewAdapter(&osmlcm.Config{})
 	require.NoError(t, err)
 
 	t.Run("Name", func(t *testing.T) {
-		assert.Equal(t, AdapterName, adp.Name())
+		assert.Equal(t, osmlcm.AdapterName, adp.Name())
 	})
 
 	t.Run("Version", func(t *testing.T) {
-		assert.Equal(t, AdapterVersion, adp.Version())
+		assert.Equal(t, osmlcm.AdapterVersion, adp.Version())
 	})
 
 	t.Run("Capabilities", func(t *testing.T) {
@@ -125,17 +127,17 @@ func TestAdapterMetadata(t *testing.T) {
 }
 
 // createTestAdapter creates an adapter for testing.
-func createTestAdapter(t *testing.T) *Adapter {
+func createTestAdapter(t *testing.T) *osmlcm.Adapter {
 	t.Helper()
 
-	adp, err := NewAdapter(&Config{
+	adp, err := osmlcm.NewAdapter(&osmlcm.Config{
 		NBIEndpoint: "http://localhost:9999",
 		Timeout:     5 * time.Second,
 	})
 	require.NoError(t, err)
 
 	// Initialize the adapter
-	_ = adp.initialize()
+	_ = adp.Initialize()
 
 	return adp
 }
@@ -157,8 +159,8 @@ func TestListDeploymentPackages(t *testing.T) {
 		Version:     "1.0.0",
 		PackageType: "osm-nsd",
 	}
-	adp.packages["vnfd-1"] = pkg1
-	adp.packages["nsd-1"] = pkg2
+	adp.Packages["vnfd-1"] = pkg1
+	adp.Packages["nsd-1"] = pkg2
 
 	t.Run("list all packages", func(t *testing.T) {
 		packages, err := adp.ListDeploymentPackages(context.Background(), nil)
@@ -190,7 +192,7 @@ func TestGetDeploymentPackage(t *testing.T) {
 		Version:     "1.0.0",
 		PackageType: "osm-vnfd",
 	}
-	adp.packages["vnfd-test"] = pkg
+	adp.Packages["vnfd-test"] = pkg
 
 	t.Run("package found", func(t *testing.T) {
 		result, err := adp.GetDeploymentPackage(context.Background(), "vnfd-test")
@@ -201,7 +203,7 @@ func TestGetDeploymentPackage(t *testing.T) {
 	t.Run("package not found", func(t *testing.T) {
 		_, err := adp.GetDeploymentPackage(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, osmlcm.ErrPackageNotFound)
 	})
 }
 
@@ -270,7 +272,7 @@ func TestDeleteDeploymentPackage(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add a test package
-	adp.packages["vnfd-delete"] = &dmsadapter.DeploymentPackage{
+	adp.Packages["vnfd-delete"] = &dmsadapter.DeploymentPackage{
 		ID:   "vnfd-delete",
 		Name: "test-vnf",
 	}
@@ -283,7 +285,7 @@ func TestDeleteDeploymentPackage(t *testing.T) {
 	t.Run("delete nonexistent", func(t *testing.T) {
 		err := adp.DeleteDeploymentPackage(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, osmlcm.ErrPackageNotFound)
 	})
 }
 
@@ -302,8 +304,8 @@ func TestListDeployments(t *testing.T) {
 		Name:   "test-ns-2",
 		Status: dmsadapter.DeploymentStatusFailed,
 	}
-	adp.deployments["ns-1"] = dep1
-	adp.deployments["ns-2"] = dep2
+	adp.Deployments["ns-1"] = dep1
+	adp.Deployments["ns-2"] = dep2
 
 	t.Run("list all", func(t *testing.T) {
 		deployments, err := adp.ListDeployments(context.Background(), nil)
@@ -336,7 +338,7 @@ func TestGetDeployment(t *testing.T) {
 		Name:   "test-ns",
 		Status: dmsadapter.DeploymentStatusDeployed,
 	}
-	adp.deployments["ns-test"] = dep
+	adp.Deployments["ns-test"] = dep
 
 	t.Run("deployment found", func(t *testing.T) {
 		result, err := adp.GetDeployment(context.Background(), "ns-test")
@@ -347,7 +349,7 @@ func TestGetDeployment(t *testing.T) {
 	t.Run("deployment not found", func(t *testing.T) {
 		_, err := adp.GetDeployment(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+		assert.ErrorIs(t, err, osmlcm.ErrDeploymentNotFound)
 	})
 }
 
@@ -437,7 +439,7 @@ func TestUpdateDeployment(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add a test deployment
-	adp.deployments["ns-update"] = &dmsadapter.Deployment{
+	adp.Deployments["ns-update"] = &dmsadapter.Deployment{
 		ID:      "ns-update",
 		Name:    "test-ns",
 		Version: 1,
@@ -498,7 +500,7 @@ func TestDeleteDeployment(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add a test deployment
-	adp.deployments["ns-delete"] = &dmsadapter.Deployment{
+	adp.Deployments["ns-delete"] = &dmsadapter.Deployment{
 		ID:   "ns-delete",
 		Name: "test-ns",
 	}
@@ -511,7 +513,7 @@ func TestDeleteDeployment(t *testing.T) {
 	t.Run("delete nonexistent", func(t *testing.T) {
 		err := adp.DeleteDeployment(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+		assert.ErrorIs(t, err, osmlcm.ErrDeploymentNotFound)
 	})
 }
 
@@ -520,7 +522,7 @@ func TestScaleDeployment(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add a test deployment
-	adp.deployments["ns-scale"] = &dmsadapter.Deployment{
+	adp.Deployments["ns-scale"] = &dmsadapter.Deployment{
 		ID:   "ns-scale",
 		Name: "test-ns",
 	}
@@ -530,7 +532,7 @@ func TestScaleDeployment(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify scale count is recorded
-		dep := adp.deployments["ns-scale"]
+		dep := adp.Deployments["ns-scale"]
 		assert.Equal(t, 5, dep.Extensions["osm.scaleCount"])
 	})
 
@@ -548,7 +550,7 @@ func TestScaleDeployment(t *testing.T) {
 	t.Run("deployment not found", func(t *testing.T) {
 		err := adp.ScaleDeployment(context.Background(), "nonexistent", 3)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+		assert.ErrorIs(t, err, osmlcm.ErrDeploymentNotFound)
 	})
 }
 
@@ -559,7 +561,7 @@ func TestRollbackDeployment(t *testing.T) {
 	t.Run("rollback not supported", func(t *testing.T) {
 		err := adp.RollbackDeployment(context.Background(), "any-ns", 1)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrOperationNotSupported)
+		assert.ErrorIs(t, err, osmlcm.ErrOperationNotSupported)
 	})
 
 	t.Run("negative revision", func(t *testing.T) {
@@ -574,17 +576,17 @@ func TestGetDeploymentStatus(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add test deployments with different statuses
-	adp.deployments["ns-deployed"] = &dmsadapter.Deployment{
+	adp.Deployments["ns-deployed"] = &dmsadapter.Deployment{
 		ID:     "ns-deployed",
 		Name:   "test-ns",
 		Status: dmsadapter.DeploymentStatusDeployed,
 	}
-	adp.deployments["ns-deploying"] = &dmsadapter.Deployment{
+	adp.Deployments["ns-deploying"] = &dmsadapter.Deployment{
 		ID:     "ns-deploying",
 		Name:   "test-ns",
 		Status: dmsadapter.DeploymentStatusDeploying,
 	}
-	adp.deployments["ns-failed"] = &dmsadapter.Deployment{
+	adp.Deployments["ns-failed"] = &dmsadapter.Deployment{
 		ID:     "ns-failed",
 		Name:   "test-ns",
 		Status: dmsadapter.DeploymentStatusFailed,
@@ -619,7 +621,7 @@ func TestGetDeploymentStatus(t *testing.T) {
 	t.Run("deployment not found", func(t *testing.T) {
 		_, err := adp.GetDeploymentStatus(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+		assert.ErrorIs(t, err, osmlcm.ErrDeploymentNotFound)
 	})
 }
 
@@ -628,7 +630,7 @@ func TestGetDeploymentHistory(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add a test deployment
-	adp.deployments["ns-history"] = &dmsadapter.Deployment{
+	adp.Deployments["ns-history"] = &dmsadapter.Deployment{
 		ID:      "ns-history",
 		Name:    "test-ns",
 		Version: 3,
@@ -645,7 +647,7 @@ func TestGetDeploymentHistory(t *testing.T) {
 	t.Run("deployment not found", func(t *testing.T) {
 		_, err := adp.GetDeploymentHistory(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+		assert.ErrorIs(t, err, osmlcm.ErrDeploymentNotFound)
 	})
 }
 
@@ -654,7 +656,7 @@ func TestGetDeploymentLogs(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add a test deployment
-	adp.deployments["ns-logs"] = &dmsadapter.Deployment{
+	adp.Deployments["ns-logs"] = &dmsadapter.Deployment{
 		ID:   "ns-logs",
 		Name: "test-ns",
 	}
@@ -670,14 +672,14 @@ func TestGetDeploymentLogs(t *testing.T) {
 	t.Run("deployment not found", func(t *testing.T) {
 		_, err := adp.GetDeploymentLogs(context.Background(), "nonexistent", nil)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+		assert.ErrorIs(t, err, osmlcm.ErrDeploymentNotFound)
 	})
 }
 
 // TestHealth tests health check functionality.
 func TestHealth(t *testing.T) {
 	t.Run("healthy without endpoint", func(t *testing.T) {
-		adp, err := NewAdapter(&Config{})
+		adp, err := osmlcm.NewAdapter(&osmlcm.Config{})
 		require.NoError(t, err)
 
 		err = adp.Health(context.Background())
@@ -690,7 +692,7 @@ func TestHealth(t *testing.T) {
 		}))
 		defer server.Close()
 
-		adp, err := NewAdapter(&Config{
+		adp, err := osmlcm.NewAdapter(&osmlcm.Config{
 			NBIEndpoint: server.URL,
 		})
 		require.NoError(t, err)
@@ -705,7 +707,7 @@ func TestHealth(t *testing.T) {
 		}))
 		defer server.Close()
 
-		adp, err := NewAdapter(&Config{
+		adp, err := osmlcm.NewAdapter(&osmlcm.Config{
 			NBIEndpoint: server.URL,
 		})
 		require.NoError(t, err)
@@ -722,7 +724,7 @@ func TestClose(t *testing.T) {
 
 	err := adp.Close()
 	require.NoError(t, err)
-	assert.Nil(t, adp.httpClient)
+	assert.Nil(t, adp.HTTPClient())
 }
 
 // TestValidateName tests name validation.
@@ -746,10 +748,10 @@ func TestValidateName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateName(tt.input)
+			err := osmlcm.ValidateName(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, ErrInvalidName)
+				assert.ErrorIs(t, err, osmlcm.ErrInvalidName)
 			} else {
 				require.NoError(t, err)
 			}
@@ -759,7 +761,7 @@ func TestValidateName(t *testing.T) {
 
 // TestCalculateProgress tests progress calculation.
 func TestCalculateProgress(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{})
 
 	tests := []struct {
 		name   string
@@ -775,7 +777,7 @@ func TestCalculateProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := adp.calculateProgress(tt.status)
+			got := adp.CalculateProgress(tt.status)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -783,21 +785,21 @@ func TestCalculateProgress(t *testing.T) {
 
 // TestConditionStatus tests condition status helper.
 func TestConditionStatus(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{})
 
 	t.Run("deployed returns True", func(t *testing.T) {
-		assert.Equal(t, "True", adp.conditionStatus(dmsadapter.DeploymentStatusDeployed))
+		assert.Equal(t, "True", adp.ConditionStatus(dmsadapter.DeploymentStatusDeployed))
 	})
 
 	t.Run("other status returns False", func(t *testing.T) {
-		assert.Equal(t, "False", adp.conditionStatus(dmsadapter.DeploymentStatusDeploying))
-		assert.Equal(t, "False", adp.conditionStatus(dmsadapter.DeploymentStatusFailed))
+		assert.Equal(t, "False", adp.ConditionStatus(dmsadapter.DeploymentStatusDeploying))
+		assert.Equal(t, "False", adp.ConditionStatus(dmsadapter.DeploymentStatusFailed))
 	})
 }
 
 // TestConditionReason tests condition reason helper.
 func TestConditionReason(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{})
 
 	tests := []struct {
 		status dmsadapter.DeploymentStatus
@@ -811,7 +813,7 @@ func TestConditionReason(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.status), func(t *testing.T) {
-			assert.Equal(t, tt.want, adp.conditionReason(tt.status))
+			assert.Equal(t, tt.want, adp.ConditionReason(tt.status))
 		})
 	}
 }
@@ -947,7 +949,7 @@ func TestContextCancellation(t *testing.T) {
 
 // TestApplyPagination tests pagination logic.
 func TestApplyPagination(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{})
 
 	deployments := []*dmsadapter.Deployment{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
@@ -970,7 +972,7 @@ func TestApplyPagination(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.scenario, func(t *testing.T) {
-			paginatedResult := adp.applyPagination(deployments, tc.limitParam, tc.offsetParam)
+			paginatedResult := adp.ApplyPagination(deployments, tc.limitParam, tc.offsetParam)
 
 			if assert.Len(t, paginatedResult, tc.expectedLen) && tc.expectedLen > 0 {
 				assert.Equal(t, tc.expectedID, paginatedResult[0].ID)
@@ -981,7 +983,7 @@ func TestApplyPagination(t *testing.T) {
 
 // TestApplyPackagePagination tests package pagination logic.
 func TestApplyPackagePagination(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{})
 
 	pkgs := []*dmsadapter.DeploymentPackage{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
@@ -1004,7 +1006,7 @@ func TestApplyPackagePagination(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			pkgResult := adp.applyPackagePagination(pkgs, tt.limit, tt.offset)
+			pkgResult := adp.ApplyPackagePagination(pkgs, tt.limit, tt.offset)
 
 			// Early return pattern - check length first
 			if !assert.Len(t, pkgResult, tt.wantCount) {
@@ -1029,13 +1031,13 @@ func TestDoRequest(t *testing.T) {
 		}))
 		defer server.Close()
 
-		adp, err := NewAdapter(&Config{
+		adp, err := osmlcm.NewAdapter(&osmlcm.Config{
 			NBIEndpoint: server.URL,
 		})
 		require.NoError(t, err)
-		_ = adp.initialize()
+		_ = adp.Initialize()
 
-		resp, err := adp.doRequest(context.Background(), http.MethodGet, nil)
+		resp, err := adp.DoRequest(context.Background(), http.MethodGet, nil)
 		require.NoError(t, err)
 		assert.Contains(t, string(resp), "ok")
 	})
@@ -1050,15 +1052,15 @@ func TestDoRequest(t *testing.T) {
 		}))
 		defer server.Close()
 
-		adp, err := NewAdapter(&Config{
+		adp, err := osmlcm.NewAdapter(&osmlcm.Config{
 			NBIEndpoint: server.URL,
 			Username:    testUsername,
 			Password:    testSecretData,
 		})
 		require.NoError(t, err)
-		_ = adp.initialize()
+		_ = adp.Initialize()
 
-		_, err = adp.doRequest(context.Background(), http.MethodGet, nil)
+		_, err = adp.DoRequest(context.Background(), http.MethodGet, nil)
 		require.NoError(t, err)
 	})
 
@@ -1069,14 +1071,14 @@ func TestDoRequest(t *testing.T) {
 		}))
 		defer server.Close()
 
-		adp, err := NewAdapter(&Config{
+		adp, err := osmlcm.NewAdapter(&osmlcm.Config{
 			NBIEndpoint: server.URL,
 		})
 		require.NoError(t, err)
-		_ = adp.initialize()
+		_ = adp.Initialize()
 
 		body := map[string]string{"key": "value"}
-		_, err = adp.doRequest(context.Background(), http.MethodPost, body)
+		_, err = adp.DoRequest(context.Background(), http.MethodPost, body)
 		require.NoError(t, err)
 	})
 
@@ -1087,13 +1089,13 @@ func TestDoRequest(t *testing.T) {
 		}))
 		defer server.Close()
 
-		adp, err := NewAdapter(&Config{
+		adp, err := osmlcm.NewAdapter(&osmlcm.Config{
 			NBIEndpoint: server.URL,
 		})
 		require.NoError(t, err)
-		_ = adp.initialize()
+		_ = adp.Initialize()
 
-		_, err = adp.doRequest(context.Background(), http.MethodGet, nil)
+		_, err = adp.DoRequest(context.Background(), http.MethodGet, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "API error")
 	})
@@ -1103,10 +1105,10 @@ func TestDoRequest(t *testing.T) {
 
 // BenchmarkCreateDeployment benchmarks deployment creation.
 func BenchmarkCreateDeployment(b *testing.B) {
-	adp, _ := NewAdapter(&Config{
+	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{
 		NBIEndpoint: "http://localhost:9999",
 	})
-	_ = adp.initialize()
+	_ = adp.Initialize()
 
 	ctx := context.Background()
 	b.ResetTimer()
@@ -1122,14 +1124,14 @@ func BenchmarkCreateDeployment(b *testing.B) {
 
 // BenchmarkListDeployments benchmarks deployment listing.
 func BenchmarkListDeployments(b *testing.B) {
-	adp, _ := NewAdapter(&Config{
+	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{
 		NBIEndpoint: "http://localhost:9999",
 	})
-	_ = adp.initialize()
+	_ = adp.Initialize()
 
 	// Add some deployments
 	for i := 0; i < 100; i++ {
-		adp.deployments[string(rune('a'+i))] = &dmsadapter.Deployment{
+		adp.Deployments[string(rune('a'+i))] = &dmsadapter.Deployment{
 			ID:   string(rune('a' + i)),
 			Name: "test-ns",
 		}

@@ -1,4 +1,4 @@
-package events
+package events_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/events"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,50 +21,50 @@ import (
 // mockDeliveryTracker implements DeliveryTracker for testing.
 type mockDeliveryTracker struct{}
 
-func (m *mockDeliveryTracker) Track(_ context.Context, _ *NotificationDelivery) error {
+func (m *mockDeliveryTracker) Track(_ context.Context, _ *events.NotificationDelivery) error {
 	return nil
 }
 
-func (m *mockDeliveryTracker) Get(_ context.Context, _ string) (*NotificationDelivery, error) {
+func (m *mockDeliveryTracker) Get(_ context.Context, _ string) (*events.NotificationDelivery, error) {
 	return nil, errors.New("delivery not found")
 }
 
-func (m *mockDeliveryTracker) ListByEvent(_ context.Context, _ string) ([]*NotificationDelivery, error) {
+func (m *mockDeliveryTracker) ListByEvent(_ context.Context, _ string) ([]*events.NotificationDelivery, error) {
 	return nil, nil
 }
 
-func (m *mockDeliveryTracker) ListBySubscription(_ context.Context, _ string) ([]*NotificationDelivery, error) {
+func (m *mockDeliveryTracker) ListBySubscription(_ context.Context, _ string) ([]*events.NotificationDelivery, error) {
 	return nil, nil
 }
 
-func (m *mockDeliveryTracker) ListFailed(_ context.Context) ([]*NotificationDelivery, error) {
+func (m *mockDeliveryTracker) ListFailed(_ context.Context) ([]*events.NotificationDelivery, error) {
 	return nil, nil
 }
 
-// TestDefaultNotifierConfig tests the default notifier configuration.
+// Testevents.DefaultNotifierConfig tests the default notifier configuration.
 func TestDefaultNotifierConfig(t *testing.T) {
-	cfg := DefaultNotifierConfig()
+	cfg := events.DefaultNotifierConfig()
 
 	assert.NotNil(t, cfg)
-	assert.Equal(t, defaultHTTPTimeout, cfg.HTTPTimeout)
-	assert.Equal(t, defaultMaxRetries, cfg.MaxRetries)
+	assert.Equal(t, events.DefaultHTTPTimeout, cfg.HTTPTimeout)
+	assert.Equal(t, events.DefaultMaxRetries, cfg.MaxRetries)
 	assert.False(t, cfg.EnableMTLS)
 }
 
-// TestNewWebhookNotifier tests notifier creation.
+// Testevents.NewWebhookNotifier tests notifier creation.
 func TestNewWebhookNotifier(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := DefaultNotifierConfig()
+	cfg := events.DefaultNotifierConfig()
 	tracker := &mockDeliveryTracker{}
 
 	t.Run("creates notifier successfully", func(t *testing.T) {
-		notifier, err := NewWebhookNotifier(cfg, tracker, logger)
+		notifier, err := events.NewWebhookNotifier(cfg, tracker, logger)
 		require.NoError(t, err)
 		assert.NotNil(t, notifier)
 	})
 
 	t.Run("uses default config if nil", func(t *testing.T) {
-		notifier, err := NewWebhookNotifier(nil, tracker, logger)
+		notifier, err := events.NewWebhookNotifier(nil, tracker, logger)
 		require.NoError(t, err)
 		assert.NotNil(t, notifier)
 	})
@@ -71,7 +73,7 @@ func TestNewWebhookNotifier(t *testing.T) {
 // TestWebhookNotifier_Notify tests the Notify function.
 func TestWebhookNotifier_Notify(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := DefaultNotifierConfig()
+	cfg := events.DefaultNotifierConfig()
 	cfg.HTTPTimeout = 2 * time.Second
 	tracker := &mockDeliveryTracker{}
 
@@ -83,10 +85,10 @@ func TestWebhookNotifier_Notify(t *testing.T) {
 		}))
 		defer server.Close()
 
-		notifier, err := NewWebhookNotifier(cfg, tracker, logger)
+		notifier, err := events.NewWebhookNotifier(cfg, tracker, logger)
 		require.NoError(t, err)
 
-		event := &Event{
+		event := &events.Event{
 			Type:       models.EventTypeResourceCreated,
 			ResourceID: "test-resource",
 		}
@@ -108,10 +110,10 @@ func TestWebhookNotifier_Notify(t *testing.T) {
 		}))
 		defer server.Close()
 
-		notifier, err := NewWebhookNotifier(cfg, tracker, logger)
+		notifier, err := events.NewWebhookNotifier(cfg, tracker, logger)
 		require.NoError(t, err)
 
-		event := &Event{
+		event := &events.Event{
 			Type:       models.EventTypeResourceCreated,
 			ResourceID: "test-resource",
 		}
@@ -134,13 +136,13 @@ func TestWebhookNotifier_Notify(t *testing.T) {
 		}))
 		defer server.Close()
 
-		timeoutCfg := DefaultNotifierConfig()
+		timeoutCfg := events.DefaultNotifierConfig()
 		timeoutCfg.HTTPTimeout = 100 * time.Millisecond
 
-		notifier, err := NewWebhookNotifier(timeoutCfg, tracker, logger)
+		notifier, err := events.NewWebhookNotifier(timeoutCfg, tracker, logger)
 		require.NoError(t, err)
 
-		event := &Event{
+		event := &events.Event{
 			Type:       models.EventTypeResourceCreated,
 			ResourceID: "test-resource",
 		}
@@ -160,7 +162,7 @@ func TestWebhookNotifier_Notify(t *testing.T) {
 // TestWebhookNotifier_NotifyWithRetry tests the NotifyWithRetry function.
 func TestWebhookNotifier_NotifyWithRetry(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := DefaultNotifierConfig()
+	cfg := events.DefaultNotifierConfig()
 	cfg.HTTPTimeout = 2 * time.Second
 	cfg.MaxRetries = 2
 	tracker := &mockDeliveryTracker{}
@@ -171,10 +173,10 @@ func TestWebhookNotifier_NotifyWithRetry(t *testing.T) {
 		}))
 		defer server.Close()
 
-		notifier, err := NewWebhookNotifier(cfg, tracker, logger)
+		notifier, err := events.NewWebhookNotifier(cfg, tracker, logger)
 		require.NoError(t, err)
 
-		event := &Event{
+		event := &events.Event{
 			Type:       models.EventTypeResourceCreated,
 			ResourceID: "test-resource",
 		}
@@ -202,10 +204,10 @@ func TestWebhookNotifier_NotifyWithRetry(t *testing.T) {
 		}))
 		defer server.Close()
 
-		notifier, err := NewWebhookNotifier(cfg, tracker, logger)
+		notifier, err := events.NewWebhookNotifier(cfg, tracker, logger)
 		require.NoError(t, err)
 
-		event := &Event{
+		event := &events.Event{
 			Type:       models.EventTypeResourceCreated,
 			ResourceID: "test-resource",
 		}
@@ -226,10 +228,10 @@ func TestWebhookNotifier_NotifyWithRetry(t *testing.T) {
 // TestWebhookNotifier_Close tests the Close function.
 func TestWebhookNotifier_Close(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := DefaultNotifierConfig()
+	cfg := events.DefaultNotifierConfig()
 	tracker := &mockDeliveryTracker{}
 
-	notifier, err := NewWebhookNotifier(cfg, tracker, logger)
+	notifier, err := events.NewWebhookNotifier(cfg, tracker, logger)
 	require.NoError(t, err)
 
 	err = notifier.Close()

@@ -96,7 +96,7 @@ const dnsLookupTimeout = 5 * time.Second
 // - The URL is properly formatted
 // - HTTPS is used (required for production)
 // - The host is not an internal/private IP address or cloud metadata endpoint.
-func validateCallbackURL(callbackURL string) error {
+func ValidateCallbackURL(callbackURL string) error {
 	parsed, err := url.Parse(callbackURL)
 	if err != nil {
 		return errors.New("invalid URL format")
@@ -129,7 +129,7 @@ func validateHost(host, scheme string) error {
 	}
 
 	// Block cloud metadata endpoints (AWS, GCP, Azure, etc.).
-	if isCloudMetadataEndpoint(host) {
+	if IsCloudMetadataEndpoint(host) {
 		return errors.New("callback URL cannot point to cloud metadata endpoints")
 	}
 
@@ -148,7 +148,7 @@ func validateHostNotPrivate(host string) error {
 	}
 
 	for _, ip := range ips {
-		if isPrivateIP(ip) {
+		if IsPrivateIP(ip) {
 			return errors.New("callback URL cannot point to private IP addresses")
 		}
 	}
@@ -157,7 +157,7 @@ func validateHostNotPrivate(host string) error {
 }
 
 // isCloudMetadataEndpoint checks if a host is a cloud provider metadata endpoint.
-func isCloudMetadataEndpoint(host string) bool {
+func IsCloudMetadataEndpoint(host string) bool {
 	// AWS, GCP, Azure instance metadata endpoints.
 	metadataEndpoints := []string{
 		"169.254.169.254", // AWS, GCP, Azure metadata
@@ -177,7 +177,7 @@ func isCloudMetadataEndpoint(host string) bool {
 }
 
 // isPrivateIP checks if an IP address is in a private range.
-func isPrivateIP(ip net.IP) bool {
+func IsPrivateIP(ip net.IP) bool {
 	// Check for standard private IP characteristics.
 	if isStandardPrivateIP(ip) {
 		return true
@@ -244,7 +244,7 @@ func isIPInBlocks(ip net.IP, blocks []string) bool {
 }
 
 // redactURL redacts sensitive parts of a URL for logging.
-func redactURL(rawURL string) string {
+func RedactURL(rawURL string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		return "[invalid-url]"
@@ -262,7 +262,7 @@ func redactURL(rawURL string) string {
 
 // validatePaginationLimit validates and normalizes the pagination limit.
 // Returns the validated limit value.
-func validatePaginationLimit(limit int) int {
+func ValidatePaginationLimit(limit int) int {
 	if limit <= 0 {
 		return DefaultPaginationLimit
 	}
@@ -284,7 +284,7 @@ const (
 // validateDeploymentName validates that a deployment name is DNS-1123 compliant.
 // Kubernetes requires names to be lowercase alphanumeric with hyphens, starting
 // and ending with alphanumeric characters, max 63 characters.
-func validateDeploymentName(name string) error {
+func ValidateDeploymentName(name string) error {
 	if name == "" {
 		return errors.New("deployment name cannot be empty")
 	}
@@ -346,7 +346,7 @@ func (h *Handler) ListNFDeployments(c *gin.Context) {
 	// Build adapter filter with validated pagination.
 	adapterFilter := &adapter.Filter{
 		Namespace: filter.Namespace,
-		Limit:     validatePaginationLimit(filter.Limit),
+		Limit:     ValidatePaginationLimit(filter.Limit),
 		Offset:    filter.Offset,
 	}
 	if filter.Status != "" {
@@ -363,7 +363,7 @@ func (h *Handler) ListNFDeployments(c *gin.Context) {
 	// Convert to NF deployments.
 	nfDeployments := make([]*models.NFDeployment, 0, len(deployments))
 	for _, d := range deployments {
-		nfDeployments = append(nfDeployments, convertToNFDeployment(d))
+		nfDeployments = append(nfDeployments, ConvertToNFDeployment(d))
 	}
 
 	c.JSON(http.StatusOK, models.NFDeploymentListResponse{
@@ -412,7 +412,7 @@ func (h *Handler) GetNFDeployment(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, convertToNFDeployment(deployment))
+	c.JSON(http.StatusOK, ConvertToNFDeployment(deployment))
 }
 
 // CreateNFDeployment creates a new NF deployment.
@@ -450,7 +450,7 @@ func (h *Handler) CreateNFDeployment(c *gin.Context) {
 	}
 
 	// Validate deployment name for DNS-1123 compliance.
-	if err := validateDeploymentName(req.Name); err != nil {
+	if err := ValidateDeploymentName(req.Name); err != nil {
 		h.errorResponse(c, http.StatusBadRequest, "BadRequest", "Invalid deployment name: "+err.Error())
 		return
 	}
@@ -476,7 +476,7 @@ func (h *Handler) CreateNFDeployment(c *gin.Context) {
 		zap.String("nf_deployment_id", deployment.ID),
 		zap.String("name", deployment.Name))
 
-	c.JSON(http.StatusCreated, convertToNFDeployment(deployment))
+	c.JSON(http.StatusCreated, ConvertToNFDeployment(deployment))
 }
 
 // UpdateNFDeployment updates an existing NF deployment.
@@ -533,7 +533,7 @@ func (h *Handler) UpdateNFDeployment(c *gin.Context) {
 
 	h.logger.Info("NF deployment updated", zap.String("nf_deployment_id", nfDeploymentID))
 
-	c.JSON(http.StatusOK, convertToNFDeployment(deployment))
+	c.JSON(http.StatusOK, ConvertToNFDeployment(deployment))
 }
 
 // DeleteNFDeployment deletes an NF deployment.
@@ -827,7 +827,7 @@ func (h *Handler) ListNFDeploymentDescriptors(c *gin.Context) {
 
 	// Build adapter filter with validated pagination.
 	adapterFilter := &adapter.Filter{
-		Limit:  validatePaginationLimit(filter.Limit),
+		Limit:  ValidatePaginationLimit(filter.Limit),
 		Offset: filter.Offset,
 	}
 
@@ -840,7 +840,7 @@ func (h *Handler) ListNFDeploymentDescriptors(c *gin.Context) {
 
 	descriptors := make([]*models.NFDeploymentDescriptor, 0, len(packages))
 	for _, pkg := range packages {
-		descriptors = append(descriptors, convertToNFDeploymentDescriptor(pkg))
+		descriptors = append(descriptors, ConvertToNFDeploymentDescriptor(pkg))
 	}
 
 	c.JSON(http.StatusOK, models.NFDeploymentDescriptorListResponse{
@@ -889,7 +889,7 @@ func (h *Handler) GetNFDeploymentDescriptor(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, convertToNFDeploymentDescriptor(pkg))
+	c.JSON(http.StatusOK, ConvertToNFDeploymentDescriptor(pkg))
 }
 
 // CreateNFDeploymentDescriptor creates a new NF deployment descriptor.
@@ -946,7 +946,7 @@ func (h *Handler) CreateNFDeploymentDescriptor(c *gin.Context) {
 		zap.String("descriptor_id", pkg.ID),
 		zap.String("name", pkg.Name))
 
-	c.JSON(http.StatusCreated, convertToNFDeploymentDescriptor(pkg))
+	c.JSON(http.StatusCreated, ConvertToNFDeploymentDescriptor(pkg))
 }
 
 // DeleteNFDeploymentDescriptor deletes an NF deployment descriptor.
@@ -1053,9 +1053,9 @@ func (h *Handler) CreateDMSSubscription(c *gin.Context) {
 	}
 
 	// Validate callback URL for security.
-	if err := validateCallbackURL(req.Callback); err != nil {
+	if err := ValidateCallbackURL(req.Callback); err != nil {
 		h.logger.Warn("invalid callback URL",
-			zap.String("callback", redactURL(req.Callback)),
+			zap.String("callback", RedactURL(req.Callback)),
 			zap.Error(err))
 		h.errorResponse(c, http.StatusBadRequest, "BadRequest", "Invalid callback URL: "+err.Error())
 		return
@@ -1079,7 +1079,7 @@ func (h *Handler) CreateDMSSubscription(c *gin.Context) {
 
 	h.logger.Info("DMS subscription created",
 		zap.String("subscription_id", sub.SubscriptionID),
-		zap.String("callback", redactURL(sub.Callback)))
+		zap.String("callback", RedactURL(sub.Callback)))
 
 	c.JSON(http.StatusCreated, sub)
 }
@@ -1162,7 +1162,7 @@ func (h *Handler) Health(ctx context.Context) error {
 
 // Conversion helpers
 
-func convertToNFDeployment(d *adapter.Deployment) *models.NFDeployment {
+func ConvertToNFDeployment(d *adapter.Deployment) *models.NFDeployment {
 	if d == nil {
 		return nil
 	}
@@ -1172,7 +1172,7 @@ func convertToNFDeployment(d *adapter.Deployment) *models.NFDeployment {
 		Name:                     d.Name,
 		Description:              d.Description,
 		NFDeploymentDescriptorID: d.PackageID,
-		Status:                   convertDeploymentStatus(d.Status),
+		Status:                   ConvertDeploymentStatus(d.Status),
 		Namespace:                d.Namespace,
 		Version:                  d.Version,
 		CreatedAt:                d.CreatedAt,
@@ -1181,7 +1181,7 @@ func convertToNFDeployment(d *adapter.Deployment) *models.NFDeployment {
 	}
 }
 
-func convertDeploymentStatus(s adapter.DeploymentStatus) models.NFDeploymentStatus {
+func ConvertDeploymentStatus(s adapter.DeploymentStatus) models.NFDeploymentStatus {
 	switch s {
 	case adapter.DeploymentStatusPending:
 		return models.NFDeploymentStatusPending
@@ -1200,7 +1200,7 @@ func convertDeploymentStatus(s adapter.DeploymentStatus) models.NFDeploymentStat
 	}
 }
 
-func convertToNFDeploymentDescriptor(pkg *adapter.DeploymentPackage) *models.NFDeploymentDescriptor {
+func ConvertToNFDeploymentDescriptor(pkg *adapter.DeploymentPackage) *models.NFDeploymentDescriptor {
 	if pkg == nil {
 		return nil
 	}
@@ -1236,7 +1236,7 @@ func convertToStatusResponse(id string, status *adapter.DeploymentStatusDetail) 
 
 	return &models.DeploymentStatusResponse{
 		NFDeploymentID: id,
-		Status:         convertDeploymentStatus(status.Status),
+		Status:         ConvertDeploymentStatus(status.Status),
 		StatusMessage:  status.Message,
 		Progress:       status.Progress,
 		Conditions:     conditions,
@@ -1253,7 +1253,7 @@ func convertToHistoryResponse(history *adapter.DeploymentHistory) *models.Deploy
 	for _, r := range history.Revisions {
 		revisions = append(revisions, models.DeploymentRevision{
 			Revision:    r.Revision,
-			Status:      convertDeploymentStatus(r.Status),
+			Status:      ConvertDeploymentStatus(r.Status),
 			Description: r.Description,
 			DeployedAt:  r.DeployedAt.Format(time.RFC3339),
 		})

@@ -90,9 +90,9 @@ var (
 
 // Adapter implements the DMS adapter interface for Crossplane deployments.
 type Adapter struct {
-	config        *Config
-	dynamicClient dynamic.Interface
-	initOnce      sync.Once
+	Config        *Config           // Exported for testing
+	DynamicClient dynamic.Interface // Exported for testing
+	InitOnce      sync.Once         // Exported for testing
 	initErr       error
 }
 
@@ -129,18 +129,18 @@ func NewAdapter(config *Config) (*Adapter, error) {
 	}
 
 	return &Adapter{
-		config: config,
+		Config: config,
 	}, nil
 }
 
 // initialize performs lazy initialization of the Kubernetes client.
 func (c *Adapter) initialize() error {
-	c.initOnce.Do(func() {
+	c.InitOnce.Do(func() {
 		var cfg *rest.Config
 		var err error
 
-		if c.config.Kubeconfig != "" {
-			cfg, err = clientcmd.BuildConfigFromFlags("", c.config.Kubeconfig)
+		if c.Config.Kubeconfig != "" {
+			cfg, err = clientcmd.BuildConfigFromFlags("", c.Config.Kubeconfig)
 		} else {
 			cfg, err = rest.InClusterConfig()
 		}
@@ -149,7 +149,7 @@ func (c *Adapter) initialize() error {
 			return
 		}
 
-		c.dynamicClient, err = dynamic.NewForConfig(cfg)
+		c.DynamicClient, err = dynamic.NewForConfig(cfg)
 		if err != nil {
 			c.initErr = fmt.Errorf("failed to create dynamic client: %w", err)
 			return
@@ -191,7 +191,7 @@ func (c *Adapter) ListDeploymentPackages(
 		return nil, err
 	}
 
-	compositions, err := c.dynamicClient.Resource(compositionsGVR).List(ctx, metav1.ListOptions{})
+	compositions, err := c.DynamicClient.Resource(compositionsGVR).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list compositions: %w", err)
 	}
@@ -223,7 +223,7 @@ func (c *Adapter) GetDeploymentPackage(
 		return nil, err
 	}
 
-	composition, err := c.dynamicClient.Resource(compositionsGVR).Get(ctx, id, metav1.GetOptions{})
+	composition, err := c.DynamicClient.Resource(compositionsGVR).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("package %s: %w", id, ErrPackageNotFound)
 	}
@@ -288,7 +288,7 @@ func (c *Adapter) ListDeployments(
 	}
 
 	// List all Configurations as deployments
-	configs, err := c.dynamicClient.Resource(configurationGVR).List(ctx, metav1.ListOptions{})
+	configs, err := c.DynamicClient.Resource(configurationGVR).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list configurations: %w", err)
 	}
@@ -307,7 +307,7 @@ func (c *Adapter) ListDeployments(
 
 	// Apply pagination
 	if filter != nil {
-		deployments = c.applyPagination(deployments, filter.Limit, filter.Offset)
+		deployments = c.ApplyPagination(deployments, filter.Limit, filter.Offset)
 	}
 
 	return deployments, nil
@@ -326,7 +326,7 @@ func (c *Adapter) GetDeployment(
 		return nil, err
 	}
 
-	config, err := c.dynamicClient.Resource(configurationGVR).Get(ctx, id, metav1.GetOptions{})
+	config, err := c.DynamicClient.Resource(configurationGVR).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -358,7 +358,7 @@ func (c *Adapter) CreateDeployment(
 
 	config := c.buildConfiguration(req.Name, packageRef, req.Extensions)
 
-	created, err := c.dynamicClient.Resource(configurationGVR).Create(ctx, config, metav1.CreateOptions{})
+	created, err := c.DynamicClient.Resource(configurationGVR).Create(ctx, config, metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create configuration: %w", err)
 	}
@@ -373,7 +373,7 @@ func (c *Adapter) validateCreateRequest(req *adapter.DeploymentRequest) error {
 	if req.Name == "" {
 		return fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
 	}
-	return validateName(req.Name)
+	return ValidateName(req.Name)
 }
 
 func (c *Adapter) getPackageReference(req *adapter.DeploymentRequest) (string, error) {
@@ -446,7 +446,7 @@ func (c *Adapter) UpdateDeployment(
 		return nil, err
 	}
 
-	updated, err := c.dynamicClient.Resource(configurationGVR).Update(ctx, config, metav1.UpdateOptions{})
+	updated, err := c.DynamicClient.Resource(configurationGVR).Update(ctx, config, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update configuration: %w", err)
 	}
@@ -458,7 +458,7 @@ func (c *Adapter) getConfigurationForUpdate(
 	ctx context.Context,
 	id string,
 ) (*unstructured.Unstructured, error) {
-	config, err := c.dynamicClient.Resource(configurationGVR).Get(ctx, id, metav1.GetOptions{})
+	config, err := c.DynamicClient.Resource(configurationGVR).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -501,7 +501,7 @@ func (c *Adapter) DeleteDeployment(
 		return err
 	}
 
-	err := c.dynamicClient.Resource(configurationGVR).Delete(ctx, id, metav1.DeleteOptions{})
+	err := c.DynamicClient.Resource(configurationGVR).Delete(ctx, id, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -570,7 +570,7 @@ func (c *Adapter) GetDeploymentStatus(
 		DeploymentID: deployment.ID,
 		Status:       deployment.Status,
 		Message:      deployment.Description,
-		Progress:     c.calculateProgress(deployment.Status),
+		Progress:     c.CalculateProgress(deployment.Status),
 		UpdatedAt:    deployment.UpdatedAt,
 		Conditions:   conditions,
 		Extensions:   deployment.Extensions,
@@ -672,7 +672,7 @@ func (c *Adapter) Health(ctx context.Context) error {
 	}
 
 	// Try to list providers to verify Crossplane is installed
-	_, err := c.dynamicClient.Resource(providerGVR).List(ctx, metav1.ListOptions{Limit: 1})
+	_, err := c.DynamicClient.Resource(providerGVR).List(ctx, metav1.ListOptions{Limit: 1})
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}
@@ -682,7 +682,7 @@ func (c *Adapter) Health(ctx context.Context) error {
 
 // Close cleanly shuts down the adapter.
 func (c *Adapter) Close() error {
-	c.dynamicClient = nil
+	c.DynamicClient = nil
 	return nil
 }
 
@@ -809,7 +809,7 @@ func (c *Adapter) extractConditions(extensions map[string]interface{}) []adapter
 	return result
 }
 
-func (c *Adapter) calculateProgress(status adapter.DeploymentStatus) int {
+func (c *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return 100
@@ -828,7 +828,7 @@ func (c *Adapter) calculateProgress(status adapter.DeploymentStatus) int {
 	}
 }
 
-func (c *Adapter) applyPagination(
+func (c *Adapter) ApplyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
 ) []*adapter.Deployment {
@@ -865,7 +865,7 @@ func (c *Adapter) applyPackagePagination(
 }
 
 // validateName validates the deployment name.
-func validateName(name string) error {
+func ValidateName(name string) error {
 	if name == "" {
 		return fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
 	}
@@ -883,7 +883,7 @@ func validateName(name string) error {
 }
 
 // buildLabelSelector builds a label selector string from a map.
-func buildLabelSelector(labels map[string]string) string {
+func BuildLabelSelector(labels map[string]string) string {
 	if len(labels) == 0 {
 		return ""
 	}

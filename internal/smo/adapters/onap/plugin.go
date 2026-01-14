@@ -23,12 +23,12 @@ import (
 //   - SO (Service Orchestrator) for deployment orchestration
 //   - SDNC (Software Defined Network Controller) for SDN configuration
 type Plugin struct {
-	name    string
-	version string
+	Name    string // Exported for testing
+	Version string // Exported for testing
 	logger  *zap.Logger
-	config  *Config
+	Config  *Config // Exported for testing
 	mu      sync.RWMutex
-	closed  bool
+	Closed  bool // Exported for testing
 
 	// Northbound clients (netweave → ONAP)
 	aaiClient   *AAIClient
@@ -93,8 +93,8 @@ func DefaultConfig() *Config {
 // The plugin is not initialized until Initialize() is called.
 func NewPlugin(logger *zap.Logger) *Plugin {
 	return &Plugin{
-		name:    "onap",
-		version: "1.0.0",
+		Name:    "onap",
+		Version: "1.0.0",
 		logger:  logger,
 	}
 }
@@ -102,8 +102,8 @@ func NewPlugin(logger *zap.Logger) *Plugin {
 // Metadata returns the plugin's identifying information.
 func (p *Plugin) Metadata() smo.PluginMetadata {
 	return smo.PluginMetadata{
-		Name:        p.name,
-		Version:     p.version,
+		Name:        p.Name,
+		Version:     p.Version,
 		Description: "ONAP (Open Network Automation Platform) integration plugin with dual-mode operation",
 		Vendor:      "Linux Foundation / ONAP Community",
 	}
@@ -116,19 +116,19 @@ func (p *Plugin) Capabilities() []smo.Capability {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.config == nil {
+	if p.Config == nil {
 		return caps
 	}
 
-	if p.config.EnableInventorySync {
+	if p.Config.EnableInventorySync {
 		caps = append(caps, smo.CapInventorySync)
 	}
 
-	if p.config.EnableEventPublishing {
+	if p.Config.EnableEventPublishing {
 		caps = append(caps, smo.CapEventPublishing)
 	}
 
-	if p.config.EnableDMSBackend {
+	if p.Config.EnableDMSBackend {
 		caps = append(caps,
 			smo.CapWorkflowOrchestration,
 			smo.CapServiceModeling,
@@ -147,7 +147,7 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.closed {
+	if p.Closed {
 		return fmt.Errorf("plugin is closed")
 	}
 
@@ -157,7 +157,7 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 		return err
 	}
 
-	p.config = cfg
+	p.Config = cfg
 	p.logInitialization(cfg)
 
 	// Initialize all ONAP clients
@@ -174,7 +174,7 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 // parseAndValidateConfig parses and validates the plugin configuration.
 func (p *Plugin) parseAndValidateConfig(config map[string]interface{}) (*Config, error) {
 	cfg := DefaultConfig()
-	parseConfig(config, cfg)
+	ParseConfig(config, cfg)
 
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
@@ -271,7 +271,7 @@ func (p *Plugin) Health(ctx context.Context) smo.HealthStatus {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.closed {
+	if p.Closed {
 		return smo.HealthStatus{
 			Healthy:   false,
 			Message:   "plugin is closed",
@@ -373,7 +373,7 @@ func (p *Plugin) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.closed {
+	if p.Closed {
 		return nil
 	}
 
@@ -381,7 +381,7 @@ func (p *Plugin) Close() error {
 
 	errs := p.closeAllClients()
 
-	p.closed = true
+	p.Closed = true
 
 	if len(errs) > 0 {
 		return fmt.Errorf("errors closing ONAP plugin: %v", errs)
@@ -488,7 +488,7 @@ func (c *Config) validateTuning() error {
 }
 
 // parseConfig parses a map[string]interface{} into a Config struct.
-func parseConfig(input map[string]interface{}, output *Config) {
+func ParseConfig(input map[string]interface{}, output *Config) {
 	parseStringFields(input, output)
 	parseTLSFields(input, output)
 	parseTimingFields(input, output)

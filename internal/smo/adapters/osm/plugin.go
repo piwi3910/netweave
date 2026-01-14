@@ -27,8 +27,8 @@ import (
 type Plugin struct {
 	name    string
 	version string
-	config  *Config
-	client  *Client
+	Config  *Config // Exported for testing
+	Client  *Client // Exported for testing
 
 	// State management
 	mu       sync.RWMutex
@@ -102,8 +102,8 @@ func NewPlugin(config *Config) (*Plugin, error) {
 	return &Plugin{
 		name:    "osm",
 		version: "1.0.0",
-		config:  config,
-		client:  client,
+		Config:  config,
+		Client:  client,
 		stopCh:  make(chan struct{}),
 		doneCh:  make(chan struct{}),
 		capabilities: []string{
@@ -183,12 +183,12 @@ func (p *Plugin) Initialize(ctx context.Context) error {
 	}
 
 	// Authenticate with OSM NBI
-	if err := p.client.Authenticate(ctx); err != nil {
+	if err := p.Client.Authenticate(ctx); err != nil {
 		return fmt.Errorf("failed to authenticate with OSM: %w", err)
 	}
 
 	// Start inventory sync loop if enabled
-	if p.config.EnableInventorySync {
+	if p.Config.EnableInventorySync {
 		// Create a detached context for the long-running background sync loop
 		// The loop will create its own child contexts with timeouts for each sync operation
 		syncCtx := context.WithoutCancel(ctx)
@@ -211,7 +211,7 @@ func (p *Plugin) Health(ctx context.Context) error {
 	p.mu.RUnlock()
 
 	// Verify OSM NBI connectivity and authentication
-	return p.client.Health(ctx)
+	return p.Client.Health(ctx)
 }
 
 // Close cleanly shuts down the plugin and releases resources.
@@ -237,7 +237,7 @@ func (p *Plugin) Close() error {
 	}
 
 	// Close OSM client
-	if err := p.client.Close(); err != nil {
+	if err := p.Client.Close(); err != nil {
 		return fmt.Errorf("failed to close OSM client: %w", err)
 	}
 
@@ -250,7 +250,7 @@ func (p *Plugin) Close() error {
 func (p *Plugin) inventorySyncLoop(ctx context.Context) {
 	defer close(p.doneCh)
 
-	ticker := time.NewTicker(p.config.InventorySyncInterval)
+	ticker := time.NewTicker(p.Config.InventorySyncInterval)
 	defer ticker.Stop()
 
 	for {

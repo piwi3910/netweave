@@ -21,7 +21,7 @@ func (a *Adapter) ListResources(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "ListResources", start, err) }()
 
-	a.logger.Debug("ListResources called",
+	a.Logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
 	// List all VMs in the subscription
@@ -36,7 +36,7 @@ func (a *Adapter) ListResources(
 
 		for _, vm := range page.Value {
 			// Only include VMs in the configured location
-			location := ptrToString(vm.Location)
+			location := PtrToString(vm.Location)
 			if location != a.location {
 				continue
 			}
@@ -44,7 +44,7 @@ func (a *Adapter) ListResources(
 			resource := a.vmToResource(vm)
 
 			// Convert tags to labels
-			labels := tagsToMap(vm.Tags)
+			labels := TagsToMap(vm.Tags)
 
 			// Apply filter
 			if !adapter.MatchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, location, labels) {
@@ -60,7 +60,7 @@ func (a *Adapter) ListResources(
 		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
-	a.logger.Info("listed resources",
+	a.Logger.Info("listed resources",
 		zap.Int("count", len(resources)))
 
 	return resources, nil
@@ -75,7 +75,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetResource", start, err) }()
 
-	a.logger.Debug("GetResource called",
+	a.Logger.Debug("GetResource called",
 		zap.String("id", id))
 
 	// Parse resource group and VM name from the ID
@@ -101,7 +101,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 
 	resource = a.vmToResource(&vm.VirtualMachine)
 
-	a.logger.Info("retrieved resource",
+	a.Logger.Info("retrieved resource",
 		zap.String("resourceId", resource.ResourceID))
 
 	return resource, nil
@@ -113,7 +113,7 @@ func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) 
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "CreateResource", start, err) }()
 
-	a.logger.Debug("CreateResource called",
+	a.Logger.Debug("CreateResource called",
 		zap.String("resourceTypeId", resource.ResourceTypeID))
 
 	// Creating Azure VMs requires extensive configuration not available in the O2-IMS model
@@ -134,7 +134,7 @@ func (a *Adapter) UpdateResource(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "UpdateResource", start, err) }()
 
-	a.logger.Debug("UpdateResource called",
+	a.Logger.Debug("UpdateResource called",
 		zap.String("resourceID", resource.ResourceID))
 
 	// TODO(#189): Implement VM tag updates via Azure API
@@ -149,7 +149,7 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "DeleteResource", start, err) }()
 
-	a.logger.Debug("DeleteResource called",
+	a.Logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
 	// Parse resource group and VM name from the ID
@@ -178,7 +178,7 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to delete VM: %w", err)
 	}
 
-	a.logger.Info("deleted resource",
+	a.Logger.Info("deleted resource",
 		zap.String("resourceId", id))
 
 	return nil
@@ -186,13 +186,13 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 
 // vmToResource converts an Azure VM to an O2-IMS Resource.
 func (a *Adapter) vmToResource(vm *armcompute.VirtualMachine) *adapter.Resource {
-	vmName := ptrToString(vm.Name)
-	location := ptrToString(vm.Location)
-	resourceGroup := extractResourceGroup(ptrToString(vm.ID))
+	vmName := PtrToString(vm.Name)
+	location := PtrToString(vm.Location)
+	resourceGroup := ExtractResourceGroup(PtrToString(vm.ID))
 
-	resourceID := generateVMID(vmName, resourceGroup)
+	resourceID := GenerateVMID(vmName, resourceGroup)
 	vmSize := a.extractVMSize(vm)
-	resourceTypeID := generateVMSizeID(vmSize)
+	resourceTypeID := GenerateVMSizeID(vmSize)
 	resourcePoolID := a.determineResourcePoolID(vm, location, resourceGroup)
 
 	extensions := a.buildVMExtensions(vm, vmName, location, resourceGroup, vmSize)
@@ -216,13 +216,13 @@ func (a *Adapter) extractVMSize(vm *armcompute.VirtualMachine) string {
 
 func (a *Adapter) determineResourcePoolID(vm *armcompute.VirtualMachine, location, resourceGroup string) string {
 	if a.poolMode == "rg" {
-		return generateRGPoolID(resourceGroup)
+		return GenerateRGPoolID(resourceGroup)
 	}
 
 	if len(vm.Zones) > 0 {
-		return generateAZPoolID(location, *vm.Zones[0])
+		return GenerateAZPoolID(location, *vm.Zones[0])
 	}
-	return generateAZPoolID(location, "1")
+	return GenerateAZPoolID(location, "1")
 }
 
 func (a *Adapter) buildVMExtensions(
@@ -230,12 +230,12 @@ func (a *Adapter) buildVMExtensions(
 	vmName, location, resourceGroup, vmSize string,
 ) map[string]interface{} {
 	extensions := map[string]interface{}{
-		"azure.vmId":          ptrToString(vm.ID),
+		"azure.vmId":          PtrToString(vm.ID),
 		"azure.vmName":        vmName,
 		"azure.resourceGroup": resourceGroup,
 		"azure.location":      location,
 		"azure.vmSize":        vmSize,
-		"azure.tags":          tagsToMap(vm.Tags),
+		"azure.tags":          TagsToMap(vm.Tags),
 	}
 
 	if vm.Properties != nil {
@@ -272,8 +272,8 @@ func (a *Adapter) addOSProfileExtensions(
 	if osProfile == nil {
 		return
 	}
-	extensions["azure.computerName"] = ptrToString(osProfile.ComputerName)
-	extensions["azure.adminUsername"] = ptrToString(osProfile.AdminUsername)
+	extensions["azure.computerName"] = PtrToString(osProfile.ComputerName)
+	extensions["azure.adminUsername"] = PtrToString(osProfile.AdminUsername)
 }
 
 func (a *Adapter) addStorageProfileExtensions(
@@ -296,10 +296,10 @@ func (a *Adapter) addImageReferenceExtensions(
 	if imgRef == nil {
 		return
 	}
-	extensions["azure.imagePublisher"] = ptrToString(imgRef.Publisher)
-	extensions["azure.imageOffer"] = ptrToString(imgRef.Offer)
-	extensions["azure.imageSku"] = ptrToString(imgRef.SKU)
-	extensions["azure.imageVersion"] = ptrToString(imgRef.Version)
+	extensions["azure.imagePublisher"] = PtrToString(imgRef.Publisher)
+	extensions["azure.imageOffer"] = PtrToString(imgRef.Offer)
+	extensions["azure.imageSku"] = PtrToString(imgRef.SKU)
+	extensions["azure.imageVersion"] = PtrToString(imgRef.Version)
 }
 
 func (a *Adapter) addOSDiskExtensions(
@@ -309,7 +309,7 @@ func (a *Adapter) addOSDiskExtensions(
 	if osDisk == nil {
 		return
 	}
-	extensions["azure.osDiskName"] = ptrToString(osDisk.Name)
+	extensions["azure.osDiskName"] = PtrToString(osDisk.Name)
 	extensions["azure.osDiskType"] = string(*osDisk.OSType)
 	if osDisk.DiskSizeGB != nil {
 		extensions["azure.osDiskSizeGB"] = *osDisk.DiskSizeGB
@@ -327,8 +327,8 @@ func (a *Adapter) addDataDisksExtensions(
 	diskInfos := make([]map[string]interface{}, 0, len(dataDisks))
 	for _, disk := range dataDisks {
 		diskInfo := map[string]interface{}{
-			"name": ptrToString(disk.Name),
-			"lun":  ptrToInt32(disk.Lun),
+			"name": PtrToString(disk.Name),
+			"lun":  PtrToInt32(disk.Lun),
 		}
 		if disk.DiskSizeGB != nil {
 			diskInfo["sizeGB"] = *disk.DiskSizeGB
@@ -356,7 +356,7 @@ func (a *Adapter) addNetworkProfileExtensions(
 }
 
 // extractResourceGroup extracts the resource group name from an Azure resource ID.
-func extractResourceGroup(resourceID string) string {
+func ExtractResourceGroup(resourceID string) string {
 	// Format: /subscriptions/{sub}/resourceGroups/{rg}/providers/...
 	parts := strings.Split(resourceID, "/")
 	for i, part := range parts {

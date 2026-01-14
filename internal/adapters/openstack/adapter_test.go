@@ -1,4 +1,4 @@
-package openstack
+package openstack_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/flavors"
+	"github.com/piwi3910/netweave/internal/adapters/openstack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -16,7 +17,7 @@ import (
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *openstack.Config
 		wantErr bool
 		errMsg  string
 	}{
@@ -28,7 +29,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing authURL",
-			config: &Config{
+			config: &openstack.Config{
 				Username:    "admin",
 				Password:    "password",
 				ProjectName: "test",
@@ -40,7 +41,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing username",
-			config: &Config{
+			config: &openstack.Config{
 				AuthURL:     "https://openstack.example.com:5000/v3",
 				Password:    "password",
 				ProjectName: "test",
@@ -52,7 +53,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing password",
-			config: &Config{
+			config: &openstack.Config{
 				AuthURL:     "https://openstack.example.com:5000/v3",
 				Username:    "admin",
 				ProjectName: "test",
@@ -64,7 +65,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing projectName",
-			config: &Config{
+			config: &openstack.Config{
 				AuthURL:  "https://openstack.example.com:5000/v3",
 				Username: "admin",
 				Password: "password",
@@ -76,7 +77,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing region",
-			config: &Config{
+			config: &openstack.Config{
 				AuthURL:     "https://openstack.example.com:5000/v3",
 				Username:    "admin",
 				Password:    "password",
@@ -88,7 +89,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing oCloudID",
-			config: &Config{
+			config: &openstack.Config{
 				AuthURL:     "https://openstack.example.com:5000/v3",
 				Username:    "admin",
 				Password:    "password",
@@ -102,7 +103,7 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := New(tt.config)
+			adapter, err := openstack.New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -123,7 +124,7 @@ func TestNewWithDefaults(t *testing.T) {
 		t.Skip("Skipping test: OPENSTACK_AUTH_URL not set")
 	}
 
-	config := &Config{
+	config := &openstack.Config{
 		AuthURL:     os.Getenv("OPENSTACK_AUTH_URL"),
 		Username:    os.Getenv("OPENSTACK_USERNAME"),
 		Password:    os.Getenv("OPENSTACK_PASSWORD"),
@@ -135,21 +136,21 @@ func TestNewWithDefaults(t *testing.T) {
 		// Timeout not set - should default to 30s
 	}
 
-	adapter, err := New(config)
+	adapter, err := openstack.New(config)
 	require.NoError(t, err)
 	require.NotNil(t, adapter)
 	t.Cleanup(func() { require.NoError(t, adapter.Close()) })
 
 	// Check defaults
-	assert.Equal(t, "test-ocloud", adapter.oCloudID)
-	assert.NotEmpty(t, adapter.deploymentManagerID)
-	assert.Contains(t, adapter.deploymentManagerID, "ocloud-openstack-")
+	assert.Equal(t, "test-ocloud", adapter.OCloudID)
+	assert.NotEmpty(t, adapter.DeploymentManagerID)
+	assert.Contains(t, adapter.DeploymentManagerID, "ocloud-openstack-")
 }
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	a := &Adapter{
-		logger: zap.NewNop(),
+	a := &openstack.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	t.Run("Name", func(t *testing.T) {
@@ -198,7 +199,7 @@ func TestGenerateFlavorID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			flavor := &flavors.Flavor{ID: tt.flavorID}
-			got := generateFlavorID(flavor)
+			got := openstack.GenerateFlavorID(flavor)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -206,8 +207,8 @@ func TestGenerateFlavorID(t *testing.T) {
 
 // TestClose tests adapter cleanup.
 func TestClose(t *testing.T) {
-	adapter := &Adapter{
-		logger: zap.NewNop(),
+	adapter := &openstack.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	err := adapter.Close()
@@ -217,7 +218,7 @@ func TestClose(t *testing.T) {
 // TestConfigValidation tests configuration validation.
 func TestConfigValidation(t *testing.T) {
 	t.Run("valid config with all fields", func(t *testing.T) {
-		config := &Config{
+		config := &openstack.Config{
 			AuthURL:             "https://openstack.example.com:5000/v3",
 			Username:            "admin",
 			Password:            "password",
@@ -230,7 +231,7 @@ func TestConfigValidation(t *testing.T) {
 		}
 
 		// Just test that validation passes (actual connection will fail in test)
-		_, err := New(config)
+		_, err := openstack.New(config)
 		// We expect an error here because we're not connecting to real OpenStack
 		// but the validation should have passed
 		if err != nil {
@@ -239,7 +240,7 @@ func TestConfigValidation(t *testing.T) {
 	})
 
 	t.Run("valid config with minimal fields", func(t *testing.T) {
-		config := &Config{
+		config := &openstack.Config{
 			AuthURL:     "https://openstack.example.com:5000/v3",
 			Username:    "admin",
 			Password:    "password",
@@ -249,7 +250,7 @@ func TestConfigValidation(t *testing.T) {
 		}
 
 		// Just test that validation passes (actual connection will fail in test)
-		_, err := New(config)
+		_, err := openstack.New(config)
 		// We expect an error here because we're not connecting to real OpenStack
 		// but the validation should have passed
 		if err != nil {
@@ -262,7 +263,7 @@ func TestConfigValidation(t *testing.T) {
 
 // TestOpenStackAdapter_Health tests the Health function.
 func TestOpenStackAdapter_Health(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := openstack.New(&openstack.Config{
 		AuthURL:     "https://openstack.example.com:5000/v3",
 		Username:    "test",
 		Password:    "test",
@@ -286,7 +287,7 @@ func TestOpenStackAdapter_Health(t *testing.T) {
 
 // TestOpenStackAdapter_ListResourcePools tests the ListResourcePools function.
 func TestOpenStackAdapter_ListResourcePools(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := openstack.New(&openstack.Config{
 		AuthURL:     "https://openstack.example.com:5000/v3",
 		Username:    "test",
 		Password:    "test",
@@ -311,7 +312,7 @@ func TestOpenStackAdapter_ListResourcePools(t *testing.T) {
 
 // TestOpenStackAdapter_ListResources tests the ListResources function.
 func TestOpenStackAdapter_ListResources(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := openstack.New(&openstack.Config{
 		AuthURL:     "https://openstack.example.com:5000/v3",
 		Username:    "test",
 		Password:    "test",
@@ -336,7 +337,7 @@ func TestOpenStackAdapter_ListResources(t *testing.T) {
 
 // TestOpenStackAdapter_ListResourceTypes tests the ListResourceTypes function.
 func TestOpenStackAdapter_ListResourceTypes(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := openstack.New(&openstack.Config{
 		AuthURL:     "https://openstack.example.com:5000/v3",
 		Username:    "test",
 		Password:    "test",
@@ -361,7 +362,7 @@ func TestOpenStackAdapter_ListResourceTypes(t *testing.T) {
 
 // TestOpenStackAdapter_GetDeploymentManager tests the GetDeploymentManager function.
 func TestOpenStackAdapter_GetDeploymentManager(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := openstack.New(&openstack.Config{
 		AuthURL:     "https://openstack.example.com:5000/v3",
 		Username:    "test",
 		Password:    "test",

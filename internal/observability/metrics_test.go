@@ -1,10 +1,11 @@
-package observability
+package observability_test
 
 import (
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +18,7 @@ func TestInitMetrics(t *testing.T) {
 	// Multiple calls will cause Prometheus registration conflicts.
 	// This test structure demonstrates the expected behavior:
 
-	// metrics := InitMetrics("test_o2ims")
+	// metrics := observability.InitMetrics("test_o2ims")
 	// require.NotNil(t, metrics)
 
 	// Verify all metric types are initialized
@@ -30,7 +31,7 @@ func TestInitMetricsDefaultNamespace(t *testing.T) {
 	t.Skip("Skipping TestInitMetricsDefaultNamespace - Prometheus registry conflicts with other tests")
 
 	// Note: This demonstrates that empty namespace defaults to "o2ims"
-	// metrics := InitMetrics("")
+	// metrics := observability.InitMetrics("")
 	// require.NotNil(t, metrics)
 	// assert.NotNil(t, metrics.HTTPRequestsTotal)
 }
@@ -41,33 +42,33 @@ func TestGetMetrics(t *testing.T) {
 	// So we just verify that GetMetrics panics when not initialized
 
 	// Save current global metrics
-	savedMetrics := globalMetrics
+	savedMetrics := observability.GlobalMetrics
 	defer func() {
-		globalMetrics = savedMetrics
+		observability.GlobalMetrics = savedMetrics
 	}()
 
 	// Test panic when not initialized
-	globalMetrics = nil
+	observability.GlobalMetrics = nil
 	assert.Panics(t, func() {
-		GetMetrics()
+		observability.GetMetrics()
 	})
 
 	// Restore and verify it doesn't panic when initialized
-	globalMetrics = savedMetrics
-	if globalMetrics != nil {
+	observability.GlobalMetrics = savedMetrics
+	if observability.GlobalMetrics != nil {
 		assert.NotPanics(t, func() {
-			retrieved := GetMetrics()
+			retrieved := observability.GetMetrics()
 			assert.NotNil(t, retrieved)
 		})
 	}
 }
 
 func TestRecordHTTPRequest(t *testing.T) {
-	globalMetrics = nil
+	observability.GlobalMetrics = nil
 	// Create unique registry for this test to avoid conflicts
 	registry := prometheus.NewRegistry()
 
-	m := &Metrics{
+	m := &observability.Metrics{
 		HTTPRequestsTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: "test",
@@ -109,10 +110,10 @@ func TestRecordHTTPRequest(t *testing.T) {
 }
 
 func TestRecordAdapterOperation(t *testing.T) {
-	globalMetrics = nil
+	observability.GlobalMetrics = nil
 	registry := prometheus.NewRegistry()
 
-	m := &Metrics{
+	m := &observability.Metrics{
 		AdapterOperationsTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: "test",
@@ -161,10 +162,10 @@ func TestRecordAdapterOperation(t *testing.T) {
 }
 
 func TestRecordSubscriptionEvent(t *testing.T) {
-	globalMetrics = nil
+	observability.GlobalMetrics = nil
 	registry := prometheus.NewRegistry()
 
-	m := &Metrics{
+	m := &observability.Metrics{
 		SubscriptionEventsTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: "test",
@@ -184,10 +185,10 @@ func TestRecordSubscriptionEvent(t *testing.T) {
 }
 
 func TestRecordWebhookDelivery(t *testing.T) {
-	globalMetrics = nil
+	observability.GlobalMetrics = nil
 	registry := prometheus.NewRegistry()
 
-	m := &Metrics{
+	m := &observability.Metrics{
 		WebhookDeliveryDuration: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: "test",
@@ -227,10 +228,10 @@ func TestRecordWebhookDelivery(t *testing.T) {
 }
 
 func TestRecordRedisOperation(t *testing.T) {
-	globalMetrics = nil
+	observability.GlobalMetrics = nil
 	registry := prometheus.NewRegistry()
 
-	m := &Metrics{
+	m := &observability.Metrics{
 		RedisOperationsTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: "test",
@@ -274,10 +275,10 @@ func TestRecordRedisOperation(t *testing.T) {
 }
 
 func TestRecordK8sOperation(t *testing.T) {
-	globalMetrics = nil
+	observability.GlobalMetrics = nil
 	registry := prometheus.NewRegistry()
 
-	m := &Metrics{
+	m := &observability.Metrics{
 		K8sOperationsTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: "test",
@@ -321,10 +322,10 @@ func TestRecordK8sOperation(t *testing.T) {
 }
 
 func TestSetSubscriptionCount(t *testing.T) {
-	globalMetrics = nil
+	observability.GlobalMetrics = nil
 	registry := prometheus.NewRegistry()
 
-	m := &Metrics{
+	m := &observability.Metrics{
 		SubscriptionsTotal: prometheus.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: "test",
@@ -342,10 +343,10 @@ func TestSetSubscriptionCount(t *testing.T) {
 }
 
 func TestSetRedisConnectionsActive(t *testing.T) {
-	globalMetrics = nil
+	observability.GlobalMetrics = nil
 	registry := prometheus.NewRegistry()
 
-	m := &Metrics{
+	m := &observability.Metrics{
 		RedisConnectionsActive: prometheus.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: "test",
@@ -363,10 +364,10 @@ func TestSetRedisConnectionsActive(t *testing.T) {
 }
 
 func TestSetK8sResourceCacheSize(t *testing.T) {
-	globalMetrics = nil
+	observability.GlobalMetrics = nil
 	registry := prometheus.NewRegistry()
 
-	m := &Metrics{
+	m := &observability.Metrics{
 		K8sResourceCacheSize: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: "test",
@@ -385,10 +386,10 @@ func TestSetK8sResourceCacheSize(t *testing.T) {
 }
 
 func TestHTTPInFlightInc(t *testing.T) {
-	globalMetrics = nil
+	observability.GlobalMetrics = nil
 	registry := prometheus.NewRegistry()
 
-	m := &Metrics{
+	m := &observability.Metrics{
 		HTTPRequestsInFlight: prometheus.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: "test",
@@ -410,10 +411,10 @@ func TestHTTPInFlightInc(t *testing.T) {
 }
 
 func TestHTTPInFlightDec(t *testing.T) {
-	globalMetrics = nil
+	observability.GlobalMetrics = nil
 	registry := prometheus.NewRegistry()
 
-	m := &Metrics{
+	m := &observability.Metrics{
 		HTTPRequestsInFlight: prometheus.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: "test",
@@ -437,8 +438,8 @@ func TestHTTPInFlightDec(t *testing.T) {
 
 // Benchmark tests for performance validation.
 func BenchmarkRecordHTTPRequest(b *testing.B) {
-	globalMetrics = nil
-	metrics := InitMetrics("bench_o2ims")
+	observability.GlobalMetrics = nil
+	metrics := observability.InitMetrics("bench_o2ims")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -447,8 +448,8 @@ func BenchmarkRecordHTTPRequest(b *testing.B) {
 }
 
 func BenchmarkRecordAdapterOperation(b *testing.B) {
-	globalMetrics = nil
-	metrics := InitMetrics("bench_o2ims")
+	observability.GlobalMetrics = nil
+	metrics := observability.InitMetrics("bench_o2ims")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -457,8 +458,8 @@ func BenchmarkRecordAdapterOperation(b *testing.B) {
 }
 
 func BenchmarkRecordRedisOperation(b *testing.B) {
-	globalMetrics = nil
-	metrics := InitMetrics("bench_o2ims")
+	observability.GlobalMetrics = nil
+	metrics := observability.InitMetrics("bench_o2ims")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

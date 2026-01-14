@@ -1,4 +1,4 @@
-package handlers
+package handlers_test
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/handlers"
 
 	"github.com/gin-gonic/gin"
 	"github.com/piwi3910/netweave/internal/auth"
@@ -22,7 +24,7 @@ func setupAuditTestRouter(t *testing.T, store *mockAuthStore) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	logger := zap.NewNop()
-	handler := NewAuditHandler(store, logger)
+	handler := handlers.NewAuditHandler(store, logger)
 
 	// Middleware to set context from headers for tests.
 	router.Use(func(c *gin.Context) {
@@ -543,19 +545,19 @@ func TestNewAuditHandler(t *testing.T) {
 	logger := zap.NewNop()
 
 	t.Run("valid creation", func(t *testing.T) {
-		handler := NewAuditHandler(store, logger)
+		handler := handlers.NewAuditHandler(store, logger)
 		assert.NotNil(t, handler)
 	})
 
 	t.Run("nil store panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewAuditHandler(nil, logger)
+			handlers.NewAuditHandler(nil, logger)
 		})
 	})
 
 	t.Run("nil logger panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewAuditHandler(store, nil)
+			handlers.NewAuditHandler(store, nil)
 		})
 	})
 }

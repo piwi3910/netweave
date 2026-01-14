@@ -50,19 +50,19 @@ type ReadinessResponse struct {
 // HealthChecker manages health and readiness checks.
 type HealthChecker struct {
 	mu              sync.RWMutex
-	healthChecks    map[string]HealthCheck
-	readinessChecks map[string]HealthCheck
-	version         string
-	timeout         time.Duration
+	HealthChecks    map[string]HealthCheck // Exported for testing
+	ReadinessChecks map[string]HealthCheck // Exported for testing
+	Version         string                 // Exported for testing
+	Timeout         time.Duration          // Exported for testing
 }
 
 // NewHealthChecker creates a new health checker.
 func NewHealthChecker(version string) *HealthChecker {
 	return &HealthChecker{
-		healthChecks:    make(map[string]HealthCheck),
-		readinessChecks: make(map[string]HealthCheck),
-		version:         version,
-		timeout:         5 * time.Second, // Default timeout
+		HealthChecks:    make(map[string]HealthCheck),
+		ReadinessChecks: make(map[string]HealthCheck),
+		Version:         version,
+		Timeout:         5 * time.Second, // Default timeout
 	}
 }
 
@@ -70,37 +70,37 @@ func NewHealthChecker(version string) *HealthChecker {
 func (hc *HealthChecker) RegisterHealthCheck(name string, check HealthCheck) {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
-	hc.healthChecks[name] = check
+	hc.HealthChecks[name] = check
 }
 
 // RegisterReadinessCheck registers a readiness check for a componen.
 func (hc *HealthChecker) RegisterReadinessCheck(name string, check HealthCheck) {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
-	hc.readinessChecks[name] = check
+	hc.ReadinessChecks[name] = check
 }
 
 // SetTimeout sets the timeout for health checks.
 func (hc *HealthChecker) SetTimeout(timeout time.Duration) {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
-	hc.timeout = timeout
+	hc.Timeout = timeout
 }
 
 // CheckHealth performs all health checks and returns the health status.
 func (hc *HealthChecker) CheckHealth(ctx context.Context) *HealthResponse {
 	hc.mu.RLock()
-	checks := make(map[string]HealthCheck, len(hc.healthChecks))
-	for name, check := range hc.healthChecks {
+	checks := make(map[string]HealthCheck, len(hc.HealthChecks))
+	for name, check := range hc.HealthChecks {
 		checks[name] = check
 	}
-	timeout := hc.timeout
+	timeout := hc.Timeout
 	hc.mu.RUnlock()
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	components := hc.executeChecks(ctx, checks)
+	components := hc.ExecuteChecks(ctx, checks)
 
 	// Determine overall status
 	overallStatus := StatusHealthy
@@ -117,7 +117,7 @@ func (hc *HealthChecker) CheckHealth(ctx context.Context) *HealthResponse {
 	return &HealthResponse{
 		Status:     overallStatus,
 		Timestamp:  time.Now(),
-		Version:    hc.version,
+		Version:    hc.Version,
 		Components: components,
 	}
 }
@@ -125,17 +125,17 @@ func (hc *HealthChecker) CheckHealth(ctx context.Context) *HealthResponse {
 // CheckReadiness performs all readiness checks and returns the readiness status.
 func (hc *HealthChecker) CheckReadiness(ctx context.Context) *ReadinessResponse {
 	hc.mu.RLock()
-	checks := make(map[string]HealthCheck, len(hc.readinessChecks))
-	for name, check := range hc.readinessChecks {
+	checks := make(map[string]HealthCheck, len(hc.ReadinessChecks))
+	for name, check := range hc.ReadinessChecks {
 		checks[name] = check
 	}
-	timeout := hc.timeout
+	timeout := hc.Timeout
 	hc.mu.RUnlock()
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	components := hc.executeChecks(ctx, checks)
+	components := hc.ExecuteChecks(ctx, checks)
 
 	// Determine overall readiness - all components must be healthy
 	ready := true
@@ -154,7 +154,8 @@ func (hc *HealthChecker) CheckReadiness(ctx context.Context) *ReadinessResponse 
 }
 
 // executeChecks executes a set of health checks concurrently.
-func (hc *HealthChecker) executeChecks(ctx context.Context, checks map[string]HealthCheck) map[string]ComponentHealth {
+// ExecuteChecks executes checks concurrently. Exported for testing.
+func (hc *HealthChecker) ExecuteChecks(ctx context.Context, checks map[string]HealthCheck) map[string]ComponentHealth {
 	components := make(map[string]ComponentHealth)
 	if len(checks) == 0 {
 		return components

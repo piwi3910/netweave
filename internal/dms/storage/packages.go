@@ -122,17 +122,17 @@ type PackageFilter struct {
 // It is suitable for testing and single-instance deployments.
 type MemoryPackageStore struct {
 	mu       sync.RWMutex
-	packages map[string]*adapter.DeploymentPackage
-	content  map[string][]byte
-	byName   map[string][]string // name -> list of IDs (versions)
+	Packages map[string]*adapter.DeploymentPackage // Exported for testing
+	Content  map[string][]byte                     // Exported for testing
+	ByName   map[string][]string                   // name -> list of IDs (versions), exported for testing
 }
 
 // NewMemoryPackageStore creates a new in-memory package store.
 func NewMemoryPackageStore() *MemoryPackageStore {
 	return &MemoryPackageStore{
-		packages: make(map[string]*adapter.DeploymentPackage),
-		content:  make(map[string][]byte),
-		byName:   make(map[string][]string),
+		Packages: make(map[string]*adapter.DeploymentPackage),
+		Content:  make(map[string][]byte),
+		ByName:   make(map[string][]string),
 	}
 }
 
@@ -179,7 +179,7 @@ func (s *MemoryPackageStore) validatePackage(pkg *adapter.DeploymentPackage) err
 		return fmt.Errorf("package version cannot be empty")
 	}
 
-	if err := validateSemVer(pkg.Version); err != nil {
+	if err := ValidateSemVer(pkg.Version); err != nil {
 		return fmt.Errorf("%w: %s", ErrInvalidPackageVersion, pkg.Version)
 	}
 
@@ -189,13 +189,13 @@ func (s *MemoryPackageStore) validatePackage(pkg *adapter.DeploymentPackage) err
 // checkPackageConflicts checks if package already exists.
 // Must be called with s.mu held.
 func (s *MemoryPackageStore) checkPackageConflicts(pkg *adapter.DeploymentPackage) error {
-	if _, exists := s.packages[pkg.ID]; exists {
+	if _, exists := s.Packages[pkg.ID]; exists {
 		return ErrPackageExists
 	}
 
 	// Check if same name+version already exists.
-	for _, id := range s.byName[pkg.Name] {
-		if existing, ok := s.packages[id]; ok && existing.Version == pkg.Version {
+	for _, id := range s.ByName[pkg.Name] {
+		if existing, ok := s.Packages[id]; ok && existing.Version == pkg.Version {
 			return ErrVersionExists
 		}
 	}
@@ -207,15 +207,15 @@ func (s *MemoryPackageStore) checkPackageConflicts(pkg *adapter.DeploymentPackag
 // Must be called with s.mu held.
 func (s *MemoryPackageStore) storePackage(pkg *adapter.DeploymentPackage) {
 	// Store a copy to prevent external modification.
-	pkgCopy := copyPackage(pkg)
+	pkgCopy := CopyPackage(pkg)
 	if pkgCopy.UploadedAt.IsZero() {
 		pkgCopy.UploadedAt = time.Now()
 	}
 
-	s.packages[pkg.ID] = pkgCopy
+	s.Packages[pkg.ID] = pkgCopy
 
 	// Index by name.
-	s.byName[pkg.Name] = append(s.byName[pkg.Name], pkg.ID)
+	s.ByName[pkg.Name] = append(s.ByName[pkg.Name], pkg.ID)
 }
 
 // Get retrieves a package by ID.
@@ -227,12 +227,12 @@ func (s *MemoryPackageStore) Get(ctx context.Context, id string) (*adapter.Deplo
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	pkg, exists := s.packages[id]
+	pkg, exists := s.Packages[id]
 	if !exists {
 		return nil, ErrPackageNotFound
 	}
 
-	return copyPackage(pkg), nil
+	return CopyPackage(pkg), nil
 }
 
 // GetByNameVersion retrieves a package by name and version.
@@ -248,14 +248,14 @@ func (s *MemoryPackageStore) GetByNameVersion(
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	ids, exists := s.byName[name]
+	ids, exists := s.ByName[name]
 	if !exists {
 		return nil, ErrPackageNotFound
 	}
 
 	for _, id := range ids {
-		if pkg, ok := s.packages[id]; ok && pkg.Version == version {
-			return copyPackage(pkg), nil
+		if pkg, ok := s.Packages[id]; ok && pkg.Version == version {
+			return CopyPackage(pkg), nil
 		}
 	}
 
@@ -282,7 +282,7 @@ func (s *MemoryPackageStore) List(ctx context.Context, filter *PackageFilter) ([
 
 	// Apply pagination
 	if filter != nil {
-		results = applyPackagePagination(results, filter.Limit, filter.Offset)
+		results = ApplyPackagePagination(results, filter.Limit, filter.Offset)
 	}
 
 	return results, nil
@@ -297,15 +297,15 @@ func (s *MemoryPackageStore) ListVersions(ctx context.Context, name string) ([]*
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	ids, exists := s.byName[name]
+	ids, exists := s.ByName[name]
 	if !exists {
 		return []*adapter.DeploymentPackage{}, nil
 	}
 
 	results := make([]*adapter.DeploymentPackage, 0, len(ids))
 	for _, id := range ids {
-		if pkg, ok := s.packages[id]; ok {
-			results = append(results, copyPackage(pkg))
+		if pkg, ok := s.Packages[id]; ok {
+			results = append(results, CopyPackage(pkg))
 		}
 	}
 
@@ -325,11 +325,11 @@ func (s *MemoryPackageStore) Update(ctx context.Context, pkg *adapter.Deployment
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.packages[pkg.ID]; !exists {
+	if _, exists := s.Packages[pkg.ID]; !exists {
 		return ErrPackageNotFound
 	}
 
-	s.packages[pkg.ID] = copyPackage(pkg)
+	s.Packages[pkg.ID] = CopyPackage(pkg)
 	return nil
 }
 
@@ -342,13 +342,13 @@ func (s *MemoryPackageStore) Delete(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	pkg, exists := s.packages[id]
+	pkg, exists := s.Packages[id]
 	if !exists {
 		return ErrPackageNotFound
 	}
 
 	// Remove from name index
-	if ids, ok := s.byName[pkg.Name]; ok {
+	if ids, ok := s.ByName[pkg.Name]; ok {
 		newIDs := make([]string, 0, len(ids))
 		for _, existingID := range ids {
 			if existingID != id {
@@ -356,14 +356,14 @@ func (s *MemoryPackageStore) Delete(ctx context.Context, id string) error {
 			}
 		}
 		if len(newIDs) == 0 {
-			delete(s.byName, pkg.Name)
+			delete(s.ByName, pkg.Name)
 		} else {
-			s.byName[pkg.Name] = newIDs
+			s.ByName[pkg.Name] = newIDs
 		}
 	}
 
-	delete(s.packages, id)
-	delete(s.content, id)
+	delete(s.Packages, id)
+	delete(s.Content, id)
 
 	return nil
 }
@@ -383,14 +383,14 @@ func (s *MemoryPackageStore) SaveContent(ctx context.Context, id string, content
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.packages[id]; !exists {
+	if _, exists := s.Packages[id]; !exists {
 		return ErrPackageNotFound
 	}
 
 	// Store a copy of the content
 	contentCopy := make([]byte, len(content))
 	copy(contentCopy, content)
-	s.content[id] = contentCopy
+	s.Content[id] = contentCopy
 
 	return nil
 }
@@ -404,10 +404,10 @@ func (s *MemoryPackageStore) GetContent(ctx context.Context, id string) ([]byte,
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	content, exists := s.content[id]
+	content, exists := s.Content[id]
 	if !exists {
 		// Check if package exists but has no content
-		if _, pkgExists := s.packages[id]; pkgExists {
+		if _, pkgExists := s.Packages[id]; pkgExists {
 			return nil, fmt.Errorf("content not found for package %s", id)
 		}
 		return nil, ErrPackageNotFound
@@ -429,7 +429,7 @@ func (s *MemoryPackageStore) DeleteContent(ctx context.Context, id string) error
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.content, id)
+	delete(s.Content, id)
 	return nil
 }
 
@@ -443,9 +443,9 @@ func (s *MemoryPackageStore) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.packages = make(map[string]*adapter.DeploymentPackage)
-	s.content = make(map[string][]byte)
-	s.byName = make(map[string][]string)
+	s.Packages = make(map[string]*adapter.DeploymentPackage)
+	s.Content = make(map[string][]byte)
+	s.ByName = make(map[string][]string)
 
 	return nil
 }
@@ -454,14 +454,14 @@ func (s *MemoryPackageStore) Close() error {
 func (s *MemoryPackageStore) collectLatestPackages(filter *PackageFilter) []*adapter.DeploymentPackage {
 	var results []*adapter.DeploymentPackage
 
-	for name, ids := range s.byName {
+	for name, ids := range s.ByName {
 		if !matchesNameFilter(filter, name) {
 			continue
 		}
 
 		latest := s.findLatestPackage(ids, filter)
 		if latest != nil {
-			results = append(results, copyPackage(latest))
+			results = append(results, CopyPackage(latest))
 		}
 	}
 
@@ -478,7 +478,7 @@ func matchesNameFilter(filter *PackageFilter, name string) bool {
 func (s *MemoryPackageStore) findLatestPackage(ids []string, filter *PackageFilter) *adapter.DeploymentPackage {
 	var latest *adapter.DeploymentPackage
 	for _, id := range ids {
-		pkg := s.packages[id]
+		pkg := s.Packages[id]
 		if filter != nil && filter.PackageType != "" && pkg.PackageType != filter.PackageType {
 			continue
 		}
@@ -493,7 +493,7 @@ func (s *MemoryPackageStore) findLatestPackage(ids []string, filter *PackageFilt
 func (s *MemoryPackageStore) collectAllPackages(filter *PackageFilter) []*adapter.DeploymentPackage {
 	var results []*adapter.DeploymentPackage
 
-	for _, pkg := range s.packages {
+	for _, pkg := range s.Packages {
 		if filter != nil {
 			if filter.Name != "" && pkg.Name != filter.Name {
 				continue
@@ -502,7 +502,7 @@ func (s *MemoryPackageStore) collectAllPackages(filter *PackageFilter) []*adapte
 				continue
 			}
 		}
-		results = append(results, copyPackage(pkg))
+		results = append(results, CopyPackage(pkg))
 	}
 
 	return results
@@ -511,7 +511,8 @@ func (s *MemoryPackageStore) collectAllPackages(filter *PackageFilter) []*adapte
 // Helper functions
 
 // copyPackage creates a deep copy of a DeploymentPackage.
-func copyPackage(pkg *adapter.DeploymentPackage) *adapter.DeploymentPackage {
+// CopyPackage creates a deep copy of a package. Exported for testing.
+func CopyPackage(pkg *adapter.DeploymentPackage) *adapter.DeploymentPackage {
 	if pkg == nil {
 		return nil
 	}
@@ -537,7 +538,8 @@ func copyPackage(pkg *adapter.DeploymentPackage) *adapter.DeploymentPackage {
 
 // validateSemVer validates that a version string follows semantic versioning.
 // Accepts formats: v1.2.3, 1.2.3, 1.2.3-beta, 1.2.3+build, etc.
-func validateSemVer(version string) error {
+// ValidateSemVer validates semantic version strings. Exported for testing.
+func ValidateSemVer(version string) error {
 	// Simple semver regex that allows common formats
 	pattern := `^v?(\d+)(\.\d+)?(\.\d+)?(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$`
 	matched, err := regexp.MatchString(pattern, version)
@@ -551,7 +553,8 @@ func validateSemVer(version string) error {
 }
 
 // applyPackagePagination applies limit and offset to a package list.
-func applyPackagePagination(packages []*adapter.DeploymentPackage, limit, offset int) []*adapter.DeploymentPackage {
+// ApplyPackagePagination applies pagination to package list. Exported for testing.
+func ApplyPackagePagination(packages []*adapter.DeploymentPackage, limit, offset int) []*adapter.DeploymentPackage {
 	if offset >= len(packages) {
 		return []*adapter.DeploymentPackage{}
 	}

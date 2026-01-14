@@ -1,4 +1,4 @@
-package onaplcm
+package onaplcm_test
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/dms/adapters/onaplcm"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,19 +26,19 @@ const (
 func TestNewAdapter(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *onaplcm.Config
 		wantErr bool
 	}{
 		{
 			name: "valid config",
-			config: &Config{
+			config: &onaplcm.Config{
 				SOEndpoint: "http://localhost:8080",
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid config with auth",
-			config: &Config{
+			config: &onaplcm.Config{
 				SOEndpoint: "http://localhost:8080",
 				Username:   testUsername,
 				Password:   testSecretData,
@@ -50,7 +52,7 @@ func TestNewAdapter(t *testing.T) {
 		},
 		{
 			name: "config with timeout",
-			config: &Config{
+			config: &onaplcm.Config{
 				SOEndpoint: "http://localhost:8080",
 				Timeout:    5 * time.Minute,
 			},
@@ -60,7 +62,7 @@ func TestNewAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := NewAdapter(tt.config)
+			adp, err := onaplcm.NewAdapter(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -71,7 +73,7 @@ func TestNewAdapter(t *testing.T) {
 
 				// Verify defaults are applied
 				if tt.config.Timeout == 0 {
-					assert.Equal(t, DefaultTimeout, adp.config.Timeout)
+					assert.Equal(t, onaplcm.DefaultTimeout, adp.Config.Timeout)
 				}
 			}
 		})
@@ -80,15 +82,15 @@ func TestNewAdapter(t *testing.T) {
 
 // TestAdapterMetadata tests adapter metadata methods.
 func TestAdapterMetadata(t *testing.T) {
-	adp, err := NewAdapter(&Config{})
+	adp, err := onaplcm.NewAdapter(&onaplcm.Config{})
 	require.NoError(t, err)
 
 	t.Run("Name", func(t *testing.T) {
-		assert.Equal(t, AdapterName, adp.Name())
+		assert.Equal(t, onaplcm.AdapterName, adp.Name())
 	})
 
 	t.Run("Version", func(t *testing.T) {
-		assert.Equal(t, AdapterVersion, adp.Version())
+		assert.Equal(t, onaplcm.AdapterVersion, adp.Version())
 	})
 
 	t.Run("Capabilities", func(t *testing.T) {
@@ -114,17 +116,17 @@ func TestAdapterMetadata(t *testing.T) {
 }
 
 // createTestAdapter creates an adapter for testing.
-func createTestAdapter(t *testing.T) *Adapter {
+func createTestAdapter(t *testing.T) *onaplcm.Adapter {
 	t.Helper()
 
-	adp, err := NewAdapter(&Config{
+	adp, err := onaplcm.NewAdapter(&onaplcm.Config{
 		SOEndpoint: "http://localhost:8080",
 		Timeout:    5 * time.Second,
 	})
 	require.NoError(t, err)
 
 	// Initialize the adapter
-	_ = adp.initialize()
+	_ = adp.Initialize()
 
 	return adp
 }
@@ -146,8 +148,8 @@ func TestListDeploymentPackages(t *testing.T) {
 		Version:     "1.0.0",
 		PackageType: "onap-vnf",
 	}
-	adp.packages["vnfd-1"] = pkg1
-	adp.packages["vnfd-2"] = pkg2
+	adp.Packages["vnfd-1"] = pkg1
+	adp.Packages["vnfd-2"] = pkg2
 
 	t.Run("list all packages", func(t *testing.T) {
 		packages, err := adp.ListDeploymentPackages(context.Background(), nil)
@@ -173,7 +175,7 @@ func TestGetDeploymentPackage(t *testing.T) {
 		Version:     "1.0.0",
 		PackageType: "onap-vnf",
 	}
-	adp.packages["vnfd-test"] = pkg
+	adp.Packages["vnfd-test"] = pkg
 
 	t.Run("package found", func(t *testing.T) {
 		result, err := adp.GetDeploymentPackage(context.Background(), "vnfd-test")
@@ -184,7 +186,7 @@ func TestGetDeploymentPackage(t *testing.T) {
 	t.Run("package not found", func(t *testing.T) {
 		_, err := adp.GetDeploymentPackage(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, onaplcm.ErrPackageNotFound)
 	})
 }
 
@@ -249,7 +251,7 @@ func TestDeleteDeploymentPackage(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add a test package
-	adp.packages["vnfd-delete"] = &dmsadapter.DeploymentPackage{
+	adp.Packages["vnfd-delete"] = &dmsadapter.DeploymentPackage{
 		ID:   "vnfd-delete",
 		Name: "test-vnf",
 	}
@@ -262,7 +264,7 @@ func TestDeleteDeploymentPackage(t *testing.T) {
 	t.Run("delete nonexistent", func(t *testing.T) {
 		err := adp.DeleteDeploymentPackage(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, onaplcm.ErrPackageNotFound)
 	})
 }
 
@@ -281,8 +283,8 @@ func TestListDeployments(t *testing.T) {
 		Name:   "test-vnf-2",
 		Status: dmsadapter.DeploymentStatusFailed,
 	}
-	adp.deployments["vnf-1"] = dep1
-	adp.deployments["vnf-2"] = dep2
+	adp.Deployments["vnf-1"] = dep1
+	adp.Deployments["vnf-2"] = dep2
 
 	t.Run("list all", func(t *testing.T) {
 		deployments, err := adp.ListDeployments(context.Background(), nil)
@@ -315,7 +317,7 @@ func TestGetDeployment(t *testing.T) {
 		Name:   "test-vnf",
 		Status: dmsadapter.DeploymentStatusDeployed,
 	}
-	adp.deployments["vnf-test"] = dep
+	adp.Deployments["vnf-test"] = dep
 
 	t.Run("deployment found", func(t *testing.T) {
 		result, err := adp.GetDeployment(context.Background(), "vnf-test")
@@ -326,7 +328,7 @@ func TestGetDeployment(t *testing.T) {
 	t.Run("deployment not found", func(t *testing.T) {
 		_, err := adp.GetDeployment(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+		assert.ErrorIs(t, err, onaplcm.ErrDeploymentNotFound)
 	})
 }
 
@@ -395,7 +397,7 @@ func TestUpdateDeployment(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add a test deployment
-	adp.deployments["vnf-update"] = &dmsadapter.Deployment{
+	adp.Deployments["vnf-update"] = &dmsadapter.Deployment{
 		ID:      "vnf-update",
 		Name:    "test-vnf",
 		Version: 1,
@@ -456,7 +458,7 @@ func TestDeleteDeployment(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add a test deployment
-	adp.deployments["vnf-delete"] = &dmsadapter.Deployment{
+	adp.Deployments["vnf-delete"] = &dmsadapter.Deployment{
 		ID:   "vnf-delete",
 		Name: "test-vnf",
 	}
@@ -469,7 +471,7 @@ func TestDeleteDeployment(t *testing.T) {
 	t.Run("delete nonexistent", func(t *testing.T) {
 		err := adp.DeleteDeployment(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+		assert.ErrorIs(t, err, onaplcm.ErrDeploymentNotFound)
 	})
 }
 
@@ -478,7 +480,7 @@ func TestScaleDeployment(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add a test deployment
-	adp.deployments["vnf-scale"] = &dmsadapter.Deployment{
+	adp.Deployments["vnf-scale"] = &dmsadapter.Deployment{
 		ID:   "vnf-scale",
 		Name: "test-vnf",
 	}
@@ -502,7 +504,7 @@ func TestScaleDeployment(t *testing.T) {
 	t.Run("deployment not found", func(t *testing.T) {
 		err := adp.ScaleDeployment(context.Background(), "nonexistent", 3)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+		assert.ErrorIs(t, err, onaplcm.ErrDeploymentNotFound)
 	})
 }
 
@@ -513,7 +515,7 @@ func TestRollbackDeployment(t *testing.T) {
 	t.Run("rollback not supported", func(t *testing.T) {
 		err := adp.RollbackDeployment(context.Background(), "any-vnf", 1)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrOperationNotSupported)
+		assert.ErrorIs(t, err, onaplcm.ErrOperationNotSupported)
 	})
 
 	t.Run("negative revision", func(t *testing.T) {
@@ -528,7 +530,7 @@ func TestGetDeploymentStatus(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add a test deployment
-	adp.deployments["vnf-status"] = &dmsadapter.Deployment{
+	adp.Deployments["vnf-status"] = &dmsadapter.Deployment{
 		ID:     "vnf-status",
 		Name:   "test-vnf",
 		Status: dmsadapter.DeploymentStatusDeployed,
@@ -545,7 +547,7 @@ func TestGetDeploymentStatus(t *testing.T) {
 	t.Run("deployment not found", func(t *testing.T) {
 		_, err := adp.GetDeploymentStatus(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+		assert.ErrorIs(t, err, onaplcm.ErrDeploymentNotFound)
 	})
 }
 
@@ -554,7 +556,7 @@ func TestGetDeploymentHistory(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add a test deployment
-	adp.deployments["vnf-history"] = &dmsadapter.Deployment{
+	adp.Deployments["vnf-history"] = &dmsadapter.Deployment{
 		ID:      "vnf-history",
 		Name:    "test-vnf",
 		Version: 3,
@@ -570,7 +572,7 @@ func TestGetDeploymentHistory(t *testing.T) {
 	t.Run("deployment not found", func(t *testing.T) {
 		_, err := adp.GetDeploymentHistory(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+		assert.ErrorIs(t, err, onaplcm.ErrDeploymentNotFound)
 	})
 }
 
@@ -579,7 +581,7 @@ func TestGetDeploymentLogs(t *testing.T) {
 	adp := createTestAdapter(t)
 
 	// Add a test deployment
-	adp.deployments["vnf-logs"] = &dmsadapter.Deployment{
+	adp.Deployments["vnf-logs"] = &dmsadapter.Deployment{
 		ID:   "vnf-logs",
 		Name: "test-vnf",
 	}
@@ -593,14 +595,14 @@ func TestGetDeploymentLogs(t *testing.T) {
 	t.Run("deployment not found", func(t *testing.T) {
 		_, err := adp.GetDeploymentLogs(context.Background(), "nonexistent", nil)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrDeploymentNotFound)
+		assert.ErrorIs(t, err, onaplcm.ErrDeploymentNotFound)
 	})
 }
 
 // TestHealth tests health check functionality.
 func TestHealth(t *testing.T) {
 	t.Run("healthy without endpoint", func(t *testing.T) {
-		adp, err := NewAdapter(&Config{})
+		adp, err := onaplcm.NewAdapter(&onaplcm.Config{})
 		require.NoError(t, err)
 
 		err = adp.Health(context.Background())
@@ -613,7 +615,7 @@ func TestHealth(t *testing.T) {
 		}))
 		defer server.Close()
 
-		adp, err := NewAdapter(&Config{
+		adp, err := onaplcm.NewAdapter(&onaplcm.Config{
 			SOEndpoint: server.URL,
 		})
 		require.NoError(t, err)
@@ -629,7 +631,7 @@ func TestClose(t *testing.T) {
 
 	err := adp.Close()
 	require.NoError(t, err)
-	assert.Nil(t, adp.httpClient)
+	assert.Nil(t, adp.HTTPClient())
 }
 
 // TestValidateName tests name validation.
@@ -651,10 +653,10 @@ func TestValidateName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateName(tt.input)
+			err := onaplcm.ValidateName(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, ErrInvalidName)
+				assert.ErrorIs(t, err, onaplcm.ErrInvalidName)
 			} else {
 				require.NoError(t, err)
 			}
@@ -664,7 +666,7 @@ func TestValidateName(t *testing.T) {
 
 // TestCalculateProgress tests progress calculation.
 func TestCalculateProgress(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := onaplcm.NewAdapter(&onaplcm.Config{})
 
 	tests := []struct {
 		name   string
@@ -679,7 +681,7 @@ func TestCalculateProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := adp.calculateProgress(tt.status)
+			got := adp.CalculateProgress(tt.status)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -740,7 +742,7 @@ func TestContextCancellation(t *testing.T) {
 
 // TestApplyPagination tests pagination logic.
 func TestApplyPagination(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := onaplcm.NewAdapter(&onaplcm.Config{})
 
 	deployments := []*dmsadapter.Deployment{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
@@ -762,7 +764,7 @@ func TestApplyPagination(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := adp.applyPagination(deployments, tt.limit, tt.offset)
+			result := adp.ApplyPagination(deployments, tt.limit, tt.offset)
 			assert.Len(t, result, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, tt.wantFirst, result[0].ID)

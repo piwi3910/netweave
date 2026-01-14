@@ -1,4 +1,4 @@
-package gcp
+package gcp_test
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+
+	"github.com/piwi3910/netweave/internal/adapters/gcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -15,7 +17,7 @@ import (
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *gcp.Config
 		wantErr bool
 		errMsg  string
 	}{
@@ -27,7 +29,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing projectID",
-			config: &Config{
+			config: &gcp.Config{
 				Region:   "us-central1",
 				OCloudID: "ocloud-1",
 			},
@@ -36,7 +38,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing region",
-			config: &Config{
+			config: &gcp.Config{
 				ProjectID: "my-project",
 				OCloudID:  "ocloud-1",
 			},
@@ -45,7 +47,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing oCloudID",
-			config: &Config{
+			config: &gcp.Config{
 				ProjectID: "my-project",
 				Region:    "us-central1",
 			},
@@ -54,7 +56,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "invalid pool mode",
-			config: &Config{
+			config: &gcp.Config{
 				ProjectID: "my-project",
 				Region:    "us-central1",
 				OCloudID:  "ocloud-1",
@@ -67,7 +69,7 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := New(tt.config)
+			adp, err := gcp.New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -86,8 +88,8 @@ func TestNew(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	adp := &Adapter{
-		logger: zap.NewNop(),
+	adp := &gcp.Adapter{
+		Logger: zap.NewNop(),
 	}
 
 	t.Run("Name", func(t *testing.T) {
@@ -119,7 +121,7 @@ func TestMetadata(t *testing.T) {
 
 // TestGenerateIDs tests ID generation functions.
 func TestGenerateIDs(t *testing.T) {
-	t.Run("generateMachineTypeID", func(t *testing.T) {
+	t.Run("gcp.GenerateMachineTypeID", func(t *testing.T) {
 		tests := []struct {
 			machineType string
 			want        string
@@ -130,12 +132,12 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateMachineTypeID(tt.machineType)
+			got := gcp.GenerateMachineTypeID(tt.machineType)
 			assert.Equal(t, tt.want, got)
 		}
 	})
 
-	t.Run("generateInstanceID", func(t *testing.T) {
+	t.Run("gcp.GenerateInstanceID", func(t *testing.T) {
 		tests := []struct {
 			instanceName string
 			zone         string
@@ -146,12 +148,12 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateInstanceID(tt.instanceName, tt.zone)
+			got := gcp.GenerateInstanceID(tt.instanceName, tt.zone)
 			assert.Equal(t, tt.want, got)
 		}
 	})
 
-	t.Run("generateZonePoolID", func(t *testing.T) {
+	t.Run("gcp.GenerateZonePoolID", func(t *testing.T) {
 		tests := []struct {
 			zone string
 			want string
@@ -161,7 +163,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateZonePoolID(tt.zone)
+			got := gcp.GenerateZonePoolID(tt.zone)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -177,7 +179,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := generateIGPoolID(tt.igName, tt.zone)
+			got := gcp.GenerateIGPoolID(tt.igName, tt.zone)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -198,7 +200,7 @@ func TestExtractMachineFamily(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.machineType, func(t *testing.T) {
-			got := extractMachineFamily(tt.machineType)
+			got := gcp.ExtractMachineFamily(tt.machineType)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -226,7 +228,7 @@ func TestExtractMachineTypeName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.url, func(t *testing.T) {
-			got := extractMachineTypeName(tt.url)
+			got := gcp.ExtractMachineTypeName(tt.url)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -254,7 +256,7 @@ func TestExtractZoneName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.url, func(t *testing.T) {
-			got := extractZoneName(tt.url)
+			got := gcp.ExtractZoneName(tt.url)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -262,9 +264,9 @@ func TestExtractZoneName(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
-	adp := &Adapter{
-		logger:        zap.NewNop(),
-		subscriptions: make(map[string]*adapter.Subscription),
+	adp := &gcp.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
 	}
 	ctx := context.Background()
 
@@ -339,26 +341,26 @@ func TestSubscriptions(t *testing.T) {
 func TestPtrHelpers(t *testing.T) {
 	t.Run("ptrToString", func(t *testing.T) {
 		s := "hello"
-		assert.Equal(t, "hello", ptrToString(&s))
-		assert.Equal(t, "", ptrToString(nil))
+		assert.Equal(t, "hello", gcp.PtrToString(&s))
+		assert.Equal(t, "", gcp.PtrToString(nil))
 	})
 
 	t.Run("ptrToInt64", func(t *testing.T) {
 		i := int64(42)
-		assert.Equal(t, int64(42), ptrToInt64(&i))
-		assert.Equal(t, int64(0), ptrToInt64(nil))
+		assert.Equal(t, int64(42), gcp.PtrToInt64(&i))
+		assert.Equal(t, int64(0), gcp.PtrToInt64(nil))
 	})
 
 	t.Run("ptrToInt32", func(t *testing.T) {
 		i := int32(42)
-		assert.Equal(t, int32(42), ptrToInt32(&i))
-		assert.Equal(t, int32(0), ptrToInt32(nil))
+		assert.Equal(t, int32(42), gcp.PtrToInt32(&i))
+		assert.Equal(t, int32(0), gcp.PtrToInt32(nil))
 	})
 
 	t.Run("ptrToBool", func(t *testing.T) {
 		b := true
-		assert.Equal(t, true, ptrToBool(&b))
-		assert.Equal(t, false, ptrToBool(nil))
+		assert.Equal(t, true, gcp.PtrToBool(&b))
+		assert.Equal(t, false, gcp.PtrToBool(nil))
 	})
 }
 
@@ -366,7 +368,7 @@ func TestPtrHelpers(t *testing.T) {
 
 // TestGCPAdapter_Health tests the Health function.
 func TestGCPAdapter_Health(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
 		OCloudID:  "test-cloud",
@@ -386,7 +388,7 @@ func TestGCPAdapter_Health(t *testing.T) {
 
 // TestGCPAdapter_ListResourcePools tests the ListResourcePools function.
 func TestGCPAdapter_ListResourcePools(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
 		OCloudID:  "test-cloud",
@@ -408,7 +410,7 @@ func TestGCPAdapter_ListResourcePools(t *testing.T) {
 
 // TestGCPAdapter_ListResources tests the ListResources function.
 func TestGCPAdapter_ListResources(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
 		OCloudID:  "test-cloud",
@@ -429,7 +431,7 @@ func TestGCPAdapter_ListResources(t *testing.T) {
 
 // TestGCPAdapter_ListResourceTypes tests the ListResourceTypes function.
 func TestGCPAdapter_ListResourceTypes(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
 		OCloudID:  "test-cloud",
@@ -450,7 +452,7 @@ func TestGCPAdapter_ListResourceTypes(t *testing.T) {
 
 // TestGCPAdapter_GetDeploymentManager tests the GetDeploymentManager function.
 func TestGCPAdapter_GetDeploymentManager(t *testing.T) {
-	adapter, err := New(&Config{
+	adapter, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
 		OCloudID:  "test-cloud",

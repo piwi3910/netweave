@@ -190,7 +190,7 @@ func (p *Plugin) GetNSD(ctx context.Context, nsdID string) (*DeploymentPackage, 
 	}
 
 	var pkg DeploymentPackage
-	if err := p.client.get(ctx, fmt.Sprintf("/osm/nsd/v1/ns_descriptors/%s", nsdID), &pkg); err != nil {
+	if err := p.Client.Get(ctx, fmt.Sprintf("/osm/nsd/v1/ns_descriptors/%s", nsdID), &pkg); err != nil {
 		return nil, fmt.Errorf("failed to get NSD: %w", err)
 	}
 
@@ -201,7 +201,7 @@ func (p *Plugin) GetNSD(ctx context.Context, nsdID string) (*DeploymentPackage, 
 // ListNSDs retrieves all NSDs from OSM.
 func (p *Plugin) ListNSDs(ctx context.Context) ([]*DeploymentPackage, error) {
 	var pkgs []*DeploymentPackage
-	if err := p.client.get(ctx, "/osm/nsd/v1/ns_descriptors", &pkgs); err != nil {
+	if err := p.Client.Get(ctx, "/osm/nsd/v1/ns_descriptors", &pkgs); err != nil {
 		return nil, fmt.Errorf("failed to list NSDs: %w", err)
 	}
 
@@ -218,7 +218,7 @@ func (p *Plugin) DeleteNSD(ctx context.Context, nsdID string) error {
 		return fmt.Errorf("nsd id is required")
 	}
 
-	if err := p.client.delete(ctx, fmt.Sprintf("/osm/nsd/v1/ns_descriptors/%s", nsdID)); err != nil {
+	if err := p.Client.Delete(ctx, fmt.Sprintf("/osm/nsd/v1/ns_descriptors/%s", nsdID)); err != nil {
 		return fmt.Errorf("failed to delete NSD: %w", err)
 	}
 
@@ -227,27 +227,33 @@ func (p *Plugin) DeleteNSD(ctx context.Context, nsdID string) error {
 
 // ==== DMS Backend Mode: NS Lifecycle Management ====
 
+// ValidateDeploymentRequest validates a deployment request. Exported for testing.
+func ValidateDeploymentRequest(req *DeploymentRequest) error {
+	if req == nil {
+		return fmt.Errorf("deployment request cannot be nil")
+	}
+	if req.NSName == "" {
+		return fmt.Errorf("ns name is required")
+	}
+	if req.NSDId == "" {
+		return fmt.Errorf("nsd id is required")
+	}
+	if req.VIMAccountID == "" {
+		return fmt.Errorf("vim account id is required")
+	}
+	return nil
+}
+
 // InstantiateNS creates and instantiates a new NS instance.
 // This is the primary DMS deployment operation.
 func (p *Plugin) InstantiateNS(ctx context.Context, req *DeploymentRequest) (string, error) {
-	if req == nil {
-		return "", fmt.Errorf("deployment request cannot be nil")
-	}
-
-	// Validate required fields
-	if req.NSName == "" {
-		return "", fmt.Errorf("ns name is required")
-	}
-	if req.NSDId == "" {
-		return "", fmt.Errorf("nsd id is required")
-	}
-	if req.VIMAccountID == "" {
-		return "", fmt.Errorf("vim account id is required")
+	if err := ValidateDeploymentRequest(req); err != nil {
+		return "", err
 	}
 
 	// Create NS instance via OSM NBI
 	var result Deployment
-	if err := p.client.post(ctx, "/osm/nslcm/v1/ns_instances_content", req, &result); err != nil {
+	if err := p.Client.Post(ctx, "/osm/nslcm/v1/ns_instances_content", req, &result); err != nil {
 		return "", fmt.Errorf("failed to instantiate NS: %w", err)
 	}
 
@@ -261,7 +267,7 @@ func (p *Plugin) GetNSInstance(ctx context.Context, nsInstanceID string) (*Deplo
 	}
 
 	var deployment Deployment
-	if err := p.client.get(ctx, fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s", nsInstanceID), &deployment); err != nil {
+	if err := p.Client.Get(ctx, fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s", nsInstanceID), &deployment); err != nil {
 		return nil, fmt.Errorf("failed to get NS instance: %w", err)
 	}
 
@@ -271,7 +277,7 @@ func (p *Plugin) GetNSInstance(ctx context.Context, nsInstanceID string) (*Deplo
 // ListNSInstances retrieves all NS instances from OSM.
 func (p *Plugin) ListNSInstances(ctx context.Context) ([]*Deployment, error) {
 	var deployments []*Deployment
-	if err := p.client.get(ctx, "/osm/nslcm/v1/ns_instances", &deployments); err != nil {
+	if err := p.Client.Get(ctx, "/osm/nslcm/v1/ns_instances", &deployments); err != nil {
 		return nil, fmt.Errorf("failed to list NS instances: %w", err)
 	}
 
@@ -290,7 +296,7 @@ func (p *Plugin) TerminateNS(ctx context.Context, nsInstanceID string) error {
 	}
 
 	terminateURL := fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/terminate", nsInstanceID)
-	if err := p.client.post(ctx, terminateURL, terminateReq, nil); err != nil {
+	if err := p.Client.Post(ctx, terminateURL, terminateReq, nil); err != nil {
 		return fmt.Errorf("failed to terminate NS: %w", err)
 	}
 
@@ -317,7 +323,7 @@ func (p *Plugin) GetNSStatus(ctx context.Context, nsInstanceID string) (*Deploym
 
 	status := &DeploymentStatus{
 		DeploymentID:      deployment.ID,
-		Status:            p.mapOSMStatus(deployment.OperationalStatus),
+		Status:            p.MapOSMStatus(deployment.OperationalStatus),
 		OperationalStatus: deployment.OperationalStatus,
 		ConfigStatus:      deployment.ConfigStatus,
 		DetailedStatus:    deployment.DetailedStatus,
@@ -350,7 +356,7 @@ func (p *Plugin) getVNFStatuses(ctx context.Context, vnfIDs []string) []VNFStatu
 			DetailedStatus    string `json:"detailed-status"`
 		}
 
-		if err := p.client.get(ctx, fmt.Sprintf("/osm/nslcm/v1/vnf_instances/%s", vnfID), &vnfr); err != nil {
+		if err := p.Client.Get(ctx, fmt.Sprintf("/osm/nslcm/v1/vnf_instances/%s", vnfID), &vnfr); err != nil {
 			// Log error but continue with other VNFs
 			continue
 		}
@@ -368,56 +374,68 @@ func (p *Plugin) getVNFStatuses(ctx context.Context, vnfIDs []string) []VNFStatu
 
 // ==== Day-2 Operations ====
 
-// ScaleNS scales an NS by adding or removing VNF instances.
-// This is a Day-2 operation for horizontal scaling.
-func (p *Plugin) ScaleNS(ctx context.Context, nsInstanceID string, scaleReq *NSScaleRequest) error {
+// ValidateScaleRequest validates a scale request. Exported for testing.
+func ValidateScaleRequest(nsInstanceID string, scaleReq *NSScaleRequest) error {
 	if nsInstanceID == "" {
 		return fmt.Errorf("ns instance id is required")
 	}
 	if scaleReq == nil {
 		return fmt.Errorf("scale request cannot be nil")
 	}
-
-	// Validate scale request
 	if scaleReq.ScaleType != scaleTypeVNF {
 		return fmt.Errorf("unsupported scale type: %s", scaleReq.ScaleType)
+	}
+	return nil
+}
+
+// ScaleNS scales an NS by adding or removing VNF instances.
+// This is a Day-2 operation for horizontal scaling.
+func (p *Plugin) ScaleNS(ctx context.Context, nsInstanceID string, scaleReq *NSScaleRequest) error {
+	if err := ValidateScaleRequest(nsInstanceID, scaleReq); err != nil {
+		return err
 	}
 
 	// Execute scale operation via OSM NBI
 	scaleURL := fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/scale", nsInstanceID)
-	if err := p.client.post(ctx, scaleURL, scaleReq, nil); err != nil {
+	if err := p.Client.Post(ctx, scaleURL, scaleReq, nil); err != nil {
 		return fmt.Errorf("failed to scale NS: %w", err)
 	}
 
 	return nil
 }
 
-// HealNS heals a failed VNF within an NS.
-// This is a Day-2 operation for fault recovery.
-func (p *Plugin) HealNS(ctx context.Context, nsInstanceID string, healReq *NSHealRequest) error {
+// ValidateHealRequest validates a heal request. Exported for testing.
+func ValidateHealRequest(nsInstanceID string, healReq *NSHealRequest) error {
 	if nsInstanceID == "" {
 		return fmt.Errorf("ns instance id is required")
 	}
 	if healReq == nil {
 		return fmt.Errorf("heal request cannot be nil")
 	}
-
-	// Validate heal request
 	if healReq.VNFInstanceID == "" {
 		return fmt.Errorf("vnf instance id is required")
+	}
+	return nil
+}
+
+// HealNS heals a failed VNF within an NS.
+// This is a Day-2 operation for fault recovery.
+func (p *Plugin) HealNS(ctx context.Context, nsInstanceID string, healReq *NSHealRequest) error {
+	if err := ValidateHealRequest(nsInstanceID, healReq); err != nil {
+		return err
 	}
 
 	// Execute heal operation via OSM NBI
 	healURL := fmt.Sprintf("/osm/nslcm/v1/ns_instances/%s/heal", nsInstanceID)
-	if err := p.client.post(ctx, healURL, healReq, nil); err != nil {
+	if err := p.Client.Post(ctx, healURL, healReq, nil); err != nil {
 		return fmt.Errorf("failed to heal NS: %w", err)
 	}
 
 	return nil
 }
 
-// mapOSMStatus maps OSM operational status to standardized deployment status.
-func (p *Plugin) mapOSMStatus(osmStatus string) string {
+// MapOSMStatus maps OSM operational status to standardized deployment status. Exported for testing.
+func (p *Plugin) MapOSMStatus(osmStatus string) string {
 	switch osmStatus {
 	case "init", "building":
 		return "BUILDING"
@@ -446,7 +464,7 @@ func (p *Plugin) WaitForNSReady(ctx context.Context, nsInstanceID string, timeou
 	}
 
 	deadline := time.Now().Add(timeout)
-	ticker := time.NewTicker(p.config.LCMPollingInterval)
+	ticker := time.NewTicker(p.Config.LCMPollingInterval)
 	defer ticker.Stop()
 
 	for {

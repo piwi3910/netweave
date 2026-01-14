@@ -112,7 +112,8 @@ func DefaultRedisConfig() *RedisConfig {
 //	}
 //	err := store.Create(ctx, sub)
 type RedisStore struct {
-	client redis.UniversalClient
+	// Client is the underlying Redis client (public for middleware)
+	Client redis.UniversalClient
 	config *RedisConfig
 }
 
@@ -154,7 +155,7 @@ func NewRedisStore(cfg *RedisConfig) *RedisStore {
 	}
 
 	return &RedisStore{
-		client: client,
+		Client: client,
 		config: cfg,
 	}
 }
@@ -180,7 +181,7 @@ func (r *RedisStore) Create(ctx context.Context, sub *Subscription) error {
 	key := subscriptionKeyPrefix + sub.ID
 
 	// Check if subscription already exists
-	exists, err := r.client.Exists(ctx, key).Result()
+	exists, err := r.Client.Exists(ctx, key).Result()
 	if err != nil {
 		return fmt.Errorf("failed to check subscription existence: %w", err)
 	}
@@ -195,7 +196,7 @@ func (r *RedisStore) Create(ctx context.Context, sub *Subscription) error {
 	}
 
 	// Use pipeline for atomic operations
-	pipe := r.client.Pipeline()
+	pipe := r.Client.Pipeline()
 
 	// Store subscription data
 	pipe.Set(ctx, key, data, subscriptionTTL)
@@ -247,7 +248,7 @@ func (r *RedisStore) Get(ctx context.Context, id string) (*Subscription, error) 
 
 	key := subscriptionKeyPrefix + id
 
-	data, err := r.client.Get(ctx, key).Bytes()
+	data, err := r.Client.Get(ctx, key).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, ErrSubscriptionNotFound
@@ -284,7 +285,7 @@ func (r *RedisStore) Update(ctx context.Context, sub *Subscription) error {
 		return fmt.Errorf("failed to marshal subscription: %w", err)
 	}
 
-	pipe := r.client.Pipeline()
+	pipe := r.Client.Pipeline()
 	key := subscriptionKeyPrefix + sub.ID
 
 	pipe.Set(ctx, key, data, subscriptionTTL)
@@ -308,7 +309,7 @@ func (r *RedisStore) validateUpdate(ctx context.Context, sub *Subscription) erro
 	}
 
 	key := subscriptionKeyPrefix + sub.ID
-	exists, err := r.client.Exists(ctx, key).Result()
+	exists, err := r.Client.Exists(ctx, key).Result()
 	if err != nil {
 		return fmt.Errorf("failed to check subscription existence: %w", err)
 	}
@@ -395,7 +396,7 @@ func (r *RedisStore) Delete(ctx context.Context, id string) error {
 	key := subscriptionKeyPrefix + id
 
 	// Use pipeline for atomic operations
-	pipe := r.client.Pipeline()
+	pipe := r.Client.Pipeline()
 
 	// Delete subscription data
 	pipe.Del(ctx, key)
@@ -442,7 +443,7 @@ func (r *RedisStore) Delete(ctx context.Context, id string) error {
 // Returns an empty slice if no subscriptions exist.
 func (r *RedisStore) List(ctx context.Context) ([]*Subscription, error) {
 	// Get all subscription IDs from the active set
-	ids, err := r.client.SMembers(ctx, subscriptionSetKey).Result()
+	ids, err := r.Client.SMembers(ctx, subscriptionSetKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list subscription IDs: %w", err)
 	}
@@ -475,7 +476,7 @@ func (r *RedisStore) ListByResourcePool(ctx context.Context, resourcePoolID stri
 	poolKey := subscriptionPoolIndexPrefix + resourcePoolID
 
 	// Get subscription IDs from pool index
-	ids, err := r.client.SMembers(ctx, poolKey).Result()
+	ids, err := r.Client.SMembers(ctx, poolKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list subscriptions by pool: %w", err)
 	}
@@ -507,7 +508,7 @@ func (r *RedisStore) ListByResourceType(ctx context.Context, resourceTypeID stri
 	typeKey := subscriptionTypeIndexPrefix + resourceTypeID
 
 	// Get subscription IDs from type index
-	ids, err := r.client.SMembers(ctx, typeKey).Result()
+	ids, err := r.Client.SMembers(ctx, typeKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list subscriptions by type: %w", err)
 	}
@@ -539,7 +540,7 @@ func (r *RedisStore) ListByTenant(ctx context.Context, tenantID string) ([]*Subs
 	tenantKey := subscriptionTenantIndexPrefix + tenantID
 
 	// Get subscription IDs from tenant index
-	ids, err := r.client.SMembers(ctx, tenantKey).Result()
+	ids, err := r.Client.SMembers(ctx, tenantKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list subscriptions by tenant: %w", err)
 	}
@@ -563,7 +564,7 @@ func (r *RedisStore) ListByTenant(ctx context.Context, tenantID string) ([]*Subs
 
 // Close closes the Redis connection and releases resources.
 func (r *RedisStore) Close() error {
-	if err := r.client.Close(); err != nil {
+	if err := r.Client.Close(); err != nil {
 		return fmt.Errorf("failed to close Redis client: %w", err)
 	}
 	return nil
@@ -572,16 +573,10 @@ func (r *RedisStore) Close() error {
 // Ping checks if Redis is available.
 // Returns ErrStorageUnavailable if Redis cannot be reached.
 func (r *RedisStore) Ping(ctx context.Context) error {
-	if err := r.client.Ping(ctx).Err(); err != nil {
+	if err := r.Client.Ping(ctx).Err(); err != nil {
 		return fmt.Errorf("%w: %w", ErrStorageUnavailable, err)
 	}
 	return nil
-}
-
-// Client returns the underlying Redis client.
-// This is used by middleware that needs direct Redis access (e.g., rate limiting).
-func (r *RedisStore) Client() redis.UniversalClient {
-	return r.client
 }
 
 // validateCallbackURL validates that a callback URL is properly formatted and secure.

@@ -50,10 +50,10 @@ func (p *Plugin) SyncInfrastructureInventory(ctx context.Context, inventory *smo
 
 // validateInventorySync validates prerequisites for inventory synchronization.
 func (p *Plugin) validateInventorySync() error {
-	if p.closed {
+	if p.Closed {
 		return fmt.Errorf("plugin is closed")
 	}
-	if !p.config.EnableInventorySync {
+	if !p.Config.EnableInventorySync {
 		return fmt.Errorf("inventory sync is not enabled")
 	}
 	if p.aaiClient == nil {
@@ -142,11 +142,11 @@ func (p *Plugin) SyncDeploymentInventory(ctx context.Context, inventory *smo.Dep
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.closed {
+	if p.Closed {
 		return fmt.Errorf("plugin is closed")
 	}
 
-	if !p.config.EnableInventorySync {
+	if !p.Config.EnableInventorySync {
 		return fmt.Errorf("inventory sync is not enabled")
 	}
 
@@ -189,11 +189,11 @@ func (p *Plugin) PublishInfrastructureEvent(ctx context.Context, event *smo.Infr
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.closed {
+	if p.Closed {
 		return fmt.Errorf("plugin is closed")
 	}
 
-	if !p.config.EnableEventPublishing {
+	if !p.Config.EnableEventPublishing {
 		return fmt.Errorf("event publishing is not enabled")
 	}
 
@@ -212,7 +212,7 @@ func (p *Plugin) PublishInfrastructureEvent(ctx context.Context, event *smo.Infr
 	vesEvent := p.transformToVESEvent(event)
 
 	// Determine the DMaaP topic based on event type
-	topic := p.getDMaaPTopic(event.EventType)
+	topic := p.GetDMaaPTopic(event.EventType)
 
 	// Publish to DMaaP
 	if err := p.dmaapClient.PublishEvent(ctx, topic, vesEvent); err != nil {
@@ -238,11 +238,11 @@ func (p *Plugin) PublishDeploymentEvent(ctx context.Context, event *smo.Deployme
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.closed {
+	if p.Closed {
 		return fmt.Errorf("plugin is closed")
 	}
 
-	if !p.config.EnableEventPublishing {
+	if !p.Config.EnableEventPublishing {
 		return fmt.Errorf("event publishing is not enabled")
 	}
 
@@ -354,7 +354,7 @@ func (p *Plugin) transformDeploymentToServiceInstance(deployment *smo.Deployment
 		ServiceInstanceName: deployment.Name,
 		ServiceType:         "netweave-deployment",
 		ServiceRole:         "o2dms-managed",
-		OrchestrationStatus: p.mapDeploymentStatusToOrchestrationStatus(deployment.Status),
+		OrchestrationStatus: p.MapDeploymentStatusToOrchestrationStatus(deployment.Status),
 		ModelInvariantID:    deployment.PackageID,
 		ModelVersionID:      deployment.PackageID, // In practice, this would be version-specific
 		SelfLink:            fmt.Sprintf("/o2dms/v1/deployments/%s", deployment.ID),
@@ -431,7 +431,7 @@ func (p *Plugin) transformDeploymentEventToVES(event *smo.DeploymentEvent) *VESE
 }
 
 // getDMaaPTopic determines the appropriate DMaaP topic for an event type.
-func (p *Plugin) getDMaaPTopic(eventType string) string {
+func (p *Plugin) GetDMaaPTopic(eventType string) string {
 	// Map event types to DMaaP topics
 	topicMap := map[string]string{
 		"ResourceCreated":     "unauthenticated.VES_INFRASTRUCTURE_EVENTS",
@@ -451,7 +451,7 @@ func (p *Plugin) getDMaaPTopic(eventType string) string {
 }
 
 // mapDeploymentStatusToOrchestrationStatus maps netweave deployment status to ONAP orchestration status.
-func (p *Plugin) mapDeploymentStatusToOrchestrationStatus(status string) string {
+func (p *Plugin) MapDeploymentStatusToOrchestrationStatus(status string) string {
 	statusMap := map[string]string{
 		"pending":   "Assigned",
 		"deploying": "Active",

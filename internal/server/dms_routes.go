@@ -34,7 +34,7 @@ func (s *Server) setupDMSRoutes(handler *dmshandlers.Handler) {
 	}
 
 	// API information endpoint
-	s.router.GET("/o2dms", s.handleDMSAPIInfo)
+	s.router.GET("/o2dms", s.HandleDMSAPIInfo)
 }
 
 // setupNFDeploymentRoutes configures NF deployment routes.
@@ -81,7 +81,7 @@ func (s *Server) setupDMSSubscriptionRoutes(v1 *gin.RouterGroup, handler *dmshan
 }
 
 // handleDMSAPIInfo returns O2-DMS API information.
-func (s *Server) handleDMSAPIInfo(c *gin.Context) {
+func (s *Server) HandleDMSAPIInfo(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"api_version": "v1",
 		"base_path":   "/o2dms/v1",

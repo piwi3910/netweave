@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/server"
 
 	"github.com/gin-gonic/gin"
 	"github.com/piwi3910/netweave/internal/dms/adapter"
@@ -95,8 +97,8 @@ func (m *mockDMSAdapter) SupportsGitOps() bool           { return false }
 func (m *mockDMSAdapter) Health(_ context.Context) error { return nil }
 func (m *mockDMSAdapter) Close() error                   { return nil }
 
-// setupTestServer creates a minimal test server with DMS routes.
-func setupTestServer(t *testing.T) *Server {
+// setupTestServer creates a minimal test server.server with DMS routes.
+func setupTestServer(t *testing.T) *server.Server {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -104,10 +106,7 @@ func setupTestServer(t *testing.T) *Server {
 
 	router := gin.New()
 
-	srv := &Server{
-		router: router,
-		logger: logger,
-	}
+	srv := server.NewTestServerWithRouter(router, logger)
 
 	return srv
 }
@@ -116,12 +115,12 @@ func TestHandleDMSAPIInfo(t *testing.T) {
 	srv := setupTestServer(t)
 
 	// Set up the route directly.
-	srv.router.GET("/o2dms", srv.handleDMSAPIInfo)
+	srv.Router().GET("/o2dms", srv.HandleDMSAPIInfo)
 
 	req := httptest.NewRequest(http.MethodGet, "/o2dms", nil)
 	w := httptest.NewRecorder()
 
-	srv.router.ServeHTTP(w, req)
+	srv.Router().ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -162,11 +161,11 @@ func TestSetupDMSRoutes(t *testing.T) {
 	err := reg.Register(context.Background(), "test-adapter", "mock", mockAdp, nil, true)
 	require.NoError(t, err)
 
-	// Set up DMS using the server method.
+	// Set up DMS using the server.server method.
 	srv.SetupDMS(reg)
 
 	// Verify all routes are registered by checking each endpoint.
-	routes := srv.router.Routes()
+	routes := srv.Router().Routes()
 	routePaths := make(map[string][]string)
 	for _, r := range routes {
 		routePaths[r.Path] = append(routePaths[r.Path], r.Method)
@@ -259,7 +258,7 @@ func TestDMSRoutesIntegration(t *testing.T) {
 			req := httptest.NewRequest(tc.method, tc.path, nil)
 			w := httptest.NewRecorder()
 
-			srv.router.ServeHTTP(w, req)
+			srv.Router().ServeHTTP(w, req)
 
 			assert.Equal(t, tc.expectedStatus, w.Code, "Unexpected status for %s %s", tc.method, tc.path)
 		})

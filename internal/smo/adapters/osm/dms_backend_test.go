@@ -1,22 +1,23 @@
-package osm
+package osm_test
 
 import (
-	"fmt"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/smo/adapters/osm"
 )
 
 // TestInstantiateNS tests NS instantiation.
 func TestInstantiateNS(t *testing.T) {
 	tests := []struct {
 		name    string
-		req     *DeploymentRequest
+		req     *osm.DeploymentRequest
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "valid deployment request",
-			req: &DeploymentRequest{
+			req: &osm.DeploymentRequest{
 				NSName:        "test-ns-1",
 				NSDId:         "nsd-123",
 				VIMAccountID:  "vim-456",
@@ -35,7 +36,7 @@ func TestInstantiateNS(t *testing.T) {
 		},
 		{
 			name: "missing NS name",
-			req: &DeploymentRequest{
+			req: &osm.DeploymentRequest{
 				NSDId:        "nsd-123",
 				VIMAccountID: "vim-456",
 			},
@@ -44,7 +45,7 @@ func TestInstantiateNS(t *testing.T) {
 		},
 		{
 			name: "missing NSD ID",
-			req: &DeploymentRequest{
+			req: &osm.DeploymentRequest{
 				NSName:       "test-ns",
 				VIMAccountID: "vim-456",
 			},
@@ -53,7 +54,7 @@ func TestInstantiateNS(t *testing.T) {
 		},
 		{
 			name: "missing VIM account ID",
-			req: &DeploymentRequest{
+			req: &osm.DeploymentRequest{
 				NSName: "test-ns",
 				NSDId:  "nsd-123",
 			},
@@ -67,22 +68,7 @@ func TestInstantiateNS(t *testing.T) {
 			// Note: This test validates request validation logic only
 			// Full integration testing would require a mock OSM server
 
-			plugin := &Plugin{
-				config: DefaultConfig(),
-			}
-
-			// We can't actually call InstantiateNS without a real/mock server,
-			// but we can validate the error cases by checking the validation logic
-
-			if tt.req == nil {
-				err := plugin.validateDeploymentRequest(nil)
-				if err == nil && tt.wantErr {
-					t.Error("Expected validation error for nil request")
-				}
-				return
-			}
-
-			err := plugin.validateDeploymentRequest(tt.req)
+			err := osm.ValidateDeploymentRequest(tt.req)
 
 			if tt.wantErr {
 				if err == nil {
@@ -101,7 +87,7 @@ func TestInstantiateNS(t *testing.T) {
 
 // TestMapOSMStatusComprehensive tests all OSM status mappings.
 func TestMapOSMStatusComprehensive(t *testing.T) {
-	plugin := &Plugin{}
+	plugin := &osm.Plugin{}
 
 	tests := []struct {
 		osmStatus  string
@@ -134,9 +120,9 @@ func TestMapOSMStatusComprehensive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.osmStatus, func(t *testing.T) {
-			result := plugin.mapOSMStatus(tt.osmStatus)
+			result := plugin.MapOSMStatus(tt.osmStatus)
 			if result != tt.wantStatus {
-				t.Errorf("mapOSMStatus(%q) = %q, want %q", tt.osmStatus, result, tt.wantStatus)
+				t.Errorf("MapOSMStatus(%q) = %q, want %q", tt.osmStatus, result, tt.wantStatus)
 			}
 		})
 	}
@@ -147,18 +133,18 @@ func TestNSScaleRequest(t *testing.T) {
 	tests := []struct {
 		name        string
 		nsID        string
-		scaleReq    *NSScaleRequest
+		scaleReq    *osm.NSScaleRequest
 		wantErr     bool
 		errContains string
 	}{
 		{
 			name: "valid scale out request",
 			nsID: "ns-123",
-			scaleReq: &NSScaleRequest{
+			scaleReq: &osm.NSScaleRequest{
 				ScaleType: "SCALE_VNF",
-				ScaleVnfData: ScaleVnfData{
+				ScaleVnfData: osm.ScaleVnfData{
 					ScaleVnfType: "SCALE_OUT",
-					ScaleByStepData: ScaleByStepData{
+					ScaleByStepData: osm.ScaleByStepData{
 						ScalingGroupDescriptor: "default",
 						MemberVnfIndex:         "1",
 					},
@@ -169,11 +155,11 @@ func TestNSScaleRequest(t *testing.T) {
 		{
 			name: "valid scale in request",
 			nsID: "ns-123",
-			scaleReq: &NSScaleRequest{
+			scaleReq: &osm.NSScaleRequest{
 				ScaleType: "SCALE_VNF",
-				ScaleVnfData: ScaleVnfData{
+				ScaleVnfData: osm.ScaleVnfData{
 					ScaleVnfType: "SCALE_IN",
-					ScaleByStepData: ScaleByStepData{
+					ScaleByStepData: osm.ScaleByStepData{
 						ScalingGroupDescriptor: "default",
 						MemberVnfIndex:         "1",
 					},
@@ -184,7 +170,7 @@ func TestNSScaleRequest(t *testing.T) {
 		{
 			name:        "empty NS ID",
 			nsID:        "",
-			scaleReq:    &NSScaleRequest{ScaleType: "SCALE_VNF"},
+			scaleReq:    &osm.NSScaleRequest{ScaleType: "SCALE_VNF"},
 			wantErr:     true,
 			errContains: "ns instance id is required",
 		},
@@ -198,7 +184,7 @@ func TestNSScaleRequest(t *testing.T) {
 		{
 			name: "unsupported scale type",
 			nsID: "ns-123",
-			scaleReq: &NSScaleRequest{
+			scaleReq: &osm.NSScaleRequest{
 				ScaleType: "INVALID_TYPE",
 			},
 			wantErr:     true,
@@ -208,9 +194,7 @@ func TestNSScaleRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			plugin := &Plugin{config: DefaultConfig()}
-
-			err := plugin.validateScaleRequest(tt.nsID, tt.scaleReq)
+			err := osm.ValidateScaleRequest(tt.nsID, tt.scaleReq)
 
 			if tt.wantErr {
 				if err == nil {
@@ -232,14 +216,14 @@ func TestNSHealRequest(t *testing.T) {
 	tests := []struct {
 		name        string
 		nsID        string
-		healReq     *NSHealRequest
+		healReq     *osm.NSHealRequest
 		wantErr     bool
 		errContains string
 	}{
 		{
 			name: "valid heal request",
 			nsID: "ns-123",
-			healReq: &NSHealRequest{
+			healReq: &osm.NSHealRequest{
 				VNFInstanceID: "vnf-456",
 				Cause:         "VNF failure detected",
 			},
@@ -248,7 +232,7 @@ func TestNSHealRequest(t *testing.T) {
 		{
 			name:        "empty NS ID",
 			nsID:        "",
-			healReq:     &NSHealRequest{VNFInstanceID: "vnf-456"},
+			healReq:     &osm.NSHealRequest{VNFInstanceID: "vnf-456"},
 			wantErr:     true,
 			errContains: "ns instance id is required",
 		},
@@ -262,7 +246,7 @@ func TestNSHealRequest(t *testing.T) {
 		{
 			name: "missing VNF instance ID",
 			nsID: "ns-123",
-			healReq: &NSHealRequest{
+			healReq: &osm.NSHealRequest{
 				Cause: "Need to heal something",
 			},
 			wantErr:     true,
@@ -272,9 +256,7 @@ func TestNSHealRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			plugin := &Plugin{config: DefaultConfig()}
-
-			err := plugin.validateHealRequest(tt.nsID, tt.healReq)
+			err := osm.ValidateHealRequest(tt.nsID, tt.healReq)
 
 			if tt.wantErr {
 				if err == nil {
@@ -293,7 +275,7 @@ func TestNSHealRequest(t *testing.T) {
 
 // TestVNFStatus tests VNF status structure.
 func TestVNFStatus(t *testing.T) {
-	status := VNFStatus{
+	status := osm.VNFStatus{
 		VNFId:             "vnf-123",
 		MemberVnfIndex:    "1",
 		OperationalStatus: "running",
@@ -317,11 +299,11 @@ func TestVNFStatus(t *testing.T) {
 // TestDeploymentStatus tests deployment status structure.
 func TestDeploymentStatus(t *testing.T) {
 	now := time.Now()
-	status := &DeploymentStatus{
+	status := &osm.DeploymentStatus{
 		DeploymentID: "ns-123",
 		Status:       "ACTIVE",
 		UpdatedAt:    now,
-		VNFStatuses: []VNFStatus{
+		VNFStatuses: []osm.VNFStatus{
 			{
 				VNFId:             "vnf-1",
 				MemberVnfIndex:    "1",
@@ -350,46 +332,4 @@ func TestDeploymentStatus(t *testing.T) {
 	}
 }
 
-// Add validation helper methods to Plugin for testing
-
-func (p *Plugin) validateDeploymentRequest(req *DeploymentRequest) error {
-	if req == nil {
-		return fmt.Errorf("deployment request cannot be nil")
-	}
-	if req.NSName == "" {
-		return fmt.Errorf("ns name is required")
-	}
-	if req.NSDId == "" {
-		return fmt.Errorf("nsd id is required")
-	}
-	if req.VIMAccountID == "" {
-		return fmt.Errorf("vim account id is required")
-	}
-	return nil
-}
-
-func (p *Plugin) validateScaleRequest(nsInstanceID string, scaleReq *NSScaleRequest) error {
-	if nsInstanceID == "" {
-		return fmt.Errorf("ns instance id is required")
-	}
-	if scaleReq == nil {
-		return fmt.Errorf("scale request cannot be nil")
-	}
-	if scaleReq.ScaleType != "SCALE_VNF" {
-		return fmt.Errorf("unsupported scale type: %s", scaleReq.ScaleType)
-	}
-	return nil
-}
-
-func (p *Plugin) validateHealRequest(nsInstanceID string, healReq *NSHealRequest) error {
-	if nsInstanceID == "" {
-		return fmt.Errorf("ns instance id is required")
-	}
-	if healReq == nil {
-		return fmt.Errorf("heal request cannot be nil")
-	}
-	if healReq.VNFInstanceID == "" {
-		return fmt.Errorf("vnf instance id is required")
-	}
-	return nil
-}
+// Validation helper functions are now exported from the osm package

@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"bytes"
@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/server"
 
 	"github.com/gin-gonic/gin"
 	smoapi "github.com/piwi3910/netweave/internal/smo"
@@ -193,7 +195,7 @@ func newTestMockPlugin(name string) *mockSMOPlugin {
 	}
 }
 
-func setupTestSMOHandler(t *testing.T) *SMOHandler {
+func setupTestSMOHandler(t *testing.T) *server.SMOHandler {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	logger := zap.NewNop()
@@ -204,31 +206,31 @@ func setupTestSMOHandler(t *testing.T) *SMOHandler {
 	err := registry.Register(context.Background(), "test-plugin", plugin, true)
 	require.NoError(t, err)
 
-	handler := NewSMOHandler(registry, logger)
+	handler := server.NewSMOHandler(registry, logger)
 	return handler
 }
 
-func setupTestRouter(handler *SMOHandler) *gin.Engine {
+func setupTestRouter(handler *server.SMOHandler) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery()) // Add recovery middleware to prevent panics
 	v1 := router.Group("/o2smo/v1")
 	{
-		v1.GET("/plugins", handler.handleListPlugins)
-		v1.GET("/plugins/:pluginId", handler.handleGetPlugin)
-		v1.POST("/workflows", handler.handleExecuteWorkflow)
-		v1.GET("/workflows/:executionId", handler.handleGetWorkflowStatus)
-		v1.DELETE("/workflows/:executionId", handler.handleCancelWorkflow)
-		v1.GET("/serviceModels", handler.handleListServiceModels)
-		v1.POST("/serviceModels", handler.handleCreateServiceModel)
-		v1.GET("/serviceModels/:modelId", handler.handleGetServiceModel)
-		v1.DELETE("/serviceModels/:modelId", handler.handleDeleteServiceModel)
-		v1.POST("/policies", handler.handleApplyPolicy)
-		v1.GET("/policies/:policyId/status", handler.handleGetPolicyStatus)
-		v1.POST("/sync/infrastructure", handler.handleSyncInfrastructure)
-		v1.POST("/sync/deployments", handler.handleSyncDeployments)
-		v1.POST("/events/infrastructure", handler.handlePublishInfrastructureEvent)
-		v1.POST("/events/deployment", handler.handlePublishDeploymentEvent)
-		v1.GET("/health", handler.handleSMOHealth)
+		v1.GET("/plugins", handler.HandleListPlugins)
+		v1.GET("/plugins/:pluginId", handler.HandleGetPlugin)
+		v1.POST("/workflows", handler.HandleExecuteWorkflow)
+		v1.GET("/workflows/:executionId", handler.HandleGetWorkflowStatus)
+		v1.DELETE("/workflows/:executionId", handler.HandleCancelWorkflow)
+		v1.GET("/serviceModels", handler.HandleListServiceModels)
+		v1.POST("/serviceModels", handler.HandleCreateServiceModel)
+		v1.GET("/serviceModels/:modelId", handler.HandleGetServiceModel)
+		v1.DELETE("/serviceModels/:modelId", handler.HandleDeleteServiceModel)
+		v1.POST("/policies", handler.HandleApplyPolicy)
+		v1.GET("/policies/:policyId/status", handler.HandleGetPolicyStatus)
+		v1.POST("/sync/infrastructure", handler.HandleSyncInfrastructure)
+		v1.POST("/sync/deployments", handler.HandleSyncDeployments)
+		v1.POST("/events/infrastructure", handler.HandlePublishInfrastructureEvent)
+		v1.POST("/events/deployment", handler.HandlePublishDeploymentEvent)
+		v1.GET("/health", handler.HandleSMOHealth)
 	}
 	return router
 }
@@ -611,7 +613,7 @@ func TestSMOHandler_PluginNotFound(t *testing.T) {
 	logger := zap.NewNop()
 	registry := smoapi.NewRegistry(logger)
 	// Don't register any plugins
-	handler := NewSMOHandler(registry, logger)
+	handler := server.NewSMOHandler(registry, logger)
 	router := setupTestRouter(handler)
 
 	// All endpoints should return not found for plugin operations
@@ -756,7 +758,7 @@ func TestSMOHandler_PluginErrors(t *testing.T) {
 	err := registry.Register(context.Background(), "error-plugin", plugin, true)
 	require.NoError(t, err)
 
-	handler := NewSMOHandler(registry, logger)
+	handler := server.NewSMOHandler(registry, logger)
 	router := setupTestRouter(handler)
 
 	t.Run("workflow execution error", func(t *testing.T) {
@@ -824,7 +826,7 @@ func TestSMOHandler_HealthDegraded(t *testing.T) {
 	err = registry.Register(context.Background(), "unhealthy-plugin", unhealthyPlugin, false)
 	require.NoError(t, err)
 
-	handler := NewSMOHandler(registry, logger)
+	handler := server.NewSMOHandler(registry, logger)
 	router := setupTestRouter(handler)
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v1/health", nil)
@@ -858,7 +860,7 @@ func TestSMOHandler_HealthUnhealthy(t *testing.T) {
 	err := registry.Register(context.Background(), "unhealthy-plugin", unhealthyPlugin, true)
 	require.NoError(t, err)
 
-	handler := NewSMOHandler(registry, logger)
+	handler := server.NewSMOHandler(registry, logger)
 	router := setupTestRouter(handler)
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v1/health", nil)

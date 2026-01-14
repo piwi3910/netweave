@@ -130,19 +130,19 @@ type SubscriptionLimits struct {
 
 // ResourceRateLimiter provides resource-type-specific rate limiting.
 type ResourceRateLimiter struct {
-	client  redis.UniversalClient
-	logger  *zap.Logger
-	config  *ResourceRateLimitConfig
-	metrics *resourceRateLimitMetrics
+	Client  redis.UniversalClient     // Exported for testing
+	Logger  *zap.Logger               // Exported for testing
+	Config  *ResourceRateLimitConfig  // Exported for testing
+	Metrics *ResourceRateLimitMetrics // Exported for testing
 }
 
-type resourceRateLimitMetrics struct {
-	hits     *prometheus.CounterVec
-	failOpen *prometheus.CounterVec
+type ResourceRateLimitMetrics struct {
+	Hits     *prometheus.CounterVec // Exported for testing
+	FailOpen *prometheus.CounterVec // Exported for testing
 }
 
 // Prometheus metrics for resource rate limiting.
-var resourceRateLimitHits = promauto.NewCounterVec(
+var ResourceRateLimitHits = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "o2ims_resource_rate_limit_hits_total",
 		Help: "Total number of resource rate limit hits",
@@ -150,8 +150,8 @@ var resourceRateLimitHits = promauto.NewCounterVec(
 	[]string{"resource_type", "operation", "tenant"},
 )
 
-// resourceRateLimitFailOpen tracks when rate limiting fails open due to Redis errors.
-var resourceRateLimitFailOpen = promauto.NewCounterVec(
+// ResourceRateLimitFailOpen tracks when rate limiting fails open due to Redis errors.
+var ResourceRateLimitFailOpen = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "o2ims_resource_rate_limit_fail_open_total",
 		Help: "Total number of requests allowed due to rate limit check failures (fail-open behavior)",
@@ -233,12 +233,12 @@ func NewResourceRateLimiter(
 	}
 
 	return &ResourceRateLimiter{
-		client: config.RedisClient,
-		logger: logger,
-		config: config,
-		metrics: &resourceRateLimitMetrics{
-			hits:     resourceRateLimitHits,
-			failOpen: resourceRateLimitFailOpen,
+		Client: config.RedisClient,
+		Logger: logger,
+		Config: config,
+		Metrics: &ResourceRateLimitMetrics{
+			Hits:     ResourceRateLimitHits,
+			FailOpen: ResourceRateLimitFailOpen,
 		},
 	}, nil
 }
@@ -337,13 +337,13 @@ func warnZeroSubscriptionLimits(logger *zap.Logger, limits SubscriptionLimits) {
 // Middleware returns a Gin middleware for resource-type rate limiting.
 func (rl *ResourceRateLimiter) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !rl.config.Enabled {
+		if !rl.Config.Enabled {
 			c.Next()
 			return
 		}
 
 		ctx := c.Request.Context()
-		tenantID := getResourceTenantID(c)
+		tenantID := GetResourceTenantID(c)
 
 		// Use FullPath() for matched routes, fallback to Request.URL.Path for unmatched
 		path := c.FullPath()
@@ -351,12 +351,12 @@ func (rl *ResourceRateLimiter) Middleware() gin.HandlerFunc {
 			path = c.Request.URL.Path
 		}
 
-		resourceType := extractResourceType(path)
-		operation := extractOperation(c.Request.Method, path)
+		resourceType := ExtractResourceType(path)
+		operation := ExtractOperation(c.Request.Method, path)
 
 		// Check page size for list operations
 		if operation == OperationList {
-			if !rl.checkPageSize(c, resourceType) {
+			if !rl.CheckPageSize(c, resourceType) {
 				return
 			}
 		}
@@ -371,7 +371,7 @@ func (rl *ResourceRateLimiter) Middleware() gin.HandlerFunc {
 }
 
 // checkPageSize validates that the requested page size is within limits.
-func (rl *ResourceRateLimiter) checkPageSize(c *gin.Context, resourceType ResourceType) bool {
+func (rl *ResourceRateLimiter) CheckPageSize(c *gin.Context, resourceType ResourceType) bool {
 	pageSizeStr := c.Query("limit")
 	if pageSizeStr == "" {
 		return true
@@ -382,7 +382,7 @@ func (rl *ResourceRateLimiter) checkPageSize(c *gin.Context, resourceType Resour
 		return true // Let other validation handle invalid values
 	}
 
-	maxSize := rl.getMaxPageSize(resourceType)
+	maxSize := rl.GetMaxPageSize(resourceType)
 	if pageSize > maxSize {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":    "page size exceeds maximum",
@@ -397,7 +397,7 @@ func (rl *ResourceRateLimiter) checkPageSize(c *gin.Context, resourceType Resour
 }
 
 // getMaxPageSize returns the maximum page size for a resource type.
-func (rl *ResourceRateLimiter) getMaxPageSize(resourceType ResourceType) int {
+func (rl *ResourceRateLimiter) GetMaxPageSize(resourceType ResourceType) int {
 	// Get resource-specific max page size.
 	maxSize := rl.getResourceTypeMaxPageSize(resourceType)
 	if maxSize > 0 {
@@ -405,8 +405,8 @@ func (rl *ResourceRateLimiter) getMaxPageSize(resourceType ResourceType) int {
 	}
 
 	// Fall back to default.
-	if rl.config.DefaultLimits.ListPageSizeMax > 0 {
-		return rl.config.DefaultLimits.ListPageSizeMax
+	if rl.Config.DefaultLimits.ListPageSizeMax > 0 {
+		return rl.Config.DefaultLimits.ListPageSizeMax
 	}
 
 	return DefaultMaxPageSize
@@ -416,13 +416,13 @@ func (rl *ResourceRateLimiter) getMaxPageSize(resourceType ResourceType) int {
 func (rl *ResourceRateLimiter) getResourceTypeMaxPageSize(resourceType ResourceType) int {
 	switch resourceType {
 	case ResourceTypeDeploymentManagers:
-		return rl.config.DeploymentManagers.ListPageSizeMax
+		return rl.Config.DeploymentManagers.ListPageSizeMax
 	case ResourceTypeResourcePools:
-		return rl.config.ResourcePools.ListPageSizeMax
+		return rl.Config.ResourcePools.ListPageSizeMax
 	case ResourceTypeResources:
-		return rl.config.Resources.ListPageSizeMax
+		return rl.Config.Resources.ListPageSizeMax
 	case ResourceTypeResourceTypes:
-		return rl.config.ResourceTypes.ListPageSizeMax
+		return rl.Config.ResourceTypes.ListPageSizeMax
 	case ResourceTypeSubscriptions:
 		return DefaultMaxPageSize // Subscriptions don't have a separate page size config
 	case ResourceTypeUnknown:
@@ -449,12 +449,12 @@ func (rl *ResourceRateLimiter) checkResourceLimit(
 
 	allowed, remaining, err := rl.checkRedisLimit(ctx, key, limit, window)
 	if err != nil {
-		rl.logger.Error("resource rate limit check failed",
+		rl.Logger.Error("resource rate limit check failed",
 			zap.String("key", key),
 			zap.Error(err),
 		)
 		// Record fail-open metric for observability
-		rl.metrics.failOpen.WithLabelValues(string(resourceType), string(operation), tenantID).Inc()
+		rl.Metrics.FailOpen.WithLabelValues(string(resourceType), string(operation), tenantID).Inc()
 		// Fail open: allow request if Redis fails
 		return true
 	}
@@ -469,7 +469,7 @@ func (rl *ResourceRateLimiter) checkResourceLimit(
 		retryAfter := int(window.Seconds())
 		c.Header("Retry-After", strconv.Itoa(retryAfter))
 
-		rl.logger.Warn("resource rate limit exceeded",
+		rl.Logger.Warn("resource rate limit exceeded",
 			zap.String("tenant", tenantID),
 			zap.String("resourceType", string(resourceType)),
 			zap.String("operation", string(operation)),
@@ -479,7 +479,7 @@ func (rl *ResourceRateLimiter) checkResourceLimit(
 		)
 
 		// Record metric
-		rl.metrics.hits.WithLabelValues(string(resourceType), string(operation), tenantID).Inc()
+		rl.Metrics.Hits.WithLabelValues(string(resourceType), string(operation), tenantID).Inc()
 
 		c.JSON(http.StatusTooManyRequests, gin.H{
 			"error":         "resource rate limit exceeded",
@@ -501,19 +501,19 @@ func (rl *ResourceRateLimiter) getLimits(
 ) (int, time.Duration) {
 	switch resourceType {
 	case ResourceTypeDeploymentManagers:
-		return rl.getTypeLimits(rl.config.DeploymentManagers, operation)
+		return rl.getTypeLimits(rl.Config.DeploymentManagers, operation)
 	case ResourceTypeResourcePools:
-		return rl.getTypeLimits(rl.config.ResourcePools, operation)
+		return rl.getTypeLimits(rl.Config.ResourcePools, operation)
 	case ResourceTypeResources:
-		return rl.getTypeLimits(rl.config.Resources, operation)
+		return rl.getTypeLimits(rl.Config.Resources, operation)
 	case ResourceTypeResourceTypes:
-		return rl.getTypeLimits(rl.config.ResourceTypes, operation)
+		return rl.getTypeLimits(rl.Config.ResourceTypes, operation)
 	case ResourceTypeSubscriptions:
 		return rl.getSubscriptionLimits(operation)
 	case ResourceTypeUnknown:
-		return rl.getTypeLimits(rl.config.DefaultLimits, operation)
+		return rl.getTypeLimits(rl.Config.DefaultLimits, operation)
 	default:
-		return rl.getTypeLimits(rl.config.DefaultLimits, operation)
+		return rl.getTypeLimits(rl.Config.DefaultLimits, operation)
 	}
 }
 
@@ -538,13 +538,13 @@ func (rl *ResourceRateLimiter) getTypeLimits(
 func (rl *ResourceRateLimiter) getSubscriptionLimits(operation OperationType) (int, time.Duration) {
 	switch operation {
 	case OperationRead, OperationList:
-		return rl.config.Subscriptions.ReadsPerMinute, time.Minute
+		return rl.Config.Subscriptions.ReadsPerMinute, time.Minute
 	case OperationWrite:
-		return rl.config.Subscriptions.CreatesPerHour, time.Hour
+		return rl.Config.Subscriptions.CreatesPerHour, time.Hour
 	case OperationDelete:
-		return rl.config.Subscriptions.CreatesPerHour, time.Hour
+		return rl.Config.Subscriptions.CreatesPerHour, time.Hour
 	default:
-		return rl.config.Subscriptions.ReadsPerMinute, time.Minute
+		return rl.Config.Subscriptions.ReadsPerMinute, time.Minute
 	}
 }
 
@@ -581,7 +581,7 @@ func (rl *ResourceRateLimiter) checkRedisLimit(
 		end
 	`
 
-	result, err := rl.client.Eval(ctx, script, []string{key}, now, limit, windowSeconds).Result()
+	result, err := rl.Client.Eval(ctx, script, []string{key}, now, limit, windowSeconds).Result()
 	if err != nil {
 		return false, 0, fmt.Errorf("redis eval failed: %w", err)
 	}
@@ -598,7 +598,7 @@ func (rl *ResourceRateLimiter) checkRedisLimit(
 }
 
 // extractResourceType determines the resource type from the request path.
-func extractResourceType(path string) ResourceType {
+func ExtractResourceType(path string) ResourceType {
 	// O2-IMS API paths follow the pattern: /o2ims/v1/{resourceType}/...
 	// Uses pre-compiled regex patterns for performance.
 	for _, p := range resourceTypePatterns {
@@ -611,11 +611,11 @@ func extractResourceType(path string) ResourceType {
 }
 
 // extractOperation determines the operation type from the HTTP method and path.
-func extractOperation(method, path string) OperationType {
+func ExtractOperation(method, path string) OperationType {
 	switch method {
 	case http.MethodGet:
 		// Check if it's a list operation (collection endpoint)
-		if isCollectionPath(path) {
+		if IsCollectionPath(path) {
 			return OperationList
 		}
 		return OperationRead
@@ -631,7 +631,7 @@ func extractOperation(method, path string) OperationType {
 }
 
 // isCollectionPath determines if a path is a collection endpoint.
-func isCollectionPath(path string) bool {
+func IsCollectionPath(path string) bool {
 	// Collection paths end with the resource type name, not an ID.
 	// Uses pre-compiled regex patterns for performance.
 	for _, pattern := range collectionPathPatterns {
@@ -644,7 +644,7 @@ func isCollectionPath(path string) bool {
 }
 
 // getResourceTenantID extracts the tenant ID for resource rate limiting.
-func getResourceTenantID(c *gin.Context) string {
+func GetResourceTenantID(c *gin.Context) string {
 	// Try to get tenant from auth context
 	if tenantID, exists := c.Get("tenant_id"); exists {
 		if id, ok := tenantID.(string); ok && id != "" {

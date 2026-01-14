@@ -14,8 +14,8 @@ import (
 
 // ResourceHandler handles Resource API endpoints.
 type ResourceHandler struct {
-	adapter adapter.Adapter
-	logger  *zap.Logger
+	Adapter adapter.Adapter // Exported for testing
+	Logger  *zap.Logger     // Exported for testing
 }
 
 // NewResourceHandler creates a new ResourceHandler.
@@ -29,8 +29,8 @@ func NewResourceHandler(adp adapter.Adapter, logger *zap.Logger) *ResourceHandle
 	}
 
 	return &ResourceHandler{
-		adapter: adp,
-		logger:  logger,
+		Adapter: adp,
+		Logger:  logger,
 	}
 }
 
@@ -65,7 +65,7 @@ func handleGetError(c *gin.Context, err error, entityType, entityID string) {
 func (h *ResourceHandler) ListResources(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	h.logger.Info("listing resources",
+	h.Logger.Info("listing resources",
 		zap.String("request_id", c.GetString("request_id")),
 	)
 
@@ -84,9 +84,9 @@ func (h *ResourceHandler) ListResources(c *gin.Context) {
 	}
 
 	// Get resources from adapter
-	resources, err := h.adapter.ListResources(ctx, adapterFilter)
+	resources, err := h.Adapter.ListResources(ctx, adapterFilter)
 	if err != nil {
-		h.logger.Error("failed to list resources",
+		h.Logger.Error("failed to list resources",
 			zap.Error(err),
 		)
 
@@ -117,7 +117,7 @@ func (h *ResourceHandler) ListResources(c *gin.Context) {
 		TotalCount: len(resourceList),
 	}
 
-	h.logger.Info("resources retrieved",
+	h.Logger.Info("resources retrieved",
 		zap.Int("count", len(resourceList)),
 	)
 
@@ -145,7 +145,7 @@ func (h *ResourceHandler) GetResource(c *gin.Context) {
 		return
 	}
 
-	resource, err := h.adapter.GetResource(c.Request.Context(), resourceID)
+	resource, err := h.Adapter.GetResource(c.Request.Context(), resourceID)
 	if err != nil {
 		handleGetError(c, err, "Resource", resourceID)
 		return

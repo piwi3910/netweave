@@ -1,8 +1,9 @@
-package auth
+package auth_test
 
 import (
 	"testing"
 
+	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -10,41 +11,41 @@ import (
 func TestRole_HasPermission(t *testing.T) {
 	tests := []struct {
 		name       string
-		role       *Role
-		permission Permission
+		role       *auth.Role
+		permission auth.Permission
 		want       bool
 	}{
 		{
 			name: "role has permission",
-			role: &Role{
+			role: &auth.Role{
 				ID:          "role-1",
-				Name:        RoleViewer,
-				Type:        RoleTypeTenant,
-				Permissions: []Permission{PermissionSubscriptionRead, PermissionResourcePoolRead},
+				Name:        auth.RoleViewer,
+				Type:        auth.RoleTypeTenant,
+				Permissions: []auth.Permission{auth.PermissionSubscriptionRead, auth.PermissionResourcePoolRead},
 			},
-			permission: PermissionSubscriptionRead,
+			permission: auth.PermissionSubscriptionRead,
 			want:       true,
 		},
 		{
 			name: "role does not have permission",
-			role: &Role{
+			role: &auth.Role{
 				ID:          "role-2",
-				Name:        RoleViewer,
-				Type:        RoleTypeTenant,
-				Permissions: []Permission{PermissionSubscriptionRead},
+				Name:        auth.RoleViewer,
+				Type:        auth.RoleTypeTenant,
+				Permissions: []auth.Permission{auth.PermissionSubscriptionRead},
 			},
-			permission: PermissionSubscriptionCreate,
+			permission: auth.PermissionSubscriptionCreate,
 			want:       false,
 		},
 		{
 			name: "empty permissions",
-			role: &Role{
+			role: &auth.Role{
 				ID:          "role-3",
-				Name:        RoleViewer,
-				Type:        RoleTypeTenant,
-				Permissions: []Permission{},
+				Name:        auth.RoleViewer,
+				Type:        auth.RoleTypeTenant,
+				Permissions: []auth.Permission{},
 			},
-			permission: PermissionSubscriptionRead,
+			permission: auth.PermissionSubscriptionRead,
 			want:       false,
 		},
 	}
@@ -58,12 +59,12 @@ func TestRole_HasPermission(t *testing.T) {
 }
 
 func TestRole_MarshalBinary(t *testing.T) {
-	role := &Role{
+	role := &auth.Role{
 		ID:          "role-test",
-		Name:        RoleAdmin,
-		Type:        RoleTypeTenant,
+		Name:        auth.RoleAdmin,
+		Type:        auth.RoleTypeTenant,
 		Description: "Test role",
-		Permissions: []Permission{PermissionUserRead, PermissionUserCreate},
+		Permissions: []auth.Permission{auth.PermissionUserRead, auth.PermissionUserCreate},
 	}
 
 	data, err := role.MarshalBinary()
@@ -71,7 +72,7 @@ func TestRole_MarshalBinary(t *testing.T) {
 	require.NotEmpty(t, data)
 
 	// Unmarshal and verify.
-	var unmarshaled Role
+	var unmarshaled auth.Role
 	err = unmarshaled.UnmarshalBinary(data)
 	require.NoError(t, err)
 	assert.Equal(t, role.ID, unmarshaled.ID)
@@ -83,17 +84,17 @@ func TestRole_MarshalBinary(t *testing.T) {
 func TestTenant_IsActive(t *testing.T) {
 	tests := []struct {
 		name   string
-		status TenantStatus
+		status auth.TenantStatus
 		want   bool
 	}{
-		{"active tenant", TenantStatusActive, true},
-		{"suspended tenant", TenantStatusSuspended, false},
-		{"pending deletion", TenantStatusPendingDeletion, false},
+		{"active tenant", auth.TenantStatusActive, true},
+		{"suspended tenant", auth.TenantStatusSuspended, false},
+		{"pending deletion", auth.TenantStatusPendingDeletion, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tenant := &Tenant{
+			tenant := &auth.Tenant{
 				ID:     "tenant-1",
 				Status: tt.status,
 			}
@@ -103,17 +104,17 @@ func TestTenant_IsActive(t *testing.T) {
 }
 
 func TestTenant_QuotaChecks(t *testing.T) {
-	tenant := &Tenant{
+	tenant := &auth.Tenant{
 		ID:     "tenant-1",
-		Name:   "Test Tenant",
-		Status: TenantStatusActive,
-		Quota: TenantQuota{
+		Name:   "Test auth.Tenant",
+		Status: auth.TenantStatusActive,
+		Quota: auth.TenantQuota{
 			MaxSubscriptions: 10,
 			MaxResourcePools: 5,
 			MaxDeployments:   20,
 			MaxUsers:         3,
 		},
-		Usage: TenantUsage{
+		Usage: auth.TenantUsage{
 			Subscriptions: 5,
 			ResourcePools: 5,
 			Deployments:   10,
@@ -138,11 +139,11 @@ func TestTenant_QuotaChecks(t *testing.T) {
 	})
 
 	t.Run("suspended tenant cannot create anything", func(t *testing.T) {
-		suspendedTenant := &Tenant{
+		suspendedTenant := &auth.Tenant{
 			ID:     "tenant-2",
-			Status: TenantStatusSuspended,
-			Quota:  DefaultQuota(),
-			Usage:  TenantUsage{},
+			Status: auth.TenantStatusSuspended,
+			Quota:  auth.DefaultQuota(),
+			Usage:  auth.TenantUsage{},
 		}
 		assert.False(t, suspendedTenant.CanCreateSubscription())
 		assert.False(t, suspendedTenant.CanCreateResourcePool())
@@ -152,13 +153,13 @@ func TestTenant_QuotaChecks(t *testing.T) {
 }
 
 func TestTenant_MarshalBinary(t *testing.T) {
-	tenant := &Tenant{
+	tenant := &auth.Tenant{
 		ID:          "tenant-test",
-		Name:        "Test Tenant",
+		Name:        "Test auth.Tenant",
 		Description: "A test tenant",
-		Status:      TenantStatusActive,
-		Quota:       DefaultQuota(),
-		Usage: TenantUsage{
+		Status:      auth.TenantStatusActive,
+		Quota:       auth.DefaultQuota(),
+		Usage: auth.TenantUsage{
 			Subscriptions: 5,
 		},
 		Metadata: map[string]string{
@@ -171,7 +172,7 @@ func TestTenant_MarshalBinary(t *testing.T) {
 	require.NotEmpty(t, data)
 
 	// Unmarshal and verify.
-	var unmarshaled Tenant
+	var unmarshaled auth.Tenant
 	err = unmarshaled.UnmarshalBinary(data)
 	require.NoError(t, err)
 	assert.Equal(t, tenant.ID, unmarshaled.ID)
@@ -181,7 +182,7 @@ func TestTenant_MarshalBinary(t *testing.T) {
 }
 
 func TestTenantUser_MarshalBinary(t *testing.T) {
-	user := &TenantUser{
+	user := &auth.TenantUser{
 		ID:         "user-test",
 		TenantID:   "tenant-1",
 		Subject:    "CN=alice,O=ACME",
@@ -196,7 +197,7 @@ func TestTenantUser_MarshalBinary(t *testing.T) {
 	require.NotEmpty(t, data)
 
 	// Unmarshal and verify.
-	var unmarshaled TenantUser
+	var unmarshaled auth.TenantUser
 	err = unmarshaled.UnmarshalBinary(data)
 	require.NoError(t, err)
 	assert.Equal(t, user.ID, unmarshaled.ID)
@@ -208,56 +209,56 @@ func TestTenantUser_MarshalBinary(t *testing.T) {
 func TestAuthenticatedUser_HasPermission(t *testing.T) {
 	tests := []struct {
 		name       string
-		user       *AuthenticatedUser
-		permission Permission
+		user       *auth.AuthenticatedUser
+		permission auth.Permission
 		want       bool
 	}{
 		{
 			name: "platform admin has all permissions",
-			user: &AuthenticatedUser{
+			user: &auth.AuthenticatedUser{
 				UserID:          "admin-1",
 				TenantID:        "tenant-1",
 				IsPlatformAdmin: true,
-				Role:            &Role{Permissions: []Permission{}},
+				Role:            &auth.Role{Permissions: []auth.Permission{}},
 			},
-			permission: PermissionTenantDelete,
+			permission: auth.PermissionTenantDelete,
 			want:       true,
 		},
 		{
 			name: "user with permission",
-			user: &AuthenticatedUser{
+			user: &auth.AuthenticatedUser{
 				UserID:          "user-1",
 				TenantID:        "tenant-1",
 				IsPlatformAdmin: false,
-				Role: &Role{
-					Permissions: []Permission{PermissionSubscriptionRead, PermissionSubscriptionCreate},
+				Role: &auth.Role{
+					Permissions: []auth.Permission{auth.PermissionSubscriptionRead, auth.PermissionSubscriptionCreate},
 				},
 			},
-			permission: PermissionSubscriptionCreate,
+			permission: auth.PermissionSubscriptionCreate,
 			want:       true,
 		},
 		{
 			name: "user without permission",
-			user: &AuthenticatedUser{
+			user: &auth.AuthenticatedUser{
 				UserID:          "user-2",
 				TenantID:        "tenant-1",
 				IsPlatformAdmin: false,
-				Role: &Role{
-					Permissions: []Permission{PermissionSubscriptionRead},
+				Role: &auth.Role{
+					Permissions: []auth.Permission{auth.PermissionSubscriptionRead},
 				},
 			},
-			permission: PermissionSubscriptionDelete,
+			permission: auth.PermissionSubscriptionDelete,
 			want:       false,
 		},
 		{
 			name: "user with nil role",
-			user: &AuthenticatedUser{
+			user: &auth.AuthenticatedUser{
 				UserID:          "user-3",
 				TenantID:        "tenant-1",
 				IsPlatformAdmin: false,
 				Role:            nil,
 			},
-			permission: PermissionSubscriptionRead,
+			permission: auth.PermissionSubscriptionRead,
 			want:       false,
 		},
 	}
@@ -271,9 +272,9 @@ func TestAuthenticatedUser_HasPermission(t *testing.T) {
 }
 
 func TestAuditEvent_MarshalBinary(t *testing.T) {
-	event := &AuditEvent{
+	event := &auth.AuditEvent{
 		ID:           "event-test",
-		Type:         AuditEventUserCreated,
+		Type:         auth.AuditEventUserCreated,
 		TenantID:     "tenant-1",
 		UserID:       "user-1",
 		Subject:      "CN=alice,O=ACME",
@@ -292,7 +293,7 @@ func TestAuditEvent_MarshalBinary(t *testing.T) {
 	require.NotEmpty(t, data)
 
 	// Unmarshal and verify.
-	var unmarshaled AuditEvent
+	var unmarshaled auth.AuditEvent
 	err = unmarshaled.UnmarshalBinary(data)
 	require.NoError(t, err)
 	assert.Equal(t, event.ID, unmarshaled.ID)
@@ -302,11 +303,11 @@ func TestAuditEvent_MarshalBinary(t *testing.T) {
 }
 
 func TestGetDefaultRoles(t *testing.T) {
-	roles := GetDefaultRoles()
+	roles := auth.GetDefaultRoles()
 
 	assert.Len(t, roles, 6, "expected 6 default roles")
 
-	roleNames := make(map[RoleName]bool)
+	roleNames := make(map[auth.RoleName]bool)
 	for _, role := range roles {
 		roleNames[role.Name] = true
 
@@ -318,16 +319,16 @@ func TestGetDefaultRoles(t *testing.T) {
 	}
 
 	// Verify expected roles exist.
-	assert.True(t, roleNames[RolePlatformAdmin], "platform-admin role should exist")
-	assert.True(t, roleNames[RoleTenantAdmin], "tenant-admin role should exist")
-	assert.True(t, roleNames[RoleOwner], "owner role should exist")
-	assert.True(t, roleNames[RoleAdmin], "admin role should exist")
-	assert.True(t, roleNames[RoleOperator], "operator role should exist")
-	assert.True(t, roleNames[RoleViewer], "viewer role should exist")
+	assert.True(t, roleNames[auth.RolePlatformAdmin], "platform-admin role should exist")
+	assert.True(t, roleNames[auth.RoleTenantAdmin], "tenant-admin role should exist")
+	assert.True(t, roleNames[auth.RoleOwner], "owner role should exist")
+	assert.True(t, roleNames[auth.RoleAdmin], "admin role should exist")
+	assert.True(t, roleNames[auth.RoleOperator], "operator role should exist")
+	assert.True(t, roleNames[auth.RoleViewer], "viewer role should exist")
 }
 
 func TestDefaultQuota(t *testing.T) {
-	quota := DefaultQuota()
+	quota := auth.DefaultQuota()
 
 	assert.Equal(t, 100, quota.MaxSubscriptions)
 	assert.Equal(t, 50, quota.MaxResourcePools)

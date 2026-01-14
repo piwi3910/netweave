@@ -16,12 +16,12 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 		zap.String("id", id))
 
 	// Validate that the requested ID matches our deployment manager ID
-	if id != a.deploymentManagerID && id != "default" {
+	if id != a.DeploymentManagerID && id != "default" {
 		return nil, fmt.Errorf("%w: %s", adapter.ErrDeploymentManagerNotFound, id)
 	}
 
 	// Query DTIAS API for datacenter metadata (used to build deployment manager info)
-	datacenterInfo, err := a.getDatacenterInfo(ctx, a.config.Datacenter)
+	datacenterInfo, err := a.getDatacenterInfo(ctx, a.Config.Datacenter)
 	if err != nil {
 		a.logger.Warn("failed to get datacenter info, using defaults",
 			zap.Error(err))
@@ -30,11 +30,11 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 
 	// Build deployment manager metadata
 	deploymentManager := &adapter.DeploymentManager{
-		DeploymentManagerID: a.deploymentManagerID,
-		Name:                fmt.Sprintf("DTIAS Bare-Metal Infrastructure - %s", a.config.Datacenter),
-		Description:         fmt.Sprintf("Dell DTIAS bare-metal deployment manager for datacenter %s", a.config.Datacenter),
-		OCloudID:            a.oCloudID,
-		ServiceURI:          a.config.Endpoint,
+		DeploymentManagerID: a.DeploymentManagerID,
+		Name:                fmt.Sprintf("DTIAS Bare-Metal Infrastructure - %s", a.Config.Datacenter),
+		Description:         fmt.Sprintf("Dell DTIAS bare-metal deployment manager for datacenter %s", a.Config.Datacenter),
+		OCloudID:            a.OCloudID,
+		ServiceURI:          a.Config.Endpoint,
 		Capabilities: []string{
 			"bare-metal-provisioning",
 			"hardware-inventory",
@@ -44,18 +44,18 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 			"server-pools",
 		},
 		Extensions: map[string]interface{}{
-			"dtias.endpoint":            a.config.Endpoint,
-			"dtias.datacenter":          a.config.Datacenter,
+			"dtias.endpoint":            a.Config.Endpoint,
+			"dtias.datacenter":          a.Config.Datacenter,
 			"dtias.apiVersion":          "1.0",
 			"dtias.adapterVersion":      a.Version(),
-			"dtias.tlsEnabled":          a.config.ClientCert != "",
+			"dtias.tlsEnabled":          a.Config.ClientCert != "",
 			"dtias.nativeSubscriptions": false, // DTIAS has no native event system
 		},
 	}
 
 	// Add datacenter information if available
 	if datacenterInfo != nil {
-		deploymentManager.SupportedLocations = []string{a.config.Datacenter}
+		deploymentManager.SupportedLocations = []string{a.Config.Datacenter}
 		if datacenterInfo.City != "" {
 			deploymentManager.Extensions["dtias.location.city"] = datacenterInfo.City
 		}

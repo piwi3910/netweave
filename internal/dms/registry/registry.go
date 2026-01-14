@@ -67,8 +67,8 @@ type Registry struct {
 	logger        *zap.Logger
 
 	// Health check configuration.
-	healthCheckInterval time.Duration
-	healthCheckTimeout  time.Duration
+	HealthCheckInterval time.Duration
+	HealthCheckTimeout  time.Duration
 	stopHealthCheck     chan struct{}
 	healthCheckWg       sync.WaitGroup
 	stopOnce            sync.Once // Ensures StopHealthChecks only runs once
@@ -99,8 +99,8 @@ func NewRegistry(logger *zap.Logger, config *Config) *Registry {
 		Plugins:             make(map[string]adapter.DMSAdapter),
 		meta:                make(map[string]*PluginMetadata),
 		logger:              logger,
-		healthCheckInterval: config.HealthCheckInterval,
-		healthCheckTimeout:  config.HealthCheckTimeout,
+		HealthCheckInterval: config.HealthCheckInterval,
+		HealthCheckTimeout:  config.HealthCheckTimeout,
 		stopHealthCheck:     make(chan struct{}),
 	}
 }
@@ -125,7 +125,7 @@ func (r *Registry) Register(
 	// Perform initial health check.
 	healthy := true
 	var healthErr error
-	healthCtx, cancel := context.WithTimeout(ctx, r.healthCheckTimeout)
+	healthCtx, cancel := context.WithTimeout(ctx, r.HealthCheckTimeout)
 	defer cancel()
 
 	if err := plugin.Health(healthCtx); err != nil {
@@ -436,8 +436,8 @@ func (r *Registry) StartHealthChecks(ctx context.Context) {
 	go r.healthCheckLoop(ctx)
 
 	r.logger.Info("DMS health check started",
-		zap.Duration("interval", r.healthCheckInterval),
-		zap.Duration("timeout", r.healthCheckTimeout),
+		zap.Duration("interval", r.HealthCheckInterval),
+		zap.Duration("timeout", r.HealthCheckTimeout),
 	)
 }
 
@@ -455,7 +455,7 @@ func (r *Registry) StopHealthChecks() {
 func (r *Registry) healthCheckLoop(ctx context.Context) {
 	defer r.healthCheckWg.Done()
 
-	ticker := time.NewTicker(r.healthCheckInterval)
+	ticker := time.NewTicker(r.HealthCheckInterval)
 	defer ticker.Stop()
 
 	for {
@@ -486,7 +486,7 @@ func (r *Registry) performHealthChecks(ctx context.Context) {
 
 // checkPluginHealth performs a health check on a single DMS plugin.
 func (r *Registry) checkPluginHealth(ctx context.Context, name string, plugin adapter.DMSAdapter) {
-	healthCtx, cancel := context.WithTimeout(ctx, r.healthCheckTimeout)
+	healthCtx, cancel := context.WithTimeout(ctx, r.HealthCheckTimeout)
 	defer cancel()
 
 	err := plugin.Health(healthCtx)

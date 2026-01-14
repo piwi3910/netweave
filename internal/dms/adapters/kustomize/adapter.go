@@ -70,9 +70,9 @@ var (
 
 // Adapter implements the DMS adapter interface for Kustomize deployments.
 type Adapter struct {
-	config        *Config
-	dynamicClient dynamic.Interface
-	initOnce      sync.Once
+	Config        *Config           // Exported for testing
+	DynamicClient dynamic.Interface // Exported for testing
+	InitOnce      sync.Once         // Exported for testing
 	initErr       error
 }
 
@@ -112,18 +112,18 @@ func NewAdapter(config *Config) (*Adapter, error) {
 	}
 
 	return &Adapter{
-		config: config,
+		Config: config,
 	}, nil
 }
 
 // initialize performs lazy initialization of the Kubernetes client.
 func (k *Adapter) initialize() error {
-	k.initOnce.Do(func() {
+	k.InitOnce.Do(func() {
 		var cfg *rest.Config
 		var err error
 
-		if k.config.Kubeconfig != "" {
-			cfg, err = clientcmd.BuildConfigFromFlags("", k.config.Kubeconfig)
+		if k.Config.Kubeconfig != "" {
+			cfg, err = clientcmd.BuildConfigFromFlags("", k.Config.Kubeconfig)
 		} else {
 			cfg, err = rest.InClusterConfig()
 		}
@@ -132,7 +132,7 @@ func (k *Adapter) initialize() error {
 			return
 		}
 
-		k.dynamicClient, err = dynamic.NewForConfig(cfg)
+		k.DynamicClient, err = dynamic.NewForConfig(cfg)
 		if err != nil {
 			k.initErr = fmt.Errorf("failed to create dynamic client: %w", err)
 			return
@@ -177,16 +177,16 @@ func (k *Adapter) ListDeploymentPackages(
 	// Return configured base packages
 	packages := []*adapter.DeploymentPackage{}
 
-	if k.config.BaseURL != "" {
+	if k.Config.BaseURL != "" {
 		pkg := &adapter.DeploymentPackage{
-			ID:          generatePackageID(k.config.BaseURL),
+			ID:          GeneratePackageID(k.Config.BaseURL),
 			Name:        "kustomize-base",
 			Version:     "latest",
 			PackageType: "kustomize",
 			Description: "Kustomize base configuration",
 			UploadedAt:  time.Now(),
 			Extensions: map[string]interface{}{
-				"kustomize.url": k.config.BaseURL,
+				"kustomize.url": k.Config.BaseURL,
 			},
 		}
 		packages = append(packages, pkg)
@@ -209,7 +209,7 @@ func (k *Adapter) GetDeploymentPackage(
 	}
 
 	// Check if the ID matches our configured base
-	if k.config.BaseURL != "" && id == generatePackageID(k.config.BaseURL) {
+	if k.Config.BaseURL != "" && id == GeneratePackageID(k.Config.BaseURL) {
 		return &adapter.DeploymentPackage{
 			ID:          id,
 			Name:        "kustomize-base",
@@ -218,7 +218,7 @@ func (k *Adapter) GetDeploymentPackage(
 			Description: "Kustomize base configuration",
 			UploadedAt:  time.Now(),
 			Extensions: map[string]interface{}{
-				"kustomize.url": k.config.BaseURL,
+				"kustomize.url": k.Config.BaseURL,
 			},
 		}, nil
 	}
@@ -245,7 +245,7 @@ func (k *Adapter) UploadDeploymentPackage(
 	}
 
 	return &adapter.DeploymentPackage{
-		ID:          generatePackageID(url),
+		ID:          GeneratePackageID(url),
 		Name:        pkg.Name,
 		Version:     pkg.Version,
 		PackageType: "kustomize",
@@ -290,19 +290,19 @@ func (k *Adapter) ListDeployments(
 	deployments := k.filterAndTransformConfigMaps(cms.Items, filter)
 
 	if filter != nil {
-		deployments = k.applyPagination(deployments, filter.Limit, filter.Offset)
+		deployments = k.ApplyPagination(deployments, filter.Limit, filter.Offset)
 	}
 
 	return deployments, nil
 }
 
 func (k *Adapter) listConfigMaps(ctx context.Context, filter *adapter.Filter) (*unstructured.UnstructuredList, error) {
-	namespace := k.config.Namespace
+	namespace := k.Config.Namespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
 	}
 
-	cms, err := k.dynamicClient.Resource(configMapGVR).Namespace(namespace).List(ctx, metav1.ListOptions{
+	cms, err := k.DynamicClient.Resource(configMapGVR).Namespace(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: "app.kubernetes.io/managed-by=kustomize-adapter",
 	})
 	if err != nil {
@@ -340,7 +340,7 @@ func (k *Adapter) GetDeployment(
 		return nil, err
 	}
 
-	cm, err := k.dynamicClient.Resource(configMapGVR).Namespace(k.config.Namespace).Get(
+	cm, err := k.DynamicClient.Resource(configMapGVR).Namespace(k.Config.Namespace).Get(
 		ctx,
 		fmt.Sprintf("kustomize-%s", id),
 		metav1.GetOptions{},
@@ -377,7 +377,7 @@ func (k *Adapter) CreateDeployment(
 	namespace := k.getNamespaceOrDefault(req.Namespace)
 	cm := k.buildConfigMapForDeployment(req, namespace, path)
 
-	created, err := k.dynamicClient.Resource(configMapGVR).Namespace(namespace).Create(
+	created, err := k.DynamicClient.Resource(configMapGVR).Namespace(namespace).Create(
 		ctx,
 		cm,
 		metav1.CreateOptions{},
@@ -396,7 +396,7 @@ func (k *Adapter) validateCreateRequest(req *adapter.DeploymentRequest) error {
 	if req.Name == "" {
 		return fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
 	}
-	return validateName(req.Name)
+	return ValidateName(req.Name)
 }
 
 func (k *Adapter) extractAndValidatePath(extensions map[string]interface{}) (string, error) {
@@ -406,7 +406,7 @@ func (k *Adapter) extractAndValidatePath(extensions map[string]interface{}) (str
 			path = p
 		}
 	}
-	if err := validatePath(path); err != nil {
+	if err := ValidatePath(path); err != nil {
 		return "", err
 	}
 	return path, nil
@@ -414,7 +414,7 @@ func (k *Adapter) extractAndValidatePath(extensions map[string]interface{}) (str
 
 func (k *Adapter) getNamespaceOrDefault(namespace string) string {
 	if namespace == "" {
-		return k.config.Namespace
+		return k.Config.Namespace
 	}
 	return namespace
 }
@@ -480,7 +480,7 @@ func (k *Adapter) UpdateDeployment(
 		return nil, err
 	}
 
-	updated, err := k.dynamicClient.Resource(configMapGVR).Namespace(k.config.Namespace).Update(
+	updated, err := k.DynamicClient.Resource(configMapGVR).Namespace(k.Config.Namespace).Update(
 		ctx,
 		cm,
 		metav1.UpdateOptions{},
@@ -493,7 +493,7 @@ func (k *Adapter) UpdateDeployment(
 }
 
 func (k *Adapter) getConfigMapForUpdate(ctx context.Context, id string) (*unstructured.Unstructured, error) {
-	cm, err := k.dynamicClient.Resource(configMapGVR).Namespace(k.config.Namespace).Get(
+	cm, err := k.DynamicClient.Resource(configMapGVR).Namespace(k.Config.Namespace).Get(
 		ctx,
 		fmt.Sprintf("kustomize-%s", id),
 		metav1.GetOptions{},
@@ -514,7 +514,7 @@ func (k *Adapter) applyPathUpdate(cm *unstructured.Unstructured, extensions map[
 		return nil
 	}
 
-	if err := validatePath(path); err != nil {
+	if err := ValidatePath(path); err != nil {
 		return err
 	}
 
@@ -566,7 +566,7 @@ func (k *Adapter) DeleteDeployment(
 		return err
 	}
 
-	err := k.dynamicClient.Resource(configMapGVR).Namespace(k.config.Namespace).Delete(
+	err := k.DynamicClient.Resource(configMapGVR).Namespace(k.Config.Namespace).Delete(
 		ctx,
 		fmt.Sprintf("kustomize-%s", id),
 		metav1.DeleteOptions{},
@@ -636,7 +636,7 @@ func (k *Adapter) GetDeploymentStatus(
 		DeploymentID: deployment.ID,
 		Status:       deployment.Status,
 		Message:      deployment.Description,
-		Progress:     k.calculateProgress(deployment.Status),
+		Progress:     k.CalculateProgress(deployment.Status),
 		UpdatedAt:    deployment.UpdatedAt,
 		Conditions: []adapter.DeploymentCondition{
 			{
@@ -746,7 +746,7 @@ func (k *Adapter) Health(ctx context.Context) error {
 	}
 
 	// Try to list namespaces to verify connectivity
-	_, err := k.dynamicClient.Resource(schema.GroupVersionResource{
+	_, err := k.DynamicClient.Resource(schema.GroupVersionResource{
 		Group:    "",
 		Version:  "v1",
 		Resource: "namespaces",
@@ -761,7 +761,7 @@ func (k *Adapter) Health(ctx context.Context) error {
 
 // Close cleanly shuts down the adapter.
 func (k *Adapter) Close() error {
-	k.dynamicClient = nil
+	k.DynamicClient = nil
 	return nil
 }
 
@@ -816,7 +816,7 @@ func (k *Adapter) transformConfigMapToDeployment(
 	}
 }
 
-func (k *Adapter) applyPagination(
+func (k *Adapter) ApplyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
 ) []*adapter.Deployment {
@@ -834,7 +834,7 @@ func (k *Adapter) applyPagination(
 	return deployments[start:end]
 }
 
-func (k *Adapter) calculateProgress(status adapter.DeploymentStatus) int {
+func (k *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return 100
@@ -879,7 +879,7 @@ func (k *Adapter) conditionReason(status adapter.DeploymentStatus) string {
 	}
 }
 
-func generatePackageID(url string) string {
+func GeneratePackageID(url string) string {
 	// Sanitize URL to create a valid ID
 	id := strings.ReplaceAll(url, "://", "-")
 	id = strings.ReplaceAll(id, "/", "-")
@@ -888,7 +888,7 @@ func generatePackageID(url string) string {
 }
 
 // validateName validates the deployment name.
-func validateName(name string) error {
+func ValidateName(name string) error {
 	if name == "" {
 		return fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
 	}
@@ -906,7 +906,7 @@ func validateName(name string) error {
 }
 
 // validatePath validates the kustomize path.
-func validatePath(path string) error {
+func ValidatePath(path string) error {
 	if path == "" {
 		return nil
 	}

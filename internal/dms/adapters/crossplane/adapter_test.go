@@ -1,10 +1,12 @@
-package crossplane
+package crossplane_test
 
 import (
 	"context"
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/dms/adapters/crossplane"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,19 +24,19 @@ const healthyStatusTrue = "True"
 func TestNewAdapter(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *crossplane.Config
 		wantErr bool
 	}{
 		{
 			name: "valid config",
-			config: &Config{
+			config: &crossplane.Config{
 				Namespace: "default",
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid config with defaults",
-			config: &Config{
+			config: &crossplane.Config{
 				Kubeconfig: "/path/to/kubeconfig",
 			},
 			wantErr: false,
@@ -46,8 +48,8 @@ func TestNewAdapter(t *testing.T) {
 		},
 		{
 			name: "config with composition ref",
-			config: &Config{
-				Namespace:             "crossplane-system",
+			config: &crossplane.Config{
+				Namespace:             "crossplane.crossplane-system",
 				DefaultCompositionRef: "my-composition",
 				Timeout:               5 * time.Minute,
 			},
@@ -57,7 +59,7 @@ func TestNewAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := NewAdapter(tt.config)
+			adp, err := crossplane.NewAdapter(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -68,10 +70,10 @@ func TestNewAdapter(t *testing.T) {
 
 				// Verify defaults are applied
 				if tt.config.Namespace == "" {
-					assert.Equal(t, DefaultNamespace, adp.config.Namespace)
+					assert.Equal(t, crossplane.DefaultNamespace, adp.Config.Namespace)
 				}
 				if tt.config.Timeout == 0 {
-					assert.Equal(t, DefaultTimeout, adp.config.Timeout)
+					assert.Equal(t, crossplane.DefaultTimeout, adp.Config.Timeout)
 				}
 			}
 		})
@@ -80,15 +82,15 @@ func TestNewAdapter(t *testing.T) {
 
 // TestAdapterMetadata tests adapter metadata methods.
 func TestAdapterMetadata(t *testing.T) {
-	adp, err := NewAdapter(&Config{})
+	adp, err := crossplane.NewAdapter(&crossplane.Config{})
 	require.NoError(t, err)
 
 	t.Run("Name", func(t *testing.T) {
-		assert.Equal(t, AdapterName, adp.Name())
+		assert.Equal(t, crossplane.AdapterName, adp.Name())
 	})
 
 	t.Run("Version", func(t *testing.T) {
-		assert.Equal(t, AdapterVersion, adp.Version())
+		assert.Equal(t, crossplane.AdapterVersion, adp.Version())
 	})
 
 	t.Run("Capabilities", func(t *testing.T) {
@@ -113,7 +115,7 @@ func TestAdapterMetadata(t *testing.T) {
 }
 
 // createFakeAdapter creates an adapter with a fake dynamic client for testing.
-func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
+func createFakeAdapter(t *testing.T, objects ...runtime.Object) *crossplane.Adapter {
 	t.Helper()
 
 	scheme := runtime.NewScheme()
@@ -121,16 +123,16 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 	// Register Crossplane Configuration kinds
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   CrossplaneGroup,
-			Version: CrossplaneVersion,
+			Group:   crossplane.CrossplaneGroup,
+			Version: crossplane.CrossplaneVersion,
 			Kind:    "Configuration",
 		},
 		&unstructured.Unstructured{},
 	)
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   CrossplaneGroup,
-			Version: CrossplaneVersion,
+			Group:   crossplane.CrossplaneGroup,
+			Version: crossplane.CrossplaneVersion,
 			Kind:    "ConfigurationList",
 		},
 		&unstructured.UnstructuredList{},
@@ -139,16 +141,16 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 	// Register Crossplane Provider kinds
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   CrossplaneGroup,
-			Version: CrossplaneVersion,
+			Group:   crossplane.CrossplaneGroup,
+			Version: crossplane.CrossplaneVersion,
 			Kind:    "Provider",
 		},
 		&unstructured.Unstructured{},
 	)
 	scheme.AddKnownTypeWithName(
 		schema.GroupVersionKind{
-			Group:   CrossplaneGroup,
-			Version: CrossplaneVersion,
+			Group:   crossplane.CrossplaneGroup,
+			Version: crossplane.CrossplaneVersion,
 			Kind:    "ProviderList",
 		},
 		&unstructured.UnstructuredList{},
@@ -175,14 +177,14 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 	// Create fake dynamic client
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adp, err := NewAdapter(&Config{
+	adp, err := crossplane.NewAdapter(&crossplane.Config{
 		Namespace: "default",
 	})
 	require.NoError(t, err)
 
 	// Set up fake client and mark as initialized
-	adp.initOnce.Do(func() {
-		adp.dynamicClient = client
+	adp.InitOnce.Do(func() {
+		adp.DynamicClient = client
 	})
 
 	return adp
@@ -197,13 +199,13 @@ func createTestConfiguration(name, packageRef string, healthy bool) *unstructure
 
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
-			"apiVersion": fmt.Sprintf("%s/%s", CrossplaneGroup, CrossplaneVersion),
+			"apiVersion": fmt.Sprintf("%s/%s", crossplane.CrossplaneGroup, crossplane.CrossplaneVersion),
 			"kind":       "Configuration",
 			"metadata": map[string]interface{}{
 				"name":              name,
 				"creationTimestamp": time.Now().Format(time.RFC3339),
 				"labels": map[string]interface{}{
-					"app.kubernetes.io/managed-by": "crossplane-adapter",
+					"app.kubernetes.io/managed-by": "crossplane.crossplane-adapter",
 				},
 			},
 			"spec": map[string]interface{}{
@@ -254,7 +256,7 @@ func createTestComposition(name, compositeKind, apiVersion string) *unstructured
 func createTestProvider(name, packageRef string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
-			"apiVersion": fmt.Sprintf("%s/%s", CrossplaneGroup, CrossplaneVersion),
+			"apiVersion": fmt.Sprintf("%s/%s", crossplane.CrossplaneGroup, crossplane.CrossplaneVersion),
 			"kind":       "Provider",
 			"metadata": map[string]interface{}{
 				"name":              name,
@@ -582,7 +584,7 @@ func TestScaleDeployment(t *testing.T) {
 	t.Run("scaling not supported", func(t *testing.T) {
 		err := adp.ScaleDeployment(context.Background(), "any-config", 3)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrOperationNotSupported)
+		assert.ErrorIs(t, err, crossplane.ErrOperationNotSupported)
 	})
 
 	t.Run("negative replicas", func(t *testing.T) {
@@ -599,7 +601,7 @@ func TestRollbackDeployment(t *testing.T) {
 	t.Run("rollback not supported", func(t *testing.T) {
 		err := adp.RollbackDeployment(context.Background(), "any-config", 1)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrOperationNotSupported)
+		assert.ErrorIs(t, err, crossplane.ErrOperationNotSupported)
 	})
 
 	t.Run("negative revision", func(t *testing.T) {
@@ -761,7 +763,7 @@ func TestListDeploymentPackages(t *testing.T) {
 
 	for _, pkg := range packages {
 		assert.NotEmpty(t, pkg.ID)
-		assert.Equal(t, "crossplane-composition", pkg.PackageType)
+		assert.Equal(t, "crossplane.crossplane-composition", pkg.PackageType)
 	}
 }
 
@@ -774,14 +776,14 @@ func TestGetDeploymentPackage(t *testing.T) {
 		pkg, err := adp.GetDeploymentPackage(context.Background(), "my-composition")
 		require.NoError(t, err)
 		require.NotNil(t, pkg)
-		assert.Equal(t, "crossplane-composition", pkg.PackageType)
+		assert.Equal(t, "crossplane.crossplane-composition", pkg.PackageType)
 	})
 
 	t.Run("package not found", func(t *testing.T) {
 		adp := createFakeAdapter(t)
 		_, err := adp.GetDeploymentPackage(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, crossplane.ErrPackageNotFound)
 	})
 }
 
@@ -835,7 +837,7 @@ func TestUploadDeploymentPackage(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, pkg)
 				assert.Equal(t, tt.pkg.Name, pkg.Name)
-				assert.Equal(t, "crossplane-composition", pkg.PackageType)
+				assert.Equal(t, "crossplane.crossplane-composition", pkg.PackageType)
 			}
 		})
 	}
@@ -846,7 +848,7 @@ func TestDeleteDeploymentPackage(t *testing.T) {
 	adp := createFakeAdapter(t)
 	err := adp.DeleteDeploymentPackage(context.Background(), "any-id")
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrOperationNotSupported)
+	assert.ErrorIs(t, err, crossplane.ErrOperationNotSupported)
 }
 
 // TestHealth tests the health check functionality.
@@ -866,7 +868,7 @@ func TestClose(t *testing.T) {
 
 	err := adp.Close()
 	require.NoError(t, err)
-	assert.Nil(t, adp.dynamicClient)
+	assert.Nil(t, adp.DynamicClient)
 }
 
 // TestValidateName tests name validation.
@@ -888,10 +890,10 @@ func TestValidateName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateName(tt.input)
+			err := crossplane.ValidateName(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, ErrInvalidName)
+				assert.ErrorIs(t, err, crossplane.ErrInvalidName)
 			} else {
 				require.NoError(t, err)
 			}
@@ -901,7 +903,7 @@ func TestValidateName(t *testing.T) {
 
 // TestCalculateProgress tests progress calculation.
 func TestCalculateProgress(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := crossplane.NewAdapter(&crossplane.Config{})
 
 	tests := []struct {
 		name   string
@@ -916,7 +918,7 @@ func TestCalculateProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := adp.calculateProgress(tt.status)
+			got := adp.CalculateProgress(tt.status)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -924,7 +926,7 @@ func TestCalculateProgress(t *testing.T) {
 
 // TestApplyPagination tests pagination logic.
 func TestApplyPagination(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := crossplane.NewAdapter(&crossplane.Config{})
 
 	deployments := []*dmsadapter.Deployment{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
@@ -946,7 +948,7 @@ func TestApplyPagination(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := adp.applyPagination(deployments, tt.limit, tt.offset)
+			result := adp.ApplyPagination(deployments, tt.limit, tt.offset)
 			assert.Len(t, result, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, tt.wantFirst, result[0].ID)
@@ -1029,7 +1031,7 @@ func TestBuildLabelSelector(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildLabelSelector(tt.labels)
+			got := crossplane.BuildLabelSelector(tt.labels)
 			if len(tt.labels) <= 1 {
 				assert.Equal(t, tt.want, got)
 			}
@@ -1050,18 +1052,18 @@ func BenchmarkListDeployments(b *testing.B) {
 
 	scheme := runtime.NewScheme()
 	scheme.AddKnownTypeWithName(
-		schema.GroupVersionKind{Group: CrossplaneGroup, Version: CrossplaneVersion, Kind: "Configuration"},
+		schema.GroupVersionKind{Group: crossplane.CrossplaneGroup, Version: crossplane.CrossplaneVersion, Kind: "Configuration"},
 		&unstructured.Unstructured{},
 	)
 	scheme.AddKnownTypeWithName(
-		schema.GroupVersionKind{Group: CrossplaneGroup, Version: CrossplaneVersion, Kind: "ConfigurationList"},
+		schema.GroupVersionKind{Group: crossplane.CrossplaneGroup, Version: crossplane.CrossplaneVersion, Kind: "ConfigurationList"},
 		&unstructured.UnstructuredList{},
 	)
 
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adp, _ := NewAdapter(&Config{Namespace: "default"})
-	adp.dynamicClient = client
+	adp, _ := crossplane.NewAdapter(&crossplane.Config{Namespace: "default"})
+	adp.DynamicClient = client
 
 	ctx := context.Background()
 

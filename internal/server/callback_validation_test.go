@@ -1,9 +1,11 @@
-package server
+package server_test
 
 import (
 	"context"
 	"net"
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/server"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -130,16 +132,14 @@ func TestValidateCallback(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a minimal server instance with config
-			s := &Server{
-				config: &config.Config{
-					Security: config.SecurityConfig{
-						DisableSSRFProtection: false, // Enable SSRF protection for tests
-					},
+			// Create a minimal server.server instance with config
+			s := server.NewTestServer(&config.Config{
+				Security: config.SecurityConfig{
+					DisableSSRFProtection: false, // Enable SSRF protection for tests
 				},
-			}
+			})
 
-			err := s.validateCallback(context.Background(), tt.sub)
+			err := s.ValidateCallback(context.Background(), tt.sub)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -220,7 +220,7 @@ func TestValidateCallbackHost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateCallbackHost(context.Background(), tt.hostname)
+			err := server.ValidateCallbackHost(context.Background(), tt.hostname)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -277,7 +277,7 @@ func TestIsPrivateIP(t *testing.T) {
 			ip := net.ParseIP(tt.ip)
 			require.NotNil(t, ip, "Failed to parse IP: %s", tt.ip)
 
-			result := isPrivateIP(ip)
+			result := server.IsPrivateIP(ip)
 			assert.Equal(t, tt.isPrivate, result,
 				"IP %s should be private=%v but got %v", tt.ip, tt.isPrivate, result)
 		})

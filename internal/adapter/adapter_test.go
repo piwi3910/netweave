@@ -1,9 +1,10 @@
 // Package adapter provides tests for the adapter interface and types.
-package adapter
+package adapter_test
 
 import (
 	"testing"
 
+	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -11,42 +12,42 @@ import (
 func TestCapabilityConstants(t *testing.T) {
 	tests := []struct {
 		name       string
-		capability Capability
+		capability adapter.Capability
 		expected   string
 	}{
 		{
 			name:       "resource pools capability",
-			capability: CapabilityResourcePools,
+			capability: adapter.CapabilityResourcePools,
 			expected:   "resource-pools",
 		},
 		{
 			name:       "resources capability",
-			capability: CapabilityResources,
+			capability: adapter.CapabilityResources,
 			expected:   "resources",
 		},
 		{
 			name:       "resource types capability",
-			capability: CapabilityResourceTypes,
+			capability: adapter.CapabilityResourceTypes,
 			expected:   "resource-types",
 		},
 		{
 			name:       "deployment managers capability",
-			capability: CapabilityDeploymentManagers,
+			capability: adapter.CapabilityDeploymentManagers,
 			expected:   "deployment-managers",
 		},
 		{
 			name:       "subscriptions capability",
-			capability: CapabilitySubscriptions,
+			capability: adapter.CapabilitySubscriptions,
 			expected:   "subscriptions",
 		},
 		{
 			name:       "metrics capability",
-			capability: CapabilityMetrics,
+			capability: adapter.CapabilityMetrics,
 			expected:   "metrics",
 		},
 		{
 			name:       "health checks capability",
-			capability: CapabilityHealthChecks,
+			capability: adapter.CapabilityHealthChecks,
 			expected:   "health-checks",
 		},
 	}
@@ -61,7 +62,7 @@ func TestCapabilityConstants(t *testing.T) {
 func TestFilterCreation(t *testing.T) {
 	tests := []struct {
 		name           string
-		filter         *Filter
+		filter         *adapter.Filter
 		expectedPoolID string
 		expectedTypeID string
 		expectedLoc    string
@@ -72,7 +73,7 @@ func TestFilterCreation(t *testing.T) {
 	}{
 		{
 			name:           "empty filter",
-			filter:         &Filter{},
+			filter:         &adapter.Filter{},
 			expectedPoolID: "",
 			expectedTypeID: "",
 			expectedLoc:    "",
@@ -83,7 +84,7 @@ func TestFilterCreation(t *testing.T) {
 		},
 		{
 			name: "filter with resource pool ID",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				ResourcePoolID: "pool-123",
 			},
 			expectedPoolID: "pool-123",
@@ -96,7 +97,7 @@ func TestFilterCreation(t *testing.T) {
 		},
 		{
 			name: "filter with resource type ID",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				ResourceTypeID: "type-compute",
 			},
 			expectedPoolID: "",
@@ -109,7 +110,7 @@ func TestFilterCreation(t *testing.T) {
 		},
 		{
 			name: "filter with location",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				Location: "dc-west-1",
 			},
 			expectedPoolID: "",
@@ -122,7 +123,7 @@ func TestFilterCreation(t *testing.T) {
 		},
 		{
 			name: "filter with labels",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				Labels: map[string]string{
 					"environment": "production",
 					"tier":        "backend",
@@ -138,7 +139,7 @@ func TestFilterCreation(t *testing.T) {
 		},
 		{
 			name: "filter with extensions",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				Extensions: map[string]interface{}{
 					"vendor.customField": "value",
 				},
@@ -153,7 +154,7 @@ func TestFilterCreation(t *testing.T) {
 		},
 		{
 			name: "filter with pagination",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				Limit:  100,
 				Offset: 50,
 			},
@@ -167,7 +168,7 @@ func TestFilterCreation(t *testing.T) {
 		},
 		{
 			name: "complete filter with all fields",
-			filter: &Filter{
+			filter: &adapter.Filter{
 				ResourcePoolID: "pool-456",
 				ResourceTypeID: "type-storage",
 				Location:       "dc-east-2",
@@ -219,11 +220,11 @@ func TestFilterCreation(t *testing.T) {
 func TestDeploymentManagerModel(t *testing.T) {
 	tests := []struct {
 		name string
-		dm   *DeploymentManager
+		dm   *adapter.DeploymentManager
 	}{
 		{
 			name: "minimal deployment manager",
-			dm: &DeploymentManager{
+			dm: &adapter.DeploymentManager{
 				DeploymentManagerID: "dm-1",
 				Name:                "Primary DM",
 				OCloudID:            "ocloud-1",
@@ -232,7 +233,7 @@ func TestDeploymentManagerModel(t *testing.T) {
 		},
 		{
 			name: "complete deployment manager",
-			dm: &DeploymentManager{
+			dm: &adapter.DeploymentManager{
 				DeploymentManagerID: "dm-2",
 				Name:                "Full DM",
 				Description:         "Production deployment manager",
@@ -261,11 +262,11 @@ func TestDeploymentManagerModel(t *testing.T) {
 func TestResourcePoolModel(t *testing.T) {
 	tests := []struct {
 		name string
-		pool *ResourcePool
+		pool *adapter.ResourcePool
 	}{
 		{
 			name: "minimal resource pool",
-			pool: &ResourcePool{
+			pool: &adapter.ResourcePool{
 				ResourcePoolID: "pool-1",
 				Name:           "Default Pool",
 				OCloudID:       "ocloud-1",
@@ -273,7 +274,7 @@ func TestResourcePoolModel(t *testing.T) {
 		},
 		{
 			name: "complete resource pool",
-			pool: &ResourcePool{
+			pool: &adapter.ResourcePool{
 				ResourcePoolID:   "pool-2",
 				Name:             "Production Pool",
 				Description:      "High-performance compute pool",
@@ -301,18 +302,18 @@ func TestResourcePoolModel(t *testing.T) {
 func TestResourceModel(t *testing.T) {
 	tests := []struct {
 		name     string
-		resource *Resource
+		resource *adapter.Resource
 	}{
 		{
 			name: "minimal resource",
-			resource: &Resource{
+			resource: &adapter.Resource{
 				ResourceID:     "res-1",
 				ResourceTypeID: "type-compute",
 			},
 		},
 		{
 			name: "complete resource",
-			resource: &Resource{
+			resource: &adapter.Resource{
 				ResourceID:     "res-2",
 				ResourceTypeID: "type-compute",
 				ResourcePoolID: "pool-1",
@@ -340,18 +341,18 @@ func TestResourceModel(t *testing.T) {
 func TestResourceTypeModel(t *testing.T) {
 	tests := []struct {
 		name         string
-		resourceType *ResourceType
+		resourceType *adapter.ResourceType
 	}{
 		{
 			name: "minimal resource type",
-			resourceType: &ResourceType{
+			resourceType: &adapter.ResourceType{
 				ResourceTypeID: "type-1",
 				Name:           "Compute Node",
 			},
 		},
 		{
 			name: "complete resource type",
-			resourceType: &ResourceType{
+			resourceType: &adapter.ResourceType{
 				ResourceTypeID: "type-2",
 				Name:           "High Memory Compute",
 				Description:    "High memory compute nodes for data processing",
@@ -380,18 +381,18 @@ func TestResourceTypeModel(t *testing.T) {
 func TestSubscriptionModel(t *testing.T) {
 	tests := []struct {
 		name string
-		sub  *Subscription
+		sub  *adapter.Subscription
 	}{
 		{
 			name: "minimal subscription",
-			sub: &Subscription{
+			sub: &adapter.Subscription{
 				SubscriptionID: "sub-1",
 				Callback:       "https://smo.example.com/notify",
 			},
 		},
 		{
 			name: "subscription with consumer ID",
-			sub: &Subscription{
+			sub: &adapter.Subscription{
 				SubscriptionID:         "sub-2",
 				Callback:               "https://smo.example.com/notify",
 				ConsumerSubscriptionID: "consumer-sub-123",
@@ -399,10 +400,10 @@ func TestSubscriptionModel(t *testing.T) {
 		},
 		{
 			name: "subscription with filter",
-			sub: &Subscription{
+			sub: &adapter.Subscription{
 				SubscriptionID: "sub-3",
 				Callback:       "https://smo.example.com/notify",
-				Filter: &SubscriptionFilter{
+				Filter: &adapter.SubscriptionFilter{
 					ResourcePoolID: "pool-1",
 					ResourceTypeID: "type-compute",
 				},
@@ -410,11 +411,11 @@ func TestSubscriptionModel(t *testing.T) {
 		},
 		{
 			name: "complete subscription",
-			sub: &Subscription{
+			sub: &adapter.Subscription{
 				SubscriptionID:         "sub-4",
 				Callback:               "https://smo.example.com/notify",
 				ConsumerSubscriptionID: "consumer-sub-456",
-				Filter: &SubscriptionFilter{
+				Filter: &adapter.SubscriptionFilter{
 					ResourcePoolID: "pool-2",
 					ResourceTypeID: "type-storage",
 					ResourceID:     "res-specific",
@@ -435,21 +436,21 @@ func TestSubscriptionModel(t *testing.T) {
 func TestSubscriptionFilterModel(t *testing.T) {
 	tests := []struct {
 		name           string
-		filter         *SubscriptionFilter
+		filter         *adapter.SubscriptionFilter
 		expectedPoolID string
 		expectedTypeID string
 		expectedResID  string
 	}{
 		{
 			name:           "empty filter",
-			filter:         &SubscriptionFilter{},
+			filter:         &adapter.SubscriptionFilter{},
 			expectedPoolID: "",
 			expectedTypeID: "",
 			expectedResID:  "",
 		},
 		{
 			name: "filter by resource pool",
-			filter: &SubscriptionFilter{
+			filter: &adapter.SubscriptionFilter{
 				ResourcePoolID: "pool-1",
 			},
 			expectedPoolID: "pool-1",
@@ -458,7 +459,7 @@ func TestSubscriptionFilterModel(t *testing.T) {
 		},
 		{
 			name: "filter by resource type",
-			filter: &SubscriptionFilter{
+			filter: &adapter.SubscriptionFilter{
 				ResourceTypeID: "type-compute",
 			},
 			expectedPoolID: "",
@@ -467,7 +468,7 @@ func TestSubscriptionFilterModel(t *testing.T) {
 		},
 		{
 			name: "filter by resource",
-			filter: &SubscriptionFilter{
+			filter: &adapter.SubscriptionFilter{
 				ResourceID: "res-123",
 			},
 			expectedPoolID: "",
@@ -476,7 +477,7 @@ func TestSubscriptionFilterModel(t *testing.T) {
 		},
 		{
 			name: "combined filter",
-			filter: &SubscriptionFilter{
+			filter: &adapter.SubscriptionFilter{
 				ResourcePoolID: "pool-1",
 				ResourceTypeID: "type-compute",
 				ResourceID:     "res-456",
@@ -498,17 +499,17 @@ func TestSubscriptionFilterModel(t *testing.T) {
 }
 
 func TestCapabilityUniqueness(t *testing.T) {
-	capabilities := []Capability{
-		CapabilityResourcePools,
-		CapabilityResources,
-		CapabilityResourceTypes,
-		CapabilityDeploymentManagers,
-		CapabilitySubscriptions,
-		CapabilityMetrics,
-		CapabilityHealthChecks,
+	capabilities := []adapter.Capability{
+		adapter.CapabilityResourcePools,
+		adapter.CapabilityResources,
+		adapter.CapabilityResourceTypes,
+		adapter.CapabilityDeploymentManagers,
+		adapter.CapabilitySubscriptions,
+		adapter.CapabilityMetrics,
+		adapter.CapabilityHealthChecks,
 	}
 
-	seen := make(map[Capability]bool)
+	seen := make(map[adapter.Capability]bool)
 	for _, cap := range capabilities {
 		if seen[cap] {
 			t.Errorf("duplicate capability found: %s", cap)

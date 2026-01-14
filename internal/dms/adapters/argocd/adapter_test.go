@@ -1,10 +1,12 @@
-package argocd
+package argocd_test
 
 import (
 	"context"
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/dms/adapters/argocd"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,19 +22,19 @@ import (
 func TestNewAdapter(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *argocd.Config
 		wantErr bool
 	}{
 		{
 			name: "valid config",
-			config: &Config{
-				Namespace: "argocd",
+			config: &argocd.Config{
+				Namespace: "argocd.argocd",
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid config with defaults",
-			config: &Config{
+			config: &argocd.Config{
 				Kubeconfig: "/path/to/kubeconfig",
 			},
 			wantErr: false,
@@ -44,7 +46,7 @@ func TestNewAdapter(t *testing.T) {
 		},
 		{
 			name: "config with auto-sync",
-			config: &Config{
+			config: &argocd.Config{
 				AutoSync: true,
 				Prune:    true,
 				SelfHeal: true,
@@ -55,7 +57,7 @@ func TestNewAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := NewAdapter(tt.config)
+			adp, err := argocd.NewAdapter(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -66,13 +68,13 @@ func TestNewAdapter(t *testing.T) {
 
 				// Verify defaults are applied
 				if tt.config.Namespace == "" {
-					assert.Equal(t, DefaultNamespace, adp.config.Namespace)
+					assert.Equal(t, argocd.DefaultNamespace, adp.Config.Namespace)
 				}
 				if tt.config.DefaultProject == "" {
-					assert.Equal(t, "default", adp.config.DefaultProject)
+					assert.Equal(t, "default", adp.Config.DefaultProject)
 				}
 				if tt.config.SyncTimeout == 0 {
-					assert.Equal(t, DefaultSyncTimeout, adp.config.SyncTimeout)
+					assert.Equal(t, argocd.DefaultSyncTimeout, adp.Config.SyncTimeout)
 				}
 			}
 		})
@@ -81,15 +83,15 @@ func TestNewAdapter(t *testing.T) {
 
 // TestAdapterMetadata tests adapter metadata methods.
 func TestAdapterMetadata(t *testing.T) {
-	adp, err := NewAdapter(&Config{})
+	adp, err := argocd.NewAdapter(&argocd.Config{})
 	require.NoError(t, err)
 
 	t.Run("Name", func(t *testing.T) {
-		assert.Equal(t, AdapterName, adp.Name())
+		assert.Equal(t, argocd.AdapterName, adp.Name())
 	})
 
 	t.Run("Version", func(t *testing.T) {
-		assert.Equal(t, AdapterVersion, adp.Version())
+		assert.Equal(t, argocd.AdapterVersion, adp.Version())
 	})
 
 	t.Run("Capabilities", func(t *testing.T) {
@@ -115,7 +117,7 @@ func TestAdapterMetadata(t *testing.T) {
 }
 
 // createFakeAdapter creates an adapter with a fake dynamic client for testing.
-func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
+func createFakeAdapter(t *testing.T, objects ...runtime.Object) *argocd.Adapter {
 	t.Helper()
 
 	scheme := runtime.NewScheme()
@@ -142,15 +144,15 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 	// Create fake dynamic client
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adp, err := NewAdapter(&Config{
-		Namespace: "argocd",
+	adp, err := argocd.NewAdapter(&argocd.Config{
+		Namespace: "argocd.argocd",
 	})
 	require.NoError(t, err)
 
 	// Set up fake client and mark as initialized
-	adp.dynamicClient = client
+	adp.DynamicClient = client
 	// Trigger the Once to prevent actual initialization attempts
-	adp.initOnce.Do(func() {
+	adp.InitOnce.Do(func() {
 		// Already initialized with fake client above
 	})
 
@@ -165,7 +167,7 @@ func createTestApplication(name, repoURL, path, healthStatus, syncStatus string)
 			"kind":       "Application",
 			"metadata": map[string]interface{}{
 				"name":              name,
-				"namespace":         "argocd",
+				"namespace":         "argocd.argocd",
 				"creationTimestamp": time.Now().Format(time.RFC3339),
 			},
 			"spec": map[string]interface{}{
@@ -781,12 +783,12 @@ func TestClose(t *testing.T) {
 
 	err := adp.Close()
 	require.NoError(t, err)
-	assert.Nil(t, adp.dynamicClient)
+	assert.Nil(t, adp.DynamicClient)
 }
 
 // TestTransformArgoCDStatus tests status transformation logic.
 func TestTransformArgoCDStatus(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := argocd.NewAdapter(&argocd.Config{})
 
 	tests := []struct {
 		name         string
@@ -840,7 +842,7 @@ func TestTransformArgoCDStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := adp.transformArgoCDStatus(tt.healthStatus, tt.syncStatus)
+			got := adp.TransformArgoCDStatus(tt.healthStatus, tt.syncStatus)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -848,7 +850,7 @@ func TestTransformArgoCDStatus(t *testing.T) {
 
 // TestCalculateProgress tests progress calculation.
 func TestCalculateProgress(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := argocd.NewAdapter(&argocd.Config{})
 
 	tests := []struct {
 		name         string
@@ -866,7 +868,7 @@ func TestCalculateProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := adp.calculateProgress(tt.healthStatus, tt.syncStatus)
+			got := adp.CalculateProgress(tt.healthStatus, tt.syncStatus)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -902,7 +904,7 @@ func TestGeneratePackageID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := generatePackageID(tt.repoURL, tt.path)
+			got := argocd.GeneratePackageID(tt.repoURL, tt.path)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -929,7 +931,7 @@ func TestBuildLabelSelector(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildLabelSelector(tt.labels)
+			got := argocd.BuildLabelSelector(tt.labels)
 			// For multiple labels, we can't guarantee order, so just check length for multi-label case
 			if len(tt.labels) <= 1 {
 				assert.Equal(t, tt.want, got)
@@ -940,7 +942,7 @@ func TestBuildLabelSelector(t *testing.T) {
 
 // TestApplyPagination tests pagination logic.
 func TestApplyPagination(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := argocd.NewAdapter(&argocd.Config{})
 
 	deployments := []*dmsadapter.Deployment{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
@@ -992,7 +994,7 @@ func TestApplyPagination(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := adp.applyPagination(deployments, tt.limit, tt.offset)
+			result := adp.ApplyPagination(deployments, tt.limit, tt.offset)
 			assert.Len(t, result, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, tt.wantFirst, result[0].ID)
@@ -1159,9 +1161,9 @@ func TestRollbackDeployment(t *testing.T) {
 
 // TestGVR verifies the ApplicationGVR is correctly defined.
 func TestGVR(t *testing.T) {
-	assert.Equal(t, "argoproj.io", applicationGVR.Group)
-	assert.Equal(t, "v1alpha1", applicationGVR.Version)
-	assert.Equal(t, "applications", applicationGVR.Resource)
+	assert.Equal(t, "argoproj.io", argocd.ApplicationGVR.Group)
+	assert.Equal(t, "v1alpha1", argocd.ApplicationGVR.Version)
+	assert.Equal(t, "applications", argocd.ApplicationGVR.Resource)
 }
 
 // TestMustMarshalYAML tests YAML marshaling helper.
@@ -1190,7 +1192,7 @@ func TestMustMarshalYAML(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mustMarshalYAML(tt.values)
+			got := argocd.MustMarshalYAML(tt.values)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -1232,8 +1234,8 @@ func BenchmarkListDeployments(b *testing.B) {
 	)
 	client := dynamicfake.NewSimpleDynamicClient(scheme, apps...)
 
-	adp, _ := NewAdapter(&Config{Namespace: "argocd"})
-	adp.dynamicClient = client
+	adp, _ := argocd.NewAdapter(&argocd.Config{Namespace: "argocd.argocd"})
+	adp.DynamicClient = client
 
 	ctx := context.Background()
 
@@ -1323,7 +1325,7 @@ func TestExtractSource(t *testing.T) {
 
 // TestTransformApplicationToDeployment tests transformation of ArgoCD Application to Deployment.
 func TestTransformApplicationToDeployment(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := argocd.NewAdapter(&argocd.Config{})
 
 	tests := []struct {
 		name       string
@@ -1355,7 +1357,7 @@ func TestTransformApplicationToDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			deployment := adp.transformApplicationToDeployment(tt.app)
+			deployment := adp.TransformApplicationToDeployment(tt.app)
 
 			assert.NotNil(t, deployment)
 			assert.NotEmpty(t, deployment.ID)
@@ -1410,7 +1412,7 @@ func TestBuildLabelSelector_MultipleLabels(t *testing.T) {
 		"environment": "production",
 	}
 
-	selector := buildLabelSelector(labels)
+	selector := argocd.BuildLabelSelector(labels)
 
 	// Should contain both labels separated by comma
 	assert.Contains(t, selector, "app=myapp")
@@ -1422,21 +1424,21 @@ func TestBuildLabelSelector_MultipleLabels(t *testing.T) {
 func TestConfigDefaults(t *testing.T) {
 	tests := []struct {
 		name            string
-		config          *Config
+		config          *argocd.Config
 		wantNamespace   string
 		wantProject     string
 		wantSyncTimeout time.Duration
 	}{
 		{
 			name:            "all defaults",
-			config:          &Config{},
-			wantNamespace:   DefaultNamespace,
+			config:          &argocd.Config{},
+			wantNamespace:   argocd.DefaultNamespace,
 			wantProject:     "default",
-			wantSyncTimeout: DefaultSyncTimeout,
+			wantSyncTimeout: argocd.DefaultSyncTimeout,
 		},
 		{
 			name: "custom values",
-			config: &Config{
+			config: &argocd.Config{
 				Namespace:      "custom-ns",
 				DefaultProject: "custom-project",
 				SyncTimeout:    10 * time.Minute,
@@ -1449,12 +1451,12 @@ func TestConfigDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := NewAdapter(tt.config)
+			adp, err := argocd.NewAdapter(tt.config)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.wantNamespace, adp.config.Namespace)
-			assert.Equal(t, tt.wantProject, adp.config.DefaultProject)
-			assert.Equal(t, tt.wantSyncTimeout, adp.config.SyncTimeout)
+			assert.Equal(t, tt.wantNamespace, adp.Config.Namespace)
+			assert.Equal(t, tt.wantProject, adp.Config.DefaultProject)
+			assert.Equal(t, tt.wantSyncTimeout, adp.Config.SyncTimeout)
 		})
 	}
 }

@@ -23,7 +23,7 @@ func (a *Adapter) ListResources(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "ListResources", start, err) }()
 
-	a.logger.Debug("ListResources called",
+	a.Logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
 	// Build EC2 filters
@@ -61,12 +61,12 @@ func (a *Adapter) ListResources(
 				resource := a.instanceToResource(&instance)
 
 				// Apply additional filters using shared helper
-				labels := tagsToMap(instance.Tags)
+				labels := TagsToMap(instance.Tags)
 				if !adapter.MatchesFilter(
 					filter,
 					resource.ResourcePoolID,
 					resource.ResourceTypeID,
-					extractTagValue(instance.Tags, "Location"),
+					ExtractTagValue(instance.Tags, "Location"),
 					labels,
 				) {
 					continue
@@ -82,7 +82,7 @@ func (a *Adapter) ListResources(
 		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
-	a.logger.Info("listed resources",
+	a.Logger.Info("listed resources",
 		zap.Int("count", len(resources)))
 
 	return resources, nil
@@ -97,7 +97,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetResource", start, err) }()
 
-	a.logger.Debug("GetResource called",
+	a.Logger.Debug("GetResource called",
 		zap.String("id", id))
 
 	// Extract the actual EC2 instance ID from the O2-IMS resource ID
@@ -122,7 +122,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 		&output.Reservations[0].Instances[0],
 	)
 
-	a.logger.Info("retrieved resource",
+	a.Logger.Info("retrieved resource",
 		zap.String("resourceId", resource.ResourceID))
 
 	return resource, nil
@@ -137,7 +137,7 @@ func (a *Adapter) CreateResource(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "CreateResource", start, err) }()
 
-	a.logger.Debug("CreateResource called",
+	a.Logger.Debug("CreateResource called",
 		zap.String("resourceTypeId", resource.ResourceTypeID))
 
 	// Extract instance type and validate required parameters
@@ -165,7 +165,7 @@ func (a *Adapter) CreateResource(
 		&output.Instances[0],
 	)
 
-	a.logger.Info("created resource",
+	a.Logger.Info("created resource",
 		zap.String("resourceId", created.ResourceID),
 		zap.String("instanceId", aws.ToString(output.Instances[0].InstanceId)))
 
@@ -183,7 +183,7 @@ func (a *Adapter) UpdateResource(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "UpdateResource", start, err) }()
 
-	a.logger.Debug("UpdateResource called",
+	a.Logger.Debug("UpdateResource called",
 		zap.String("resourceId", id))
 
 	// TODO(#188): Implement instance tag updates via EC2 CreateTags API
@@ -271,7 +271,7 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "DeleteResource", start, err) }()
 
-	a.logger.Debug("DeleteResource called",
+	a.Logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
 	// Extract the actual EC2 instance ID from the O2-IMS resource ID
@@ -287,7 +287,7 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to terminate instance: %w", err)
 	}
 
-	a.logger.Info("deleted resource",
+	a.Logger.Info("deleted resource",
 		zap.String("resourceId", id),
 		zap.String("instanceId", instanceID))
 
@@ -297,16 +297,16 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 // instanceToResource converts an EC2 instance to an O2-IMS Resource.
 func (a *Adapter) instanceToResource(instance *ec2Types.Instance) *adapter.Resource {
 	instanceID := aws.ToString(instance.InstanceId)
-	resourceID := generateInstanceID(instanceID)
-	resourceTypeID := generateInstanceTypeID(string(instance.InstanceType))
+	resourceID := GenerateInstanceID(instanceID)
+	resourceTypeID := GenerateInstanceTypeID(string(instance.InstanceType))
 
 	// Determine resource pool ID based on pool mode
 	// In ASG mode, we would need to look up which ASG this instance belongs to
 	// For now, always use the AZ
-	resourcePoolID := generateAZPoolID(aws.ToString(instance.Placement.AvailabilityZone))
+	resourcePoolID := GenerateAZPoolID(aws.ToString(instance.Placement.AvailabilityZone))
 
 	// Get instance name from tags
-	name := extractTagValue(instance.Tags, "Name")
+	name := ExtractTagValue(instance.Tags, "Name")
 	if name == "" {
 		name = instanceID
 	}
@@ -328,7 +328,7 @@ func (a *Adapter) instanceToResource(instance *ec2Types.Instance) *adapter.Resou
 		"aws.architecture":     string(instance.Architecture),
 		"aws.platform":         aws.ToString(instance.PlatformDetails),
 		"aws.launchTime":       instance.LaunchTime,
-		"aws.tags":             tagsToMap(instance.Tags),
+		"aws.tags":             TagsToMap(instance.Tags),
 	}
 
 	// Add EBS volume information
@@ -373,7 +373,7 @@ func (a *Adapter) instanceToResource(instance *ec2Types.Instance) *adapter.Resou
 		ResourceID:     resourceID,
 		ResourceTypeID: resourceTypeID,
 		ResourcePoolID: resourcePoolID,
-		GlobalAssetID:  fmt.Sprintf("urn:aws:ec2:%s:%s", a.region, instanceID),
+		GlobalAssetID:  fmt.Sprintf("urn:aws:ec2:%s:%s", a.Region, instanceID),
 		Description:    name,
 		Extensions:     extensions,
 	}

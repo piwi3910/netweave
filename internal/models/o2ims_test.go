@@ -1,58 +1,60 @@
-package models
+package models_test
 
 import (
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/models"
 )
 
 func TestEventType_String(t *testing.T) {
 	tests := []struct {
 		name     string
-		event    EventType
+		event    models.EventType
 		expected string
 	}{
 		{
 			name:     "ResourceCreated",
-			event:    EventTypeResourceCreated,
+			event:    models.EventTypeResourceCreated,
 			expected: "ResourceCreated",
 		},
 		{
 			name:     "ResourceUpdated",
-			event:    EventTypeResourceUpdated,
+			event:    models.EventTypeResourceUpdated,
 			expected: "ResourceUpdated",
 		},
 		{
 			name:     "ResourceDeleted",
-			event:    EventTypeResourceDeleted,
+			event:    models.EventTypeResourceDeleted,
 			expected: "ResourceDeleted",
 		},
 		{
 			name:     "ResourcePoolCreated",
-			event:    EventTypeResourcePoolCreated,
+			event:    models.EventTypeResourcePoolCreated,
 			expected: "ResourcePoolCreated",
 		},
 		{
 			name:     "ResourcePoolUpdated",
-			event:    EventTypeResourcePoolUpdated,
+			event:    models.EventTypeResourcePoolUpdated,
 			expected: "ResourcePoolUpdated",
 		},
 		{
 			name:     "ResourcePoolDeleted",
-			event:    EventTypeResourcePoolDeleted,
+			event:    models.EventTypeResourcePoolDeleted,
 			expected: "ResourcePoolDeleted",
 		},
 		{
 			name:     "ResourceTypeCreated",
-			event:    EventTypeResourceTypeCreated,
+			event:    models.EventTypeResourceTypeCreated,
 			expected: "ResourceTypeCreated",
 		},
 		{
 			name:     "ResourceTypeUpdated",
-			event:    EventTypeResourceTypeUpdated,
+			event:    models.EventTypeResourceTypeUpdated,
 			expected: "ResourceTypeUpdated",
 		},
 		{
 			name:     "ResourceTypeDeleted",
-			event:    EventTypeResourceTypeDeleted,
+			event:    models.EventTypeResourceTypeDeleted,
 			expected: "ResourceTypeDeleted",
 		},
 	}
@@ -70,62 +72,62 @@ func TestEventType_String(t *testing.T) {
 func TestEventType_IsValid(t *testing.T) {
 	tests := []struct {
 		name     string
-		event    EventType
+		event    models.EventType
 		expected bool
 	}{
 		{
 			name:     "valid ResourceCreated",
-			event:    EventTypeResourceCreated,
+			event:    models.EventTypeResourceCreated,
 			expected: true,
 		},
 		{
 			name:     "valid ResourceUpdated",
-			event:    EventTypeResourceUpdated,
+			event:    models.EventTypeResourceUpdated,
 			expected: true,
 		},
 		{
 			name:     "valid ResourceDeleted",
-			event:    EventTypeResourceDeleted,
+			event:    models.EventTypeResourceDeleted,
 			expected: true,
 		},
 		{
 			name:     "valid ResourcePoolCreated",
-			event:    EventTypeResourcePoolCreated,
+			event:    models.EventTypeResourcePoolCreated,
 			expected: true,
 		},
 		{
 			name:     "valid ResourcePoolUpdated",
-			event:    EventTypeResourcePoolUpdated,
+			event:    models.EventTypeResourcePoolUpdated,
 			expected: true,
 		},
 		{
 			name:     "valid ResourcePoolDeleted",
-			event:    EventTypeResourcePoolDeleted,
+			event:    models.EventTypeResourcePoolDeleted,
 			expected: true,
 		},
 		{
 			name:     "valid ResourceTypeCreated",
-			event:    EventTypeResourceTypeCreated,
+			event:    models.EventTypeResourceTypeCreated,
 			expected: true,
 		},
 		{
 			name:     "valid ResourceTypeUpdated",
-			event:    EventTypeResourceTypeUpdated,
+			event:    models.EventTypeResourceTypeUpdated,
 			expected: true,
 		},
 		{
 			name:     "valid ResourceTypeDeleted",
-			event:    EventTypeResourceTypeDeleted,
+			event:    models.EventTypeResourceTypeDeleted,
 			expected: true,
 		},
 		{
 			name:     "invalid event type",
-			event:    EventType("InvalidEvent"),
+			event:    models.EventType("InvalidEvent"),
 			expected: false,
 		},
 		{
 			name:     "empty event type",
-			event:    EventType(""),
+			event:    models.EventType(""),
 			expected: false,
 		},
 	}

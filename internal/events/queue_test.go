@@ -1,9 +1,11 @@
-package events
+package events_test
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/events"
 
 	"github.com/alicebob/miniredis/v2"
 	redis "github.com/redis/go-redis/v9"
@@ -14,7 +16,7 @@ import (
 	"github.com/piwi3910/netweave/internal/models"
 )
 
-func setupTestQueue(t *testing.T) (*RedisQueue, *miniredis.Miniredis) {
+func setupTestQueue(t *testing.T) (*events.RedisQueue, *miniredis.Miniredis) {
 	t.Helper()
 
 	mr := miniredis.RunT(t)
@@ -23,7 +25,7 @@ func setupTestQueue(t *testing.T) (*RedisQueue, *miniredis.Miniredis) {
 	})
 
 	logger := zaptest.NewLogger(t)
-	queue := NewRedisQueue(client, logger)
+	queue := events.NewRedisQueue(client, logger)
 
 	return queue, mr
 }
@@ -40,7 +42,7 @@ func TestNewRedisQueue(t *testing.T) {
 		logger := zaptest.NewLogger(t)
 
 		assert.Panics(t, func() {
-			NewRedisQueue(nil, logger)
+			events.NewRedisQueue(nil, logger)
 		})
 	})
 
@@ -53,7 +55,7 @@ func TestNewRedisQueue(t *testing.T) {
 		})
 
 		assert.Panics(t, func() {
-			NewRedisQueue(client, nil)
+			events.NewRedisQueue(client, nil)
 		})
 	})
 }
@@ -61,16 +63,16 @@ func TestNewRedisQueue(t *testing.T) {
 func TestRedisQueuePublish(t *testing.T) {
 	tests := []struct {
 		name    string
-		event   *Event
+		event   *events.Event
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "valid event",
-			event: &Event{
+			event: &events.Event{
 				ID:           "event-123",
 				Type:         models.EventTypeResourceCreated,
-				ResourceType: ResourceTypeResource,
+				ResourceType: events.ResourceTypeResource,
 				ResourceID:   "node-1",
 				Timestamp:    time.Now().UTC(),
 			},
@@ -84,9 +86,9 @@ func TestRedisQueuePublish(t *testing.T) {
 		},
 		{
 			name: "empty event ID",
-			event: &Event{
+			event: &events.Event{
 				Type:         models.EventTypeResourceCreated,
-				ResourceType: ResourceTypeResource,
+				ResourceType: events.ResourceTypeResource,
 				ResourceID:   "node-1",
 				Timestamp:    time.Now().UTC(),
 			},
@@ -126,10 +128,10 @@ func TestRedisQueueSubscribe(t *testing.T) {
 		assert.NotNil(t, eventCh)
 
 		// Publish an event
-		event := &Event{
+		event := &events.Event{
 			ID:           "event-123",
 			Type:         models.EventTypeResourceCreated,
-			ResourceType: ResourceTypeResource,
+			ResourceType: events.ResourceTypeResource,
 			ResourceID:   "node-1",
 			Timestamp:    time.Now().UTC(),
 		}

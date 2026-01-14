@@ -21,7 +21,7 @@ func (a *Adapter) ListResourceTypes(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "ListResourceTypes", start, err) }()
 
-	a.logger.Debug("ListResourceTypes called",
+	a.Logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
 	// List VM sizes for the configured location
@@ -51,7 +51,7 @@ func (a *Adapter) ListResourceTypes(
 		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
 	}
 
-	a.logger.Info("listed resource types",
+	a.Logger.Info("listed resource types",
 		zap.Int("count", len(resourceTypes)))
 
 	return resourceTypes, nil
@@ -63,7 +63,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetResourceType", start, err) }()
 
-	a.logger.Debug("GetResourceType called",
+	a.Logger.Debug("GetResourceType called",
 		zap.String("id", id))
 
 	// Extract VM size name from the ID
@@ -81,7 +81,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 		}
 
 		for _, vmSize := range page.Value {
-			if ptrToString(vmSize.Name) == vmSizeName {
+			if PtrToString(vmSize.Name) == vmSizeName {
 				return a.vmSizeToResourceType(vmSize), nil
 			}
 		}
@@ -92,32 +92,32 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 
 // vmSizeToResourceType converts an Azure VM size to an O2-IMS ResourceType.
 func (a *Adapter) vmSizeToResourceType(vmSize *armcompute.VirtualMachineSize) *adapter.ResourceType {
-	sizeName := ptrToString(vmSize.Name)
-	resourceTypeID := generateVMSizeID(sizeName)
+	sizeName := PtrToString(vmSize.Name)
+	resourceTypeID := GenerateVMSizeID(sizeName)
 
 	// Parse VM family from size name (e.g., "Standard_D2s_v3" -> "D")
-	family := extractVMFamily(sizeName)
+	family := ExtractVMFamily(sizeName)
 
 	// Determine resource kind (all Azure VMs are virtual)
 	resourceKind := "virtual"
 
 	// Calculate memory in GiB
-	memoryGiB := ptrToInt32(vmSize.MemoryInMB) / 1024
+	memoryGiB := PtrToInt32(vmSize.MemoryInMB) / 1024
 
 	// Build extensions with VM size details
 	extensions := map[string]interface{}{
 		"azure.vmSize":               sizeName,
 		"azure.vmFamily":             family,
-		"azure.numberOfCores":        ptrToInt32(vmSize.NumberOfCores),
-		"azure.memoryInMB":           ptrToInt32(vmSize.MemoryInMB),
+		"azure.numberOfCores":        PtrToInt32(vmSize.NumberOfCores),
+		"azure.memoryInMB":           PtrToInt32(vmSize.MemoryInMB),
 		"azure.memoryInGB":           memoryGiB,
-		"azure.maxDataDiskCount":     ptrToInt32(vmSize.MaxDataDiskCount),
-		"azure.osDiskSizeInMB":       ptrToInt32(vmSize.OSDiskSizeInMB),
-		"azure.resourceDiskSizeInMB": ptrToInt32(vmSize.ResourceDiskSizeInMB),
+		"azure.maxDataDiskCount":     PtrToInt32(vmSize.MaxDataDiskCount),
+		"azure.osDiskSizeInMB":       PtrToInt32(vmSize.OSDiskSizeInMB),
+		"azure.resourceDiskSizeInMB": PtrToInt32(vmSize.ResourceDiskSizeInMB),
 	}
 
 	// Build description
-	cores := ptrToInt32(vmSize.NumberOfCores)
+	cores := PtrToInt32(vmSize.NumberOfCores)
 	description := fmt.Sprintf("Azure %s: %d vCPUs, %d GiB RAM", sizeName, cores, memoryGiB)
 
 	return &adapter.ResourceType{
@@ -135,7 +135,7 @@ func (a *Adapter) vmSizeToResourceType(vmSize *armcompute.VirtualMachineSize) *a
 
 // extractVMFamily extracts the VM family from an Azure VM size name.
 // e.g., "Standard_D2s_v3" -> "D", "Standard_B2ms" -> "B".
-func extractVMFamily(sizeName string) string {
+func ExtractVMFamily(sizeName string) string {
 	// Remove "Standard_" prefix
 	name := strings.TrimPrefix(sizeName, "Standard_")
 	name = strings.TrimPrefix(name, "Basic_")

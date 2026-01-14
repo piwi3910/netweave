@@ -11,22 +11,22 @@ import (
 // These are pinned versions to ensure consistent behavior and security.
 // SRI hashes can be verified at: https://www.srihash.org/
 const (
-	swaggerUIVersion = "5.11.0"
+	SwaggerUIVersion = "5.11.0"
 
 	// CDN URLs for Swagger UI assets.
-	swaggerUICSSURL    = "https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css"
-	swaggerUIBundleURL = "https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"
-	swaggerUIPresetURL = "https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"
+	SwaggerUICSSURL    = "https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css"
+	SwaggerUIBundleURL = "https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"
+	SwaggerUIPresetURL = "https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"
 
 	// SRI hashes for CDN resources (sha384)
 	// Generated using: curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A.
-	swaggerUICSSSRI    = "sha384-+yyzNgM3K92sROwsXxYCxaiLWxWJ0G+v/9A+qIZ2rgefKgkdcmJI+L601cqPD/Ut"
-	swaggerUIBundleSRI = "sha384-qn5tagrAjZi8cSmvZ+k3zk4+eDEEUcP9myuR2J6V+/H6rne++v6ChO7EeHAEzqxQ"
-	swaggerUIPresetSRI = "sha384-SiLF+uYBf9lVQW98s/XUYP14enXJN31bn0zu3BS1WFqr5hvnMF+w132WkE/v0uJw"
+	SwaggerUICSSSRI    = "sha384-+yyzNgM3K92sROwsXxYCxaiLWxWJ0G+v/9A+qIZ2rgefKgkdcmJI+L601cqPD/Ut"
+	SwaggerUIBundleSRI = "sha384-qn5tagrAjZi8cSmvZ+k3zk4+eDEEUcP9myuR2J6V+/H6rne++v6ChO7EeHAEzqxQ"
+	SwaggerUIPresetSRI = "sha384-SiLF+uYBf9lVQW98s/XUYP14enXJN31bn0zu3BS1WFqr5hvnMF+w132WkE/v0uJw"
 
 	// Content Security Policy for Swagger UI page
 	// Allows only specific CDN sources and inline styles/scripts needed by Swagger UI.
-	swaggerUICSP = "default-src 'self'; " +
+	SwaggerUICSP = "default-src 'self'; " +
 		"script-src 'self' 'unsafe-inline' https://unpkg.com; " +
 		"style-src 'self' 'unsafe-inline' https://unpkg.com; " +
 		"img-src 'self' data: https:; " +
@@ -36,26 +36,26 @@ const (
 
 // setupDocsRoutes configures documentation endpoints.
 // This includes the OpenAPI specification and Swagger UI for interactive API exploration.
-func (s *Server) setupDocsRoutes() {
+func (s *Server) SetupDocsRoutes() {
 	// API Documentation group
 	docs := s.router.Group("/docs")
 	{
 		// Serve OpenAPI specification
-		docs.GET("/openapi.yaml", s.handleOpenAPIYAML)
-		docs.GET("/openapi.json", s.handleOpenAPIJSON)
+		docs.GET("/openapi.yaml", s.HandleOpenAPIYAML)
+		docs.GET("/openapi.json", s.HandleOpenAPIJSON)
 
 		// Swagger UI
-		docs.GET("", s.handleSwaggerUIRedirect)
-		docs.GET("/", s.handleSwaggerUI)
+		docs.GET("", s.HandleSwaggerUIRedirect)
+		docs.GET("/", s.HandleSwaggerUI)
 	}
 
 	// Alternative path for OpenAPI spec at root level
-	s.router.GET("/openapi.yaml", s.handleOpenAPIYAML)
-	s.router.GET("/openapi.json", s.handleOpenAPIJSON)
+	s.router.GET("/openapi.yaml", s.HandleOpenAPIYAML)
+	s.router.GET("/openapi.json", s.HandleOpenAPIJSON)
 }
 
 // handleOpenAPIYAML serves the OpenAPI specification in YAML format.
-func (s *Server) handleOpenAPIYAML(c *gin.Context) {
+func (s *Server) HandleOpenAPIYAML(c *gin.Context) {
 	if len(s.openAPISpec) == 0 {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error":   "NotFound",
@@ -72,14 +72,14 @@ func (s *Server) handleOpenAPIYAML(c *gin.Context) {
 // handleOpenAPIJSON redirects to the YAML endpoint.
 // The OpenAPI specification is maintained in YAML format only.
 // Swagger UI and most tools support YAML natively.
-func (s *Server) handleOpenAPIJSON(c *gin.Context) {
+func (s *Server) HandleOpenAPIJSON(c *gin.Context) {
 	// Redirect to YAML endpoint - JSON conversion not implemented
 	// Most OpenAPI tools (including Swagger UI) support YAML natively
 	c.Redirect(http.StatusPermanentRedirect, "/docs/openapi.yaml")
 }
 
 // handleSwaggerUIRedirect redirects to the Swagger UI with trailing slash.
-func (s *Server) handleSwaggerUIRedirect(c *gin.Context) {
+func (s *Server) HandleSwaggerUIRedirect(c *gin.Context) {
 	c.Redirect(http.StatusMovedPermanently, "/docs/")
 }
 
@@ -88,7 +88,7 @@ func (s *Server) handleSwaggerUIRedirect(c *gin.Context) {
 // - Pinned CDN versions to prevent supply chain attacks
 // - Content Security Policy header to restrict resource loading
 // - crossorigin="anonymous" for CORS compliance.
-func (s *Server) handleSwaggerUI(c *gin.Context) {
+func (s *Server) HandleSwaggerUI(c *gin.Context) {
 	// Build Swagger UI HTML with security attributes
 	html := `<!DOCTYPE html>
 <html lang="en">
@@ -110,8 +110,8 @@ func (s *Server) handleSwaggerUI(c *gin.Context) {
 </head>
 <body>
     <div id="swagger-ui"></div>
-    <script src="` + swaggerUIBundleURL + `" integrity="` + swaggerUIBundleSRI + `" crossorigin="anonymous"></script>
-    <script src="` + swaggerUIPresetURL + `" integrity="` + swaggerUIPresetSRI + `" crossorigin="anonymous"></script>
+    <script src="` + SwaggerUIBundleURL + `" integrity="` + SwaggerUIBundleSRI + `" crossorigin="anonymous"></script>
+    <script src="` + SwaggerUIPresetURL + `" integrity="` + SwaggerUIPresetSRI + `" crossorigin="anonymous"></script>
     <script>
         window.onload = function() {
             const ui = SwaggerUIBundle({
@@ -144,7 +144,7 @@ func (s *Server) handleSwaggerUI(c *gin.Context) {
 
 	// Set security headers
 	c.Header("Content-Type", "text/html; charset=utf-8")
-	c.Header("Content-Security-Policy", swaggerUICSP)
+	c.Header("Content-Security-Policy", SwaggerUICSP)
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Header("X-Frame-Options", "DENY")
 	c.Header("Referrer-Policy", "strict-origin-when-cross-origin")

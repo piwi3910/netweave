@@ -12,7 +12,7 @@ import (
 // GetDeploymentManager retrieves metadata about the GCP deployment manager.
 // It provides information about the GCP project and region.
 func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
-	a.logger.Debug("GetDeploymentManager called",
+	a.Logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
 	if id != a.deploymentManagerID {
@@ -33,7 +33,7 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 	if region.Zones != nil {
 		for _, zoneURL := range region.Zones {
 			// Extract zone name from URL
-			zoneName := extractZoneName(zoneURL)
+			zoneName := ExtractZoneName(zoneURL)
 			if zoneName != "" {
 				supportedLocations = append(supportedLocations, zoneName)
 			}
@@ -58,12 +58,12 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 			"gcp.projectId":   a.projectID,
 			"gcp.region":      a.region,
 			"gcp.poolMode":    a.poolMode,
-			"gcp.status":      ptrToString(region.Status),
-			"gcp.description": ptrToString(region.Description),
+			"gcp.status":      PtrToString(region.Status),
+			"gcp.description": PtrToString(region.Description),
 		},
 	}
 
-	a.logger.Info("retrieved deployment manager",
+	a.Logger.Info("retrieved deployment manager",
 		zap.String("deploymentManagerID", dm.DeploymentManagerID),
 		zap.String("region", a.region))
 
@@ -72,7 +72,7 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 
 // extractZoneName extracts the zone name from a GCP zone URL.
 // e.g., "https://compute.googleapis.com/compute/v1/projects/my-project/zones/us-central1-a" -> "us-central1-a".
-func extractZoneName(zoneURL string) string {
+func ExtractZoneName(zoneURL string) string {
 	// Find the last "/" and return everything after it
 	for i := len(zoneURL) - 1; i >= 0; i-- {
 		if zoneURL[i] == '/' {

@@ -23,7 +23,7 @@ func (a *Adapter) ListResources(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "ListResources", start, err) }()
 
-	a.logger.Debug("ListResources called",
+	a.Logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
 	// List instances across all zones in the region
@@ -37,7 +37,7 @@ func (a *Adapter) ListResources(
 		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
-	a.logger.Info("listed resources",
+	a.Logger.Info("listed resources",
 		zap.Int("count", len(resources)))
 
 	return resources, nil
@@ -60,7 +60,7 @@ func (a *Adapter) listInstancesInRegion(ctx context.Context, filter *adapter.Fil
 			return nil, fmt.Errorf("failed to list zones: %w", err)
 		}
 
-		zoneName := ptrToString(zone.Name)
+		zoneName := PtrToString(zone.Name)
 		if !strings.HasPrefix(zoneName, a.region) {
 			continue
 		}
@@ -124,7 +124,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "GetResource", start, err) }()
 
-	a.logger.Debug("GetResource called",
+	a.Logger.Debug("GetResource called",
 		zap.String("id", id))
 
 	// Parse zone and instance name from the ID
@@ -163,7 +163,7 @@ func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) 
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "CreateResource", start, err) }()
 
-	a.logger.Debug("CreateResource called",
+	a.Logger.Debug("CreateResource called",
 		zap.String("resourceTypeId", resource.ResourceTypeID))
 
 	// Creating GCP instances requires extensive configuration
@@ -184,7 +184,7 @@ func (a *Adapter) UpdateResource(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "UpdateResource", start, err) }()
 
-	a.logger.Debug("UpdateResource called",
+	a.Logger.Debug("UpdateResource called",
 		zap.String("resourceID", resource.ResourceID))
 
 	// TODO(#190): Implement instance metadata updates via GCP API
@@ -199,7 +199,7 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "DeleteResource", start, err) }()
 
-	a.logger.Debug("DeleteResource called",
+	a.Logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
 	// Find the instance to get zone and name
@@ -234,7 +234,7 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to wait for instance deletion: %w", err)
 	}
 
-	a.logger.Info("deleted resource",
+	a.Logger.Info("deleted resource",
 		zap.String("resourceId", id))
 
 	return nil
@@ -242,19 +242,19 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 
 // instanceToResource converts a GCP instance to an O2-IMS Resource.
 func (a *Adapter) instanceToResource(instance *computepb.Instance, zone string) *adapter.Resource {
-	instanceName := ptrToString(instance.Name)
-	resourceID := generateInstanceID(instanceName, zone)
+	instanceName := PtrToString(instance.Name)
+	resourceID := GenerateInstanceID(instanceName, zone)
 
 	// Extract machine type and resource pool
-	machineType := extractMachineTypeName(ptrToString(instance.MachineType))
-	resourceTypeID := generateMachineTypeID(machineType)
+	machineType := ExtractMachineTypeName(PtrToString(instance.MachineType))
+	resourceTypeID := GenerateMachineTypeID(machineType)
 	resourcePoolID := a.determineResourcePoolID(zone)
 
 	// Build extensions with instance details
 	extensions := buildInstanceExtensions(instance, instanceName, zone, machineType)
 
 	// Get description
-	description := ptrToString(instance.Description)
+	description := PtrToString(instance.Description)
 	if description == "" {
 		description = instanceName
 	}
@@ -273,11 +273,11 @@ func (a *Adapter) instanceToResource(instance *computepb.Instance, zone string) 
 // mode.
 func (a *Adapter) determineResourcePoolID(zone string) string {
 	if a.poolMode == "zone" {
-		return generateZonePoolID(zone)
+		return GenerateZonePoolID(zone)
 	}
 	// In IG mode, we would need to look up which IG this instance belongs to
 	// For now, use zone as fallback
-	return generateZonePoolID(zone)
+	return GenerateZonePoolID(zone)
 }
 
 // buildInstanceExtensions builds the extensions map with GCP instance details.
@@ -295,8 +295,8 @@ func buildInstanceExtensions(
 		"gcp.name":        instanceName,
 		"gcp.zone":        zone,
 		"gcp.machineType": machineType,
-		"gcp.status":      ptrToString(instance.Status),
-		"gcp.selfLink":    ptrToString(instance.SelfLink),
+		"gcp.status":      PtrToString(instance.Status),
+		"gcp.selfLink":    PtrToString(instance.SelfLink),
 		"gcp.labels":      instance.Labels,
 	}
 
@@ -304,8 +304,8 @@ func buildInstanceExtensions(
 	addInstanceDisks(extensions, instance.Disks)
 	addInstanceSchedulingInfo(extensions, instance.Scheduling)
 
-	extensions["gcp.cpuPlatform"] = ptrToString(instance.CpuPlatform)
-	extensions["gcp.creationTimestamp"] = ptrToString(instance.CreationTimestamp)
+	extensions["gcp.cpuPlatform"] = PtrToString(instance.CpuPlatform)
+	extensions["gcp.creationTimestamp"] = PtrToString(instance.CreationTimestamp)
 
 	return extensions
 }
@@ -319,22 +319,22 @@ func addInstanceNetworkInterfaces(extensions map[string]interface{}, networkInte
 	nics := make([]map[string]interface{}, 0, len(networkInterfaces))
 	for _, nic := range networkInterfaces {
 		nicInfo := map[string]interface{}{
-			"name":       ptrToString(nic.Name),
-			"network":    ptrToString(nic.Network),
-			"subnetwork": ptrToString(nic.Subnetwork),
-			"internalIP": ptrToString(nic.NetworkIP),
+			"name":       PtrToString(nic.Name),
+			"network":    PtrToString(nic.Network),
+			"subnetwork": PtrToString(nic.Subnetwork),
+			"internalIP": PtrToString(nic.NetworkIP),
 		}
 		if len(nic.AccessConfigs) > 0 {
-			nicInfo["externalIP"] = ptrToString(nic.AccessConfigs[0].NatIP)
+			nicInfo["externalIP"] = PtrToString(nic.AccessConfigs[0].NatIP)
 		}
 		nics = append(nics, nicInfo)
 	}
 	extensions["gcp.networkInterfaces"] = nics
 
 	// Add primary IPs for quick access
-	extensions["gcp.internalIP"] = ptrToString(networkInterfaces[0].NetworkIP)
+	extensions["gcp.internalIP"] = PtrToString(networkInterfaces[0].NetworkIP)
 	if len(networkInterfaces[0].AccessConfigs) > 0 {
-		extensions["gcp.externalIP"] = ptrToString(networkInterfaces[0].AccessConfigs[0].NatIP)
+		extensions["gcp.externalIP"] = PtrToString(networkInterfaces[0].AccessConfigs[0].NatIP)
 	}
 }
 
@@ -347,12 +347,12 @@ func addInstanceDisks(extensions map[string]interface{}, disks []*computepb.Atta
 	diskList := make([]map[string]interface{}, 0, len(disks))
 	for _, disk := range disks {
 		diskInfo := map[string]interface{}{
-			"deviceName": ptrToString(disk.DeviceName),
-			"source":     ptrToString(disk.Source),
-			"boot":       ptrToBool(disk.Boot),
-			"mode":       ptrToString(disk.Mode),
-			"sizeGB":     ptrToInt64(disk.DiskSizeGb),
-			"type":       ptrToString(disk.Type),
+			"deviceName": PtrToString(disk.DeviceName),
+			"source":     PtrToString(disk.Source),
+			"boot":       PtrToBool(disk.Boot),
+			"mode":       PtrToString(disk.Mode),
+			"sizeGB":     PtrToInt64(disk.DiskSizeGb),
+			"type":       PtrToString(disk.Type),
 		}
 		diskList = append(diskList, diskInfo)
 	}
@@ -362,14 +362,14 @@ func addInstanceDisks(extensions map[string]interface{}, disks []*computepb.Atta
 // addInstanceSchedulingInfo adds scheduling information to extensions.
 func addInstanceSchedulingInfo(extensions map[string]interface{}, scheduling *computepb.Scheduling) {
 	if scheduling != nil {
-		extensions["gcp.preemptible"] = ptrToBool(scheduling.Preemptible)
-		extensions["gcp.automaticRestart"] = ptrToBool(scheduling.AutomaticRestart)
+		extensions["gcp.preemptible"] = PtrToBool(scheduling.Preemptible)
+		extensions["gcp.automaticRestart"] = PtrToBool(scheduling.AutomaticRestart)
 	}
 }
 
 // extractMachineTypeName extracts the machine type name from a GCP machine type URL.
 // e.g., "zones/us-central1-a/machineTypes/n1-standard-1" -> "n1-standard-1".
-func extractMachineTypeName(machineTypeURL string) string {
+func ExtractMachineTypeName(machineTypeURL string) string {
 	parts := strings.Split(machineTypeURL, "/")
 	if len(parts) > 0 {
 		return parts[len(parts)-1]

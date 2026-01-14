@@ -461,3 +461,52 @@ func (a *Adapter) Close() error {
 
 	return nil
 }
+
+// GetClient returns the underlying Kubernetes client.
+// This method is primarily intended for testing purposes.
+func (a *Adapter) GetClient() kubernetes.Interface {
+	return a.client
+}
+
+// GetNamespace returns the namespace this adapter is using.
+// This method is primarily intended for testing purposes.
+func (a *Adapter) GetNamespace() string {
+	return a.namespace
+}
+
+// SetNamespace sets the namespace this adapter is using.
+// This method is intended for testing purposes only.
+func (a *Adapter) SetNamespace(namespace string) {
+	a.namespace = namespace
+}
+
+// NewForTesting creates a new Adapter with a provided Kubernetes client.
+// This function is intended for testing purposes only.
+func NewForTesting(client kubernetes.Interface, logger *zap.Logger) *Adapter {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	return &Adapter{
+		client:              client,
+		logger:              logger,
+		oCloudID:            "test-ocloud",
+		deploymentManagerID: "test-dm",
+		namespace:           "o2ims-system",
+	}
+}
+
+// NewForTestingWithStore creates a new Adapter with a provided Kubernetes client and store.
+// This function is intended for testing purposes only.
+func NewForTestingWithStore(client kubernetes.Interface, store storage.Store, logger *zap.Logger) *Adapter {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	return &Adapter{
+		client:              client,
+		store:               store,
+		logger:              logger,
+		oCloudID:            "test-ocloud",
+		deploymentManagerID: "test-dm",
+		namespace:           "o2ims-system",
+	}
+}

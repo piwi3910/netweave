@@ -1,4 +1,4 @@
-package handlers
+package handlers_test
 
 import (
 	"bytes"
@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/dms/handlers"
 
 	"github.com/gin-gonic/gin"
 	"github.com/piwi3910/netweave/internal/dms/adapter"
@@ -242,7 +244,7 @@ func (m *mockAdapter) Health(_ context.Context) error {
 func (m *mockAdapter) Close() error { return nil }
 
 // setupTestHandler creates a test handler with mock dependencies.
-func setupTestHandler(t *testing.T) (*Handler, *mockAdapter) {
+func setupTestHandler(t *testing.T) (*handlers.Handler, *mockAdapter) {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -255,13 +257,13 @@ func setupTestHandler(t *testing.T) (*Handler, *mockAdapter) {
 	require.NoError(t, err)
 
 	store := storage.NewMemoryStore()
-	handler := NewHandler(reg, store, logger)
+	handler := handlers.NewHandler(reg, store, logger)
 
 	return handler, mockAdp
 }
 
 // setupTestRouter creates a test router with the handler configured.
-func setupTestRouter(handler *Handler) *gin.Engine {
+func setupTestRouter(handler *handlers.Handler) *gin.Engine {
 	router := gin.New()
 
 	v1 := router.Group("/o2dms/v1")
@@ -862,7 +864,7 @@ func TestHandler_NoDefaultAdapter(t *testing.T) {
 	// Create empty registry with no default adapter.
 	reg := registry.NewRegistry(logger, nil)
 	store := storage.NewMemoryStore()
-	handler := NewHandler(reg, store, logger)
+	handler := handlers.NewHandler(reg, store, logger)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments", nil)
@@ -1126,7 +1128,7 @@ func TestHandler_Health_NoAdapter(t *testing.T) {
 	// Create empty registry with no adapter.
 	reg := registry.NewRegistry(logger, nil)
 	store := storage.NewMemoryStore()
-	handler := NewHandler(reg, store, logger)
+	handler := handlers.NewHandler(reg, store, logger)
 
 	err := handler.Health(context.Background())
 	assert.Error(t, err)
@@ -1153,7 +1155,7 @@ func TestHandler_ScaleNotSupported(t *testing.T) {
 	require.NoError(t, err)
 
 	store := storage.NewMemoryStore()
-	handler := NewHandler(reg, store, logger)
+	handler := handlers.NewHandler(reg, store, logger)
 	router := setupTestRouter(handler)
 
 	scaleReq := models.ScaleNFDeploymentRequest{Replicas: 5}
@@ -1180,7 +1182,7 @@ func TestHandler_RollbackNotSupported(t *testing.T) {
 	require.NoError(t, err)
 
 	store := storage.NewMemoryStore()
-	handler := NewHandler(reg, store, logger)
+	handler := handlers.NewHandler(reg, store, logger)
 	router := setupTestRouter(handler)
 
 	rollbackReq := models.RollbackNFDeploymentRequest{}
@@ -1206,7 +1208,7 @@ func TestHandler_SubscriptionNoStore(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create handler with nil store.
-	handler := NewHandler(reg, nil, logger)
+	handler := handlers.NewHandler(reg, nil, logger)
 	router := setupTestRouter(handler)
 
 	// Test list subscriptions with no store.
@@ -1227,7 +1229,7 @@ func TestHandler_CreateSubscriptionNoStore(t *testing.T) {
 	err := reg.Register(context.Background(), "mock", "mock", mockAdp, nil, true)
 	require.NoError(t, err)
 
-	handler := NewHandler(reg, nil, logger)
+	handler := handlers.NewHandler(reg, nil, logger)
 	router := setupTestRouter(handler)
 
 	createReq := models.CreateDMSSubscriptionRequest{
@@ -1254,7 +1256,7 @@ func TestHandler_GetSubscriptionNoStore(t *testing.T) {
 	err := reg.Register(context.Background(), "mock", "mock", mockAdp, nil, true)
 	require.NoError(t, err)
 
-	handler := NewHandler(reg, nil, logger)
+	handler := handlers.NewHandler(reg, nil, logger)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/subscriptions/sub-1", nil)
@@ -1274,7 +1276,7 @@ func TestHandler_DeleteSubscriptionNoStore(t *testing.T) {
 	err := reg.Register(context.Background(), "mock", "mock", mockAdp, nil, true)
 	require.NoError(t, err)
 
-	handler := NewHandler(reg, nil, logger)
+	handler := handlers.NewHandler(reg, nil, logger)
 	router := setupTestRouter(handler)
 
 	req := httptest.NewRequest(http.MethodDelete, "/o2dms/v1/subscriptions/sub-1", nil)
@@ -1451,7 +1453,7 @@ func TestValidateCallbackURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateCallbackURL(tt.callbackURL)
+			err := handlers.ValidateCallbackURL(tt.callbackURL)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.errContains != "" {
@@ -1502,7 +1504,7 @@ func TestIsPrivateIP(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ip := net.ParseIP(tt.ip)
 			require.NotNil(t, ip, "failed to parse IP: %s", tt.ip)
-			result := isPrivateIP(ip)
+			result := handlers.IsPrivateIP(ip)
 			assert.Equal(t, tt.isPrivate, result)
 		})
 	}
@@ -1553,7 +1555,7 @@ func TestRedactURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := redactURL(tt.input)
+			result := handlers.RedactURL(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -1568,12 +1570,12 @@ func TestValidatePaginationLimit(t *testing.T) {
 		{
 			name:     "zero returns default",
 			input:    0,
-			expected: DefaultPaginationLimit,
+			expected: handlers.DefaultPaginationLimit,
 		},
 		{
 			name:     "negative returns default",
 			input:    -1,
-			expected: DefaultPaginationLimit,
+			expected: handlers.DefaultPaginationLimit,
 		},
 		{
 			name:     "within range unchanged",
@@ -1582,18 +1584,18 @@ func TestValidatePaginationLimit(t *testing.T) {
 		},
 		{
 			name:     "at max unchanged",
-			input:    MaxPaginationLimit,
-			expected: MaxPaginationLimit,
+			input:    handlers.MaxPaginationLimit,
+			expected: handlers.MaxPaginationLimit,
 		},
 		{
 			name:     "exceeds max capped",
-			input:    MaxPaginationLimit + 1,
-			expected: MaxPaginationLimit,
+			input:    handlers.MaxPaginationLimit + 1,
+			expected: handlers.MaxPaginationLimit,
 		},
 		{
 			name:     "very large capped",
 			input:    10000,
-			expected: MaxPaginationLimit,
+			expected: handlers.MaxPaginationLimit,
 		},
 		{
 			name:     "one is valid",
@@ -1604,7 +1606,7 @@ func TestValidatePaginationLimit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := validatePaginationLimit(tt.input)
+			result := handlers.ValidatePaginationLimit(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -1721,7 +1723,7 @@ func TestIsCloudMetadataEndpoint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isCloudMetadataEndpoint(tt.host)
+			result := handlers.IsCloudMetadataEndpoint(tt.host)
 			assert.Equal(t, tt.isMetadata, result)
 		})
 	}
@@ -1756,7 +1758,7 @@ func TestIsPrivateIP_IPv6(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ip := net.ParseIP(tt.ip)
 			require.NotNil(t, ip, "failed to parse IP: %s", tt.ip)
-			result := isPrivateIP(ip)
+			result := handlers.IsPrivateIP(ip)
 			assert.Equal(t, tt.isPrivate, result)
 		})
 	}
@@ -1791,7 +1793,7 @@ func TestValidateCallbackURL_CloudMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateCallbackURL(tt.callbackURL)
+			err := handlers.ValidateCallbackURL(tt.callbackURL)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.errContains != "" {
@@ -1904,7 +1906,7 @@ func TestValidateDeploymentName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateDeploymentName(tt.deployName)
+			err := handlers.ValidateDeploymentName(tt.deployName)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.errContains != "" {
@@ -2398,7 +2400,7 @@ func TestConvertDeploymentStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := convertDeploymentStatus(tt.status)
+			got := handlers.ConvertDeploymentStatus(tt.status)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -2445,7 +2447,7 @@ func TestConvertToNFDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := convertToNFDeployment(tt.deployment)
+			got := handlers.ConvertToNFDeployment(tt.deployment)
 			if tt.wantNil {
 				assert.Nil(t, got)
 			} else {
@@ -2495,7 +2497,7 @@ func TestConvertToNFDeploymentDescriptor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := convertToNFDeploymentDescriptor(tt.pkg)
+			got := handlers.ConvertToNFDeploymentDescriptor(tt.pkg)
 			if tt.wantNil {
 				assert.Nil(t, got)
 			} else {

@@ -1,4 +1,4 @@
-package observability
+package observability_test
 
 import (
 	"context"
@@ -9,21 +9,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/piwi3910/netweave/internal/observability"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewHealthChecker(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 	require.NotNil(t, hc)
-	assert.Equal(t, "v1.0.0", hc.version)
-	assert.Equal(t, 5*time.Second, hc.timeout)
-	assert.NotNil(t, hc.healthChecks)
-	assert.NotNil(t, hc.readinessChecks)
+	assert.Equal(t, "v1.0.0", hc.Version)
+	assert.Equal(t, 5*time.Second, hc.Timeout)
+	assert.NotNil(t, hc.HealthChecks)
+	assert.NotNil(t, hc.ReadinessChecks)
 }
 
 func TestRegisterHealthCheck(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 
 	checkFunc := func(_ context.Context) error {
 		return nil
@@ -32,12 +34,12 @@ func TestRegisterHealthCheck(t *testing.T) {
 	hc.RegisterHealthCheck("test-component", checkFunc)
 
 	// Verify check was registered
-	assert.Len(t, hc.healthChecks, 1)
-	assert.Contains(t, hc.healthChecks, "test-component")
+	assert.Len(t, hc.HealthChecks, 1)
+	assert.Contains(t, hc.HealthChecks, "test-component")
 }
 
 func TestRegisterReadinessCheck(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 
 	checkFunc := func(_ context.Context) error {
 		return nil
@@ -46,20 +48,20 @@ func TestRegisterReadinessCheck(t *testing.T) {
 	hc.RegisterReadinessCheck("test-component", checkFunc)
 
 	// Verify check was registered
-	assert.Len(t, hc.readinessChecks, 1)
-	assert.Contains(t, hc.readinessChecks, "test-component")
+	assert.Len(t, hc.ReadinessChecks, 1)
+	assert.Contains(t, hc.ReadinessChecks, "test-component")
 }
 
 func TestSetTimeout(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
-	assert.Equal(t, 5*time.Second, hc.timeout)
+	hc := observability.NewHealthChecker("v1.0.0")
+	assert.Equal(t, 5*time.Second, hc.Timeout)
 
 	hc.SetTimeout(10 * time.Second)
-	assert.Equal(t, 10*time.Second, hc.timeout)
+	assert.Equal(t, 10*time.Second, hc.Timeout)
 }
 
 func TestCheckHealthAllHealthy(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 
 	// Register healthy checks
 	hc.RegisterHealthCheck("component1", func(_ context.Context) error {
@@ -73,18 +75,18 @@ func TestCheckHealthAllHealthy(t *testing.T) {
 	response := hc.CheckHealth(ctx)
 
 	require.NotNil(t, response)
-	assert.Equal(t, StatusHealthy, response.Status)
+	assert.Equal(t, observability.StatusHealthy, response.Status)
 	assert.Equal(t, "v1.0.0", response.Version)
 	assert.Len(t, response.Components, 2)
 
 	for _, comp := range response.Components {
-		assert.Equal(t, StatusHealthy, comp.Status)
+		assert.Equal(t, observability.StatusHealthy, comp.Status)
 		assert.Empty(t, comp.Error)
 	}
 }
 
 func TestCheckHealthWithUnhealthyComponent(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 
 	// Register healthy and unhealthy checks
 	hc.RegisterHealthCheck("healthy-component", func(_ context.Context) error {
@@ -98,18 +100,18 @@ func TestCheckHealthWithUnhealthyComponent(t *testing.T) {
 	response := hc.CheckHealth(ctx)
 
 	require.NotNil(t, response)
-	assert.Equal(t, StatusUnhealthy, response.Status)
+	assert.Equal(t, observability.StatusUnhealthy, response.Status)
 
 	healthyComp := response.Components["healthy-component"]
-	assert.Equal(t, StatusHealthy, healthyComp.Status)
+	assert.Equal(t, observability.StatusHealthy, healthyComp.Status)
 
 	unhealthyComp := response.Components["unhealthy-component"]
-	assert.Equal(t, StatusUnhealthy, unhealthyComp.Status)
+	assert.Equal(t, observability.StatusUnhealthy, unhealthyComp.Status)
 	assert.Contains(t, unhealthyComp.Error, "component is down")
 }
 
 func TestCheckHealthTimeout(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 	hc.SetTimeout(100 * time.Millisecond)
 
 	// Register a check that takes too long
@@ -126,15 +128,15 @@ func TestCheckHealthTimeout(t *testing.T) {
 	response := hc.CheckHealth(ctx)
 
 	require.NotNil(t, response)
-	assert.Equal(t, StatusUnhealthy, response.Status)
+	assert.Equal(t, observability.StatusUnhealthy, response.Status)
 
 	slowComp := response.Components["slow-component"]
-	assert.Equal(t, StatusUnhealthy, slowComp.Status)
+	assert.Equal(t, observability.StatusUnhealthy, slowComp.Status)
 	assert.Equal(t, "check timed out", slowComp.Error)
 }
 
 func TestCheckReadinessAllReady(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 
 	// Register ready checks
 	hc.RegisterReadinessCheck("redis", func(_ context.Context) error {
@@ -152,12 +154,12 @@ func TestCheckReadinessAllReady(t *testing.T) {
 	assert.Len(t, response.Components, 2)
 
 	for _, comp := range response.Components {
-		assert.Equal(t, StatusHealthy, comp.Status)
+		assert.Equal(t, observability.StatusHealthy, comp.Status)
 	}
 }
 
 func TestCheckReadinessWithNotReadyComponent(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 
 	hc.RegisterReadinessCheck("redis", func(_ context.Context) error {
 		return nil
@@ -173,26 +175,26 @@ func TestCheckReadinessWithNotReadyComponent(t *testing.T) {
 	assert.False(t, response.Ready)
 
 	k8sComp := response.Components["kubernetes"]
-	assert.Equal(t, StatusUnhealthy, k8sComp.Status)
+	assert.Equal(t, observability.StatusUnhealthy, k8sComp.Status)
 	assert.Contains(t, k8sComp.Error, "k8s not reachable")
 }
 
 func TestExecuteChecksEmpty(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 	ctx := context.Background()
 
-	checks := make(map[string]HealthCheck)
-	components := hc.executeChecks(ctx, checks)
+	checks := make(map[string]observability.HealthCheck)
+	components := hc.ExecuteChecks(ctx, checks)
 
 	assert.NotNil(t, components)
 	assert.Len(t, components, 0)
 }
 
 func TestExecuteChecksConcurrent(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 	ctx := context.Background()
 
-	checks := map[string]HealthCheck{
+	checks := map[string]observability.HealthCheck{
 		"check1": func(_ context.Context) error {
 			time.Sleep(50 * time.Millisecond)
 			return nil
@@ -208,7 +210,7 @@ func TestExecuteChecksConcurrent(t *testing.T) {
 	}
 
 	start := time.Now()
-	components := hc.executeChecks(ctx, checks)
+	components := hc.ExecuteChecks(ctx, checks)
 	duration := time.Since(start)
 
 	// Should complete in parallel (~50ms), not sequential (~150ms)
@@ -216,12 +218,12 @@ func TestExecuteChecksConcurrent(t *testing.T) {
 	assert.Len(t, components, 3)
 
 	for _, comp := range components {
-		assert.Equal(t, StatusHealthy, comp.Status)
+		assert.Equal(t, observability.StatusHealthy, comp.Status)
 	}
 }
 
 func TestHealthHandler(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 	hc.RegisterHealthCheck("test", func(_ context.Context) error {
 		return nil
 	})
@@ -235,16 +237,16 @@ func TestHealthHandler(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 
-	var response HealthResponse
+	var response observability.HealthResponse
 	err := json.NewDecoder(w.Body).Decode(&response)
 	require.NoError(t, err)
 
-	assert.Equal(t, StatusHealthy, response.Status)
+	assert.Equal(t, observability.StatusHealthy, response.Status)
 	assert.Equal(t, "v1.0.0", response.Version)
 }
 
 func TestHealthHandlerUnhealthy(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 	hc.RegisterHealthCheck("test", func(_ context.Context) error {
 		return errors.New("component failed")
 	})
@@ -257,15 +259,15 @@ func TestHealthHandlerUnhealthy(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 
-	var response HealthResponse
+	var response observability.HealthResponse
 	err := json.NewDecoder(w.Body).Decode(&response)
 	require.NoError(t, err)
 
-	assert.Equal(t, StatusUnhealthy, response.Status)
+	assert.Equal(t, observability.StatusUnhealthy, response.Status)
 }
 
 func TestReadinessHandler(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 	hc.RegisterReadinessCheck("test", func(_ context.Context) error {
 		return nil
 	})
@@ -279,7 +281,7 @@ func TestReadinessHandler(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 
-	var response ReadinessResponse
+	var response observability.ReadinessResponse
 	err := json.NewDecoder(w.Body).Decode(&response)
 	require.NoError(t, err)
 
@@ -287,7 +289,7 @@ func TestReadinessHandler(t *testing.T) {
 }
 
 func TestReadinessHandlerNotReady(t *testing.T) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 	hc.RegisterReadinessCheck("test", func(_ context.Context) error {
 		return errors.New("not ready")
 	})
@@ -300,7 +302,7 @@ func TestReadinessHandlerNotReady(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 
-	var response ReadinessResponse
+	var response observability.ReadinessResponse
 	err := json.NewDecoder(w.Body).Decode(&response)
 	require.NoError(t, err)
 
@@ -308,7 +310,7 @@ func TestReadinessHandlerNotReady(t *testing.T) {
 }
 
 func TestLivenessHandler(t *testing.T) {
-	handler := LivenessHandler()
+	handler := observability.LivenessHandler()
 	req := httptest.NewRequest(http.MethodGet, "/live", nil)
 	w := httptest.NewRecorder()
 
@@ -334,7 +336,7 @@ func TestRedisHealthCheck(t *testing.T) {
 	pingFunc := func(_ context.Context) error {
 		return nil
 	}
-	check := RedisHealthCheck(pingFunc)
+	check := observability.RedisHealthCheck(pingFunc)
 	err := check(context.Background())
 	assert.NoError(t, err)
 
@@ -342,13 +344,13 @@ func TestRedisHealthCheck(t *testing.T) {
 	pingFuncErr := func(_ context.Context) error {
 		return errors.New("redis connection failed")
 	}
-	checkErr := RedisHealthCheck(pingFuncErr)
+	checkErr := observability.RedisHealthCheck(pingFuncErr)
 	err = checkErr(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "redis connection failed")
 
 	// Nil function case
-	checkNil := RedisHealthCheck(nil)
+	checkNil := observability.RedisHealthCheck(nil)
 	err = checkNil(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "redis ping function not provided")
@@ -359,7 +361,7 @@ func TestKubernetesHealthCheck(t *testing.T) {
 	pingFunc := func(_ context.Context) error {
 		return nil
 	}
-	check := KubernetesHealthCheck(pingFunc)
+	check := observability.KubernetesHealthCheck(pingFunc)
 	err := check(context.Background())
 	assert.NoError(t, err)
 
@@ -367,13 +369,13 @@ func TestKubernetesHealthCheck(t *testing.T) {
 	pingFuncErr := func(_ context.Context) error {
 		return errors.New("k8s api unreachable")
 	}
-	checkErr := KubernetesHealthCheck(pingFuncErr)
+	checkErr := observability.KubernetesHealthCheck(pingFuncErr)
 	err = checkErr(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "k8s api unreachable")
 
 	// Nil function case
-	checkNil := KubernetesHealthCheck(nil)
+	checkNil := observability.KubernetesHealthCheck(nil)
 	err = checkNil(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "kubernetes ping function not provided")
@@ -384,7 +386,7 @@ func TestAdapterHealthCheck(t *testing.T) {
 	checkFunc := func(_ context.Context) error {
 		return nil
 	}
-	check := AdapterHealthCheck("k8s-adapter", checkFunc)
+	check := observability.AdapterHealthCheck("k8s-adapter", checkFunc)
 	err := check(context.Background())
 	assert.NoError(t, err)
 
@@ -392,12 +394,12 @@ func TestAdapterHealthCheck(t *testing.T) {
 	checkFuncErr := func(_ context.Context) error {
 		return errors.New("adapter error")
 	}
-	checkErr := AdapterHealthCheck("mock-adapter", checkFuncErr)
+	checkErr := observability.AdapterHealthCheck("mock-adapter", checkFuncErr)
 	err = checkErr(context.Background())
 	assert.Error(t, err)
 
 	// Nil function case
-	checkNil := AdapterHealthCheck("test-adapter", nil)
+	checkNil := observability.AdapterHealthCheck("test-adapter", nil)
 	err = checkNil(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "adapter test-adapter check function not provided")
@@ -407,32 +409,32 @@ func TestGenericHealthCheck(t *testing.T) {
 	checkFunc := func(_ context.Context) error {
 		return nil
 	}
-	check := GenericHealthCheck(checkFunc)
+	check := observability.GenericHealthCheck(checkFunc)
 	err := check(context.Background())
 	assert.NoError(t, err)
 
 	checkFuncErr := func(_ context.Context) error {
 		return errors.New("generic error")
 	}
-	checkErr := GenericHealthCheck(checkFuncErr)
+	checkErr := observability.GenericHealthCheck(checkFuncErr)
 	err = checkErr(context.Background())
 	assert.Error(t, err)
 }
 
 func TestHealthStatusConstants(t *testing.T) {
-	assert.Equal(t, HealthStatus("healthy"), StatusHealthy)
-	assert.Equal(t, HealthStatus("unhealthy"), StatusUnhealthy)
-	assert.Equal(t, HealthStatus("degraded"), StatusDegraded)
+	assert.Equal(t, observability.HealthStatus("healthy"), observability.StatusHealthy)
+	assert.Equal(t, observability.HealthStatus("unhealthy"), observability.StatusUnhealthy)
+	assert.Equal(t, observability.HealthStatus("degraded"), observability.StatusDegraded)
 }
 
 func TestComponentHealthStructure(t *testing.T) {
-	comp := ComponentHealth{
-		Status:  StatusHealthy,
+	comp := observability.ComponentHealth{
+		Status:  observability.StatusHealthy,
 		Message: "Component is healthy",
 		Latency: "10ms",
 	}
 
-	assert.Equal(t, StatusHealthy, comp.Status)
+	assert.Equal(t, observability.StatusHealthy, comp.Status)
 	assert.Equal(t, "Component is healthy", comp.Message)
 	assert.Equal(t, "10ms", comp.Latency)
 	assert.Empty(t, comp.Error)
@@ -440,18 +442,18 @@ func TestComponentHealthStructure(t *testing.T) {
 
 func TestHealthResponseStructure(t *testing.T) {
 	now := time.Now()
-	response := HealthResponse{
-		Status:     StatusHealthy,
+	response := observability.HealthResponse{
+		Status:     observability.StatusHealthy,
 		Timestamp:  now,
 		Version:    "v1.0.0",
-		Components: make(map[string]ComponentHealth),
+		Components: make(map[string]observability.ComponentHealth),
 	}
 
-	response.Components["test"] = ComponentHealth{
-		Status: StatusHealthy,
+	response.Components["test"] = observability.ComponentHealth{
+		Status: observability.StatusHealthy,
 	}
 
-	assert.Equal(t, StatusHealthy, response.Status)
+	assert.Equal(t, observability.StatusHealthy, response.Status)
 	assert.Equal(t, now, response.Timestamp)
 	assert.Equal(t, "v1.0.0", response.Version)
 	assert.Len(t, response.Components, 1)
@@ -459,14 +461,14 @@ func TestHealthResponseStructure(t *testing.T) {
 
 func TestReadinessResponseStructure(t *testing.T) {
 	now := time.Now()
-	response := ReadinessResponse{
+	response := observability.ReadinessResponse{
 		Ready:      true,
 		Timestamp:  now,
-		Components: make(map[string]ComponentHealth),
+		Components: make(map[string]observability.ComponentHealth),
 	}
 
-	response.Components["test"] = ComponentHealth{
-		Status: StatusHealthy,
+	response.Components["test"] = observability.ComponentHealth{
+		Status: observability.StatusHealthy,
 	}
 
 	assert.True(t, response.Ready)
@@ -476,7 +478,7 @@ func TestReadinessResponseStructure(t *testing.T) {
 
 // Benchmark tests for performance validation.
 func BenchmarkHealthCheckExecution(b *testing.B) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 	hc.RegisterHealthCheck("test", func(_ context.Context) error {
 		return nil
 	})
@@ -490,7 +492,7 @@ func BenchmarkHealthCheckExecution(b *testing.B) {
 }
 
 func BenchmarkReadinessCheckExecution(b *testing.B) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 	hc.RegisterReadinessCheck("test", func(_ context.Context) error {
 		return nil
 	})
@@ -504,7 +506,7 @@ func BenchmarkReadinessCheckExecution(b *testing.B) {
 }
 
 func BenchmarkHealthHandlerExecution(b *testing.B) {
-	hc := NewHealthChecker("v1.0.0")
+	hc := observability.NewHealthChecker("v1.0.0")
 	hc.RegisterHealthCheck("test", func(_ context.Context) error {
 		return nil
 	})

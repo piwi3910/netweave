@@ -229,7 +229,7 @@ func DefaultRedisConfig() *RedisConfig {
 // RedisStore implements the Store interface using Redis as the backend.
 type RedisStore struct {
 	client redis.UniversalClient
-	config *RedisConfig
+	Config *RedisConfig // Exported for testing
 	logger *zap.Logger
 }
 
@@ -269,7 +269,7 @@ func NewRedisStore(cfg *RedisConfig) *RedisStore {
 
 	return &RedisStore{
 		client: client,
-		config: cfg,
+		Config: cfg,
 		logger: zap.L().Named("redis-store"),
 	}
 }
@@ -279,7 +279,7 @@ func NewRedisStore(cfg *RedisConfig) *RedisStore {
 func NewRedisStoreWithClient(client redis.UniversalClient) *RedisStore {
 	return &RedisStore{
 		client: client,
-		config: DefaultRedisConfig(),
+		Config: DefaultRedisConfig(),
 		logger: zap.L().Named("redis-store"),
 	}
 }

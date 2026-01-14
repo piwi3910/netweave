@@ -34,21 +34,21 @@ type Adapter struct {
 	logger *zap.Logger
 
 	// config holds the adapter configuration
-	config *Config
+	Config *Config
 
 	// oCloudID is the identifier of the parent O-Cloud
-	oCloudID string
+	OCloudID string
 
 	// deploymentManagerID is the identifier for this deployment manager
-	deploymentManagerID string
+	DeploymentManagerID string
 
 	// subscriptions holds active subscriptions for polling-based change detection.
 	// Since DTIAS has no native event system, subscriptions are stored locally
 	// and the gateway layer implements polling to detect changes.
-	subscriptions map[string]*adapter.Subscription
+	Subscriptions map[string]*adapter.Subscription
 
 	// subscriptionsMu protects the subscriptions map.
-	subscriptionsMu sync.RWMutex
+	SubscriptionsMu sync.RWMutex
 }
 
 // Config holds configuration for creating a DTIASAdapter.
@@ -129,10 +129,10 @@ func New(cfg *Config) (*Adapter, error) {
 	adp := &Adapter{
 		client:              client,
 		logger:              logger,
-		config:              cfg,
-		oCloudID:            cfg.OCloudID,
-		deploymentManagerID: cfg.DeploymentManagerID,
-		subscriptions:       make(map[string]*adapter.Subscription),
+		Config:              cfg,
+		OCloudID:            cfg.OCloudID,
+		DeploymentManagerID: cfg.DeploymentManagerID,
+		Subscriptions:       make(map[string]*adapter.Subscription),
 	}
 
 	logger.Info("DTIAS adapter initialized",
@@ -255,9 +255,9 @@ func (a *Adapter) Close() error {
 	a.logger.Info("closing DTIAS adapter")
 
 	// Clear subscriptions
-	a.subscriptionsMu.Lock()
-	a.subscriptions = make(map[string]*adapter.Subscription)
-	a.subscriptionsMu.Unlock()
+	a.SubscriptionsMu.Lock()
+	a.Subscriptions = make(map[string]*adapter.Subscription)
+	a.SubscriptionsMu.Unlock()
 
 	// Close client connections
 	if err := a.client.Close(); err != nil {

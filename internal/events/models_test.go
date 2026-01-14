@@ -1,7 +1,9 @@
-package events
+package events_test
 
 import (
 	"testing"
+
+	"github.com/piwi3910/netweave/internal/events"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -9,27 +11,27 @@ import (
 func TestResourceTypeString(t *testing.T) {
 	tests := []struct {
 		name         string
-		resourceType ResourceType
+		resourceType events.ResourceType
 		want         string
 	}{
 		{
 			name:         "resource type resource",
-			resourceType: ResourceTypeResource,
+			resourceType: events.ResourceTypeResource,
 			want:         "resource",
 		},
 		{
 			name:         "resource type resource pool",
-			resourceType: ResourceTypeResourcePool,
+			resourceType: events.ResourceTypeResourcePool,
 			want:         "resourcePool",
 		},
 		{
 			name:         "resource type resource type",
-			resourceType: ResourceTypeResourceType,
+			resourceType: events.ResourceTypeResourceType,
 			want:         "resourceType",
 		},
 		{
 			name:         "resource type deployment manager",
-			resourceType: ResourceTypeDeploymentManager,
+			resourceType: events.ResourceTypeDeploymentManager,
 			want:         "deploymentManager",
 		},
 	}
@@ -45,32 +47,32 @@ func TestResourceTypeString(t *testing.T) {
 func TestDeliveryStatusString(t *testing.T) {
 	tests := []struct {
 		name   string
-		status DeliveryStatus
+		status events.DeliveryStatus
 		want   string
 	}{
 		{
 			name:   "pending",
-			status: DeliveryStatusPending,
+			status: events.DeliveryStatusPending,
 			want:   "pending",
 		},
 		{
 			name:   "delivering",
-			status: DeliveryStatusDelivering,
+			status: events.DeliveryStatusDelivering,
 			want:   "delivering",
 		},
 		{
 			name:   "delivered",
-			status: DeliveryStatusDelivered,
+			status: events.DeliveryStatusDelivered,
 			want:   "delivered",
 		},
 		{
 			name:   "failed",
-			status: DeliveryStatusFailed,
+			status: events.DeliveryStatusFailed,
 			want:   "failed",
 		},
 		{
 			name:   "retrying",
-			status: DeliveryStatusRetrying,
+			status: events.DeliveryStatusRetrying,
 			want:   "retrying",
 		},
 	}

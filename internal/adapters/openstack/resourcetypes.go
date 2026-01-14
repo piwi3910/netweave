@@ -16,7 +16,7 @@ func (a *Adapter) ListResourceTypes(
 	_ context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.ResourceType, error) {
-	a.logger.Debug("ListResourceTypes called",
+	a.Logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
 	// Query all flavors from Nova
@@ -26,25 +26,25 @@ func (a *Adapter) ListResourceTypes(
 
 	allPages, err := flavors.ListDetail(a.compute, listOpts).AllPages()
 	if err != nil {
-		a.logger.Error("failed to list flavors",
+		a.Logger.Error("failed to list flavors",
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to list OpenStack flavors: %w", err)
 	}
 
 	osFlavors, err := flavors.ExtractFlavors(allPages)
 	if err != nil {
-		a.logger.Error("failed to extract flavors",
+		a.Logger.Error("failed to extract flavors",
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to extract flavors: %w", err)
 	}
 
-	a.logger.Debug("retrieved flavors from OpenStack",
+	a.Logger.Debug("retrieved flavors from OpenStack",
 		zap.Int("count", len(osFlavors)))
 
 	// Transform OpenStack flavors to O2-IMS Resource Types
 	resourceTypes := make([]*adapter.ResourceType, 0, len(osFlavors))
 	for i := range osFlavors {
-		resourceType := a.transformFlavorToResourceType(&osFlavors[i])
+		resourceType := a.TransformFlavorToResourceType(&osFlavors[i])
 
 		// Apply filter if needed
 		// For resource types, we typically don't filter by pool or location
@@ -56,7 +56,7 @@ func (a *Adapter) ListResourceTypes(
 		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
 	}
 
-	a.logger.Info("listed resource types",
+	a.Logger.Info("listed resource types",
 		zap.Int("count", len(resourceTypes)))
 
 	return resourceTypes, nil
@@ -72,12 +72,12 @@ func (a *Adapter) GetResourceType(_ context.Context, id string) (*adapter.Resour
 	if err != nil {
 		return nil, fmt.Errorf("failed to get OpenStack flavor %s: %w", flavorID, err)
 	}
-	return a.transformFlavorToResourceType(osFlavor), nil
+	return a.TransformFlavorToResourceType(osFlavor), nil
 }
 
 // transformFlavorToResourceType converts an OpenStack flavor to O2-IMS Resource Type.
-func (a *Adapter) transformFlavorToResourceType(flavor *flavors.Flavor) *adapter.ResourceType {
-	resourceTypeID := generateFlavorID(flavor)
+func (a *Adapter) TransformFlavorToResourceType(flavor *flavors.Flavor) *adapter.ResourceType {
+	resourceTypeID := GenerateFlavorID(flavor)
 
 	// Determine resource class based on flavor characteristics
 	// Default to compute unless it's clearly a storage-focused flavor

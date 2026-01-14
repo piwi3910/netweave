@@ -168,8 +168,8 @@ func (h *RoleHandler) ListPermissions(c *gin.Context) {
 	for _, p := range permissions {
 		result = append(result, permissionInfo{
 			Permission: p,
-			Resource:   getResourceFromPermission(p),
-			Action:     getActionFromPermission(p),
+			Resource:   GetResourceFromPermission(p),
+			Action:     GetActionFromPermission(p),
 		})
 	}
 
@@ -180,7 +180,7 @@ func (h *RoleHandler) ListPermissions(c *gin.Context) {
 }
 
 // getResourceFromPermission extracts the resource part from a permission string.
-func getResourceFromPermission(p auth.Permission) string {
+func GetResourceFromPermission(p auth.Permission) string {
 	s := string(p)
 	for i := 0; i < len(s); i++ {
 		if s[i] == ':' {
@@ -191,7 +191,7 @@ func getResourceFromPermission(p auth.Permission) string {
 }
 
 // getActionFromPermission extracts the action part from a permission string.
-func getActionFromPermission(p auth.Permission) string {
+func GetActionFromPermission(p auth.Permission) string {
 	s := string(p)
 	for i := 0; i < len(s); i++ {
 		if s[i] == ':' {

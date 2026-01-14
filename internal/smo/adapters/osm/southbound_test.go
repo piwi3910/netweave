@@ -1,9 +1,11 @@
-package osm
+package osm_test
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/smo/adapters/osm"
 
 	"github.com/piwi3910/netweave/internal/smo"
 	"github.com/stretchr/testify/assert"
@@ -12,13 +14,13 @@ import (
 
 // TestPlugin_Metadata tests the Metadata method.
 func TestPlugin_Metadata(t *testing.T) {
-	cfg := &Config{
+	cfg := &osm.Config{
 		NBIURL:   "https://osm.example.com:9999",
 		Username: "admin",
 		Password: "secret",
 		Project:  "admin",
 	}
-	plugin, err := NewPlugin(cfg)
+	plugin, err := osm.NewPlugin(cfg)
 	require.NoError(t, err)
 
 	metadata := plugin.Metadata()
@@ -31,16 +33,16 @@ func TestPlugin_Metadata(t *testing.T) {
 
 // TestNewSMOPluginAdapter tests the creation of a new SMO plugin adapter.
 func TestNewSMOPluginAdapter(t *testing.T) {
-	cfg := &Config{
+	cfg := &osm.Config{
 		NBIURL:   "https://osm.example.com:9999",
 		Username: "admin",
 		Password: "secret",
 		Project:  "admin",
 	}
-	plugin, err := NewPlugin(cfg)
+	plugin, err := osm.NewPlugin(cfg)
 	require.NoError(t, err)
 
-	adapter := NewSMOPluginAdapter(plugin)
+	adapter := osm.NewSMOPluginAdapter(plugin)
 
 	require.NotNil(t, adapter)
 	assert.NotNil(t, adapter.Plugin)
@@ -48,16 +50,16 @@ func TestNewSMOPluginAdapter(t *testing.T) {
 
 // TestSMOPluginAdapter_Capabilities tests the Capabilities method.
 func TestSMOPluginAdapter_Capabilities(t *testing.T) {
-	cfg := &Config{
+	cfg := &osm.Config{
 		NBIURL:   "https://osm.example.com:9999",
 		Username: "admin",
 		Password: "secret",
 		Project:  "admin",
 	}
-	plugin, err := NewPlugin(cfg)
+	plugin, err := osm.NewPlugin(cfg)
 	require.NoError(t, err)
 
-	adapter := NewSMOPluginAdapter(plugin)
+	adapter := osm.NewSMOPluginAdapter(plugin)
 	caps := adapter.Capabilities()
 
 	require.Len(t, caps, 4)
@@ -91,16 +93,16 @@ func TestSMOPluginAdapter_Initialize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
+			cfg := &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := NewPlugin(cfg)
+			plugin, err := osm.NewPlugin(cfg)
 			require.NoError(t, err)
 
-			adapter := NewSMOPluginAdapter(plugin)
+			adapter := osm.NewSMOPluginAdapter(plugin)
 			ctx := context.Background()
 
 			err = adapter.Initialize(ctx, tt.config)
@@ -118,21 +120,21 @@ func TestSMOPluginAdapter_Initialize(t *testing.T) {
 func TestSMOPluginAdapter_Health(t *testing.T) {
 	tests := []struct {
 		name          string
-		setupPlugin   func() *Plugin
+		setupPlugin   func() *osm.Plugin
 		expectHealthy bool
 		expectMessage string
 		expectDetails bool
 	}{
 		{
 			name: "healthy plugin",
-			setupPlugin: func() *Plugin {
-				cfg := &Config{
+			setupPlugin: func() *osm.Plugin {
+				cfg := &osm.Config{
 					NBIURL:   "https://osm.example.com:9999",
 					Username: "admin",
 					Password: "secret",
 					Project:  "admin",
 				}
-				plugin, _ := NewPlugin(cfg)
+				plugin, _ := osm.NewPlugin(cfg)
 				return plugin
 			},
 			expectHealthy: false, // Will be unhealthy as we can't connect to real OSM
@@ -144,7 +146,7 @@ func TestSMOPluginAdapter_Health(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			plugin := tt.setupPlugin()
-			adapter := NewSMOPluginAdapter(plugin)
+			adapter := osm.NewSMOPluginAdapter(plugin)
 			ctx := context.Background()
 
 			health := adapter.Health(ctx)
@@ -223,13 +225,13 @@ func TestPlugin_SyncInfrastructureInventory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
+			cfg := &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := NewPlugin(cfg)
+			plugin, err := osm.NewPlugin(cfg)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -286,13 +288,13 @@ func TestPlugin_SyncDeploymentInventory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
+			cfg := &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := NewPlugin(cfg)
+			plugin, err := osm.NewPlugin(cfg)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -354,14 +356,14 @@ func TestPlugin_PublishInfrastructureEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
+			cfg := &osm.Config{
 				NBIURL:             "https://osm.example.com:9999",
 				Username:           "admin",
 				Password:           "secret",
 				Project:            "admin",
 				EnableEventPublish: tt.enabled,
 			}
-			plugin, err := NewPlugin(cfg)
+			plugin, err := osm.NewPlugin(cfg)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -407,13 +409,13 @@ func TestPlugin_PublishDeploymentEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
+			cfg := &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := NewPlugin(cfg)
+			plugin, err := osm.NewPlugin(cfg)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -549,13 +551,13 @@ func TestPlugin_ExecuteWorkflow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
+			cfg := &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := NewPlugin(cfg)
+			plugin, err := osm.NewPlugin(cfg)
 			require.NoError(t, err)
 
 			// Initialize plugin for workflow execution
@@ -604,13 +606,13 @@ func TestPlugin_GetWorkflowStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
+			cfg := &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := NewPlugin(cfg)
+			plugin, err := osm.NewPlugin(cfg)
 			require.NoError(t, err)
 
 			// Initialize plugin
@@ -659,13 +661,13 @@ func TestPlugin_CancelWorkflow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
+			cfg := &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := NewPlugin(cfg)
+			plugin, err := osm.NewPlugin(cfg)
 			require.NoError(t, err)
 
 			// Initialize plugin
@@ -735,13 +737,13 @@ func TestPlugin_RegisterServiceModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
+			cfg := &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := NewPlugin(cfg)
+			plugin, err := osm.NewPlugin(cfg)
 			require.NoError(t, err)
 
 			// Initialize plugin
@@ -785,13 +787,13 @@ func TestPlugin_GetServiceModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
+			cfg := &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := NewPlugin(cfg)
+			plugin, err := osm.NewPlugin(cfg)
 			require.NoError(t, err)
 
 			// Initialize plugin
@@ -817,13 +819,13 @@ func TestPlugin_GetServiceModel(t *testing.T) {
 
 // TestPlugin_ListServiceModels tests the ListServiceModels method.
 func TestPlugin_ListServiceModels(t *testing.T) {
-	cfg := &Config{
+	cfg := &osm.Config{
 		NBIURL:   "https://osm.example.com:9999",
 		Username: "admin",
 		Password: "secret",
 		Project:  "admin",
 	}
-	plugin, err := NewPlugin(cfg)
+	plugin, err := osm.NewPlugin(cfg)
 	require.NoError(t, err)
 
 	// Initialize plugin
@@ -860,13 +862,13 @@ func TestPlugin_DeleteServiceModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
+			cfg := &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := NewPlugin(cfg)
+			plugin, err := osm.NewPlugin(cfg)
 			require.NoError(t, err)
 
 			// Initialize plugin
@@ -916,13 +918,13 @@ func TestPlugin_ApplyPolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
+			cfg := &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := NewPlugin(cfg)
+			plugin, err := osm.NewPlugin(cfg)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -964,13 +966,13 @@ func TestPlugin_GetPolicyStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
+			cfg := &osm.Config{
 				NBIURL:   "https://osm.example.com:9999",
 				Username: "admin",
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := NewPlugin(cfg)
+			plugin, err := osm.NewPlugin(cfg)
 			require.NoError(t, err)
 
 			ctx := context.Background()

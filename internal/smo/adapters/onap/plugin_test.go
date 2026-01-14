@@ -1,9 +1,11 @@
-package onap
+package onap_test
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/smo/adapters/onap"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,21 +16,21 @@ import (
 
 func TestNewPlugin(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	assert.NotNil(t, plugin)
-	assert.Equal(t, "onap", plugin.name)
-	assert.Equal(t, "1.0.0", plugin.version)
-	assert.False(t, plugin.closed)
+	assert.Equal(t, "onap.onap", plugin.Name)
+	assert.Equal(t, "1.0.0", plugin.Version)
+	assert.False(t, plugin.Closed)
 }
 
 func TestPluginMetadata(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	metadata := plugin.Metadata()
 
-	assert.Equal(t, "onap", metadata.Name)
+	assert.Equal(t, "onap.onap", metadata.Name)
 	assert.Equal(t, "1.0.0", metadata.Version)
 	assert.NotEmpty(t, metadata.Description)
 	assert.NotEmpty(t, metadata.Vendor)
@@ -37,13 +39,13 @@ func TestPluginMetadata(t *testing.T) {
 func TestPluginCapabilities(t *testing.T) {
 	tests := []struct {
 		name             string
-		config           *Config
+		config           *onap.Config
 		expectedCapCount int
 		expectedContains []string
 	}{
 		{
 			name: "all features enabled",
-			config: &Config{
+			config: &onap.Config{
 				EnableInventorySync:   true,
 				EnableEventPublishing: true,
 				EnableDMSBackend:      true,
@@ -59,7 +61,7 @@ func TestPluginCapabilities(t *testing.T) {
 		},
 		{
 			name: "only inventory sync enabled",
-			config: &Config{
+			config: &onap.Config{
 				EnableInventorySync:   true,
 				EnableEventPublishing: false,
 				EnableDMSBackend:      false,
@@ -72,7 +74,7 @@ func TestPluginCapabilities(t *testing.T) {
 		},
 		{
 			name: "only event publishing enabled",
-			config: &Config{
+			config: &onap.Config{
 				EnableInventorySync:   false,
 				EnableEventPublishing: true,
 				EnableDMSBackend:      false,
@@ -88,8 +90,8 @@ func TestPluginCapabilities(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := zaptest.NewLogger(t)
-			plugin := NewPlugin(logger)
-			plugin.config = tt.config
+			plugin := onap.NewPlugin(logger)
+			plugin.Config = tt.config
 
 			capabilities := plugin.Capabilities()
 
@@ -111,13 +113,13 @@ func TestPluginCapabilities(t *testing.T) {
 func TestConfigValidate(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      *Config
+		config      *onap.Config
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name: "valid config with all features",
-			config: &Config{
+			config: &onap.Config{
 				AAIURL:                "https://aai.example.com",
 				DMaaPURL:              "https://dmaap.example.com",
 				SOURL:                 "https://so.example.com",
@@ -135,7 +137,7 @@ func TestConfigValidate(t *testing.T) {
 		},
 		{
 			name: "missing AAI URL with inventory sync enabled",
-			config: &Config{
+			config: &onap.Config{
 				Username:              "admin",
 				Password:              "password",
 				RequestTimeout:        30 * time.Second,
@@ -148,7 +150,7 @@ func TestConfigValidate(t *testing.T) {
 		},
 		{
 			name: "missing DMaaP URL with event publishing enabled",
-			config: &Config{
+			config: &onap.Config{
 				Username:              "admin",
 				Password:              "password",
 				RequestTimeout:        30 * time.Second,
@@ -161,7 +163,7 @@ func TestConfigValidate(t *testing.T) {
 		},
 		{
 			name: "missing SO URL with DMS backend enabled",
-			config: &Config{
+			config: &onap.Config{
 				Username:              "admin",
 				Password:              "password",
 				RequestTimeout:        30 * time.Second,
@@ -174,7 +176,7 @@ func TestConfigValidate(t *testing.T) {
 		},
 		{
 			name: "missing credentials",
-			config: &Config{
+			config: &onap.Config{
 				AAIURL:                "https://aai.example.com",
 				RequestTimeout:        30 * time.Second,
 				MaxRetries:            3,
@@ -185,7 +187,7 @@ func TestConfigValidate(t *testing.T) {
 		},
 		{
 			name: "invalid timeout",
-			config: &Config{
+			config: &onap.Config{
 				Username:              "admin",
 				Password:              "password",
 				RequestTimeout:        0,
@@ -197,7 +199,7 @@ func TestConfigValidate(t *testing.T) {
 		},
 		{
 			name: "negative max retries",
-			config: &Config{
+			config: &onap.Config{
 				Username:              "admin",
 				Password:              "password",
 				RequestTimeout:        30 * time.Second,
@@ -209,7 +211,7 @@ func TestConfigValidate(t *testing.T) {
 		},
 		{
 			name: "invalid batch size",
-			config: &Config{
+			config: &onap.Config{
 				Username:              "admin",
 				Password:              "password",
 				RequestTimeout:        30 * time.Second,
@@ -236,7 +238,7 @@ func TestConfigValidate(t *testing.T) {
 }
 
 func TestDefaultConfig(t *testing.T) {
-	config := DefaultConfig()
+	config := onap.DefaultConfig()
 
 	assert.True(t, config.TLSEnabled)
 	assert.False(t, config.TLSInsecureSkipVerify)
@@ -269,8 +271,8 @@ func TestParseConfig(t *testing.T) {
 		"enableSdnc":            true,
 	}
 
-	output := DefaultConfig()
-	parseConfig(input, output)
+	output := onap.DefaultConfig()
+	onap.ParseConfig(input, output)
 	assert.Equal(t, "https://aai.example.com", output.AAIURL)
 	assert.Equal(t, "https://dmaap.example.com", output.DMaaPURL)
 	assert.Equal(t, "https://so.example.com", output.SOURL)
@@ -290,13 +292,13 @@ func TestParseConfig(t *testing.T) {
 
 func TestPluginClose(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
-	plugin.config = DefaultConfig()
+	plugin := onap.NewPlugin(logger)
+	plugin.Config = onap.DefaultConfig()
 
 	// Close once
 	err := plugin.Close()
 	assert.NoError(t, err)
-	assert.True(t, plugin.closed)
+	assert.True(t, plugin.Closed)
 
 	// Close again (should not error)
 	err = plugin.Close()
@@ -305,8 +307,8 @@ func TestPluginClose(t *testing.T) {
 
 func TestPluginHealthClosedState(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
-	plugin.closed = true
+	plugin := onap.NewPlugin(logger)
+	plugin.Closed = true
 
 	health := plugin.Health(context.Background())
 
@@ -316,7 +318,7 @@ func TestPluginHealthClosedState(t *testing.T) {
 
 func TestMapDeploymentStatusToOrchestrationStatus(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	tests := []struct {
 		input    string
@@ -334,7 +336,7 @@ func TestMapDeploymentStatusToOrchestrationStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := plugin.mapDeploymentStatusToOrchestrationStatus(tt.input)
+			result := plugin.MapDeploymentStatusToOrchestrationStatus(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -342,7 +344,7 @@ func TestMapDeploymentStatusToOrchestrationStatus(t *testing.T) {
 
 func TestMapONAPRequestStateToStatus(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	tests := []struct {
 		input    string
@@ -360,7 +362,7 @@ func TestMapONAPRequestStateToStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := plugin.mapONAPRequestStateToStatus(tt.input)
+			result := plugin.MapONAPRequestStateToStatus(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -368,7 +370,7 @@ func TestMapONAPRequestStateToStatus(t *testing.T) {
 
 func TestGetDMaaPTopic(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	tests := []struct {
 		eventType     string
@@ -383,7 +385,7 @@ func TestGetDMaaPTopic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.eventType, func(t *testing.T) {
-			result := plugin.getDMaaPTopic(tt.eventType)
+			result := plugin.GetDMaaPTopic(tt.eventType)
 			assert.Equal(t, tt.expectedTopic, result)
 		})
 	}
@@ -392,7 +394,7 @@ func TestGetDMaaPTopic(t *testing.T) {
 // TestPlugin_Initialize tests the Initialize function.
 func TestPlugin_Initialize(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -409,7 +411,7 @@ func TestPlugin_Initialize(t *testing.T) {
 // TestPlugin_Health tests the Health function.
 func TestPlugin_Health(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -434,7 +436,7 @@ func TestPlugin_Health(t *testing.T) {
 // TestPlugin_SyncInfrastructureInventory tests the SyncInfrastructureInventory function.
 func TestPlugin_SyncInfrastructureInventory(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -465,7 +467,7 @@ func TestPlugin_SyncInfrastructureInventory(t *testing.T) {
 // TestPlugin_SyncDeploymentInventory tests the SyncDeploymentInventory function.
 func TestPlugin_SyncDeploymentInventory(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -496,7 +498,7 @@ func TestPlugin_SyncDeploymentInventory(t *testing.T) {
 // TestPlugin_PublishInfrastructureEvent tests the PublishInfrastructureEvent function.
 func TestPlugin_PublishInfrastructureEvent(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -528,7 +530,7 @@ func TestPlugin_PublishInfrastructureEvent(t *testing.T) {
 // TestPlugin_PublishDeploymentEvent tests the PublishDeploymentEvent function.
 func TestPlugin_PublishDeploymentEvent(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -560,7 +562,7 @@ func TestPlugin_PublishDeploymentEvent(t *testing.T) {
 // TestPlugin_ExecuteWorkflow tests the ExecuteWorkflow function.
 func TestPlugin_ExecuteWorkflow(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -593,7 +595,7 @@ func TestPlugin_ExecuteWorkflow(t *testing.T) {
 // TestPlugin_GetWorkflowStatus tests the GetWorkflowStatus function.
 func TestPlugin_GetWorkflowStatus(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -621,7 +623,7 @@ func TestPlugin_GetWorkflowStatus(t *testing.T) {
 // TestPlugin_Close tests the Close function.
 func TestPlugin_Close(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := onap.NewPlugin(logger)
 
 	// Close without initialization should not error
 	err := plugin.Close()

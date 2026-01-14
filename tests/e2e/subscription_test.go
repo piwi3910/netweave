@@ -2,7 +2,7 @@
 //
 //go:build e2e
 
-package e2e
+package e2e_test
 
 import (
 	"bytes"
@@ -15,6 +15,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/piwi3910/netweave/tests/e2e"
+
 	"go.uber.org/zap"
 )
 
@@ -24,7 +27,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	fw, err := NewTestFramework(DefaultOptions())
+	fw, err := e2e.NewTestFramework(e2e.DefaultOptions())
 	require.NoError(t, err)
 	defer fw.Cleanup()
 
@@ -39,7 +42,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 		reqBody, err := json.Marshal(subscription)
 		require.NoError(t, err)
 
-		url := fw.GatewayURL + APIPathSubscriptions
+		url := fw.GatewayURL + e2e.APIPathSubscriptions
 		req, err := http.NewRequestWithContext(fw.Context, http.MethodPost, url, bytes.NewReader(reqBody))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
@@ -75,7 +78,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 	})
 
 	t.Run("list subscriptions", func(t *testing.T) {
-		url := fw.GatewayURL + APIPathSubscriptions
+		url := fw.GatewayURL + e2e.APIPathSubscriptions
 		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
 
@@ -112,7 +115,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 	})
 
 	t.Run("get subscription", func(t *testing.T) {
-		url := fw.GatewayURL + fmt.Sprintf(APIPathSubscriptionByID, subscriptionID)
+		url := fw.GatewayURL + fmt.Sprintf(e2e.APIPathSubscriptionByID, subscriptionID)
 		req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 		require.NoError(t, err)
 
@@ -142,7 +145,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 	})
 
 	t.Run("delete subscription", func(t *testing.T) {
-		url := fw.GatewayURL + fmt.Sprintf(APIPathSubscriptionByID, subscriptionID)
+		url := fw.GatewayURL + fmt.Sprintf(e2e.APIPathSubscriptionByID, subscriptionID)
 		req, err := http.NewRequestWithContext(fw.Context, http.MethodDelete, url, nil)
 		require.NoError(t, err)
 
@@ -184,7 +187,7 @@ func TestSubscriptionNotifications(t *testing.T) {
 
 	t.Skip("Notification testing requires triggering actual resource changes in Kubernetes")
 
-	fw, err := NewTestFramework(DefaultOptions())
+	fw, err := e2e.NewTestFramework(e2e.DefaultOptions())
 	require.NoError(t, err)
 	defer fw.Cleanup()
 
@@ -200,7 +203,7 @@ func TestSubscriptionNotifications(t *testing.T) {
 	reqBody, err := json.Marshal(subscription)
 	require.NoError(t, err)
 
-	url := fw.GatewayURL + APIPathSubscriptions
+	url := fw.GatewayURL + e2e.APIPathSubscriptions
 	resp, err := fw.APIClient.Post(url, "application/json", bytes.NewReader(reqBody))
 	require.NoError(t, err)
 	defer func() {

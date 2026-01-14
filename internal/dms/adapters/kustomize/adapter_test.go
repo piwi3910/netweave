@@ -1,10 +1,12 @@
-package kustomize
+package kustomize_test
 
 import (
 	"context"
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/dms/adapters/kustomize"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,19 +22,19 @@ import (
 func TestNewAdapter(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *kustomize.Config
 		wantErr bool
 	}{
 		{
 			name: "valid config",
-			config: &Config{
+			config: &kustomize.Config{
 				Namespace: "default",
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid config with defaults",
-			config: &Config{
+			config: &kustomize.Config{
 				Kubeconfig: "/path/to/kubeconfig",
 			},
 			wantErr: false,
@@ -44,7 +46,7 @@ func TestNewAdapter(t *testing.T) {
 		},
 		{
 			name: "config with base URL",
-			config: &Config{
+			config: &kustomize.Config{
 				Namespace: "custom-ns",
 				BaseURL:   "https://github.com/example/repo",
 				Timeout:   5 * time.Minute,
@@ -57,7 +59,7 @@ func TestNewAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := NewAdapter(tt.config)
+			adp, err := kustomize.NewAdapter(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -68,10 +70,10 @@ func TestNewAdapter(t *testing.T) {
 
 				// Verify defaults are applied
 				if tt.config.Namespace == "" {
-					assert.Equal(t, DefaultNamespace, adp.config.Namespace)
+					assert.Equal(t, kustomize.DefaultNamespace, adp.Config.Namespace)
 				}
 				if tt.config.Timeout == 0 {
-					assert.Equal(t, DefaultTimeout, adp.config.Timeout)
+					assert.Equal(t, kustomize.DefaultTimeout, adp.Config.Timeout)
 				}
 			}
 		})
@@ -80,15 +82,15 @@ func TestNewAdapter(t *testing.T) {
 
 // TestAdapterMetadata tests adapter metadata methods.
 func TestAdapterMetadata(t *testing.T) {
-	adp, err := NewAdapter(&Config{})
+	adp, err := kustomize.NewAdapter(&kustomize.Config{})
 	require.NoError(t, err)
 
 	t.Run("Name", func(t *testing.T) {
-		assert.Equal(t, AdapterName, adp.Name())
+		assert.Equal(t, kustomize.AdapterName, adp.Name())
 	})
 
 	t.Run("Version", func(t *testing.T) {
-		assert.Equal(t, AdapterVersion, adp.Version())
+		assert.Equal(t, kustomize.AdapterVersion, adp.Version())
 	})
 
 	t.Run("Capabilities", func(t *testing.T) {
@@ -112,7 +114,7 @@ func TestAdapterMetadata(t *testing.T) {
 }
 
 // createFakeAdapter creates an adapter with a fake dynamic client for testing.
-func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
+func createFakeAdapter(t *testing.T, objects ...runtime.Object) *kustomize.Adapter {
 	t.Helper()
 
 	scheme := runtime.NewScheme()
@@ -154,15 +156,15 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *Adapter {
 	// Create fake dynamic client
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adp, err := NewAdapter(&Config{
+	adp, err := kustomize.NewAdapter(&kustomize.Config{
 		Namespace: "default",
-		BaseURL:   "https://github.com/example/kustomize-repo",
+		BaseURL:   "https://github.com/example/kustomize.kustomize-repo",
 	})
 	require.NoError(t, err)
 
 	// Set up fake client and mark as initialized
-	adp.initOnce.Do(func() {
-		adp.dynamicClient = client
+	adp.InitOnce.Do(func() {
+		adp.DynamicClient = client
 	})
 
 	return adp
@@ -176,17 +178,17 @@ func createTestConfigMap(name, path string, version int) *unstructured.Unstructu
 			"apiVersion": "v1",
 			"kind":       "ConfigMap",
 			"metadata": map[string]interface{}{
-				"name":              fmt.Sprintf("kustomize-%s", name),
+				"name":              fmt.Sprintf("kustomize.kustomize-%s", name),
 				"namespace":         namespace,
 				"creationTimestamp": time.Now().Format(time.RFC3339),
 				"labels": map[string]interface{}{
-					"app.kubernetes.io/managed-by": "kustomize-adapter",
+					"app.kubernetes.io/managed-by": "kustomize.kustomize-adapter",
 					"app.kubernetes.io/name":       name,
 				},
 			},
 			"data": map[string]interface{}{
 				"name":        name,
-				"packageId":   "kustomize-base",
+				"packageId":   "kustomize.kustomize-base",
 				"path":        path,
 				"status":      string(dmsadapter.DeploymentStatusDeployed),
 				"version":     fmt.Sprintf("%d", version),
@@ -528,7 +530,7 @@ func TestScaleDeployment(t *testing.T) {
 	t.Run("scaling not supported", func(t *testing.T) {
 		err := adp.ScaleDeployment(context.Background(), "any-app", 3)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrOperationNotSupported)
+		assert.ErrorIs(t, err, kustomize.ErrOperationNotSupported)
 	})
 
 	t.Run("negative replicas", func(t *testing.T) {
@@ -545,7 +547,7 @@ func TestRollbackDeployment(t *testing.T) {
 	t.Run("rollback not supported", func(t *testing.T) {
 		err := adp.RollbackDeployment(context.Background(), "any-app", 1)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrOperationNotSupported)
+		assert.ErrorIs(t, err, kustomize.ErrOperationNotSupported)
 	})
 
 	t.Run("negative revision", func(t *testing.T) {
@@ -706,7 +708,7 @@ func TestListDeploymentPackages(t *testing.T) {
 
 	for _, pkg := range packages {
 		assert.NotEmpty(t, pkg.ID)
-		assert.Equal(t, "kustomize", pkg.PackageType)
+		assert.Equal(t, "kustomize.kustomize", pkg.PackageType)
 	}
 }
 
@@ -715,17 +717,17 @@ func TestGetDeploymentPackage(t *testing.T) {
 	adp := createFakeAdapter(t)
 
 	t.Run("package found", func(t *testing.T) {
-		expectedID := generatePackageID("https://github.com/example/kustomize-repo")
+		expectedID := kustomize.GeneratePackageID("https://github.com/example/kustomize.kustomize-repo")
 		pkg, err := adp.GetDeploymentPackage(context.Background(), expectedID)
 		require.NoError(t, err)
 		require.NotNil(t, pkg)
-		assert.Equal(t, "kustomize", pkg.PackageType)
+		assert.Equal(t, "kustomize.kustomize", pkg.PackageType)
 	})
 
 	t.Run("package not found", func(t *testing.T) {
 		_, err := adp.GetDeploymentPackage(context.Background(), "nonexistent")
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrPackageNotFound)
+		assert.ErrorIs(t, err, kustomize.ErrPackageNotFound)
 	})
 }
 
@@ -740,7 +742,7 @@ func TestUploadDeploymentPackage(t *testing.T) {
 		{
 			name: "valid package",
 			pkg: &dmsadapter.DeploymentPackageUpload{
-				Name:    "my-kustomize",
+				Name:    "my-kustomize.kustomize",
 				Version: "v1.0.0",
 				Extensions: map[string]interface{}{
 					"kustomize.url": "https://github.com/example/repo",
@@ -757,7 +759,7 @@ func TestUploadDeploymentPackage(t *testing.T) {
 		{
 			name: "missing url",
 			pkg: &dmsadapter.DeploymentPackageUpload{
-				Name:       "my-kustomize",
+				Name:       "my-kustomize.kustomize",
 				Extensions: map[string]interface{}{},
 			},
 			wantErr:     true,
@@ -779,7 +781,7 @@ func TestUploadDeploymentPackage(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, pkg)
 				assert.Equal(t, tt.pkg.Name, pkg.Name)
-				assert.Equal(t, "kustomize", pkg.PackageType)
+				assert.Equal(t, "kustomize.kustomize", pkg.PackageType)
 			}
 		})
 	}
@@ -790,7 +792,7 @@ func TestDeleteDeploymentPackage(t *testing.T) {
 	adp := createFakeAdapter(t)
 	err := adp.DeleteDeploymentPackage(context.Background(), "any-id")
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrOperationNotSupported)
+	assert.ErrorIs(t, err, kustomize.ErrOperationNotSupported)
 }
 
 // TestHealth tests the health check functionality.
@@ -818,7 +820,7 @@ func TestClose(t *testing.T) {
 
 	err := adp.Close()
 	require.NoError(t, err)
-	assert.Nil(t, adp.dynamicClient)
+	assert.Nil(t, adp.DynamicClient)
 }
 
 // TestValidateName tests name validation.
@@ -842,10 +844,10 @@ func TestValidateName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateName(tt.input)
+			err := kustomize.ValidateName(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, ErrInvalidName)
+				assert.ErrorIs(t, err, kustomize.ErrInvalidName)
 			} else {
 				require.NoError(t, err)
 			}
@@ -870,10 +872,10 @@ func TestValidatePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validatePath(tt.input)
+			err := kustomize.ValidatePath(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, ErrInvalidPath)
+				assert.ErrorIs(t, err, kustomize.ErrInvalidPath)
 			} else {
 				require.NoError(t, err)
 			}
@@ -883,7 +885,7 @@ func TestValidatePath(t *testing.T) {
 
 // TestCalculateProgress tests progress calculation.
 func TestCalculateProgress(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := kustomize.NewAdapter(&kustomize.Config{})
 
 	tests := []struct {
 		name   string
@@ -898,7 +900,7 @@ func TestCalculateProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := adp.calculateProgress(tt.status)
+			got := adp.CalculateProgress(tt.status)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -906,7 +908,7 @@ func TestCalculateProgress(t *testing.T) {
 
 // TestApplyPagination tests pagination logic.
 func TestApplyPagination(t *testing.T) {
-	adp, _ := NewAdapter(&Config{})
+	adp, _ := kustomize.NewAdapter(&kustomize.Config{})
 
 	deployments := []*dmsadapter.Deployment{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
@@ -928,7 +930,7 @@ func TestApplyPagination(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := adp.applyPagination(deployments, tt.limit, tt.offset)
+			result := adp.ApplyPagination(deployments, tt.limit, tt.offset)
 			assert.Len(t, result, tt.wantCount)
 			if tt.wantCount > 0 {
 				assert.Equal(t, tt.wantFirst, result[0].ID)
@@ -997,18 +999,18 @@ func TestGeneratePackageID(t *testing.T) {
 		{
 			name: "github url",
 			url:  "https://github.com/example/repo",
-			want: "kustomize-https-github-com-example-repo",
+			want: "kustomize.kustomize-https-github-com-example-repo",
 		},
 		{
 			name: "simple url",
-			url:  "http://example.com/kustomize",
-			want: "kustomize-http-example-com-kustomize",
+			url:  "http://example.com/kustomize.kustomize",
+			want: "kustomize.kustomize-http-example-com-kustomize.kustomize",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := generatePackageID(tt.url)
+			got := kustomize.GeneratePackageID(tt.url)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -1037,8 +1039,8 @@ func BenchmarkListDeployments(b *testing.B) {
 
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adp, _ := NewAdapter(&Config{Namespace: "default"})
-	adp.dynamicClient = client
+	adp, _ := kustomize.NewAdapter(&kustomize.Config{Namespace: "default"})
+	adp.DynamicClient = client
 
 	ctx := context.Background()
 

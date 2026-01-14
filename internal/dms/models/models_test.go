@@ -1,8 +1,10 @@
-package models
+package models_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/dms/models"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -10,57 +12,57 @@ import (
 func TestNFDeploymentStatus_IsValid(t *testing.T) {
 	tests := []struct {
 		name   string
-		status NFDeploymentStatus
+		status models.NFDeploymentStatus
 		want   bool
 	}{
 		{
 			name:   "pending is valid",
-			status: NFDeploymentStatusPending,
+			status: models.NFDeploymentStatusPending,
 			want:   true,
 		},
 		{
 			name:   "instantiating is valid",
-			status: NFDeploymentStatusInstantiating,
+			status: models.NFDeploymentStatusInstantiating,
 			want:   true,
 		},
 		{
 			name:   "deployed is valid",
-			status: NFDeploymentStatusDeployed,
+			status: models.NFDeploymentStatusDeployed,
 			want:   true,
 		},
 		{
 			name:   "failed is valid",
-			status: NFDeploymentStatusFailed,
+			status: models.NFDeploymentStatusFailed,
 			want:   true,
 		},
 		{
 			name:   "updating is valid",
-			status: NFDeploymentStatusUpdating,
+			status: models.NFDeploymentStatusUpdating,
 			want:   true,
 		},
 		{
 			name:   "scaling is valid",
-			status: NFDeploymentStatusScaling,
+			status: models.NFDeploymentStatusScaling,
 			want:   true,
 		},
 		{
 			name:   "terminating is valid",
-			status: NFDeploymentStatusTerminating,
+			status: models.NFDeploymentStatusTerminating,
 			want:   true,
 		},
 		{
 			name:   "terminated is valid",
-			status: NFDeploymentStatusTerminated,
+			status: models.NFDeploymentStatusTerminated,
 			want:   true,
 		},
 		{
 			name:   "unknown status is invalid",
-			status: NFDeploymentStatus("unknown"),
+			status: models.NFDeploymentStatus("unknown"),
 			want:   false,
 		},
 		{
 			name:   "empty status is invalid",
-			status: NFDeploymentStatus(""),
+			status: models.NFDeploymentStatus(""),
 			want:   false,
 		},
 	}
@@ -76,22 +78,22 @@ func TestNFDeploymentStatus_IsValid(t *testing.T) {
 func TestNFDeploymentStatus_String(t *testing.T) {
 	tests := []struct {
 		name   string
-		status NFDeploymentStatus
+		status models.NFDeploymentStatus
 		want   string
 	}{
 		{
 			name:   "pending string",
-			status: NFDeploymentStatusPending,
+			status: models.NFDeploymentStatusPending,
 			want:   "pending",
 		},
 		{
 			name:   "deployed string",
-			status: NFDeploymentStatusDeployed,
+			status: models.NFDeploymentStatusDeployed,
 			want:   "deployed",
 		},
 		{
 			name:   "failed string",
-			status: NFDeploymentStatusFailed,
+			status: models.NFDeploymentStatusFailed,
 			want:   "failed",
 		},
 	}
@@ -107,47 +109,47 @@ func TestNFDeploymentStatus_String(t *testing.T) {
 func TestDMSEventType_IsValid(t *testing.T) {
 	tests := []struct {
 		name      string
-		eventType DMSEventType
+		eventType models.DMSEventType
 		want      bool
 	}{
 		{
 			name:      "DeploymentCreated is valid",
-			eventType: DMSEventTypeDeploymentCreated,
+			eventType: models.DMSEventTypeDeploymentCreated,
 			want:      true,
 		},
 		{
 			name:      "DeploymentUpdated is valid",
-			eventType: DMSEventTypeDeploymentUpdated,
+			eventType: models.DMSEventTypeDeploymentUpdated,
 			want:      true,
 		},
 		{
 			name:      "DeploymentDeleted is valid",
-			eventType: DMSEventTypeDeploymentDeleted,
+			eventType: models.DMSEventTypeDeploymentDeleted,
 			want:      true,
 		},
 		{
 			name:      "DeploymentStatusChanged is valid",
-			eventType: DMSEventTypeDeploymentStatusChanged,
+			eventType: models.DMSEventTypeDeploymentStatusChanged,
 			want:      true,
 		},
 		{
 			name:      "DescriptorCreated is valid",
-			eventType: DMSEventTypeDescriptorCreated,
+			eventType: models.DMSEventTypeDescriptorCreated,
 			want:      true,
 		},
 		{
 			name:      "DescriptorDeleted is valid",
-			eventType: DMSEventTypeDescriptorDeleted,
+			eventType: models.DMSEventTypeDescriptorDeleted,
 			want:      true,
 		},
 		{
 			name:      "unknown event type is invalid",
-			eventType: DMSEventType("unknown"),
+			eventType: models.DMSEventType("unknown"),
 			want:      false,
 		},
 		{
 			name:      "empty event type is invalid",
-			eventType: DMSEventType(""),
+			eventType: models.DMSEventType(""),
 			want:      false,
 		},
 	}
@@ -163,22 +165,22 @@ func TestDMSEventType_IsValid(t *testing.T) {
 func TestDMSEventType_String(t *testing.T) {
 	tests := []struct {
 		name      string
-		eventType DMSEventType
+		eventType models.DMSEventType
 		want      string
 	}{
 		{
 			name:      "DeploymentCreated string",
-			eventType: DMSEventTypeDeploymentCreated,
+			eventType: models.DMSEventTypeDeploymentCreated,
 			want:      "NFDeploymentCreated",
 		},
 		{
 			name:      "DeploymentUpdated string",
-			eventType: DMSEventTypeDeploymentUpdated,
+			eventType: models.DMSEventTypeDeploymentUpdated,
 			want:      "NFDeploymentUpdated",
 		},
 		{
 			name:      "DescriptorCreated string",
-			eventType: DMSEventTypeDescriptorCreated,
+			eventType: models.DMSEventTypeDescriptorCreated,
 			want:      "NFDeploymentDescriptorCreated",
 		},
 	}
@@ -193,12 +195,12 @@ func TestDMSEventType_String(t *testing.T) {
 
 func TestNFDeployment_Fields(t *testing.T) {
 	now := time.Now()
-	deployment := &NFDeployment{
+	deployment := &models.NFDeployment{
 		NFDeploymentID:           "nfd-123",
 		Name:                     "test-deployment",
 		Description:              "Test description",
 		NFDeploymentDescriptorID: "nfdd-456",
-		Status:                   NFDeploymentStatusDeployed,
+		Status:                   models.NFDeploymentStatusDeployed,
 		StatusMessage:            "Deployment successful",
 		Namespace:                "default",
 		Version:                  1,
@@ -216,7 +218,7 @@ func TestNFDeployment_Fields(t *testing.T) {
 	assert.Equal(t, "test-deployment", deployment.Name)
 	assert.Equal(t, "Test description", deployment.Description)
 	assert.Equal(t, "nfdd-456", deployment.NFDeploymentDescriptorID)
-	assert.Equal(t, NFDeploymentStatusDeployed, deployment.Status)
+	assert.Equal(t, models.NFDeploymentStatusDeployed, deployment.Status)
 	assert.Equal(t, "Deployment successful", deployment.StatusMessage)
 	assert.Equal(t, "default", deployment.Namespace)
 	assert.Equal(t, 1, deployment.Version)
@@ -228,7 +230,7 @@ func TestNFDeployment_Fields(t *testing.T) {
 
 func TestNFDeploymentDescriptor_Fields(t *testing.T) {
 	now := time.Now()
-	descriptor := &NFDeploymentDescriptor{
+	descriptor := &models.NFDeploymentDescriptor{
 		NFDeploymentDescriptorID: "nfdd-123",
 		Name:                     "test-descriptor",
 		Description:              "Test description",
@@ -236,7 +238,7 @@ func TestNFDeploymentDescriptor_Fields(t *testing.T) {
 		ArtifactVersion:          "1.0.0",
 		ArtifactType:             "helm-chart",
 		ArtifactRepository:       "https://charts.example.com",
-		InputParameters: []ParameterDefinition{
+		InputParameters: []models.ParameterDefinition{
 			{
 				Name:        "replicas",
 				Description: "Number of replicas",
@@ -260,14 +262,14 @@ func TestNFDeploymentDescriptor_Fields(t *testing.T) {
 
 func TestDMSSubscription_Fields(t *testing.T) {
 	now := time.Now()
-	sub := &DMSSubscription{
+	sub := &models.DMSSubscription{
 		SubscriptionID:         "sub-123",
 		Callback:               "https://example.com/webhook",
 		ConsumerSubscriptionID: "consumer-456",
-		Filter: &DMSSubscriptionFilter{
+		Filter: &models.DMSSubscriptionFilter{
 			NFDeploymentIDs: []string{"nfd-1", "nfd-2"},
 			Namespace:       "production",
-			EventTypes:      []DMSEventType{DMSEventTypeDeploymentCreated},
+			EventTypes:      []models.DMSEventType{models.DMSEventTypeDeploymentCreated},
 		},
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -284,22 +286,22 @@ func TestDMSSubscription_Fields(t *testing.T) {
 
 func TestDMSNotification_Fields(t *testing.T) {
 	now := time.Now()
-	deployment := &NFDeployment{
+	deployment := &models.NFDeployment{
 		NFDeploymentID: "nfd-123",
 		Name:           "test-deployment",
 	}
 
-	notification := &DMSNotification{
+	notification := &models.DMSNotification{
 		SubscriptionID:         "sub-123",
 		ConsumerSubscriptionID: "consumer-456",
-		EventType:              DMSEventTypeDeploymentCreated,
+		EventType:              models.DMSEventTypeDeploymentCreated,
 		NFDeployment:           deployment,
 		Timestamp:              now,
 	}
 
 	assert.Equal(t, "sub-123", notification.SubscriptionID)
 	assert.Equal(t, "consumer-456", notification.ConsumerSubscriptionID)
-	assert.Equal(t, DMSEventTypeDeploymentCreated, notification.EventType)
+	assert.Equal(t, models.DMSEventTypeDeploymentCreated, notification.EventType)
 	assert.NotNil(t, notification.NFDeployment)
 	assert.Equal(t, "nfd-123", notification.NFDeployment.NFDeploymentID)
 	assert.Equal(t, now, notification.Timestamp)
@@ -311,13 +313,13 @@ func TestParameterDefinition_WithConstraints(t *testing.T) {
 	minLen := 5
 	maxLen := 50
 
-	param := ParameterDefinition{
+	param := models.ParameterDefinition{
 		Name:         "test-param",
 		Description:  "Test parameter",
 		Type:         "string",
 		Required:     true,
 		DefaultValue: "default",
-		Constraints: &ParameterConstraints{
+		Constraints: &models.ParameterConstraints{
 			MinValue:      &minVal,
 			MaxValue:      &maxVal,
 			MinLength:     &minLen,

@@ -49,7 +49,7 @@ type Adapter struct {
 	datacenter *object.Datacenter
 
 	// logger provides structured logging.
-	logger *zap.Logger
+	Logger *zap.Logger
 
 	// oCloudID is the identifier of the parent O-Cloud.
 	oCloudID string
@@ -66,10 +66,10 @@ type Adapter struct {
 	// subscriptions holds active O2-IMS subscriptions (polling-based fallback).
 	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
 	// For production use, consider implementing persistent storage via Redis.
-	subscriptions map[string]*adapter.Subscription
+	Subscriptions map[string]*adapter.Subscription
 
 	// subscriptionsMu protects the subscriptions map.
-	subscriptionsMu sync.RWMutex
+	SubscriptionsMu sync.RWMutex
 
 	// poolMode determines how resource pools are mapped.
 	// "cluster" maps to Clusters, "pool" maps to Resource Pools.
@@ -165,12 +165,12 @@ func New(cfg *Config) (*Adapter, error) {
 		client:              client,
 		finder:              finder,
 		datacenter:          dc,
-		logger:              logger,
+		Logger:              logger,
 		oCloudID:            cfg.OCloudID,
 		deploymentManagerID: deploymentManagerID,
 		vcenterURL:          cfg.VCenterURL,
 		datacenterName:      cfg.Datacenter,
-		subscriptions:       make(map[string]*adapter.Subscription),
+		Subscriptions:       make(map[string]*adapter.Subscription),
 		poolMode:            poolMode,
 	}, nil
 }
@@ -231,7 +231,7 @@ func initializeVMwareLogger(logger *zap.Logger) (*zap.Logger, error) {
 	}
 	logger, err := zap.NewProduction()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create logger: %w", err)
+		return nil, fmt.Errorf("failed to create Logger: %w", err)
 	}
 	return logger, nil
 }
@@ -314,7 +314,7 @@ func (a *Adapter) Health(ctx context.Context) error {
 	start := time.Now()
 	defer func() { adapter.ObserveHealthCheck("vmware", start, err) }()
 
-	a.logger.Debug("health check called")
+	a.Logger.Debug("health check called")
 
 	// Use a timeout to prevent indefinite blocking
 	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -323,34 +323,34 @@ func (a *Adapter) Health(ctx context.Context) error {
 	// Check if we can retrieve the datacenter
 	_, err = a.finder.Datacenter(healthCtx, a.datacenterName)
 	if err != nil {
-		a.logger.Error("vSphere health check failed", zap.Error(err))
+		a.Logger.Error("vSphere health check failed", zap.Error(err))
 		return fmt.Errorf("vcenter API unreachable: %w", err)
 	}
 
-	a.logger.Debug("health check passed")
+	a.Logger.Debug("health check passed")
 	return nil
 }
 
 // Close cleanly shuts down the adapter and releases resources.
 func (a *Adapter) Close() error {
-	a.logger.Info("closing VMware adapter")
+	a.Logger.Info("closing VMware adapter")
 
 	// Clear subscriptions
-	a.subscriptionsMu.Lock()
-	a.subscriptions = make(map[string]*adapter.Subscription)
-	a.subscriptionsMu.Unlock()
+	a.SubscriptionsMu.Lock()
+	a.Subscriptions = make(map[string]*adapter.Subscription)
+	a.SubscriptionsMu.Unlock()
 
 	// Logout from vCenter
 	if a.client != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := a.client.Logout(ctx); err != nil {
-			a.logger.Warn("failed to logout from vCenter", zap.Error(err))
+			a.Logger.Warn("failed to logout from vCenter", zap.Error(err))
 		}
 	}
 
 	// Sync logger before shutdown
-	if err := a.logger.Sync(); err != nil {
+	if err := a.Logger.Sync(); err != nil {
 		// Ignore sync errors on stderr/stdout
 		return nil
 	}
@@ -362,21 +362,21 @@ func (a *Adapter) Close() error {
 // Use adapter.MatchesFilter() and adapter.ApplyPagination() instead of local implementations.
 
 // generateVMProfileID generates a consistent resource type ID for a VM profile.
-func generateVMProfileID(cpus int32, memoryMB int64) string {
+func GenerateVMProfileID(cpus int32, memoryMB int64) string {
 	return fmt.Sprintf("vmware-profile-%dcpu-%dMB", cpus, memoryMB)
 }
 
 // generateVMID generates a consistent resource ID for a vSphere VM.
-func generateVMID(vmName, clusterOrPool string) string {
+func GenerateVMID(vmName, clusterOrPool string) string {
 	return fmt.Sprintf("vmware-vm-%s-%s", clusterOrPool, vmName)
 }
 
 // generateClusterPoolID generates a consistent resource pool ID for a Cluster.
-func generateClusterPoolID(clusterName string) string {
+func GenerateClusterPoolID(clusterName string) string {
 	return fmt.Sprintf("vmware-cluster-%s", clusterName)
 }
 
 // generateResourcePoolID generates a consistent resource pool ID for a Resource Pool.
-func generateResourcePoolID(poolName, clusterName string) string {
+func GenerateResourcePoolID(poolName, clusterName string) string {
 	return fmt.Sprintf("vmware-pool-%s-%s", clusterName, poolName)
 }

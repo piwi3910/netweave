@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"net/http"
@@ -6,18 +6,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/piwi3910/netweave/internal/server"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// createTestServer creates a minimal server for testing documentation handlers.
-func createTestServer() *Server {
+// createTestServer creates a minimal server.server for testing documentation handlers.
+func createTestServer() *server.Server {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	return &Server{
-		router: router,
-	}
+	return server.NewTestServerWithRouter(router, nil)
 }
 
 func TestDocsHandlers(t *testing.T) {
@@ -33,11 +33,11 @@ paths: {}`)
 	t.Run("handleOpenAPIYAML with spec loaded", func(t *testing.T) {
 		srv := createTestServer()
 		srv.SetOpenAPISpec(testSpec)
-		srv.router.GET("/openapi.yaml", srv.handleOpenAPIYAML)
+		srv.Router().GET("/openapi.yaml", srv.HandleOpenAPIYAML)
 
 		req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
 		w := httptest.NewRecorder()
-		srv.router.ServeHTTP(w, req)
+		srv.Router().ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "application/x-yaml", w.Header().Get("Content-Type"))
@@ -48,11 +48,11 @@ paths: {}`)
 	t.Run("handleOpenAPIYAML without spec loaded", func(t *testing.T) {
 		srv := createTestServer()
 		// Don't set OpenAPISpec
-		srv.router.GET("/openapi.yaml", srv.handleOpenAPIYAML)
+		srv.Router().GET("/openapi.yaml", srv.HandleOpenAPIYAML)
 
 		req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
 		w := httptest.NewRecorder()
-		srv.router.ServeHTTP(w, req)
+		srv.Router().ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 		assert.Contains(t, w.Body.String(), "OpenAPI specification not loaded")
@@ -60,11 +60,11 @@ paths: {}`)
 
 	t.Run("handleOpenAPIJSON redirects to YAML", func(t *testing.T) {
 		srv := createTestServer()
-		srv.router.GET("/openapi.json", srv.handleOpenAPIJSON)
+		srv.Router().GET("/openapi.json", srv.HandleOpenAPIJSON)
 
 		req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
 		w := httptest.NewRecorder()
-		srv.router.ServeHTTP(w, req)
+		srv.Router().ServeHTTP(w, req)
 
 		// Should redirect to YAML endpoint
 		assert.Equal(t, http.StatusPermanentRedirect, w.Code)
@@ -73,11 +73,11 @@ paths: {}`)
 
 	t.Run("handleSwaggerUIRedirect", func(t *testing.T) {
 		srv := createTestServer()
-		srv.router.GET("/docs", srv.handleSwaggerUIRedirect)
+		srv.Router().GET("/docs", srv.HandleSwaggerUIRedirect)
 
 		req := httptest.NewRequest(http.MethodGet, "/docs", nil)
 		w := httptest.NewRecorder()
-		srv.router.ServeHTTP(w, req)
+		srv.Router().ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusMovedPermanently, w.Code)
 		assert.Equal(t, "/docs/", w.Header().Get("Location"))
@@ -85,11 +85,11 @@ paths: {}`)
 
 	t.Run("handleSwaggerUI returns HTML page", func(t *testing.T) {
 		srv := createTestServer()
-		srv.router.GET("/docs/", srv.handleSwaggerUI)
+		srv.Router().GET("/docs/", srv.HandleSwaggerUI)
 
 		req := httptest.NewRequest(http.MethodGet, "/docs/", nil)
 		w := httptest.NewRecorder()
-		srv.router.ServeHTTP(w, req)
+		srv.Router().ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "text/html; charset=utf-8", w.Header().Get("Content-Type"))
@@ -115,7 +115,7 @@ info:
 
 	srv := createTestServer()
 	srv.SetOpenAPISpec(testSpec)
-	srv.setupDocsRoutes()
+	srv.SetupDocsRoutes()
 
 	tests := []struct {
 		name           string
@@ -166,7 +166,7 @@ info:
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
 			w := httptest.NewRecorder()
-			srv.router.ServeHTTP(w, req)
+			srv.Router().ServeHTTP(w, req)
 
 			assert.Equal(t, tc.expectedStatus, w.Code)
 
@@ -200,11 +200,11 @@ components:
 
 	srv := createTestServer()
 	srv.SetOpenAPISpec([]byte(testSpec))
-	srv.router.GET("/openapi.yaml", srv.handleOpenAPIYAML)
+	srv.Router().GET("/openapi.yaml", srv.HandleOpenAPIYAML)
 
 	req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
 	w := httptest.NewRecorder()
-	srv.router.ServeHTTP(w, req)
+	srv.Router().ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 
@@ -229,10 +229,10 @@ func TestGetOpenAPISpec(t *testing.T) {
 
 func TestSwaggerUIVersionPinning(t *testing.T) {
 	// Verify that version constants are properly defined
-	assert.Equal(t, "5.11.0", swaggerUIVersion)
-	assert.Contains(t, swaggerUICSSURL, swaggerUIVersion)
-	assert.Contains(t, swaggerUIBundleURL, swaggerUIVersion)
-	assert.Contains(t, swaggerUIPresetURL, swaggerUIVersion)
+	assert.Equal(t, "5.11.0", server.SwaggerUIVersion)
+	assert.Contains(t, server.SwaggerUICSSURL, server.SwaggerUIVersion)
+	assert.Contains(t, server.SwaggerUIBundleURL, server.SwaggerUIVersion)
+	assert.Contains(t, server.SwaggerUIPresetURL, server.SwaggerUIVersion)
 }
 
 func TestSwaggerUISecurityHeaders(t *testing.T) {
@@ -240,11 +240,11 @@ func TestSwaggerUISecurityHeaders(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	srv := createTestServer()
-	srv.router.GET("/docs/", srv.handleSwaggerUI)
+	srv.Router().GET("/docs/", srv.HandleSwaggerUI)
 
 	req := httptest.NewRequest(http.MethodGet, "/docs/", nil)
 	w := httptest.NewRecorder()
-	srv.router.ServeHTTP(w, req)
+	srv.Router().ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -268,23 +268,23 @@ func TestSwaggerUISRIHashes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	srv := createTestServer()
-	srv.router.GET("/docs/", srv.handleSwaggerUI)
+	srv.Router().GET("/docs/", srv.HandleSwaggerUI)
 
 	req := httptest.NewRequest(http.MethodGet, "/docs/", nil)
 	w := httptest.NewRecorder()
-	srv.router.ServeHTTP(w, req)
+	srv.Router().ServeHTTP(w, req)
 
 	body := w.Body.String()
 
 	// Verify SRI hashes are present
-	assert.Contains(t, body, swaggerUICSSSRI)
-	assert.Contains(t, body, swaggerUIBundleSRI)
-	assert.Contains(t, body, swaggerUIPresetSRI)
+	assert.Contains(t, body, server.SwaggerUICSSSRI)
+	assert.Contains(t, body, server.SwaggerUIBundleSRI)
+	assert.Contains(t, body, server.SwaggerUIPresetSRI)
 
 	// Verify integrity attributes are properly formatted
-	assert.Contains(t, body, `integrity="`+swaggerUICSSSRI+`"`)
-	assert.Contains(t, body, `integrity="`+swaggerUIBundleSRI+`"`)
-	assert.Contains(t, body, `integrity="`+swaggerUIPresetSRI+`"`)
+	assert.Contains(t, body, `integrity="`+server.SwaggerUICSSSRI+`"`)
+	assert.Contains(t, body, `integrity="`+server.SwaggerUIBundleSRI+`"`)
+	assert.Contains(t, body, `integrity="`+server.SwaggerUIPresetSRI+`"`)
 
 	// Verify crossorigin attributes
 	assert.Equal(t, 3, strings.Count(body, `crossorigin="anonymous"`))
@@ -292,12 +292,12 @@ func TestSwaggerUISRIHashes(t *testing.T) {
 
 func TestSwaggerUICSPConstants(t *testing.T) {
 	// Verify CSP constant is properly defined
-	assert.NotEmpty(t, swaggerUICSP)
-	assert.Contains(t, swaggerUICSP, "default-src 'self'")
-	assert.Contains(t, swaggerUICSP, "script-src")
-	assert.Contains(t, swaggerUICSP, "style-src")
-	assert.Contains(t, swaggerUICSP, "img-src")
-	assert.Contains(t, swaggerUICSP, "font-src")
-	assert.Contains(t, swaggerUICSP, "connect-src 'self'")
-	assert.Contains(t, swaggerUICSP, "https://unpkg.com")
+	assert.NotEmpty(t, server.SwaggerUICSP)
+	assert.Contains(t, server.SwaggerUICSP, "default-src 'self'")
+	assert.Contains(t, server.SwaggerUICSP, "script-src")
+	assert.Contains(t, server.SwaggerUICSP, "style-src")
+	assert.Contains(t, server.SwaggerUICSP, "img-src")
+	assert.Contains(t, server.SwaggerUICSP, "font-src")
+	assert.Contains(t, server.SwaggerUICSP, "connect-src 'self'")
+	assert.Contains(t, server.SwaggerUICSP, "https://unpkg.com")
 }

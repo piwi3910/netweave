@@ -3,7 +3,7 @@
 //
 //go:build e2e
 
-package e2e
+package e2e_test
 
 import (
 	"encoding/json"
@@ -15,10 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/tests/e2e"
 )
 
 // doHTTPGet performs an HTTP GET request and unmarshals the JSON response.
-func doHTTPGet(t *testing.T, fw *TestFramework, url string, result any) int {
+func doHTTPGet(t *testing.T, fw *e2e.TestFramework, url string, result any) int {
 	t.Helper()
 	req, err := http.NewRequestWithContext(fw.Context, http.MethodGet, url, nil)
 	require.NoError(t, err)
@@ -43,10 +45,10 @@ func doHTTPGet(t *testing.T, fw *TestFramework, url string, result any) int {
 }
 
 // getFirstPoolID retrieves the first available resource pool ID.
-func getFirstPoolID(t *testing.T, fw *TestFramework) string {
+func getFirstPoolID(t *testing.T, fw *e2e.TestFramework) string {
 	t.Helper()
 	var pools []map[string]any
-	doHTTPGet(t, fw, fw.GatewayURL+APIPathResourcePools, &pools)
+	doHTTPGet(t, fw, fw.GatewayURL+e2e.APIPathResourcePools, &pools)
 
 	if len(pools) == 0 {
 		t.Skip("No resource pools available")
@@ -59,10 +61,10 @@ func getFirstPoolID(t *testing.T, fw *TestFramework) string {
 }
 
 // getFirstResourceID retrieves the first available resource ID from a pool.
-func getFirstResourceID(t *testing.T, fw *TestFramework, poolID string) string {
+func getFirstResourceID(t *testing.T, fw *e2e.TestFramework, poolID string) string {
 	t.Helper()
 	var resources []map[string]any
-	url := fw.GatewayURL + fmt.Sprintf(APIPathResourcesInPool, poolID)
+	url := fw.GatewayURL + fmt.Sprintf(e2e.APIPathResourcesInPool, poolID)
 	doHTTPGet(t, fw, url, &resources)
 
 	if len(resources) == 0 {
@@ -82,13 +84,13 @@ func TestInfrastructureDiscovery(t *testing.T) {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	fw, err := NewTestFramework(DefaultOptions())
+	fw, err := e2e.NewTestFramework(e2e.DefaultOptions())
 	require.NoError(t, err, "Failed to create test framework")
 	defer fw.Cleanup()
 
 	t.Run("list resource pools", func(t *testing.T) {
 		var pools []map[string]any
-		statusCode := doHTTPGet(t, fw, fw.GatewayURL+APIPathResourcePools, &pools)
+		statusCode := doHTTPGet(t, fw, fw.GatewayURL+e2e.APIPathResourcePools, &pools)
 
 		assert.Equal(t, http.StatusOK, statusCode, "Expected 200 OK")
 		assert.NotEmpty(t, pools, "Expected at least one resource pool")
@@ -106,7 +108,7 @@ func TestInfrastructureDiscovery(t *testing.T) {
 	t.Run("get specific resource pool", func(t *testing.T) {
 		poolID := getFirstPoolID(t, fw)
 
-		url := fw.GatewayURL + fmt.Sprintf(APIPathResourcePoolByID, poolID)
+		url := fw.GatewayURL + fmt.Sprintf(e2e.APIPathResourcePoolByID, poolID)
 		var pool map[string]any
 		statusCode := doHTTPGet(t, fw, url, &pool)
 		assert.Equal(t, http.StatusOK, statusCode)
@@ -120,7 +122,7 @@ func TestInfrastructureDiscovery(t *testing.T) {
 	t.Run("list resources in pool", func(t *testing.T) {
 		poolID := getFirstPoolID(t, fw)
 
-		url := fw.GatewayURL + fmt.Sprintf(APIPathResourcesInPool, poolID)
+		url := fw.GatewayURL + fmt.Sprintf(e2e.APIPathResourcesInPool, poolID)
 		var resources []map[string]any
 		statusCode := doHTTPGet(t, fw, url, &resources)
 		assert.Equal(t, http.StatusOK, statusCode)
@@ -138,7 +140,7 @@ func TestInfrastructureDiscovery(t *testing.T) {
 		poolID := getFirstPoolID(t, fw)
 		resourceID := getFirstResourceID(t, fw, poolID)
 
-		url := fw.GatewayURL + fmt.Sprintf(APIPathResourceByID, poolID, resourceID)
+		url := fw.GatewayURL + fmt.Sprintf(e2e.APIPathResourceByID, poolID, resourceID)
 		var resource map[string]any
 		statusCode := doHTTPGet(t, fw, url, &resource)
 		assert.Equal(t, http.StatusOK, statusCode)
@@ -157,7 +159,7 @@ func TestInfrastructureDiscovery(t *testing.T) {
 	t.Run("filter resources by type", func(t *testing.T) {
 		poolID := getFirstPoolID(t, fw)
 
-		url := fw.GatewayURL + fmt.Sprintf(APIPathResourcesInPool, poolID) + "?filter=resourceType==Node"
+		url := fw.GatewayURL + fmt.Sprintf(e2e.APIPathResourcesInPool, poolID) + "?filter=resourceType==Node"
 		var resources []map[string]any
 		statusCode := doHTTPGet(t, fw, url, &resources)
 		assert.Equal(t, http.StatusOK, statusCode)
@@ -176,7 +178,7 @@ func TestInfrastructureDiscovery(t *testing.T) {
 	t.Run("pagination support", func(t *testing.T) {
 		poolID := getFirstPoolID(t, fw)
 
-		url := fw.GatewayURL + fmt.Sprintf(APIPathResourcesInPool, poolID) + "?limit=5"
+		url := fw.GatewayURL + fmt.Sprintf(e2e.APIPathResourcesInPool, poolID) + "?limit=5"
 		var resources []map[string]any
 		statusCode := doHTTPGet(t, fw, url, &resources)
 		assert.Equal(t, http.StatusOK, statusCode)
@@ -197,12 +199,12 @@ func TestErrorHandling(t *testing.T) {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	fw, err := NewTestFramework(DefaultOptions())
+	fw, err := e2e.NewTestFramework(e2e.DefaultOptions())
 	require.NoError(t, err)
 	defer fw.Cleanup()
 
 	t.Run("get non-existent pool", func(t *testing.T) {
-		url := fw.GatewayURL + fmt.Sprintf(APIPathResourcePoolByID, "non-existent-pool-id")
+		url := fw.GatewayURL + fmt.Sprintf(e2e.APIPathResourcePoolByID, "non-existent-pool-id")
 		var errorResp map[string]any
 		statusCode := doHTTPGet(t, fw, url, &errorResp)
 		assert.Equal(t, http.StatusNotFound, statusCode)
@@ -212,7 +214,7 @@ func TestErrorHandling(t *testing.T) {
 	})
 
 	t.Run("invalid filter syntax", func(t *testing.T) {
-		url := fw.GatewayURL + APIPathResourcePools + "?filter=invalid syntax here"
+		url := fw.GatewayURL + e2e.APIPathResourcePools + "?filter=invalid syntax here"
 		statusCode := doHTTPGet(t, fw, url, nil)
 		assert.True(t, statusCode >= 400, "Expected error status code")
 		fw.Logger.Info("Successfully handled invalid filter syntax", zap.Int("statusCode", statusCode))

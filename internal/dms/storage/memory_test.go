@@ -1,9 +1,11 @@
-package storage
+package storage_test
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/piwi3910/netweave/internal/dms/storage"
 
 	"github.com/piwi3910/netweave/internal/dms/models"
 	"github.com/stretchr/testify/assert"
@@ -11,7 +13,7 @@ import (
 )
 
 func TestMemoryStore_Create(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 	defer func() {
 		require.NoError(t, store.Close())
 	}()
@@ -34,7 +36,7 @@ func TestMemoryStore_Create(t *testing.T) {
 }
 
 func TestMemoryStore_CreateDuplicate(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 	defer func() { require.NoError(t, store.Close()) }()
 
 	sub := &models.DMSSubscription{
@@ -48,11 +50,11 @@ func TestMemoryStore_CreateDuplicate(t *testing.T) {
 	// Try to create duplicate.
 	err = store.Create(context.Background(), sub)
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrSubscriptionExists)
+	assert.ErrorIs(t, err, storage.ErrSubscriptionExists)
 }
 
 func TestMemoryStore_Get(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 	defer func() { require.NoError(t, store.Close()) }()
 
 	sub := &models.DMSSubscription{
@@ -69,16 +71,16 @@ func TestMemoryStore_Get(t *testing.T) {
 }
 
 func TestMemoryStore_GetNotFound(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 	defer func() { require.NoError(t, store.Close()) }()
 
 	_, err := store.Get(context.Background(), "nonexistent")
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrSubscriptionNotFound)
+	assert.ErrorIs(t, err, storage.ErrSubscriptionNotFound)
 }
 
 func TestMemoryStore_List(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 	defer func() { require.NoError(t, store.Close()) }()
 
 	// Create multiple subscriptions.
@@ -97,7 +99,7 @@ func TestMemoryStore_List(t *testing.T) {
 }
 
 func TestMemoryStore_ListEmpty(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 	defer func() { require.NoError(t, store.Close()) }()
 
 	subs, err := store.List(context.Background())
@@ -106,7 +108,7 @@ func TestMemoryStore_ListEmpty(t *testing.T) {
 }
 
 func TestMemoryStore_Update(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 	defer func() { require.NoError(t, store.Close()) }()
 
 	sub := &models.DMSSubscription{
@@ -131,7 +133,7 @@ func TestMemoryStore_Update(t *testing.T) {
 }
 
 func TestMemoryStore_UpdateNotFound(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 	defer func() { require.NoError(t, store.Close()) }()
 
 	sub := &models.DMSSubscription{
@@ -141,11 +143,11 @@ func TestMemoryStore_UpdateNotFound(t *testing.T) {
 
 	err := store.Update(context.Background(), sub)
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrSubscriptionNotFound)
+	assert.ErrorIs(t, err, storage.ErrSubscriptionNotFound)
 }
 
 func TestMemoryStore_Delete(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 	defer func() { require.NoError(t, store.Close()) }()
 
 	sub := &models.DMSSubscription{
@@ -161,20 +163,20 @@ func TestMemoryStore_Delete(t *testing.T) {
 
 	// Verify it's deleted.
 	_, err = store.Get(context.Background(), "sub-1")
-	assert.ErrorIs(t, err, ErrSubscriptionNotFound)
+	assert.ErrorIs(t, err, storage.ErrSubscriptionNotFound)
 }
 
 func TestMemoryStore_DeleteNotFound(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 	defer func() { require.NoError(t, store.Close()) }()
 
 	err := store.Delete(context.Background(), "nonexistent")
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrSubscriptionNotFound)
+	assert.ErrorIs(t, err, storage.ErrSubscriptionNotFound)
 }
 
 func TestMemoryStore_Ping(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 	defer func() { require.NoError(t, store.Close()) }()
 
 	err := store.Ping(context.Background())
@@ -182,7 +184,7 @@ func TestMemoryStore_Ping(t *testing.T) {
 }
 
 func TestMemoryStore_Close(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 
 	// Add some data.
 	sub := &models.DMSSubscription{
@@ -203,7 +205,7 @@ func TestMemoryStore_Close(t *testing.T) {
 }
 
 func TestMemoryStore_ConcurrentAccess(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 	defer func() { require.NoError(t, store.Close()) }()
 
 	// Create multiple subscriptions concurrently.
@@ -231,7 +233,7 @@ func TestMemoryStore_ConcurrentAccess(t *testing.T) {
 }
 
 func TestMemoryStore_IsolatedCopies(t *testing.T) {
-	store := NewMemoryStore()
+	store := storage.NewMemoryStore()
 	defer func() { require.NoError(t, store.Close()) }()
 
 	sub := &models.DMSSubscription{

@@ -110,11 +110,11 @@ func (c *Checker) CheckAll(ctx context.Context) ([]Result, error) {
 
 		switch spec.Name {
 		case "O2-IMS":
-			result, err = c.checkO2IMS(ctx, spec)
+			result, err = c.CheckO2IMS(ctx, spec)
 		case "O2-DMS":
-			result, err = c.checkO2DMS(ctx, spec)
+			result, err = c.CheckO2DMS(ctx, spec)
 		case "O2-SMO":
-			result, err = c.checkO2SMO(ctx, spec)
+			result, err = c.CheckO2SMO(ctx, spec)
 		default:
 			return nil, fmt.Errorf("unknown specification: %s", spec.Name)
 		}
@@ -224,18 +224,18 @@ func getO2DMSEndpoints() []EndpointTest {
 	return append(endpoints, operationEndpoints...)
 }
 
-// checkO2IMS validates O2-IMS API compliance.
-func (c *Checker) checkO2IMS(ctx context.Context, spec SpecVersion) (Result, error) {
+// CheckO2IMS validates O2-IMS API compliance.
+func (c *Checker) CheckO2IMS(ctx context.Context, spec SpecVersion) (Result, error) {
 	return c.checkAPIEndpoints(ctx, spec, "O2-IMS", getO2IMSEndpoints())
 }
 
-// checkO2DMS validates O2-DMS API compliance.
-func (c *Checker) checkO2DMS(ctx context.Context, spec SpecVersion) (Result, error) {
+// CheckO2DMS validates O2-DMS API compliance.
+func (c *Checker) CheckO2DMS(ctx context.Context, spec SpecVersion) (Result, error) {
 	return c.checkAPIEndpoints(ctx, spec, "O2-DMS", getO2DMSEndpoints())
 }
 
-// checkO2SMO validates O2-SMO integration compliance.
-func (c *Checker) checkO2SMO(ctx context.Context, spec SpecVersion) (Result, error) {
+// CheckO2SMO validates O2-SMO integration compliance.
+func (c *Checker) CheckO2SMO(ctx context.Context, spec SpecVersion) (Result, error) {
 	c.logger.Info("validating O2-SMO integration")
 
 	// O2-SMO compliance is verified through:
@@ -322,7 +322,7 @@ func (c *Checker) validateEndpoints(
 // testEndpoint tests a single API endpoint.
 func (c *Checker) testEndpoint(ctx context.Context, test EndpointTest) (bool, error) {
 	// For parameterized paths, replace with test values
-	path := replacePlaceholders(test.Path)
+	path := ReplacePlaceholders(test.Path)
 
 	url := c.baseURL + path
 
@@ -359,8 +359,8 @@ func (c *Checker) testEndpoint(ctx context.Context, test EndpointTest) (bool, er
 	return passed, nil
 }
 
-// replacePlaceholders replaces {param} with test values.
-func replacePlaceholders(path string) string {
+// ReplacePlaceholders replaces {param} with test values.
+func ReplacePlaceholders(path string) string {
 	// Replace common placeholders with test values
 	replacements := map[string]string{
 		"{subscriptionId}":      "test-subscription-id",
