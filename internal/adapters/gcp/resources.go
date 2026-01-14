@@ -98,13 +98,21 @@ func (a *Adapter) listInstancesInZone(
 			return nil, fmt.Errorf("failed to list instances: %w", err)
 		}
 
-		resource := a.instanceToResource(instance, zoneName)
-
 		// Apply filter
 		labels := instance.Labels
 		if labels == nil {
 			labels = make(map[string]string)
 		}
+
+		// Filter by tenant ID using labels (multi-tenancy)
+		if filter != nil && filter.TenantID != "" {
+			if tenantLabel, ok := labels["o2ims_io_tenant-id"]; !ok || tenantLabel != filter.TenantID {
+				continue
+			}
+		}
+
+		resource := a.instanceToResource(instance, zoneName)
+
 		if !adapter.MatchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, zoneName, labels) {
 			continue
 		}
@@ -262,6 +270,11 @@ func extractZoneAndName(resource *adapter.Resource) (string, string, error) {
 func buildInstanceLabels(resource *adapter.Resource) map[string]string {
 	labels := make(map[string]string)
 
+	// Add tenant ID label for multi-tenancy (GCP uses underscores in label keys)
+	if resource.TenantID != "" {
+		labels["o2ims_io_tenant-id"] = resource.TenantID
+	}
+
 	// Add description as name label (GCP labels must be lowercase)
 	if resource.Description != "" {
 		labels["name"] = strings.ToLower(resource.Description)
@@ -345,6 +358,13 @@ func (a *Adapter) instanceToResource(instance *computepb.Instance, zone string) 
 	resourceTypeID := GenerateMachineTypeID(machineType)
 	resourcePoolID := a.determineResourcePoolID(zone)
 
+	// Extract tenant ID from labels (multi-tenancy)
+	// GCP uses underscores in label keys instead of dots/slashes
+	tenantID := ""
+	if instance.Labels != nil {
+		tenantID = instance.Labels["o2ims_io_tenant-id"]
+	}
+
 	// Build extensions with instance details
 	extensions := buildInstanceExtensions(instance, instanceName, zone, machineType)
 
@@ -356,6 +376,7 @@ func (a *Adapter) instanceToResource(instance *computepb.Instance, zone string) 
 
 	return &adapter.Resource{
 		ResourceID:     resourceID,
+		TenantID:       tenantID,
 		ResourceTypeID: resourceTypeID,
 		ResourcePoolID: resourcePoolID,
 		GlobalAssetID:  fmt.Sprintf("urn:gcp:compute:%s:%s:%s", a.projectID, zone, instanceName),

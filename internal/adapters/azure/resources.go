@@ -45,10 +45,17 @@ func (a *Adapter) ListResources(
 				continue
 			}
 
-			resource := a.vmToResource(vm)
-
 			// Convert tags to labels
 			labels := TagsToMap(vm.Tags)
+
+			// Filter by tenant ID using tags (multi-tenancy)
+			if filter != nil && filter.TenantID != "" {
+				if tenantTag, ok := labels["o2ims.io/tenant-id"]; !ok || tenantTag != filter.TenantID {
+					continue
+				}
+			}
+
+			resource := a.vmToResource(vm)
 
 			// Apply filter
 			if !adapter.MatchesFilter(filter, resource.ResourcePoolID, resource.ResourceTypeID, location, labels) {
@@ -196,6 +203,11 @@ func parseAzureResourceID(id string) (string, string, error) {
 func buildAzureTags(resource *adapter.Resource) map[string]*string {
 	tags := make(map[string]*string)
 
+	// Add tenant ID tag for multi-tenancy
+	if resource.TenantID != "" {
+		tags["o2ims.io/tenant-id"] = StringPtr(resource.TenantID)
+	}
+
 	// Add description as Name tag
 	if resource.Description != "" {
 		tags["Name"] = StringPtr(resource.Description)
@@ -274,10 +286,15 @@ func (a *Adapter) vmToResource(vm *armcompute.VirtualMachine) *adapter.Resource 
 	resourceTypeID := GenerateVMSizeID(vmSize)
 	resourcePoolID := a.determineResourcePoolID(vm, location, resourceGroup)
 
+	// Extract tenant ID from tags (multi-tenancy)
+	labels := TagsToMap(vm.Tags)
+	tenantID := labels["o2ims.io/tenant-id"]
+
 	extensions := a.buildVMExtensions(vm, vmName, location, resourceGroup, vmSize)
 
 	return &adapter.Resource{
 		ResourceID:     resourceID,
+		TenantID:       tenantID,
 		ResourceTypeID: resourceTypeID,
 		ResourcePoolID: resourcePoolID,
 		GlobalAssetID:  fmt.Sprintf("urn:azure:vm:%s:%s:%s", a.subscriptionID, resourceGroup, vmName),
