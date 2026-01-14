@@ -11,6 +11,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	azureVMPrefix = "azure-vm-"
+)
+
 // ListResources retrieves all resources (Azure VMs) matching the
 // provided filter.
 func (a *Adapter) ListResources(
@@ -80,12 +84,11 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 
 	// Parse resource group and VM name from the ID
 	// Format: azure-vm-{resourceGroup}-{vmName}
-	prefix := "azure-vm-"
-	if !strings.HasPrefix(id, prefix) {
+	if !strings.HasPrefix(id, azureVMPrefix) {
 		return nil, fmt.Errorf("invalid resource ID format: %s", id)
 	}
 
-	remainder := strings.TrimPrefix(id, prefix)
+	remainder := strings.TrimPrefix(id, azureVMPrefix)
 	parts := strings.SplitN(remainder, "-", 2)
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid resource ID format: %s", id)
@@ -125,9 +128,10 @@ func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) 
 
 // UpdateResource updates an existing Azure VM's tags and metadata.
 // Note: Core VM properties cannot be modified after creation.
+// Only tags can be updated via the Azure Update API.
 func (a *Adapter) UpdateResource(
-	_ context.Context,
-	_ string,
+	ctx context.Context,
+	id string,
 	resource *adapter.Resource,
 ) (*adapter.Resource, error) {
 	var err error
@@ -135,12 +139,88 @@ func (a *Adapter) UpdateResource(
 	defer func() { adapter.ObserveOperation("azure", "UpdateResource", start, err) }()
 
 	a.Logger.Debug("UpdateResource called",
-		zap.String("resourceID", resource.ResourceID))
+		zap.String("resourceID", id))
 
-	// TODO(#189): Implement VM tag updates via Azure API
-	// For now, return not supported
-	err = fmt.Errorf("updating Azure VMs is not yet implemented")
-	return nil, err
+	// Extract resource group and VM name from ID
+	resourceGroup, vmName, err := parseAzureResourceID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build tags from resource fields
+	tags := buildAzureTags(resource)
+
+	// Only update if there are tags to apply
+	if len(tags) > 0 {
+		updateParams := armcompute.VirtualMachineUpdate{
+			Tags: tags,
+		}
+
+		poller, err := a.vmClient.BeginUpdate(ctx, resourceGroup, vmName, updateParams, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to start VM update: %w", err)
+		}
+
+		// Wait for update to complete
+		_, err = poller.PollUntilDone(ctx, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update VM tags: %w", err)
+		}
+
+		a.Logger.Info("updated VM tags",
+			zap.String("resourceGroup", resourceGroup),
+			zap.String("vmName", vmName),
+			zap.Int("tagCount", len(tags)))
+	}
+
+	// Fetch and return the updated resource
+	return a.GetResource(ctx, id)
+}
+
+// parseAzureResourceID extracts resource group and VM name from an O2-IMS resource ID.
+func parseAzureResourceID(id string) (string, string, error) {
+	if !strings.HasPrefix(id, azureVMPrefix) {
+		return "", "", fmt.Errorf("invalid resource ID format: %s", id)
+	}
+
+	remainder := strings.TrimPrefix(id, azureVMPrefix)
+	parts := strings.SplitN(remainder, "-", 2)
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("invalid resource ID format: %s", id)
+	}
+
+	return parts[0], parts[1], nil
+}
+
+// buildAzureTags builds Azure tags from resource fields.
+func buildAzureTags(resource *adapter.Resource) map[string]*string {
+	tags := make(map[string]*string)
+
+	// Add description as Name tag
+	if resource.Description != "" {
+		tags["Name"] = StringPtr(resource.Description)
+	}
+
+	// Add GlobalAssetID as a tag
+	if resource.GlobalAssetID != "" {
+		tags["GlobalAssetID"] = StringPtr(resource.GlobalAssetID)
+	}
+
+	// Add custom tags from Extensions
+	if resource.Extensions != nil {
+		if customTags, ok := resource.Extensions["azure.tags"].(map[string]string); ok {
+			for key, value := range customTags {
+				tags[key] = StringPtr(value)
+			}
+		}
+	}
+
+	return tags
+}
+
+// StringPtr returns a pointer to the provided string.
+func StringPtr(s string) *string {
+	return &s
 }
 
 // DeleteResource deletes a resource (Azure VM) by ID.
@@ -153,12 +233,11 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 		zap.String("id", id))
 
 	// Parse resource group and VM name from the ID
-	prefix := "azure-vm-"
-	if !strings.HasPrefix(id, prefix) {
+	if !strings.HasPrefix(id, azureVMPrefix) {
 		return fmt.Errorf("invalid resource ID format: %s", id)
 	}
 
-	remainder := strings.TrimPrefix(id, prefix)
+	remainder := strings.TrimPrefix(id, azureVMPrefix)
 	parts := strings.SplitN(remainder, "-", 2)
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid resource ID format: %s", id)
