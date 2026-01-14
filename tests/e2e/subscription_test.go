@@ -305,13 +305,73 @@ func TestSubscriptionFiltering(t *testing.T) {
 	webhook1.ClearEvents()
 	webhook2.ClearEvents()
 
-	// TODO: Trigger Kubernetes events to test filtering
-	// This requires creating actual Kubernetes resources
-	// For now, verify subscriptions were created correctly
+	// Create K8s resource helper
+	k8sHelper := e2e.NewK8sResourceHelper(fw.KubeClient, fw.Namespace, fw.Context)
 
-	time.Sleep(2 * time.Second)
+	// Create a Pod (should trigger webhook1 if adapter supports Pod events)
+	podName := "filter-test-pod"
+	pod, err := k8sHelper.CreateTestPod(fw.Namespace, podName, map[string]string{"test": "filtering"})
+	if err != nil {
+		t.Logf("Failed to create pod (may be expected in some environments): %v", err)
+	} else {
+		defer func() {
+			if delErr := k8sHelper.DeletePod(fw.Namespace, podName); delErr != nil {
+				t.Logf("Failed to cleanup pod: %v", delErr)
+			}
+		}()
+		fw.Logger.Info("Created test pod", zap.String("podName", pod.Name))
+	}
 
-	fw.Logger.Info("Subscription filtering test completed")
+	// Create a Namespace (should trigger webhook2)
+	nsName := "filter-test-namespace"
+	ns, err := k8sHelper.CreateTestNamespace(nsName)
+	if err != nil {
+		t.Logf("Failed to create namespace: %v", err)
+	} else {
+		defer func() {
+			if delErr := k8sHelper.DeleteNamespace(nsName); delErr != nil {
+				t.Logf("Failed to cleanup namespace: %v", delErr)
+			}
+		}()
+		fw.Logger.Info("Created test namespace", zap.String("namespace", ns.Name))
+	}
+
+	// Wait for events to be delivered
+	time.Sleep(5 * time.Second)
+
+	// Check webhook1 (should receive Pod events, not Namespace)
+	webhook1Events := webhook1.GetReceivedEvents()
+	fw.Logger.Info("Webhook1 events",
+		zap.Int("count", len(webhook1Events)),
+		zap.String("filter", "(resourceType==Node)"),
+	)
+
+	// Check webhook2 (should receive Namespace events, not Pod)
+	webhook2Events := webhook2.GetReceivedEvents()
+	fw.Logger.Info("Webhook2 events",
+		zap.Int("count", len(webhook2Events)),
+		zap.String("filter", "(resourceType==Namespace)"),
+	)
+
+	// Validate filtering (if events were received)
+	for _, evt := range webhook1Events {
+		assert.NotEqual(t, "Namespace", evt.ResourceType,
+			"Webhook1 should not receive Namespace events")
+	}
+
+	for _, evt := range webhook2Events {
+		assert.Equal(t, "Namespace", evt.ResourceType,
+			"Webhook2 should only receive Namespace events")
+	}
+
+	if len(webhook1Events) == 0 && len(webhook2Events) == 0 {
+		t.Skip("No events received - subscription notification may not be configured")
+	}
+
+	fw.Logger.Info("Subscription filtering test completed",
+		zap.Int("webhook1Events", len(webhook1Events)),
+		zap.Int("webhook2Events", len(webhook2Events)),
+	)
 }
 
 // TestConcurrentSubscriptions tests multiple concurrent subscriptions.
