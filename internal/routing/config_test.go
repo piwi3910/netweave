@@ -189,8 +189,8 @@ func TestConvertRuleConfig(t *testing.T) {
 				Enabled:  true,
 				Conditions: routing.ConditionsConfig{
 					Capabilities: []string{
-						"resource-pools",
-						"resources",
+						"package-management",
+						"deployment-lifecycle",
 					},
 				},
 			},
@@ -199,8 +199,8 @@ func TestConvertRuleConfig(t *testing.T) {
 				t.Helper()
 				require.NotNil(t, rule.Conditions)
 				assert.Len(t, rule.Conditions.Capabilities, 2)
-				assert.Contains(t, rule.Conditions.Capabilities, adapter.Capability("resource-pools"))
-				assert.Contains(t, rule.Conditions.Capabilities, adapter.Capability("resources"))
+				assert.Contains(t, rule.Conditions.Capabilities, adapter.Capability("package-management"))
+				assert.Contains(t, rule.Conditions.Capabilities, adapter.Capability("deployment-lifecycle"))
 			},
 		},
 		{
@@ -316,14 +316,14 @@ func TestConvertConditions(t *testing.T) {
 			name: "capabilities",
 			config: &routing.ConditionsConfig{
 				Capabilities: []string{
-					"resource-pools",
-					"resources",
+					"package-management",
+					"deployment-lifecycle",
 				},
 			},
 			validate: func(t *testing.T, cond *routing.Conditions) {
 				t.Helper()
 				assert.Len(t, cond.Capabilities, 2)
-				assert.Contains(t, cond.Capabilities, adapter.Capability("resource-pools"))
+				assert.Contains(t, cond.Capabilities, adapter.Capability("package-management"))
 			},
 		},
 		{
@@ -336,7 +336,7 @@ func TestConvertConditions(t *testing.T) {
 					Prefix: "dc-",
 				},
 				Capabilities: []string{
-					"resource-pools",
+					"package-management",
 				},
 				Extensions: map[string]interface{}{
 					"custom": "value",
@@ -509,7 +509,7 @@ func TestIsEmptyConditions(t *testing.T) {
 		{
 			name: "with capabilities",
 			config: &routing.ConditionsConfig{
-				Capabilities: []string{"resource-pools"},
+				Capabilities: []string{"package-management"},
 			},
 			expected: false,
 		},

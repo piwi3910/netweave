@@ -16,13 +16,14 @@ import (
 	"github.com/piwi3910/netweave/internal/dms/registry"
 )
 
-// mockAdapter is a test implementation.
+// mockAdapter is a test implementation of DMSAdapter.
 type mockAdapter struct {
 	name         string
 	version      string
 	capabilities []adapter.Capability
 }
 
+// DMSAdapterMetadata methods
 func (m *mockAdapter) Name() string {
 	return m.name
 }
@@ -35,6 +36,7 @@ func (m *mockAdapter) Capabilities() []adapter.Capability {
 	return m.capabilities
 }
 
+// DMSAdapterLifecycle methods
 func (m *mockAdapter) Health(_ context.Context) error {
 	return nil
 }
@@ -46,79 +48,91 @@ func (m *mockAdapter) Close() error {
 // errNotImplemented is returned by stub methods not used in tests.
 var errNotImplemented = errors.New("method not implemented in mock")
 
-func (m *mockAdapter) GetDeploymentManager(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
-	return nil, errNotImplemented
-}
-func (m *mockAdapter) ListResourcePools(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourcePool, error) {
-	return nil, errNotImplemented
-}
-
-func (m *mockAdapter) GetResourcePool(_ context.Context, _ string) (*adapter.ResourcePool, error) {
+// PackageManager methods
+func (m *mockAdapter) ListDeploymentPackages(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
 	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) CreateResourcePool(_ context.Context, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockAdapter) GetDeploymentPackage(_ context.Context, _ string) (*adapter.DeploymentPackage, error) {
 	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) UpdateResourcePool(
-	_ context.Context,
-	_ string,
-	_ *adapter.ResourcePool,
-) (*adapter.ResourcePool, error) {
+func (m *mockAdapter) UploadDeploymentPackage(_ context.Context, _ *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
 	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) DeleteResourcePool(_ context.Context, _ string) error {
+func (m *mockAdapter) DeleteDeploymentPackage(_ context.Context, _ string) error {
 	return errNotImplemented
 }
 
-func (m *mockAdapter) ListResources(_ context.Context, _ *adapter.Filter) ([]*adapter.Resource, error) {
+// DeploymentLifecycleManager methods
+func (m *mockAdapter) ListDeployments(_ context.Context, _ *adapter.Filter) ([]*adapter.Deployment, error) {
 	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) GetResource(_ context.Context, _ string) (*adapter.Resource, error) {
+func (m *mockAdapter) GetDeployment(_ context.Context, _ string) (*adapter.Deployment, error) {
 	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) CreateResource(_ context.Context, _ *adapter.Resource) (*adapter.Resource, error) {
+func (m *mockAdapter) CreateDeployment(_ context.Context, _ *adapter.DeploymentRequest) (*adapter.Deployment, error) {
 	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) UpdateResource(_ context.Context, _ string, _ *adapter.Resource) (*adapter.Resource, error) {
+func (m *mockAdapter) UpdateDeployment(_ context.Context, _ string, _ *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
 	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) DeleteResource(_ context.Context, _ string) error {
+func (m *mockAdapter) DeleteDeployment(_ context.Context, _ string) error {
 	return errNotImplemented
 }
 
-func (m *mockAdapter) ListResourceTypes(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourceType, error) {
-	return nil, errNotImplemented
-}
-
-func (m *mockAdapter) GetResourceType(_ context.Context, _ string) (*adapter.ResourceType, error) {
-	return nil, errNotImplemented
-}
-
-func (m *mockAdapter) CreateSubscription(_ context.Context, _ *adapter.Subscription) (*adapter.Subscription, error) {
-	return nil, errNotImplemented
-}
-
-func (m *mockAdapter) GetSubscription(_ context.Context, _ string) (*adapter.Subscription, error) {
-	return nil, errNotImplemented
-}
-
-func (m *mockAdapter) UpdateSubscription(
-	_ context.Context,
-	_ string,
-	_ *adapter.Subscription,
-) (*adapter.Subscription, error) {
-	return nil, errNotImplemented
-}
-
-func (m *mockAdapter) DeleteSubscription(_ context.Context, _ string) error {
+// DeploymentOperations methods
+func (m *mockAdapter) ScaleDeployment(_ context.Context, _ string, _ int) error {
 	return errNotImplemented
+}
+
+func (m *mockAdapter) RollbackDeployment(_ context.Context, _ string, _ int) error {
+	return errNotImplemented
+}
+
+func (m *mockAdapter) GetDeploymentStatus(_ context.Context, _ string) (*adapter.DeploymentStatusDetail, error) {
+	return nil, errNotImplemented
+}
+
+func (m *mockAdapter) GetDeploymentHistory(_ context.Context, _ string) (*adapter.DeploymentHistory, error) {
+	return nil, errNotImplemented
+}
+
+func (m *mockAdapter) GetDeploymentLogs(_ context.Context, _ string, _ *adapter.LogOptions) ([]byte, error) {
+	return nil, errNotImplemented
+}
+
+// DMSCapabilities methods
+func (m *mockAdapter) SupportsRollback() bool {
+	for _, cap := range m.capabilities {
+		if cap == adapter.CapabilityRollback {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *mockAdapter) SupportsScaling() bool {
+	for _, cap := range m.capabilities {
+		if cap == adapter.CapabilityScaling {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *mockAdapter) SupportsGitOps() bool {
+	for _, cap := range m.capabilities {
+		if cap == adapter.CapabilityGitOps {
+			return true
+		}
+	}
+	return false
 }
 
 func setupTestRouter(t *testing.T) (*routing.Router, *registry.Registry) {
@@ -136,8 +150,8 @@ func setupTestRouter(t *testing.T) (*routing.Router, *registry.Registry) {
 		name:    "kubernetes",
 		version: "1.0.0",
 		capabilities: []adapter.Capability{
-			adapter.CapabilityResourcePools,
-			adapter.CapabilityResources,
+			adapter.CapabilityPackageManagement,
+			adapter.CapabilityDeploymentLifecycle,
 		},
 	}
 
@@ -145,8 +159,8 @@ func setupTestRouter(t *testing.T) (*routing.Router, *registry.Registry) {
 		name:    "openstack",
 		version: "1.0.0",
 		capabilities: []adapter.Capability{
-			adapter.CapabilityResourcePools,
-			adapter.CapabilityResources,
+			adapter.CapabilityPackageManagement,
+			adapter.CapabilityDeploymentLifecycle,
 		},
 	}
 
@@ -154,7 +168,7 @@ func setupTestRouter(t *testing.T) (*routing.Router, *registry.Registry) {
 		name:    "dtias",
 		version: "1.0.0",
 		capabilities: []adapter.Capability{
-			adapter.CapabilityResourcePools,
+			adapter.CapabilityPackageManagement,
 		},
 	}
 
@@ -299,13 +313,13 @@ func TestRouter_Route(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adapters, err := router.RouteMultiple(ctx, tt.routingCtx)
-			var adapter adapter.Adapter
+			var dmsAdapter adapter.DMSAdapter
 			if err == nil && len(adapters) > 0 {
-				adapter = adapters[0]
+				dmsAdapter = adapters[0]
 			}
 			require.NoError(t, err)
-			assert.NotNil(t, adapter)
-			assert.Equal(t, tt.expectedAdapter, adapter.Name())
+			assert.NotNil(t, dmsAdapter)
+			assert.Equal(t, tt.expectedAdapter, dmsAdapter.Name())
 		})
 	}
 }
@@ -544,29 +558,29 @@ func TestRouter_hasCapabilities(t *testing.T) {
 		{
 			name: "has all capabilities",
 			adapterCaps: []adapter.Capability{
-				adapter.CapabilityResourcePools,
-				adapter.CapabilityResources,
+				adapter.CapabilityPackageManagement,
+				adapter.CapabilityDeploymentLifecycle,
 			},
 			requiredCaps: []adapter.Capability{
-				adapter.CapabilityResourcePools,
+				adapter.CapabilityPackageManagement,
 			},
 			expected: true,
 		},
 		{
 			name: "missing capability",
 			adapterCaps: []adapter.Capability{
-				adapter.CapabilityResourcePools,
+				adapter.CapabilityPackageManagement,
 			},
 			requiredCaps: []adapter.Capability{
-				adapter.CapabilityResourcePools,
-				adapter.CapabilityResources,
+				adapter.CapabilityPackageManagement,
+				adapter.CapabilityDeploymentLifecycle,
 			},
 			expected: false,
 		},
 		{
 			name: "no required capabilities (always pass)",
 			adapterCaps: []adapter.Capability{
-				adapter.CapabilityResourcePools,
+				adapter.CapabilityPackageManagement,
 			},
 			requiredCaps: []adapter.Capability{},
 			expected:     true,
@@ -654,12 +668,12 @@ func TestRouter_RulePriority(t *testing.T) {
 	}
 
 	adapters, err := router.RouteMultiple(ctx, routingCtx)
-	var adapter adapter.Adapter
+	var dmsAdapter adapter.DMSAdapter
 	if err == nil && len(adapters) > 0 {
-		adapter = adapters[0]
+		dmsAdapter = adapters[0]
 	}
 	require.NoError(t, err)
-	assert.Equal(t, "dtias", adapter.Name(), "higher priority rule should win")
+	assert.Equal(t, "dtias", dmsAdapter.Name(), "higher priority rule should win")
 }
 
 // TestRouter_matchesResourceType tests resource type matching.
@@ -810,7 +824,7 @@ func TestRouter_matchesConditions(t *testing.T) {
 				AdapterName: "kubernetes",
 				Conditions: &routing.Conditions{
 					Capabilities: []adapter.Capability{
-						adapter.CapabilityResourcePools,
+						adapter.CapabilityPackageManagement,
 					},
 				},
 			},
@@ -823,7 +837,7 @@ func TestRouter_matchesConditions(t *testing.T) {
 				AdapterName: "kubernetes",
 				Conditions: &routing.Conditions{
 					Capabilities: []adapter.Capability{
-						adapter.CapabilityDeploymentManagers,
+						adapter.CapabilityDeploymentLifecycle,
 					},
 				},
 			},
@@ -935,8 +949,8 @@ func TestRouter_getAdapterCapabilities(t *testing.T) {
 			name:    "existing adapter",
 			adapter: "kubernetes",
 			wantCaps: []adapter.Capability{
-				adapter.CapabilityResourcePools,
-				adapter.CapabilityResources,
+				adapter.CapabilityPackageManagement,
+				adapter.CapabilityDeploymentLifecycle,
 			},
 		},
 		{
@@ -964,12 +978,12 @@ func Test_capabilitiesToStrings(t *testing.T) {
 		{
 			name: "multiple capabilities",
 			caps: []adapter.Capability{
-				adapter.CapabilityResourcePools,
-				adapter.CapabilityResources,
+				adapter.CapabilityPackageManagement,
+				adapter.CapabilityDeploymentLifecycle,
 			},
 			want: []string{
-				string(adapter.CapabilityResourcePools),
-				string(adapter.CapabilityResources),
+				string(adapter.CapabilityPackageManagement),
+				string(adapter.CapabilityDeploymentLifecycle),
 			},
 		},
 		{
@@ -1016,7 +1030,7 @@ func TestRouter_getValidatedAdapter(t *testing.T) {
 		name:    "healthy",
 		version: "1.0.0",
 		capabilities: []adapter.Capability{
-			adapter.CapabilityResourcePools,
+			adapter.CapabilityPackageManagement,
 		},
 	}
 	err := reg.Register(ctx, "healthy", "healthy", healthyAdapter, nil, true)
@@ -1028,7 +1042,7 @@ func TestRouter_getValidatedAdapter(t *testing.T) {
 			name:    "unhealthy",
 			version: "1.0.0",
 			capabilities: []adapter.Capability{
-				adapter.CapabilityResourcePools,
+				adapter.CapabilityPackageManagement,
 			},
 		},
 	}
@@ -1080,7 +1094,7 @@ func TestRouter_getValidatedAdapter(t *testing.T) {
 			},
 			ctx: &routing.Context{
 				RequiredCapabilities: []adapter.Capability{
-					adapter.CapabilityDeploymentManagers,
+					adapter.CapabilityDeploymentLifecycle,
 				},
 			},
 			wantAdapter: false,
