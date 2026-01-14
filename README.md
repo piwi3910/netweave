@@ -12,11 +12,21 @@
 
 This project implements the following O-RAN Alliance specifications:
 
-[![O-RAN O2-IMS v3.0.0 Compliance](https://img.shields.io/badge/O--RAN__O2--IMS-v3.0.0__compliant-brightgreen)](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2IMS-INTERFACE) **O2-IMS v3.0.0**: Full compliance with O-RAN Infrastructure Management Services specification
+[![O-RAN O2-IMS v3.0.0 Compliance](https://img.shields.io/badge/O--RAN__O2--IMS-95%25__compliant-green)](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2IMS-INTERFACE) **O2-IMS v3.0.0 (95%)**: Near-complete compliance with O-RAN Infrastructure Management Services specification
 
-[![O-RAN O2-DMS v3.0.0 Compliance](https://img.shields.io/badge/O--RAN__O2--DMS-v3.0.0__compliant-brightgreen)](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2DMS-INTERFACE) **O2-DMS v3.0.0**: Full compliance with O-RAN Deployment Management Services specification
+[![O-RAN O2-DMS v3.0.0 Compliance](https://img.shields.io/badge/O--RAN__O2--DMS-95%25__compliant-green)](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2DMS-INTERFACE) **O2-DMS v3.0.0 (95%)**: Near-complete compliance with O-RAN Deployment Management Services specification
 
-[![O-RAN O2-SMO v3.0.0 Compliance](https://img.shields.io/badge/O--RAN__O2--SMO-v3.0.0__compliant-brightgreen)](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2SMO-INTERFACE) **O2-SMO v3.0.0**: Full compliance with O-RAN Service Management & Orchestration integration specification
+[![O-RAN O2-SMO v3.0.0 Compliance](https://img.shields.io/badge/O--RAN__O2--SMO-90%25__compliant-green)](https://specifications.o-ran.org/specifications?specificationId=O-RAN.WG6.O2SMO-INTERFACE) **O2-SMO v3.0.0 (90%)**: Near-complete compliance with O-RAN Service Management & Orchestration integration specification
+
+### Compliance Details
+
+| Specification | Status | Implementation Completeness |
+|--------------|--------|----------------------------|
+| **O2-IMS v3.0.0** | ✅ 95% | All core APIs implemented. 7 backend adapters (Kubernetes, AWS, Azure, GCP, OpenStack, VMware, DTIAS) fully functional. |
+| **O2-DMS v3.0.0** | ✅ 95% | All core APIs implemented. 7 deployment adapters (Helm, ArgoCD, Flux, Kustomize, Crossplane, ONAP-LCM, OSM-LCM) fully functional. |
+| **O2-SMO v3.0.0** | ✅ 90% | Integration plugins for ONAP and OSM. Northbound and southbound interfaces operational. |
+
+*See [Implementation Status](docs/IMPLEMENTATION_STATUS.md) for detailed compliance breakdown.*
 
 ### Specification References
 
