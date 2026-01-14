@@ -347,6 +347,18 @@ type ServerProvisionRequest struct {
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
+// ServerUpdateRequest represents a request to update server metadata.
+type ServerUpdateRequest struct {
+	// Hostname is the hostname to update (optional)
+	Hostname string `json:"hostname,omitempty"`
+
+	// Description is the description to update (optional)
+	Description string `json:"description,omitempty"`
+
+	// Metadata provides metadata to update (optional)
+	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
 // ServerPowerOperation represents a power management operation.
 type ServerPowerOperation string
 

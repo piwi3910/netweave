@@ -202,17 +202,64 @@ func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource
 
 // UpdateResource updates an existing bare-metal server's metadata.
 // Note: Physical hardware properties cannot be modified.
+// Only metadata, hostname, and description can be updated via the DTIAS API.
 func (a *Adapter) UpdateResource(
-	_ context.Context,
-	_ string,
+	ctx context.Context,
+	id string,
 	resource *adapter.Resource,
 ) (*adapter.Resource, error) {
 	a.logger.Debug("UpdateResource called",
-		zap.String("resourceID", resource.ResourceID))
+		zap.String("resourceID", id))
 
-	// TODO(#193): Implement server metadata updates via DTIAS API
-	// For now, return not supported
-	return nil, fmt.Errorf("updating DTIAS servers is not yet implemented")
+	// Prepare update request with only updatable fields
+	updateReq := ServerUpdateRequest{
+		Metadata: make(map[string]string),
+	}
+
+	// Extract hostname from extensions if provided
+	if resource.Extensions != nil {
+		if hostname, ok := resource.Extensions["dtias.hostname"].(string); ok && hostname != "" {
+			updateReq.Hostname = hostname
+		}
+
+		// Extract custom metadata from extensions
+		if metadata, ok := resource.Extensions["dtias.metadata"].(map[string]string); ok {
+			updateReq.Metadata = metadata
+		}
+	}
+
+	// Use description from resource if provided
+	if resource.Description != "" {
+		updateReq.Description = resource.Description
+	}
+
+	// Update server metadata via DTIAS API
+	// Note: DTIAS uses PUT /v2/inventory/servers/{id}/metadata
+	path := fmt.Sprintf("/v2/inventory/servers/%s/metadata", id)
+	resp, err := a.client.doRequest(ctx, http.MethodPut, path, updateReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update server metadata: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
+
+	// Parse updated server response
+	var server Server
+	if err := a.client.parseResponse(resp, &server); err != nil {
+		return nil, fmt.Errorf("failed to parse update response: %w", err)
+	}
+
+	// Transform to O2-IMS resource
+	updatedResource := a.transformServerToResource(&server)
+
+	a.logger.Info("updated resource metadata",
+		zap.String("id", updatedResource.ResourceID),
+		zap.String("hostname", server.Hostname))
+
+	return updatedResource, nil
 }
 
 // DeleteResource deprovisions a physical server.
