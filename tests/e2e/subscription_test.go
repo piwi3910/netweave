@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -226,4 +227,345 @@ func TestSubscriptionNotifications(t *testing.T) {
 			zap.String("resourceType", event.ResourceType),
 		)
 	}
+}
+
+// Additional comprehensive E2E tests for subscription workflow
+
+// TestSubscriptionFiltering tests subscription filtering by resource attributes.
+func TestSubscriptionFiltering(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	fw, err := e2e.NewTestFramework(e2e.DefaultOptions())
+	require.NoError(t, err)
+	defer fw.Cleanup()
+
+	// Create two webhook servers for two different subscriptions
+	webhook1 := e2e.NewWebhookServer(fw.Logger.Named("webhook1"))
+	require.NoError(t, webhook1.Start())
+	defer func() {
+		if err := webhook1.Stop(); err != nil {
+			t.Logf("Failed to stop webhook1: %v", err)
+		}
+	}()
+
+	webhook2 := e2e.NewWebhookServer(fw.Logger.Named("webhook2"))
+	require.NoError(t, webhook2.Start())
+	defer func() {
+		if err := webhook2.Stop(); err != nil {
+			t.Logf("Failed to stop webhook2: %v", err)
+		}
+	}()
+
+	fw.Logger.Info("Created webhook servers",
+		zap.String("webhook1URL", webhook1.URL()),
+		zap.String("webhook2URL", webhook2.URL()),
+	)
+
+	// Subscription 1: Filter for Node resources
+	sub1 := map[string]any{
+		"callback": webhook1.URL(),
+		"filter":   "(resourceType==Node)",
+	}
+	reqBody1, err := json.Marshal(sub1)
+	require.NoError(t, err)
+
+	url := fw.GatewayURL + e2e.APIPathSubscriptions
+	resp1, err := fw.APIClient.Post(url, "application/json", bytes.NewReader(reqBody1))
+	require.NoError(t, err)
+	defer func() {
+		if err := resp1.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
+	require.Equal(t, http.StatusCreated, resp1.StatusCode)
+
+	// Subscription 2: Filter for Namespace resources
+	sub2 := map[string]any{
+		"callback": webhook2.URL(),
+		"filter":   "(resourceType==Namespace)",
+	}
+	reqBody2, err := json.Marshal(sub2)
+	require.NoError(t, err)
+
+	resp2, err := fw.APIClient.Post(url, "application/json", bytes.NewReader(reqBody2))
+	require.NoError(t, err)
+	defer func() {
+		if err := resp2.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
+	require.Equal(t, http.StatusCreated, resp2.StatusCode)
+
+	fw.Logger.Info("Created two subscriptions with different filters")
+
+	// Clear any existing events
+	webhook1.ClearEvents()
+	webhook2.ClearEvents()
+
+	// TODO: Trigger Kubernetes events to test filtering
+	// This requires creating actual Kubernetes resources
+	// For now, verify subscriptions were created correctly
+
+	time.Sleep(2 * time.Second)
+
+	fw.Logger.Info("Subscription filtering test completed")
+}
+
+// TestConcurrentSubscriptions tests multiple concurrent subscriptions.
+func TestConcurrentSubscriptions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	fw, err := e2e.NewTestFramework(e2e.DefaultOptions())
+	require.NoError(t, err)
+	defer fw.Cleanup()
+
+	const numSubscriptions = 5
+	webhooks := make([]*e2e.WebhookServer, numSubscriptions)
+	subscriptionIDs := make([]string, numSubscriptions)
+
+	// Create multiple subscriptions concurrently
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	errors := make([]error, 0)
+
+	for i := 0; i < numSubscriptions; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+
+			// Create webhook server
+			webhook := e2e.NewWebhookServer(fw.Logger.Named(fmt.Sprintf("webhook%d", idx)))
+			if err := webhook.Start(); err != nil {
+				mu.Lock()
+				errors = append(errors, fmt.Errorf("failed to start webhook%d: %w", idx, err))
+				mu.Unlock()
+				return
+			}
+			webhooks[idx] = webhook
+
+			// Create subscription
+			subscription := map[string]any{
+				"callback":               webhook.URL(),
+				"consumerSubscriptionId": fmt.Sprintf("concurrent-sub-%d", idx),
+				"filter":                 "(resourceType==Node)",
+			}
+
+			reqBody, err := json.Marshal(subscription)
+			if err != nil {
+				mu.Lock()
+				errors = append(errors, fmt.Errorf("failed to marshal subscription%d: %w", idx, err))
+				mu.Unlock()
+				return
+			}
+
+			url := fw.GatewayURL + e2e.APIPathSubscriptions
+			resp, err := fw.APIClient.Post(url, "application/json", bytes.NewReader(reqBody))
+			if err != nil {
+				mu.Lock()
+				errors = append(errors, fmt.Errorf("failed to create subscription%d: %w", idx, err))
+				mu.Unlock()
+				return
+			}
+			defer func() {
+				if err := resp.Body.Close(); err != nil {
+					t.Logf("Failed to close response body: %v", err)
+				}
+			}()
+
+			if resp.StatusCode != http.StatusCreated {
+				mu.Lock()
+				errors = append(errors, fmt.Errorf("subscription%d got status %d", idx, resp.StatusCode))
+				mu.Unlock()
+				return
+			}
+
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				mu.Lock()
+				errors = append(errors, fmt.Errorf("failed to read subscription%d response: %w", idx, err))
+				mu.Unlock()
+				return
+			}
+
+			var createdSub map[string]any
+			if err := json.Unmarshal(body, &createdSub); err != nil {
+				mu.Lock()
+				errors = append(errors, fmt.Errorf("failed to unmarshal subscription%d response: %w", idx, err))
+				mu.Unlock()
+				return
+			}
+
+			subID, ok := createdSub["subscriptionId"].(string)
+			if !ok || subID == "" {
+				mu.Lock()
+				errors = append(errors, fmt.Errorf("subscription%d: invalid subscriptionId", idx))
+				mu.Unlock()
+				return
+			}
+
+			mu.Lock()
+			subscriptionIDs[idx] = subID
+			mu.Unlock()
+
+			fw.Logger.Info("Created subscription",
+				zap.Int("index", idx),
+				zap.String("subscriptionId", subID),
+			)
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Check for errors
+	require.Empty(t, errors, "Errors during concurrent subscription creation: %v", errors)
+
+	// Verify all subscriptions were created
+	for i, subID := range subscriptionIDs {
+		assert.NotEmpty(t, subID, "Subscription %d ID is empty", i)
+	}
+
+	// Cleanup webhooks
+	for i, webhook := range webhooks {
+		if webhook != nil {
+			if err := webhook.Stop(); err != nil {
+				t.Logf("Failed to stop webhook%d: %v", i, err)
+			}
+		}
+	}
+
+	fw.Logger.Info("Concurrent subscriptions test completed",
+		zap.Int("created", numSubscriptions),
+	)
+}
+
+// TestSubscriptionInvalidCallback tests error handling for invalid callback URLs.
+func TestSubscriptionInvalidCallback(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	fw, err := e2e.NewTestFramework(e2e.DefaultOptions())
+	require.NoError(t, err)
+	defer fw.Cleanup()
+
+	tests := []struct {
+		name         string
+		callback     string
+		expectStatus int
+	}{
+		{
+			name:         "invalid URL format",
+			callback:     "not-a-valid-url",
+			expectStatus: http.StatusBadRequest,
+		},
+		{
+			name:         "empty callback",
+			callback:     "",
+			expectStatus: http.StatusBadRequest,
+		},
+		{
+			name:         "non-http scheme",
+			callback:     "ftp://example.com/webhook",
+			expectStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subscription := map[string]any{
+				"callback": tt.callback,
+				"filter":   "(resourceType==Node)",
+			}
+
+			reqBody, err := json.Marshal(subscription)
+			require.NoError(t, err)
+
+			url := fw.GatewayURL + e2e.APIPathSubscriptions
+			resp, err := fw.APIClient.Post(url, "application/json", bytes.NewReader(reqBody))
+			require.NoError(t, err)
+			defer func() {
+				if err := resp.Body.Close(); err != nil {
+					t.Logf("Failed to close response body: %v", err)
+				}
+			}()
+
+			assert.Equal(t, tt.expectStatus, resp.StatusCode,
+				"Expected status %d for invalid callback %q", tt.expectStatus, tt.callback)
+
+			fw.Logger.Info("Invalid callback test passed",
+				zap.String("testCase", tt.name),
+				zap.Int("statusCode", resp.StatusCode),
+			)
+		})
+	}
+}
+
+// TestSubscriptionDeletionStopsNotifications tests that deleting a subscription stops notifications.
+func TestSubscriptionDeletionStopsNotifications(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	t.Skip("Requires triggering Kubernetes events - will implement with resource creation")
+
+	fw, err := e2e.NewTestFramework(e2e.DefaultOptions())
+	require.NoError(t, err)
+	defer fw.Cleanup()
+
+	// Create subscription
+	subscription := map[string]any{
+		"callback": fw.WebhookServer.URL(),
+		"filter":   "(resourceType==Node)",
+	}
+
+	reqBody, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	url := fw.GatewayURL + e2e.APIPathSubscriptions
+	resp, err := fw.APIClient.Post(url, "application/json", bytes.NewReader(reqBody))
+	require.NoError(t, err)
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
+
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var createdSub map[string]any
+	err = json.Unmarshal(body, &createdSub)
+	require.NoError(t, err)
+
+	subscriptionID := createdSub["subscriptionId"].(string)
+	require.NotEmpty(t, subscriptionID)
+
+	fw.WebhookServer.ClearEvents()
+
+	// TODO: Trigger an event - should receive notification
+
+	// Delete subscription
+	deleteURL := fw.GatewayURL + fmt.Sprintf(e2e.APIPathSubscriptionByID, subscriptionID)
+	req, err := http.NewRequestWithContext(fw.Context, http.MethodDelete, deleteURL, nil)
+	require.NoError(t, err)
+
+	delResp, err := fw.APIClient.Do(req)
+	require.NoError(t, err)
+	defer func() {
+		if err := delResp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
+
+	require.Equal(t, http.StatusNoContent, delResp.StatusCode)
+
+	// TODO: Trigger another event - should NOT receive notification
+
+	fw.Logger.Info("Subscription deletion test completed")
 }
