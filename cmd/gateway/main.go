@@ -43,6 +43,8 @@ import (
 	"github.com/piwi3910/netweave/internal/adapters/kubernetes"
 	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/piwi3910/netweave/internal/config"
+	"github.com/piwi3910/netweave/internal/dms/adapters/helm"
+	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/server"
 	"github.com/piwi3910/netweave/internal/storage"
@@ -275,6 +277,12 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		logger.Info("multi-tenancy and RBAC enabled")
 	} else {
 		logger.Info("multi-tenancy is disabled")
+	}
+
+	// Initialize DMS subsystem
+	if err := initializeDMS(cfg, srv, k8sAdapter, logger); err != nil {
+		logger.Error("failed to initialize DMS subsystem", zap.Error(err))
+		return nil, fmt.Errorf("failed to initialize DMS: %w", err)
 	}
 
 	return components, nil
@@ -572,6 +580,77 @@ func initializeKubernetesAdapter(cfg *config.Config, logger *zap.Logger) (*kuber
 
 	logger.Info("Kubernetes connectivity verified")
 	return adapter, nil
+}
+
+// initializeDMS initializes the DMS (Deployment Management Service) subsystem.
+// It creates a DMS registry and registers available deployment management adapters.
+//
+// Currently registered adapters:
+//   - Helm: Package manager for Kubernetes applications
+//
+// Future adapters to be added:
+//   - ArgoCD: GitOps continuous delivery tool
+//   - Flux: GitOps toolkit for Kubernetes
+//   - Crossplane: Infrastructure-as-Code tool
+//   - Kustomize: Template-free Kubernetes configuration
+//   - ONAP LCM: Open Network Automation Platform lifecycle manager
+//   - OSM LCM: Open Source MANO lifecycle manager
+//
+// Parameters:
+//   - cfg: Application configuration
+//   - srv: Server instance to configure with DMS routes
+//   - k8sAdapter: Kubernetes adapter for cluster access
+//   - logger: Structured logger
+//
+// Returns an error if DMS initialization fails.
+func initializeDMS(
+	cfg *config.Config,
+	srv *server.Server,
+	k8sAdapter *kubernetes.Adapter,
+	logger *zap.Logger,
+) error {
+	// Create DMS registry with default configuration
+	dmsReg := dmsregistry.NewRegistry(logger, nil)
+
+	// Initialize Helm adapter
+	helmConfig := &helm.Config{
+		Kubeconfig: cfg.Kubernetes.ConfigPath,
+		Namespace:  cfg.Kubernetes.Namespace,
+		Timeout:    30 * time.Second,
+	}
+
+	helmAdapter, err := helm.NewAdapter(helmConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create Helm adapter: %w", err)
+	}
+
+	// Register Helm adapter as the default DMS adapter
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	helmAdapterConfig := map[string]interface{}{
+		"namespace": helmConfig.Namespace,
+		"timeout":   helmConfig.Timeout,
+	}
+
+	if err := dmsReg.Register(ctx, "helm", "helm", helmAdapter, helmAdapterConfig, true); err != nil {
+		return fmt.Errorf("failed to register Helm adapter: %w", err)
+	}
+
+	logger.Info("DMS adapters registered",
+		zap.Int("adapter_count", 1),
+		zap.String("default_adapter", "helm"),
+	)
+
+	// Setup DMS routes and handlers
+	srv.SetupDMS(dmsReg)
+
+	logger.Info("DMS subsystem initialized successfully",
+		zap.String("base_path", "/o2dms/v1"),
+		zap.Int("endpoints", 4), // deploymentLifecycle, nfDeployments, nfDeploymentDescriptors, subscriptions
+	)
+
+	return nil
 }
 
 // initializeHealthChecker creates and configures the health checker.
