@@ -1,7 +1,10 @@
 package gcp_test
 
 import (
+	"context"
 	"testing"
+
+	gcpadapter "github.com/piwi3910/netweave/internal/adapters/gcp"
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
@@ -197,6 +200,180 @@ func TestExtractZoneAndName(t *testing.T) {
 				_, zoneOk := tt.resource.Extensions["gcp.zone"].(string)
 				_, nameOk := tt.resource.Extensions["gcp.name"].(string)
 				assert.False(t, zoneOk && nameOk, "Should not have both valid zone and name")
+			}
+		})
+	}
+}
+
+// TestGetResource tests the GetResource method.
+func TestGetResource(t *testing.T) {
+	tests := []struct {
+		name       string
+		resourceID string
+		wantErr    bool
+	}{
+		{
+			name:       "valid instance ID",
+			resourceID: "gcp-instance-us-central1-a-my-instance",
+			wantErr:    true,
+		},
+		{
+			name:       "empty resource ID",
+			resourceID: "",
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := gcpadapter.New(&gcpadapter.Config{
+				ProjectID: "test-project",
+				Region:    "us-central1",
+				OCloudID:  "test-cloud",
+			})
+			require.NoError(t, err)
+
+			resource, err := adp.GetResource(context.Background(), tt.resourceID)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, resource)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, resource)
+			}
+		})
+	}
+}
+
+// TestCreateResource tests the CreateResource method.
+func TestCreateResource(t *testing.T) {
+	tests := []struct {
+		name     string
+		resource *adapter.Resource
+		wantErr  bool
+	}{
+		{
+			name: "missing resource type ID",
+			resource: &adapter.Resource{
+				Description: "Test instance",
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid resource",
+			resource: &adapter.Resource{
+				ResourceTypeID: "gcp-machine-type-n1-standard-1",
+				Description:    "Test instance",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := gcpadapter.New(&gcpadapter.Config{
+				ProjectID: "test-project",
+				Region:    "us-central1",
+				OCloudID:  "test-cloud",
+			})
+			require.NoError(t, err)
+
+			created, err := adp.CreateResource(context.Background(), tt.resource)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, created)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, created)
+			}
+		})
+	}
+}
+
+// TestUpdateResource tests the UpdateResource method.
+func TestUpdateResource(t *testing.T) {
+	tests := []struct {
+		name       string
+		resourceID string
+		resource   *adapter.Resource
+		wantErr    bool
+	}{
+		{
+			name:       "empty resource ID",
+			resourceID: "",
+			resource: &adapter.Resource{
+				Description: "Updated instance",
+			},
+			wantErr: true,
+		},
+		{
+			name:       "valid update",
+			resourceID: "gcp-instance-us-central1-a-my-instance",
+			resource: &adapter.Resource{
+				Description: "Updated instance",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := gcpadapter.New(&gcpadapter.Config{
+				ProjectID: "test-project",
+				Region:    "us-central1",
+				OCloudID:  "test-cloud",
+			})
+			require.NoError(t, err)
+
+			updated, err := adp.UpdateResource(context.Background(), tt.resourceID, tt.resource)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, updated)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, updated)
+			}
+		})
+	}
+}
+
+// TestDeleteResource tests the DeleteResource method.
+func TestDeleteResource(t *testing.T) {
+	tests := []struct {
+		name       string
+		resourceID string
+		wantErr    bool
+	}{
+		{
+			name:       "empty resource ID",
+			resourceID: "",
+			wantErr:    true,
+		},
+		{
+			name:       "valid instance ID",
+			resourceID: "gcp-instance-us-central1-a-my-instance",
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := gcpadapter.New(&gcpadapter.Config{
+				ProjectID: "test-project",
+				Region:    "us-central1",
+				OCloudID:  "test-cloud",
+			})
+			require.NoError(t, err)
+
+			err = adp.DeleteResource(context.Background(), tt.resourceID)
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
