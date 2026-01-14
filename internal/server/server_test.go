@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/piwi3910/netweave/internal/config"
 	"github.com/piwi3910/netweave/internal/storage"
 )
@@ -156,6 +157,18 @@ func (m *mockAuthStore) Ping(_ context.Context) error {
 }
 
 func (m *mockAuthStore) Close() error {
+	return nil
+}
+
+func (m *mockAuthStore) IncrementUsage(_ context.Context, _, _ string) error {
+	return nil
+}
+
+func (m *mockAuthStore) DecrementUsage(_ context.Context, _, _ string) error {
+	return nil
+}
+
+func (m *mockAuthStore) LogEvent(_ context.Context, _ *auth.AuditEvent) error {
 	return nil
 }
 
