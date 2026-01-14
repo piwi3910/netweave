@@ -23,6 +23,43 @@ import (
 	"github.com/piwi3910/netweave/internal/controllers"
 )
 
+// addAndReadMessage is a helper that adds a message to Redis stream and reads it back.
+// Returns the read message.
+func addAndReadMessage(
+	ctx context.Context,
+	t *testing.T,
+	rdb *redis.Client,
+	consumerName string,
+	eventData interface{},
+) redis.XMessage {
+	t.Helper()
+
+	// Add message to stream
+	messageID, err := rdb.XAdd(ctx, &redis.XAddArgs{
+		Stream: workers.EventStreamKey,
+		Values: map[string]interface{}{
+			"event": eventData,
+		},
+	}).Result()
+	require.NoError(t, err)
+
+	// Read to add to pending
+	streams, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    workers.ConsumerGroup,
+		Consumer: consumerName,
+		Streams:  []string{workers.EventStreamKey, ">"},
+		Count:    1,
+	}).Result()
+	require.NoError(t, err)
+	require.Len(t, streams, 1)
+	require.Len(t, streams[0].Messages, 1)
+
+	msg := streams[0].Messages[0]
+	assert.Equal(t, messageID, msg.ID)
+
+	return msg
+}
+
 func TestNewWebhookWorker(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -597,57 +634,17 @@ func TestWebhookWorker_HandleMessage(t *testing.T) {
 
 	t.Run("handles invalid event data", func(t *testing.T) {
 		// Add message with invalid data
-		messageID, err := rdb.XAdd(ctx, &redis.XAddArgs{
-			Stream: workers.EventStreamKey,
-			Values: map[string]interface{}{
-				"event": 12345, // Invalid type
-			},
-		}).Result()
-		require.NoError(t, err)
+		msg := addAndReadMessage(ctx, t, rdb, "test-consumer-2", 12345)
 
-		// Read to add to pending
-		streams, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
-			Group:    workers.ConsumerGroup,
-			Consumer: "test-consumer-2",
-			Streams:  []string{workers.EventStreamKey, ">"},
-			Count:    1,
-		}).Result()
-		require.NoError(t, err)
-		require.Len(t, streams, 1)
-		require.Len(t, streams[0].Messages, 1)
-
-		msg := streams[0].Messages[0]
-		assert.Equal(t, messageID, msg.ID)
-
-		err = worker.HandleMessage(ctx, "test-consumer-2", msg)
+		err := worker.HandleMessage(ctx, "test-consumer-2", msg)
 		require.NoError(t, err) // Should succeed (acknowledged)
 	})
 
 	t.Run("handles malformed JSON", func(t *testing.T) {
 		// Add message with malformed JSON
-		messageID, err := rdb.XAdd(ctx, &redis.XAddArgs{
-			Stream: workers.EventStreamKey,
-			Values: map[string]interface{}{
-				"event": `{invalid json}`,
-			},
-		}).Result()
-		require.NoError(t, err)
+		msg := addAndReadMessage(ctx, t, rdb, "test-consumer-3", `{invalid json}`)
 
-		// Read to add to pending
-		streams, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
-			Group:    workers.ConsumerGroup,
-			Consumer: "test-consumer-3",
-			Streams:  []string{workers.EventStreamKey, ">"},
-			Count:    1,
-		}).Result()
-		require.NoError(t, err)
-		require.Len(t, streams, 1)
-		require.Len(t, streams[0].Messages, 1)
-
-		msg := streams[0].Messages[0]
-		assert.Equal(t, messageID, msg.ID)
-
-		err = worker.HandleMessage(ctx, "test-consumer-3", msg)
+		err := worker.HandleMessage(ctx, "test-consumer-3", msg)
 		require.NoError(t, err) // Should succeed (acknowledged)
 	})
 

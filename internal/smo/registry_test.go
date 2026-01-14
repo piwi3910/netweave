@@ -14,6 +14,20 @@ import (
 	"go.uber.org/zap"
 )
 
+// getDefaultPlugin safely retrieves the default plugin from a registry.
+func getDefaultPlugin(registry *smo.Registry) (smo.Plugin, error) {
+	registry.Mu.RLock()
+	defer registry.Mu.RUnlock()
+	if registry.DefaultPlugin == "" {
+		return nil, errors.New("no default plugin")
+	}
+	p, ok := registry.Plugins[registry.DefaultPlugin]
+	if !ok {
+		return nil, errors.New("default plugin not found")
+	}
+	return p, nil
+}
+
 // mockPlugin implements the smo.Plugin interface for testing.
 type mockPlugin struct {
 	mu           sync.RWMutex
@@ -325,18 +339,7 @@ func TestRegistry_Unregister(t *testing.T) {
 		require.NoError(t, err)
 
 		// plugin2 should become default
-		defaultPlugin, err := func() (smo.Plugin, error) {
-			registry.Mu.RLock()
-			defer registry.Mu.RUnlock()
-			if registry.DefaultPlugin == "" {
-				return nil, errors.New("no default plugin")
-			}
-			p, ok := registry.Plugins[registry.DefaultPlugin]
-			if !ok {
-				return nil, errors.New("default plugin not found")
-			}
-			return p, nil
-		}()
+		defaultPlugin, err := getDefaultPlugin(registry)
 		require.NoError(t, err)
 		assert.Equal(t, "plugin2", defaultPlugin.Metadata().Name)
 	})
@@ -465,18 +468,7 @@ func TestRegistry_SetDefault(t *testing.T) {
 		err = registry.SetDefault("plugin2")
 		require.NoError(t, err)
 
-		got, err := func() (smo.Plugin, error) {
-			registry.Mu.RLock()
-			defer registry.Mu.RUnlock()
-			if registry.DefaultPlugin == "" {
-				return nil, errors.New("no default plugin")
-			}
-			p, ok := registry.Plugins[registry.DefaultPlugin]
-			if !ok {
-				return nil, errors.New("default plugin not found")
-			}
-			return p, nil
-		}()
+		got, err := getDefaultPlugin(registry)
 		require.NoError(t, err)
 		assert.Equal(t, "plugin2", got.Metadata().Name)
 	})

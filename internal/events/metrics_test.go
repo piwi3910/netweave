@@ -5,10 +5,72 @@ import (
 
 	"github.com/piwi3910/netweave/internal/events"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// testGaugeMetricFloat64 is a helper for testing gauge metrics that record float64 values.
+// It tests: setting values, zero values, and large values.
+func testGaugeMetricFloat64(
+	t *testing.T,
+	recordFunc func(float64),
+	gauge prometheus.Gauge,
+	val1, val2, largeVal float64,
+) {
+	t.Helper()
+
+	t.Run("records values", func(t *testing.T) {
+		recordFunc(val1)
+		result := testutil.ToFloat64(gauge)
+		assert.Equal(t, val1, result)
+
+		recordFunc(val2)
+		result = testutil.ToFloat64(gauge)
+		assert.Equal(t, val2, result)
+	})
+
+	t.Run("records zero value", func(t *testing.T) {
+		recordFunc(0.0)
+		result := testutil.ToFloat64(gauge)
+		assert.Equal(t, 0.0, result)
+	})
+
+	t.Run("handles large values", func(t *testing.T) {
+		recordFunc(largeVal)
+		result := testutil.ToFloat64(gauge)
+		assert.Equal(t, largeVal, result)
+	})
+}
+
+// testGaugeMetricInt is a helper for testing gauge metrics that record int values.
+// It tests: setting values, zero values, and large values.
+func testGaugeMetricInt(t *testing.T, recordFunc func(int), gauge prometheus.Gauge, val1, val2, largeVal int) {
+	t.Helper()
+
+	t.Run("records values", func(t *testing.T) {
+		recordFunc(val1)
+		result := testutil.ToFloat64(gauge)
+		assert.Equal(t, float64(val1), result)
+
+		recordFunc(val2)
+		result = testutil.ToFloat64(gauge)
+		assert.Equal(t, float64(val2), result)
+	})
+
+	t.Run("records zero value", func(t *testing.T) {
+		recordFunc(0)
+		result := testutil.ToFloat64(gauge)
+		assert.Equal(t, 0.0, result)
+	})
+
+	t.Run("handles large values", func(t *testing.T) {
+		recordFunc(largeVal)
+		result := testutil.ToFloat64(gauge)
+		assert.Equal(t, float64(largeVal), result)
+	})
+}
 
 // TestRecordEventGenerated tests the events.RecordEventGenerated function.
 func TestRecordEventGenerated(t *testing.T) {
@@ -29,27 +91,7 @@ func TestRecordEventGenerated(t *testing.T) {
 
 // TestRecordQueueDepth tests the events.RecordQueueDepth function.
 func TestRecordQueueDepth(t *testing.T) {
-	t.Run("records queue depth", func(t *testing.T) {
-		events.RecordQueueDepth(10.0)
-		depth := testutil.ToFloat64(events.EventsQueueDepth)
-		assert.Equal(t, 10.0, depth)
-
-		events.RecordQueueDepth(25.0)
-		depth = testutil.ToFloat64(events.EventsQueueDepth)
-		assert.Equal(t, 25.0, depth)
-	})
-
-	t.Run("records zero depth", func(t *testing.T) {
-		events.RecordQueueDepth(0.0)
-		depth := testutil.ToFloat64(events.EventsQueueDepth)
-		assert.Equal(t, 0.0, depth)
-	})
-
-	t.Run("handles large depths", func(t *testing.T) {
-		events.RecordQueueDepth(1000000.0)
-		depth := testutil.ToFloat64(events.EventsQueueDepth)
-		assert.Equal(t, 1000000.0, depth)
-	})
+	testGaugeMetricFloat64(t, events.RecordQueueDepth, events.EventsQueueDepth, 10.0, 25.0, 1000000.0)
 }
 
 // TestRecordNotificationDelivered tests the events.RecordNotificationDelivered function.
@@ -126,50 +168,10 @@ func TestRecordCircuitBreakerState(t *testing.T) {
 
 // TestRecordNotificationWorkersActive tests the RecordNotificationWorkersActive function.
 func TestRecordNotificationWorkersActive(t *testing.T) {
-	t.Run("records worker count", func(t *testing.T) {
-		events.RecordNotificationWorkersActive(5)
-		count := testutil.ToFloat64(events.NotificationWorkersActive)
-		assert.Equal(t, 5.0, count)
-
-		events.RecordNotificationWorkersActive(10)
-		count = testutil.ToFloat64(events.NotificationWorkersActive)
-		assert.Equal(t, 10.0, count)
-	})
-
-	t.Run("records zero workers", func(t *testing.T) {
-		events.RecordNotificationWorkersActive(0)
-		count := testutil.ToFloat64(events.NotificationWorkersActive)
-		assert.Equal(t, 0.0, count)
-	})
-
-	t.Run("handles large worker counts", func(t *testing.T) {
-		events.RecordNotificationWorkersActive(100)
-		count := testutil.ToFloat64(events.NotificationWorkersActive)
-		assert.Equal(t, 100.0, count)
-	})
+	testGaugeMetricInt(t, events.RecordNotificationWorkersActive, events.NotificationWorkersActive, 5, 10, 100)
 }
 
 // TestRecordFailedDeliveries tests the RecordFailedDeliveries function.
 func TestRecordFailedDeliveries(t *testing.T) {
-	t.Run("records failed deliveries", func(t *testing.T) {
-		events.RecordFailedDeliveries(3)
-		count := testutil.ToFloat64(events.NotificationFailedCurrent)
-		assert.Equal(t, 3.0, count)
-
-		events.RecordFailedDeliveries(7)
-		count = testutil.ToFloat64(events.NotificationFailedCurrent)
-		assert.Equal(t, 7.0, count)
-	})
-
-	t.Run("records zero failures", func(t *testing.T) {
-		events.RecordFailedDeliveries(0)
-		count := testutil.ToFloat64(events.NotificationFailedCurrent)
-		assert.Equal(t, 0.0, count)
-	})
-
-	t.Run("handles large failure counts", func(t *testing.T) {
-		events.RecordFailedDeliveries(1000)
-		count := testutil.ToFloat64(events.NotificationFailedCurrent)
-		assert.Equal(t, 1000.0, count)
-	})
+	testGaugeMetricInt(t, events.RecordFailedDeliveries, events.NotificationFailedCurrent, 3, 7, 1000)
 }
