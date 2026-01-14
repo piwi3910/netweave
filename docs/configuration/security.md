@@ -8,6 +8,7 @@ TLS, mTLS, authentication, secrets management, CORS, and rate limiting configura
 - [mTLS (Mutual TLS)](#mtls-mutual-tls)
 - [Secrets Management](#secrets-management)
 - [CORS Configuration](#cors-configuration)
+- [Security Headers](#security-headers)
 - [Rate Limiting](#rate-limiting)
 - [Multi-Tenancy Security](#multi-tenancy-security)
 - [Certificate Management](#certificate-management)
@@ -375,6 +376,253 @@ security:
     - POST
   allow_credentials: false
 ```
+
+## Security Headers
+
+HTTP response headers that provide defense-in-depth protection against common web attacks.
+
+### Overview
+
+The gateway automatically adds security headers to all HTTP responses to protect against:
+- **MIME-sniffing attacks**: X-Content-Type-Options
+- **Clickjacking**: X-Frame-Options
+- **XSS attacks**: X-XSS-Protection (legacy browsers)
+- **Resource injection**: Content-Security-Policy
+- **Protocol downgrade**: Strict-Transport-Security (HSTS)
+- **Information leakage**: Referrer-Policy, Server header removal
+
+### Configuration
+
+```yaml
+security:
+  security_headers:
+    enabled: true
+    hsts_max_age: 31536000  # 1 year in seconds
+    hsts_include_subdomains: true
+    hsts_preload: false
+    content_security_policy: "default-src 'none'; frame-ancestors 'none'"
+    frame_options: "DENY"
+    referrer_policy: "strict-origin-when-cross-origin"
+```
+
+### Field Reference
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `true` | Enable security headers |
+| `hsts_max_age` | int | `31536000` | HSTS max-age in seconds (1 year) |
+| `hsts_include_subdomains` | bool | `true` | Include subdomains in HSTS |
+| `hsts_preload` | bool | `false` | Enable HSTS preload (requires 2 years max-age) |
+| `content_security_policy` | string | `default-src 'none'...` | CSP policy |
+| `frame_options` | string | `"DENY"` | X-Frame-Options value |
+| `referrer_policy` | string | `strict-origin-when-cross-origin` | Referrer-Policy value |
+
+### Headers Added
+
+When enabled, these headers are added to all responses:
+
+```http
+HTTP/1.1 200 OK
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Referrer-Policy: strict-origin-when-cross-origin
+Cache-Control: no-store
+Permissions-Policy: geolocation=(), microphone=(), camera=()
+Server:
+```
+
+### Header Details
+
+#### X-Content-Type-Options
+
+Prevents browsers from MIME-sniffing responses.
+
+```yaml
+# Always set (cannot be configured)
+X-Content-Type-Options: nosniff
+```
+
+**Protection**: Forces browsers to respect the `Content-Type` header, preventing execution of scripts disguised as other content types.
+
+#### X-Frame-Options
+
+Prevents clickjacking by controlling iframe embedding.
+
+```yaml
+security_headers:
+  frame_options: "DENY"  # or "SAMEORIGIN"
+```
+
+**Options:**
+- `DENY`: Cannot be embedded in any iframe
+- `SAMEORIGIN`: Can only be embedded by same origin
+
+#### X-XSS-Protection
+
+Enables XSS filter in legacy browsers (modern browsers have built-in protection).
+
+```yaml
+# Always set (cannot be configured)
+X-XSS-Protection: 1; mode=block
+```
+
+#### Content-Security-Policy (CSP)
+
+Restricts which resources can be loaded, preventing XSS and injection attacks.
+
+```yaml
+security_headers:
+  content_security_policy: "default-src 'none'; frame-ancestors 'none'"
+```
+
+**Default Policy:**
+- `default-src 'none'`: Block all resources by default (API server needs no assets)
+- `frame-ancestors 'none'`: Prevent embedding in iframes (redundant with X-Frame-Options)
+
+**Custom Policies:**
+If you serve additional content (unlikely for pure API), customize the CSP:
+```yaml
+content_security_policy: "default-src 'self'; script-src 'self'; img-src 'self'"
+```
+
+#### Strict-Transport-Security (HSTS)
+
+Forces browsers to use HTTPS, preventing protocol downgrade attacks.
+
+```yaml
+security_headers:
+  hsts_max_age: 31536000  # 1 year
+  hsts_include_subdomains: true
+  hsts_preload: false
+```
+
+**Only set when TLS is enabled** (`tls.enabled: true`).
+
+**HSTS Preload:**
+To submit your domain to the HSTS preload list:
+1. Set `hsts_max_age: 63072000` (2 years minimum)
+2. Set `hsts_include_subdomains: true`
+3. Set `hsts_preload: true`
+4. Submit to https://hstspreload.org/
+
+#### Referrer-Policy
+
+Controls how much referrer information is sent with requests.
+
+```yaml
+security_headers:
+  referrer_policy: "strict-origin-when-cross-origin"
+```
+
+**Options:**
+- `no-referrer`: Never send referrer
+- `strict-origin`: Send origin only
+- `strict-origin-when-cross-origin`: Full URL for same-origin, origin only for cross-origin (default)
+
+#### Server Header
+
+Removed to prevent information disclosure.
+
+```yaml
+# Always removed (cannot be configured)
+Server:
+```
+
+Prevents attackers from identifying the server software and version.
+
+### Environment Overrides
+
+```bash
+export NETWEAVE_SECURITY_SECURITY_HEADERS_ENABLED=true
+export NETWEAVE_SECURITY_SECURITY_HEADERS_HSTS_MAX_AGE=31536000
+export NETWEAVE_SECURITY_SECURITY_HEADERS_HSTS_INCLUDE_SUBDOMAINS=true
+export NETWEAVE_SECURITY_SECURITY_HEADERS_HSTS_PRELOAD=false
+export NETWEAVE_SECURITY_SECURITY_HEADERS_CONTENT_SECURITY_POLICY="default-src 'none'"
+export NETWEAVE_SECURITY_SECURITY_HEADERS_FRAME_OPTIONS="DENY"
+export NETWEAVE_SECURITY_SECURITY_HEADERS_REFERRER_POLICY="strict-origin-when-cross-origin"
+```
+
+### Examples
+
+**Development (TLS disabled):**
+```yaml
+security:
+  security_headers:
+    enabled: true
+    hsts_max_age: 31536000
+    hsts_include_subdomains: false  # No subdomains for localhost
+    hsts_preload: false
+    content_security_policy: "default-src 'none'; frame-ancestors 'none'"
+    frame_options: "DENY"
+    referrer_policy: "strict-origin-when-cross-origin"
+```
+
+**Staging:**
+```yaml
+security:
+  security_headers:
+    enabled: true
+    hsts_max_age: 31536000  # 1 year
+    hsts_include_subdomains: true
+    hsts_preload: false
+    content_security_policy: "default-src 'none'; frame-ancestors 'none'"
+    frame_options: "DENY"
+    referrer_policy: "strict-origin-when-cross-origin"
+```
+
+**Production (with HSTS preload):**
+```yaml
+security:
+  security_headers:
+    enabled: true
+    hsts_max_age: 63072000  # 2 years (required for preload)
+    hsts_include_subdomains: true
+    hsts_preload: true  # Enable HSTS preload list
+    content_security_policy: "default-src 'none'; frame-ancestors 'none'"
+    frame_options: "DENY"
+    referrer_policy: "strict-origin-when-cross-origin"
+```
+
+### Testing Security Headers
+
+```bash
+# Check all headers
+curl -I https://localhost:8443/o2ims/v1/resourcePools
+
+# Expected output:
+HTTP/1.1 200 OK
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Referrer-Policy: strict-origin-when-cross-origin
+Cache-Control: no-store
+Permissions-Policy: geolocation=(), microphone=(), camera=()
+Server:
+
+# Use online security scanners
+# - Mozilla Observatory: https://observatory.mozilla.org/
+# - Security Headers: https://securityheaders.com/
+```
+
+### Disabling Security Headers
+
+**Not recommended**, but possible for specific testing scenarios:
+
+```yaml
+security:
+  security_headers:
+    enabled: false
+```
+
+When disabled:
+- No security headers are added
+- Server header remains as Go default
+- API remains functional but less secure
 
 ## Rate Limiting
 

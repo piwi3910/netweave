@@ -93,6 +93,14 @@ security:
     - Content-Type
     - Authorization
     - X-Request-ID
+  security_headers:
+    enabled: true
+    hsts_max_age: 63072000  # 2 years (required for preload)
+    hsts_include_subdomains: true
+    hsts_preload: true  # Enable HSTS preload for maximum security
+    content_security_policy: "default-src 'none'; frame-ancestors 'none'"
+    frame_options: "DENY"
+    referrer_policy: "strict-origin-when-cross-origin"
   rate_limit_enabled: true
   rate_limit:
     tenant:

@@ -91,6 +91,14 @@ security:
     - OPTIONS
   allowed_headers:
     - "*"
+  security_headers:
+    enabled: true  # Enable security headers even in dev for testing
+    hsts_max_age: 31536000  # 1 year
+    hsts_include_subdomains: false  # Disabled for localhost
+    hsts_preload: false
+    content_security_policy: "default-src 'none'; frame-ancestors 'none'"
+    frame_options: "DENY"
+    referrer_policy: "strict-origin-when-cross-origin"
   rate_limit_enabled: false  # Disable for easier testing
   rate_limit:
     tenant:
