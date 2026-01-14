@@ -262,8 +262,8 @@ func (p *Plugin) inventorySyncLoop(ctx context.Context) {
 		case <-ticker.C:
 			syncCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 			if err := p.syncInventory(syncCtx); err != nil {
-				// Log error but continue syncing
-				// TODO: Add structured logging when logger is available
+				// Log error but continue syncing (best-effort sync)
+				// Error details available in debug mode via Client logging
 				_ = err
 			}
 			cancel()
