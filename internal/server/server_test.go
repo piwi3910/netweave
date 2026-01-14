@@ -200,8 +200,8 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, srv.Router())
 	assert.NotNil(t, srv.Config())
 	assert.NotNil(t, srv.Logger())
-	assert.NotNil(t, srv.Adapter())
-	assert.NotNil(t, srv.Store())
+	assert.NotNil(t, srv.GetAdapter())
+	assert.NotNil(t, srv.GetStore())
 }
 
 func TestNew_Panics(t *testing.T) {
@@ -486,9 +486,9 @@ func TestServer_SetupAuth(t *testing.T) {
 
 			// Verify auth middleware is set
 			if tt.wantAuthNil {
-				assert.Nil(t, srv.AuthMw())
+				assert.Nil(t, srv.GetAuthMw())
 			} else {
-				assert.NotNil(t, srv.AuthMw())
+				assert.NotNil(t, srv.GetAuthMw())
 			}
 		})
 	}
