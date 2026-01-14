@@ -47,7 +47,7 @@ Official O-RAN Alliance specifications:
 ### Key Features
 
 - ✅ **O2-IMS Compliant**: Full implementation of O-RAN O2 Infrastructure Management Services specification
-- ✅ **API Versioning**: Three API versions (v1 stable, v2 with advanced features, v3 with multi-tenancy)
+- ✅ **API Versioning**: Three API versions (v1 stable, v2 with advanced features, v3 planned with multi-tenancy)
 - ✅ **Advanced Filtering**: Comprehensive query filtering with operators, field selection, and sorting (v2+)
 - ✅ **Batch Operations**: Atomic bulk create/delete operations for subscriptions and resource pools (v2+)
 - ✅ **Tenant Quotas**: Per-tenant resource limits and usage tracking (v3+)
@@ -61,12 +61,12 @@ Official O-RAN Alliance specifications:
   - **VMware vSphere** - VMs, Clusters, Resource Pools
 - ✅ **O2-DMS Integration**: Deployment Management Services with Helm 3, ArgoCD, and Flux CD adapters
 - ✅ **O2-SMO Integration**: Service Management & Orchestration with ONAP and OSM adapters
-- ✅ **Enterprise Multi-Tenancy**: Built-in from day 1 - support multiple SMO systems with strict resource isolation
-- ✅ **Comprehensive RBAC**: Fine-grained role-based access control with system and tenant roles
+- 🔄 **Enterprise Multi-Tenancy**: Planned feature - will support multiple SMO systems with strict resource isolation
+- 🔄 **Comprehensive RBAC**: Planned feature - will provide fine-grained role-based access control with system and tenant roles
 - ✅ **Multi-Cluster Ready**: Deploy across single or multiple Kubernetes clusters with Redis-based state synchronization
 - ✅ **High Availability**: Stateless gateway pods with automatic failover (99.9% uptime)
-- ✅ **Production Security**: mTLS everywhere, zero-trust networking, tenant isolation, comprehensive audit logging
-- ✅ **Distributed Rate Limiting**: Redis-based token bucket algorithm with per-tenant, per-endpoint, and global limits
+- ✅ **Production Security**: mTLS everywhere, zero-trust networking, comprehensive audit logging
+- ✅ **Distributed Rate Limiting**: Redis-based token bucket algorithm with per-endpoint and global limits
 - ✅ **Real-Time Notifications**: Webhook-based subscriptions for infrastructure change events
 - ✅ **Extensible Architecture**: Plugin-based adapter system with 25+ production-ready adapters
 - ✅ **Enterprise Observability**: Prometheus metrics, Jaeger tracing, structured logging
@@ -76,11 +76,11 @@ Official O-RAN Alliance specifications:
 ### Use Cases
 
 1. **Telecom RAN Management**: Manage O-Cloud infrastructure for 5G RAN workloads via standard O2-IMS APIs
-2. **Multi-SMO Environments**: Single gateway supporting multiple SMO systems with isolated resources and quotas
+2. **Multi-SMO Environments** (Planned): Single gateway supporting multiple SMO systems with isolated resources and quotas
 3. **Multi-Vendor Disaggregation**: Abstract vendor-specific APIs behind O2-IMS standard interface
 4. **Cloud-Native Infrastructure**: Leverage Kubernetes for infrastructure lifecycle management
 5. **Subscription-Based Monitoring**: Real-time notifications of infrastructure changes to SMO systems
-6. **Enterprise Access Control**: Fine-grained RBAC for different user roles across tenant boundaries
+6. **Enterprise Access Control** (Planned): Fine-grained RBAC for different user roles across tenant boundaries
 
 ## Architecture
 
@@ -173,7 +173,7 @@ curl https://netweave.example.com/openapi.yaml -o o2ims-api.yaml
 
 - **[Architecture](docs/architecture.md)**: Comprehensive architecture documentation
 - **[API Mapping](docs/api-mapping.md)**: O2-IMS ↔ Kubernetes resource mappings
-- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)**: Enterprise multi-tenancy and access control
+- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)**: Planned enterprise multi-tenancy and access control features
 - **[O2-DMS Extension](docs/o2dms-o2smo-extension.md)**: Deployment management services integration
 - **[Deployment Guide](docs/deployment.md)**: Single and multi-cluster deployment
 - **[Security](docs/security.md)**: Security architecture and mTLS configuration
@@ -350,7 +350,6 @@ Secure, high-performance configuration:
 - **Optimized logging** - Info level, JSON format only
 - **High rate limits** - DoS protection
 - **Low trace sampling** - 10% for efficiency
-- **Multi-tenancy** - RBAC enabled
 
 ```bash
 # Run with production config
@@ -720,13 +719,23 @@ Total:           433 tests, ~4,300 LOC test code
 
 ## O2-IMS API Coverage
 
-| Resource | List | Get | Create | Update | Delete | Subscribe |
-|----------|------|-----|--------|--------|--------|-----------|
-| Deployment Managers | ✅ | ✅ | ❌ | ❌ | ❌ | N/A |
-| Resource Pools | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Resources | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Resource Types | ✅ | ✅ | ❌ | ❌ | ❌ | N/A |
-| Subscriptions | ✅ | ✅ | ✅ | ✅ | ✅ | N/A |
+| Resource | List | Get | Create | Update | Delete | Subscribe | Status |
+|----------|------|-----|--------|--------|--------|-----------|--------|
+| Deployment Managers | ✅ | ✅ | ❌ | ❌ | ❌ | N/A | ✅ Production |
+| Resource Pools | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ⚠️ Read-Only |
+| Resources | ✅ | ✅ | ❌ | ❌ | ⚠️ | ✅ | ⚠️ Read-Only |
+| Resource Types | ✅ | ✅ | ❌ | ❌ | ❌ | N/A | ✅ Production |
+| Subscriptions | ✅ | ✅ | ✅ | ❌ | ✅ | N/A | ✅ Production |
+
+**Legend:**
+- ✅ **Implemented and production-ready**
+- ⚠️ **Partial implementation** (adapter-level only, not exposed via API)
+- ❌ **Not yet implemented**
+
+**Notes:**
+- Resource Pools and Resources: Read operations fully functional. Create/Update/Delete supported at adapter level but not exposed via O2-IMS API.
+- Subscriptions: Full CRUD except Update (no use case identified for updating subscriptions)
+- All 7 IMS backend adapters (Kubernetes, AWS, Azure, GCP, OpenStack, VMware, DTIAS) are functional
 
 See [docs/api-mapping.md](docs/api-mapping.md) for O2-IMS ↔ Kubernetes resource mappings.
 
@@ -876,7 +885,7 @@ make quality
 
 - **[Architecture](docs/architecture.md)**: Comprehensive architecture documentation
 - **[API Mapping](docs/api-mapping.md)**: O2-IMS ↔ Kubernetes resource mappings
-- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)**: Enterprise multi-tenancy and access control
+- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)**: Planned enterprise multi-tenancy and access control features
 - **[O2-DMS Extension](docs/o2dms-o2smo-extension.md)**: Deployment management services integration
 - **[Deployment Guide](docs/deployment.md)**: Single and multi-cluster deployment
 - **[Security](docs/security.md)**: Security architecture and mTLS configuration
@@ -974,7 +983,7 @@ netweave/
   - Graceful degradation (fails open if Redis unavailable)
 - ✅ **Request Validation**: Automatic OpenAPI schema validation for all requests
 - ✅ **No Hardcoded Secrets**: All secrets via K8s Secrets or cert-manager
-- ✅ **RBAC**: Least-privilege access control
+- 🔄 **RBAC** (Planned): Least-privilege access control
 - ✅ **Audit Logging**: All operations logged
 - ✅ **Vulnerability Scanning**: Continuous security scanning (gosec, govulncheck, Trivy)
 
@@ -1022,8 +1031,8 @@ netweave/
 - 🔄 Enhanced observability dashboards
 
 ### v2.0 (Q3 2026)
-- ✅ Multi-tenancy with tenant isolation
-- ✅ Advanced RBAC with fine-grained permissions
+- 🔮 Multi-tenancy with tenant isolation
+- 🔮 Advanced RBAC with fine-grained permissions
 - 🔮 Custom resource type definitions
 - 🔮 Batch operations API
 - 🔮 GraphQL API support
