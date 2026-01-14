@@ -81,6 +81,13 @@ func (m *mockSubscriptionStore) ListByResourceType(_ context.Context, _ string) 
 	return nil, nil
 }
 
+
+
+
+
+
+
+
 func (m *mockSubscriptionStore) ListByTenant(_ context.Context, _ string) ([]*storage.Subscription, error) {
 	return nil, nil
 }
@@ -97,7 +104,7 @@ func TestNewSubscriptionHandler(t *testing.T) {
 	store := &mockSubscriptionStore{}
 	logger := zap.NewNop()
 
-	handler := handlers.NewSubscriptionHandler(store, logger)
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, logger)
 	assert.NotNil(t, handler)
 	assert.Equal(t, store, handler.Store)
 	assert.Equal(t, logger, handler.Logger)
@@ -119,7 +126,7 @@ func TestNewSubscriptionHandler_Panics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Panics(t, func() {
-				handlers.NewSubscriptionHandler(tt.store, tt.logger)
+				handlers.NewSubscriptionHandler(tt.store, &mockAuthStore{}, tt.logger)
 			})
 		})
 	}
@@ -150,7 +157,7 @@ func TestListSubscriptions_Success(t *testing.T) {
 		},
 	}
 
-	handler := handlers.NewSubscriptionHandler(store, zap.NewNop())
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, zap.NewNop())
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -174,7 +181,7 @@ func TestListSubscriptions_StoreError(t *testing.T) {
 		listErr: errors.New("database error"),
 	}
 
-	handler := handlers.NewSubscriptionHandler(store, zap.NewNop())
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, zap.NewNop())
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -215,7 +222,7 @@ func TestListSubscriptions_WithFilter(t *testing.T) {
 		},
 	}
 
-	handler := handlers.NewSubscriptionHandler(store, zap.NewNop())
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, zap.NewNop())
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -236,7 +243,7 @@ func TestCreateSubscription_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	store := &mockSubscriptionStore{}
-	handler := handlers.NewSubscriptionHandler(store, zap.NewNop())
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, zap.NewNop())
 
 	reqBody := models.Subscription{
 		Callback: "https://example.com/notify",
@@ -267,7 +274,7 @@ func TestCreateSubscription_InvalidJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	store := &mockSubscriptionStore{}
-	handler := handlers.NewSubscriptionHandler(store, zap.NewNop())
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, zap.NewNop())
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -283,7 +290,7 @@ func TestCreateSubscription_InvalidCallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	store := &mockSubscriptionStore{}
-	handler := handlers.NewSubscriptionHandler(store, zap.NewNop())
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, zap.NewNop())
 
 	reqBody := models.Subscription{
 		Callback: "not-a-valid-url",
@@ -306,7 +313,7 @@ func TestCreateSubscription_StoreError(t *testing.T) {
 	store := &mockSubscriptionStore{
 		createErr: errors.New("database error"),
 	}
-	handler := handlers.NewSubscriptionHandler(store, zap.NewNop())
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, zap.NewNop())
 
 	reqBody := models.Subscription{
 		Callback: "https://example.com/notify",
@@ -340,7 +347,7 @@ func TestGetSubscription_Success(t *testing.T) {
 		},
 	}
 
-	handler := handlers.NewSubscriptionHandler(store, zap.NewNop())
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, zap.NewNop())
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -362,7 +369,7 @@ func TestGetSubscription_NotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	store := &mockSubscriptionStore{}
-	handler := handlers.NewSubscriptionHandler(store, zap.NewNop())
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, zap.NewNop())
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -380,7 +387,7 @@ func TestGetSubscription_StoreError(t *testing.T) {
 	store := &mockSubscriptionStore{
 		getErr: errors.New("database error"),
 	}
-	handler := handlers.NewSubscriptionHandler(store, zap.NewNop())
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, zap.NewNop())
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -406,7 +413,7 @@ func TestDeleteSubscription_Success(t *testing.T) {
 		},
 	}
 
-	handler := handlers.NewSubscriptionHandler(store, zap.NewNop())
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, zap.NewNop())
 
 	router := gin.New()
 	router.DELETE("/o2ims/v1/subscriptions/:subscriptionId", handler.DeleteSubscription)
@@ -423,7 +430,7 @@ func TestDeleteSubscription_NotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	store := &mockSubscriptionStore{}
-	handler := handlers.NewSubscriptionHandler(store, zap.NewNop())
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, zap.NewNop())
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -441,7 +448,7 @@ func TestDeleteSubscription_StoreError(t *testing.T) {
 	store := &mockSubscriptionStore{
 		deleteErr: errors.New("database error"),
 	}
-	handler := handlers.NewSubscriptionHandler(store, zap.NewNop())
+	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, zap.NewNop())
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
