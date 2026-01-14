@@ -351,6 +351,47 @@ func (a *Adapter) Health(ctx context.Context) error {
 	return nil
 }
 
+// Test helper exports for testing private functions
+
+// TestParseAzureResourceID exports parseAzureResourceID for testing.
+func (a *Adapter) TestParseAzureResourceID(id string) (string, string, error) {
+	return parseAzureResourceID(id)
+}
+
+// TestBuildAzureTags exports buildAzureTags for testing.
+func (a *Adapter) TestBuildAzureTags(resource *adapter.Resource) map[string]*string {
+	return buildAzureTags(resource)
+}
+
+// TestExtractVMSize exports extractVMSize for testing.
+func (a *Adapter) TestExtractVMSize(vm interface{}) string {
+	if v, ok := vm.(*armcompute.VirtualMachine); ok {
+		return a.extractVMSize(v)
+	}
+	return ""
+}
+
+// TestDetermineResourcePoolID exports determineResourcePoolID for testing.
+func (a *Adapter) TestDetermineResourcePoolID(vm interface{}, location, resourceGroup string) string {
+	if v, ok := vm.(*armcompute.VirtualMachine); ok {
+		return a.determineResourcePoolID(v, location, resourceGroup)
+	}
+	return ""
+}
+
+// TestBuildVMExtensions exports buildVMExtensions for testing.
+func (a *Adapter) TestBuildVMExtensions(vm interface{}, vmName, location, resourceGroup, vmSize string) map[string]interface{} {
+	if v, ok := vm.(*armcompute.VirtualMachine); ok {
+		return a.buildVMExtensions(v, vmName, location, resourceGroup, vmSize)
+	}
+	return nil
+}
+
+// TestSetPoolMode sets the poolMode for testing.
+func (a *Adapter) TestSetPoolMode(mode string) {
+	a.poolMode = mode
+}
+
 // Close cleanly shuts down the adapter and releases resources.
 func (a *Adapter) Close() error {
 	a.Logger.Info("closing Azure adapter")

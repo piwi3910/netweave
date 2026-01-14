@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/piwi3910/netweave/internal/adapter"
-	"github.com/piwi3910/netweave/internal/adapters/azure"
+	azadapter "github.com/piwi3910/netweave/internal/adapters/azure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -16,7 +17,7 @@ import (
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *azure.Config
+		config  *azadapter.Config
 		wantErr bool
 		errMsg  string
 	}{
@@ -28,7 +29,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing subscriptionID",
-			config: &azure.Config{
+			config: &azadapter.Config{
 				Location: "eastus",
 				OCloudID: "ocloud-1",
 			},
@@ -37,7 +38,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing location",
-			config: &azure.Config{
+			config: &azadapter.Config{
 				SubscriptionID: "sub-123",
 				OCloudID:       "ocloud-1",
 			},
@@ -46,7 +47,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing oCloudID",
-			config: &azure.Config{
+			config: &azadapter.Config{
 				SubscriptionID: "sub-123",
 				Location:       "eastus",
 			},
@@ -55,7 +56,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing tenantID without managed identity",
-			config: &azure.Config{
+			config: &azadapter.Config{
 				SubscriptionID:     "sub-123",
 				Location:           "eastus",
 				OCloudID:           "ocloud-1",
@@ -66,7 +67,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing clientID without managed identity",
-			config: &azure.Config{
+			config: &azadapter.Config{
 				SubscriptionID:     "sub-123",
 				Location:           "eastus",
 				OCloudID:           "ocloud-1",
@@ -78,7 +79,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing clientSecret without managed identity",
-			config: &azure.Config{
+			config: &azadapter.Config{
 				SubscriptionID:     "sub-123",
 				Location:           "eastus",
 				OCloudID:           "ocloud-1",
@@ -91,7 +92,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "invalid pool mode",
-			config: &azure.Config{
+			config: &azadapter.Config{
 				SubscriptionID:     "sub-123",
 				Location:           "eastus",
 				OCloudID:           "ocloud-1",
@@ -108,7 +109,7 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := azure.New(tt.config)
+			adp, err := azadapter.New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -127,7 +128,7 @@ func TestNew(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	adp := &azure.Adapter{
+	adp := &azadapter.Adapter{
 		Logger: zap.NewNop(),
 	}
 
@@ -171,7 +172,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := azure.GenerateVMSizeID(tt.vmSize)
+			got := azadapter.GenerateVMSizeID(tt.vmSize)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -187,7 +188,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := azure.GenerateVMID(tt.vmName, tt.rg)
+			got := azadapter.GenerateVMID(tt.vmName, tt.rg)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -202,7 +203,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := azure.GenerateRGPoolID(tt.rg)
+			got := azadapter.GenerateRGPoolID(tt.rg)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -218,7 +219,7 @@ func TestGenerateIDs(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			got := azure.GenerateAZPoolID(tt.location, tt.zone)
+			got := azadapter.GenerateAZPoolID(tt.location, tt.zone)
 			assert.Equal(t, tt.want, got)
 		}
 	})
@@ -240,7 +241,7 @@ func TestExtractVMFamily(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.sizeName, func(t *testing.T) {
-			got := azure.ExtractVMFamily(tt.sizeName)
+			got := azadapter.ExtractVMFamily(tt.sizeName)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -272,7 +273,7 @@ func TestExtractResourceGroup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.resourceID, func(t *testing.T) {
-			got := azure.ExtractResourceGroup(tt.resourceID)
+			got := azadapter.ExtractResourceGroup(tt.resourceID)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -322,7 +323,7 @@ func TestTagsToMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := azure.TagsToMap(tt.tags)
+			got := azadapter.TagsToMap(tt.tags)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -330,7 +331,7 @@ func TestTagsToMap(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
-	adp := &azure.Adapter{
+	adp := &azadapter.Adapter{
 		Logger:        zap.NewNop(),
 		Subscriptions: make(map[string]*adapter.Subscription),
 	}
@@ -405,7 +406,7 @@ func TestSubscriptions(t *testing.T) {
 
 // TestClose tests adapter cleanup.
 func TestClose(t *testing.T) {
-	adp := &azure.Adapter{
+	adp := &azadapter.Adapter{
 		Logger:        zap.NewNop(),
 		Subscriptions: make(map[string]*adapter.Subscription),
 	}
@@ -425,21 +426,21 @@ func TestClose(t *testing.T) {
 func TestPtrHelpers(t *testing.T) {
 	t.Run("ptrToString", func(t *testing.T) {
 		s := "hello"
-		assert.Equal(t, "hello", azure.PtrToString(&s))
-		assert.Equal(t, "", azure.PtrToString(nil))
+		assert.Equal(t, "hello", azadapter.PtrToString(&s))
+		assert.Equal(t, "", azadapter.PtrToString(nil))
 	})
 
 	t.Run("ptrToInt32", func(t *testing.T) {
 		i := int32(42)
-		assert.Equal(t, int32(42), azure.PtrToInt32(&i))
-		assert.Equal(t, int32(0), azure.PtrToInt32(nil))
+		assert.Equal(t, int32(42), azadapter.PtrToInt32(&i))
+		assert.Equal(t, int32(0), azadapter.PtrToInt32(nil))
 	})
 }
 
 // NOTE: BenchmarkMatchesFilter and BenchmarkApplyPagination moved to internal/adapter/helpers_test.go
 // TestAzureAdapter_Health tests the Health function.
 func TestAzureAdapter_Health(t *testing.T) {
-	adapter, err := azure.New(&azure.Config{
+	adapter, err := azadapter.New(&azadapter.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -458,7 +459,7 @@ func TestAzureAdapter_Health(t *testing.T) {
 
 // TestAzureAdapter_ListResourcePools tests the ListResourcePools function.
 func TestAzureAdapter_ListResourcePools(t *testing.T) {
-	adapter, err := azure.New(&azure.Config{
+	adapter, err := azadapter.New(&azadapter.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -479,7 +480,7 @@ func TestAzureAdapter_ListResourcePools(t *testing.T) {
 
 // TestAzureAdapter_ListResources tests the ListResources function.
 func TestAzureAdapter_ListResources(t *testing.T) {
-	adapter, err := azure.New(&azure.Config{
+	adapter, err := azadapter.New(&azadapter.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -499,7 +500,7 @@ func TestAzureAdapter_ListResources(t *testing.T) {
 
 // TestAzureAdapter_ListResourceTypes tests the ListResourceTypes function.
 func TestAzureAdapter_ListResourceTypes(t *testing.T) {
-	adapter, err := azure.New(&azure.Config{
+	adapter, err := azadapter.New(&azadapter.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -519,7 +520,7 @@ func TestAzureAdapter_ListResourceTypes(t *testing.T) {
 
 // TestAzureAdapter_GetDeploymentManager tests the GetDeploymentManager function.
 func TestAzureAdapter_GetDeploymentManager(t *testing.T) {
-	adapter, err := azure.New(&azure.Config{
+	adapter, err := azadapter.New(&azadapter.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -535,4 +536,297 @@ func TestAzureAdapter_GetDeploymentManager(t *testing.T) {
 		t.Skip("Skipping - requires Azure credentials")
 	}
 	assert.NotNil(t, dm)
+}
+
+// TestBuildAzureTags tests Azure tag building from resource fields.
+func TestBuildAzureTags(t *testing.T) {
+	adp := &azadapter.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name     string
+		resource *adapter.Resource
+		wantLen  int
+		checkTag func(t *testing.T, tags map[string]*string)
+	}{
+		{
+			name: "all fields populated",
+			resource: &adapter.Resource{
+				TenantID:      "tenant-123",
+				Description:   "test VM",
+				GlobalAssetID: "urn:azure:vm:sub:rg:vm-123",
+				Extensions: map[string]interface{}{
+					"azure.tags": map[string]string{
+						"Environment": "production",
+						"Team":        "platform",
+					},
+				},
+			},
+			wantLen: 5,
+			checkTag: func(t *testing.T, tags map[string]*string) {
+				assert.NotNil(t, tags["o2ims.io/tenant-id"])
+				assert.Equal(t, "tenant-123", *tags["o2ims.io/tenant-id"])
+				assert.Equal(t, "test VM", *tags["Name"])
+				assert.Equal(t, "urn:azure:vm:sub:rg:vm-123", *tags["GlobalAssetID"])
+				assert.Equal(t, "production", *tags["Environment"])
+				assert.Equal(t, "platform", *tags["Team"])
+			},
+		},
+		{
+			name:     "empty resource",
+			resource: &adapter.Resource{},
+			wantLen:  0,
+		},
+		{
+			name: "only tenant ID",
+			resource: &adapter.Resource{
+				TenantID: "tenant-456",
+			},
+			wantLen: 1,
+			checkTag: func(t *testing.T, tags map[string]*string) {
+				assert.NotNil(t, tags["o2ims.io/tenant-id"])
+				assert.Equal(t, "tenant-456", *tags["o2ims.io/tenant-id"])
+			},
+		},
+		{
+			name: "custom tags only",
+			resource: &adapter.Resource{
+				Extensions: map[string]interface{}{
+					"azure.tags": map[string]string{
+						"CustomKey": "CustomValue",
+					},
+				},
+			},
+			wantLen: 1,
+			checkTag: func(t *testing.T, tags map[string]*string) {
+				assert.NotNil(t, tags["CustomKey"])
+				assert.Equal(t, "CustomValue", *tags["CustomKey"])
+			},
+		},
+		{
+			name: "wrong custom tags type",
+			resource: &adapter.Resource{
+				Extensions: map[string]interface{}{
+					"azure.tags": "not-a-map",
+				},
+			},
+			wantLen: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adp.TestBuildAzureTags(tt.resource)
+			assert.Len(t, got, tt.wantLen)
+			if tt.checkTag != nil {
+				tt.checkTag(t, got)
+			}
+		})
+	}
+}
+
+// TestStringPtr tests the StringPtr utility function.
+func TestStringPtr(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "non-empty string",
+			input: "test",
+			want:  "test",
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := azadapter.StringPtr(tt.input)
+			require.NotNil(t, got)
+			assert.Equal(t, tt.want, *got)
+		})
+	}
+}
+
+// TestExtractVMSize tests VM size extraction.
+func TestExtractVMSize(t *testing.T) {
+	adp := &azadapter.Adapter{Logger: zap.NewNop()}
+
+	vmSize := armcompute.VirtualMachineSizeTypes("Standard_D2s_v3")
+
+	tests := []struct {
+		name string
+		vm   *armcompute.VirtualMachine
+		want string
+	}{
+		{
+			name: "with VM size",
+			vm: &armcompute.VirtualMachine{
+				Properties: &armcompute.VirtualMachineProperties{
+					HardwareProfile: &armcompute.HardwareProfile{
+						VMSize: &vmSize,
+					},
+				},
+			},
+			want: "Standard_D2s_v3",
+		},
+		{
+			name: "nil properties",
+			vm:   &armcompute.VirtualMachine{},
+			want: "",
+		},
+		{
+			name: "nil hardware profile",
+			vm: &armcompute.VirtualMachine{
+				Properties: &armcompute.VirtualMachineProperties{},
+			},
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adp.TestExtractVMSize(tt.vm)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestDetermineResourcePoolID tests resource pool ID determination.
+func TestDetermineResourcePoolID(t *testing.T) {
+	zone1 := "1"
+	zone2 := "2"
+
+	tests := []struct {
+		name          string
+		poolMode      string
+		vm            *armcompute.VirtualMachine
+		location      string
+		resourceGroup string
+		want          string
+	}{
+		{
+			name:          "RG mode",
+			poolMode:      "rg",
+			vm:            &armcompute.VirtualMachine{},
+			location:      "eastus",
+			resourceGroup: "myRG",
+			want:          "azure-rg-myRG",
+		},
+		{
+			name:     "AZ mode with zone",
+			poolMode: "az",
+			vm: &armcompute.VirtualMachine{
+				Zones: []*string{&zone2},
+			},
+			location:      "eastus",
+			resourceGroup: "myRG",
+			want:          "azure-az-eastus-2",
+		},
+		{
+			name:          "AZ mode without zone",
+			poolMode:      "az",
+			vm:            &armcompute.VirtualMachine{},
+			location:      "westus",
+			resourceGroup: "myRG",
+			want:          "azure-az-westus-1",
+		},
+		{
+			name:     "AZ mode multiple zones",
+			poolMode: "az",
+			vm: &armcompute.VirtualMachine{
+				Zones: []*string{&zone1, &zone2},
+			},
+			location:      "centralus",
+			resourceGroup: "myRG",
+			want:          "azure-az-centralus-1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp := &azadapter.Adapter{
+				Logger: zap.NewNop(),
+			}
+			adp.TestSetPoolMode(tt.poolMode)
+			got := adp.TestDetermineResourcePoolID(tt.vm, tt.location, tt.resourceGroup)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestBuildVMExtensions tests VM extensions building.
+func TestBuildVMExtensions(t *testing.T) {
+	provState := "Succeeded"
+	vmID := "unique-vm-id"
+	zone1 := "1"
+
+	tests := []struct {
+		name          string
+		vm            *armcompute.VirtualMachine
+		vmName        string
+		location      string
+		resourceGroup string
+		vmSize        string
+		checkExts     func(t *testing.T, exts map[string]interface{})
+	}{
+		{
+			name: "complete VM",
+			vm: &armcompute.VirtualMachine{
+				ID: azadapter.StringPtr("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm1"),
+				Properties: &armcompute.VirtualMachineProperties{
+					ProvisioningState: &provState,
+					VMID:              &vmID,
+				},
+				Zones: []*string{&zone1},
+				Tags: map[string]*string{
+					"Environment": azadapter.StringPtr("test"),
+				},
+			},
+			vmName:        "vm1",
+			location:      "eastus",
+			resourceGroup: "myRG",
+			vmSize:        "Standard_D2s_v3",
+			checkExts: func(t *testing.T, exts map[string]interface{}) {
+				assert.Equal(t, "vm1", exts["azure.vmName"])
+				assert.Equal(t, "myRG", exts["azure.resourceGroup"])
+				assert.Equal(t, "eastus", exts["azure.location"])
+				assert.Equal(t, "Standard_D2s_v3", exts["azure.vmSize"])
+				assert.Equal(t, "Succeeded", exts["azure.provisioningState"])
+				assert.Equal(t, "unique-vm-id", exts["azure.vmUniqueId"])
+				assert.Equal(t, "1", exts["azure.availabilityZone"])
+				assert.Contains(t, exts, "azure.tags")
+			},
+		},
+		{
+			name:          "minimal VM",
+			vm:            &armcompute.VirtualMachine{},
+			vmName:        "vm2",
+			location:      "westus",
+			resourceGroup: "testRG",
+			vmSize:        "Standard_B1s",
+			checkExts: func(t *testing.T, exts map[string]interface{}) {
+				assert.Equal(t, "vm2", exts["azure.vmName"])
+				assert.Equal(t, "testRG", exts["azure.resourceGroup"])
+				assert.Equal(t, "westus", exts["azure.location"])
+				assert.Equal(t, "Standard_B1s", exts["azure.vmSize"])
+				assert.NotContains(t, exts, "azure.availabilityZone")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp := &azadapter.Adapter{Logger: zap.NewNop()}
+			got := adp.TestBuildVMExtensions(tt.vm, tt.vmName, tt.location, tt.resourceGroup, tt.vmSize)
+			require.NotNil(t, got)
+			if tt.checkExts != nil {
+				tt.checkExts(t, got)
+			}
+		})
+	}
 }
