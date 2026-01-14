@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	autoscalingTypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
@@ -637,6 +638,509 @@ func TestGetLaunchTemplateName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := awsadapter.GetLaunchTemplateName(tt.lt)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestExtractInstanceType tests instance type extraction from resource type ID.
+func TestExtractInstanceType(t *testing.T) {
+	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name           string
+		resourceTypeID string
+		want           string
+	}{
+		{
+			name:           "with prefix",
+			resourceTypeID: "aws-instance-type-m5.large",
+			want:           "m5.large",
+		},
+		{
+			name:           "without prefix",
+			resourceTypeID: "t3.micro",
+			want:           "t3.micro",
+		},
+		{
+			name:           "empty string",
+			resourceTypeID: "",
+			want:           "",
+		},
+		{
+			name:           "prefix only",
+			resourceTypeID: "aws-instance-type-",
+			want:           "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adp.TestExtractInstanceType(tt.resourceTypeID)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestGetRequiredAMI tests AMI ID extraction and validation.
+func TestGetRequiredAMI(t *testing.T) {
+	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name       string
+		extensions map[string]interface{}
+		want       string
+		wantErr    bool
+		errMsg     string
+	}{
+		{
+			name: "valid AMI ID",
+			extensions: map[string]interface{}{
+				"aws.imageId": "ami-1234567890abcdef0",
+			},
+			want:    "ami-1234567890abcdef0",
+			wantErr: false,
+		},
+		{
+			name:       "nil extensions",
+			extensions: nil,
+			wantErr:    true,
+			errMsg:     "aws.imageId is required",
+		},
+		{
+			name:       "missing aws.imageId key",
+			extensions: map[string]interface{}{},
+			wantErr:    true,
+			errMsg:     "aws.imageId is required",
+		},
+		{
+			name: "empty AMI ID",
+			extensions: map[string]interface{}{
+				"aws.imageId": "",
+			},
+			wantErr: true,
+			errMsg:  "aws.imageId is required",
+		},
+		{
+			name: "wrong type",
+			extensions: map[string]interface{}{
+				"aws.imageId": 12345,
+			},
+			wantErr: true,
+			errMsg:  "aws.imageId is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := adp.TestGetRequiredAMI(tt.extensions)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+				assert.Empty(t, got)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+// TestBuildResourceTags tests EC2 tag building from resource fields.
+func TestBuildResourceTags(t *testing.T) {
+	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name     string
+		resource *adapter.Resource
+		want     int
+		checkTag func(t *testing.T, tags []ec2Types.Tag)
+	}{
+		{
+			name: "all fields populated",
+			resource: &adapter.Resource{
+				TenantID:      "tenant-123",
+				Description:   "test instance",
+				GlobalAssetID: "urn:aws:ec2:us-east-1:i-123",
+				Extensions: map[string]interface{}{
+					"aws.tags": map[string]string{
+						"Environment": "production",
+						"Team":        "platform",
+					},
+				},
+			},
+			want: 5,
+			checkTag: func(t *testing.T, tags []ec2Types.Tag) {
+				tagMap := make(map[string]string)
+				for _, tag := range tags {
+					tagMap[aws.ToString(tag.Key)] = aws.ToString(tag.Value)
+				}
+				assert.Equal(t, "tenant-123", tagMap["o2ims.io/tenant-id"])
+				assert.Equal(t, "test instance", tagMap["Name"])
+				assert.Equal(t, "urn:aws:ec2:us-east-1:i-123", tagMap["GlobalAssetID"])
+				assert.Equal(t, "production", tagMap["Environment"])
+				assert.Equal(t, "platform", tagMap["Team"])
+			},
+		},
+		{
+			name:     "empty resource",
+			resource: &adapter.Resource{},
+			want:     0,
+		},
+		{
+			name: "only tenant ID",
+			resource: &adapter.Resource{
+				TenantID: "tenant-456",
+			},
+			want: 1,
+			checkTag: func(t *testing.T, tags []ec2Types.Tag) {
+				assert.Equal(t, "o2ims.io/tenant-id", aws.ToString(tags[0].Key))
+				assert.Equal(t, "tenant-456", aws.ToString(tags[0].Value))
+			},
+		},
+		{
+			name: "custom tags only",
+			resource: &adapter.Resource{
+				Extensions: map[string]interface{}{
+					"aws.tags": map[string]string{
+						"CustomKey": "CustomValue",
+					},
+				},
+			},
+			want: 1,
+			checkTag: func(t *testing.T, tags []ec2Types.Tag) {
+				assert.Equal(t, "CustomKey", aws.ToString(tags[0].Key))
+				assert.Equal(t, "CustomValue", aws.ToString(tags[0].Value))
+			},
+		},
+		{
+			name: "wrong custom tags type",
+			resource: &adapter.Resource{
+				Extensions: map[string]interface{}{
+					"aws.tags": "not-a-map",
+				},
+			},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adp.TestBuildResourceTags(tt.resource)
+			assert.Len(t, got, tt.want)
+			if tt.checkTag != nil {
+				tt.checkTag(t, got)
+			}
+		})
+	}
+}
+
+// TestBuildRunInstanceInput tests RunInstances input building.
+func TestBuildRunInstanceInput(t *testing.T) {
+	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name       string
+		resource   *adapter.Resource
+		checkInput func(t *testing.T, input *ec2.RunInstancesInput)
+	}{
+		{
+			name: "basic input",
+			resource: &adapter.Resource{
+				ResourceTypeID: "aws-instance-type-t3.micro",
+				Description:    "test-instance",
+				Extensions: map[string]interface{}{
+					"aws.imageId": "ami-123",
+				},
+			},
+			checkInput: func(t *testing.T, input *ec2.RunInstancesInput) {
+				assert.Equal(t, "ami-123", aws.ToString(input.ImageId))
+				assert.Equal(t, ec2Types.InstanceType("t3.micro"), input.InstanceType)
+				assert.Equal(t, int32(1), aws.ToInt32(input.MinCount))
+				assert.Equal(t, int32(1), aws.ToInt32(input.MaxCount))
+				require.Len(t, input.TagSpecifications, 1)
+				assert.Equal(t, "test-instance", aws.ToString(input.TagSpecifications[0].Tags[0].Value))
+			},
+		},
+		{
+			name: "with optional parameters",
+			resource: &adapter.Resource{
+				ResourceTypeID: "aws-instance-type-m5.large",
+				Description:    "test-instance",
+				Extensions: map[string]interface{}{
+					"aws.imageId":          "ami-456",
+					"aws.subnetId":         "subnet-123",
+					"aws.securityGroupIds": []string{"sg-123", "sg-456"},
+					"aws.keyName":          "my-keypair",
+				},
+			},
+			checkInput: func(t *testing.T, input *ec2.RunInstancesInput) {
+				assert.Equal(t, "subnet-123", aws.ToString(input.SubnetId))
+				assert.Equal(t, []string{"sg-123", "sg-456"}, input.SecurityGroupIds)
+				assert.Equal(t, "my-keypair", aws.ToString(input.KeyName))
+			},
+		},
+		{
+			name: "without description",
+			resource: &adapter.Resource{
+				ResourceTypeID: "aws-instance-type-t2.small",
+				Extensions: map[string]interface{}{
+					"aws.imageId": "ami-789",
+				},
+			},
+			checkInput: func(t *testing.T, input *ec2.RunInstancesInput) {
+				assert.Empty(t, input.TagSpecifications)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := adp.TestBuildRunInstanceInput(tt.resource)
+			require.NotNil(t, input)
+			if tt.checkInput != nil {
+				tt.checkInput(t, input)
+			}
+		})
+	}
+}
+
+// TestDetermineResourceKind tests resource kind determination.
+func TestDetermineResourceKind(t *testing.T) {
+	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name         string
+		instanceType *ec2Types.InstanceTypeInfo
+		want         string
+	}{
+		{
+			name: "bare metal instance",
+			instanceType: &ec2Types.InstanceTypeInfo{
+				BareMetal: aws.Bool(true),
+			},
+			want: "physical",
+		},
+		{
+			name: "virtual instance",
+			instanceType: &ec2Types.InstanceTypeInfo{
+				BareMetal: aws.Bool(false),
+			},
+			want: "virtual",
+		},
+		{
+			name:         "nil bare metal field",
+			instanceType: &ec2Types.InstanceTypeInfo{},
+			want:         "virtual",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adp.TestDetermineResourceKind(tt.instanceType)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestParseInstanceType tests instance type parsing.
+func TestParseInstanceType(t *testing.T) {
+	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name       string
+		typeName   string
+		wantFamily string
+		wantSize   string
+	}{
+		{
+			name:       "standard type",
+			typeName:   "m5.large",
+			wantFamily: "m5",
+			wantSize:   "large",
+		},
+		{
+			name:       "xlarge type",
+			typeName:   "t3.2xlarge",
+			wantFamily: "t3",
+			wantSize:   "2xlarge",
+		},
+		{
+			name:       "bare metal",
+			typeName:   "m5.metal",
+			wantFamily: "m5",
+			wantSize:   "metal",
+		},
+		{
+			name:       "no dot separator",
+			typeName:   "invalid",
+			wantFamily: "",
+			wantSize:   "",
+		},
+		{
+			name:       "empty string",
+			typeName:   "",
+			wantFamily: "",
+			wantSize:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotFamily, gotSize := adp.TestParseInstanceType(tt.typeName)
+			assert.Equal(t, tt.wantFamily, gotFamily)
+			assert.Equal(t, tt.wantSize, gotSize)
+		})
+	}
+}
+
+// TestBuildInstanceTypeExtensions tests extensions building for instance types.
+func TestBuildInstanceTypeExtensions(t *testing.T) {
+	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name         string
+		instanceType *ec2Types.InstanceTypeInfo
+		family       string
+		size         string
+		checkExts    func(t *testing.T, exts map[string]interface{})
+	}{
+		{
+			name: "complete instance type",
+			instanceType: &ec2Types.InstanceTypeInfo{
+				InstanceType:          ec2Types.InstanceType("m5.large"),
+				CurrentGeneration:     aws.Bool(true),
+				BareMetal:             aws.Bool(false),
+				FreeTierEligible:      aws.Bool(false),
+				Hypervisor:            ec2Types.InstanceTypeHypervisorNitro,
+				VCpuInfo:              &ec2Types.VCpuInfo{DefaultVCpus: aws.Int32(2), DefaultCores: aws.Int32(2), DefaultThreadsPerCore: aws.Int32(1)},
+				MemoryInfo:            &ec2Types.MemoryInfo{SizeInMiB: aws.Int64(8192)},
+				NetworkInfo:           &ec2Types.NetworkInfo{NetworkPerformance: aws.String("Up to 10 Gigabit"), MaximumNetworkInterfaces: aws.Int32(3), Ipv4AddressesPerInterface: aws.Int32(10), EnaSupport: ec2Types.EnaSupportRequired},
+				ProcessorInfo:         &ec2Types.ProcessorInfo{SupportedArchitectures: []ec2Types.ArchitectureType{ec2Types.ArchitectureTypeX8664}, SustainedClockSpeedInGhz: aws.Float64(3.1)},
+				SupportedUsageClasses: []ec2Types.UsageClassType{ec2Types.UsageClassTypeOnDemand, ec2Types.UsageClassTypeSpot},
+			},
+			family: "m5",
+			size:   "large",
+			checkExts: func(t *testing.T, exts map[string]interface{}) {
+				assert.Equal(t, "m5.large", exts["aws.instanceType"])
+				assert.Equal(t, "m5", exts["aws.instanceFamily"])
+				assert.Equal(t, "large", exts["aws.instanceSize"])
+				assert.True(t, aws.ToBool(exts["aws.currentGeneration"].(*bool)))
+				assert.False(t, exts["aws.bareMetal"].(bool))
+				assert.Equal(t, int32(2), exts["aws.vcpus"])
+				assert.Equal(t, int64(8192), exts["aws.memoryMiB"])
+				assert.Equal(t, "Up to 10 Gigabit", exts["aws.networkPerformance"])
+				assert.Equal(t, float64(3.1), exts["aws.processorClockSpeedGhz"])
+				assert.True(t, exts["aws.enaSupported"].(bool))
+				assert.Contains(t, exts, "aws.supportedUsageClasses")
+			},
+		},
+		{
+			name: "instance with GPU",
+			instanceType: &ec2Types.InstanceTypeInfo{
+				InstanceType: ec2Types.InstanceType("p3.2xlarge"),
+				GpuInfo: &ec2Types.GpuInfo{
+					Gpus: []ec2Types.GpuDeviceInfo{
+						{
+							Count:        aws.Int32(1),
+							Manufacturer: aws.String("NVIDIA"),
+							Name:         aws.String("Tesla V100"),
+							MemoryInfo:   &ec2Types.GpuDeviceMemoryInfo{SizeInMiB: aws.Int32(16384)},
+						},
+					},
+				},
+			},
+			family: "p3",
+			size:   "2xlarge",
+			checkExts: func(t *testing.T, exts map[string]interface{}) {
+				assert.Equal(t, int32(1), exts["aws.gpuCount"])
+				assert.Equal(t, "NVIDIA", exts["aws.gpuManufacturer"])
+				assert.Equal(t, "Tesla V100", exts["aws.gpuName"])
+				assert.Equal(t, int32(16384), exts["aws.gpuMemoryMiB"])
+			},
+		},
+		{
+			name: "instance with storage",
+			instanceType: &ec2Types.InstanceTypeInfo{
+				InstanceType: ec2Types.InstanceType("m5d.large"),
+				InstanceStorageInfo: &ec2Types.InstanceStorageInfo{
+					TotalSizeInGB: aws.Int64(75),
+					Disks: []ec2Types.DiskInfo{
+						{Type: ec2Types.DiskTypeHdd},
+					},
+				},
+			},
+			family: "m5d",
+			size:   "large",
+			checkExts: func(t *testing.T, exts map[string]interface{}) {
+				assert.True(t, exts["aws.instanceStorageSupported"].(bool))
+				assert.Equal(t, int64(75), exts["aws.instanceStorageGiB"])
+				assert.Equal(t, "hdd", exts["aws.instanceStorageType"])
+			},
+		},
+		{
+			name: "minimal instance type",
+			instanceType: &ec2Types.InstanceTypeInfo{
+				InstanceType: ec2Types.InstanceType("t3.nano"),
+			},
+			family: "t3",
+			size:   "nano",
+			checkExts: func(t *testing.T, exts map[string]interface{}) {
+				assert.Equal(t, "t3.nano", exts["aws.instanceType"])
+				assert.False(t, exts["aws.instanceStorageSupported"].(bool))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adp.TestBuildInstanceTypeExtensions(tt.instanceType, tt.family, tt.size)
+			require.NotNil(t, got)
+			if tt.checkExts != nil {
+				tt.checkExts(t, got)
+			}
+		})
+	}
+}
+
+// TestBuildInstanceTypeDescription tests description building.
+func TestBuildInstanceTypeDescription(t *testing.T) {
+	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name         string
+		instanceType *ec2Types.InstanceTypeInfo
+		typeName     string
+		want         string
+	}{
+		{
+			name: "with vCPU and memory",
+			instanceType: &ec2Types.InstanceTypeInfo{
+				VCpuInfo:   &ec2Types.VCpuInfo{DefaultVCpus: aws.Int32(4)},
+				MemoryInfo: &ec2Types.MemoryInfo{SizeInMiB: aws.Int64(16384)},
+			},
+			typeName: "m5.xlarge",
+			want:     "AWS m5.xlarge: 4 vCPUs, 16 GiB RAM",
+		},
+		{
+			name:         "without info",
+			instanceType: &ec2Types.InstanceTypeInfo{},
+			typeName:     "t3.micro",
+			want:         "AWS EC2 Instance Type t3.micro",
+		},
+		{
+			name: "with only vCPU",
+			instanceType: &ec2Types.InstanceTypeInfo{
+				VCpuInfo: &ec2Types.VCpuInfo{DefaultVCpus: aws.Int32(2)},
+			},
+			typeName: "t2.small",
+			want:     "AWS EC2 Instance Type t2.small",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adp.TestBuildInstanceTypeDescription(tt.instanceType, tt.typeName)
 			assert.Equal(t, tt.want, got)
 		})
 	}

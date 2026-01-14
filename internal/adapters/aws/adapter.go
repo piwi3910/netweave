@@ -292,6 +292,59 @@ func (a *Adapter) Health(ctx context.Context) error {
 	return nil
 }
 
+// Test helper exports for testing private functions
+
+// TestExtractInstanceType exports extractInstanceType for testing.
+func (a *Adapter) TestExtractInstanceType(resourceTypeID string) string {
+	return extractInstanceType(resourceTypeID)
+}
+
+// TestGetRequiredAMI exports getRequiredAMI for testing.
+func (a *Adapter) TestGetRequiredAMI(extensions map[string]interface{}) (string, error) {
+	return getRequiredAMI(extensions)
+}
+
+// TestBuildResourceTags exports buildResourceTags for testing.
+func (a *Adapter) TestBuildResourceTags(resource *adapter.Resource) []ec2Types.Tag {
+	return buildResourceTags(resource)
+}
+
+// TestExtractInstanceID exports extractInstanceID for testing.
+func (a *Adapter) TestExtractInstanceID(id string) string {
+	return extractInstanceID(id)
+}
+
+// TestBuildRunInstanceInput exports buildRunInstanceInput for testing.
+func (a *Adapter) TestBuildRunInstanceInput(resource interface{}) *ec2.RunInstancesInput {
+	r, ok := resource.(*adapter.Resource)
+	if !ok {
+		return nil
+	}
+	instanceType := extractInstanceType(r.ResourceTypeID)
+	amiID, _ := getRequiredAMI(r.Extensions)
+	return buildRunInstanceInput(r, instanceType, amiID)
+}
+
+// TestDetermineResourceKind exports determineResourceKind for testing.
+func (a *Adapter) TestDetermineResourceKind(instanceType *ec2Types.InstanceTypeInfo) string {
+	return determineResourceKind(instanceType)
+}
+
+// TestParseInstanceType exports parseInstanceType for testing.
+func (a *Adapter) TestParseInstanceType(typeName string) (string, string) {
+	return parseInstanceType(typeName)
+}
+
+// TestBuildInstanceTypeExtensions exports buildInstanceTypeExtensions for testing.
+func (a *Adapter) TestBuildInstanceTypeExtensions(instanceType *ec2Types.InstanceTypeInfo, family, size string) map[string]interface{} {
+	return buildInstanceTypeExtensions(instanceType, family, size)
+}
+
+// TestBuildInstanceTypeDescription exports buildInstanceTypeDescription for testing.
+func (a *Adapter) TestBuildInstanceTypeDescription(instanceType *ec2Types.InstanceTypeInfo, typeName string) string {
+	return buildInstanceTypeDescription(instanceType, typeName)
+}
+
 // Close cleanly shuts down the adapter and releases resources.
 func (a *Adapter) Close() error {
 	a.Logger.Info("closing AWS adapter")
