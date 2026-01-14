@@ -1,10 +1,11 @@
 package vmware_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/piwi3910/netweave/internal/adapter"
-	"github.com/piwi3910/netweave/internal/adapters/vmware"
+	vmwareadapter "github.com/piwi3910/netweave/internal/adapters/vmware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -248,7 +249,7 @@ func TestGenerateVMProfileID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := vmware.GenerateVMProfileID(tt.cpus, tt.memoryMB)
+			result := vmwareadapter.GenerateVMProfileID(tt.cpus, tt.memoryMB)
 			require.Equal(t, tt.expected, result)
 		})
 	}
@@ -284,8 +285,166 @@ func TestGenerateVMID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := vmware.GenerateVMID(tt.vmName, tt.clusterOrPool)
+			result := vmwareadapter.GenerateVMID(tt.vmName, tt.clusterOrPool)
 			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestGetResource tests the GetResource method.
+func TestGetResource(t *testing.T) {
+	tests := []struct {
+		name       string
+		resourceID string
+		wantErr    bool
+	}{
+		{
+			name:       "valid VM ID",
+			resourceID: "vmware-vm-test-cluster-test-vm",
+			wantErr:    true,
+		},
+		{
+			name:       "empty resource ID",
+			resourceID: "",
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := vmwareadapter.New(getTestConfig())
+			require.NoError(t, err)
+
+			resource, err := adp.GetResource(context.Background(), tt.resourceID)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, resource)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, resource)
+			}
+		})
+	}
+}
+
+// TestCreateResource tests the CreateResource method.
+func TestCreateResource(t *testing.T) {
+	tests := []struct {
+		name     string
+		resource *adapter.Resource
+		wantErr  bool
+	}{
+		{
+			name: "missing resource type ID",
+			resource: &adapter.Resource{
+				Description: "Test VM",
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid resource",
+			resource: &adapter.Resource{
+				ResourceTypeID: "vmware-vm-type-small",
+				Description:    "Test VM",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := vmwareadapter.New(getTestConfig())
+			require.NoError(t, err)
+
+			created, err := adp.CreateResource(context.Background(), tt.resource)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, created)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, created)
+			}
+		})
+	}
+}
+
+// TestUpdateResource tests the UpdateResource method.
+func TestUpdateResourceCRUD(t *testing.T) {
+	tests := []struct {
+		name       string
+		resourceID string
+		resource   *adapter.Resource
+		wantErr    bool
+	}{
+		{
+			name:       "empty resource ID",
+			resourceID: "",
+			resource: &adapter.Resource{
+				Description: "Updated VM",
+			},
+			wantErr: true,
+		},
+		{
+			name:       "valid update",
+			resourceID: "vmware-vm-test-cluster-test-vm",
+			resource: &adapter.Resource{
+				Description: "Updated VM",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := vmwareadapter.New(getTestConfig())
+			require.NoError(t, err)
+
+			updated, err := adp.UpdateResource(context.Background(), tt.resourceID, tt.resource)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, updated)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, updated)
+			}
+		})
+	}
+}
+
+// TestDeleteResource tests the DeleteResource method.
+func TestDeleteResource(t *testing.T) {
+	tests := []struct {
+		name       string
+		resourceID string
+		wantErr    bool
+	}{
+		{
+			name:       "empty resource ID",
+			resourceID: "",
+			wantErr:    true,
+		},
+		{
+			name:       "valid VM ID",
+			resourceID: "vmware-vm-test-cluster-test-vm",
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := vmwareadapter.New(getTestConfig())
+			require.NoError(t, err)
+
+			err = adp.DeleteResource(context.Background(), tt.resourceID)
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
