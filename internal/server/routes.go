@@ -1931,6 +1931,7 @@ func (s *Server) handleGetTenant(c *gin.Context) {
 // handleUpdateTenant updates a tenant.
 // PUT /o2ims/v3/tenants/:tenantId.
 func (s *Server) handleUpdateTenant(c *gin.Context) {
+	ctx := c.Request.Context()
 	tenantID := c.Param("tenantId")
 	s.logger.Info("updating tenant", zap.String("tenant_id", tenantID))
 
@@ -1948,6 +1949,21 @@ func (s *Server) handleUpdateTenant(c *gin.Context) {
 		return
 	}
 
+	// Audit log the tenant update
+	if s.auditLogger != nil {
+		user := auth.UserFromContext(ctx)
+		s.auditLogger.LogAdminOperation(
+			ctx,
+			auth.AuditEventTenantUpdated,
+			tenantID,
+			user,
+			map[string]string{
+				"name":        req.Name,
+				"description": req.Description,
+			},
+		)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"tenantId":    tenantID,
 		"name":        req.Name,
@@ -1959,16 +1975,43 @@ func (s *Server) handleUpdateTenant(c *gin.Context) {
 // handleDeleteTenant deletes a tenant.
 // DELETE /o2ims/v3/tenants/:tenantId.
 func (s *Server) handleDeleteTenant(c *gin.Context) {
+	ctx := c.Request.Context()
 	tenantID := c.Param("tenantId")
 	s.logger.Info("deleting tenant", zap.String("tenant_id", tenantID))
 
 	if tenantID == "default" {
+		// Audit log the failed attempt
+		if s.auditLogger != nil {
+			user := auth.UserFromContext(ctx)
+			s.auditLogger.LogAdminOperation(
+				ctx,
+				auth.AuditEventTenantDeleted,
+				tenantID,
+				user,
+				map[string]string{
+					"error": "cannot delete default tenant",
+				},
+			)
+		}
+
 		c.JSON(http.StatusConflict, gin.H{
 			"error":   "Conflict",
 			"message": "Cannot delete default tenant",
 			"code":    http.StatusConflict,
 		})
 		return
+	}
+
+	// Audit log the successful deletion
+	if s.auditLogger != nil {
+		user := auth.UserFromContext(ctx)
+		s.auditLogger.LogAdminOperation(
+			ctx,
+			auth.AuditEventTenantDeleted,
+			tenantID,
+			user,
+			nil,
+		)
 	}
 
 	c.Status(http.StatusNoContent)
@@ -1996,6 +2039,7 @@ func (s *Server) handleGetTenantQuotas(c *gin.Context) {
 // handleUpdateTenantQuotas updates tenant quotas.
 // PUT /o2ims/v3/tenants/:tenantId/quotas.
 func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
+	ctx := c.Request.Context()
 	tenantID := c.Param("tenantId")
 	s.logger.Info("updating tenant quotas", zap.String("tenant_id", tenantID))
 
@@ -2012,6 +2056,20 @@ func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
 			"code":    http.StatusBadRequest,
 		})
 		return
+	}
+
+	// Audit log the quota updates
+	if s.auditLogger != nil {
+		user := auth.UserFromContext(ctx)
+		if req.MaxSubscriptions > 0 {
+			s.auditLogger.LogQuotaUpdate(ctx, tenantID, user, "maxSubscriptions", 0, req.MaxSubscriptions)
+		}
+		if req.MaxResourcePools > 0 {
+			s.auditLogger.LogQuotaUpdate(ctx, tenantID, user, "maxResourcePools", 0, req.MaxResourcePools)
+		}
+		if req.MaxResources > 0 {
+			s.auditLogger.LogQuotaUpdate(ctx, tenantID, user, "maxResources", 0, req.MaxResources)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
