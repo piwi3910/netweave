@@ -84,7 +84,8 @@ type Server struct {
 	// AuthStore is the authentication store interface (public for testing)
 	AuthStore    AuthStore
 	authMw       AuthMiddleware
-	shutdownOnce sync.Once // Ensures shutdown logic runs only once
+	auditLogger  *auth.AuditLogger // Audit logging for security events
+	shutdownOnce sync.Once         // Ensures shutdown logic runs only once
 }
 
 // AuthStore defines the interface for auth storage operations.
@@ -168,6 +169,7 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 
 	// Initialize auth middleware if auth store is provided
 	var authMw AuthMiddleware
+	var auditLogger *auth.AuditLogger
 	if authStore != nil {
 		authMwConfig := &auth.MiddlewareConfig{
 			Enabled:     true,
@@ -180,6 +182,13 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 			logger.Warn("auth store does not implement auth.Store interface, auth middleware disabled")
 		} else {
 			authMw = auth.NewMiddleware(authStoreTyped, authMwConfig, logger)
+
+			// Initialize audit logger with the same auth store
+			var err error
+			auditLogger, err = auth.NewAuditLogger(authStoreTyped, logger)
+			if err != nil {
+				logger.Warn("failed to initialize audit logger", zap.Error(err))
+			}
 		}
 	}
 
@@ -197,6 +206,7 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 		batchHandler:     batchHandler,
 		AuthStore:        authStore,
 		authMw:           authMw,
+		auditLogger:      auditLogger,
 	}
 
 	// Setup middleware

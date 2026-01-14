@@ -432,6 +432,22 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 	// Create subscription via adapter
 	created, err := s.adapter.CreateSubscription(ctx, &req)
 	if err != nil {
+		// Audit log the failure
+		if s.auditLogger != nil {
+			user := auth.UserFromContext(ctx)
+			s.auditLogger.LogSubscriptionOperation(
+				ctx,
+				auth.AuditEventSubscriptionCreated,
+				req.SubscriptionID,
+				req.Callback,
+				user,
+				map[string]string{
+					"error":     err.Error(),
+					"tenant_id": tenantID,
+				},
+			)
+		}
+
 		// Rollback quota increment on failure
 		if tenantID != "" && s.AuthStore != nil {
 			if decErr := s.AuthStore.DecrementUsage(ctx, tenantID, "subscriptions"); decErr != nil {
@@ -499,18 +515,21 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 		zap.String("subscription_id", created.SubscriptionID),
 		zap.String("callback", created.Callback))
 
-	// Log audit event for subscription creation
-	s.logAuditEvent(
-		ctx,
-		c,
-		auth.AuditEventResourceCreated,
-		"subscription",
-		created.SubscriptionID,
-		"subscription_created",
-		map[string]string{
-			"callback": created.Callback,
-		},
-	)
+	// Audit log the successful creation
+	if s.auditLogger != nil {
+		user := auth.UserFromContext(ctx)
+		s.auditLogger.LogSubscriptionOperation(
+			ctx,
+			auth.AuditEventSubscriptionCreated,
+			created.SubscriptionID,
+			created.Callback,
+			user,
+			map[string]string{
+				"consumer_subscription_id": created.ConsumerSubscriptionID,
+				"tenant_id":                tenantID,
+			},
+		)
+	}
 
 	c.JSON(http.StatusCreated, created)
 }
@@ -652,6 +671,22 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 
 	// Delete from adapter
 	if err := s.adapter.DeleteSubscription(ctx, subscriptionID); err != nil {
+		// Audit log the failure
+		if s.auditLogger != nil {
+			user := auth.UserFromContext(ctx)
+			s.auditLogger.LogSubscriptionOperation(
+				ctx,
+				auth.AuditEventSubscriptionDeleted,
+				subscriptionID,
+				"",
+				user,
+				map[string]string{
+					"error":     err.Error(),
+					"tenant_id": storedTenantID,
+				},
+			)
+		}
+
 		s.logger.Error("failed to delete subscription from adapter", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
@@ -663,6 +698,22 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 
 	// Delete from storage
 	if err := s.store.Delete(ctx, subscriptionID); err != nil {
+		// Audit log the failure
+		if s.auditLogger != nil {
+			user := auth.UserFromContext(ctx)
+			s.auditLogger.LogSubscriptionOperation(
+				ctx,
+				auth.AuditEventSubscriptionDeleted,
+				subscriptionID,
+				"",
+				user,
+				map[string]string{
+					"error":     err.Error(),
+					"tenant_id": storedTenantID,
+				},
+			)
+		}
+
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
@@ -693,16 +744,20 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 
 	s.logger.Info("subscription deleted", zap.String("subscription_id", subscriptionID))
 
-	// Log audit event for subscription deletion
-	s.logAuditEvent(
-		ctx,
-		c,
-		auth.AuditEventResourceDeleted,
-		"subscription",
-		subscriptionID,
-		"subscription_deleted",
-		nil,
-	)
+	// Audit log the successful deletion
+	if s.auditLogger != nil {
+		user := auth.UserFromContext(ctx)
+		s.auditLogger.LogSubscriptionOperation(
+			ctx,
+			auth.AuditEventSubscriptionDeleted,
+			subscriptionID,
+			"",
+			user,
+			map[string]string{
+				"tenant_id": storedTenantID,
+			},
+		)
+	}
 
 	c.Status(http.StatusNoContent)
 }
@@ -958,6 +1013,23 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 	// Create resource pool via adapter
 	created, err := s.adapter.CreateResourcePool(c.Request.Context(), &req)
 	if err != nil {
+		// Audit log the failure
+		if s.auditLogger != nil {
+			user := auth.UserFromContext(c.Request.Context())
+			s.auditLogger.LogResourceOperation(
+				c.Request.Context(),
+				auth.AuditEventResourcePoolCreated,
+				"resourcepool",
+				req.ResourcePoolID,
+				user,
+				false,
+				map[string]string{
+					"name":  req.Name,
+					"error": err.Error(),
+				},
+			)
+		}
+
 		// Check for duplicate resource pool using sentinel error
 		if errors.Is(err, adapter.ErrResourcePoolExists) {
 			c.JSON(http.StatusConflict, gin.H{
@@ -980,6 +1052,22 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 	s.logger.Info("resource pool created",
 		zap.String("resource_pool_id", created.ResourcePoolID),
 		zap.String("name", SanitizeForLogging(created.Name)))
+
+	// Audit log the successful creation
+	if s.auditLogger != nil {
+		user := auth.UserFromContext(c.Request.Context())
+		s.auditLogger.LogResourceOperation(
+			c.Request.Context(),
+			auth.AuditEventResourcePoolCreated,
+			"resourcepool",
+			created.ResourcePoolID,
+			user,
+			true,
+			map[string]string{
+				"name": created.Name,
+			},
+		)
+	}
 
 	// Set Location header for REST compliance
 	c.Header("Location", "/o2ims/v1/resourcePools/"+created.ResourcePoolID)
@@ -1015,6 +1103,23 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 	// Update resource pool via adapter
 	updated, err := s.adapter.UpdateResourcePool(c.Request.Context(), resourcePoolID, &req)
 	if err != nil {
+		// Audit log the failure
+		if s.auditLogger != nil {
+			user := auth.UserFromContext(c.Request.Context())
+			s.auditLogger.LogResourceOperation(
+				c.Request.Context(),
+				auth.AuditEventResourcePoolModified,
+				"resourcepool",
+				resourcePoolID,
+				user,
+				false,
+				map[string]string{
+					"name":  req.Name,
+					"error": err.Error(),
+				},
+			)
+		}
+
 		// Check for not found error using sentinel error
 		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -1038,6 +1143,22 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 		zap.String("resource_pool_id", updated.ResourcePoolID),
 		zap.String("name", SanitizeForLogging(updated.Name)))
 
+	// Audit log the successful update
+	if s.auditLogger != nil {
+		user := auth.UserFromContext(c.Request.Context())
+		s.auditLogger.LogResourceOperation(
+			c.Request.Context(),
+			auth.AuditEventResourcePoolModified,
+			"resourcepool",
+			updated.ResourcePoolID,
+			user,
+			true,
+			map[string]string{
+				"name": updated.Name,
+			},
+		)
+	}
+
 	c.JSON(http.StatusOK, updated)
 }
 
@@ -1046,6 +1167,22 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 	resourcePoolID := c.Param("resourcePoolId")
 	if err := s.adapter.DeleteResourcePool(c.Request.Context(), resourcePoolID); err != nil {
+		// Audit log the failure
+		if s.auditLogger != nil {
+			user := auth.UserFromContext(c.Request.Context())
+			s.auditLogger.LogResourceOperation(
+				c.Request.Context(),
+				auth.AuditEventResourcePoolDeleted,
+				"resourcepool",
+				resourcePoolID,
+				user,
+				false,
+				map[string]string{
+					"error": err.Error(),
+				},
+			)
+		}
+
 		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
@@ -1062,6 +1199,21 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 		})
 		return
 	}
+
+	// Audit log the successful deletion
+	if s.auditLogger != nil {
+		user := auth.UserFromContext(c.Request.Context())
+		s.auditLogger.LogResourceOperation(
+			c.Request.Context(),
+			auth.AuditEventResourcePoolDeleted,
+			"resourcepool",
+			resourcePoolID,
+			user,
+			true,
+			nil,
+		)
+	}
+
 	c.Status(http.StatusNoContent)
 }
 
@@ -1285,6 +1437,22 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 	// Create resource via adapter
 	created, err := s.adapter.CreateResource(c.Request.Context(), &req)
 	if err != nil {
+		// Audit log the failure
+		if s.auditLogger != nil {
+			user := auth.UserFromContext(c.Request.Context())
+			s.auditLogger.LogResourceOperation(
+				c.Request.Context(),
+				auth.AuditEventResourceCreated,
+				req.ResourceTypeID,
+				req.ResourceID,
+				user,
+				false,
+				map[string]string{
+					"error": err.Error(),
+				},
+			)
+		}
+
 		// Check if error indicates duplicate resource
 		if errors.Is(err, adapter.ErrResourceExists) {
 			c.JSON(http.StatusConflict, gin.H{
@@ -1307,6 +1475,22 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 	s.logger.Info("resource created",
 		zap.String("resource_id", created.ResourceID),
 		zap.String("resource_type_id", SanitizeForLogging(created.ResourceTypeID)))
+
+	// Audit log the resource creation
+	if s.auditLogger != nil {
+		user := auth.UserFromContext(c.Request.Context())
+		s.auditLogger.LogResourceOperation(
+			c.Request.Context(),
+			auth.AuditEventResourceCreated,
+			created.ResourceTypeID,
+			created.ResourceID,
+			user,
+			true,
+			map[string]string{
+				"resource_pool_id": created.ResourcePoolID,
+			},
+		)
+	}
 
 	// Set Location header for REST compliance
 	c.Header("Location", "/o2ims/v1/resources/"+created.ResourceID)
@@ -1346,7 +1530,30 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 
 func (s *Server) handleDeleteResource(c *gin.Context) {
 	resourceID := c.Param("resourceId")
+
+	// Get resource info before deletion for audit logging
+	var resourceTypeID string
+	if existing, err := s.adapter.GetResource(c.Request.Context(), resourceID); err == nil && existing != nil {
+		resourceTypeID = existing.ResourceTypeID
+	}
+
 	if err := s.adapter.DeleteResource(c.Request.Context(), resourceID); err != nil {
+		// Audit log the failure
+		if s.auditLogger != nil {
+			user := auth.UserFromContext(c.Request.Context())
+			s.auditLogger.LogResourceOperation(
+				c.Request.Context(),
+				auth.AuditEventResourceDeleted,
+				resourceTypeID,
+				resourceID,
+				user,
+				false,
+				map[string]string{
+					"error": err.Error(),
+				},
+			)
+		}
+
 		if errors.Is(err, adapter.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
@@ -1363,6 +1570,21 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 		})
 		return
 	}
+
+	// Audit log the successful deletion
+	if s.auditLogger != nil {
+		user := auth.UserFromContext(c.Request.Context())
+		s.auditLogger.LogResourceOperation(
+			c.Request.Context(),
+			auth.AuditEventResourceDeleted,
+			resourceTypeID,
+			resourceID,
+			user,
+			true,
+			nil,
+		)
+	}
+
 	c.Status(http.StatusNoContent)
 }
 
@@ -1440,6 +1662,22 @@ func (s *Server) applyResourceUpdate(c *gin.Context, resourceID string, req, exi
 	// Update via adapter
 	updated, err := s.adapter.UpdateResource(c.Request.Context(), resourceID, req)
 	if err != nil {
+		// Audit log the failure
+		if s.auditLogger != nil {
+			user := auth.UserFromContext(c.Request.Context())
+			s.auditLogger.LogResourceOperation(
+				c.Request.Context(),
+				auth.AuditEventResourceModified,
+				req.ResourceTypeID,
+				resourceID,
+				user,
+				false,
+				map[string]string{
+					"error": err.Error(),
+				},
+			)
+		}
+
 		s.logger.Error("failed to update resource", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
@@ -1452,6 +1690,22 @@ func (s *Server) applyResourceUpdate(c *gin.Context, resourceID string, req, exi
 	s.logger.Info("resource updated",
 		zap.String("resource_id", updated.ResourceID),
 		zap.String("resource_type_id", SanitizeForLogging(updated.ResourceTypeID)))
+
+	// Audit log the successful update
+	if s.auditLogger != nil {
+		user := auth.UserFromContext(c.Request.Context())
+		s.auditLogger.LogResourceOperation(
+			c.Request.Context(),
+			auth.AuditEventResourceModified,
+			updated.ResourceTypeID,
+			updated.ResourceID,
+			user,
+			true,
+			map[string]string{
+				"resource_pool_id": updated.ResourcePoolID,
+			},
+		)
+	}
 
 	c.JSON(http.StatusOK, updated)
 }
