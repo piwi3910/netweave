@@ -236,7 +236,7 @@ func TestSubscriptionNotifications(t *testing.T) {
 	// This would require the test to have write access to the cluster
 
 	// Wait for webhook notification
-	event, err := fw.WebhookServer.WaitForEvent(30 * time.Second)
+	event, err := fw.WebhookServer.WaitForEvent(webhookRetryTimeout)
 	if err == nil {
 		assert.Equal(t, "Namespace", event.ResourceType)
 		fw.Logger.Info("Received webhook notification",
