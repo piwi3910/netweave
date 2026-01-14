@@ -175,9 +175,10 @@ func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) 
 
 // UpdateResource updates an existing GCP instance's labels and metadata.
 // Note: Core instance properties cannot be modified after creation.
+// Only labels can be updated via the GCP SetLabels API.
 func (a *Adapter) UpdateResource(
-	_ context.Context,
-	_ string,
+	ctx context.Context,
+	id string,
 	resource *adapter.Resource,
 ) (*adapter.Resource, error) {
 	var err error
@@ -185,12 +186,106 @@ func (a *Adapter) UpdateResource(
 	defer func() { adapter.ObserveOperation("gcp", "UpdateResource", start, err) }()
 
 	a.Logger.Debug("UpdateResource called",
-		zap.String("resourceID", resource.ResourceID))
+		zap.String("resourceID", id))
 
-	// TODO(#190): Implement instance metadata updates via GCP API
-	// For now, return not supported
-	err = fmt.Errorf("updating GCP instances is not yet implemented")
-	return nil, err
+	// Get current resource to extract zone and instance name
+	currentResource, err := a.GetResource(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	zone, instanceName, err := extractZoneAndName(currentResource)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get current instance to retrieve label fingerprint
+	instance, err := a.instancesClient.Get(ctx, &computepb.GetInstanceRequest{
+		Project:  a.projectID,
+		Zone:     zone,
+		Instance: instanceName,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instance: %w", err)
+	}
+
+	// Build labels from resource fields
+	labels := buildInstanceLabels(resource)
+
+	// Only update if there are labels to apply
+	if len(labels) > 0 {
+		op, err := a.instancesClient.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
+			Project:  a.projectID,
+			Zone:     zone,
+			Instance: instanceName,
+			InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
+				Labels:           labels,
+				LabelFingerprint: instance.LabelFingerprint,
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to set instance labels: %w", err)
+		}
+
+		// Wait for operation to complete
+		err = op.Wait(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to wait for label update: %w", err)
+		}
+
+		a.Logger.Info("updated instance labels",
+			zap.String("zone", zone),
+			zap.String("instanceName", instanceName),
+			zap.Int("labelCount", len(labels)))
+	}
+
+	// Fetch and return the updated resource
+	return a.GetResource(ctx, id)
+}
+
+// extractZoneAndName extracts zone and instance name from a resource.
+func extractZoneAndName(resource *adapter.Resource) (string, string, error) {
+	zone, ok := resource.Extensions["gcp.zone"].(string)
+	if !ok {
+		return "", "", fmt.Errorf("cannot determine zone for resource: %s", resource.ResourceID)
+	}
+
+	instanceName, ok := resource.Extensions["gcp.name"].(string)
+	if !ok {
+		return "", "", fmt.Errorf("cannot determine instance name for resource: %s", resource.ResourceID)
+	}
+
+	return zone, instanceName, nil
+}
+
+// buildInstanceLabels builds GCP labels from resource fields.
+func buildInstanceLabels(resource *adapter.Resource) map[string]string {
+	labels := make(map[string]string)
+
+	// Add description as name label (GCP labels must be lowercase)
+	if resource.Description != "" {
+		labels["name"] = strings.ToLower(resource.Description)
+	}
+
+	// Add GlobalAssetID as a label (sanitize for GCP label requirements)
+	if resource.GlobalAssetID != "" {
+		// GCP labels must be lowercase and can only contain letters, numbers, hyphens, and underscores
+		sanitized := strings.ToLower(resource.GlobalAssetID)
+		sanitized = strings.ReplaceAll(sanitized, ":", "_")
+		sanitized = strings.ReplaceAll(sanitized, "/", "_")
+		labels["global_asset_id"] = sanitized
+	}
+
+	// Add custom labels from Extensions
+	if resource.Extensions != nil {
+		if customLabels, ok := resource.Extensions["gcp.labels"].(map[string]string); ok {
+			for key, value := range customLabels {
+				labels[key] = value
+			}
+		}
+	}
+
+	return labels
 }
 
 // DeleteResource deletes a resource (GCP instance) by ID.
