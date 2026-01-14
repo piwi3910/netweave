@@ -811,6 +811,23 @@ func (h *Adapter) Health(ctx context.Context) error {
 	return nil
 }
 
+// Test helper exports for testing private functions
+
+// TestBuildPackageList exports buildPackageList for testing.
+func (h *Adapter) TestBuildPackageList(idx *repo.IndexFile, filter *adapter.Filter) []*adapter.DeploymentPackage {
+	return h.buildPackageList(idx, filter)
+}
+
+// TestMatchesChartFilter exports matchesChartFilter for testing.
+func (h *Adapter) TestMatchesChartFilter(chartName, chartVersion string, filter *adapter.Filter) bool {
+	return h.matchesChartFilter(chartName, chartVersion, filter)
+}
+
+// TestBuildPackage exports buildPackage for testing.
+func (h *Adapter) TestBuildPackage(chartName string, chart *repo.ChartVersion) *adapter.DeploymentPackage {
+	return h.buildPackage(chartName, chart)
+}
+
 // Close cleanly shuts down the adapter.
 func (h *Adapter) Close() error {
 	h.Initialized = false

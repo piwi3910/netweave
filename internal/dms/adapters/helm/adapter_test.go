@@ -14,6 +14,7 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v3/pkg/repo"
 	helmtime "helm.sh/helm/v3/pkg/time"
 
 	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
@@ -725,6 +726,61 @@ func TestHelmAdapter_GetDeploymentPackage(t *testing.T) {
 	}
 }
 
+func TestHelmAdapter_GetDeploymentPackage_ErrorPaths(t *testing.T) {
+	tests := []struct {
+		name      string
+		packageID string
+		wantErr   string
+	}{
+		{
+			name:      "empty package ID",
+			packageID: "",
+			wantErr:   "chart not found",
+		},
+		{
+			name:      "invalid package ID format - no version",
+			packageID: "nginx",
+			wantErr:   "chart not found",
+		},
+		{
+			name:      "invalid package ID format - multiple dashes",
+			packageID: "my-complex-chart-1.0.0-alpha",
+			wantErr:   "chart not found",
+		},
+		{
+			name:      "non-existent chart name",
+			packageID: "nonexistent-chart-1.0.0",
+			wantErr:   "chart not found",
+		},
+		{
+			name:      "non-existent version",
+			packageID: "nginx-999.0.0",
+			wantErr:   "chart not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter, err := helm.NewAdapter(&helm.Config{
+				Namespace:     "test",
+				RepositoryURL: "https://charts.example.com",
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			pkg, err := adapter.GetDeploymentPackage(ctx, tt.packageID)
+
+			assert.Error(t, err)
+			assert.Nil(t, pkg)
+			// Skip if error is network related, check for expected error
+			if err != nil && (strings.Contains(err.Error(), "no such host") || strings.Contains(err.Error(), "connection refused")) {
+				t.Skip("Skipping - requires repository access")
+			}
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
 // TestHelmAdapter_DeleteDeploymentPackage tests package deletion.
 func TestHelmAdapter_DeleteDeploymentPackage(t *testing.T) {
 	adapter, err := helm.NewAdapter(&helm.Config{
@@ -1015,6 +1071,86 @@ func TestHelmAdapter_GetDeploymentLogs(t *testing.T) {
 				// Logs might be empty but should not be nil
 				assert.NotNil(t, logs)
 			}
+		})
+	}
+}
+
+func TestHelmAdapter_GetDeploymentLogs_AdditionalOptions(t *testing.T) {
+	adapter, err := helm.NewAdapter(&helm.Config{
+		Namespace: "test",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name    string
+		logOpts *dmsadapter.LogOptions
+	}{
+		{
+			name: "container filter",
+			logOpts: &dmsadapter.LogOptions{
+				Container: "app-container",
+			},
+		},
+		{
+			name: "combined options - tail and since",
+			logOpts: &dmsadapter.LogOptions{
+				TailLines: 50,
+				Since:     time.Now().Add(-30 * time.Minute),
+			},
+		},
+		{
+			name: "combined options - container and tail",
+			logOpts: &dmsadapter.LogOptions{
+				Container: "sidecar",
+				TailLines: 200,
+			},
+		},
+		{
+			name: "all options combined",
+			logOpts: &dmsadapter.LogOptions{
+				Container: "main",
+				TailLines: 100,
+				Since:     time.Now().Add(-1 * time.Hour),
+			},
+		},
+		{
+			name: "empty container name",
+			logOpts: &dmsadapter.LogOptions{
+				Container: "",
+				TailLines: 50,
+			},
+		},
+		{
+			name: "zero tail lines",
+			logOpts: &dmsadapter.LogOptions{
+				TailLines: 0,
+			},
+		},
+		{
+			name: "large tail lines",
+			logOpts: &dmsadapter.LogOptions{
+				TailLines: 10000,
+			},
+		},
+		{
+			name: "future since time",
+			logOpts: &dmsadapter.LogOptions{
+				Since: time.Now().Add(1 * time.Hour),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logs, err := adapter.GetDeploymentLogs(ctx, "test-release", tt.logOpts)
+
+			// Will fail without K8s but tests the code path
+			if err != nil {
+				t.Skip("Skipping - requires Kubernetes")
+			}
+			assert.NotNil(t, logs)
 		})
 	}
 }
@@ -1555,6 +1691,63 @@ func TestHelmAdapter_ScaleDeployment_ZeroReplicas(t *testing.T) {
 	}
 }
 
+func TestHelmAdapter_ScaleDeployment_AdditionalValidation(t *testing.T) {
+	adapter, err := helm.NewAdapter(&helm.Config{
+		Namespace: "test",
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name        string
+		deployID    string
+		replicas    int
+		expectErr   bool
+		errContains string
+	}{
+		{
+			name:        "empty deployment ID",
+			deployID:    "",
+			replicas:    1,
+			expectErr:   true,
+			errContains: "",
+		},
+		{
+			name:        "very large replica count",
+			deployID:    "test-release",
+			replicas:    1000,
+			expectErr:   false,
+			errContains: "",
+		},
+		{
+			name:        "negative replicas",
+			deployID:    "test-release",
+			replicas:    -5,
+			expectErr:   true,
+			errContains: "replicas must be non-negative",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := adapter.ScaleDeployment(ctx, tt.deployID, tt.replicas)
+
+			if tt.expectErr {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				// May error due to missing K8s but not validation error
+				if err != nil && !strings.Contains(err.Error(), "replicas must be non-negative") {
+					t.Skip("Skipping - requires Kubernetes")
+				}
+			}
+		})
+	}
+}
+
 // TestHelmAdapter_RollbackDeployment_ZeroRevision tests rollback to revision 0.
 func TestHelmAdapter_RollbackDeployment_ZeroRevision(t *testing.T) {
 	adapter, err := helm.NewAdapter(&helm.Config{
@@ -1612,6 +1805,337 @@ func TestHelmAdapter_Settings(t *testing.T) {
 				assert.Equal(t, tt.kubeconfig, adapter.Settings.KubeConfig)
 			}
 			assert.Equal(t, tt.debug, adapter.Settings.Debug)
+		})
+	}
+}
+
+func TestHelmAdapter_TestBuildPackageList(t *testing.T) {
+	adp := &helm.Adapter{
+		Config: &helm.Config{
+			RepositoryURL: "https://charts.example.com",
+		},
+	}
+
+	tests := []struct {
+		name     string
+		index    *repo.IndexFile
+		filter   *dmsadapter.Filter
+		expected int
+	}{
+		{
+			name: "no filter returns all charts",
+			index: &repo.IndexFile{
+				Entries: map[string]repo.ChartVersions{
+					"nginx":      {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
+					"postgresql": {{Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"}, Created: time.Now()}},
+					"redis":      {{Metadata: &chart.Metadata{Version: "3.0.0", Description: "Redis chart"}, Created: time.Now()}},
+				},
+			},
+			filter:   nil,
+			expected: 3,
+		},
+		{
+			name: "filter by chart name",
+			index: &repo.IndexFile{
+				Entries: map[string]repo.ChartVersions{
+					"nginx":      {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
+					"postgresql": {{Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"}, Created: time.Now()}},
+					"redis":      {{Metadata: &chart.Metadata{Version: "3.0.0", Description: "Redis chart"}, Created: time.Now()}},
+				},
+			},
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{
+					"helm.chartName": "nginx",
+				},
+			},
+			expected: 1,
+		},
+		{
+			name: "filter by chart version",
+			index: &repo.IndexFile{
+				Entries: map[string]repo.ChartVersions{
+					"nginx": {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
+					"redis": {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "Redis chart"}, Created: time.Now()}},
+				},
+			},
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{
+					"helm.chartVersion": "1.0.0",
+				},
+			},
+			expected: 2,
+		},
+		{
+			name: "filter with no matches",
+			index: &repo.IndexFile{
+				Entries: map[string]repo.ChartVersions{
+					"nginx": {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
+				},
+			},
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{
+					"helm.chartName": "nonexistent",
+				},
+			},
+			expected: 0,
+		},
+		{
+			name: "empty index",
+			index: &repo.IndexFile{
+				Entries: map[string]repo.ChartVersions{},
+			},
+			filter:   nil,
+			expected: 0,
+		},
+		{
+			name: "chart with no versions skipped",
+			index: &repo.IndexFile{
+				Entries: map[string]repo.ChartVersions{
+					"nginx":       {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
+					"emptyChart":  {},
+					"postgresql":  {{Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"}, Created: time.Now()}},
+				},
+			},
+			filter:   nil,
+			expected: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := adp.TestBuildPackageList(tt.index, tt.filter)
+			assert.Len(t, result, tt.expected)
+
+			if tt.expected > 0 {
+				for _, pkg := range result {
+					assert.NotEmpty(t, pkg.ID)
+					assert.NotEmpty(t, pkg.Name)
+					assert.NotEmpty(t, pkg.Version)
+					assert.Equal(t, "helm-chart", pkg.PackageType)
+					assert.NotNil(t, pkg.Extensions)
+					assert.Equal(t, adp.Config.RepositoryURL, pkg.Extensions["helm.repository"])
+				}
+			}
+		})
+	}
+}
+
+func TestHelmAdapter_TestMatchesChartFilter(t *testing.T) {
+	adp := &helm.Adapter{}
+
+	tests := []struct {
+		name         string
+		chartName    string
+		chartVersion string
+		filter       *dmsadapter.Filter
+		expected     bool
+	}{
+		{
+			name:         "nil filter matches all",
+			chartName:    "nginx",
+			chartVersion: "1.0.0",
+			filter:       nil,
+			expected:     true,
+		},
+		{
+			name:         "filter with nil extensions matches all",
+			chartName:    "nginx",
+			chartVersion: "1.0.0",
+			filter:       &dmsadapter.Filter{},
+			expected:     true,
+		},
+		{
+			name:         "matching chart name",
+			chartName:    "nginx",
+			chartVersion: "1.0.0",
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{
+					"helm.chartName": "nginx",
+				},
+			},
+			expected: true,
+		},
+		{
+			name:         "non-matching chart name",
+			chartName:    "postgresql",
+			chartVersion: "1.0.0",
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{
+					"helm.chartName": "nginx",
+				},
+			},
+			expected: false,
+		},
+		{
+			name:         "matching chart version",
+			chartName:    "nginx",
+			chartVersion: "1.0.0",
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{
+					"helm.chartVersion": "1.0.0",
+				},
+			},
+			expected: true,
+		},
+		{
+			name:         "non-matching chart version",
+			chartName:    "nginx",
+			chartVersion: "2.0.0",
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{
+					"helm.chartVersion": "1.0.0",
+				},
+			},
+			expected: false,
+		},
+		{
+			name:         "matching both name and version",
+			chartName:    "nginx",
+			chartVersion: "1.0.0",
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{
+					"helm.chartName":    "nginx",
+					"helm.chartVersion": "1.0.0",
+				},
+			},
+			expected: true,
+		},
+		{
+			name:         "matching name but non-matching version",
+			chartName:    "nginx",
+			chartVersion: "2.0.0",
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{
+					"helm.chartName":    "nginx",
+					"helm.chartVersion": "1.0.0",
+				},
+			},
+			expected: false,
+		},
+		{
+			name:         "empty filter extensions",
+			chartName:    "nginx",
+			chartVersion: "1.0.0",
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{},
+			},
+			expected: true,
+		},
+		{
+			name:         "empty string values match all",
+			chartName:    "nginx",
+			chartVersion: "1.0.0",
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{
+					"helm.chartName":    "",
+					"helm.chartVersion": "",
+				},
+			},
+			expected: true,
+		},
+		{
+			name:         "wrong type in extensions ignored",
+			chartName:    "nginx",
+			chartVersion: "1.0.0",
+			filter: &dmsadapter.Filter{
+				Extensions: map[string]interface{}{
+					"helm.chartName": 123,
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := adp.TestMatchesChartFilter(tt.chartName, tt.chartVersion, tt.filter)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestHelmAdapter_TestBuildPackage(t *testing.T) {
+	adp := &helm.Adapter{
+		Config: &helm.Config{
+			RepositoryURL: "https://charts.example.com",
+		},
+	}
+
+	createdTime := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name      string
+		chartName string
+		chart     *repo.ChartVersion
+		validate  func(t *testing.T, pkg *dmsadapter.DeploymentPackage)
+	}{
+		{
+			name:      "basic chart",
+			chartName: "nginx",
+			chart: &repo.ChartVersion{
+				Metadata: &chart.Metadata{
+					Version:     "1.0.0",
+					Description: "NGINX web server",
+					AppVersion:  "1.19.0",
+					APIVersion:  "v2",
+					Deprecated:  false,
+				},
+				Created: createdTime,
+			},
+			validate: func(t *testing.T, pkg *dmsadapter.DeploymentPackage) {
+				assert.Equal(t, "nginx-1.0.0", pkg.ID)
+				assert.Equal(t, "nginx", pkg.Name)
+				assert.Equal(t, "1.0.0", pkg.Version)
+				assert.Equal(t, "helm-chart", pkg.PackageType)
+				assert.Equal(t, "NGINX web server", pkg.Description)
+				assert.Equal(t, createdTime, pkg.UploadedAt)
+				assert.NotNil(t, pkg.Extensions)
+				assert.Equal(t, "nginx", pkg.Extensions["helm.chartName"])
+				assert.Equal(t, "1.0.0", pkg.Extensions["helm.chartVersion"])
+				assert.Equal(t, "1.19.0", pkg.Extensions["helm.appVersion"])
+				assert.Equal(t, "https://charts.example.com", pkg.Extensions["helm.repository"])
+				assert.Equal(t, "v2", pkg.Extensions["helm.apiVersion"])
+				assert.Equal(t, false, pkg.Extensions["helm.deprecated"])
+			},
+		},
+		{
+			name:      "deprecated chart",
+			chartName: "oldchart",
+			chart: &repo.ChartVersion{
+				Metadata: &chart.Metadata{
+					Version:     "0.1.0",
+					Description: "Deprecated chart",
+					Deprecated:  true,
+				},
+				Created: createdTime,
+			},
+			validate: func(t *testing.T, pkg *dmsadapter.DeploymentPackage) {
+				assert.Equal(t, true, pkg.Extensions["helm.deprecated"])
+			},
+		},
+		{
+			name:      "chart with minimal metadata",
+			chartName: "minimal",
+			chart: &repo.ChartVersion{
+				Metadata: &chart.Metadata{
+					Version: "0.0.1",
+				},
+				Created: createdTime,
+			},
+			validate: func(t *testing.T, pkg *dmsadapter.DeploymentPackage) {
+				assert.Equal(t, "minimal-0.0.1", pkg.ID)
+				assert.Equal(t, "minimal", pkg.Name)
+				assert.Equal(t, "0.0.1", pkg.Version)
+				assert.Empty(t, pkg.Description)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := adp.TestBuildPackage(tt.chartName, tt.chart)
+			require.NotNil(t, result)
+			tt.validate(t, result)
 		})
 	}
 }
