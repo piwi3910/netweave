@@ -293,13 +293,78 @@ func (a *Adapter) createOpenStackServer(createOpts servers.CreateOpts) (*servers
 
 // UpdateResource updates an existing OpenStack instance's metadata.
 // Note: Core instance properties cannot be modified after creation.
-func (a *Adapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (*adapter.Resource, error) {
+// Only metadata can be updated via the OpenStack API.
+func (a *Adapter) UpdateResource(
+	ctx context.Context,
+	id string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
 	a.Logger.Debug("UpdateResource called",
-		zap.String("resourceID", resource.ResourceID))
+		zap.String("resourceID", id))
 
-	// TODO(#191): Implement instance metadata updates via OpenStack API
-	// For now, return not supported
-	return nil, fmt.Errorf("updating OpenStack instances is not yet implemented")
+	// Extract server ID from resource ID
+	serverID, err := extractServerID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build metadata from resource fields
+	metadata := buildServerMetadata(resource)
+
+	// Only update if there is metadata to apply
+	if len(metadata) > 0 {
+		updateOpts := servers.MetadataOpts(metadata)
+
+		_, err := servers.UpdateMetadata(a.compute, serverID, updateOpts).Extract()
+		if err != nil {
+			a.Logger.Error("failed to update server metadata",
+				zap.String("serverID", serverID),
+				zap.Error(err))
+			return nil, fmt.Errorf("failed to update server metadata: %w", err)
+		}
+
+		a.Logger.Info("updated server metadata",
+			zap.String("serverID", serverID),
+			zap.Int("metadataCount", len(metadata)))
+	}
+
+	// Fetch and return the updated resource
+	return a.GetResource(ctx, id)
+}
+
+// extractServerID extracts the OpenStack server ID from an O2-IMS resource ID.
+func extractServerID(id string) (string, error) {
+	var serverID string
+	if _, err := fmt.Sscanf(id, "openstack-server-%s", &serverID); err != nil {
+		return "", fmt.Errorf("invalid resource ID format: %s", id)
+	}
+	return serverID, nil
+}
+
+// buildServerMetadata builds OpenStack metadata from resource fields.
+func buildServerMetadata(resource *adapter.Resource) map[string]string {
+	metadata := make(map[string]string)
+
+	// Add description as name metadata
+	if resource.Description != "" {
+		metadata["name"] = resource.Description
+	}
+
+	// Add GlobalAssetID as metadata
+	if resource.GlobalAssetID != "" {
+		metadata["global_asset_id"] = resource.GlobalAssetID
+	}
+
+	// Add custom metadata from Extensions
+	if resource.Extensions != nil {
+		if customMetadata, ok := resource.Extensions["openstack.metadata"].(map[string]string); ok {
+			for key, value := range customMetadata {
+				metadata[key] = value
+			}
+		}
+	}
+
+	return metadata
 }
 
 // DeleteResource deletes an OpenStack Nova instance.
