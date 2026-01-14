@@ -653,12 +653,12 @@ func TestHandleUpdateResourcePool(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			srv := server.New(
-			&config.Config{Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode}},
-			zap.NewNop(),
-			&mockAdapter{},
-			&mockStore{},
-			nil,
-		)
+				&config.Config{Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode}},
+				zap.NewNop(),
+				&mockAdapter{},
+				&mockStore{},
+				nil,
+			)
 
 			req := httptest.NewRequest(
 				http.MethodPut,
