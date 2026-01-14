@@ -37,9 +37,11 @@ jobs:
 
       - name: Setup E2E environment
         run: make test-e2e-setup
+        timeout-minutes: 15
         env:
           CLUSTER_NAME: netweave-e2e
           NAMESPACE: netweave-e2e
+          DOCKER_BUILDKIT: 1
 
       - name: Wait for gateway to be ready
         run: |

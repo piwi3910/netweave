@@ -54,10 +54,40 @@ else
         --timeout 5m
 fi
 
+# Wait for Redis to be fully ready
+echo "==> Verifying Redis is ready"
+kubectl wait --for=condition=ready pod \
+    -l app.kubernetes.io/name=redis \
+    -n "${NAMESPACE}" \
+    --timeout=2m
+
+# Verify Redis connectivity
+echo "==> Testing Redis connectivity"
+kubectl run redis-test --image=redis:7-alpine --rm -i -n "${NAMESPACE}" \
+    --restart=Never --command -- redis-cli -h redis-master.${NAMESPACE}.svc.cluster.local ping || {
+    echo "ERROR: Redis connectivity test failed"
+    exit 1
+}
+echo "Redis is ready and responding"
+
 # Build and load gateway image into Kind
-echo "==> Building gateway image"
+echo "==> Building gateway image with caching"
 cd "${PROJECT_ROOT}"
-docker build -t netweave/gateway:e2e-test .
+
+# Use BuildKit for better caching and build --timeout
+export DOCKER_BUILDKIT=1
+
+# Build with explicit timeout and caching
+docker build \
+    --progress=plain \
+    --build-arg BUILDKIT_INLINE_CACHE=1 \
+    --tag netweave/gateway:e2e-test \
+    --file Dockerfile \
+    . 2>&1 | tee /tmp/docker-build-e2e.log || {
+    echo "ERROR: Docker build failed"
+    echo "Build log saved to /tmp/docker-build-e2e.log"
+    exit 1
+}
 
 echo "==> Loading image into Kind cluster"
 kind load docker-image netweave/gateway:e2e-test --name "${CLUSTER_NAME}"
