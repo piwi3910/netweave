@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/auth"
 	internalmodels "github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
 )
@@ -46,15 +47,20 @@ func NewResourcePoolHandler(adp adapter.Adapter, logger *zap.Logger) *ResourcePo
 func (h *ResourcePoolHandler) ListResourcePools(c *gin.Context) {
 	ctx := c.Request.Context()
 
+	// Extract tenant ID from authenticated context
+	tenantID := auth.TenantIDFromContext(ctx)
+
 	h.logger.Info("listing resource pools",
 		zap.String("request_id", c.GetString("request_id")),
+		zap.String("tenant_id", tenantID),
 	)
 
 	// Parse query parameters
 	filter := internalmodels.ParseQueryParams(c.Request.URL.Query())
 
-	// Convert internal filter to adapter filter
+	// Convert internal filter to adapter filter with tenant context
 	adapterFilter := &adapter.Filter{
+		TenantID:       tenantID,
 		ResourcePoolID: strings.Join(filter.ResourcePoolID, ","),
 		Location:       filter.Location,
 		Labels:         filter.Labels,
@@ -114,7 +120,17 @@ func (h *ResourcePoolHandler) ListResourcePools(c *gin.Context) {
 //   - 200 OK: ResourcePool object
 //   - 404 Not Found: Resource pool does not exist
 func (h *ResourcePoolHandler) GetResourcePool(c *gin.Context) {
+	ctx := c.Request.Context()
 	resourcePoolID := c.Param("resourcePoolId")
+
+	// Extract tenant ID from authenticated context
+	tenantID := auth.TenantIDFromContext(ctx)
+
+	h.logger.Info("getting resource pool",
+		zap.String("resource_pool_id", resourcePoolID),
+		zap.String("tenant_id", tenantID),
+	)
+
 	if resourcePoolID == "" {
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
@@ -124,9 +140,25 @@ func (h *ResourcePoolHandler) GetResourcePool(c *gin.Context) {
 		return
 	}
 
-	pool, err := h.adapter.GetResourcePool(c.Request.Context(), resourcePoolID)
+	pool, err := h.adapter.GetResourcePool(ctx, resourcePoolID)
 	if err != nil {
 		handleGetError(c, err, "Resource pool", resourcePoolID)
+		return
+	}
+
+	// Verify tenant ownership (return 404 to avoid information disclosure)
+	if tenantID != "" && pool.TenantID != tenantID {
+		h.logger.Warn("tenant mismatch - resource pool not found for this tenant",
+			zap.String("resource_pool_id", resourcePoolID),
+			zap.String("tenant_id", tenantID),
+			zap.String("pool_tenant_id", pool.TenantID),
+		)
+
+		c.JSON(http.StatusNotFound, models.ErrorResponse{
+			Error:   "NotFound",
+			Message: "Resource pool not found: " + resourcePoolID,
+			Code:    http.StatusNotFound,
+		})
 		return
 	}
 
@@ -154,8 +186,12 @@ func (h *ResourcePoolHandler) CreateResourcePool(c *gin.Context) {
 	ctx := c.Request.Context()
 	var pool models.ResourcePool
 
+	// Extract tenant ID from authenticated context
+	tenantID := auth.TenantIDFromContext(ctx)
+
 	h.logger.Info("creating resource pool",
 		zap.String("request_id", c.GetString("request_id")),
+		zap.String("tenant_id", tenantID),
 	)
 
 	// Parse request body
@@ -185,6 +221,7 @@ func (h *ResourcePoolHandler) CreateResourcePool(c *gin.Context) {
 	// Convert models.ResourcePool to adapter.ResourcePool
 	adapterPool := &adapter.ResourcePool{
 		ResourcePoolID:   pool.ResourcePoolID,
+		TenantID:         tenantID,
 		Name:             pool.Name,
 		Description:      pool.Description,
 		Location:         pool.Location,
@@ -257,9 +294,13 @@ func (h *ResourcePoolHandler) UpdateResourcePool(c *gin.Context) {
 	ctx := c.Request.Context()
 	resourcePoolID := c.Param("resourcePoolId")
 
+	// Extract tenant ID from authenticated context
+	tenantID := auth.TenantIDFromContext(ctx)
+
 	h.logger.Info("updating resource pool",
 		zap.String("resource_pool_id", resourcePoolID),
 		zap.String("request_id", c.GetString("request_id")),
+		zap.String("tenant_id", tenantID),
 	)
 
 	// Validate resource pool ID
@@ -286,9 +327,55 @@ func (h *ResourcePoolHandler) UpdateResourcePool(c *gin.Context) {
 		return
 	}
 
+	// First verify tenant ownership
+	existingPool, err := h.adapter.GetResourcePool(ctx, resourcePoolID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			h.logger.Warn("resource pool not found",
+				zap.String("resource_pool_id", resourcePoolID),
+			)
+
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "NotFound",
+				Message: "Resource pool not found: " + resourcePoolID,
+				Code:    http.StatusNotFound,
+			})
+			return
+		}
+
+		h.logger.Error("failed to get resource pool for tenant verification",
+			zap.String("resource_pool_id", resourcePoolID),
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to update resource pool",
+			Code:    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Verify tenant ownership (return 404 to avoid information disclosure)
+	if tenantID != "" && existingPool.TenantID != tenantID {
+		h.logger.Warn("tenant mismatch - cannot update resource pool from different tenant",
+			zap.String("resource_pool_id", resourcePoolID),
+			zap.String("tenant_id", tenantID),
+			zap.String("pool_tenant_id", existingPool.TenantID),
+		)
+
+		c.JSON(http.StatusNotFound, models.ErrorResponse{
+			Error:   "NotFound",
+			Message: "Resource pool not found: " + resourcePoolID,
+			Code:    http.StatusNotFound,
+		})
+		return
+	}
+
 	// Convert models.ResourcePool to adapter.ResourcePool
 	adapterPool := &adapter.ResourcePool{
 		ResourcePoolID:   pool.ResourcePoolID,
+		TenantID:         tenantID,
 		Name:             pool.Name,
 		Description:      pool.Description,
 		Location:         pool.Location,
@@ -358,9 +445,13 @@ func (h *ResourcePoolHandler) DeleteResourcePool(c *gin.Context) {
 	ctx := c.Request.Context()
 	resourcePoolID := c.Param("resourcePoolId")
 
+	// Extract tenant ID from authenticated context
+	tenantID := auth.TenantIDFromContext(ctx)
+
 	h.logger.Info("deleting resource pool",
 		zap.String("resource_pool_id", resourcePoolID),
 		zap.String("request_id", c.GetString("request_id")),
+		zap.String("tenant_id", tenantID),
 	)
 
 	// Validate resource pool ID
@@ -373,8 +464,53 @@ func (h *ResourcePoolHandler) DeleteResourcePool(c *gin.Context) {
 		return
 	}
 
+	// First verify tenant ownership
+	existingPool, err := h.adapter.GetResourcePool(ctx, resourcePoolID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			h.logger.Warn("resource pool not found",
+				zap.String("resource_pool_id", resourcePoolID),
+			)
+
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "NotFound",
+				Message: "Resource pool not found: " + resourcePoolID,
+				Code:    http.StatusNotFound,
+			})
+			return
+		}
+
+		h.logger.Error("failed to get resource pool for tenant verification",
+			zap.String("resource_pool_id", resourcePoolID),
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to delete resource pool",
+			Code:    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Verify tenant ownership (return 404 to avoid information disclosure)
+	if tenantID != "" && existingPool.TenantID != tenantID {
+		h.logger.Warn("tenant mismatch - cannot delete resource pool from different tenant",
+			zap.String("resource_pool_id", resourcePoolID),
+			zap.String("tenant_id", tenantID),
+			zap.String("pool_tenant_id", existingPool.TenantID),
+		)
+
+		c.JSON(http.StatusNotFound, models.ErrorResponse{
+			Error:   "NotFound",
+			Message: "Resource pool not found: " + resourcePoolID,
+			Code:    http.StatusNotFound,
+		})
+		return
+	}
+
 	// Delete resource pool via adapter
-	err := h.adapter.DeleteResourcePool(ctx, resourcePoolID)
+	err = h.adapter.DeleteResourcePool(ctx, resourcePoolID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			h.logger.Warn("resource pool not found",

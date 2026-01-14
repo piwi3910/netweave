@@ -20,8 +20,16 @@ func (a *Adapter) ListResourcePools(
 	a.logger.Debug("ListResourcePools called",
 		zap.Any("filter", filter))
 
-	// List all namespaces
-	namespaces, err := a.client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+	// Build label selector for tenant filtering (multi-tenancy)
+	labelSelector := ""
+	if filter != nil && filter.TenantID != "" {
+		labelSelector = fmt.Sprintf("o2ims.io/tenant-id=%s", filter.TenantID)
+	}
+
+	// List namespaces with optional tenant label selector
+	namespaces, err := a.client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
 	if err != nil {
 		a.logger.Error("failed to list namespaces",
 			zap.Error(err))
@@ -96,6 +104,11 @@ func (a *Adapter) CreateResourcePool(
 				"o2ims.io/managed":          "true",
 			},
 		},
+	}
+
+	// Add tenant label for multi-tenancy
+	if pool.TenantID != "" {
+		namespace.Labels["o2ims.io/tenant-id"] = pool.TenantID
 	}
 
 	// Add description as annotation if provided
@@ -222,8 +235,15 @@ func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
 
 // transformNamespaceToResourcePool converts a Kubernetes Namespace to an O2-IMS Resource Pool.
 func (a *Adapter) transformNamespaceToResourcePool(ns *corev1.Namespace) *adapter.ResourcePool {
+	// Extract tenant ID from namespace labels (multi-tenancy)
+	tenantID := ""
+	if tid, ok := ns.Labels["o2ims.io/tenant-id"]; ok {
+		tenantID = tid
+	}
+
 	pool := &adapter.ResourcePool{
 		ResourcePoolID: fmt.Sprintf("k8s-namespace-%s", ns.Name),
+		TenantID:       tenantID,
 		Name:           ns.Name,
 		OCloudID:       a.oCloudID,
 		Extensions:     make(map[string]interface{}),

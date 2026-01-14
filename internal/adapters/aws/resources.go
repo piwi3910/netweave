@@ -29,6 +29,14 @@ func (a *Adapter) ListResources(
 	// Build EC2 filters
 	var ec2Filters []ec2Types.Filter
 
+	// Filter by tenant ID using tags (multi-tenancy)
+	if filter != nil && filter.TenantID != "" {
+		ec2Filters = append(ec2Filters, ec2Types.Filter{
+			Name:   aws.String("tag:o2ims.io/tenant-id"),
+			Values: []string{filter.TenantID},
+		})
+	}
+
 	// Filter by availability zone if location is specified
 	if filter != nil && filter.Location != "" {
 		ec2Filters = append(ec2Filters, ec2Types.Filter{
@@ -224,6 +232,14 @@ func extractInstanceID(id string) string {
 // buildResourceTags builds EC2 tags from resource fields.
 func buildResourceTags(resource *adapter.Resource) []ec2Types.Tag {
 	var tags []ec2Types.Tag
+
+	// Add tenant ID tag for multi-tenancy
+	if resource.TenantID != "" {
+		tags = append(tags, ec2Types.Tag{
+			Key:   aws.String("o2ims.io/tenant-id"),
+			Value: aws.String(resource.TenantID),
+		})
+	}
 
 	// Add description as Name tag
 	if resource.Description != "" {
@@ -433,8 +449,12 @@ func (a *Adapter) instanceToResource(instance *ec2Types.Instance) *adapter.Resou
 		extensions["aws.cpuThreadsPerCore"] = aws.ToInt32(instance.CpuOptions.ThreadsPerCore)
 	}
 
+	// Extract tenant ID from tags (multi-tenancy)
+	tenantID := ExtractTagValue(instance.Tags, "o2ims.io/tenant-id")
+
 	return &adapter.Resource{
 		ResourceID:     resourceID,
+		TenantID:       tenantID,
 		ResourceTypeID: resourceTypeID,
 		ResourcePoolID: resourcePoolID,
 		GlobalAssetID:  fmt.Sprintf("urn:aws:ec2:%s:%s", a.Region, instanceID),

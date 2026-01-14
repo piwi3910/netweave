@@ -80,6 +80,10 @@ var (
 // Filters are used in List operations to narrow down results based on
 // resource attributes, labels, location, and custom extensions.
 type Filter struct {
+	// TenantID filters resources by tenant for multi-tenancy isolation.
+	// When set, only resources belonging to this tenant will be returned.
+	TenantID string
+
 	// ResourcePoolID filters resources by their parent resource pool.
 	ResourcePoolID string
 
@@ -138,6 +142,10 @@ type ResourcePool struct {
 	// ResourcePoolID is the unique identifier for this resource pool.
 	ResourcePoolID string `json:"resourcePoolId"`
 
+	// TenantID identifies the tenant that owns this resource pool (multi-tenancy).
+	// This field is not exposed in the O2-IMS API response but used for internal isolation.
+	TenantID string `json:"-"`
+
 	// Name is the human-readable name of the resource pool.
 	Name string `json:"name"`
 
@@ -163,6 +171,10 @@ type ResourcePool struct {
 type Resource struct {
 	// ResourceID is the unique identifier for this resource.
 	ResourceID string `json:"resourceId"`
+
+	// TenantID identifies the tenant that owns this resource (multi-tenancy).
+	// This field is not exposed in the O2-IMS API response but used for internal isolation.
+	TenantID string `json:"-"`
 
 	// ResourceTypeID identifies the type/class of this resource.
 	ResourceTypeID string `json:"resourceTypeId"`

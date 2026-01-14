@@ -29,10 +29,18 @@ func (a *Adapter) ListResources(
 	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
+	// Build label selector for tenant filtering (multi-tenancy)
+	labelSelector := ""
+	if filter != nil && filter.TenantID != "" {
+		labelSelector = fmt.Sprintf("o2ims.io/tenant-id=%s", filter.TenantID)
+	}
+
 	// Record backend API call timing
 	backendStart := time.Now()
-	// List all nodes
-	nodes, listErr := a.client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	// List nodes with optional tenant label selector
+	nodes, listErr := a.client.CoreV1().Nodes().List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
 	adapter.ObserveBackendRequest(a.Name(), "/api/v1/nodes", "LIST", backendStart, 200, listErr)
 	adapter.RecordBackendCall(span, "/api/v1/nodes", "LIST", 200)
 
@@ -198,8 +206,15 @@ func (a *Adapter) transformNodeToResource(node *corev1.Node) *adapter.Resource {
 		resourcePoolID = fmt.Sprintf("k8s-namespace-%s", namespace)
 	}
 
+	// Extract tenant ID from node labels (multi-tenancy)
+	tenantID := ""
+	if tid, ok := node.Labels["o2ims.io/tenant-id"]; ok {
+		tenantID = tid
+	}
+
 	resource := &adapter.Resource{
 		ResourceID:     fmt.Sprintf("k8s-node-%s", node.Name),
+		TenantID:       tenantID,
 		ResourceTypeID: resourceTypeID,
 		ResourcePoolID: resourcePoolID,
 		GlobalAssetID:  fmt.Sprintf("urn:k8s:node:%s:%s", a.oCloudID, node.UID),
