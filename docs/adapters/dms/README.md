@@ -117,11 +117,17 @@ const (
 
 | Adapter | Status | Package Format | Deployment Target | GitOps | Rollback |
 |---------|--------|----------------|-------------------|--------|----------|
-| **Helm** | 📋 Spec | Helm Chart | Kubernetes | No | Yes |
+| **Helm** | ✅ Active | Helm Chart | Kubernetes | No | Yes |
 | **ArgoCD** | 📋 Spec | Git Repo | Kubernetes | Yes | Yes |
 | **Flux CD** | 📋 Spec | Git Repo | Kubernetes | Yes | Yes |
+| **Crossplane** | 📋 Spec | XRD/Composition | Multi-Cloud | Yes | No |
+| **Kustomize** | 📋 Spec | Kustomize | Kubernetes | No | No |
 | **ONAP-LCM** | 📋 Spec | ONAP Package | Multi-Cloud | No | Yes |
 | **OSM-LCM** | 📋 Spec | OSM Package | Multi-Cloud | No | Yes |
+
+**Legend:**
+- ✅ Active: Implemented and initialized in the gateway
+- 📋 Spec: Interface defined but not yet initialized
 
 ## Adapter Documentation
 
@@ -129,6 +135,7 @@ const (
 - [GitOps Adapters](gitops.md) - ArgoCD, Flux CD
 - [Orchestrator Adapters](orchestrators.md) - ONAP-LCM, OSM-LCM
 - [Package Management](package-management.md) - Deployment package lifecycle management
+- [Lifecycle Operations](lifecycle-operations.md) - Scale, rollback, and upgrade operations
 
 ## See Also
 
