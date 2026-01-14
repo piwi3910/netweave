@@ -147,7 +147,8 @@ func setupResourceTestServer(t *testing.T, adp adapter.Adapter) *server.Server {
 			GinMode: gin.TestMode,
 		},
 	}
-	return server.New(cfg, zap.NewNop(), adp, &mockStore{})
+	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), adp, &mockStore{})
+	return srv
 }
 
 // makeResourcePostRequest creates and executes a POST request to /resources.
@@ -192,7 +193,6 @@ func testInvalidResourceID(t *testing.T, resourceID, expectedError string) {
 }
 
 func TestResourceCreateResource(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -209,7 +209,6 @@ func TestResourceCreateResource(t *testing.T) {
 }
 
 func TestResourceVerifyLocationHeader(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -228,7 +227,6 @@ func TestResourceVerifyLocationHeader(t *testing.T) {
 }
 
 func TestResourceValidationErrorEmptyResourceTypeID(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -243,7 +241,6 @@ func TestResourceValidationErrorEmptyResourceTypeID(t *testing.T) {
 }
 
 func TestResourceValidationErrorEmptyResourcePoolID(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -258,17 +255,14 @@ func TestResourceValidationErrorEmptyResourcePoolID(t *testing.T) {
 }
 
 func TestResourceSecurityRejectInvalidUUIDPathTraversal(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	testInvalidResourceID(t, "../../../etc/passwd", "resourceId must be a valid UUID")
 }
 
 func TestResourceSecurityRejectInvalidUUIDSQLInjection(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	testInvalidResourceID(t, "'; DROP TABLE resources; --", "resourceId must be a valid UUID")
 }
 
 func TestResourceAcceptValidClientProvidedUUID(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -293,7 +287,6 @@ func TestResourceAcceptValidClientProvidedUUID(t *testing.T) {
 }
 
 func TestResourceUpdateUpdateResourceDescription(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -329,7 +322,6 @@ func TestResourceUpdateUpdateResourceDescription(t *testing.T) {
 }
 
 func TestResourceUpdateUpdateExtensions(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -366,7 +358,6 @@ func TestResourceUpdateUpdateExtensions(t *testing.T) {
 }
 
 func TestResourceUpdateInvalidJSON(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -385,7 +376,6 @@ func TestResourceUpdateInvalidJSON(t *testing.T) {
 }
 
 func TestResourceUpdateResourceNotFound(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -411,7 +401,6 @@ func TestResourceUpdateResourceNotFound(t *testing.T) {
 }
 
 func TestResourceUpdatePreserveImmutableFields(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -444,7 +433,6 @@ func TestResourceUpdatePreserveImmutableFields(t *testing.T) {
 }
 
 func TestResourceUpdateRejectImmutableFieldModification(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -471,7 +459,6 @@ func TestResourceUpdateRejectImmutableFieldModification(t *testing.T) {
 }
 
 func TestResourceInvalidGlobalAssetIDFormat(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -490,7 +477,6 @@ func TestResourceInvalidGlobalAssetIDFormat(t *testing.T) {
 }
 
 func TestResourceDescriptionTooLong(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -509,7 +495,6 @@ func TestResourceDescriptionTooLong(t *testing.T) {
 }
 
 func TestResourceTooManyExtensions(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -533,7 +518,6 @@ func TestResourceTooManyExtensions(t *testing.T) {
 }
 
 func TestResourceExtensionKeyExceedsTwoFiftySixCharacters(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -557,7 +541,6 @@ func TestResourceExtensionKeyExceedsTwoFiftySixCharacters(t *testing.T) {
 }
 
 func TestResourceExtensionValueExceedsFourKB(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -581,18 +564,11 @@ func TestResourceExtensionValueExceedsFourKB(t *testing.T) {
 }
 
 func TestResourceExtensionsExceedsHundredKeys(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	gin.SetMode(gin.TestMode)
 
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
 
 	// Test POST /resources
-	srv := server.New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Create map with 101 keys
 	extensions := make(map[string]interface{})
@@ -614,18 +590,11 @@ func TestResourceExtensionsExceedsHundredKeys(t *testing.T) {
 }
 
 func TestResourceTotalExtensionsPayloadExceedsFiftyKB(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	gin.SetMode(gin.TestMode)
 
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
 
 	// Test POST /resources
-	srv := server.New(cfg, zap.NewNop(), newMockResourceAdapter(), &mockStore{})
+	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Create extensions with total size > 50KB
 	// Each value ~2KB, 26 keys = ~52KB total
@@ -649,7 +618,6 @@ func TestResourceTotalExtensionsPayloadExceedsFiftyKB(t *testing.T) {
 }
 
 func TestResourceCustomResourceID(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -672,7 +640,6 @@ func TestResourceCustomResourceID(t *testing.T) {
 }
 
 func TestResourceDuplicateResourceID(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
 	// Test POST /resources
@@ -692,22 +659,15 @@ func TestResourceDuplicateResourceID(t *testing.T) {
 }
 
 func TestResourceAdapterErrorOnCreate(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	gin.SetMode(gin.TestMode)
 
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
 
 	// Test POST /resources
 	// Create a mock that returns an error
 	mockAdp := &mockResourceAdapter{
 		resources: map[string]*adapter.Resource{},
 	}
-	srv := server.New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, errorOnCreate}, &mockStore{})
+	srv := setupResourceTestServer(t, &errorReturningAdapter{mockAdp, errorOnCreate})
 
 	resource := adapter.Resource{
 		ResourceTypeID: "machine",
@@ -723,15 +683,8 @@ func TestResourceAdapterErrorOnCreate(t *testing.T) {
 }
 
 func TestResourceUpdateAdapterErrorOnUpdate(t *testing.T) {
-	t.Skip("Skipping due to issue #204 - refactoring needed")
 	gin.SetMode(gin.TestMode)
 
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
 
 	// Test POST /resources
 	// Create a mock with existing resource that returns error on update
@@ -745,7 +698,7 @@ func TestResourceUpdateAdapterErrorOnUpdate(t *testing.T) {
 			},
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &errorReturningAdapter{mockAdp, errorOnUpdate}, &mockStore{})
+	srv := setupResourceTestServer(t, &errorReturningAdapter{mockAdp, errorOnUpdate})
 
 	resource := adapter.Resource{
 		Description: "Updated description",
@@ -804,21 +757,14 @@ func (e *errorReturningAdapter) GetResource(ctx context.Context, id string) (*ad
 
 // TestResourceConcurrency tests concurrent operations on the same resource.
 func TestResourceConcurrency(t *testing.T) {
-	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
 	gin.SetMode(gin.TestMode)
 
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
 
 	t.Run("concurrent creates with same ID", func(t *testing.T) {
 		mockAdp := &mockResourceAdapter{
 			resources: make(map[string]*adapter.Resource),
 		}
-		srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+		srv := setupResourceTestServer(t, mockAdp)
 
 		// Use a specific resource ID
 		resourceID := "test-concurrent-123"
@@ -873,7 +819,7 @@ func TestResourceConcurrency(t *testing.T) {
 				},
 			},
 		}
-		srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+		srv := setupResourceTestServer(t, mockAdp)
 
 		// Run 10 concurrent updates
 		const numGoroutines = 10
@@ -923,7 +869,7 @@ func TestResourceConcurrency(t *testing.T) {
 		mockAdp := &mockResourceAdapter{
 			resources: make(map[string]*adapter.Resource),
 		}
-		srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+		srv := setupResourceTestServer(t, mockAdp)
 
 		resourceID := "test-create-get-concurrent"
 		const numGoroutines = 20

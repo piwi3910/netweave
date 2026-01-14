@@ -61,244 +61,264 @@ var (
 	metricsOnce sync.Once
 )
 
-// InitMetrics initializes and registers all Prometheus metrics.
+// InitMetrics initializes and registers all Prometheus metrics with the default global registry.
 // Thread-safe using sync.Once to prevent race conditions.
 // Returns the existing metrics instance if already initialized (idempotent).
+// For tests, use InitMetricsWithRegistry or NewMetrics with a custom registry instead.
 func InitMetrics(namespace string) *Metrics {
 	metricsOnce.Do(func() {
-		if namespace == "" {
-			namespace = "o2ims"
-		}
-
-		GlobalMetrics = &Metrics{
-			// HTTP metrics
-			HTTPRequestsTotal: promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Namespace: namespace,
-					Name:      "http_requests_total",
-					Help:      "Total number of HTTP requests",
-				},
-				[]string{"method", "path", "status"},
-			),
-
-			HTTPRequestDuration: promauto.NewHistogramVec(
-				prometheus.HistogramOpts{
-					Namespace: namespace,
-					Name:      "http_request_duration_seconds",
-					Help:      "HTTP request latency in seconds",
-					Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
-				},
-				[]string{"method", "path", "status"},
-			),
-
-			HTTPRequestsInFlight: promauto.NewGauge(
-				prometheus.GaugeOpts{
-					Namespace: namespace,
-					Name:      "http_requests_in_flight",
-					Help:      "Number of HTTP requests currently being processed",
-				},
-			),
-
-			HTTPResponseSizeBytes: promauto.NewHistogramVec(
-				prometheus.HistogramOpts{
-					Namespace: namespace,
-					Name:      "http_response_size_bytes",
-					Help:      "HTTP response size in bytes",
-					Buckets:   prometheus.ExponentialBuckets(100, 10, 8),
-				},
-				[]string{"method", "path"},
-			),
-
-			// Adapter metrics
-			AdapterOperationsTotal: promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Namespace: namespace,
-					Name:      "adapter_operations_total",
-					Help:      "Total number of adapter operations",
-				},
-				[]string{"adapter", "operation", "status"},
-			),
-
-			AdapterOperationDuration: promauto.NewHistogramVec(
-				prometheus.HistogramOpts{
-					Namespace: namespace,
-					Name:      "adapter_operation_duration_seconds",
-					Help:      "Adapter operation duration in seconds",
-					Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5},
-				},
-				[]string{"adapter", "operation"},
-			),
-
-			AdapterErrorsTotal: promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Namespace: namespace,
-					Name:      "adapter_errors_total",
-					Help:      "Total number of adapter errors",
-				},
-				[]string{"adapter", "operation", "error_type"},
-			),
-
-			// Subscription metrics
-			SubscriptionsTotal: promauto.NewGauge(
-				prometheus.GaugeOpts{
-					Namespace: namespace,
-					Name:      "subscriptions_total",
-					Help:      "Current number of active subscriptions",
-				},
-			),
-
-			SubscriptionEventsTotal: promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Namespace: namespace,
-					Name:      "subscription_events_total",
-					Help:      "Total number of subscription events generated",
-				},
-				[]string{"event_type", "resource_type"},
-			),
-
-			WebhookDeliveryDuration: promauto.NewHistogramVec(
-				prometheus.HistogramOpts{
-					Namespace: namespace,
-					Name:      "webhook_delivery_duration_seconds",
-					Help:      "Webhook delivery latency in seconds",
-					Buckets:   []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 30},
-				},
-				[]string{"status"},
-			),
-
-			WebhookDeliveryTotal: promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Namespace: namespace,
-					Name:      "webhook_delivery_total",
-					Help:      "Total number of webhook delivery attempts",
-				},
-				[]string{"status", "http_status"},
-			),
-
-			// Redis metrics
-			RedisOperationsTotal: promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Namespace: namespace,
-					Name:      "redis_operations_total",
-					Help:      "Total number of Redis operations",
-				},
-				[]string{"operation", "status"},
-			),
-
-			RedisOperationDuration: promauto.NewHistogramVec(
-				prometheus.HistogramOpts{
-					Namespace: namespace,
-					Name:      "redis_operation_duration_seconds",
-					Help:      "Redis operation duration in seconds",
-					Buckets:   []float64{.0001, .0005, .001, .005, .01, .025, .05, .1, .25},
-				},
-				[]string{"operation"},
-			),
-
-			RedisConnectionsActive: promauto.NewGauge(
-				prometheus.GaugeOpts{
-					Namespace: namespace,
-					Name:      "redis_connections_active",
-					Help:      "Number of active Redis connections",
-				},
-			),
-
-			RedisErrorsTotal: promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Namespace: namespace,
-					Name:      "redis_errors_total",
-					Help:      "Total number of Redis errors",
-				},
-				[]string{"operation", "error_type"},
-			),
-
-			// Kubernetes metrics
-			K8sOperationsTotal: promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Namespace: namespace,
-					Name:      "k8s_operations_total",
-					Help:      "Total number of Kubernetes API operations",
-				},
-				[]string{"operation", "resource", "status"},
-			),
-
-			K8sOperationDuration: promauto.NewHistogramVec(
-				prometheus.HistogramOpts{
-					Namespace: namespace,
-					Name:      "k8s_operation_duration_seconds",
-					Help:      "Kubernetes API operation duration in seconds",
-					Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5},
-				},
-				[]string{"operation", "resource"},
-			),
-
-			K8sResourceCacheSize: promauto.NewGaugeVec(
-				prometheus.GaugeOpts{
-					Namespace: namespace,
-					Name:      "k8s_resource_cache_size",
-					Help:      "Number of Kubernetes resources cached",
-				},
-				[]string{"resource_type"},
-			),
-
-			K8sErrorsTotal: promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Namespace: namespace,
-					Name:      "k8s_errors_total",
-					Help:      "Total number of Kubernetes API errors",
-				},
-				[]string{"operation", "resource", "error_type"},
-			),
-
-			// Batch operation metrics
-			BatchOperationsTotal: promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Namespace: namespace,
-					Name:      "batch_operations_total",
-					Help:      "Total number of batch operations",
-				},
-				[]string{"operation", "atomic", "status"},
-			),
-
-			BatchOperationDuration: promauto.NewHistogramVec(
-				prometheus.HistogramOpts{
-					Namespace: namespace,
-					Name:      "batch_operation_duration_seconds",
-					Help:      "Batch operation duration in seconds",
-					Buckets:   []float64{.1, .25, .5, 1, 2.5, 5, 10, 30, 60},
-				},
-				[]string{"operation"},
-			),
-
-			BatchItemsProcessed: promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Namespace: namespace,
-					Name:      "batch_items_processed_total",
-					Help:      "Total number of items processed in batch operations",
-				},
-				[]string{"operation", "status"},
-			),
-
-			BatchRollbacksTotal: promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Namespace: namespace,
-					Name:      "batch_rollbacks_total",
-					Help:      "Total number of batch rollbacks",
-				},
-				[]string{"operation", "reason"},
-			),
-
-			BatchConcurrentWorkers: promauto.NewGauge(
-				prometheus.GaugeOpts{
-					Namespace: namespace,
-					Name:      "batch_concurrent_workers",
-					Help:      "Number of concurrent workers processing batch items",
-				},
-			),
-		}
+		GlobalMetrics = NewMetrics(namespace, prometheus.DefaultRegisterer)
 	})
 
 	return GlobalMetrics
+}
+
+// InitMetricsWithRegistry initializes metrics with a custom Prometheus registry.
+// This is intended for tests to avoid registry conflicts.
+// Unlike InitMetrics, this does NOT use sync.Once and allows re-initialization.
+// The created metrics instance is stored in GlobalMetrics.
+func InitMetricsWithRegistry(namespace string, registerer prometheus.Registerer) *Metrics {
+	GlobalMetrics = NewMetrics(namespace, registerer)
+	return GlobalMetrics
+}
+
+// NewMetrics creates a new Metrics instance with a custom Prometheus registry.
+// This allows tests to create isolated metrics instances without conflicts.
+// The namespace parameter defaults to "o2ims" if empty.
+// The registerer parameter should be a prometheus.Registry for tests or prometheus.DefaultRegisterer for production.
+func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
+	if namespace == "" {
+		namespace = "o2ims"
+	}
+
+	factory := promauto.With(registerer)
+
+	return &Metrics{
+		// HTTP metrics
+		HTTPRequestsTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "http_requests_total",
+				Help:      "Total number of HTTP requests",
+			},
+			[]string{"method", "path", "status"},
+		),
+
+		HTTPRequestDuration: factory.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Name:      "http_request_duration_seconds",
+				Help:      "HTTP request latency in seconds",
+				Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
+			},
+			[]string{"method", "path", "status"},
+		),
+
+		HTTPRequestsInFlight: factory.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "http_requests_in_flight",
+				Help:      "Number of HTTP requests currently being processed",
+			},
+		),
+
+		HTTPResponseSizeBytes: factory.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Name:      "http_response_size_bytes",
+				Help:      "HTTP response size in bytes",
+				Buckets:   prometheus.ExponentialBuckets(100, 10, 8),
+			},
+			[]string{"method", "path"},
+		),
+
+		// Adapter metrics
+		AdapterOperationsTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "adapter_operations_total",
+				Help:      "Total number of adapter operations",
+			},
+			[]string{"adapter", "operation", "status"},
+		),
+
+		AdapterOperationDuration: factory.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Name:      "adapter_operation_duration_seconds",
+				Help:      "Adapter operation duration in seconds",
+				Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5},
+			},
+			[]string{"adapter", "operation"},
+		),
+
+		AdapterErrorsTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "adapter_errors_total",
+				Help:      "Total number of adapter errors",
+			},
+			[]string{"adapter", "operation", "error_type"},
+		),
+
+		// Subscription metrics
+		SubscriptionsTotal: factory.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "subscriptions_total",
+				Help:      "Current number of active subscriptions",
+			},
+		),
+
+		SubscriptionEventsTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "subscription_events_total",
+				Help:      "Total number of subscription events generated",
+			},
+			[]string{"event_type", "resource_type"},
+		),
+
+		WebhookDeliveryDuration: factory.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Name:      "webhook_delivery_duration_seconds",
+				Help:      "Webhook delivery latency in seconds",
+				Buckets:   []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 30},
+			},
+			[]string{"status"},
+		),
+
+		WebhookDeliveryTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "webhook_delivery_total",
+				Help:      "Total number of webhook delivery attempts",
+			},
+			[]string{"status", "http_status"},
+		),
+
+		// Redis metrics
+		RedisOperationsTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "redis_operations_total",
+				Help:      "Total number of Redis operations",
+			},
+			[]string{"operation", "status"},
+		),
+
+		RedisOperationDuration: factory.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Name:      "redis_operation_duration_seconds",
+				Help:      "Redis operation duration in seconds",
+				Buckets:   []float64{.0001, .0005, .001, .005, .01, .025, .05, .1, .25},
+			},
+			[]string{"operation"},
+		),
+
+		RedisConnectionsActive: factory.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "redis_connections_active",
+				Help:      "Number of active Redis connections",
+			},
+		),
+
+		RedisErrorsTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "redis_errors_total",
+				Help:      "Total number of Redis errors",
+			},
+			[]string{"operation", "error_type"},
+		),
+
+		// Kubernetes metrics
+		K8sOperationsTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "k8s_operations_total",
+				Help:      "Total number of Kubernetes API operations",
+			},
+			[]string{"operation", "resource", "status"},
+		),
+
+		K8sOperationDuration: factory.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Name:      "k8s_operation_duration_seconds",
+				Help:      "Kubernetes API operation duration in seconds",
+				Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5},
+			},
+			[]string{"operation", "resource"},
+		),
+
+		K8sResourceCacheSize: factory.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "k8s_resource_cache_size",
+				Help:      "Number of Kubernetes resources cached",
+			},
+			[]string{"resource_type"},
+		),
+
+		K8sErrorsTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "k8s_errors_total",
+				Help:      "Total number of Kubernetes API errors",
+			},
+			[]string{"operation", "resource", "error_type"},
+		),
+
+		// Batch operation metrics
+		BatchOperationsTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "batch_operations_total",
+				Help:      "Total number of batch operations",
+			},
+			[]string{"operation", "atomic", "status"},
+		),
+
+		BatchOperationDuration: factory.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Name:      "batch_operation_duration_seconds",
+				Help:      "Batch operation duration in seconds",
+				Buckets:   []float64{.1, .25, .5, 1, 2.5, 5, 10, 30, 60},
+			},
+			[]string{"operation"},
+		),
+
+		BatchItemsProcessed: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "batch_items_processed_total",
+				Help:      "Total number of items processed in batch operations",
+			},
+			[]string{"operation", "status"},
+		),
+
+		BatchRollbacksTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "batch_rollbacks_total",
+				Help:      "Total number of batch rollbacks",
+			},
+			[]string{"operation", "reason"},
+		),
+
+		BatchConcurrentWorkers: factory.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "batch_concurrent_workers",
+				Help:      "Number of concurrent workers processing batch items",
+			},
+		),
+	}
 }
 
 // GetMetrics returns the global metrics instance.
