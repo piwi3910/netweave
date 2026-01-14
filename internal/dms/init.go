@@ -177,8 +177,8 @@ func registerHelmAdapter(
 	}
 
 	adapterConfig := map[string]interface{}{
-		"namespace":      config.Namespace,
-		"repositoryURL":  config.RepositoryURL,
+		"namespace":     config.Namespace,
+		"repositoryURL": config.RepositoryURL,
 	}
 
 	if err := reg.Register(ctx, "helm", "helm", adapter, adapterConfig, config.IsDefault); err != nil {
