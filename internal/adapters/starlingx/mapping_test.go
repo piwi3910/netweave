@@ -12,13 +12,13 @@ import (
 
 func TestMapHostToResource(t *testing.T) {
 	host := &IHost{
-		UUID:          "host-uuid-1",
-		Hostname:      "compute-0",
-		Personality:   "compute",
+		UUID:           "host-uuid-1",
+		Hostname:       "compute-0",
+		Personality:    "compute",
 		Administrative: "unlocked",
-		Operational:   "enabled",
-		Availability:  "available",
-		Uptime:        3600,
+		Operational:    "enabled",
+		Availability:   "available",
+		Uptime:         3600,
 		Location: map[string]interface{}{
 			"name": "Ottawa",
 		},
@@ -297,23 +297,23 @@ func TestMapLabelsToResourcePool(t *testing.T) {
 func TestGenerateResourceTypesFromHosts(t *testing.T) {
 	hosts := []IHost{
 		{
-			UUID:        "host-1",
-			Personality: "compute",
+			UUID:         "host-1",
+			Personality:  "compute",
 			SubFunctions: "",
 		},
 		{
-			UUID:        "host-2",
-			Personality: "compute",
+			UUID:         "host-2",
+			Personality:  "compute",
 			SubFunctions: "",
 		},
 		{
-			UUID:        "host-3",
-			Personality: "controller",
+			UUID:         "host-3",
+			Personality:  "controller",
 			SubFunctions: "",
 		},
 		{
-			UUID:        "host-4",
-			Personality: "storage",
+			UUID:         "host-4",
+			Personality:  "storage",
 			SubFunctions: "",
 		},
 	}

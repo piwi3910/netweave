@@ -277,9 +277,9 @@ func generateResourceTypesFromHosts(hosts []IHost) []*adapter.ResourceType {
 				ResourceClass:  resourceClass,
 				ResourceKind:   resourceKind,
 				Extensions: map[string]interface{}{
-					"personality":   host.Personality,
-					"subfunctions":  host.SubFunctions,
-					"source":        "starlingx",
+					"personality":  host.Personality,
+					"subfunctions": host.SubFunctions,
+					"source":       "starlingx",
 				},
 			}
 		}

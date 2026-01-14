@@ -17,8 +17,8 @@ type KeystoneAuth struct {
 
 // KeystoneIdentity contains identity method and credentials.
 type KeystoneIdentity struct {
-	Methods  []string           `json:"methods"`
-	Password KeystonePassword   `json:"password,omitempty"`
+	Methods  []string         `json:"methods"`
+	Password KeystonePassword `json:"password,omitempty"`
 }
 
 // KeystonePassword contains user credentials.
@@ -28,9 +28,9 @@ type KeystonePassword struct {
 
 // KeystoneUser represents a Keystone user.
 type KeystoneUser struct {
-	Name     string           `json:"name"`
-	Domain   KeystoneDomain   `json:"domain"`
-	Password string           `json:"password"`
+	Name     string         `json:"name"`
+	Domain   KeystoneDomain `json:"domain"`
+	Password string         `json:"password"`
 }
 
 // KeystoneDomain represents a Keystone domain.
@@ -51,23 +51,23 @@ type KeystoneProject struct {
 
 // IHost represents a StarlingX host (compute node, controller, storage).
 type IHost struct {
-	UUID             string                 `json:"uuid"`
-	Hostname         string                 `json:"hostname"`
-	Personality      string                 `json:"personality"` // compute, controller, storage
-	Administrative   string                 `json:"administrative"` // locked, unlocked
-	Operational      string                 `json:"operational"` // enabled, disabled
-	Availability     string                 `json:"availability"` // available, degraded, failed
-	SubFunctions     string                 `json:"subfunctions,omitempty"`
-	Location         map[string]interface{} `json:"location,omitempty"`
-	Capabilities     map[string]interface{} `json:"capabilities,omitempty"`
-	BootDevice       string                 `json:"boot_device,omitempty"`
-	RootFS           string                 `json:"rootfs_device,omitempty"`
-	InstallState     string                 `json:"install_state,omitempty"`
-	VIMProgressStatus string                `json:"vim_progress_status,omitempty"`
-	Task             string                 `json:"task,omitempty"`
-	Uptime           int                    `json:"uptime,omitempty"`
-	CreatedAt        time.Time              `json:"created_at"`
-	UpdatedAt        time.Time              `json:"updated_at"`
+	UUID              string                 `json:"uuid"`
+	Hostname          string                 `json:"hostname"`
+	Personality       string                 `json:"personality"`    // compute, controller, storage
+	Administrative    string                 `json:"administrative"` // locked, unlocked
+	Operational       string                 `json:"operational"`    // enabled, disabled
+	Availability      string                 `json:"availability"`   // available, degraded, failed
+	SubFunctions      string                 `json:"subfunctions,omitempty"`
+	Location          map[string]interface{} `json:"location,omitempty"`
+	Capabilities      map[string]interface{} `json:"capabilities,omitempty"`
+	BootDevice        string                 `json:"boot_device,omitempty"`
+	RootFS            string                 `json:"rootfs_device,omitempty"`
+	InstallState      string                 `json:"install_state,omitempty"`
+	VIMProgressStatus string                 `json:"vim_progress_status,omitempty"`
+	Task              string                 `json:"task,omitempty"`
+	Uptime            int                    `json:"uptime,omitempty"`
+	CreatedAt         time.Time              `json:"created_at"`
+	UpdatedAt         time.Time              `json:"updated_at"`
 }
 
 // IHostList represents a list of hosts.
@@ -93,12 +93,12 @@ type ICPUList struct {
 
 // IMemory represents memory information for a host.
 type IMemory struct {
-	UUID                 string `json:"uuid"`
-	MemTotalMiB          int    `json:"memtotal_mib"`
-	MemAvailMiB          int    `json:"memavail_mib"`
-	PlatformReservedMiB  int    `json:"platform_reserved_mib"`
-	Node                 int    `json:"node"`
-	HostUUID             string `json:"ihost_uuid"`
+	UUID                string `json:"uuid"`
+	MemTotalMiB         int    `json:"memtotal_mib"`
+	MemAvailMiB         int    `json:"memavail_mib"`
+	PlatformReservedMiB int    `json:"platform_reserved_mib"`
+	Node                int    `json:"node"`
+	HostUUID            string `json:"ihost_uuid"`
 }
 
 // IMemoryList represents a list of memory resources.
@@ -123,9 +123,9 @@ type IDiskList struct {
 
 // Label represents a host label (used for resource pools).
 type Label struct {
-	UUID      string `json:"uuid"`
-	HostUUID  string `json:"host_uuid"`
-	LabelKey  string `json:"label_key"`
+	UUID       string `json:"uuid"`
+	HostUUID   string `json:"host_uuid"`
+	LabelKey   string `json:"label_key"`
 	LabelValue string `json:"label_value"`
 }
 
@@ -136,20 +136,20 @@ type LabelList struct {
 
 // ISystem represents StarlingX system information.
 type ISystem struct {
-	UUID         string                 `json:"uuid"`
-	Name         string                 `json:"name"`
-	SystemType   string                 `json:"system_type"`
-	SystemMode   string                 `json:"system_mode"`
-	Description  string                 `json:"description"`
-	Location     string                 `json:"location"`
-	Contact      string                 `json:"contact"`
-	Latitude     string                 `json:"latitude"`
-	Longitude    string                 `json:"longitude"`
-	Timezone     string                 `json:"timezone"`
-	SoftwareVersion string              `json:"software_version"`
-	Capabilities map[string]interface{} `json:"capabilities,omitempty"`
-	CreatedAt    time.Time              `json:"created_at"`
-	UpdatedAt    time.Time              `json:"updated_at"`
+	UUID            string                 `json:"uuid"`
+	Name            string                 `json:"name"`
+	SystemType      string                 `json:"system_type"`
+	SystemMode      string                 `json:"system_mode"`
+	Description     string                 `json:"description"`
+	Location        string                 `json:"location"`
+	Contact         string                 `json:"contact"`
+	Latitude        string                 `json:"latitude"`
+	Longitude       string                 `json:"longitude"`
+	Timezone        string                 `json:"timezone"`
+	SoftwareVersion string                 `json:"software_version"`
+	Capabilities    map[string]interface{} `json:"capabilities,omitempty"`
+	CreatedAt       time.Time              `json:"created_at"`
+	UpdatedAt       time.Time              `json:"updated_at"`
 }
 
 // ISystemList represents a list of systems.
@@ -168,9 +168,9 @@ type CreateHostRequest struct {
 
 // UpdateHostRequest represents a request to update host configuration.
 type UpdateHostRequest struct {
-	Hostname       *string                 `json:"hostname,omitempty"`
-	Location       map[string]interface{}  `json:"location,omitempty"`
-	Capabilities   map[string]interface{}  `json:"capabilities,omitempty"`
+	Hostname     *string                `json:"hostname,omitempty"`
+	Location     map[string]interface{} `json:"location,omitempty"`
+	Capabilities map[string]interface{} `json:"capabilities,omitempty"`
 }
 
 // CreateLabelRequest represents a request to create a label.
