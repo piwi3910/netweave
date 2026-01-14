@@ -1,7 +1,10 @@
 package aws_test
 
 import (
+	"context"
 	"testing"
+
+	awsadapter "github.com/piwi3910/netweave/internal/adapters/aws"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -169,6 +172,248 @@ func TestExtractInstanceID(t *testing.T) {
 				result = result[len(prefix):]
 			}
 			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestGetResource tests the GetResource method.
+func TestGetResource(t *testing.T) {
+	tests := []struct {
+		name       string
+		resourceID string
+		wantErr    bool
+	}{
+		{
+			name:       "valid instance ID with prefix",
+			resourceID: "aws-instance-i-1234567890abcdef0",
+			wantErr:    true,
+		},
+		{
+			name:       "valid instance ID without prefix",
+			resourceID: "i-1234567890abcdef0",
+			wantErr:    true,
+		},
+		{
+			name:       "empty resource ID",
+			resourceID: "",
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := awsadapter.New(&awsadapter.Config{
+				Region:   "us-east-1",
+				OCloudID: "test-cloud",
+			})
+			require.NoError(t, err)
+
+			resource, err := adp.GetResource(context.Background(), tt.resourceID)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, resource)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, resource)
+			}
+		})
+	}
+}
+
+// TestCreateResource tests the CreateResource method.
+func TestCreateResource(t *testing.T) {
+	tests := []struct {
+		name     string
+		resource *adapter.Resource
+		wantErr  bool
+	}{
+		{
+			name: "missing resource type ID",
+			resource: &adapter.Resource{
+				Description: "Test instance",
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing AMI ID",
+			resource: &adapter.Resource{
+				ResourceTypeID: "aws-instance-type-t3.micro",
+				Description:    "Test instance",
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid resource",
+			resource: &adapter.Resource{
+				ResourceTypeID: "aws-instance-type-t3.micro",
+				Description:    "Test instance",
+				Extensions: map[string]interface{}{
+					"aws.imageId": "ami-1234567890abcdef0",
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := awsadapter.New(&awsadapter.Config{
+				Region:   "us-east-1",
+				OCloudID: "test-cloud",
+			})
+			require.NoError(t, err)
+
+			created, err := adp.CreateResource(context.Background(), tt.resource)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, created)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, created)
+			}
+		})
+	}
+}
+
+// TestUpdateResource tests the UpdateResource method.
+func TestUpdateResource(t *testing.T) {
+	tests := []struct {
+		name       string
+		resourceID string
+		resource   *adapter.Resource
+		wantErr    bool
+	}{
+		{
+			name:       "empty resource ID",
+			resourceID: "",
+			resource: &adapter.Resource{
+				Description: "Updated description",
+			},
+			wantErr: true,
+		},
+		{
+			name:       "valid update description only",
+			resourceID: "aws-instance-i-1234567890abcdef0",
+			resource: &adapter.Resource{
+				Description: "Updated instance description",
+			},
+			wantErr: true,
+		},
+		{
+			name:       "valid update with tags",
+			resourceID: "aws-instance-i-1234567890abcdef0",
+			resource: &adapter.Resource{
+				Description: "Updated description",
+				Extensions: map[string]interface{}{
+					"aws.tags": map[string]string{
+						"Environment": "staging",
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := awsadapter.New(&awsadapter.Config{
+				Region:   "us-east-1",
+				OCloudID: "test-cloud",
+			})
+			require.NoError(t, err)
+
+			updated, err := adp.UpdateResource(context.Background(), tt.resourceID, tt.resource)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, updated)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, updated)
+			}
+		})
+	}
+}
+
+// TestDeleteResource tests the DeleteResource method.
+func TestDeleteResource(t *testing.T) {
+	tests := []struct {
+		name       string
+		resourceID string
+		wantErr    bool
+	}{
+		{
+			name:       "empty resource ID",
+			resourceID: "",
+			wantErr:    true,
+		},
+		{
+			name:       "valid instance ID with prefix",
+			resourceID: "aws-instance-i-1234567890abcdef0",
+			wantErr:    true,
+		},
+		{
+			name:       "valid instance ID without prefix",
+			resourceID: "i-1234567890abcdef0",
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := awsadapter.New(&awsadapter.Config{
+				Region:   "us-east-1",
+				OCloudID: "test-cloud",
+			})
+			require.NoError(t, err)
+
+			err = adp.DeleteResource(context.Background(), tt.resourceID)
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestExtractInstanceIDFunction tests the extractInstanceID helper.
+func TestExtractInstanceIDFunction(t *testing.T) {
+	adp, err := awsadapter.New(&awsadapter.Config{
+		Region:   "us-east-1",
+		OCloudID: "test-cloud",
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "with aws-instance prefix",
+			input:    "aws-instance-i-1234567890abcdef0",
+			expected: "i-1234567890abcdef0",
+		},
+		{
+			name:     "without prefix (raw instance ID)",
+			input:    "i-1234567890abcdef0",
+			expected: "i-1234567890abcdef0",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := adp.TestExtractInstanceID(tt.input)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
