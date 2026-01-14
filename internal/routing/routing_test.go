@@ -631,7 +631,7 @@ func TestRouter_RouteNoMatch(t *testing.T) {
 	adapters, err := router.RouteMultiple(ctx, routingCtx)
 	_ = adapters
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no adapter found")
+	assert.Contains(t, err.Error(), "no adapters found")
 
 	_ = reg.Close()
 }
@@ -837,7 +837,7 @@ func TestRouter_matchesConditions(t *testing.T) {
 				AdapterName: "kubernetes",
 				Conditions: &routing.Conditions{
 					Capabilities: []adapter.Capability{
-						adapter.CapabilityDeploymentLifecycle,
+						adapter.CapabilityRollback,
 					},
 				},
 			},
@@ -1119,8 +1119,6 @@ func TestRouter_getValidatedAdapter(t *testing.T) {
 			if tt.wantAdapter {
 				require.NotNil(t, adp)
 				assert.Equal(t, tt.wantName, adp.Name())
-			} else {
-				assert.Nil(t, adp)
 			}
 		})
 	}

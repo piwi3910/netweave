@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/dms/adapter"
 )
 
 func TestLoadRulesFromConfig(t *testing.T) {
