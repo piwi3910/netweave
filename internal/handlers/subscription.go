@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/piwi3910/netweave/internal/auth"
 	internalmodels "github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
 	"github.com/piwi3910/netweave/internal/storage"
@@ -51,15 +52,27 @@ func NewSubscriptionHandler(store storage.Store, logger *zap.Logger) *Subscripti
 func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
 	ctx := c.Request.Context()
 
+	// Extract tenant ID from authenticated context
+	tenantID := auth.TenantIDFromContext(ctx)
+
 	h.Logger.Info("listing subscriptions",
 		zap.String("request_id", c.GetString("request_id")),
+		zap.String("tenant_id", tenantID),
 	)
 
 	// Parse query parameters
 	filter := internalmodels.ParseQueryParams(c.Request.URL.Query())
 
-	// Get all subscriptions from storage
-	storageSubs, err := h.Store.List(ctx)
+	// Get subscriptions filtered by tenant
+	var storageSubs []*storage.Subscription
+	var err error
+	if tenantID != "" {
+		storageSubs, err = h.Store.ListByTenant(ctx, tenantID)
+	} else {
+		// For backward compatibility: if no tenant context, list all
+		// This allows non-multi-tenant deployments to work
+		storageSubs, err = h.Store.List(ctx)
+	}
 	if err != nil {
 		h.Logger.Error("failed to list subscriptions",
 			zap.Error(err),
@@ -142,8 +155,12 @@ func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
 func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 	ctx := c.Request.Context()
 
+	// Extract tenant ID from authenticated context
+	tenantID := auth.TenantIDFromContext(ctx)
+
 	h.Logger.Info("creating subscription",
 		zap.String("request_id", c.GetString("request_id")),
+		zap.String("tenant_id", tenantID),
 	)
 
 	// Parse and validate request
@@ -154,7 +171,7 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 
 	// Create and store subscription
 	subscriptionID := uuid.New().String()
-	storageSub := h.convertToStorageSubscription(sub, subscriptionID)
+	storageSub := h.convertToStorageSubscription(sub, subscriptionID, tenantID)
 
 	if err := h.StoreSubscription(ctx, c, storageSub); err != nil {
 		return // Error response already sent
@@ -226,6 +243,7 @@ func (h *SubscriptionHandler) validateCallbackURL(c *gin.Context, callback strin
 func (h *SubscriptionHandler) convertToStorageSubscription(
 	sub *models.Subscription,
 	subscriptionID string,
+	tenantID string,
 ) *storage.Subscription {
 	storageFilter := storage.SubscriptionFilter{}
 	if len(sub.Filter.ResourcePoolID) > 0 {
@@ -240,6 +258,7 @@ func (h *SubscriptionHandler) convertToStorageSubscription(
 
 	return &storage.Subscription{
 		ID:                     subscriptionID,
+		TenantID:               tenantID,
 		Callback:               sub.Callback,
 		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
 		Filter:                 storageFilter,
@@ -311,9 +330,13 @@ func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
 	ctx := c.Request.Context()
 	subscriptionID := c.Param("subscriptionId")
 
+	// Extract tenant ID from authenticated context
+	tenantID := auth.TenantIDFromContext(ctx)
+
 	h.Logger.Info("getting subscription",
 		zap.String("subscription_id", subscriptionID),
 		zap.String("request_id", c.GetString("request_id")),
+		zap.String("tenant_id", tenantID),
 	)
 
 	// Validate subscription ID
@@ -355,6 +378,22 @@ func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
 		return
 	}
 
+	// Verify tenant ownership (return 404 to avoid information disclosure)
+	if tenantID != "" && storageSub.TenantID != tenantID {
+		h.Logger.Warn("tenant mismatch - subscription not found for this tenant",
+			zap.String("subscription_id", subscriptionID),
+			zap.String("tenant_id", tenantID),
+			zap.String("subscription_tenant_id", storageSub.TenantID),
+		)
+
+		c.JSON(http.StatusNotFound, models.ErrorResponse{
+			Error:   "NotFound",
+			Message: "Subscription not found: " + subscriptionID,
+			Code:    http.StatusNotFound,
+		})
+		return
+	}
+
 	// Convert storage.Subscription to models.Subscription
 	response := models.Subscription{
 		SubscriptionID:         storageSub.ID,
@@ -389,9 +428,13 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 	ctx := c.Request.Context()
 	subscriptionID := c.Param("subscriptionId")
 
+	// Extract tenant ID from authenticated context
+	tenantID := auth.TenantIDFromContext(ctx)
+
 	h.Logger.Info("deleting subscription",
 		zap.String("subscription_id", subscriptionID),
 		zap.String("request_id", c.GetString("request_id")),
+		zap.String("tenant_id", tenantID),
 	)
 
 	// Validate subscription ID
@@ -402,6 +445,53 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 			Code:    http.StatusBadRequest,
 		})
 		return
+	}
+
+	// First, verify tenant ownership by getting the subscription
+	if tenantID != "" {
+		storageSub, err := h.Store.Get(ctx, subscriptionID)
+		if err != nil {
+			if errors.Is(err, storage.ErrSubscriptionNotFound) {
+				h.Logger.Warn("subscription not found",
+					zap.String("subscription_id", subscriptionID),
+				)
+
+				c.JSON(http.StatusNotFound, models.ErrorResponse{
+					Error:   "NotFound",
+					Message: "Subscription not found: " + subscriptionID,
+					Code:    http.StatusNotFound,
+				})
+				return
+			}
+
+			h.Logger.Error("failed to get subscription for tenant verification",
+				zap.String("subscription_id", subscriptionID),
+				zap.Error(err),
+			)
+
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+				Error:   "InternalError",
+				Message: "Failed to delete subscription",
+				Code:    http.StatusInternalServerError,
+			})
+			return
+		}
+
+		// Verify tenant ownership (return 404 to avoid information disclosure)
+		if storageSub.TenantID != tenantID {
+			h.Logger.Warn("tenant mismatch - cannot delete subscription from different tenant",
+				zap.String("subscription_id", subscriptionID),
+				zap.String("tenant_id", tenantID),
+				zap.String("subscription_tenant_id", storageSub.TenantID),
+			)
+
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "NotFound",
+				Message: "Subscription not found: " + subscriptionID,
+				Code:    http.StatusNotFound,
+			})
+			return
+		}
 	}
 
 	// Delete subscription from storage
