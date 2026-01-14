@@ -229,6 +229,146 @@ make compliance-update-readme
 
 ---
 
+## Automated Test Examples
+
+### Unit Test Examples
+
+The compliance checker includes comprehensive unit tests in `tools/compliance/checker_test.go`.
+
+**Example 1: Mock O2-IMS Gateway Test**
+```go
+func TestChecker_CheckO2IMS(t *testing.T) {
+    // Create mock gateway server
+    server := httptest.NewServer(mockO2IMSHandler())
+    defer server.Close()
+
+    checker := compliance.NewChecker(server.URL, zap.NewNop())
+    spec := compliance.SpecVersion{
+        Name:    "O2-IMS",
+        Version: "v3.0.0",
+        SpecURL: "https://specifications.o-ran.org/o2ims",
+    }
+
+    result, err := checker.CheckO2IMS(context.Background(), spec)
+    require.NoError(t, err)
+
+    // Verify result
+    assert.Equal(t, "O2-IMS", result.SpecName)
+    assert.Greater(t, result.ComplianceScore, 0.0)
+    assert.LessOrEqual(t, result.ComplianceScore, 100.0)
+}
+```
+
+**Example 2: Endpoint Coverage Test**
+```go
+func TestEndpointTest_Coverage(t *testing.T) {
+    checker := compliance.NewChecker("http://localhost:8080", zap.NewNop())
+    spec := compliance.SpecVersion{Name: "O2-IMS", Version: "v3.0.0"}
+
+    ctx := context.Background()
+    result, err := checker.CheckO2IMS(ctx, spec)
+
+    // Verify comprehensive endpoint coverage
+    assert.NoError(t, err)
+    assert.Greater(t, result.TotalEndpoints, 10)
+}
+```
+
+**Example 3: Placeholder Replacement Test**
+```go
+func TestReplacePlaceholders(t *testing.T) {
+    tests := []struct {
+        name     string
+        path     string
+        expected string
+    }{
+        {
+            name:     "subscription ID",
+            path:     "/o2ims/v1/subscriptions/{subscriptionId}",
+            expected: "/o2ims/v1/subscriptions/test-subscription-id",
+        },
+        {
+            name:     "resource pool ID",
+            path:     "/o2ims/v1/resourcePools/{resourcePoolId}",
+            expected: "/o2ims/v1/resourcePools/test-pool-id",
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result := compliance.ReplacePlaceholders(tt.path)
+            assert.Equal(t, tt.expected, result)
+        })
+    }
+}
+```
+
+### Running Compliance Tests
+
+**Run all compliance tests:**
+```bash
+go test ./tools/compliance/... -v
+```
+
+**Run with coverage:**
+```bash
+go test ./tools/compliance/... -v -coverprofile=coverage.out
+go tool cover -html=coverage.out
+```
+
+**Run specific test:**
+```bash
+go test ./tools/compliance/... -v -run TestChecker_CheckO2IMS
+```
+
+### Integration Test Example
+
+For integration testing with a real gateway:
+
+```bash
+# Start gateway
+./build/gateway --config config/test.yaml &
+
+# Wait for gateway to be ready
+sleep 5
+
+# Run compliance check
+go test ./tools/compliance/... -v -tags=integration
+
+# Or use the compliance CLI
+./build/compliance -url http://localhost:8080
+```
+
+### Mock Handler Example
+
+Create mock handlers for testing (from `checker_test.go`):
+
+```go
+func mockO2IMSHandler() http.HandlerFunc {
+    endpoints := map[string]mockEndpoint{
+        "GET:/o2ims/v1/subscriptions":        {http.StatusOK, `{"subscriptions": [], "total": 0}`},
+        "POST:/o2ims/v1/subscriptions":       {http.StatusCreated, `{"subscriptionId": "test-sub-123"}`},
+        "GET:/o2ims/v1/resourcePools":        {http.StatusOK, `{"resourcePools": [], "total": 0}`},
+        "GET:/o2ims/v1/resources":            {http.StatusOK, `{"resources": [], "total": 0}`},
+        "GET:/o2ims/v1/resourceTypes":        {http.StatusOK, `{"resourceTypes": [], "total": 0}`},
+        "GET:/o2ims/v1/deploymentManagers":   {http.StatusOK, `{"deploymentManagers": [], "total": 1}`},
+        "GET:/o2ims/v1/oCloudInfrastructure": {http.StatusOK, `{"oCloudId": "test-ocloud"}`},
+    }
+
+    return func(w http.ResponseWriter, r *http.Request) {
+        key := r.Method + ":" + r.URL.Path
+        if endpoint, ok := endpoints[key]; ok {
+            w.WriteHeader(endpoint.statusCode)
+            w.Write([]byte(endpoint.response))
+            return
+        }
+        w.WriteHeader(http.StatusNotFound)
+    }
+}
+```
+
+---
+
 ## Compliance Checking Tool
 
 ### Installation
