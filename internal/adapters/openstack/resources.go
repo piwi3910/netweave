@@ -106,6 +106,13 @@ func (a *Adapter) queryOpenStackServers(listOpts servers.ListOpts) ([]servers.Se
 func (a *Adapter) transformAndFilterServers(osServers []servers.Server, filter *adapter.Filter) []*adapter.Resource {
 	resources := make([]*adapter.Resource, 0, len(osServers))
 	for i := range osServers {
+		// Filter by tenant ID using metadata (multi-tenancy)
+		if filter != nil && filter.TenantID != "" {
+			if tenantMeta, ok := osServers[i].Metadata["o2ims.io/tenant-id"]; !ok || tenantMeta != filter.TenantID {
+				continue
+			}
+		}
+
 		resource := a.TransformServerToResource(&osServers[i])
 
 		// Apply additional in-memory filtering
@@ -345,6 +352,11 @@ func extractServerID(id string) (string, error) {
 func buildServerMetadata(resource *adapter.Resource) map[string]string {
 	metadata := make(map[string]string)
 
+	// Add tenant ID metadata for multi-tenancy
+	if resource.TenantID != "" {
+		metadata["o2ims.io/tenant-id"] = resource.TenantID
+	}
+
 	// Add description as name metadata
 	if resource.Description != "" {
 		metadata["name"] = resource.Description
@@ -436,11 +448,18 @@ func (a *Adapter) TransformServerToResource(server *servers.Server) *adapter.Res
 		extensions["openstack.image"] = server.Image
 	}
 
+	// Extract tenant ID from metadata (multi-tenancy)
+	tenantID := ""
+	if server.Metadata != nil {
+		tenantID = server.Metadata["o2ims.io/tenant-id"]
+	}
+
 	// Build description
 	description := fmt.Sprintf("OpenStack instance: %s (status: %s)", server.Name, server.Status)
 
 	return &adapter.Resource{
 		ResourceID:     resourceID,
+		TenantID:       tenantID,
 		ResourceTypeID: resourceTypeID,
 		ResourcePoolID: resourcePoolID,
 		GlobalAssetID:  fmt.Sprintf("urn:openstack:server:%s:%s", a.Region, server.ID),

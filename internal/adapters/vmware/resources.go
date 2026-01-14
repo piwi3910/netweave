@@ -52,6 +52,14 @@ func (a *Adapter) ListResources(
 			continue
 		}
 
+		// Filter by tenant ID using VM extra config (multi-tenancy)
+		if filter != nil && filter.TenantID != "" {
+			tenantID := a.extractTenantIDFromVM(&vmMo)
+			if tenantID != filter.TenantID {
+				continue
+			}
+		}
+
 		resource := a.vmToResource(&vmMo, vmName)
 
 		// Apply filter
@@ -313,6 +321,9 @@ func (a *Adapter) vmToResource(vm *mo.VirtualMachine, vmName string) *adapter.Re
 	resourceTypeID := GenerateVMProfileID(config.NumCpu, int64(config.MemorySizeMB))
 	resourceID := GenerateVMID(vmName, a.datacenterName)
 
+	// Extract tenant ID from VM extra config (multi-tenancy)
+	tenantID := a.extractTenantIDFromVM(vm)
+
 	// Build extensions with VM details
 	extensions := buildVMExtensions(vm, vmName, a.datacenterName)
 
@@ -321,12 +332,31 @@ func (a *Adapter) vmToResource(vm *mo.VirtualMachine, vmName string) *adapter.Re
 
 	return &adapter.Resource{
 		ResourceID:     resourceID,
+		TenantID:       tenantID,
 		ResourceTypeID: resourceTypeID,
 		ResourcePoolID: resourcePoolID,
 		GlobalAssetID:  fmt.Sprintf("urn:vmware:vm:%s:%s", a.datacenterName, vmName),
 		Description:    description,
 		Extensions:     extensions,
 	}
+}
+
+// extractTenantIDFromVM extracts the tenant ID from VM extra config.
+func (a *Adapter) extractTenantIDFromVM(vm *mo.VirtualMachine) string {
+	if vm.Config == nil || vm.Config.ExtraConfig == nil {
+		return ""
+	}
+
+	for _, opt := range vm.Config.ExtraConfig {
+		if optValue := opt.GetOptionValue(); optValue != nil {
+			if optValue.Key == "o2ims.io/tenant-id" {
+				if val, ok := optValue.Value.(string); ok {
+					return val
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // determineVMResourcePoolID determines the resource pool ID based on pool mode.

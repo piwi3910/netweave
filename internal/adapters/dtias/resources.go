@@ -96,6 +96,13 @@ func (a *Adapter) fetchServers(ctx context.Context, path string) ([]Server, erro
 func (a *Adapter) transformAndFilterResources(servers []Server, filter *adapter.Filter) []*adapter.Resource {
 	resources := make([]*adapter.Resource, 0, len(servers))
 	for i := range servers {
+		// Filter by tenant ID using metadata (multi-tenancy)
+		if filter != nil && filter.TenantID != "" {
+			if tenantMeta, ok := servers[i].Metadata["o2ims.io/tenant-id"]; !ok || tenantMeta != filter.TenantID {
+				continue
+			}
+		}
+
 		resource := a.transformServerToResource(&servers[i])
 		if filter != nil && !a.matchesResourceFilter(resource, filter) {
 			continue
@@ -155,6 +162,11 @@ func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource
 		Metadata:     map[string]string{},
 	}
 
+	// Set tenant ID metadata for multi-tenancy
+	if resource.TenantID != "" {
+		provisionReq.Metadata["o2ims.io/tenant-id"] = resource.TenantID
+	}
+
 	// Extract hostname and metadata from extensions
 	if resource.Extensions != nil {
 		if hostname, ok := resource.Extensions["dtias.hostname"].(string); ok {
@@ -167,7 +179,9 @@ func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource
 			provisionReq.NetworkConfig = networkConfig
 		}
 		if metadata, ok := resource.Extensions["dtias.metadata"].(map[string]string); ok {
-			provisionReq.Metadata = metadata
+			for k, v := range metadata {
+				provisionReq.Metadata[k] = v
+			}
 		}
 	}
 
@@ -216,6 +230,11 @@ func (a *Adapter) UpdateResource(
 		Metadata: make(map[string]string),
 	}
 
+	// Set tenant ID metadata for multi-tenancy
+	if resource.TenantID != "" {
+		updateReq.Metadata["o2ims.io/tenant-id"] = resource.TenantID
+	}
+
 	// Extract hostname from extensions if provided
 	if resource.Extensions != nil {
 		if hostname, ok := resource.Extensions["dtias.hostname"].(string); ok && hostname != "" {
@@ -224,7 +243,9 @@ func (a *Adapter) UpdateResource(
 
 		// Extract custom metadata from extensions
 		if metadata, ok := resource.Extensions["dtias.metadata"].(map[string]string); ok {
-			updateReq.Metadata = metadata
+			for k, v := range metadata {
+				updateReq.Metadata[k] = v
+			}
 		}
 	}
 
@@ -295,8 +316,15 @@ func (a *Adapter) transformServerToResource(srv *Server) *adapter.Resource {
 		description += fmt.Sprintf(" [health: %s]", srv.HealthState)
 	}
 
+	// Extract tenant ID from metadata (multi-tenancy)
+	tenantID := ""
+	if srv.Metadata != nil {
+		tenantID = srv.Metadata["o2ims.io/tenant-id"]
+	}
+
 	return &adapter.Resource{
 		ResourceID:     srv.ID,
+		TenantID:       tenantID,
 		ResourceTypeID: fmt.Sprintf("dtias-server-type-%s", srv.Type),
 		ResourcePoolID: srv.ServerPoolID,
 		GlobalAssetID:  globalAssetID,
