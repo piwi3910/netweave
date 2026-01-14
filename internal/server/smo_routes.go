@@ -325,37 +325,39 @@ func (h *SMOHandler) HandleExecuteWorkflow(c *gin.Context) {
 
 	// Get plugin
 	var plugin smo.Plugin
+	var pluginName string
 	var err error
-	pluginName := req.PluginName
-	if pluginName != "" {
+
+	if req.PluginName != "" {
 		h.registry.Mu.RLock()
-		var exists bool
-		plugin, exists = h.registry.Plugins[pluginName]
+		plugin = h.registry.Plugins[req.PluginName]
 		h.registry.Mu.RUnlock()
-		if !exists {
-			err = fmt.Errorf("plugin %s not found", pluginName)
+		if plugin == nil {
+			err = fmt.Errorf("plugin %s not found", req.PluginName)
+			h.respondWithNotFound(c, err)
+			smoAPIRequestDuration.WithLabelValues("workflows", "POST", "404").Observe(time.Since(start).Seconds())
+			return
 		}
+		pluginName = req.PluginName
 	} else {
 		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			var exists bool
-			plugin, exists = h.registry.Plugins[h.registry.DefaultPlugin]
-			if !exists {
-				err = fmt.Errorf("default plugin %s not found", h.registry.DefaultPlugin)
-			}
-		} else {
-			err = fmt.Errorf("no default plugin configured")
-		}
+		defaultName := h.registry.DefaultPlugin
+		plugin = h.registry.Plugins[defaultName]
 		h.registry.Mu.RUnlock()
-		if plugin != nil {
-			pluginName = plugin.Metadata().Name
-		}
-	}
 
-	if err != nil {
-		h.respondWithNotFound(c, err)
-		smoAPIRequestDuration.WithLabelValues("workflows", "POST", "404").Observe(time.Since(start).Seconds())
-		return
+		if defaultName == "" {
+			err = fmt.Errorf("no default plugin configured")
+			h.respondWithNotFound(c, err)
+			smoAPIRequestDuration.WithLabelValues("workflows", "POST", "404").Observe(time.Since(start).Seconds())
+			return
+		}
+		if plugin == nil {
+			err = fmt.Errorf("default plugin %s not found", defaultName)
+			h.respondWithNotFound(c, err)
+			smoAPIRequestDuration.WithLabelValues("workflows", "POST", "404").Observe(time.Since(start).Seconds())
+			return
+		}
+		pluginName = plugin.Metadata().Name
 	}
 
 	// Parse timeout

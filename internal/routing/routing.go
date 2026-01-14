@@ -144,30 +144,37 @@ func (r *Router) RouteMultiple(_ context.Context, routingCtx *Context) ([]adapte
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	adapters := r.collectMatchingAdapters(routingCtx)
+
+	// Fallback to default if needed
+	if len(adapters) == 0 && r.fallbackEnabled {
+		r.addDefaultAdapter(&adapters)
+	}
+
+	if len(adapters) == 0 {
+		return nil, fmt.Errorf("no adapters found for routing context")
+	}
+
+	return adapters, nil
+}
+
+// collectMatchingAdapters finds all adapters matching routing rules.
+func (r *Router) collectMatchingAdapters(routingCtx *Context) []adapter.Adapter {
 	adapters := make([]adapter.Adapter, 0)
 	seen := make(map[string]bool)
 
-	// Match all applicable routing rules
 	for _, rule := range r.rules {
 		if !rule.Enabled || !r.MatchesRule(rule, routingCtx) || seen[rule.AdapterName] {
 			continue
 		}
 
-		// Inline adapter lookup and validation (avoid ireturn linter)
+		if !r.isAdapterValid(rule.AdapterName, routingCtx.RequiredCapabilities) {
+			continue
+		}
+
 		r.Registry.Mu.RLock()
 		plugin := r.Registry.Plugins[rule.AdapterName]
 		r.Registry.Mu.RUnlock()
-		var ok bool
-		if plugin != nil {
-			meta := r.Registry.GetMetadata(rule.AdapterName)
-			if meta != nil && meta.Enabled && meta.Healthy &&
-				r.HasCapabilities(meta.Capabilities, routingCtx.RequiredCapabilities) {
-				ok = true
-			}
-		}
-		if !ok {
-			continue
-		}
 
 		adapters = append(adapters, plugin)
 		seen[rule.AdapterName] = true
@@ -178,25 +185,38 @@ func (r *Router) RouteMultiple(_ context.Context, routingCtx *Context) ([]adapte
 		)
 	}
 
-	// If no adapters matched and fallback is enabled, use default
-	if len(adapters) == 0 && r.fallbackEnabled {
-		r.Registry.Mu.RLock()
-		var defaultAdapter adapter.Adapter
-		if r.Registry.DefaultPlugin != "" {
-			defaultAdapter = r.Registry.Plugins[r.Registry.DefaultPlugin]
-		}
-		r.Registry.Mu.RUnlock()
-		if defaultAdapter != nil {
-			adapters = append(adapters, defaultAdapter)
-			r.logger.Debug("using default adapter for aggregation")
-		}
+	return adapters
+}
+
+// isAdapterValid checks if an adapter exists and meets requirements.
+func (r *Router) isAdapterValid(name string, requiredCaps []adapter.Capability) bool {
+	r.Registry.Mu.RLock()
+	plugin := r.Registry.Plugins[name]
+	r.Registry.Mu.RUnlock()
+
+	if plugin == nil {
+		return false
 	}
 
-	if len(adapters) == 0 {
-		return nil, fmt.Errorf("no adapters found for routing context")
+	meta := r.Registry.GetMetadata(name)
+	if meta == nil || !meta.Enabled || !meta.Healthy {
+		return false
 	}
 
-	return adapters, nil
+	return r.HasCapabilities(meta.Capabilities, requiredCaps)
+}
+
+// addDefaultAdapter adds the default adapter to the list if available.
+func (r *Router) addDefaultAdapter(adapters *[]adapter.Adapter) {
+	r.Registry.Mu.RLock()
+	defaultName := r.Registry.DefaultPlugin
+	defaultPlugin := r.Registry.Plugins[defaultName]
+	r.Registry.Mu.RUnlock()
+
+	if defaultName != "" && defaultPlugin != nil {
+		*adapters = append(*adapters, defaultPlugin)
+		r.logger.Debug("using default adapter for aggregation")
+	}
 }
 
 // MatchesRule checks if a routing context matches a rule.

@@ -649,15 +649,10 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 	// Goroutine 2: Get plugin
 	go func() {
 		for i := 0; i < iterations; i++ {
-			_, _ = func() (smo.Plugin, error) {
-				registry.Mu.RLock()
-				defer registry.Mu.RUnlock()
-				p, ok := registry.Plugins["plugin-a"]
-				if !ok {
-					return nil, errors.New("plugin not found")
-				}
-				return p, nil
-			}()
+			registry.Mu.RLock()
+			_, ok := registry.Plugins["plugin-a"]
+			registry.Mu.RUnlock()
+			_ = ok
 		}
 		done <- true
 	}()
@@ -665,18 +660,12 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 	// Goroutine 3: Get default
 	go func() {
 		for i := 0; i < iterations; i++ {
-			_, _ = func() (smo.Plugin, error) {
-				registry.Mu.RLock()
-				defer registry.Mu.RUnlock()
-				if registry.DefaultPlugin == "" {
-					return nil, errors.New("no default plugin")
-				}
-				p, ok := registry.Plugins[registry.DefaultPlugin]
-				if !ok {
-					return nil, errors.New("default plugin not found")
-				}
-				return p, nil
-			}()
+			registry.Mu.RLock()
+			defaultName := registry.DefaultPlugin
+			if defaultName != "" {
+				_ = registry.Plugins[defaultName]
+			}
+			registry.Mu.RUnlock()
 		}
 		done <- true
 	}()
@@ -831,3 +820,5 @@ func TestRegistry_ListDeepCopy(t *testing.T) {
 	require.Len(t, info2, 1)
 	assert.Equal(t, originalLen, len(info2[0].Capabilities))
 }
+
+// testRegistryConcurrentList is a helper for concurrent list operations.
