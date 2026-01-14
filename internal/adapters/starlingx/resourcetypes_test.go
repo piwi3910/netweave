@@ -3,11 +3,12 @@ package starlingx_test
 import (
 	"context"
 	"testing"
+
 	"github.com/piwi3910/netweave/internal/adapters/starlingx"
 
+	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 func TestListResourceTypes(t *testing.T) {

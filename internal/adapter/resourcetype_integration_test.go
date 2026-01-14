@@ -170,4 +170,3 @@ func testResourceTypeFields(t *testing.T, adp adapter.Adapter) {
 		})
 	}
 }
-

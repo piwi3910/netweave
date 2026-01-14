@@ -185,11 +185,11 @@ type mockResourceTypeAdapter struct {
 	shouldError bool
 }
 
-func (m *mockResourceTypeAdapter) Name() string                                                  { return "mock" }
-func (m *mockResourceTypeAdapter) Version() string                                               { return "1.0.0" }
-func (m *mockResourceTypeAdapter) Capabilities() []adapter.Capability                            { return nil }
-func (m *mockResourceTypeAdapter) Health(_ context.Context) error                                { return nil }
-func (m *mockResourceTypeAdapter) Close() error                                                  { return nil }
+func (m *mockResourceTypeAdapter) Name() string                       { return "mock" }
+func (m *mockResourceTypeAdapter) Version() string                    { return "1.0.0" }
+func (m *mockResourceTypeAdapter) Capabilities() []adapter.Capability { return nil }
+func (m *mockResourceTypeAdapter) Health(_ context.Context) error     { return nil }
+func (m *mockResourceTypeAdapter) Close() error                       { return nil }
 
 func (m *mockResourceTypeAdapter) ListResourceTypes(_ context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
 	if m.shouldError {

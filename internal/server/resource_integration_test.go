@@ -265,11 +265,11 @@ type mockResourceIntegrationAdapter struct {
 	deleted     map[string]bool
 }
 
-func (m *mockResourceIntegrationAdapter) Name() string                           { return "mock" }
-func (m *mockResourceIntegrationAdapter) Version() string                        { return "1.0.0" }
-func (m *mockResourceIntegrationAdapter) Capabilities() []adapter.Capability     { return nil }
-func (m *mockResourceIntegrationAdapter) Health(_ context.Context) error         { return nil }
-func (m *mockResourceIntegrationAdapter) Close() error                           { return nil }
+func (m *mockResourceIntegrationAdapter) Name() string                       { return "mock" }
+func (m *mockResourceIntegrationAdapter) Version() string                    { return "1.0.0" }
+func (m *mockResourceIntegrationAdapter) Capabilities() []adapter.Capability { return nil }
+func (m *mockResourceIntegrationAdapter) Health(_ context.Context) error     { return nil }
+func (m *mockResourceIntegrationAdapter) Close() error                       { return nil }
 
 func (m *mockResourceIntegrationAdapter) ListResources(_ context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
 	if m.shouldError {
@@ -401,12 +401,16 @@ func (m *mockResourceIntegrationAdapter) ListSubscriptions(_ context.Context, _ 
 // mockResourceIntegrationStore is a minimal mock storage.Store implementation for testing
 type mockResourceIntegrationStore struct{}
 
-func (m *mockResourceIntegrationStore) Create(_ context.Context, _ *storage.Subscription) error { return nil }
+func (m *mockResourceIntegrationStore) Create(_ context.Context, _ *storage.Subscription) error {
+	return nil
+}
 func (m *mockResourceIntegrationStore) Get(_ context.Context, _ string) (*storage.Subscription, error) {
 	return nil, storage.ErrSubscriptionNotFound
 }
-func (m *mockResourceIntegrationStore) Update(_ context.Context, _ *storage.Subscription) error { return nil }
-func (m *mockResourceIntegrationStore) Delete(_ context.Context, _ string) error                { return nil }
+func (m *mockResourceIntegrationStore) Update(_ context.Context, _ *storage.Subscription) error {
+	return nil
+}
+func (m *mockResourceIntegrationStore) Delete(_ context.Context, _ string) error { return nil }
 func (m *mockResourceIntegrationStore) List(_ context.Context) ([]*storage.Subscription, error) {
 	return nil, nil
 }

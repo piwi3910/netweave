@@ -35,7 +35,7 @@ func TestKubernetesAdapter_ListResources_Integration(t *testing.T) {
 				UID:  "node-1-uid",
 				Labels: map[string]string{
 					"node.kubernetes.io/instance-type": "m5.large",
-					"topology.kubernetes.io/zone":       "us-east-1a",
+					"topology.kubernetes.io/zone":      "us-east-1a",
 				},
 			},
 			Status: corev1.NodeStatus{
@@ -62,7 +62,7 @@ func TestKubernetesAdapter_ListResources_Integration(t *testing.T) {
 				UID:  "node-2-uid",
 				Labels: map[string]string{
 					"node.kubernetes.io/instance-type": "m5.xlarge",
-					"topology.kubernetes.io/zone":       "us-east-1b",
+					"topology.kubernetes.io/zone":      "us-east-1b",
 				},
 			},
 			Status: corev1.NodeStatus{
@@ -161,7 +161,7 @@ func TestKubernetesAdapter_ResourceFields_Integration(t *testing.T) {
 				UID:  "test-node-uid",
 				Labels: map[string]string{
 					"node.kubernetes.io/instance-type": "t3.medium",
-					"topology.kubernetes.io/zone":       "us-west-2a",
+					"topology.kubernetes.io/zone":      "us-west-2a",
 				},
 			},
 			Status: corev1.NodeStatus{

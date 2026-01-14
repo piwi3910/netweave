@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
+	dmsadapter "github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/adapters/starlingx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
-	dmsadapter "github.com/piwi3910/netweave/internal/adapter"
-	"github.com/piwi3910/netweave/internal/adapters/starlingx"
 )
 
 func TestNew(t *testing.T) {

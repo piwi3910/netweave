@@ -81,13 +81,6 @@ func (m *mockSubscriptionStore) ListByResourceType(_ context.Context, _ string) 
 	return nil, nil
 }
 
-
-
-
-
-
-
-
 func (m *mockSubscriptionStore) ListByTenant(_ context.Context, _ string) ([]*storage.Subscription, error) {
 	return nil, nil
 }

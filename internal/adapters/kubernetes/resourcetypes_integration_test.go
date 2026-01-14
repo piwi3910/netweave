@@ -35,7 +35,7 @@ func TestKubernetesAdapter_ListResourceTypes_Integration(t *testing.T) {
 				Name: "node-1",
 				Labels: map[string]string{
 					"node.kubernetes.io/instance-type": "m5.large",
-					"topology.kubernetes.io/zone":       "us-east-1a",
+					"topology.kubernetes.io/zone":      "us-east-1a",
 				},
 			},
 			Status: corev1.NodeStatus{
@@ -55,7 +55,7 @@ func TestKubernetesAdapter_ListResourceTypes_Integration(t *testing.T) {
 				Name: "node-2",
 				Labels: map[string]string{
 					"node.kubernetes.io/instance-type": "m5.xlarge",
-					"topology.kubernetes.io/zone":       "us-east-1b",
+					"topology.kubernetes.io/zone":      "us-east-1b",
 				},
 			},
 			Status: corev1.NodeStatus{

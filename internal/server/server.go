@@ -72,7 +72,8 @@ type Server struct {
 	openAPISpec      []byte
 
 	// Handlers
-	batchHandler *handlers.BatchHandler
+	batchHandler  *handlers.BatchHandler
+	tenantHandler *handlers.TenantHandler
 
 	// DMS subsystem.
 	dmsRegistry *dmsregistry.Registry
@@ -167,9 +168,10 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 	// Initialize batch handler
 	batchHandler := handlers.NewBatchHandler(adp, store, logger, globalMetrics)
 
-	// Initialize auth middleware if auth store is provided
+	// Initialize auth middleware and tenant handler if auth store is provided
 	var authMw AuthMiddleware
 	var auditLogger *auth.AuditLogger
+	var tenantHandler *handlers.TenantHandler
 	if authStore != nil {
 		authMwConfig := &auth.MiddlewareConfig{
 			Enabled:     true,
@@ -189,6 +191,9 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 			if err != nil {
 				logger.Warn("failed to initialize audit logger", zap.Error(err))
 			}
+
+			// Initialize tenant handler
+			tenantHandler = handlers.NewTenantHandler(authStoreTyped, logger)
 		}
 	}
 
@@ -204,6 +209,7 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 		openAPIValidator: openAPIValidator,
 		openAPISpec:      o2imsOpenAPISpec,
 		batchHandler:     batchHandler,
+		tenantHandler:    tenantHandler,
 		AuthStore:        authStore,
 		authMw:           authMw,
 		auditLogger:      auditLogger,
@@ -229,7 +235,12 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 }
 
 // initHealthChecker initializes the health checker with component checks.
-func initHealthChecker(_ *config.Config, adp adapter.Adapter, store storage.Store, authStore AuthStore) *observability.HealthChecker {
+func initHealthChecker(
+	_ *config.Config,
+	adp adapter.Adapter,
+	store storage.Store,
+	authStore AuthStore,
+) *observability.HealthChecker {
 	checker := observability.NewHealthChecker("1.0.0")
 
 	// Register health checks for critical components

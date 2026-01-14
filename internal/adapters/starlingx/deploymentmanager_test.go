@@ -34,9 +34,9 @@ func TestGetDeploymentManager(t *testing.T) {
 	defer keystoneMock.Close()
 
 	testSystem := starlingx.ISystem{
-		UUID:        "system-uuid-1",
-		Name:        "starlingx-test",
-		Description: "Test StarlingX System",
+		UUID:            "system-uuid-1",
+		Name:            "starlingx-test",
+		Description:     "Test StarlingX System",
 		SoftwareVersion: "8.0",
 		Capabilities: map[string]interface{}{
 			"region": "RegionOne",

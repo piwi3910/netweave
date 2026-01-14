@@ -243,15 +243,18 @@ func (s *Server) setupV3Routes(v3 *gin.RouterGroup) {
 	}
 
 	// Tenant management (v3 feature)
-	tenants := v3.Group("/tenants")
-	{
-		tenants.GET("", s.withPermission("tenants:read", s.handleListTenants))
-		tenants.POST("", s.withPermission("tenants:create", s.handleCreateTenant))
-		tenants.GET("/:tenantId", s.withPermission("tenants:read", s.handleGetTenant))
-		tenants.PUT("/:tenantId", s.withPermission("tenants:update", s.handleUpdateTenant))
-		tenants.DELETE("/:tenantId", s.withPermission("tenants:delete", s.handleDeleteTenant))
-		tenants.GET("/:tenantId/quotas", s.withPermission("tenants:read", s.handleGetTenantQuotas))
-		tenants.PUT("/:tenantId/quotas", s.withPermission("tenants:update", s.handleUpdateTenantQuotas))
+	// Only enable tenant routes if tenantHandler is initialized (multi-tenancy enabled)
+	if s.tenantHandler != nil {
+		tenants := v3.Group("/tenants")
+		{
+			tenants.GET("", s.withPermission("tenants:read", s.tenantHandler.ListTenants))
+			tenants.POST("", s.withPermission("tenants:create", s.tenantHandler.CreateTenant))
+			tenants.GET("/:tenantId", s.withPermission("tenants:read", s.tenantHandler.GetTenant))
+			tenants.PUT("/:tenantId", s.withPermission("tenants:update", s.tenantHandler.UpdateTenant))
+			tenants.DELETE("/:tenantId", s.withPermission("tenants:delete", s.tenantHandler.DeleteTenant))
+			tenants.GET("/:tenantId/quotas", s.withPermission("tenants:read", s.handleGetTenantQuotas))
+			tenants.PUT("/:tenantId/quotas", s.withPermission("tenants:update", s.handleUpdateTenantQuotas))
+		}
 	}
 
 	// V3 API info with multi-tenancy features (no auth required)
@@ -335,10 +338,26 @@ func (s *Server) handleAPIInfo(c *gin.Context) {
 // handleListSubscriptions lists all subscriptions.
 // GET /o2ims/v1/subscriptions.
 func (s *Server) handleListSubscriptions(c *gin.Context) {
-	s.logger.Info("listing subscriptions")
+	ctx := c.Request.Context()
 
-	// Get all subscriptions from storage
-	subs, err := s.store.List(c.Request.Context())
+	// Extract tenant ID from authenticated context for tenant isolation
+	tenantID := auth.TenantIDFromContext(ctx)
+
+	s.logger.Info("listing subscriptions",
+		zap.String("tenant_id", tenantID))
+
+	// Get subscriptions from storage with tenant isolation
+	var subs []*storage.Subscription
+	var err error
+
+	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) {
+		// Regular tenant user: only see their own subscriptions
+		subs, err = s.store.ListByTenant(ctx, tenantID)
+	} else {
+		// Platform admin or no auth: see all subscriptions
+		subs, err = s.store.List(ctx)
+	}
+
 	if err != nil {
 		s.logger.Error("failed to list subscriptions", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -537,11 +556,18 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 // handleGetSubscription retrieves a specific subscription.
 // GET /o2ims/v1/subscriptions/:subscriptionId.
 func (s *Server) handleGetSubscription(c *gin.Context) {
+	ctx := c.Request.Context()
 	subscriptionID := c.Param("subscriptionId")
-	s.logger.Info("getting subscription", zap.String("subscription_id", subscriptionID))
+
+	// Extract tenant ID from authenticated context for tenant isolation
+	tenantID := auth.TenantIDFromContext(ctx)
+
+	s.logger.Info("getting subscription",
+		zap.String("subscription_id", subscriptionID),
+		zap.String("tenant_id", tenantID))
 
 	// Get subscription from storage
-	sub, err := s.store.Get(c.Request.Context(), subscriptionID)
+	sub, err := s.store.Get(ctx, subscriptionID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -557,6 +583,20 @@ func (s *Server) handleGetSubscription(c *gin.Context) {
 			"error":   "InternalError",
 			"message": "Failed to retrieve subscription",
 			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Tenant isolation: verify subscription belongs to tenant (unless platform admin)
+	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) && sub.TenantID != tenantID {
+		s.logger.Warn("tenant attempting to access subscription from different tenant",
+			zap.String("tenant_id", tenantID),
+			zap.String("subscription_tenant_id", sub.TenantID),
+			zap.String("subscription_id", subscriptionID))
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "NotFound",
+			"message": "Subscription not found: " + subscriptionID,
+			"code":    http.StatusNotFound,
 		})
 		return
 	}
@@ -581,8 +621,51 @@ func (s *Server) handleGetSubscription(c *gin.Context) {
 // This endpoint allows updating both the callback URL and/or subscription filters.
 // When filter is null, it removes all filters; empty filter object {} also removes filters.
 func (s *Server) handleUpdateSubscription(c *gin.Context) {
+	ctx := c.Request.Context()
 	subscriptionID := c.Param("subscriptionId")
-	s.logger.Info("updating subscription", zap.String("subscription_id", subscriptionID))
+
+	// Extract tenant ID from authenticated context for tenant isolation
+	tenantID := auth.TenantIDFromContext(ctx)
+
+	s.logger.Info("updating subscription",
+		zap.String("subscription_id", subscriptionID),
+		zap.String("tenant_id", tenantID))
+
+	// Tenant isolation: verify subscription belongs to tenant before update
+	if s.store != nil {
+		sub, err := s.store.Get(ctx, subscriptionID)
+		if err != nil {
+			if errors.Is(err, storage.ErrSubscriptionNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{
+					"error":   "NotFound",
+					"message": "Subscription not found: " + subscriptionID,
+					"code":    http.StatusNotFound,
+				})
+				return
+			}
+			s.logger.Error("failed to get subscription for tenant check", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "InternalError",
+				"message": "Failed to verify subscription ownership",
+				"code":    http.StatusInternalServerError,
+			})
+			return
+		}
+
+		// Verify subscription belongs to tenant (unless platform admin)
+		if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) && sub.TenantID != tenantID {
+			s.logger.Warn("tenant attempting to update subscription from different tenant",
+				zap.String("tenant_id", tenantID),
+				zap.String("subscription_tenant_id", sub.TenantID),
+				zap.String("subscription_id", subscriptionID))
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Subscription not found: " + subscriptionID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+	}
 
 	var req adapter.Subscription
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -595,7 +678,7 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 	}
 
 	// Validate callback URL early for fast failure
-	if err := s.ValidateCallback(c.Request.Context(), &req); err != nil {
+	if err := s.ValidateCallback(ctx, &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": err.Error(),
@@ -660,12 +743,33 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 		zap.String("subscription_id", subscriptionID),
 		zap.String("tenant_id", tenantID))
 
-	// Get subscription to extract tenant ID for quota tracking
+	// Get subscription to extract tenant ID for quota tracking and tenant isolation check
 	var storedTenantID string
 	if s.store != nil {
 		sub, err := s.store.Get(ctx, subscriptionID)
 		if err == nil {
 			storedTenantID = sub.TenantID
+
+			// Tenant isolation: verify subscription belongs to tenant (unless platform admin)
+			if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) && sub.TenantID != tenantID {
+				s.logger.Warn("tenant attempting to delete subscription from different tenant",
+					zap.String("tenant_id", tenantID),
+					zap.String("subscription_tenant_id", sub.TenantID),
+					zap.String("subscription_id", subscriptionID))
+				c.JSON(http.StatusNotFound, gin.H{
+					"error":   "NotFound",
+					"message": "Subscription not found: " + subscriptionID,
+					"code":    http.StatusNotFound,
+				})
+				return
+			}
+		} else if errors.Is(err, storage.ErrSubscriptionNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Subscription not found: " + subscriptionID,
+				"code":    http.StatusNotFound,
+			})
+			return
 		}
 	}
 
@@ -1854,168 +1958,8 @@ func (s *Server) handleV3Features(c *gin.Context) {
 	})
 }
 
-// Tenant management handlers (v3)
-
-// handleListTenants lists all tenants.
-// GET /o2ims/v3/tenants.
-func (s *Server) handleListTenants(c *gin.Context) {
-	s.logger.Info("listing tenants")
-
-	// Placeholder implementation - in production this would query a tenant store
-	c.JSON(http.StatusOK, gin.H{
-		"tenants": []gin.H{
-			{
-				"tenantId":    "default",
-				"name":        "Default Tenant",
-				"description": "Default system tenant",
-				"createdAt":   "2024-01-01T00:00:00Z",
-			},
-		},
-		"total": 1,
-	})
-}
-
-// handleCreateTenant creates a new tenant.
-// POST /o2ims/v3/tenants.
-func (s *Server) handleCreateTenant(c *gin.Context) {
-	s.logger.Info("creating tenant")
-
-	var req struct {
-		Name        string `json:"name" binding:"required"`
-		Description string `json:"description,omitempty"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
-		return
-	}
-
-	tenantID := uuid.New().String()
-
-	c.JSON(http.StatusCreated, gin.H{
-		"tenantId":    tenantID,
-		"name":        req.Name,
-		"description": req.Description,
-		"createdAt":   "2024-01-01T00:00:00Z",
-	})
-}
-
-// handleGetTenant retrieves a specific tenant.
-// GET /o2ims/v3/tenants/:tenantId.
-func (s *Server) handleGetTenant(c *gin.Context) {
-	tenantID := c.Param("tenantId")
-	s.logger.Info("getting tenant", zap.String("tenant_id", tenantID))
-
-	if tenantID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Tenant ID cannot be empty",
-			"code":    http.StatusBadRequest,
-		})
-		return
-	}
-
-	// Placeholder - return mock tenant
-	c.JSON(http.StatusOK, gin.H{
-		"tenantId":    tenantID,
-		"name":        "Tenant " + tenantID,
-		"description": "Tenant description",
-		"createdAt":   "2024-01-01T00:00:00Z",
-	})
-}
-
-// handleUpdateTenant updates a tenant.
-// PUT /o2ims/v3/tenants/:tenantId.
-func (s *Server) handleUpdateTenant(c *gin.Context) {
-	ctx := c.Request.Context()
-	tenantID := c.Param("tenantId")
-	s.logger.Info("updating tenant", zap.String("tenant_id", tenantID))
-
-	var req struct {
-		Name        string `json:"name,omitempty"`
-		Description string `json:"description,omitempty"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
-		return
-	}
-
-	// Audit log the tenant update
-	if s.auditLogger != nil {
-		user := auth.UserFromContext(ctx)
-		s.auditLogger.LogAdminOperation(
-			ctx,
-			auth.AuditEventTenantUpdated,
-			tenantID,
-			user,
-			map[string]string{
-				"name":        req.Name,
-				"description": req.Description,
-			},
-		)
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"tenantId":    tenantID,
-		"name":        req.Name,
-		"description": req.Description,
-		"updatedAt":   "2024-01-01T00:00:00Z",
-	})
-}
-
-// handleDeleteTenant deletes a tenant.
-// DELETE /o2ims/v3/tenants/:tenantId.
-func (s *Server) handleDeleteTenant(c *gin.Context) {
-	ctx := c.Request.Context()
-	tenantID := c.Param("tenantId")
-	s.logger.Info("deleting tenant", zap.String("tenant_id", tenantID))
-
-	if tenantID == "default" {
-		// Audit log the failed attempt
-		if s.auditLogger != nil {
-			user := auth.UserFromContext(ctx)
-			s.auditLogger.LogAdminOperation(
-				ctx,
-				auth.AuditEventTenantDeleted,
-				tenantID,
-				user,
-				map[string]string{
-					"error": "cannot delete default tenant",
-				},
-			)
-		}
-
-		c.JSON(http.StatusConflict, gin.H{
-			"error":   "Conflict",
-			"message": "Cannot delete default tenant",
-			"code":    http.StatusConflict,
-		})
-		return
-	}
-
-	// Audit log the successful deletion
-	if s.auditLogger != nil {
-		user := auth.UserFromContext(ctx)
-		s.auditLogger.LogAdminOperation(
-			ctx,
-			auth.AuditEventTenantDeleted,
-			tenantID,
-			user,
-			nil,
-		)
-	}
-
-	c.Status(http.StatusNoContent)
-}
+// Tenant quota handlers (v3)
+// These remain as placeholders until quota management is fully implemented
 
 // handleGetTenantQuotas retrieves tenant quotas.
 // GET /o2ims/v3/tenants/:tenantId/quotas.
