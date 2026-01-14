@@ -236,7 +236,7 @@ func setupSubscriptionUpdateServer() (*server.Server, *mockSubscriptionStore) {
 		},
 	}
 	store := newMockSubscriptionStore()
-	srv := server.New(cfg, zap.NewNop(), &mockSubscriptionAdapter{store: store}, store)
+	srv := server.New(cfg, zap.NewNop(), &mockSubscriptionAdapter{store: store}, store, nil)
 	return srv, store
 }
 

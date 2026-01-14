@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/piwi3910/netweave/internal/config"
 	dmshandlers "github.com/piwi3910/netweave/internal/dms/handlers"
 	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
@@ -110,6 +111,8 @@ type Metrics struct {
 // New creates a new Server instance with the given configuration, logger, adapter, and storage.
 // It initializes the Gin router, sets up middleware, and configures routes.
 //
+// The authStore parameter is optional. If provided, enables multi-tenancy and RBAC features.
+//
 // The function will panic if essential dependencies are missing or invalid.
 //
 // Example:
@@ -118,8 +121,9 @@ type Metrics struct {
 //	logger, _ := zap.NewProduction()
 //	adapter := kubernetes.NewAdapter(cfg, logger)
 //	store := storage.NewRedisStore(&storage.RedisConfig{...})
-//	srv := server.New(cfg, logger, adapter, store)
-func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store storage.Store) *Server {
+//	authStore := auth.NewRedisStore(&auth.RedisConfig{...})
+//	srv := server.New(cfg, logger, adapter, store, authStore)
+func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store storage.Store, authStore AuthStore) *Server {
 	if cfg == nil {
 		panic("config cannot be nil")
 	}
@@ -146,7 +150,7 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 	globalMetrics := observability.InitMetrics(cfg.Observability.Metrics.Namespace)
 
 	// Initialize health checker with adapter and storage checks
-	healthCheck := initHealthChecker(cfg, adp, store)
+	healthCheck := initHealthChecker(cfg, adp, store, authStore)
 
 	// Initialize OpenAPI validator
 	openAPIValidator, err := initOpenAPIValidator(cfg, logger)
@@ -158,6 +162,23 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 
 	// Initialize batch handler
 	batchHandler := handlers.NewBatchHandler(adp, store, logger, globalMetrics)
+
+	// Initialize auth middleware if auth store is provided
+	var authMw AuthMiddleware
+	if authStore != nil {
+		authMwConfig := &auth.MiddlewareConfig{
+			Enabled:     true,
+			RequireMTLS: cfg.MultiTenancy.RequireMTLS,
+			SkipPaths:   []string{"/health", "/healthz", "/ready", "/readyz", "/metrics"},
+		}
+		// Type assert authStore to auth.Store for middleware initialization
+		authStoreTyped, ok := authStore.(auth.Store)
+		if !ok {
+			logger.Warn("auth store does not implement auth.Store interface, auth middleware disabled")
+		} else {
+			authMw = auth.NewMiddleware(authStoreTyped, authMwConfig, logger)
+		}
+	}
 
 	// Create server instance
 	srv := &Server{
@@ -171,6 +192,8 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 		openAPIValidator: openAPIValidator,
 		openAPISpec:      o2imsOpenAPISpec,
 		batchHandler:     batchHandler,
+		AuthStore:        authStore,
+		authMw:           authMw,
 	}
 
 	// Setup middleware
@@ -179,11 +202,21 @@ func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store stor
 	// Setup routes
 	srv.setupRoutes()
 
+	// Setup auth routes if multi-tenancy is enabled
+	if authStore != nil && authMw != nil {
+		authStoreTyped, ok := authStore.(auth.Store)
+		if ok {
+			srv.SetupAuthRoutes(authStoreTyped, authMw.(*auth.Middleware))
+		} else {
+			logger.Warn("auth store does not implement auth.Store interface, admin API disabled")
+		}
+	}
+
 	return srv
 }
 
 // initHealthChecker initializes the health checker with component checks.
-func initHealthChecker(_ *config.Config, adp adapter.Adapter, store storage.Store) *observability.HealthChecker {
+func initHealthChecker(_ *config.Config, adp adapter.Adapter, store storage.Store, authStore AuthStore) *observability.HealthChecker {
 	checker := observability.NewHealthChecker("1.0.0")
 
 	// Register health checks for critical components
@@ -196,6 +229,12 @@ func initHealthChecker(_ *config.Config, adp adapter.Adapter, store storage.Stor
 	if store != nil {
 		checker.RegisterHealthCheck("storage", func(ctx context.Context) error {
 			return store.Ping(ctx)
+		})
+	}
+
+	if authStore != nil {
+		checker.RegisterHealthCheck("auth_storage", func(ctx context.Context) error {
+			return authStore.Ping(ctx)
 		})
 	}
 

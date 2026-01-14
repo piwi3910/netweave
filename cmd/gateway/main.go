@@ -131,7 +131,6 @@ type ApplicationComponents struct {
 	healthChecker *observability.HealthChecker
 	server        *server.Server
 	authStore     *auth.RedisStore
-	authMw        *auth.Middleware
 }
 
 // NewApplicationComponentsForTest creates an ApplicationComponents instance for testing.
@@ -222,13 +221,34 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	healthChecker := initializeHealthChecker(store, k8sAdapter, logger)
 	logger.Info("health checker initialized")
 
-	// Create and configure HTTP server
-	srv := server.New(cfg, logger, k8sAdapter, store)
+	// Initialize auth store if multi-tenancy is enabled (done before server creation)
+	var authStore *auth.RedisStore
+	if cfg.MultiTenancy.Enabled {
+		var err error
+		authStore, _, err = InitializeAuth(cfg, logger)
+		if err != nil {
+			logger.Error("failed to initialize authentication subsystem")
+			if closeErr := store.Close(); closeErr != nil {
+				logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
+			}
+			if closeErr := k8sAdapter.Close(); closeErr != nil {
+				logger.Warn("failed to close Kubernetes adapter during cleanup", zap.Error(closeErr))
+			}
+			return nil, fmt.Errorf("failed to initialize auth: %w", err)
+		}
+		logger.Info("authentication store initialized",
+			zap.Bool("require_mtls", cfg.MultiTenancy.RequireMTLS),
+		)
+	}
+
+	// Create and configure HTTP server with auth store
+	srv := server.New(cfg, logger, k8sAdapter, store, authStore)
 	srv.SetHealthChecker(healthChecker)
 	logger.Info("HTTP server created",
 		zap.String("host", cfg.Server.Host),
 		zap.Int("port", cfg.Server.Port),
 		zap.String("mode", cfg.Server.GinMode),
+		zap.Bool("auth_enabled", authStore != nil),
 	)
 
 	// Load OpenAPI specification for documentation endpoints
@@ -248,30 +268,11 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		k8sAdapter:    k8sAdapter,
 		healthChecker: healthChecker,
 		server:        srv,
+		authStore:     authStore,
 	}
 
-	// Initialize multi-tenancy and RBAC if enabled.
-	if cfg.MultiTenancy.Enabled {
-		authStore, authMw, err := InitializeAuth(cfg, logger)
-		if err != nil {
-			// Log without exposing sensitive credential details from error chain.
-			logger.Error("failed to initialize authentication subsystem")
-			return nil, fmt.Errorf("failed to initialize auth: %w", err)
-		}
-
-		components.authStore = authStore
-		components.authMw = authMw
-
-		// Register auth store health checks.
-		srv.SetupAuth(authStore, authMw)
-
-		// Wire up auth routes.
-		srv.SetupAuthRoutes(authStore, authMw)
-
-		logger.Info("multi-tenancy and RBAC initialized",
-			zap.Bool("require_mtls", cfg.MultiTenancy.RequireMTLS),
-			zap.Int("skip_auth_paths", len(cfg.MultiTenancy.SkipAuthPaths)),
-		)
+	if authStore != nil {
+		logger.Info("multi-tenancy and RBAC enabled")
 	} else {
 		logger.Info("multi-tenancy is disabled")
 	}

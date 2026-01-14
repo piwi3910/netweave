@@ -119,7 +119,7 @@ func setupResourcePoolTestServer(t *testing.T, adp adapter.Adapter) *server.Serv
 			GinMode: gin.TestMode,
 		},
 	}
-	return server.New(cfg, zap.NewNop(), adp, &mockStore{})
+	return server.New(cfg, zap.NewNop(), adp, &mockStore{}, nil)
 }
 
 // makeResourcePoolPostRequest creates and executes a POST request to /resourcePools.
@@ -552,7 +552,7 @@ func TestResourcePoolCreateAdapterError(t *testing.T) {
 		mockResourcePoolAdapter: *newMockResourcePoolAdapter(),
 		errorOn:                 "create",
 	}
-	srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{}, nil)
 
 	pool := adapter.ResourcePool{
 		Name: "test-pool",
@@ -579,7 +579,7 @@ func TestResourcePoolUpdateAdapterError(t *testing.T) {
 		mockResourcePoolAdapter: *newMockResourcePoolAdapter(),
 		errorOn:                 "update",
 	}
-	srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{}, nil)
 
 	pool := adapter.ResourcePool{
 		Name: "test-pool",
@@ -616,7 +616,7 @@ func TestResourcePoolDeleteAdapterError(t *testing.T) {
 		mockResourcePoolAdapter: *newMockResourcePoolAdapter(),
 		errorOn:                 "delete",
 	}
-	srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{}, nil)
 
 	req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/existing-pool", nil)
 	resp := httptest.NewRecorder()

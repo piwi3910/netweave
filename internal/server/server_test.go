@@ -194,7 +194,7 @@ func TestNew(t *testing.T) {
 	adp := &mockAdapter{}
 	store := &mockStore{}
 
-	srv := server.New(cfg, logger, adp, store)
+	srv := server.New(cfg, logger, adp, store, nil)
 
 	assert.NotNil(t, srv)
 	assert.NotNil(t, srv.Router())
@@ -234,7 +234,7 @@ func TestNew_Panics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Panics(t, func() {
-				server.New(tt.cfg, tt.logger, tt.adp, tt.store)
+				server.New(tt.cfg, tt.logger, tt.adp, tt.store, nil)
 			})
 		})
 	}
@@ -250,7 +250,7 @@ func TestServer_Router(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	router := srv.Router()
 	assert.NotNil(t, router)
@@ -267,7 +267,7 @@ func TestServer_SetHealthChecker(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	// Health checker should be set by New
 	assert.NotNil(t, srv.HealthCheck())
@@ -283,7 +283,7 @@ func TestServer_SetOpenAPISpec(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	spec := []byte("openapi: 3.0.0")
 	srv.SetOpenAPISpec(spec)
@@ -302,7 +302,7 @@ func TestServer_GetOpenAPISpec(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	// Should have default spec from New
 	spec := srv.GetOpenAPISpec()
@@ -341,7 +341,7 @@ func TestRecoveryMiddleware(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	router := gin.New()
 	router.Use(srv.RecoveryMiddleware())
@@ -368,7 +368,7 @@ func TestLoggingMiddleware(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	router := gin.New()
 	router.Use(srv.LoggingMiddleware())
@@ -394,7 +394,7 @@ func TestMetricsMiddleware(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	router := gin.New()
 	router.Use(srv.MetricsMiddleware())
@@ -420,7 +420,7 @@ func TestServer_ShutdownWithContext(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	srv.SetHTTPServer(&http.Server{
 		Addr:              ":8080",
@@ -471,7 +471,7 @@ func TestServer_SetupAuth(t *testing.T) {
 					GinMode: gin.TestMode,
 				},
 			}
-			srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+			srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 			// Call SetupAuth
 			srv.SetupAuth(tt.authStore, tt.authMw)
@@ -504,7 +504,7 @@ func TestServer_AuthStore(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	// Before setup, should be nil
 	assert.Nil(t, srv.AuthStore)

@@ -29,7 +29,7 @@ func TestHandleHealth(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("returns healthy status", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -53,7 +53,7 @@ func TestHandleReadiness(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("returns ready status", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
@@ -83,7 +83,7 @@ func TestHandleMetrics(t *testing.T) {
 			},
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("returns prometheus metrics", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
@@ -107,7 +107,7 @@ func TestHandleRoot(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("returns API information", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -133,7 +133,7 @@ func TestHandleAPIInfo(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("returns O2-IMS API info", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/o2ims", nil)
@@ -158,7 +158,7 @@ func TestHandleListSubscriptions(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("returns empty subscription list", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/subscriptions", nil)
@@ -182,7 +182,7 @@ func TestHandleListResourcePools(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("returns resource pool list", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourcePools", nil)
@@ -205,7 +205,7 @@ func TestHandleListResources(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("returns resource list", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil)
@@ -228,7 +228,7 @@ func TestHandleListResourceTypes(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("returns resource type list", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes", nil)
@@ -251,7 +251,7 @@ func TestHandleListDeploymentManagers(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("returns deployment manager list", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/deploymentManagers", nil)
@@ -275,7 +275,7 @@ func TestHandleCreateSubscription(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("creates subscription successfully", func(t *testing.T) {
 		body := `{"callback":"https://smo.example.com/notify","filter":{}}`
@@ -302,7 +302,7 @@ func TestHandleGetSubscription(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("subscription not found", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/subscriptions/sub-123", nil)
@@ -325,7 +325,7 @@ func TestHandleDeleteSubscription(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("deletes subscription", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/subscriptions/sub-123", nil)
@@ -348,7 +348,7 @@ func TestHandleGetResourcePool(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("resource pool not found", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourcePools/pool-123", nil)
@@ -371,7 +371,7 @@ func TestHandleGetResource(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("resource not found", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources/res-123", nil)
@@ -394,7 +394,7 @@ func TestHandleDeleteResource(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("resource not found", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resources/res-nonexistent", nil)
@@ -428,7 +428,7 @@ func TestHandleGetResourceType(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("resource type not found", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes/type-123", nil)
@@ -451,7 +451,7 @@ func TestHandleGetDeploymentManager(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("deployment manager not found", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/deploymentManagers/dm-123", nil)
@@ -474,7 +474,7 @@ func TestHandleListSubscriptions_WithFilter(t *testing.T) {
 			GinMode: gin.TestMode,
 		},
 	}
-	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 	t.Run("list subscriptions with filter", func(t *testing.T) {
 		req := httptest.NewRequest(
@@ -504,7 +504,7 @@ func TestHandleHealth_Error(t *testing.T) {
 
 	// Use mockAdapter with Health() error
 	mockAdp := &mockAdapter{healthErr: fmt.Errorf("adapter unhealthy")}
-	srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{}, nil)
 
 	t.Run("health check failed", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -530,7 +530,7 @@ func TestHandleReadiness_Error(t *testing.T) {
 
 	// Use mockAdapter with Health() error
 	mockAdp := &mockAdapter{healthErr: fmt.Errorf("not ready")}
-	srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{})
+	srv := server.New(cfg, zap.NewNop(), mockAdp, &mockStore{}, nil)
 
 	t.Run("readiness check failed", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
@@ -551,7 +551,7 @@ func TestHandleCreateResourcePool(t *testing.T) {
 		cfg := &config.Config{
 			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
 		}
-		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 		body := `{"name":"GPU Pool Production","description":"High-performance GPU resources"}`
 		req := httptest.NewRequest(
@@ -570,7 +570,7 @@ func TestHandleCreateResourcePool(t *testing.T) {
 		cfg := &config.Config{
 			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
 		}
-		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 		body := `{"resourcePoolId":"pool-custom-123","name":"Custom Pool"}`
 		req := httptest.NewRequest(
@@ -589,7 +589,7 @@ func TestHandleCreateResourcePool(t *testing.T) {
 		cfg := &config.Config{
 			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
 		}
-		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 		body := `{"name":invalid json}`
 		req := httptest.NewRequest(
@@ -608,7 +608,7 @@ func TestHandleCreateResourcePool(t *testing.T) {
 		cfg := &config.Config{
 			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
 		}
-		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 		body := `{"description":"Pool without name"}`
 		req := httptest.NewRequest(
@@ -653,11 +653,12 @@ func TestHandleUpdateResourcePool(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			srv := server.New(
-				&config.Config{Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode}},
-				zap.NewNop(),
-				&mockAdapter{},
-				&mockStore{},
-			)
+			&config.Config{Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode}},
+			zap.NewNop(),
+			&mockAdapter{},
+			&mockStore{},
+			nil,
+		)
 
 			req := httptest.NewRequest(
 				http.MethodPut,
@@ -682,7 +683,7 @@ func TestHandleDeleteResourcePool(t *testing.T) {
 		cfg := &config.Config{
 			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
 		}
-		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/pool-nonexistent", nil)
 		w := httptest.NewRecorder()
@@ -696,7 +697,7 @@ func TestHandleDeleteResourcePool(t *testing.T) {
 		cfg := &config.Config{
 			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
 		}
-		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 		req := httptest.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resourcePools/pool-existing", nil)
 		w := httptest.NewRecorder()
@@ -716,7 +717,7 @@ func TestHandleCreateResource(t *testing.T) {
 		cfg := &config.Config{
 			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
 		}
-		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 		body := `{"resourceTypeId":"compute-node","resourcePoolId":"pool-123","name":"Node 1"}`
 		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", strings.NewReader(body))
@@ -749,7 +750,7 @@ func TestHandleCreateResource(t *testing.T) {
 		cfg := &config.Config{
 			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
 		}
-		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 		body := `{"resourcePoolId":"pool-123","name":"Node 1"}`
 		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", strings.NewReader(body))
@@ -766,7 +767,7 @@ func TestHandleCreateResource(t *testing.T) {
 		cfg := &config.Config{
 			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
 		}
-		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 		body := `{"resourceTypeId":"compute-node","name":"Node 1"}`
 		req := httptest.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", strings.NewReader(body))
@@ -789,7 +790,7 @@ func TestHandleUpdateSubscription(t *testing.T) {
 		cfg := &config.Config{
 			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
 		}
-		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 		subID := "sub-nonexistent"
 		updatePayload := `{"callback":"https://new-callback.example.com/notify"}`
@@ -810,7 +811,7 @@ func TestHandleUpdateSubscription(t *testing.T) {
 		cfg := &config.Config{
 			Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
 		}
-		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+		srv := server.New(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{}, nil)
 
 		malformedJSON := `{invalid json}`
 		subscriptionEndpoint := "/o2ims-infrastructureInventory/v1/subscriptions/sub-123"
