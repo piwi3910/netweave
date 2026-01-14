@@ -611,8 +611,9 @@ func TestSubscriptionDeletionStopsNotifications(t *testing.T) {
 	err = json.Unmarshal(body, &createdSub)
 	require.NoError(t, err)
 
-	subscriptionID := createdSub["subscriptionId"].(string)
-	require.NotEmpty(t, subscriptionID)
+	subscriptionID, ok := createdSub["subscriptionId"].(string)
+	require.True(t, ok, "subscriptionId is not a string or missing")
+	require.NotEmpty(t, subscriptionID, "subscriptionId is empty")
 
 	fw.WebhookServer.ClearEvents()
 
@@ -707,8 +708,9 @@ func TestWebhookRetryLogic(t *testing.T) {
 	err = json.Unmarshal(body, &createdSub)
 	require.NoError(t, err)
 
-	subscriptionID := createdSub["subscriptionId"].(string)
-	require.NotEmpty(t, subscriptionID)
+	subscriptionID, ok := createdSub["subscriptionId"].(string)
+	require.True(t, ok, "subscriptionId is not a string or missing")
+	require.NotEmpty(t, subscriptionID, "subscriptionId is empty")
 
 	fw.Logger.Info("Created subscription with failing webhook",
 		zap.String("subscriptionId", subscriptionID),
@@ -719,7 +721,7 @@ func TestWebhookRetryLogic(t *testing.T) {
 	// The gateway should retry webhook delivery with exponential backoff
 
 	// Wait for retries to complete
-	time.Sleep(30 * time.Second)
+	time.Sleep(webhookRetryTimeout)
 
 	// Verify retry attempts
 	attemptMu.Lock()
@@ -779,8 +781,9 @@ func TestResourceLifecycleEvents(t *testing.T) {
 	err = json.Unmarshal(body, &createdSub)
 	require.NoError(t, err)
 
-	subscriptionID := createdSub["subscriptionId"].(string)
-	require.NotEmpty(t, subscriptionID)
+	subscriptionID, ok := createdSub["subscriptionId"].(string)
+	require.True(t, ok, "subscriptionId is not a string or missing")
+	require.NotEmpty(t, subscriptionID, "subscriptionId is empty")
 
 	fw.Logger.Info("Created subscription for lifecycle events",
 		zap.String("subscriptionId", subscriptionID),

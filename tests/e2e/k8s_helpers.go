@@ -8,6 +8,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -55,10 +56,15 @@ func (h *K8sResourceHelper) DeleteNamespace(ctx context.Context, name string) er
 	// Wait for namespace to be deleted (up to 60 seconds)
 	return wait.PollUntilContextTimeout(ctx, 2*time.Second, 60*time.Second, true, func(pollCtx context.Context) (bool, error) {
 		_, err := h.client.CoreV1().Namespaces().Get(pollCtx, name, metav1.GetOptions{})
-		if err != nil {
-			// Namespace has been deleted (Get returns error)
+		if errors.IsNotFound(err) {
+			// Namespace has been successfully deleted
 			return true, nil
 		}
+		if err != nil {
+			// Other errors (network, permission, etc.) should be returned
+			return false, err
+		}
+		// Namespace still exists
 		return false, nil
 	})
 }
@@ -142,10 +148,15 @@ func (h *K8sResourceHelper) DeletePod(ctx context.Context, namespace, name strin
 	// Wait for pod to be deleted (up to 30 seconds)
 	return wait.PollUntilContextTimeout(ctx, 1*time.Second, 30*time.Second, true, func(pollCtx context.Context) (bool, error) {
 		_, err := h.client.CoreV1().Pods(namespace).Get(pollCtx, name, metav1.GetOptions{})
-		if err != nil {
-			// Pod has been deleted (Get returns error)
+		if errors.IsNotFound(err) {
+			// Pod has been successfully deleted
 			return true, nil
 		}
+		if err != nil {
+			// Other errors (network, permission, etc.) should be returned
+			return false, err
+		}
+		// Pod still exists
 		return false, nil
 	})
 }
