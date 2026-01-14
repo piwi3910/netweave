@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	"go.uber.org/zap"
@@ -117,9 +118,10 @@ func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) 
 
 // UpdateResource updates an existing vSphere VM's annotations and custom attributes.
 // Note: Core VM properties cannot be modified while VM is running.
+// Only VM annotations (description) and custom attributes (via Extensions) can be updated.
 func (a *Adapter) UpdateResource(
-	_ context.Context,
-	_ string,
+	ctx context.Context,
+	id string,
 	resource *adapter.Resource,
 ) (*adapter.Resource, error) {
 	var err error
@@ -127,12 +129,119 @@ func (a *Adapter) UpdateResource(
 	defer func() { adapter.ObserveOperation("vmware", "UpdateResource", start, err) }()
 
 	a.Logger.Debug("UpdateResource called",
-		zap.String("resourceID", resource.ResourceID))
+		zap.String("resourceID", id))
 
-	// TODO(#192): Implement VM custom attribute updates via vSphere API
-	// For now, return not supported
-	err = fmt.Errorf("updating vSphere VMs is not yet implemented")
-	return nil, err
+	// Validate resource ID format
+	if err = validateVMResourceID(id); err != nil {
+		return nil, err
+	}
+
+	// Get VM name from current resource
+	vmName, err := a.getVMNameFromResource(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Find the VM object
+	vm, err := a.finder.VirtualMachine(ctx, vmName)
+	if err != nil {
+		err = fmt.Errorf("failed to find VM: %w", err)
+		return nil, err
+	}
+
+	// Build and apply configuration updates
+	if err = a.applyVMUpdates(ctx, vm, resource, vmName, id); err != nil {
+		return nil, err
+	}
+
+	// Fetch and return updated resource
+	return a.GetResource(ctx, id)
+}
+
+// validateVMResourceID validates the resource ID format.
+func validateVMResourceID(id string) error {
+	prefix := "vmware-vm-"
+	if !strings.HasPrefix(id, prefix) {
+		return fmt.Errorf("invalid resource ID format: %s", id)
+	}
+	return nil
+}
+
+// getVMNameFromResource extracts the VM name from a resource.
+func (a *Adapter) getVMNameFromResource(ctx context.Context, id string) (string, error) {
+	currentResource, err := a.GetResource(ctx, id)
+	if err != nil {
+		return "", err
+	}
+
+	vmName, ok := currentResource.Extensions["vmware.name"].(string)
+	if !ok {
+		return "", fmt.Errorf("cannot determine VM name for resource: %s", id)
+	}
+
+	return vmName, nil
+}
+
+// applyVMUpdates applies configuration updates to a VM.
+func (a *Adapter) applyVMUpdates(
+	ctx context.Context,
+	vm *object.VirtualMachine,
+	resource *adapter.Resource,
+	vmName, resourceID string,
+) error {
+	annotation := buildVMAnnotation(resource)
+	if annotation == "" {
+		return nil // No updates to apply
+	}
+
+	spec := types.VirtualMachineConfigSpec{
+		Annotation: annotation,
+	}
+
+	task, err := vm.Reconfigure(ctx, spec)
+	if err != nil {
+		return fmt.Errorf("failed to reconfigure VM: %w", err)
+	}
+
+	if err := task.Wait(ctx); err != nil {
+		return fmt.Errorf("failed to wait for VM reconfiguration: %w", err)
+	}
+
+	a.Logger.Info("updated VM annotation",
+		zap.String("vmName", vmName),
+		zap.String("resourceID", resourceID))
+
+	return nil
+}
+
+// buildVMAnnotation builds the VM annotation content from resource fields.
+func buildVMAnnotation(resource *adapter.Resource) string {
+	annotation := resource.Description
+
+	if resource.Extensions != nil {
+		customAttrs := extractCustomAttributes(resource.Extensions)
+		if len(customAttrs) > 0 {
+			annotation += "\n\nCustom Attributes:"
+			for key, value := range customAttrs {
+				annotation += fmt.Sprintf("\n%s=%s", key, value)
+			}
+		}
+	}
+
+	return annotation
+}
+
+// extractCustomAttributes extracts custom attributes from extensions.
+func extractCustomAttributes(extensions map[string]interface{}) map[string]string {
+	customAttrs := make(map[string]string)
+
+	if attrs, ok := extensions["vmware.customAttributes"].(map[string]string); ok {
+		for k, v := range attrs {
+			customAttrs[k] = v
+		}
+	}
+
+	return customAttrs
 }
 
 // DeleteResource deletes a resource (VM) by ID.
