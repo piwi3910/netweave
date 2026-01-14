@@ -186,7 +186,7 @@ func TestGetDeploymentManager(t *testing.T) {
 					SupportedLocations:  []string{"us-east-1", "us-west-2"},
 					Capabilities:        []string{"compute", "storage", "networking"},
 					Extensions: map[string]interface{}{
-						"version": "1.0.0",
+						"version": testAdapterVersion,
 					},
 				}, nil
 			},

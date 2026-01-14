@@ -81,7 +81,7 @@ func (m *mockAdapter) Name() string {
 	return "mock-adapter"
 }
 func (m *mockAdapter) Version() string {
-	return "1.0.0"
+	return testAdapterVersion
 }
 func (m *mockAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{adapter.CapabilityResourcePools}

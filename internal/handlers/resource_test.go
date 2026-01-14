@@ -31,7 +31,7 @@ type mockResourceAdapter struct {
 }
 
 func (m *mockResourceAdapter) Name() string    { return "mock" }
-func (m *mockResourceAdapter) Version() string { return "1.0.0" }
+func (m *mockResourceAdapter) Version() string { return testAdapterVersion }
 func (m *mockResourceAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{adapter.CapabilityResources, adapter.CapabilityResourcePools}
 }

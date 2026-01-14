@@ -23,6 +23,8 @@ import (
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
+const testAdapterVersion = "1.0.0"
+
 // mockBatchAdapter implements adapter.Adapter for batch testing.
 type mockBatchAdapter struct {
 	mu               sync.Mutex
@@ -97,7 +99,7 @@ func (m *mockBatchAdapter) Name() string {
 }
 
 func (m *mockBatchAdapter) Version() string {
-	return "1.0.0"
+	return testAdapterVersion
 }
 
 func (m *mockBatchAdapter) Capabilities() []adapter.Capability {
