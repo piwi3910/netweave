@@ -208,7 +208,7 @@ func (w *WebhookWorker) Stop() error {
 	return nil
 }
 
-// createConsumerGroup creates the Redis Stream consumer group.
+// CreateConsumerGroup creates the Redis Stream consumer group.
 func (w *WebhookWorker) CreateConsumerGroup(ctx context.Context) error {
 	// Try to create the consumer group
 	err := w.redisClient.XGroupCreateMkStream(ctx, EventStreamKey, ConsumerGroup, "0").Err()
@@ -255,7 +255,7 @@ func (w *WebhookWorker) processEvents(ctx context.Context, name string) {
 	}
 }
 
-// processNextEvent reads and processes the next event from the stream.
+// ProcessNextEvent reads and processes the next event from the stream.
 func (w *WebhookWorker) ProcessNextEvent(ctx context.Context, consumerName string) error {
 	// Read from stream (blocking with timeout)
 	streams, err := w.redisClient.XReadGroup(ctx, &redis.XReadGroupArgs{
@@ -289,7 +289,7 @@ func (w *WebhookWorker) ProcessNextEvent(ctx context.Context, consumerName strin
 	return nil
 }
 
-// handleMessage processes a single message from the stream.
+// HandleMessage processes a single message from the stream.
 func (w *WebhookWorker) HandleMessage(ctx context.Context, _ string, msg redis.XMessage) error {
 	// Parse event data
 	eventData, ok := msg.Values["event"].(string)
@@ -333,7 +333,7 @@ func (w *WebhookWorker) HandleMessage(ctx context.Context, _ string, msg redis.X
 	return w.AcknowledgeMessage(ctx, msg.ID)
 }
 
-// deliverWithRetries attempts webhook delivery with exponential backoff.
+// DeliverWithRetries attempts webhook delivery with exponential backoff.
 func (w *WebhookWorker) DeliverWithRetries(ctx context.Context, event *controllers.ResourceEvent) error {
 	var lastErr error
 
@@ -380,7 +380,7 @@ func (w *WebhookWorker) DeliverWithRetries(ctx context.Context, event *controlle
 	return fmt.Errorf("max retries exceeded: %w", lastErr)
 }
 
-// deliverWebhook delivers a webhook notification via HTTP POST.
+// DeliverWebhook delivers a webhook notification via HTTP POST.
 func (w *WebhookWorker) DeliverWebhook(ctx context.Context, event *controllers.ResourceEvent) error {
 	// Marshal event to JSON
 	payload, err := json.Marshal(event)
@@ -433,14 +433,14 @@ func (w *WebhookWorker) DeliverWebhook(ctx context.Context, event *controllers.R
 	return nil
 }
 
-// generateHMAC generates an HMAC-SHA256 signature for the payload.
+// GenerateHMAC generates an HMAC-SHA256 signature for the payload.
 func (w *WebhookWorker) GenerateHMAC(payload []byte) string {
 	mac := hmac.New(sha256.New, []byte(w.HMACSecret))
 	mac.Write(payload)
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// acknowledgeMessage acknowledges a message to remove it from pending.
+// AcknowledgeMessage acknowledges a message to remove it from pending.
 func (w *WebhookWorker) AcknowledgeMessage(ctx context.Context, messageID string) error {
 	if err := w.redisClient.XAck(ctx, EventStreamKey, ConsumerGroup, messageID).Err(); err != nil {
 		return fmt.Errorf("failed to acknowledge message: %w", err)
@@ -448,7 +448,7 @@ func (w *WebhookWorker) AcknowledgeMessage(ctx context.Context, messageID string
 	return nil
 }
 
-// moveToDLQ moves a failed event to the dead letter queue.
+// MoveToDLQ moves a failed event to the dead letter queue.
 func (w *WebhookWorker) MoveToDLQ(ctx context.Context, event *controllers.ResourceEvent, messageID string) error {
 	// Marshal event
 	data, err := json.Marshal(event)

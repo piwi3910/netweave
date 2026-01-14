@@ -330,7 +330,7 @@ func (a *Adapter) DeleteResource(_ context.Context, id string) error {
 	return nil
 }
 
-// transformServerToResource converts an OpenStack server to O2-IMS Resource.
+// TransformServerToResource converts an OpenStack server to O2-IMS Resource.
 func (a *Adapter) TransformServerToResource(server *servers.Server) *adapter.Resource {
 	resourceID := fmt.Sprintf("openstack-server-%s", server.ID)
 
@@ -384,7 +384,7 @@ func (a *Adapter) TransformServerToResource(server *servers.Server) *adapter.Res
 	}
 }
 
-// getResourcePoolIDFromServer derives the resource pool ID from a server's availability zone.
+// GetResourcePoolIDFromServer derives the resource pool ID from a server's availability zone.
 // This is a best-effort mapping that requires the OS-EXT-AZ extension to be available.
 // In production OpenStack deployments, use the availability zone stored in server.Metadata
 // or query with the OS-EXT-AZ extension enabled.

@@ -355,7 +355,7 @@ func (a *Adapter) addNetworkProfileExtensions(
 	extensions["azure.networkInterfaces"] = nics
 }
 
-// extractResourceGroup extracts the resource group name from an Azure resource ID.
+// ExtractResourceGroup extracts the resource group name from an Azure resource ID.
 func ExtractResourceGroup(resourceID string) string {
 	// Format: /subscriptions/{sub}/resourceGroups/{rg}/providers/...
 	parts := strings.Split(resourceID, "/")

@@ -136,12 +136,13 @@ type ResourceRateLimiter struct {
 	Metrics *ResourceRateLimitMetrics // Exported for testing
 }
 
+// ResourceRateLimitMetrics holds Prometheus metrics for resource rate limiting.
 type ResourceRateLimitMetrics struct {
 	Hits     *prometheus.CounterVec // Exported for testing
 	FailOpen *prometheus.CounterVec // Exported for testing
 }
 
-// Prometheus metrics for resource rate limiting.
+// ResourceRateLimitHits tracks the total number of resource rate limit hits.
 var ResourceRateLimitHits = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "o2ims_resource_rate_limit_hits_total",
@@ -370,7 +371,7 @@ func (rl *ResourceRateLimiter) Middleware() gin.HandlerFunc {
 	}
 }
 
-// checkPageSize validates that the requested page size is within limits.
+// CheckPageSize validates that the requested page size is within limits.
 func (rl *ResourceRateLimiter) CheckPageSize(c *gin.Context, resourceType ResourceType) bool {
 	pageSizeStr := c.Query("limit")
 	if pageSizeStr == "" {
@@ -396,7 +397,7 @@ func (rl *ResourceRateLimiter) CheckPageSize(c *gin.Context, resourceType Resour
 	return true
 }
 
-// getMaxPageSize returns the maximum page size for a resource type.
+// GetMaxPageSize returns the maximum page size for a resource type.
 func (rl *ResourceRateLimiter) GetMaxPageSize(resourceType ResourceType) int {
 	// Get resource-specific max page size.
 	maxSize := rl.getResourceTypeMaxPageSize(resourceType)
@@ -597,7 +598,7 @@ func (rl *ResourceRateLimiter) checkRedisLimit(
 	return allowed, remaining, nil
 }
 
-// extractResourceType determines the resource type from the request path.
+// ExtractResourceType determines the resource type from the request path.
 func ExtractResourceType(path string) ResourceType {
 	// O2-IMS API paths follow the pattern: /o2ims/v1/{resourceType}/...
 	// Uses pre-compiled regex patterns for performance.
@@ -610,7 +611,7 @@ func ExtractResourceType(path string) ResourceType {
 	return ResourceTypeUnknown
 }
 
-// extractOperation determines the operation type from the HTTP method and path.
+// ExtractOperation determines the operation type from the HTTP method and path.
 func ExtractOperation(method, path string) OperationType {
 	switch method {
 	case http.MethodGet:
@@ -630,7 +631,7 @@ func ExtractOperation(method, path string) OperationType {
 	}
 }
 
-// isCollectionPath determines if a path is a collection endpoint.
+// IsCollectionPath determines if a path is a collection endpoint.
 func IsCollectionPath(path string) bool {
 	// Collection paths end with the resource type name, not an ID.
 	// Uses pre-compiled regex patterns for performance.
@@ -643,7 +644,7 @@ func IsCollectionPath(path string) bool {
 	return false
 }
 
-// getResourceTenantID extracts the tenant ID for resource rate limiting.
+// GetResourceTenantID extracts the tenant ID for resource rate limiting.
 func GetResourceTenantID(c *gin.Context) string {
 	// Try to get tenant from auth context
 	if tenantID, exists := c.Get("tenant_id"); exists {

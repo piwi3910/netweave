@@ -163,7 +163,7 @@ func (v *OpenAPIValidator) Spec() *openapi3.T {
 	return v.spec
 }
 
-// isExcludedPath checks if the given path should be excluded from validation.
+// IsExcludedPath checks if the given path should be excluded from validation.
 // It matches exact paths or path prefixes followed by a slash.
 func (v *OpenAPIValidator) IsExcludedPath(path string) bool {
 	for _, excluded := range v.Config.ExcludePaths {
@@ -311,7 +311,7 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 	return nil
 }
 
-// responseRecorder captures the response for validation.
+// ResponseRecorder captures the response for validation.
 type ResponseRecorder struct {
 	gin.ResponseWriter
 	Body       *bytes.Buffer // Exported for testing
@@ -380,7 +380,7 @@ func (v *OpenAPIValidator) validateResponseWithCapture(c *gin.Context) {
 	}
 }
 
-// formatValidationError formats validation errors for the API response.
+// FormatValidationError formats validation errors for the API response.
 // It uses typed error checking from kin-openapi for more reliable error handling.
 func FormatValidationError(err error) string {
 	if err == nil {

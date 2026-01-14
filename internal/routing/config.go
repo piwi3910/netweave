@@ -110,7 +110,7 @@ func LoadRulesFromConfig(config *Config) ([]*Rule, error) {
 	return rules, nil
 }
 
-// convertRuleConfig converts a RuleConfig to a Rule.
+// ConvertRuleConfig converts a RuleConfig to a Rule.
 func ConvertRuleConfig(config *RuleConfig) (*Rule, error) {
 	if config.Name == "" {
 		return nil, fmt.Errorf("rule name is required")
@@ -142,7 +142,7 @@ func ConvertRuleConfig(config *RuleConfig) (*Rule, error) {
 	}, nil
 }
 
-// convertConditions converts ConditionsConfig to Conditions.
+// ConvertConditions converts ConditionsConfig to Conditions.
 func ConvertConditions(config *ConditionsConfig) *Conditions {
 	conditions := &Conditions{
 		Labels:     config.Labels,
@@ -171,7 +171,7 @@ func ConvertConditions(config *ConditionsConfig) *Conditions {
 	return conditions
 }
 
-// isEmptyConditions checks if a ConditionsConfig is empty.
+// IsEmptyConditions checks if a ConditionsConfig is empty.
 func IsEmptyConditions(config *ConditionsConfig) bool {
 	return len(config.Labels) == 0 &&
 		IsEmptyLocationCondition(&config.Location) &&
@@ -179,7 +179,7 @@ func IsEmptyConditions(config *ConditionsConfig) bool {
 		len(config.Extensions) == 0
 }
 
-// isEmptyLocationCondition checks if a LocationConditionConfig is empty.
+// IsEmptyLocationCondition checks if a LocationConditionConfig is empty.
 func IsEmptyLocationCondition(config *LocationConditionConfig) bool {
 	return config.Prefix == "" &&
 		config.Suffix == "" &&

@@ -22,10 +22,10 @@ import (
 )
 
 const (
-	// Default timeout for HTTP requests.
+	// DefaultHTTPTimeout is the default timeout for HTTP requests.
 	DefaultHTTPTimeout = 10 * time.Second
 
-	// Default maximum retries.
+	// DefaultMaxRetries is the default maximum number of retries.
 	DefaultMaxRetries = 3
 
 	// Initial retry backoff.

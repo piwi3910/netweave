@@ -213,7 +213,7 @@ func (rl *RateLimiter) checkLimit(
 	return true
 }
 
-// getEndpointLimit returns the rate limit config for a specific endpoint if configured.
+// GetEndpointLimit returns the rate limit config for a specific endpoint if configured.
 func (rl *RateLimiter) GetEndpointLimit(method, path string) *EndpointLimitConfig {
 	for _, limit := range rl.Config.PerEndpoint {
 		if limit.Method == method && limit.Path == path {
@@ -223,7 +223,7 @@ func (rl *RateLimiter) GetEndpointLimit(method, path string) *EndpointLimitConfi
 	return nil
 }
 
-// getTenantID extracts the tenant ID from the Gin context.
+// GetTenantID extracts the tenant ID from the Gin context.
 // It first checks for a tenant ID in the context (set by auth middleware),
 // then falls back to client IP as a default identifier.
 func GetTenantID(c *gin.Context) string {

@@ -568,7 +568,7 @@ func (s *Server) SetupAuth(authStore AuthStore, authMw AuthMiddleware) {
 // Returns nil if auth is not configured.
 // This method returns an interface by design (registry pattern).
 
-// recoveryMiddleware recovers from panics and logs the error.
+// RecoveryMiddleware recovers from panics and logs the error.
 func (s *Server) RecoveryMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
@@ -589,7 +589,7 @@ func (s *Server) RecoveryMiddleware() gin.HandlerFunc {
 	}
 }
 
-// loggingMiddleware logs HTTP requests and responses.
+// LoggingMiddleware logs HTTP requests and responses.
 func (s *Server) LoggingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -623,7 +623,7 @@ func (s *Server) LoggingMiddleware() gin.HandlerFunc {
 	}
 }
 
-// metricsMiddleware collects Prometheus metrics for HTTP requests.
+// MetricsMiddleware collects Prometheus metrics for HTTP requests.
 func (s *Server) MetricsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if s.metrics == nil {
@@ -749,7 +749,7 @@ func (s *Server) rateLimitMiddleware() gin.HandlerFunc {
 	return rateLimiter.Middleware()
 }
 
-// joinStrings joins a slice of strings with the given separator.
+// JoinStrings joins a slice of strings with the given separator.
 func JoinStrings(strs []string, sep string) string {
 	if len(strs) == 0 {
 		return ""

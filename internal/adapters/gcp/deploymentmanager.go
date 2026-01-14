@@ -70,7 +70,7 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 	return dm, nil
 }
 
-// extractZoneName extracts the zone name from a GCP zone URL.
+// ExtractZoneName extracts the zone name from a GCP zone URL.
 // e.g., "https://compute.googleapis.com/compute/v1/projects/my-project/zones/us-central1-a" -> "us-central1-a".
 func ExtractZoneName(zoneURL string) string {
 	// Find the last "/" and return everything after it

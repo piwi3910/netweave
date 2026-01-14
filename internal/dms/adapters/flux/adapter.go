@@ -221,7 +221,7 @@ func checkContext(ctx context.Context) error {
 	}
 }
 
-// validateName validates that a resource name conforms to DNS-1123 label format.
+// ValidateName validates that a resource name conforms to DNS-1123 label format.
 // Kubernetes resource names must be lowercase alphanumeric with hyphens, max 63 chars.
 func ValidateName(name string) error {
 	if name == "" {
@@ -236,7 +236,7 @@ func ValidateName(name string) error {
 	return nil
 }
 
-// validatePath validates that a path does not contain directory traversal attempts.
+// ValidatePath validates that a path does not contain directory traversal attempts.
 // This prevents security issues with path manipulation.
 func ValidatePath(path string) error {
 	if path == "" {
@@ -1200,7 +1200,7 @@ func (f *Adapter) updateKustomization(
 	return f.TransformKustomizationToDeployment(result), nil
 }
 
-// transformHelmReleaseToDeployment converts a Flux HelmRelease to a Deployment.
+// TransformHelmReleaseToDeployment converts a Flux HelmRelease to a Deployment.
 func (f *Adapter) TransformHelmReleaseToDeployment(hr *unstructured.Unstructured) *adapter.Deployment {
 	name, _, _ := unstructured.NestedString(hr.Object, "metadata", "name")
 	namespace, _, _ := unstructured.NestedString(hr.Object, "metadata", "namespace")
@@ -1251,7 +1251,7 @@ func (f *Adapter) TransformHelmReleaseToDeployment(hr *unstructured.Unstructured
 	}
 }
 
-// transformKustomizationToDeployment converts a Flux Kustomization to a Deployment.
+// TransformKustomizationToDeployment converts a Flux Kustomization to a Deployment.
 func (f *Adapter) TransformKustomizationToDeployment(ks *unstructured.Unstructured) *adapter.Deployment {
 	name, _, _ := unstructured.NestedString(ks.Object, "metadata", "name")
 	namespace, _, _ := unstructured.NestedString(ks.Object, "metadata", "namespace")
@@ -1445,7 +1445,7 @@ func (f *Adapter) parseConditions(conditions []interface{}) ([]adapter.Deploymen
 	return dmsConditions, latestUpdate
 }
 
-// extractFluxStatus extracts status and message from Flux conditions.
+// ExtractFluxStatus extracts status and message from Flux conditions.
 func (f *Adapter) ExtractFluxStatus(conditions []interface{}) (adapter.DeploymentStatus, string) {
 	for _, c := range conditions {
 		cond, ok := c.(map[string]interface{})
@@ -1560,7 +1560,7 @@ func (f *Adapter) extractKustomizationHistory(id string, ks *unstructured.Unstru
 	}
 }
 
-// calculateProgress estimates deployment progress based on status.
+// CalculateProgress estimates deployment progress based on status.
 func (f *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
@@ -1580,7 +1580,7 @@ func (f *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	}
 }
 
-// applyPagination applies limit and offset to deployment list.
+// ApplyPagination applies limit and offset to deployment list.
 func (f *Adapter) ApplyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
 	if offset >= len(deployments) {
 		return []*adapter.Deployment{}
@@ -1596,7 +1596,7 @@ func (f *Adapter) ApplyPagination(deployments []*adapter.Deployment, limit, offs
 	return deployments[start:end]
 }
 
-// generatePackageID creates a unique package ID from type and URL.
+// GeneratePackageID creates a unique package ID from type and URL.
 func GeneratePackageID(pkgType, url string) string {
 	id := fmt.Sprintf("%s-%s", pkgType, url)
 	id = strings.ReplaceAll(id, "://", "-")
@@ -1605,7 +1605,7 @@ func GeneratePackageID(pkgType, url string) string {
 	return id
 }
 
-// buildLabelSelector creates a Kubernetes label selector string from a map.
+// BuildLabelSelector creates a Kubernetes label selector string from a map.
 func BuildLabelSelector(labels map[string]string) string {
 	selectors := make([]string, 0, len(labels))
 	for k, v := range labels {

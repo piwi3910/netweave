@@ -75,7 +75,7 @@ func (a *Adapter) GetResourceType(_ context.Context, id string) (*adapter.Resour
 	return a.TransformFlavorToResourceType(osFlavor), nil
 }
 
-// transformFlavorToResourceType converts an OpenStack flavor to O2-IMS Resource Type.
+// TransformFlavorToResourceType converts an OpenStack flavor to O2-IMS Resource Type.
 func (a *Adapter) TransformFlavorToResourceType(flavor *flavors.Flavor) *adapter.ResourceType {
 	resourceTypeID := GenerateFlavorID(flavor)
 

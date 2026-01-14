@@ -816,6 +816,7 @@ func (k *Adapter) transformConfigMapToDeployment(
 	}
 }
 
+// ApplyPagination applies pagination to a list of deployments.
 func (k *Adapter) ApplyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
@@ -834,6 +835,7 @@ func (k *Adapter) ApplyPagination(
 	return deployments[start:end]
 }
 
+// CalculateProgress calculates deployment progress percentage based on status.
 func (k *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
@@ -879,6 +881,7 @@ func (k *Adapter) conditionReason(status adapter.DeploymentStatus) string {
 	}
 }
 
+// GeneratePackageID generates a unique package ID from repository URL and path.
 func GeneratePackageID(url string) string {
 	// Sanitize URL to create a valid ID
 	id := strings.ReplaceAll(url, "://", "-")
@@ -887,7 +890,7 @@ func GeneratePackageID(url string) string {
 	return "kustomize-" + id
 }
 
-// validateName validates the deployment name.
+// ValidateName validates the deployment name.
 func ValidateName(name string) error {
 	if name == "" {
 		return fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
@@ -905,7 +908,7 @@ func ValidateName(name string) error {
 	return nil
 }
 
-// validatePath validates the kustomize path.
+// ValidatePath validates the kustomize path.
 func ValidatePath(path string) error {
 	if path == "" {
 		return nil

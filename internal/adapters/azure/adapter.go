@@ -370,27 +370,27 @@ func (a *Adapter) Close() error {
 // NOTE: Filter matching and pagination use shared helpers from internal/adapter/helpers.go
 // Use adapter.MatchesFilter() and adapter.ApplyPagination() instead of local implementations.
 
-// generateVMSizeID generates a consistent resource type ID for a VM size.
+// GenerateVMSizeID generates a consistent resource type ID for a VM size.
 func GenerateVMSizeID(vmSize string) string {
 	return fmt.Sprintf("azure-vm-size-%s", vmSize)
 }
 
-// generateVMID generates a consistent resource ID for an Azure VM.
+// GenerateVMID generates a consistent resource ID for an Azure VM.
 func GenerateVMID(vmName, resourceGroup string) string {
 	return fmt.Sprintf("azure-vm-%s-%s", resourceGroup, vmName)
 }
 
-// generateRGPoolID generates a consistent resource pool ID for a Resource Group.
+// GenerateRGPoolID generates a consistent resource pool ID for a Resource Group.
 func GenerateRGPoolID(resourceGroup string) string {
 	return fmt.Sprintf("azure-rg-%s", resourceGroup)
 }
 
-// generateAZPoolID generates a consistent resource pool ID for an Availability Zone.
+// GenerateAZPoolID generates a consistent resource pool ID for an Availability Zone.
 func GenerateAZPoolID(location, zone string) string {
 	return fmt.Sprintf("azure-az-%s-%s", location, zone)
 }
 
-// tagsToMap converts Azure tags (map[string]*string) to a map[string]string.
+// TagsToMap converts Azure tags (map[string]*string) to a map[string]string.
 func TagsToMap(tags map[string]*string) map[string]string {
 	result := make(map[string]string)
 	for k, v := range tags {
@@ -401,7 +401,7 @@ func TagsToMap(tags map[string]*string) map[string]string {
 	return result
 }
 
-// ptrToString safely converts a *string to string.
+// PtrToString safely converts a *string to string.
 func PtrToString(s *string) string {
 	if s == nil {
 		return ""
@@ -409,7 +409,7 @@ func PtrToString(s *string) string {
 	return *s
 }
 
-// ptrToInt32 safely converts a *int32 to int32.
+// PtrToInt32 safely converts a *int32 to int32.
 func PtrToInt32(i *int32) int32 {
 	if i == nil {
 		return 0

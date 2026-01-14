@@ -103,7 +103,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 	return nil, fmt.Errorf("resource type not found: %s", id)
 }
 
-// createResourceType creates a resource type from CPU and memory specifications.
+// CreateResourceType creates a resource type from CPU and memory specifications.
 func (a *Adapter) CreateResourceType(cpuCount int32, memoryMB int64) *adapter.ResourceType {
 	resourceTypeID := GenerateVMProfileID(cpuCount, memoryMB)
 	memoryGB := memoryMB / 1024
@@ -134,7 +134,7 @@ func (a *Adapter) CreateResourceType(cpuCount int32, memoryMB int64) *adapter.Re
 	}
 }
 
-// getDefaultResourceTypes returns common VM profiles.
+// GetDefaultResourceTypes returns common VM profiles.
 func (a *Adapter) GetDefaultResourceTypes() []*adapter.ResourceType {
 	profiles := []struct {
 		cpu    int32

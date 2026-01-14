@@ -153,7 +153,7 @@ func (hc *HealthChecker) CheckReadiness(ctx context.Context) *ReadinessResponse 
 	}
 }
 
-// executeChecks executes a set of health checks concurrently.
+// ExecuteChecks executes a set of health checks concurrently.
 // ExecuteChecks executes checks concurrently. Exported for testing.
 func (hc *HealthChecker) ExecuteChecks(ctx context.Context, checks map[string]HealthCheck) map[string]ComponentHealth {
 	components := make(map[string]ComponentHealth)

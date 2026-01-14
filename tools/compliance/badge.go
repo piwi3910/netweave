@@ -101,7 +101,7 @@ func (g *BadgeGenerator) GenerateBadgeSection(results []*Result) string {
 	return sb.String()
 }
 
-// getColor determines badge color based on compliance level.
+// GetColor determines badge color based on compliance level.
 func (g *BadgeGenerator) GetColor(level Level) BadgeColor {
 	switch level {
 	case ComplianceFull:
@@ -115,7 +115,7 @@ func (g *BadgeGenerator) GetColor(level Level) BadgeColor {
 	}
 }
 
-// getMessage generates badge message based on compliance result.
+// GetMessage generates badge message based on compliance result.
 func (g *BadgeGenerator) GetMessage(result *Result) string {
 	switch result.Level {
 	case ComplianceFull:
@@ -129,7 +129,7 @@ func (g *BadgeGenerator) GetMessage(result *Result) string {
 	}
 }
 
-// urlEncode encodes a string for use in URL (shields.io badge).
+// URLEncode encodes a string for use in URL (shields.io badge).
 func URLEncode(s string) string {
 	// Replace spaces with underscores for shields.io
 	s = strings.ReplaceAll(s, " ", "_")

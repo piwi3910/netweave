@@ -80,7 +80,7 @@ func (s *Server) setupDMSSubscriptionRoutes(v1 *gin.RouterGroup, handler *dmshan
 	}
 }
 
-// handleDMSAPIInfo returns O2-DMS API information.
+// HandleDMSAPIInfo returns O2-DMS API information.
 func (s *Server) HandleDMSAPIInfo(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"api_version": "v1",

@@ -430,7 +430,7 @@ func (p *Plugin) transformDeploymentEventToVES(event *smo.DeploymentEvent) *VESE
 	}
 }
 
-// getDMaaPTopic determines the appropriate DMaaP topic for an event type.
+// GetDMaaPTopic determines the appropriate DMaaP topic for an event type.
 func (p *Plugin) GetDMaaPTopic(eventType string) string {
 	// Map event types to DMaaP topics
 	topicMap := map[string]string{
@@ -450,7 +450,7 @@ func (p *Plugin) GetDMaaPTopic(eventType string) string {
 	return "unauthenticated.VES_INFRASTRUCTURE_EVENTS"
 }
 
-// mapDeploymentStatusToOrchestrationStatus maps netweave deployment status to ONAP orchestration status.
+// MapDeploymentStatusToOrchestrationStatus maps netweave deployment status to ONAP orchestration status.
 func (p *Plugin) MapDeploymentStatusToOrchestrationStatus(status string) string {
 	statusMap := map[string]string{
 		"pending":   "Assigned",

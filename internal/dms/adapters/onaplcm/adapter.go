@@ -106,7 +106,7 @@ func NewAdapter(config *Config) (*Adapter, error) {
 	}, nil
 }
 
-// initialize performs lazy initialization of the HTTP client.
+// Initialize performs lazy initialization of the HTTP client.
 // Initialize performs lazy initialization of the adapter. Exported for testing.
 func (o *Adapter) Initialize() error {
 	o.initOnce.Do(func() {

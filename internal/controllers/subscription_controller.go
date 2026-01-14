@@ -354,7 +354,7 @@ func (c *SubscriptionController) handleNamespaceDelete(obj interface{}) {
 	c.ProcessNamespaceEvent(ctx, ns, EventTypeDeleted)
 }
 
-// processNodeEvent finds matching subscriptions and queues webhook notifications.
+// ProcessNodeEvent finds matching subscriptions and queues webhook notifications.
 func (c *SubscriptionController) ProcessNodeEvent(ctx context.Context, node *corev1.Node, eventType EventType) {
 	// Track event processing
 	EventsProcessedTotal.WithLabelValues("k8s-node", string(eventType)).Inc()
@@ -403,7 +403,7 @@ func (c *SubscriptionController) ProcessNodeEvent(ctx context.Context, node *cor
 	}
 }
 
-// processNamespaceEvent finds matching subscriptions and queues webhook notifications.
+// ProcessNamespaceEvent finds matching subscriptions and queues webhook notifications.
 func (c *SubscriptionController) ProcessNamespaceEvent(ctx context.Context, ns *corev1.Namespace, eventType EventType) {
 	// Track event processing
 	EventsProcessedTotal.WithLabelValues("k8s-namespace", string(eventType)).Inc()
@@ -445,7 +445,7 @@ func (c *SubscriptionController) ProcessNamespaceEvent(ctx context.Context, ns *
 	}
 }
 
-// matchesFilter checks if a resource matches the subscription filter.
+// MatchesFilter checks if a resource matches the subscription filter.
 func (c *SubscriptionController) MatchesFilter(
 	sub *storage.Subscription,
 	resourceTypeID, resourcePoolID, resourceID string,

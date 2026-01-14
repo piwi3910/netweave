@@ -361,22 +361,22 @@ func (a *Adapter) Close() error {
 // NOTE: Filter matching and pagination use shared helpers from internal/adapter/helpers.go
 // Use adapter.MatchesFilter() and adapter.ApplyPagination() instead of local implementations.
 
-// generateVMProfileID generates a consistent resource type ID for a VM profile.
+// GenerateVMProfileID generates a consistent resource type ID for a VM profile.
 func GenerateVMProfileID(cpus int32, memoryMB int64) string {
 	return fmt.Sprintf("vmware-profile-%dcpu-%dMB", cpus, memoryMB)
 }
 
-// generateVMID generates a consistent resource ID for a vSphere VM.
+// GenerateVMID generates a consistent resource ID for a vSphere VM.
 func GenerateVMID(vmName, clusterOrPool string) string {
 	return fmt.Sprintf("vmware-vm-%s-%s", clusterOrPool, vmName)
 }
 
-// generateClusterPoolID generates a consistent resource pool ID for a Cluster.
+// GenerateClusterPoolID generates a consistent resource pool ID for a Cluster.
 func GenerateClusterPoolID(clusterName string) string {
 	return fmt.Sprintf("vmware-cluster-%s", clusterName)
 }
 
-// generateResourcePoolID generates a consistent resource pool ID for a Resource Pool.
+// GenerateResourcePoolID generates a consistent resource pool ID for a Resource Pool.
 func GenerateResourcePoolID(poolName, clusterName string) string {
 	return fmt.Sprintf("vmware-pool-%s-%s", clusterName, poolName)
 }

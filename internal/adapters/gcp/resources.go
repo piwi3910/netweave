@@ -367,7 +367,7 @@ func addInstanceSchedulingInfo(extensions map[string]interface{}, scheduling *co
 	}
 }
 
-// extractMachineTypeName extracts the machine type name from a GCP machine type URL.
+// ExtractMachineTypeName extracts the machine type name from a GCP machine type URL.
 // e.g., "zones/us-central1-a/machineTypes/n1-standard-1" -> "n1-standard-1".
 func ExtractMachineTypeName(machineTypeURL string) string {
 	parts := strings.Split(machineTypeURL, "/")

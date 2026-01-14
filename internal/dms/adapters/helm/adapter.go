@@ -391,7 +391,7 @@ func (h *Adapter) fetchAllReleases() ([]*release.Release, error) {
 	return releases, nil
 }
 
-// filterAndTransformReleases transforms releases and applies filters.
+// FilterAndTransformReleases transforms releases and applies filters.
 func (h *Adapter) FilterAndTransformReleases(
 	releases []*release.Release,
 	filter *adapter.Filter,
@@ -406,7 +406,7 @@ func (h *Adapter) FilterAndTransformReleases(
 	return deployments
 }
 
-// matchesDeploymentFilter checks if a release matches the filter criteria.
+// MatchesDeploymentFilter checks if a release matches the filter criteria.
 func (h *Adapter) MatchesDeploymentFilter(
 	rel *release.Release,
 	deployment *adapter.Deployment,
@@ -818,7 +818,7 @@ func (h *Adapter) Close() error {
 	return nil
 }
 
-// loadRepositoryIndex loads and caches the Helm chart repository index.
+// LoadRepositoryIndex loads and caches the Helm chart repository index.
 func (h *Adapter) LoadRepositoryIndex(_ context.Context) error {
 	if h.Config.RepositoryURL == "" {
 		return fmt.Errorf("repository URL not configured")
@@ -869,7 +869,7 @@ func (h *Adapter) LoadRepositoryIndex(_ context.Context) error {
 	return nil
 }
 
-// transformReleaseToDeployment converts a Helm release to a Deployment.
+// TransformReleaseToDeployment converts a Helm release to a Deployment.
 func (h *Adapter) TransformReleaseToDeployment(rel *release.Release) *adapter.Deployment {
 	return &adapter.Deployment{
 		ID:          rel.Name,
@@ -892,7 +892,7 @@ func (h *Adapter) TransformReleaseToDeployment(rel *release.Release) *adapter.De
 	}
 }
 
-// transformReleaseToStatus converts a Helm release to detailed status.
+// TransformReleaseToStatus converts a Helm release to detailed status.
 func (h *Adapter) TransformReleaseToStatus(rel *release.Release) *adapter.DeploymentStatusDetail {
 	status := &adapter.DeploymentStatusDetail{
 		DeploymentID: rel.Name,
@@ -914,7 +914,7 @@ func (h *Adapter) TransformReleaseToStatus(rel *release.Release) *adapter.Deploy
 	return status
 }
 
-// transformHelmStatus converts Helm release status to DMS deployment status.
+// TransformHelmStatus converts Helm release status to DMS deployment status.
 func (h *Adapter) TransformHelmStatus(helmStatus release.Status) adapter.DeploymentStatus {
 	switch helmStatus {
 	case release.StatusPendingInstall:
@@ -936,7 +936,7 @@ func (h *Adapter) TransformHelmStatus(helmStatus release.Status) adapter.Deploym
 	}
 }
 
-// calculateProgress estimates deployment progress based on Helm status.
+// CalculateProgress estimates deployment progress based on Helm status.
 func (h *Adapter) CalculateProgress(rel *release.Release) int {
 	switch rel.Info.Status {
 	case release.StatusDeployed:
@@ -954,7 +954,7 @@ func (h *Adapter) CalculateProgress(rel *release.Release) int {
 	}
 }
 
-// buildConditions creates deployment conditions from Helm release info.
+// BuildConditions creates deployment conditions from Helm release info.
 func (h *Adapter) BuildConditions(rel *release.Release) []adapter.DeploymentCondition {
 	conditions := []adapter.DeploymentCondition{}
 
@@ -979,7 +979,7 @@ func (h *Adapter) BuildConditions(rel *release.Release) []adapter.DeploymentCond
 	return conditions
 }
 
-// applyPagination applies limit and offset to deployment list.
+// ApplyPagination applies limit and offset to deployment list.
 func (h *Adapter) ApplyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
 	if offset >= len(deployments) {
 		return []*adapter.Deployment{}

@@ -809,6 +809,7 @@ func (c *Adapter) extractConditions(extensions map[string]interface{}) []adapter
 	return result
 }
 
+// CalculateProgress calculates deployment progress percentage based on status.
 func (c *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
@@ -828,6 +829,7 @@ func (c *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	}
 }
 
+// ApplyPagination applies pagination to a list of deployments.
 func (c *Adapter) ApplyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
@@ -864,7 +866,7 @@ func (c *Adapter) applyPackagePagination(
 	return packages[start:end]
 }
 
-// validateName validates the deployment name.
+// ValidateName validates the deployment name.
 func ValidateName(name string) error {
 	if name == "" {
 		return fmt.Errorf("name cannot be empty: %w", ErrInvalidName)
@@ -882,7 +884,7 @@ func ValidateName(name string) error {
 	return nil
 }
 
-// buildLabelSelector builds a label selector string from a map.
+// BuildLabelSelector builds a label selector string from a map.
 func BuildLabelSelector(labels map[string]string) string {
 	if len(labels) == 0 {
 		return ""

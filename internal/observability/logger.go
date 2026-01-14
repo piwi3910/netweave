@@ -111,7 +111,7 @@ func LoggerFromContext(ctx context.Context) *Logger {
 	return GetLogger()
 }
 
-// extractContextFields extracts logging fields from context
+// ExtractContextFields extracts logging fields from context
 // This can be extended to include request ID, trace ID, user ID, etc.
 func ExtractContextFields(_ context.Context) []zap.Field {
 	var fields []zap.Field

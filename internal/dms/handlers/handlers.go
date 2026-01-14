@@ -91,7 +91,7 @@ func (h *Handler) handleDelete(
 // DNS lookup timeout for callback URL validation.
 const dnsLookupTimeout = 5 * time.Second
 
-// validateCallbackURL validates a webhook callback URL for security.
+// ValidateCallbackURL validates a webhook callback URL for security.
 // It ensures:
 // - The URL is properly formatted
 // - HTTPS is used (required for production)
@@ -156,7 +156,7 @@ func validateHostNotPrivate(host string) error {
 	return nil
 }
 
-// isCloudMetadataEndpoint checks if a host is a cloud provider metadata endpoint.
+// IsCloudMetadataEndpoint checks if a host is a cloud provider metadata endpoint.
 func IsCloudMetadataEndpoint(host string) bool {
 	// AWS, GCP, Azure instance metadata endpoints.
 	metadataEndpoints := []string{
@@ -176,7 +176,7 @@ func IsCloudMetadataEndpoint(host string) bool {
 	return false
 }
 
-// isPrivateIP checks if an IP address is in a private range.
+// IsPrivateIP checks if an IP address is in a private range.
 func IsPrivateIP(ip net.IP) bool {
 	// Check for standard private IP characteristics.
 	if isStandardPrivateIP(ip) {
@@ -243,7 +243,7 @@ func isIPInBlocks(ip net.IP, blocks []string) bool {
 	return false
 }
 
-// redactURL redacts sensitive parts of a URL for logging.
+// RedactURL redacts sensitive parts of a URL for logging.
 func RedactURL(rawURL string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
@@ -260,7 +260,7 @@ func RedactURL(rawURL string) string {
 	return parsed.String()
 }
 
-// validatePaginationLimit validates and normalizes the pagination limit.
+// ValidatePaginationLimit validates and normalizes the pagination limit.
 // Returns the validated limit value.
 func ValidatePaginationLimit(limit int) int {
 	if limit <= 0 {
@@ -281,7 +281,7 @@ const (
 	dns1123LabelFmt = `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 )
 
-// validateDeploymentName validates that a deployment name is DNS-1123 compliant.
+// ValidateDeploymentName validates that a deployment name is DNS-1123 compliant.
 // Kubernetes requires names to be lowercase alphanumeric with hyphens, starting
 // and ending with alphanumeric characters, max 63 characters.
 func ValidateDeploymentName(name string) error {
@@ -1162,6 +1162,7 @@ func (h *Handler) Health(ctx context.Context) error {
 
 // Conversion helpers
 
+// ConvertToNFDeployment converts an adapter Deployment to an NFDeployment model.
 func ConvertToNFDeployment(d *adapter.Deployment) *models.NFDeployment {
 	if d == nil {
 		return nil
@@ -1181,6 +1182,7 @@ func ConvertToNFDeployment(d *adapter.Deployment) *models.NFDeployment {
 	}
 }
 
+// ConvertDeploymentStatus converts an adapter DeploymentStatus to NFDeploymentStatus.
 func ConvertDeploymentStatus(s adapter.DeploymentStatus) models.NFDeploymentStatus {
 	switch s {
 	case adapter.DeploymentStatusPending:
@@ -1200,6 +1202,7 @@ func ConvertDeploymentStatus(s adapter.DeploymentStatus) models.NFDeploymentStat
 	}
 }
 
+// ConvertToNFDeploymentDescriptor converts a DeploymentPackage to NFDeploymentDescriptor.
 func ConvertToNFDeploymentDescriptor(pkg *adapter.DeploymentPackage) *models.NFDeploymentDescriptor {
 	if pkg == nil {
 		return nil

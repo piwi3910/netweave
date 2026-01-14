@@ -308,27 +308,27 @@ func (a *Adapter) Close() error {
 	return nil
 }
 
-// generateInstanceTypeID generates a consistent resource type ID for an instance type.
+// GenerateInstanceTypeID generates a consistent resource type ID for an instance type.
 func GenerateInstanceTypeID(instanceType string) string {
 	return fmt.Sprintf("aws-instance-type-%s", instanceType)
 }
 
-// generateInstanceID generates a consistent resource ID for an EC2 instance.
+// GenerateInstanceID generates a consistent resource ID for an EC2 instance.
 func GenerateInstanceID(instanceID string) string {
 	return fmt.Sprintf("aws-instance-%s", instanceID)
 }
 
-// generateAZPoolID generates a consistent resource pool ID for an Availability Zone.
+// GenerateAZPoolID generates a consistent resource pool ID for an Availability Zone.
 func GenerateAZPoolID(az string) string {
 	return fmt.Sprintf("aws-az-%s", az)
 }
 
-// generateASGPoolID generates a consistent resource pool ID for an Auto Scaling Group.
+// GenerateASGPoolID generates a consistent resource pool ID for an Auto Scaling Group.
 func GenerateASGPoolID(asgName string) string {
 	return fmt.Sprintf("aws-asg-%s", asgName)
 }
 
-// extractTagValue extracts a value from AWS tags.
+// ExtractTagValue extracts a value from AWS tags.
 func ExtractTagValue(tags []ec2Types.Tag, key string) string {
 	for _, tag := range tags {
 		if aws.ToString(tag.Key) == key {
@@ -338,7 +338,7 @@ func ExtractTagValue(tags []ec2Types.Tag, key string) string {
 	return ""
 }
 
-// tagsToMap converts AWS tags to a map.
+// TagsToMap converts AWS tags to a map.
 func TagsToMap(tags []ec2Types.Tag) map[string]string {
 	result := make(map[string]string)
 	for _, tag := range tags {

@@ -387,27 +387,27 @@ func (a *Adapter) Close() error {
 // NOTE: Filter matching and pagination use shared helpers from internal/adapter/helpers.go
 // Use adapter.MatchesFilter() and adapter.ApplyPagination() instead of local implementations.
 
-// generateMachineTypeID generates a consistent resource type ID for a machine type.
+// GenerateMachineTypeID generates a consistent resource type ID for a machine type.
 func GenerateMachineTypeID(machineType string) string {
 	return fmt.Sprintf("gcp-machine-type-%s", machineType)
 }
 
-// generateInstanceID generates a consistent resource ID for a GCP instance.
+// GenerateInstanceID generates a consistent resource ID for a GCP instance.
 func GenerateInstanceID(instanceName, zone string) string {
 	return fmt.Sprintf("gcp-instance-%s-%s", zone, instanceName)
 }
 
-// generateZonePoolID generates a consistent resource pool ID for a Zone.
+// GenerateZonePoolID generates a consistent resource pool ID for a Zone.
 func GenerateZonePoolID(zone string) string {
 	return fmt.Sprintf("gcp-zone-%s", zone)
 }
 
-// generateIGPoolID generates a consistent resource pool ID for an Instance Group.
+// GenerateIGPoolID generates a consistent resource pool ID for an Instance Group.
 func GenerateIGPoolID(igName, zone string) string {
 	return fmt.Sprintf("gcp-ig-%s-%s", zone, igName)
 }
 
-// ptrToString safely converts a *string to string.
+// PtrToString safely converts a *string to string.
 func PtrToString(s *string) string {
 	if s == nil {
 		return ""
@@ -415,7 +415,7 @@ func PtrToString(s *string) string {
 	return *s
 }
 
-// ptrToInt64 safely converts a *int64 to int64.
+// PtrToInt64 safely converts a *int64 to int64.
 func PtrToInt64(i *int64) int64 {
 	if i == nil {
 		return 0

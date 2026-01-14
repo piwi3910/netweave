@@ -179,7 +179,7 @@ func (h *RoleHandler) ListPermissions(c *gin.Context) {
 	})
 }
 
-// getResourceFromPermission extracts the resource part from a permission string.
+// GetResourceFromPermission extracts the resource part from a permission string.
 func GetResourceFromPermission(p auth.Permission) string {
 	s := string(p)
 	for i := 0; i < len(s); i++ {
@@ -190,7 +190,7 @@ func GetResourceFromPermission(p auth.Permission) string {
 	return s
 }
 
-// getActionFromPermission extracts the action part from a permission string.
+// GetActionFromPermission extracts the action part from a permission string.
 func GetActionFromPermission(p auth.Permission) string {
 	s := string(p)
 	for i := 0; i < len(s); i++ {

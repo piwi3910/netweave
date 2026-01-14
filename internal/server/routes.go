@@ -668,7 +668,7 @@ const (
 	MaxExtensionsTotalSize = 50000
 )
 
-// sanitizeResourcePoolID sanitizes a string for use in resource pool IDs.
+// SanitizeResourcePoolID sanitizes a string for use in resource pool IDs.
 // Removes special characters that could cause security issues (path traversal, injection).
 // Spaces and slashes are replaced with hyphens, all other special characters are dropped.
 func SanitizeResourcePoolID(name string) string {
@@ -691,7 +691,7 @@ func isAlphanumericOrAllowed(ch rune) bool {
 		(ch >= '0' && ch <= '9') || ch == '-' || ch == '_'
 }
 
-// sanitizeForLogging removes CRLF characters to prevent log injection attacks.
+// SanitizeForLogging removes CRLF characters to prevent log injection attacks.
 // This prevents attackers from injecting fake log entries via user-controlled input.
 func SanitizeForLogging(s string) string {
 	// Remove CR, LF, and other control characters
@@ -733,6 +733,7 @@ func validateResourcePoolID(id string) error {
 	return nil
 }
 
+// ValidateResourcePoolFields validates required fields in a ResourcePool.
 func ValidateResourcePoolFields(pool *adapter.ResourcePool) error {
 	var validationErrors []string
 
@@ -1629,7 +1630,7 @@ func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
 	})
 }
 
-// validateCallback validates a subscription callback URL.
+// ValidateCallback validates a subscription callback URL.
 // It performs early validation to provide fast failure before calling the adapter.
 // Includes SSRF protection to prevent callbacks to localhost and private IP ranges.
 //
@@ -1681,7 +1682,7 @@ func (s *Server) ValidateCallback(ctx context.Context, sub *adapter.Subscription
 	return nil
 }
 
-// validateCallbackHost validates that the callback host is not localhost or a private IP address.
+// ValidateCallbackHost validates that the callback host is not localhost or a private IP address.
 // This prevents SSRF (Server-Side Request Forgery) attacks.
 func ValidateCallbackHost(ctx context.Context, hostname string) error {
 	// Block localhost variations
@@ -1753,7 +1754,7 @@ func initPrivateIPRanges() {
 	}
 }
 
-// isPrivateIP checks if an IP address is in a private or reserved range.
+// IsPrivateIP checks if an IP address is in a private or reserved range.
 func IsPrivateIP(ip net.IP) bool {
 	if ip.IsLoopback() {
 		return true

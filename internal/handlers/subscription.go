@@ -247,7 +247,7 @@ func (h *SubscriptionHandler) convertToStorageSubscription(
 	}
 }
 
-// storeSubscription stores the subscription and handles errors.
+// StoreSubscription stores the subscription and handles errors.
 func (h *SubscriptionHandler) StoreSubscription(
 	ctx context.Context,
 	c *gin.Context,

@@ -487,7 +487,7 @@ func (c *Config) validateTuning() error {
 	return nil
 }
 
-// parseConfig parses a map[string]interface{} into a Config struct.
+// ParseConfig parses a map[string]interface{} into a Config struct.
 func ParseConfig(input map[string]interface{}, output *Config) {
 	parseStringFields(input, output)
 	parseTLSFields(input, output)

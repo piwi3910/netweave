@@ -349,7 +349,7 @@ func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
 	return nil
 }
 
-// extractASGNameFromPoolID extracts the ASG name from a resource pool ID.
+// ExtractASGNameFromPoolID extracts the ASG name from a resource pool ID.
 // Pool ID format: aws-asg-{asgName}.
 func ExtractASGNameFromPoolID(poolID string) string {
 	const prefix = "aws-asg-"
@@ -359,7 +359,7 @@ func ExtractASGNameFromPoolID(poolID string) string {
 	return ""
 }
 
-// extractInt32FromExtensions extracts an int32 value from extensions map.
+// ExtractInt32FromExtensions extracts an int32 value from extensions map.
 // Handles both int32 and float64 types (JSON unmarshaling can produce either).
 func ExtractInt32FromExtensions(extensions map[string]interface{}, key string) *int32 {
 	if val, ok := extensions[key].(int32); ok {
@@ -371,7 +371,7 @@ func ExtractInt32FromExtensions(extensions map[string]interface{}, key string) *
 	return nil
 }
 
-// getLaunchTemplateName extracts the launch template name from LaunchTemplateSpecification.
+// GetLaunchTemplateName extracts the launch template name from LaunchTemplateSpecification.
 func GetLaunchTemplateName(lt *autoscalingTypes.LaunchTemplateSpecification) string {
 	if lt == nil {
 		return ""

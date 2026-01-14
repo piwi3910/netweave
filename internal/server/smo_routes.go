@@ -255,7 +255,7 @@ func (s *Server) setupSMORoutes(smoHandler *SMOHandler) {
 
 // === Plugin Management Handlers ===
 
-// handleListPlugins lists all registered SMO plugins.
+// HandleListPlugins lists all registered SMO plugins.
 // GET /o2smo/v1/plugins.
 func (h *SMOHandler) HandleListPlugins(c *gin.Context) {
 	h.logger.Info("listing SMO plugins")
@@ -268,7 +268,7 @@ func (h *SMOHandler) HandleListPlugins(c *gin.Context) {
 	})
 }
 
-// handleGetPlugin retrieves a specific SMO plugin.
+// HandleGetPlugin retrieves a specific SMO plugin.
 // GET /o2smo/v1/plugins/:pluginId.
 func (h *SMOHandler) HandleGetPlugin(c *gin.Context) {
 	pluginID := c.Param("pluginId")
@@ -310,7 +310,7 @@ type WorkflowRequest struct {
 	Timeout      string                 `json:"timeout,omitempty"`
 }
 
-// handleExecuteWorkflow executes a workflow.
+// HandleExecuteWorkflow executes a workflow.
 // POST /o2smo/v1/workflows.
 func (h *SMOHandler) HandleExecuteWorkflow(c *gin.Context) {
 	start := time.Now()
@@ -394,7 +394,7 @@ func (h *SMOHandler) HandleExecuteWorkflow(c *gin.Context) {
 	c.JSON(http.StatusAccepted, execution)
 }
 
-// handleGetWorkflowStatus retrieves workflow execution status.
+// HandleGetWorkflowStatus retrieves workflow execution status.
 // GET /o2smo/v1/workflows/:executionId.
 func (h *SMOHandler) HandleGetWorkflowStatus(c *gin.Context) {
 	executionID := c.Param("executionId")
@@ -438,7 +438,7 @@ func (h *SMOHandler) HandleGetWorkflowStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, status)
 }
 
-// handleCancelWorkflow cancels a workflow execution.
+// HandleCancelWorkflow cancels a workflow execution.
 // DELETE /o2smo/v1/workflows/:executionId.
 func (h *SMOHandler) HandleCancelWorkflow(c *gin.Context) {
 	executionID := c.Param("executionId")
@@ -505,7 +505,7 @@ type ServiceModelRequest struct {
 	Extensions  map[string]interface{} `json:"extensions,omitempty"`
 }
 
-// handleListServiceModels lists all service models.
+// HandleListServiceModels lists all service models.
 // GET /o2smo/v1/serviceModels.
 func (h *SMOHandler) HandleListServiceModels(c *gin.Context) {
 	pluginName := c.Query("plugin")
@@ -554,7 +554,7 @@ func (h *SMOHandler) HandleListServiceModels(c *gin.Context) {
 	})
 }
 
-// handleCreateServiceModel creates a new service model.
+// HandleCreateServiceModel creates a new service model.
 // POST /o2smo/v1/serviceModels.
 func (h *SMOHandler) HandleCreateServiceModel(c *gin.Context) {
 	h.logger.Info("creating service model")
@@ -619,7 +619,7 @@ func (h *SMOHandler) HandleCreateServiceModel(c *gin.Context) {
 	c.JSON(http.StatusCreated, model)
 }
 
-// handleGetServiceModel retrieves a specific service model.
+// HandleGetServiceModel retrieves a specific service model.
 // GET /o2smo/v1/serviceModels/:modelId.
 func (h *SMOHandler) HandleGetServiceModel(c *gin.Context) {
 	modelID := c.Param("modelId")
@@ -663,7 +663,7 @@ func (h *SMOHandler) HandleGetServiceModel(c *gin.Context) {
 	c.JSON(http.StatusOK, model)
 }
 
-// handleDeleteServiceModel deletes a service model.
+// HandleDeleteServiceModel deletes a service model.
 // DELETE /o2smo/v1/serviceModels/:modelId
 // NOTE: Service model deletion is planned for future release - see GitHub issue #33.
 func (h *SMOHandler) HandleDeleteServiceModel(c *gin.Context) {
@@ -698,7 +698,7 @@ type PolicyRequest struct {
 	Extensions map[string]interface{} `json:"extensions,omitempty"`
 }
 
-// handleApplyPolicy applies a policy.
+// HandleApplyPolicy applies a policy.
 // POST /o2smo/v1/policies.
 func (h *SMOHandler) HandleApplyPolicy(c *gin.Context) {
 	h.logger.Info("applying policy")
@@ -768,7 +768,7 @@ func (h *SMOHandler) HandleApplyPolicy(c *gin.Context) {
 	c.JSON(http.StatusCreated, policy)
 }
 
-// handleGetPolicyStatus retrieves policy status.
+// HandleGetPolicyStatus retrieves policy status.
 // GET /o2smo/v1/policies/:policyId/status.
 func (h *SMOHandler) HandleGetPolicyStatus(c *gin.Context) {
 	policyID := c.Param("policyId")
@@ -814,7 +814,7 @@ func (h *SMOHandler) HandleGetPolicyStatus(c *gin.Context) {
 
 // === Infrastructure Synchronization Handlers ===
 
-// handleSyncInfrastructure syncs infrastructure inventory to SMO.
+// HandleSyncInfrastructure syncs infrastructure inventory to SMO.
 // POST /o2smo/v1/sync/infrastructure.
 func (h *SMOHandler) HandleSyncInfrastructure(c *gin.Context) {
 	pluginName := c.Query("plugin")
@@ -874,7 +874,7 @@ func (h *SMOHandler) HandleSyncInfrastructure(c *gin.Context) {
 	})
 }
 
-// handleSyncDeployments syncs deployment inventory to SMO.
+// HandleSyncDeployments syncs deployment inventory to SMO.
 // POST /o2smo/v1/sync/deployments.
 func (h *SMOHandler) HandleSyncDeployments(c *gin.Context) {
 	pluginName := c.Query("plugin")
@@ -935,7 +935,7 @@ func (h *SMOHandler) HandleSyncDeployments(c *gin.Context) {
 
 // === Event Publishing Handlers ===
 
-// handlePublishInfrastructureEvent publishes an infrastructure event.
+// HandlePublishInfrastructureEvent publishes an infrastructure event.
 // POST /o2smo/v1/events/infrastructure.
 func (h *SMOHandler) HandlePublishInfrastructureEvent(c *gin.Context) {
 	var event smo.InfrastructureEvent
@@ -952,7 +952,7 @@ func (h *SMOHandler) HandlePublishInfrastructureEvent(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"eventId": event.EventID, "status": "published"})
 }
 
-// handlePublishDeploymentEvent publishes a deployment event.
+// HandlePublishDeploymentEvent publishes a deployment event.
 // POST /o2smo/v1/events/deployment.
 func (h *SMOHandler) HandlePublishDeploymentEvent(c *gin.Context) {
 	var event smo.DeploymentEvent
@@ -971,7 +971,7 @@ func (h *SMOHandler) HandlePublishDeploymentEvent(c *gin.Context) {
 
 // === Health Check Handler ===
 
-// handleSMOHealth returns the health status of SMO components.
+// HandleSMOHealth returns the health status of SMO components.
 // GET /o2smo/v1/health.
 func (h *SMOHandler) HandleSMOHealth(c *gin.Context) {
 	h.logger.Info("checking SMO health")

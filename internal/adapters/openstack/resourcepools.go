@@ -220,7 +220,7 @@ func (a *Adapter) DeleteResourcePool(_ context.Context, id string) error {
 	return nil
 }
 
-// transformHostAggregateToResourcePool converts an OpenStack host aggregate to O2-IMS Resource Pool.
+// TransformHostAggregateToResourcePool converts an OpenStack host aggregate to O2-IMS Resource Pool.
 func (a *Adapter) TransformHostAggregateToResourcePool(agg *aggregates.Aggregate) *adapter.ResourcePool {
 	resourcePoolID := fmt.Sprintf("openstack-aggregate-%d", agg.ID)
 

@@ -115,7 +115,7 @@ func VersioningMiddleware(config *VersionConfig) gin.HandlerFunc {
 	}
 }
 
-// extractVersionFromPath extracts the API version from the URL path.
+// ExtractVersionFromPath extracts the API version from the URL path.
 func ExtractVersionFromPath(path string) string {
 	parts := strings.Split(path, "/")
 	for _, part := range parts {
@@ -130,7 +130,7 @@ func ExtractVersionFromPath(path string) string {
 	return ""
 }
 
-// isNumeric checks if a string contains only numeric characters.
+// IsNumeric checks if a string contains only numeric characters.
 func IsNumeric(s string) bool {
 	// Prevent potential DoS from extremely long strings
 	if len(s) > 10 {
@@ -213,14 +213,14 @@ func RequireVersion(minVersion string) gin.HandlerFunc {
 	}
 }
 
-// isVersionAtLeast checks if currentVersion is at least minVersion.
+// IsVersionAtLeast checks if currentVersion is at least minVersion.
 func IsVersionAtLeast(current, minimum string) bool {
 	currentNum := ExtractVersionNumber(current)
 	minNum := ExtractVersionNumber(minimum)
 	return currentNum >= minNum
 }
 
-// extractVersionNumber extracts the numeric version from a version string.
+// ExtractVersionNumber extracts the numeric version from a version string.
 func ExtractVersionNumber(version string) int {
 	version = strings.TrimPrefix(version, "v")
 	num := 0

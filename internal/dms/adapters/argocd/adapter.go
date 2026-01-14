@@ -771,7 +771,7 @@ func (a *Adapter) getApplication(ctx context.Context, name string) (*unstructure
 	return app, nil
 }
 
-// transformApplicationToDeployment converts an ArgoCD Application to a Deployment.
+// TransformApplicationToDeployment converts an ArgoCD Application to a Deployment.
 func (a *Adapter) TransformApplicationToDeployment(app *unstructured.Unstructured) *adapter.Deployment {
 	name, _, _ := unstructured.NestedString(app.Object, "metadata", "name")
 	namespace, _, _ := unstructured.NestedString(app.Object, "metadata", "namespace")
@@ -887,7 +887,7 @@ func (a *Adapter) transformApplicationToStatus(app *unstructured.Unstructured) *
 	}
 }
 
-// transformArgoCDStatus converts ArgoCD health and sync status to DMS deployment status.
+// TransformArgoCDStatus converts ArgoCD health and sync status to DMS deployment status.
 func (a *Adapter) TransformArgoCDStatus(healthStatus, syncStatus string) adapter.DeploymentStatus {
 	// Health statuses: Healthy, Progressing, Degraded, Suspended, Missing, Unknown
 	// Sync statuses: Synced, OutOfSync, Unknown
@@ -912,7 +912,7 @@ func (a *Adapter) TransformArgoCDStatus(healthStatus, syncStatus string) adapter
 	}
 }
 
-// calculateProgress estimates deployment progress based on ArgoCD status.
+// CalculateProgress estimates deployment progress based on ArgoCD status.
 func (a *Adapter) CalculateProgress(healthStatus, syncStatus string) int {
 	switch healthStatus {
 	case "Healthy":
@@ -944,7 +944,7 @@ func (a *Adapter) extractSource(app *unstructured.Unstructured) ApplicationSourc
 	}
 }
 
-// applyPagination applies limit and offset to deployment list.
+// ApplyPagination applies limit and offset to deployment list.
 func (a *Adapter) ApplyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
 	if offset >= len(deployments) {
 		return []*adapter.Deployment{}
@@ -968,7 +968,7 @@ type ApplicationSource struct {
 	Chart          string
 }
 
-// generatePackageID creates a unique package ID from repository URL and path.
+// GeneratePackageID creates a unique package ID from repository URL and path.
 func GeneratePackageID(repoURL, path string) string {
 	// Create a simple ID from repo and path
 	id := repoURL
@@ -982,7 +982,7 @@ func GeneratePackageID(repoURL, path string) string {
 	return id
 }
 
-// buildLabelSelector creates a Kubernetes label selector string from a map.
+// BuildLabelSelector creates a Kubernetes label selector string from a map.
 func BuildLabelSelector(labels map[string]string) string {
 	selectors := make([]string, 0, len(labels))
 	for k, v := range labels {
@@ -991,7 +991,7 @@ func BuildLabelSelector(labels map[string]string) string {
 	return strings.Join(selectors, ",")
 }
 
-// mustMarshalYAML converts a map to YAML string, returning empty on error.
+// MustMarshalYAML converts a map to YAML string, returning empty on error.
 func MustMarshalYAML(values map[string]interface{}) string {
 	// Convert to JSON first (easier than full YAML)
 	data, err := json.Marshal(values)

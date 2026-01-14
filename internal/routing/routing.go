@@ -199,7 +199,7 @@ func (r *Router) RouteMultiple(_ context.Context, routingCtx *Context) ([]adapte
 	return adapters, nil
 }
 
-// matchesRule checks if a routing context matches a rule.
+// MatchesRule checks if a routing context matches a rule.
 func (r *Router) MatchesRule(rule *Rule, ctx *Context) bool {
 	if !r.MatchesResourceType(rule, ctx) {
 		return false
@@ -212,7 +212,7 @@ func (r *Router) MatchesRule(rule *Rule, ctx *Context) bool {
 	return r.MatchesConditions(rule, ctx)
 }
 
-// matchesResourceType checks if resource type matches the rule.
+// MatchesResourceType checks if resource type matches the rule.
 func (r *Router) MatchesResourceType(rule *Rule, ctx *Context) bool {
 	if rule.ResourceType == "" || rule.ResourceType == "*" {
 		return true
@@ -220,7 +220,7 @@ func (r *Router) MatchesResourceType(rule *Rule, ctx *Context) bool {
 	return ctx.ResourceType == rule.ResourceType
 }
 
-// matchesConditions checks if all conditions match.
+// MatchesConditions checks if all conditions match.
 func (r *Router) MatchesConditions(rule *Rule, ctx *Context) bool {
 	// Check label matching
 	if len(rule.Conditions.Labels) > 0 {
@@ -249,7 +249,7 @@ func (r *Router) MatchesConditions(rule *Rule, ctx *Context) bool {
 	return true
 }
 
-// matchesLabels checks if request labels match rule label criteria.
+// MatchesLabels checks if request labels match rule label criteria.
 func (r *Router) MatchesLabels(ruleLabels, requestLabels map[string]string) bool {
 	if len(ruleLabels) == 0 {
 		return true
@@ -264,7 +264,7 @@ func (r *Router) MatchesLabels(ruleLabels, requestLabels map[string]string) bool
 	return true
 }
 
-// matchesLocation checks if a location matches location criteria.
+// MatchesLocation checks if a location matches location criteria.
 func (r *Router) MatchesLocation(locCondition *LocationCondition, location string) bool {
 	if location == "" {
 		return false
@@ -289,7 +289,7 @@ func (r *Router) MatchesLocation(locCondition *LocationCondition, location strin
 	return true
 }
 
-// hasCapabilities checks if an adapter has all required capabilities.
+// HasCapabilities checks if an adapter has all required capabilities.
 func (r *Router) HasCapabilities(adapterCaps, requiredCaps []adapter.Capability) bool {
 	if len(requiredCaps) == 0 {
 		return true
@@ -309,7 +309,7 @@ func (r *Router) HasCapabilities(adapterCaps, requiredCaps []adapter.Capability)
 	return true
 }
 
-// getAdapterCapabilities retrieves capabilities for an adapter.
+// GetAdapterCapabilities retrieves capabilities for an adapter.
 func (r *Router) GetAdapterCapabilities(name string) []adapter.Capability {
 	meta := r.Registry.GetMetadata(name)
 	if meta == nil {
@@ -440,7 +440,7 @@ func (r *Router) IsAggregationEnabled() bool {
 
 // Check if adapter has required capabilities
 
-// capabilitiesToStrings converts capabilities to string slice.
+// CapabilitiesToStrings converts capabilities to string slice.
 func CapabilitiesToStrings(caps []adapter.Capability) []string {
 	strs := make([]string, len(caps))
 	for i, cap := range caps {

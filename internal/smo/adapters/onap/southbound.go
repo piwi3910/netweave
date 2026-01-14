@@ -394,7 +394,7 @@ func (p *Plugin) GetPolicyStatus(_ context.Context, policyID string) (*smo.Polic
 
 // === Helper methods for status mapping ===
 
-// mapONAPRequestStateToStatus maps ONAP orchestration request state to workflow status.
+// MapONAPRequestStateToStatus maps ONAP orchestration request state to workflow status.
 func (p *Plugin) MapONAPRequestStateToStatus(requestState string) string {
 	statusMap := map[string]string{
 		"PENDING":     "PENDING",

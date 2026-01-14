@@ -510,7 +510,7 @@ func (s *MemoryPackageStore) collectAllPackages(filter *PackageFilter) []*adapte
 
 // Helper functions
 
-// copyPackage creates a deep copy of a DeploymentPackage.
+// CopyPackage creates a deep copy of a DeploymentPackage.
 // CopyPackage creates a deep copy of a package. Exported for testing.
 func CopyPackage(pkg *adapter.DeploymentPackage) *adapter.DeploymentPackage {
 	if pkg == nil {
@@ -536,7 +536,7 @@ func CopyPackage(pkg *adapter.DeploymentPackage) *adapter.DeploymentPackage {
 	return copied
 }
 
-// validateSemVer validates that a version string follows semantic versioning.
+// ValidateSemVer validates that a version string follows semantic versioning.
 // Accepts formats: v1.2.3, 1.2.3, 1.2.3-beta, 1.2.3+build, etc.
 // ValidateSemVer validates semantic version strings. Exported for testing.
 func ValidateSemVer(version string) error {
@@ -552,7 +552,7 @@ func ValidateSemVer(version string) error {
 	return nil
 }
 
-// applyPackagePagination applies limit and offset to a package list.
+// ApplyPackagePagination applies limit and offset to a package list.
 // ApplyPackagePagination applies pagination to package list. Exported for testing.
 func ApplyPackagePagination(packages []*adapter.DeploymentPackage, limit, offset int) []*adapter.DeploymentPackage {
 	if offset >= len(packages) {

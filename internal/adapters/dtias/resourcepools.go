@@ -261,7 +261,7 @@ func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
 	return nil
 }
 
-// transformServerPoolToResourcePool transforms a DTIAS ServerPool to an O2-IMS ResourcePool.
+// TransformServerPoolToResourcePool transforms a DTIAS ServerPool to an O2-IMS ResourcePool.
 func (a *Adapter) TransformServerPoolToResourcePool(sp *ServerPool) *adapter.ResourcePool {
 	// Build global location ID (geo URI format)
 	globalLocationID := ""

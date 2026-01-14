@@ -659,7 +659,7 @@ func (o *Adapter) HTTPClient() *http.Client {
 	return o.httpClient
 }
 
-// doRequest performs an HTTP request to the OSM NBI API.
+// DoRequest performs an HTTP request to the OSM NBI API.
 // The body parameter uses interface{} to accept various request payload types
 // (maps, structs) that are marshaled to JSON - this flexibility is required
 // to support different OSM NBI endpoints with varying request schemas.
@@ -713,6 +713,7 @@ func (o *Adapter) DoRequest(
 
 // Helper functions
 
+// CalculateProgress calculates deployment progress percentage based on status.
 func (o *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
@@ -732,6 +733,7 @@ func (o *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	}
 }
 
+// ConditionStatus returns the status of deployment conditions.
 func (o *Adapter) ConditionStatus(status adapter.DeploymentStatus) string {
 	if status == adapter.DeploymentStatusDeployed {
 		return "True"
@@ -739,6 +741,7 @@ func (o *Adapter) ConditionStatus(status adapter.DeploymentStatus) string {
 	return "False"
 }
 
+// ConditionReason returns the reason for deployment condition status.
 func (o *Adapter) ConditionReason(status adapter.DeploymentStatus) string {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
@@ -758,6 +761,7 @@ func (o *Adapter) ConditionReason(status adapter.DeploymentStatus) string {
 	}
 }
 
+// ApplyPagination applies pagination to a list of deployments.
 func (o *Adapter) ApplyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
@@ -776,6 +780,7 @@ func (o *Adapter) ApplyPagination(
 	return deployments[start:end]
 }
 
+// ApplyPackagePagination applies pagination to a list of deployment packages.
 func (o *Adapter) ApplyPackagePagination(
 	packages []*adapter.DeploymentPackage,
 	limit, offset int,
@@ -794,7 +799,7 @@ func (o *Adapter) ApplyPackagePagination(
 	return packages[start:end]
 }
 
-// validateName validates the deployment name.
+// ValidateName validates the deployment name.
 // ValidateName validates deployment/package names. Exported for testing.
 func ValidateName(name string) error {
 	if name == "" {

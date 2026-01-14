@@ -34,7 +34,7 @@ const (
 		"connect-src 'self'"
 )
 
-// setupDocsRoutes configures documentation endpoints.
+// SetupDocsRoutes configures documentation endpoints.
 // This includes the OpenAPI specification and Swagger UI for interactive API exploration.
 func (s *Server) SetupDocsRoutes() {
 	// API Documentation group
@@ -54,7 +54,7 @@ func (s *Server) SetupDocsRoutes() {
 	s.router.GET("/openapi.json", s.HandleOpenAPIJSON)
 }
 
-// handleOpenAPIYAML serves the OpenAPI specification in YAML format.
+// HandleOpenAPIYAML serves the OpenAPI specification in YAML format.
 func (s *Server) HandleOpenAPIYAML(c *gin.Context) {
 	if len(s.openAPISpec) == 0 {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -69,7 +69,7 @@ func (s *Server) HandleOpenAPIYAML(c *gin.Context) {
 	c.Data(http.StatusOK, "application/x-yaml", s.openAPISpec)
 }
 
-// handleOpenAPIJSON redirects to the YAML endpoint.
+// HandleOpenAPIJSON redirects to the YAML endpoint.
 // The OpenAPI specification is maintained in YAML format only.
 // Swagger UI and most tools support YAML natively.
 func (s *Server) HandleOpenAPIJSON(c *gin.Context) {
@@ -78,12 +78,12 @@ func (s *Server) HandleOpenAPIJSON(c *gin.Context) {
 	c.Redirect(http.StatusPermanentRedirect, "/docs/openapi.yaml")
 }
 
-// handleSwaggerUIRedirect redirects to the Swagger UI with trailing slash.
+// HandleSwaggerUIRedirect redirects to the Swagger UI with trailing slash.
 func (s *Server) HandleSwaggerUIRedirect(c *gin.Context) {
 	c.Redirect(http.StatusMovedPermanently, "/docs/")
 }
 
-// handleSwaggerUI serves the Swagger UI HTML page.
+// HandleSwaggerUI serves the Swagger UI HTML page.
 // Security features:
 // - Pinned CDN versions to prevent supply chain attacks
 // - Content Security Policy header to restrict resource loading

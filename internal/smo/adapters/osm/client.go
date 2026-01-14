@@ -344,7 +344,7 @@ func (c *Client) handleNonRetryableError(resp *http.Response) error {
 	return fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(body))
 }
 
-// get performs a GET request to the specified path.
+// Get performs a GET request to the specified path.
 func (c *Client) Get(ctx context.Context, path string, result interface{}) error {
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
@@ -362,7 +362,7 @@ func (c *Client) Post(ctx context.Context, path string, body, result interface{}
 	return c.doRequest(ctx, req, result)
 }
 
-// delete performs a DELETE request to the specified path.
+// Delete performs a DELETE request to the specified path.
 func (c *Client) Delete(ctx context.Context, path string) error {
 	req, err := c.newRequest(ctx, http.MethodDelete, path, nil)
 	if err != nil {
@@ -371,7 +371,7 @@ func (c *Client) Delete(ctx context.Context, path string) error {
 	return c.doRequest(ctx, req, nil)
 }
 
-// patch performs a PATCH request to the specified path with the given body.
+// Patch performs a PATCH request to the specified path with the given body.
 func (c *Client) Patch(ctx context.Context, path string, body, result interface{}) error {
 	req, err := c.newRequest(ctx, http.MethodPatch, path, body)
 	if err != nil {
