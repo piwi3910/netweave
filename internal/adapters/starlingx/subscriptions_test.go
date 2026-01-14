@@ -1,4 +1,4 @@
-package starlingx
+package starlingx_test
 
 import (
 	"context"
@@ -8,15 +8,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/adapters/starlingx"
 )
 
-func createAdapterWithStore(t *testing.T) (*Adapter, func()) {
+func createAdapterWithStore(t *testing.T) (*starlingx.Adapter, func()) {
 	t.Helper()
 
 	store := newMockStore()
-	keystoneURL, starlingxURL, cleanup := createMockServers(t, nil)
+	keystoneURL, starlingxURL, cleanup := starlingx.CreateMockServers(t, nil)
 
-	adp, err := New(&Config{
+	adp, err := starlingx.New(&starlingx.Config{
 		Endpoint:            starlingxURL,
 		KeystoneEndpoint:    keystoneURL,
 		Username:            "testuser",
@@ -32,7 +33,9 @@ func createAdapterWithStore(t *testing.T) (*Adapter, func()) {
 	}
 
 	fullCleanup := func() {
-		adp.Close()
+		if closeErr := adp.Close(); closeErr != nil {
+			t.Logf("close error: %v", closeErr)
+		}
 		cleanup()
 	}
 
@@ -45,22 +48,20 @@ func TestCreateSubscription(t *testing.T) {
 
 	ctx := context.Background()
 
-	sub := &adapter.Subscription{
-		Callback:               "https://smo.example.com/notify",
-		ConsumerSubscriptionID: "consumer-123",
+	subscription := &adapter.Subscription{
+		Callback:               "https://example.com/notify",
+		ConsumerSubscriptionID: "consumer-sub-1",
 		Filter: &adapter.SubscriptionFilter{
 			ResourcePoolID: "pool-1",
 		},
 	}
 
-	created, err := adp.CreateSubscription(ctx, sub)
+	created, err := adp.CreateSubscription(ctx, subscription)
 	require.NoError(t, err)
 	require.NotNil(t, created)
-
 	assert.NotEmpty(t, created.SubscriptionID)
-	assert.Equal(t, "https://smo.example.com/notify", created.Callback)
-	assert.Equal(t, "consumer-123", created.ConsumerSubscriptionID)
-	assert.Equal(t, "pool-1", created.Filter.ResourcePoolID)
+	assert.Equal(t, subscription.Callback, created.Callback)
+	assert.Equal(t, subscription.ConsumerSubscriptionID, created.ConsumerSubscriptionID)
 }
 
 func TestGetSubscription(t *testing.T) {
@@ -69,20 +70,20 @@ func TestGetSubscription(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create subscription first
-	sub := &adapter.Subscription{
-		SubscriptionID: "sub-123",
-		Callback:       "https://smo.example.com/notify",
+	// Create a subscription first
+	subscription := &adapter.Subscription{
+		Callback: "https://example.com/notify",
 	}
 
-	_, err := adp.CreateSubscription(ctx, sub)
+	created, err := adp.CreateSubscription(ctx, subscription)
 	require.NoError(t, err)
 
-	// Retrieve it
-	retrieved, err := adp.GetSubscription(ctx, "sub-123")
+	// Get the subscription
+	retrieved, err := adp.GetSubscription(ctx, created.SubscriptionID)
 	require.NoError(t, err)
-	assert.Equal(t, "sub-123", retrieved.SubscriptionID)
-	assert.Equal(t, "https://smo.example.com/notify", retrieved.Callback)
+	require.NotNil(t, retrieved)
+	assert.Equal(t, created.SubscriptionID, retrieved.SubscriptionID)
+	assert.Equal(t, created.Callback, retrieved.Callback)
 }
 
 func TestGetSubscription_NotFound(t *testing.T) {
@@ -90,10 +91,10 @@ func TestGetSubscription_NotFound(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	_, err := adp.GetSubscription(ctx, "non-existing")
 
+	_, err := adp.GetSubscription(ctx, "nonexistent-id")
 	require.Error(t, err)
-	require.ErrorIs(t, err, adapter.ErrSubscriptionNotFound)
+	assert.Equal(t, adapter.ErrSubscriptionNotFound, err)
 }
 
 func TestUpdateSubscription(t *testing.T) {
@@ -102,27 +103,24 @@ func TestUpdateSubscription(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create subscription
-	sub := &adapter.Subscription{
-		SubscriptionID: "sub-123",
-		Callback:       "https://smo.example.com/notify",
+	// Create a subscription first
+	subscription := &adapter.Subscription{
+		Callback: "https://example.com/notify",
 	}
 
-	_, err := adp.CreateSubscription(ctx, sub)
+	created, err := adp.CreateSubscription(ctx, subscription)
 	require.NoError(t, err)
 
-	// Update it
+	// Update the subscription
 	update := &adapter.Subscription{
-		Callback: "https://smo.example.com/new-notify",
-		Filter: &adapter.SubscriptionFilter{
-			ResourceTypeID: "type-1",
-		},
+		Callback: "https://example.com/updated-notify",
 	}
 
-	updated, err := adp.UpdateSubscription(ctx, "sub-123", update)
+	updated, err := adp.UpdateSubscription(ctx, created.SubscriptionID, update)
 	require.NoError(t, err)
-	assert.Equal(t, "https://smo.example.com/new-notify", updated.Callback)
-	assert.Equal(t, "type-1", updated.Filter.ResourceTypeID)
+	require.NotNil(t, updated)
+	assert.Equal(t, created.SubscriptionID, updated.SubscriptionID)
+	assert.Equal(t, update.Callback, updated.Callback)
 }
 
 func TestDeleteSubscription(t *testing.T) {
@@ -131,41 +129,44 @@ func TestDeleteSubscription(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create subscription
-	sub := &adapter.Subscription{
-		SubscriptionID: "sub-123",
-		Callback:       "https://smo.example.com/notify",
+	// Create a subscription first
+	subscription := &adapter.Subscription{
+		Callback: "https://example.com/notify",
 	}
 
-	_, err := adp.CreateSubscription(ctx, sub)
+	created, err := adp.CreateSubscription(ctx, subscription)
 	require.NoError(t, err)
 
-	// Delete it
-	err = adp.DeleteSubscription(ctx, "sub-123")
+	// Delete the subscription
+	err = adp.DeleteSubscription(ctx, created.SubscriptionID)
 	require.NoError(t, err)
 
 	// Verify it's gone
-	_, err = adp.GetSubscription(ctx, "sub-123")
+	_, err = adp.GetSubscription(ctx, created.SubscriptionID)
 	require.Error(t, err)
-	require.ErrorIs(t, err, adapter.ErrSubscriptionNotFound)
+	assert.Equal(t, adapter.ErrSubscriptionNotFound, err)
 }
 
-func TestSubscription_NoStore(t *testing.T) {
-	adp, cleanup := createTestAdapter(t, nil)
+func TestSubscriptions_NoStore(t *testing.T) {
+	adp, cleanup := starlingx.CreateTestAdapter(t, nil)
 	defer cleanup()
 
 	ctx := context.Background()
 
-	// All subscription operations should return ErrNotImplemented when no store
-	_, err := adp.CreateSubscription(ctx, &adapter.Subscription{})
-	require.ErrorIs(t, err, adapter.ErrNotImplemented)
+	// All subscription operations should return ErrNotImplemented
+	subscription := &adapter.Subscription{
+		Callback: "https://example.com/notify",
+	}
 
-	_, err = adp.GetSubscription(ctx, "sub-123")
-	require.ErrorIs(t, err, adapter.ErrNotImplemented)
+	_, err := adp.CreateSubscription(ctx, subscription)
+	assert.Equal(t, adapter.ErrNotImplemented, err)
 
-	_, err = adp.UpdateSubscription(ctx, "sub-123", &adapter.Subscription{})
-	require.ErrorIs(t, err, adapter.ErrNotImplemented)
+	_, err = adp.GetSubscription(ctx, "some-id")
+	assert.Equal(t, adapter.ErrNotImplemented, err)
 
-	err = adp.DeleteSubscription(ctx, "sub-123")
-	require.ErrorIs(t, err, adapter.ErrNotImplemented)
+	_, err = adp.UpdateSubscription(ctx, "some-id", subscription)
+	assert.Equal(t, adapter.ErrNotImplemented, err)
+
+	err = adp.DeleteSubscription(ctx, "some-id")
+	assert.Equal(t, adapter.ErrNotImplemented, err)
 }

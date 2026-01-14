@@ -1,4 +1,4 @@
-package starlingx
+package starlingx_test
 
 import (
 	"context"
@@ -19,7 +19,7 @@ func newMockStore() *mockStore {
 	}
 }
 
-func (m *mockStore) Create(ctx context.Context, sub *storage.Subscription) error {
+func (m *mockStore) Create(_ context.Context, sub *storage.Subscription) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -28,13 +28,13 @@ func (m *mockStore) Create(ctx context.Context, sub *storage.Subscription) error
 	}
 
 	// Deep copy to avoid mutation issues
-	copy := *sub
-	m.subscriptions[sub.ID] = &copy
+	subCopy := *sub
+	m.subscriptions[sub.ID] = &subCopy
 
 	return nil
 }
 
-func (m *mockStore) Get(ctx context.Context, id string) (*storage.Subscription, error) {
+func (m *mockStore) Get(_ context.Context, id string) (*storage.Subscription, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -44,11 +44,11 @@ func (m *mockStore) Get(ctx context.Context, id string) (*storage.Subscription, 
 	}
 
 	// Deep copy to avoid mutation issues
-	copy := *sub
-	return &copy, nil
+	subCopy := *sub
+	return &subCopy, nil
 }
 
-func (m *mockStore) Update(ctx context.Context, sub *storage.Subscription) error {
+func (m *mockStore) Update(_ context.Context, sub *storage.Subscription) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -57,13 +57,13 @@ func (m *mockStore) Update(ctx context.Context, sub *storage.Subscription) error
 	}
 
 	// Deep copy to avoid mutation issues
-	copy := *sub
-	m.subscriptions[sub.ID] = &copy
+	subCopy := *sub
+	m.subscriptions[sub.ID] = &subCopy
 
 	return nil
 }
 
-func (m *mockStore) Delete(ctx context.Context, id string) error {
+func (m *mockStore) Delete(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -75,66 +75,66 @@ func (m *mockStore) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m *mockStore) List(ctx context.Context) ([]*storage.Subscription, error) {
+func (m *mockStore) List(_ context.Context) ([]*storage.Subscription, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	var result []*storage.Subscription
 	for _, sub := range m.subscriptions {
 		// Deep copy
-		copy := *sub
-		result = append(result, &copy)
+		subCopy := *sub
+		result = append(result, &subCopy)
 	}
 
 	return result, nil
 }
 
-func (m *mockStore) ListByResourcePool(ctx context.Context, resourcePoolID string) ([]*storage.Subscription, error) {
+func (m *mockStore) ListByResourcePool(_ context.Context, resourcePoolID string) ([]*storage.Subscription, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	var result []*storage.Subscription
 	for _, sub := range m.subscriptions {
 		if sub.Filter.ResourcePoolID == resourcePoolID {
-			copy := *sub
-			result = append(result, &copy)
+			subCopy := *sub
+			result = append(result, &subCopy)
 		}
 	}
 
 	return result, nil
 }
 
-func (m *mockStore) ListByResourceType(ctx context.Context, resourceTypeID string) ([]*storage.Subscription, error) {
+func (m *mockStore) ListByResourceType(_ context.Context, resourceTypeID string) ([]*storage.Subscription, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	var result []*storage.Subscription
 	for _, sub := range m.subscriptions {
 		if sub.Filter.ResourceTypeID == resourceTypeID {
-			copy := *sub
-			result = append(result, &copy)
+			subCopy := *sub
+			result = append(result, &subCopy)
 		}
 	}
 
 	return result, nil
 }
 
-func (m *mockStore) ListByTenant(ctx context.Context, tenantID string) ([]*storage.Subscription, error) {
+func (m *mockStore) ListByTenant(_ context.Context, tenantID string) ([]*storage.Subscription, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	var result []*storage.Subscription
 	for _, sub := range m.subscriptions {
 		if sub.TenantID == tenantID {
-			copy := *sub
-			result = append(result, &copy)
+			subCopy := *sub
+			result = append(result, &subCopy)
 		}
 	}
 
 	return result, nil
 }
 
-func (m *mockStore) Ping(ctx context.Context) error {
+func (m *mockStore) Ping(_ context.Context) error {
 	return nil
 }
 

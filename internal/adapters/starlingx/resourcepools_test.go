@@ -1,17 +1,17 @@
-package starlingx
+package starlingx_test
 
 import (
 	"context"
 	"testing"
+	"github.com/piwi3910/netweave/internal/adapters/starlingx"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 func TestListResourcePools(t *testing.T) {
-	hosts := []IHost{
+	hosts := []starlingx.IHost{
 		{
 			UUID:        "host-1",
 			Hostname:    "compute-0",
@@ -38,13 +38,13 @@ func TestListResourcePools(t *testing.T) {
 		},
 	}
 
-	labels := []Label{
+	labels := []starlingx.Label{
 		{UUID: "label-1", HostUUID: "host-1", LabelKey: "pool", LabelValue: "pool-a"},
 		{UUID: "label-2", HostUUID: "host-2", LabelKey: "pool", LabelValue: "pool-a"},
 		{UUID: "label-3", HostUUID: "host-3", LabelKey: "pool", LabelValue: "pool-b"},
 	}
 
-	adp, cleanup := createTestAdapter(t, &mockServerConfig{
+	adp, cleanup := starlingx.CreateTestAdapter(t, &starlingx.MockServerConfig{
 		Hosts:  hosts,
 		Labels: labels,
 	})
@@ -95,17 +95,17 @@ func TestListResourcePools(t *testing.T) {
 }
 
 func TestGetResourcePool(t *testing.T) {
-	hosts := []IHost{
+	hosts := []starlingx.IHost{
 		{UUID: "host-1", Hostname: "compute-0", Personality: "compute"},
 		{UUID: "host-2", Hostname: "compute-1", Personality: "compute"},
 	}
 
-	labels := []Label{
+	labels := []starlingx.Label{
 		{UUID: "label-1", HostUUID: "host-1", LabelKey: "pool", LabelValue: "test-pool"},
 		{UUID: "label-2", HostUUID: "host-2", LabelKey: "pool", LabelValue: "test-pool"},
 	}
 
-	adp, cleanup := createTestAdapter(t, &mockServerConfig{
+	adp, cleanup := starlingx.CreateTestAdapter(t, &starlingx.MockServerConfig{
 		Hosts:  hosts,
 		Labels: labels,
 	})

@@ -2,6 +2,7 @@ package starlingx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -45,7 +46,7 @@ func (a *Adapter) GetSubscription(ctx context.Context, id string) (*adapter.Subs
 
 	storageSub, err := a.store.Get(ctx, id)
 	if err != nil {
-		if err == storage.ErrSubscriptionNotFound {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			return nil, adapter.ErrSubscriptionNotFound
 		}
 		return nil, fmt.Errorf("failed to get subscription: %w", err)
@@ -69,7 +70,7 @@ func (a *Adapter) UpdateSubscription(ctx context.Context, id string, sub *adapte
 	// Verify subscription exists
 	existing, err := a.store.Get(ctx, id)
 	if err != nil {
-		if err == storage.ErrSubscriptionNotFound {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			return nil, adapter.ErrSubscriptionNotFound
 		}
 		return nil, fmt.Errorf("failed to get subscription: %w", err)
@@ -107,7 +108,7 @@ func (a *Adapter) DeleteSubscription(ctx context.Context, id string) error {
 	}
 
 	if err := a.store.Delete(ctx, id); err != nil {
-		if err == storage.ErrSubscriptionNotFound {
+		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			return adapter.ErrSubscriptionNotFound
 		}
 		return fmt.Errorf("failed to delete subscription: %w", err)

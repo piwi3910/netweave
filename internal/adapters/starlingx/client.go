@@ -40,11 +40,33 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 		return fmt.Errorf("failed to get auth token: %w", err)
 	}
 
+	req, err := c.buildRequest(ctx, method, path, body, token)
+	if err != nil {
+		return err
+	}
+
+	respBody, statusCode, err := c.executeRequest(req)
+	if err != nil {
+		return err
+	}
+
+	if statusCode == http.StatusUnauthorized {
+		return c.retryWithNewToken(ctx, req, result)
+	}
+
+	if err := c.handleErrorResponse(statusCode, respBody); err != nil {
+		return err
+	}
+
+	return c.unmarshalResult(respBody, result)
+}
+
+func (c *Client) buildRequest(ctx context.Context, method, path string, body interface{}, token string) (*http.Request, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		bodyBytes, err := json.Marshal(body)
 		if err != nil {
-			return fmt.Errorf("failed to marshal request body: %w", err)
+			return nil, fmt.Errorf("failed to marshal request body: %w", err)
 		}
 		bodyReader = bytes.NewReader(bodyBytes)
 	}
@@ -52,7 +74,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 	reqURL := fmt.Sprintf("%s%s", c.endpoint, path)
 	req, err := http.NewRequestWithContext(ctx, method, reqURL, bodyReader)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("X-Auth-Token", token)
@@ -64,55 +86,68 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 		zap.String("url", reqURL),
 	)
 
+	return req, nil
+}
+
+func (c *Client) executeRequest(req *http.Request) ([]byte, int, error) {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to execute request: %w", err)
+		return nil, 0, fmt.Errorf("failed to execute request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
+		return nil, resp.StatusCode, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Handle 401 Unauthorized by invalidating token and retrying once
-	if resp.StatusCode == http.StatusUnauthorized {
-		c.logger.Warn("received 401 unauthorized, invalidating token and retrying")
-		c.authClient.InvalidateToken()
+	return respBody, resp.StatusCode, nil
+}
 
-		// Retry once with fresh token
-		token, err = c.authClient.GetToken(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to refresh auth token: %w", err)
-		}
+func (c *Client) retryWithNewToken(ctx context.Context, req *http.Request, result interface{}) error {
+	c.logger.Warn("received 401 unauthorized, invalidating token and retrying")
+	c.authClient.InvalidateToken()
 
-		req.Header.Set("X-Auth-Token", token)
-		resp, err = c.httpClient.Do(req)
-		if err != nil {
-			return fmt.Errorf("failed to execute retry request: %w", err)
-		}
-		defer resp.Body.Close()
-
-		respBody, err = io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("failed to read retry response body: %w", err)
-		}
+	token, err := c.authClient.GetToken(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to refresh auth token: %w", err)
 	}
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		var errResp ErrorResponse
-		if err := json.Unmarshal(respBody, &errResp); err == nil {
-			return fmt.Errorf("starlingx api error (status %d): %s - %s", resp.StatusCode, errResp.Error, errResp.Detail)
-		}
-		return fmt.Errorf("starlingx api error (status %d): %s", resp.StatusCode, string(respBody))
+	req.Header.Set("X-Auth-Token", token)
+	respBody, statusCode, err := c.executeRequest(req)
+	if err != nil {
+		return err
 	}
 
+	if err := c.handleErrorResponse(statusCode, respBody); err != nil {
+		return err
+	}
+
+	return c.unmarshalResult(respBody, result)
+}
+
+func (c *Client) handleErrorResponse(statusCode int, respBody []byte) error {
+	if statusCode >= 200 && statusCode < 300 {
+		return nil
+	}
+
+	var errResp ErrorResponse
+	if err := json.Unmarshal(respBody, &errResp); err == nil {
+		return fmt.Errorf("starlingx api error (status %d): %s - %s", statusCode, errResp.Error, errResp.Detail)
+	}
+	return fmt.Errorf("starlingx api error (status %d): %s", statusCode, string(respBody))
+}
+
+func (c *Client) unmarshalResult(respBody []byte, result interface{}) error {
 	if result != nil && len(respBody) > 0 {
 		if err := json.Unmarshal(respBody, result); err != nil {
 			return fmt.Errorf("failed to unmarshal response: %w", err)
 		}
 	}
-
 	return nil
 }
 

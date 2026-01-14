@@ -34,7 +34,7 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 	// Build service URI
 	serviceURI := fmt.Sprintf("%s/o2ims-infrastructureInventory/v1", a.client.endpoint)
 
-	dm := mapSystemToDeploymentManager(system, a.deploymentManagerID, a.oCloudID, serviceURI)
+	dm := MapSystemToDeploymentManager(system, a.deploymentManagerID, a.oCloudID, serviceURI)
 
 	a.logger.Debug("retrieved deployment manager",
 		zap.String("id", dm.DeploymentManagerID),

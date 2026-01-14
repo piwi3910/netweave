@@ -67,7 +67,35 @@ func (a *AuthClient) GetToken(ctx context.Context) (string, error) {
 
 // authenticate performs Keystone v3 authentication and updates the token.
 func (a *AuthClient) authenticate(ctx context.Context) (string, error) {
-	authReq := KeystoneAuthRequest{
+	authReq := a.buildAuthRequest()
+
+	body, err := json.Marshal(authReq)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal auth request: %w", err)
+	}
+
+	req, err := a.createAuthHTTPRequest(ctx, body)
+	if err != nil {
+		return "", err
+	}
+
+	token, expiry, err := a.executeAuthRequest(req)
+	if err != nil {
+		return "", err
+	}
+
+	a.token = token
+	a.tokenExpiry = expiry
+	a.logger.Info("keystone authentication successful",
+		zap.String("username", a.username),
+		zap.Time("expires", a.tokenExpiry),
+	)
+
+	return token, nil
+}
+
+func (a *AuthClient) buildAuthRequest() KeystoneAuthRequest {
+	return KeystoneAuthRequest{
 		Auth: KeystoneAuth{
 			Identity: KeystoneIdentity{
 				Methods: []string{"password"},
@@ -91,16 +119,13 @@ func (a *AuthClient) authenticate(ctx context.Context) (string, error) {
 			},
 		},
 	}
+}
 
-	body, err := json.Marshal(authReq)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal auth request: %w", err)
-	}
-
+func (a *AuthClient) createAuthHTTPRequest(ctx context.Context, body []byte) (*http.Request, error) {
 	authURL := fmt.Sprintf("%s/v3/auth/tokens", a.keystoneEndpoint)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, authURL, bytes.NewReader(body))
 	if err != nil {
-		return "", fmt.Errorf("failed to create auth request: %w", err)
+		return nil, fmt.Errorf("failed to create auth request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -111,55 +136,58 @@ func (a *AuthClient) authenticate(ctx context.Context) (string, error) {
 		zap.String("project", a.projectName),
 	)
 
+	return req, nil
+}
+
+func (a *AuthClient) executeAuthRequest(req *http.Request) (string, time.Time, error) {
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to execute auth request: %w", err)
+		return "", time.Time{}, fmt.Errorf("failed to execute auth request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusCreated {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		a.logger.Error("keystone authentication failed",
-			zap.Int("status", resp.StatusCode),
-			zap.String("body", string(bodyBytes)),
-		)
-		return "", fmt.Errorf("keystone authentication failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+		return "", time.Time{}, a.handleAuthError(resp)
 	}
 
-	// Extract token from X-Subject-Token header
 	token := resp.Header.Get("X-Subject-Token")
 	if token == "" {
-		return "", fmt.Errorf("no X-Subject-Token header in response")
+		return "", time.Time{}, fmt.Errorf("no X-Subject-Token header in response")
 	}
 
-	// Parse token expiry from response body (optional, defaults to 1 hour)
+	expiry := a.parseTokenExpiry(resp.Body)
+	return token, expiry, nil
+}
+
+func (a *AuthClient) handleAuthError(resp *http.Response) error {
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	a.logger.Error("keystone authentication failed",
+		zap.Int("status", resp.StatusCode),
+		zap.String("body", string(bodyBytes)),
+	)
+	return fmt.Errorf("keystone authentication failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+}
+
+func (a *AuthClient) parseTokenExpiry(body io.Reader) time.Time {
 	var authResp map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&authResp); err == nil {
+	if err := json.NewDecoder(body).Decode(&authResp); err == nil {
 		if tokenData, ok := authResp["token"].(map[string]interface{}); ok {
 			if expiresAt, ok := tokenData["expires_at"].(string); ok {
 				if expiry, err := time.Parse(time.RFC3339, expiresAt); err == nil {
 					// Refresh 5 minutes before actual expiry
-					a.tokenExpiry = expiry.Add(-5 * time.Minute)
-					a.logger.Debug("token expiry set",
-						zap.Time("expiry", a.tokenExpiry),
-					)
+					a.logger.Debug("token expiry set", zap.Time("expiry", expiry))
+					return expiry.Add(-5 * time.Minute)
 				}
 			}
 		}
 	}
 
 	// Default expiry if parsing failed
-	if a.tokenExpiry.IsZero() {
-		a.tokenExpiry = time.Now().Add(55 * time.Minute) // Default 1 hour minus 5 min buffer
-	}
-
-	a.token = token
-	a.logger.Info("keystone authentication successful",
-		zap.String("username", a.username),
-		zap.Time("expires", a.tokenExpiry),
-	)
-
-	return token, nil
+	return time.Now().Add(55 * time.Minute) // Default 1 hour minus 5 min buffer
 }
 
 // InvalidateToken clears the cached token, forcing re-authentication on next request.

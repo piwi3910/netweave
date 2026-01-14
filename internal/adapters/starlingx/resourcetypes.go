@@ -17,7 +17,7 @@ func (a *Adapter) ListResourceTypes(ctx context.Context, filter *adapter.Filter)
 	}
 
 	// Generate resource types from hosts
-	types := generateResourceTypesFromHosts(hosts)
+	types := GenerateResourceTypesFromHosts(hosts)
 
 	// Apply filters
 	filteredTypes := make([]*adapter.ResourceType, 0, len(types))

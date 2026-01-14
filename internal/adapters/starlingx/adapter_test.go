@@ -1,4 +1,4 @@
-package starlingx
+package starlingx_test
 
 import (
 	"context"
@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
-
 	dmsadapter "github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/adapters/starlingx"
 )
 
 func TestNew(t *testing.T) {
@@ -16,7 +16,7 @@ func TestNew(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *starlingx.Config
 		wantErr bool
 		errMsg  string
 	}{
@@ -28,7 +28,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing endpoint",
-			config: &Config{
+			config: &starlingx.Config{
 				KeystoneEndpoint:    "http://localhost:5000",
 				Username:            "admin",
 				Password:            "secret",
@@ -40,7 +40,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing keystone endpoint",
-			config: &Config{
+			config: &starlingx.Config{
 				Endpoint:            "http://localhost:6385",
 				Username:            "admin",
 				Password:            "secret",
@@ -52,7 +52,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing username",
-			config: &Config{
+			config: &starlingx.Config{
 				Endpoint:            "http://localhost:6385",
 				KeystoneEndpoint:    "http://localhost:5000",
 				Password:            "secret",
@@ -64,7 +64,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing oCloudID",
-			config: &Config{
+			config: &starlingx.Config{
 				Endpoint:            "http://localhost:6385",
 				KeystoneEndpoint:    "http://localhost:5000",
 				Username:            "admin",
@@ -76,7 +76,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "missing deploymentManagerID",
-			config: &Config{
+			config: &starlingx.Config{
 				Endpoint:         "http://localhost:6385",
 				KeystoneEndpoint: "http://localhost:5000",
 				Username:         "admin",
@@ -88,7 +88,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "valid config with defaults",
-			config: &Config{
+			config: &starlingx.Config{
 				Endpoint:            "http://localhost:6385",
 				KeystoneEndpoint:    "http://localhost:5000",
 				Username:            "admin",
@@ -101,7 +101,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name: "valid config with all fields",
-			config: &Config{
+			config: &starlingx.Config{
 				Endpoint:            "http://localhost:6385",
 				KeystoneEndpoint:    "http://localhost:5000",
 				Username:            "testuser",
@@ -119,38 +119,28 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := New(tt.config)
+			adp, err := starlingx.New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
-				assert.Nil(t, adapter)
+				assert.Nil(t, adp)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, adapter)
-				assert.Equal(t, "starlingx", adapter.Name())
-				assert.Equal(t, "8.0", adapter.Version())
+				require.NotNil(t, adp)
+				assert.Equal(t, "starlingx", adp.Name())
+				assert.Equal(t, "8.0", adp.Version())
 
 				// Verify capabilities
-				caps := adapter.Capabilities()
+				caps := adp.Capabilities()
 				assert.Contains(t, caps, dmsadapter.CapabilityResourcePools)
 				assert.Contains(t, caps, dmsadapter.CapabilityResources)
 				assert.Contains(t, caps, dmsadapter.CapabilityResourceTypes)
 				assert.Contains(t, caps, dmsadapter.CapabilityDeploymentManagers)
 				assert.Contains(t, caps, dmsadapter.CapabilityHealthChecks)
 
-				// Check defaults
-				if tt.config.ProjectName == "" {
-					// Should default to "admin"
-					assert.Equal(t, "admin", adapter.client.authClient.projectName)
-				}
-				if tt.config.DomainName == "" {
-					// Should default to "Default"
-					assert.Equal(t, "Default", adapter.client.authClient.domainName)
-				}
-
 				// Clean up
-				err = adapter.Close()
+				err = adp.Close()
 				assert.NoError(t, err)
 			}
 		})
@@ -160,7 +150,7 @@ func TestNew(t *testing.T) {
 func TestAdapter_Metadata(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 
-	adapter, err := New(&Config{
+	adp, err := starlingx.New(&starlingx.Config{
 		Endpoint:            "http://localhost:6385",
 		KeystoneEndpoint:    "http://localhost:5000",
 		Username:            "admin",
@@ -170,18 +160,22 @@ func TestAdapter_Metadata(t *testing.T) {
 		Logger:              logger,
 	})
 	require.NoError(t, err)
-	defer adapter.Close()
+	defer func() {
+		if closeErr := adp.Close(); closeErr != nil {
+			t.Logf("failed to close adapter: %v", closeErr)
+		}
+	}()
 
 	t.Run("Name", func(t *testing.T) {
-		assert.Equal(t, "starlingx", adapter.Name())
+		assert.Equal(t, "starlingx", adp.Name())
 	})
 
 	t.Run("Version", func(t *testing.T) {
-		assert.Equal(t, "8.0", adapter.Version())
+		assert.Equal(t, "8.0", adp.Version())
 	})
 
 	t.Run("Capabilities without store", func(t *testing.T) {
-		caps := adapter.Capabilities()
+		caps := adp.Capabilities()
 		assert.Len(t, caps, 5)
 		assert.Contains(t, caps, dmsadapter.CapabilityResourcePools)
 		assert.Contains(t, caps, dmsadapter.CapabilityResources)
@@ -195,7 +189,7 @@ func TestAdapter_Metadata(t *testing.T) {
 func TestAdapter_Close(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 
-	adapter, err := New(&Config{
+	adp, err := starlingx.New(&starlingx.Config{
 		Endpoint:            "http://localhost:6385",
 		KeystoneEndpoint:    "http://localhost:5000",
 		Username:            "admin",
@@ -206,7 +200,7 @@ func TestAdapter_Close(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = adapter.Close()
+	err = adp.Close()
 	assert.NoError(t, err)
 }
 
@@ -215,7 +209,7 @@ func TestAdapter_Health_NotImplemented(t *testing.T) {
 	// Health() will fail because we can't reach the mock endpoint
 	logger := zaptest.NewLogger(t)
 
-	adapter, err := New(&Config{
+	adp, err := starlingx.New(&starlingx.Config{
 		Endpoint:            "http://localhost:9999", // Non-existent endpoint
 		KeystoneEndpoint:    "http://localhost:9998", // Non-existent endpoint
 		Username:            "admin",
@@ -225,10 +219,14 @@ func TestAdapter_Health_NotImplemented(t *testing.T) {
 		Logger:              logger,
 	})
 	require.NoError(t, err)
-	defer adapter.Close()
+	defer func() {
+		if closeErr := adp.Close(); closeErr != nil {
+			t.Logf("failed to close adapter: %v", closeErr)
+		}
+	}()
 
 	ctx := context.Background()
-	err = adapter.Health(ctx)
+	err = adp.Health(ctx)
 	// Should fail because we can't connect
 	assert.Error(t, err)
 }

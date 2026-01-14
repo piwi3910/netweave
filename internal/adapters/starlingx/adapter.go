@@ -86,49 +86,17 @@ type Config struct {
 //	    Region:              "RegionOne",
 //	})
 func New(cfg *Config) (*Adapter, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config cannot be nil")
+	if err := validateConfig(cfg); err != nil {
+		return nil, err
 	}
 
-	if cfg.Endpoint == "" {
-		return nil, fmt.Errorf("endpoint is required")
+	applyConfigDefaults(cfg)
+
+	logger, err := initLogger(cfg.Logger)
+	if err != nil {
+		return nil, err
 	}
 
-	if cfg.KeystoneEndpoint == "" {
-		return nil, fmt.Errorf("keystone endpoint is required")
-	}
-
-	if cfg.Username == "" || cfg.Password == "" {
-		return nil, fmt.Errorf("username and password are required")
-	}
-
-	if cfg.ProjectName == "" {
-		cfg.ProjectName = "admin"
-	}
-
-	if cfg.DomainName == "" {
-		cfg.DomainName = "Default"
-	}
-
-	if cfg.OCloudID == "" {
-		return nil, fmt.Errorf("oCloudID is required")
-	}
-
-	if cfg.DeploymentManagerID == "" {
-		return nil, fmt.Errorf("deploymentManagerID is required")
-	}
-
-	// Initialize logger
-	logger := cfg.Logger
-	if logger == nil {
-		var err error
-		logger, err = zap.NewProduction()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create logger: %w", err)
-		}
-	}
-
-	// Create authentication client
 	authClient := NewAuthClient(
 		cfg.KeystoneEndpoint,
 		cfg.Username,
@@ -138,7 +106,6 @@ func New(cfg *Config) (*Adapter, error) {
 		logger,
 	)
 
-	// Create API client
 	client := NewClient(cfg.Endpoint, authClient, logger)
 
 	adapter := &Adapter{
@@ -158,6 +125,48 @@ func New(cfg *Config) (*Adapter, error) {
 	)
 
 	return adapter, nil
+}
+
+func validateConfig(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config cannot be nil")
+	}
+	if cfg.Endpoint == "" {
+		return fmt.Errorf("endpoint is required")
+	}
+	if cfg.KeystoneEndpoint == "" {
+		return fmt.Errorf("keystone endpoint is required")
+	}
+	if cfg.Username == "" || cfg.Password == "" {
+		return fmt.Errorf("username and password are required")
+	}
+	if cfg.OCloudID == "" {
+		return fmt.Errorf("oCloudID is required")
+	}
+	if cfg.DeploymentManagerID == "" {
+		return fmt.Errorf("deploymentManagerID is required")
+	}
+	return nil
+}
+
+func applyConfigDefaults(cfg *Config) {
+	if cfg.ProjectName == "" {
+		cfg.ProjectName = "admin"
+	}
+	if cfg.DomainName == "" {
+		cfg.DomainName = "Default"
+	}
+}
+
+func initLogger(logger *zap.Logger) (*zap.Logger, error) {
+	if logger != nil {
+		return logger, nil
+	}
+	newLogger, err := zap.NewProduction()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logger: %w", err)
+	}
+	return newLogger, nil
 }
 
 // Name returns the unique name of this adapter.

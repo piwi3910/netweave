@@ -1,17 +1,17 @@
-package starlingx
+package starlingx_test
 
 import (
 	"testing"
+	"github.com/piwi3910/netweave/internal/adapters/starlingx"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 func TestMapHostToResource(t *testing.T) {
-	host := &IHost{
+	host := &starlingx.IHost{
 		UUID:           "host-uuid-1",
 		Hostname:       "compute-0",
 		Personality:    "compute",
@@ -27,7 +27,7 @@ func TestMapHostToResource(t *testing.T) {
 		},
 	}
 
-	cpus := []ICPU{
+	cpus := []starlingx.ICPU{
 		{
 			UUID:      "cpu-1",
 			CPU:       0,
@@ -48,7 +48,7 @@ func TestMapHostToResource(t *testing.T) {
 		},
 	}
 
-	memories := []IMemory{
+	memories := []starlingx.IMemory{
 		{
 			UUID:                "mem-1",
 			MemTotalMiB:         131072,
@@ -59,7 +59,7 @@ func TestMapHostToResource(t *testing.T) {
 		},
 	}
 
-	disks := []IDisk{
+	disks := []starlingx.IDisk{
 		{
 			UUID:       "disk-1",
 			DevicePath: "/dev/sda",
@@ -69,7 +69,7 @@ func TestMapHostToResource(t *testing.T) {
 		},
 	}
 
-	resource := mapHostToResource(host, cpus, memories, disks)
+	resource := starlingx.MapHostToResource(host, cpus, memories, disks)
 
 	assert.NotNil(t, resource)
 	assert.Equal(t, "host-uuid-1", resource.ResourceID)
@@ -104,33 +104,33 @@ func TestMapHostToResource(t *testing.T) {
 func TestGenerateResourceTypeID(t *testing.T) {
 	tests := []struct {
 		name     string
-		host     *IHost
+		host     *starlingx.IHost
 		expected string
 	}{
 		{
 			name: "compute host",
-			host: &IHost{
+			host: &starlingx.IHost{
 				Personality: "compute",
 			},
 			expected: "starlingx-compute",
 		},
 		{
 			name: "controller host",
-			host: &IHost{
+			host: &starlingx.IHost{
 				Personality: "controller",
 			},
 			expected: "starlingx-controller",
 		},
 		{
 			name: "storage host",
-			host: &IHost{
+			host: &starlingx.IHost{
 				Personality: "storage",
 			},
 			expected: "starlingx-storage",
 		},
 		{
 			name: "compute with subfunctions",
-			host: &IHost{
+			host: &starlingx.IHost{
 				Personality:  "compute",
 				SubFunctions: "lowlatency",
 			},
@@ -140,14 +140,14 @@ func TestGenerateResourceTypeID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := generateResourceTypeID(tt.host)
+			result := starlingx.GenerateResourceTypeID(tt.host)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
 func TestMapSystemToDeploymentManager(t *testing.T) {
-	system := &ISystem{
+	system := &starlingx.ISystem{
 		UUID:            "system-uuid-1",
 		Name:            "starlingx-system",
 		SystemType:      "All-in-one",
@@ -165,7 +165,7 @@ func TestMapSystemToDeploymentManager(t *testing.T) {
 		UpdatedAt: time.Now(),
 	}
 
-	dm := mapSystemToDeploymentManager(
+	dm := starlingx.MapSystemToDeploymentManager(
 		system,
 		"test-dm-1",
 		"test-ocloud-1",
@@ -198,31 +198,31 @@ func TestMapSystemToDeploymentManager(t *testing.T) {
 func TestExtractPoolNameFromLabels(t *testing.T) {
 	tests := []struct {
 		name     string
-		labels   []Label
+		labels   []starlingx.Label
 		expected string
 	}{
 		{
 			name: "pool label",
-			labels: []Label{
+			labels: []starlingx.Label{
 				{LabelKey: "pool", LabelValue: "high-memory"},
 			},
 			expected: "high-memory",
 		},
 		{
 			name: "resource-pool label",
-			labels: []Label{
+			labels: []starlingx.Label{
 				{LabelKey: "resource-pool", LabelValue: "compute-pool"},
 			},
 			expected: "compute-pool",
 		},
 		{
 			name:     "no pool label",
-			labels:   []Label{},
+			labels:   []starlingx.Label{},
 			expected: "",
 		},
 		{
 			name: "mixed labels",
-			labels: []Label{
+			labels: []starlingx.Label{
 				{LabelKey: "zone", LabelValue: "az1"},
 				{LabelKey: "pool", LabelValue: "default"},
 				{LabelKey: "env", LabelValue: "prod"},
@@ -233,26 +233,26 @@ func TestExtractPoolNameFromLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := extractPoolNameFromLabels(tt.labels)
+			result := starlingx.ExtractPoolNameFromLabels(tt.labels)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
 func TestGroupHostsByPool(t *testing.T) {
-	hosts := []IHost{
+	hosts := []starlingx.IHost{
 		{UUID: "host-1", Hostname: "compute-0"},
 		{UUID: "host-2", Hostname: "compute-1"},
 		{UUID: "host-3", Hostname: "compute-2"},
 	}
 
-	labels := []Label{
+	labels := []starlingx.Label{
 		{HostUUID: "host-1", LabelKey: "pool", LabelValue: "pool-a"},
 		{HostUUID: "host-2", LabelKey: "pool", LabelValue: "pool-a"},
 		{HostUUID: "host-3", LabelKey: "pool", LabelValue: "pool-b"},
 	}
 
-	poolGroups := groupHostsByPool(hosts, labels)
+	poolGroups := starlingx.GroupHostsByPool(hosts, labels)
 
 	assert.Len(t, poolGroups, 2)
 	assert.Len(t, poolGroups["pool-a"], 2)
@@ -260,7 +260,7 @@ func TestGroupHostsByPool(t *testing.T) {
 }
 
 func TestMapLabelsToResourcePool(t *testing.T) {
-	hosts := []IHost{
+	hosts := []starlingx.IHost{
 		{
 			UUID:        "host-1",
 			Hostname:    "compute-0",
@@ -276,7 +276,7 @@ func TestMapLabelsToResourcePool(t *testing.T) {
 		},
 	}
 
-	pool := mapLabelsToResourcePool("test-pool", hosts, "test-ocloud")
+	pool := starlingx.MapLabelsToResourcePool("test-pool", hosts, "test-ocloud")
 
 	require.NotNil(t, pool)
 	assert.Equal(t, "starlingx-pool-test-pool", pool.ResourcePoolID)
@@ -295,7 +295,7 @@ func TestMapLabelsToResourcePool(t *testing.T) {
 }
 
 func TestGenerateResourceTypesFromHosts(t *testing.T) {
-	hosts := []IHost{
+	hosts := []starlingx.IHost{
 		{
 			UUID:         "host-1",
 			Personality:  "compute",
@@ -318,7 +318,7 @@ func TestGenerateResourceTypesFromHosts(t *testing.T) {
 		},
 	}
 
-	types := generateResourceTypesFromHosts(hosts)
+	types := starlingx.GenerateResourceTypesFromHosts(hosts)
 
 	require.Len(t, types, 3) // compute, controller, storage
 

@@ -1,24 +1,24 @@
-package starlingx
+package starlingx_test
 
 import (
 	"context"
 	"testing"
+	"github.com/piwi3910/netweave/internal/adapters/starlingx"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 func TestListResourceTypes(t *testing.T) {
-	hosts := []IHost{
+	hosts := []starlingx.IHost{
 		{UUID: "host-1", Personality: "compute"},
 		{UUID: "host-2", Personality: "compute"},
 		{UUID: "host-3", Personality: "controller"},
 		{UUID: "host-4", Personality: "storage"},
 	}
 
-	adp, cleanup := createTestAdapter(t, &mockServerConfig{
+	adp, cleanup := starlingx.CreateTestAdapter(t, &starlingx.MockServerConfig{
 		Hosts: hosts,
 	})
 	defer cleanup()
@@ -63,12 +63,12 @@ func TestListResourceTypes(t *testing.T) {
 }
 
 func TestGetResourceType(t *testing.T) {
-	hosts := []IHost{
+	hosts := []starlingx.IHost{
 		{UUID: "host-1", Personality: "compute"},
 		{UUID: "host-2", Personality: "controller"},
 	}
 
-	adp, cleanup := createTestAdapter(t, &mockServerConfig{
+	adp, cleanup := starlingx.CreateTestAdapter(t, &starlingx.MockServerConfig{
 		Hosts: hosts,
 	})
 	defer cleanup()

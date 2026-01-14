@@ -10,94 +10,131 @@ import (
 
 // ListResources retrieves all resources (StarlingX compute hosts).
 func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
-	// Determine personality filter
-	personality := "compute"
-	if filter != nil && filter.ResourceTypeID != "" {
-		// Extract personality from resource type ID
-		// Format: starlingx-{personality}
-		if resourceType, err := a.GetResourceType(ctx, filter.ResourceTypeID); err == nil {
-			if p, ok := resourceType.Extensions["personality"].(string); ok {
-				personality = p
-			}
-		}
-	}
-
-	// Get hosts
+	personality := a.determinePersonality(ctx, filter)
 	hosts, err := a.client.ListHosts(ctx, personality)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list hosts: %w", err)
 	}
 
-	// Get labels for pool filtering
-	var labels []Label
-	if filter != nil && filter.ResourcePoolID != "" {
-		labels, err = a.client.ListLabels(ctx)
-		if err != nil {
-			a.logger.Warn("failed to list labels for filtering", zap.Error(err))
-		}
+	labels, err := a.getLabelsIfNeeded(ctx, filter)
+	if err != nil {
+		a.logger.Warn("failed to list labels for filtering", zap.Error(err))
 	}
 
-	// Convert to resources
-	resources := make([]*adapter.Resource, 0, len(hosts))
-	for _, host := range hosts {
-		// Get hardware inventory
-		cpus, _ := a.client.GetHostCPUs(ctx, host.UUID)
-		memories, _ := a.client.GetHostMemory(ctx, host.UUID)
-		disks, _ := a.client.GetHostDisks(ctx, host.UUID)
-
-		resource := mapHostToResource(&host, cpus, memories, disks)
-
-		// Apply filters
-		if filter != nil {
-			if filter.TenantID != "" && resource.TenantID != filter.TenantID {
-				continue
-			}
-
-			if filter.ResourceTypeID != "" && resource.ResourceTypeID != filter.ResourceTypeID {
-				continue
-			}
-
-			if filter.ResourcePoolID != "" {
-				// Check if host belongs to the requested pool
-				poolName := extractPoolNameForHost(host.UUID, labels)
-				expectedPoolID := fmt.Sprintf("starlingx-pool-%s", poolName)
-				if expectedPoolID != filter.ResourcePoolID {
-					continue
-				}
-				resource.ResourcePoolID = expectedPoolID
-			}
-
-			if filter.Location != "" {
-				if host.Location == nil {
-					continue
-				}
-				if locName, ok := host.Location["name"].(string); !ok || locName != filter.Location {
-					continue
-				}
-			}
-		}
-
-		resources = append(resources, resource)
-	}
-
-	// Apply pagination
-	if filter != nil && filter.Limit > 0 {
-		start := filter.Offset
-		if start >= len(resources) {
-			return []*adapter.Resource{}, nil
-		}
-		end := start + filter.Limit
-		if end > len(resources) {
-			end = len(resources)
-		}
-		resources = resources[start:end]
-	}
-
-	a.logger.Debug("listed resources",
-		zap.Int("count", len(resources)),
-	)
-
+	resources := a.convertHostsToResources(ctx, hosts, labels, filter)
+	a.logger.Debug("listed resources", zap.Int("count", len(resources)))
 	return resources, nil
+}
+
+func (a *Adapter) determinePersonality(ctx context.Context, filter *adapter.Filter) string {
+	if filter == nil || filter.ResourceTypeID == "" {
+		return "compute"
+	}
+
+	resourceType, err := a.GetResourceType(ctx, filter.ResourceTypeID)
+	if err != nil {
+		return "compute"
+	}
+
+	if p, ok := resourceType.Extensions["personality"].(string); ok {
+		return p
+	}
+	return "compute"
+}
+
+func (a *Adapter) getLabelsIfNeeded(ctx context.Context, filter *adapter.Filter) ([]Label, error) {
+	if filter == nil || filter.ResourcePoolID == "" {
+		return nil, nil
+	}
+	return a.client.ListLabels(ctx)
+}
+
+func (a *Adapter) convertHostsToResources(ctx context.Context, hosts []IHost, labels []Label, filter *adapter.Filter) []*adapter.Resource {
+	resources := make([]*adapter.Resource, 0, len(hosts))
+	for i := range hosts {
+		resource := a.createResourceFromHost(ctx, &hosts[i], labels, filter)
+		if resource != nil {
+			resources = append(resources, resource)
+		}
+	}
+	return a.applyResourcePagination(resources, filter)
+}
+
+func (a *Adapter) createResourceFromHost(ctx context.Context, host *IHost, labels []Label, filter *adapter.Filter) *adapter.Resource {
+	cpus, _ := a.client.GetHostCPUs(ctx, host.UUID)
+	memories, _ := a.client.GetHostMemory(ctx, host.UUID)
+	disks, _ := a.client.GetHostDisks(ctx, host.UUID)
+
+	resource := MapHostToResource(host, cpus, memories, disks)
+
+	if !a.matchesResourceFilter(resource, host, labels, filter) {
+		return nil
+	}
+
+	return resource
+}
+
+func (a *Adapter) matchesResourceFilter(resource *adapter.Resource, host *IHost, labels []Label, filter *adapter.Filter) bool {
+	if filter == nil {
+		return true
+	}
+
+	if filter.TenantID != "" && resource.TenantID != filter.TenantID {
+		return false
+	}
+
+	if filter.ResourceTypeID != "" && resource.ResourceTypeID != filter.ResourceTypeID {
+		return false
+	}
+
+	if !a.matchesPoolFilter(resource, host, labels, filter) {
+		return false
+	}
+
+	return a.matchesLocationFilter(host, filter)
+}
+
+func (a *Adapter) matchesPoolFilter(resource *adapter.Resource, host *IHost, labels []Label, filter *adapter.Filter) bool {
+	if filter.ResourcePoolID == "" {
+		return true
+	}
+
+	poolName := ExtractPoolNameForHost(host.UUID, labels)
+	expectedPoolID := fmt.Sprintf("starlingx-pool-%s", poolName)
+	if expectedPoolID != filter.ResourcePoolID {
+		return false
+	}
+	resource.ResourcePoolID = expectedPoolID
+	return true
+}
+
+func (a *Adapter) matchesLocationFilter(host *IHost, filter *adapter.Filter) bool {
+	if filter.Location == "" {
+		return true
+	}
+	if host.Location == nil {
+		return false
+	}
+	locName, ok := host.Location["name"].(string)
+	return ok && locName == filter.Location
+}
+
+func (a *Adapter) applyResourcePagination(resources []*adapter.Resource, filter *adapter.Filter) []*adapter.Resource {
+	if filter == nil || filter.Limit <= 0 {
+		return resources
+	}
+
+	start := filter.Offset
+	if start >= len(resources) {
+		return []*adapter.Resource{}
+	}
+
+	end := start + filter.Limit
+	if end > len(resources) {
+		end = len(resources)
+	}
+
+	return resources[start:end]
 }
 
 // GetResource retrieves a specific resource by ID (host UUID).
@@ -107,17 +144,15 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 		return nil, adapter.ErrResourceNotFound
 	}
 
-	// Get hardware inventory
 	cpus, _ := a.client.GetHostCPUs(ctx, host.UUID)
 	memories, _ := a.client.GetHostMemory(ctx, host.UUID)
 	disks, _ := a.client.GetHostDisks(ctx, host.UUID)
 
-	resource := mapHostToResource(host, cpus, memories, disks)
+	resource := MapHostToResource(host, cpus, memories, disks)
 
-	// Get pool assignment
 	labels, err := a.client.ListLabels(ctx)
 	if err == nil {
-		poolName := extractPoolNameForHost(host.UUID, labels)
+		poolName := ExtractPoolNameForHost(host.UUID, labels)
 		if poolName != "" {
 			resource.ResourcePoolID = fmt.Sprintf("starlingx-pool-%s", poolName)
 		}
@@ -133,76 +168,17 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 
 // CreateResource creates a new resource (provisions a new host).
 func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
-	// Validate required fields
-	if resource.ResourceTypeID == "" {
-		return nil, adapter.ErrResourceTypeRequired
-	}
-
-	// Extract personality from resource type
-	resourceType, err := a.GetResourceType(ctx, resource.ResourceTypeID)
+	createReq, err := a.buildCreateRequest(ctx, resource)
 	if err != nil {
-		return nil, fmt.Errorf("invalid resource type: %w", err)
+		return nil, err
 	}
 
-	personality, ok := resourceType.Extensions["personality"].(string)
-	if !ok || personality == "" {
-		return nil, fmt.Errorf("resource type does not specify personality")
-	}
-
-	// Build create request
-	createReq := &CreateHostRequest{
-		Personality: personality,
-	}
-
-	// Extract optional fields from extensions
-	if resource.Extensions != nil {
-		if hostname, ok := resource.Extensions["hostname"].(string); ok {
-			createReq.Hostname = hostname
-		}
-		if location, ok := resource.Extensions["location"].(map[string]interface{}); ok {
-			createReq.Location = location
-		}
-		if mgmtMAC, ok := resource.Extensions["mgmt_mac"].(string); ok {
-			createReq.MgmtMAC = mgmtMAC
-		}
-		if mgmtIP, ok := resource.Extensions["mgmt_ip"].(string); ok {
-			createReq.MgmtIP = mgmtIP
-		}
-	}
-
-	// Create host in StarlingX
 	host, err := a.client.CreateHost(ctx, createReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create host: %w", err)
 	}
 
-	// Get hardware inventory
-	cpus, _ := a.client.GetHostCPUs(ctx, host.UUID)
-	memories, _ := a.client.GetHostMemory(ctx, host.UUID)
-	disks, _ := a.client.GetHostDisks(ctx, host.UUID)
-
-	createdResource := mapHostToResource(host, cpus, memories, disks)
-
-	// Assign to pool if specified
-	if resource.ResourcePoolID != "" {
-		poolName := extractPoolNameFromPoolID(resource.ResourcePoolID)
-		if poolName != "" {
-			labelReq := &CreateLabelRequest{
-				HostUUID:   host.UUID,
-				LabelKey:   "pool",
-				LabelValue: poolName,
-			}
-			if _, err := a.client.CreateLabel(ctx, labelReq); err != nil {
-				a.logger.Warn("failed to assign host to pool",
-					zap.String("host_uuid", host.UUID),
-					zap.String("pool", poolName),
-					zap.Error(err),
-				)
-			} else {
-				createdResource.ResourcePoolID = resource.ResourcePoolID
-			}
-		}
-	}
+	createdResource := a.buildCreatedResource(ctx, host, resource.ResourcePoolID)
 
 	a.logger.Info("created resource",
 		zap.String("id", createdResource.ResourceID),
@@ -213,20 +189,112 @@ func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource
 	return createdResource, nil
 }
 
+func (a *Adapter) buildCreateRequest(ctx context.Context, resource *adapter.Resource) (*CreateHostRequest, error) {
+	if resource.ResourceTypeID == "" {
+		return nil, adapter.ErrResourceTypeRequired
+	}
+
+	resourceType, err := a.GetResourceType(ctx, resource.ResourceTypeID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid resource type: %w", err)
+	}
+
+	personality, ok := resourceType.Extensions["personality"].(string)
+	if !ok || personality == "" {
+		return nil, fmt.Errorf("resource type does not specify personality")
+	}
+
+	createReq := &CreateHostRequest{
+		Personality: personality,
+	}
+
+	a.populateCreateRequestExtensions(createReq, resource.Extensions)
+	return createReq, nil
+}
+
+func (a *Adapter) populateCreateRequestExtensions(req *CreateHostRequest, extensions map[string]interface{}) {
+	if extensions == nil {
+		return
+	}
+
+	if hostname, ok := extensions["hostname"].(string); ok {
+		req.Hostname = hostname
+	}
+	if location, ok := extensions["location"].(map[string]interface{}); ok {
+		req.Location = location
+	}
+	if mgmtMAC, ok := extensions["mgmt_mac"].(string); ok {
+		req.MgmtMAC = mgmtMAC
+	}
+	if mgmtIP, ok := extensions["mgmt_ip"].(string); ok {
+		req.MgmtIP = mgmtIP
+	}
+}
+
+func (a *Adapter) buildCreatedResource(ctx context.Context, host *IHost, poolID string) *adapter.Resource {
+	cpus, _ := a.client.GetHostCPUs(ctx, host.UUID)
+	memories, _ := a.client.GetHostMemory(ctx, host.UUID)
+	disks, _ := a.client.GetHostDisks(ctx, host.UUID)
+
+	createdResource := MapHostToResource(host, cpus, memories, disks)
+
+	if poolID != "" {
+		a.assignHostToPool(ctx, host.UUID, poolID, createdResource)
+	}
+
+	return createdResource
+}
+
+func (a *Adapter) assignHostToPool(ctx context.Context, hostUUID, poolID string, resource *adapter.Resource) {
+	poolName := ExtractPoolNameFromPoolID(poolID)
+	if poolName == "" {
+		return
+	}
+
+	labelReq := &CreateLabelRequest{
+		HostUUID:   hostUUID,
+		LabelKey:   "pool",
+		LabelValue: poolName,
+	}
+
+	if _, err := a.client.CreateLabel(ctx, labelReq); err != nil {
+		a.logger.Warn("failed to assign host to pool",
+			zap.String("host_uuid", hostUUID),
+			zap.String("pool", poolName),
+			zap.Error(err),
+		)
+	} else {
+		resource.ResourcePoolID = poolID
+	}
+}
+
 // UpdateResource updates a resource's mutable fields.
 func (a *Adapter) UpdateResource(ctx context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
-	// Get existing resource
 	existing, err := a.GetResource(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	// Build update request
+	if err := a.updateHostFields(ctx, id, resource, existing); err != nil {
+		return nil, err
+	}
+
+	a.handlePoolReassignment(ctx, id, resource, existing)
+
+	updatedResource, err := a.GetResource(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	a.logger.Info("updated resource", zap.String("id", id))
+	return updatedResource, nil
+}
+
+func (a *Adapter) updateHostFields(ctx context.Context, id string, resource, existing *adapter.Resource) error {
 	updateReq := &UpdateHostRequest{}
 	updated := false
 
 	if resource.Description != "" && resource.Description != existing.Description {
-		// Description is stored in extensions
 		if updateReq.Capabilities == nil {
 			updateReq.Capabilities = make(map[string]interface{})
 		}
@@ -235,93 +303,100 @@ func (a *Adapter) UpdateResource(ctx context.Context, id string, resource *adapt
 	}
 
 	if resource.Extensions != nil {
-		if hostname, ok := resource.Extensions["hostname"].(string); ok {
-			updateReq.Hostname = &hostname
-			updated = true
-		}
-		if location, ok := resource.Extensions["location"].(map[string]interface{}); ok {
-			updateReq.Location = location
-			updated = true
-		}
-		if capabilities, ok := resource.Extensions["capabilities"].(map[string]interface{}); ok {
-			if updateReq.Capabilities == nil {
-				updateReq.Capabilities = make(map[string]interface{})
-			}
-			for k, v := range capabilities {
-				updateReq.Capabilities[k] = v
-			}
-			updated = true
-		}
+		updated = a.applyExtensionUpdates(updateReq, resource.Extensions) || updated
 	}
 
-	if updated {
-		_, err := a.client.UpdateHost(ctx, id, updateReq)
-		if err != nil {
-			return nil, fmt.Errorf("failed to update host: %w", err)
-		}
+	if !updated {
+		return nil
 	}
 
-	// Handle pool reassignment
-	if resource.ResourcePoolID != "" && resource.ResourcePoolID != existing.ResourcePoolID {
-		// Remove old pool labels
-		labels, err := a.client.ListLabels(ctx)
-		if err == nil {
-			for _, label := range labels {
-				if label.HostUUID == id && (label.LabelKey == "pool" || label.LabelKey == "resource-pool") {
-					a.client.DeleteLabel(ctx, label.UUID)
-				}
-			}
-		}
-
-		// Add new pool label
-		poolName := extractPoolNameFromPoolID(resource.ResourcePoolID)
-		if poolName != "" {
-			labelReq := &CreateLabelRequest{
-				HostUUID:   id,
-				LabelKey:   "pool",
-				LabelValue: poolName,
-			}
-			a.client.CreateLabel(ctx, labelReq)
-		}
+	if _, err := a.client.UpdateHost(ctx, id, updateReq); err != nil {
+		return fmt.Errorf("failed to update host: %w", err)
 	}
 
-	// Get updated resource
-	updatedResource, err := a.GetResource(ctx, id)
+	return nil
+}
+
+func (a *Adapter) applyExtensionUpdates(req *UpdateHostRequest, extensions map[string]interface{}) bool {
+	updated := false
+
+	if hostname, ok := extensions["hostname"].(string); ok {
+		req.Hostname = &hostname
+		updated = true
+	}
+
+	if location, ok := extensions["location"].(map[string]interface{}); ok {
+		req.Location = location
+		updated = true
+	}
+
+	if capabilities, ok := extensions["capabilities"].(map[string]interface{}); ok {
+		if req.Capabilities == nil {
+			req.Capabilities = make(map[string]interface{})
+		}
+		for k, v := range capabilities {
+			req.Capabilities[k] = v
+		}
+		updated = true
+	}
+
+	return updated
+}
+
+func (a *Adapter) handlePoolReassignment(ctx context.Context, id string, resource, existing *adapter.Resource) {
+	if resource.ResourcePoolID == "" || resource.ResourcePoolID == existing.ResourcePoolID {
+		return
+	}
+
+	a.removeOldPoolLabels(ctx, id)
+
+	poolName := ExtractPoolNameFromPoolID(resource.ResourcePoolID)
+	if poolName != "" {
+		labelReq := &CreateLabelRequest{
+			HostUUID:   id,
+			LabelKey:   "pool",
+			LabelValue: poolName,
+		}
+		if _, err := a.client.CreateLabel(ctx, labelReq); err != nil {
+			a.logger.Warn("failed to create pool label", zap.Error(err))
+		}
+	}
+}
+
+func (a *Adapter) removeOldPoolLabels(ctx context.Context, hostUUID string) {
+	labels, err := a.client.ListLabels(ctx)
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	a.logger.Info("updated resource",
-		zap.String("id", id),
-	)
-
-	return updatedResource, nil
+	for _, label := range labels {
+		if label.HostUUID == hostUUID && (label.LabelKey == "pool" || label.LabelKey == "resource-pool") {
+			if err := a.client.DeleteLabel(ctx, label.UUID); err != nil {
+				a.logger.Warn("failed to delete old pool label", zap.Error(err))
+			}
+		}
+	}
 }
 
 // DeleteResource deletes a resource (deprovisions a host).
 func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
-	// Verify resource exists
 	_, err := a.GetResource(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	// Delete host
 	if err := a.client.DeleteHost(ctx, id); err != nil {
 		return fmt.Errorf("failed to delete host: %w", err)
 	}
 
-	a.logger.Info("deleted resource",
-		zap.String("id", id),
-	)
-
+	a.logger.Info("deleted resource", zap.String("id", id))
 	return nil
 }
 
 // Helper functions
 
-// extractPoolNameForHost finds the pool name for a given host UUID.
-func extractPoolNameForHost(hostUUID string, labels []Label) string {
+// ExtractPoolNameForHost finds the pool name for a given host UUID.
+func ExtractPoolNameForHost(hostUUID string, labels []Label) string {
 	for _, label := range labels {
 		if label.HostUUID == hostUUID && (label.LabelKey == "pool" || label.LabelKey == "resource-pool") {
 			return label.LabelValue
@@ -330,9 +405,9 @@ func extractPoolNameForHost(hostUUID string, labels []Label) string {
 	return "default"
 }
 
-// extractPoolNameFromPoolID extracts pool name from pool ID.
+// ExtractPoolNameFromPoolID extracts pool name from pool ID.
 // Format: starlingx-pool-{name}
-func extractPoolNameFromPoolID(poolID string) string {
+func ExtractPoolNameFromPoolID(poolID string) string {
 	const prefix = "starlingx-pool-"
 	if len(poolID) > len(prefix) {
 		return poolID[len(prefix):]

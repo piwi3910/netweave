@@ -11,69 +11,76 @@ import (
 
 // ListResourcePools retrieves all resource pools (based on host labels).
 func (a *Adapter) ListResourcePools(ctx context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
-	// Get all compute hosts
 	hosts, err := a.client.ListHosts(ctx, "compute")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list hosts: %w", err)
 	}
 
-	// Get all labels
 	labels, err := a.client.ListLabels(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list labels: %w", err)
 	}
 
-	// Group hosts by pool label
-	poolGroups := groupHostsByPool(hosts, labels)
+	poolGroups := GroupHostsByPool(hosts, labels)
+	pools := a.convertToPools(poolGroups, filter)
 
-	// Convert to resource pools
+	a.logger.Debug("listed resource pools", zap.Int("count", len(pools)))
+	return pools, nil
+}
+
+func (a *Adapter) convertToPools(poolGroups map[string][]IHost, filter *adapter.Filter) []*adapter.ResourcePool {
 	pools := make([]*adapter.ResourcePool, 0, len(poolGroups))
 	for poolName, poolHosts := range poolGroups {
-		pool := mapLabelsToResourcePool(poolName, poolHosts, a.oCloudID)
+		pool := MapLabelsToResourcePool(poolName, poolHosts, a.oCloudID)
 
-		// Apply filters
-		if filter != nil {
-			if filter.TenantID != "" && pool.TenantID != filter.TenantID {
-				continue
-			}
-			if filter.Location != "" && pool.Location != filter.Location {
-				continue
-			}
+		if !a.matchesFilter(pool, filter) {
+			continue
 		}
 
 		pools = append(pools, pool)
 	}
 
-	// Apply pagination
-	if filter != nil && filter.Limit > 0 {
-		start := filter.Offset
-		if start >= len(pools) {
-			return []*adapter.ResourcePool{}, nil
-		}
-		end := start + filter.Limit
-		if end > len(pools) {
-			end = len(pools)
-		}
-		pools = pools[start:end]
+	return a.applyPagination(pools, filter)
+}
+
+func (a *Adapter) matchesFilter(pool *adapter.ResourcePool, filter *adapter.Filter) bool {
+	if filter == nil {
+		return true
+	}
+	if filter.TenantID != "" && pool.TenantID != filter.TenantID {
+		return false
+	}
+	if filter.Location != "" && pool.Location != filter.Location {
+		return false
+	}
+	return true
+}
+
+func (a *Adapter) applyPagination(pools []*adapter.ResourcePool, filter *adapter.Filter) []*adapter.ResourcePool {
+	if filter == nil || filter.Limit <= 0 {
+		return pools
 	}
 
-	a.logger.Debug("listed resource pools",
-		zap.Int("count", len(pools)),
-	)
+	start := filter.Offset
+	if start >= len(pools) {
+		return []*adapter.ResourcePool{}
+	}
 
-	return pools, nil
+	end := start + filter.Limit
+	if end > len(pools) {
+		end = len(pools)
+	}
+
+	return pools[start:end]
 }
 
 // GetResourcePool retrieves a specific resource pool by ID.
 func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
-	// Extract pool name from ID (format: starlingx-pool-{name})
 	poolName := strings.TrimPrefix(id, "starlingx-pool-")
 	if poolName == id {
-		// ID doesn't match expected format
 		return nil, adapter.ErrResourcePoolNotFound
 	}
 
-	// Get all pools and find matching one
 	pools, err := a.ListResourcePools(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -93,7 +100,7 @@ func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.Reso
 }
 
 // CreateResourcePool creates a new resource pool by creating labels.
-func (a *Adapter) CreateResourcePool(ctx context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
 	// In StarlingX, resource pools are implicit based on labels
 	// To "create" a pool, we would need hosts to assign labels to
 	// This is a logical operation - we can't create an empty pool
@@ -111,39 +118,17 @@ func (a *Adapter) CreateResourcePool(ctx context.Context, pool *adapter.Resource
 
 // UpdateResourcePool updates a resource pool (updates labels on hosts).
 func (a *Adapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
-	// Extract pool name from ID
 	poolName := strings.TrimPrefix(id, "starlingx-pool-")
 	if poolName == id {
 		return nil, adapter.ErrResourcePoolNotFound
 	}
 
-	// Verify pool exists
 	existingPool, err := a.GetResourcePool(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	// Update mutable fields
-	if pool.Name != "" {
-		existingPool.Name = pool.Name
-	}
-	if pool.Description != "" {
-		existingPool.Description = pool.Description
-	}
-	if pool.Location != "" {
-		existingPool.Location = pool.Location
-	}
-	if pool.GlobalLocationID != "" {
-		existingPool.GlobalLocationID = pool.GlobalLocationID
-	}
-	if pool.Extensions != nil {
-		if existingPool.Extensions == nil {
-			existingPool.Extensions = make(map[string]interface{})
-		}
-		for k, v := range pool.Extensions {
-			existingPool.Extensions[k] = v
-		}
-	}
+	a.updatePoolFields(existingPool, pool)
 
 	a.logger.Info("resource pool updated",
 		zap.String("pool_id", id),
@@ -153,21 +138,57 @@ func (a *Adapter) UpdateResourcePool(ctx context.Context, id string, pool *adapt
 	return existingPool, nil
 }
 
+func (a *Adapter) updatePoolFields(existing, updated *adapter.ResourcePool) {
+	if updated.Name != "" {
+		existing.Name = updated.Name
+	}
+	if updated.Description != "" {
+		existing.Description = updated.Description
+	}
+	if updated.Location != "" {
+		existing.Location = updated.Location
+	}
+	if updated.GlobalLocationID != "" {
+		existing.GlobalLocationID = updated.GlobalLocationID
+	}
+	if updated.Extensions != nil {
+		if existing.Extensions == nil {
+			existing.Extensions = make(map[string]interface{})
+		}
+		for k, v := range updated.Extensions {
+			existing.Extensions[k] = v
+		}
+	}
+}
+
 // DeleteResourcePool deletes a resource pool (removes labels from hosts).
 func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
-	// Extract pool name
 	poolName := strings.TrimPrefix(id, "starlingx-pool-")
 	if poolName == id {
 		return adapter.ErrResourcePoolNotFound
 	}
 
-	// Get all labels
 	labels, err := a.client.ListLabels(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list labels: %w", err)
 	}
 
-	// Find and delete labels for this pool
+	deletedCount := a.deletePoolLabels(ctx, labels, poolName)
+
+	if deletedCount == 0 {
+		return adapter.ErrResourcePoolNotFound
+	}
+
+	a.logger.Info("resource pool deleted",
+		zap.String("pool_id", id),
+		zap.String("pool_name", poolName),
+		zap.Int("labels_deleted", deletedCount),
+	)
+
+	return nil
+}
+
+func (a *Adapter) deletePoolLabels(ctx context.Context, labels []Label, poolName string) int {
 	deletedCount := 0
 	for _, label := range labels {
 		if (label.LabelKey == "pool" || label.LabelKey == "resource-pool") && label.LabelValue == poolName {
@@ -181,16 +202,5 @@ func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
 			deletedCount++
 		}
 	}
-
-	if deletedCount == 0 {
-		return adapter.ErrResourcePoolNotFound
-	}
-
-	a.logger.Info("resource pool deleted",
-		zap.String("pool_id", id),
-		zap.String("pool_name", poolName),
-		zap.Int("labels_deleted", deletedCount),
-	)
-
-	return nil
+	return deletedCount
 }

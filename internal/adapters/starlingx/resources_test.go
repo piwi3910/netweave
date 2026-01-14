@@ -1,17 +1,17 @@
-package starlingx
+package starlingx_test
 
 import (
 	"context"
 	"testing"
+	"github.com/piwi3910/netweave/internal/adapters/starlingx"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/piwi3910/netweave/internal/adapter"
 )
 
 func TestListResources(t *testing.T) {
-	hosts := []IHost{
+	hosts := []starlingx.IHost{
 		{
 			UUID:        "host-1",
 			Hostname:    "compute-0",
@@ -27,29 +27,29 @@ func TestListResources(t *testing.T) {
 		},
 	}
 
-	labels := []Label{
+	labels := []starlingx.Label{
 		{UUID: "label-1", HostUUID: "host-1", LabelKey: "pool", LabelValue: "pool-a"},
 	}
 
-	cpus := map[string][]ICPU{
+	cpus := map[string][]starlingx.ICPU{
 		"host-1": {
 			{UUID: "cpu-1", CPU: 0, HostUUID: "host-1"},
 		},
 	}
 
-	memory := map[string][]IMemory{
+	memory := map[string][]starlingx.IMemory{
 		"host-1": {
 			{UUID: "mem-1", MemTotalMiB: 131072, HostUUID: "host-1"},
 		},
 	}
 
-	disks := map[string][]IDisk{
+	disks := map[string][]starlingx.IDisk{
 		"host-1": {
 			{UUID: "disk-1", SizeMiB: 476940, HostUUID: "host-1"},
 		},
 	}
 
-	adp, cleanup := createTestAdapter(t, &mockServerConfig{
+	adp, cleanup := starlingx.CreateTestAdapter(t, &starlingx.MockServerConfig{
 		Hosts:  hosts,
 		Labels: labels,
 		CPUs:   cpus,
@@ -100,7 +100,7 @@ func TestListResources(t *testing.T) {
 }
 
 func TestGetResource(t *testing.T) {
-	hosts := []IHost{
+	hosts := []starlingx.IHost{
 		{
 			UUID:        "host-1",
 			Hostname:    "compute-0",
@@ -108,15 +108,15 @@ func TestGetResource(t *testing.T) {
 		},
 	}
 
-	adp, cleanup := createTestAdapter(t, &mockServerConfig{
+	adp, cleanup := starlingx.CreateTestAdapter(t, &starlingx.MockServerConfig{
 		Hosts: hosts,
-		CPUs: map[string][]ICPU{
+		CPUs: map[string][]starlingx.ICPU{
 			"host-1": {},
 		},
-		Memory: map[string][]IMemory{
+		Memory: map[string][]starlingx.IMemory{
 			"host-1": {},
 		},
-		Disks: map[string][]IDisk{
+		Disks: map[string][]starlingx.IDisk{
 			"host-1": {},
 		},
 	})

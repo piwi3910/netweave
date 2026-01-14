@@ -7,8 +7,8 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 )
 
-// mapHostToResource converts a StarlingX IHost to an O2-IMS Resource.
-func mapHostToResource(host *IHost, cpus []ICPU, memories []IMemory, disks []IDisk) *adapter.Resource {
+// MapHostToResource converts a StarlingX IHost to an O2-IMS Resource.
+func MapHostToResource(host *IHost, cpus []ICPU, memories []IMemory, disks []IDisk) *adapter.Resource {
 	// Build extensions with hardware inventory
 	extensions := make(map[string]interface{})
 	extensions["hostname"] = host.Hostname
@@ -86,14 +86,14 @@ func mapHostToResource(host *IHost, cpus []ICPU, memories []IMemory, disks []IDi
 
 	return &adapter.Resource{
 		ResourceID:     host.UUID,
-		ResourceTypeID: generateResourceTypeID(host),
+		ResourceTypeID: GenerateResourceTypeID(host),
 		Description:    description,
 		Extensions:     extensions,
 	}
 }
 
-// generateResourceTypeID creates a resource type ID based on host personality and capabilities.
-func generateResourceTypeID(host *IHost) string {
+// GenerateResourceTypeID creates a resource type ID based on host personality and capabilities.
+func GenerateResourceTypeID(host *IHost) string {
 	// Base type on personality
 	typeID := fmt.Sprintf("starlingx-%s", strings.ToLower(host.Personality))
 
@@ -105,8 +105,8 @@ func generateResourceTypeID(host *IHost) string {
 	return typeID
 }
 
-// mapSystemToDeploymentManager converts a StarlingX ISystem to an O2-IMS DeploymentManager.
-func mapSystemToDeploymentManager(system *ISystem, deploymentManagerID, oCloudID, serviceURI string) *adapter.DeploymentManager {
+// MapSystemToDeploymentManager converts a StarlingX ISystem to an O2-IMS DeploymentManager.
+func MapSystemToDeploymentManager(system *ISystem, deploymentManagerID, oCloudID, serviceURI string) *adapter.DeploymentManager {
 	extensions := make(map[string]interface{})
 	extensions["system_type"] = system.SystemType
 	extensions["system_mode"] = system.SystemMode
@@ -157,9 +157,9 @@ func mapSystemToDeploymentManager(system *ISystem, deploymentManagerID, oCloudID
 	}
 }
 
-// extractPoolNameFromLabels extracts resource pool name from host labels.
+// ExtractPoolNameFromLabels extracts resource pool name from host labels.
 // Looks for labels with key "pool" or "resource-pool".
-func extractPoolNameFromLabels(labels []Label) string {
+func ExtractPoolNameFromLabels(labels []Label) string {
 	for _, label := range labels {
 		if label.LabelKey == "pool" || label.LabelKey == "resource-pool" {
 			return label.LabelValue
@@ -168,8 +168,8 @@ func extractPoolNameFromLabels(labels []Label) string {
 	return ""
 }
 
-// groupHostsByPool groups hosts by their pool label.
-func groupHostsByPool(hosts []IHost, allLabels []Label) map[string][]IHost {
+// GroupHostsByPool groups hosts by their pool label.
+func GroupHostsByPool(hosts []IHost, allLabels []Label) map[string][]IHost {
 	// Build host UUID to labels mapping
 	hostLabels := make(map[string][]Label)
 	for _, label := range allLabels {
@@ -182,7 +182,7 @@ func groupHostsByPool(hosts []IHost, allLabels []Label) map[string][]IHost {
 
 	for _, host := range hosts {
 		labels := hostLabels[host.UUID]
-		poolName := extractPoolNameFromLabels(labels)
+		poolName := ExtractPoolNameFromLabels(labels)
 		if poolName == "" {
 			poolName = defaultPool
 		}
@@ -192,8 +192,8 @@ func groupHostsByPool(hosts []IHost, allLabels []Label) map[string][]IHost {
 	return poolGroups
 }
 
-// mapLabelsToResourcePool creates an O2-IMS ResourcePool from grouped hosts and labels.
-func mapLabelsToResourcePool(poolName string, hosts []IHost, oCloudID string) *adapter.ResourcePool {
+// MapLabelsToResourcePool creates an O2-IMS ResourcePool from grouped hosts and labels.
+func MapLabelsToResourcePool(poolName string, hosts []IHost, oCloudID string) *adapter.ResourcePool {
 	extensions := make(map[string]interface{})
 	extensions["host_count"] = len(hosts)
 
@@ -233,12 +233,12 @@ func mapLabelsToResourcePool(poolName string, hosts []IHost, oCloudID string) *a
 	}
 }
 
-// generateResourceTypesFromHosts creates O2-IMS ResourceTypes based on host personalities and capabilities.
-func generateResourceTypesFromHosts(hosts []IHost) []*adapter.ResourceType {
+// GenerateResourceTypesFromHosts creates O2-IMS ResourceTypes based on host personalities and capabilities.
+func GenerateResourceTypesFromHosts(hosts []IHost) []*adapter.ResourceType {
 	typeMap := make(map[string]*adapter.ResourceType)
 
 	for _, host := range hosts {
-		typeID := generateResourceTypeID(&host)
+		typeID := GenerateResourceTypeID(&host)
 
 		if _, exists := typeMap[typeID]; !exists {
 			// Extract CPU model if available from first host of this type
