@@ -108,6 +108,7 @@ graph TB
 | **[TLS/mTLS](tls-mtls.md)** | TLS 1.3 configuration, certificate management, mTLS setup | Platform Engineers, Operators |
 | **[Authentication](authentication.md)** | Client certificates, tenant identification | Integrators, Developers |
 | **[Authorization](authorization.md)** | RBAC model, roles, permissions, tenant isolation | Security Engineers, Architects |
+| **[Multi-Tenancy](multi-tenancy.md)** | Tenant isolation, resource segregation, quota management | Platform Engineers, Architects |
 | **[Hardening](hardening.md)** | Production hardening checklist, security best practices | Operators, DevOps |
 | **[Webhooks](webhooks.md)** | HMAC signature verification, webhook security | Integrators, SMO Developers |
 | **[Supply Chain](supply-chain.md)** | Dependency scanning, SBOM, CI/CD security | DevOps, Security Teams |
@@ -122,6 +123,7 @@ graph TB
 **Integration:**
 - 🔑 [Authentication Guide](authentication.md) - Implement client authentication
 - 🛡️ [Authorization Guide](authorization.md) - Configure RBAC and permissions
+- 🏢 [Multi-Tenancy Guide](multi-tenancy.md) - Tenant isolation and resource segregation
 - 🔔 [Webhook Security](webhooks.md) - Verify webhook notifications
 
 **Operations:**
