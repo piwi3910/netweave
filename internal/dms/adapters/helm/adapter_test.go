@@ -1891,9 +1891,9 @@ func TestHelmAdapter_TestBuildPackageList(t *testing.T) {
 			name: "chart with no versions skipped",
 			index: &repo.IndexFile{
 				Entries: map[string]repo.ChartVersions{
-					"nginx":       {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
-					"emptyChart":  {},
-					"postgresql":  {{Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"}, Created: time.Now()}},
+					"nginx":      {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
+					"emptyChart": {},
+					"postgresql": {{Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"}, Created: time.Now()}},
 				},
 			},
 			filter:   nil,
