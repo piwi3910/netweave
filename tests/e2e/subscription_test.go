@@ -424,7 +424,11 @@ func TestConcurrentSubscriptions(t *testing.T) {
 				mu.Unlock()
 				return
 			}
+
+			// Thread-safe write to shared webhooks slice
+			mu.Lock()
 			webhooks[idx] = webhook
+			mu.Unlock()
 
 			// Create subscription
 			subscription := map[string]any{

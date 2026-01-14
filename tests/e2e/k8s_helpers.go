@@ -47,9 +47,10 @@ func (h *K8sResourceHelper) CreateTestNamespace(ctx context.Context, name string
 }
 
 // DeleteNamespace deletes a namespace and waits for termination.
+// Ignores NotFound errors (namespace already deleted).
 func (h *K8sResourceHelper) DeleteNamespace(ctx context.Context, name string) error {
 	err := h.client.CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
-	if err != nil {
+	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete namespace %s: %w", name, err)
 	}
 
@@ -139,9 +140,10 @@ func (h *K8sResourceHelper) UpdatePodLabels(ctx context.Context, namespace, name
 }
 
 // DeletePod deletes a pod and waits for termination.
+// Ignores NotFound errors (pod already deleted).
 func (h *K8sResourceHelper) DeletePod(ctx context.Context, namespace, name string) error {
 	err := h.client.CoreV1().Pods(namespace).Delete(ctx, name, metav1.DeleteOptions{})
-	if err != nil {
+	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete pod %s/%s: %w", namespace, name, err)
 	}
 
@@ -199,6 +201,7 @@ func (h *K8sResourceHelper) GetPod(ctx context.Context, namespace, name string) 
 }
 
 // CleanupTestResources deletes all test resources in the given namespace.
+// Ignores NotFound errors (resources already deleted).
 func (h *K8sResourceHelper) CleanupTestResources(ctx context.Context, namespace string) error {
 	// Delete all pods with test label
 	err := h.client.CoreV1().Pods(namespace).DeleteCollection(
@@ -208,7 +211,7 @@ func (h *K8sResourceHelper) CleanupTestResources(ctx context.Context, namespace 
 			LabelSelector: "test=e2e",
 		},
 	)
-	if err != nil {
+	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to cleanup test pods in %s: %w", namespace, err)
 	}
 
