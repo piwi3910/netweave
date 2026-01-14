@@ -299,6 +299,47 @@ func TestSubscriptions(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "subscription not found")
 	})
+
+	t.Run("UpdateSubscription", func(t *testing.T) {
+		// First create a subscription to update
+		sub := &adapter.Subscription{
+			SubscriptionID: "update-test-id",
+			Callback:       "https://example.com/callback",
+		}
+		_, err := adp.CreateSubscription(ctx, sub)
+		require.NoError(t, err)
+
+		// Now update it
+		updateSub := &adapter.Subscription{
+			SubscriptionID: "update-test-id",
+			Callback:       "https://example.com/new-callback",
+			Filter: &adapter.SubscriptionFilter{
+				ResourceTypeID: "compute-m5.large",
+			},
+		}
+		updated, err := adp.UpdateSubscription(ctx, "update-test-id", updateSub)
+		require.NoError(t, err)
+		require.NotNil(t, updated)
+		assert.Equal(t, "https://example.com/new-callback", updated.Callback)
+		assert.NotNil(t, updated.Filter)
+		assert.Equal(t, "compute-m5.large", updated.Filter.ResourceTypeID)
+	})
+
+	t.Run("UpdateSubscription not found", func(t *testing.T) {
+		sub := &adapter.Subscription{
+			Callback: "https://example.com/callback",
+		}
+		_, err := adp.UpdateSubscription(ctx, "nonexistent", sub)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "subscription not found")
+	})
+
+	t.Run("UpdateSubscription without callback", func(t *testing.T) {
+		sub := &adapter.Subscription{}
+		_, err := adp.UpdateSubscription(ctx, "update-test-id", sub)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "callback URL is required")
+	})
 }
 
 // TestClose tests adapter cleanup.
