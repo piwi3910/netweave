@@ -128,6 +128,7 @@ const (
 - [Helm Adapter](helm.md) - Helm chart deployment
 - [GitOps Adapters](gitops.md) - ArgoCD, Flux CD
 - [Orchestrator Adapters](orchestrators.md) - ONAP-LCM, OSM-LCM
+- [Lifecycle Operations](lifecycle-operations.md) - Scale, rollback, and upgrade operations
 
 ## See Also
 
