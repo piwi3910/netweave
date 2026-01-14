@@ -111,7 +111,7 @@ func TestKubernetesAdapter_ListResources_Integration(t *testing.T) {
 			assert.NotNil(t, res.Extensions, "resource should have extensions")
 
 			// Verify Kubernetes-specific extensions
-			assert.Contains(t, res.Extensions, "nodeName", "should include node name")
+			assert.Contains(t, res.Extensions, "kubernetes.io/hostname", "should include node hostname")
 		}
 	})
 
@@ -194,7 +194,7 @@ func TestKubernetesAdapter_ResourceFields_Integration(t *testing.T) {
 
 	// Verify extensions contain Kubernetes-specific data
 	assert.NotEmpty(t, res.Extensions, "Extensions should contain metadata")
-	assert.Contains(t, res.Extensions, "nodeName", "should include node name")
+	assert.Contains(t, res.Extensions, "kubernetes.io/hostname", "should include node hostname")
 }
 
 // TestKubernetesAdapter_ResourceConsistency_Integration verifies that
