@@ -171,6 +171,11 @@ func (s *Server) setupV2Routes(v2 *gin.RouterGroup) {
 		batch.POST("/resourcePools", s.withPermission("resourcePools:create", s.batchHandler.BatchCreateResourcePools))
 		batch.POST("/resourcePools/delete", s.withPermission("resourcePools:delete", s.batchHandler.BatchDeleteResourcePools))
 		batch.POST("/resourcePools/update", s.withPermission("resourcePools:update", s.batchHandler.BatchUpdateResourcePools))
+
+		// Batch resource operations
+		batch.POST("/resources", s.withPermission("resources:create", s.batchHandler.BatchCreateResources))
+		batch.POST("/resources/delete", s.withPermission("resources:delete", s.batchHandler.BatchDeleteResources))
+		batch.POST("/resources/update", s.withPermission("resources:update", s.batchHandler.BatchUpdateResources))
 	}
 
 	// V2 API info with enhanced features (no auth required)
@@ -240,6 +245,11 @@ func (s *Server) setupV3Routes(v3 *gin.RouterGroup) {
 		batch.POST("/resourcePools", s.withPermission("resourcePools:create", s.batchHandler.BatchCreateResourcePools))
 		batch.POST("/resourcePools/delete", s.withPermission("resourcePools:delete", s.batchHandler.BatchDeleteResourcePools))
 		batch.POST("/resourcePools/update", s.withPermission("resourcePools:update", s.batchHandler.BatchUpdateResourcePools))
+
+		// Resource batch operations
+		batch.POST("/resources", s.withPermission("resources:create", s.batchHandler.BatchCreateResources))
+		batch.POST("/resources/delete", s.withPermission("resources:delete", s.batchHandler.BatchDeleteResources))
+		batch.POST("/resources/update", s.withPermission("resources:update", s.batchHandler.BatchUpdateResources))
 	}
 
 	// Tenant management (v3 feature)

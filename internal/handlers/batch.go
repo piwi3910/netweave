@@ -1167,3 +1167,321 @@ func (h *BatchHandler) rollbackResourcePools(ctx context.Context, ids []string) 
 	}
 	return rollbackFailures
 }
+
+// BatchResourceCreate represents a batch resource creation request.
+type BatchResourceCreate struct {
+	// Resources is the list of resources to create.
+	Resources []models.Resource `json:"resources" binding:"required,min=1,max=100"`
+	// Atomic indicates whether all operations should succeed or fail together.
+	Atomic bool `json:"atomic,omitempty"`
+}
+
+// BatchResourceDelete represents a batch resource deletion request.
+type BatchResourceDelete struct {
+	// ResourceIDs is the list of resource IDs to delete.
+	ResourceIDs []string `json:"resourceIds" binding:"required,min=1,max=100"`
+	// Atomic indicates whether all operations should succeed or fail together.
+	Atomic bool `json:"atomic,omitempty"`
+}
+
+// BatchResourceUpdate represents a batch resource update request.
+type BatchResourceUpdate struct {
+	// Updates is the list of resource updates to perform.
+	Updates []ResourceUpdateItem `json:"updates" binding:"required,min=1,max=100"`
+	// Atomic indicates whether all operations should succeed or fail together.
+	Atomic bool `json:"atomic,omitempty"`
+}
+
+// ResourceUpdateItem represents a single resource update in a batch.
+type ResourceUpdateItem struct {
+	// ResourceID is the ID of the resource to update.
+	ResourceID string `json:"resourceId" binding:"required"`
+	// Update contains the fields to update (partial updates allowed).
+	Update models.Resource `json:"update"`
+}
+
+// BatchCreateResources handles POST /o2ims/v2/batch/resources.
+// Creates multiple resources in a single request.
+func (h *BatchHandler) BatchCreateResources(c *gin.Context) {
+	var req BatchResourceCreate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleBindError(c, err)
+		return
+	}
+
+	config := batchConfig{
+		operationName: "create_resources",
+		atomic:        req.Atomic,
+		itemCount:     len(req.Resources),
+		useWorkerPool: true,
+	}
+
+	operation := func(ctx context.Context, idx int) (BatchResult, string) {
+		return h.executeResourceCreate(ctx, req.Resources[idx])
+	}
+
+	h.executeBatch(c, config, operation, h.rollbackResources)
+}
+
+// executeResourceCreate processes a single resource creation.
+func (h *BatchHandler) executeResourceCreate(
+	ctx context.Context,
+	resource models.Resource,
+) (BatchResult, string) {
+	result := h.createSingleResource(ctx, resource)
+	var createdID string
+	if result.Success {
+		if res, ok := result.Data.(*models.Resource); ok {
+			createdID = res.ResourceID
+		}
+	}
+	return result, createdID
+}
+
+// createSingleResource creates a single resource and returns the result.
+func (h *BatchHandler) createSingleResource(
+	ctx context.Context,
+	resource models.Resource,
+) BatchResult {
+	adapterResource := &adapter.Resource{
+		ResourceID:     resource.ResourceID,
+		ResourceTypeID: resource.ResourceTypeID,
+		ResourcePoolID: resource.ResourcePoolID,
+		Description:    resource.Description,
+		GlobalAssetID:  resource.GlobalAssetID,
+		Extensions:     resource.Extensions,
+	}
+
+	createdResource, err := h.adapter.CreateResource(ctx, adapterResource)
+	if err != nil {
+		h.logger.Error("failed to create resource",
+			zap.String("resource_id", resource.ResourceID),
+			zap.Error(err),
+		)
+		return BatchResult{
+			Status:  http.StatusInternalServerError,
+			Success: false,
+			Error: &models.ErrorResponse{
+				Error:   "InternalError",
+				Message: "Failed to create resource",
+				Code:    http.StatusInternalServerError,
+			},
+		}
+	}
+
+	resultResource := &models.Resource{
+		ResourceID:     createdResource.ResourceID,
+		ResourceTypeID: createdResource.ResourceTypeID,
+		ResourcePoolID: createdResource.ResourcePoolID,
+		Description:    createdResource.Description,
+		GlobalAssetID:  createdResource.GlobalAssetID,
+		Extensions:     createdResource.Extensions,
+	}
+
+	return BatchResult{
+		Status:  http.StatusCreated,
+		Success: true,
+		Data:    resultResource,
+	}
+}
+
+// BatchDeleteResources handles POST /o2ims/v2/batch/resources/delete.
+// Deletes multiple resources in a single request.
+func (h *BatchHandler) BatchDeleteResources(c *gin.Context) {
+	var req BatchResourceDelete
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleBindError(c, err)
+		return
+	}
+
+	// Pre-validation for atomic operations
+	if req.Atomic && !h.validateResourcesExist(c, req.ResourceIDs) {
+		return
+	}
+
+	config := batchConfig{
+		operationName: "delete_resources",
+		atomic:        req.Atomic,
+		itemCount:     len(req.ResourceIDs),
+		useWorkerPool: false,
+	}
+
+	operation := func(ctx context.Context, idx int) (BatchResult, string) {
+		return h.deleteResource(ctx, req.ResourceIDs[idx])
+	}
+
+	h.executeBatch(c, config, operation, nil)
+}
+
+// deleteResource deletes a single resource.
+func (h *BatchHandler) deleteResource(
+	ctx context.Context,
+	id string,
+) (BatchResult, string) {
+	err := h.adapter.DeleteResource(ctx, id)
+	if err != nil {
+		return BatchResult{
+			Status:  http.StatusNotFound,
+			Success: false,
+			Error: &models.ErrorResponse{
+				Error:   "NotFound",
+				Message: "Resource not found: " + id,
+				Code:    http.StatusNotFound,
+			},
+		}, ""
+	}
+	return BatchResult{
+		Status:  http.StatusNoContent,
+		Success: true,
+	}, ""
+}
+
+// validateResourcesExist validates all resources exist for atomic operations.
+func (h *BatchHandler) validateResourcesExist(
+	c *gin.Context,
+	ids []string,
+) bool {
+	ctx := c.Request.Context()
+	for _, id := range ids {
+		if _, err := h.adapter.GetResource(ctx, id); err != nil {
+			h.sendAtomicValidationFailure(c, len(ids), "some resources not found")
+			return false
+		}
+	}
+	return true
+}
+
+// BatchUpdateResources handles POST /o2ims/v2/batch/resources/update.
+// Updates multiple resources in a single request.
+func (h *BatchHandler) BatchUpdateResources(c *gin.Context) {
+	var req BatchResourceUpdate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleBindError(c, err)
+		return
+	}
+
+	// Pre-validation for atomic operations
+	if req.Atomic && !h.validateResourceUpdatesExist(c, req.Updates) {
+		return
+	}
+
+	config := batchConfig{
+		operationName: "update_resources",
+		atomic:        req.Atomic,
+		itemCount:     len(req.Updates),
+		useWorkerPool: true,
+	}
+
+	operation := func(ctx context.Context, idx int) (BatchResult, string) {
+		return h.executeResourceUpdate(ctx, req.Updates[idx])
+	}
+
+	h.executeBatch(c, config, operation, nil)
+}
+
+// executeResourceUpdate processes a single resource update.
+func (h *BatchHandler) executeResourceUpdate(
+	ctx context.Context,
+	item ResourceUpdateItem,
+) (BatchResult, string) {
+	result := h.updateSingleResource(ctx, item.ResourceID, item.Update)
+	return result, ""
+}
+
+// updateSingleResource updates a single resource.
+func (h *BatchHandler) updateSingleResource(
+	ctx context.Context,
+	id string,
+	update models.Resource,
+) BatchResult {
+	// Get existing resource
+	existing, err := h.adapter.GetResource(ctx, id)
+	if err != nil {
+		h.logger.Error("failed to get resource for update",
+			zap.String("resourceID", id),
+			zap.Error(err))
+		return BatchResult{
+			Status:  http.StatusNotFound,
+			Success: false,
+			Error: &models.ErrorResponse{
+				Error:   "NotFound",
+				Message: fmt.Sprintf("resource %s not found", id),
+				Code:    http.StatusNotFound,
+			},
+		}
+	}
+
+	// Apply updates to existing resource (only mutable fields)
+	if update.Description != "" {
+		existing.Description = update.Description
+	}
+	if update.GlobalAssetID != "" {
+		existing.GlobalAssetID = update.GlobalAssetID
+	}
+	if len(update.Extensions) > 0 {
+		existing.Extensions = update.Extensions
+	}
+
+	// Update via adapter
+	updatedResource, err := h.adapter.UpdateResource(ctx, id, existing)
+	if err != nil {
+		h.logger.Error("failed to update resource",
+			zap.String("resourceID", id),
+			zap.Error(err))
+		return BatchResult{
+			Status:  http.StatusInternalServerError,
+			Success: false,
+			Error: &models.ErrorResponse{
+				Error:   "InternalError",
+				Message: fmt.Sprintf("failed to update resource: %v", err),
+				Code:    http.StatusInternalServerError,
+			},
+		}
+	}
+
+	h.logger.Info("resource updated",
+		zap.String("resourceID", id))
+
+	return BatchResult{
+		Status:  http.StatusOK,
+		Success: true,
+		Data:    updatedResource,
+	}
+}
+
+// validateResourceUpdatesExist validates all resources exist for atomic operations.
+func (h *BatchHandler) validateResourceUpdatesExist(
+	c *gin.Context,
+	updates []ResourceUpdateItem,
+) bool {
+	ctx := c.Request.Context()
+	for _, item := range updates {
+		if _, err := h.adapter.GetResource(ctx, item.ResourceID); err != nil {
+			h.sendAtomicValidationFailure(c, len(updates), "some resources not found")
+			return false
+		}
+	}
+	return true
+}
+
+// rollbackResources deletes the given resource IDs.
+// Returns the number of failed rollback operations.
+func (h *BatchHandler) rollbackResources(ctx context.Context, ids []string) int {
+	var rollbackFailures int
+	for _, id := range ids {
+		if err := h.adapter.DeleteResource(ctx, id); err != nil {
+			rollbackFailures++
+			h.logger.Error("failed to rollback resource",
+				zap.String("resource_id", id),
+				zap.Error(err),
+			)
+		}
+	}
+	if rollbackFailures > 0 {
+		h.logger.Warn("partial rollback failure",
+			zap.Int("total_rollbacks", len(ids)),
+			zap.Int("failed_rollbacks", rollbackFailures),
+		)
+	}
+	return rollbackFailures
+}
