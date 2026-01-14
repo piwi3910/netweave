@@ -1,7 +1,10 @@
 package azure_test
 
 import (
+	"context"
 	"testing"
+
+	azureadapter "github.com/piwi3910/netweave/internal/adapters/azure"
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/stretchr/testify/assert"
@@ -183,6 +186,210 @@ func TestParseAzureResourceID(t *testing.T) {
 				}
 			} else if !tt.expectedError {
 				t.Errorf("Expected valid input but got invalid prefix")
+			}
+		})
+	}
+}
+
+// TestGetResource tests the GetResource method.
+func TestGetResource(t *testing.T) {
+	tests := []struct {
+		name       string
+		resourceID string
+		wantErr    bool
+	}{
+		{
+			name:       "valid VM resource ID",
+			resourceID: "azure-vm-rg1-vm1",
+			wantErr:    true, // Requires Azure credentials
+		},
+		{
+			name:       "empty resource ID",
+			resourceID: "",
+			wantErr:    true,
+		},
+		{
+			name:       "invalid resource ID format",
+			resourceID: "invalid-id",
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := azureadapter.New(&azureadapter.Config{
+				Location:       "eastus",
+				OCloudID:       "test-cloud",
+				SubscriptionID: "test-subscription-id",
+				TenantID:       "test-tenant-id",
+			})
+			require.NoError(t, err)
+
+			resource, err := adp.GetResource(context.Background(), tt.resourceID)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, resource)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, resource)
+			}
+		})
+	}
+}
+
+// TestCreateResource tests the CreateResource method.
+func TestCreateResource(t *testing.T) {
+	tests := []struct {
+		name     string
+		resource *adapter.Resource
+		wantErr  bool
+	}{
+		{
+			name: "missing resource type ID",
+			resource: &adapter.Resource{
+				Description: "Test VM",
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing resource group",
+			resource: &adapter.Resource{
+				ResourceTypeID: "azure-vm-size-Standard_D2s_v3",
+				Description:    "Test VM",
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid resource",
+			resource: &adapter.Resource{
+				ResourceTypeID: "azure-vm-size-Standard_D2s_v3",
+				ResourcePoolID: "azure-rg-test-rg",
+				Description:    "Test VM",
+				Extensions: map[string]interface{}{
+					"azure.imagePublisher": "Canonical",
+					"azure.imageOffer":     "UbuntuServer",
+					"azure.imageSku":       "18.04-LTS",
+					"azure.imageVersion":   "latest",
+				},
+			},
+			wantErr: true, // Requires Azure credentials
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := azureadapter.New(&azureadapter.Config{
+				Location:       "eastus",
+				OCloudID:       "test-cloud",
+				SubscriptionID: "test-subscription-id",
+				TenantID:       "test-tenant-id",
+			})
+			require.NoError(t, err)
+
+			created, err := adp.CreateResource(context.Background(), tt.resource)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, created)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, created)
+				assert.NotEmpty(t, created.ResourceID)
+			}
+		})
+	}
+}
+
+// TestUpdateResource tests the UpdateResource method.
+func TestUpdateResource(t *testing.T) {
+	tests := []struct {
+		name       string
+		resourceID string
+		resource   *adapter.Resource
+		wantErr    bool
+	}{
+		{
+			name:       "empty resource ID",
+			resourceID: "",
+			resource: &adapter.Resource{
+				Description: "Updated VM",
+			},
+			wantErr: true,
+		},
+		{
+			name:       "update VM tags",
+			resourceID: "azure-vm-rg1-vm1",
+			resource: &adapter.Resource{
+				Description: "Updated VM description",
+			},
+			wantErr: true, // Requires Azure credentials
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := azureadapter.New(&azureadapter.Config{
+				Location:       "eastus",
+				OCloudID:       "test-cloud",
+				SubscriptionID: "test-subscription-id",
+				TenantID:       "test-tenant-id",
+			})
+			require.NoError(t, err)
+
+			updated, err := adp.UpdateResource(context.Background(), tt.resourceID, tt.resource)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, updated)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, updated)
+			}
+		})
+	}
+}
+
+// TestDeleteResource tests the DeleteResource method.
+func TestDeleteResource(t *testing.T) {
+	tests := []struct {
+		name       string
+		resourceID string
+		wantErr    bool
+	}{
+		{
+			name:       "empty resource ID",
+			resourceID: "",
+			wantErr:    true,
+		},
+		{
+			name:       "valid VM resource ID",
+			resourceID: "azure-vm-rg1-vm1",
+			wantErr:    true, // Requires Azure credentials
+		},
+		{
+			name:       "invalid resource ID format",
+			resourceID: "invalid-id",
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp, err := azureadapter.New(&azureadapter.Config{
+				Location:       "eastus",
+				OCloudID:       "test-cloud",
+				SubscriptionID: "test-subscription-id",
+				TenantID:       "test-tenant-id",
+			})
+			require.NoError(t, err)
+
+			err = adp.DeleteResource(context.Background(), tt.resourceID)
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
