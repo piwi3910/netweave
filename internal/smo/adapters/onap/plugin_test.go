@@ -19,7 +19,7 @@ func TestNewPlugin(t *testing.T) {
 	plugin := onap.NewPlugin(logger)
 
 	assert.NotNil(t, plugin)
-	assert.Equal(t, "onap.onap", plugin.Name)
+	assert.Equal(t, "onap", plugin.Name)
 	assert.Equal(t, "1.0.0", plugin.Version)
 	assert.False(t, plugin.Closed)
 }
@@ -30,7 +30,7 @@ func TestPluginMetadata(t *testing.T) {
 
 	metadata := plugin.Metadata()
 
-	assert.Equal(t, "onap.onap", metadata.Name)
+	assert.Equal(t, "onap", metadata.Name)
 	assert.Equal(t, "1.0.0", metadata.Version)
 	assert.NotEmpty(t, metadata.Description)
 	assert.NotEmpty(t, metadata.Vendor)
