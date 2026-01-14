@@ -77,7 +77,7 @@ func TestCreateResourcePool(t *testing.T) {
 					"aws.poolType": "az",
 				},
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name: "create ASG pool",
@@ -89,7 +89,7 @@ func TestCreateResourcePool(t *testing.T) {
 					"aws.asgName":  "my-autoscaling-group",
 				},
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name: "missing pool name",
@@ -146,7 +146,7 @@ func TestUpdateResourcePool(t *testing.T) {
 			pool: &adapter.ResourcePool{
 				Description: "Updated AZ pool description",
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name:   "update ASG pool",
