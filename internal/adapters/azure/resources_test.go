@@ -222,6 +222,8 @@ func TestGetResource(t *testing.T) {
 				OCloudID:       "test-cloud",
 				SubscriptionID: "test-subscription-id",
 				TenantID:       "test-tenant-id",
+				ClientID:       "test-client-id",
+				ClientSecret:   "test-client-secret",
 			})
 			require.NoError(t, err)
 
@@ -284,6 +286,8 @@ func TestCreateResource(t *testing.T) {
 				OCloudID:       "test-cloud",
 				SubscriptionID: "test-subscription-id",
 				TenantID:       "test-tenant-id",
+				ClientID:       "test-client-id",
+				ClientSecret:   "test-client-secret",
 			})
 			require.NoError(t, err)
 
@@ -334,6 +338,8 @@ func TestUpdateResource(t *testing.T) {
 				OCloudID:       "test-cloud",
 				SubscriptionID: "test-subscription-id",
 				TenantID:       "test-tenant-id",
+				ClientID:       "test-client-id",
+				ClientSecret:   "test-client-secret",
 			})
 			require.NoError(t, err)
 
@@ -381,6 +387,8 @@ func TestDeleteResource(t *testing.T) {
 				OCloudID:       "test-cloud",
 				SubscriptionID: "test-subscription-id",
 				TenantID:       "test-tenant-id",
+				ClientID:       "test-client-id",
+				ClientSecret:   "test-client-secret",
 			})
 			require.NoError(t, err)
 
