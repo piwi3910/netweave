@@ -207,6 +207,40 @@ func NewSMOHandler(registry *smo.Registry, logger *zap.Logger) *SMOHandler {
 	}
 }
 
+// getPluginFromQuery retrieves a plugin from the registry using the plugin query parameter.
+// Returns error if plugin lookup fails.
+func (h *SMOHandler) getPluginFromQuery(c *gin.Context) (smo.Plugin, error) {
+	pluginName := c.Query("plugin")
+	var plugin smo.Plugin
+
+	if pluginName != "" {
+		h.registry.Mu.RLock()
+		plugin = h.registry.Plugins[pluginName]
+		h.registry.Mu.RUnlock()
+
+		if plugin == nil {
+			return nil, fmt.Errorf("plugin %s not found", pluginName)
+		}
+		return plugin, nil
+	}
+
+	// Use default plugin
+	h.registry.Mu.RLock()
+	defaultName := h.registry.DefaultPlugin
+	plugin = h.registry.Plugins[defaultName]
+	h.registry.Mu.RUnlock()
+
+	if defaultName == "" {
+		return nil, fmt.Errorf("no default plugin configured")
+	}
+
+	if plugin == nil {
+		return nil, fmt.Errorf("default plugin %s not found", defaultName)
+	}
+
+	return plugin, nil
+}
+
 // setupSMORoutes configures the O2-SMO API routes.
 // Base path: /o2smo/v1.
 func (s *Server) setupSMORoutes(smoHandler *SMOHandler) {
@@ -408,30 +442,7 @@ func (h *SMOHandler) HandleGetWorkflowStatus(c *gin.Context) {
 		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid execution ID format")
 		return
 	}
-	pluginName := c.Query("plugin")
-	var plugin smo.Plugin
-	var err error
-	// Get plugin inline (avoid ireturn linter)
-	if pluginName != "" {
-		h.registry.Mu.RLock()
-		plugin = h.registry.Plugins[pluginName]
-		h.registry.Mu.RUnlock()
-
-		if plugin == nil {
-			err = fmt.Errorf("plugin %s not found", pluginName)
-		}
-	} else {
-		h.registry.Mu.RLock()
-		defaultName := h.registry.DefaultPlugin
-		plugin = h.registry.Plugins[defaultName]
-		h.registry.Mu.RUnlock()
-
-		if defaultName == "" {
-			err = fmt.Errorf("no default plugin configured")
-		} else if plugin == nil {
-			err = fmt.Errorf("default plugin %s not found", defaultName)
-		}
-	}
+	plugin, err := h.getPluginFromQuery(c)
 	if err != nil {
 		h.respondWithNotFound(c, err)
 		return
@@ -633,30 +644,7 @@ func (h *SMOHandler) HandleGetServiceModel(c *gin.Context) {
 		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid model ID format")
 		return
 	}
-	pluginName := c.Query("plugin")
-	var plugin smo.Plugin
-	var err error
-	// Get plugin inline (avoid ireturn linter)
-	if pluginName != "" {
-		h.registry.Mu.RLock()
-		plugin = h.registry.Plugins[pluginName]
-		h.registry.Mu.RUnlock()
-
-		if plugin == nil {
-			err = fmt.Errorf("plugin %s not found", pluginName)
-		}
-	} else {
-		h.registry.Mu.RLock()
-		defaultName := h.registry.DefaultPlugin
-		plugin = h.registry.Plugins[defaultName]
-		h.registry.Mu.RUnlock()
-
-		if defaultName == "" {
-			err = fmt.Errorf("no default plugin configured")
-		} else if plugin == nil {
-			err = fmt.Errorf("default plugin %s not found", defaultName)
-		}
-	}
+	plugin, err := h.getPluginFromQuery(c)
 	if err != nil {
 		h.respondWithNotFound(c, err)
 		return
@@ -782,30 +770,7 @@ func (h *SMOHandler) HandleGetPolicyStatus(c *gin.Context) {
 		respondWithError(c, http.StatusBadRequest, "BadRequest", "Invalid policy ID format")
 		return
 	}
-	pluginName := c.Query("plugin")
-	var plugin smo.Plugin
-	var err error
-	// Get plugin inline (avoid ireturn linter)
-	if pluginName != "" {
-		h.registry.Mu.RLock()
-		plugin = h.registry.Plugins[pluginName]
-		h.registry.Mu.RUnlock()
-
-		if plugin == nil {
-			err = fmt.Errorf("plugin %s not found", pluginName)
-		}
-	} else {
-		h.registry.Mu.RLock()
-		defaultName := h.registry.DefaultPlugin
-		plugin = h.registry.Plugins[defaultName]
-		h.registry.Mu.RUnlock()
-
-		if defaultName == "" {
-			err = fmt.Errorf("no default plugin configured")
-		} else if plugin == nil {
-			err = fmt.Errorf("default plugin %s not found", defaultName)
-		}
-	}
+	plugin, err := h.getPluginFromQuery(c)
 	if err != nil {
 		h.respondWithNotFound(c, err)
 		return

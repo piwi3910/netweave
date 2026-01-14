@@ -47,6 +47,37 @@ func NewHandler(reg *registry.Registry, store storage.Store, logger *zap.Logger)
 	}
 }
 
+// getAdapterFromQuery retrieves a DMS adapter using the adapter query parameter.
+// Returns error if adapter lookup fails.
+func (h *Handler) getAdapterFromQuery(c *gin.Context) (adapter.DMSAdapter, error) {
+	adapterName := c.Query("adapter")
+	var adp adapter.DMSAdapter
+
+	if adapterName != "" {
+		h.registry.Mu.RLock()
+		adp = h.registry.Plugins[adapterName]
+		h.registry.Mu.RUnlock()
+
+		if adp == nil {
+			return nil, fmt.Errorf("adapter not found: %s", adapterName)
+		}
+		return adp, nil
+	}
+
+	// Use default adapter
+	h.registry.Mu.RLock()
+	if h.registry.DefaultPlugin != "" {
+		adp = h.registry.Plugins[h.registry.DefaultPlugin]
+	}
+	h.registry.Mu.RUnlock()
+
+	if adp == nil {
+		return nil, fmt.Errorf("no default DMS adapter configured")
+	}
+
+	return adp, nil
+}
+
 // GetAdapter returns the appropriate DMS adapter for the request.
 // If no adapter name is specified, uses the default adapter.
 // This is exported to satisfy the ireturn linter which flags unexported functions returning interfaces.
@@ -314,27 +345,10 @@ func ValidateDeploymentName(name string) error {
 func (h *Handler) ListNFDeployments(c *gin.Context) {
 	h.logger.Info("listing NF deployments")
 
-	// Get adapter inline (avoid ireturn linter)
-	var adp adapter.DMSAdapter
-	adapterName := c.Query("adapter")
-	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "adapter not found: "+adapterName)
-			return
-		}
-	} else {
-		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			adp = h.registry.Plugins[h.registry.DefaultPlugin]
-		}
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "no default DMS adapter configured")
-			return
-		}
+	adp, err := h.getAdapterFromQuery(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
+		return
 	}
 
 	var filter models.ListFilter
@@ -378,27 +392,10 @@ func (h *Handler) GetNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("getting NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
 
-	// Get adapter inline (avoid ireturn linter)
-	var adp adapter.DMSAdapter
-	adapterName := c.Query("adapter")
-	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "adapter not found: "+adapterName)
-			return
-		}
-	} else {
-		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			adp = h.registry.Plugins[h.registry.DefaultPlugin]
-		}
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "no default DMS adapter configured")
-			return
-		}
+	adp, err := h.getAdapterFromQuery(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
+		return
 	}
 
 	deployment, err := adp.GetDeployment(c.Request.Context(), nfDeploymentID)
@@ -420,27 +417,10 @@ func (h *Handler) GetNFDeployment(c *gin.Context) {
 func (h *Handler) CreateNFDeployment(c *gin.Context) {
 	h.logger.Info("creating NF deployment")
 
-	// Get adapter inline (avoid ireturn linter)
-	var adp adapter.DMSAdapter
-	adapterName := c.Query("adapter")
-	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "adapter not found: "+adapterName)
-			return
-		}
-	} else {
-		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			adp = h.registry.Plugins[h.registry.DefaultPlugin]
-		}
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "no default DMS adapter configured")
-			return
-		}
+	adp, err := h.getAdapterFromQuery(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
+		return
 	}
 
 	var req models.CreateNFDeploymentRequest
@@ -485,27 +465,10 @@ func (h *Handler) UpdateNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("updating NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
 
-	// Get adapter inline (avoid ireturn linter)
-	var adp adapter.DMSAdapter
-	adapterName := c.Query("adapter")
-	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "adapter not found: "+adapterName)
-			return
-		}
-	} else {
-		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			adp = h.registry.Plugins[h.registry.DefaultPlugin]
-		}
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "no default DMS adapter configured")
-			return
-		}
+	adp, err := h.getAdapterFromQuery(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
+		return
 	}
 
 	var req models.UpdateNFDeploymentRequest
@@ -539,27 +502,10 @@ func (h *Handler) UpdateNFDeployment(c *gin.Context) {
 // DeleteNFDeployment deletes an NF deployment.
 // DELETE /o2dms/v1/nfDeployments/:nfDeploymentId.
 func (h *Handler) DeleteNFDeployment(c *gin.Context) {
-	// Get adapter inline (avoid ireturn linter)
-	var adp adapter.DMSAdapter
-	adapterName := c.Query("adapter")
-	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "adapter not found: "+adapterName)
-			return
-		}
-	} else {
-		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			adp = h.registry.Plugins[h.registry.DefaultPlugin]
-		}
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "no default DMS adapter configured")
-			return
-		}
+	adp, err := h.getAdapterFromQuery(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
+		return
 	}
 
 	h.handleDelete(
@@ -581,27 +527,10 @@ func (h *Handler) ScaleNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("scaling NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
 
-	// Get adapter inline (avoid ireturn linter)
-	var adp adapter.DMSAdapter
-	adapterName := c.Query("adapter")
-	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "adapter not found: "+adapterName)
-			return
-		}
-	} else {
-		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			adp = h.registry.Plugins[h.registry.DefaultPlugin]
-		}
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "no default DMS adapter configured")
-			return
-		}
+	adp, err := h.getAdapterFromQuery(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
+		return
 	}
 
 	if !adp.SupportsScaling() {
@@ -642,27 +571,10 @@ func (h *Handler) RollbackNFDeployment(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("rolling back NF deployment", zap.String("nf_deployment_id", nfDeploymentID))
 
-	// Get adapter inline (avoid ireturn linter)
-	var adp adapter.DMSAdapter
-	adapterName := c.Query("adapter")
-	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "adapter not found: "+adapterName)
-			return
-		}
-	} else {
-		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			adp = h.registry.Plugins[h.registry.DefaultPlugin]
-		}
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "no default DMS adapter configured")
-			return
-		}
+	adp, err := h.getAdapterFromQuery(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
+		return
 	}
 
 	if !adp.SupportsRollback() {
@@ -709,27 +621,10 @@ func (h *Handler) GetNFDeploymentStatus(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("getting NF deployment status", zap.String("nf_deployment_id", nfDeploymentID))
 
-	// Get adapter inline (avoid ireturn linter)
-	var adp adapter.DMSAdapter
-	adapterName := c.Query("adapter")
-	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "adapter not found: "+adapterName)
-			return
-		}
-	} else {
-		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			adp = h.registry.Plugins[h.registry.DefaultPlugin]
-		}
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "no default DMS adapter configured")
-			return
-		}
+	adp, err := h.getAdapterFromQuery(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
+		return
 	}
 
 	status, err := adp.GetDeploymentStatus(c.Request.Context(), nfDeploymentID)
@@ -752,27 +647,10 @@ func (h *Handler) GetNFDeploymentHistory(c *gin.Context) {
 	nfDeploymentID := c.Param("nfDeploymentId")
 	h.logger.Info("getting NF deployment history", zap.String("nf_deployment_id", nfDeploymentID))
 
-	// Get adapter inline (avoid ireturn linter)
-	var adp adapter.DMSAdapter
-	adapterName := c.Query("adapter")
-	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "adapter not found: "+adapterName)
-			return
-		}
-	} else {
-		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			adp = h.registry.Plugins[h.registry.DefaultPlugin]
-		}
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "no default DMS adapter configured")
-			return
-		}
+	adp, err := h.getAdapterFromQuery(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
+		return
 	}
 
 	history, err := adp.GetDeploymentHistory(c.Request.Context(), nfDeploymentID)
@@ -796,27 +674,10 @@ func (h *Handler) GetNFDeploymentHistory(c *gin.Context) {
 func (h *Handler) ListNFDeploymentDescriptors(c *gin.Context) {
 	h.logger.Info("listing NF deployment descriptors")
 
-	// Get adapter inline (avoid ireturn linter)
-	var adp adapter.DMSAdapter
-	adapterName := c.Query("adapter")
-	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "adapter not found: "+adapterName)
-			return
-		}
-	} else {
-		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			adp = h.registry.Plugins[h.registry.DefaultPlugin]
-		}
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "no default DMS adapter configured")
-			return
-		}
+	adp, err := h.getAdapterFromQuery(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
+		return
 	}
 
 	var filter models.ListFilter
@@ -855,27 +716,10 @@ func (h *Handler) GetNFDeploymentDescriptor(c *gin.Context) {
 	descriptorID := c.Param("nfDeploymentDescriptorId")
 	h.logger.Info("getting NF deployment descriptor", zap.String("descriptor_id", descriptorID))
 
-	// Get adapter inline (avoid ireturn linter)
-	var adp adapter.DMSAdapter
-	adapterName := c.Query("adapter")
-	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "adapter not found: "+adapterName)
-			return
-		}
-	} else {
-		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			adp = h.registry.Plugins[h.registry.DefaultPlugin]
-		}
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "no default DMS adapter configured")
-			return
-		}
+	adp, err := h.getAdapterFromQuery(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
+		return
 	}
 
 	pkg, err := adp.GetDeploymentPackage(c.Request.Context(), descriptorID)
@@ -897,27 +741,10 @@ func (h *Handler) GetNFDeploymentDescriptor(c *gin.Context) {
 func (h *Handler) CreateNFDeploymentDescriptor(c *gin.Context) {
 	h.logger.Info("creating NF deployment descriptor")
 
-	// Get adapter inline (avoid ireturn linter)
-	var adp adapter.DMSAdapter
-	adapterName := c.Query("adapter")
-	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "adapter not found: "+adapterName)
-			return
-		}
-	} else {
-		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			adp = h.registry.Plugins[h.registry.DefaultPlugin]
-		}
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "no default DMS adapter configured")
-			return
-		}
+	adp, err := h.getAdapterFromQuery(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
+		return
 	}
 
 	var req models.CreateNFDeploymentDescriptorRequest
@@ -952,27 +779,10 @@ func (h *Handler) CreateNFDeploymentDescriptor(c *gin.Context) {
 // DeleteNFDeploymentDescriptor deletes an NF deployment descriptor.
 // DELETE /o2dms/v1/nfDeploymentDescriptors/:nfDeploymentDescriptorId.
 func (h *Handler) DeleteNFDeploymentDescriptor(c *gin.Context) {
-	// Get adapter inline (avoid ireturn linter)
-	var adp adapter.DMSAdapter
-	adapterName := c.Query("adapter")
-	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "adapter not found: "+adapterName)
-			return
-		}
-	} else {
-		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			adp = h.registry.Plugins[h.registry.DefaultPlugin]
-		}
-		h.registry.Mu.RUnlock()
-		if adp == nil {
-			h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", "no default DMS adapter configured")
-			return
-		}
+	adp, err := h.getAdapterFromQuery(c)
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error())
+		return
 	}
 
 	h.handleDelete(
