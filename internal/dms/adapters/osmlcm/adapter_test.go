@@ -2,6 +2,7 @@ package osmlcm_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -834,14 +835,14 @@ func TestContextCancellation(t *testing.T) {
 			name: "ListDeployments",
 			fn: func() error {
 				_, err := adp.ListDeployments(ctx, nil)
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
 			name: "GetDeployment",
 			fn: func() error {
 				_, err := adp.GetDeployment(ctx, "test")
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
@@ -851,14 +852,14 @@ func TestContextCancellation(t *testing.T) {
 					Name:      "test",
 					PackageID: "nsd-1",
 				})
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
 			name: "UpdateDeployment",
 			fn: func() error {
 				_, err := adp.UpdateDeployment(ctx, "test", &dmsadapter.DeploymentUpdate{})
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
@@ -883,14 +884,14 @@ func TestContextCancellation(t *testing.T) {
 			name: "ListDeploymentPackages",
 			fn: func() error {
 				_, err := adp.ListDeploymentPackages(ctx, nil)
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
 			name: "GetDeploymentPackage",
 			fn: func() error {
 				_, err := adp.GetDeploymentPackage(ctx, "test")
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
@@ -900,7 +901,7 @@ func TestContextCancellation(t *testing.T) {
 					Name:    "test",
 					Version: "1.0.0",
 				})
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
@@ -913,21 +914,21 @@ func TestContextCancellation(t *testing.T) {
 			name: "GetDeploymentStatus",
 			fn: func() error {
 				_, err := adp.GetDeploymentStatus(ctx, "test")
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
 			name: "GetDeploymentHistory",
 			fn: func() error {
 				_, err := adp.GetDeploymentHistory(ctx, "test")
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
 			name: "GetDeploymentLogs",
 			fn: func() error {
 				_, err := adp.GetDeploymentLogs(ctx, "test", nil)
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{

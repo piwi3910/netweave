@@ -2,6 +2,7 @@ package onaplcm_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -703,14 +704,14 @@ func TestContextCancellation(t *testing.T) {
 			name: "ListDeployments",
 			fn: func() error {
 				_, err := adp.ListDeployments(ctx, nil)
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
 			name: "GetDeployment",
 			fn: func() error {
 				_, err := adp.GetDeployment(ctx, "test")
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
@@ -720,7 +721,7 @@ func TestContextCancellation(t *testing.T) {
 					Name:      "test",
 					PackageID: "vnfd-1",
 				})
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{

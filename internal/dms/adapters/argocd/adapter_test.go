@@ -1268,14 +1268,14 @@ func TestContextCancellation(t *testing.T) {
 			name: "ListDeployments",
 			fn: func() error {
 				_, err := adp.ListDeployments(ctx, nil)
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
 			name: "GetDeployment",
 			fn: func() error {
 				_, err := adp.GetDeployment(ctx, "test-app")
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
@@ -1287,7 +1287,7 @@ func TestContextCancellation(t *testing.T) {
 						"argocd.repoURL": "https://github.com/example/repo",
 					},
 				})
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{

@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -576,28 +577,28 @@ func TestMemoryPackageStore_ContextCancellation(t *testing.T) {
 			name: "Get",
 			fn: func() error {
 				_, err := store.Get(ctx, "pkg")
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
 			name: "GetByNameVersion",
 			fn: func() error {
 				_, err := store.GetByNameVersion(ctx, "test", "1.0.0")
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
 			name: "List",
 			fn: func() error {
 				_, err := store.List(ctx, nil)
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
 			name: "ListVersions",
 			fn: func() error {
 				_, err := store.ListVersions(ctx, "test")
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
@@ -622,7 +623,7 @@ func TestMemoryPackageStore_ContextCancellation(t *testing.T) {
 			name: "GetContent",
 			fn: func() error {
 				_, err := store.GetContent(ctx, "pkg")
-				return err
+				return fmt.Errorf("test operation failed: %w", err)
 			},
 		},
 		{
