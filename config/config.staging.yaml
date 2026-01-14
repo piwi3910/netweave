@@ -103,6 +103,28 @@ security:
       requests_per_second: 500
       max_concurrent_requests: 200
     endpoints: []
+    resource:
+      enabled: true  # Resource-type rate limiting enabled in staging
+      deployment_managers:
+        reads_per_minute: 80  # Slightly lower than production
+        writes_per_minute: 8
+        list_page_size_max: 100
+      resource_pools:
+        reads_per_minute: 400
+        writes_per_minute: 40
+        list_page_size_max: 100
+      resources:
+        reads_per_minute: 800
+        writes_per_minute: 80
+        list_page_size_max: 100
+      resource_types:
+        reads_per_minute: 160
+        writes_per_minute: 0  # Resource types are read-only
+        list_page_size_max: 100
+      subscriptions:
+        creates_per_hour: 80
+        max_active: 40
+        reads_per_minute: 160
 
 validation:
   enabled: true

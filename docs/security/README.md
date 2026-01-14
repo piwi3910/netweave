@@ -58,7 +58,7 @@ graph TB
 | **Cross-Tenant Data Leakage** | Tenant enumeration, IDOR | Label-based filtering, tenant verification, opaque errors | LOW |
 | **Privilege Escalation** | Role manipulation, authorization bypass | Immutable system roles, authorization checks | LOW |
 | **Data Tampering** | MITM, request modification | TLS 1.3 enforcement, HMAC webhook signatures | LOW |
-| **DDoS/Resource Exhaustion** | Request flooding, connection exhaustion | Distributed rate limiting, per-tenant quotas | MEDIUM |
+| **DDoS/Resource Exhaustion** | Request flooding, connection exhaustion, expensive operations | Distributed rate limiting, per-tenant quotas, resource-type limits | LOW |
 | **Supply Chain Attacks** | Compromised dependencies, malicious images | Vulnerability scanning, SBOM, signed artifacts | LOW |
 | **Insider Threats** | Privileged abuse, credential theft | Audit logging, least privilege, MFA | MEDIUM |
 
@@ -152,7 +152,9 @@ graph TB
 
 - **OpenAPI Validation**: Request/response schema enforcement
 - **Input Sanitization**: Protection against injection attacks
-- **Rate Limiting**: Distributed, per-tenant token bucket
+- **Rate Limiting**: Distributed, per-tenant token bucket with resource-type-specific limits
+- **Resource Protection**: Granular rate limits for expensive operations (reads, writes, deletes)
+- **Page Size Limits**: Prevent large list queries from overwhelming the system
 - **DoS Protection**: Request size limits, timeout controls
 - **Security Headers**: X-Frame-Options, X-Content-Type-Options, CSP
 

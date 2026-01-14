@@ -366,6 +366,11 @@ func (s *Server) setupMiddleware() {
 		s.router.Use(s.rateLimitMiddleware())
 	}
 
+	// Resource-type rate limiting middleware (if enabled)
+	if s.config.Security.RateLimit.PerResource.Enabled {
+		s.router.Use(s.resourceRateLimitMiddleware())
+	}
+
 	// OpenAPI validation middleware (if enabled and validator is available)
 	if s.openAPIValidator != nil && s.config.Validation.Enabled {
 		s.router.Use(s.openAPIValidator.Middleware())
@@ -789,6 +794,70 @@ func (s *Server) rateLimitMiddleware() gin.HandlerFunc {
 	}
 
 	return rateLimiter.Middleware()
+}
+
+// resourceRateLimitMiddleware implements resource-type-specific rate limiting for O2-IMS operations.
+func (s *Server) resourceRateLimitMiddleware() gin.HandlerFunc {
+	// Get Redis client from store
+	redisStore, ok := s.store.(*storage.RedisStore)
+	if !ok {
+		s.logger.Warn("resource rate limiting requires RedisStore, disabled")
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+
+	// Convert config types to middleware types
+	resourceConfig := &middleware.ResourceRateLimitConfig{
+		Enabled:     s.config.Security.RateLimit.PerResource.Enabled,
+		RedisClient: redisStore.Client,
+		DeploymentManagers: middleware.ResourceTypeLimits{
+			ReadsPerMinute:  s.config.Security.RateLimit.PerResource.DeploymentManagers.ReadsPerMinute,
+			WritesPerMinute: s.config.Security.RateLimit.PerResource.DeploymentManagers.WritesPerMinute,
+			ListPageSizeMax: s.config.Security.RateLimit.PerResource.DeploymentManagers.ListPageSizeMax,
+		},
+		ResourcePools: middleware.ResourceTypeLimits{
+			ReadsPerMinute:  s.config.Security.RateLimit.PerResource.ResourcePools.ReadsPerMinute,
+			WritesPerMinute: s.config.Security.RateLimit.PerResource.ResourcePools.WritesPerMinute,
+			ListPageSizeMax: s.config.Security.RateLimit.PerResource.ResourcePools.ListPageSizeMax,
+		},
+		Resources: middleware.ResourceTypeLimits{
+			ReadsPerMinute:  s.config.Security.RateLimit.PerResource.Resources.ReadsPerMinute,
+			WritesPerMinute: s.config.Security.RateLimit.PerResource.Resources.WritesPerMinute,
+			ListPageSizeMax: s.config.Security.RateLimit.PerResource.Resources.ListPageSizeMax,
+		},
+		ResourceTypes: middleware.ResourceTypeLimits{
+			ReadsPerMinute:  s.config.Security.RateLimit.PerResource.ResourceTypes.ReadsPerMinute,
+			WritesPerMinute: s.config.Security.RateLimit.PerResource.ResourceTypes.WritesPerMinute,
+			ListPageSizeMax: s.config.Security.RateLimit.PerResource.ResourceTypes.ListPageSizeMax,
+		},
+		Subscriptions: middleware.SubscriptionLimits{
+			CreatesPerHour: s.config.Security.RateLimit.PerResource.Subscriptions.CreatesPerHour,
+			MaxActive:      s.config.Security.RateLimit.PerResource.Subscriptions.MaxActive,
+			ReadsPerMinute: s.config.Security.RateLimit.PerResource.Subscriptions.ReadsPerMinute,
+		},
+	}
+
+	// Create resource rate limiter
+	resourceRateLimiter, err := middleware.NewResourceRateLimiter(resourceConfig, s.logger)
+	if err != nil {
+		s.logger.Error("failed to create resource rate limiter, resource rate limiting disabled",
+			zap.Error(err),
+		)
+		// Return pass-through middleware if rate limiter creation fails
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+
+	s.logger.Info("resource rate limiting enabled",
+		zap.Bool("deployment_managers", resourceConfig.DeploymentManagers.ReadsPerMinute > 0),
+		zap.Bool("resource_pools", resourceConfig.ResourcePools.ReadsPerMinute > 0),
+		zap.Bool("resources", resourceConfig.Resources.ReadsPerMinute > 0),
+		zap.Bool("subscriptions", resourceConfig.Subscriptions.CreatesPerHour > 0),
+	)
+
+	return resourceRateLimiter.Middleware()
 }
 
 // JoinStrings joins a slice of strings with the given separator.

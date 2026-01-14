@@ -66,8 +66,7 @@ func handleGetError(c *gin.Context, err error, entityType, entityID string) {
 func (h *ResourceHandler) ListResources(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	// Extract tenant ID from authenticated context for audit logging
-	// TODO: Phase 4 will add tenant-based filtering via K8s labels
+	// Extract tenant ID from authenticated context
 	tenantID := auth.TenantIDFromContext(ctx)
 
 	h.Logger.Info("listing resources",
@@ -78,8 +77,9 @@ func (h *ResourceHandler) ListResources(c *gin.Context) {
 	// Parse query parameters
 	filter := internalmodels.ParseQueryParams(c.Request.URL.Query())
 
-	// Convert internal filter to adapter filter
+	// Convert internal filter to adapter filter with tenant context
 	adapterFilter := &adapter.Filter{
+		TenantID:       tenantID,
 		ResourcePoolID: strings.Join(filter.ResourcePoolID, ","),
 		ResourceTypeID: strings.Join(filter.ResourceTypeID, ","),
 		Location:       filter.Location,
@@ -144,8 +144,7 @@ func (h *ResourceHandler) GetResource(c *gin.Context) {
 	ctx := c.Request.Context()
 	resourceID := c.Param("resourceId")
 
-	// Extract tenant ID from authenticated context for audit logging
-	// TODO: Phase 4 will add tenant-based filtering via K8s labels
+	// Extract tenant ID from authenticated context
 	tenantID := auth.TenantIDFromContext(ctx)
 
 	h.Logger.Info("getting resource",
@@ -165,6 +164,22 @@ func (h *ResourceHandler) GetResource(c *gin.Context) {
 	resource, err := h.Adapter.GetResource(ctx, resourceID)
 	if err != nil {
 		handleGetError(c, err, "Resource", resourceID)
+		return
+	}
+
+	// Verify tenant ownership (return 404 to avoid information disclosure)
+	if tenantID != "" && resource.TenantID != tenantID {
+		h.Logger.Warn("tenant mismatch - resource not found for this tenant",
+			zap.String("resource_id", resourceID),
+			zap.String("tenant_id", tenantID),
+			zap.String("resource_tenant_id", resource.TenantID),
+		)
+
+		c.JSON(http.StatusNotFound, models.ErrorResponse{
+			Error:   "NotFound",
+			Message: "Resource not found: " + resourceID,
+			Code:    http.StatusNotFound,
+		})
 		return
 	}
 

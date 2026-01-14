@@ -326,7 +326,7 @@ func TestMultiTenancy_QuotaEnforcement(t *testing.T) {
 			req.Header.Set("X-Tenant-ID", "tenant-quota-test")
 
 			client := &http.Client{}
-		resp, err := client.Do(req)
+			resp, err := client.Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 

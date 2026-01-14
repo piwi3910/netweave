@@ -100,6 +100,28 @@ security:
       requests_per_second: 10000
       max_concurrent_requests: 1000
     endpoints: []
+    resource:
+      enabled: false  # Disabled in development for easier testing
+      deployment_managers:
+        reads_per_minute: 100
+        writes_per_minute: 10
+        list_page_size_max: 100
+      resource_pools:
+        reads_per_minute: 500
+        writes_per_minute: 50
+        list_page_size_max: 100
+      resources:
+        reads_per_minute: 1000
+        writes_per_minute: 100
+        list_page_size_max: 100
+      resource_types:
+        reads_per_minute: 200
+        writes_per_minute: 0  # Resource types are read-only
+        list_page_size_max: 100
+      subscriptions:
+        creates_per_hour: 100
+        max_active: 50
+        reads_per_minute: 200
 
 validation:
   enabled: true

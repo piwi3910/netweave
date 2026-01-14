@@ -469,6 +469,76 @@ export NETWEAVE_SECURITY_RATE_LIMIT_TENANT_REQUESTS_PER_SECOND=100
 export NETWEAVE_SECURITY_RATE_LIMIT_TENANT_BURST_SIZE=200
 ```
 
+#### 4. Resource-Type-Specific Rate Limits (NEW)
+
+Granular rate limiting per O2-IMS resource type with operation-specific limits.
+
+```yaml
+resource:
+  enabled: true                    # Enable resource-type rate limiting
+  deployment_managers:
+    reads_per_minute: 100          # GET /deploymentManagers/*
+    writes_per_minute: 10          # POST/PUT/PATCH /deploymentManagers
+    list_page_size_max: 100        # Max items per page in list responses
+  resource_pools:
+    reads_per_minute: 500
+    writes_per_minute: 50
+    list_page_size_max: 100
+  resources:
+    reads_per_minute: 1000
+    writes_per_minute: 100
+    list_page_size_max: 100
+  resource_types:
+    reads_per_minute: 200
+    writes_per_minute: 0           # Read-only resource type
+    list_page_size_max: 100
+  subscriptions:
+    creates_per_hour: 100          # POST /subscriptions
+    max_active: 50                 # Max active subscriptions per tenant
+    reads_per_minute: 200          # GET /subscriptions/*
+```
+
+**Rate Limit Algorithm:**
+- Uses Redis-backed sliding window for accurate distributed rate limiting
+- Tracks read, write, and delete operations separately
+- Enforces page size limits for list operations
+- Per-tenant enforcement for fair resource sharing
+- Fail-open behavior (allows requests) if Redis is unavailable
+
+**HTTP Headers:**
+When resource rate limiting is active, responses include:
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1705234567
+X-RateLimit-Resource: resources
+```
+
+**Example Response (Rate Limit Exceeded):**
+```http
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/problem+json
+Retry-After: 45
+
+{
+  "type": "about:blank",
+  "title": "Too Many Requests",
+  "status": 429,
+  "detail": "resource rate limit exceeded for resources: 100 reads per minute allowed",
+  "instance": "/o2ims/v1/resources"
+}
+```
+
+**Prometheus Metrics:**
+Resource rate limiting exports metrics for monitoring:
+```
+# Rate limit hits per resource type
+o2ims_resource_rate_limit_hits_total{resource_type="resources",operation="read",tenant="tenant-1"} 5
+
+# Fail-open events (Redis unavailable)
+o2ims_resource_rate_limit_fail_open_total{resource_type="resources",operation="read",tenant="tenant-1"} 0
+```
+
 ### Examples
 
 **Development (disabled):**
@@ -487,6 +557,20 @@ security:
       burst_size: 100
     global:
       requests_per_second: 500
+    resource:
+      enabled: true
+      deployment_managers:
+        reads_per_minute: 80
+        writes_per_minute: 8
+        list_page_size_max: 100
+      resource_pools:
+        reads_per_minute: 400
+        writes_per_minute: 40
+        list_page_size_max: 100
+      resources:
+        reads_per_minute: 800
+        writes_per_minute: 80
+        list_page_size_max: 100
 ```
 
 **Production (strict):**
@@ -505,6 +589,28 @@ security:
         method: POST
         requests_per_second: 10
         burst_size: 20
+    resource:
+      enabled: true
+      deployment_managers:
+        reads_per_minute: 100
+        writes_per_minute: 10
+        list_page_size_max: 100
+      resource_pools:
+        reads_per_minute: 500
+        writes_per_minute: 50
+        list_page_size_max: 100
+      resources:
+        reads_per_minute: 1000
+        writes_per_minute: 100
+        list_page_size_max: 100
+      resource_types:
+        reads_per_minute: 200
+        writes_per_minute: 0
+        list_page_size_max: 100
+      subscriptions:
+        creates_per_hour: 100
+        max_active: 50
+        reads_per_minute: 200
 ```
 
 ## Multi-Tenancy Security
@@ -756,6 +862,9 @@ kubectl rollout restart deployment/gateway -n o2ims-system
 3. **Use tenant-specific limits** - Prevent noisy neighbor issues
 4. **Monitor rate limit hits** - Track who's hitting limits
 5. **Adjust based on capacity** - Load test to find optimal limits
+6. **Enable resource-type rate limiting** - Granular protection for expensive operations
+7. **Set appropriate page size limits** - Prevent large list queries from overwhelming the system
+8. **Monitor fail-open events** - Alert if Redis becomes unavailable
 
 ### Multi-Tenancy
 
