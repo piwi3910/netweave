@@ -30,6 +30,15 @@ const (
 	eventWaitTimeout     = 10 * time.Second
 )
 
+// extractSubscriptionID extracts and validates subscription ID from API response.
+func extractSubscriptionID(t *testing.T, response map[string]any) string {
+	t.Helper()
+	subID, ok := response["subscriptionId"].(string)
+	require.True(t, ok, "subscriptionId is not a string or missing")
+	require.NotEmpty(t, subID, "subscriptionId is empty")
+	return subID
+}
+
 // TestSubscriptionWorkflow tests the complete subscription lifecycle.
 func TestSubscriptionWorkflow(t *testing.T) {
 	if testing.Short() {
@@ -408,6 +417,8 @@ func TestConcurrentSubscriptions(t *testing.T) {
 			// Create webhook server
 			webhook := e2e.NewWebhookServer(fw.Logger.Named(fmt.Sprintf("webhook%d", idx)))
 			if err := webhook.Start(); err != nil {
+				// Cleanup webhook even on failure to prevent resource leak
+				_ = webhook.Stop()
 				mu.Lock()
 				errors = append(errors, fmt.Errorf("failed to start webhook%d: %w", idx, err))
 				mu.Unlock()
@@ -611,9 +622,7 @@ func TestSubscriptionDeletionStopsNotifications(t *testing.T) {
 	err = json.Unmarshal(body, &createdSub)
 	require.NoError(t, err)
 
-	subscriptionID, ok := createdSub["subscriptionId"].(string)
-	require.True(t, ok, "subscriptionId is not a string or missing")
-	require.NotEmpty(t, subscriptionID, "subscriptionId is empty")
+	subscriptionID := extractSubscriptionID(t, createdSub)
 
 	fw.WebhookServer.ClearEvents()
 
@@ -708,9 +717,7 @@ func TestWebhookRetryLogic(t *testing.T) {
 	err = json.Unmarshal(body, &createdSub)
 	require.NoError(t, err)
 
-	subscriptionID, ok := createdSub["subscriptionId"].(string)
-	require.True(t, ok, "subscriptionId is not a string or missing")
-	require.NotEmpty(t, subscriptionID, "subscriptionId is empty")
+	subscriptionID := extractSubscriptionID(t, createdSub)
 
 	fw.Logger.Info("Created subscription with failing webhook",
 		zap.String("subscriptionId", subscriptionID),
@@ -781,9 +788,7 @@ func TestResourceLifecycleEvents(t *testing.T) {
 	err = json.Unmarshal(body, &createdSub)
 	require.NoError(t, err)
 
-	subscriptionID, ok := createdSub["subscriptionId"].(string)
-	require.True(t, ok, "subscriptionId is not a string or missing")
-	require.NotEmpty(t, subscriptionID, "subscriptionId is empty")
+	subscriptionID := extractSubscriptionID(t, createdSub)
 
 	fw.Logger.Info("Created subscription for lifecycle events",
 		zap.String("subscriptionId", subscriptionID),
