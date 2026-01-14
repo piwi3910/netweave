@@ -331,6 +331,28 @@ func (a *Adapter) Health(ctx context.Context) error {
 	return nil
 }
 
+// Test helper exports for testing private functions
+
+// TestValidateVMResourceID exports validateVMResourceID for testing.
+func (a *Adapter) TestValidateVMResourceID(id string) error {
+	return validateVMResourceID(id)
+}
+
+// TestBuildVMAnnotation exports buildVMAnnotation for testing.
+func (a *Adapter) TestBuildVMAnnotation(resource *adapter.Resource) string {
+	return buildVMAnnotation(resource)
+}
+
+// TestExtractCustomAttributes exports extractCustomAttributes for testing.
+func (a *Adapter) TestExtractCustomAttributes(extensions map[string]interface{}) map[string]string {
+	return extractCustomAttributes(extensions)
+}
+
+// TestGetVMDescription exports getVMDescription for testing.
+func (a *Adapter) TestGetVMDescription(vmName, annotation string) string {
+	return getVMDescription(vmName, annotation)
+}
+
 // Close cleanly shuts down the adapter and releases resources.
 func (a *Adapter) Close() error {
 	a.Logger.Info("closing VMware adapter")

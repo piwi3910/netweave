@@ -2,11 +2,12 @@ package vmware_test
 
 import (
 	"context"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/piwi3910/netweave/internal/adapter"
-
 	"github.com/piwi3910/netweave/internal/adapters/vmware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -439,4 +440,251 @@ func TestVMwareAdapter_GetDeploymentManager(t *testing.T) {
 		t.Skip("Skipping - requires VMware access")
 	}
 	assert.NotNil(t, dm)
+}
+
+// TestValidateVMResourceID tests VM resource ID validation.
+func TestValidateVMResourceID(t *testing.T) {
+	adp := &vmware.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name    string
+		id      string
+		wantErr bool
+	}{
+		{
+			name:    "valid resource ID",
+			id:      "vmware-vm-test-vm",
+			wantErr: false,
+		},
+		{
+			name:    "valid resource ID with datacenter",
+			id:      "vmware-vm-dc1-test-vm",
+			wantErr: false,
+		},
+		{
+			name:    "invalid prefix",
+			id:      "aws-vm-test-vm",
+			wantErr: true,
+		},
+		{
+			name:    "no prefix",
+			id:      "test-vm",
+			wantErr: true,
+		},
+		{
+			name:    "empty string",
+			id:      "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := adp.TestValidateVMResourceID(tt.id)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestBuildVMAnnotation tests VM annotation building from resource fields.
+func TestBuildVMAnnotation(t *testing.T) {
+	adp := &vmware.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name     string
+		resource *adapter.Resource
+		want     string
+	}{
+		{
+			name: "description only",
+			resource: &adapter.Resource{
+				Description: "Test VM for development",
+			},
+			want: "Test VM for development",
+		},
+		{
+			name: "description with custom attributes",
+			resource: &adapter.Resource{
+				Description: "Production VM",
+				Extensions: map[string]interface{}{
+					"vmware.customAttributes": map[string]string{
+						"owner":       "platform-team",
+						"environment": "production",
+						"cost-center": "engineering",
+					},
+				},
+			},
+			want: "Production VM\n\nCustom Attributes:\ncost-center=engineering\nenvironment=production\nowner=platform-team",
+		},
+		{
+			name: "empty description with attributes",
+			resource: &adapter.Resource{
+				Description: "",
+				Extensions: map[string]interface{}{
+					"vmware.customAttributes": map[string]string{
+						"team": "backend",
+					},
+				},
+			},
+			want: "\n\nCustom Attributes:\nteam=backend",
+		},
+		{
+			name: "no extensions",
+			resource: &adapter.Resource{
+				Description: "Simple VM",
+			},
+			want: "Simple VM",
+		},
+		{
+			name: "empty custom attributes",
+			resource: &adapter.Resource{
+				Description: "VM with empty attrs",
+				Extensions: map[string]interface{}{
+					"vmware.customAttributes": map[string]string{},
+				},
+			},
+			want: "VM with empty attrs",
+		},
+		{
+			name: "wrong type for custom attributes",
+			resource: &adapter.Resource{
+				Description: "VM with wrong type",
+				Extensions: map[string]interface{}{
+					"vmware.customAttributes": "not a map",
+				},
+			},
+			want: "VM with wrong type",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adp.TestBuildVMAnnotation(tt.resource)
+			// Sort the custom attributes lines for consistent comparison
+			gotLines := strings.Split(got, "\n")
+			wantLines := strings.Split(tt.want, "\n")
+			if len(gotLines) > 2 && strings.HasPrefix(gotLines[2], "Custom Attributes:") {
+				sort.Strings(gotLines[3:])
+				sort.Strings(wantLines[3:])
+			}
+			assert.Equal(t, strings.Join(wantLines, "\n"), strings.Join(gotLines, "\n"))
+		})
+	}
+}
+
+// TestExtractCustomAttributes tests custom attribute extraction.
+func TestExtractCustomAttributes(t *testing.T) {
+	adp := &vmware.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name       string
+		extensions map[string]interface{}
+		want       map[string]string
+	}{
+		{
+			name: "valid custom attributes",
+			extensions: map[string]interface{}{
+				"vmware.customAttributes": map[string]string{
+					"owner":       "platform",
+					"environment": "prod",
+				},
+			},
+			want: map[string]string{
+				"owner":       "platform",
+				"environment": "prod",
+			},
+		},
+		{
+			name:       "nil extensions",
+			extensions: nil,
+			want:       map[string]string{},
+		},
+		{
+			name:       "empty extensions",
+			extensions: map[string]interface{}{},
+			want:       map[string]string{},
+		},
+		{
+			name: "wrong type for custom attributes",
+			extensions: map[string]interface{}{
+				"vmware.customAttributes": "not a map",
+			},
+			want: map[string]string{},
+		},
+		{
+			name: "empty custom attributes map",
+			extensions: map[string]interface{}{
+				"vmware.customAttributes": map[string]string{},
+			},
+			want: map[string]string{},
+		},
+		{
+			name: "other extensions present",
+			extensions: map[string]interface{}{
+				"vmware.name":       "test-vm",
+				"vmware.datacenter": "dc1",
+				"vmware.customAttributes": map[string]string{
+					"team": "backend",
+				},
+			},
+			want: map[string]string{
+				"team": "backend",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adp.TestExtractCustomAttributes(tt.extensions)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestGetVMDescription tests VM description determination.
+func TestGetVMDescription(t *testing.T) {
+	adp := &vmware.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name       string
+		vmName     string
+		annotation string
+		want       string
+	}{
+		{
+			name:       "annotation present",
+			vmName:     "test-vm",
+			annotation: "Production database server",
+			want:       "Production database server",
+		},
+		{
+			name:       "empty annotation fallback to name",
+			vmName:     "web-server-01",
+			annotation: "",
+			want:       "web-server-01",
+		},
+		{
+			name:       "whitespace annotation fallback to name",
+			vmName:     "app-server",
+			annotation: "   ",
+			want:       "   ",
+		},
+		{
+			name:       "annotation with newlines",
+			vmName:     "vm",
+			annotation: "Multi-line\nannotation\ntext",
+			want:       "Multi-line\nannotation\ntext",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adp.TestGetVMDescription(tt.vmName, tt.annotation)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
