@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/piwi3910/netweave/internal/adapter"
-
 	"github.com/piwi3910/netweave/internal/adapters/gcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -469,4 +469,277 @@ func TestGCPAdapter_GetDeploymentManager(t *testing.T) {
 		t.Skip("Skipping - requires GCP credentials")
 	}
 	assert.NotNil(t, dm)
+}
+
+// TestExtractZoneAndName tests zone and name extraction from resource extensions.
+func TestBuildInstanceLabels(t *testing.T) {
+	adp := &gcp.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name     string
+		resource *adapter.Resource
+		want     map[string]string
+	}{
+		{
+			name: "all fields populated",
+			resource: &adapter.Resource{
+				TenantID:      "tenant-123",
+				Description:   "Test Instance",
+				GlobalAssetID: "urn:gcp:compute:project:us-central1-a:myvm",
+				Extensions: map[string]interface{}{
+					"gcp.labels": map[string]string{
+						"environment": "production",
+						"team":        "platform",
+					},
+				},
+			},
+			want: map[string]string{
+				"o2ims_io_tenant-id": "tenant-123",
+				"name":               "test instance",
+				"global_asset_id":    "urn_gcp_compute_project_us-central1-a_myvm",
+				"environment":        "production",
+				"team":               "platform",
+			},
+		},
+		{
+			name: "minimal fields",
+			resource: &adapter.Resource{
+				TenantID: "tenant-456",
+			},
+			want: map[string]string{
+				"o2ims_io_tenant-id": "tenant-456",
+			},
+		},
+		{
+			name:     "empty resource",
+			resource: &adapter.Resource{},
+			want:     map[string]string{},
+		},
+		{
+			name: "custom labels only",
+			resource: &adapter.Resource{
+				Extensions: map[string]interface{}{
+					"gcp.labels": map[string]string{
+						"custom": "value",
+					},
+				},
+			},
+			want: map[string]string{
+				"custom": "value",
+			},
+		},
+		{
+			name: "description with mixed case",
+			resource: &adapter.Resource{
+				Description: "My-Test-VM",
+			},
+			want: map[string]string{
+				"name": "my-test-vm",
+			},
+		},
+		{
+			name: "global asset ID with special chars",
+			resource: &adapter.Resource{
+				GlobalAssetID: "urn:gcp:compute:my-project/region/zone:instance",
+			},
+			want: map[string]string{
+				"global_asset_id": "urn_gcp_compute_my-project_region_zone_instance",
+			},
+		},
+		{
+			name: "wrong type for custom labels",
+			resource: &adapter.Resource{
+				Extensions: map[string]interface{}{
+					"gcp.labels": "not a map",
+				},
+			},
+			want: map[string]string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adp.TestBuildInstanceLabels(tt.resource)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestDetermineResourcePoolID tests resource pool ID determination.
+func TestDetermineResourcePoolID(t *testing.T) {
+	tests := []struct {
+		name     string
+		poolMode string
+		zone     string
+		want     string
+	}{
+		{
+			name:     "zone mode",
+			poolMode: "zone",
+			zone:     "us-central1-a",
+			want:     "gcp-zone-us-central1-a",
+		},
+		{
+			name:     "ig mode fallback",
+			poolMode: "ig",
+			zone:     "europe-west1-b",
+			want:     "gcp-zone-europe-west1-b",
+		},
+		{
+			name:     "empty mode defaults to zone",
+			poolMode: "",
+			zone:     "asia-east1-c",
+			want:     "gcp-zone-asia-east1-c",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adp := &gcp.Adapter{Logger: zap.NewNop()}
+			adp.TestSetPoolMode(tt.poolMode)
+			got := adp.TestDetermineResourcePoolID(tt.zone)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestBuildInstanceExtensions tests GCP instance extensions building.
+func TestBuildInstanceExtensions(t *testing.T) {
+	adp := &gcp.Adapter{Logger: zap.NewNop()}
+
+	instName := "test-vm"
+	instName2 := "minimal-vm"
+	status := "RUNNING"
+	selfLink := "https://www.googleapis.com/compute/v1/projects/my-project/zones/us-central1-a/instances/test-vm"
+	cpuPlatform := "Intel Haswell"
+	creationTS := "2024-01-15T10:00:00Z"
+	instanceID := uint64(1234567890)
+	preemptible := true
+	autoRestart := false
+
+	networkIP := "10.0.0.5"
+	natIP := "34.123.45.67"
+	nicName := "nic0"
+	network := "default"
+	subnetwork := "default-us-central1"
+
+	diskSource := "projects/my-project/zones/us-central1-a/disks/boot-disk"
+	diskDevice := "boot-disk"
+	diskMode := "READ_WRITE"
+	diskType := "PERSISTENT"
+	diskSize := int64(100)
+	boot := true
+
+	tests := []struct {
+		name         string
+		instance     *computepb.Instance
+		instanceName string
+		zone         string
+		machineType  string
+		checkFunc    func(t *testing.T, exts map[string]interface{})
+	}{
+		{
+			name: "complete instance with network and disks",
+			instance: &computepb.Instance{
+				Id:                &instanceID,
+				Name:              &instName,
+				Status:            &status,
+				SelfLink:          &selfLink,
+				CpuPlatform:       &cpuPlatform,
+				CreationTimestamp: &creationTS,
+				Labels: map[string]string{
+					"env": "test",
+				},
+				NetworkInterfaces: []*computepb.NetworkInterface{
+					{
+						Name:       &nicName,
+						Network:    &network,
+						Subnetwork: &subnetwork,
+						NetworkIP:  &networkIP,
+						AccessConfigs: []*computepb.AccessConfig{
+							{NatIP: &natIP},
+						},
+					},
+				},
+				Disks: []*computepb.AttachedDisk{
+					{
+						Source:     &diskSource,
+						DeviceName: &diskDevice,
+						Mode:       &diskMode,
+						Type:       &diskType,
+						DiskSizeGb: &diskSize,
+						Boot:       &boot,
+					},
+				},
+				Scheduling: &computepb.Scheduling{
+					Preemptible:      &preemptible,
+					AutomaticRestart: &autoRestart,
+				},
+			},
+			instanceName: "test-vm",
+			zone:         "us-central1-a",
+			machineType:  "n1-standard-1",
+			checkFunc: func(t *testing.T, exts map[string]interface{}) {
+				assert.Equal(t, uint64(1234567890), exts["gcp.id"])
+				assert.Equal(t, "test-vm", exts["gcp.name"])
+				assert.Equal(t, "us-central1-a", exts["gcp.zone"])
+				assert.Equal(t, "n1-standard-1", exts["gcp.machineType"])
+				assert.Equal(t, "RUNNING", exts["gcp.status"])
+				assert.Equal(t, selfLink, exts["gcp.selfLink"])
+				assert.Equal(t, "Intel Haswell", exts["gcp.cpuPlatform"])
+				assert.Equal(t, creationTS, exts["gcp.creationTimestamp"])
+				assert.Equal(t, true, exts["gcp.preemptible"])
+				assert.Equal(t, false, exts["gcp.automaticRestart"])
+				assert.Equal(t, "10.0.0.5", exts["gcp.internalIP"])
+				assert.Equal(t, "34.123.45.67", exts["gcp.externalIP"])
+
+				// Check labels
+				labels, ok := exts["gcp.labels"].(map[string]string)
+				require.True(t, ok)
+				assert.Equal(t, "test", labels["env"])
+
+				// Check network interfaces
+				nics, ok := exts["gcp.networkInterfaces"].([]map[string]interface{})
+				require.True(t, ok)
+				require.Len(t, nics, 1)
+				assert.Equal(t, "nic0", nics[0]["name"])
+				assert.Equal(t, "10.0.0.5", nics[0]["internalIP"])
+				assert.Equal(t, "34.123.45.67", nics[0]["externalIP"])
+
+				// Check disks
+				disks, ok := exts["gcp.disks"].([]map[string]interface{})
+				require.True(t, ok)
+				require.Len(t, disks, 1)
+				assert.Equal(t, "boot-disk", disks[0]["deviceName"])
+				assert.Equal(t, true, disks[0]["boot"])
+				assert.Equal(t, int64(100), disks[0]["sizeGB"])
+			},
+		},
+		{
+			name: "minimal instance",
+			instance: &computepb.Instance{
+				Id:     &instanceID,
+				Name:   &instName2,
+				Status: &status,
+			},
+			instanceName: "minimal-vm",
+			zone:         "europe-west1-b",
+			machineType:  "e2-micro",
+			checkFunc: func(t *testing.T, exts map[string]interface{}) {
+				assert.Equal(t, uint64(1234567890), exts["gcp.id"])
+				assert.Equal(t, "minimal-vm", exts["gcp.name"])
+				assert.Equal(t, "europe-west1-b", exts["gcp.zone"])
+				assert.Equal(t, "e2-micro", exts["gcp.machineType"])
+				assert.Equal(t, "RUNNING", exts["gcp.status"])
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adp.TestBuildInstanceExtensions(tt.instance, tt.instanceName, tt.zone, tt.machineType)
+			require.NotNil(t, got)
+			tt.checkFunc(t, got)
+		})
+	}
 }

@@ -346,6 +346,36 @@ func (a *Adapter) Health(ctx context.Context) error {
 	return nil
 }
 
+// Test helper exports for testing private functions
+
+// TestExtractZoneAndName exports extractZoneAndName for testing.
+func (a *Adapter) TestExtractZoneAndName(resource *adapter.Resource) (string, string, error) {
+	return extractZoneAndName(resource)
+}
+
+// TestBuildInstanceLabels exports buildInstanceLabels for testing.
+func (a *Adapter) TestBuildInstanceLabels(resource *adapter.Resource) map[string]string {
+	return buildInstanceLabels(resource)
+}
+
+// TestDetermineResourcePoolID exports determineResourcePoolID for testing.
+func (a *Adapter) TestDetermineResourcePoolID(zone string) string {
+	return a.determineResourcePoolID(zone)
+}
+
+// TestBuildInstanceExtensions exports buildInstanceExtensions for testing.
+func (a *Adapter) TestBuildInstanceExtensions(instance interface{}, instanceName, zone, machineType string) map[string]interface{} {
+	if inst, ok := instance.(*computepb.Instance); ok {
+		return buildInstanceExtensions(inst, instanceName, zone, machineType)
+	}
+	return nil
+}
+
+// TestSetPoolMode sets the poolMode for testing.
+func (a *Adapter) TestSetPoolMode(mode string) {
+	a.poolMode = mode
+}
+
 // Close cleanly shuts down the adapter and releases resources.
 func (a *Adapter) Close() error {
 	a.Logger.Info("closing GCP adapter")
