@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/auth"
 	internalmodels "github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
 )
@@ -65,8 +66,13 @@ func handleGetError(c *gin.Context, err error, entityType, entityID string) {
 func (h *ResourceHandler) ListResources(c *gin.Context) {
 	ctx := c.Request.Context()
 
+	// Extract tenant ID from authenticated context for audit logging
+	// TODO: Phase 4 will add tenant-based filtering via K8s labels
+	tenantID := auth.TenantIDFromContext(ctx)
+
 	h.Logger.Info("listing resources",
 		zap.String("request_id", c.GetString("request_id")),
+		zap.String("tenant_id", tenantID),
 	)
 
 	// Parse query parameters
@@ -135,7 +141,18 @@ func (h *ResourceHandler) ListResources(c *gin.Context) {
 //   - 404 Not Found: Resource does not exist
 //   - 500 Internal Server Error: Server error occurred
 func (h *ResourceHandler) GetResource(c *gin.Context) {
+	ctx := c.Request.Context()
 	resourceID := c.Param("resourceId")
+
+	// Extract tenant ID from authenticated context for audit logging
+	// TODO: Phase 4 will add tenant-based filtering via K8s labels
+	tenantID := auth.TenantIDFromContext(ctx)
+
+	h.Logger.Info("getting resource",
+		zap.String("resource_id", resourceID),
+		zap.String("tenant_id", tenantID),
+	)
+
 	if resourceID == "" {
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
@@ -145,7 +162,7 @@ func (h *ResourceHandler) GetResource(c *gin.Context) {
 		return
 	}
 
-	resource, err := h.Adapter.GetResource(c.Request.Context(), resourceID)
+	resource, err := h.Adapter.GetResource(ctx, resourceID)
 	if err != nil {
 		handleGetError(c, err, "Resource", resourceID)
 		return
