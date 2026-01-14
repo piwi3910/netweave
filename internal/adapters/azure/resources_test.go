@@ -187,4 +187,3 @@ func TestParseAzureResourceID(t *testing.T) {
 		})
 	}
 }
-

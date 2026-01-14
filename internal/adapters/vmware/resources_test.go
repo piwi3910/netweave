@@ -257,10 +257,10 @@ func TestGenerateVMProfileID(t *testing.T) {
 // TestGenerateVMID tests VM ID generation.
 func TestGenerateVMID(t *testing.T) {
 	tests := []struct {
-		name           string
-		vmName         string
-		clusterOrPool  string
-		expected       string
+		name          string
+		vmName        string
+		clusterOrPool string
+		expected      string
 	}{
 		{
 			name:          "simple VM name",

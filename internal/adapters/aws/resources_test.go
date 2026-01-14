@@ -172,4 +172,3 @@ func TestExtractInstanceID(t *testing.T) {
 		})
 	}
 }
-

@@ -151,6 +151,38 @@ type BatchResourcePoolDelete struct {
 	Atomic bool `json:"atomic,omitempty"`
 }
 
+// BatchSubscriptionUpdate represents a batch subscription update request.
+type BatchSubscriptionUpdate struct {
+	// Updates is the list of subscription updates to perform.
+	Updates []SubscriptionUpdateItem `json:"updates" binding:"required,min=1,max=100"`
+	// Atomic indicates whether all operations should succeed or fail together.
+	Atomic bool `json:"atomic,omitempty"`
+}
+
+// SubscriptionUpdateItem represents a single subscription update in a batch.
+type SubscriptionUpdateItem struct {
+	// SubscriptionID is the ID of the subscription to update.
+	SubscriptionID string `json:"subscriptionId" binding:"required"`
+	// Update contains the fields to update (partial updates allowed).
+	Update models.Subscription `json:"update"`
+}
+
+// BatchResourcePoolUpdate represents a batch resource pool update request.
+type BatchResourcePoolUpdate struct {
+	// Updates is the list of resource pool updates to perform.
+	Updates []ResourcePoolUpdateItem `json:"updates" binding:"required,min=1,max=100"`
+	// Atomic indicates whether all operations should succeed or fail together.
+	Atomic bool `json:"atomic,omitempty"`
+}
+
+// ResourcePoolUpdateItem represents a single resource pool update in a batch.
+type ResourcePoolUpdateItem struct {
+	// ResourcePoolID is the ID of the resource pool to update.
+	ResourcePoolID string `json:"resourcePoolId" binding:"required"`
+	// Update contains the fields to update (partial updates allowed).
+	Update models.ResourcePool `json:"update"`
+}
+
 // batchOperationFunc defines a function that processes a single batch item.
 // It returns the result and optionally a created ID for rollback purposes.
 type batchOperationFunc func(ctx context.Context, idx int) (BatchResult, string)
@@ -555,6 +587,157 @@ func (h *BatchHandler) BatchDeleteSubscriptions(c *gin.Context) {
 	h.executeBatch(c, config, operation, nil)
 }
 
+// BatchUpdateSubscriptions handles POST /o2ims/v1/batch/subscriptions/update.
+// Updates multiple subscriptions in a single request.
+func (h *BatchHandler) BatchUpdateSubscriptions(c *gin.Context) {
+	var req BatchSubscriptionUpdate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleBindError(c, err)
+		return
+	}
+
+	// Pre-validation for atomic operations
+	if req.Atomic && !h.validateSubscriptionUpdatesExist(c, req.Updates) {
+		return
+	}
+
+	config := batchConfig{
+		operationName: "update_subscriptions",
+		atomic:        req.Atomic,
+		itemCount:     len(req.Updates),
+		useWorkerPool: true,
+	}
+
+	operation := func(ctx context.Context, idx int) (BatchResult, string) {
+		return h.executeSubscriptionUpdate(ctx, req.Updates[idx])
+	}
+
+	h.executeBatch(c, config, operation, nil)
+}
+
+// executeSubscriptionUpdate processes a single subscription update.
+func (h *BatchHandler) executeSubscriptionUpdate(
+	ctx context.Context,
+	item SubscriptionUpdateItem,
+) (BatchResult, string) {
+	result := h.updateSingleSubscription(ctx, item.SubscriptionID, item.Update)
+	return result, ""
+}
+
+// updateSingleSubscription updates a single subscription.
+func (h *BatchHandler) updateSingleSubscription(
+	ctx context.Context,
+	id string,
+	update models.Subscription,
+) BatchResult {
+	// Get existing subscription
+	existing, err := h.store.Get(ctx, id)
+	if err != nil {
+		return h.makeSubscriptionNotFoundResult(id, err)
+	}
+
+	// Apply updates
+	h.applySubscriptionUpdates(existing, update)
+
+	// Update in storage
+	if err := h.store.Update(ctx, existing); err != nil {
+		return h.makeSubscriptionUpdateFailedResult(id, err)
+	}
+
+	h.logger.Info("subscription updated",
+		zap.String("subscriptionID", id))
+
+	return BatchResult{
+		Status:  http.StatusOK,
+		Success: true,
+		Data:    existing,
+	}
+}
+
+// applySubscriptionUpdates applies update fields to existing subscription.
+func (h *BatchHandler) applySubscriptionUpdates(
+	existing *storage.Subscription,
+	update models.Subscription,
+) {
+	if update.Callback != "" {
+		existing.Callback = update.Callback
+	}
+	if update.ConsumerSubscriptionID != "" {
+		existing.ConsumerSubscriptionID = update.ConsumerSubscriptionID
+	}
+	// Update filter fields if provided
+	h.applySubscriptionFilterUpdates(&existing.Filter, update.Filter)
+}
+
+// applySubscriptionFilterUpdates applies filter updates.
+func (h *BatchHandler) applySubscriptionFilterUpdates(
+	existing *storage.SubscriptionFilter,
+	update models.SubscriptionFilter,
+) {
+	if len(update.ResourcePoolID) > 0 {
+		existing.ResourcePoolID = update.ResourcePoolID[0]
+	}
+	if len(update.ResourceTypeID) > 0 {
+		existing.ResourceTypeID = update.ResourceTypeID[0]
+	}
+	if len(update.ResourceID) > 0 {
+		existing.ResourceID = update.ResourceID[0]
+	}
+}
+
+// makeSubscriptionNotFoundResult creates a not found error result.
+func (h *BatchHandler) makeSubscriptionNotFoundResult(
+	id string,
+	err error,
+) BatchResult {
+	h.logger.Error("failed to get subscription for update",
+		zap.String("subscriptionID", id),
+		zap.Error(err))
+	return BatchResult{
+		Status:  http.StatusNotFound,
+		Success: false,
+		Error: &models.ErrorResponse{
+			Error:   "NotFound",
+			Message: fmt.Sprintf("subscription %s not found", id),
+			Code:    http.StatusNotFound,
+		},
+	}
+}
+
+// makeSubscriptionUpdateFailedResult creates an update failed error result.
+func (h *BatchHandler) makeSubscriptionUpdateFailedResult(
+	id string,
+	err error,
+) BatchResult {
+	h.logger.Error("failed to update subscription",
+		zap.String("subscriptionID", id),
+		zap.Error(err))
+	return BatchResult{
+		Status:  http.StatusInternalServerError,
+		Success: false,
+		Error: &models.ErrorResponse{
+			Error:   "InternalError",
+			Message: fmt.Sprintf("failed to update subscription: %v", err),
+			Code:    http.StatusInternalServerError,
+		},
+	}
+}
+
+// validateSubscriptionUpdatesExist validates all subscriptions exist for atomic operations.
+func (h *BatchHandler) validateSubscriptionUpdatesExist(
+	c *gin.Context,
+	updates []SubscriptionUpdateItem,
+) bool {
+	ctx := c.Request.Context()
+	for _, item := range updates {
+		if _, err := h.store.Get(ctx, item.SubscriptionID); err != nil {
+			h.sendAtomicValidationFailure(c, len(updates), "some subscriptions not found")
+			return false
+		}
+	}
+	return true
+}
+
 // validateSubscriptionsExist validates all subscriptions exist for atomic operations.
 func (h *BatchHandler) validateSubscriptionsExist(
 	c *gin.Context,
@@ -657,6 +840,122 @@ func (h *BatchHandler) BatchDeleteResourcePools(c *gin.Context) {
 	}
 
 	h.executeBatch(c, config, operation, nil)
+}
+
+// BatchUpdateResourcePools handles POST /o2ims/v1/batch/resourcePools/update.
+// Updates multiple resource pools in a single request.
+func (h *BatchHandler) BatchUpdateResourcePools(c *gin.Context) {
+	var req BatchResourcePoolUpdate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleBindError(c, err)
+		return
+	}
+
+	// Pre-validation for atomic operations
+	if req.Atomic && !h.validateResourcePoolUpdatesExist(c, req.Updates) {
+		return
+	}
+
+	config := batchConfig{
+		operationName: "update_resource_pools",
+		atomic:        req.Atomic,
+		itemCount:     len(req.Updates),
+		useWorkerPool: true,
+	}
+
+	operation := func(ctx context.Context, idx int) (BatchResult, string) {
+		return h.executeResourcePoolUpdate(ctx, req.Updates[idx])
+	}
+
+	h.executeBatch(c, config, operation, nil)
+}
+
+// executeResourcePoolUpdate processes a single resource pool update.
+func (h *BatchHandler) executeResourcePoolUpdate(
+	ctx context.Context,
+	item ResourcePoolUpdateItem,
+) (BatchResult, string) {
+	result := h.updateSingleResourcePool(ctx, item.ResourcePoolID, item.Update)
+	return result, ""
+}
+
+// updateSingleResourcePool updates a single resource pool.
+func (h *BatchHandler) updateSingleResourcePool(
+	ctx context.Context,
+	id string,
+	update models.ResourcePool,
+) BatchResult {
+	// Get existing resource pool
+	existing, err := h.adapter.GetResourcePool(ctx, id)
+	if err != nil {
+		h.logger.Error("failed to get resource pool for update",
+			zap.String("resourcePoolID", id),
+			zap.Error(err))
+		return BatchResult{
+			Status:  http.StatusNotFound,
+			Success: false,
+			Error: &models.ErrorResponse{
+				Error:   "NotFound",
+				Message: fmt.Sprintf("resource pool %s not found", id),
+				Code:    http.StatusNotFound,
+			},
+		}
+	}
+
+	// Apply updates to existing resource pool
+	if update.Name != "" {
+		existing.Name = update.Name
+	}
+	if update.Description != "" {
+		existing.Description = update.Description
+	}
+	if update.Location != "" {
+		existing.Location = update.Location
+	}
+	if len(update.Extensions) > 0 {
+		existing.Extensions = update.Extensions
+	}
+
+	// Update via adapter
+	updatedPool, err := h.adapter.UpdateResourcePool(ctx, id, existing)
+	if err != nil {
+		h.logger.Error("failed to update resource pool",
+			zap.String("resourcePoolID", id),
+			zap.Error(err))
+		return BatchResult{
+			Status:  http.StatusInternalServerError,
+			Success: false,
+			Error: &models.ErrorResponse{
+				Error:   "InternalError",
+				Message: fmt.Sprintf("failed to update resource pool: %v", err),
+				Code:    http.StatusInternalServerError,
+			},
+		}
+	}
+
+	h.logger.Info("resource pool updated",
+		zap.String("resourcePoolID", id))
+
+	return BatchResult{
+		Status:  http.StatusOK,
+		Success: true,
+		Data:    updatedPool,
+	}
+}
+
+// validateResourcePoolUpdatesExist validates all resource pools exist for atomic operations.
+func (h *BatchHandler) validateResourcePoolUpdatesExist(
+	c *gin.Context,
+	updates []ResourcePoolUpdateItem,
+) bool {
+	ctx := c.Request.Context()
+	for _, item := range updates {
+		if _, err := h.adapter.GetResourcePool(ctx, item.ResourcePoolID); err != nil {
+			h.sendAtomicValidationFailure(c, len(updates), "some resource pools not found")
+			return false
+		}
+	}
+	return true
 }
 
 // validateResourcePoolsExist validates all resource pools exist for atomic operations.

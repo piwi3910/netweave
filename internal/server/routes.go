@@ -141,10 +141,12 @@ func (s *Server) setupV2Routes(v2 *gin.RouterGroup) {
 		// Batch subscription operations
 		batch.POST("/subscriptions", s.batchHandler.BatchCreateSubscriptions)
 		batch.POST("/subscriptions/delete", s.batchHandler.BatchDeleteSubscriptions)
+		batch.POST("/subscriptions/update", s.batchHandler.BatchUpdateSubscriptions)
 
 		// Batch resource pool operations
 		batch.POST("/resourcePools", s.batchHandler.BatchCreateResourcePools)
 		batch.POST("/resourcePools/delete", s.batchHandler.BatchDeleteResourcePools)
+		batch.POST("/resourcePools/update", s.batchHandler.BatchUpdateResourcePools)
 	}
 
 	// V2 API info with enhanced features
@@ -208,10 +210,12 @@ func (s *Server) setupV3Routes(v3 *gin.RouterGroup) {
 		// Subscription batch operations
 		batch.POST("/subscriptions", s.batchHandler.BatchCreateSubscriptions)
 		batch.POST("/subscriptions/delete", s.batchHandler.BatchDeleteSubscriptions)
+		batch.POST("/subscriptions/update", s.batchHandler.BatchUpdateSubscriptions)
 
 		// Resource pool batch operations
 		batch.POST("/resourcePools", s.batchHandler.BatchCreateResourcePools)
 		batch.POST("/resourcePools/delete", s.batchHandler.BatchDeleteResourcePools)
+		batch.POST("/resourcePools/update", s.batchHandler.BatchUpdateResourcePools)
 	}
 
 	// Tenant management (v3 feature)

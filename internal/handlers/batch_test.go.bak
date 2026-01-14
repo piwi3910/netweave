@@ -953,16 +953,8 @@ func TestBatchUpdateSubscriptions_Success(t *testing.T) {
 	adapter := &mockBatchAdapter{}
 	store := &mockBatchStore{
 		subscriptions: []*storage.Subscription{
-			{
-				ID:       "sub-1",
-				Callback: "https://example.com/old1",
-				Filter:   storage.SubscriptionFilter{ResourcePoolID: "old-pool-1"},
-			},
-			{
-				ID:       "sub-2",
-				Callback: "https://example.com/old2",
-				Filter:   storage.SubscriptionFilter{ResourcePoolID: "old-pool-2"},
-			},
+			{ID: "sub-1", Callback: "https://example.com/old1", Filter: "old-filter-1"},
+			{ID: "sub-2", Callback: "https://example.com/old2", Filter: "old-filter-2"},
 		},
 	}
 	logger := zap.NewNop()
@@ -974,14 +966,14 @@ func TestBatchUpdateSubscriptions_Success(t *testing.T) {
 				SubscriptionID: "sub-1",
 				Update: models.Subscription{
 					Callback: "https://example.com/new1",
-					Filter:   models.SubscriptionFilter{ResourcePoolID: []string{"new-pool-1"}},
+					Filter:   "new-filter-1",
 				},
 			},
 			{
 				SubscriptionID: "sub-2",
 				Update: models.Subscription{
 					Callback: "https://example.com/new2",
-					Filter:   models.SubscriptionFilter{ResourcePoolID: []string{"new-pool-2"}},
+					Filter:   "new-filter-2",
 				},
 			},
 		},
@@ -1009,9 +1001,9 @@ func TestBatchUpdateSubscriptions_Success(t *testing.T) {
 
 	// Verify subscriptions were updated
 	assert.Equal(t, "https://example.com/new1", store.subscriptions[0].Callback)
-	assert.Equal(t, "new-pool-1", store.subscriptions[0].Filter.ResourcePoolID)
+	assert.Equal(t, "new-filter-1", store.subscriptions[0].Filter)
 	assert.Equal(t, "https://example.com/new2", store.subscriptions[1].Callback)
-	assert.Equal(t, "new-pool-2", store.subscriptions[1].Filter.ResourcePoolID)
+	assert.Equal(t, "new-filter-2", store.subscriptions[1].Filter)
 }
 
 func TestBatchUpdateSubscriptions_NotFound(t *testing.T) {
@@ -1048,7 +1040,7 @@ func TestBatchUpdateSubscriptions_NotFound(t *testing.T) {
 
 	handler.BatchUpdateSubscriptions(c)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusMultiStatus, w.Code)
 
 	var response handlers.BatchResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
@@ -1210,7 +1202,7 @@ func TestBatchUpdateResourcePools_NotFound(t *testing.T) {
 
 	handler.BatchUpdateResourcePools(c)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusMultiStatus, w.Code)
 
 	var response handlers.BatchResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)

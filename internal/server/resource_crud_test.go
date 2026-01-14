@@ -566,7 +566,6 @@ func TestResourceExtensionValueExceedsFourKB(t *testing.T) {
 func TestResourceExtensionsExceedsHundredKeys(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-
 	// Test POST /resources
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
 
@@ -591,7 +590,6 @@ func TestResourceExtensionsExceedsHundredKeys(t *testing.T) {
 
 func TestResourceTotalExtensionsPayloadExceedsFiftyKB(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-
 
 	// Test POST /resources
 	srv := setupResourceTestServer(t, newMockResourceAdapter())
@@ -661,7 +659,6 @@ func TestResourceDuplicateResourceID(t *testing.T) {
 func TestResourceAdapterErrorOnCreate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-
 	// Test POST /resources
 	// Create a mock that returns an error
 	mockAdp := &mockResourceAdapter{
@@ -684,7 +681,6 @@ func TestResourceAdapterErrorOnCreate(t *testing.T) {
 
 func TestResourceUpdateAdapterErrorOnUpdate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-
 
 	// Test POST /resources
 	// Create a mock with existing resource that returns error on update
@@ -758,7 +754,6 @@ func (e *errorReturningAdapter) GetResource(ctx context.Context, id string) (*ad
 // TestResourceConcurrency tests concurrent operations on the same resource.
 func TestResourceConcurrency(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-
 
 	t.Run("concurrent creates with same ID", func(t *testing.T) {
 		mockAdp := &mockResourceAdapter{
