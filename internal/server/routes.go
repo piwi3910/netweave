@@ -20,6 +20,29 @@ import (
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
+// withPermission wraps a handler with permission-based authorization.
+// If auth middleware is not configured, the handler runs without authorization checks.
+func (s *Server) withPermission(permission string, handler gin.HandlerFunc) gin.HandlerFunc {
+	if s.authMw == nil {
+		// Auth not configured, return handler without authorization
+		return handler
+	}
+
+	// Chain permission middleware with handler
+	return func(c *gin.Context) {
+		// Apply permission middleware
+		s.authMw.RequirePermission(permission)(c)
+
+		// If middleware aborted (unauthorized), stop here
+		if c.IsAborted() {
+			return
+		}
+
+		// Execute handler
+		handler(c)
+	}
+}
+
 // setupRoutes configures all HTTP routes for the O2-IMS Gateway.
 // It organizes routes into logical groups:
 //   - Health and readiness endpoints
@@ -71,57 +94,57 @@ func (s *Server) setupV1Routes(v1 *gin.RouterGroup) {
 	// Endpoint: /subscriptions
 	subscriptions := v1.Group("/subscriptions")
 	{
-		subscriptions.GET("", s.handleListSubscriptions)
-		subscriptions.POST("", s.handleCreateSubscription)
-		subscriptions.GET("/:subscriptionId", s.handleGetSubscription)
-		subscriptions.PUT("/:subscriptionId", s.handleUpdateSubscription)
-		subscriptions.DELETE("/:subscriptionId", s.handleDeleteSubscription)
+		subscriptions.GET("", s.withPermission("subscriptions:read", s.handleListSubscriptions))
+		subscriptions.POST("", s.withPermission("subscriptions:create", s.handleCreateSubscription))
+		subscriptions.GET("/:subscriptionId", s.withPermission("subscriptions:read", s.handleGetSubscription))
+		subscriptions.PUT("/:subscriptionId", s.withPermission("subscriptions:create", s.handleUpdateSubscription))
+		subscriptions.DELETE("/:subscriptionId", s.withPermission("subscriptions:delete", s.handleDeleteSubscription))
 	}
 
 	// Resource Pool Management
 	// Endpoint: /resourcePools
 	resourcePools := v1.Group("/resourcePools")
 	{
-		resourcePools.GET("", s.handleListResourcePools)
-		resourcePools.POST("", s.handleCreateResourcePool)
-		resourcePools.GET("/:resourcePoolId", s.handleGetResourcePool)
-		resourcePools.PUT("/:resourcePoolId", s.handleUpdateResourcePool)
-		resourcePools.DELETE("/:resourcePoolId", s.handleDeleteResourcePool)
-		resourcePools.GET("/:resourcePoolId/resources", s.handleListResourcesInPool)
+		resourcePools.GET("", s.withPermission("resourcePools:read", s.handleListResourcePools))
+		resourcePools.POST("", s.withPermission("resourcePools:create", s.handleCreateResourcePool))
+		resourcePools.GET("/:resourcePoolId", s.withPermission("resourcePools:read", s.handleGetResourcePool))
+		resourcePools.PUT("/:resourcePoolId", s.withPermission("resourcePools:update", s.handleUpdateResourcePool))
+		resourcePools.DELETE("/:resourcePoolId", s.withPermission("resourcePools:delete", s.handleDeleteResourcePool))
+		resourcePools.GET("/:resourcePoolId/resources", s.withPermission("resourcePools:read", s.handleListResourcesInPool))
 	}
 
 	// Resource Management
 	// Endpoint: /resources
 	resources := v1.Group("/resources")
 	{
-		resources.GET("", s.handleListResources)
-		resources.POST("", s.handleCreateResource)
-		resources.GET("/:resourceId", s.handleGetResource)
-		resources.PUT("/:resourceId", s.handleUpdateResource)
-		resources.DELETE("/:resourceId", s.handleDeleteResource)
+		resources.GET("", s.withPermission("resources:read", s.handleListResources))
+		resources.POST("", s.withPermission("resources:create", s.handleCreateResource))
+		resources.GET("/:resourceId", s.withPermission("resources:read", s.handleGetResource))
+		resources.PUT("/:resourceId", s.withPermission("resources:update", s.handleUpdateResource))
+		resources.DELETE("/:resourceId", s.withPermission("resources:delete", s.handleDeleteResource))
 	}
 
 	// Resource Type Management
 	// Endpoint: /resourceTypes
 	resourceTypes := v1.Group("/resourceTypes")
 	{
-		resourceTypes.GET("", s.handleListResourceTypes)
-		resourceTypes.GET("/:resourceTypeId", s.handleGetResourceType)
+		resourceTypes.GET("", s.withPermission("resourceTypes:read", s.handleListResourceTypes))
+		resourceTypes.GET("/:resourceTypeId", s.withPermission("resourceTypes:read", s.handleGetResourceType))
 	}
 
 	// Deployment Manager Management
 	// Endpoint: /deploymentManagers
 	deploymentManagers := v1.Group("/deploymentManagers")
 	{
-		deploymentManagers.GET("", s.handleListDeploymentManagers)
-		deploymentManagers.GET("/:deploymentManagerId", s.handleGetDeploymentManager)
+		deploymentManagers.GET("", s.withPermission("deploymentManagers:read", s.handleListDeploymentManagers))
+		deploymentManagers.GET("/:deploymentManagerId", s.withPermission("deploymentManagers:read", s.handleGetDeploymentManager))
 	}
 
 	// O-Cloud Infrastructure Information
 	// Endpoint: /oCloudInfrastructure
-	v1.GET("/oCloudInfrastructure", s.handleGetOCloudInfrastructure)
+	v1.GET("/oCloudInfrastructure", s.withPermission("deploymentManagers:read", s.handleGetOCloudInfrastructure))
 
-	// API version endpoint
+	// API version endpoint (no auth required)
 	v1.GET("", s.handleAPIInfo)
 }
 
@@ -139,17 +162,17 @@ func (s *Server) setupV2Routes(v2 *gin.RouterGroup) {
 	batch := v2.Group("/batch")
 	{
 		// Batch subscription operations
-		batch.POST("/subscriptions", s.batchHandler.BatchCreateSubscriptions)
-		batch.POST("/subscriptions/delete", s.batchHandler.BatchDeleteSubscriptions)
-		batch.POST("/subscriptions/update", s.batchHandler.BatchUpdateSubscriptions)
+		batch.POST("/subscriptions", s.withPermission("subscriptions:create", s.batchHandler.BatchCreateSubscriptions))
+		batch.POST("/subscriptions/delete", s.withPermission("subscriptions:delete", s.batchHandler.BatchDeleteSubscriptions))
+		batch.POST("/subscriptions/update", s.withPermission("subscriptions:create", s.batchHandler.BatchUpdateSubscriptions))
 
 		// Batch resource pool operations
-		batch.POST("/resourcePools", s.batchHandler.BatchCreateResourcePools)
-		batch.POST("/resourcePools/delete", s.batchHandler.BatchDeleteResourcePools)
-		batch.POST("/resourcePools/update", s.batchHandler.BatchUpdateResourcePools)
+		batch.POST("/resourcePools", s.withPermission("resourcePools:create", s.batchHandler.BatchCreateResourcePools))
+		batch.POST("/resourcePools/delete", s.withPermission("resourcePools:delete", s.batchHandler.BatchDeleteResourcePools))
+		batch.POST("/resourcePools/update", s.withPermission("resourcePools:update", s.batchHandler.BatchUpdateResourcePools))
 	}
 
-	// V2 API info with enhanced features
+	// V2 API info with enhanced features (no auth required)
 	v2.GET("/features", s.handleV2Features)
 }
 
@@ -163,74 +186,74 @@ func (s *Server) setupV3Routes(v3 *gin.RouterGroup) {
 	// Infrastructure Inventory Subscription Management (v1 endpoints)
 	subscriptions := v3.Group("/subscriptions")
 	{
-		subscriptions.GET("", s.handleListSubscriptions)
-		subscriptions.POST("", s.handleCreateSubscription)
-		subscriptions.GET("/:subscriptionId", s.handleGetSubscription)
-		subscriptions.PUT("/:subscriptionId", s.handleUpdateSubscription)
-		subscriptions.DELETE("/:subscriptionId", s.handleDeleteSubscription)
+		subscriptions.GET("", s.withPermission("subscriptions:read", s.handleListSubscriptions))
+		subscriptions.POST("", s.withPermission("subscriptions:create", s.handleCreateSubscription))
+		subscriptions.GET("/:subscriptionId", s.withPermission("subscriptions:read", s.handleGetSubscription))
+		subscriptions.PUT("/:subscriptionId", s.withPermission("subscriptions:create", s.handleUpdateSubscription))
+		subscriptions.DELETE("/:subscriptionId", s.withPermission("subscriptions:delete", s.handleDeleteSubscription))
 	}
 
 	// Resource Pool Management (v1 endpoints)
 	resourcePools := v3.Group("/resourcePools")
 	{
-		resourcePools.GET("", s.handleListResourcePools)
-		resourcePools.POST("", s.handleCreateResourcePool)
-		resourcePools.GET("/:resourcePoolId", s.handleGetResourcePool)
-		resourcePools.PUT("/:resourcePoolId", s.handleUpdateResourcePool)
-		resourcePools.DELETE("/:resourcePoolId", s.handleDeleteResourcePool)
-		resourcePools.GET("/:resourcePoolId/resources", s.handleListResourcesInPool)
+		resourcePools.GET("", s.withPermission("resourcePools:read", s.handleListResourcePools))
+		resourcePools.POST("", s.withPermission("resourcePools:create", s.handleCreateResourcePool))
+		resourcePools.GET("/:resourcePoolId", s.withPermission("resourcePools:read", s.handleGetResourcePool))
+		resourcePools.PUT("/:resourcePoolId", s.withPermission("resourcePools:update", s.handleUpdateResourcePool))
+		resourcePools.DELETE("/:resourcePoolId", s.withPermission("resourcePools:delete", s.handleDeleteResourcePool))
+		resourcePools.GET("/:resourcePoolId/resources", s.withPermission("resourcePools:read", s.handleListResourcesInPool))
 	}
 
 	// Resource Management (v1 endpoints)
 	resources := v3.Group("/resources")
 	{
-		resources.GET("", s.handleListResources)
-		resources.POST("", s.handleCreateResource)
-		resources.GET("/:resourceId", s.handleGetResource)
-		resources.PUT("/:resourceId", s.handleUpdateResource)
+		resources.GET("", s.withPermission("resources:read", s.handleListResources))
+		resources.POST("", s.withPermission("resources:create", s.handleCreateResource))
+		resources.GET("/:resourceId", s.withPermission("resources:read", s.handleGetResource))
+		resources.PUT("/:resourceId", s.withPermission("resources:update", s.handleUpdateResource))
 	}
 
 	// Resource Type Management (v1 endpoints)
 	resourceTypes := v3.Group("/resourceTypes")
 	{
-		resourceTypes.GET("", s.handleListResourceTypes)
-		resourceTypes.GET("/:resourceTypeId", s.handleGetResourceType)
+		resourceTypes.GET("", s.withPermission("resourceTypes:read", s.handleListResourceTypes))
+		resourceTypes.GET("/:resourceTypeId", s.withPermission("resourceTypes:read", s.handleGetResourceType))
 	}
 
 	// Deployment Manager Management (v1 endpoints)
 	deploymentManagers := v3.Group("/deploymentManagers")
 	{
-		deploymentManagers.GET("", s.handleListDeploymentManagers)
-		deploymentManagers.GET("/:deploymentManagerId", s.handleGetDeploymentManager)
+		deploymentManagers.GET("", s.withPermission("deploymentManagers:read", s.handleListDeploymentManagers))
+		deploymentManagers.GET("/:deploymentManagerId", s.withPermission("deploymentManagers:read", s.handleGetDeploymentManager))
 	}
 
 	// Batch Operations (v2 feature)
 	batch := v3.Group("/batch")
 	{
 		// Subscription batch operations
-		batch.POST("/subscriptions", s.batchHandler.BatchCreateSubscriptions)
-		batch.POST("/subscriptions/delete", s.batchHandler.BatchDeleteSubscriptions)
-		batch.POST("/subscriptions/update", s.batchHandler.BatchUpdateSubscriptions)
+		batch.POST("/subscriptions", s.withPermission("subscriptions:create", s.batchHandler.BatchCreateSubscriptions))
+		batch.POST("/subscriptions/delete", s.withPermission("subscriptions:delete", s.batchHandler.BatchDeleteSubscriptions))
+		batch.POST("/subscriptions/update", s.withPermission("subscriptions:create", s.batchHandler.BatchUpdateSubscriptions))
 
 		// Resource pool batch operations
-		batch.POST("/resourcePools", s.batchHandler.BatchCreateResourcePools)
-		batch.POST("/resourcePools/delete", s.batchHandler.BatchDeleteResourcePools)
-		batch.POST("/resourcePools/update", s.batchHandler.BatchUpdateResourcePools)
+		batch.POST("/resourcePools", s.withPermission("resourcePools:create", s.batchHandler.BatchCreateResourcePools))
+		batch.POST("/resourcePools/delete", s.withPermission("resourcePools:delete", s.batchHandler.BatchDeleteResourcePools))
+		batch.POST("/resourcePools/update", s.withPermission("resourcePools:update", s.batchHandler.BatchUpdateResourcePools))
 	}
 
 	// Tenant management (v3 feature)
 	tenants := v3.Group("/tenants")
 	{
-		tenants.GET("", s.handleListTenants)
-		tenants.POST("", s.handleCreateTenant)
-		tenants.GET("/:tenantId", s.handleGetTenant)
-		tenants.PUT("/:tenantId", s.handleUpdateTenant)
-		tenants.DELETE("/:tenantId", s.handleDeleteTenant)
-		tenants.GET("/:tenantId/quotas", s.handleGetTenantQuotas)
-		tenants.PUT("/:tenantId/quotas", s.handleUpdateTenantQuotas)
+		tenants.GET("", s.withPermission("tenants:read", s.handleListTenants))
+		tenants.POST("", s.withPermission("tenants:create", s.handleCreateTenant))
+		tenants.GET("/:tenantId", s.withPermission("tenants:read", s.handleGetTenant))
+		tenants.PUT("/:tenantId", s.withPermission("tenants:update", s.handleUpdateTenant))
+		tenants.DELETE("/:tenantId", s.withPermission("tenants:delete", s.handleDeleteTenant))
+		tenants.GET("/:tenantId/quotas", s.withPermission("tenants:read", s.handleGetTenantQuotas))
+		tenants.PUT("/:tenantId/quotas", s.withPermission("tenants:update", s.handleUpdateTenantQuotas))
 	}
 
-	// V3 API info with multi-tenancy features
+	// V3 API info with multi-tenancy features (no auth required)
 	v3.GET("/features", s.handleV3Features)
 }
 
