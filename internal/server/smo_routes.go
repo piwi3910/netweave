@@ -153,33 +153,37 @@ func (h *SMOHandler) setEventDefaults(eventID *string, timestamp *time.Time) {
 // publishEvent publishes an event using the provided plugin function.
 func (h *SMOHandler) publishEvent(c *gin.Context, publishFn func(context.Context, smo.Plugin) error) error {
 	pluginName := c.Query("plugin")
+
+	// Get plugin inline (avoid ireturn linter)
 	var plugin smo.Plugin
 	var err error
+
 	if pluginName != "" {
 		h.registry.Mu.RLock()
-		var exists bool
-		plugin, exists = h.registry.Plugins[pluginName]
+		plugin = h.registry.Plugins[pluginName]
 		h.registry.Mu.RUnlock()
-		if !exists {
+
+		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
 		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			var exists bool
-			plugin, exists = h.registry.Plugins[h.registry.DefaultPlugin]
-			if !exists {
-				err = fmt.Errorf("default plugin %s not found", h.registry.DefaultPlugin)
-			}
-		} else {
-			err = fmt.Errorf("no default plugin configured")
-		}
+		defaultName := h.registry.DefaultPlugin
+		plugin = h.registry.Plugins[defaultName]
 		h.registry.Mu.RUnlock()
+
+		if defaultName == "" {
+			err = fmt.Errorf("no default plugin configured")
+		} else if plugin == nil {
+			err = fmt.Errorf("default plugin %s not found", defaultName)
+		}
 	}
+
 	if err != nil {
 		h.respondWithNotFound(c, err)
 		return err
 	}
+
 	if err := publishFn(c.Request.Context(), plugin); err != nil {
 		h.respondWithInternalError(c, "publishEvent", err)
 		return err
@@ -407,26 +411,26 @@ func (h *SMOHandler) HandleGetWorkflowStatus(c *gin.Context) {
 	pluginName := c.Query("plugin")
 	var plugin smo.Plugin
 	var err error
+	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
 		h.registry.Mu.RLock()
-		var exists bool
-		plugin, exists = h.registry.Plugins[pluginName]
+		plugin = h.registry.Plugins[pluginName]
 		h.registry.Mu.RUnlock()
-		if !exists {
+
+		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
 		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			var exists bool
-			plugin, exists = h.registry.Plugins[h.registry.DefaultPlugin]
-			if !exists {
-				err = fmt.Errorf("default plugin %s not found", h.registry.DefaultPlugin)
-			}
-		} else {
-			err = fmt.Errorf("no default plugin configured")
-		}
+		defaultName := h.registry.DefaultPlugin
+		plugin = h.registry.Plugins[defaultName]
 		h.registry.Mu.RUnlock()
+
+		if defaultName == "" {
+			err = fmt.Errorf("no default plugin configured")
+		} else if plugin == nil {
+			err = fmt.Errorf("default plugin %s not found", defaultName)
+		}
 	}
 	if err != nil {
 		h.respondWithNotFound(c, err)
@@ -457,26 +461,26 @@ func (h *SMOHandler) HandleCancelWorkflow(c *gin.Context) {
 	// Get plugin
 	var plugin smo.Plugin
 	var err error
+	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
 		h.registry.Mu.RLock()
-		var exists bool
-		plugin, exists = h.registry.Plugins[pluginName]
+		plugin = h.registry.Plugins[pluginName]
 		h.registry.Mu.RUnlock()
-		if !exists {
+
+		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
 		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			var exists bool
-			plugin, exists = h.registry.Plugins[h.registry.DefaultPlugin]
-			if !exists {
-				err = fmt.Errorf("default plugin %s not found", h.registry.DefaultPlugin)
-			}
-		} else {
-			err = fmt.Errorf("no default plugin configured")
-		}
+		defaultName := h.registry.DefaultPlugin
+		plugin = h.registry.Plugins[defaultName]
 		h.registry.Mu.RUnlock()
+
+		if defaultName == "" {
+			err = fmt.Errorf("no default plugin configured")
+		} else if plugin == nil {
+			err = fmt.Errorf("default plugin %s not found", defaultName)
+		}
 	}
 
 	if err != nil {
@@ -516,26 +520,26 @@ func (h *SMOHandler) HandleListServiceModels(c *gin.Context) {
 	// Get plugin
 	var plugin smo.Plugin
 	var err error
+	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
 		h.registry.Mu.RLock()
-		var exists bool
-		plugin, exists = h.registry.Plugins[pluginName]
+		plugin = h.registry.Plugins[pluginName]
 		h.registry.Mu.RUnlock()
-		if !exists {
+
+		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
 		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			var exists bool
-			plugin, exists = h.registry.Plugins[h.registry.DefaultPlugin]
-			if !exists {
-				err = fmt.Errorf("default plugin %s not found", h.registry.DefaultPlugin)
-			}
-		} else {
-			err = fmt.Errorf("no default plugin configured")
-		}
+		defaultName := h.registry.DefaultPlugin
+		plugin = h.registry.Plugins[defaultName]
 		h.registry.Mu.RUnlock()
+
+		if defaultName == "" {
+			err = fmt.Errorf("no default plugin configured")
+		} else if plugin == nil {
+			err = fmt.Errorf("default plugin %s not found", defaultName)
+		}
 	}
 
 	if err != nil {
@@ -570,26 +574,26 @@ func (h *SMOHandler) HandleCreateServiceModel(c *gin.Context) {
 	// Get plugin
 	var plugin smo.Plugin
 	var err error
+	// Get plugin inline (avoid ireturn linter)
 	if req.PluginName != "" {
 		h.registry.Mu.RLock()
-		var exists bool
-		plugin, exists = h.registry.Plugins[req.PluginName]
+		plugin = h.registry.Plugins[req.PluginName]
 		h.registry.Mu.RUnlock()
-		if !exists {
+
+		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", req.PluginName)
 		}
 	} else {
 		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			var exists bool
-			plugin, exists = h.registry.Plugins[h.registry.DefaultPlugin]
-			if !exists {
-				err = fmt.Errorf("default plugin %s not found", h.registry.DefaultPlugin)
-			}
-		} else {
-			err = fmt.Errorf("no default plugin configured")
-		}
+		defaultName := h.registry.DefaultPlugin
+		plugin = h.registry.Plugins[defaultName]
 		h.registry.Mu.RUnlock()
+
+		if defaultName == "" {
+			err = fmt.Errorf("no default plugin configured")
+		} else if plugin == nil {
+			err = fmt.Errorf("default plugin %s not found", defaultName)
+		}
 	}
 
 	if err != nil {
@@ -632,26 +636,26 @@ func (h *SMOHandler) HandleGetServiceModel(c *gin.Context) {
 	pluginName := c.Query("plugin")
 	var plugin smo.Plugin
 	var err error
+	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
 		h.registry.Mu.RLock()
-		var exists bool
-		plugin, exists = h.registry.Plugins[pluginName]
+		plugin = h.registry.Plugins[pluginName]
 		h.registry.Mu.RUnlock()
-		if !exists {
+
+		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
 		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			var exists bool
-			plugin, exists = h.registry.Plugins[h.registry.DefaultPlugin]
-			if !exists {
-				err = fmt.Errorf("default plugin %s not found", h.registry.DefaultPlugin)
-			}
-		} else {
-			err = fmt.Errorf("no default plugin configured")
-		}
+		defaultName := h.registry.DefaultPlugin
+		plugin = h.registry.Plugins[defaultName]
 		h.registry.Mu.RUnlock()
+
+		if defaultName == "" {
+			err = fmt.Errorf("no default plugin configured")
+		} else if plugin == nil {
+			err = fmt.Errorf("default plugin %s not found", defaultName)
+		}
 	}
 	if err != nil {
 		h.respondWithNotFound(c, err)
@@ -714,26 +718,26 @@ func (h *SMOHandler) HandleApplyPolicy(c *gin.Context) {
 	// Get plugin
 	var plugin smo.Plugin
 	var err error
+	// Get plugin inline (avoid ireturn linter)
 	if req.PluginName != "" {
 		h.registry.Mu.RLock()
-		var exists bool
-		plugin, exists = h.registry.Plugins[req.PluginName]
+		plugin = h.registry.Plugins[req.PluginName]
 		h.registry.Mu.RUnlock()
-		if !exists {
+
+		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", req.PluginName)
 		}
 	} else {
 		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			var exists bool
-			plugin, exists = h.registry.Plugins[h.registry.DefaultPlugin]
-			if !exists {
-				err = fmt.Errorf("default plugin %s not found", h.registry.DefaultPlugin)
-			}
-		} else {
-			err = fmt.Errorf("no default plugin configured")
-		}
+		defaultName := h.registry.DefaultPlugin
+		plugin = h.registry.Plugins[defaultName]
 		h.registry.Mu.RUnlock()
+
+		if defaultName == "" {
+			err = fmt.Errorf("no default plugin configured")
+		} else if plugin == nil {
+			err = fmt.Errorf("default plugin %s not found", defaultName)
+		}
 	}
 
 	if err != nil {
@@ -781,26 +785,26 @@ func (h *SMOHandler) HandleGetPolicyStatus(c *gin.Context) {
 	pluginName := c.Query("plugin")
 	var plugin smo.Plugin
 	var err error
+	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
 		h.registry.Mu.RLock()
-		var exists bool
-		plugin, exists = h.registry.Plugins[pluginName]
+		plugin = h.registry.Plugins[pluginName]
 		h.registry.Mu.RUnlock()
-		if !exists {
+
+		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
 		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			var exists bool
-			plugin, exists = h.registry.Plugins[h.registry.DefaultPlugin]
-			if !exists {
-				err = fmt.Errorf("default plugin %s not found", h.registry.DefaultPlugin)
-			}
-		} else {
-			err = fmt.Errorf("no default plugin configured")
-		}
+		defaultName := h.registry.DefaultPlugin
+		plugin = h.registry.Plugins[defaultName]
 		h.registry.Mu.RUnlock()
+
+		if defaultName == "" {
+			err = fmt.Errorf("no default plugin configured")
+		} else if plugin == nil {
+			err = fmt.Errorf("default plugin %s not found", defaultName)
+		}
 	}
 	if err != nil {
 		h.respondWithNotFound(c, err)
@@ -831,26 +835,26 @@ func (h *SMOHandler) HandleSyncInfrastructure(c *gin.Context) {
 	// Get plugin
 	var plugin smo.Plugin
 	var err error
+	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
 		h.registry.Mu.RLock()
-		var exists bool
-		plugin, exists = h.registry.Plugins[pluginName]
+		plugin = h.registry.Plugins[pluginName]
 		h.registry.Mu.RUnlock()
-		if !exists {
+
+		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
 		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			var exists bool
-			plugin, exists = h.registry.Plugins[h.registry.DefaultPlugin]
-			if !exists {
-				err = fmt.Errorf("default plugin %s not found", h.registry.DefaultPlugin)
-			}
-		} else {
-			err = fmt.Errorf("no default plugin configured")
-		}
+		defaultName := h.registry.DefaultPlugin
+		plugin = h.registry.Plugins[defaultName]
 		h.registry.Mu.RUnlock()
+
+		if defaultName == "" {
+			err = fmt.Errorf("no default plugin configured")
+		} else if plugin == nil {
+			err = fmt.Errorf("default plugin %s not found", defaultName)
+		}
 	}
 
 	if err != nil {
@@ -891,26 +895,26 @@ func (h *SMOHandler) HandleSyncDeployments(c *gin.Context) {
 	// Get plugin
 	var plugin smo.Plugin
 	var err error
+	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
 		h.registry.Mu.RLock()
-		var exists bool
-		plugin, exists = h.registry.Plugins[pluginName]
+		plugin = h.registry.Plugins[pluginName]
 		h.registry.Mu.RUnlock()
-		if !exists {
+
+		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
 		h.registry.Mu.RLock()
-		if h.registry.DefaultPlugin != "" {
-			var exists bool
-			plugin, exists = h.registry.Plugins[h.registry.DefaultPlugin]
-			if !exists {
-				err = fmt.Errorf("default plugin %s not found", h.registry.DefaultPlugin)
-			}
-		} else {
-			err = fmt.Errorf("no default plugin configured")
-		}
+		defaultName := h.registry.DefaultPlugin
+		plugin = h.registry.Plugins[defaultName]
 		h.registry.Mu.RUnlock()
+
+		if defaultName == "" {
+			err = fmt.Errorf("no default plugin configured")
+		} else if plugin == nil {
+			err = fmt.Errorf("default plugin %s not found", defaultName)
+		}
 	}
 
 	if err != nil {
