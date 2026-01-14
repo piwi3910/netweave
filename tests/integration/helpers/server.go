@@ -66,7 +66,7 @@ func NewTestServer(t *testing.T, adp adapter.Adapter, store storage.Store) *Test
 	}
 
 	// Create server (use the embedded zap.Logger)
-	srv := server.New(cfg, obsLogger.Logger, adp, store)
+	srv := server.New(cfg, obsLogger.Logger, adp, store, nil)
 
 	// Create test HTTP server
 	ts := httptest.NewServer(srv.Router())
