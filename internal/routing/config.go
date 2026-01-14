@@ -4,7 +4,7 @@ package routing
 import (
 	"fmt"
 
-	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/dms/adapter"
 )
 
 // PluginConfig represents configuration for a single plugin.

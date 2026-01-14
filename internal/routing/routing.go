@@ -11,8 +11,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/piwi3910/netweave/internal/adapter"
-	"github.com/piwi3910/netweave/internal/registry"
+	"github.com/piwi3910/netweave/internal/dms/adapter"
+	"github.com/piwi3910/netweave/internal/dms/registry"
 )
 
 // Rule represents a routing rule for adapter selection.
@@ -140,7 +140,7 @@ func NewRouter(reg *registry.Registry, logger *zap.Logger, config *Config) *Rout
 
 // RouteMultiple selects multiple adapters based on the routing context.
 // This is used when aggregating results from multiple backends.
-func (r *Router) RouteMultiple(_ context.Context, routingCtx *Context) ([]adapter.Adapter, error) {
+func (r *Router) RouteMultiple(_ context.Context, routingCtx *Context) ([]adapter.DMSAdapter, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -159,8 +159,8 @@ func (r *Router) RouteMultiple(_ context.Context, routingCtx *Context) ([]adapte
 }
 
 // collectMatchingAdapters finds all adapters matching routing rules.
-func (r *Router) collectMatchingAdapters(routingCtx *Context) []adapter.Adapter {
-	adapters := make([]adapter.Adapter, 0)
+func (r *Router) collectMatchingAdapters(routingCtx *Context) []adapter.DMSAdapter {
+	adapters := make([]adapter.DMSAdapter, 0)
 	seen := make(map[string]bool)
 
 	for _, rule := range r.rules {
@@ -207,7 +207,7 @@ func (r *Router) isAdapterValid(name string, requiredCaps []adapter.Capability) 
 }
 
 // addDefaultAdapter adds the default adapter to the list if available.
-func (r *Router) addDefaultAdapter(adapters *[]adapter.Adapter) {
+func (r *Router) addDefaultAdapter(adapters *[]adapter.DMSAdapter) {
 	r.Registry.Mu.RLock()
 	defaultName := r.Registry.DefaultPlugin
 	defaultPlugin := r.Registry.Plugins[defaultName]
