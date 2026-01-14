@@ -20,23 +20,28 @@ import (
 
 // SubscriptionHandler handles Subscription API endpoints.
 type SubscriptionHandler struct {
-	Store  storage.Store // Exported for testing
-	Logger *zap.Logger   // Exported for testing
+	Store     storage.Store // Exported for testing
+	AuthStore auth.Store    // Exported for testing
+	Logger    *zap.Logger   // Exported for testing
 }
 
 // NewSubscriptionHandler creates a new SubscriptionHandler.
 // It requires a storage backend for subscription persistence and a logger for structured logging.
-func NewSubscriptionHandler(store storage.Store, logger *zap.Logger) *SubscriptionHandler {
+func NewSubscriptionHandler(store storage.Store, authStore auth.Store, logger *zap.Logger) *SubscriptionHandler {
 	if store == nil {
 		panic("storage cannot be nil")
+	}
+	if authStore == nil {
+		panic("auth store cannot be nil")
 	}
 	if logger == nil {
 		panic("logger cannot be nil")
 	}
 
 	return &SubscriptionHandler{
-		Store:  store,
-		Logger: logger,
+		Store:     store,
+		AuthStore: authStore,
+		Logger:    logger,
 	}
 }
 
@@ -152,6 +157,7 @@ func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
 //   - 201 Created: Created Subscription object with generated ID
 //   - 400 Bad Request: Invalid request body or callback URL
 //   - 409 Conflict: Subscription with same consumer ID already exists
+//   - 429 Too Many Requests: Tenant quota exceeded
 func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -169,11 +175,47 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 		return // Error response already sent
 	}
 
+	// Check tenant quota before creating subscription
+	if tenantID != "" && h.AuthStore != nil {
+		if err := h.AuthStore.IncrementUsage(ctx, tenantID, "subscriptions"); err != nil {
+			if errors.Is(err, auth.ErrQuotaExceeded) {
+				h.Logger.Warn("subscription quota exceeded",
+					zap.String("tenant_id", tenantID),
+				)
+				c.JSON(http.StatusTooManyRequests, models.ErrorResponse{
+					Error:   "QuotaExceeded",
+					Message: "Subscription quota exceeded for tenant",
+					Code:    http.StatusTooManyRequests,
+				})
+				return
+			}
+			h.Logger.Error("failed to check subscription quota",
+				zap.String("tenant_id", tenantID),
+				zap.Error(err),
+			)
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+				Error:   "InternalError",
+				Message: "Failed to check subscription quota",
+				Code:    http.StatusInternalServerError,
+			})
+			return
+		}
+	}
+
 	// Create and store subscription
 	subscriptionID := uuid.New().String()
 	storageSub := h.convertToStorageSubscription(sub, subscriptionID, tenantID)
 
 	if err := h.StoreSubscription(ctx, c, storageSub); err != nil {
+		// Rollback quota increment on failure
+		if tenantID != "" && h.AuthStore != nil {
+			if decErr := h.AuthStore.DecrementUsage(ctx, tenantID, "subscriptions"); decErr != nil {
+				h.Logger.Error("failed to rollback subscription quota",
+					zap.String("tenant_id", tenantID),
+					zap.Error(decErr),
+				)
+			}
+		}
 		return // Error response already sent
 	}
 
@@ -521,6 +563,17 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 			Code:    http.StatusInternalServerError,
 		})
 		return
+	}
+
+	// Decrement tenant quota after successful deletion
+	if tenantID != "" && h.AuthStore != nil {
+		if err := h.AuthStore.DecrementUsage(ctx, tenantID, "subscriptions"); err != nil {
+			h.Logger.Error("failed to decrement subscription quota",
+				zap.String("tenant_id", tenantID),
+				zap.Error(err),
+			)
+			// Don't fail the delete operation if quota decrement fails
+		}
 	}
 
 	h.Logger.Info("subscription deleted",

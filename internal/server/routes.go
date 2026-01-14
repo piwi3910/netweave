@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
@@ -372,7 +373,13 @@ func (s *Server) handleListSubscriptions(c *gin.Context) {
 // handleCreateSubscription creates a new subscription.
 // POST /o2ims/v1/subscriptions.
 func (s *Server) handleCreateSubscription(c *gin.Context) {
-	s.logger.Info("creating subscription")
+	ctx := c.Request.Context()
+
+	// Extract tenant ID from authenticated context
+	tenantID := auth.TenantIDFromContext(ctx)
+
+	s.logger.Info("creating subscription",
+		zap.String("tenant_id", tenantID))
 
 	var req adapter.Subscription
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -385,7 +392,7 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 	}
 
 	// Validate callback URL early for fast failure (SSRF protection)
-	if err := s.ValidateCallback(c.Request.Context(), &req); err != nil {
+	if err := s.ValidateCallback(ctx, &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "BadRequest",
 			"message": err.Error(),
@@ -394,12 +401,46 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 		return
 	}
 
+	// Check tenant quota before creating subscription
+	if tenantID != "" && s.AuthStore != nil {
+		if err := s.AuthStore.IncrementUsage(ctx, tenantID, "subscriptions"); err != nil {
+			if errors.Is(err, auth.ErrQuotaExceeded) {
+				s.logger.Warn("subscription quota exceeded",
+					zap.String("tenant_id", tenantID))
+				c.JSON(http.StatusTooManyRequests, gin.H{
+					"error":   "QuotaExceeded",
+					"message": "Subscription quota exceeded for tenant",
+					"code":    http.StatusTooManyRequests,
+				})
+				return
+			}
+			s.logger.Error("failed to check subscription quota",
+				zap.String("tenant_id", tenantID),
+				zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "InternalError",
+				"message": "Failed to check subscription quota",
+				"code":    http.StatusInternalServerError,
+			})
+			return
+		}
+	}
+
 	// Generate subscription ID
 	req.SubscriptionID = "sub-" + uuid.New().String()
 
 	// Create subscription via adapter
-	created, err := s.adapter.CreateSubscription(c.Request.Context(), &req)
+	created, err := s.adapter.CreateSubscription(ctx, &req)
 	if err != nil {
+		// Rollback quota increment on failure
+		if tenantID != "" && s.AuthStore != nil {
+			if decErr := s.AuthStore.DecrementUsage(ctx, tenantID, "subscriptions"); decErr != nil {
+				s.logger.Error("failed to rollback subscription quota",
+					zap.String("tenant_id", tenantID),
+					zap.Error(decErr))
+			}
+		}
+
 		// Check for conflict error (subscription already exists)
 		if errors.Is(err, adapter.ErrSubscriptionExists) {
 			c.JSON(http.StatusConflict, gin.H{
@@ -419,11 +460,12 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 		return
 	}
 
-	// Store subscription
+	// Store subscription with tenant ID
 	storageSub := &storage.Subscription{
 		ID:                     created.SubscriptionID,
 		Callback:               created.Callback,
 		ConsumerSubscriptionID: created.ConsumerSubscriptionID,
+		TenantID:               tenantID,
 	}
 	if created.Filter != nil {
 		storageSub.Filter = storage.SubscriptionFilter{
@@ -433,10 +475,18 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 		}
 	}
 
-	if err := s.store.Create(c.Request.Context(), storageSub); err != nil {
+	if err := s.store.Create(ctx, storageSub); err != nil {
 		s.logger.Error("failed to store subscription", zap.Error(err))
 		// Attempt to clean up adapter subscription (best effort)
-		_ = s.adapter.DeleteSubscription(c.Request.Context(), created.SubscriptionID)
+		_ = s.adapter.DeleteSubscription(ctx, created.SubscriptionID)
+		// Rollback quota increment
+		if tenantID != "" && s.AuthStore != nil {
+			if decErr := s.AuthStore.DecrementUsage(ctx, tenantID, "subscriptions"); decErr != nil {
+				s.logger.Error("failed to rollback subscription quota",
+					zap.String("tenant_id", tenantID),
+					zap.Error(decErr))
+			}
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
 			"message": "Failed to store subscription",
@@ -448,6 +498,19 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 	s.logger.Info("subscription created",
 		zap.String("subscription_id", created.SubscriptionID),
 		zap.String("callback", created.Callback))
+
+	// Log audit event for subscription creation
+	s.logAuditEvent(
+		ctx,
+		c,
+		auth.AuditEventResourceCreated,
+		"subscription",
+		created.SubscriptionID,
+		"subscription_created",
+		map[string]string{
+			"callback": created.Callback,
+		},
+	)
 
 	c.JSON(http.StatusCreated, created)
 }
@@ -549,17 +612,46 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 		zap.String("subscription_id", subscriptionID),
 		zap.String("callback", updated.Callback))
 
+	// Log audit event for subscription update
+	s.logAuditEvent(
+		c.Request.Context(),
+		c,
+		auth.AuditEventResourceModified,
+		"subscription",
+		subscriptionID,
+		"subscription_updated",
+		map[string]string{
+			"callback": updated.Callback,
+		},
+	)
+
 	c.JSON(http.StatusOK, updated)
 }
 
 // handleDeleteSubscription deletes a subscription.
 // DELETE /o2ims/v1/subscriptions/:subscriptionId.
 func (s *Server) handleDeleteSubscription(c *gin.Context) {
+	ctx := c.Request.Context()
 	subscriptionID := c.Param("subscriptionId")
-	s.logger.Info("deleting subscription", zap.String("subscription_id", subscriptionID))
+
+	// Extract tenant ID from authenticated context
+	tenantID := auth.TenantIDFromContext(ctx)
+
+	s.logger.Info("deleting subscription",
+		zap.String("subscription_id", subscriptionID),
+		zap.String("tenant_id", tenantID))
+
+	// Get subscription to extract tenant ID for quota tracking
+	var storedTenantID string
+	if s.store != nil {
+		sub, err := s.store.Get(ctx, subscriptionID)
+		if err == nil {
+			storedTenantID = sub.TenantID
+		}
+	}
 
 	// Delete from adapter
-	if err := s.adapter.DeleteSubscription(c.Request.Context(), subscriptionID); err != nil {
+	if err := s.adapter.DeleteSubscription(ctx, subscriptionID); err != nil {
 		s.logger.Error("failed to delete subscription from adapter", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
@@ -570,7 +662,7 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 	}
 
 	// Delete from storage
-	if err := s.store.Delete(c.Request.Context(), subscriptionID); err != nil {
+	if err := s.store.Delete(ctx, subscriptionID); err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
@@ -589,7 +681,29 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 		return
 	}
 
+	// Decrement tenant quota after successful deletion
+	if storedTenantID != "" && s.AuthStore != nil {
+		if err := s.AuthStore.DecrementUsage(ctx, storedTenantID, "subscriptions"); err != nil {
+			s.logger.Error("failed to decrement subscription quota",
+				zap.String("tenant_id", storedTenantID),
+				zap.Error(err))
+			// Don't fail the delete operation if quota decrement fails
+		}
+	}
+
 	s.logger.Info("subscription deleted", zap.String("subscription_id", subscriptionID))
+
+	// Log audit event for subscription deletion
+	s.logAuditEvent(
+		ctx,
+		c,
+		auth.AuditEventResourceDeleted,
+		"subscription",
+		subscriptionID,
+		"subscription_deleted",
+		nil,
+	)
+
 	c.Status(http.StatusNoContent)
 }
 
@@ -1744,6 +1858,53 @@ var (
 	privateIPv6Nets []*net.IPNet
 	privateIPOnce   sync.Once
 )
+
+// logAuditEvent logs an audit event with tenant context if auth store is configured.
+func (s *Server) logAuditEvent(
+	ctx context.Context,
+	c *gin.Context,
+	eventType auth.AuditEventType,
+	resourceType, resourceID, action string,
+	details map[string]string,
+) {
+	if s.AuthStore == nil {
+		return // Auth store not configured, skip audit logging
+	}
+
+	// Extract tenant ID from authenticated context
+	tenantID := auth.TenantIDFromContext(ctx)
+
+	// Extract user information from context if available
+	var userID, subject string
+	if user, exists := c.Get("user"); exists {
+		if authUser, ok := user.(*auth.AuthenticatedUser); ok {
+			userID = authUser.UserID
+			subject = authUser.Subject
+		}
+	}
+
+	event := &auth.AuditEvent{
+		ID:           uuid.New().String(),
+		Type:         eventType,
+		TenantID:     tenantID,
+		UserID:       userID,
+		Subject:      subject,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		Action:       action,
+		Details:      details,
+		ClientIP:     c.ClientIP(),
+		UserAgent:    c.Request.UserAgent(),
+	}
+
+	if err := s.AuthStore.LogEvent(ctx, event); err != nil {
+		s.logger.Warn("failed to log audit event",
+			zap.String("event_type", string(eventType)),
+			zap.String("resource_type", resourceType),
+			zap.String("resource_id", resourceID),
+			zap.Error(err))
+	}
+}
 
 // initPrivateIPRanges initializes the private IP range networks.
 // This is called lazily on first use via sync.Once.

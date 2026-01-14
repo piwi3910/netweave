@@ -92,6 +92,9 @@ type Server struct {
 type AuthStore interface {
 	Ping(ctx context.Context) error
 	Close() error
+	IncrementUsage(ctx context.Context, tenantID, usageType string) error
+	DecrementUsage(ctx context.Context, tenantID, usageType string) error
+	LogEvent(ctx context.Context, event *auth.AuditEvent) error
 }
 
 // AuthMiddleware defines the interface for authentication middleware.
