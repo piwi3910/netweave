@@ -22,7 +22,7 @@ This project implements the following O-RAN Alliance specifications:
 
 | Specification | Status | Implementation Completeness |
 |--------------|--------|----------------------------|
-| **O2-IMS v3.0.0** | ✅ 95% | All core APIs implemented. 7 backend adapters (Kubernetes, AWS, Azure, GCP, OpenStack, VMware, DTIAS) fully functional. |
+| **O2-IMS v3.0.0** | ✅ 95% | All core APIs implemented. 8 backend adapters (Kubernetes, AWS, Azure, GCP, OpenStack, VMware, DTIAS, StarlingX) fully functional. |
 | **O2-DMS v3.0.0** | ✅ 95% | All core APIs implemented. 7 deployment adapters (Helm, ArgoCD, Flux, Kustomize, Crossplane, ONAP-LCM, OSM-LCM) fully functional. |
 | **O2-SMO v3.0.0** | ✅ 90% | Integration plugins for ONAP and OSM. Northbound and southbound interfaces operational. |
 
@@ -54,6 +54,7 @@ Official O-RAN Alliance specifications:
 - ✅ **Multi-Backend Support**: Pluggable adapter architecture for diverse infrastructure
   - **Kubernetes** - Primary cloud-native infrastructure adapter
   - **Dell DTIAS** - Bare-metal infrastructure management
+  - **StarlingX** - Wind River edge cloud platform with Keystone authentication
   - **OpenStack** - IaaS cloud infrastructure
   - **AWS** - EC2 instances, Auto Scaling Groups, Availability Zones
   - **Azure** - Virtual Machines, Resource Groups, VM Sizes
@@ -648,6 +649,7 @@ The following tables show the **actual completion status** of each adapter based
 |---------|-----------|-------|-----|--------|-------|
 | **Kubernetes** | 22/22 (100%) | 59 tests | 1,403 | ✅ **Production** | Primary adapter, fully tested, zero TODOs |
 | **OpenStack** | 22/22 (100%) | 37 tests | 1,939 | ✅ **Production** | Complete Nova/Neutron integration |
+| **StarlingX** | 22/22 (100%) | 16 tests | 1,764 | ✅ **Production** | Wind River edge cloud, Keystone auth, 62.6% coverage |
 | **Dell DTIAS** | 22/22 (100%) | 15 tests | 2,326 | 🟡 **Beta** | Bare-metal management, needs more tests |
 | **AWS** | 22/22 (100%) | 17 tests | 1,516 | 🟡 **Beta** | EC2/ASG support, production-ready |
 | **Azure** | 22/22 (100%) | 14 tests | 1,357 | 🟡 **Beta** | VM/VMSS support, needs integration tests |
