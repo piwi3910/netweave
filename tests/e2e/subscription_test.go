@@ -23,6 +23,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// Test timeout constants.
+const (
+	eventDeliveryTimeout = 5 * time.Second
+	webhookRetryTimeout  = 30 * time.Second
+	eventWaitTimeout     = 10 * time.Second
+)
+
 // TestSubscriptionWorkflow tests the complete subscription lifecycle.
 func TestSubscriptionWorkflow(t *testing.T) {
 	if testing.Short() {
@@ -306,16 +313,16 @@ func TestSubscriptionFiltering(t *testing.T) {
 	webhook2.ClearEvents()
 
 	// Create K8s resource helper
-	k8sHelper := e2e.NewK8sResourceHelper(fw.KubeClient, fw.Namespace, fw.Context)
+	k8sHelper := e2e.NewK8sResourceHelper(fw.KubeClient)
 
 	// Create a Pod (should trigger webhook1 if adapter supports Pod events)
 	podName := "filter-test-pod"
-	pod, err := k8sHelper.CreateTestPod(fw.Namespace, podName, map[string]string{"test": "filtering"})
+	pod, err := k8sHelper.CreateTestPod(fw.Context, fw.Namespace, podName, map[string]string{"test": "filtering"})
 	if err != nil {
 		t.Logf("Failed to create pod (may be expected in some environments): %v", err)
 	} else {
 		defer func() {
-			if delErr := k8sHelper.DeletePod(fw.Namespace, podName); delErr != nil {
+			if delErr := k8sHelper.DeletePod(fw.Context, fw.Namespace, podName); delErr != nil {
 				t.Logf("Failed to cleanup pod: %v", delErr)
 			}
 		}()
@@ -324,12 +331,12 @@ func TestSubscriptionFiltering(t *testing.T) {
 
 	// Create a Namespace (should trigger webhook2)
 	nsName := "filter-test-namespace"
-	ns, err := k8sHelper.CreateTestNamespace(nsName)
+	ns, err := k8sHelper.CreateTestNamespace(fw.Context, nsName)
 	if err != nil {
 		t.Logf("Failed to create namespace: %v", err)
 	} else {
 		defer func() {
-			if delErr := k8sHelper.DeleteNamespace(nsName); delErr != nil {
+			if delErr := k8sHelper.DeleteNamespace(fw.Context, nsName); delErr != nil {
 				t.Logf("Failed to cleanup namespace: %v", delErr)
 			}
 		}()
@@ -337,7 +344,7 @@ func TestSubscriptionFiltering(t *testing.T) {
 	}
 
 	// Wait for events to be delivered
-	time.Sleep(5 * time.Second)
+	time.Sleep(eventDeliveryTimeout)
 
 	// Check webhook1 (should receive Pod events, not Namespace)
 	webhook1Events := webhook1.GetReceivedEvents()
@@ -391,7 +398,7 @@ func TestConcurrentSubscriptions(t *testing.T) {
 	// Create multiple subscriptions concurrently
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	errors := make([]error, 0)
+	errors := make([]error, 0, numSubscriptions)
 
 	for i := 0; i < numSubscriptions; i++ {
 		wg.Add(1)
@@ -739,7 +746,7 @@ func TestResourceLifecycleEvents(t *testing.T) {
 	defer fw.Cleanup()
 
 	// Create K8s resource helper
-	k8sHelper := e2e.NewK8sResourceHelper(fw.KubeClient, fw.Namespace, fw.Context)
+	k8sHelper := e2e.NewK8sResourceHelper(fw.KubeClient)
 
 	// Clear any existing events
 	fw.WebhookServer.ClearEvents()
@@ -781,10 +788,10 @@ func TestResourceLifecycleEvents(t *testing.T) {
 
 	// Event 1 - Create a Kubernetes Namespace
 	testNsName := "e2e-lifecycle-test"
-	ns, err := k8sHelper.CreateTestNamespace(testNsName)
+	ns, err := k8sHelper.CreateTestNamespace(fw.Context, testNsName)
 	require.NoError(t, err)
 	defer func() {
-		if delErr := k8sHelper.DeleteNamespace(testNsName); delErr != nil {
+		if delErr := k8sHelper.DeleteNamespace(fw.Context, testNsName); delErr != nil {
 			t.Logf("Failed to cleanup namespace: %v", delErr)
 		}
 	}()
@@ -792,7 +799,7 @@ func TestResourceLifecycleEvents(t *testing.T) {
 	fw.Logger.Info("Created test namespace", zap.String("namespace", ns.Name))
 
 	// Wait for create event
-	createEvent, err := fw.WebhookServer.WaitForEventWithFilter(10*time.Second, func(e *e2e.WebhookEvent) bool {
+	createEvent, err := fw.WebhookServer.WaitForEventWithFilter(eventWaitTimeout, func(e *e2e.WebhookEvent) bool {
 		return e.Type == "resource.created" && e.ResourceType == "Namespace"
 	})
 	if err == nil {
@@ -808,7 +815,7 @@ func TestResourceLifecycleEvents(t *testing.T) {
 	// This tests the update notification path if supported
 
 	// Wait for update event (may timeout if adapter doesn't support namespace updates)
-	updateEvent, err := fw.WebhookServer.WaitForEventWithFilter(10*time.Second, func(e *e2e.WebhookEvent) bool {
+	updateEvent, err := fw.WebhookServer.WaitForEventWithFilter(eventWaitTimeout, func(e *e2e.WebhookEvent) bool {
 		return e.Type == "resource.updated" && e.ResourceType == "Namespace"
 	})
 	if err == nil {
@@ -820,13 +827,13 @@ func TestResourceLifecycleEvents(t *testing.T) {
 	}
 
 	// Event 3 - Delete the Namespace
-	err = k8sHelper.DeleteNamespace(testNsName)
+	err = k8sHelper.DeleteNamespace(fw.Context, testNsName)
 	require.NoError(t, err)
 
 	fw.Logger.Info("Deleted test namespace", zap.String("namespace", testNsName))
 
 	// Wait for delete event
-	deleteEvent, err := fw.WebhookServer.WaitForEventWithFilter(10*time.Second, func(e *e2e.WebhookEvent) bool {
+	deleteEvent, err := fw.WebhookServer.WaitForEventWithFilter(eventWaitTimeout, func(e *e2e.WebhookEvent) bool {
 		return e.Type == "resource.deleted" && e.ResourceType == "Namespace"
 	})
 	if err == nil {
@@ -945,16 +952,16 @@ func TestSubscriptionFilterByResourcePool(t *testing.T) {
 	webhook2.ClearEvents()
 
 	// Create K8s resource helper
-	k8sHelper := e2e.NewK8sResourceHelper(fw.KubeClient, fw.Namespace, fw.Context)
+	k8sHelper := e2e.NewK8sResourceHelper(fw.KubeClient)
 
 	// Create a namespace to trigger events
 	nsName := "pool-filter-test"
-	ns, err := k8sHelper.CreateTestNamespace(nsName)
+	ns, err := k8sHelper.CreateTestNamespace(fw.Context, nsName)
 	if err != nil {
 		t.Skipf("Could not create test namespace: %v", err)
 	}
 	defer func() {
-		if delErr := k8sHelper.DeleteNamespace(nsName); delErr != nil {
+		if delErr := k8sHelper.DeleteNamespace(fw.Context, nsName); delErr != nil {
 			t.Logf("Failed to cleanup namespace: %v", delErr)
 		}
 	}()
@@ -965,7 +972,7 @@ func TestSubscriptionFilterByResourcePool(t *testing.T) {
 	)
 
 	// Wait for events to be delivered
-	time.Sleep(5 * time.Second)
+	time.Sleep(eventDeliveryTimeout)
 
 	// Verify filtering worked
 	events1 := webhook1.GetReceivedEvents()
