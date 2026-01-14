@@ -174,10 +174,11 @@ func (a *Adapter) CreateResource(
 
 // UpdateResource updates an existing EC2 instance's tags and metadata.
 // Note: Core instance properties (instance type, AMI) cannot be modified after launch.
+// Only tags can be updated via the EC2 CreateTags API.
 func (a *Adapter) UpdateResource(
-	_ context.Context,
+	ctx context.Context,
 	id string,
-	_ *adapter.Resource,
+	resource *adapter.Resource,
 ) (*adapter.Resource, error) {
 	var err error
 	start := time.Now()
@@ -186,10 +187,73 @@ func (a *Adapter) UpdateResource(
 	a.Logger.Debug("UpdateResource called",
 		zap.String("resourceId", id))
 
-	// TODO(#188): Implement instance tag updates via EC2 CreateTags API
-	// For now, return not supported
-	err = fmt.Errorf("updating EC2 instances is not yet implemented")
-	return nil, err
+	// Extract the actual EC2 instance ID
+	instanceID := extractInstanceID(id)
+
+	// Build tags from resource fields
+	tags := buildResourceTags(resource)
+
+	// Only update if there are tags to apply
+	if len(tags) > 0 {
+		_, err = a.ec2Client.CreateTags(ctx, &ec2.CreateTagsInput{
+			Resources: []string{instanceID},
+			Tags:      tags,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update instance tags: %w", err)
+		}
+
+		a.Logger.Info("updated instance tags",
+			zap.String("instanceId", instanceID),
+			zap.Int("tagCount", len(tags)))
+	}
+
+	// Fetch and return the updated resource
+	return a.GetResource(ctx, id)
+}
+
+// extractInstanceID extracts the EC2 instance ID from an O2-IMS resource ID.
+func extractInstanceID(id string) string {
+	instanceID := strings.TrimPrefix(id, "aws-instance-")
+	if instanceID == id {
+		return id // Already an instance ID
+	}
+	return instanceID
+}
+
+// buildResourceTags builds EC2 tags from resource fields.
+func buildResourceTags(resource *adapter.Resource) []ec2Types.Tag {
+	var tags []ec2Types.Tag
+
+	// Add description as Name tag
+	if resource.Description != "" {
+		tags = append(tags, ec2Types.Tag{
+			Key:   aws.String("Name"),
+			Value: aws.String(resource.Description),
+		})
+	}
+
+	// Add GlobalAssetID as a tag
+	if resource.GlobalAssetID != "" {
+		tags = append(tags, ec2Types.Tag{
+			Key:   aws.String("GlobalAssetID"),
+			Value: aws.String(resource.GlobalAssetID),
+		})
+	}
+
+	// Add custom tags from Extensions
+	if resource.Extensions != nil {
+		if customTags, ok := resource.Extensions["aws.tags"].(map[string]string); ok {
+			for key, value := range customTags {
+				tags = append(tags, ec2Types.Tag{
+					Key:   aws.String(key),
+					Value: aws.String(value),
+				})
+			}
+		}
+	}
+
+	return tags
 }
 
 // extractInstanceType extracts the instance type from the resource type ID.
