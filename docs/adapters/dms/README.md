@@ -1,7 +1,7 @@
 # DMS Adapter Interface
 
 **Version:** 1.0
-**Last Updated:** 2026-01-12
+**Last Updated:** 2026-01-14
 
 ## Overview
 
@@ -128,6 +128,11 @@ const (
 - [Helm Adapter](helm.md) - Helm chart deployment
 - [GitOps Adapters](gitops.md) - ArgoCD, Flux CD
 - [Orchestrator Adapters](orchestrators.md) - ONAP-LCM, OSM-LCM
+
+## Operational Documentation
+
+- [Package Management](package-management.md) - Deployment package lifecycle management
+- [Error Handling](error-handling.md) - O-RAN error formats, validation, troubleshooting
 
 ## See Also
 
