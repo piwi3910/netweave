@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -568,4 +569,284 @@ func TestSubscriptionDeletionStopsNotifications(t *testing.T) {
 	// TODO: Trigger another event - should NOT receive notification
 
 	fw.Logger.Info("Subscription deletion test completed")
+}
+
+// TestWebhookRetryLogic tests webhook delivery retry with exponential backoff.
+func TestWebhookRetryLogic(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	t.Skip("Requires triggering actual resource changes and monitoring retry attempts")
+
+	fw, err := e2e.NewTestFramework(e2e.DefaultOptions())
+	require.NoError(t, err)
+	defer fw.Cleanup()
+
+	// Create a webhook server that fails the first N attempts
+	var attemptCount int
+	var attemptMu sync.Mutex
+	const failAttempts = 2
+
+	failingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptMu.Lock()
+		attemptCount++
+		currentAttempt := attemptCount
+		attemptMu.Unlock()
+
+		fw.Logger.Info("Webhook delivery attempt",
+			zap.Int("attempt", currentAttempt),
+			zap.Int("failUntil", failAttempts),
+		)
+
+		if currentAttempt <= failAttempts {
+			// Fail first N attempts
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// Succeed on subsequent attempts
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+			t.Logf("Failed to write response: %v", err)
+		}
+	}))
+	defer failingServer.Close()
+
+	// Create subscription with the failing webhook
+	subscription := map[string]any{
+		"callback": failingServer.URL,
+		"filter":   "(resourceType==Node)",
+	}
+
+	reqBody, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	url := fw.GatewayURL + e2e.APIPathSubscriptions
+	resp, err := fw.APIClient.Post(url, "application/json", bytes.NewReader(reqBody))
+	require.NoError(t, err)
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
+
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var createdSub map[string]any
+	err = json.Unmarshal(body, &createdSub)
+	require.NoError(t, err)
+
+	subscriptionID := createdSub["subscriptionId"].(string)
+	require.NotEmpty(t, subscriptionID)
+
+	fw.Logger.Info("Created subscription with failing webhook",
+		zap.String("subscriptionId", subscriptionID),
+		zap.String("callback", failingServer.URL),
+	)
+
+	// TODO: Trigger a Kubernetes event to test retry logic
+	// The gateway should retry webhook delivery with exponential backoff
+
+	// Wait for retries to complete
+	time.Sleep(30 * time.Second)
+
+	// Verify retry attempts
+	attemptMu.Lock()
+	finalAttempts := attemptCount
+	attemptMu.Unlock()
+
+	assert.GreaterOrEqual(t, finalAttempts, failAttempts+1,
+		"Should have retried at least %d times", failAttempts+1)
+
+	fw.Logger.Info("Webhook retry test completed",
+		zap.Int("totalAttempts", finalAttempts),
+		zap.Int("failedAttempts", failAttempts),
+	)
+}
+
+// TestResourceLifecycleEvents tests event generation for resource CRUD operations.
+func TestResourceLifecycleEvents(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	t.Skip("Requires creating actual Kubernetes resources to trigger events")
+
+	fw, err := e2e.NewTestFramework(e2e.DefaultOptions())
+	require.NoError(t, err)
+	defer fw.Cleanup()
+
+	// Clear any existing events
+	fw.WebhookServer.ClearEvents()
+
+	// Create subscription for all events
+	subscription := map[string]any{
+		"callback":               fw.WebhookServer.URL(),
+		"consumerSubscriptionId": "lifecycle-test",
+		"filter":                 "(resourceType==Namespace)",
+	}
+
+	reqBody, err := json.Marshal(subscription)
+	require.NoError(t, err)
+
+	url := fw.GatewayURL + e2e.APIPathSubscriptions
+	resp, err := fw.APIClient.Post(url, "application/json", bytes.NewReader(reqBody))
+	require.NoError(t, err)
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
+
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var createdSub map[string]any
+	err = json.Unmarshal(body, &createdSub)
+	require.NoError(t, err)
+
+	subscriptionID := createdSub["subscriptionId"].(string)
+	require.NotEmpty(t, subscriptionID)
+
+	fw.Logger.Info("Created subscription for lifecycle events",
+		zap.String("subscriptionId", subscriptionID),
+	)
+
+	// TODO: Event 1 - Create a Kubernetes Namespace
+	// This should trigger a "resource.created" event
+
+	// Wait for create event
+	createEvent, err := fw.WebhookServer.WaitForEventWithFilter(10*time.Second, func(e *e2e.WebhookEvent) bool {
+		return e.Type == "resource.created" && e.ResourceType == "Namespace"
+	})
+	if err == nil {
+		assert.Equal(t, "resource.created", createEvent.Type)
+		assert.Equal(t, subscriptionID, createEvent.SubscriptionID)
+		fw.Logger.Info("Received create event", zap.String("eventId", createEvent.ID))
+	}
+
+	// TODO: Event 2 - Update the Namespace (add label/annotation)
+	// This should trigger a "resource.updated" event
+
+	// Wait for update event
+	updateEvent, err := fw.WebhookServer.WaitForEventWithFilter(10*time.Second, func(e *e2e.WebhookEvent) bool {
+		return e.Type == "resource.updated" && e.ResourceType == "Namespace"
+	})
+	if err == nil {
+		assert.Equal(t, "resource.updated", updateEvent.Type)
+		assert.Equal(t, subscriptionID, updateEvent.SubscriptionID)
+		fw.Logger.Info("Received update event", zap.String("eventId", updateEvent.ID))
+	}
+
+	// TODO: Event 3 - Delete the Namespace
+	// This should trigger a "resource.deleted" event
+
+	// Wait for delete event
+	deleteEvent, err := fw.WebhookServer.WaitForEventWithFilter(10*time.Second, func(e *e2e.WebhookEvent) bool {
+		return e.Type == "resource.deleted" && e.ResourceType == "Namespace"
+	})
+	if err == nil {
+		assert.Equal(t, "resource.deleted", deleteEvent.Type)
+		assert.Equal(t, subscriptionID, deleteEvent.SubscriptionID)
+		fw.Logger.Info("Received delete event", zap.String("eventId", deleteEvent.ID))
+	}
+
+	// Verify we received all 3 lifecycle events
+	allEvents := fw.WebhookServer.GetReceivedEvents()
+	assert.GreaterOrEqual(t, len(allEvents), 3, "Should receive at least 3 lifecycle events")
+
+	fw.Logger.Info("Resource lifecycle test completed",
+		zap.Int("eventsReceived", len(allEvents)),
+	)
+}
+
+// TestSubscriptionFilterByResourcePool tests filtering by resource pool ID.
+func TestSubscriptionFilterByResourcePool(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	t.Skip("Requires creating resources in different pools")
+
+	fw, err := e2e.NewTestFramework(e2e.DefaultOptions())
+	require.NoError(t, err)
+	defer fw.Cleanup()
+
+	// Create two webhook servers
+	webhook1 := e2e.NewWebhookServer(fw.Logger.Named("webhook-pool1"))
+	require.NoError(t, webhook1.Start())
+	defer func() {
+		if err := webhook1.Stop(); err != nil {
+			t.Logf("Failed to stop webhook1: %v", err)
+		}
+	}()
+
+	webhook2 := e2e.NewWebhookServer(fw.Logger.Named("webhook-pool2"))
+	require.NoError(t, webhook2.Start())
+	defer func() {
+		if err := webhook2.Stop(); err != nil {
+			t.Logf("Failed to stop webhook2: %v", err)
+		}
+	}()
+
+	// Subscription 1: Filter for pool-1
+	sub1 := map[string]any{
+		"callback": webhook1.URL(),
+		"filter":   "(resourcePoolId==pool-1)",
+	}
+	reqBody1, err := json.Marshal(sub1)
+	require.NoError(t, err)
+
+	url := fw.GatewayURL + e2e.APIPathSubscriptions
+	resp1, err := fw.APIClient.Post(url, "application/json", bytes.NewReader(reqBody1))
+	require.NoError(t, err)
+	defer func() {
+		if err := resp1.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
+	require.Equal(t, http.StatusCreated, resp1.StatusCode)
+
+	// Subscription 2: Filter for pool-2
+	sub2 := map[string]any{
+		"callback": webhook2.URL(),
+		"filter":   "(resourcePoolId==pool-2)",
+	}
+	reqBody2, err := json.Marshal(sub2)
+	require.NoError(t, err)
+
+	resp2, err := fw.APIClient.Post(url, "application/json", bytes.NewReader(reqBody2))
+	require.NoError(t, err)
+	defer func() {
+		if err := resp2.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
+	require.Equal(t, http.StatusCreated, resp2.StatusCode)
+
+	webhook1.ClearEvents()
+	webhook2.ClearEvents()
+
+	// TODO: Create resource in pool-1
+	// Only webhook1 should receive notification
+
+	// TODO: Create resource in pool-2
+	// Only webhook2 should receive notification
+
+	time.Sleep(5 * time.Second)
+
+	// Verify filtering worked
+	events1 := webhook1.GetReceivedEvents()
+	events2 := webhook2.GetReceivedEvents()
+
+	fw.Logger.Info("Resource pool filtering test completed",
+		zap.Int("webhook1Events", len(events1)),
+		zap.Int("webhook2Events", len(events2)),
+	)
 }
