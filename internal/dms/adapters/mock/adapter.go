@@ -11,7 +11,6 @@ package mock
 import (
 	"context"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -366,7 +365,7 @@ func (a *Adapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.
 }
 
 // GetDeploymentLogs retrieves logs for a deployment.
-func (a *Adapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapter.LogOptions) (io.ReadCloser, error) {
+func (a *Adapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapter.LogOptions) ([]byte, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -374,19 +373,19 @@ func (a *Adapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapte
 		return nil, adapter.ErrDeploymentNotFound
 	}
 
-	// Return mock logs (logs variable not currently used as we return empty reader)
-	_ = fmt.Sprintf("[MOCK] Deployment logs for %s\nStatus: Running\nPods: 3/3 ready\n", id)
-	return io.NopCloser(io.Reader(nil)), nil
+	// Return mock logs as bytes
+	logs := fmt.Sprintf("[MOCK] Deployment logs for %s\nStatus: Running\nPods: 3/3 ready\n", id)
+	return []byte(logs), nil
 }
 
 // RollbackDeployment rolls back a deployment to a previous version.
-func (a *Adapter) RollbackDeployment(ctx context.Context, id string, targetVersion int) (*adapter.Deployment, error) {
+func (a *Adapter) RollbackDeployment(ctx context.Context, id string, targetVersion int) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	dep, ok := a.deployments[id]
 	if !ok {
-		return nil, adapter.ErrDeploymentNotFound
+		return adapter.ErrDeploymentNotFound
 	}
 
 	dep.Status = adapter.DeploymentStatusRollingBack
@@ -395,16 +394,17 @@ func (a *Adapter) RollbackDeployment(ctx context.Context, id string, targetVersi
 	// Simulate async rollback
 	go a.simulateRollback(id, targetVersion)
 
-	return dep, nil
+	return nil
 }
 
 // ScaleDeployment scales a deployment to the specified replica count.
-func (a *Adapter) ScaleDeployment(ctx context.Context, id string, replicas int) (*adapter.Deployment, error) {
+func (a *Adapter) ScaleDeployment(ctx context.Context, id string, replicas int) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	dep, ok := a.deployments[id]; if !ok {
-		return nil, adapter.ErrDeploymentNotFound
+	dep, ok := a.deployments[id]
+	if !ok {
+		return adapter.ErrDeploymentNotFound
 	}
 
 	if dep.Extensions == nil {
@@ -413,7 +413,7 @@ func (a *Adapter) ScaleDeployment(ctx context.Context, id string, replicas int) 
 	dep.Extensions["replicas"] = replicas
 	dep.UpdatedAt = time.Now()
 
-	return dep, nil
+	return nil
 }
 
 // GetDeploymentHistory retrieves the revision history for a deployment.
@@ -577,4 +577,29 @@ func (a *Adapter) simulateRollback(id string, targetVersion int) {
 		dep.Version = targetVersion
 		dep.UpdatedAt = time.Now()
 	}
+}
+
+// SupportsRollback indicates if the adapter supports rollback operations.
+// Mock adapter returns true as it supports rollback simulation.
+func (a *Adapter) SupportsRollback() bool {
+	return true
+}
+
+// SupportsScaling indicates if the adapter supports scaling operations.
+// Mock adapter returns true as it supports scaling simulation.
+func (a *Adapter) SupportsScaling() bool {
+	return true
+}
+
+// SupportsGitOps indicates if the adapter supports GitOps workflows.
+// Mock adapter returns false as it doesn't support GitOps.
+func (a *Adapter) SupportsGitOps() bool {
+	return false
+}
+
+// Close cleanly shuts down the adapter and releases resources.
+// For the mock adapter, this is a no-op since there are no external connections.
+func (a *Adapter) Close() error {
+	// Mock adapter has no resources to clean up
+	return nil
 }

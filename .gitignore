@@ -76,3 +76,4 @@ Thumbs.db
 # Ignore binary in root only
 /netweave
 !/helm/netweave/
+netweave-gateway

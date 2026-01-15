@@ -120,6 +120,10 @@ redis:
 auth:
   enabled: false
 
+# Multi-tenancy (disabled for mock)
+multi_tenancy:
+  enabled: false
+
 # Rate Limiting (lenient for testing)
 rate_limiting:
   enabled: true

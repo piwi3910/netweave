@@ -675,3 +675,10 @@ func (a *Adapter) applyPaginationResourceTypes(resourceTypes []*adapter.Resource
 
 	return resourceTypes[offset:end]
 }
+
+// Close cleanly shuts down the adapter and releases resources.
+// For the mock adapter, this is a no-op since there are no external connections.
+func (a *Adapter) Close() error {
+	// Mock adapter has no resources to clean up
+	return nil
+}
