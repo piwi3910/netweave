@@ -6,6 +6,8 @@ package adapter
 import (
 	"context"
 	"errors"
+
+	"github.com/piwi3910/netweave/internal/models"
 )
 
 // Capability represents a feature that an adapter supports.
@@ -79,6 +81,9 @@ var (
 // Filter provides criteria for filtering O2-IMS resources.
 // Filters are used in List operations to narrow down results based on
 // resource attributes, labels, location, and custom extensions.
+//
+// For v2 API support, use the AdvancedFilter field to enable
+// advanced filtering operators, multi-field sorting, and cursor pagination.
 type Filter struct {
 	// TenantID filters resources by tenant for multi-tenancy isolation.
 	// When set, only resources belonging to this tenant will be returned.
@@ -104,6 +109,12 @@ type Filter struct {
 
 	// Offset specifies the starting position for pagination.
 	Offset int
+
+	// AdvancedFilter provides v2 API advanced filtering capabilities.
+	// When set, this takes precedence over basic filter fields for v2 endpoints.
+	// Includes: filter operators (gt, lt, contains, regex, in, nin),
+	// multi-field sorting, cursor pagination, and field selection.
+	AdvancedFilter *models.AdvancedFilter
 }
 
 // DeploymentManager represents O2-IMS Deployment Manager metadata.

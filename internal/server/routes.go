@@ -18,6 +18,7 @@ import (
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/auth"
+	"github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
@@ -876,15 +877,61 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// parseFilterFromRequest parses filter parameters from the request context.
+// It detects the API version and uses AdvancedFilter parsing for v2+ endpoints.
+// Returns an adapter.Filter with tenant context applied.
+func (s *Server) parseFilterFromRequest(c *gin.Context) (*adapter.Filter, error) {
+	// Detect API version from request path.
+	path := c.Request.URL.Path
+	isV2OrHigher := strings.Contains(path, "/v2/") || strings.Contains(path, "/v3/")
+
+	// Extract tenant ID if present (v3+ with multi-tenancy).
+	tenantID := auth.TenantIDFromContext(c.Request.Context())
+
+	if isV2OrHigher {
+		// Parse advanced filter for v2+ endpoints.
+		advFilter, err := models.ParseAdvancedFilter(c.Request.URL.Query())
+		if err != nil {
+			return nil, fmt.Errorf("invalid filter parameters: %w", err)
+		}
+
+		// Create adapter filter with advanced filtering support.
+		return &adapter.Filter{
+			TenantID:       tenantID,
+			Limit:          advFilter.Limit,
+			Offset:         advFilter.Offset,
+			AdvancedFilter: advFilter,
+		}, nil
+	}
+
+	// For v1, create basic filter (no advanced features).
+	return &adapter.Filter{
+		TenantID: tenantID,
+		Limit:    100, // Default limit for v1.
+	}, nil
+}
+
 // Resource Pool handlers
 
 // handleListResourcePools lists all resource pools.
-// GET /o2ims/v1/resourcePools.
+// GET /o2ims/v1/resourcePools, /v2/resourcePools, /v3/resourcePools.
 func (s *Server) handleListResourcePools(c *gin.Context) {
 	s.logger.Info("listing resource pools")
 
-	// List resource pools via adapter
-	pools, err := s.adapter.ListResourcePools(c.Request.Context(), nil)
+	// Parse filter from request (supports v1 basic and v2+ advanced filtering).
+	filter, err := s.parseFilterFromRequest(c)
+	if err != nil {
+		s.logger.Error("failed to parse filter", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "InvalidParameter",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// List resource pools via adapter.
+	pools, err := s.adapter.ListResourcePools(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resource pools", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1443,8 +1490,20 @@ func validateResourceFields(resource *adapter.Resource) error {
 func (s *Server) handleListResources(c *gin.Context) {
 	s.logger.Info("listing resources")
 
-	// List resources via adapter
-	resources, err := s.adapter.ListResources(c.Request.Context(), nil)
+	// Parse filter from request (supports v1 basic and v2+ advanced filtering).
+	filter, err := s.parseFilterFromRequest(c)
+	if err != nil {
+		s.logger.Error("failed to parse filter", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "InvalidParameter",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// List resources via adapter.
+	resources, err := s.adapter.ListResources(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resources", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1831,8 +1890,20 @@ func (s *Server) applyResourceUpdate(c *gin.Context, resourceID string, req, exi
 func (s *Server) handleListResourceTypes(c *gin.Context) {
 	s.logger.Info("listing resource types")
 
-	// List resource types via adapter
-	types, err := s.adapter.ListResourceTypes(c.Request.Context(), nil)
+	// Parse filter from request (supports v1 basic and v2+ advanced filtering).
+	filter, err := s.parseFilterFromRequest(c)
+	if err != nil {
+		s.logger.Error("failed to parse filter", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "InvalidParameter",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// List resource types via adapter.
+	types, err := s.adapter.ListResourceTypes(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resource types", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
