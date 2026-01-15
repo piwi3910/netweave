@@ -88,6 +88,9 @@ func (s *Server) setupRoutes() {
 
 	// Documentation endpoints (Swagger UI, OpenAPI spec)
 	s.SetupDocsRoutes()
+
+	// GraphQL API endpoint
+	s.setupGraphQLRoutes()
 }
 
 // setupV1Routes configures the O2-IMS API v1 endpoints.
