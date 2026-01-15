@@ -1,0 +1,687 @@
+# O2-IMS GraphQL Schema
+# Provides flexible querying for O-RAN O2-IMS resources
+
+scalar Time
+scalar JSON
+
+# ============================================================================
+# Query Root
+# ============================================================================
+
+type Query {
+  # Deployment Managers
+  deploymentManager(id: ID!): DeploymentManager
+  deploymentManagers: [DeploymentManager!]!
+
+  # Resource Pools
+  resourcePool(id: ID!): ResourcePool
+  resourcePools(filter: ResourcePoolFilter, pagination: Pagination): ResourcePoolConnection!
+
+  # Resources
+  resource(id: ID!): Resource
+  resources(filter: ResourceFilter, pagination: Pagination): ResourceConnection!
+
+  # Resource Types
+  resourceType(id: ID!): ResourceType
+  resourceTypes(filter: ResourceTypeFilter, pagination: Pagination): ResourceTypeConnection!
+
+  # Subscriptions
+  subscription(id: ID!): O2Subscription
+  subscriptions(filter: SubscriptionFilter, pagination: Pagination): SubscriptionConnection!
+
+  # DMS - NF Deployments
+  nfDeployment(id: ID!): NFDeployment
+  nfDeployments(filter: NFDeploymentFilter, pagination: Pagination): NFDeploymentConnection!
+
+  # DMS - Deployment Descriptors
+  nfDeploymentDescriptor(id: ID!): NFDeploymentDescriptor
+  nfDeploymentDescriptors(filter: DescriptorFilter, pagination: Pagination): DescriptorConnection!
+
+  # SMO - Workflows
+  workflowExecution(id: ID!): WorkflowExecution
+  workflowExecutions(filter: WorkflowFilter, pagination: Pagination): WorkflowExecutionConnection!
+
+  # SMO - Service Models
+  serviceModel(id: ID!): ServiceModel
+  serviceModels(filter: ServiceModelFilter, pagination: Pagination): ServiceModelConnection!
+
+  # SMO - Policies
+  policy(id: ID!): Policy
+  policies(filter: PolicyFilter, pagination: Pagination): PolicyConnection!
+
+  # Multi-tenancy (v3)
+  tenant(id: ID!): Tenant
+  tenants(pagination: Pagination): TenantConnection!
+}
+
+# ============================================================================
+# Mutation Root
+# ============================================================================
+
+type Mutation {
+  # Resource Pools
+  createResourcePool(input: CreateResourcePoolInput!): ResourcePool!
+  updateResourcePool(id: ID!, input: UpdateResourcePoolInput!): ResourcePool!
+  deleteResourcePool(id: ID!): Boolean!
+
+  # Resources
+  createResource(input: CreateResourceInput!): Resource!
+  updateResource(id: ID!, input: UpdateResourceInput!): Resource!
+  deleteResource(id: ID!): Boolean!
+
+  # Subscriptions
+  createSubscription(input: CreateSubscriptionInput!): O2Subscription!
+  updateSubscription(id: ID!, input: UpdateSubscriptionInput!): O2Subscription!
+  deleteSubscription(id: ID!): Boolean!
+
+  # DMS - NF Deployments
+  createNFDeployment(input: CreateNFDeploymentInput!): NFDeployment!
+  updateNFDeployment(id: ID!, input: UpdateNFDeploymentInput!): NFDeployment!
+  deleteNFDeployment(id: ID!): Boolean!
+  scaleNFDeployment(id: ID!, replicas: Int!): NFDeployment!
+  rollbackNFDeployment(id: ID!): NFDeployment!
+
+  # DMS - Deployment Descriptors
+  createNFDeploymentDescriptor(input: CreateDescriptorInput!): NFDeploymentDescriptor!
+  deleteNFDeploymentDescriptor(id: ID!): Boolean!
+
+  # SMO - Workflows
+  executeWorkflow(input: ExecuteWorkflowInput!): WorkflowExecution!
+  cancelWorkflow(id: ID!): Boolean!
+
+  # SMO - Service Models
+  createServiceModel(input: CreateServiceModelInput!): ServiceModel!
+  deleteServiceModel(id: ID!): Boolean!
+
+  # SMO - Policies
+  applyPolicy(input: ApplyPolicyInput!): Policy!
+
+  # Batch Operations (v2)
+  batchCreateResources(inputs: [CreateResourceInput!]!): [Resource!]!
+  batchDeleteResources(ids: [ID!]!): BatchResult!
+  batchCreateNFDeployments(inputs: [CreateNFDeploymentInput!]!): [NFDeployment!]!
+  batchDeleteNFDeployments(ids: [ID!]!): BatchResult!
+
+  # Multi-tenancy (v3)
+  createTenant(input: CreateTenantInput!): Tenant!
+  updateTenant(id: ID!, input: UpdateTenantInput!): Tenant!
+  deleteTenant(id: ID!): Boolean!
+}
+
+# ============================================================================
+# Subscription Root (Real-time Events)
+# ============================================================================
+
+type Subscription {
+  # Resource Events
+  resourceCreated(poolId: ID, typeId: ID): Resource!
+  resourceUpdated(poolId: ID, typeId: ID): Resource!
+  resourceDeleted(poolId: ID, typeId: ID): ResourceDeletedEvent!
+
+  # Resource Pool Events
+  resourcePoolCreated: ResourcePool!
+  resourcePoolUpdated: ResourcePool!
+  resourcePoolDeleted: ResourcePoolDeletedEvent!
+
+  # NF Deployment Events
+  nfDeploymentCreated: NFDeployment!
+  nfDeploymentUpdated: NFDeployment!
+  nfDeploymentDeleted: NFDeploymentDeletedEvent!
+  nfDeploymentStatusChanged(deploymentId: ID): NFDeploymentStatus!
+
+  # Workflow Events
+  workflowExecutionStarted: WorkflowExecution!
+  workflowExecutionCompleted: WorkflowExecution!
+  workflowExecutionFailed: WorkflowExecution!
+}
+
+# ============================================================================
+# Core Types - O2-IMS
+# ============================================================================
+
+type DeploymentManager {
+  id: ID!
+  name: String!
+  description: String
+  oCloudId: String!
+  serviceUri: String!
+  supportedLocations: [String!]
+  capabilities: [String!]
+  extensions: JSON
+}
+
+type ResourcePool {
+  id: ID!
+  tenantId: String
+  name: String!
+  description: String
+  location: String
+  oCloudId: String!
+  globalLocationId: String
+  extensions: JSON
+
+  # Nested queries
+  resources(filter: ResourceFilter, pagination: Pagination): ResourceConnection!
+  resourceCount: Int!
+}
+
+type Resource {
+  id: ID!
+  tenantId: String
+  resourceTypeId: String!
+  resourcePoolId: String
+  globalAssetId: String
+  description: String
+  extensions: JSON
+
+  # Nested queries
+  resourceType: ResourceType
+  resourcePool: ResourcePool
+}
+
+type ResourceType {
+  id: ID!
+  name: String!
+  description: String
+  vendor: String
+  model: String
+  version: String
+  resourceClass: String
+  resourceKind: String
+  extensions: JSON
+
+  # Nested queries
+  resources(filter: ResourceFilter, pagination: Pagination): ResourceConnection!
+  resourceCount: Int!
+}
+
+type O2Subscription {
+  id: ID!
+  callback: String!
+  consumerSubscriptionId: String
+  filter: SubscriptionFilterData
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type SubscriptionFilterData {
+  resourcePoolId: String
+  resourceTypeId: String
+  resourceId: String
+}
+
+# ============================================================================
+# DMS Types
+# ============================================================================
+
+type NFDeployment {
+  id: ID!
+  tenantId: String
+  descriptorId: String!
+  name: String!
+  status: DeploymentStatus!
+  parentDeploymentId: String
+  extensions: JSON
+  createdAt: Time!
+  updatedAt: Time!
+
+  # Nested queries
+  descriptor: NFDeploymentDescriptor
+  statusDetails: NFDeploymentStatus!
+  history: [NFDeploymentHistoryEntry!]!
+}
+
+type NFDeploymentDescriptor {
+  id: ID!
+  tenantId: String
+  name: String!
+  version: String!
+  description: String
+  artifactPath: String!
+  extensions: JSON
+  createdAt: Time!
+
+  # Nested queries
+  deployments(filter: NFDeploymentFilter): [NFDeployment!]!
+}
+
+type NFDeploymentStatus {
+  deploymentId: ID!
+  status: DeploymentStatus!
+  message: String
+  conditions: [DeploymentCondition!]
+  replicas: Int
+  readyReplicas: Int
+  updatedAt: Time!
+}
+
+type NFDeploymentHistoryEntry {
+  timestamp: Time!
+  action: String!
+  status: String!
+  message: String
+  user: String
+}
+
+type DeploymentCondition {
+  type: String!
+  status: String!
+  reason: String
+  message: String
+  lastTransitionTime: Time!
+}
+
+enum DeploymentStatus {
+  PENDING
+  INSTALLING
+  INSTALLED
+  UPGRADING
+  ROLLING_BACK
+  UNINSTALLING
+  FAILED
+  UNKNOWN
+}
+
+# ============================================================================
+# SMO Types
+# ============================================================================
+
+type WorkflowExecution {
+  id: ID!
+  workflowName: String!
+  pluginName: String
+  status: WorkflowStatus!
+  parameters: JSON
+  result: JSON
+  error: String
+  startedAt: Time!
+  completedAt: Time
+}
+
+enum WorkflowStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+type ServiceModel {
+  id: ID!
+  name: String!
+  version: String!
+  description: String
+  category: String
+  template: JSON
+  extensions: JSON
+  createdAt: Time!
+}
+
+type Policy {
+  id: ID!
+  name: String!
+  policyType: String!
+  scope: JSON
+  rules: JSON
+  enabled: Boolean!
+  extensions: JSON
+  appliedAt: Time!
+}
+
+# ============================================================================
+# Multi-tenancy Types (v3)
+# ============================================================================
+
+type Tenant {
+  id: ID!
+  name: String!
+  description: String
+  quotas: TenantQuotas!
+  usage: TenantUsage!
+  createdAt: Time!
+  updatedAt: Time!
+
+  # Nested queries
+  resourcePools(pagination: Pagination): ResourcePoolConnection!
+  resources(pagination: Pagination): ResourceConnection!
+  nfDeployments(pagination: Pagination): NFDeploymentConnection!
+}
+
+type TenantQuotas {
+  maxResourcePools: Int!
+  maxResources: Int!
+  maxDeployments: Int!
+  maxWorkflows: Int!
+}
+
+type TenantUsage {
+  resourcePools: Int!
+  resources: Int!
+  deployments: Int!
+  workflows: Int!
+}
+
+# ============================================================================
+# Filter Inputs
+# ============================================================================
+
+input ResourcePoolFilter {
+  oCloudId: String
+  location: String
+  labels: JSON
+  tenantId: String
+}
+
+input ResourceFilter {
+  resourcePoolId: String
+  resourceTypeId: String
+  location: String
+  labels: JSON
+  tenantId: String
+}
+
+input ResourceTypeFilter {
+  resourceClass: String
+  resourceKind: String
+  vendor: String
+}
+
+input SubscriptionFilter {
+  resourcePoolId: String
+  resourceTypeId: String
+  resourceId: String
+}
+
+input NFDeploymentFilter {
+  descriptorId: String
+  status: DeploymentStatus
+  tenantId: String
+}
+
+input DescriptorFilter {
+  name: String
+  version: String
+  tenantId: String
+}
+
+input WorkflowFilter {
+  workflowName: String
+  pluginName: String
+  status: WorkflowStatus
+}
+
+input ServiceModelFilter {
+  category: String
+}
+
+input PolicyFilter {
+  policyType: String
+  enabled: Boolean
+}
+
+# ============================================================================
+# Pagination
+# ============================================================================
+
+input Pagination {
+  limit: Int = 10
+  offset: Int = 0
+  cursor: String
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+  totalCount: Int!
+}
+
+# Connection types for pagination
+type ResourcePoolConnection {
+  edges: [ResourcePoolEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ResourcePoolEdge {
+  node: ResourcePool!
+  cursor: String!
+}
+
+type ResourceConnection {
+  edges: [ResourceEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ResourceEdge {
+  node: Resource!
+  cursor: String!
+}
+
+type ResourceTypeConnection {
+  edges: [ResourceTypeEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ResourceTypeEdge {
+  node: ResourceType!
+  cursor: String!
+}
+
+type SubscriptionConnection {
+  edges: [SubscriptionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type SubscriptionEdge {
+  node: O2Subscription!
+  cursor: String!
+}
+
+type NFDeploymentConnection {
+  edges: [NFDeploymentEdge!]!
+  pageInfo: PageInfo!
+}
+
+type NFDeploymentEdge {
+  node: NFDeployment!
+  cursor: String!
+}
+
+type DescriptorConnection {
+  edges: [DescriptorEdge!]!
+  pageInfo: PageInfo!
+}
+
+type DescriptorEdge {
+  node: NFDeploymentDescriptor!
+  cursor: String!
+}
+
+type WorkflowExecutionConnection {
+  edges: [WorkflowExecutionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type WorkflowExecutionEdge {
+  node: WorkflowExecution!
+  cursor: String!
+}
+
+type ServiceModelConnection {
+  edges: [ServiceModelEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ServiceModelEdge {
+  node: ServiceModel!
+  cursor: String!
+}
+
+type PolicyConnection {
+  edges: [PolicyEdge!]!
+  pageInfo: PageInfo!
+}
+
+type PolicyEdge {
+  node: Policy!
+  cursor: String!
+}
+
+type TenantConnection {
+  edges: [TenantEdge!]!
+  pageInfo: PageInfo!
+}
+
+type TenantEdge {
+  node: Tenant!
+  cursor: String!
+}
+
+# ============================================================================
+# Mutation Inputs
+# ============================================================================
+
+input CreateResourcePoolInput {
+  name: String!
+  description: String
+  location: String
+  oCloudId: String!
+  globalLocationId: String
+  extensions: JSON
+}
+
+input UpdateResourcePoolInput {
+  name: String
+  description: String
+  extensions: JSON
+}
+
+input CreateResourceInput {
+  resourceTypeId: String!
+  resourcePoolId: String
+  globalAssetId: String
+  description: String
+  extensions: JSON
+}
+
+input UpdateResourceInput {
+  description: String
+  globalAssetId: String
+  extensions: JSON
+}
+
+input CreateSubscriptionInput {
+  callback: String!
+  consumerSubscriptionId: String
+  filter: SubscriptionFilterInput
+}
+
+input UpdateSubscriptionInput {
+  callback: String
+  filter: SubscriptionFilterInput
+}
+
+input SubscriptionFilterInput {
+  resourcePoolId: String
+  resourceTypeId: String
+  resourceId: String
+}
+
+input CreateNFDeploymentInput {
+  descriptorId: String!
+  name: String!
+  parentDeploymentId: String
+  extensions: JSON
+}
+
+input UpdateNFDeploymentInput {
+  extensions: JSON
+}
+
+input CreateDescriptorInput {
+  name: String!
+  version: String!
+  description: String
+  artifactPath: String!
+  extensions: JSON
+}
+
+input ExecuteWorkflowInput {
+  workflowName: String!
+  pluginName: String
+  parameters: JSON
+  timeout: String
+}
+
+input CreateServiceModelInput {
+  name: String!
+  version: String!
+  description: String
+  category: String
+  template: JSON
+  extensions: JSON
+}
+
+input ApplyPolicyInput {
+  policyId: String
+  name: String!
+  policyType: String!
+  scope: JSON
+  rules: JSON
+  enabled: Boolean!
+  extensions: JSON
+}
+
+input CreateTenantInput {
+  name: String!
+  description: String
+  quotas: TenantQuotasInput!
+}
+
+input UpdateTenantInput {
+  name: String
+  description: String
+  quotas: TenantQuotasInput
+}
+
+input TenantQuotasInput {
+  maxResourcePools: Int!
+  maxResources: Int!
+  maxDeployments: Int!
+  maxWorkflows: Int!
+}
+
+# ============================================================================
+# Event Types
+# ============================================================================
+
+type ResourceDeletedEvent {
+  id: ID!
+  deletedAt: Time!
+}
+
+type ResourcePoolDeletedEvent {
+  id: ID!
+  deletedAt: Time!
+}
+
+type NFDeploymentDeletedEvent {
+  id: ID!
+  deletedAt: Time!
+}
+
+# ============================================================================
+# Batch Operation Results
+# ============================================================================
+
+type BatchResult {
+  successful: Int!
+  failed: Int!
+  errors: [BatchError!]
+}
+
+type BatchError {
+  id: ID!
+  error: String!
+}

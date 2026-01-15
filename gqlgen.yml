@@ -1,0 +1,78 @@
+# gqlgen configuration for O2-IMS GraphQL API
+
+# Where are all the schema files located? globs are supported eg  src/**/*.graphqls
+schema:
+  - internal/graphql/schema.graphql
+
+# Where should the generated server code go?
+exec:
+  filename: internal/graphql/generated/generated.go
+  package: generated
+
+# Where should any generated models go?
+model:
+  filename: internal/graphql/model/models_gen.go
+  package: model
+
+# Where should the resolver implementations go?
+resolver:
+  layout: follow-schema
+  dir: internal/graphql/resolvers
+  package: resolvers
+  filename_template: "{name}.resolvers.go"
+  # Optional: avoid creating resolver files with suffix _resolver.go
+  omit_template_comment: false
+
+# Optional: turn on use ` + "`" + `gqlgen:"fieldName"` + "`" + ` tags in your models
+# struct_tag: json
+
+# Optional: turn on to use []Thing instead of []*Thing
+omit_slice_element_pointers: false
+
+# Optional: turn on to skip generation of ComplexityRoot struct content and Complexity function
+omit_complexity: false
+
+# gqlgen will search for any type names in the schema in these go packages
+# if they match it will use them, otherwise it will generate them.
+autobind:
+  - "github.com/piwi3910/netweave/internal/adapter"
+  - "github.com/piwi3910/netweave/internal/dms/adapter"
+  - "github.com/piwi3910/netweave/internal/smo"
+
+# This section declares type mapping between the GraphQL and go type systems
+#
+# The first line in each type will be used as defaults for resolver arguments and
+# modelgen, the others will be allowed when binding to fields. Configure them to
+# your liking
+models:
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.ID
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64
+      - github.com/99designs/gqlgen/graphql.Int32
+  Int:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64
+      - github.com/99designs/gqlgen/graphql.Int32
+  Time:
+    model:
+      - time.Time
+  JSON:
+    model:
+      - map[string]interface{}
+
+  # Map GraphQL types to existing adapter types where possible
+  DeploymentManager:
+    model:
+      - github.com/piwi3910/netweave/internal/adapter.DeploymentManager
+  ResourcePool:
+    model:
+      - github.com/piwi3910/netweave/internal/adapter.ResourcePool
+  Resource:
+    model:
+      - github.com/piwi3910/netweave/internal/adapter.Resource
+  ResourceType:
+    model:
+      - github.com/piwi3910/netweave/internal/adapter.ResourceType
