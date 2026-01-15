@@ -1,0 +1,134 @@
+# Mock Configuration for Local Development and E2E Testing
+# This configuration uses mock adapters for IMS, DMS, and SMO
+# to enable testing without real infrastructure dependencies.
+
+server:
+  port: 8080
+  gin_mode: debug
+  cors_enabled: true
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8080"
+  tls_enabled: false
+
+logging:
+  level: debug
+  format: json
+  output: stdout
+
+telemetry:
+  enabled: false
+  metrics_enabled: false
+  tracing_enabled: false
+
+# O2-IMS Configuration - Mock Adapter
+o2ims:
+  # Use mock adapter for local development
+  adapter_type: mock
+
+  # Mock adapter configuration
+  mock:
+    # Pre-populate with sample data
+    populate_sample_data: true
+
+    # Sample data configuration
+    sample_data:
+      resource_pools: 3  # us-east-1, us-west-2, eu-central-1
+      resources: 19      # CPU, GPU, Memory, Storage resources
+      resource_types: 4  # CPU, GPU, Memory, Storage types
+      deployment_managers: 1
+
+  # Cache configuration
+  cache:
+    enabled: true
+    ttl: 300s
+    size: 1000
+
+# O2-DMS Configuration - Mock Adapter
+o2dms:
+  # Use mock adapter for local development
+  adapter_type: mock
+
+  # Mock adapter configuration
+  mock:
+    # Pre-populate with sample deployment packages
+    populate_sample_data: true
+
+    # Sample data configuration
+    sample_data:
+      packages: 5  # NF packages (CU-UP, CU-CP, DU, UPF, SMF)
+
+    # Deployment simulation timing
+    simulation:
+      deployment_delay: 2s    # Time to simulate deployment
+      rollback_delay: 2s      # Time to simulate rollback
+      delete_delay: 1s        # Time to simulate deletion
+
+# SMO Configuration - Mock Plugin
+smo:
+  # Use mock plugin for local development
+  plugin_type: mock
+
+  # Mock plugin configuration
+  mock:
+    # Pre-populate with sample service models
+    populate_sample_data: true
+
+    # Sample data configuration
+    sample_data:
+      service_models: 3  # 5G RAN, 5G Core, MEC services
+
+    # Workflow simulation timing
+    simulation:
+      workflow_delay: 4s  # Total time for workflow execution (4 stages x 1s)
+
+  # Integration features
+  features:
+    inventory_sync_enabled: true
+    event_publishing_enabled: true
+    workflow_orchestration_enabled: true
+    service_modeling_enabled: true
+    policy_management_enabled: true
+
+  # Sync intervals
+  sync:
+    infrastructure_interval: 300s  # 5 minutes
+    deployment_interval: 180s      # 3 minutes
+
+# Redis Configuration (still needed for subscriptions and caching)
+redis:
+  # For local dev, you can use miniredis or a local Redis instance
+  mode: standalone
+  standalone:
+    address: localhost:6379
+    db: 0
+    password: ""
+
+  # Connection pool settings
+  pool:
+    max_idle: 10
+    max_active: 100
+    idle_timeout: 300s
+
+  # Retry settings
+  retry:
+    max_attempts: 3
+    initial_backoff: 100ms
+    max_backoff: 1s
+
+# Authentication & Authorization (disabled for mock)
+auth:
+  enabled: false
+
+# Rate Limiting (lenient for testing)
+rate_limiting:
+  enabled: true
+  requests_per_second: 1000
+  burst: 2000
+
+# Subscription Management
+subscriptions:
+  max_per_tenant: 100
+  webhook_timeout: 30s
+  retry_attempts: 3
+  retry_backoff: 5s
