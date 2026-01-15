@@ -58,10 +58,10 @@ models:
       - github.com/99designs/gqlgen/graphql.Int32
   Time:
     model:
-      - time.Time
+      - github.com/piwi3910/netweave/internal/graphql/scalars.Time
   JSON:
     model:
-      - map[string]interface{}
+      - github.com/piwi3910/netweave/internal/graphql/scalars.JSON
 
   # Map GraphQL types to existing adapter types where possible
   DeploymentManager:
