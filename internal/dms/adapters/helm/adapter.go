@@ -828,6 +828,11 @@ func (h *Adapter) TestBuildPackage(chartName string, chart *repo.ChartVersion) *
 	return h.buildPackage(chartName, chart)
 }
 
+// TestBuildPodLogOptions exports buildPodLogOptions for testing.
+func (h *Adapter) TestBuildPodLogOptions(opts *adapter.LogOptions) *corev1.PodLogOptions {
+	return h.buildPodLogOptions(opts)
+}
+
 // Close cleanly shuts down the adapter.
 func (h *Adapter) Close() error {
 	h.Initialized = false

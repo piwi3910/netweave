@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/models"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -269,4 +270,73 @@ func setupVMwareAdapter(t *testing.T) adapter.Adapter {
 func setupDTIASAdapter(t *testing.T) adapter.Adapter {
 	t.Helper()
 	return nil
+}
+
+// TestMatchesFilter_AdvancedFiltering tests advanced filtering with operators.
+func TestMatchesFilter_AdvancedFiltering(t *testing.T) {
+	tests := []struct {
+		name           string
+		filter         *adapter.Filter
+		resourcePoolID string
+		resourceTypeID string
+		location       string
+		labels         map[string]string
+		expected       bool
+	}{
+		{
+			name: "advanced filter - equals operator",
+			filter: &adapter.Filter{
+				AdvancedFilter: &models.AdvancedFilter{
+					Conditions: []models.FilterCondition{
+						{
+							Field:    "location",
+							Operator: models.OpEquals,
+							Value:    "us-east-1",
+						},
+					},
+				},
+			},
+			location: "us-east-1",
+			expected: true,
+		},
+		{
+			name: "advanced filter - contains operator",
+			filter: &adapter.Filter{
+				AdvancedFilter: &models.AdvancedFilter{
+					Conditions: []models.FilterCondition{
+						{
+							Field:    "location",
+							Operator: models.OpContains,
+							Value:    "east",
+						},
+					},
+				},
+			},
+			location: "us-east-1",
+			expected: true,
+		},
+		{
+			name: "advanced filter - regex operator",
+			filter: &adapter.Filter{
+				AdvancedFilter: &models.AdvancedFilter{
+					Conditions: []models.FilterCondition{
+						{
+							Field:    "location",
+							Operator: models.OpRegex,
+							Value:    "^us-",
+						},
+					},
+				},
+			},
+			location: "us-east-1",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := adapter.MatchesFilter(tt.filter, tt.resourcePoolID, tt.resourceTypeID, tt.location, tt.labels)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

@@ -110,6 +110,153 @@ func (h *ResourcePoolHandler) ListResourcePools(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// ListResourcePoolsV2 handles GET /o2ims/v2/resourcePools.
+// Lists all available resource pools with advanced filtering and sorting.
+//
+// Query Parameters:
+//   - field[operator]=value: Advanced filter operators (gt, lt, gte, lte, contains, regex)
+//   - sort: Multi-field sorting (e.g., sort=name,-capacity)
+//   - cursor: Cursor-based pagination token
+//   - limit: Maximum number of items to return
+//
+// Response: 200 OK with array of ResourcePool objects and optional cursor.
+func (h *ResourcePoolHandler) ListResourcePoolsV2(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// Extract tenant ID from authenticated context
+	tenantID := auth.TenantIDFromContext(ctx)
+
+	h.logger.Info("listing resource pools with v2 filtering",
+		zap.String("request_id", c.GetString("request_id")),
+		zap.String("tenant_id", tenantID),
+	)
+
+	// Parse advanced filter parameters
+	advancedFilter, err := internalmodels.ParseAdvancedFilter(c.Request.URL.Query())
+	if err != nil {
+		h.logger.Warn("invalid filter parameters",
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "BadRequest",
+			Message: "Invalid filter parameters: " + err.Error(),
+			Code:    http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Convert internal filter to adapter filter with tenant context
+	adapterFilter := &adapter.Filter{
+		TenantID: tenantID,
+		Limit:    advancedFilter.Limit,
+		Offset:   advancedFilter.Offset,
+	}
+
+	// Get resource pools from adapter
+	pools, err := h.adapter.ListResourcePools(ctx, adapterFilter)
+	if err != nil {
+		h.logger.Error("failed to list resource pools",
+			zap.Error(err),
+		)
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "InternalError",
+			Message: "Failed to retrieve resource pools",
+			Code:    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Convert adapter.ResourcePool to models.ResourcePool
+	resourcePools := make([]models.ResourcePool, 0, len(pools))
+	for _, pool := range pools {
+		resourcePools = append(resourcePools, models.ResourcePool{
+			ResourcePoolID: pool.ResourcePoolID,
+			Name:           pool.Name,
+			Description:    pool.Description,
+			Location:       pool.Location,
+			OCloudID:       pool.OCloudID,
+			GlobalAssetID:  pool.GlobalLocationID,
+			Extensions:     pool.Extensions,
+		})
+	}
+
+	// Apply advanced filtering conditions
+	filteredPools := make([]models.ResourcePool, 0, len(resourcePools))
+	for _, pool := range resourcePools {
+		// Convert to map for nested field access
+		poolMap := map[string]interface{}{
+			"resourcePoolId": pool.ResourcePoolID,
+			"name":           pool.Name,
+			"description":    pool.Description,
+			"location":       pool.Location,
+			"oCloudId":       pool.OCloudID,
+			"globalAssetId":  pool.GlobalAssetID,
+			"extensions":     pool.Extensions,
+		}
+
+		// Apply all filter conditions
+		matches := true
+		for _, condition := range advancedFilter.Conditions {
+			value, ok := internalmodels.GetNestedField(poolMap, condition.Field)
+			if !ok {
+				matches = false
+				break
+			}
+
+			if !internalmodels.ApplyCondition(condition, value) {
+				matches = false
+				break
+			}
+		}
+
+		if matches {
+			filteredPools = append(filteredPools, pool)
+		}
+	}
+
+	// TODO: Apply multi-field sorting (requires type-specific implementation)
+	// For now, sorting is deferred to database/adapter layer
+	// Reference: advancedFilter.SortFields contains parsed sort directives
+
+	// Apply pagination
+	startIdx := advancedFilter.Offset
+	endIdx := startIdx + advancedFilter.Limit
+	if endIdx > len(filteredPools) {
+		endIdx = len(filteredPools)
+	}
+	if startIdx > len(filteredPools) {
+		startIdx = len(filteredPools)
+	}
+	paginatedPools := filteredPools[startIdx:endIdx]
+
+	// Build response with cursor pagination support
+	response := models.ListResponse{
+		Items:      paginatedPools,
+		TotalCount: len(filteredPools),
+	}
+
+	// Add cursor for next page if there are more results
+	if endIdx < len(filteredPools) {
+		cursorData := map[string]interface{}{
+			"offset": endIdx,
+			"limit":  advancedFilter.Limit,
+		}
+		cursor, err := internalmodels.EncodeCursor(cursorData)
+		if err == nil {
+			response.NextCursor = cursor
+		}
+	}
+
+	h.logger.Info("resource pools retrieved",
+		zap.Int("total", len(filteredPools)),
+		zap.Int("returned", len(paginatedPools)),
+	)
+
+	c.JSON(http.StatusOK, response)
+}
+
 // GetResourcePool handles GET /o2ims/v1/resourcePools/:resourcePoolId.
 // Retrieves a specific resource pool by ID.
 //

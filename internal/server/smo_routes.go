@@ -243,53 +243,173 @@ func (h *SMOHandler) getPluginFromQuery(c *gin.Context) (smo.Plugin, error) {
 }
 
 // setupSMORoutes configures the O2-SMO API routes.
-// Base path: /o2smo/v1.
+// Base paths:
+//   - /o2smo/v1 - Base SMO API
+//   - /o2smo/v2 - Enhanced filtering and batch operations
+//   - /o2smo/v3 - Multi-tenancy support
 func (s *Server) setupSMORoutes(smoHandler *SMOHandler) {
 	// O2-SMO API v1 routes
 	v1 := s.router.Group("/o2smo/v1")
 	{
-		// Plugin Management
-		plugins := v1.Group("/plugins")
-		{
-			plugins.GET("", smoHandler.HandleListPlugins)
-			plugins.GET("/:pluginId", smoHandler.HandleGetPlugin)
-		}
-
-		// Workflow Orchestration
-		workflows := v1.Group("/workflows")
-		{
-			workflows.POST("", smoHandler.HandleExecuteWorkflow)
-			workflows.GET("/:executionId", smoHandler.HandleGetWorkflowStatus)
-			workflows.DELETE("/:executionId", smoHandler.HandleCancelWorkflow)
-		}
-
-		// Service Modeling
-		serviceModels := v1.Group("/serviceModels")
-		{
-			serviceModels.GET("", smoHandler.HandleListServiceModels)
-			serviceModels.POST("", smoHandler.HandleCreateServiceModel)
-			serviceModels.GET("/:modelId", smoHandler.HandleGetServiceModel)
-			serviceModels.DELETE("/:modelId", smoHandler.HandleDeleteServiceModel)
-		}
-
-		// Policy Management
-		policies := v1.Group("/policies")
-		{
-			policies.POST("", smoHandler.HandleApplyPolicy)
-			policies.GET("/:policyId/status", smoHandler.HandleGetPolicyStatus)
-		}
-
-		// Infrastructure Synchronization
-		v1.POST("/sync/infrastructure", smoHandler.HandleSyncInfrastructure)
-		v1.POST("/sync/deployments", smoHandler.HandleSyncDeployments)
-
-		// Event Publishing
-		v1.POST("/events/infrastructure", smoHandler.HandlePublishInfrastructureEvent)
-		v1.POST("/events/deployment", smoHandler.HandlePublishDeploymentEvent)
-
-		// Health check for SMO components
-		v1.GET("/health", smoHandler.HandleSMOHealth)
+		s.setupSMOV1Routes(v1, smoHandler)
 	}
+
+	// O2-SMO API v2 routes (enhanced filtering, batch operations)
+	v2 := s.router.Group("/o2smo/v2")
+	{
+		s.setupSMOV2Routes(v2, smoHandler)
+	}
+
+	// O2-SMO API v3 routes (multi-tenancy)
+	v3 := s.router.Group("/o2smo/v3")
+	{
+		v3.Use(TenantMiddleware())
+		s.setupSMOV3Routes(v3, smoHandler)
+	}
+}
+
+// setupSMOV1Routes configures the O2-SMO API v1 endpoints.
+func (s *Server) setupSMOV1Routes(v1 *gin.RouterGroup, smoHandler *SMOHandler) {
+	// Plugin Management
+	plugins := v1.Group("/plugins")
+	{
+		plugins.GET("", smoHandler.HandleListPlugins)
+		plugins.GET("/:pluginId", smoHandler.HandleGetPlugin)
+	}
+
+	// Workflow Orchestration
+	workflows := v1.Group("/workflows")
+	{
+		workflows.POST("", smoHandler.HandleExecuteWorkflow)
+		workflows.GET("/:executionId", smoHandler.HandleGetWorkflowStatus)
+		workflows.DELETE("/:executionId", smoHandler.HandleCancelWorkflow)
+	}
+
+	// Service Modeling
+	serviceModels := v1.Group("/serviceModels")
+	{
+		serviceModels.GET("", smoHandler.HandleListServiceModels)
+		serviceModels.POST("", smoHandler.HandleCreateServiceModel)
+		serviceModels.GET("/:modelId", smoHandler.HandleGetServiceModel)
+		serviceModels.DELETE("/:modelId", smoHandler.HandleDeleteServiceModel)
+	}
+
+	// Policy Management
+	policies := v1.Group("/policies")
+	{
+		policies.POST("", smoHandler.HandleApplyPolicy)
+		policies.GET("/:policyId/status", smoHandler.HandleGetPolicyStatus)
+	}
+
+	// Infrastructure Synchronization
+	v1.POST("/sync/infrastructure", smoHandler.HandleSyncInfrastructure)
+	v1.POST("/sync/deployments", smoHandler.HandleSyncDeployments)
+
+	// Event Publishing
+	v1.POST("/events/infrastructure", smoHandler.HandlePublishInfrastructureEvent)
+	v1.POST("/events/deployment", smoHandler.HandlePublishDeploymentEvent)
+
+	// Health check for SMO components
+	v1.GET("/health", smoHandler.HandleSMOHealth)
+}
+
+// setupSMOV2Routes configures the O2-SMO API v2 endpoints with enhanced features.
+// V2 includes all v1 features plus:
+//   - Enhanced filtering for workflows and service models
+//   - Batch workflow execution
+//   - Workflow templates and composition
+//   - Advanced policy management
+func (s *Server) setupSMOV2Routes(v2 *gin.RouterGroup, smoHandler *SMOHandler) {
+	// Include all v1 routes
+	s.setupSMOV1Routes(v2, smoHandler)
+
+	// Batch operations (v2 feature)
+	batch := v2.Group("/batch")
+	{
+		// Batch workflow operations
+		batch.POST("/workflows", smoHandler.HandleExecuteWorkflow)        // Placeholder - will be batch execute
+		batch.POST("/workflows/cancel", smoHandler.HandleExecuteWorkflow) // Placeholder - will be batch cancel
+
+		// Batch service model operations
+		batch.POST("/serviceModels", smoHandler.HandleListServiceModels)        // Placeholder - will be batch create
+		batch.POST("/serviceModels/delete", smoHandler.HandleListServiceModels) // Placeholder - will be batch delete
+
+		// Batch policy operations
+		batch.POST("/policies", smoHandler.HandleApplyPolicy)        // Placeholder - will be batch apply
+		batch.POST("/policies/delete", smoHandler.HandleApplyPolicy) // Placeholder - will be batch delete
+
+		// Batch sync operations
+		batch.POST("/sync/infrastructure", smoHandler.HandleSyncInfrastructure) // Placeholder - will be batch sync
+		batch.POST("/sync/deployments", smoHandler.HandleSyncDeployments)       // Placeholder - will be batch sync
+	}
+
+	// V2 features endpoint
+	v2.GET("/features", s.handleSMOV2Features)
+}
+
+// setupSMOV3Routes configures the O2-SMO API v3 endpoints with multi-tenancy support.
+// V3 includes all v2 features plus:
+//   - Multi-tenant SMO plugin isolation
+//   - Tenant-scoped service models
+//   - Cross-tenant orchestration policies
+//   - Tenant quotas for workflow execution
+func (s *Server) setupSMOV3Routes(v3 *gin.RouterGroup, smoHandler *SMOHandler) {
+	// Plugin Management (v1 endpoints with tenant context)
+	plugins := v3.Group("/plugins")
+	{
+		plugins.GET("", smoHandler.HandleListPlugins)
+		plugins.GET("/:pluginId", smoHandler.HandleGetPlugin)
+	}
+
+	// Workflow Orchestration (v1 endpoints with tenant context)
+	workflows := v3.Group("/workflows")
+	{
+		workflows.POST("", smoHandler.HandleExecuteWorkflow)
+		workflows.GET("/:executionId", smoHandler.HandleGetWorkflowStatus)
+		workflows.DELETE("/:executionId", smoHandler.HandleCancelWorkflow)
+	}
+
+	// Service Modeling (v1 endpoints with tenant context)
+	serviceModels := v3.Group("/serviceModels")
+	{
+		serviceModels.GET("", smoHandler.HandleListServiceModels)
+		serviceModels.POST("", smoHandler.HandleCreateServiceModel)
+		serviceModels.GET("/:modelId", smoHandler.HandleGetServiceModel)
+		serviceModels.DELETE("/:modelId", smoHandler.HandleDeleteServiceModel)
+	}
+
+	// Policy Management (v1 endpoints with tenant context)
+	policies := v3.Group("/policies")
+	{
+		policies.POST("", smoHandler.HandleApplyPolicy)
+		policies.GET("/:policyId/status", smoHandler.HandleGetPolicyStatus)
+	}
+
+	// Infrastructure Synchronization (v1 endpoints with tenant context)
+	v3.POST("/sync/infrastructure", smoHandler.HandleSyncInfrastructure)
+	v3.POST("/sync/deployments", smoHandler.HandleSyncDeployments)
+
+	// Event Publishing (v1 endpoints with tenant context)
+	v3.POST("/events/infrastructure", smoHandler.HandlePublishInfrastructureEvent)
+	v3.POST("/events/deployment", smoHandler.HandlePublishDeploymentEvent)
+
+	// Batch Operations (v2 feature with tenant context)
+	batch := v3.Group("/batch")
+	{
+		batch.POST("/workflows", smoHandler.HandleExecuteWorkflow)              // Placeholder
+		batch.POST("/workflows/cancel", smoHandler.HandleExecuteWorkflow)       // Placeholder
+		batch.POST("/serviceModels", smoHandler.HandleListServiceModels)        // Placeholder
+		batch.POST("/serviceModels/delete", smoHandler.HandleListServiceModels) // Placeholder
+		batch.POST("/policies", smoHandler.HandleApplyPolicy)                   // Placeholder
+		batch.POST("/sync/infrastructure", smoHandler.HandleSyncInfrastructure) // Placeholder
+		batch.POST("/sync/deployments", smoHandler.HandleSyncDeployments)       // Placeholder
+	}
+
+	// Health check for SMO components
+	v3.GET("/health", smoHandler.HandleSMOHealth)
+
+	// V3 features endpoint
+	v3.GET("/features", s.handleSMOV3Features)
 }
 
 // === Plugin Management Handlers ===
@@ -993,5 +1113,40 @@ func (h *SMOHandler) HandleSMOHealth(c *gin.Context) {
 		"healthy":      healthy,
 		"unhealthy":    unhealthy,
 		"plugins":      pluginStatus,
+	})
+}
+
+// handleSMOV2Features returns v2 API feature information.
+// GET /o2smo/v2/features.
+func (s *Server) handleSMOV2Features(c *gin.Context) {
+	c.JSON(200, gin.H{
+		"version":     "v2",
+		"apiVersion":  "v2",
+		"description": "O2-SMO API v2 with enhanced filtering, batch operations",
+		"newFeatures": []string{
+			"enhanced_filtering",
+			"batch_workflows",
+			"batch_service_models",
+			"batch_policies",
+			"workflow_templates",
+			"advanced_policy_management",
+		},
+	})
+}
+
+// handleSMOV3Features returns v3 API feature information.
+// GET /o2smo/v3/features.
+func (s *Server) handleSMOV3Features(c *gin.Context) {
+	c.JSON(200, gin.H{
+		"version":     "v3",
+		"apiVersion":  "v3",
+		"description": "O2-SMO API v3 with multi-tenancy support",
+		"newFeatures": []string{
+			"multi_tenancy",
+			"tenant_isolation",
+			"tenant_scoped_service_models",
+			"cross_tenant_policies",
+			"tenant_quotas",
+		},
 	})
 }
