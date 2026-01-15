@@ -167,42 +167,235 @@ func (r *mutationResolver) DeleteTenant(ctx context.Context, id string) (bool, e
 
 // DeploymentManager is the resolver for the deploymentManager field.
 func (r *queryResolver) DeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
-	panic(fmt.Errorf("not implemented: DeploymentManager - deploymentManager"))
+	return r.adapter.GetDeploymentManager(ctx, id)
 }
 
 // DeploymentManagers is the resolver for the deploymentManagers field.
 func (r *queryResolver) DeploymentManagers(ctx context.Context) ([]*adapter.DeploymentManager, error) {
-	panic(fmt.Errorf("not implemented: DeploymentManagers - deploymentManagers"))
+	// For now, return a single deployment manager representing this gateway
+	// In multi-cluster setups, this could list multiple managers
+	dm, err := r.adapter.GetDeploymentManager(ctx, "default")
+	if err != nil {
+		return nil, err
+	}
+	return []*adapter.DeploymentManager{dm}, nil
 }
 
 // ResourcePool is the resolver for the resourcePool field.
 func (r *queryResolver) ResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
-	panic(fmt.Errorf("not implemented: ResourcePool - resourcePool"))
+	return r.adapter.GetResourcePool(ctx, id)
 }
 
 // ResourcePools is the resolver for the resourcePools field.
 func (r *queryResolver) ResourcePools(ctx context.Context, filter *model.ResourcePoolFilter, pagination *model.Pagination) (*model.ResourcePoolConnection, error) {
-	panic(fmt.Errorf("not implemented: ResourcePools - resourcePools"))
+	// Convert GraphQL filter to adapter filter
+	adapterFilter := &adapter.Filter{}
+	if filter != nil {
+		if filter.OCloudID != nil {
+			// Note: OCloudID in filter would need to be added to adapter.Filter
+			// For now, we'll skip this field
+		}
+		if filter.Location != nil {
+			adapterFilter.Location = *filter.Location
+		}
+		if filter.TenantID != nil {
+			adapterFilter.TenantID = *filter.TenantID
+		}
+	}
+
+	// Apply pagination
+	if pagination != nil {
+		if pagination.Limit != nil {
+			adapterFilter.Limit = *pagination.Limit
+		} else {
+			adapterFilter.Limit = 10 // Default limit
+		}
+		if pagination.Offset != nil {
+			adapterFilter.Offset = *pagination.Offset
+		}
+	} else {
+		adapterFilter.Limit = 10 // Default limit
+	}
+
+	// Query resource pools
+	pools, err := r.adapter.ListResourcePools(ctx, adapterFilter)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build connection response
+	edges := make([]*model.ResourcePoolEdge, len(pools))
+	for i, pool := range pools {
+		edges[i] = &model.ResourcePoolEdge{
+			Node:   pool,
+			Cursor: fmt.Sprintf("%d", adapterFilter.Offset+i),
+		}
+	}
+
+	hasNextPage := len(pools) == adapterFilter.Limit
+	hasPreviousPage := adapterFilter.Offset > 0
+
+	var startCursor, endCursor *string
+	if len(edges) > 0 {
+		start := edges[0].Cursor
+		end := edges[len(edges)-1].Cursor
+		startCursor = &start
+		endCursor = &end
+	}
+
+	return &model.ResourcePoolConnection{
+		Edges: edges,
+		PageInfo: &model.PageInfo{
+			HasNextPage:     hasNextPage,
+			HasPreviousPage: hasPreviousPage,
+			StartCursor:     startCursor,
+			EndCursor:       endCursor,
+			TotalCount:      len(pools), // This is just page count, not total - would need separate query for true total
+		},
+	}, nil
 }
 
 // Resource is the resolver for the resource field.
 func (r *queryResolver) Resource(ctx context.Context, id string) (*adapter.Resource, error) {
-	panic(fmt.Errorf("not implemented: Resource - resource"))
+	return r.adapter.GetResource(ctx, id)
 }
 
 // Resources is the resolver for the resources field.
 func (r *queryResolver) Resources(ctx context.Context, filter *model.ResourceFilter, pagination *model.Pagination) (*model.ResourceConnection, error) {
-	panic(fmt.Errorf("not implemented: Resources - resources"))
+	// Convert GraphQL filter to adapter filter
+	adapterFilter := &adapter.Filter{}
+	if filter != nil {
+		if filter.ResourcePoolID != nil {
+			adapterFilter.ResourcePoolID = *filter.ResourcePoolID
+		}
+		if filter.ResourceTypeID != nil {
+			adapterFilter.ResourceTypeID = *filter.ResourceTypeID
+		}
+		if filter.Location != nil {
+			adapterFilter.Location = *filter.Location
+		}
+		if filter.TenantID != nil {
+			adapterFilter.TenantID = *filter.TenantID
+		}
+	}
+
+	// Apply pagination
+	if pagination != nil {
+		if pagination.Limit != nil {
+			adapterFilter.Limit = *pagination.Limit
+		} else {
+			adapterFilter.Limit = 10
+		}
+		if pagination.Offset != nil {
+			adapterFilter.Offset = *pagination.Offset
+		}
+	} else {
+		adapterFilter.Limit = 10
+	}
+
+	// Query resources
+	resources, err := r.adapter.ListResources(ctx, adapterFilter)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build connection response
+	edges := make([]*model.ResourceEdge, len(resources))
+	for i, res := range resources {
+		edges[i] = &model.ResourceEdge{
+			Node:   res,
+			Cursor: fmt.Sprintf("%d", adapterFilter.Offset+i),
+		}
+	}
+
+	hasNextPage := len(resources) == adapterFilter.Limit
+	hasPreviousPage := adapterFilter.Offset > 0
+
+	var startCursor, endCursor *string
+	if len(edges) > 0 {
+		start := edges[0].Cursor
+		end := edges[len(edges)-1].Cursor
+		startCursor = &start
+		endCursor = &end
+	}
+
+	return &model.ResourceConnection{
+		Edges: edges,
+		PageInfo: &model.PageInfo{
+			HasNextPage:     hasNextPage,
+			HasPreviousPage: hasPreviousPage,
+			StartCursor:     startCursor,
+			EndCursor:       endCursor,
+			TotalCount:      len(resources),
+		},
+	}, nil
 }
 
 // ResourceType is the resolver for the resourceType field.
 func (r *queryResolver) ResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
-	panic(fmt.Errorf("not implemented: ResourceType - resourceType"))
+	return r.adapter.GetResourceType(ctx, id)
 }
 
 // ResourceTypes is the resolver for the resourceTypes field.
 func (r *queryResolver) ResourceTypes(ctx context.Context, filter *model.ResourceTypeFilter, pagination *model.Pagination) (*model.ResourceTypeConnection, error) {
-	panic(fmt.Errorf("not implemented: ResourceTypes - resourceTypes"))
+	// Convert GraphQL filter to adapter filter
+	adapterFilter := &adapter.Filter{}
+	if filter != nil {
+		// Note: ResourceClass, ResourceKind, and Vendor aren't directly in adapter.Filter
+		// They would be in Extensions map or Labels
+		// For now, we'll pass a basic filter
+	}
+
+	// Apply pagination
+	if pagination != nil {
+		if pagination.Limit != nil {
+			adapterFilter.Limit = *pagination.Limit
+		} else {
+			adapterFilter.Limit = 10
+		}
+		if pagination.Offset != nil {
+			adapterFilter.Offset = *pagination.Offset
+		}
+	} else {
+		adapterFilter.Limit = 10
+	}
+
+	// Query resource types
+	resourceTypes, err := r.adapter.ListResourceTypes(ctx, adapterFilter)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build connection response
+	edges := make([]*model.ResourceTypeEdge, len(resourceTypes))
+	for i, rt := range resourceTypes {
+		edges[i] = &model.ResourceTypeEdge{
+			Node:   rt,
+			Cursor: fmt.Sprintf("%d", adapterFilter.Offset+i),
+		}
+	}
+
+	hasNextPage := len(resourceTypes) == adapterFilter.Limit
+	hasPreviousPage := adapterFilter.Offset > 0
+
+	var startCursor, endCursor *string
+	if len(edges) > 0 {
+		start := edges[0].Cursor
+		end := edges[len(edges)-1].Cursor
+		startCursor = &start
+		endCursor = &end
+	}
+
+	return &model.ResourceTypeConnection{
+		Edges: edges,
+		PageInfo: &model.PageInfo{
+			HasNextPage:     hasNextPage,
+			HasPreviousPage: hasPreviousPage,
+			StartCursor:     startCursor,
+			EndCursor:       endCursor,
+			TotalCount:      len(resourceTypes),
+		},
+	}, nil
 }
 
 // Subscription is the resolver for the subscription field.
