@@ -156,7 +156,7 @@ Legend:
 
 ### TMF688 - Event Management v4 🟡
 
-**Status:** ⚠️ Partially Implemented (basic handlers)
+**Status:** ⚠️ Partially Implemented (hub registration complete, event publishing pending)
 
 **Base Path:** `/tmf-api/eventManagement/v4`
 
@@ -164,25 +164,40 @@ Legend:
 - `GET /event` - List events (returns empty array)
 - `GET /event/:id` - Get event by ID (returns 404)
 - `POST /event` - Create event (returns 501 Not Implemented)
-- `POST /hub` - Register event subscription hub
-- `DELETE /hub/:id` - Unregister event subscription hub
+- `POST /hub` - Register event subscription hub ✅ **Fully Implemented**
+- `DELETE /hub/:id` - Unregister event subscription hub ✅ **Fully Implemented**
 
 **Mapping:**
-- TMF688 Hub ↔ O2-IMS Subscription
-- Events pushed to subscribers via webhook callbacks
-- Event types map to O2-IMS resource lifecycle events
+- TMF688 Hub ↔ O2-IMS Subscription ✅ **Implemented**
+- Hub query parsing to O2-IMS filters ✅ **Implemented**
+- Hub storage with subscription tracking ✅ **Implemented**
+- Events pushed to subscribers via webhook callbacks ⚠️ **Pending**
+- Event types map to O2-IMS resource lifecycle events ⚠️ **Pending**
 
 **Files:**
 - Models: `internal/models/tmforum.go`
 - Handlers: `internal/handlers/tmforum_handler.go`
+- Query Parsing: `internal/handlers/tmforum_query.go`
+- Hub Storage: `internal/storage/hub_store.go`
 - Routes: `internal/server/tmforum_routes.go`
+- Tests: `internal/storage/hub_store_test.go`, `internal/handlers/tmforum_query_test.go`
+- Implementation Plan: `docs/tmf688-implementation-plan.md`
 
-**Integration Work Needed:**
-- Connect hub registration to O2-IMS subscription creation
-- Implement event publishing to registered hubs
-- Map O2-IMS events to TMF688 event format
+**Completed:**
+✅ Hub registration creates O2-IMS subscriptions
+✅ Hub unregistration deletes O2-IMS subscriptions
+✅ Query string parsing (resourceId, resourcePoolId, resourceTypeId, eventType)
+✅ In-memory hub store with CRUD operations
+✅ Automatic cleanup on errors
+✅ Comprehensive unit tests (87.7% coverage)
 
-**Test Coverage:** ❌ Tests needed
+**Remaining Work:**
+- Event transformation (O2-IMS events → TMF688 format)
+- Webhook publisher for event delivery
+- Event listener integration with O2-IMS subscription system
+- Redis-backed hub store for production (multi-pod support)
+
+**Test Coverage:** ✅ Unit tests (31 tests, 100% query parsing, 87.7% storage)
 
 ---
 
@@ -506,6 +521,7 @@ All implemented APIs follow TMForum Open API specifications:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.5.0 | 2026-01-16 | TMF688 hub integration with O2-IMS subscriptions, query parsing, hub storage |
 | 0.4.0 | 2026-01-16 | Added TMF642, TMF640, TMF620 handlers and routes |
 | 0.3.0 | 2026-01-16 | Added TMF688 Event Management handlers and routes |
 | 0.2.0 | 2026-01-16 | Added TMF641, TMF642, TMF640, TMF620 models |
