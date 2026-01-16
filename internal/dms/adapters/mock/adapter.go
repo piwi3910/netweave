@@ -156,7 +156,7 @@ func (a *Adapter) Capabilities() []adapter.Capability {
 // PackageManager implementation
 
 // ListDeploymentPackages retrieves all deployment packages matching the filter.
-func (a *Adapter) ListDeploymentPackages(ctx context.Context, filter *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
+func (a *Adapter) ListDeploymentPackages(_ context.Context, filter *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -169,7 +169,7 @@ func (a *Adapter) ListDeploymentPackages(ctx context.Context, filter *adapter.Fi
 }
 
 // GetDeploymentPackage retrieves a specific deployment package by ID.
-func (a *Adapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
+func (a *Adapter) GetDeploymentPackage(_ context.Context, id string) (*adapter.DeploymentPackage, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -182,7 +182,7 @@ func (a *Adapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter
 }
 
 // UploadDeploymentPackage uploads a new deployment package.
-func (a *Adapter) UploadDeploymentPackage(ctx context.Context, upload *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
+func (a *Adapter) UploadDeploymentPackage(_ context.Context, upload *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -201,7 +201,7 @@ func (a *Adapter) UploadDeploymentPackage(ctx context.Context, upload *adapter.D
 }
 
 // DeleteDeploymentPackage deletes a deployment package by ID.
-func (a *Adapter) DeleteDeploymentPackage(ctx context.Context, id string) error {
+func (a *Adapter) DeleteDeploymentPackage(_ context.Context, id string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -223,7 +223,7 @@ func (a *Adapter) DeleteDeploymentPackage(ctx context.Context, id string) error 
 // DeploymentLifecycleManager implementation
 
 // ListDeployments retrieves all deployments matching the filter.
-func (a *Adapter) ListDeployments(ctx context.Context, filter *adapter.Filter) ([]*adapter.Deployment, error) {
+func (a *Adapter) ListDeployments(_ context.Context, filter *adapter.Filter) ([]*adapter.Deployment, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -238,7 +238,7 @@ func (a *Adapter) ListDeployments(ctx context.Context, filter *adapter.Filter) (
 }
 
 // GetDeployment retrieves a specific deployment by ID.
-func (a *Adapter) GetDeployment(ctx context.Context, id string) (*adapter.Deployment, error) {
+func (a *Adapter) GetDeployment(_ context.Context, id string) (*adapter.Deployment, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -251,7 +251,7 @@ func (a *Adapter) GetDeployment(ctx context.Context, id string) (*adapter.Deploy
 }
 
 // CreateDeployment creates a new deployment.
-func (a *Adapter) CreateDeployment(ctx context.Context, req *adapter.DeploymentRequest) (*adapter.Deployment, error) {
+func (a *Adapter) CreateDeployment(_ context.Context, req *adapter.DeploymentRequest) (*adapter.Deployment, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -283,7 +283,7 @@ func (a *Adapter) CreateDeployment(ctx context.Context, req *adapter.DeploymentR
 }
 
 // UpdateDeployment updates an existing deployment.
-func (a *Adapter) UpdateDeployment(ctx context.Context, id string, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+func (a *Adapter) UpdateDeployment(_ context.Context, id string, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -308,7 +308,7 @@ func (a *Adapter) UpdateDeployment(ctx context.Context, id string, update *adapt
 }
 
 // DeleteDeployment deletes a deployment by ID.
-func (a *Adapter) DeleteDeployment(ctx context.Context, id string) error {
+func (a *Adapter) DeleteDeployment(_ context.Context, id string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -327,7 +327,7 @@ func (a *Adapter) DeleteDeployment(ctx context.Context, id string) error {
 // DeploymentOperations implementation
 
 // GetDeploymentStatus retrieves detailed status for a deployment.
-func (a *Adapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.DeploymentStatusDetail, error) {
+func (a *Adapter) GetDeploymentStatus(_ context.Context, id string) (*adapter.DeploymentStatusDetail, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -379,7 +379,7 @@ func (a *Adapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.
 }
 
 // GetDeploymentLogs retrieves logs for a deployment.
-func (a *Adapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapter.LogOptions) ([]byte, error) {
+func (a *Adapter) GetDeploymentLogs(_ context.Context, id string, opts *adapter.LogOptions) ([]byte, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -393,7 +393,7 @@ func (a *Adapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapte
 }
 
 // RollbackDeployment rolls back a deployment to a previous version.
-func (a *Adapter) RollbackDeployment(ctx context.Context, id string, targetVersion int) error {
+func (a *Adapter) RollbackDeployment(_ context.Context, id string, targetVersion int) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -412,7 +412,7 @@ func (a *Adapter) RollbackDeployment(ctx context.Context, id string, targetVersi
 }
 
 // ScaleDeployment scales a deployment to the specified replica count.
-func (a *Adapter) ScaleDeployment(ctx context.Context, id string, replicas int) error {
+func (a *Adapter) ScaleDeployment(_ context.Context, id string, replicas int) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -431,7 +431,7 @@ func (a *Adapter) ScaleDeployment(ctx context.Context, id string, replicas int) 
 }
 
 // GetDeploymentHistory retrieves the revision history for a deployment.
-func (a *Adapter) GetDeploymentHistory(ctx context.Context, id string) (*adapter.DeploymentHistory, error) {
+func (a *Adapter) GetDeploymentHistory(_ context.Context, id string) (*adapter.DeploymentHistory, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -471,19 +471,19 @@ func (a *Adapter) SupportsCapability(capability adapter.Capability) bool {
 // DMSAdapterLifecycle implementation
 
 // Initialize performs any necessary initialization.
-func (a *Adapter) Initialize(ctx context.Context) error {
+func (a *Adapter) Initialize(_ context.Context) error {
 	// Mock adapter requires no initialization
 	return nil
 }
 
 // Health checks the health of the adapter.
-func (a *Adapter) Health(ctx context.Context) error {
+func (a *Adapter) Health(_ context.Context) error {
 	// Mock adapter is always healthy
 	return nil
 }
 
 // Shutdown performs cleanup when the adapter is shutting down.
-func (a *Adapter) Shutdown(ctx context.Context) error {
+func (a *Adapter) Shutdown(_ context.Context) error {
 	// Mock adapter requires no cleanup
 	return nil
 }
