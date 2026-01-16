@@ -9,6 +9,7 @@ import (
 
 const (
 	labelKeyPool         = "pool"
+	labelKeyResourcePool = "resource-pool"
 	resourceClassCompute = "compute"
 )
 
@@ -166,7 +167,7 @@ func MapSystemToDeploymentManager(system *ISystem, deploymentManagerID, oCloudID
 // Looks for labels with key labelKeyPool or "resource-pool".
 func ExtractPoolNameFromLabels(labels []Label) string {
 	for _, label := range labels {
-		if label.LabelKey == labelKeyPool || label.LabelKey == "resource-pool" {
+		if label.LabelKey == labelKeyPool || label.LabelKey == labelKeyResourcePool {
 			return label.LabelValue
 		}
 	}

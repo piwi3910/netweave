@@ -28,18 +28,18 @@ func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]
 
 func (a *Adapter) determinePersonality(ctx context.Context, filter *adapter.Filter) string {
 	if filter == nil || filter.ResourceTypeID == "" {
-		return resourceClassCompute
+		return "compute"
 	}
 
 	resourceType, err := a.GetResourceType(ctx, filter.ResourceTypeID)
 	if err != nil {
-		return resourceClassCompute
+		return "compute"
 	}
 
 	if p, ok := resourceType.Extensions["personality"].(string); ok {
 		return p
 	}
-	return resourceClassCompute
+	return "compute"
 }
 
 func (a *Adapter) getLabelsIfNeeded(ctx context.Context, filter *adapter.Filter) ([]Label, error) {

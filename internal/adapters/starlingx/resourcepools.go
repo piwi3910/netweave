@@ -191,7 +191,7 @@ func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
 func (a *Adapter) deletePoolLabels(ctx context.Context, labels []Label, poolName string) int {
 	deletedCount := 0
 	for _, label := range labels {
-		if (label.LabelKey == "pool" || label.LabelKey == "resource-pool") && label.LabelValue == poolName {
+		if (label.LabelKey == labelKeyPool || label.LabelKey == labelKeyResourcePool) && label.LabelValue == poolName {
 			if err := a.client.DeleteLabel(ctx, label.UUID); err != nil {
 				a.logger.Warn("failed to delete label",
 					zap.String("label_uuid", label.UUID),

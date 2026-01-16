@@ -96,8 +96,8 @@ type mockSubscriptionAdapter struct {
 	store storage.Store
 }
 
-func (m *mockSubscriptionAdapter) Name() string    { return "mock" }
-func (m *mockSubscriptionAdapter) Version() string { return "1.0.0" }
+func (m *mockSubscriptionAdapter) Name() string    { return mockAdapterName }
+func (m *mockSubscriptionAdapter) Version() string { return mockAdapterVersion }
 func (m *mockSubscriptionAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{adapter.CapabilitySubscriptions}
 }

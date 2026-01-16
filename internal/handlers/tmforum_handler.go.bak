@@ -1092,15 +1092,15 @@ func mapDeploymentStatusToActivationState(status dmsadapter.DeploymentStatus) st
 	case dmsadapter.DeploymentStatusPending:
 		return "pending"
 	case dmsadapter.DeploymentStatusDeploying:
-		return stateInProgress
+		return "inProgress"
 	case dmsadapter.DeploymentStatusDeployed:
 		return "activated"
 	case dmsadapter.DeploymentStatusFailed:
 		return "failed"
 	case dmsadapter.DeploymentStatusRollingBack:
-		return stateInProgress
+		return "inProgress"
 	case dmsadapter.DeploymentStatusDeleting:
-		return stateInProgress
+		return "inProgress"
 	default:
 		return "pending"
 	}
