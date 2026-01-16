@@ -343,7 +343,11 @@ func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePo
 }
 
 // UpdateResourcePool updates an existing resource pool.
-func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *Adapter) UpdateResourcePool(
+	_ context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -507,7 +511,10 @@ func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscr
 }
 
 // CreateSubscription creates a new subscription.
-func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *Adapter) CreateSubscription(
+	_ context.Context,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -520,7 +527,11 @@ func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscriptio
 }
 
 // UpdateSubscription updates an existing subscription.
-func (a *Adapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *Adapter) UpdateSubscription(
+	_ context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 

@@ -364,7 +364,10 @@ func (a *Adapter) TestDetermineResourcePoolID(zone string) string {
 }
 
 // TestBuildInstanceExtensions exports buildInstanceExtensions for testing.
-func (a *Adapter) TestBuildInstanceExtensions(instance interface{}, instanceName, zone, machineType string) map[string]interface{} {
+func (a *Adapter) TestBuildInstanceExtensions(
+	instance interface{},
+	instanceName, zone, machineType string,
+) map[string]interface{} {
 	if inst, ok := instance.(*computepb.Instance); ok {
 		return buildInstanceExtensions(inst, instanceName, zone, machineType)
 	}
