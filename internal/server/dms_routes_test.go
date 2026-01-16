@@ -173,32 +173,32 @@ func TestSetupDMSRoutes(t *testing.T) {
 	}
 
 	// Check main DMS info endpoint.
-	assert.Contains(t, routePaths["/o2dms"], "GET")
+	assert.Contains(t, routePaths["/o2dms"], http.MethodGet)
 
 	// Check deployment lifecycle endpoint.
-	assert.Contains(t, routePaths["/o2dms/v1/deploymentLifecycle"], "GET")
+	assert.Contains(t, routePaths["/o2dms/v1/deploymentLifecycle"], http.MethodGet)
 
 	// Check nfDeployments endpoints.
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments"], "GET")
+	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments"], http.MethodGet)
 	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments"], "POST")
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId"], "GET")
+	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId"], http.MethodGet)
 	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId"], "PUT")
 	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId"], "DELETE")
 	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/scale"], "POST")
 	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/rollback"], "POST")
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/status"], "GET")
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/history"], "GET")
+	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/status"], http.MethodGet)
+	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/history"], http.MethodGet)
 
 	// Check nfDeploymentDescriptors endpoints.
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeploymentDescriptors"], "GET")
+	assert.Contains(t, routePaths["/o2dms/v1/nfDeploymentDescriptors"], http.MethodGet)
 	assert.Contains(t, routePaths["/o2dms/v1/nfDeploymentDescriptors"], "POST")
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeploymentDescriptors/:nfDeploymentDescriptorId"], "GET")
+	assert.Contains(t, routePaths["/o2dms/v1/nfDeploymentDescriptors/:nfDeploymentDescriptorId"], http.MethodGet)
 	assert.Contains(t, routePaths["/o2dms/v1/nfDeploymentDescriptors/:nfDeploymentDescriptorId"], "DELETE")
 
 	// Check subscriptions endpoints.
-	assert.Contains(t, routePaths["/o2dms/v1/subscriptions"], "GET")
+	assert.Contains(t, routePaths["/o2dms/v1/subscriptions"], http.MethodGet)
 	assert.Contains(t, routePaths["/o2dms/v1/subscriptions"], "POST")
-	assert.Contains(t, routePaths["/o2dms/v1/subscriptions/:subscriptionId"], "GET")
+	assert.Contains(t, routePaths["/o2dms/v1/subscriptions/:subscriptionId"], http.MethodGet)
 	assert.Contains(t, routePaths["/o2dms/v1/subscriptions/:subscriptionId"], "DELETE")
 }
 
@@ -315,7 +315,7 @@ func TestDMSV2Routes(t *testing.T) {
 	})
 
 	// Test v2 features endpoint.
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/o2dms/v2/features", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2dms/v2/features", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -327,7 +327,7 @@ func TestDMSV2Routes(t *testing.T) {
 	assert.Contains(t, response, "newFeatures")
 
 	// Test that v2 includes v1 routes (deployment lifecycle info).
-	req, _ = http.NewRequestWithContext(context.Background(), "GET", "/o2dms/v2/deploymentLifecycle", nil)
+	req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2dms/v2/deploymentLifecycle", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -366,7 +366,7 @@ func TestDMSV3Routes(t *testing.T) {
 	})
 
 	// Test v3 features endpoint.
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/o2dms/v3/features", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2dms/v3/features", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -378,7 +378,7 @@ func TestDMSV3Routes(t *testing.T) {
 	assert.Contains(t, response, "newFeatures")
 
 	// Test that v3 includes v1 routes.
-	req, _ = http.NewRequestWithContext(context.Background(), "GET", "/o2dms/v3/nfDeployments", nil)
+	req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2dms/v3/nfDeployments", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	// Should work (returns 200 with empty list from mock adapter).
