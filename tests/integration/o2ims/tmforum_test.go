@@ -483,6 +483,13 @@ func TestTMF641ServiceOrderingIntegration(t *testing.T) {
 					Service: &models.TMF638ServiceCreate{
 						Name:        "test-service",
 						Description: "Test service deployment",
+						ServiceSpecification: &models.ServiceSpecificationRef{
+							ID:   "pkg-cuup-001", // Use sample package from mock DMS
+							Name: "oran-cuup",
+						},
+						Place: []models.PlaceRef{
+							{ID: "default"}, // Namespace
+						},
 						ServiceCharacteristic: []models.Characteristic{
 							{Name: "replicas", Value: "2"},
 							{Name: "image", Value: "nginx:latest"},
@@ -511,7 +518,18 @@ func TestTMF641ServiceOrderingIntegration(t *testing.T) {
 				{
 					Action: "add",
 					Service: &models.TMF638ServiceCreate{
-						Name: "test-service-2",
+						Name:        "test-service-2",
+						Description: "Second test service",
+						ServiceSpecification: &models.ServiceSpecificationRef{
+							ID:   "pkg-cucp-001", // Use second sample package
+							Name: "oran-cucp",
+						},
+						Place: []models.PlaceRef{
+							{ID: "default"},
+						},
+						ServiceCharacteristic: []models.Characteristic{
+							{Name: "replicas", Value: "1"},
+						},
 					},
 				},
 			},

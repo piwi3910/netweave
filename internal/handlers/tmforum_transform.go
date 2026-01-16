@@ -501,6 +501,7 @@ func TransformTMF641ServiceOrderToDeployment(
 		Name:        generateDeploymentName(order, item),
 		Description: order.Description,
 		Values:      make(map[string]interface{}),
+		Extensions:  make(map[string]interface{}),
 	}
 
 	// Extract package ID from service specification
@@ -520,15 +521,15 @@ func TransformTMF641ServiceOrderToDeployment(
 		}
 	}
 
-	// Store order metadata in values
+	// Store order metadata in extensions (not values)
 	if order.ExternalId != "" {
-		deployment.Values["orderExternalId"] = order.ExternalId
+		deployment.Extensions["orderExternalId"] = order.ExternalId
 	}
 	if order.Priority != "" {
-		deployment.Values["orderPriority"] = order.Priority
+		deployment.Extensions["orderPriority"] = order.Priority
 	}
 	if order.Category != "" {
-		deployment.Values["orderCategory"] = order.Category
+		deployment.Extensions["orderCategory"] = order.Category
 	}
 
 	return deployment
