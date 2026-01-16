@@ -191,7 +191,7 @@ func (p *Plugin) SyncDeploymentInventory(_ context.Context, _ *smo.DeploymentInv
 // PluginNorthboundEvents implementation
 
 // PublishInfrastructureEvent publishes an infrastructure change event to the SMO.
-func (p *Plugin) PublishInfrastructureEvent(_ context.Context, event *smo.InfrastructureEvent) error {
+func (p *Plugin) PublishInfrastructureEvent(_ context.Context, _ *smo.InfrastructureEvent) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -205,7 +205,7 @@ func (p *Plugin) PublishInfrastructureEvent(_ context.Context, event *smo.Infras
 }
 
 // PublishDeploymentEvent publishes a deployment change event to the SMO.
-func (p *Plugin) PublishDeploymentEvent(_ context.Context, event *smo.DeploymentEvent) error {
+func (p *Plugin) PublishDeploymentEvent(_ context.Context, _ *smo.DeploymentEvent) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 

@@ -541,17 +541,17 @@ func (r *resourceTypeResolver) ResourceCount(_ context.Context, _ *adapter.Resou
 }
 
 // ResourceCreated is the resolver for the resourceCreated field.
-func (r *subscriptionResolver) ResourceCreated(_ context.Context, _ *string, typeID *string) (<-chan *adapter.Resource, error) {
+func (r *subscriptionResolver) ResourceCreated(_ context.Context, _ *string, _ *string) (<-chan *adapter.Resource, error) {
 	panic(fmt.Errorf("not implemented: ResourceCreated - resourceCreated"))
 }
 
 // ResourceUpdated is the resolver for the resourceUpdated field.
-func (r *subscriptionResolver) ResourceUpdated(_ context.Context, _ *string, typeID *string) (<-chan *adapter.Resource, error) {
+func (r *subscriptionResolver) ResourceUpdated(_ context.Context, _ *string, _ *string) (<-chan *adapter.Resource, error) {
 	panic(fmt.Errorf("not implemented: ResourceUpdated - resourceUpdated"))
 }
 
 // ResourceDeleted is the resolver for the resourceDeleted field.
-func (r *subscriptionResolver) ResourceDeleted(_ context.Context, _ *string, typeID *string) (<-chan *model.ResourceDeletedEvent, error) {
+func (r *subscriptionResolver) ResourceDeleted(_ context.Context, _ *string, _ *string) (<-chan *model.ResourceDeletedEvent, error) {
 	panic(fmt.Errorf("not implemented: ResourceDeleted - resourceDeleted"))
 }
 
