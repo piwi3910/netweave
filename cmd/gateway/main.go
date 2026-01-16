@@ -637,7 +637,7 @@ func initializeKubernetesAdapter(cfg *config.Config, logger *zap.Logger) (*kuber
 func initializeDMS(
 	cfg *config.Config,
 	srv *server.Server,
-	imsAdapter adapter.Adapter,
+	_ adapter.Adapter,
 	logger *zap.Logger,
 ) error {
 	// Create DMS registry with default configuration

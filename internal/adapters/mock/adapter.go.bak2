@@ -284,7 +284,7 @@ func (a *Adapter) Capabilities() []adapter.Capability {
 // DeploymentManagerClient implementation
 
 // GetDeploymentManager retrieves the mock deployment manager.
-func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
+func (a *Adapter) GetDeploymentManager(_,  id string) (*adapter.DeploymentManager, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -298,7 +298,7 @@ func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.D
 // ResourcePoolClient implementation
 
 // ListResourcePools retrieves all resource pools matching the filter.
-func (a *Adapter) ListResourcePools(_ context.Context, filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (a *Adapter) ListResourcePools(_,  filter *adapter.Filter) ([]*adapter.ResourcePool, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -313,7 +313,7 @@ func (a *Adapter) ListResourcePools(_ context.Context, filter *adapter.Filter) (
 }
 
 // GetResourcePool retrieves a specific resource pool by ID.
-func (a *Adapter) GetResourcePool(_ context.Context, id string) (*adapter.ResourcePool, error) {
+func (a *Adapter) GetResourcePool(_,  id string) (*adapter.ResourcePool, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -326,7 +326,7 @@ func (a *Adapter) GetResourcePool(_ context.Context, id string) (*adapter.Resour
 }
 
 // CreateResourcePool creates a new resource pool.
-func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *Adapter) CreateResourcePool(_,  pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -343,7 +343,7 @@ func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePo
 }
 
 // UpdateResourcePool updates an existing resource pool.
-func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *Adapter) UpdateResourcePool(_,  id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -357,7 +357,7 @@ func (a *Adapter) UpdateResourcePool(_ context.Context, id string, pool *adapter
 }
 
 // DeleteResourcePool deletes a resource pool by ID.
-func (a *Adapter) DeleteResourcePool(_ context.Context, id string) error {
+func (a *Adapter) DeleteResourcePool(_,  id string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -379,7 +379,7 @@ func (a *Adapter) DeleteResourcePool(_ context.Context, id string) error {
 // ResourceClient implementation
 
 // ListResources retrieves all resources matching the filter.
-func (a *Adapter) ListResources(_ context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (a *Adapter) ListResources(_,  filter *adapter.Filter) ([]*adapter.Resource, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -394,7 +394,7 @@ func (a *Adapter) ListResources(_ context.Context, filter *adapter.Filter) ([]*a
 }
 
 // GetResource retrieves a specific resource by ID.
-func (a *Adapter) GetResource(_ context.Context, id string) (*adapter.Resource, error) {
+func (a *Adapter) GetResource(_,  id string) (*adapter.Resource, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -407,7 +407,7 @@ func (a *Adapter) GetResource(_ context.Context, id string) (*adapter.Resource, 
 }
 
 // CreateResource creates a new resource.
-func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+func (a *Adapter) CreateResource(_,  resource *adapter.Resource) (*adapter.Resource, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -424,7 +424,7 @@ func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) 
 }
 
 // UpdateResource updates an existing resource.
-func (a *Adapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+func (a *Adapter) UpdateResource(_,  id string, resource *adapter.Resource) (*adapter.Resource, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -438,7 +438,7 @@ func (a *Adapter) UpdateResource(_ context.Context, id string, resource *adapter
 }
 
 // DeleteResource deletes a resource by ID.
-func (a *Adapter) DeleteResource(_ context.Context, id string) error {
+func (a *Adapter) DeleteResource(_,  id string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -453,7 +453,7 @@ func (a *Adapter) DeleteResource(_ context.Context, id string) error {
 // ResourceTypeClient implementation
 
 // ListResourceTypes retrieves all resource types matching the filter.
-func (a *Adapter) ListResourceTypes(_ context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (a *Adapter) ListResourceTypes(_,  filter *adapter.Filter) ([]*adapter.ResourceType, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -466,7 +466,7 @@ func (a *Adapter) ListResourceTypes(_ context.Context, filter *adapter.Filter) (
 }
 
 // GetResourceType retrieves a specific resource type by ID.
-func (a *Adapter) GetResourceType(_ context.Context, id string) (*adapter.ResourceType, error) {
+func (a *Adapter) GetResourceType(_,  id string) (*adapter.ResourceType, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -481,7 +481,7 @@ func (a *Adapter) GetResourceType(_ context.Context, id string) (*adapter.Resour
 // SubscriptionClient implementation
 
 // ListSubscriptions retrieves all subscriptions matching the filter.
-func (a *Adapter) ListSubscriptions(_ context.Context, filter *adapter.SubscriptionFilter) ([]*adapter.Subscription, error) {
+func (a *Adapter) ListSubscriptions(_,  filter *adapter.SubscriptionFilter) ([]*adapter.Subscription, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -494,7 +494,7 @@ func (a *Adapter) ListSubscriptions(_ context.Context, filter *adapter.Subscript
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
+func (a *Adapter) GetSubscription(_,  id string) (*adapter.Subscription, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -507,7 +507,7 @@ func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscr
 }
 
 // CreateSubscription creates a new subscription.
-func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *Adapter) CreateSubscription(_,  sub *adapter.Subscription) (*adapter.Subscription, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -520,7 +520,7 @@ func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscriptio
 }
 
 // UpdateSubscription updates an existing subscription.
-func (a *Adapter) UpdateSubscription(_ context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *Adapter) UpdateSubscription(_,  id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -534,7 +534,7 @@ func (a *Adapter) UpdateSubscription(_ context.Context, id string, sub *adapter.
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
+func (a *Adapter) DeleteSubscription(_,  id string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -549,19 +549,19 @@ func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
 // Lifecycle implementation
 
 // Initialize performs any necessary initialization.
-func (a *Adapter) Initialize(_ context.Context) error {
+func (a *Adapter) Initialize(ctx context.Context) error {
 	// Mock adapter requires no initialization
 	return nil
 }
 
 // Health checks the health of the adapter.
-func (a *Adapter) Health(_ context.Context) error {
+func (a *Adapter) Health(ctx context.Context) error {
 	// Mock adapter is always healthy
 	return nil
 }
 
 // Shutdown performs cleanup when the adapter is shutting down.
-func (a *Adapter) Shutdown(_ context.Context) error {
+func (a *Adapter) Shutdown(ctx context.Context) error {
 	// Mock adapter requires no cleanup
 	return nil
 }
