@@ -5,8 +5,10 @@ import (
 	"time"
 
 	imsadapter "github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/controllers"
 	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
 	"github.com/piwi3910/netweave/internal/models"
+	"github.com/piwi3910/netweave/internal/storage"
 )
 
 // TMForum ↔ Internal Model Transformations
@@ -661,4 +663,109 @@ func generateDeploymentName(order *models.TMF641ServiceOrderCreate, item *models
 		return fmt.Sprintf("order-%s", order.ExternalId)
 	}
 	return fmt.Sprintf("order-%d", time.Now().Unix())
+}
+// ========================================
+// TMF688 Event Transformation
+// ========================================
+
+// TransformResourceEventToTMF688 converts an O2-IMS resource event to TMF688 format.
+// This transformation maps O2-IMS subscription events to TMForum event notifications.
+func TransformResourceEventToTMF688(event *controllers.ResourceEvent, baseURL string) *models.TMF688Event {
+	eventType := mapResourceEventTypeToTMF688(event.EventType)
+
+	tmfEvent := &models.TMF688Event{
+		ID:           event.NotificationID,
+		Href:         fmt.Sprintf("%s/tmf-api/eventManagement/v4/event/%s", baseURL, event.NotificationID),
+		EventType:    eventType,
+		EventTime:    &event.Timestamp,
+		Description:  fmt.Sprintf("Resource %s event for %s", event.EventType, event.GlobalResourceID),
+		TimeOccurred: &event.Timestamp,
+		Domain:       "O2-IMS",
+		AtType:       "Event",
+	}
+
+	// Build event payload with resource reference
+	resource := &models.TMF639Resource{
+		ID:   event.GlobalResourceID,
+		Href: event.ObjectRef,
+		Name: event.GlobalResourceID,
+	}
+
+	// Add resource type as specification reference
+	if event.ResourceTypeID != "" {
+		resource.ResourceSpecification = &models.ResourceSpecificationRef{
+			ID: event.ResourceTypeID,
+		}
+	}
+
+	// Add resource pool and type IDs as characteristics
+	characteristics := []models.Characteristic{}
+	if event.ResourceTypeID != "" {
+		characteristics = append(characteristics, models.Characteristic{
+			Name:  "resourceTypeId",
+			Value: event.ResourceTypeID,
+		})
+	}
+	if event.ResourcePoolID != "" {
+		characteristics = append(characteristics, models.Characteristic{
+			Name:  "resourcePoolId",
+			Value: event.ResourcePoolID,
+		})
+	}
+	if len(characteristics) > 0 {
+		resource.ResourceCharacteristic = characteristics
+	}
+
+	tmfEvent.Event = &models.EventPayload{
+		Resource: resource,
+	}
+
+	return tmfEvent
+}
+
+// mapResourceEventTypeToTMF688 maps O2-IMS event types to TMF688 event type names.
+func mapResourceEventTypeToTMF688(eventType string) string {
+	switch eventType {
+	case string(controllers.EventTypeCreated):
+		return "ResourceCreationNotification"
+	case string(controllers.EventTypeUpdated):
+		return "ResourceStateChangeNotification"
+	case string(controllers.EventTypeDeleted):
+		return "ResourceRemoveNotification"
+	default:
+		return "ResourceAttributeValueChangeNotification"
+	}
+}
+
+// ShouldPublishEventToHub determines if an event should be published to a specific hub
+// based on the hub's query filter.
+func ShouldPublishEventToHub(event *controllers.ResourceEvent, hub *storage.HubRegistration) bool {
+	// Parse hub query to get filter
+	filter, err := ParseTMF688Query(hub.Query)
+	if err != nil {
+		// Invalid query, don't publish
+		return false
+	}
+
+	// Empty filter means subscribe to all events
+	if filter.ResourceID == "" && filter.ResourcePoolID == "" && filter.ResourceTypeID == "" {
+		return true
+	}
+
+	// Check resource ID filter
+	if filter.ResourceID != "" && filter.ResourceID != event.GlobalResourceID {
+		return false
+	}
+
+	// Check resource pool ID filter
+	if filter.ResourcePoolID != "" && filter.ResourcePoolID != event.ResourcePoolID {
+		return false
+	}
+
+	// Check resource type ID filter
+	if filter.ResourceTypeID != "" && filter.ResourceTypeID != event.ResourceTypeID {
+		return false
+	}
+
+	return true
 }
