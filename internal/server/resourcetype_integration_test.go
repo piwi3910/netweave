@@ -230,25 +230,25 @@ func (m *mockResourceTypeAdapter) GetResourcePool(_ context.Context, _ string) (
 	return nil, adapter.ErrResourceNotFound
 }
 func (m *mockResourceTypeAdapter) CreateResourcePool(_ context.Context, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
-	return nil, nil
+	return nil, adapter.ErrNotImplemented
 }
 func (m *mockResourceTypeAdapter) UpdateResourcePool(_ context.Context, _ string, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
-	return nil, nil
+	return nil, adapter.ErrNotImplemented
 }
 func (m *mockResourceTypeAdapter) DeleteResourcePool(_ context.Context, _ string) error {
 	return nil
 }
 func (m *mockResourceTypeAdapter) ListResources(_ context.Context, _ *adapter.Filter) ([]*adapter.Resource, error) {
-	return nil, nil
+	return nil, adapter.ErrNotImplemented
 }
 func (m *mockResourceTypeAdapter) GetResource(_ context.Context, _ string) (*adapter.Resource, error) {
 	return nil, adapter.ErrResourceNotFound
 }
 func (m *mockResourceTypeAdapter) CreateResource(_ context.Context, _ *adapter.Resource) (*adapter.Resource, error) {
-	return nil, nil
+	return nil, adapter.ErrNotImplemented
 }
 func (m *mockResourceTypeAdapter) UpdateResource(_ context.Context, _ string, _ *adapter.Resource) (*adapter.Resource, error) {
-	return nil, nil
+	return nil, adapter.ErrNotImplemented
 }
 func (m *mockResourceTypeAdapter) DeleteResource(_ context.Context, _ string) error {
 	return nil

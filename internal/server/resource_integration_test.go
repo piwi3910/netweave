@@ -374,10 +374,10 @@ func (m *mockResourceIntegrationAdapter) GetResourcePool(_ context.Context, _ st
 	return nil, adapter.ErrResourceNotFound
 }
 func (m *mockResourceIntegrationAdapter) CreateResourcePool(_ context.Context, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
-	return nil, nil
+	return nil, adapter.ErrNotImplemented
 }
 func (m *mockResourceIntegrationAdapter) UpdateResourcePool(_ context.Context, _ string, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
-	return nil, nil
+	return nil, adapter.ErrNotImplemented
 }
 func (m *mockResourceIntegrationAdapter) DeleteResourcePool(_ context.Context, _ string) error {
 	return nil
