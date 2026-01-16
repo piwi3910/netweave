@@ -87,7 +87,7 @@ func TestTMFEventPublisher_PublishEvent(t *testing.T) {
 	})
 
 	t.Run("server returns error status", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
 		defer server.Close()
@@ -105,7 +105,7 @@ func TestTMFEventPublisher_PublishEvent(t *testing.T) {
 	})
 
 	t.Run("context cancelled", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			time.Sleep(100 * time.Millisecond)
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -140,7 +140,7 @@ func TestTMFEventPublisher_PublishEventWithRetry(t *testing.T) {
 	}
 
 	t.Run("succeeds on first attempt", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 		defer server.Close()
@@ -154,7 +154,7 @@ func TestTMFEventPublisher_PublishEventWithRetry(t *testing.T) {
 		attemptCount := 0
 		mu := sync.Mutex{}
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			mu.Lock()
 			attemptCount++
 			currentAttempt := attemptCount
@@ -181,7 +181,7 @@ func TestTMFEventPublisher_PublishEventWithRetry(t *testing.T) {
 		attemptCount := 0
 		mu := sync.Mutex{}
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			mu.Lock()
 			attemptCount++
 			mu.Unlock()
@@ -201,7 +201,7 @@ func TestTMFEventPublisher_PublishEventWithRetry(t *testing.T) {
 	})
 
 	t.Run("context cancelled during retry", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
 		defer server.Close()

@@ -151,7 +151,7 @@ func TestTMFEventListener_ProcessMessage(t *testing.T) {
 		receivedEvents := 0
 		mu := sync.Mutex{}
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			mu.Lock()
 			receivedEvents++
 			mu.Unlock()
@@ -228,7 +228,7 @@ func TestTMFEventListener_ProcessMessage(t *testing.T) {
 		receivedEvents := 0
 		mu := sync.Mutex{}
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			mu.Lock()
 			receivedEvents++
 			mu.Unlock()

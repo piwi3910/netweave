@@ -175,7 +175,7 @@ func (p *Plugin) SyncInfrastructureInventory(_ context.Context, inventory *smo.I
 }
 
 // SyncDeploymentInventory synchronizes O2-DMS deployment inventory to the SMO.
-func (p *Plugin) SyncDeploymentInventory(_ context.Context, inventory *smo.DeploymentInventory) error {
+func (p *Plugin) SyncDeploymentInventory(_ context.Context, _ *smo.DeploymentInventory) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 

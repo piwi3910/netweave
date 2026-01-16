@@ -86,7 +86,7 @@ func (r *mutationResolver) DeleteNFDeployment(_ context.Context, _ string) (bool
 }
 
 // ScaleNFDeployment is the resolver for the scaleNFDeployment field.
-func (r *mutationResolver) ScaleNFDeployment(_ context.Context, _ string, replicas int) (*model.NFDeployment, error) {
+func (r *mutationResolver) ScaleNFDeployment(_ context.Context, _ string, _ int) (*model.NFDeployment, error) {
 	panic(fmt.Errorf("not implemented: ScaleNFDeployment - scaleNFDeployment"))
 }
 
@@ -131,7 +131,7 @@ func (r *mutationResolver) ApplyPolicy(_ context.Context, _ model.ApplyPolicyInp
 }
 
 // BatchCreateResources is the resolver for the batchCreateResources field.
-func (r *mutationResolver) BatchCreateResources(_ context.Context, inputs []*model.CreateResourceInput) ([]*adapter.Resource, error) {
+func (r *mutationResolver) BatchCreateResources(_ context.Context, _ []*model.CreateResourceInput) ([]*adapter.Resource, error) {
 	panic(fmt.Errorf("not implemented: BatchCreateResources - batchCreateResources"))
 }
 
@@ -141,7 +141,7 @@ func (r *mutationResolver) BatchDeleteResources(_ context.Context, _ []string) (
 }
 
 // BatchCreateNFDeployments is the resolver for the batchCreateNFDeployments field.
-func (r *mutationResolver) BatchCreateNFDeployments(_ context.Context, inputs []*model.CreateNFDeploymentInput) ([]*model.NFDeployment, error) {
+func (r *mutationResolver) BatchCreateNFDeployments(_ context.Context, _ []*model.CreateNFDeploymentInput) ([]*model.NFDeployment, error) {
 	panic(fmt.Errorf("not implemented: BatchCreateNFDeployments - batchCreateNFDeployments"))
 }
 
@@ -416,7 +416,7 @@ func (r *queryResolver) Subscription(_ context.Context, _ string) (*model.O2Subs
 }
 
 // Subscriptions is the resolver for the subscriptions field.
-func (r *queryResolver) Subscriptions(_ context.Context, _ *adapter.SubscriptionFilter, pagination *model.Pagination) (*model.SubscriptionConnection, error) {
+func (r *queryResolver) Subscriptions(_ context.Context, _ *adapter.SubscriptionFilter, _ *model.Pagination) (*model.SubscriptionConnection, error) {
 	panic(fmt.Errorf("not implemented: Subscriptions - subscriptions"))
 }
 
@@ -426,7 +426,7 @@ func (r *queryResolver) NfDeployment(_ context.Context, _ string) (*model.NFDepl
 }
 
 // NfDeployments is the resolver for the nfDeployments field.
-func (r *queryResolver) NfDeployments(_ context.Context, _ *model.NFDeploymentFilter, pagination *model.Pagination) (*model.NFDeploymentConnection, error) {
+func (r *queryResolver) NfDeployments(_ context.Context, _ *model.NFDeploymentFilter, _ *model.Pagination) (*model.NFDeploymentConnection, error) {
 	panic(fmt.Errorf("not implemented: NfDeployments - nfDeployments"))
 }
 
@@ -436,7 +436,7 @@ func (r *queryResolver) NfDeploymentDescriptor(_ context.Context, _ string) (*mo
 }
 
 // NfDeploymentDescriptors is the resolver for the nfDeploymentDescriptors field.
-func (r *queryResolver) NfDeploymentDescriptors(_ context.Context, _ *model.DescriptorFilter, pagination *model.Pagination) (*model.DescriptorConnection, error) {
+func (r *queryResolver) NfDeploymentDescriptors(_ context.Context, _ *model.DescriptorFilter, _ *model.Pagination) (*model.DescriptorConnection, error) {
 	panic(fmt.Errorf("not implemented: NfDeploymentDescriptors - nfDeploymentDescriptors"))
 }
 
@@ -446,7 +446,7 @@ func (r *queryResolver) WorkflowExecution(_ context.Context, _ string) (*model.W
 }
 
 // WorkflowExecutions is the resolver for the workflowExecutions field.
-func (r *queryResolver) WorkflowExecutions(_ context.Context, _ *model.WorkflowFilter, pagination *model.Pagination) (*model.WorkflowExecutionConnection, error) {
+func (r *queryResolver) WorkflowExecutions(_ context.Context, _ *model.WorkflowFilter, _ *model.Pagination) (*model.WorkflowExecutionConnection, error) {
 	panic(fmt.Errorf("not implemented: WorkflowExecutions - workflowExecutions"))
 }
 
@@ -456,7 +456,7 @@ func (r *queryResolver) ServiceModel(_ context.Context, _ string) (*model.Servic
 }
 
 // ServiceModels is the resolver for the serviceModels field.
-func (r *queryResolver) ServiceModels(_ context.Context, _ *model.ServiceModelFilter, pagination *model.Pagination) (*model.ServiceModelConnection, error) {
+func (r *queryResolver) ServiceModels(_ context.Context, _ *model.ServiceModelFilter, _ *model.Pagination) (*model.ServiceModelConnection, error) {
 	panic(fmt.Errorf("not implemented: ServiceModels - serviceModels"))
 }
 
@@ -466,7 +466,7 @@ func (r *queryResolver) Policy(_ context.Context, _ string) (*model.Policy, erro
 }
 
 // Policies is the resolver for the policies field.
-func (r *queryResolver) Policies(_ context.Context, _ *model.PolicyFilter, pagination *model.Pagination) (*model.PolicyConnection, error) {
+func (r *queryResolver) Policies(_ context.Context, _ *model.PolicyFilter, _ *model.Pagination) (*model.PolicyConnection, error) {
 	panic(fmt.Errorf("not implemented: Policies - policies"))
 }
 
@@ -476,7 +476,7 @@ func (r *queryResolver) Tenant(_ context.Context, _ string) (*model.Tenant, erro
 }
 
 // Tenants is the resolver for the tenants field.
-func (r *queryResolver) Tenants(_ context.Context, pagination *model.Pagination) (*model.TenantConnection, error) {
+func (r *queryResolver) Tenants(_ context.Context, _ *model.Pagination) (*model.TenantConnection, error) {
 	panic(fmt.Errorf("not implemented: Tenants - tenants"))
 }
 
@@ -511,7 +511,7 @@ func (r *resourcePoolResolver) Extensions(_ context.Context, _ *adapter.Resource
 }
 
 // Resources is the resolver for the resources field.
-func (r *resourcePoolResolver) Resources(_ context.Context, _ *adapter.ResourcePool, _ *model.ResourceFilter, pagination *model.Pagination) (*model.ResourceConnection, error) {
+func (r *resourcePoolResolver) Resources(_ context.Context, _ *adapter.ResourcePool, _ *model.ResourceFilter, _ *model.Pagination) (*model.ResourceConnection, error) {
 	panic(fmt.Errorf("not implemented: Resources - resources"))
 }
 
@@ -531,7 +531,7 @@ func (r *resourceTypeResolver) Extensions(_ context.Context, _ *adapter.Resource
 }
 
 // Resources is the resolver for the resources field.
-func (r *resourceTypeResolver) Resources(_ context.Context, _ *adapter.ResourceType, _ *model.ResourceFilter, pagination *model.Pagination) (*model.ResourceConnection, error) {
+func (r *resourceTypeResolver) Resources(_ context.Context, _ *adapter.ResourceType, _ *model.ResourceFilter, _ *model.Pagination) (*model.ResourceConnection, error) {
 	panic(fmt.Errorf("not implemented: Resources - resources"))
 }
 
@@ -541,17 +541,17 @@ func (r *resourceTypeResolver) ResourceCount(_ context.Context, _ *adapter.Resou
 }
 
 // ResourceCreated is the resolver for the resourceCreated field.
-func (r *subscriptionResolver) ResourceCreated(_ context.Context, poolID *string, typeID *string) (<-chan *adapter.Resource, error) {
+func (r *subscriptionResolver) ResourceCreated(_ context.Context, _ *string, typeID *string) (<-chan *adapter.Resource, error) {
 	panic(fmt.Errorf("not implemented: ResourceCreated - resourceCreated"))
 }
 
 // ResourceUpdated is the resolver for the resourceUpdated field.
-func (r *subscriptionResolver) ResourceUpdated(_ context.Context, poolID *string, typeID *string) (<-chan *adapter.Resource, error) {
+func (r *subscriptionResolver) ResourceUpdated(_ context.Context, _ *string, typeID *string) (<-chan *adapter.Resource, error) {
 	panic(fmt.Errorf("not implemented: ResourceUpdated - resourceUpdated"))
 }
 
 // ResourceDeleted is the resolver for the resourceDeleted field.
-func (r *subscriptionResolver) ResourceDeleted(_ context.Context, poolID *string, typeID *string) (<-chan *model.ResourceDeletedEvent, error) {
+func (r *subscriptionResolver) ResourceDeleted(_ context.Context, _ *string, typeID *string) (<-chan *model.ResourceDeletedEvent, error) {
 	panic(fmt.Errorf("not implemented: ResourceDeleted - resourceDeleted"))
 }
 
@@ -586,7 +586,7 @@ func (r *subscriptionResolver) NfDeploymentDeleted(_ context.Context) (<-chan *m
 }
 
 // NfDeploymentStatusChanged is the resolver for the nfDeploymentStatusChanged field.
-func (r *subscriptionResolver) NfDeploymentStatusChanged(_ context.Context, deploymentID *string) (<-chan *model.NFDeploymentStatus, error) {
+func (r *subscriptionResolver) NfDeploymentStatusChanged(_ context.Context, _ *string) (<-chan *model.NFDeploymentStatus, error) {
 	panic(fmt.Errorf("not implemented: NfDeploymentStatusChanged - nfDeploymentStatusChanged"))
 }
 
