@@ -379,7 +379,7 @@ func (a *Adapter) GetDeploymentStatus(_ context.Context, id string) (*adapter.De
 }
 
 // GetDeploymentLogs retrieves logs for a deployment.
-func (a *Adapter) GetDeploymentLogs(_ context.Context, id string, opts *adapter.LogOptions) ([]byte, error) {
+func (a *Adapter) GetDeploymentLogs(_ context.Context, id string, _ *adapter.LogOptions) ([]byte, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 

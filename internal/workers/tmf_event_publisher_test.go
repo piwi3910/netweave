@@ -239,7 +239,7 @@ func TestTMFEventPublisher_PublishToMultipleHubs(t *testing.T) {
 		receivedCount := 0
 		mu := sync.Mutex{}
 
-		server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			mu.Lock()
 			receivedCount++
 			mu.Unlock()
@@ -247,7 +247,7 @@ func TestTMFEventPublisher_PublishToMultipleHubs(t *testing.T) {
 		}))
 		defer server1.Close()
 
-		server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			mu.Lock()
 			receivedCount++
 			mu.Unlock()
@@ -255,7 +255,7 @@ func TestTMFEventPublisher_PublishToMultipleHubs(t *testing.T) {
 		}))
 		defer server2.Close()
 
-		server3 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server3 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			mu.Lock()
 			receivedCount++
 			mu.Unlock()
@@ -275,12 +275,12 @@ func TestTMFEventPublisher_PublishToMultipleHubs(t *testing.T) {
 	})
 
 	t.Run("some hubs fail", func(t *testing.T) {
-		successServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		successServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 		defer successServer.Close()
 
-		failServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		failServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
 		defer failServer.Close()

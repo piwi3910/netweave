@@ -481,7 +481,7 @@ func (a *Adapter) GetResourceType(_ context.Context, id string) (*adapter.Resour
 // SubscriptionClient implementation
 
 // ListSubscriptions retrieves all subscriptions matching the filter.
-func (a *Adapter) ListSubscriptions(_ context.Context, filter *adapter.SubscriptionFilter) ([]*adapter.Subscription, error) {
+func (a *Adapter) ListSubscriptions(_ context.Context, _ *adapter.SubscriptionFilter) ([]*adapter.Subscription, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 

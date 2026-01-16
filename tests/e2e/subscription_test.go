@@ -703,7 +703,7 @@ func TestWebhookRetryLogic(t *testing.T) {
 	var attemptMu sync.Mutex
 	const failAttempts = 2
 
-	failingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	failingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		attemptMu.Lock()
 		attemptCount++
 		currentAttempt := attemptCount

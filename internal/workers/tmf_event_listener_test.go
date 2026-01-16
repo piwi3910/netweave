@@ -305,7 +305,7 @@ func TestTMFEventListener_ProcessMessage(t *testing.T) {
 		receivedCount := 0
 		mu := sync.Mutex{}
 
-		server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			mu.Lock()
 			receivedCount++
 			mu.Unlock()
@@ -313,7 +313,7 @@ func TestTMFEventListener_ProcessMessage(t *testing.T) {
 		}))
 		defer server1.Close()
 
-		server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			mu.Lock()
 			receivedCount++
 			mu.Unlock()
@@ -449,7 +449,7 @@ func TestTMFEventListener_ProcessMessage(t *testing.T) {
 		mu := sync.Mutex{}
 
 		// Success server
-		successServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		successServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			mu.Lock()
 			receivedCount++
 			mu.Unlock()
@@ -458,7 +458,7 @@ func TestTMFEventListener_ProcessMessage(t *testing.T) {
 		defer successServer.Close()
 
 		// Failure server
-		failServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		failServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
 		defer failServer.Close()

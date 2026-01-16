@@ -16,117 +16,117 @@ import (
 )
 
 // ID is the resolver for the id field.
-func (r *deploymentManagerResolver) ID(_ context.Context, obj *adapter.DeploymentManager) (string, error) {
+func (r *deploymentManagerResolver) ID(_ context.Context, _ *adapter.DeploymentManager) (string, error) {
 	panic(fmt.Errorf("not implemented: ID - id"))
 }
 
 // Extensions is the resolver for the extensions field.
-func (r *deploymentManagerResolver) Extensions(_ context.Context, obj *adapter.DeploymentManager) (scalars.JSON, error) {
+func (r *deploymentManagerResolver) Extensions(_ context.Context, _ *adapter.DeploymentManager) (scalars.JSON, error) {
 	panic(fmt.Errorf("not implemented: Extensions - extensions"))
 }
 
 // CreateResourcePool is the resolver for the createResourcePool field.
-func (r *mutationResolver) CreateResourcePool(_ context.Context, input model.CreateResourcePoolInput) (*adapter.ResourcePool, error) {
+func (r *mutationResolver) CreateResourcePool(_ context.Context, _ model.CreateResourcePoolInput) (*adapter.ResourcePool, error) {
 	panic(fmt.Errorf("not implemented: CreateResourcePool - createResourcePool"))
 }
 
 // UpdateResourcePool is the resolver for the updateResourcePool field.
-func (r *mutationResolver) UpdateResourcePool(_ context.Context, id string, input model.UpdateResourcePoolInput) (*adapter.ResourcePool, error) {
+func (r *mutationResolver) UpdateResourcePool(_ context.Context, _ string, _ model.UpdateResourcePoolInput) (*adapter.ResourcePool, error) {
 	panic(fmt.Errorf("not implemented: UpdateResourcePool - updateResourcePool"))
 }
 
 // DeleteResourcePool is the resolver for the deleteResourcePool field.
-func (r *mutationResolver) DeleteResourcePool(_ context.Context, id string) (bool, error) {
+func (r *mutationResolver) DeleteResourcePool(_ context.Context, _ string) (bool, error) {
 	panic(fmt.Errorf("not implemented: DeleteResourcePool - deleteResourcePool"))
 }
 
 // CreateResource is the resolver for the createResource field.
-func (r *mutationResolver) CreateResource(_ context.Context, input model.CreateResourceInput) (*adapter.Resource, error) {
+func (r *mutationResolver) CreateResource(_ context.Context, _ model.CreateResourceInput) (*adapter.Resource, error) {
 	panic(fmt.Errorf("not implemented: CreateResource - createResource"))
 }
 
 // UpdateResource is the resolver for the updateResource field.
-func (r *mutationResolver) UpdateResource(_ context.Context, id string, input model.UpdateResourceInput) (*adapter.Resource, error) {
+func (r *mutationResolver) UpdateResource(_ context.Context, _ string, _ model.UpdateResourceInput) (*adapter.Resource, error) {
 	panic(fmt.Errorf("not implemented: UpdateResource - updateResource"))
 }
 
 // DeleteResource is the resolver for the deleteResource field.
-func (r *mutationResolver) DeleteResource(_ context.Context, id string) (bool, error) {
+func (r *mutationResolver) DeleteResource(_ context.Context, _ string) (bool, error) {
 	panic(fmt.Errorf("not implemented: DeleteResource - deleteResource"))
 }
 
 // CreateSubscription is the resolver for the createSubscription field.
-func (r *mutationResolver) CreateSubscription(_ context.Context, input model.CreateSubscriptionInput) (*model.O2Subscription, error) {
+func (r *mutationResolver) CreateSubscription(_ context.Context, _ model.CreateSubscriptionInput) (*model.O2Subscription, error) {
 	panic(fmt.Errorf("not implemented: CreateSubscription - createSubscription"))
 }
 
 // UpdateSubscription is the resolver for the updateSubscription field.
-func (r *mutationResolver) UpdateSubscription(_ context.Context, id string, input model.UpdateSubscriptionInput) (*model.O2Subscription, error) {
+func (r *mutationResolver) UpdateSubscription(_ context.Context, _ string, _ model.UpdateSubscriptionInput) (*model.O2Subscription, error) {
 	panic(fmt.Errorf("not implemented: UpdateSubscription - updateSubscription"))
 }
 
 // DeleteSubscription is the resolver for the deleteSubscription field.
-func (r *mutationResolver) DeleteSubscription(_ context.Context, id string) (bool, error) {
+func (r *mutationResolver) DeleteSubscription(_ context.Context, _ string) (bool, error) {
 	panic(fmt.Errorf("not implemented: DeleteSubscription - deleteSubscription"))
 }
 
 // CreateNFDeployment is the resolver for the createNFDeployment field.
-func (r *mutationResolver) CreateNFDeployment(_ context.Context, input model.CreateNFDeploymentInput) (*model.NFDeployment, error) {
+func (r *mutationResolver) CreateNFDeployment(_ context.Context, _ model.CreateNFDeploymentInput) (*model.NFDeployment, error) {
 	panic(fmt.Errorf("not implemented: CreateNFDeployment - createNFDeployment"))
 }
 
 // UpdateNFDeployment is the resolver for the updateNFDeployment field.
-func (r *mutationResolver) UpdateNFDeployment(_ context.Context, id string, input model.UpdateNFDeploymentInput) (*model.NFDeployment, error) {
+func (r *mutationResolver) UpdateNFDeployment(_ context.Context, _ string, _ model.UpdateNFDeploymentInput) (*model.NFDeployment, error) {
 	panic(fmt.Errorf("not implemented: UpdateNFDeployment - updateNFDeployment"))
 }
 
 // DeleteNFDeployment is the resolver for the deleteNFDeployment field.
-func (r *mutationResolver) DeleteNFDeployment(_ context.Context, id string) (bool, error) {
+func (r *mutationResolver) DeleteNFDeployment(_ context.Context, _ string) (bool, error) {
 	panic(fmt.Errorf("not implemented: DeleteNFDeployment - deleteNFDeployment"))
 }
 
 // ScaleNFDeployment is the resolver for the scaleNFDeployment field.
-func (r *mutationResolver) ScaleNFDeployment(_ context.Context, id string, replicas int) (*model.NFDeployment, error) {
+func (r *mutationResolver) ScaleNFDeployment(_ context.Context, _ string, replicas int) (*model.NFDeployment, error) {
 	panic(fmt.Errorf("not implemented: ScaleNFDeployment - scaleNFDeployment"))
 }
 
 // RollbackNFDeployment is the resolver for the rollbackNFDeployment field.
-func (r *mutationResolver) RollbackNFDeployment(_ context.Context, id string) (*model.NFDeployment, error) {
+func (r *mutationResolver) RollbackNFDeployment(_ context.Context, _ string) (*model.NFDeployment, error) {
 	panic(fmt.Errorf("not implemented: RollbackNFDeployment - rollbackNFDeployment"))
 }
 
 // CreateNFDeploymentDescriptor is the resolver for the createNFDeploymentDescriptor field.
-func (r *mutationResolver) CreateNFDeploymentDescriptor(_ context.Context, input model.CreateDescriptorInput) (*model.NFDeploymentDescriptor, error) {
+func (r *mutationResolver) CreateNFDeploymentDescriptor(_ context.Context, _ model.CreateDescriptorInput) (*model.NFDeploymentDescriptor, error) {
 	panic(fmt.Errorf("not implemented: CreateNFDeploymentDescriptor - createNFDeploymentDescriptor"))
 }
 
 // DeleteNFDeploymentDescriptor is the resolver for the deleteNFDeploymentDescriptor field.
-func (r *mutationResolver) DeleteNFDeploymentDescriptor(_ context.Context, id string) (bool, error) {
+func (r *mutationResolver) DeleteNFDeploymentDescriptor(_ context.Context, _ string) (bool, error) {
 	panic(fmt.Errorf("not implemented: DeleteNFDeploymentDescriptor - deleteNFDeploymentDescriptor"))
 }
 
 // ExecuteWorkflow is the resolver for the executeWorkflow field.
-func (r *mutationResolver) ExecuteWorkflow(_ context.Context, input model.ExecuteWorkflowInput) (*model.WorkflowExecution, error) {
+func (r *mutationResolver) ExecuteWorkflow(_ context.Context, _ model.ExecuteWorkflowInput) (*model.WorkflowExecution, error) {
 	panic(fmt.Errorf("not implemented: ExecuteWorkflow - executeWorkflow"))
 }
 
 // CancelWorkflow is the resolver for the cancelWorkflow field.
-func (r *mutationResolver) CancelWorkflow(_ context.Context, id string) (bool, error) {
+func (r *mutationResolver) CancelWorkflow(_ context.Context, _ string) (bool, error) {
 	panic(fmt.Errorf("not implemented: CancelWorkflow - cancelWorkflow"))
 }
 
 // CreateServiceModel is the resolver for the createServiceModel field.
-func (r *mutationResolver) CreateServiceModel(_ context.Context, input model.CreateServiceModelInput) (*model.ServiceModel, error) {
+func (r *mutationResolver) CreateServiceModel(_ context.Context, _ model.CreateServiceModelInput) (*model.ServiceModel, error) {
 	panic(fmt.Errorf("not implemented: CreateServiceModel - createServiceModel"))
 }
 
 // DeleteServiceModel is the resolver for the deleteServiceModel field.
-func (r *mutationResolver) DeleteServiceModel(_ context.Context, id string) (bool, error) {
+func (r *mutationResolver) DeleteServiceModel(_ context.Context, _ string) (bool, error) {
 	panic(fmt.Errorf("not implemented: DeleteServiceModel - deleteServiceModel"))
 }
 
 // ApplyPolicy is the resolver for the applyPolicy field.
-func (r *mutationResolver) ApplyPolicy(_ context.Context, input model.ApplyPolicyInput) (*model.Policy, error) {
+func (r *mutationResolver) ApplyPolicy(_ context.Context, _ model.ApplyPolicyInput) (*model.Policy, error) {
 	panic(fmt.Errorf("not implemented: ApplyPolicy - applyPolicy"))
 }
 
@@ -136,7 +136,7 @@ func (r *mutationResolver) BatchCreateResources(_ context.Context, inputs []*mod
 }
 
 // BatchDeleteResources is the resolver for the batchDeleteResources field.
-func (r *mutationResolver) BatchDeleteResources(_ context.Context, ids []string) (*model.BatchResult, error) {
+func (r *mutationResolver) BatchDeleteResources(_ context.Context, _ []string) (*model.BatchResult, error) {
 	panic(fmt.Errorf("not implemented: BatchDeleteResources - batchDeleteResources"))
 }
 
@@ -146,22 +146,22 @@ func (r *mutationResolver) BatchCreateNFDeployments(_ context.Context, inputs []
 }
 
 // BatchDeleteNFDeployments is the resolver for the batchDeleteNFDeployments field.
-func (r *mutationResolver) BatchDeleteNFDeployments(_ context.Context, ids []string) (*model.BatchResult, error) {
+func (r *mutationResolver) BatchDeleteNFDeployments(_ context.Context, _ []string) (*model.BatchResult, error) {
 	panic(fmt.Errorf("not implemented: BatchDeleteNFDeployments - batchDeleteNFDeployments"))
 }
 
 // CreateTenant is the resolver for the createTenant field.
-func (r *mutationResolver) CreateTenant(_ context.Context, input model.CreateTenantInput) (*model.Tenant, error) {
+func (r *mutationResolver) CreateTenant(_ context.Context, _ model.CreateTenantInput) (*model.Tenant, error) {
 	panic(fmt.Errorf("not implemented: CreateTenant - createTenant"))
 }
 
 // UpdateTenant is the resolver for the updateTenant field.
-func (r *mutationResolver) UpdateTenant(_ context.Context, id string, input model.UpdateTenantInput) (*model.Tenant, error) {
+func (r *mutationResolver) UpdateTenant(_ context.Context, _ string, _ model.UpdateTenantInput) (*model.Tenant, error) {
 	panic(fmt.Errorf("not implemented: UpdateTenant - updateTenant"))
 }
 
 // DeleteTenant is the resolver for the deleteTenant field.
-func (r *mutationResolver) DeleteTenant(_ context.Context, id string) (bool, error) {
+func (r *mutationResolver) DeleteTenant(_ context.Context, _ string) (bool, error) {
 	panic(fmt.Errorf("not implemented: DeleteTenant - deleteTenant"))
 }
 
@@ -411,7 +411,7 @@ func (r *queryResolver) ResourceTypes(ctx context.Context, _ *model.ResourceType
 }
 
 // Subscription is the resolver for the subscription field.
-func (r *queryResolver) Subscription(_ context.Context, id string) (*model.O2Subscription, error) {
+func (r *queryResolver) Subscription(_ context.Context, _ string) (*model.O2Subscription, error) {
 	panic(fmt.Errorf("not implemented: Subscription - subscription"))
 }
 
@@ -421,7 +421,7 @@ func (r *queryResolver) Subscriptions(_ context.Context, _ *adapter.Subscription
 }
 
 // NfDeployment is the resolver for the nfDeployment field.
-func (r *queryResolver) NfDeployment(_ context.Context, id string) (*model.NFDeployment, error) {
+func (r *queryResolver) NfDeployment(_ context.Context, _ string) (*model.NFDeployment, error) {
 	panic(fmt.Errorf("not implemented: NfDeployment - nfDeployment"))
 }
 
@@ -431,7 +431,7 @@ func (r *queryResolver) NfDeployments(_ context.Context, _ *model.NFDeploymentFi
 }
 
 // NfDeploymentDescriptor is the resolver for the nfDeploymentDescriptor field.
-func (r *queryResolver) NfDeploymentDescriptor(_ context.Context, id string) (*model.NFDeploymentDescriptor, error) {
+func (r *queryResolver) NfDeploymentDescriptor(_ context.Context, _ string) (*model.NFDeploymentDescriptor, error) {
 	panic(fmt.Errorf("not implemented: NfDeploymentDescriptor - nfDeploymentDescriptor"))
 }
 
@@ -441,7 +441,7 @@ func (r *queryResolver) NfDeploymentDescriptors(_ context.Context, _ *model.Desc
 }
 
 // WorkflowExecution is the resolver for the workflowExecution field.
-func (r *queryResolver) WorkflowExecution(_ context.Context, id string) (*model.WorkflowExecution, error) {
+func (r *queryResolver) WorkflowExecution(_ context.Context, _ string) (*model.WorkflowExecution, error) {
 	panic(fmt.Errorf("not implemented: WorkflowExecution - workflowExecution"))
 }
 
@@ -451,7 +451,7 @@ func (r *queryResolver) WorkflowExecutions(_ context.Context, _ *model.WorkflowF
 }
 
 // ServiceModel is the resolver for the serviceModel field.
-func (r *queryResolver) ServiceModel(_ context.Context, id string) (*model.ServiceModel, error) {
+func (r *queryResolver) ServiceModel(_ context.Context, _ string) (*model.ServiceModel, error) {
 	panic(fmt.Errorf("not implemented: ServiceModel - serviceModel"))
 }
 
@@ -461,7 +461,7 @@ func (r *queryResolver) ServiceModels(_ context.Context, _ *model.ServiceModelFi
 }
 
 // Policy is the resolver for the policy field.
-func (r *queryResolver) Policy(_ context.Context, id string) (*model.Policy, error) {
+func (r *queryResolver) Policy(_ context.Context, _ string) (*model.Policy, error) {
 	panic(fmt.Errorf("not implemented: Policy - policy"))
 }
 
@@ -471,7 +471,7 @@ func (r *queryResolver) Policies(_ context.Context, _ *model.PolicyFilter, pagin
 }
 
 // Tenant is the resolver for the tenant field.
-func (r *queryResolver) Tenant(_ context.Context, id string) (*model.Tenant, error) {
+func (r *queryResolver) Tenant(_ context.Context, _ string) (*model.Tenant, error) {
 	panic(fmt.Errorf("not implemented: Tenant - tenant"))
 }
 
@@ -481,62 +481,62 @@ func (r *queryResolver) Tenants(_ context.Context, pagination *model.Pagination)
 }
 
 // ID is the resolver for the id field.
-func (r *resourceResolver) ID(_ context.Context, obj *adapter.Resource) (string, error) {
+func (r *resourceResolver) ID(_ context.Context, _ *adapter.Resource) (string, error) {
 	panic(fmt.Errorf("not implemented: ID - id"))
 }
 
 // Extensions is the resolver for the extensions field.
-func (r *resourceResolver) Extensions(_ context.Context, obj *adapter.Resource) (scalars.JSON, error) {
+func (r *resourceResolver) Extensions(_ context.Context, _ *adapter.Resource) (scalars.JSON, error) {
 	panic(fmt.Errorf("not implemented: Extensions - extensions"))
 }
 
 // ResourceType is the resolver for the resourceType field.
-func (r *resourceResolver) ResourceType(_ context.Context, obj *adapter.Resource) (*adapter.ResourceType, error) {
+func (r *resourceResolver) ResourceType(_ context.Context, _ *adapter.Resource) (*adapter.ResourceType, error) {
 	panic(fmt.Errorf("not implemented: ResourceType - resourceType"))
 }
 
 // ResourcePool is the resolver for the resourcePool field.
-func (r *resourceResolver) ResourcePool(_ context.Context, obj *adapter.Resource) (*adapter.ResourcePool, error) {
+func (r *resourceResolver) ResourcePool(_ context.Context, _ *adapter.Resource) (*adapter.ResourcePool, error) {
 	panic(fmt.Errorf("not implemented: ResourcePool - resourcePool"))
 }
 
 // ID is the resolver for the id field.
-func (r *resourcePoolResolver) ID(_ context.Context, obj *adapter.ResourcePool) (string, error) {
+func (r *resourcePoolResolver) ID(_ context.Context, _ *adapter.ResourcePool) (string, error) {
 	panic(fmt.Errorf("not implemented: ID - id"))
 }
 
 // Extensions is the resolver for the extensions field.
-func (r *resourcePoolResolver) Extensions(_ context.Context, obj *adapter.ResourcePool) (scalars.JSON, error) {
+func (r *resourcePoolResolver) Extensions(_ context.Context, _ *adapter.ResourcePool) (scalars.JSON, error) {
 	panic(fmt.Errorf("not implemented: Extensions - extensions"))
 }
 
 // Resources is the resolver for the resources field.
-func (r *resourcePoolResolver) Resources(_ context.Context, obj *adapter.ResourcePool, _ *model.ResourceFilter, pagination *model.Pagination) (*model.ResourceConnection, error) {
+func (r *resourcePoolResolver) Resources(_ context.Context, _ *adapter.ResourcePool, _ *model.ResourceFilter, pagination *model.Pagination) (*model.ResourceConnection, error) {
 	panic(fmt.Errorf("not implemented: Resources - resources"))
 }
 
 // ResourceCount is the resolver for the resourceCount field.
-func (r *resourcePoolResolver) ResourceCount(_ context.Context, obj *adapter.ResourcePool) (int, error) {
+func (r *resourcePoolResolver) ResourceCount(_ context.Context, _ *adapter.ResourcePool) (int, error) {
 	panic(fmt.Errorf("not implemented: ResourceCount - resourceCount"))
 }
 
 // ID is the resolver for the id field.
-func (r *resourceTypeResolver) ID(_ context.Context, obj *adapter.ResourceType) (string, error) {
+func (r *resourceTypeResolver) ID(_ context.Context, _ *adapter.ResourceType) (string, error) {
 	panic(fmt.Errorf("not implemented: ID - id"))
 }
 
 // Extensions is the resolver for the extensions field.
-func (r *resourceTypeResolver) Extensions(_ context.Context, obj *adapter.ResourceType) (scalars.JSON, error) {
+func (r *resourceTypeResolver) Extensions(_ context.Context, _ *adapter.ResourceType) (scalars.JSON, error) {
 	panic(fmt.Errorf("not implemented: Extensions - extensions"))
 }
 
 // Resources is the resolver for the resources field.
-func (r *resourceTypeResolver) Resources(_ context.Context, obj *adapter.ResourceType, _ *model.ResourceFilter, pagination *model.Pagination) (*model.ResourceConnection, error) {
+func (r *resourceTypeResolver) Resources(_ context.Context, _ *adapter.ResourceType, _ *model.ResourceFilter, pagination *model.Pagination) (*model.ResourceConnection, error) {
 	panic(fmt.Errorf("not implemented: Resources - resources"))
 }
 
 // ResourceCount is the resolver for the resourceCount field.
-func (r *resourceTypeResolver) ResourceCount(_ context.Context, obj *adapter.ResourceType) (int, error) {
+func (r *resourceTypeResolver) ResourceCount(_ context.Context, _ *adapter.ResourceType) (int, error) {
 	panic(fmt.Errorf("not implemented: ResourceCount - resourceCount"))
 }
 
