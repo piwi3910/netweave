@@ -21,7 +21,7 @@ type MockServerConfig struct {
 }
 
 // CreateMockServers creates mock Keystone and StarlingX servers for testing.
-func CreateMockServers(t *testing.T, config *MockServerConfig) (keystoneURL, starlingxURL string, cleanup func()) {
+func CreateMockServers(t *testing.T, config *MockServerConfig) (string, string, func()) {
 	t.Helper()
 
 	if config == nil {
@@ -41,7 +41,7 @@ func CreateMockServers(t *testing.T, config *MockServerConfig) (keystoneURL, sta
 	keystoneMock := CreateKeystoneMock()
 	starlingxMock := CreateStarlingxMock(config)
 
-	cleanup = func() {
+	cleanup := func() {
 		keystoneMock.Close()
 		starlingxMock.Close()
 	}

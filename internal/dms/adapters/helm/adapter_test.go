@@ -1739,11 +1739,9 @@ func TestHelmAdapter_ScaleDeployment_AdditionalValidation(t *testing.T) {
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
-			} else {
+			} else if err != nil && !strings.Contains(err.Error(), "replicas must be non-negative") {
 				// May error due to missing K8s but not validation error
-				if err != nil && !strings.Contains(err.Error(), "replicas must be non-negative") {
-					t.Skip("Skipping - requires Kubernetes")
-				}
+				t.Skip("Skipping - requires Kubernetes")
 			}
 		})
 	}
