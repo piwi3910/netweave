@@ -41,20 +41,20 @@ Compliance is continuously validated through automated testing and badge generat
 
 | Endpoint | Method | Description | Status |
 |----------|--------|-------------|--------|
-| `/o2ims/v1/subscriptions` | GET | List all subscriptions | ✅ |
-| `/o2ims/v1/subscriptions` | POST | Create subscription | ✅ |
-| `/o2ims/v1/subscriptions/{id}` | GET | Get subscription details | ✅ |
-| `/o2ims/v1/subscriptions/{id}` | DELETE | Delete subscription | ✅ |
-| `/o2ims/v1/resourcePools` | GET | List resource pools | ✅ |
-| `/o2ims/v1/resourcePools/{id}` | GET | Get resource pool details | ✅ |
-| `/o2ims/v1/resourcePools/{id}/resources` | GET | List resources in pool | ✅ |
-| `/o2ims/v1/resources` | GET | List all resources | ✅ |
-| `/o2ims/v1/resources/{id}` | GET | Get resource details | ✅ |
-| `/o2ims/v1/resourceTypes` | GET | List resource types | ✅ |
-| `/o2ims/v1/resourceTypes/{id}` | GET | Get resource type details | ✅ |
-| `/o2ims/v1/deploymentManagers` | GET | List deployment managers | ✅ |
-| `/o2ims/v1/deploymentManagers/{id}` | GET | Get deployment manager details | ✅ |
-| `/o2ims/v1/oCloudInfrastructure` | GET | Get O-Cloud info | ✅ |
+| `/o2ims-infrastructureInventory/v1/subscriptions` | GET | List all subscriptions | ✅ |
+| `/o2ims-infrastructureInventory/v1/subscriptions` | POST | Create subscription | ✅ |
+| `/o2ims-infrastructureInventory/v1/subscriptions/{id}` | GET | Get subscription details | ✅ |
+| `/o2ims-infrastructureInventory/v1/subscriptions/{id}` | DELETE | Delete subscription | ✅ |
+| `/o2ims-infrastructureInventory/v1/resourcePools` | GET | List resource pools | ✅ |
+| `/o2ims-infrastructureInventory/v1/resourcePools/{id}` | GET | Get resource pool details | ✅ |
+| `/o2ims-infrastructureInventory/v1/resourcePools/{id}/resources` | GET | List resources in pool | ✅ |
+| `/o2ims-infrastructureInventory/v1/resources` | GET | List all resources | ✅ |
+| `/o2ims-infrastructureInventory/v1/resources/{id}` | GET | Get resource details | ✅ |
+| `/o2ims-infrastructureInventory/v1/resourceTypes` | GET | List resource types | ✅ |
+| `/o2ims-infrastructureInventory/v1/resourceTypes/{id}` | GET | Get resource type details | ✅ |
+| `/o2ims-infrastructureInventory/v1/deploymentManagers` | GET | List deployment managers | ✅ |
+| `/o2ims-infrastructureInventory/v1/deploymentManagers/{id}` | GET | Get deployment manager details | ✅ |
+| `/o2ims-infrastructureInventory/v1/oCloudInfrastructure` | GET | Get O-Cloud info | ✅ |
 
 **Key Features:**
 
@@ -284,13 +284,13 @@ func TestReplacePlaceholders(t *testing.T) {
     }{
         {
             name:     "subscription ID",
-            path:     "/o2ims/v1/subscriptions/{subscriptionId}",
-            expected: "/o2ims/v1/subscriptions/test-subscription-id",
+            path:     "/o2ims-infrastructureInventory/v1/subscriptions/{subscriptionId}",
+            expected: "/o2ims-infrastructureInventory/v1/subscriptions/test-subscription-id",
         },
         {
             name:     "resource pool ID",
-            path:     "/o2ims/v1/resourcePools/{resourcePoolId}",
-            expected: "/o2ims/v1/resourcePools/test-pool-id",
+            path:     "/o2ims-infrastructureInventory/v1/resourcePools/{resourcePoolId}",
+            expected: "/o2ims-infrastructureInventory/v1/resourcePools/test-pool-id",
         },
     }
 
@@ -346,13 +346,13 @@ Create mock handlers for testing (from `checker_test.go`):
 ```go
 func mockO2IMSHandler() http.HandlerFunc {
     endpoints := map[string]mockEndpoint{
-        "GET:/o2ims/v1/subscriptions":        {http.StatusOK, `{"subscriptions": [], "total": 0}`},
-        "POST:/o2ims/v1/subscriptions":       {http.StatusCreated, `{"subscriptionId": "test-sub-123"}`},
-        "GET:/o2ims/v1/resourcePools":        {http.StatusOK, `{"resourcePools": [], "total": 0}`},
-        "GET:/o2ims/v1/resources":            {http.StatusOK, `{"resources": [], "total": 0}`},
-        "GET:/o2ims/v1/resourceTypes":        {http.StatusOK, `{"resourceTypes": [], "total": 0}`},
-        "GET:/o2ims/v1/deploymentManagers":   {http.StatusOK, `{"deploymentManagers": [], "total": 1}`},
-        "GET:/o2ims/v1/oCloudInfrastructure": {http.StatusOK, `{"oCloudId": "test-ocloud"}`},
+        "GET:/o2ims-infrastructureInventory/v1/subscriptions":        {http.StatusOK, `{"subscriptions": [], "total": 0}`},
+        "POST:/o2ims-infrastructureInventory/v1/subscriptions":       {http.StatusCreated, `{"subscriptionId": "test-sub-123"}`},
+        "GET:/o2ims-infrastructureInventory/v1/resourcePools":        {http.StatusOK, `{"resourcePools": [], "total": 0}`},
+        "GET:/o2ims-infrastructureInventory/v1/resources":            {http.StatusOK, `{"resources": [], "total": 0}`},
+        "GET:/o2ims-infrastructureInventory/v1/resourceTypes":        {http.StatusOK, `{"resourceTypes": [], "total": 0}`},
+        "GET:/o2ims-infrastructureInventory/v1/deploymentManagers":   {http.StatusOK, `{"deploymentManagers": [], "total": 1}`},
+        "GET:/o2ims-infrastructureInventory/v1/oCloudInfrastructure": {http.StatusOK, `{"oCloudId": "test-ocloud"}`},
     }
 
     return func(w http.ResponseWriter, r *http.Request) {

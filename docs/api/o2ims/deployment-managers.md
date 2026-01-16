@@ -19,7 +19,7 @@ Deployment Manager represents the O-Cloud infrastructure manager (typically a Ku
   "name": "US-East Kubernetes Cloud",
   "description": "Production Kubernetes cluster for RAN workloads",
   "oCloudId": "ocloud-1",
-  "serviceUri": "https://api.o2ims.example.com/o2ims/v1"
+  "serviceUri": "https://api.o2ims.example.com/o2ims-infrastructureInventory/v1"
 }
 ```
 
@@ -53,7 +53,7 @@ spec:
   name: "US-East Kubernetes Cloud"
   description: "Production Kubernetes cluster for RAN workloads"
   oCloudId: "ocloud-1"
-  serviceUri: "https://api.o2ims.example.com/o2ims/v1"
+  serviceUri: "https://api.o2ims.example.com/o2ims-infrastructureInventory/v1"
   supportedLocations:
     - "us-east-1a"
     - "us-east-1b"
@@ -81,7 +81,7 @@ data:
   name: "US-East Kubernetes Cloud"
   description: "Production Kubernetes cluster for RAN workloads"
   oCloudId: "ocloud-1"
-  serviceUri: "https://api.o2ims.example.com/o2ims/v1"
+  serviceUri: "https://api.o2ims.example.com/o2ims-infrastructureInventory/v1"
 ```
 
 ### Transformation Logic
@@ -142,7 +142,7 @@ Accept: application/json
       "name": "US-East Kubernetes Cloud",
       "description": "Production Kubernetes cluster for RAN workloads",
       "oCloudId": "ocloud-1",
-      "serviceUri": "https://api.o2ims.example.com/o2ims/v1",
+      "serviceUri": "https://api.o2ims.example.com/o2ims-infrastructureInventory/v1",
       "supportedLocations": ["us-east-1a", "us-east-1b", "us-east-1c"],
       "capabilities": ["compute", "storage", "networking"],
       "extensions": {
@@ -172,7 +172,7 @@ Accept: application/json
   "name": "US-East Kubernetes Cloud",
   "description": "Production Kubernetes cluster for RAN workloads",
   "oCloudId": "ocloud-1",
-  "serviceUri": "https://api.o2ims.example.com/o2ims/v1",
+  "serviceUri": "https://api.o2ims.example.com/o2ims-infrastructureInventory/v1",
   "supportedLocations": ["us-east-1a", "us-east-1b", "us-east-1c"],
   "capabilities": ["compute", "storage", "networking"],
   "extensions": {

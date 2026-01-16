@@ -82,6 +82,10 @@ type Server struct {
 
 	smoRegistry *smo.Registry
 	smoHandler  *SMOHandler
+
+	// TMForum subsystem
+	tmfHandler *handlers.TMForumHandler
+
 	// AuthStore is the authentication store interface (public for testing)
 	AuthStore    AuthStore
 	authMw       AuthMiddleware
@@ -332,6 +336,9 @@ func initOpenAPIValidator(cfg *config.Config, logger *zap.Logger) (*middleware.O
 	validationCfg.ValidateRequest = cfg.Validation.Enabled
 	validationCfg.ValidateResponse = cfg.Validation.ValidateResponse
 
+	// Exclude TMForum API paths from validation (not in O2-IMS OpenAPI spec)
+	validationCfg.ExcludePaths = append(validationCfg.ExcludePaths, "/tmf-api/")
+
 	validator, err := middleware.NewOpenAPIValidator(validationCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OpenAPI validator: %w", err)
@@ -576,6 +583,12 @@ func (s *Server) SetupDMS(reg *dmsregistry.Registry) {
 	}
 
 	s.logger.Info("DMS subsystem initialized")
+
+	// Initialize TMForum handler (uses both IMS adapter and DMS registry)
+	// Routes were already registered during server initialization
+	s.tmfHandler = handlers.NewTMForumHandler(s.adapter, s.dmsRegistry, s.logger)
+
+	s.logger.Info("TMForum API initialized", zap.Int("apis", 2))
 }
 
 // DMSRegistry returns the DMS adapter registry.

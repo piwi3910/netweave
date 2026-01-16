@@ -327,7 +327,7 @@ graph TB
 
 ```bash
 # Request
-curl -X GET 'https://netweave.example.com/o2ims/v1/resourcePools?location=dc-dallas'
+curl -X GET 'https://netweave.example.com/o2ims-infrastructureInventory/v1/resourcePools?location=dc-dallas'
 
 # Routing Decision
 location=dc-dallas → prefix match "dc-" → route to "dtias" adapter
@@ -341,7 +341,7 @@ DTIAS Adapter → GET https://dtias.example.com/v2/inventory/resourcepools
 
 ```bash
 # Request
-curl -X POST https://netweave.example.com/o2ims/v1/resourcePools \
+curl -X POST https://netweave.example.com/o2ims-infrastructureInventory/v1/resourcePools \
   -d '{
     "name": "Production EKS Pool",
     "location": "aws-us-west-2",

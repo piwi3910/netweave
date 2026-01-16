@@ -32,7 +32,7 @@ netweave provides two OpenAPI 3.0.3 specifications:
 
 | File | Purpose | API Version | Base Path |
 |------|---------|-------------|-----------|
-| **`api/openapi/o2ims.yaml`** | Public API spec with full documentation | 1.0.0 | `/o2ims/v1` |
+| **`api/openapi/o2ims.yaml`** | Public API spec with full documentation | 1.0.0 | `/o2ims-infrastructureInventory/v1` |
 | **`internal/server/openapi/o2ims.yaml`** | Internal spec for server implementation | 1.0.0 | `/o2ims-infrastructureInventory/v1` |
 
 ### Specification Details
@@ -302,7 +302,7 @@ func TestAPICompliance(t *testing.T) {
     require.NoError(t, err)
 
     // Create test request
-    req := httptest.NewRequest("GET", "/o2ims/v1/resourcePools", nil)
+    req := httptest.NewRequest("GET", "/o2ims-infrastructureInventory/v1/resourcePools", nil)
 
     // Find route
     route, pathParams, err := router.FindRoute(req)
@@ -338,7 +338,7 @@ info:                    # API metadata
     API overview...
 
 servers:                 # Base URLs
-  - url: /o2ims/v1
+  - url: /o2ims-infrastructureInventory/v1
 
 tags:                    # Endpoint grouping
   - name: Subscriptions
@@ -637,7 +637,7 @@ paths:
       x-code-samples:
         - lang: curl
           source: |
-            curl -X POST https://gateway.example.com/o2ims/v1/subscriptions \
+            curl -X POST https://gateway.example.com/o2ims-infrastructureInventory/v1/subscriptions \
               -H "Content-Type: application/json" \
               -d '{"callback": "https://smo.example.com/notify"}'
 
@@ -925,8 +925,8 @@ func TestAPICompliance(t *testing.T) {
         path   string
         body   string
     }{
-        {"GET", "/o2ims/v1/subscriptions", ""},
-        {"POST", "/o2ims/v1/subscriptions", `{"callback":"https://example.com"}`},
+        {"GET", "/o2ims-infrastructureInventory/v1/subscriptions", ""},
+        {"POST", "/o2ims-infrastructureInventory/v1/subscriptions", `{"callback":"https://example.com"}`},
     }
 
     for _, tt := range tests {

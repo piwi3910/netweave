@@ -146,7 +146,7 @@ For service accounts without mTLS:
 
 ```yaml
 # Create API key for a service account
-POST /o2ims/v1/auth/api-keys
+POST /o2ims-infrastructureInventory/v1/auth/api-keys
 {
   "name": "monitoring-service",
   "tenantId": "tenant-abc",
@@ -436,7 +436,7 @@ Assign minimal required permissions:
 
 ```yaml
 # Create custom role with specific permissions
-POST /o2ims/v1/auth/roles
+POST /o2ims-infrastructureInventory/v1/auth/roles
 {
   "name": "smo-integration",
   "type": "tenant",
@@ -465,13 +465,13 @@ Tenants are isolated at multiple levels:
 
 ```bash
 # Test that tenant A cannot access tenant B's resources
-curl -X GET https://o2ims-gateway.example.com/o2ims/v1/subscriptions \
+curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/subscriptions \
     --cert tenant-a-client.crt \
     --key tenant-a-client.key
 
 # Should return only tenant A's subscriptions
 # Attempting to access tenant B's subscription should return 404
-curl -X GET https://o2ims-gateway.example.com/o2ims/v1/subscriptions/tenant-b-sub-123 \
+curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/subscriptions/tenant-b-sub-123 \
     --cert tenant-a-client.crt \
     --key tenant-a-client.key
 # Returns: 404 Not Found
@@ -607,15 +607,15 @@ gitleaks detect --source .
 
 ```bash
 # Check recent security events
-curl -X GET "https://o2ims-gateway/o2ims/v1/audit/events?type=access.denied&limit=100" \
+curl -X GET "https://o2ims-gateway/o2ims-infrastructureInventory/v1/audit/events?type=access.denied&limit=100" \
     --cert admin.crt --key admin.key
 
 # Revoke compromised API key
-curl -X DELETE "https://o2ims-gateway/o2ims/v1/auth/api-keys/compromised-key-id" \
+curl -X DELETE "https://o2ims-gateway/o2ims-infrastructureInventory/v1/auth/api-keys/compromised-key-id" \
     --cert admin.crt --key admin.key
 
 # Suspend tenant (if compromised)
-curl -X PATCH "https://o2ims-gateway/o2ims/v1/tenants/tenant-id" \
+curl -X PATCH "https://o2ims-gateway/o2ims-infrastructureInventory/v1/tenants/tenant-id" \
     -d '{"status": "suspended"}' \
     --cert admin.crt --key admin.key
 ```

@@ -393,7 +393,7 @@ Example: "a1b2c3d4-e5f6-7890-abcd-1234567890ab"
 
 **Missing Required Field**:
 ```http
-POST /o2ims/v1/resources
+POST /o2ims-infrastructureInventory/v1/resources
 {"resourceTypeId": "compute-node"}
 
 → HTTP 400 Bad Request
@@ -406,7 +406,7 @@ POST /o2ims/v1/resources
 
 **Invalid GlobalAssetID**:
 ```http
-POST /o2ims/v1/resources
+POST /o2ims-infrastructureInventory/v1/resources
 {
   "resourceTypeId": "compute-node",
   "resourcePoolId": "pool-compute-high-mem",
@@ -423,7 +423,7 @@ POST /o2ims/v1/resources
 
 **Duplicate Resource ID**:
 ```http
-POST /o2ims/v1/resources
+POST /o2ims-infrastructureInventory/v1/resources
 {
   "resourceId": "existing-resource-id",
   "resourceTypeId": "compute-node",

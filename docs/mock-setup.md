@@ -37,7 +37,7 @@ Once started, you can verify the mock data is available:
 
 ```bash
 # Check IMS resource pools
-curl http://localhost:8080/o2ims/v1/resourcePools
+curl http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools
 
 # Check DMS deployment packages
 curl http://localhost:8080/o2dms/v1/deploymentPackages
@@ -71,16 +71,16 @@ The mock IMS adapter includes:
 
 ```bash
 # List all resource pools
-curl http://localhost:8080/o2ims/v1/resourcePools
+curl http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools
 
 # Get specific resource pool
-curl http://localhost:8080/o2ims/v1/resourcePools/pool-us-east-1
+curl http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools/pool-us-east-1
 
 # List resources in a pool
-curl http://localhost:8080/o2ims/v1/resources?resourcePoolId=pool-us-west-2
+curl http://localhost:8080/o2ims-infrastructureInventory/v1/resources?resourcePoolId=pool-us-west-2
 
 # List all resource types
-curl http://localhost:8080/o2ims/v1/resourceTypes
+curl http://localhost:8080/o2ims-infrastructureInventory/v1/resourceTypes
 ```
 
 ## Mock DMS Adapter

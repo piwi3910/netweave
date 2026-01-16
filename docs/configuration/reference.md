@@ -375,7 +375,7 @@ security:
       requests_per_second: 1000
       max_concurrent_requests: 500
     endpoints:
-      - path: /o2ims/v1/subscriptions
+      - path: /o2ims-infrastructureInventory/v1/subscriptions
         method: POST
         requests_per_second: 10
         burst_size: 20

@@ -144,7 +144,7 @@ curl http://localhost:8080/health
 kubectl port-forward -n o2ims-dev svc/netweave-gateway 8080:8080
 
 # Test API
-curl http://localhost:8080/o2ims/v1/resourcePools | jq
+curl http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools | jq
 ```
 
 ## Production Deployment with Helm
@@ -599,7 +599,7 @@ docker compose logs -f
 curl http://localhost:8080/health
 
 # Test API
-curl http://localhost:8080/o2ims/v1/resourcePools | jq
+curl http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools | jq
 ```
 
 See [Quickstart Guide](quickstart.md) for detailed Docker Compose usage.
@@ -766,18 +766,18 @@ kubectl exec -n o2ims-system deployment/netweave-gateway -- \
   redis-cli -h redis -p 6379 PING
 
 # Kubernetes adapter
-curl https://netweave.example.com/o2ims/v1/deploymentManagers
+curl https://netweave.example.com/o2ims-infrastructureInventory/v1/deploymentManagers
 ```
 
 ### API Functionality
 
 ```bash
 # List resource pools
-curl -X GET https://netweave.example.com/o2ims/v1/resourcePools \
+curl -X GET https://netweave.example.com/o2ims-infrastructureInventory/v1/resourcePools \
   --cert client.crt --key client.key --cacert ca.crt
 
 # Create subscription
-curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
+curl -X POST https://netweave.example.com/o2ims-infrastructureInventory/v1/subscriptions \
   --cert client.crt --key client.key --cacert ca.crt \
   -H "Content-Type: application/json" \
   -d '{"callback":"https://smo.example.com/notify"}'

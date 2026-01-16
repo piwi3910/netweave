@@ -351,8 +351,13 @@ func (a *Adapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.
 		UpdatedAt:    dep.UpdatedAt,
 		Conditions: []adapter.DeploymentCondition{
 			{
-				Type:               "Ready",
-				Status:             func() string { if dep.Status == adapter.DeploymentStatusDeployed { return "True" }; return "False" }(),
+				Type: "Ready",
+				Status: func() string {
+					if dep.Status == adapter.DeploymentStatusDeployed {
+						return "True"
+					}
+					return "False"
+				}(),
 				Reason:             "DeploymentComplete",
 				Message:            "All pods are ready",
 				LastTransitionTime: dep.UpdatedAt,

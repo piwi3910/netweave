@@ -28,7 +28,7 @@ netweave follows RFC 7807 (Problem Details for HTTP APIs) for error responses.
 
 **Example:**
 ```bash
-GET /o2ims/v1/resourcePools
+GET /o2ims-infrastructureInventory/v1/resourcePools
 → 200 OK
 ```
 
@@ -41,9 +41,9 @@ GET /o2ims/v1/resourcePools
 
 **Example:**
 ```bash
-POST /o2ims/v1/subscriptions
+POST /o2ims-infrastructureInventory/v1/subscriptions
 → 201 Created
-Location: /o2ims/v1/subscriptions/550e8400-e29b-41d4-a716-446655440000
+Location: /o2ims-infrastructureInventory/v1/subscriptions/550e8400-e29b-41d4-a716-446655440000
 ```
 
 #### 204 No Content
@@ -55,7 +55,7 @@ Location: /o2ims/v1/subscriptions/550e8400-e29b-41d4-a716-446655440000
 
 **Example:**
 ```bash
-DELETE /o2ims/v1/subscriptions/sub-123
+DELETE /o2ims-infrastructureInventory/v1/subscriptions/sub-123
 → 204 No Content
 ```
 
@@ -77,7 +77,7 @@ DELETE /o2ims/v1/subscriptions/sub-123
   "title": "Request Validation Failed",
   "status": 400,
   "detail": "Invalid subscription callback URL",
-  "instance": "/o2ims/v1/subscriptions",
+  "instance": "/o2ims-infrastructureInventory/v1/subscriptions",
   "errors": [
     {
       "field": "callback",
@@ -108,7 +108,7 @@ DELETE /o2ims/v1/subscriptions/sub-123
   "title": "Authentication Required",
   "status": 401,
   "detail": "Valid authentication credentials required",
-  "instance": "/o2ims/v1/resourcePools"
+  "instance": "/o2ims-infrastructureInventory/v1/resourcePools"
 }
 ```
 
@@ -133,7 +133,7 @@ DELETE /o2ims/v1/subscriptions/sub-123
   "title": "Access Denied",
   "status": 403,
   "detail": "Insufficient permissions to access resource pool",
-  "instance": "/o2ims/v1/resourcePools/pool-123"
+  "instance": "/o2ims-infrastructureInventory/v1/resourcePools/pool-123"
 }
 ```
 
@@ -159,7 +159,7 @@ DELETE /o2ims/v1/subscriptions/sub-123
   "title": "Resource Not Found",
   "status": 404,
   "detail": "Subscription with ID 'sub-123' not found",
-  "instance": "/o2ims/v1/subscriptions/sub-123"
+  "instance": "/o2ims-infrastructureInventory/v1/subscriptions/sub-123"
 }
 ```
 
@@ -185,7 +185,7 @@ DELETE /o2ims/v1/subscriptions/sub-123
   "title": "Resource Conflict",
   "status": 409,
   "detail": "Subscription with ID 'sub-123' already exists",
-  "instance": "/o2ims/v1/subscriptions"
+  "instance": "/o2ims-infrastructureInventory/v1/subscriptions"
 }
 ```
 
@@ -211,7 +211,7 @@ DELETE /o2ims/v1/subscriptions/sub-123
   "title": "Semantic Validation Failed",
   "status": 422,
   "detail": "Cannot subscribe to non-existent resource pool",
-  "instance": "/o2ims/v1/subscriptions",
+  "instance": "/o2ims-infrastructureInventory/v1/subscriptions",
   "errors": [
     {
       "field": "filter.resourcePoolId",
@@ -242,7 +242,7 @@ DELETE /o2ims/v1/subscriptions/sub-123
   "title": "Rate Limit Exceeded",
   "status": 429,
   "detail": "Rate limit of 1000 req/min exceeded for tenant",
-  "instance": "/o2ims/v1/resourcePools",
+  "instance": "/o2ims-infrastructureInventory/v1/resourcePools",
   "retryAfter": 45
 }
 ```
@@ -279,7 +279,7 @@ Retry-After: 45
   "title": "Internal Server Error",
   "status": 500,
   "detail": "An unexpected error occurred processing your request",
-  "instance": "/o2ims/v1/subscriptions",
+  "instance": "/o2ims-infrastructureInventory/v1/subscriptions",
   "traceId": "1234567890abcdef"
 }
 ```
@@ -306,7 +306,7 @@ Retry-After: 45
   "title": "Backend Gateway Error",
   "status": 502,
   "detail": "Kubernetes API returned invalid response",
-  "instance": "/o2ims/v1/resourcePools"
+  "instance": "/o2ims-infrastructureInventory/v1/resourcePools"
 }
 ```
 
@@ -332,7 +332,7 @@ Retry-After: 45
   "title": "Service Unavailable",
   "status": 503,
   "detail": "Gateway is starting up, please retry",
-  "instance": "/o2ims/v1/resourcePools",
+  "instance": "/o2ims-infrastructureInventory/v1/resourcePools",
   "retryAfter": 30
 }
 ```
@@ -359,7 +359,7 @@ Retry-After: 45
   "title": "Gateway Timeout",
   "status": 504,
   "detail": "Kubernetes API request timed out after 30s",
-  "instance": "/o2ims/v1/resources"
+  "instance": "/o2ims-infrastructureInventory/v1/resources"
 }
 ```
 
@@ -609,7 +609,7 @@ open http://jaeger:16686/trace/1234567890abcdef
 
 ```bash
 # Test subscription directly
-curl -X POST http://localhost:8080/o2ims/v1/subscriptions \
+curl -X POST http://localhost:8080/o2ims-infrastructureInventory/v1/subscriptions \
   -H "Content-Type: application/json" \
   -d '{"callback": "https://webhook.site/test"}'
 

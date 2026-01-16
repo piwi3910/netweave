@@ -364,13 +364,13 @@ sequenceDiagram
     participant K8s as Kubernetes Adapter
     participant GCP as GCP Adapter
 
-    Client->>Router: GET /o2ims/v1/resourcePools/k8s-cluster-1
+    Client->>Router: GET /o2ims-infrastructureInventory/v1/resourcePools/k8s-cluster-1
     Router->>Router: Check pool metadata
     Router->>K8s: Route to Kubernetes adapter
     K8s-->>Router: Resource Pool data
     Router-->>Client: Response
 
-    Client->>Router: GET /o2ims/v1/resourcePools/gcp-project-1
+    Client->>Router: GET /o2ims-infrastructureInventory/v1/resourcePools/gcp-project-1
     Router->>Router: Check pool metadata
     Router->>GCP: Route to GCP adapter
     GCP-->>Router: Resource Pool data

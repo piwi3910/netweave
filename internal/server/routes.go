@@ -49,7 +49,7 @@ func (s *Server) withPermission(permission string, handler gin.HandlerFunc) gin.
 // It organizes routes into logical groups:
 //   - Health and readiness endpoints
 //   - Prometheus metrics endpoint
-//   - O2-IMS API v1, v2, v3 endpoints
+//   - O2-IMS API v1 endpoints (consolidated with all features)
 func (s *Server) setupRoutes() {
 	// Health check endpoints (no authentication required)
 	s.router.GET("/health", s.handleHealth)
@@ -65,22 +65,21 @@ func (s *Server) setupRoutes() {
 	// Initialize version configuration
 	versionConfig := NewVersionConfig()
 
-	// O2-IMS API v1 routes (original)
+	// O2-IMS API v1 routes (O-RAN compliant)
 	// Base path: /o2ims-infrastructureInventory/v1 (per O-RAN O2 IMS specification)
+	// Includes all features: basic operations, batch operations, and multi-tenancy support
 	v1 := s.router.Group("/o2ims-infrastructureInventory/v1")
 	v1.Use(VersioningMiddleware(versionConfig))
+
+	// Apply tenant middleware if multi-tenancy is enabled
+	if s.tenantHandler != nil {
+		v1.Use(TenantMiddleware())
+	}
+
 	s.setupV1Routes(v1)
 
-	// O2-IMS API v2 routes (enhanced filtering, batch operations)
-	v2 := s.router.Group("/o2ims-infrastructureInventory/v2")
-	v2.Use(VersioningMiddleware(versionConfig))
-	s.setupV2Routes(v2)
-
-	// O2-IMS API v3 routes (multi-tenancy)
-	v3 := s.router.Group("/o2ims-infrastructureInventory/v3")
-	v3.Use(VersioningMiddleware(versionConfig))
-	v3.Use(TenantMiddleware())
-	s.setupV3Routes(v3)
+	// TMForum API routes (handler will be set when DMS is initialized)
+	s.setupTMForumRoutesEarly()
 
 	// API information endpoint
 	s.router.GET("/o2ims", s.handleAPIInfo)
@@ -149,22 +148,9 @@ func (s *Server) setupV1Routes(v1 *gin.RouterGroup) {
 	// Endpoint: /oCloudInfrastructure
 	v1.GET("/oCloudInfrastructure", s.withPermission("deploymentManagers:read", s.handleGetOCloudInfrastructure))
 
-	// API version endpoint (no auth required)
-	v1.GET("", s.handleAPIInfo)
-}
-
-// setupV2Routes configures the O2-IMS API v2 endpoints with enhanced features.
-// V2 includes all v1 endpoints plus:
-// - Batch operations for subscriptions and resource pools
-// - Enhanced filtering and field selection
-// - Cursor-based pagination option.
-func (s *Server) setupV2Routes(v2 *gin.RouterGroup) {
-	// Include all v1 routes
-	s.setupV1Routes(v2)
-
-	// Batch operations (v2 feature)
+	// Batch Operations
 	// Endpoint: /batch/*
-	batch := v2.Group("/batch")
+	batch := v1.Group("/batch")
 	{
 		// Batch subscription operations
 		batch.POST("/subscriptions", s.withPermission("subscriptions:create", s.batchHandler.BatchCreateSubscriptions))
@@ -182,84 +168,9 @@ func (s *Server) setupV2Routes(v2 *gin.RouterGroup) {
 		batch.POST("/resources/update", s.withPermission("resources:update", s.batchHandler.BatchUpdateResources))
 	}
 
-	// V2 API info with enhanced features (no auth required)
-	v2.GET("/features", s.handleV2Features)
-}
-
-// setupV3Routes configures the O2-IMS API v3 endpoints with multi-tenancy support.
-// V3 includes all v2 features plus:
-// - Multi-tenant isolation
-// - Tenant quotas
-// - Cross-tenant resource sharing
-// - Enhanced audit logging.
-func (s *Server) setupV3Routes(v3 *gin.RouterGroup) {
-	// Infrastructure Inventory Subscription Management (v1 endpoints)
-	subscriptions := v3.Group("/subscriptions")
-	{
-		subscriptions.GET("", s.withPermission("subscriptions:read", s.handleListSubscriptions))
-		subscriptions.POST("", s.withPermission("subscriptions:create", s.handleCreateSubscription))
-		subscriptions.GET("/:subscriptionId", s.withPermission("subscriptions:read", s.handleGetSubscription))
-		subscriptions.PUT("/:subscriptionId", s.withPermission("subscriptions:create", s.handleUpdateSubscription))
-		subscriptions.DELETE("/:subscriptionId", s.withPermission("subscriptions:delete", s.handleDeleteSubscription))
-	}
-
-	// Resource Pool Management (v1 endpoints)
-	resourcePools := v3.Group("/resourcePools")
-	{
-		resourcePools.GET("", s.withPermission("resourcePools:read", s.handleListResourcePools))
-		resourcePools.POST("", s.withPermission("resourcePools:create", s.handleCreateResourcePool))
-		resourcePools.GET("/:resourcePoolId", s.withPermission("resourcePools:read", s.handleGetResourcePool))
-		resourcePools.PUT("/:resourcePoolId", s.withPermission("resourcePools:update", s.handleUpdateResourcePool))
-		resourcePools.DELETE("/:resourcePoolId", s.withPermission("resourcePools:delete", s.handleDeleteResourcePool))
-		resourcePools.GET("/:resourcePoolId/resources", s.withPermission("resourcePools:read", s.handleListResourcesInPool))
-	}
-
-	// Resource Management (v1 endpoints)
-	resources := v3.Group("/resources")
-	{
-		resources.GET("", s.withPermission("resources:read", s.handleListResources))
-		resources.POST("", s.withPermission("resources:create", s.handleCreateResource))
-		resources.GET("/:resourceId", s.withPermission("resources:read", s.handleGetResource))
-		resources.PUT("/:resourceId", s.withPermission("resources:update", s.handleUpdateResource))
-	}
-
-	// Resource Type Management (v1 endpoints)
-	resourceTypes := v3.Group("/resourceTypes")
-	{
-		resourceTypes.GET("", s.withPermission("resourceTypes:read", s.handleListResourceTypes))
-		resourceTypes.GET("/:resourceTypeId", s.withPermission("resourceTypes:read", s.handleGetResourceType))
-	}
-
-	// Deployment Manager Management (v1 endpoints)
-	deploymentManagers := v3.Group("/deploymentManagers")
-	{
-		deploymentManagers.GET("", s.withPermission("deploymentManagers:read", s.handleListDeploymentManagers))
-		deploymentManagers.GET("/:deploymentManagerId", s.withPermission("deploymentManagers:read", s.handleGetDeploymentManager))
-	}
-
-	// Batch Operations (v2 feature)
-	batch := v3.Group("/batch")
-	{
-		// Subscription batch operations
-		batch.POST("/subscriptions", s.withPermission("subscriptions:create", s.batchHandler.BatchCreateSubscriptions))
-		batch.POST("/subscriptions/delete", s.withPermission("subscriptions:delete", s.batchHandler.BatchDeleteSubscriptions))
-		batch.POST("/subscriptions/update", s.withPermission("subscriptions:create", s.batchHandler.BatchUpdateSubscriptions))
-
-		// Resource pool batch operations
-		batch.POST("/resourcePools", s.withPermission("resourcePools:create", s.batchHandler.BatchCreateResourcePools))
-		batch.POST("/resourcePools/delete", s.withPermission("resourcePools:delete", s.batchHandler.BatchDeleteResourcePools))
-		batch.POST("/resourcePools/update", s.withPermission("resourcePools:update", s.batchHandler.BatchUpdateResourcePools))
-
-		// Resource batch operations
-		batch.POST("/resources", s.withPermission("resources:create", s.batchHandler.BatchCreateResources))
-		batch.POST("/resources/delete", s.withPermission("resources:delete", s.batchHandler.BatchDeleteResources))
-		batch.POST("/resources/update", s.withPermission("resources:update", s.batchHandler.BatchUpdateResources))
-	}
-
-	// Tenant management (v3 feature)
-	// Only enable tenant routes if tenantHandler is initialized (multi-tenancy enabled)
+	// Tenant Management (only if multi-tenancy enabled)
 	if s.tenantHandler != nil {
-		tenants := v3.Group("/tenants")
+		tenants := v1.Group("/tenants")
 		{
 			tenants.GET("", s.withPermission("tenants:read", s.tenantHandler.ListTenants))
 			tenants.POST("", s.withPermission("tenants:create", s.tenantHandler.CreateTenant))
@@ -271,8 +182,8 @@ func (s *Server) setupV3Routes(v3 *gin.RouterGroup) {
 		}
 	}
 
-	// V3 API info with multi-tenancy features (no auth required)
-	v3.GET("/features", s.handleV3Features)
+	// API version endpoint (no auth required)
+	v1.GET("", s.handleAPIInfo)
 }
 
 // Health check handlers
@@ -317,7 +228,7 @@ func (s *Server) handleRoot(c *gin.Context) {
 		"health":     "/health",
 		"ready":      "/ready",
 		"metrics":    s.config.Observability.Metrics.Path,
-		"o2ims_base": "/o2ims/v1",
+		"o2ims_base": "/o2ims-infrastructureInventory/v1",
 		"o2dms_base": "/o2dms/v1",
 		"o2smo_base": "/o2smo/v1",
 	}
@@ -333,17 +244,39 @@ func (s *Server) handleRoot(c *gin.Context) {
 
 // handleAPIInfo returns O2-IMS API information.
 func (s *Server) handleAPIInfo(c *gin.Context) {
+	resources := []string{
+		"subscriptions",
+		"resourcePools",
+		"resources",
+		"resourceTypes",
+		"deploymentManagers",
+		"oCloudInfrastructure",
+		"batch",
+	}
+
+	// Add tenants to resources list if multi-tenancy is enabled
+	if s.tenantHandler != nil {
+		resources = append(resources, "tenants")
+	}
+
+	features := []string{
+		"O-RAN O2-IMS v1 compliant",
+		"Batch operations for subscriptions, resourcePools, and resources",
+		"Advanced filtering with comparison operators (eq, ne, gt, lt, gte, lte, in, nin, regex)",
+		"Field selection to optimize API responses",
+		"Cursor-based pagination",
+	}
+
+	// Add multi-tenancy feature if enabled
+	if s.tenantHandler != nil {
+		features = append(features, "Multi-tenancy support with tenant isolation and quotas")
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"api_version": "v1",
 		"base_path":   "/o2ims-infrastructureInventory/v1",
-		"resources": []string{
-			"subscriptions",
-			"resourcePools",
-			"resources",
-			"resourceTypes",
-			"deploymentManagers",
-			"oCloudInfrastructure",
-		},
+		"resources":   resources,
+		"features":    features,
 	})
 }
 
@@ -2015,30 +1948,6 @@ func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 		"name":        dm.Name,
 		"description": dm.Description,
 		"serviceUri":  dm.ServiceURI,
-	})
-}
-
-// handleV2Features returns v2 API feature information.
-// GET /o2ims/v2/features.
-func (s *Server) handleV2Features(c *gin.Context) {
-	features := GetV2Features()
-	c.JSON(http.StatusOK, gin.H{
-		"version":  "v2",
-		"features": features,
-		"description": "O2-IMS API v2 with enhanced filtering, batch operations, " +
-			"field selection, and cursor-based pagination",
-	})
-}
-
-// handleV3Features returns v3 API feature information.
-// GET /o2ims/v3/features.
-func (s *Server) handleV3Features(c *gin.Context) {
-	features := GetV3Features()
-	c.JSON(http.StatusOK, gin.H{
-		"version":  "v3",
-		"features": features,
-		"description": "O2-IMS API v3 with multi-tenancy support, tenant quotas, " +
-			"cross-tenant resource sharing, and enhanced audit logging",
 	})
 }
 

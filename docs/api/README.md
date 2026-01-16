@@ -44,8 +44,8 @@ See [Multi-Tenancy and RBAC](o2ims/README.md#multi-tenancy-and-rbac) for details
 | Version | Status | Supported Until | Base Path |
 |---------|--------|-----------------|-----------|
 | v1 | ✅ Stable | 2027-01-01 | `/o2ims-infrastructureInventory/v1` |
-| v2 | 🧪 Beta | N/A | `/o2ims-infrastructureInventory/v2` |
-| v3 | 🚧 Alpha | N/A | `/o2ims-infrastructureInventory/v3` |
+| v2 | 🧪 Beta | N/A | `/o2ims-infrastructureInventory/v1` |
+| v3 | 🚧 Alpha | N/A | `/o2ims-infrastructureInventory/v1` |
 
 ### Versioning Approach
 
@@ -53,7 +53,7 @@ See [Multi-Tenancy and RBAC](o2ims/README.md#multi-tenancy-and-rbac) for details
 
 ```
 GET /o2ims-infrastructureInventory/v1/resourcePools  # Stable
-GET /o2ims-infrastructureInventory/v2/resourcePools  # Beta (enhanced features)
+GET /o2ims-infrastructureInventory/v1/resourcePools  # Beta (enhanced features)
 ```
 
 **Parallel Support**: Multiple versions run simultaneously, allowing gradual migration.
@@ -114,7 +114,7 @@ GET /o2ims-infrastructureInventory/v2/resourcePools  # Beta (enhanced features)
 
 **Batch Operations** (v2+):
 ```http
-POST /o2ims-infrastructureInventory/v2/batch/subscriptions
+POST /o2ims-infrastructureInventory/v1/batch/subscriptions
 Content-Type: application/json
 
 {
@@ -185,10 +185,10 @@ rules:
 **Request Routing Example**:
 ```bash
 # Bare-metal pool → Dell DTIAS
-GET /o2ims/v1/resourcePools?location=dc-dallas
+GET /o2ims-infrastructureInventory/v1/resourcePools?location=dc-dallas
 
 # Cloud pool → AWS EKS
-GET /o2ims/v1/resourcePools?location=aws-us-west-2
+GET /o2ims-infrastructureInventory/v1/resourcePools?location=aws-us-west-2
 ```
 
 See [Multi-Backend Adapter Routing](o2ims/README.md#multi-backend-adapter-routing) for details.
@@ -220,7 +220,7 @@ See [Multi-Backend Adapter Routing](o2ims/README.md#multi-backend-adapter-routin
 
 **v1**: Offset-based pagination
 ```bash
-GET /o2ims/v1/resourcePools?limit=50&offset=100
+GET /o2ims-infrastructureInventory/v1/resourcePools?limit=50&offset=100
 ```
 
 **v2**: Cursor-based pagination (recommended)
@@ -232,7 +232,7 @@ GET /o2ims/v2/resourcePools?limit=50&cursor=eyJpZCI6InBvb2wtMTIzIn0
 
 **Basic Filtering** (v1):
 ```bash
-GET /o2ims/v1/resources?resourcePoolId=pool-compute&location=us-east-1a
+GET /o2ims-infrastructureInventory/v1/resources?resourcePoolId=pool-compute&location=us-east-1a
 ```
 
 **Advanced Filtering** (v2):

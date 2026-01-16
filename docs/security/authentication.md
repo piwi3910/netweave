@@ -156,7 +156,7 @@ func extractTenantFromCert(cert *x509.Certificate) string {
 Client sends tenant ID in header:
 
 ```bash
-curl -X GET https://gateway.example.com/o2ims/v1/resourcePools \
+curl -X GET https://gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     --cert client.crt --key client.key --cacert ca.crt \
     -H "X-Tenant-ID: smo-alpha"
 ```
@@ -566,13 +566,13 @@ echo "✅ Client certificate created: ${USER_ID}.crt"
 
 ```bash
 # Make authenticated request
-curl -X GET https://o2ims-gateway.example.com/o2ims/v1/resourcePools \
+curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     --cert operator-1.crt \
     --key operator-1.key \
     --cacert ca.crt
 
 # With custom tenant header (fallback)
-curl -X GET https://o2ims-gateway.example.com/o2ims/v1/resourcePools \
+curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     --cert operator-1.crt \
     --key operator-1.key \
     --cacert ca.crt \
@@ -586,7 +586,7 @@ import requests
 
 # Configure mTLS
 response = requests.get(
-    'https://o2ims-gateway.example.com/o2ims/v1/resourcePools',
+    'https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools',
     cert=('operator-1.crt', 'operator-1.key'),
     verify='ca.crt'
 )
@@ -638,7 +638,7 @@ func main() {
     }
 
     // Make request
-    resp, err := client.Get("https://o2ims-gateway.example.com/o2ims/v1/resourcePools")
+    resp, err := client.Get("https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools")
     if err != nil {
         panic(err)
     }
@@ -657,22 +657,22 @@ func main() {
 
 ```bash
 # 1. Test with valid certificate
-curl -v -X GET https://o2ims-gateway.example.com/o2ims/v1/api_versions \
+curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     --cert client.crt --key client.key --cacert ca.crt
 # Expected: 200 OK
 
 # 2. Test without certificate
-curl -v -X GET https://o2ims-gateway.example.com/o2ims/v1/api_versions \
+curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     --cacert ca.crt
 # Expected: TLS handshake failure or 401 Unauthorized
 
 # 3. Test with expired certificate
-curl -v -X GET https://o2ims-gateway.example.com/o2ims/v1/api_versions \
+curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     --cert expired-client.crt --key expired-client.key --cacert ca.crt
 # Expected: Certificate verification error
 
 # 4. Test with wrong CA
-curl -v -X GET https://o2ims-gateway.example.com/o2ims/v1/api_versions \
+curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     --cert wrong-client.crt --key wrong-client.key --cacert ca.crt
 # Expected: Certificate verification error
 ```

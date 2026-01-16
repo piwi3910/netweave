@@ -463,13 +463,13 @@ replica:
 1. **Apache Bench (ab)**
    ```bash
    ab -n 10000 -c 100 -H "Authorization: Bearer TOKEN" \
-     https://gateway:8443/o2ims/v1/resourcePools
+     https://gateway:8443/o2ims-infrastructureInventory/v1/resourcePools
    ```
 
 2. **wrk**
    ```bash
    wrk -t12 -c400 -d30s --latency \
-     https://gateway:8443/o2ims/v1/resourcePools
+     https://gateway:8443/o2ims-infrastructureInventory/v1/resourcePools
    ```
 
 3. **k6** (Recommended for complex scenarios)
@@ -482,7 +482,7 @@ replica:
    };
 
    export default function() {
-     http.get('https://gateway:8443/o2ims/v1/resourcePools');
+     http.get('https://gateway:8443/o2ims-infrastructureInventory/v1/resourcePools');
    }
    ```
 
@@ -510,11 +510,11 @@ import { check, sleep } from 'k6';
 export default function() {
   // 80% chance of read operation
   if (Math.random() < 0.8) {
-    let res = http.get('https://gateway:8443/o2ims/v1/resources');
+    let res = http.get('https://gateway:8443/o2ims-infrastructureInventory/v1/resources');
     check(res, { 'status is 200': (r) => r.status === 200 });
   } else {
     // 20% subscription operations
-    http.post('https://gateway:8443/o2ims/v1/subscriptions', JSON.stringify({
+    http.post('https://gateway:8443/o2ims-infrastructureInventory/v1/subscriptions', JSON.stringify({
       callback: 'https://smo.example.com/notify',
       filter: 'resourceType=Node'
     }));
@@ -532,13 +532,13 @@ import http from 'k6/http';
 
 export default function() {
   // Create subscription
-  http.post('https://gateway:8443/o2ims/v1/subscriptions', JSON.stringify({
+  http.post('https://gateway:8443/o2ims-infrastructureInventory/v1/subscriptions', JSON.stringify({
     callback: `https://smo.example.com/notify/${__VU}`,
     filter: 'resourceType=Node'
   }));
 
   // List subscriptions
-  http.get('https://gateway:8443/o2ims/v1/subscriptions');
+  http.get('https://gateway:8443/o2ims-infrastructureInventory/v1/subscriptions');
 
   sleep(5);
 }

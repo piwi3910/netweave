@@ -444,7 +444,7 @@ make run-dev
 
 ```bash
 # In another terminal, test the API
-curl http://localhost:8080/o2ims/v1/deploymentManagers
+curl http://localhost:8080/o2ims-infrastructureInventory/v1/deploymentManagers
 
 # Expected response (will vary based on your K8s cluster):
 {

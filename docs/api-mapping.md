@@ -40,11 +40,11 @@ Resource Pools represent logical groupings of infrastructure resources that can 
 
 | HTTP Method | Endpoint | CRUD | Status | Handler |
 |-------------|----------|------|--------|---------|
-| GET | `/o2ims/v1/resourcePools` | List | ✅ Implemented | `internal/handlers/resourcepool.go:ListResourcePools()` |
-| GET | `/o2ims/v1/resourcePools/{id}` | Read | ✅ Implemented | `internal/handlers/resourcepool.go:GetResourcePool()` |
-| POST | `/o2ims/v1/resourcePools` | Create | ✅ Implemented | `internal/handlers/resourcepool.go:CreateResourcePool()` |
-| PATCH | `/o2ims/v1/resourcePools/{id}` | Update | ✅ Implemented | `internal/handlers/resourcepool.go:UpdateResourcePool()` |
-| DELETE | `/o2ims/v1/resourcePools/{id}` | Delete | ✅ Implemented | `internal/handlers/resourcepool.go:DeleteResourcePool()` |
+| GET | `/o2ims-infrastructureInventory/v1/resourcePools` | List | ✅ Implemented | `internal/handlers/resourcepool.go:ListResourcePools()` |
+| GET | `/o2ims-infrastructureInventory/v1/resourcePools/{id}` | Read | ✅ Implemented | `internal/handlers/resourcepool.go:GetResourcePool()` |
+| POST | `/o2ims-infrastructureInventory/v1/resourcePools` | Create | ✅ Implemented | `internal/handlers/resourcepool.go:CreateResourcePool()` |
+| PATCH | `/o2ims-infrastructureInventory/v1/resourcePools/{id}` | Update | ✅ Implemented | `internal/handlers/resourcepool.go:UpdateResourcePool()` |
+| DELETE | `/o2ims-infrastructureInventory/v1/resourcePools/{id}` | Delete | ✅ Implemented | `internal/handlers/resourcepool.go:DeleteResourcePool()` |
 
 #### Backend Mappings
 
@@ -115,10 +115,10 @@ Resources represent individual infrastructure units (compute nodes, storage volu
 
 | HTTP Method | Endpoint | CRUD | Status | Handler |
 |-------------|----------|------|--------|---------|
-| GET | `/o2ims/v1/resourcePools/{poolId}/resources` | List | ✅ Implemented | `internal/handlers/resource.go:ListResources()` |
-| GET | `/o2ims/v1/resources/{id}` | Read | ✅ Implemented | `internal/handlers/resource.go:GetResource()` |
-| POST | `/o2ims/v1/resources` | Create | ❌ Not Exposed | N/A (see [Design Decisions](#resource-level-operations)) |
-| DELETE | `/o2ims/v1/resources/{id}` | Delete | ❌ Not Exposed | N/A (see [Design Decisions](#resource-level-operations)) |
+| GET | `/o2ims-infrastructureInventory/v1/resourcePools/{poolId}/resources` | List | ✅ Implemented | `internal/handlers/resource.go:ListResources()` |
+| GET | `/o2ims-infrastructureInventory/v1/resources/{id}` | Read | ✅ Implemented | `internal/handlers/resource.go:GetResource()` |
+| POST | `/o2ims-infrastructureInventory/v1/resources` | Create | ❌ Not Exposed | N/A (see [Design Decisions](#resource-level-operations)) |
+| DELETE | `/o2ims-infrastructureInventory/v1/resources/{id}` | Delete | ❌ Not Exposed | N/A (see [Design Decisions](#resource-level-operations)) |
 
 #### Backend Mappings
 
@@ -187,8 +187,8 @@ Resource Types define the available infrastructure resource configurations (mach
 
 | HTTP Method | Endpoint | CRUD | Status | Handler |
 |-------------|----------|------|--------|---------|
-| GET | `/o2ims/v1/resourceTypes` | List | 🔍 Adapter Implemented | 🔍 Handler Missing (see [#108](https://github.com/piwi3910/netweave/issues/108)) |
-| GET | `/o2ims/v1/resourceTypes/{id}` | Read | 🔍 Adapter Implemented | 🔍 Handler Missing (see [#108](https://github.com/piwi3910/netweave/issues/108)) |
+| GET | `/o2ims-infrastructureInventory/v1/resourceTypes` | List | 🔍 Adapter Implemented | 🔍 Handler Missing (see [#108](https://github.com/piwi3910/netweave/issues/108)) |
+| GET | `/o2ims-infrastructureInventory/v1/resourceTypes/{id}` | Read | 🔍 Adapter Implemented | 🔍 Handler Missing (see [#108](https://github.com/piwi3910/netweave/issues/108)) |
 
 #### Backend Mappings
 
@@ -229,8 +229,8 @@ Deployment Managers represent O2-DMS backend systems capable of managing CNF/VNF
 
 | HTTP Method | Endpoint | CRUD | Status | Handler |
 |-------------|----------|------|--------|---------|
-| GET | `/o2ims/v1/deploymentManagers` | List | ✅ Implemented | `internal/handlers/deploymentmanager.go:ListDeploymentManagers()` |
-| GET | `/o2ims/v1/deploymentManagers/{id}` | Read | ✅ Implemented | `internal/handlers/deploymentmanager.go:GetDeploymentManager()` |
+| GET | `/o2ims-infrastructureInventory/v1/deploymentManagers` | List | ✅ Implemented | `internal/handlers/deploymentmanager.go:ListDeploymentManagers()` |
+| GET | `/o2ims-infrastructureInventory/v1/deploymentManagers/{id}` | Read | ✅ Implemented | `internal/handlers/deploymentmanager.go:GetDeploymentManager()` |
 
 #### Deployment Manager Registry
 
@@ -270,10 +270,10 @@ Subscriptions enable SMO systems to receive real-time notifications about infras
 
 | HTTP Method | Endpoint | CRUD | Status | Handler |
 |-------------|----------|------|--------|---------|
-| GET | `/o2ims/v1/subscriptions` | List | ✅ Implemented | `internal/handlers/subscription.go:ListSubscriptions()` |
-| GET | `/o2ims/v1/subscriptions/{id}` | Read | ✅ Implemented | `internal/handlers/subscription.go:GetSubscription()` |
-| POST | `/o2ims/v1/subscriptions` | Create | ✅ Implemented | `internal/handlers/subscription.go:CreateSubscription()` |
-| DELETE | `/o2ims/v1/subscriptions/{id}` | Delete | ✅ Implemented | `internal/handlers/subscription.go:DeleteSubscription()` |
+| GET | `/o2ims-infrastructureInventory/v1/subscriptions` | List | ✅ Implemented | `internal/handlers/subscription.go:ListSubscriptions()` |
+| GET | `/o2ims-infrastructureInventory/v1/subscriptions/{id}` | Read | ✅ Implemented | `internal/handlers/subscription.go:GetSubscription()` |
+| POST | `/o2ims-infrastructureInventory/v1/subscriptions` | Create | ✅ Implemented | `internal/handlers/subscription.go:CreateSubscription()` |
+| DELETE | `/o2ims-infrastructureInventory/v1/subscriptions/{id}` | Delete | ✅ Implemented | `internal/handlers/subscription.go:DeleteSubscription()` |
 
 #### Subscription Types
 

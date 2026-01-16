@@ -406,7 +406,7 @@ routing:
 ### Version URL Structure
 
 ```
-/o2ims/v1/resourcePools       # API v1 (current, stable)
+/o2ims-infrastructureInventory/v1/resourcePools       # API v1 (current, stable)
 /o2ims/v2/resourcePools       # API v2 (future, with enhancements)
 ```
 

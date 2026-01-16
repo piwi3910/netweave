@@ -177,11 +177,11 @@ openssl x509 -req -in client.csr \
 curl --cacert ca.crt \
   --cert client.crt \
   --key client.key \
-  https://o2ims-gateway.example.com:8443/o2ims/v1/resourcePools
+  https://o2ims-gateway.example.com:8443/o2ims-infrastructureInventory/v1/resourcePools
 
 # Test without client cert (should fail)
 curl --cacert ca.crt \
-  https://o2ims-gateway.example.com:8443/o2ims/v1/resourcePools
+  https://o2ims-gateway.example.com:8443/o2ims-infrastructureInventory/v1/resourcePools
 # Error: SSL certificate problem: unable to get local issuer certificate
 ```
 
@@ -590,7 +590,7 @@ security:
 
 ```bash
 # Check all headers
-curl -I https://localhost:8443/o2ims/v1/resourcePools
+curl -I https://localhost:8443/o2ims-infrastructureInventory/v1/resourcePools
 
 # Expected output:
 HTTP/1.1 200 OK
@@ -646,11 +646,11 @@ security:
 
     # Per-endpoint rate limits
     endpoints:
-      - path: /o2ims/v1/subscriptions
+      - path: /o2ims-infrastructureInventory/v1/subscriptions
         method: POST
         requests_per_second: 10
         burst_size: 20
-      - path: /o2ims/v1/subscriptions
+      - path: /o2ims-infrastructureInventory/v1/subscriptions
         method: DELETE
         requests_per_second: 10
         burst_size: 20
@@ -688,7 +688,7 @@ Applies to specific API endpoints (e.g., resource-intensive operations).
 
 ```yaml
 endpoints:
-  - path: /o2ims/v1/subscriptions
+  - path: /o2ims-infrastructureInventory/v1/subscriptions
     method: POST
     requests_per_second: 10
     burst_size: 20
@@ -773,7 +773,7 @@ Retry-After: 45
   "title": "Too Many Requests",
   "status": 429,
   "detail": "resource rate limit exceeded for resources: 100 reads per minute allowed",
-  "instance": "/o2ims/v1/resources"
+  "instance": "/o2ims-infrastructureInventory/v1/resources"
 }
 ```
 
@@ -833,7 +833,7 @@ security:
       requests_per_second: 1000
       max_concurrent_requests: 500
     endpoints:
-      - path: /o2ims/v1/subscriptions
+      - path: /o2ims-infrastructureInventory/v1/subscriptions
         method: POST
         requests_per_second: 10
         burst_size: 20

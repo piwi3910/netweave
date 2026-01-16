@@ -21,31 +21,31 @@ import (
 // Plugin is a mock implementation of the SMO plugin interface.
 // It stores all data in memory and provides realistic simulation of SMO operations.
 type Plugin struct {
-	mu             sync.RWMutex
-	workflows      map[string]*workflowExecution
-	serviceModels  map[string]*smo.ServiceModel
-	policies       map[string]*policyState
-	initialized    bool
-	config         map[string]interface{}
+	mu            sync.RWMutex
+	workflows     map[string]*workflowExecution
+	serviceModels map[string]*smo.ServiceModel
+	policies      map[string]*policyState
+	initialized   bool
+	config        map[string]interface{}
 }
 
 // workflowExecution tracks the execution state of a workflow.
 type workflowExecution struct {
-	ID          string
+	ID           string
 	WorkflowName string
-	Status      string
-	Progress    int
-	Message     string
-	StartedAt   time.Time
-	CompletedAt *time.Time
-	Result      map[string]interface{}
+	Status       string
+	Progress     int
+	Message      string
+	StartedAt    time.Time
+	CompletedAt  *time.Time
+	Result       map[string]interface{}
 }
 
 // policyState tracks the enforcement state of a policy.
 type policyState struct {
-	Policy    *smo.Policy
-	AppliedAt time.Time
-	Enforced  bool
+	Policy     *smo.Policy
+	AppliedAt  time.Time
+	Enforced   bool
 	Violations int
 }
 

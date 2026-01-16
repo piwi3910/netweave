@@ -591,7 +591,7 @@ func (c *SubscriptionController) sendWebhook(
 
 **Example - Rejected Callback**:
 ```json
-POST /o2ims/v1/subscriptions
+POST /o2ims-infrastructureInventory/v1/subscriptions
 {
   "callback": "http://localhost/admin",
   "filter": {}

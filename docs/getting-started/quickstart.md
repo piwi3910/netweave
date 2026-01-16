@@ -77,7 +77,7 @@ curl http://localhost:8080/health
 Make your first O2-IMS API call to list resource pools:
 
 ```bash
-curl -X GET http://localhost:8080/o2ims/v1/resourcePools | jq
+curl -X GET http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools | jq
 ```
 
 **Expected response:**
@@ -165,7 +165,7 @@ observability:
 ### 1. List Resource Types
 
 ```bash
-curl -X GET http://localhost:8080/o2ims/v1/resourceTypes | jq
+curl -X GET http://localhost:8080/o2ims-infrastructureInventory/v1/resourceTypes | jq
 ```
 
 **Response:**
@@ -192,7 +192,7 @@ curl -X GET http://localhost:8080/o2ims/v1/resourceTypes | jq
 ### 2. List Resources in a Pool
 
 ```bash
-curl -X GET http://localhost:8080/o2ims/v1/resourcePools/pool-default/resources | jq
+curl -X GET http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools/pool-default/resources | jq
 ```
 
 **Response:**
@@ -218,7 +218,7 @@ curl -X GET http://localhost:8080/o2ims/v1/resourcePools/pool-default/resources 
 ### 3. Get Deployment Managers
 
 ```bash
-curl -X GET http://localhost:8080/o2ims/v1/deploymentManagers | jq
+curl -X GET http://localhost:8080/o2ims-infrastructureInventory/v1/deploymentManagers | jq
 ```
 
 **Response:**
@@ -254,7 +254,7 @@ docker run --rm -p 9000:8080 --network netweave_default \
 Then create a subscription:
 
 ```bash
-curl -X POST http://localhost:8080/o2ims/v1/subscriptions \
+curl -X POST http://localhost:8080/o2ims-infrastructureInventory/v1/subscriptions \
   -H "Content-Type: application/json" \
   -d '{
     "callback": "http://host.docker.internal:9000/webhook",

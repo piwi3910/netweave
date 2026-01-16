@@ -24,7 +24,7 @@ sequenceDiagram
     participant Adapter as K8s Adapter
     participant K8s as Kubernetes API
 
-    SMO->>+Ingress: GET /o2ims/v1/resourcePools<br/>(mTLS client cert)
+    SMO->>+Ingress: GET /o2ims-infrastructureInventory/v1/resourcePools<br/>(mTLS client cert)
     Note over Ingress: TLS handshake<br/>Validate cert<br/>Route to healthy pod
 
     Ingress->>+Gateway: Forward request
@@ -92,7 +92,7 @@ sequenceDiagram
     participant Redis as Redis Pub/Sub
     participant Pods as All Gateway Pods
 
-    SMO->>+Ingress: POST /o2ims/v1/resourcePools<br/>Body: {name, resources, ...}
+    SMO->>+Ingress: POST /o2ims-infrastructureInventory/v1/resourcePools<br/>Body: {name, resources, ...}
     Ingress->>+Gateway: Forward request
 
     Note over Gateway: Validate request body<br/>(OpenAPI schema)
@@ -422,7 +422,7 @@ security:
       requests_per_second: 1000
       burst_size: 2000
     endpoints:
-      - path: "/o2ims/v1/subscriptions"
+      - path: "/o2ims-infrastructureInventory/v1/subscriptions"
         method: "POST"
         requests_per_second: 100
         burst_size: 150

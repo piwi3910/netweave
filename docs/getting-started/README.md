@@ -123,7 +123,7 @@ kubectl port-forward -n o2ims-system svc/netweave 8000:8000
 
 ```bash
 # List resource pools
-curl -X GET http://localhost:8000/o2ims/v1/resourcePools
+curl -X GET http://localhost:8000/o2ims-infrastructureInventory/v1/resourcePools
 ```
 
 ### Environment Variables

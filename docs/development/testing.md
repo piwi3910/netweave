@@ -233,7 +233,7 @@ func TestE2E_SubscriptionWorkflow(t *testing.T) {
         },
     }
     
-    resp, err := client.Post("/o2ims/v1/subscriptions", sub)
+    resp, err := client.Post("/o2ims-infrastructureInventory/v1/subscriptions", sub)
     require.NoError(t, err)
     assert.Equal(t, http.StatusCreated, resp.StatusCode)
     
@@ -241,7 +241,7 @@ func TestE2E_SubscriptionWorkflow(t *testing.T) {
     json.NewDecoder(resp.Body).Decode(&created)
     
     // 2. List subscriptions
-    resp, err = client.Get("/o2ims/v1/subscriptions")
+    resp, err = client.Get("/o2ims-infrastructureInventory/v1/subscriptions")
     require.NoError(t, err)
     assert.Equal(t, http.StatusOK, resp.StatusCode)
     
@@ -254,7 +254,7 @@ func TestE2E_SubscriptionWorkflow(t *testing.T) {
     }, 5*time.Second, 100*time.Millisecond)
     
     // 5. Delete subscription
-    resp, err = client.Delete("/o2ims/v1/subscriptions/" + created.ID)
+    resp, err = client.Delete("/o2ims-infrastructureInventory/v1/subscriptions/" + created.ID)
     require.NoError(t, err)
     assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 }

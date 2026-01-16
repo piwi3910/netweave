@@ -597,18 +597,18 @@ curl -X POST https://o2ims-gateway.example.com/admin/v1/tenants/smo-alpha/roleBi
   }'
 
 # 2. Test authorized access
-curl -X GET https://o2ims-gateway.example.com/o2ims/v1/resourcePools \
+curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
   --cert operator-1.crt --key operator-1.key --cacert ca.crt
 # Expected: 200 OK
 
 # 3. Test unauthorized access (different tenant)
-curl -X GET https://o2ims-gateway.example.com/o2ims/v1/resourcePools \
+curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
   --cert operator-1.crt --key operator-1.key --cacert ca.crt \
   -H "X-Tenant-ID: smo-beta"
 # Expected: 403 Forbidden
 
 # 4. Test insufficient permissions
-curl -X DELETE https://o2ims-gateway.example.com/o2ims/v1/tenants/smo-alpha \
+curl -X DELETE https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/tenants/smo-alpha \
   --cert operator-1.crt --key operator-1.key --cacert ca.crt
 # Expected: 403 Forbidden (operator cannot delete tenants)
 ```

@@ -405,16 +405,16 @@ func (a *MTLSAuthenticator) Authenticate(cert *x509.Certificate) (*AuthContext, 
 
 ```bash
 # Test with valid client certificate
-curl -X GET https://o2ims-gateway.example.com/o2ims/v1/resourcePools \
+curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     --cert client.crt --key client.key --cacert ca.crt
 
 # Test without client certificate (should fail)
-curl -X GET https://o2ims-gateway.example.com/o2ims/v1/resourcePools \
+curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     --cacert ca.crt
 # Expected: 401 Unauthorized
 
 # Test with invalid client certificate
-curl -X GET https://o2ims-gateway.example.com/o2ims/v1/resourcePools \
+curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     --cert invalid-client.crt --key invalid-client.key --cacert ca.crt
 # Expected: TLS handshake failure
 ```
