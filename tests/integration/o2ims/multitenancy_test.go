@@ -490,7 +490,7 @@ func TestMultiTenancy_AuditLogging(t *testing.T) {
 		require.NoError(t, err)
 
 		req, err := http.NewRequestWithContext(
-			context.Background(),
+			ctx,
 			http.MethodPost,
 			ts.O2IMSURL()+"/subscriptions",
 			bytes.NewReader(subBody),

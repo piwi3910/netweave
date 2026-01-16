@@ -7,7 +7,7 @@ import (
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
-// mockStore is a simple in-memory store for testing
+// mockStore is a simple in-memory store for testing.
 type mockStore struct {
 	mu            sync.RWMutex
 	subscriptions map[string]*storage.Subscription

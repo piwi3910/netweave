@@ -65,7 +65,7 @@ func ParseTMF688Query(query string) (*imsadapter.SubscriptionFilter, error) {
 	return filter, nil
 }
 
-// isValidTMF688EventType checks if an event type is recognized
+// isValidTMF688EventType checks if an event type is recognized.
 func isValidTMF688EventType(eventType string) bool {
 	validTypes := map[string]bool{
 		"ResourceCreationNotification":             true,
@@ -83,7 +83,7 @@ func isValidTMF688EventType(eventType string) bool {
 }
 
 // BuildTMF688QueryFromFilter converts an O2-IMS subscription filter back to a TMF688 query string
-// This is useful for displaying filter criteria in hub responses
+// This is useful for displaying filter criteria in hub responses.
 func BuildTMF688QueryFromFilter(filter *imsadapter.SubscriptionFilter) string {
 	if filter == nil {
 		return ""

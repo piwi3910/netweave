@@ -23,7 +23,7 @@ type mockAdapter struct {
 	capabilities []adapter.Capability
 }
 
-// DMSAdapterMetadata methods
+// DMSAdapterMetadata methods.
 func (m *mockAdapter) Name() string {
 	return m.name
 }
@@ -36,7 +36,7 @@ func (m *mockAdapter) Capabilities() []adapter.Capability {
 	return m.capabilities
 }
 
-// DMSAdapterLifecycle methods
+// DMSAdapterLifecycle methods.
 func (m *mockAdapter) Health(_ context.Context) error {
 	return nil
 }
@@ -48,7 +48,7 @@ func (m *mockAdapter) Close() error {
 // errNotImplemented is returned by stub methods not used in tests.
 var errNotImplemented = errors.New("method not implemented in mock")
 
-// PackageManager methods
+// PackageManager methods.
 func (m *mockAdapter) ListDeploymentPackages(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
 	return nil, errNotImplemented
 }
@@ -65,7 +65,7 @@ func (m *mockAdapter) DeleteDeploymentPackage(_ context.Context, _ string) error
 	return errNotImplemented
 }
 
-// DeploymentLifecycleManager methods
+// DeploymentLifecycleManager methods.
 func (m *mockAdapter) ListDeployments(_ context.Context, _ *adapter.Filter) ([]*adapter.Deployment, error) {
 	return nil, errNotImplemented
 }
@@ -86,7 +86,7 @@ func (m *mockAdapter) DeleteDeployment(_ context.Context, _ string) error {
 	return errNotImplemented
 }
 
-// DeploymentOperations methods
+// DeploymentOperations methods.
 func (m *mockAdapter) ScaleDeployment(_ context.Context, _ string, _ int) error {
 	return errNotImplemented
 }
@@ -107,7 +107,7 @@ func (m *mockAdapter) GetDeploymentLogs(_ context.Context, _ string, _ *adapter.
 	return nil, errNotImplemented
 }
 
-// DMSCapabilities methods
+// DMSCapabilities methods.
 func (m *mockAdapter) SupportsRollback() bool {
 	for _, cap := range m.capabilities {
 		if cap == adapter.CapabilityRollback {

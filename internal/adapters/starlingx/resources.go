@@ -406,7 +406,7 @@ func ExtractPoolNameForHost(hostUUID string, labels []Label) string {
 }
 
 // ExtractPoolNameFromPoolID extracts pool name from pool ID.
-// Format: starlingx-pool-{name}
+// Format: starlingx-pool-{name}.
 func ExtractPoolNameFromPoolID(poolID string) string {
 	const prefix = "starlingx-pool-"
 	if len(poolID) > len(prefix) {

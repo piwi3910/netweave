@@ -69,7 +69,7 @@ type TMF639Resource struct {
 	AtType string `json:"@type,omitempty"`
 }
 
-// TMF639ResourceCreate represents the request to create a resource
+// TMF639ResourceCreate represents the request to create a resource.
 type TMF639ResourceCreate struct {
 	Name                   string                    `json:"name" binding:"required"`
 	Description            string                    `json:"description,omitempty"`
@@ -88,7 +88,7 @@ type TMF639ResourceCreate struct {
 	AtType                 string                    `json:"@type,omitempty"`
 }
 
-// TMF639ResourceUpdate represents the request to update a resource
+// TMF639ResourceUpdate represents the request to update a resource.
 type TMF639ResourceUpdate struct {
 	Name                   *string                   `json:"name,omitempty"`
 	Description            *string                   `json:"description,omitempty"`
@@ -175,7 +175,7 @@ type TMF638Service struct {
 	AtType string `json:"@type,omitempty"`
 }
 
-// TMF638ServiceCreate represents the request to create a service
+// TMF638ServiceCreate represents the request to create a service.
 type TMF638ServiceCreate struct {
 	Name                  string                   `json:"name" binding:"required"`
 	Description           string                   `json:"description,omitempty"`
@@ -194,7 +194,7 @@ type TMF638ServiceCreate struct {
 	AtType                string                   `json:"@type,omitempty"`
 }
 
-// TMF638ServiceUpdate represents the request to update a service
+// TMF638ServiceUpdate represents the request to update a service.
 type TMF638ServiceUpdate struct {
 	Name                  *string                  `json:"name,omitempty"`
 	Description           *string                  `json:"description,omitempty"`

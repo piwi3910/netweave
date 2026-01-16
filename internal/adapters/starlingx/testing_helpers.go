@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-// MockServerConfig holds configuration for mock servers
+// MockServerConfig holds configuration for mock servers.
 type MockServerConfig struct {
 	Systems []ISystem
 	Hosts   []IHost
@@ -20,7 +20,7 @@ type MockServerConfig struct {
 	Disks   map[string][]IDisk   // hostUUID -> Disks
 }
 
-// CreateMockServers creates mock Keystone and StarlingX servers for testing
+// CreateMockServers creates mock Keystone and StarlingX servers for testing.
 func CreateMockServers(t *testing.T, config *MockServerConfig) (keystoneURL, starlingxURL string, cleanup func()) {
 	t.Helper()
 
@@ -200,7 +200,7 @@ func handleHostDisks(w http.ResponseWriter, path string, config *MockServerConfi
 	}
 }
 
-// CreateTestAdapter creates a test adapter with mock servers
+// CreateTestAdapter creates a test adapter with mock servers.
 func CreateTestAdapter(t *testing.T, config *MockServerConfig) (*Adapter, func()) {
 	t.Helper()
 

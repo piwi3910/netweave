@@ -354,7 +354,7 @@ func (m *mockResourceIntegrationAdapter) DeleteResource(_ context.Context, id st
 	return adapter.ErrResourceNotFound
 }
 
-// Implement other required methods as stubs
+// Implement other required methods as stubs.
 func (m *mockResourceIntegrationAdapter) ListResourceTypes(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourceType, error) {
 	return nil, nil
 }
@@ -398,7 +398,7 @@ func (m *mockResourceIntegrationAdapter) ListSubscriptions(_ context.Context, _ 
 	return nil, nil
 }
 
-// mockResourceIntegrationStore is a minimal mock storage.Store implementation for testing
+// mockResourceIntegrationStore is a minimal mock storage.Store implementation for testing.
 type mockResourceIntegrationStore struct{}
 
 func (m *mockResourceIntegrationStore) Create(_ context.Context, _ *storage.Subscription) error {

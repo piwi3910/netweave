@@ -216,7 +216,7 @@ func (m *mockResourceTypeAdapter) GetResourceType(_ context.Context, id string) 
 	return nil, adapter.ErrResourceNotFound
 }
 
-// Implement other required methods as stubs
+// Implement other required methods as stubs.
 func (m *mockResourceTypeAdapter) ListDeploymentManagers(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
 	return nil, nil
 }
@@ -269,7 +269,7 @@ func (m *mockResourceTypeAdapter) ListSubscriptions(_ context.Context, _ *adapte
 	return nil, nil
 }
 
-// mockResourceTypeStore is a minimal mock storage.Store implementation for testing
+// mockResourceTypeStore is a minimal mock storage.Store implementation for testing.
 type mockResourceTypeStore struct{}
 
 func (m *mockResourceTypeStore) Create(_ context.Context, _ *storage.Subscription) error { return nil }

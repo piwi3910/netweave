@@ -55,6 +55,7 @@ import (
 
 const (
 	redisModeSentinel = "sentinel"
+	adapterTypeMock   = "mock"
 )
 
 const (
@@ -216,7 +217,7 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		adapterType = "kubernetes"
 	}
 
-	if adapterType == "mock" {
+	if adapterType == adapterTypeMock {
 		logger.Info("initializing mock adapter")
 		mockAdapter := mock.NewAdapter(true) // Pre-populate with sample data
 		if err := mockAdapter.Initialize(ctx); err != nil {
@@ -646,8 +647,8 @@ func initializeDMS(
 	dmsAdapterType := os.Getenv("DMS_ADAPTER_TYPE")
 	if dmsAdapterType == "" {
 		// If ADAPTER_TYPE is set to mock, also default DMS to mock
-		if os.Getenv("ADAPTER_TYPE") == "mock" {
-			dmsAdapterType = "mock"
+		if os.Getenv("ADAPTER_TYPE") == adapterTypeMock {
+			dmsAdapterType = adapterTypeMock
 		} else {
 			dmsAdapterType = "helm"
 		}
@@ -656,7 +657,7 @@ func initializeDMS(
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if dmsAdapterType == "mock" {
+	if dmsAdapterType == adapterTypeMock {
 		// Initialize Mock DMS adapter
 		logger.Info("initializing mock DMS adapter")
 		mockDMSAdapter := dmsmock.NewAdapter(true) // Pre-populate with sample data
@@ -669,12 +670,12 @@ func initializeDMS(
 			"packages":  5,
 		}
 
-		if err := dmsReg.Register(ctx, "mock", "mock", mockDMSAdapter, mockConfig, true); err != nil {
+		if err := dmsReg.Register(ctx, adapterTypeMock, adapterTypeMock, mockDMSAdapter, mockConfig, true); err != nil {
 			return fmt.Errorf("failed to register mock DMS adapter: %w", err)
 		}
 
 		logger.Info("mock DMS adapter registered successfully",
-			zap.String("adapter", "mock"),
+			zap.String("adapter", adapterTypeMock),
 			zap.Int("packages", 5),
 		)
 	} else {
