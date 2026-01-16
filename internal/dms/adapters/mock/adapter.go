@@ -342,6 +342,14 @@ func (a *Adapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.
 		progress = 50
 	case adapter.DeploymentStatusPending:
 		progress = 0
+	case adapter.DeploymentStatusDeployed:
+		progress = 100
+	case adapter.DeploymentStatusFailed:
+		progress = 100
+	case adapter.DeploymentStatusRollingBack:
+		progress = 75
+	case adapter.DeploymentStatusDeleting:
+		progress = 50
 	}
 
 	status := &adapter.DeploymentStatusDetail{
