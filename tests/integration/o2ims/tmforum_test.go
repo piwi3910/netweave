@@ -145,9 +145,10 @@ func TestTMF639ResourceInventoryIntegration(t *testing.T) {
 		resourceCount := 0
 
 		for _, res := range resources {
-			if res.AtType == "ResourcePool" {
+			switch res.AtType {
+			case "ResourcePool":
 				poolCount++
-			} else if res.AtType == "Resource" {
+			case "Resource":
 				resourceCount++
 			}
 		}

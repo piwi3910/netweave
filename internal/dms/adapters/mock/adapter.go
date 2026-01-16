@@ -337,9 +337,10 @@ func (a *Adapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.
 	}
 
 	progress := 100
-	if dep.Status == adapter.DeploymentStatusDeploying {
+	switch dep.Status {
+	case adapter.DeploymentStatusDeploying:
 		progress = 50
-	} else if dep.Status == adapter.DeploymentStatusPending {
+	case adapter.DeploymentStatusPending:
 		progress = 0
 	}
 

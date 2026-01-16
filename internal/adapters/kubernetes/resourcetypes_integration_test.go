@@ -105,9 +105,10 @@ func TestKubernetesAdapter_ListResourceTypes_Integration(t *testing.T) {
 			assert.NotNil(t, rt.Extensions)
 
 			// Count resource classes
-			if rt.ResourceClass == "compute" {
+			switch rt.ResourceClass {
+			case "compute":
 				computeTypes++
-			} else if rt.ResourceClass == "storage" {
+			case "storage":
 				storageTypes++
 			}
 		}

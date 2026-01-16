@@ -336,7 +336,7 @@ func (r *Registry) HealthCheck(ctx context.Context) map[string]error {
 
 // matchesCriteria checks if a plugin matches the given criteria.
 func matchesCriteria(plugin *Plugin, criteria map[string]interface{}) bool {
-	if criteria == nil || len(criteria) == 0 {
+	if len(criteria) == 0 {
 		return true
 	}
 
