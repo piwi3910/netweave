@@ -20,7 +20,7 @@ func createMockHelmRepo() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/index.yaml" {
 			w.Header().Set("Content-Type", "application/x-yaml")
-			fmt.Fprint(w, `apiVersion: v1
+			_, _ = fmt.Fprint(w, `apiVersion: v1
 entries:
   nginx:
   - apiVersion: v2
@@ -241,7 +241,7 @@ func TestHelmAdapter_LoadRepositoryIndex_Caching(t *testing.T) {
 		if r.URL.Path == "/index.yaml" {
 			callCount++
 			w.Header().Set("Content-Type", "application/x-yaml")
-			fmt.Fprint(w, `apiVersion: v1
+			_, _ = fmt.Fprint(w, `apiVersion: v1
 entries:
   test:
   - apiVersion: v2

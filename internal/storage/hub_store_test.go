@@ -44,7 +44,7 @@ func TestInMemoryHubStore_Create(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := NewInMemoryHubStore()
-			defer store.Close()
+			defer func() { _ = store.Close() }()
 
 			ctx := context.Background()
 			err := store.Create(ctx, tt.hub)
@@ -68,7 +68,7 @@ func TestInMemoryHubStore_Create(t *testing.T) {
 
 func TestInMemoryHubStore_Create_Duplicate(t *testing.T) {
 	store := NewInMemoryHubStore()
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 	hub := &HubRegistration{
@@ -91,7 +91,7 @@ func TestInMemoryHubStore_Create_Duplicate(t *testing.T) {
 
 func TestInMemoryHubStore_Get(t *testing.T) {
 	store := NewInMemoryHubStore()
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -149,7 +149,7 @@ func TestInMemoryHubStore_Get(t *testing.T) {
 
 func TestInMemoryHubStore_List(t *testing.T) {
 	store := NewInMemoryHubStore()
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -214,7 +214,7 @@ func TestInMemoryHubStore_List(t *testing.T) {
 
 func TestInMemoryHubStore_Delete(t *testing.T) {
 	store := NewInMemoryHubStore()
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 
@@ -291,7 +291,7 @@ func TestInMemoryHubStore_Close(t *testing.T) {
 
 func TestInMemoryHubStore_ConcurrentAccess(t *testing.T) {
 	store := NewInMemoryHubStore()
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 

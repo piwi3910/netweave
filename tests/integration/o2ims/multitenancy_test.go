@@ -128,7 +128,7 @@ func TestMultiTenancy_TenantIsolation(t *testing.T) {
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
@@ -152,7 +152,7 @@ func TestMultiTenancy_TenantIsolation(t *testing.T) {
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
@@ -179,7 +179,7 @@ func TestMultiTenancy_TenantIsolation(t *testing.T) {
 
 		resp2, err := client.Do(req2)
 		require.NoError(t, err)
-		defer resp2.Body.Close()
+		defer func() { _ = resp2.Body.Close() }()
 
 		// Should get 404 (resource not found from tenant2's perspective)
 		assert.Equal(t, http.StatusNotFound, resp2.StatusCode)
@@ -205,7 +205,7 @@ func TestMultiTenancy_TenantIsolation(t *testing.T) {
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
@@ -222,7 +222,7 @@ func TestMultiTenancy_TenantIsolation(t *testing.T) {
 		client2 := &http.Client{}
 		resp2, err := client2.Do(req2)
 		require.NoError(t, err)
-		defer resp2.Body.Close()
+		defer func() { _ = resp2.Body.Close() }()
 
 		body, err := io.ReadAll(resp2.Body)
 		require.NoError(t, err)
@@ -328,7 +328,7 @@ func TestMultiTenancy_QuotaEnforcement(t *testing.T) {
 			client := &http.Client{}
 			resp, err := client.Do(req)
 			require.NoError(t, err)
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 
 			assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
@@ -358,7 +358,7 @@ func TestMultiTenancy_QuotaEnforcement(t *testing.T) {
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		// Should get 429 Too Many Requests
 		assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
@@ -386,7 +386,7 @@ func TestMultiTenancy_QuotaEnforcement(t *testing.T) {
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 
@@ -408,7 +408,7 @@ func TestMultiTenancy_QuotaEnforcement(t *testing.T) {
 		client3 := &http.Client{}
 		resp2, err := client3.Do(req2)
 		require.NoError(t, err)
-		defer resp2.Body.Close()
+		defer func() { _ = resp2.Body.Close() }()
 
 		assert.Equal(t, http.StatusCreated, resp2.StatusCode)
 	})
@@ -502,7 +502,7 @@ func TestMultiTenancy_AuditLogging(t *testing.T) {
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		require.Equal(t, http.StatusCreated, resp.StatusCode)
 

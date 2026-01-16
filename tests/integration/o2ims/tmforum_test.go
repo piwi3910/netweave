@@ -432,7 +432,7 @@ func TestTMForumResponseHeaders(t *testing.T) {
 			client := helpers.NewTestHTTPClient()
 			resp, err := client.Do(req)
 			require.NoError(t, err)
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 
 			// Verify JSON content type
 			contentType := resp.Header.Get("Content-Type")

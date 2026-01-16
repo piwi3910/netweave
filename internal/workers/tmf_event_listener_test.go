@@ -28,7 +28,7 @@ func TestNewTMFEventListener(t *testing.T) {
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: mockRedis.Addr(),
 	})
-	defer redisClient.Close()
+	defer func() { _ = redisClient.Close() }()
 
 	hubStore := storage.NewInMemoryHubStore()
 	publisher := NewTMFEventPublisher(logger, nil)
@@ -139,7 +139,7 @@ func TestTMFEventListener_ProcessMessage(t *testing.T) {
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: mockRedis.Addr(),
 	})
-	defer redisClient.Close()
+	defer func() { _ = redisClient.Close() }()
 
 	hubStore := storage.NewInMemoryHubStore()
 	publisher := NewTMFEventPublisher(logger, nil)
@@ -580,7 +580,7 @@ func TestTMFEventListener_EnsureConsumerGroup(t *testing.T) {
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: mockRedis.Addr(),
 	})
-	defer redisClient.Close()
+	defer func() { _ = redisClient.Close() }()
 
 	hubStore := storage.NewInMemoryHubStore()
 	publisher := NewTMFEventPublisher(logger, nil)
@@ -618,7 +618,7 @@ func TestTMFEventListener_AcknowledgeMessage(t *testing.T) {
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: mockRedis.Addr(),
 	})
-	defer redisClient.Close()
+	defer func() { _ = redisClient.Close() }()
 
 	hubStore := storage.NewInMemoryHubStore()
 	publisher := NewTMFEventPublisher(logger, nil)
