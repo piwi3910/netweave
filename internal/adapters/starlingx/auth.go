@@ -29,7 +29,10 @@ type AuthClient struct {
 }
 
 // NewAuthClient creates a new Keystone authentication client.
-func NewAuthClient(keystoneEndpoint, username, password, projectName, domainName string, logger *zap.Logger) *AuthClient {
+func NewAuthClient(
+	keystoneEndpoint, username, password, projectName, domainName string,
+	logger *zap.Logger,
+) *AuthClient {
 	return &AuthClient{
 		keystoneEndpoint: keystoneEndpoint,
 		username:         username,

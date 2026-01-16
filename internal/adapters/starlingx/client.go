@@ -61,7 +61,12 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 	return c.unmarshalResult(respBody, result)
 }
 
-func (c *Client) buildRequest(ctx context.Context, method, path string, body interface{}, token string) (*http.Request, error) {
+func (c *Client) buildRequest(
+	ctx context.Context,
+	method, path string,
+	body interface{},
+	token string,
+) (*http.Request, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		bodyBytes, err := json.Marshal(body)
