@@ -907,7 +907,7 @@ func TestSMOV2Routes(t *testing.T) {
 	_ = v3
 
 	// Test v2 features endpoint
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/o2smo/v2/features", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v2/features", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -919,7 +919,7 @@ func TestSMOV2Routes(t *testing.T) {
 	assert.Contains(t, response, "newFeatures")
 
 	// Test that v2 includes v1 routes (plugins list)
-	req, _ = http.NewRequestWithContext(context.Background(), "GET", "/o2smo/v2/plugins", nil)
+	req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v2/plugins", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -956,7 +956,7 @@ func TestSMOV3Routes(t *testing.T) {
 	_ = v2
 
 	// Test v3 features endpoint
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/o2smo/v3/features", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v3/features", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -968,7 +968,7 @@ func TestSMOV3Routes(t *testing.T) {
 	assert.Contains(t, response, "newFeatures")
 
 	// Test that v3 includes v1 routes (plugins list)
-	req, _ = http.NewRequestWithContext(context.Background(), "GET", "/o2smo/v3/plugins", nil)
+	req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v3/plugins", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)

@@ -43,7 +43,7 @@ func NewTMForumHandler(
 // ========================================
 
 // ListTMF639Resources lists all TMF639 resources (maps to O2-IMS Resource Pools + Resources).
-// GET /tmf-api/resourceInventoryManagement/v4/resource
+// GET /tmf-api/resourceInventoryManagement/v4/resource.
 func (h *TMForumHandler) ListTMF639Resources(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -98,7 +98,7 @@ func (h *TMForumHandler) ListTMF639Resources(c *gin.Context) {
 }
 
 // GetTMF639Resource retrieves a single TMF639 resource by ID.
-// GET /tmf-api/resourceInventoryManagement/v4/resource/:id
+// GET /tmf-api/resourceInventoryManagement/v4/resource/:id.
 func (h *TMForumHandler) GetTMF639Resource(c *gin.Context) {
 	ctx := c.Request.Context()
 	resourceID := c.Param("id")
@@ -140,7 +140,7 @@ func (h *TMForumHandler) GetTMF639Resource(c *gin.Context) {
 }
 
 // CreateTMF639Resource creates a new TMF639 resource.
-// POST /tmf-api/resourceInventoryManagement/v4/resource
+// POST /tmf-api/resourceInventoryManagement/v4/resource.
 func (h *TMForumHandler) CreateTMF639Resource(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -215,7 +215,7 @@ func (h *TMForumHandler) CreateTMF639Resource(c *gin.Context) {
 }
 
 // UpdateTMF639Resource updates an existing TMF639 resource (PATCH).
-// PATCH /tmf-api/resourceInventoryManagement/v4/resource/:id
+// PATCH /tmf-api/resourceInventoryManagement/v4/resource/:id.
 func (h *TMForumHandler) UpdateTMF639Resource(c *gin.Context) {
 	ctx := c.Request.Context()
 	resourceID := c.Param("id")
@@ -262,7 +262,7 @@ func (h *TMForumHandler) UpdateTMF639Resource(c *gin.Context) {
 }
 
 // DeleteTMF639Resource deletes a TMF639 resource.
-// DELETE /tmf-api/resourceInventoryManagement/v4/resource/:id
+// DELETE /tmf-api/resourceInventoryManagement/v4/resource/:id.
 func (h *TMForumHandler) DeleteTMF639Resource(c *gin.Context) {
 	ctx := c.Request.Context()
 	resourceID := c.Param("id")
@@ -304,7 +304,7 @@ func (h *TMForumHandler) DeleteTMF639Resource(c *gin.Context) {
 // ========================================
 
 // ListTMF638Services lists all TMF638 services (maps to O2-DMS Deployments).
-// GET /tmf-api/serviceInventoryManagement/v4/service
+// GET /tmf-api/serviceInventoryManagement/v4/service.
 func (h *TMForumHandler) ListTMF638Services(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -334,7 +334,7 @@ func (h *TMForumHandler) ListTMF638Services(c *gin.Context) {
 }
 
 // GetTMF638Service retrieves a single TMF638 service by ID.
-// GET /tmf-api/serviceInventoryManagement/v4/service/:id
+// GET /tmf-api/serviceInventoryManagement/v4/service/:id.
 func (h *TMForumHandler) GetTMF638Service(c *gin.Context) {
 	ctx := c.Request.Context()
 	serviceID := c.Param("id")
@@ -359,7 +359,7 @@ func (h *TMForumHandler) GetTMF638Service(c *gin.Context) {
 }
 
 // CreateTMF638Service creates a new TMF638 service (deploys via O2-DMS).
-// POST /tmf-api/serviceInventoryManagement/v4/service
+// POST /tmf-api/serviceInventoryManagement/v4/service.
 func (h *TMForumHandler) CreateTMF638Service(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -405,7 +405,7 @@ func (h *TMForumHandler) CreateTMF638Service(c *gin.Context) {
 }
 
 // UpdateTMF638Service updates an existing TMF638 service (PATCH).
-// PATCH /tmf-api/serviceInventoryManagement/v4/service/:id
+// PATCH /tmf-api/serviceInventoryManagement/v4/service/:id.
 func (h *TMForumHandler) UpdateTMF638Service(c *gin.Context) {
 	ctx := c.Request.Context()
 	serviceID := c.Param("id")
@@ -447,7 +447,7 @@ func (h *TMForumHandler) UpdateTMF638Service(c *gin.Context) {
 }
 
 // DeleteTMF638Service deletes a TMF638 service (undeploys via O2-DMS).
-// DELETE /tmf-api/serviceInventoryManagement/v4/service/:id
+// DELETE /tmf-api/serviceInventoryManagement/v4/service/:id.
 func (h *TMForumHandler) DeleteTMF638Service(c *gin.Context) {
 	ctx := c.Request.Context()
 	serviceID := c.Param("id")
@@ -473,7 +473,7 @@ func (h *TMForumHandler) DeleteTMF638Service(c *gin.Context) {
 // ========================================
 
 // ListTMF641ServiceOrders lists all TMF641 service orders.
-// GET /tmf-api/serviceOrdering/v4/serviceOrder
+// GET /tmf-api/serviceOrdering/v4/serviceOrder.
 func (h *TMForumHandler) ListTMF641ServiceOrders(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -516,7 +516,7 @@ func (h *TMForumHandler) ListTMF641ServiceOrders(c *gin.Context) {
 }
 
 // GetTMF641ServiceOrder retrieves a single TMF641 service order by ID.
-// GET /tmf-api/serviceOrdering/v4/serviceOrder/:id
+// GET /tmf-api/serviceOrdering/v4/serviceOrder/:id.
 func (h *TMForumHandler) GetTMF641ServiceOrder(c *gin.Context) {
 	ctx := c.Request.Context()
 	orderID := c.Param("id")
@@ -541,7 +541,7 @@ func (h *TMForumHandler) GetTMF641ServiceOrder(c *gin.Context) {
 }
 
 // CreateTMF641ServiceOrder creates a new TMF641 service order.
-// POST /tmf-api/serviceOrdering/v4/serviceOrder
+// POST /tmf-api/serviceOrdering/v4/serviceOrder.
 func (h *TMForumHandler) CreateTMF641ServiceOrder(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -599,7 +599,7 @@ func (h *TMForumHandler) CreateTMF641ServiceOrder(c *gin.Context) {
 }
 
 // UpdateTMF641ServiceOrder updates an existing TMF641 service order (PATCH).
-// PATCH /tmf-api/serviceOrdering/v4/serviceOrder/:id
+// PATCH /tmf-api/serviceOrdering/v4/serviceOrder/:id.
 func (h *TMForumHandler) UpdateTMF641ServiceOrder(c *gin.Context) {
 	ctx := c.Request.Context()
 	orderID := c.Param("id")
@@ -639,7 +639,7 @@ func (h *TMForumHandler) UpdateTMF641ServiceOrder(c *gin.Context) {
 }
 
 // DeleteTMF641ServiceOrder deletes (cancels) a TMF641 service order.
-// DELETE /tmf-api/serviceOrdering/v4/serviceOrder/:id
+// DELETE /tmf-api/serviceOrdering/v4/serviceOrder/:id.
 func (h *TMForumHandler) DeleteTMF641ServiceOrder(c *gin.Context) {
 	ctx := c.Request.Context()
 	orderID := c.Param("id")
@@ -665,7 +665,7 @@ func (h *TMForumHandler) DeleteTMF641ServiceOrder(c *gin.Context) {
 // ========================================
 
 // ListTMF688Events lists all TMF688 events.
-// GET /tmf-api/eventManagement/v4/event
+// GET /tmf-api/eventManagement/v4/event.
 func (h *TMForumHandler) ListTMF688Events(c *gin.Context) {
 	// Events are typically not stored but generated on-demand
 	// This could list recent events from a cache or event store
@@ -674,7 +674,7 @@ func (h *TMForumHandler) ListTMF688Events(c *gin.Context) {
 }
 
 // GetTMF688Event retrieves a single TMF688 event by ID.
-// GET /tmf-api/eventManagement/v4/event/:id
+// GET /tmf-api/eventManagement/v4/event/:id.
 func (h *TMForumHandler) GetTMF688Event(c *gin.Context) {
 	eventID := c.Param("id")
 
@@ -686,7 +686,7 @@ func (h *TMForumHandler) GetTMF688Event(c *gin.Context) {
 }
 
 // CreateTMF688Event creates a new TMF688 event (typically for testing).
-// POST /tmf-api/eventManagement/v4/event
+// POST /tmf-api/eventManagement/v4/event.
 func (h *TMForumHandler) CreateTMF688Event(c *gin.Context) {
 	var createReq models.TMF688EventCreate
 	if err := c.ShouldBindJSON(&createReq); err != nil {
@@ -706,7 +706,7 @@ func (h *TMForumHandler) CreateTMF688Event(c *gin.Context) {
 }
 
 // RegisterTMF688Hub registers a hub for event notifications.
-// POST /tmf-api/eventManagement/v4/hub
+// POST /tmf-api/eventManagement/v4/hub.
 func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -801,7 +801,7 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 }
 
 // UnregisterTMF688Hub unregisters a hub.
-// DELETE /tmf-api/eventManagement/v4/hub/:id
+// DELETE /tmf-api/eventManagement/v4/hub/:id.
 func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
 	ctx := c.Request.Context()
 	hubID := c.Param("id")
@@ -859,7 +859,7 @@ func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
 // ========================================
 
 // ListTMF642Alarms lists all TMF642 alarms.
-// GET /tmf-api/alarmManagement/v4/alarm
+// GET /tmf-api/alarmManagement/v4/alarm.
 func (h *TMForumHandler) ListTMF642Alarms(c *gin.Context) {
 	// Query parameters for filtering
 	severity := c.Query("perceivedSeverity")
@@ -877,7 +877,7 @@ func (h *TMForumHandler) ListTMF642Alarms(c *gin.Context) {
 }
 
 // GetTMF642Alarm retrieves a single TMF642 alarm by ID.
-// GET /tmf-api/alarmManagement/v4/alarm/:id
+// GET /tmf-api/alarmManagement/v4/alarm/:id.
 func (h *TMForumHandler) GetTMF642Alarm(c *gin.Context) {
 	alarmID := c.Param("id")
 
@@ -889,7 +889,7 @@ func (h *TMForumHandler) GetTMF642Alarm(c *gin.Context) {
 }
 
 // AcknowledgeTMF642Alarm acknowledges an alarm.
-// PATCH /tmf-api/alarmManagement/v4/alarm/:id
+// PATCH /tmf-api/alarmManagement/v4/alarm/:id.
 func (h *TMForumHandler) AcknowledgeTMF642Alarm(c *gin.Context) {
 	alarmID := c.Param("id")
 
@@ -916,7 +916,7 @@ func (h *TMForumHandler) AcknowledgeTMF642Alarm(c *gin.Context) {
 }
 
 // ClearTMF642Alarm clears an alarm.
-// DELETE /tmf-api/alarmManagement/v4/alarm/:id
+// DELETE /tmf-api/alarmManagement/v4/alarm/:id.
 func (h *TMForumHandler) ClearTMF642Alarm(c *gin.Context) {
 	alarmID := c.Param("id")
 
@@ -932,7 +932,7 @@ func (h *TMForumHandler) ClearTMF642Alarm(c *gin.Context) {
 // ========================================
 
 // ListTMF640ServiceActivations lists all service activation requests.
-// GET /tmf-api/serviceActivation/v4/serviceActivation
+// GET /tmf-api/serviceActivation/v4/serviceActivation.
 func (h *TMForumHandler) ListTMF640ServiceActivations(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -962,7 +962,7 @@ func (h *TMForumHandler) ListTMF640ServiceActivations(c *gin.Context) {
 }
 
 // GetTMF640ServiceActivation retrieves a single service activation by ID.
-// GET /tmf-api/serviceActivation/v4/serviceActivation/:id
+// GET /tmf-api/serviceActivation/v4/serviceActivation/:id.
 func (h *TMForumHandler) GetTMF640ServiceActivation(c *gin.Context) {
 	ctx := c.Request.Context()
 	activationID := c.Param("id")
@@ -987,7 +987,7 @@ func (h *TMForumHandler) GetTMF640ServiceActivation(c *gin.Context) {
 }
 
 // CreateTMF640ServiceActivation creates a new service activation request.
-// POST /tmf-api/serviceActivation/v4/serviceActivation
+// POST /tmf-api/serviceActivation/v4/serviceActivation.
 func (h *TMForumHandler) CreateTMF640ServiceActivation(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{
 		"error":   "NotImplemented",
@@ -1000,7 +1000,7 @@ func (h *TMForumHandler) CreateTMF640ServiceActivation(c *gin.Context) {
 // ========================================
 
 // ListTMF620ProductOfferings lists all product offerings.
-// GET /tmf-api/productCatalog/v4/productOffering
+// GET /tmf-api/productCatalog/v4/productOffering.
 func (h *TMForumHandler) ListTMF620ProductOfferings(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -1030,7 +1030,7 @@ func (h *TMForumHandler) ListTMF620ProductOfferings(c *gin.Context) {
 }
 
 // GetTMF620ProductOffering retrieves a single product offering by ID.
-// GET /tmf-api/productCatalog/v4/productOffering/:id
+// GET /tmf-api/productCatalog/v4/productOffering/:id.
 func (h *TMForumHandler) GetTMF620ProductOffering(c *gin.Context) {
 	ctx := c.Request.Context()
 	offeringID := c.Param("id")

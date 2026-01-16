@@ -426,7 +426,7 @@ func TestTMForumResponseHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := http.NewRequestWithContext(context.Background(), "GET", tt.url, nil)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, tt.url, nil)
 			require.NoError(t, err)
 
 			client := helpers.NewTestHTTPClient()
