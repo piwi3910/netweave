@@ -68,16 +68,16 @@ func ParseTMF688Query(query string) (*imsadapter.SubscriptionFilter, error) {
 // isValidTMF688EventType checks if an event type is recognized
 func isValidTMF688EventType(eventType string) bool {
 	validTypes := map[string]bool{
-		"ResourceCreationNotification":          true,
-		"ResourceStateChangeNotification":       true,
-		"ResourceRemoveNotification":            true,
+		"ResourceCreationNotification":             true,
+		"ResourceStateChangeNotification":          true,
+		"ResourceRemoveNotification":               true,
 		"ResourceAttributeValueChangeNotification": true,
-		"ServiceOrderStateChangeEvent":          true,
-		"ServiceOrderCreationNotification":      true,
-		"ServiceOrderStateChangeNotification":   true,
-		"AlarmCreatedNotification":              true,
-		"AlarmStateChangeNotification":          true,
-		"AlarmClearedNotification":              true,
+		"ServiceOrderStateChangeEvent":             true,
+		"ServiceOrderCreationNotification":         true,
+		"ServiceOrderStateChangeNotification":      true,
+		"AlarmCreatedNotification":                 true,
+		"AlarmStateChangeNotification":             true,
+		"AlarmClearedNotification":                 true,
 	}
 	return validTypes[eventType]
 }

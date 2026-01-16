@@ -16,9 +16,9 @@ func TestTransformResourceEventToTMF688(t *testing.T) {
 	timestamp := time.Now()
 
 	tests := []struct {
-		name      string
-		event     *controllers.ResourceEvent
-		wantType  string
+		name       string
+		event      *controllers.ResourceEvent
+		wantType   string
 		wantDomain string
 	}{
 		{

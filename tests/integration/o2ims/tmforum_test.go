@@ -649,10 +649,10 @@ func TestTMF640ServiceActivationIntegration(t *testing.T) {
 
 		// Verify state values are valid
 		validStates := map[string]bool{
-			"pending":     true,
-			"inProgress":  true,
-			"activated":   true,
-			"failed":      true,
+			"pending":    true,
+			"inProgress": true,
+			"activated":  true,
+			"failed":     true,
 		}
 
 		for _, activation := range activations {

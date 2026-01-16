@@ -664,6 +664,7 @@ func generateDeploymentName(order *models.TMF641ServiceOrderCreate, item *models
 	}
 	return fmt.Sprintf("order-%d", time.Now().Unix())
 }
+
 // ========================================
 // TMF688 Event Transformation
 // ========================================
