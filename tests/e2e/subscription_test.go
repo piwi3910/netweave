@@ -421,6 +421,96 @@ func TestSubscriptionFiltering(t *testing.T) {
 }
 
 // TestConcurrentSubscriptions tests multiple concurrent subscriptions.
+// createConcurrentSubscription creates a single subscription in a goroutine-safe manner.
+func createConcurrentSubscription(
+	t *testing.T,
+	fw *e2e.TestFramework,
+	idx int,
+	webhooks []*e2e.WebhookServer,
+	subscriptionIDs []string,
+	errors *[]error,
+	mu *sync.Mutex,
+) {
+	t.Helper()
+	// Create webhook server
+	webhook := e2e.NewWebhookServer(fw.Logger.Named(fmt.Sprintf("webhook%d", idx)))
+	if err := webhook.Start(); err != nil {
+		_ = webhook.Stop()
+		mu.Lock()
+		*errors = append(*errors, fmt.Errorf("failed to start webhook%d: %w", idx, err))
+		mu.Unlock()
+		return
+	}
+
+	mu.Lock()
+	webhooks[idx] = webhook
+	mu.Unlock()
+
+	subID, err := createSubscriptionRequest(t, fw, idx, webhook.URL())
+	if err != nil {
+		mu.Lock()
+		*errors = append(*errors, err)
+		mu.Unlock()
+		return
+	}
+
+	mu.Lock()
+	subscriptionIDs[idx] = subID
+	mu.Unlock()
+
+	fw.Logger.Info("Created subscription",
+		zap.Int("index", idx),
+		zap.String("subscriptionId", subID),
+	)
+}
+
+// createSubscriptionRequest makes an HTTP request to create a subscription.
+func createSubscriptionRequest(t *testing.T, fw *e2e.TestFramework, idx int, callbackURL string) (string, error) {
+	t.Helper()
+	subscription := map[string]any{
+		"callback":               callbackURL,
+		"consumerSubscriptionId": fmt.Sprintf("concurrent-sub-%d", idx),
+		"filter":                 "(resourceType==Node)",
+	}
+
+	reqBody, err := json.Marshal(subscription)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal subscription%d: %w", idx, err)
+	}
+
+	url := fw.GatewayURL + e2e.APIPathSubscriptions
+	resp, err := httpPost(fw.Context, fw.APIClient, url, "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		return "", fmt.Errorf("failed to create subscription%d: %w", idx, err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("Failed to close response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusCreated {
+		return "", fmt.Errorf("subscription%d got status %d", idx, resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read subscription%d response: %w", idx, err)
+	}
+
+	var createdSub map[string]any
+	if err := json.Unmarshal(body, &createdSub); err != nil {
+		return "", fmt.Errorf("failed to unmarshal subscription%d response: %w", idx, err)
+	}
+
+	subID, ok := createdSub["subscriptionId"].(string)
+	if !ok || subID == "" {
+		return "", fmt.Errorf("subscription%d: invalid subscriptionId", idx)
+	}
+
+	return subID, nil
+}
+
 func TestConcurrentSubscriptions(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E test in short mode")
@@ -434,7 +524,6 @@ func TestConcurrentSubscriptions(t *testing.T) {
 	webhooks := make([]*e2e.WebhookServer, numSubscriptions)
 	subscriptionIDs := make([]string, numSubscriptions)
 
-	// Create multiple subscriptions concurrently
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	errors := make([]error, 0, numSubscriptions)
@@ -443,105 +532,18 @@ func TestConcurrentSubscriptions(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-
-			// Create webhook server
-			webhook := e2e.NewWebhookServer(fw.Logger.Named(fmt.Sprintf("webhook%d", idx)))
-			if err := webhook.Start(); err != nil {
-				// Cleanup webhook even on failure to prevent resource leak
-				_ = webhook.Stop()
-				mu.Lock()
-				errors = append(errors, fmt.Errorf("failed to start webhook%d: %w", idx, err))
-				mu.Unlock()
-				return
-			}
-
-			// Thread-safe write to shared webhooks slice
-			mu.Lock()
-			webhooks[idx] = webhook
-			mu.Unlock()
-
-			// Create subscription
-			subscription := map[string]any{
-				"callback":               webhook.URL(),
-				"consumerSubscriptionId": fmt.Sprintf("concurrent-sub-%d", idx),
-				"filter":                 "(resourceType==Node)",
-			}
-
-			reqBody, err := json.Marshal(subscription)
-			if err != nil {
-				mu.Lock()
-				errors = append(errors, fmt.Errorf("failed to marshal subscription%d: %w", idx, err))
-				mu.Unlock()
-				return
-			}
-
-			url := fw.GatewayURL + e2e.APIPathSubscriptions
-			resp, err := httpPost(fw.Context, fw.APIClient, url, "application/json", bytes.NewReader(reqBody))
-			if err != nil {
-				mu.Lock()
-				errors = append(errors, fmt.Errorf("failed to create subscription%d: %w", idx, err))
-				mu.Unlock()
-				return
-			}
-			defer func() {
-				if err := resp.Body.Close(); err != nil {
-					t.Logf("Failed to close response body: %v", err)
-				}
-			}()
-
-			if resp.StatusCode != http.StatusCreated {
-				mu.Lock()
-				errors = append(errors, fmt.Errorf("subscription%d got status %d", idx, resp.StatusCode))
-				mu.Unlock()
-				return
-			}
-
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				mu.Lock()
-				errors = append(errors, fmt.Errorf("failed to read subscription%d response: %w", idx, err))
-				mu.Unlock()
-				return
-			}
-
-			var createdSub map[string]any
-			if err := json.Unmarshal(body, &createdSub); err != nil {
-				mu.Lock()
-				errors = append(errors, fmt.Errorf("failed to unmarshal subscription%d response: %w", idx, err))
-				mu.Unlock()
-				return
-			}
-
-			subID, ok := createdSub["subscriptionId"].(string)
-			if !ok || subID == "" {
-				mu.Lock()
-				errors = append(errors, fmt.Errorf("subscription%d: invalid subscriptionId", idx))
-				mu.Unlock()
-				return
-			}
-
-			mu.Lock()
-			subscriptionIDs[idx] = subID
-			mu.Unlock()
-
-			fw.Logger.Info("Created subscription",
-				zap.Int("index", idx),
-				zap.String("subscriptionId", subID),
-			)
+			createConcurrentSubscription(t, fw, idx, webhooks, subscriptionIDs, &errors, &mu)
 		}(i)
 	}
 
 	wg.Wait()
 
-	// Check for errors
 	require.Empty(t, errors, "Errors during concurrent subscription creation: %v", errors)
 
-	// Verify all subscriptions were created
 	for i, subID := range subscriptionIDs {
 		assert.NotEmpty(t, subID, "Subscription %d ID is empty", i)
 	}
 
-	// Cleanup webhooks
 	for i, webhook := range webhooks {
 		if webhook != nil {
 			if err := webhook.Stop(); err != nil {
