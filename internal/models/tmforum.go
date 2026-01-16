@@ -892,3 +892,195 @@ type TMF688HubCreate struct {
 	// AtType is the class type
 	AtType string `json:"@type,omitempty"`
 }
+
+// ========================================
+// TMF642 - Alarm Management
+// ========================================
+
+// TMF642Alarm represents an alarm in the TMForum Alarm Management API.
+type TMF642Alarm struct {
+	// ID is the unique identifier of the alarm
+	ID string `json:"id,omitempty"`
+
+	// Href is the hyperlink to the alarm
+	Href string `json:"href,omitempty"`
+
+	// AlarmType is the type of alarm
+	AlarmType string `json:"alarmType" binding:"required"`
+
+	// PerceivedSeverity is the severity of the alarm
+	PerceivedSeverity string `json:"perceivedSeverity" binding:"required"`
+
+	// ProbableCause is the probable cause of the alarm
+	ProbableCause string `json:"probableCause,omitempty"`
+
+	// SpecificProblem provides additional details
+	SpecificProblem string `json:"specificProblem,omitempty"`
+
+	// AlarmRaisedTime is when the alarm was raised
+	AlarmRaisedTime *time.Time `json:"alarmRaisedTime,omitempty"`
+
+	// AlarmClearedTime is when the alarm was cleared
+	AlarmClearedTime *time.Time `json:"alarmClearedTime,omitempty"`
+
+	// State is the current state of the alarm
+	State string `json:"state,omitempty"`
+
+	// AffectedService references the affected service
+	AffectedService []TMF638ServiceRef `json:"affectedService,omitempty"`
+
+	// AlarmAffectedResource references affected resources
+	AlarmAffectedResource []AffectedResourceRef `json:"alarmAffectedResource,omitempty"`
+
+	// AtBaseType is the base type when sub-classing
+	AtBaseType string `json:"@baseType,omitempty"`
+
+	// AtSchemaLocation provides a link to the schema
+	AtSchemaLocation string `json:"@schemaLocation,omitempty"`
+
+	// AtType is the class type
+	AtType string `json:"@type,omitempty"`
+}
+
+// AffectedResourceRef represents a reference to an affected resource.
+type AffectedResourceRef struct {
+	// ID is the unique identifier
+	ID string `json:"id" binding:"required"`
+
+	// Href is the reference
+	Href string `json:"href,omitempty"`
+
+	// Name is the name of the resource
+	Name string `json:"name,omitempty"`
+
+	// AtReferredType is the type of the referenced entity
+	AtReferredType string `json:"@referredType,omitempty"`
+}
+
+// ========================================
+// TMF640 - Service Activation and Configuration
+// ========================================
+
+// TMF640ServiceActivation represents a service activation request.
+type TMF640ServiceActivation struct {
+	// ID is the unique identifier
+	ID string `json:"id,omitempty"`
+
+	// Href is the hyperlink
+	Href string `json:"href,omitempty"`
+
+	// Service references the service to activate
+	Service *TMF638ServiceRef `json:"service" binding:"required"`
+
+	// State is the activation state
+	State string `json:"state,omitempty"`
+
+	// Mode is the activation mode
+	Mode string `json:"mode,omitempty"`
+
+	// RequestedActivationDate is when activation is requested
+	RequestedActivationDate *time.Time `json:"requestedActivationDate,omitempty"`
+
+	// ActualActivationDate is when activation occurred
+	ActualActivationDate *time.Time `json:"actualActivationDate,omitempty"`
+
+	// AtBaseType is the base type when sub-classing
+	AtBaseType string `json:"@baseType,omitempty"`
+
+	// AtSchemaLocation provides a link to the schema
+	AtSchemaLocation string `json:"@schemaLocation,omitempty"`
+
+	// AtType is the class type
+	AtType string `json:"@type,omitempty"`
+}
+
+// ========================================
+// TMF620 - Product Catalog Management
+// ========================================
+
+// TMF620ProductOffering represents a product offering in the catalog.
+type TMF620ProductOffering struct {
+	// ID is the unique identifier
+	ID string `json:"id,omitempty"`
+
+	// Href is the hyperlink
+	Href string `json:"href,omitempty"`
+
+	// Name is the name of the offering
+	Name string `json:"name" binding:"required"`
+
+	// Description describes the offering
+	Description string `json:"description,omitempty"`
+
+	// Version is the version of the offering
+	Version string `json:"version,omitempty"`
+
+	// LifecycleStatus is the lifecycle status
+	LifecycleStatus string `json:"lifecycleStatus,omitempty"`
+
+	// IsBundle indicates if this is a bundle
+	IsBundle bool `json:"isBundle,omitempty"`
+
+	// ProductSpecification references the product specification
+	ProductSpecification *ProductSpecificationRef `json:"productSpecification,omitempty"`
+
+	// ProductOfferingPrice lists pricing options
+	ProductOfferingPrice []ProductOfferingPrice `json:"productOfferingPrice,omitempty"`
+
+	// ValidFor specifies the validity period
+	ValidFor *TimePeriod `json:"validFor,omitempty"`
+
+	// AtBaseType is the base type when sub-classing
+	AtBaseType string `json:"@baseType,omitempty"`
+
+	// AtSchemaLocation provides a link to the schema
+	AtSchemaLocation string `json:"@schemaLocation,omitempty"`
+
+	// AtType is the class type
+	AtType string `json:"@type,omitempty"`
+}
+
+// ProductSpecificationRef references a product specification.
+type ProductSpecificationRef struct {
+	// ID is the unique identifier
+	ID string `json:"id" binding:"required"`
+
+	// Href is the reference
+	Href string `json:"href,omitempty"`
+
+	// Name is the name
+	Name string `json:"name,omitempty"`
+
+	// Version is the version
+	Version string `json:"version,omitempty"`
+
+	// AtReferredType is the type of the referenced entity
+	AtReferredType string `json:"@referredType,omitempty"`
+}
+
+// ProductOfferingPrice represents pricing information.
+type ProductOfferingPrice struct {
+	// ID is the unique identifier
+	ID string `json:"id,omitempty"`
+
+	// Name is the name of the price
+	Name string `json:"name,omitempty"`
+
+	// Description describes the price
+	Description string `json:"description,omitempty"`
+
+	// PriceType is the type of price
+	PriceType string `json:"priceType,omitempty"`
+
+	// Price contains the actual price details
+	Price *Price `json:"price,omitempty"`
+}
+
+// Price represents a monetary amount.
+type Price struct {
+	// Unit is the currency unit
+	Unit string `json:"unit,omitempty"`
+
+	// Value is the price value
+	Value float64 `json:"value,omitempty"`
+}
