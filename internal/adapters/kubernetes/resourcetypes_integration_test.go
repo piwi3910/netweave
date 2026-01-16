@@ -28,7 +28,7 @@ func TestKubernetesAdapter_ListResourceTypes_Integration(t *testing.T) {
 	}
 
 	// Setup fake Kubernetes client with sample resources
-	client := fake.NewSimpleClientset(
+	client := fake.NewClientset(
 		// Node 1: Standard compute node
 		&corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{
@@ -156,7 +156,7 @@ func TestKubernetesAdapter_ResourceTypeFields_Integration(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	client := fake.NewSimpleClientset(
+	client := fake.NewClientset(
 		&corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-node",
@@ -199,7 +199,7 @@ func TestKubernetesAdapter_ResourceTypeConsistency_Integration(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	client := fake.NewSimpleClientset(
+	client := fake.NewClientset(
 		&corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{Name: "node-1"},
 			Status: corev1.NodeStatus{
