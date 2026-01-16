@@ -1,3 +1,4 @@
+// Package workers provides background workers for event processing and webhook delivery.
 package workers
 
 import (
@@ -67,7 +68,7 @@ func (p *TMFEventPublisher) PublishEvent(ctx context.Context, callback string, e
 	}
 
 	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", callback, bytes.NewBuffer(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, callback, bytes.NewBuffer(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -80,7 +81,11 @@ func (p *TMFEventPublisher) PublishEvent(ctx context.Context, callback string, e
 	if err != nil {
 		return fmt.Errorf("failed to send webhook: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			p.logger.Warn("failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
 	// Check response status
 	if resp.StatusCode >= 400 {
@@ -97,13 +102,19 @@ func (p *TMFEventPublisher) PublishEvent(ctx context.Context, callback string, e
 }
 
 // PublishEventWithRetry publishes a TMF688 event with exponential backoff retry logic.
-func (p *TMFEventPublisher) PublishEventWithRetry(ctx context.Context, callback string, event *models.TMF688Event, maxRetries int, retryDelay time.Duration) error {
+func (p *TMFEventPublisher) PublishEventWithRetry(
+	ctx context.Context,
+	callback string,
+	event *models.TMF688Event,
+	maxRetries int,
+	retryDelay time.Duration,
+) error {
 	var lastErr error
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		// Check if context is cancelled
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return fmt.Errorf("context cancelled: %w", ctx.Err())
 		}
 
 		// Try to publish
@@ -136,10 +147,18 @@ func (p *TMFEventPublisher) PublishEventWithRetry(ctx context.Context, callback 
 			zap.Error(err))
 
 		// Wait before retry with exponential backoff
-		delay := retryDelay * time.Duration(1<<uint(attempt))
+		// Calculate delay with overflow protection
+		var delay time.Duration
+		if attempt < 0 || attempt > 30 {
+			// Cap to prevent overflow: 2^30 is already very large
+			delay = retryDelay * time.Duration(1<<30)
+		} else {
+			// Safe: attempt is in [0, 30] range
+			delay = retryDelay * (1 << attempt)
+		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("context cancelled during retry: %w", ctx.Err())
 		case <-time.After(delay):
 			// Continue to next attempt
 		}
@@ -158,7 +177,13 @@ func (p *TMFEventPublisher) PublishEventWithRetry(ctx context.Context, callback 
 
 // PublishToMultipleHubs publishes an event to multiple hub callbacks concurrently.
 // It returns a map of callback URLs to errors (only includes failed deliveries).
-func (p *TMFEventPublisher) PublishToMultipleHubs(ctx context.Context, callbacks []string, event *models.TMF688Event, maxRetries int, retryDelay time.Duration) map[string]error {
+func (p *TMFEventPublisher) PublishToMultipleHubs(
+	ctx context.Context,
+	callbacks []string,
+	event *models.TMF688Event,
+	maxRetries int,
+	retryDelay time.Duration,
+) map[string]error {
 	type result struct {
 		callback string
 		err      error

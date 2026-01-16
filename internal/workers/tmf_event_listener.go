@@ -1,8 +1,10 @@
+// Package workers provides background workers for event processing and webhook delivery.
 package workers
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -171,7 +173,7 @@ func (l *TMFEventListener) consumeEvents(ctx context.Context) {
 			}).Result()
 
 			if err != nil {
-				if err == redis.Nil {
+				if errors.Is(err, redis.Nil) {
 					// No new messages, continue
 					continue
 				}
@@ -197,56 +199,92 @@ func (l *TMFEventListener) consumeEvents(ctx context.Context) {
 
 // processMessage processes a single event message.
 func (l *TMFEventListener) processMessage(ctx context.Context, message redis.XMessage) error {
-	// Extract event data
-	eventData, ok := message.Values["event"].(string)
-	if !ok {
-		return fmt.Errorf("invalid event data format")
-	}
-
-	// Parse event
-	var event controllers.ResourceEvent
-	if err := json.Unmarshal([]byte(eventData), &event); err != nil {
-		return fmt.Errorf("failed to unmarshal event: %w", err)
+	// Parse event from message
+	event, err := l.parseEvent(message)
+	if err != nil {
+		return err
 	}
 
 	l.logger.Debug("processing event",
 		zap.String("eventType", event.EventType),
 		zap.String("resourceId", event.GlobalResourceID))
 
-	// Get all registered hubs
+	// Find matching hubs for this event
+	matchingHubs, err := l.findMatchingHubs(ctx, event)
+	if err != nil {
+		return err
+	}
+
+	// If no matching hubs, acknowledge and return
+	if len(matchingHubs) == 0 {
+		l.logger.Debug("no matching hubs for event",
+			zap.String("resourceId", event.GlobalResourceID))
+		return l.acknowledgeMessage(ctx, message.ID)
+	}
+
+	// Publish event to matching hubs
+	if err := l.publishToHubs(ctx, event, matchingHubs); err != nil {
+		// Log error but still acknowledge message
+		l.logger.Error("failed to publish to some hubs", zap.Error(err))
+	}
+
+	// Acknowledge message
+	return l.acknowledgeMessage(ctx, message.ID)
+}
+
+// parseEvent extracts and parses the event from a Redis message.
+func (l *TMFEventListener) parseEvent(message redis.XMessage) (*controllers.ResourceEvent, error) {
+	eventData, ok := message.Values["event"].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid event data format")
+	}
+
+	var event controllers.ResourceEvent
+	if err := json.Unmarshal([]byte(eventData), &event); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal event: %w", err)
+	}
+
+	return &event, nil
+}
+
+// findMatchingHubs retrieves hubs and filters those matching the event.
+func (l *TMFEventListener) findMatchingHubs(
+	ctx context.Context,
+	event *controllers.ResourceEvent,
+) ([]*storage.HubRegistration, error) {
 	hubs, err := l.hubStore.List(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to list hubs: %w", err)
+		return nil, fmt.Errorf("failed to list hubs: %w", err)
 	}
 
 	if len(hubs) == 0 {
 		l.logger.Debug("no hubs registered, skipping event")
-		// Acknowledge message even though no hubs
-		return l.acknowledgeMessage(ctx, message.ID)
+		return nil, nil
 	}
 
-	// Filter hubs that should receive this event
 	matchingHubs := make([]*storage.HubRegistration, 0)
 	for _, hub := range hubs {
-		if handlers.ShouldPublishEventToHub(&event, hub) {
+		if handlers.ShouldPublishEventToHub(event, hub) {
 			matchingHubs = append(matchingHubs, hub)
 		}
 	}
 
-	if len(matchingHubs) == 0 {
-		l.logger.Debug("no matching hubs for event",
-			zap.String("resourceId", event.GlobalResourceID))
-		// Acknowledge message even though no matching hubs
-		return l.acknowledgeMessage(ctx, message.ID)
-	}
+	return matchingHubs, nil
+}
 
+// publishToHubs transforms and publishes an event to matching hubs.
+func (l *TMFEventListener) publishToHubs(
+	ctx context.Context,
+	event *controllers.ResourceEvent,
+	matchingHubs []*storage.HubRegistration,
+) error {
 	l.logger.Info("publishing event to matching hubs",
 		zap.String("eventType", event.EventType),
 		zap.String("resourceId", event.GlobalResourceID),
 		zap.Int("hubCount", len(matchingHubs)))
 
 	// Transform event to TMF688 format
-	tmfEvent := handlers.TransformResourceEventToTMF688(&event, l.baseURL)
+	tmfEvent := handlers.TransformResourceEventToTMF688(event, l.baseURL)
 
 	// Collect callback URLs
 	callbacks := make([]string, len(matchingHubs))
@@ -257,27 +295,37 @@ func (l *TMFEventListener) processMessage(ctx context.Context, message redis.XMe
 	// Publish to all matching hubs concurrently
 	errors := l.publisher.PublishToMultipleHubs(ctx, callbacks, tmfEvent, tmfMaxRetries, tmfRetryDelay)
 
-	// Log any publishing errors
+	// Log results
+	l.logPublishResults(tmfEvent.ID, matchingHubs, errors)
+
 	if len(errors) > 0 {
-		for callback, err := range errors {
-			l.logger.Error("failed to publish to hub",
-				zap.String("callback", callback),
-				zap.Error(err))
-		}
-		// Don't return error - we still want to acknowledge the message
+		return fmt.Errorf("failed to publish to %d hubs", len(errors))
+	}
+
+	return nil
+}
+
+// logPublishResults logs the results of publishing to hubs.
+func (l *TMFEventListener) logPublishResults(
+	eventID string,
+	matchingHubs []*storage.HubRegistration,
+	errors map[string]error,
+) {
+	// Log any publishing errors
+	for callback, err := range errors {
+		l.logger.Error("failed to publish to hub",
+			zap.String("callback", callback),
+			zap.Error(err))
 	}
 
 	// Log successful deliveries
 	successCount := len(matchingHubs) - len(errors)
 	if successCount > 0 {
 		l.logger.Info("event published successfully",
-			zap.String("eventId", tmfEvent.ID),
+			zap.String("eventId", eventID),
 			zap.Int("successCount", successCount),
 			zap.Int("failureCount", len(errors)))
 	}
-
-	// Acknowledge message
-	return l.acknowledgeMessage(ctx, message.ID)
 }
 
 // acknowledgeMessage acknowledges a message in the Redis Stream.
