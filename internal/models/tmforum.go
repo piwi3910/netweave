@@ -499,7 +499,7 @@ type TMF641ServiceOrder struct {
 	Href string `json:"href,omitempty"`
 
 	// ExternalId is an external identifier for the order
-	ExternalId string `json:"externalId,omitempty"`
+	ExternalID string `json:"externalId,omitempty"`
 
 	// Priority defines the priority of the order (1-4, 1 being highest)
 	Priority string `json:"priority,omitempty"`
@@ -556,7 +556,7 @@ type TMF641ServiceOrder struct {
 // TMF641ServiceOrderCreate represents the request to create a new service order.
 type TMF641ServiceOrderCreate struct {
 	// ExternalId is an external identifier for the order
-	ExternalId string `json:"externalId,omitempty"`
+	ExternalID string `json:"externalId,omitempty"`
 
 	// Priority defines the priority of the order
 	Priority string `json:"priority,omitempty"`
@@ -598,7 +598,7 @@ type TMF641ServiceOrderCreate struct {
 // TMF641ServiceOrderUpdate represents an update to an existing service order.
 type TMF641ServiceOrderUpdate struct {
 	// ExternalId is an external identifier for the order
-	ExternalId *string `json:"externalId,omitempty"`
+	ExternalID *string `json:"externalId,omitempty"`
 
 	// Priority defines the priority of the order
 	Priority *string `json:"priority,omitempty"`
@@ -782,7 +782,7 @@ type TMF688Event struct {
 	TimeOccurred *time.Time `json:"timeOccurred,omitempty"`
 
 	// CorrelationId is used to group related events
-	CorrelationId string `json:"correlationId,omitempty"`
+	CorrelationID string `json:"correlationId,omitempty"`
 
 	// Domain is the domain that the event belongs to
 	Domain string `json:"domain,omitempty"`
@@ -836,7 +836,7 @@ type TMF688EventCreate struct {
 	TimeOccurred *time.Time `json:"timeOccurred,omitempty"`
 
 	// CorrelationId is used to group related events
-	CorrelationId string `json:"correlationId,omitempty"`
+	CorrelationID string `json:"correlationId,omitempty"`
 
 	// Domain is the domain that the event belongs to
 	Domain string `json:"domain,omitempty"`

@@ -530,8 +530,8 @@ func TransformTMF641ServiceOrderToDeployment(
 	}
 
 	// Store order metadata in extensions (not values)
-	if order.ExternalId != "" {
-		deployment.Extensions["orderExternalId"] = order.ExternalId
+	if order.ExternalID != "" {
+		deployment.Extensions["orderExternalId"] = order.ExternalID
 	}
 	if order.Priority != "" {
 		deployment.Extensions["orderPriority"] = order.Priority
@@ -555,7 +555,7 @@ func TransformDeploymentToTMF641ServiceOrder(dep *dmsadapter.Deployment, baseURL
 
 	// Extract external ID from extensions
 	if externalID, ok := dep.Extensions["orderExternalId"].(string); ok {
-		order.ExternalId = externalID
+		order.ExternalID = externalID
 	}
 
 	// Extract priority from extensions
@@ -640,9 +640,9 @@ func applyTMF641ServiceOrderUpdate(dep *dmsadapter.Deployment, update *models.TM
 	}
 
 	// Update external ID
-	if update.ExternalId != nil {
+	if update.ExternalID != nil {
 		ensureExtensions(dep)
-		dep.Extensions["orderExternalId"] = *update.ExternalId
+		dep.Extensions["orderExternalId"] = *update.ExternalID
 	}
 
 	// Update priority
@@ -665,8 +665,8 @@ func generateDeploymentName(order *models.TMF641ServiceOrderCreate, item *models
 	if item.Service != nil && item.Service.Name != "" {
 		return item.Service.Name
 	}
-	if order.ExternalId != "" {
-		return fmt.Sprintf("order-%s", order.ExternalId)
+	if order.ExternalID != "" {
+		return fmt.Sprintf("order-%s", order.ExternalID)
 	}
 	return fmt.Sprintf("order-%d", time.Now().Unix())
 }

@@ -509,7 +509,7 @@ func (h *TMForumHandler) ListTMF641ServiceOrders(c *gin.Context) {
 			if state != "" && order.State != state {
 				continue
 			}
-			if externalID != "" && order.ExternalId != externalID {
+			if externalID != "" && order.ExternalID != externalID {
 				continue
 			}
 

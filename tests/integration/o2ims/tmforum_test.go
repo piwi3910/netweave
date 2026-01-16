@@ -474,7 +474,7 @@ func TestTMF641ServiceOrderingIntegration(t *testing.T) {
 
 	t.Run("create service order", func(t *testing.T) {
 		orderReq := models.TMF641ServiceOrderCreate{
-			ExternalId:  "test-order-001",
+			ExternalID:  "test-order-001",
 			Description: "Test service order for integration testing",
 			Priority:    "normal",
 			Category:    "test",
@@ -506,14 +506,14 @@ func TestTMF641ServiceOrderingIntegration(t *testing.T) {
 		// Should succeed with 201 Created
 		assert.Equal(t, http.StatusCreated, status)
 		assert.NotEmpty(t, createdOrder.ID)
-		assert.Equal(t, orderReq.ExternalId, createdOrder.ExternalId)
+		assert.Equal(t, orderReq.ExternalID, createdOrder.ExternalID)
 		assert.NotEmpty(t, createdOrder.State)
 	})
 
 	t.Run("get service order by ID", func(t *testing.T) {
 		// First create an order
 		orderReq := models.TMF641ServiceOrderCreate{
-			ExternalId:  "test-order-002",
+			ExternalID:  "test-order-002",
 			Description: "Order for GET test",
 			ServiceOrderItem: []models.ServiceOrderItemCreate{
 				{
@@ -546,7 +546,7 @@ func TestTMF641ServiceOrderingIntegration(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, status)
 		assert.Equal(t, createdOrder.ID, retrievedOrder.ID)
-		assert.Equal(t, createdOrder.ExternalId, retrievedOrder.ExternalId)
+		assert.Equal(t, createdOrder.ExternalID, retrievedOrder.ExternalID)
 	})
 
 	t.Run("get non-existent service order", func(t *testing.T) {
@@ -823,7 +823,7 @@ func TestTMForumAPICrossCompatibility(t *testing.T) {
 	t.Run("service order creates service in inventory", func(t *testing.T) {
 		// Create a service order
 		orderReq := models.TMF641ServiceOrderCreate{
-			ExternalId:  "cross-compat-001",
+			ExternalID:  "cross-compat-001",
 			Description: "Cross-compatibility test order",
 			ServiceOrderItem: []models.ServiceOrderItemCreate{
 				{

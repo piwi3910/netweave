@@ -1,3 +1,4 @@
+// Package resolvers implements GraphQL resolvers for the O2-IMS API.
 package resolvers
 
 import (

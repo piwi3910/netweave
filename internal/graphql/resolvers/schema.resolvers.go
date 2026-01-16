@@ -199,10 +199,8 @@ func (r *queryResolver) ResourcePools(ctx context.Context, filter *model.Resourc
 	// Convert GraphQL filter to adapter filter
 	adapterFilter := &adapter.Filter{}
 	if filter != nil {
-		if filter.OCloudID != nil {
-			// Note: OCloudID in filter would need to be added to adapter.Filter
-			// For now, we'll skip this field
-		}
+		// Note: OCloudID in filter would need to be added to adapter.Filter
+		// For now, we'll skip this field
 		if filter.Location != nil {
 			adapterFilter.Location = *filter.Location
 		}
@@ -356,11 +354,9 @@ func (r *queryResolver) ResourceType(ctx context.Context, id string) (*adapter.R
 func (r *queryResolver) ResourceTypes(ctx context.Context, filter *model.ResourceTypeFilter, pagination *model.Pagination) (*model.ResourceTypeConnection, error) {
 	// Convert GraphQL filter to adapter filter
 	adapterFilter := &adapter.Filter{}
-	if filter != nil {
-		// Note: ResourceClass, ResourceKind, and Vendor aren't directly in adapter.Filter
-		// They would be in Extensions map or Labels
-		// For now, we'll pass a basic filter
-	}
+	// Note: ResourceClass, ResourceKind, and Vendor aren't directly in adapter.Filter
+	// They would be in Extensions map or Labels
+	// For now, we'll pass a basic filter
 
 	// Apply pagination
 	if pagination != nil {
