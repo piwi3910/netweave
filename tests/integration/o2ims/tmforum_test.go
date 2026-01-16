@@ -443,3 +443,421 @@ func TestTMForumResponseHeaders(t *testing.T) {
 		})
 	}
 }
+
+// TestTMF641ServiceOrderingIntegration tests the TMF641 Service Ordering API.
+func TestTMF641ServiceOrderingIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	ts := setupTMFTestServer(t)
+	baseURL := ts.URL() + "/tmf-api/serviceOrdering/v4"
+
+	t.Run("list service orders", func(t *testing.T) {
+		var orders []models.TMF641ServiceOrder
+		status := doHTTPRequest(t, "GET", baseURL+"/serviceOrder", nil, &orders)
+
+		assert.Equal(t, http.StatusOK, status)
+		t.Logf("Found %d service orders", len(orders))
+
+		// Verify order structure if data exists
+		if len(orders) > 0 {
+			order := orders[0]
+			assert.NotEmpty(t, order.ID)
+			assert.NotEmpty(t, order.Href)
+			assert.Contains(t, order.Href, "/tmf-api/serviceOrdering/v4/serviceOrder/")
+			assert.NotEmpty(t, order.State)
+			assert.NotEmpty(t, order.AtType)
+		}
+	})
+
+	t.Run("create service order", func(t *testing.T) {
+		orderReq := models.TMF641ServiceOrderCreate{
+			ExternalId:  "test-order-001",
+			Description: "Test service order for integration testing",
+			Priority:    "normal",
+			Category:    "test",
+			ServiceOrderItem: []models.ServiceOrderItemCreate{
+				{
+					Action: "add",
+					Service: &models.TMF638ServiceCreate{
+						Name:        "test-service",
+						Description: "Test service deployment",
+						ServiceCharacteristic: []models.Characteristic{
+							{Name: "replicas", Value: "2"},
+							{Name: "image", Value: "nginx:latest"},
+						},
+					},
+				},
+			},
+		}
+
+		var createdOrder models.TMF641ServiceOrder
+		status := doHTTPRequest(t, "POST", baseURL+"/serviceOrder", orderReq, &createdOrder)
+
+		// Should succeed with 201 Created
+		assert.Equal(t, http.StatusCreated, status)
+		assert.NotEmpty(t, createdOrder.ID)
+		assert.Equal(t, orderReq.ExternalId, createdOrder.ExternalId)
+		assert.NotEmpty(t, createdOrder.State)
+	})
+
+	t.Run("get service order by ID", func(t *testing.T) {
+		// First create an order
+		orderReq := models.TMF641ServiceOrderCreate{
+			ExternalId:  "test-order-002",
+			Description: "Order for GET test",
+			ServiceOrderItem: []models.ServiceOrderItemCreate{
+				{
+					Action: "add",
+					Service: &models.TMF638ServiceCreate{
+						Name: "test-service-2",
+					},
+				},
+			},
+		}
+
+		var createdOrder models.TMF641ServiceOrder
+		status := doHTTPRequest(t, "POST", baseURL+"/serviceOrder", orderReq, &createdOrder)
+		require.Equal(t, http.StatusCreated, status)
+
+		// Now get it by ID
+		var retrievedOrder models.TMF641ServiceOrder
+		status = doHTTPRequest(t, "GET", baseURL+"/serviceOrder/"+createdOrder.ID, nil, &retrievedOrder)
+
+		assert.Equal(t, http.StatusOK, status)
+		assert.Equal(t, createdOrder.ID, retrievedOrder.ID)
+		assert.Equal(t, createdOrder.ExternalId, retrievedOrder.ExternalId)
+	})
+
+	t.Run("get non-existent service order", func(t *testing.T) {
+		var errorResp map[string]interface{}
+		status := doHTTPRequest(t, "GET", baseURL+"/serviceOrder/non-existent-order", nil, &errorResp)
+
+		assert.Equal(t, http.StatusNotFound, status)
+		assert.Contains(t, errorResp, "error")
+	})
+
+	t.Run("filter orders by state", func(t *testing.T) {
+		var orders []models.TMF641ServiceOrder
+		status := doHTTPRequest(t, "GET", baseURL+"/serviceOrder?state=inProgress", nil, &orders)
+
+		assert.Equal(t, http.StatusOK, status)
+		// Verify all returned orders have the requested state
+		for _, order := range orders {
+			assert.Equal(t, "inProgress", order.State)
+		}
+	})
+}
+
+// TestTMF640ServiceActivationIntegration tests the TMF640 Service Activation API.
+func TestTMF640ServiceActivationIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	ts := setupTMFTestServer(t)
+	baseURL := ts.URL() + "/tmf-api/serviceActivation/v4"
+
+	t.Run("list service activations", func(t *testing.T) {
+		var activations []models.TMF640ServiceActivation
+		status := doHTTPRequest(t, "GET", baseURL+"/serviceActivation", nil, &activations)
+
+		assert.Equal(t, http.StatusOK, status)
+		t.Logf("Found %d service activations", len(activations))
+
+		// Verify activation structure if data exists
+		if len(activations) > 0 {
+			activation := activations[0]
+			assert.NotEmpty(t, activation.ID)
+			assert.NotEmpty(t, activation.Href)
+			assert.Contains(t, activation.Href, "/tmf-api/serviceActivation/v4/serviceActivation/")
+			assert.NotEmpty(t, activation.State)
+			assert.NotEmpty(t, activation.AtType)
+			assert.NotNil(t, activation.Service)
+		}
+	})
+
+	t.Run("get service activation by ID", func(t *testing.T) {
+		// First get the list to find an activation ID
+		var activations []models.TMF640ServiceActivation
+		status := doHTTPRequest(t, "GET", baseURL+"/serviceActivation", nil, &activations)
+		require.Equal(t, http.StatusOK, status)
+
+		if len(activations) == 0 {
+			t.Skip("No activations available for testing")
+		}
+
+		activationID := activations[0].ID
+
+		// Now get it by ID
+		var activation models.TMF640ServiceActivation
+		status = doHTTPRequest(t, "GET", baseURL+"/serviceActivation/"+activationID, nil, &activation)
+
+		assert.Equal(t, http.StatusOK, status)
+		assert.Equal(t, activationID, activation.ID)
+		assert.NotEmpty(t, activation.State)
+	})
+
+	t.Run("get non-existent activation", func(t *testing.T) {
+		var errorResp map[string]interface{}
+		status := doHTTPRequest(t, "GET", baseURL+"/serviceActivation/non-existent-activation", nil, &errorResp)
+
+		assert.Equal(t, http.StatusNotFound, status)
+		assert.Contains(t, errorResp, "error")
+	})
+
+	t.Run("create service activation - not implemented", func(t *testing.T) {
+		activationReq := map[string]interface{}{
+			"service": map[string]string{
+				"id":   "test-service-123",
+				"name": "Test Service",
+			},
+			"mode": "automatic",
+		}
+
+		var errorResp map[string]interface{}
+		status := doHTTPRequest(t, "POST", baseURL+"/serviceActivation", activationReq, &errorResp)
+
+		// Should return 501 Not Implemented until handler is complete
+		assert.Equal(t, http.StatusNotImplemented, status)
+		assert.Contains(t, errorResp, "error")
+	})
+
+	t.Run("verify activation state transitions", func(t *testing.T) {
+		var activations []models.TMF640ServiceActivation
+		status := doHTTPRequest(t, "GET", baseURL+"/serviceActivation", nil, &activations)
+		require.Equal(t, http.StatusOK, status)
+
+		// Verify state values are valid
+		validStates := map[string]bool{
+			"pending":     true,
+			"inProgress":  true,
+			"activated":   true,
+			"failed":      true,
+		}
+
+		for _, activation := range activations {
+			assert.True(t, validStates[activation.State],
+				"Invalid activation state: %s", activation.State)
+		}
+	})
+}
+
+// TestTMF620ProductCatalogIntegration tests the TMF620 Product Catalog API.
+func TestTMF620ProductCatalogIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	ts := setupTMFTestServer(t)
+	baseURL := ts.URL() + "/tmf-api/productCatalog/v4"
+
+	t.Run("list product offerings", func(t *testing.T) {
+		var offerings []models.TMF620ProductOffering
+		status := doHTTPRequest(t, "GET", baseURL+"/productOffering", nil, &offerings)
+
+		assert.Equal(t, http.StatusOK, status)
+		t.Logf("Found %d product offerings", len(offerings))
+
+		// Verify offering structure if data exists
+		if len(offerings) > 0 {
+			offering := offerings[0]
+			assert.NotEmpty(t, offering.ID)
+			assert.NotEmpty(t, offering.Href)
+			assert.Contains(t, offering.Href, "/tmf-api/productCatalog/v4/productOffering/")
+			assert.NotEmpty(t, offering.Name)
+			assert.NotEmpty(t, offering.AtType)
+			assert.Equal(t, "ProductOffering", offering.AtType)
+		}
+	})
+
+	t.Run("get product offering by ID", func(t *testing.T) {
+		// First get the list to find an offering ID
+		var offerings []models.TMF620ProductOffering
+		status := doHTTPRequest(t, "GET", baseURL+"/productOffering", nil, &offerings)
+		require.Equal(t, http.StatusOK, status)
+
+		if len(offerings) == 0 {
+			t.Skip("No product offerings available for testing")
+		}
+
+		offeringID := offerings[0].ID
+
+		// Now get it by ID
+		var offering models.TMF620ProductOffering
+		status = doHTTPRequest(t, "GET", baseURL+"/productOffering/"+offeringID, nil, &offering)
+
+		assert.Equal(t, http.StatusOK, status)
+		assert.Equal(t, offeringID, offering.ID)
+		assert.NotEmpty(t, offering.Name)
+	})
+
+	t.Run("get non-existent offering", func(t *testing.T) {
+		var errorResp map[string]interface{}
+		status := doHTTPRequest(t, "GET", baseURL+"/productOffering/non-existent-offering", nil, &errorResp)
+
+		assert.Equal(t, http.StatusNotFound, status)
+		assert.Contains(t, errorResp, "error")
+	})
+
+	t.Run("verify offering lifecycle status", func(t *testing.T) {
+		var offerings []models.TMF620ProductOffering
+		status := doHTTPRequest(t, "GET", baseURL+"/productOffering", nil, &offerings)
+		require.Equal(t, http.StatusOK, status)
+
+		// All offerings should be Active
+		for _, offering := range offerings {
+			assert.Equal(t, "Active", offering.LifecycleStatus,
+				"Offering %s should have Active lifecycle status", offering.ID)
+		}
+	})
+
+	t.Run("verify product specification reference", func(t *testing.T) {
+		var offerings []models.TMF620ProductOffering
+		status := doHTTPRequest(t, "GET", baseURL+"/productOffering", nil, &offerings)
+		require.Equal(t, http.StatusOK, status)
+
+		if len(offerings) == 0 {
+			t.Skip("No offerings available")
+		}
+
+		offering := offerings[0]
+		assert.NotNil(t, offering.ProductSpecification)
+		assert.NotEmpty(t, offering.ProductSpecification.ID)
+		assert.NotEmpty(t, offering.ProductSpecification.Name)
+	})
+}
+
+// TestTMF688EventManagementIntegration tests the TMF688 Event Management API.
+func TestTMF688EventManagementIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	ts := setupTMFTestServer(t)
+	baseURL := ts.URL() + "/tmf-api/eventManagement/v4"
+
+	t.Run("list events", func(t *testing.T) {
+		var events []models.TMF688Event
+		status := doHTTPRequest(t, "GET", baseURL+"/event", nil, &events)
+
+		assert.Equal(t, http.StatusOK, status)
+		// Events may be empty until integration with O2-IMS is complete
+		t.Logf("Found %d events", len(events))
+	})
+
+	t.Run("get non-existent event", func(t *testing.T) {
+		var errorResp map[string]interface{}
+		status := doHTTPRequest(t, "GET", baseURL+"/event/non-existent-event", nil, &errorResp)
+
+		assert.Equal(t, http.StatusNotFound, status)
+		assert.Contains(t, errorResp, "error")
+	})
+
+	t.Run("register event hub", func(t *testing.T) {
+		hubReq := models.TMF688HubCreate{
+			Callback: "https://test-smo.example.com/notifications",
+			Query:    "eventType=ResourceCreationNotification",
+		}
+
+		var hub models.TMF688Hub
+		status := doHTTPRequest(t, "POST", baseURL+"/hub", hubReq, &hub)
+
+		assert.Equal(t, http.StatusCreated, status)
+		assert.NotEmpty(t, hub.ID)
+		assert.Equal(t, hubReq.Callback, hub.Callback)
+		assert.Equal(t, hubReq.Query, hub.Query)
+		assert.Equal(t, "EventSubscriptionInput", hub.AtType)
+	})
+
+	t.Run("unregister event hub", func(t *testing.T) {
+		// First register a hub
+		hubReq := models.TMF688HubCreate{
+			Callback: "https://test-smo.example.com/notifications-2",
+		}
+
+		var hub models.TMF688Hub
+		status := doHTTPRequest(t, "POST", baseURL+"/hub", hubReq, &hub)
+		require.Equal(t, http.StatusCreated, status)
+
+		// Now unregister it
+		status = doHTTPRequest(t, "DELETE", baseURL+"/hub/"+hub.ID, nil, nil)
+		assert.Equal(t, http.StatusNoContent, status)
+	})
+
+	t.Run("unregister non-existent hub", func(t *testing.T) {
+		status := doHTTPRequest(t, "DELETE", baseURL+"/hub/non-existent-hub", nil, nil)
+		// Should return 204 even for non-existent hub (idempotent delete)
+		assert.Equal(t, http.StatusNoContent, status)
+	})
+}
+
+// TestTMForumAPICrossCompatibility tests interactions between different TMForum APIs.
+func TestTMForumAPICrossCompatibility(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	ts := setupTMFTestServer(t)
+
+	t.Run("service order creates service in inventory", func(t *testing.T) {
+		// Create a service order
+		orderReq := models.TMF641ServiceOrderCreate{
+			ExternalId:  "cross-compat-001",
+			Description: "Cross-compatibility test order",
+			ServiceOrderItem: []models.ServiceOrderItemCreate{
+				{
+					Action: "add",
+					Service: &models.TMF638ServiceCreate{
+						Name:        "cross-compat-service",
+						Description: "Service for cross-compatibility testing",
+					},
+				},
+			},
+		}
+
+		var order models.TMF641ServiceOrder
+		status := doHTTPRequest(t, "POST", ts.URL()+"/tmf-api/serviceOrdering/v4/serviceOrder", orderReq, &order)
+		require.Equal(t, http.StatusCreated, status)
+
+		// Give it a moment to process
+		time.Sleep(500 * time.Millisecond)
+
+		// Check if service appears in TMF638 inventory
+		var services []models.TMF638Service
+		status = doHTTPRequest(t, "GET", ts.URL()+"/tmf-api/serviceInventoryManagement/v4/service", nil, &services)
+		require.Equal(t, http.StatusOK, status)
+
+		// Look for our service
+		found := false
+		for _, svc := range services {
+			if svc.Name == "cross-compat-service" {
+				found = true
+				assert.NotEmpty(t, svc.ID)
+				assert.NotEmpty(t, svc.State)
+				break
+			}
+		}
+		assert.True(t, found, "Service from order should appear in inventory")
+	})
+
+	t.Run("product offerings match deployment packages", func(t *testing.T) {
+		// Get product offerings from TMF620
+		var offerings []models.TMF620ProductOffering
+		status := doHTTPRequest(t, "GET", ts.URL()+"/tmf-api/productCatalog/v4/productOffering", nil, &offerings)
+		require.Equal(t, http.StatusOK, status)
+
+		if len(offerings) == 0 {
+			t.Skip("No product offerings available")
+		}
+
+		// Product offerings should have specifications
+		for _, offering := range offerings {
+			assert.NotNil(t, offering.ProductSpecification,
+				"Offering %s should have product specification", offering.ID)
+			assert.NotEmpty(t, offering.ProductSpecification.Version,
+				"Product specification should have version")
+		}
+	})
+}
