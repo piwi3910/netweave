@@ -15,10 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	categoryResourcePool = "categoryResourcePool"
-)
-
 // TMForumHandler handles TMForum API requests and translates them to internal O2-IMS/O2-DMS operations.
 // It provides TMF638 (Service Inventory) and TMF639 (Resource Inventory) API implementations.
 type TMForumHandler struct {
