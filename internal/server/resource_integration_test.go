@@ -68,7 +68,7 @@ func TestResourceHandler_Integration(t *testing.T) {
 
 	t.Run("list_resources", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -90,7 +90,7 @@ func TestResourceHandler_Integration(t *testing.T) {
 
 	t.Run("list_with_pagination", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources?limit=1&offset=0", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources?limit=1&offset=0", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -105,7 +105,7 @@ func TestResourceHandler_Integration(t *testing.T) {
 
 	t.Run("get_specific_resource", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources/resource-1", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources/resource-1", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -121,7 +121,7 @@ func TestResourceHandler_Integration(t *testing.T) {
 
 	t.Run("get_nonexistent_resource", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources/nonexistent", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources/nonexistent", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -145,7 +145,7 @@ func TestResourceHandler_Integration(t *testing.T) {
 
 		body, _ := json.Marshal(newResource)
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", bytes.NewBuffer(body))
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
 
@@ -185,27 +185,27 @@ func TestResourceHandler_Integration(t *testing.T) {
 	t.Run("delete_resource", func(t *testing.T) {
 		// First verify resource exists
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources/resource-2", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources/resource-2", nil)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 
 		// Delete the resource
 		w = httptest.NewRecorder()
-		req, _ = http.NewRequest(http.MethodDelete, "/o2ims-infrastructureInventory/v1/resources/resource-2", nil)
+		req, _ = http.NewRequestWithContext(context.Background(), http.MethodDelete, "/o2ims-infrastructureInventory/v1/resources/resource-2", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNoContent, w.Code)
 
 		// Verify resource is deleted
 		w = httptest.NewRecorder()
-		req, _ = http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources/resource-2", nil)
+		req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources/resource-2", nil)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("list_with_invalid_pagination", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources?limit=invalid", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources?limit=invalid", nil)
 		router.ServeHTTP(w, req)
 
 		// Should handle gracefully (either ignore or return 400)
@@ -236,7 +236,7 @@ func TestResourceHandler_ErrorHandling(t *testing.T) {
 
 	t.Run("list_returns_error", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)

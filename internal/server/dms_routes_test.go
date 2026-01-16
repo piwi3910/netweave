@@ -315,7 +315,7 @@ func TestDMSV2Routes(t *testing.T) {
 	})
 
 	// Test v2 features endpoint.
-	req, _ := http.NewRequest("GET", "/o2dms/v2/features", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/o2dms/v2/features", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -327,7 +327,7 @@ func TestDMSV2Routes(t *testing.T) {
 	assert.Contains(t, response, "newFeatures")
 
 	// Test that v2 includes v1 routes (deployment lifecycle info).
-	req, _ = http.NewRequest("GET", "/o2dms/v2/deploymentLifecycle", nil)
+	req, _ = http.NewRequestWithContext(context.Background(), "GET", "/o2dms/v2/deploymentLifecycle", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -366,7 +366,7 @@ func TestDMSV3Routes(t *testing.T) {
 	})
 
 	// Test v3 features endpoint.
-	req, _ := http.NewRequest("GET", "/o2dms/v3/features", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/o2dms/v3/features", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -378,7 +378,7 @@ func TestDMSV3Routes(t *testing.T) {
 	assert.Contains(t, response, "newFeatures")
 
 	// Test that v3 includes v1 routes.
-	req, _ = http.NewRequest("GET", "/o2dms/v3/nfDeployments", nil)
+	req, _ = http.NewRequestWithContext(context.Background(), "GET", "/o2dms/v3/nfDeployments", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	// Should work (returns 200 with empty list from mock adapter).

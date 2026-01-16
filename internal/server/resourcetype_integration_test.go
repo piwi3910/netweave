@@ -67,7 +67,7 @@ func TestResourceTypeHandler_Integration(t *testing.T) {
 
 	t.Run("list_resource_types", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -89,7 +89,7 @@ func TestResourceTypeHandler_Integration(t *testing.T) {
 
 	t.Run("list_with_pagination", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes?limit=1&offset=0", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes?limit=1&offset=0", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -104,7 +104,7 @@ func TestResourceTypeHandler_Integration(t *testing.T) {
 
 	t.Run("get_specific_resource_type", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes/compute-m5.large", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes/compute-m5.large", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -120,7 +120,7 @@ func TestResourceTypeHandler_Integration(t *testing.T) {
 
 	t.Run("get_nonexistent_resource_type", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes/nonexistent", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes/nonexistent", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -135,7 +135,7 @@ func TestResourceTypeHandler_Integration(t *testing.T) {
 
 	t.Run("list_with_invalid_pagination", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes?limit=invalid", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes?limit=invalid", nil)
 		router.ServeHTTP(w, req)
 
 		// Should handle gracefully (either ignore or return 400)
@@ -166,7 +166,7 @@ func TestResourceTypeHandler_ErrorHandling(t *testing.T) {
 
 	t.Run("list_returns_error", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
