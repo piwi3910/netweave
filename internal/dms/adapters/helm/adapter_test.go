@@ -2082,6 +2082,7 @@ func TestHelmAdapter_TestBuildPackage(t *testing.T) {
 				Created: createdTime,
 			},
 			validate: func(t *testing.T, pkg *dmsadapter.DeploymentPackage) {
+				t.Helper()
 				assert.Equal(t, "nginx-1.0.0", pkg.ID)
 				assert.Equal(t, "nginx", pkg.Name)
 				assert.Equal(t, "1.0.0", pkg.Version)
@@ -2109,6 +2110,7 @@ func TestHelmAdapter_TestBuildPackage(t *testing.T) {
 				Created: createdTime,
 			},
 			validate: func(t *testing.T, pkg *dmsadapter.DeploymentPackage) {
+				t.Helper()
 				assert.Equal(t, true, pkg.Extensions["helm.deprecated"])
 			},
 		},
@@ -2122,6 +2124,7 @@ func TestHelmAdapter_TestBuildPackage(t *testing.T) {
 				Created: createdTime,
 			},
 			validate: func(t *testing.T, pkg *dmsadapter.DeploymentPackage) {
+				t.Helper()
 				assert.Equal(t, "minimal-0.0.1", pkg.ID)
 				assert.Equal(t, "minimal", pkg.Name)
 				assert.Equal(t, "0.0.1", pkg.Version)
@@ -2490,6 +2493,7 @@ func TestHelmAdapter_TestBuildPodLogOptions(t *testing.T) {
 			name: "nil options",
 			opts: nil,
 			validate: func(t *testing.T, podOpts *corev1.PodLogOptions) {
+				t.Helper()
 				assert.NotNil(t, podOpts)
 				assert.Nil(t, podOpts.TailLines)
 				assert.Nil(t, podOpts.SinceTime)
@@ -2502,6 +2506,7 @@ func TestHelmAdapter_TestBuildPodLogOptions(t *testing.T) {
 				TailLines: 100,
 			},
 			validate: func(t *testing.T, podOpts *corev1.PodLogOptions) {
+				t.Helper()
 				require.NotNil(t, podOpts.TailLines)
 				assert.Equal(t, int64(100), *podOpts.TailLines)
 			},
@@ -2512,6 +2517,7 @@ func TestHelmAdapter_TestBuildPodLogOptions(t *testing.T) {
 				Since: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
 			},
 			validate: func(t *testing.T, podOpts *corev1.PodLogOptions) {
+				t.Helper()
 				require.NotNil(t, podOpts.SinceTime)
 				assert.Equal(t, time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC), podOpts.SinceTime.Time)
 			},
@@ -2522,6 +2528,7 @@ func TestHelmAdapter_TestBuildPodLogOptions(t *testing.T) {
 				Follow: true,
 			},
 			validate: func(t *testing.T, podOpts *corev1.PodLogOptions) {
+				t.Helper()
 				assert.True(t, podOpts.Follow)
 			},
 		},
@@ -2533,6 +2540,7 @@ func TestHelmAdapter_TestBuildPodLogOptions(t *testing.T) {
 				Follow:    true,
 			},
 			validate: func(t *testing.T, podOpts *corev1.PodLogOptions) {
+				t.Helper()
 				require.NotNil(t, podOpts.TailLines)
 				assert.Equal(t, int64(50), *podOpts.TailLines)
 				require.NotNil(t, podOpts.SinceTime)
@@ -2546,6 +2554,7 @@ func TestHelmAdapter_TestBuildPodLogOptions(t *testing.T) {
 				TailLines: 0,
 			},
 			validate: func(t *testing.T, podOpts *corev1.PodLogOptions) {
+				t.Helper()
 				assert.Nil(t, podOpts.TailLines)
 			},
 		},
@@ -2555,6 +2564,7 @@ func TestHelmAdapter_TestBuildPodLogOptions(t *testing.T) {
 				Since: time.Time{},
 			},
 			validate: func(t *testing.T, podOpts *corev1.PodLogOptions) {
+				t.Helper()
 				assert.Nil(t, podOpts.SinceTime)
 			},
 		},

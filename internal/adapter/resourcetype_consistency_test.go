@@ -87,6 +87,7 @@ func TestAllAdapters_ResourceTypeConsistency(t *testing.T) {
 
 // testResourceTypeStructure verifies that all resource types have required fields.
 func testResourceTypeStructure(t *testing.T, adp adapter.Adapter) {
+	t.Helper()
 	ctx := context.Background()
 
 	types, err := adp.ListResourceTypes(ctx, nil)
@@ -119,6 +120,7 @@ func testResourceTypeStructure(t *testing.T, adp adapter.Adapter) {
 
 // testResourceTypeIDFormat verifies that resource type IDs follow consistent naming.
 func testResourceTypeIDFormat(t *testing.T, adp adapter.Adapter) {
+	t.Helper()
 	ctx := context.Background()
 
 	types, err := adp.ListResourceTypes(ctx, nil)
@@ -144,6 +146,7 @@ func testResourceTypeIDFormat(t *testing.T, adp adapter.Adapter) {
 
 // testResourceTypeExtensions verifies that extensions are properly structured.
 func testResourceTypeExtensions(t *testing.T, adp adapter.Adapter) {
+	t.Helper()
 	ctx := context.Background()
 
 	types, err := adp.ListResourceTypes(ctx, nil)

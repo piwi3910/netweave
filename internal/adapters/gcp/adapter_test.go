@@ -680,6 +680,7 @@ func TestBuildInstanceExtensions(t *testing.T) {
 			zone:         "us-central1-a",
 			machineType:  "n1-standard-1",
 			checkFunc: func(t *testing.T, exts map[string]interface{}) {
+				t.Helper()
 				assert.Equal(t, uint64(1234567890), exts["gcp.id"])
 				assert.Equal(t, "test-vm", exts["gcp.name"])
 				assert.Equal(t, "us-central1-a", exts["gcp.zone"])
@@ -726,6 +727,7 @@ func TestBuildInstanceExtensions(t *testing.T) {
 			zone:         "europe-west1-b",
 			machineType:  "e2-micro",
 			checkFunc: func(t *testing.T, exts map[string]interface{}) {
+				t.Helper()
 				assert.Equal(t, uint64(1234567890), exts["gcp.id"])
 				assert.Equal(t, "minimal-vm", exts["gcp.name"])
 				assert.Equal(t, "europe-west1-b", exts["gcp.zone"])

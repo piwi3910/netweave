@@ -87,6 +87,7 @@ func TestAllAdapters_ResourceTypeOperations(t *testing.T) {
 
 // testListResourceTypes verifies that an adapter can list resource types.
 func testListResourceTypes(t *testing.T, adp adapter.Adapter) {
+	t.Helper()
 	ctx := context.Background()
 
 	t.Run("list_all_types", func(t *testing.T) {
@@ -115,6 +116,7 @@ func testListResourceTypes(t *testing.T, adp adapter.Adapter) {
 
 // testGetResourceType verifies that an adapter can retrieve a specific resource type.
 func testGetResourceType(t *testing.T, adp adapter.Adapter) {
+	t.Helper()
 	ctx := context.Background()
 
 	t.Run("get_existing_type", func(t *testing.T) {
@@ -139,6 +141,7 @@ func testGetResourceType(t *testing.T, adp adapter.Adapter) {
 
 // testResourceTypeFields verifies that resource type fields are properly populated.
 func testResourceTypeFields(t *testing.T, adp adapter.Adapter) {
+	t.Helper()
 	ctx := context.Background()
 
 	types, err := adp.ListResourceTypes(ctx, nil)

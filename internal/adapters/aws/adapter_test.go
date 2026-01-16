@@ -812,6 +812,7 @@ func TestBuildResourceTags(t *testing.T) {
 			},
 			want: 5,
 			checkTag: func(t *testing.T, tags []ec2Types.Tag) {
+				t.Helper()
 				tagMap := make(map[string]string)
 				for _, tag := range tags {
 					tagMap[aws.ToString(tag.Key)] = aws.ToString(tag.Value)
@@ -835,6 +836,7 @@ func TestBuildResourceTags(t *testing.T) {
 			},
 			want: 1,
 			checkTag: func(t *testing.T, tags []ec2Types.Tag) {
+				t.Helper()
 				assert.Equal(t, "o2ims.io/tenant-id", aws.ToString(tags[0].Key))
 				assert.Equal(t, "tenant-456", aws.ToString(tags[0].Value))
 			},
@@ -850,6 +852,7 @@ func TestBuildResourceTags(t *testing.T) {
 			},
 			want: 1,
 			checkTag: func(t *testing.T, tags []ec2Types.Tag) {
+				t.Helper()
 				assert.Equal(t, "CustomKey", aws.ToString(tags[0].Key))
 				assert.Equal(t, "CustomValue", aws.ToString(tags[0].Value))
 			},
@@ -895,6 +898,7 @@ func TestBuildRunInstanceInput(t *testing.T) {
 				},
 			},
 			checkInput: func(t *testing.T, input *ec2.RunInstancesInput) {
+				t.Helper()
 				assert.Equal(t, "ami-123", aws.ToString(input.ImageId))
 				assert.Equal(t, ec2Types.InstanceType("t3.micro"), input.InstanceType)
 				assert.Equal(t, int32(1), aws.ToInt32(input.MinCount))
@@ -916,6 +920,7 @@ func TestBuildRunInstanceInput(t *testing.T) {
 				},
 			},
 			checkInput: func(t *testing.T, input *ec2.RunInstancesInput) {
+				t.Helper()
 				assert.Equal(t, "subnet-123", aws.ToString(input.SubnetId))
 				assert.Equal(t, []string{"sg-123", "sg-456"}, input.SecurityGroupIds)
 				assert.Equal(t, "my-keypair", aws.ToString(input.KeyName))
@@ -930,6 +935,7 @@ func TestBuildRunInstanceInput(t *testing.T) {
 				},
 			},
 			checkInput: func(t *testing.T, input *ec2.RunInstancesInput) {
+				t.Helper()
 				assert.Empty(t, input.TagSpecifications)
 			},
 		},
@@ -1063,6 +1069,7 @@ func TestBuildInstanceTypeExtensions(t *testing.T) {
 			family: "m5",
 			size:   "large",
 			checkExts: func(t *testing.T, exts map[string]interface{}) {
+				t.Helper()
 				assert.Equal(t, "m5.large", exts["aws.instanceType"])
 				assert.Equal(t, "m5", exts["aws.instanceFamily"])
 				assert.Equal(t, "large", exts["aws.instanceSize"])
@@ -1094,6 +1101,7 @@ func TestBuildInstanceTypeExtensions(t *testing.T) {
 			family: "p3",
 			size:   "2xlarge",
 			checkExts: func(t *testing.T, exts map[string]interface{}) {
+				t.Helper()
 				assert.Equal(t, int32(1), exts["aws.gpuCount"])
 				assert.Equal(t, "NVIDIA", exts["aws.gpuManufacturer"])
 				assert.Equal(t, "Tesla V100", exts["aws.gpuName"])
@@ -1114,6 +1122,7 @@ func TestBuildInstanceTypeExtensions(t *testing.T) {
 			family: "m5d",
 			size:   "large",
 			checkExts: func(t *testing.T, exts map[string]interface{}) {
+				t.Helper()
 				assert.True(t, exts["aws.instanceStorageSupported"].(bool))
 				assert.Equal(t, int64(75), exts["aws.instanceStorageGiB"])
 				assert.Equal(t, "hdd", exts["aws.instanceStorageType"])
@@ -1127,6 +1136,7 @@ func TestBuildInstanceTypeExtensions(t *testing.T) {
 			family: "t3",
 			size:   "nano",
 			checkExts: func(t *testing.T, exts map[string]interface{}) {
+				t.Helper()
 				assert.Equal(t, "t3.nano", exts["aws.instanceType"])
 				assert.False(t, exts["aws.instanceStorageSupported"].(bool))
 			},

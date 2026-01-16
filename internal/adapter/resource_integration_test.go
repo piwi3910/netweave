@@ -90,6 +90,7 @@ func TestAllAdapters_ResourceOperations(t *testing.T) {
 
 // testListResources verifies that an adapter can list resources.
 func testListResources(t *testing.T, adp adapter.Adapter) {
+	t.Helper()
 	ctx := context.Background()
 
 	t.Run("list_all_resources", func(t *testing.T) {
@@ -141,6 +142,7 @@ func testListResources(t *testing.T, adp adapter.Adapter) {
 
 // testGetResource verifies that an adapter can retrieve a specific resource.
 func testGetResource(t *testing.T, adp adapter.Adapter) {
+	t.Helper()
 	ctx := context.Background()
 
 	t.Run("get_existing_resource", func(t *testing.T) {
@@ -169,6 +171,7 @@ func testGetResource(t *testing.T, adp adapter.Adapter) {
 
 // testCreateResource verifies that an adapter can create new resources.
 func testCreateResource(t *testing.T, adp adapter.Adapter) {
+	t.Helper()
 	ctx := context.Background()
 
 	t.Run("create_valid_resource", func(t *testing.T) {
@@ -228,6 +231,7 @@ func testCreateResource(t *testing.T, adp adapter.Adapter) {
 
 // testUpdateResource verifies that an adapter can update existing resources.
 func testUpdateResource(t *testing.T, adp adapter.Adapter) {
+	t.Helper()
 	ctx := context.Background()
 
 	t.Run("update_existing_resource", func(t *testing.T) {
@@ -278,6 +282,7 @@ func testUpdateResource(t *testing.T, adp adapter.Adapter) {
 
 // testDeleteResource verifies that an adapter can delete resources.
 func testDeleteResource(t *testing.T, adp adapter.Adapter) {
+	t.Helper()
 	ctx := context.Background()
 
 	t.Run("delete_nonexistent_resource", func(t *testing.T) {
@@ -289,6 +294,7 @@ func testDeleteResource(t *testing.T, adp adapter.Adapter) {
 
 // testResourceLifecycle tests the complete resource lifecycle (create → update → delete).
 func testResourceLifecycle(t *testing.T, adp adapter.Adapter) {
+	t.Helper()
 	ctx := context.Background()
 
 	t.Run("complete_lifecycle", func(t *testing.T) {

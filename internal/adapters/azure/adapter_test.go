@@ -563,6 +563,7 @@ func TestBuildAzureTags(t *testing.T) {
 			},
 			wantLen: 5,
 			checkTag: func(t *testing.T, tags map[string]*string) {
+				t.Helper()
 				assert.NotNil(t, tags["o2ims.io/tenant-id"])
 				assert.Equal(t, "tenant-123", *tags["o2ims.io/tenant-id"])
 				assert.Equal(t, "test VM", *tags["Name"])
@@ -583,6 +584,7 @@ func TestBuildAzureTags(t *testing.T) {
 			},
 			wantLen: 1,
 			checkTag: func(t *testing.T, tags map[string]*string) {
+				t.Helper()
 				assert.NotNil(t, tags["o2ims.io/tenant-id"])
 				assert.Equal(t, "tenant-456", *tags["o2ims.io/tenant-id"])
 			},
@@ -598,6 +600,7 @@ func TestBuildAzureTags(t *testing.T) {
 			},
 			wantLen: 1,
 			checkTag: func(t *testing.T, tags map[string]*string) {
+				t.Helper()
 				assert.NotNil(t, tags["CustomKey"])
 				assert.Equal(t, "CustomValue", *tags["CustomKey"])
 			},
@@ -792,6 +795,7 @@ func TestBuildVMExtensions(t *testing.T) {
 			resourceGroup: "myRG",
 			vmSize:        "Standard_D2s_v3",
 			checkExts: func(t *testing.T, exts map[string]interface{}) {
+				t.Helper()
 				assert.Equal(t, "vm1", exts["azure.vmName"])
 				assert.Equal(t, "myRG", exts["azure.resourceGroup"])
 				assert.Equal(t, "eastus", exts["azure.location"])
@@ -810,6 +814,7 @@ func TestBuildVMExtensions(t *testing.T) {
 			resourceGroup: "testRG",
 			vmSize:        "Standard_B1s",
 			checkExts: func(t *testing.T, exts map[string]interface{}) {
+				t.Helper()
 				assert.Equal(t, "vm2", exts["azure.vmName"])
 				assert.Equal(t, "testRG", exts["azure.resourceGroup"])
 				assert.Equal(t, "westus", exts["azure.location"])
