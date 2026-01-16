@@ -830,6 +830,16 @@ func TestTMForumAPICrossCompatibility(t *testing.T) {
 					Service: &models.TMF638ServiceCreate{
 						Name:        "cross-compat-service",
 						Description: "Service for cross-compatibility testing",
+						ServiceSpecification: &models.ServiceSpecificationRef{
+							ID:   "pkg-du-001", // Use sample DU package
+							Name: "oran-du",
+						},
+						Place: []models.PlaceRef{
+							{ID: "default"},
+						},
+						ServiceCharacteristic: []models.Characteristic{
+							{Name: "replicas", Value: "3"},
+						},
 					},
 				},
 			},
