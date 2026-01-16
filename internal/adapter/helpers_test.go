@@ -231,44 +231,50 @@ func BenchmarkApplyPagination(b *testing.B) {
 // Returns nil if Kubernetes environment is not available.
 func setupKubernetesAdapter(t *testing.T) adapter.Adapter {
 	t.Helper()
-	// Implementation will use existing Kubernetes adapter test helpers
-	// For now, return nil to skip tests requiring K8s cluster
+	// TODO: Implementation will use existing Kubernetes adapter test helpers
+	t.Skip("Kubernetes adapter not implemented yet")
 	return nil
 }
 
 // setupAWSAdapter creates an AWS adapter for testing.
 func setupAWSAdapter(t *testing.T) adapter.Adapter {
 	t.Helper()
+	t.Skip("AWS adapter not implemented yet")
 	return nil
 }
 
 // setupAzureAdapter creates an Azure adapter for testing.
 func setupAzureAdapter(t *testing.T) adapter.Adapter {
 	t.Helper()
+	t.Skip("Azure adapter not implemented yet")
 	return nil
 }
 
 // setupGCPAdapter creates a GCP adapter for testing.
 func setupGCPAdapter(t *testing.T) adapter.Adapter {
 	t.Helper()
+	t.Skip("GCP adapter not implemented yet")
 	return nil
 }
 
 // setupOpenStackAdapter creates an OpenStack adapter for testing.
 func setupOpenStackAdapter(t *testing.T) adapter.Adapter {
 	t.Helper()
+	t.Skip("OpenStack adapter not implemented yet")
 	return nil
 }
 
 // setupVMwareAdapter creates a VMware adapter for testing.
 func setupVMwareAdapter(t *testing.T) adapter.Adapter {
 	t.Helper()
+	t.Skip("VMware adapter not implemented yet")
 	return nil
 }
 
 // setupDTIASAdapter creates a DTIAS adapter for testing.
 func setupDTIASAdapter(t *testing.T) adapter.Adapter {
 	t.Helper()
+	t.Skip("DTIAS adapter not implemented yet")
 	return nil
 }
 
