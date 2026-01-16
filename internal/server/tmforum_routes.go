@@ -18,6 +18,10 @@ import (
 // TMF639 - Resource Inventory Management v4
 //   - /tmf-api/resourceInventoryManagement/v4/*
 //   - Maps to O2-IMS resources and resource pools
+//
+// TMF641 - Service Ordering Management v4
+//   - /tmf-api/serviceOrdering/v4/*
+//   - Maps to O2-DMS deployment operations
 func (s *Server) setupTMForumRoutesEarly() {
 	s.logger.Info("Registering TMForum API route structure")
 
@@ -60,6 +64,27 @@ func (s *Server) setupTMForumRoutesEarly() {
 		}))
 		tmf638.DELETE("/service/:id", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
 			return h.DeleteTMF638Service
+		}))
+	}
+
+	// TMF641 - Service Ordering Management API v4
+	tmf641 := s.router.Group("/tmf-api/serviceOrdering/v4")
+	{
+		// Service Order CRUD operations
+		tmf641.GET("/serviceOrder", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.ListTMF641ServiceOrders
+		}))
+		tmf641.GET("/serviceOrder/:id", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.GetTMF641ServiceOrder
+		}))
+		tmf641.POST("/serviceOrder", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.CreateTMF641ServiceOrder
+		}))
+		tmf641.PATCH("/serviceOrder/:id", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.UpdateTMF641ServiceOrder
+		}))
+		tmf641.DELETE("/serviceOrder/:id", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.DeleteTMF641ServiceOrder
 		}))
 	}
 

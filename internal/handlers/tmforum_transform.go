@@ -487,3 +487,177 @@ func updateServiceCharacteristics(dep *dmsadapter.Deployment, chars *[]models.Ch
 		dep.Extensions[char.Name] = char.Value
 	}
 }
+
+// ========================================
+// TMF641 Service Order → O2-DMS Deployment
+// ========================================
+
+// TransformTMF641ServiceOrderToDeployment converts a TMF641 Service Order to a DMS DeploymentRequest.
+func TransformTMF641ServiceOrderToDeployment(
+	order *models.TMF641ServiceOrderCreate,
+	item *models.ServiceOrderItemCreate,
+) *dmsadapter.DeploymentRequest {
+	deployment := &dmsadapter.DeploymentRequest{
+		Name:        generateDeploymentName(order, item),
+		Description: order.Description,
+		Values:      make(map[string]interface{}),
+	}
+
+	// Extract package ID from service specification
+	if item.Service != nil && item.Service.ServiceSpecification != nil {
+		deployment.PackageID = item.Service.ServiceSpecification.ID
+	}
+
+	// Extract namespace from service place
+	if item.Service != nil && len(item.Service.Place) > 0 {
+		deployment.Namespace = item.Service.Place[0].ID
+	}
+
+	// Map service characteristics to deployment values
+	if item.Service != nil {
+		for _, char := range item.Service.ServiceCharacteristic {
+			deployment.Values[char.Name] = char.Value
+		}
+	}
+
+	// Store order metadata in values
+	if order.ExternalId != "" {
+		deployment.Values["orderExternalId"] = order.ExternalId
+	}
+	if order.Priority != "" {
+		deployment.Values["orderPriority"] = order.Priority
+	}
+	if order.Category != "" {
+		deployment.Values["orderCategory"] = order.Category
+	}
+
+	return deployment
+}
+
+// TransformDeploymentToTMF641ServiceOrder converts a DMS Deployment to a TMF641 Service Order.
+func TransformDeploymentToTMF641ServiceOrder(dep *dmsadapter.Deployment, baseURL string) *models.TMF641ServiceOrder {
+	order := &models.TMF641ServiceOrder{
+		ID:          dep.ID,
+		Href:        fmt.Sprintf("%s/tmf-api/serviceOrdering/v4/serviceOrder/%s", baseURL, dep.ID),
+		Description: dep.Description,
+		State:       mapDeploymentStatusToOrderState(dep.Status),
+		OrderDate:   &dep.CreatedAt,
+	}
+
+	// Extract external ID from extensions
+	if externalID, ok := dep.Extensions["orderExternalId"].(string); ok {
+		order.ExternalId = externalID
+	}
+
+	// Extract priority from extensions
+	if priority, ok := dep.Extensions["orderPriority"].(string); ok {
+		order.Priority = priority
+	}
+
+	// Extract category from extensions
+	if category, ok := dep.Extensions["orderCategory"].(string); ok {
+		order.Category = category
+	}
+
+	// Map completion date
+	if dep.Status == dmsadapter.DeploymentStatusDeployed {
+		order.CompletionDate = &dep.UpdatedAt
+	}
+
+	// Create service order item with service reference
+	orderItem := models.ServiceOrderItem{
+		ID:     "1",
+		Action: "add",
+		State:  order.State,
+		Service: &models.TMF638ServiceRef{
+			ID:   dep.ID,
+			Href: fmt.Sprintf("%s/tmf-api/serviceInventoryManagement/v4/service/%s", baseURL, dep.ID),
+			Name: dep.Name,
+		},
+	}
+
+	order.ServiceOrderItem = []models.ServiceOrderItem{orderItem}
+	order.AtType = "ServiceOrder"
+
+	return order
+}
+
+// mapDeploymentStatusToOrderState maps DMS deployment status to TMF641 service order state.
+func mapDeploymentStatusToOrderState(status dmsadapter.DeploymentStatus) string {
+	switch status {
+	case dmsadapter.DeploymentStatusPending:
+		return "acknowledged"
+	case dmsadapter.DeploymentStatusDeploying:
+		return "inProgress"
+	case dmsadapter.DeploymentStatusDeployed:
+		return "completed"
+	case dmsadapter.DeploymentStatusFailed:
+		return "failed"
+	case dmsadapter.DeploymentStatusRollingBack:
+		return "inProgress"
+	case dmsadapter.DeploymentStatusDeleting:
+		return "cancelled"
+	default:
+		return "pending"
+	}
+}
+
+// mapOrderStateToDeploymentStatus maps TMF641 service order state to DMS deployment status.
+func mapOrderStateToDeploymentStatus(state string) dmsadapter.DeploymentStatus {
+	switch state {
+	case "acknowledged", "pending":
+		return dmsadapter.DeploymentStatusPending
+	case "inProgress", "held":
+		return dmsadapter.DeploymentStatusDeploying
+	case "completed":
+		return dmsadapter.DeploymentStatusDeployed
+	case "failed", "rejected":
+		return dmsadapter.DeploymentStatusFailed
+	case "cancelled":
+		return dmsadapter.DeploymentStatusDeleting
+	default:
+		return dmsadapter.DeploymentStatusPending
+	}
+}
+
+// applyTMF641ServiceOrderUpdate applies a TMF641 service order update to a DMS deployment.
+func applyTMF641ServiceOrderUpdate(dep *dmsadapter.Deployment, update *models.TMF641ServiceOrderUpdate) {
+	// Update basic fields
+	if update.Description != nil {
+		dep.Description = *update.Description
+	}
+	if update.State != nil {
+		dep.Status = mapOrderStateToDeploymentStatus(*update.State)
+	}
+
+	// Update external ID
+	if update.ExternalId != nil {
+		ensureExtensions(dep)
+		dep.Extensions["orderExternalId"] = *update.ExternalId
+	}
+
+	// Update priority
+	if update.Priority != nil {
+		ensureExtensions(dep)
+		dep.Extensions["orderPriority"] = *update.Priority
+	}
+
+	// Update category
+	if update.Category != nil {
+		ensureExtensions(dep)
+		dep.Extensions["orderCategory"] = *update.Category
+	}
+
+	dep.UpdatedAt = time.Now()
+}
+
+// generateDeploymentName generates a deployment name from order details.
+func generateDeploymentName(order *models.TMF641ServiceOrderCreate, item *models.ServiceOrderItemCreate) string {
+	if item.Service != nil && item.Service.Name != "" {
+		return item.Service.Name
+	}
+	if order.ExternalId != "" {
+		return fmt.Sprintf("order-%s", order.ExternalId)
+	}
+	return fmt.Sprintf("order-%d", time.Now().Unix())
+}

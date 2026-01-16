@@ -17,9 +17,9 @@ import (
 
 // TestServer wraps an HTTP test server for integration testing.
 type TestServer struct {
-	Server       *httptest.Server
-	Config       *config.Config
-	InternalSrv  *server.Server // Exposed for advanced test setup (e.g., DMS initialization)
+	Server      *httptest.Server
+	Config      *config.Config
+	InternalSrv *server.Server // Exposed for advanced test setup (e.g., DMS initialization)
 }
 
 // NewTestServer creates a new test server with the given adapter and storage.

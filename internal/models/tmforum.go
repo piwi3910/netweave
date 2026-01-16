@@ -484,3 +484,411 @@ type TimePeriod struct {
 	// EndDateTime is the end of the period
 	EndDateTime *time.Time `json:"endDateTime,omitempty"`
 }
+
+// ========================================
+// TMF641 - Service Ordering Management
+// ========================================
+
+// TMF641ServiceOrder represents a service order in the TMForum Service Ordering Management API.
+// Service orders are used to order new services, modify existing services, or cancel services.
+type TMF641ServiceOrder struct {
+	// ID is the unique identifier of the service order
+	ID string `json:"id,omitempty"`
+
+	// Href is the URI reference for this service order
+	Href string `json:"href,omitempty"`
+
+	// ExternalId is an external identifier for the order
+	ExternalId string `json:"externalId,omitempty"`
+
+	// Priority defines the priority of the order (1-4, 1 being highest)
+	Priority string `json:"priority,omitempty"`
+
+	// Description provides a description of the service order
+	Description string `json:"description,omitempty"`
+
+	// Category is the category of the order (e.g., "initial", "change", "disconnect")
+	Category string `json:"category,omitempty"`
+
+	// State is the state of the order (e.g., "acknowledged", "inProgress", "completed", "failed")
+	State string `json:"state,omitempty"`
+
+	// OrderDate is when the order was placed
+	OrderDate *time.Time `json:"orderDate,omitempty"`
+
+	// CompletionDate is when the order was completed
+	CompletionDate *time.Time `json:"completionDate,omitempty"`
+
+	// RequestedStartDate is when the customer requested the order to start
+	RequestedStartDate *time.Time `json:"requestedStartDate,omitempty"`
+
+	// RequestedCompletionDate is when the customer requested the order to complete
+	RequestedCompletionDate *time.Time `json:"requestedCompletionDate,omitempty"`
+
+	// ExpectedCompletionDate is the provider's expected completion date
+	ExpectedCompletionDate *time.Time `json:"expectedCompletionDate,omitempty"`
+
+	// StartDate is when the order processing actually started
+	StartDate *time.Time `json:"startDate,omitempty"`
+
+	// ServiceOrderItem contains the ordered items
+	ServiceOrderItem []ServiceOrderItem `json:"serviceOrderItem" binding:"required"`
+
+	// RelatedParty references parties related to the order
+	RelatedParty []RelatedParty `json:"relatedParty,omitempty"`
+
+	// OrderRelationship references related orders
+	OrderRelationship []OrderRelationship `json:"orderRelationship,omitempty"`
+
+	// Note contains notes/comments on the order
+	Note []Note `json:"note,omitempty"`
+
+	// AtBaseType is the base type when sub-classing
+	AtBaseType string `json:"@baseType,omitempty"`
+
+	// AtSchemaLocation provides a link to the schema
+	AtSchemaLocation string `json:"@schemaLocation,omitempty"`
+
+	// AtType is the class type
+	AtType string `json:"@type,omitempty"`
+}
+
+// TMF641ServiceOrderCreate represents the request to create a new service order.
+type TMF641ServiceOrderCreate struct {
+	// ExternalId is an external identifier for the order
+	ExternalId string `json:"externalId,omitempty"`
+
+	// Priority defines the priority of the order
+	Priority string `json:"priority,omitempty"`
+
+	// Description provides a description of the service order
+	Description string `json:"description,omitempty"`
+
+	// Category is the category of the order
+	Category string `json:"category,omitempty"`
+
+	// RequestedStartDate is when the customer requests the order to start
+	RequestedStartDate *time.Time `json:"requestedStartDate,omitempty"`
+
+	// RequestedCompletionDate is when the customer requests the order to complete
+	RequestedCompletionDate *time.Time `json:"requestedCompletionDate,omitempty"`
+
+	// ServiceOrderItem contains the ordered items
+	ServiceOrderItem []ServiceOrderItemCreate `json:"serviceOrderItem" binding:"required"`
+
+	// RelatedParty references parties related to the order
+	RelatedParty []RelatedParty `json:"relatedParty,omitempty"`
+
+	// OrderRelationship references related orders
+	OrderRelationship []OrderRelationship `json:"orderRelationship,omitempty"`
+
+	// Note contains notes/comments on the order
+	Note []Note `json:"note,omitempty"`
+
+	// AtBaseType is the base type when sub-classing
+	AtBaseType string `json:"@baseType,omitempty"`
+
+	// AtSchemaLocation provides a link to the schema
+	AtSchemaLocation string `json:"@schemaLocation,omitempty"`
+
+	// AtType is the class type
+	AtType string `json:"@type,omitempty"`
+}
+
+// TMF641ServiceOrderUpdate represents an update to an existing service order.
+type TMF641ServiceOrderUpdate struct {
+	// ExternalId is an external identifier for the order
+	ExternalId *string `json:"externalId,omitempty"`
+
+	// Priority defines the priority of the order
+	Priority *string `json:"priority,omitempty"`
+
+	// Description provides a description of the service order
+	Description *string `json:"description,omitempty"`
+
+	// Category is the category of the order
+	Category *string `json:"category,omitempty"`
+
+	// State is the state of the order
+	State *string `json:"state,omitempty"`
+
+	// RequestedStartDate is when the customer requests the order to start
+	RequestedStartDate *time.Time `json:"requestedStartDate,omitempty"`
+
+	// RequestedCompletionDate is when the customer requests the order to complete
+	RequestedCompletionDate *time.Time `json:"requestedCompletionDate,omitempty"`
+
+	// RelatedParty references parties related to the order
+	RelatedParty *[]RelatedParty `json:"relatedParty,omitempty"`
+
+	// Note contains notes/comments on the order
+	Note *[]Note `json:"note,omitempty"`
+}
+
+// ServiceOrderItem represents an item in a service order.
+type ServiceOrderItem struct {
+	// ID is the unique identifier of the order item
+	ID string `json:"id,omitempty"`
+
+	// Quantity is the quantity being ordered
+	Quantity int `json:"quantity,omitempty"`
+
+	// Action is the action to be performed (e.g., "add", "modify", "delete", "noChange")
+	Action string `json:"action" binding:"required"`
+
+	// State is the state of the order item
+	State string `json:"state,omitempty"`
+
+	// Service references the service being ordered
+	Service *TMF638ServiceRef `json:"service" binding:"required"`
+
+	// ServiceOrderItemRelationship references related order items
+	ServiceOrderItemRelationship []ServiceOrderItemRelationship `json:"serviceOrderItemRelationship,omitempty"`
+
+	// Appointment references an appointment for service provisioning
+	Appointment *AppointmentRef `json:"appointment,omitempty"`
+
+	// AtBaseType is the base type when sub-classing
+	AtBaseType string `json:"@baseType,omitempty"`
+
+	// AtSchemaLocation provides a link to the schema
+	AtSchemaLocation string `json:"@schemaLocation,omitempty"`
+
+	// AtType is the class type
+	AtType string `json:"@type,omitempty"`
+}
+
+// ServiceOrderItemCreate represents the request to create a service order item.
+type ServiceOrderItemCreate struct {
+	// ID is the identifier for this order item
+	ID string `json:"id,omitempty"`
+
+	// Quantity is the quantity being ordered
+	Quantity int `json:"quantity,omitempty"`
+
+	// Action is the action to be performed
+	Action string `json:"action" binding:"required"`
+
+	// Service references or describes the service being ordered
+	Service *TMF638ServiceCreate `json:"service" binding:"required"`
+
+	// ServiceOrderItemRelationship references related order items
+	ServiceOrderItemRelationship []ServiceOrderItemRelationship `json:"serviceOrderItemRelationship,omitempty"`
+
+	// Appointment references an appointment for service provisioning
+	Appointment *AppointmentRef `json:"appointment,omitempty"`
+
+	// AtBaseType is the base type when sub-classing
+	AtBaseType string `json:"@baseType,omitempty"`
+
+	// AtSchemaLocation provides a link to the schema
+	AtSchemaLocation string `json:"@schemaLocation,omitempty"`
+
+	// AtType is the class type
+	AtType string `json:"@type,omitempty"`
+}
+
+// TMF638ServiceRef is a reference to a service (used in service orders).
+type TMF638ServiceRef struct {
+	// ID is the unique identifier of the referenced service
+	ID string `json:"id" binding:"required"`
+
+	// Href is the URI reference
+	Href string `json:"href,omitempty"`
+
+	// Name is the name of the service
+	Name string `json:"name,omitempty"`
+
+	// AtReferredType is the type of the referenced entity
+	AtReferredType string `json:"@referredType,omitempty"`
+}
+
+// ServiceOrderItemRelationship represents a relationship between service order items.
+type ServiceOrderItemRelationship struct {
+	// RelationshipType is the type of relationship
+	RelationshipType string `json:"relationshipType" binding:"required"`
+
+	// OrderItem is the ID of the related order item
+	OrderItem string `json:"orderItem" binding:"required"`
+
+	// AtBaseType is the base type when sub-classing
+	AtBaseType string `json:"@baseType,omitempty"`
+
+	// AtSchemaLocation provides a link to the schema
+	AtSchemaLocation string `json:"@schemaLocation,omitempty"`
+
+	// AtType is the class type
+	AtType string `json:"@type,omitempty"`
+}
+
+// OrderRelationship represents a relationship between service orders.
+type OrderRelationship struct {
+	// RelationshipType is the type of relationship
+	RelationshipType string `json:"relationshipType" binding:"required"`
+
+	// Href is the URI reference to the related order
+	Href string `json:"href,omitempty"`
+
+	// ID is the ID of the related order
+	ID string `json:"id" binding:"required"`
+
+	// AtReferredType is the type of the referenced entity
+	AtReferredType string `json:"@referredType,omitempty"`
+}
+
+// AppointmentRef references an appointment for service provisioning.
+type AppointmentRef struct {
+	// ID is the unique identifier of the appointment
+	ID string `json:"id" binding:"required"`
+
+	// Href is the URI reference
+	Href string `json:"href,omitempty"`
+
+	// Description is a description of the appointment
+	Description string `json:"description,omitempty"`
+
+	// AtReferredType is the type of the referenced entity
+	AtReferredType string `json:"@referredType,omitempty"`
+}
+
+// ========================================
+// TMF688 - Event Management
+// ========================================
+
+// TMF688Event represents an event notification in the TMForum Event Management API.
+type TMF688Event struct {
+	// ID is the unique identifier of the event
+	ID string `json:"id,omitempty"`
+
+	// Href is the hyperlink to the event
+	Href string `json:"href,omitempty"`
+
+	// EventType is the type of event (e.g., "ResourceCreateEvent", "ServiceOrderStateChangeEvent")
+	EventType string `json:"eventType" binding:"required"`
+
+	// EventTime is the time when the event occurred
+	EventTime *time.Time `json:"eventTime" binding:"required"`
+
+	// Title is a short descriptive title for the event
+	Title string `json:"title,omitempty"`
+
+	// Description provides additional details about the event
+	Description string `json:"description,omitempty"`
+
+	// Priority indicates the priority of the event
+	Priority string `json:"priority,omitempty"`
+
+	// TimeOccurred is the time the event actually occurred (may differ from eventTime)
+	TimeOccurred *time.Time `json:"timeOccurred,omitempty"`
+
+	// CorrelationId is used to group related events
+	CorrelationId string `json:"correlationId,omitempty"`
+
+	// Domain is the domain that the event belongs to
+	Domain string `json:"domain,omitempty"`
+
+	// Event contains the event payload
+	Event *EventPayload `json:"event" binding:"required"`
+
+	// AtBaseType is the base type when sub-classing
+	AtBaseType string `json:"@baseType,omitempty"`
+
+	// AtSchemaLocation provides a link to the schema
+	AtSchemaLocation string `json:"@schemaLocation,omitempty"`
+
+	// AtType is the class type
+	AtType string `json:"@type,omitempty"`
+}
+
+// EventPayload represents the payload of an event.
+type EventPayload struct {
+	// Resource references the affected resource (for resource events)
+	Resource *TMF639Resource `json:"resource,omitempty"`
+
+	// Service references the affected service (for service events)
+	Service *TMF638Service `json:"service,omitempty"`
+
+	// ServiceOrder references the affected service order (for order events)
+	ServiceOrder *TMF641ServiceOrder `json:"serviceOrder,omitempty"`
+
+	// Alarm references the affected alarm (for alarm events)
+	Alarm interface{} `json:"alarm,omitempty"`
+}
+
+// TMF688EventCreate represents the request to create an event.
+type TMF688EventCreate struct {
+	// EventType is the type of event
+	EventType string `json:"eventType" binding:"required"`
+
+	// EventTime is the time when the event occurred
+	EventTime *time.Time `json:"eventTime" binding:"required"`
+
+	// Title is a short descriptive title for the event
+	Title string `json:"title,omitempty"`
+
+	// Description provides additional details about the event
+	Description string `json:"description,omitempty"`
+
+	// Priority indicates the priority of the event
+	Priority string `json:"priority,omitempty"`
+
+	// TimeOccurred is the time the event actually occurred
+	TimeOccurred *time.Time `json:"timeOccurred,omitempty"`
+
+	// CorrelationId is used to group related events
+	CorrelationId string `json:"correlationId,omitempty"`
+
+	// Domain is the domain that the event belongs to
+	Domain string `json:"domain,omitempty"`
+
+	// Event contains the event payload
+	Event *EventPayload `json:"event" binding:"required"`
+
+	// AtBaseType is the base type when sub-classing
+	AtBaseType string `json:"@baseType,omitempty"`
+
+	// AtSchemaLocation provides a link to the schema
+	AtSchemaLocation string `json:"@schemaLocation,omitempty"`
+
+	// AtType is the class type
+	AtType string `json:"@type,omitempty"`
+}
+
+// TMF688Hub represents a hub for event subscriptions.
+type TMF688Hub struct {
+	// ID is the unique identifier of the hub
+	ID string `json:"id,omitempty"`
+
+	// Callback is the URL where notifications should be sent
+	Callback string `json:"callback" binding:"required"`
+
+	// Query is a filter to apply on events
+	Query string `json:"query,omitempty"`
+
+	// AtBaseType is the base type when sub-classing
+	AtBaseType string `json:"@baseType,omitempty"`
+
+	// AtSchemaLocation provides a link to the schema
+	AtSchemaLocation string `json:"@schemaLocation,omitempty"`
+
+	// AtType is the class type
+	AtType string `json:"@type,omitempty"`
+}
+
+// TMF688HubCreate represents the request to register for event notifications.
+type TMF688HubCreate struct {
+	// Callback is the URL where notifications should be sent
+	Callback string `json:"callback" binding:"required"`
+
+	// Query is a filter to apply on events
+	Query string `json:"query,omitempty"`
+
+	// AtBaseType is the base type when sub-classing
+	AtBaseType string `json:"@baseType,omitempty"`
+
+	// AtSchemaLocation provides a link to the schema
+	AtSchemaLocation string `json:"@schemaLocation,omitempty"`
+
+	// AtType is the class type
+	AtType string `json:"@type,omitempty"`
+}

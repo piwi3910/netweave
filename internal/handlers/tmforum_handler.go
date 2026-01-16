@@ -461,3 +461,195 @@ func (h *TMForumHandler) DeleteTMF638Service(c *gin.Context) {
 		"message": fmt.Sprintf("Service with ID '%s' not found", serviceID),
 	})
 }
+
+// ========================================
+// TMF641 - Service Ordering Management
+// ========================================
+
+// ListTMF641ServiceOrders lists all TMF641 service orders.
+// GET /tmf-api/serviceOrdering/v4/serviceOrder
+func (h *TMForumHandler) ListTMF641ServiceOrders(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
+
+	// Query parameters for filtering
+	state := c.Query("state")
+	externalID := c.Query("externalId")
+
+	// List all deployments and convert to service orders
+	adapters := h.dmsRegistry.List()
+	var orders []*models.TMF641ServiceOrder
+
+	for _, dmsAdapter := range adapters {
+		deployments, err := dmsAdapter.ListDeployments(ctx, nil)
+		if err != nil {
+			h.logger.Warn("failed to list deployments from adapter",
+				zap.String("adapter", dmsAdapter.Name()),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		for _, dep := range deployments {
+			order := TransformDeploymentToTMF641ServiceOrder(dep, baseURL)
+
+			// Apply filters
+			if state != "" && order.State != state {
+				continue
+			}
+			if externalID != "" && order.ExternalId != externalID {
+				continue
+			}
+
+			orders = append(orders, order)
+		}
+	}
+
+	c.JSON(http.StatusOK, orders)
+}
+
+// GetTMF641ServiceOrder retrieves a single TMF641 service order by ID.
+// GET /tmf-api/serviceOrdering/v4/serviceOrder/:id
+func (h *TMForumHandler) GetTMF641ServiceOrder(c *gin.Context) {
+	ctx := c.Request.Context()
+	orderID := c.Param("id")
+
+	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
+
+	// Try to find deployment across all adapters
+	adapters := h.dmsRegistry.List()
+	for _, dmsAdapter := range adapters {
+		dep, err := dmsAdapter.GetDeployment(ctx, orderID)
+		if err == nil {
+			order := TransformDeploymentToTMF641ServiceOrder(dep, baseURL)
+			c.JSON(http.StatusOK, order)
+			return
+		}
+	}
+
+	c.JSON(http.StatusNotFound, gin.H{
+		"error":   "NotFound",
+		"message": fmt.Sprintf("Service order with ID '%s' not found", orderID),
+	})
+}
+
+// CreateTMF641ServiceOrder creates a new TMF641 service order.
+// POST /tmf-api/serviceOrdering/v4/serviceOrder
+func (h *TMForumHandler) CreateTMF641ServiceOrder(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	var createReq models.TMF641ServiceOrderCreate
+	if err := c.ShouldBindJSON(&createReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
+
+	// Validate service order items
+	if len(createReq.ServiceOrderItem) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Service order must contain at least one item",
+		})
+		return
+	}
+
+	// Get default DMS adapter
+	dmsAdapter := h.dmsRegistry.GetDefault()
+	if dmsAdapter == nil {
+		h.logger.Error("no default DMS adapter available")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "No DMS adapter available for service ordering",
+		})
+		return
+	}
+
+	// Process first service order item (simplified implementation)
+	// In a full implementation, we would process all items and handle dependencies
+	firstItem := createReq.ServiceOrderItem[0]
+
+	deploymentReq := TransformTMF641ServiceOrderToDeployment(&createReq, &firstItem)
+
+	deployment, err := dmsAdapter.CreateDeployment(ctx, deploymentReq)
+	if err != nil {
+		h.logger.Error("failed to create deployment for service order",
+			zap.Error(err),
+		)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to create service order",
+		})
+		return
+	}
+
+	order := TransformDeploymentToTMF641ServiceOrder(deployment, baseURL)
+	c.JSON(http.StatusCreated, order)
+}
+
+// UpdateTMF641ServiceOrder updates an existing TMF641 service order (PATCH).
+// PATCH /tmf-api/serviceOrdering/v4/serviceOrder/:id
+func (h *TMForumHandler) UpdateTMF641ServiceOrder(c *gin.Context) {
+	ctx := c.Request.Context()
+	orderID := c.Param("id")
+
+	var updateReq models.TMF641ServiceOrderUpdate
+	if err := c.ShouldBindJSON(&updateReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
+
+	// Find deployment across all adapters
+	adapters := h.dmsRegistry.List()
+	for _, dmsAdapter := range adapters {
+		dep, err := dmsAdapter.GetDeployment(ctx, orderID)
+		if err != nil {
+			continue
+		}
+
+		// Apply updates
+		applyTMF641ServiceOrderUpdate(dep, &updateReq)
+
+		// Return updated order
+		order := TransformDeploymentToTMF641ServiceOrder(dep, baseURL)
+		c.JSON(http.StatusOK, order)
+		return
+	}
+
+	c.JSON(http.StatusNotFound, gin.H{
+		"error":   "NotFound",
+		"message": fmt.Sprintf("Service order with ID '%s' not found", orderID),
+	})
+}
+
+// DeleteTMF641ServiceOrder deletes (cancels) a TMF641 service order.
+// DELETE /tmf-api/serviceOrdering/v4/serviceOrder/:id
+func (h *TMForumHandler) DeleteTMF641ServiceOrder(c *gin.Context) {
+	ctx := c.Request.Context()
+	orderID := c.Param("id")
+
+	// Try to delete deployment from all adapters
+	adapters := h.dmsRegistry.List()
+	for _, dmsAdapter := range adapters {
+		err := dmsAdapter.DeleteDeployment(ctx, orderID)
+		if err == nil {
+			c.Status(http.StatusNoContent)
+			return
+		}
+	}
+
+	c.JSON(http.StatusNotFound, gin.H{
+		"error":   "NotFound",
+		"message": fmt.Sprintf("Service order with ID '%s' not found", orderID),
+	})
+}
