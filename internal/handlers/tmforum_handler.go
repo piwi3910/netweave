@@ -3,12 +3,14 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	imsadapter "github.com/piwi3910/netweave/internal/adapter"
 	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
 	"github.com/piwi3910/netweave/internal/dms/registry"
 	"github.com/piwi3910/netweave/internal/models"
+	"github.com/piwi3910/netweave/internal/storage"
 	"go.uber.org/zap"
 )
 
@@ -17,6 +19,7 @@ import (
 type TMForumHandler struct {
 	adapter     imsadapter.Adapter
 	dmsRegistry *registry.Registry
+	hubStore    storage.HubStore
 	logger      *zap.Logger
 }
 
@@ -24,11 +27,13 @@ type TMForumHandler struct {
 func NewTMForumHandler(
 	adp imsadapter.Adapter,
 	dmsReg *registry.Registry,
+	hubStore storage.HubStore,
 	logger *zap.Logger,
 ) *TMForumHandler {
 	return &TMForumHandler{
 		adapter:     adp,
 		dmsRegistry: dmsReg,
+		hubStore:    hubStore,
 		logger:      logger,
 	}
 }
@@ -703,6 +708,8 @@ func (h *TMForumHandler) CreateTMF688Event(c *gin.Context) {
 // RegisterTMF688Hub registers a hub for event notifications.
 // POST /tmf-api/eventManagement/v4/hub
 func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
+	ctx := c.Request.Context()
+
 	var hubReq models.TMF688HubCreate
 	if err := c.ShouldBindJSON(&hubReq); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -712,10 +719,79 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 		return
 	}
 
-	// This maps to O2-IMS subscription mechanism
-	// Create an O2-IMS subscription with the callback URL
+	// Parse TMF688 query to O2-IMS filter
+	filter, err := ParseTMF688Query(hubReq.Query)
+	if err != nil {
+		h.logger.Warn("invalid TMF688 query",
+			zap.String("query", hubReq.Query),
+			zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": fmt.Sprintf("Invalid query format: %v", err),
+		})
+		return
+	}
+
+	// Create O2-IMS subscription
+	subscription := &imsadapter.Subscription{
+		Callback:               hubReq.Callback,
+		ConsumerSubscriptionID: "",
+		Filter:                 filter,
+	}
+
+	createdSub, err := h.adapter.CreateSubscription(ctx, subscription)
+	if err != nil {
+		h.logger.Error("failed to create O2-IMS subscription",
+			zap.String("callback", hubReq.Callback),
+			zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to create subscription",
+		})
+		return
+	}
+
+	// Generate hub ID
+	hubID := fmt.Sprintf("hub-%s", createdSub.SubscriptionID)
+
+	// Create hub registration
+	registration := &storage.HubRegistration{
+		HubID:          hubID,
+		Callback:       hubReq.Callback,
+		Query:          hubReq.Query,
+		SubscriptionID: createdSub.SubscriptionID,
+		CreatedAt:      time.Now(),
+	}
+
+	// Store hub registration
+	if err := h.hubStore.Create(ctx, registration); err != nil {
+		h.logger.Error("failed to save hub registration",
+			zap.String("hubId", hubID),
+			zap.Error(err))
+
+		// Cleanup: Delete O2-IMS subscription
+		if delErr := h.adapter.DeleteSubscription(ctx, createdSub.SubscriptionID); delErr != nil {
+			h.logger.Warn("failed to cleanup O2-IMS subscription after hub store error",
+				zap.String("subscriptionId", createdSub.SubscriptionID),
+				zap.Error(delErr))
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to save hub registration",
+		})
+		return
+	}
+
+	h.logger.Info("registered event hub",
+		zap.String("hubId", hubID),
+		zap.String("subscriptionId", createdSub.SubscriptionID),
+		zap.String("callback", hubReq.Callback),
+		zap.String("query", hubReq.Query))
+
+	// Return hub response
 	hub := &models.TMF688Hub{
-		ID:       fmt.Sprintf("hub-%d", len(hubReq.Callback)),
+		ID:       hubID,
 		Callback: hubReq.Callback,
 		Query:    hubReq.Query,
 		AtType:   "EventSubscriptionInput",
@@ -727,12 +803,53 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 // UnregisterTMF688Hub unregisters a hub.
 // DELETE /tmf-api/eventManagement/v4/hub/:id
 func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
+	ctx := c.Request.Context()
 	hubID := c.Param("id")
 
-	// This would map to deleting the corresponding O2-IMS subscription
-	h.logger.Info("unregistering event hub",
+	// Get hub registration
+	registration, err := h.hubStore.Get(ctx, hubID)
+	if err != nil {
+		if err == storage.ErrHubNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": fmt.Sprintf("Hub with ID '%s' not found", hubID),
+			})
+		} else {
+			h.logger.Error("failed to retrieve hub registration",
+				zap.String("hubId", hubID),
+				zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "InternalError",
+				"message": "Failed to retrieve hub registration",
+			})
+		}
+		return
+	}
+
+	// Delete O2-IMS subscription
+	if err := h.adapter.DeleteSubscription(ctx, registration.SubscriptionID); err != nil {
+		h.logger.Warn("failed to delete O2-IMS subscription",
+			zap.String("hubId", hubID),
+			zap.String("subscriptionId", registration.SubscriptionID),
+			zap.Error(err))
+		// Continue with hub deletion even if subscription deletion fails
+	}
+
+	// Delete hub registration
+	if err := h.hubStore.Delete(ctx, hubID); err != nil {
+		h.logger.Error("failed to delete hub registration",
+			zap.String("hubId", hubID),
+			zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to delete hub registration",
+		})
+		return
+	}
+
+	h.logger.Info("unregistered event hub",
 		zap.String("hubId", hubID),
-	)
+		zap.String("subscriptionId", registration.SubscriptionID))
 
 	c.Status(http.StatusNoContent)
 }

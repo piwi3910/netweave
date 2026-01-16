@@ -584,9 +584,12 @@ func (s *Server) SetupDMS(reg *dmsregistry.Registry) {
 
 	s.logger.Info("DMS subsystem initialized")
 
+	// Initialize TMForum hub store for TMF688 event management
+	hubStore := storage.NewInMemoryHubStore()
+
 	// Initialize TMForum handler (uses both IMS adapter and DMS registry)
 	// Routes were already registered during server initialization
-	s.tmfHandler = handlers.NewTMForumHandler(s.adapter, s.dmsRegistry, s.logger)
+	s.tmfHandler = handlers.NewTMForumHandler(s.adapter, s.dmsRegistry, hubStore, s.logger)
 
 	s.logger.Info("TMForum API initialized", zap.Int("apis", 2))
 }
