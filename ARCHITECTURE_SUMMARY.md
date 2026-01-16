@@ -83,14 +83,62 @@ The **netweave O2-IMS Gateway** architecture and project foundation are now full
 ### System Overview
 
 ```
-O2 SMO → K8s Ingress (mTLS) → Gateway Pods (3+, stateless, native Go TLS)
-                                      ↓
-                                   Redis (state, cache, pub/sub)
-                                      ↓
-                               Kubernetes API (source of truth)
-                                      ↑
-                            Subscription Controller (webhooks)
+O2 SMO / TMF Clients → K8s Ingress (mTLS) → Gateway Pods (3+, stateless, native Go TLS)
+                                                     ↓
+                                                  Redis (state, cache, pub/sub)
+                                                     ↓
+                                              Kubernetes API (source of truth)
+                                                     ↑
+                                           Subscription Controller (webhooks)
 ```
+
+### Dual API Frontend
+
+The gateway supports both **O-RAN APIs** and **TMForum Open APIs** as alternative frontends to the same backend infrastructure:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    FRONTEND LAYER                       │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  O-RAN APIs              TMForum APIs                   │
+│  ├─ /o2ims/v1           ├─ /tmf-api/                   │
+│  ├─ /o2dms/v1           │  serviceInventoryManagement/v4│
+│  └─ /o2smo/v1           ├─ /tmf-api/                   │
+│                         │  resourceInventoryManagement/v4│
+│                         ├─ /tmf-api/serviceOrdering/v4  │
+│                         ├─ /tmf-api/eventManagement/v4  │
+│                         └─ /tmf-api/serviceActivation/v4│
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────┐
+│              TRANSLATION & ROUTING LAYER                │
+│   (Transforms between TMForum ↔ O-RAN ↔ Backend)       │
+└─────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────┐
+│                  BACKEND ADAPTERS                       │
+│   IMS: K8s, OpenStack, AWS, Azure, GCP, VMware, etc.   │
+│   DMS: Helm, ArgoCD, Flux, ONAP, Crossplane, etc.      │
+└─────────────────────────────────────────────────────────┘
+```
+
+**TMForum API Support:**
+- ✅ **TMF638** - Service Inventory Management v4 (↔ O2-DMS Deployments)
+- ✅ **TMF639** - Resource Inventory Management v4 (↔ O2-IMS Resources/Pools)
+- ✅ **TMF641** - Service Ordering Management v4 (↔ O2-DMS Lifecycle)
+- ✅ **TMF688** - Event Management v4 (↔ O2-IMS Subscriptions + Webhooks)
+- ✅ **TMF640** - Service Activation & Configuration v4
+- ✅ **TMF620** - Product Catalog Management v4 (↔ O2-DMS Packages)
+- ⚠️ **TMF642** - Alarm Management v4 (Partial - basic handlers)
+
+**Benefits:**
+- Same backend adapters (18+ IMS + 7+ DMS) work for both API sets
+- No duplication of infrastructure or data
+- Clients can mix and match API styles
+- Standards compliance for both TM Forum and O-RAN
+- Gradual migration paths between API standards
 
 ### Key Architectural Decisions
 

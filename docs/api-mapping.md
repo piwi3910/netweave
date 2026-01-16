@@ -648,6 +648,255 @@ config := &dms.AdaptersConfig{
 
 ---
 
+## TMForum API Mappings
+
+The O2-IMS Gateway provides TMForum Open API support as an alternative frontend to the O-RAN APIs. Both API sets share the same backend adapter infrastructure.
+
+### TMF639 - Resource Inventory Management
+
+Maps TMForum resources to O-RAN O2-IMS resources and resource pools.
+
+#### API Endpoints
+
+| HTTP Method | Endpoint | CRUD | Status | O-RAN Equivalent |
+|-------------|----------|------|--------|------------------|
+| GET | `/tmf-api/resourceInventoryManagement/v4/resource` | List | ✅ Implemented | `/o2ims-infrastructureInventory/v1/resourcePools` + `/v1/resources` |
+| GET | `/tmf-api/resourceInventoryManagement/v4/resource/{id}` | Read | ✅ Implemented | `/o2ims-infrastructureInventory/v1/resourcePools/{id}` or `/v1/resources/{id}` |
+| POST | `/tmf-api/resourceInventoryManagement/v4/resource` | Create | ✅ Implemented | `/o2ims-infrastructureInventory/v1/resourcePools` |
+| PATCH | `/tmf-api/resourceInventoryManagement/v4/resource/{id}` | Update | ✅ Implemented | `/o2ims-infrastructureInventory/v1/resourcePools/{id}` |
+| DELETE | `/tmf-api/resourceInventoryManagement/v4/resource/{id}` | Delete | ✅ Implemented | `/o2ims-infrastructureInventory/v1/resourcePools/{id}` |
+
+**Handler**: `internal/handlers/tmforum_handler.go`
+
+#### Field Mappings
+
+| TMForum Field | O-RAN Field | Notes |
+|---------------|-------------|-------|
+| `id` | `resourcePoolId` or `resourceId` | Depending on category |
+| `name` | `name` | Direct mapping |
+| `category` | Derived | `"resourcePool"` for pools, resource type for others |
+| `resourceStatus` | `administrativeState` | State mapping: available↔unlocked, reserved↔locked |
+| `operationalState` | `operationalState` | Direct mapping: enabled, disabled |
+| `place` | `location` | Geographic/logical location |
+| `resourceCharacteristic` | `extensions` | Flexible key-value attributes |
+| `resourceSpecification.id` | `resourceTypeId` | Resource type reference |
+
+### TMF638 - Service Inventory Management
+
+Maps TMForum services to O-RAN O2-DMS deployments.
+
+#### API Endpoints
+
+| HTTP Method | Endpoint | CRUD | Status | O-RAN Equivalent |
+|-------------|----------|------|--------|------------------|
+| GET | `/tmf-api/serviceInventoryManagement/v4/service` | List | ✅ Implemented | `/o2dms/v1/deployments` |
+| GET | `/tmf-api/serviceInventoryManagement/v4/service/{id}` | Read | ✅ Implemented | `/o2dms/v1/deployments/{id}` |
+| POST | `/tmf-api/serviceInventoryManagement/v4/service` | Create | ✅ Implemented | `/o2dms/v1/deployments` |
+| PATCH | `/tmf-api/serviceInventoryManagement/v4/service/{id}` | Update | ✅ Implemented | `/o2dms/v1/deployments/{id}` (limited) |
+| DELETE | `/tmf-api/serviceInventoryManagement/v4/service/{id}` | Delete | ✅ Implemented | `/o2dms/v1/deployments/{id}` |
+
+**Handler**: `internal/handlers/tmforum_handler.go`
+
+#### Field Mappings
+
+| TMForum Field | O-RAN Field | Notes |
+|---------------|-------------|-------|
+| `id` | `deploymentId` | Unique deployment identifier |
+| `name` | `name` | Direct mapping |
+| `state` | `status` | State mapping: pending↔Pending, inProgress↔Installing, activated↔Installed, failed↔Failed |
+| `serviceType` | Derived | From deployment metadata |
+| `serviceSpecification.id` | `packageId` | Deployment package reference |
+| `serviceSpecification.version` | `version` | Package version |
+| `serviceCharacteristic` | `extensions` + parameters | Configuration and runtime attributes |
+| `startDate` | `createdAt` | Deployment creation time |
+
+### TMF641 - Service Ordering Management
+
+Maps service orders to O2-DMS deployment requests.
+
+#### API Endpoints
+
+| HTTP Method | Endpoint | CRUD | Status | O-RAN Equivalent |
+|-------------|----------|------|--------|------------------|
+| GET | `/tmf-api/serviceOrdering/v4/serviceOrder` | List | ✅ Implemented | `/o2dms/v1/deployments` (filtered by state) |
+| GET | `/tmf-api/serviceOrdering/v4/serviceOrder/{id}` | Read | ✅ Implemented | `/o2dms/v1/deployments/{id}` |
+| POST | `/tmf-api/serviceOrdering/v4/serviceOrder` | Create | ✅ Implemented | `/o2dms/v1/deployments` |
+| PATCH | `/tmf-api/serviceOrdering/v4/serviceOrder/{id}` | Update | ✅ Implemented | Deployment lifecycle operations |
+| DELETE | `/tmf-api/serviceOrdering/v4/serviceOrder/{id}` | Cancel | ✅ Implemented | `/o2dms/v1/deployments/{id}` (delete) |
+
+**Handler**: `internal/handlers/tmforum_handler.go`
+
+#### State Mappings
+
+| TMF641 Order State | O2-DMS Deployment Status |
+|--------------------|--------------------------|
+| `pending` | Pending |
+| `inProgress` | Installing, Upgrading |
+| `completed` | Installed |
+| `failed` | Failed |
+| `cancelled` | (Deleted) |
+
+### TMF688 - Event Management
+
+Maps TMForum event hubs to O-RAN O2-IMS subscriptions with webhook delivery.
+
+#### API Endpoints
+
+| HTTP Method | Endpoint | CRUD | Status | O-RAN Equivalent |
+|-------------|----------|------|--------|------------------|
+| POST | `/tmf-api/eventManagement/v4/hub` | Create | ✅ Implemented | `/o2ims-infrastructureMonitoring/v1/subscriptions` |
+| DELETE | `/tmf-api/eventManagement/v4/hub/{id}` | Delete | ✅ Implemented | `/o2ims-infrastructureMonitoring/v1/subscriptions/{id}` |
+| GET | `/tmf-api/eventManagement/v4/event` | List | ⚠️ Partial | Returns empty (events delivered via webhooks) |
+| GET | `/tmf-api/eventManagement/v4/event/{id}` | Read | ⚠️ Partial | Returns 404 (events delivered via webhooks) |
+
+**Handler**: `internal/handlers/tmforum_handler.go`
+
+**Event Workers**:
+- `internal/workers/tmf_event_listener.go` - Listens to Redis Stream for O2-IMS events
+- `internal/workers/tmf_event_publisher.go` - Publishes TMF688 events to webhook endpoints
+
+#### Event Type Mappings
+
+| TMF688 Event Type | O-RAN Resource Event |
+|-------------------|---------------------|
+| `ResourceCreationNotification` | Resource creation |
+| `ResourceStateChangeNotification` | Resource state change |
+| `ResourceRemoveNotification` | Resource deletion |
+| `ResourceAttributeValueChangeNotification` | Resource update |
+| `ServiceOrderStateChangeEvent` | Deployment status change |
+| `ServiceOrderCreationNotification` | Deployment creation |
+| `ServiceOrderStateChangeNotification` | Deployment status change |
+
+#### Query Parameter Filtering
+
+Hub subscriptions support query-based filtering:
+
+```
+?resourceId=res-123&resourcePoolId=pool-456&eventType=ResourceCreationNotification
+```
+
+Maps to O2-IMS subscription filter:
+```json
+{
+  "resourceId": "res-123",
+  "resourcePoolId": "pool-456"
+}
+```
+
+### TMF640 - Service Activation & Configuration
+
+Maps service activation requests to O2-DMS deployment operations.
+
+#### API Endpoints
+
+| HTTP Method | Endpoint | CRUD | Status | O-RAN Equivalent |
+|-------------|----------|------|--------|------------------|
+| GET | `/tmf-api/serviceActivation/v4/serviceActivation` | List | ✅ Implemented | `/o2dms/v1/deployments` |
+| GET | `/tmf-api/serviceActivation/v4/serviceActivation/{id}` | Read | ✅ Implemented | `/o2dms/v1/deployments/{id}` |
+| POST | `/tmf-api/serviceActivation/v4/serviceActivation` | Create | ✅ Implemented | `/o2dms/v1/deployments` |
+
+**Handler**: `internal/handlers/tmforum_handler.go`
+
+### TMF620 - Product Catalog Management
+
+Maps product offerings to O2-DMS deployment packages.
+
+#### API Endpoints
+
+| HTTP Method | Endpoint | CRUD | Status | O-RAN Equivalent |
+|-------------|----------|------|--------|------------------|
+| GET | `/tmf-api/productCatalog/v4/productOffering` | List | ✅ Implemented | `/o2dms/v1/deploymentPackages` |
+| GET | `/tmf-api/productCatalog/v4/productOffering/{id}` | Read | ✅ Implemented | `/o2dms/v1/deploymentPackages/{id}` |
+
+**Handler**: `internal/handlers/tmforum_handler.go`
+
+### TMF642 - Alarm Management
+
+Maps alarms to Kubernetes events and O-RAN notifications.
+
+#### API Endpoints
+
+| HTTP Method | Endpoint | CRUD | Status | Notes |
+|-------------|----------|------|--------|-------|
+| GET | `/tmf-api/alarmManagement/v4/alarm` | List | ⚠️ Partial | Basic handler, needs K8s event integration |
+| GET | `/tmf-api/alarmManagement/v4/alarm/{id}` | Read | ⚠️ Partial | Returns 404 currently |
+| PATCH | `/tmf-api/alarmManagement/v4/alarm/{id}` | Update | ⚠️ Partial | Acknowledge/clear operations |
+
+**Handler**: `internal/handlers/tmforum_handler.go`
+
+**Status**: Basic handlers implemented, requires integration with Kubernetes event monitoring
+
+### TMForum Architecture
+
+```mermaid
+graph TB
+    subgraph "Clients"
+        TMF[TMForum Clients]
+        ORAN[O-RAN Clients]
+    end
+
+    subgraph "API Gateway Frontend"
+        TMF638[TMF638 Service Inventory]
+        TMF639[TMF639 Resource Inventory]
+        TMF641[TMF641 Service Ordering]
+        TMF688[TMF688 Event Management]
+        O2IMS[O2-IMS APIs]
+        O2DMS[O2-DMS APIs]
+    end
+
+    subgraph "Translation Layer"
+        Transform[TMForum ↔ O-RAN Transform]
+    end
+
+    subgraph "Backend Adapters"
+        IMS[IMS Adapters<br/>K8s, OpenStack, AWS, etc.]
+        DMS[DMS Adapters<br/>Helm, ArgoCD, Flux, etc.]
+    end
+
+    TMF -->|REST/JSON| TMF638
+    TMF -->|REST/JSON| TMF639
+    TMF -->|REST/JSON| TMF641
+    TMF -->|REST/JSON| TMF688
+
+    ORAN -->|REST/JSON| O2IMS
+    ORAN -->|REST/JSON| O2DMS
+
+    TMF638 --> Transform
+    TMF639 --> Transform
+    TMF641 --> Transform
+    TMF688 --> Transform
+    O2IMS --> Transform
+    O2DMS --> Transform
+
+    Transform --> IMS
+    Transform --> DMS
+
+    style TMF638 fill:#e8f5e9
+    style TMF639 fill:#e8f5e9
+    style TMF641 fill:#e8f5e9
+    style TMF688 fill:#e8f5e9
+    style Transform fill:#e1f5ff
+    style IMS fill:#ffe6f0
+    style DMS fill:#ffe6f0
+```
+
+### TMForum Benefits
+
+- **Dual API Support**: O-RAN and TMForum clients access the same infrastructure
+- **No Backend Changes**: All 18+ existing adapters work as-is
+- **Standards Compliance**: Both TM Forum and O-RAN specifications supported
+- **Flexible Integration**: Mix and match API styles based on client preferences
+- **Migration Path**: Gradual transition between API standards
+
+### TMForum Documentation
+
+- [TMForum API Overview](api/tmforum/README.md)
+- [TMF639 Resource Inventory Reference](api/tmforum/tmf639-resource-inventory.md)
+- [TMF638 Service Inventory Reference](api/tmforum/tmf638-service-inventory.md)
+- [TMForum Implementation Status](tmforum-implementation-status.md)
+
+---
+
 ## Related Documentation
 
 - [Architecture Overview](architecture/README.md)

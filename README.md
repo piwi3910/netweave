@@ -42,10 +42,13 @@ Official O-RAN Alliance specifications:
 
 ## What is netweave?
 
-**netweave** is a production-grade, comprehensive O-RAN O2 API gateway that provides complete infrastructure management, deployment orchestration, and SMO integration capabilities through standardized O2-IMS, O2-DMS, and O2-SMO APIs. It enables Service Management and Orchestration (SMO) systems to manage multi-backend infrastructure, deploy CNF/VNF workloads, and integrate with major orchestration frameworks (ONAP, OSM) through a single, unified gateway.
+**netweave** is a production-grade, comprehensive API gateway that provides complete infrastructure management, deployment orchestration, and service management capabilities through both **O-RAN O2 APIs** (O2-IMS, O2-DMS, O2-SMO) and **TMForum Open APIs** (TMF638, TMF639, TMF641, TMF688, TMF640, TMF620, TMF642). It enables Service Management and Orchestration (SMO) systems and TMForum-compliant clients to manage multi-backend infrastructure, deploy CNF/VNF workloads, and integrate with major orchestration frameworks through a single, unified gateway with dual API frontends.
 
 ### Key Features
 
+- ✅ **Dual API Support**: Both O-RAN O2 APIs and TMForum Open APIs on the same infrastructure
+  - **O2-IMS/O2-DMS/O2-SMO**: Full O-RAN compliance (95%+)
+  - **TMForum**: TMF638 (Service Inventory), TMF639 (Resource Inventory), TMF641 (Service Ordering), TMF688 (Event Management), TMF640 (Service Activation), TMF620 (Product Catalog)
 - ✅ **O2-IMS Compliant**: Full implementation of O-RAN O2 Infrastructure Management Services specification
 - ✅ **API Versioning**: Three API versions (v1 stable, v2 with advanced features, v3 planned with multi-tenancy)
 - ✅ **Advanced Filtering**: Comprehensive query filtering with operators, field selection, and sorting (v2+)
