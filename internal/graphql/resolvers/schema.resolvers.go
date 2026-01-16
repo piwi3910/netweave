@@ -167,7 +167,11 @@ func (r *mutationResolver) DeleteTenant(ctx context.Context, id string) (bool, e
 
 // DeploymentManager is the resolver for the deploymentManager field.
 func (r *queryResolver) DeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
-	return r.adapter.GetDeploymentManager(ctx, id)
+	dm, err := r.adapter.GetDeploymentManager(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployment manager: %w", err)
+	}
+	return dm, nil
 }
 
 // DeploymentManagers is the resolver for the deploymentManagers field.
@@ -176,14 +180,18 @@ func (r *queryResolver) DeploymentManagers(ctx context.Context) ([]*adapter.Depl
 	// In multi-cluster setups, this could list multiple managers
 	dm, err := r.adapter.GetDeploymentManager(ctx, "default")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get default deployment manager: %w", err)
 	}
 	return []*adapter.DeploymentManager{dm}, nil
 }
 
 // ResourcePool is the resolver for the resourcePool field.
 func (r *queryResolver) ResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
-	return r.adapter.GetResourcePool(ctx, id)
+	pool, err := r.adapter.GetResourcePool(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get resource pool: %w", err)
+	}
+	return pool, nil
 }
 
 // ResourcePools is the resolver for the resourcePools field.
@@ -220,7 +228,7 @@ func (r *queryResolver) ResourcePools(ctx context.Context, filter *model.Resourc
 	// Query resource pools
 	pools, err := r.adapter.ListResourcePools(ctx, adapterFilter)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list resource pools: %w", err)
 	}
 
 	// Build connection response
@@ -257,7 +265,11 @@ func (r *queryResolver) ResourcePools(ctx context.Context, filter *model.Resourc
 
 // Resource is the resolver for the resource field.
 func (r *queryResolver) Resource(ctx context.Context, id string) (*adapter.Resource, error) {
-	return r.adapter.GetResource(ctx, id)
+	resource, err := r.adapter.GetResource(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get resource: %w", err)
+	}
+	return resource, nil
 }
 
 // Resources is the resolver for the resources field.
@@ -296,7 +308,7 @@ func (r *queryResolver) Resources(ctx context.Context, filter *model.ResourceFil
 	// Query resources
 	resources, err := r.adapter.ListResources(ctx, adapterFilter)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list resources: %w", err)
 	}
 
 	// Build connection response
@@ -333,7 +345,11 @@ func (r *queryResolver) Resources(ctx context.Context, filter *model.ResourceFil
 
 // ResourceType is the resolver for the resourceType field.
 func (r *queryResolver) ResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
-	return r.adapter.GetResourceType(ctx, id)
+	rt, err := r.adapter.GetResourceType(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get resource type: %w", err)
+	}
+	return rt, nil
 }
 
 // ResourceTypes is the resolver for the resourceTypes field.
@@ -363,7 +379,7 @@ func (r *queryResolver) ResourceTypes(ctx context.Context, filter *model.Resourc
 	// Query resource types
 	resourceTypes, err := r.adapter.ListResourceTypes(ctx, adapterFilter)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list resource types: %w", err)
 	}
 
 	// Build connection response

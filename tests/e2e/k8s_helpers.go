@@ -63,7 +63,7 @@ func (h *K8sResourceHelper) DeleteNamespace(ctx context.Context, name string) er
 		}
 		if err != nil {
 			// Other errors (network, permission, etc.) should be returned
-			return false, err
+			return false, fmt.Errorf("failed to check resource status: %w", err)
 		}
 		// Namespace still exists
 		return false, nil
@@ -104,7 +104,7 @@ func (h *K8sResourceHelper) CreateTestPod(ctx context.Context, namespace, name s
 	err = wait.PollUntilContextTimeout(ctx, 1*time.Second, 30*time.Second, true, func(pollCtx context.Context) (bool, error) {
 		p, err := h.client.CoreV1().Pods(namespace).Get(pollCtx, name, metav1.GetOptions{})
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("failed to get pod status: %w", err)
 		}
 		return p.Status.Phase == corev1.PodRunning || p.Status.Phase == corev1.PodPending, nil
 	})
@@ -156,7 +156,7 @@ func (h *K8sResourceHelper) DeletePod(ctx context.Context, namespace, name strin
 		}
 		if err != nil {
 			// Other errors (network, permission, etc.) should be returned
-			return false, err
+			return false, fmt.Errorf("failed to check resource status: %w", err)
 		}
 		// Pod still exists
 		return false, nil
@@ -166,10 +166,10 @@ func (h *K8sResourceHelper) DeletePod(ctx context.Context, namespace, name strin
 // WaitForEvent waits for a Kubernetes event to occur.
 // This is a simple polling mechanism that checks for events matching the given criteria.
 func (h *K8sResourceHelper) WaitForEvent(ctx context.Context, namespace, reason string, timeout time.Duration) error {
-	return wait.PollUntilContextTimeout(ctx, 1*time.Second, timeout, true, func(pollCtx context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, 1*time.Second, timeout, true, func(pollCtx context.Context) (bool, error) {
 		events, err := h.client.CoreV1().Events(namespace).List(pollCtx, metav1.ListOptions{})
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("failed to list events: %w", err)
 		}
 
 		for _, event := range events.Items {
@@ -180,6 +180,10 @@ func (h *K8sResourceHelper) WaitForEvent(ctx context.Context, namespace, reason 
 
 		return false, nil
 	})
+	if err != nil {
+		return fmt.Errorf("failed to wait for event: %w", err)
+	}
+	return nil
 }
 
 // ListPods lists all pods in the specified namespace.

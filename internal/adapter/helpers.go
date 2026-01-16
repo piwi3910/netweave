@@ -2,6 +2,8 @@
 package adapter
 
 import (
+	"fmt"
+
 	"github.com/piwi3910/netweave/internal/models"
 )
 
@@ -157,7 +159,7 @@ func ApplyAdvancedPagination[T any](items []T, pagination *models.CursorPaginati
 	// Decode cursor to get offset.
 	cursorData, err := models.DecodeCursor(pagination.Cursor)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("failed to decode cursor: %w", err)
 	}
 
 	offset := 0
@@ -176,7 +178,7 @@ func ApplyAdvancedPagination[T any](items []T, pagination *models.CursorPaginati
 		}
 		nextCursor, err = models.EncodeCursor(nextCursorData)
 		if err != nil {
-			return nil, "", err
+			return nil, "", fmt.Errorf("failed to encode cursor: %w", err)
 		}
 	}
 
