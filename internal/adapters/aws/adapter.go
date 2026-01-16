@@ -336,7 +336,10 @@ func (a *Adapter) TestParseInstanceType(typeName string) (string, string) {
 }
 
 // TestBuildInstanceTypeExtensions exports buildInstanceTypeExtensions for testing.
-func (a *Adapter) TestBuildInstanceTypeExtensions(instanceType *ec2Types.InstanceTypeInfo, family, size string) map[string]interface{} {
+func (a *Adapter) TestBuildInstanceTypeExtensions(
+	instanceType *ec2Types.InstanceTypeInfo,
+	family, size string,
+) map[string]interface{} {
 	return buildInstanceTypeExtensions(instanceType, family, size)
 }
 

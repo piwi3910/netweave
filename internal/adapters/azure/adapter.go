@@ -380,7 +380,10 @@ func (a *Adapter) TestDetermineResourcePoolID(vm interface{}, location, resource
 }
 
 // TestBuildVMExtensions exports buildVMExtensions for testing.
-func (a *Adapter) TestBuildVMExtensions(vm interface{}, vmName, location, resourceGroup, vmSize string) map[string]interface{} {
+func (a *Adapter) TestBuildVMExtensions(
+	vm interface{},
+	vmName, location, resourceGroup, vmSize string,
+) map[string]interface{} {
 	if v, ok := vm.(*armcompute.VirtualMachine); ok {
 		return a.buildVMExtensions(v, vmName, location, resourceGroup, vmSize)
 	}
