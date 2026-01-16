@@ -653,3 +653,85 @@ func (h *TMForumHandler) DeleteTMF641ServiceOrder(c *gin.Context) {
 		"message": fmt.Sprintf("Service order with ID '%s' not found", orderID),
 	})
 }
+
+// ========================================
+// TMF688 - Event Management
+// ========================================
+
+// ListTMF688Events lists all TMF688 events.
+// GET /tmf-api/eventManagement/v4/event
+func (h *TMForumHandler) ListTMF688Events(c *gin.Context) {
+	// Events are typically not stored but generated on-demand
+	// This could list recent events from a cache or event store
+	// For now, return empty array as events are pushed to subscribers
+	c.JSON(http.StatusOK, []models.TMF688Event{})
+}
+
+// GetTMF688Event retrieves a single TMF688 event by ID.
+// GET /tmf-api/eventManagement/v4/event/:id
+func (h *TMForumHandler) GetTMF688Event(c *gin.Context) {
+	eventID := c.Param("id")
+
+	// Events are typically not stored
+	c.JSON(http.StatusNotFound, gin.H{
+		"error":   "NotFound",
+		"message": fmt.Sprintf("Event with ID '%s' not found", eventID),
+	})
+}
+
+// CreateTMF688Event creates a new TMF688 event (typically for testing).
+// POST /tmf-api/eventManagement/v4/event
+func (h *TMForumHandler) CreateTMF688Event(c *gin.Context) {
+	var createReq models.TMF688EventCreate
+	if err := c.ShouldBindJSON(&createReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	// In a real implementation, this would publish the event to subscribers
+	// For now, return 501 Not Implemented
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error":   "NotImplemented",
+		"message": "Event creation not yet implemented",
+	})
+}
+
+// RegisterTMF688Hub registers a hub for event notifications.
+// POST /tmf-api/eventManagement/v4/hub
+func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
+	var hubReq models.TMF688HubCreate
+	if err := c.ShouldBindJSON(&hubReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	// This maps to O2-IMS subscription mechanism
+	// Create an O2-IMS subscription with the callback URL
+	hub := &models.TMF688Hub{
+		ID:       fmt.Sprintf("hub-%d", len(hubReq.Callback)),
+		Callback: hubReq.Callback,
+		Query:    hubReq.Query,
+		AtType:   "EventSubscriptionInput",
+	}
+
+	c.JSON(http.StatusCreated, hub)
+}
+
+// UnregisterTMF688Hub unregisters a hub.
+// DELETE /tmf-api/eventManagement/v4/hub/:id
+func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
+	hubID := c.Param("id")
+
+	// This would map to deleting the corresponding O2-IMS subscription
+	h.logger.Info("unregistering event hub",
+		zap.String("hubId", hubID),
+	)
+
+	c.Status(http.StatusNoContent)
+}

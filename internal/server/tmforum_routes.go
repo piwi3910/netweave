@@ -22,6 +22,10 @@ import (
 // TMF641 - Service Ordering Management v4
 //   - /tmf-api/serviceOrdering/v4/*
 //   - Maps to O2-DMS deployment operations
+//
+// TMF688 - Event Management v4
+//   - /tmf-api/eventManagement/v4/*
+//   - Maps to O2-IMS subscription mechanism
 func (s *Server) setupTMForumRoutesEarly() {
 	s.logger.Info("Registering TMForum API route structure")
 
@@ -85,6 +89,29 @@ func (s *Server) setupTMForumRoutesEarly() {
 		}))
 		tmf641.DELETE("/serviceOrder/:id", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
 			return h.DeleteTMF641ServiceOrder
+		}))
+	}
+
+	// TMF688 - Event Management API v4
+	tmf688 := s.router.Group("/tmf-api/eventManagement/v4")
+	{
+		// Event operations
+		tmf688.GET("/event", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.ListTMF688Events
+		}))
+		tmf688.GET("/event/:id", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.GetTMF688Event
+		}))
+		tmf688.POST("/event", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.CreateTMF688Event
+		}))
+
+		// Hub (subscription) operations
+		tmf688.POST("/hub", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.RegisterTMF688Hub
+		}))
+		tmf688.DELETE("/hub/:id", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.UnregisterTMF688Hub
 		}))
 	}
 
