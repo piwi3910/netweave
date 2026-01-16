@@ -87,7 +87,7 @@ func (p *Plugin) Capabilities() []smo.Capability {
 }
 
 // Initialize initializes the plugin with the provided configuration.
-func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) error {
+func (p *Plugin) Initialize(_ context.Context, config map[string]interface{}) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -101,7 +101,7 @@ func (p *Plugin) Initialize(ctx context.Context, config map[string]interface{}) 
 }
 
 // Health checks the health status of all SMO component connections.
-func (p *Plugin) Health(ctx context.Context) smo.HealthStatus {
+func (p *Plugin) Health(_ context.Context) smo.HealthStatus {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -157,7 +157,7 @@ func (p *Plugin) Close() error {
 // PluginNorthboundSync implementation
 
 // SyncInfrastructureInventory synchronizes O2-IMS infrastructure inventory to the SMO.
-func (p *Plugin) SyncInfrastructureInventory(ctx context.Context, inventory *smo.InfrastructureInventory) error {
+func (p *Plugin) SyncInfrastructureInventory(_ context.Context, inventory *smo.InfrastructureInventory) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -175,7 +175,7 @@ func (p *Plugin) SyncInfrastructureInventory(ctx context.Context, inventory *smo
 }
 
 // SyncDeploymentInventory synchronizes O2-DMS deployment inventory to the SMO.
-func (p *Plugin) SyncDeploymentInventory(ctx context.Context, inventory *smo.DeploymentInventory) error {
+func (p *Plugin) SyncDeploymentInventory(_ context.Context, inventory *smo.DeploymentInventory) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -191,7 +191,7 @@ func (p *Plugin) SyncDeploymentInventory(ctx context.Context, inventory *smo.Dep
 // PluginNorthboundEvents implementation
 
 // PublishInfrastructureEvent publishes an infrastructure change event to the SMO.
-func (p *Plugin) PublishInfrastructureEvent(ctx context.Context, event *smo.InfrastructureEvent) error {
+func (p *Plugin) PublishInfrastructureEvent(_ context.Context, event *smo.InfrastructureEvent) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -205,7 +205,7 @@ func (p *Plugin) PublishInfrastructureEvent(ctx context.Context, event *smo.Infr
 }
 
 // PublishDeploymentEvent publishes a deployment change event to the SMO.
-func (p *Plugin) PublishDeploymentEvent(ctx context.Context, event *smo.DeploymentEvent) error {
+func (p *Plugin) PublishDeploymentEvent(_ context.Context, event *smo.DeploymentEvent) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -221,7 +221,7 @@ func (p *Plugin) PublishDeploymentEvent(ctx context.Context, event *smo.Deployme
 // PluginSouthboundWorkflow implementation
 
 // ExecuteWorkflow executes a workflow orchestrated by the SMO.
-func (p *Plugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
+func (p *Plugin) ExecuteWorkflow(_ context.Context, workflow *smo.WorkflowRequest) (*smo.WorkflowExecution, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -258,7 +258,7 @@ func (p *Plugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequ
 }
 
 // GetWorkflowStatus retrieves the current status of a workflow execution.
-func (p *Plugin) GetWorkflowStatus(ctx context.Context, executionID string) (*smo.WorkflowStatus, error) {
+func (p *Plugin) GetWorkflowStatus(_ context.Context, executionID string) (*smo.WorkflowStatus, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -282,7 +282,7 @@ func (p *Plugin) GetWorkflowStatus(ctx context.Context, executionID string) (*sm
 }
 
 // CancelWorkflow cancels a running workflow execution.
-func (p *Plugin) CancelWorkflow(ctx context.Context, executionID string) error {
+func (p *Plugin) CancelWorkflow(_ context.Context, executionID string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -306,7 +306,7 @@ func (p *Plugin) CancelWorkflow(ctx context.Context, executionID string) error {
 // PluginSouthboundServiceModel implementation
 
 // RegisterServiceModel registers a service model with the SMO.
-func (p *Plugin) RegisterServiceModel(ctx context.Context, model *smo.ServiceModel) error {
+func (p *Plugin) RegisterServiceModel(_ context.Context, model *smo.ServiceModel) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -319,7 +319,7 @@ func (p *Plugin) RegisterServiceModel(ctx context.Context, model *smo.ServiceMod
 }
 
 // GetServiceModel retrieves a registered service model by ID.
-func (p *Plugin) GetServiceModel(ctx context.Context, id string) (*smo.ServiceModel, error) {
+func (p *Plugin) GetServiceModel(_ context.Context, id string) (*smo.ServiceModel, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -332,7 +332,7 @@ func (p *Plugin) GetServiceModel(ctx context.Context, id string) (*smo.ServiceMo
 }
 
 // ListServiceModels retrieves all registered service models.
-func (p *Plugin) ListServiceModels(ctx context.Context) ([]*smo.ServiceModel, error) {
+func (p *Plugin) ListServiceModels(_ context.Context) ([]*smo.ServiceModel, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -347,7 +347,7 @@ func (p *Plugin) ListServiceModels(ctx context.Context) ([]*smo.ServiceModel, er
 // PluginSouthboundPolicy implementation
 
 // ApplyPolicy applies a policy to the infrastructure or deployments.
-func (p *Plugin) ApplyPolicy(ctx context.Context, policy *smo.Policy) error {
+func (p *Plugin) ApplyPolicy(_ context.Context, policy *smo.Policy) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -366,7 +366,7 @@ func (p *Plugin) ApplyPolicy(ctx context.Context, policy *smo.Policy) error {
 }
 
 // GetPolicyStatus retrieves the current status of an applied policy.
-func (p *Plugin) GetPolicyStatus(ctx context.Context, policyID string) (*smo.PolicyStatus, error) {
+func (p *Plugin) GetPolicyStatus(_ context.Context, policyID string) (*smo.PolicyStatus, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 

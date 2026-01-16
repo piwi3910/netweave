@@ -56,7 +56,7 @@ func NewInMemoryHubStore() *InMemoryHubStore {
 }
 
 // Create stores a new hub registration.
-func (s *InMemoryHubStore) Create(ctx context.Context, hub *HubRegistration) error {
+func (s *InMemoryHubStore) Create(_ context.Context, hub *HubRegistration) error {
 	if hub == nil {
 		return errors.New("hub registration cannot be nil")
 	}
@@ -76,7 +76,7 @@ func (s *InMemoryHubStore) Create(ctx context.Context, hub *HubRegistration) err
 }
 
 // Get retrieves a hub registration by ID.
-func (s *InMemoryHubStore) Get(ctx context.Context, hubID string) (*HubRegistration, error) {
+func (s *InMemoryHubStore) Get(_ context.Context, hubID string) (*HubRegistration, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -89,7 +89,7 @@ func (s *InMemoryHubStore) Get(ctx context.Context, hubID string) (*HubRegistrat
 }
 
 // List retrieves all hub registrations.
-func (s *InMemoryHubStore) List(ctx context.Context) ([]*HubRegistration, error) {
+func (s *InMemoryHubStore) List(_ context.Context) ([]*HubRegistration, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -102,7 +102,7 @@ func (s *InMemoryHubStore) List(ctx context.Context) ([]*HubRegistration, error)
 }
 
 // Delete removes a hub registration by ID.
-func (s *InMemoryHubStore) Delete(ctx context.Context, hubID string) error {
+func (s *InMemoryHubStore) Delete(_ context.Context, hubID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
