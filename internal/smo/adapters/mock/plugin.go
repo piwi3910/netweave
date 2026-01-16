@@ -18,6 +18,10 @@ import (
 	"github.com/piwi3910/netweave/internal/smo"
 )
 
+const (
+	statusCancelled = "cancelled"
+)
+
 // Plugin is a mock implementation of the SMO plugin interface.
 // It stores all data in memory and provides realistic simulation of SMO operations.
 type Plugin struct {
@@ -287,12 +291,12 @@ func (p *Plugin) CancelWorkflow(ctx context.Context, executionID string) error {
 		return fmt.Errorf("workflow execution not found: %s", executionID)
 	}
 
-	if exec.Status == "completed" || exec.Status == "failed" || exec.Status == "cancelled" {
+	if exec.Status == "completed" || exec.Status == "failed" || exec.Status == statusCancelled {
 		return fmt.Errorf("workflow already finished: %s", exec.Status)
 	}
 
 	now := time.Now()
-	exec.Status = "cancelled"
+	exec.Status = statusCancelled
 	exec.CompletedAt = &now
 	exec.Message = "Workflow execution cancelled"
 
@@ -457,7 +461,7 @@ func (p *Plugin) simulateWorkflow(executionID string) {
 
 		p.mu.Lock()
 		if exec, ok := p.workflows[executionID]; ok {
-			if exec.Status == "cancelled" {
+			if exec.Status == statusCancelled {
 				p.mu.Unlock()
 				return
 			}

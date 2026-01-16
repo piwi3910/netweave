@@ -20,13 +20,18 @@ import (
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
+const (
+	mockAdapterName    = "mock"
+	mockAdapterVersion = "1.0.0"
+)
+
 // mockAdapter implements adapter.Adapter for testing.
 type mockAdapter struct {
 	healthErr error
 }
 
-func (m *mockAdapter) Name() string    { return "mock" }
-func (m *mockAdapter) Version() string { return "1.0.0" }
+func (m *mockAdapter) Name() string    { return mockAdapterName }
+func (m *mockAdapter) Version() string { return mockAdapterVersion }
 func (m *mockAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{adapter.CapabilityResourcePools}
 }

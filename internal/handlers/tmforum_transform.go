@@ -11,6 +11,12 @@ import (
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
+const (
+	stateInProgress = "inProgress"
+	stateFailed     = "failed"
+	statePending    = "pending"
+)
+
 // TMForum ↔ Internal Model Transformations
 // These functions transform between TMForum API models and internal O2-IMS/O2-DMS models.
 // This allows TMForum clients and O-RAN clients to access the same backend resources.
@@ -591,30 +597,30 @@ func mapDeploymentStatusToOrderState(status dmsadapter.DeploymentStatus) string 
 	case dmsadapter.DeploymentStatusPending:
 		return "acknowledged"
 	case dmsadapter.DeploymentStatusDeploying:
-		return "inProgress"
+		return stateInProgress
 	case dmsadapter.DeploymentStatusDeployed:
 		return "completed"
 	case dmsadapter.DeploymentStatusFailed:
-		return "failed"
+		return stateFailed
 	case dmsadapter.DeploymentStatusRollingBack:
-		return "inProgress"
+		return stateInProgress
 	case dmsadapter.DeploymentStatusDeleting:
 		return "cancelled"
 	default:
-		return "pending"
+		return statePending
 	}
 }
 
 // mapOrderStateToDeploymentStatus maps TMF641 service order state to DMS deployment status.
 func mapOrderStateToDeploymentStatus(state string) dmsadapter.DeploymentStatus {
 	switch state {
-	case "acknowledged", "pending":
+	case "acknowledged", statePending:
 		return dmsadapter.DeploymentStatusPending
-	case "inProgress", "held":
+	case stateInProgress, "held":
 		return dmsadapter.DeploymentStatusDeploying
 	case "completed":
 		return dmsadapter.DeploymentStatusDeployed
-	case "failed", "rejected":
+	case stateFailed, "rejected":
 		return dmsadapter.DeploymentStatusFailed
 	case "cancelled":
 		return dmsadapter.DeploymentStatusDeleting

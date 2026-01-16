@@ -15,6 +15,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	categoryResourcePool = "categoryResourcePool"
+)
+
 // TMForumHandler handles TMForum API requests and translates them to internal O2-IMS/O2-DMS operations.
 // It provides TMF638 (Service Inventory) and TMF639 (Resource Inventory) API implementations.
 type TMForumHandler struct {
@@ -55,8 +59,8 @@ func (h *TMForumHandler) ListTMF639Resources(c *gin.Context) {
 
 	var resources []interface{}
 
-	// If category is "resourcePool" or empty, include resource pools
-	if category == "" || category == "resourcePool" {
+	// If category is "categoryResourcePool" or empty, include resource pools
+	if category == "" || category == "categoryResourcePool" {
 		pools, err := h.adapter.ListResourcePools(ctx, nil)
 		if err != nil {
 			h.logger.Error("failed to list resource pools",
@@ -75,8 +79,8 @@ func (h *TMForumHandler) ListTMF639Resources(c *gin.Context) {
 		}
 	}
 
-	// If category is not "resourcePool", include individual resources
-	if category != "resourcePool" {
+	// If category is not "categoryResourcePool", include individual resources
+	if category != "categoryResourcePool" {
 		resourceList, err := h.adapter.ListResources(ctx, nil)
 		if err != nil {
 			h.logger.Error("failed to list resources",
@@ -176,7 +180,7 @@ func (h *TMForumHandler) CreateTMF639Resource(c *gin.Context) {
 	}
 
 	// Determine if this is a resource pool or individual resource based on category
-	if createReq.Category == "resourcePool" || createReq.Category == "" {
+	if createReq.Category == "categoryResourcePool" || createReq.Category == "" {
 		// Create as resource pool
 		pool := TransformTMF639ResourceToResourcePool(tmfResource)
 
@@ -240,7 +244,7 @@ func (h *TMForumHandler) UpdateTMF639Resource(c *gin.Context) {
 		updatedPool, err := h.adapter.UpdateResourcePool(ctx, resourceID, pool)
 		if err != nil {
 			h.logger.Error("failed to update resource pool",
-				zap.String("resourcePoolId", resourceID),
+				zap.String("categoryResourcePoolId", resourceID),
 				zap.Error(err),
 			)
 			c.JSON(http.StatusInternalServerError, gin.H{

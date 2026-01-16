@@ -7,6 +7,11 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 )
 
+const (
+	labelKeyPool         = "pool"
+	resourceClassCompute = "compute"
+)
+
 // MapHostToResource converts a StarlingX IHost to an O2-IMS Resource.
 func MapHostToResource(host *IHost, cpus []ICPU, memories []IMemory, disks []IDisk) *adapter.Resource {
 	// Build extensions with hardware inventory
@@ -158,10 +163,10 @@ func MapSystemToDeploymentManager(system *ISystem, deploymentManagerID, oCloudID
 }
 
 // ExtractPoolNameFromLabels extracts resource pool name from host labels.
-// Looks for labels with key "pool" or "resource-pool".
+// Looks for labels with key labelKeyPool or "resource-pool".
 func ExtractPoolNameFromLabels(labels []Label) string {
 	for _, label := range labels {
-		if label.LabelKey == "pool" || label.LabelKey == "resource-pool" {
+		if label.LabelKey == labelKeyPool || label.LabelKey == "resource-pool" {
 			return label.LabelValue
 		}
 	}
@@ -252,7 +257,7 @@ func GenerateResourceTypesFromHosts(hosts []IHost) []*adapter.ResourceType {
 				}
 			}
 
-			resourceClass := "compute"
+			resourceClass := resourceClassCompute
 			switch strings.ToLower(host.Personality) {
 			case "storage":
 				resourceClass = "storage"

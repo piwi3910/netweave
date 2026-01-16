@@ -25,9 +25,9 @@ import (
 
 // Test timeout constants.
 const (
-	eventDeliveryTimeout  = 5 * time.Second
-	webhookRetryTimeout   = 30 * time.Second
-	eventWaitTimeout      = 10 * time.Second
+	eventDeliveryTimeout = 5 * time.Second
+	webhookRetryTimeout  = 30 * time.Second
+	eventWaitTimeout     = 10 * time.Second
 	resourceTypeNamespace = "Namespace"
 )
 
@@ -240,7 +240,7 @@ func TestSubscriptionNotifications(t *testing.T) {
 	// Wait for webhook notification
 	event, err := fw.WebhookServer.WaitForEvent(webhookRetryTimeout)
 	if err == nil {
-		assert.Equal(t, resourceTypeNamespace, event.ResourceType)
+		assert.Equal(t, "Namespace", event.ResourceType)
 		fw.Logger.Info("Received webhook notification",
 			zap.String("eventId", event.ID),
 			zap.String("resourceType", event.ResourceType),
@@ -373,12 +373,12 @@ func TestSubscriptionFiltering(t *testing.T) {
 
 	// Validate filtering (if events were received)
 	for _, evt := range webhook1Events {
-		assert.NotEqual(t, resourceTypeNamespace, evt.ResourceType,
+		assert.NotEqual(t, "Namespace", evt.ResourceType,
 			"Webhook1 should not receive Namespace events")
 	}
 
 	for _, evt := range webhook2Events {
-		assert.Equal(t, resourceTypeNamespace, evt.ResourceType,
+		assert.Equal(t, "Namespace", evt.ResourceType,
 			"Webhook2 should only receive Namespace events")
 	}
 
@@ -816,7 +816,7 @@ func TestResourceLifecycleEvents(t *testing.T) {
 
 	// Wait for create event
 	createEvent, err := fw.WebhookServer.WaitForEventWithFilter(eventWaitTimeout, func(e *e2e.WebhookEvent) bool {
-		return e.Type == "resource.created" && e.ResourceType == resourceTypeNamespace
+		return e.Type == "resource.created" && e.ResourceType == "Namespace"
 	})
 	if err == nil {
 		assert.Equal(t, "resource.created", createEvent.Type)
@@ -832,7 +832,7 @@ func TestResourceLifecycleEvents(t *testing.T) {
 
 	// Wait for update event (may timeout if adapter doesn't support namespace updates)
 	updateEvent, err := fw.WebhookServer.WaitForEventWithFilter(eventWaitTimeout, func(e *e2e.WebhookEvent) bool {
-		return e.Type == "resource.updated" && e.ResourceType == resourceTypeNamespace
+		return e.Type == "resource.updated" && e.ResourceType == "Namespace"
 	})
 	if err == nil {
 		assert.Equal(t, "resource.updated", updateEvent.Type)
@@ -850,7 +850,7 @@ func TestResourceLifecycleEvents(t *testing.T) {
 
 	// Wait for delete event
 	deleteEvent, err := fw.WebhookServer.WaitForEventWithFilter(eventWaitTimeout, func(e *e2e.WebhookEvent) bool {
-		return e.Type == "resource.deleted" && e.ResourceType == resourceTypeNamespace
+		return e.Type == "resource.deleted" && e.ResourceType == "Namespace"
 	})
 	if err == nil {
 		assert.Equal(t, "resource.deleted", deleteEvent.Type)
