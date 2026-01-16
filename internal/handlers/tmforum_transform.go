@@ -13,6 +13,15 @@ import (
 // These functions transform between TMForum API models and internal O2-IMS/O2-DMS models.
 // This allows TMForum clients and O-RAN clients to access the same backend resources.
 
+// TMF638 Service State constants.
+const (
+	tmfServiceStateDesigned    = "designed"
+	tmfServiceStateTerminated  = "terminated"
+	tmfServiceStateActive      = "active"
+	tmfServiceStateFeasibility = "feasibilityChecked"
+	tmfServiceStateInactive    = "inactive"
+)
+
 // ========================================
 // TMF639 Resource → O2-IMS Resource/ResourcePool
 // ========================================
@@ -64,68 +73,31 @@ func TransformTMF639ResourceToResourcePool(tmf *models.TMF639Resource) *imsadapt
 // TransformResourcePoolToTMF639Resource converts an adapter ResourcePool to a TMF639 Resource.
 func TransformResourcePoolToTMF639Resource(pool *imsadapter.ResourcePool, baseURL string) *models.TMF639Resource {
 	tmf := &models.TMF639Resource{
-		ID:                     pool.ResourcePoolID,
-		Href:                   fmt.Sprintf("%s/tmf-api/resourceInventoryManagement/v4/resource/%s", baseURL, pool.ResourcePoolID),
-		Name:                   pool.Name,
-		Description:            pool.Description,
-		Category:               "resourcePool",
-		ResourceCharacteristic: []models.Characteristic{},
+		ID:          pool.ResourcePoolID,
+		Href:        fmt.Sprintf("%s/tmf-api/resourceInventoryManagement/v4/resource/%s", baseURL, pool.ResourcePoolID),
+		Name:        pool.Name,
+		Description: pool.Description,
+		Category:    "resourcePool",
+		Place:       extractPlaceFromLocation(pool.GlobalLocationID),
+		AtType:      "ResourcePool",
 	}
 
-	// Add location as place
-	if pool.GlobalLocationID != "" {
-		tmf.Place = []models.PlaceRef{
-			{
-				ID:   pool.GlobalLocationID,
-				Name: pool.GlobalLocationID,
-				Role: "location",
-			},
+	// Convert extensions to characteristics and extract TMF fields
+	tmf.ResourceCharacteristic = extractTMFFieldsFromExtensions(pool.Extensions, func(key, value string) {
+		switch key {
+		case "tmf.category":
+			tmf.Category = value
+		case "tmf.resourceStatus":
+			tmf.ResourceStatus = value
+		case "tmf.operationalState":
+			tmf.OperationalState = value
+		case "tmf.usageState":
+			tmf.UsageState = value
 		}
-	}
+	})
 
-	// Convert extensions to characteristics
-	for key, value := range pool.Extensions {
-		if key == "tmf.category" {
-			if v, ok := value.(string); ok {
-				tmf.Category = v
-			}
-			continue
-		}
-		if key == "tmf.resourceStatus" {
-			if v, ok := value.(string); ok {
-				tmf.ResourceStatus = v
-			}
-			continue
-		}
-		if key == "tmf.operationalState" {
-			if v, ok := value.(string); ok {
-				tmf.OperationalState = v
-			}
-			continue
-		}
-		if key == "tmf.usageState" {
-			if v, ok := value.(string); ok {
-				tmf.UsageState = v
-			}
-			continue
-		}
-
-		// Add remaining extensions as characteristics
-		tmf.ResourceCharacteristic = append(tmf.ResourceCharacteristic, models.Characteristic{
-			Name:  key,
-			Value: value,
-		})
-	}
-
-	// Set default status if not present
-	if tmf.ResourceStatus == "" {
-		tmf.ResourceStatus = "available"
-	}
-	if tmf.OperationalState == "" {
-		tmf.OperationalState = "enable"
-	}
-
-	tmf.AtType = "ResourcePool"
+	// Set default statuses
+	setDefaultTMFStatuses(tmf)
 
 	return tmf
 }
@@ -187,78 +159,40 @@ func TransformTMF639ResourceToResource(tmf *models.TMF639Resource) *imsadapter.R
 // TransformResourceToTMF639Resource converts an adapter Resource to a TMF639 Resource.
 func TransformResourceToTMF639Resource(resource *imsadapter.Resource, baseURL string) *models.TMF639Resource {
 	tmf := &models.TMF639Resource{
-		ID:                     resource.ResourceID,
-		Href:                   fmt.Sprintf("%s/tmf-api/resourceInventoryManagement/v4/resource/%s", baseURL, resource.ResourceID),
-		Description:            resource.Description,
-		ResourceCharacteristic: []models.Characteristic{},
+		ID:          resource.ResourceID,
+		Href:        fmt.Sprintf("%s/tmf-api/resourceInventoryManagement/v4/resource/%s", baseURL, resource.ResourceID),
+		Name:        resource.ResourceID, // default fallback
+		Description: resource.Description,
+		Category:    resource.ResourceTypeID,
+		AtType:      "Resource",
 	}
 
-	// Extract name from extensions
+	// Extract name from extensions if available
 	if name, ok := resource.Extensions["name"].(string); ok {
 		tmf.Name = name
-	} else {
-		tmf.Name = resource.ResourceID // fallback to ID
 	}
 
-	// Set category from resource type
-	if resource.ResourceTypeID != "" {
-		tmf.Category = resource.ResourceTypeID
+	// Extract location and set as place
+	if location, ok := resource.Extensions["location"].(string); ok {
+		tmf.Place = extractPlaceFromLocation(location)
 	}
 
-	// Extract location from extensions and add as place
-	if location, ok := resource.Extensions["location"].(string); ok && location != "" {
-		tmf.Place = []models.PlaceRef{
-			{
-				ID:   location,
-				Name: location,
-				Role: "location",
-			},
+	// Convert extensions to characteristics and extract TMF fields
+	tmf.ResourceCharacteristic = extractTMFFieldsFromExtensions(resource.Extensions, func(key, value string) {
+		switch key {
+		case "tmf.category":
+			tmf.Category = value
+		case "tmf.resourceStatus":
+			tmf.ResourceStatus = value
+		case "tmf.operationalState":
+			tmf.OperationalState = value
+		case "tmf.usageState":
+			tmf.UsageState = value
 		}
-	}
+	})
 
-	// Convert extensions to characteristics
-	for key, value := range resource.Extensions {
-		if key == "tmf.category" {
-			if v, ok := value.(string); ok {
-				tmf.Category = v
-			}
-			continue
-		}
-		if key == "tmf.resourceStatus" {
-			if v, ok := value.(string); ok {
-				tmf.ResourceStatus = v
-			}
-			continue
-		}
-		if key == "tmf.operationalState" {
-			if v, ok := value.(string); ok {
-				tmf.OperationalState = v
-			}
-			continue
-		}
-		if key == "tmf.usageState" {
-			if v, ok := value.(string); ok {
-				tmf.UsageState = v
-			}
-			continue
-		}
-
-		// Add remaining extensions as characteristics
-		tmf.ResourceCharacteristic = append(tmf.ResourceCharacteristic, models.Characteristic{
-			Name:  key,
-			Value: value,
-		})
-	}
-
-	// Set default status if not present
-	if tmf.ResourceStatus == "" {
-		tmf.ResourceStatus = "available"
-	}
-	if tmf.OperationalState == "" {
-		tmf.OperationalState = "enable"
-	}
-
-	tmf.AtType = "Resource"
+	// Set default statuses
+	setDefaultTMFStatuses(tmf)
 
 	return tmf
 }
@@ -357,30 +291,34 @@ func TransformDeploymentToTMF638Service(dep *dmsadapter.Deployment, baseURL stri
 func mapDeploymentStatusToServiceState(status dmsadapter.DeploymentStatus) string {
 	switch status {
 	case dmsadapter.DeploymentStatusPending:
-		return "feasibilityChecked"
+		return tmfServiceStateFeasibility
 	case dmsadapter.DeploymentStatusDeploying:
-		return "designed"
+		return tmfServiceStateDesigned
 	case dmsadapter.DeploymentStatusDeployed:
-		return "active"
+		return tmfServiceStateActive
 	case dmsadapter.DeploymentStatusFailed:
-		return "terminated"
+		return tmfServiceStateTerminated
+	case dmsadapter.DeploymentStatusRollingBack:
+		return tmfServiceStateDesigned // rolling back is part of deployment process
+	case dmsadapter.DeploymentStatusDeleting:
+		return tmfServiceStateTerminated
 	default:
-		return "inactive"
+		return tmfServiceStateInactive
 	}
 }
 
 // mapServiceStateToDeploymentStatus maps TMF638 service state to DMS deployment status.
 func mapServiceStateToDeploymentStatus(state string) dmsadapter.DeploymentStatus {
 	switch state {
-	case "feasibilityChecked":
+	case tmfServiceStateFeasibility:
 		return dmsadapter.DeploymentStatusPending
-	case "designed", "reserved":
+	case tmfServiceStateDesigned, "reserved":
 		return dmsadapter.DeploymentStatusDeploying
-	case "active":
+	case tmfServiceStateActive:
 		return dmsadapter.DeploymentStatusDeployed
-	case "inactive":
+	case tmfServiceStateInactive:
 		return dmsadapter.DeploymentStatusFailed
-	case "terminated":
+	case tmfServiceStateTerminated:
 		return dmsadapter.DeploymentStatusFailed
 	default:
 		return dmsadapter.DeploymentStatusPending
@@ -401,15 +339,6 @@ func extractPlaceID(places []models.PlaceRef) string {
 
 // extractNamespaceFromPlace extracts namespace from place references.
 // Looks for a place with role "deploymentNamespace" or uses the first place ID.
-func extractNamespaceFromPlace(places []models.PlaceRef) string {
-	for _, place := range places {
-		if place.Role == "deploymentNamespace" {
-			return place.ID
-		}
-	}
-	return extractPlaceID(places)
-}
-
 // buildBaseURL constructs the base URL from the request.
 func buildBaseURL(scheme, host string) string {
 	if scheme == "" {
@@ -453,41 +382,108 @@ func applyTMF639ResourceUpdate(pool *imsadapter.ResourcePool, update *models.TMF
 
 // applyTMF638ServiceUpdate applies a TMF638 service update to a DMS deployment.
 func applyTMF638ServiceUpdate(dep *dmsadapter.Deployment, update *models.TMF638ServiceUpdate) {
+	// Update basic fields
 	if update.Name != nil {
 		dep.Name = *update.Name
 	}
 	if update.Description != nil {
 		dep.Description = *update.Description
 	}
-
-	// Update state (status)
 	if update.State != nil {
 		dep.Status = mapServiceStateToDeploymentStatus(*update.State)
 	}
 
-	// Update place (namespace)
+	// Update namespace from place
 	if update.Place != nil && len(*update.Place) > 0 {
 		dep.Namespace = (*update.Place)[0].ID
 	}
 
-	// Update service characteristics
-	if update.ServiceCharacteristic != nil {
-		if dep.Extensions == nil {
-			dep.Extensions = make(map[string]interface{})
-		}
-		for _, char := range *update.ServiceCharacteristic {
-			dep.Extensions[char.Name] = char.Value
-		}
-	}
+	// Update characteristics and service type
+	updateServiceCharacteristics(dep, update.ServiceCharacteristic)
 
-	// Update service type
 	if update.ServiceType != nil {
-		if dep.Extensions == nil {
-			dep.Extensions = make(map[string]interface{})
-		}
+		ensureExtensions(dep)
 		dep.Extensions["serviceType"] = *update.ServiceType
 	}
 
-	// Update timestamp
 	dep.UpdatedAt = time.Now()
+}
+
+// ========================================
+// Helper Functions (reduce complexity)
+// ========================================
+
+// extractTMFFieldsFromExtensions extracts TMF-specific fields from extensions map.
+// Returns characteristics slice with remaining extensions and sets TMF fields.
+func extractTMFFieldsFromExtensions(
+	extensions map[string]interface{},
+	setTMFField func(key string, value string),
+) []models.Characteristic {
+	characteristics := []models.Characteristic{}
+
+	tmfKeys := map[string]bool{
+		"tmf.category":         true,
+		"tmf.resourceStatus":   true,
+		"tmf.operationalState": true,
+		"tmf.usageState":       true,
+	}
+
+	for key, value := range extensions {
+		if tmfKeys[key] {
+			if v, ok := value.(string); ok {
+				setTMFField(key, v)
+			}
+			continue
+		}
+
+		// Add remaining extensions as characteristics
+		characteristics = append(characteristics, models.Characteristic{
+			Name:  key,
+			Value: value,
+		})
+	}
+
+	return characteristics
+}
+
+// setDefaultTMFStatuses sets default TMF statuses if not already present.
+func setDefaultTMFStatuses(tmf *models.TMF639Resource) {
+	if tmf.ResourceStatus == "" {
+		tmf.ResourceStatus = "available"
+	}
+	if tmf.OperationalState == "" {
+		tmf.OperationalState = "enable"
+	}
+}
+
+// extractPlaceFromLocation creates a PlaceRef array from location string.
+func extractPlaceFromLocation(location string) []models.PlaceRef {
+	if location == "" {
+		return nil
+	}
+	return []models.PlaceRef{
+		{
+			ID:   location,
+			Name: location,
+			Role: "location",
+		},
+	}
+}
+
+// ensureExtensions ensures the extensions map is initialized.
+func ensureExtensions(dep *dmsadapter.Deployment) {
+	if dep.Extensions == nil {
+		dep.Extensions = make(map[string]interface{})
+	}
+}
+
+// updateServiceCharacteristics updates deployment extensions from service characteristics.
+func updateServiceCharacteristics(dep *dmsadapter.Deployment, chars *[]models.Characteristic) {
+	if chars == nil {
+		return
+	}
+	ensureExtensions(dep)
+	for _, char := range *chars {
+		dep.Extensions[char.Name] = char.Value
+	}
 }
