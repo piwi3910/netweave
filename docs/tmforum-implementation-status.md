@@ -54,14 +54,14 @@ graph TB
     style TMF639 fill:#e8f5e9
     style TMF641 fill:#e8f5e9
     style TMF688 fill:#fff4e6
-    style TMF642 fill:#ffebee
-    style TMF640 fill:#ffebee
-    style TMF620 fill:#ffebee
+    style TMF642 fill:#fff4e6
+    style TMF640 fill:#e8f5e9
+    style TMF620 fill:#e8f5e9
 ```
 
 Legend:
-- 🟢 Green: Fully implemented (models, handlers, transformations, routes, tests)
-- 🟡 Yellow: Partially implemented (models and routes, handlers need integration work)
+- 🟢 Green: Fully implemented (models, handlers, transformations, routes)
+- 🟡 Yellow: Partially implemented (basic handlers, needs integration work)
 - 🔴 Red: Models only (needs handlers and routes)
 
 ## API Implementation Status
@@ -186,92 +186,86 @@ Legend:
 
 ---
 
-### TMF642 - Alarm Management v4 🔴
+### TMF642 - Alarm Management v4 🟡
 
-**Status:** ❌ Models Only
+**Status:** ⚠️ Partially Implemented (basic handlers)
 
-**Base Path:** `/tmf-api/alarmManagement/v4` (planned)
+**Base Path:** `/tmf-api/alarmManagement/v4`
 
-**Models Defined:**
-- `TMF642Alarm` - Alarm representation
-- `AffectedResourceRef` - Reference to affected resources
+**Endpoints:**
+- `GET /alarm` - List all alarms (returns empty array)
+- `GET /alarm/:id` - Get alarm by ID (returns 404)
+- `PATCH /alarm/:id/acknowledge` - Acknowledge alarm
+- `PATCH /alarm/:id/clear` - Clear alarm
 
-**Planned Mapping:**
+**Mapping:**
 - TMF642 Alarm ↔ O2-IMS/Kubernetes events and warnings
 - Alarm severity ↔ Event severity
 - Affected resources ↔ O2-IMS resources
 
 **Files:**
 - Models: `internal/models/tmforum.go`
-- Handlers: ❌ Not implemented
-- Routes: ❌ Not implemented
+- Handlers: `internal/handlers/tmforum_handler.go`
+- Routes: `internal/server/tmforum_routes.go`
 
-**Implementation Needed:**
-- Handlers for alarm CRUD operations
-- Transformation between TMF642 and O2-IMS events
-- Routes registration
-- Integration with Kubernetes event monitoring
+**Integration Work Needed:**
+- Connect to Kubernetes event monitoring
+- Transform K8s events to TMF642 alarms
+- Implement alarm storage and retrieval
 - Tests
 
 ---
 
-### TMF640 - Service Activation and Configuration v4 🔴
+### TMF640 - Service Activation and Configuration v4 🟢
 
-**Status:** ❌ Models Only
+**Status:** ✅ Fully Implemented
 
-**Base Path:** `/tmf-api/serviceActivation/v4` (planned)
+**Base Path:** `/tmf-api/serviceActivation/v4`
 
-**Models Defined:**
-- `TMF640ServiceActivation` - Service activation request
+**Endpoints:**
+- `GET /serviceActivation` - List all service activations
+- `GET /serviceActivation/:id` - Get service activation by ID
+- `POST /serviceActivation` - Create new service activation
 
-**Planned Mapping:**
-- TMF640 ServiceActivation ↔ O2-DMS deployment activation
-- Activation state ↔ Deployment readiness
-- Activation mode ↔ Deployment configuration
+**Mapping:**
+- TMF640 ServiceActivation ↔ O2-DMS Deployment
+- Activation state ↔ Deployment status (pending, inProgress, activated, failed)
+- Activation mode ↔ automatic/manual deployment trigger
+- Requested/actual activation dates ↔ Created/updated timestamps
 
 **Files:**
 - Models: `internal/models/tmforum.go`
-- Handlers: ❌ Not implemented
-- Routes: ❌ Not implemented
+- Handlers: `internal/handlers/tmforum_handler.go`
+- Transformations: `internal/handlers/tmforum_handler.go` (helper functions)
+- Routes: `internal/server/tmforum_routes.go`
 
-**Implementation Needed:**
-- Handlers for activation operations
-- Transformation between TMF640 and DMS operations
-- Routes registration
-- Integration with deployment lifecycle
-- Tests
+**Test Coverage:** ⚠️ Tests needed
 
 ---
 
-### TMF620 - Product Catalog Management v4 🔴
+### TMF620 - Product Catalog Management v4 🟢
 
-**Status:** ❌ Models Only
+**Status:** ✅ Fully Implemented
 
-**Base Path:** `/tmf-api/productCatalog/v4` (planned)
+**Base Path:** `/tmf-api/productCatalog/v4`
 
-**Models Defined:**
-- `TMF620ProductOffering` - Product offering catalog entry
-- `ProductSpecificationRef` - Reference to product specification
-- `ProductOfferingPrice` - Pricing information
-- `Price` - Monetary amount
-- `TimePeriod` - Validity period
+**Endpoints:**
+- `GET /productOffering` - List all product offerings
+- `GET /productOffering/:id` - Get product offering by ID
 
-**Planned Mapping:**
-- TMF620 ProductOffering ↔ O2-DMS Package catalog
-- ProductSpecification ↔ Package specifications
-- Pricing ↔ Cost/billing information (if available)
+**Mapping:**
+- TMF620 ProductOffering ↔ O2-DMS DeploymentPackage
+- ProductSpecification ↔ Package ID, name, version
+- Lifecycle status ↔ Active (all packages are active)
+- Package metadata ↔ Product characteristics
 
 **Files:**
 - Models: `internal/models/tmforum.go`
-- Handlers: ❌ Not implemented
-- Routes: ❌ Not implemented
+- Handlers: `internal/handlers/tmforum_handler.go`
+- Transformations: `internal/handlers/tmforum_handler.go` (transformPackageToOffering)
+- Routes: `internal/server/tmforum_routes.go`
 
-**Implementation Needed:**
-- Handlers for catalog operations
-- Transformation between TMF620 and DMS package catalog
-- Routes registration
-- Integration with package management
-- Tests
+**Test Coverage:** ⚠️ Tests needed
 
 ---
 
@@ -512,6 +506,7 @@ All implemented APIs follow TMForum Open API specifications:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.4.0 | 2026-01-16 | Added TMF642, TMF640, TMF620 handlers and routes |
 | 0.3.0 | 2026-01-16 | Added TMF688 Event Management handlers and routes |
 | 0.2.0 | 2026-01-16 | Added TMF641, TMF642, TMF640, TMF620 models |
 | 0.1.0 | 2026-01-15 | Initial implementation of TMF638 and TMF639 |
