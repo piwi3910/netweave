@@ -35,7 +35,11 @@ func MatchesFilter(filter *Filter, resourcePoolID, resourceTypeID, location stri
 }
 
 // matchesBasicFilter checks if a resource matches v1 basic filter criteria.
-func matchesBasicFilter(filter *Filter, resourcePoolID, resourceTypeID, location string, labels map[string]string) bool {
+func matchesBasicFilter(
+	filter *Filter,
+	resourcePoolID, resourceTypeID, location string,
+	labels map[string]string,
+) bool {
 	// Check ResourcePoolID filter.
 	if filter.ResourcePoolID != "" && filter.ResourcePoolID != resourcePoolID {
 		return false
