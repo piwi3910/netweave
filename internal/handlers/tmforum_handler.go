@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	imsadapter "github.com/piwi3910/netweave/internal/adapter"
+	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
 	"github.com/piwi3910/netweave/internal/dms/registry"
 	"github.com/piwi3910/netweave/internal/models"
 	"go.uber.org/zap"
@@ -734,4 +735,272 @@ func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
 	)
 
 	c.Status(http.StatusNoContent)
+}
+
+// ========================================
+// TMF642 - Alarm Management
+// ========================================
+
+// ListTMF642Alarms lists all TMF642 alarms.
+// GET /tmf-api/alarmManagement/v4/alarm
+func (h *TMForumHandler) ListTMF642Alarms(c *gin.Context) {
+	// Query parameters for filtering
+	severity := c.Query("perceivedSeverity")
+	state := c.Query("state")
+
+	// In a real implementation, this would query alarms from monitoring systems
+	// For now, return empty array as alarms would come from Kubernetes events
+	alarms := []models.TMF642Alarm{}
+
+	// Apply filters if specified
+	_ = severity
+	_ = state
+
+	c.JSON(http.StatusOK, alarms)
+}
+
+// GetTMF642Alarm retrieves a single TMF642 alarm by ID.
+// GET /tmf-api/alarmManagement/v4/alarm/:id
+func (h *TMForumHandler) GetTMF642Alarm(c *gin.Context) {
+	alarmID := c.Param("id")
+
+	// In a real implementation, this would fetch the alarm from monitoring
+	c.JSON(http.StatusNotFound, gin.H{
+		"error":   "NotFound",
+		"message": fmt.Sprintf("Alarm with ID '%s' not found", alarmID),
+	})
+}
+
+// AcknowledgeTMF642Alarm acknowledges an alarm.
+// PATCH /tmf-api/alarmManagement/v4/alarm/:id
+func (h *TMForumHandler) AcknowledgeTMF642Alarm(c *gin.Context) {
+	alarmID := c.Param("id")
+
+	var updateReq struct {
+		State string `json:"state"`
+	}
+	if err := c.ShouldBindJSON(&updateReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	h.logger.Info("acknowledging alarm",
+		zap.String("alarmId", alarmID),
+		zap.String("state", updateReq.State),
+	)
+
+	c.JSON(http.StatusNotFound, gin.H{
+		"error":   "NotFound",
+		"message": fmt.Sprintf("Alarm with ID '%s' not found", alarmID),
+	})
+}
+
+// ClearTMF642Alarm clears an alarm.
+// DELETE /tmf-api/alarmManagement/v4/alarm/:id
+func (h *TMForumHandler) ClearTMF642Alarm(c *gin.Context) {
+	alarmID := c.Param("id")
+
+	h.logger.Info("clearing alarm",
+		zap.String("alarmId", alarmID),
+	)
+
+	c.Status(http.StatusNoContent)
+}
+
+// ========================================
+// TMF640 - Service Activation and Configuration
+// ========================================
+
+// ListTMF640ServiceActivations lists all service activation requests.
+// GET /tmf-api/serviceActivation/v4/serviceActivation
+func (h *TMForumHandler) ListTMF640ServiceActivations(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
+
+	// Map deployments to service activations
+	adapters := h.dmsRegistry.List()
+	var activations []*models.TMF640ServiceActivation
+
+	for _, dmsAdapter := range adapters {
+		deployments, err := dmsAdapter.ListDeployments(ctx, nil)
+		if err != nil {
+			h.logger.Warn("failed to list deployments from adapter",
+				zap.String("adapter", dmsAdapter.Name()),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		for _, dep := range deployments {
+			activation := transformDeploymentToActivation(dep, baseURL)
+			activations = append(activations, activation)
+		}
+	}
+
+	c.JSON(http.StatusOK, activations)
+}
+
+// GetTMF640ServiceActivation retrieves a single service activation by ID.
+// GET /tmf-api/serviceActivation/v4/serviceActivation/:id
+func (h *TMForumHandler) GetTMF640ServiceActivation(c *gin.Context) {
+	ctx := c.Request.Context()
+	activationID := c.Param("id")
+
+	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
+
+	// Find deployment across all adapters
+	adapters := h.dmsRegistry.List()
+	for _, dmsAdapter := range adapters {
+		dep, err := dmsAdapter.GetDeployment(ctx, activationID)
+		if err == nil {
+			activation := transformDeploymentToActivation(dep, baseURL)
+			c.JSON(http.StatusOK, activation)
+			return
+		}
+	}
+
+	c.JSON(http.StatusNotFound, gin.H{
+		"error":   "NotFound",
+		"message": fmt.Sprintf("Service activation with ID '%s' not found", activationID),
+	})
+}
+
+// CreateTMF640ServiceActivation creates a new service activation request.
+// POST /tmf-api/serviceActivation/v4/serviceActivation
+func (h *TMForumHandler) CreateTMF640ServiceActivation(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error":   "NotImplemented",
+		"message": "Service activation creation not yet implemented",
+	})
+}
+
+// ========================================
+// TMF620 - Product Catalog Management
+// ========================================
+
+// ListTMF620ProductOfferings lists all product offerings.
+// GET /tmf-api/productCatalog/v4/productOffering
+func (h *TMForumHandler) ListTMF620ProductOfferings(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
+
+	// Map DMS packages to product offerings
+	adapters := h.dmsRegistry.List()
+	var offerings []*models.TMF620ProductOffering
+
+	for _, dmsAdapter := range adapters {
+		packages, err := dmsAdapter.ListDeploymentPackages(ctx, nil)
+		if err != nil {
+			h.logger.Warn("failed to list packages from adapter",
+				zap.String("adapter", dmsAdapter.Name()),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		for _, pkg := range packages {
+			offering := transformPackageToOffering(pkg, baseURL)
+			offerings = append(offerings, offering)
+		}
+	}
+
+	c.JSON(http.StatusOK, offerings)
+}
+
+// GetTMF620ProductOffering retrieves a single product offering by ID.
+// GET /tmf-api/productCatalog/v4/productOffering/:id
+func (h *TMForumHandler) GetTMF620ProductOffering(c *gin.Context) {
+	ctx := c.Request.Context()
+	offeringID := c.Param("id")
+
+	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
+
+	// Find package across all adapters
+	adapters := h.dmsRegistry.List()
+	for _, dmsAdapter := range adapters {
+		pkg, err := dmsAdapter.GetDeploymentPackage(ctx, offeringID)
+		if err == nil {
+			offering := transformPackageToOffering(pkg, baseURL)
+			c.JSON(http.StatusOK, offering)
+			return
+		}
+	}
+
+	c.JSON(http.StatusNotFound, gin.H{
+		"error":   "NotFound",
+		"message": fmt.Sprintf("Product offering with ID '%s' not found", offeringID),
+	})
+}
+
+// ========================================
+// Helper Functions for TMF640 and TMF620
+// ========================================
+
+// transformDeploymentToActivation converts a deployment to a service activation.
+func transformDeploymentToActivation(dep *dmsadapter.Deployment, baseURL string) *models.TMF640ServiceActivation {
+	activation := &models.TMF640ServiceActivation{
+		ID:   dep.ID,
+		Href: fmt.Sprintf("%s/tmf-api/serviceActivation/v4/serviceActivation/%s", baseURL, dep.ID),
+		Service: &models.TMF638ServiceRef{
+			ID:   dep.ID,
+			Href: fmt.Sprintf("%s/tmf-api/serviceInventoryManagement/v4/service/%s", baseURL, dep.ID),
+			Name: dep.Name,
+		},
+		State:                   mapDeploymentStatusToActivationState(dep.Status),
+		Mode:                    "automatic",
+		RequestedActivationDate: &dep.CreatedAt,
+		AtType:                  "ServiceActivation",
+	}
+
+	if dep.Status == dmsadapter.DeploymentStatusDeployed {
+		activation.ActualActivationDate = &dep.UpdatedAt
+	}
+
+	return activation
+}
+
+// mapDeploymentStatusToActivationState maps deployment status to activation state.
+func mapDeploymentStatusToActivationState(status dmsadapter.DeploymentStatus) string {
+	switch status {
+	case dmsadapter.DeploymentStatusPending:
+		return "pending"
+	case dmsadapter.DeploymentStatusDeploying:
+		return "inProgress"
+	case dmsadapter.DeploymentStatusDeployed:
+		return "activated"
+	case dmsadapter.DeploymentStatusFailed:
+		return "failed"
+	default:
+		return "pending"
+	}
+}
+
+// transformPackageToOffering converts a DMS package to a product offering.
+func transformPackageToOffering(pkg *dmsadapter.DeploymentPackage, baseURL string) *models.TMF620ProductOffering {
+	offering := &models.TMF620ProductOffering{
+		ID:              pkg.ID,
+		Href:            fmt.Sprintf("%s/tmf-api/productCatalog/v4/productOffering/%s", baseURL, pkg.ID),
+		Name:            pkg.Name,
+		Description:     pkg.Description,
+		Version:         pkg.Version,
+		LifecycleStatus: "Active",
+		IsBundle:        false,
+		AtType:          "ProductOffering",
+	}
+
+	// Add product specification reference
+	if pkg.ID != "" {
+		offering.ProductSpecification = &models.ProductSpecificationRef{
+			ID:      pkg.ID,
+			Name:    pkg.Name,
+			Version: pkg.Version,
+		}
+	}
+
+	return offering
 }

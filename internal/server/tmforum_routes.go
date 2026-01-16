@@ -26,6 +26,18 @@ import (
 // TMF688 - Event Management v4
 //   - /tmf-api/eventManagement/v4/*
 //   - Maps to O2-IMS subscription mechanism
+//
+// TMF642 - Alarm Management v4
+//   - /tmf-api/alarmManagement/v4/*
+//   - Maps to monitoring and Kubernetes events
+//
+// TMF640 - Service Activation and Configuration v4
+//   - /tmf-api/serviceActivation/v4/*
+//   - Maps to O2-DMS deployment activation
+//
+// TMF620 - Product Catalog Management v4
+//   - /tmf-api/productCatalog/v4/*
+//   - Maps to O2-DMS package catalog
 func (s *Server) setupTMForumRoutesEarly() {
 	s.logger.Info("Registering TMForum API route structure")
 
@@ -112,6 +124,51 @@ func (s *Server) setupTMForumRoutesEarly() {
 		}))
 		tmf688.DELETE("/hub/:id", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
 			return h.UnregisterTMF688Hub
+		}))
+	}
+
+	// TMF642 - Alarm Management API v4
+	tmf642 := s.router.Group("/tmf-api/alarmManagement/v4")
+	{
+		// Alarm operations
+		tmf642.GET("/alarm", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.ListTMF642Alarms
+		}))
+		tmf642.GET("/alarm/:id", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.GetTMF642Alarm
+		}))
+		tmf642.PATCH("/alarm/:id/acknowledge", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.AcknowledgeTMF642Alarm
+		}))
+		tmf642.PATCH("/alarm/:id/clear", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.ClearTMF642Alarm
+		}))
+	}
+
+	// TMF640 - Service Activation and Configuration API v4
+	tmf640 := s.router.Group("/tmf-api/serviceActivation/v4")
+	{
+		// Service activation operations
+		tmf640.GET("/serviceActivation", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.ListTMF640ServiceActivations
+		}))
+		tmf640.GET("/serviceActivation/:id", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.GetTMF640ServiceActivation
+		}))
+		tmf640.POST("/serviceActivation", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.CreateTMF640ServiceActivation
+		}))
+	}
+
+	// TMF620 - Product Catalog Management API v4
+	tmf620 := s.router.Group("/tmf-api/productCatalog/v4")
+	{
+		// Product offering operations
+		tmf620.GET("/productOffering", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.ListTMF620ProductOfferings
+		}))
+		tmf620.GET("/productOffering/:id", s.tmfHandlerOrUnavailable(func(h *handlers.TMForumHandler) gin.HandlerFunc {
+			return h.GetTMF620ProductOffering
 		}))
 	}
 
