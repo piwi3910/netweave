@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -305,7 +306,7 @@ func TestInMemoryHubStore_ConcurrentAccess(t *testing.T) {
 				CreatedAt:      time.Now(),
 			}
 			err := store.Create(ctx, hub)
-			if err != nil && err != ErrHubExists {
+			if err != nil && !errors.Is(err, ErrHubExists) {
 				t.Errorf("unexpected error: %v", err)
 			}
 			done <- true

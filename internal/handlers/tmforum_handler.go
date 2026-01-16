@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -116,7 +117,7 @@ func (h *TMForumHandler) GetTMF639Resource(c *gin.Context) {
 	// Try to get as individual resource
 	resource, err := h.adapter.GetResource(ctx, resourceID)
 	if err != nil {
-		if err == imsadapter.ErrResourceNotFound {
+		if errors.Is(err, imsadapter.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
 				"message": fmt.Sprintf("Resource with ID '%s' not found", resourceID),
@@ -277,7 +278,7 @@ func (h *TMForumHandler) DeleteTMF639Resource(c *gin.Context) {
 	// Try to delete as individual resource
 	err = h.adapter.DeleteResource(ctx, resourceID)
 	if err != nil {
-		if err == imsadapter.ErrResourceNotFound {
+		if errors.Is(err, imsadapter.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
 				"message": fmt.Sprintf("Resource with ID '%s' not found", resourceID),
@@ -809,7 +810,7 @@ func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
 	// Get hub registration
 	registration, err := h.hubStore.Get(ctx, hubID)
 	if err != nil {
-		if err == storage.ErrHubNotFound {
+		if errors.Is(err, storage.ErrHubNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
 				"message": fmt.Sprintf("Hub with ID '%s' not found", hubID),
