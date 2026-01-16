@@ -17,8 +17,9 @@ import (
 
 // TestServer wraps an HTTP test server for integration testing.
 type TestServer struct {
-	Server *httptest.Server
-	Config *config.Config
+	Server       *httptest.Server
+	Config       *config.Config
+	InternalSrv  *server.Server // Exposed for advanced test setup (e.g., DMS initialization)
 }
 
 // NewTestServer creates a new test server with the given adapter and storage.
@@ -77,8 +78,9 @@ func NewTestServer(t *testing.T, adp adapter.Adapter, store storage.Store) *Test
 	})
 
 	return &TestServer{
-		Server: ts,
-		Config: cfg,
+		Server:      ts,
+		Config:      cfg,
+		InternalSrv: srv,
 	}
 }
 
