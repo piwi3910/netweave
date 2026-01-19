@@ -55,7 +55,9 @@ func (h *K8sResourceHelper) DeleteNamespace(ctx context.Context, name string) er
 	}
 
 	// Wait for namespace to be deleted (up to 60 seconds)
-	return wait.PollUntilContextTimeout(ctx, 2*time.Second, 60*time.Second, true, func(pollCtx context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(
+		ctx, 2*time.Second, 60*time.Second, true,
+		func(pollCtx context.Context) (bool, error) {
 		_, err := h.client.CoreV1().Namespaces().Get(pollCtx, name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			// Namespace has been successfully deleted
@@ -71,7 +73,11 @@ func (h *K8sResourceHelper) DeleteNamespace(ctx context.Context, name string) er
 }
 
 // CreateTestPod creates a simple test pod in the specified namespace.
-func (h *K8sResourceHelper) CreateTestPod(ctx context.Context, namespace, name string, labels map[string]string) (*corev1.Pod, error) {
+func (h *K8sResourceHelper) CreateTestPod(
+	ctx context.Context,
+	namespace, name string,
+	labels map[string]string,
+) (*corev1.Pod, error) {
 	if labels == nil {
 		labels = make(map[string]string)
 	}
@@ -101,7 +107,9 @@ func (h *K8sResourceHelper) CreateTestPod(ctx context.Context, namespace, name s
 	}
 
 	// Wait for pod to be scheduled (Running or Pending)
-	err = wait.PollUntilContextTimeout(ctx, 1*time.Second, 30*time.Second, true, func(pollCtx context.Context) (bool, error) {
+	err = wait.PollUntilContextTimeout(
+		ctx, 1*time.Second, 30*time.Second, true,
+		func(pollCtx context.Context) (bool, error) {
 		p, err := h.client.CoreV1().Pods(namespace).Get(pollCtx, name, metav1.GetOptions{})
 		if err != nil {
 			return false, fmt.Errorf("failed to get pod status: %w", err)
@@ -117,7 +125,11 @@ func (h *K8sResourceHelper) CreateTestPod(ctx context.Context, namespace, name s
 }
 
 // UpdatePodLabels updates labels on an existing pod.
-func (h *K8sResourceHelper) UpdatePodLabels(ctx context.Context, namespace, name string, labels map[string]string) (*corev1.Pod, error) {
+func (h *K8sResourceHelper) UpdatePodLabels(
+	ctx context.Context,
+	namespace, name string,
+	labels map[string]string,
+) (*corev1.Pod, error) {
 	pod, err := h.client.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pod %s/%s: %w", namespace, name, err)
@@ -148,7 +160,9 @@ func (h *K8sResourceHelper) DeletePod(ctx context.Context, namespace, name strin
 	}
 
 	// Wait for pod to be deleted (up to 30 seconds)
-	return wait.PollUntilContextTimeout(ctx, 1*time.Second, 30*time.Second, true, func(pollCtx context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(
+		ctx, 1*time.Second, 30*time.Second, true,
+		func(pollCtx context.Context) (bool, error) {
 		_, err := h.client.CoreV1().Pods(namespace).Get(pollCtx, name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			// Pod has been successfully deleted

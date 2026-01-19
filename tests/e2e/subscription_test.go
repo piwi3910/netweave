@@ -42,7 +42,13 @@ func extractSubscriptionID(t *testing.T, response map[string]any) string {
 }
 
 // httpPost performs an HTTP POST request with context.
-func httpPost(ctx context.Context, client *http.Client, url string, contentType string, body io.Reader) (*http.Response, error) {
+func httpPost(
+	ctx context.Context,
+	client *http.Client,
+	url string,
+	contentType string,
+	body io.Reader,
+) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create POST request: %w", err)
