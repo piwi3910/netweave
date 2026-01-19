@@ -1,7 +1,7 @@
 # O2-IMS API Documentation
 
-**Version:** 1.1
-**Date:** 2026-01-12
+**Version:** 2.0
+**Date:** 2026-01-19
 
 This directory contains the complete O2-IMS API documentation for the netweave gateway.
 
@@ -26,7 +26,9 @@ https://gateway.example.com/o2ims-infrastructureInventory/v1
 
 ### Authentication
 
-All requests require mTLS client certificate authentication:
+The gateway supports **dual authentication** - both mTLS and OAuth2/OIDC:
+
+#### Option 1: mTLS Certificate Authentication
 
 ```bash
 curl -X GET https://gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
@@ -35,7 +37,31 @@ curl -X GET https://gateway.example.com/o2ims-infrastructureInventory/v1/resourc
   --cacert ca.crt
 ```
 
-See [Multi-Tenancy and RBAC](o2ims/README.md#multi-tenancy-and-rbac) for details.
+#### Option 2: OAuth2/OIDC Token Authentication
+
+```bash
+# Get token from Keycloak
+TOKEN=$(curl -s -X POST \
+  https://keycloak.example.com/realms/netweave/protocol/openid-connect/token \
+  -d "client_id=o2ims-gateway" \
+  -d "client_secret=secret" \
+  -d "username=user@example.com" \
+  -d "password=password" \
+  -d "grant_type=password" \
+  | jq -r '.access_token')
+
+# Make authenticated request
+curl -X GET https://gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+#### Dual Authentication Priority
+
+When both Bearer token and certificate are present:
+- **OAuth2 priority** (`oauth2.priority: true`): Uses Bearer token
+- **mTLS priority** (`oauth2.priority: false`): Uses client certificate
+
+See [Authentication Documentation](../security/authentication.md) for complete details.
 
 ## API Versioning Strategy
 

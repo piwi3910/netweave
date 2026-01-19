@@ -9,6 +9,7 @@ Complete reference for all configuration options in the O2-IMS Gateway.
 - [Redis](#redis)
 - [Kubernetes](#kubernetes)
 - [TLS](#tls)
+- [OAuth2/OIDC](#oauth2oidc)
 - [Observability](#observability)
 - [Security](#security)
 - [Validation](#validation)
@@ -28,6 +29,8 @@ kubernetes:
   # Kubernetes adapter configuration
 tls:
   # TLS/mTLS security configuration
+oauth2:
+  # OAuth2/OIDC authentication (Keycloak)
 observability:
   # Logging, metrics, tracing
 security:
@@ -234,6 +237,131 @@ NETWEAVE_TLS_CA_FILE
 NETWEAVE_TLS_CLIENT_AUTH
 NETWEAVE_TLS_MIN_VERSION
 NETWEAVE_TLS_CIPHER_SUITES  # Comma-separated
+```
+
+## OAuth2/OIDC
+
+OAuth2/OIDC authentication configuration (Keycloak integration).
+
+```yaml
+oauth2:
+  enabled: false
+  priority: false
+  keycloak_base_url: https://keycloak.example.com
+  keycloak_realm: netweave
+  keycloak_client_id: o2ims-gateway
+  keycloak_secret: ${KEYCLOAK_CLIENT_SECRET}
+  auto_provision_users: false
+  default_role: tenant-viewer
+  require_tenant_claim: false
+  group_role_mapping:
+    "/platform-admins": "platform-admin"
+    "/tenant-admins": "tenant-admin"
+    "/tenant-editors": "tenant-editor"
+    "/tenant-viewers": "tenant-viewer"
+```
+
+| Field | Type | Default | Description | Validation |
+|-------|------|---------|-------------|------------|
+| `enabled` | bool | `false` | Enable OAuth2 authentication | |
+| `priority` | bool | `false` | OAuth2 takes priority over mTLS when both present | |
+| `keycloak_base_url` | string | `""` | Keycloak server URL | Valid URL if OAuth2 enabled |
+| `keycloak_realm` | string | `""` | Keycloak realm name | Required if OAuth2 enabled |
+| `keycloak_client_id` | string | `""` | OAuth2 client ID | Required if OAuth2 enabled |
+| `keycloak_secret` | string | `""` | OAuth2 client secret | Required if OAuth2 enabled |
+| `auto_provision_users` | bool | `false` | Auto-create users from OAuth2 tokens | |
+| `default_role` | string | `""` | Default role ID for new users | Required if auto_provision_users=true |
+| `require_tenant_claim` | bool | `false` | Require `tenant_id` claim in tokens | |
+| `group_role_mapping` | map | `{}` | Map Keycloak groups to role IDs | Valid role IDs |
+
+**Authentication Priority:**
+
+When both Bearer token and client certificate are present:
+- `priority: false` (default): mTLS takes precedence
+- `priority: true`: OAuth2 takes precedence
+
+**User Auto-Provisioning:**
+
+When `auto_provision_users: true`:
+1. Token verified with Keycloak
+2. User looked up by OAuth subject
+3. If not found, user created from token claims
+4. Tenant validated and quota checked
+5. Group mapped to role via `group_role_mapping`
+6. Fallback to `default_role` if no group match
+
+**Group Mapping:**
+
+Map Keycloak groups (from `groups` claim) to internal role IDs:
+```yaml
+group_role_mapping:
+  "/platform-admins": "platform-admin"      # Full platform access
+  "/tenant-admins": "tenant-admin"          # Tenant administration
+  "/tenant-editors": "tenant-editor"        # Read/write tenant resources
+  "/tenant-viewers": "tenant-viewer"        # Read-only access
+```
+
+**Token Claims:**
+
+Required claims:
+- `sub`: Subject identifier (Keycloak user ID)
+
+Optional claims:
+- `email`: User email address
+- `preferred_username`: Display username
+- `name`: Full name
+- `groups`: Array of Keycloak groups for role mapping
+- `tenant_id`: Custom claim for tenant association
+
+**Environment Variables:**
+```bash
+NETWEAVE_OAUTH2_ENABLED
+NETWEAVE_OAUTH2_PRIORITY
+NETWEAVE_OAUTH2_KEYCLOAK_BASE_URL
+NETWEAVE_OAUTH2_KEYCLOAK_REALM
+NETWEAVE_OAUTH2_KEYCLOAK_CLIENT_ID
+NETWEAVE_OAUTH2_KEYCLOAK_SECRET  # Recommended: use environment variable
+NETWEAVE_OAUTH2_AUTO_PROVISION_USERS
+NETWEAVE_OAUTH2_DEFAULT_ROLE
+NETWEAVE_OAUTH2_REQUIRE_TENANT_CLAIM
+```
+
+**Example Configurations:**
+
+OAuth2 disabled (mTLS only):
+```yaml
+oauth2:
+  enabled: false
+```
+
+OAuth2 enabled with auto-provisioning:
+```yaml
+oauth2:
+  enabled: true
+  priority: true
+  keycloak_base_url: https://keycloak.example.com
+  keycloak_realm: netweave
+  keycloak_client_id: o2ims-gateway
+  keycloak_secret: ${KEYCLOAK_CLIENT_SECRET}
+  auto_provision_users: true
+  default_role: tenant-viewer
+  require_tenant_claim: true
+  group_role_mapping:
+    "/platform-admins": "platform-admin"
+    "/tenant-admins": "tenant-admin"
+```
+
+OAuth2 enabled, mTLS priority (hybrid):
+```yaml
+oauth2:
+  enabled: true
+  priority: false  # mTLS takes priority
+  keycloak_base_url: https://keycloak.example.com
+  keycloak_realm: netweave
+  keycloak_client_id: o2ims-gateway
+  keycloak_secret: ${KEYCLOAK_CLIENT_SECRET}
+  auto_provision_users: false  # Manual user management
+  require_tenant_claim: false
 ```
 
 ## Observability

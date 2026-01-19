@@ -1,16 +1,18 @@
 # Authentication
 
-**Client certificate-based authentication and tenant identification for the O2-IMS Gateway.**
+**Dual authentication support: mTLS client certificates and OAuth2/OIDC tokens for the O2-IMS Gateway.**
 
 ## Table of Contents
 
 1. [Overview](#overview)
 2. [mTLS Client Certificates](#mtls-client-certificates)
-3. [Tenant Identification](#tenant-identification)
-4. [Certificate Requirements](#certificate-requirements)
-5. [Authentication Flow](#authentication-flow)
-6. [Client Configuration](#client-configuration)
-7. [Testing Authentication](#testing-authentication)
+3. [OAuth2/OIDC Authentication](#oauth2oidc-authentication)
+4. [Dual Authentication](#dual-authentication)
+5. [Tenant Identification](#tenant-identification)
+6. [Certificate Requirements](#certificate-requirements)
+7. [Authentication Flow](#authentication-flow)
+8. [Client Configuration](#client-configuration)
+9. [Testing Authentication](#testing-authentication)
 
 ---
 
@@ -18,13 +20,13 @@
 
 ### Authentication Methods
 
-The O2-IMS Gateway uses **mTLS client certificates** as the primary authentication method:
+The O2-IMS Gateway supports **dual authentication** with both mTLS and OAuth2/OIDC:
 
 | Method | Use Case | Security Level | Status |
 |--------|----------|----------------|--------|
-| **mTLS Client Certs** | Production SMO clients | High | ✅ Implemented |
+| **mTLS Client Certs** | Production SMO clients, legacy systems | High | ✅ Implemented |
+| **OAuth2/OIDC Tokens** | Modern applications, SSO integration | High | ✅ Implemented |
 | **API Keys** | Service accounts (optional) | Medium | 🔄 Future |
-| **JWT Tokens** | OAuth2/OIDC integration | High | 🔄 Future |
 
 ### Why mTLS?
 
@@ -33,6 +35,25 @@ The O2-IMS Gateway uses **mTLS client certificates** as the primary authenticati
 - ✅ **Revocation**: Instant revocation via CRL or OCSP
 - ✅ **Tenant Binding**: Tenant ID embedded in certificate
 - ✅ **O-RAN Compliant**: Recommended by O2-IMS specification
+
+### Why OAuth2/OIDC?
+
+- ✅ **Single Sign-On**: Integrate with existing identity providers
+- ✅ **Dynamic Tokens**: Short-lived tokens with automatic rotation
+- ✅ **User Provisioning**: Automatic user creation from token claims
+- ✅ **Group Mapping**: Map identity provider groups to internal roles
+- ✅ **Modern Standard**: Industry-standard authentication protocol
+
+### Choosing an Authentication Method
+
+| Scenario | Recommended Method | Rationale |
+|----------|-------------------|-----------|
+| **Legacy O-RAN systems** | mTLS | Existing certificate infrastructure |
+| **Modern web applications** | OAuth2/OIDC | Built-in SSO support |
+| **Service-to-service** | mTLS | No user interaction required |
+| **Interactive users** | OAuth2/OIDC | Better UX with SSO |
+| **Kubernetes pods** | mTLS | Native cert-manager integration |
+| **Enterprise SSO** | OAuth2/OIDC | Leverage existing Keycloak/AD |
 
 ---
 
@@ -115,6 +136,303 @@ type Identity struct {
     Certificate  *x509.Certificate
 }
 ```
+
+---
+
+## OAuth2/OIDC Authentication
+
+### Overview
+
+OAuth2/OIDC authentication uses **Bearer tokens** issued by an identity provider (Keycloak). Tokens are verified on every request and contain user claims that are mapped to internal roles and tenants.
+
+### Keycloak Integration
+
+The gateway integrates with Keycloak for:
+- **Token Verification**: Validate JWT tokens using Keycloak's public keys
+- **Claims Extraction**: Extract user information from token claims
+- **User Provisioning**: Automatically create users from token claims
+- **Group Mapping**: Map Keycloak groups to internal roles
+
+### Token Format
+
+OAuth2/OIDC tokens are JWT (JSON Web Tokens) with standard and custom claims:
+
+```json
+{
+  "sub": "f:12345678-1234-1234-1234-123456789abc:user@example.com",
+  "email": "user@example.com",
+  "preferred_username": "user@example.com",
+  "name": "John Doe",
+  "groups": [
+    "/platform-admins",
+    "/tenant-admins"
+  ],
+  "tenant_id": "smo-alpha",
+  "iss": "https://keycloak.example.com/realms/netweave",
+  "aud": "o2ims-gateway",
+  "exp": 1737123456,
+  "iat": 1737120000
+}
+```
+
+**Standard Claims:**
+- `sub`: Subject identifier (Keycloak user ID)
+- `email`: User's email address
+- `preferred_username`: Username for display
+- `name`: User's full name
+- `iss`: Token issuer (Keycloak realm URL)
+- `aud`: Intended audience (client ID)
+- `exp`: Token expiration timestamp
+- `iat`: Token issued at timestamp
+
+**Custom Claims:**
+- `groups`: Keycloak groups for role mapping
+- `tenant_id`: Custom claim for tenant association (optional)
+
+### Authentication Request
+
+Clients send Bearer tokens in the Authorization header:
+
+```bash
+curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+    -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+### Token Verification Flow
+
+```go
+// internal/auth/oauth2.go
+package auth
+
+import (
+    "context"
+    "fmt"
+    "strings"
+
+    "github.com/gin-gonic/gin"
+)
+
+type OAuth2Authenticator struct {
+    keycloakClient TokenVerifier
+    store          Store
+    config         *OAuth2Config
+    logger         *zap.Logger
+}
+
+// Authenticate performs OAuth2 authentication
+func (a *OAuth2Authenticator) Authenticate(
+    ctx context.Context,
+    c *gin.Context,
+    requestID string,
+) (*TenantUser, *Role, *Tenant, error) {
+    // 1. Extract Bearer token
+    token, err := a.extractBearerToken(c)
+    if err != nil {
+        return nil, nil, nil, fmt.Errorf("failed to extract bearer token: %w", err)
+    }
+
+    // 2. Verify token with Keycloak
+    tokenClaims, err := a.keycloakClient.VerifyToken(ctx, token)
+    if err != nil {
+        return nil, nil, nil, fmt.Errorf("invalid token: %w", err)
+    }
+
+    // 3. Extract structured claims
+    claims, err := a.extractClaims(tokenClaims)
+    if err != nil {
+        return nil, nil, nil, fmt.Errorf("failed to extract claims: %w", err)
+    }
+
+    // 4. Get or create user
+    user, err := a.getOrCreateUser(ctx, claims, requestID)
+    if err != nil {
+        return nil, nil, nil, err
+    }
+
+    // 5. Load role and tenant
+    role, err := a.store.GetRole(ctx, user.RoleID)
+    tenant, err := a.store.GetTenant(ctx, user.TenantID)
+
+    return user, role, tenant, nil
+}
+```
+
+### User Auto-Provisioning
+
+When `auto_provision_users` is enabled, the gateway automatically creates users from token claims:
+
+**Provisioning Logic:**
+1. Extract user information from token claims
+2. Validate tenant exists and is active
+3. Check tenant user quota
+4. Map Keycloak groups to internal roles
+5. Create user with OAuth subject and role
+6. Return authenticated user context
+
+**Example User Creation:**
+
+```go
+user := &TenantUser{
+    ID:            uuid.New().String(),
+    TenantID:      claims.TenantID,
+    OAuthSubject:  claims.Subject,      // Keycloak user ID
+    OAuthProvider: "keycloak",
+    Email:         claims.Email,
+    CommonName:    claims.PreferredUsername,
+    RoleID:        roleID,              // From group mapping
+    IsActive:      true,
+    CreatedAt:     time.Now().UTC(),
+}
+```
+
+### Group-to-Role Mapping
+
+Keycloak groups are mapped to internal roles via configuration:
+
+```yaml
+oauth2:
+  group_role_mapping:
+    "/platform-admins": "platform-admin"
+    "/tenant-admins": "tenant-admin"
+    "/tenant-editors": "tenant-editor"
+    "/tenant-viewers": "tenant-viewer"
+```
+
+**Mapping Priority:**
+1. Check token `groups` claim
+2. Match against `group_role_mapping`
+3. Verify role exists in database
+4. Fallback to `default_role` if no match
+5. Error if no valid role found
+
+### OAuth2 Configuration
+
+```yaml
+# config.yaml
+oauth2:
+  # Enable/disable OAuth2 authentication
+  enabled: true
+
+  # OAuth2 takes priority over mTLS when both present
+  priority: true
+
+  # Keycloak connection details
+  keycloak_base_url: "https://keycloak.example.com"
+  keycloak_realm: "netweave"
+  keycloak_client_id: "o2ims-gateway"
+  keycloak_secret: "${KEYCLOAK_CLIENT_SECRET}"
+
+  # User provisioning
+  auto_provision_users: true
+  default_role: "tenant-viewer"
+  require_tenant_claim: true
+
+  # Group-to-role mappings
+  group_role_mapping:
+    "/platform-admins": "platform-admin"
+    "/tenant-admins": "tenant-admin"
+    "/tenant-editors": "tenant-editor"
+    "/tenant-viewers": "tenant-viewer"
+```
+
+**Configuration Options:**
+
+| Option | Type | Description | Default |
+|--------|------|-------------|---------|
+| `enabled` | bool | Enable OAuth2 authentication | `false` |
+| `priority` | bool | OAuth2 takes priority over mTLS | `false` |
+| `keycloak_base_url` | string | Keycloak server URL | Required |
+| `keycloak_realm` | string | Keycloak realm name | Required |
+| `keycloak_client_id` | string | OAuth2 client ID | Required |
+| `keycloak_secret` | string | OAuth2 client secret | Required |
+| `auto_provision_users` | bool | Auto-create users from tokens | `false` |
+| `default_role` | string | Default role for new users | Required if auto-provisioning |
+| `require_tenant_claim` | bool | Require `tenant_id` claim | `false` |
+| `group_role_mapping` | map | Keycloak group to role mappings | `{}` |
+
+---
+
+## Dual Authentication
+
+### Priority Configuration
+
+When both authentication methods are present (Bearer token + client certificate), the gateway uses **priority configuration** to determine which to use:
+
+**OAuth2 Priority (oauth2.priority: true):**
+```
+Request with Bearer token + Certificate → Uses OAuth2
+Request with Bearer token only → Uses OAuth2
+Request with Certificate only → Uses mTLS
+Request with neither → Rejects (401 Unauthorized)
+```
+
+**mTLS Priority (oauth2.priority: false):**
+```
+Request with Bearer token + Certificate → Uses mTLS
+Request with Bearer token only → Uses OAuth2
+Request with Certificate only → Uses mTLS
+Request with neither → Rejects (401 Unauthorized)
+```
+
+### Authentication Detection
+
+```go
+// internal/auth/middleware.go
+func (m *Middleware) detectAuthMethod(c *gin.Context) AuthMethod {
+    hasBearerToken := strings.HasPrefix(c.GetHeader("Authorization"), "Bearer ")
+    hasCertificate := m.extractCertificate(c) != nil
+
+    // OAuth2 enabled and has Bearer token
+    if m.oauth2Config != nil && m.oauth2Config.Enabled && hasBearerToken {
+        // Check priority
+        if m.oauth2Config.Priority || !hasCertificate {
+            return AuthMethodOAuth2
+        }
+    }
+
+    // mTLS if certificate present
+    if hasCertificate {
+        return AuthMethodMTLS
+    }
+
+    // OAuth2 as fallback
+    if m.oauth2Config != nil && m.oauth2Config.Enabled && hasBearerToken {
+        return AuthMethodOAuth2
+    }
+
+    return ""  // No valid auth method
+}
+```
+
+### Unified Authentication Context
+
+Both authentication methods produce the same `AuthenticatedUser` context:
+
+```go
+type AuthenticatedUser struct {
+    UserID          string      // User's unique ID
+    TenantID        string      // Tenant ID
+    Subject         string      // Certificate DN or OAuth subject
+    CommonName      string      // Display name
+    Role            *Role       // User's role
+    IsPlatformAdmin bool        // Platform admin flag
+    AuthMethod      AuthMethod  // "mtls" or "oauth2"
+}
+```
+
+### Backward Compatibility
+
+**100% backward compatible** with existing mTLS clients:
+- ✅ Existing mTLS clients work unchanged
+- ✅ OAuth2 can be disabled entirely (`oauth2.enabled: false`)
+- ✅ mTLS-only mode available (`oauth2.enabled: false`)
+- ✅ No breaking changes to API or behavior
+
+**Migration Path:**
+1. **Phase 1**: Deploy with `oauth2.enabled: false` (mTLS only)
+2. **Phase 2**: Enable OAuth2 with `priority: false` (mTLS priority)
+3. **Phase 3**: Switch to `priority: true` (OAuth2 priority)
+4. **Phase 4**: OAuth2 primary, mTLS optional
 
 ---
 
@@ -361,15 +679,60 @@ func isRevoked(cert *x509.Certificate, crl *x509.RevocationList) bool {
 
 ## Authentication Flow
 
-### Request Authentication Sequence
+### Dual Authentication Decision Flow
+
+```mermaid
+flowchart TB
+    Start([HTTPS Request]) --> CheckAuth{Check Auth<br/>Headers}
+
+    CheckAuth -->|Bearer Token| HasToken[Has Bearer Token]
+    CheckAuth -->|Certificate| HasCert[Has Certificate]
+    CheckAuth -->|Both| HasBoth[Has Both]
+    CheckAuth -->|Neither| Reject401[401 Unauthorized]
+
+    HasBoth --> CheckPriority{OAuth2<br/>Priority?}
+    CheckPriority -->|Yes| OAuth2Flow
+    CheckPriority -->|No| MTLSFlow
+
+    HasToken --> CheckOAuth2{OAuth2<br/>Enabled?}
+    CheckOAuth2 -->|Yes| OAuth2Flow[OAuth2 Authentication]
+    CheckOAuth2 -->|No| Reject401
+
+    HasCert --> MTLSFlow[mTLS Authentication]
+
+    OAuth2Flow --> VerifyToken[Verify Token<br/>with Keycloak]
+    VerifyToken -->|Invalid| Reject401
+    VerifyToken -->|Valid| ExtractClaims[Extract Claims]
+    ExtractClaims --> GetUser[Get/Create User]
+    GetUser --> LoadContext
+
+    MTLSFlow --> VerifyCert[Verify Certificate]
+    VerifyCert -->|Invalid| Reject401
+    VerifyCert -->|Valid| ExtractDN[Extract DN]
+    ExtractDN --> LookupUser[Lookup User]
+    LookupUser --> LoadContext[Load Role & Tenant]
+
+    LoadContext --> SetContext[Set Auth Context]
+    SetContext --> Authorize{Check<br/>Authorization}
+    Authorize -->|Forbidden| Reject403[403 Forbidden]
+    Authorize -->|Allowed| Success[200 OK + Response]
+
+    style OAuth2Flow fill:#e1f5ff
+    style MTLSFlow fill:#fff4e6
+    style Success fill:#e8f5e9
+    style Reject401 fill:#ffebee
+    style Reject403 fill:#ffebee
+```
+
+### mTLS Authentication Sequence
 
 ```mermaid
 sequenceDiagram
-    participant Client as SMO Client
+    participant Client as Client (mTLS)
     participant GW as Gateway
     participant TLS as TLS Layer
     participant Auth as Auth Service
-    participant RBAC as RBAC Service
+    participant Store as User Store
     participant API as API Handler
 
     Client->>GW: HTTPS Request + Client Cert
@@ -383,17 +746,63 @@ sequenceDiagram
     end
 
     TLS->>Auth: Certificate Verified
-    Auth->>Auth: Extract User ID
-    Auth->>Auth: Extract Tenant ID
-    Auth->>Auth: Extract Claims
+    Auth->>Auth: Extract User ID from DN
+    Auth->>Auth: Extract Tenant ID from DN
+    Auth->>Store: Lookup User by Subject
+    Store-->>Auth: User + Role + Tenant
 
-    Auth->>RBAC: Load User Roles
-    RBAC->>RBAC: Get Role Bindings
-    RBAC->>RBAC: Collect Permissions
-
-    RBAC->>API: Authenticated Context
+    Auth->>API: Set Auth Context (mTLS)
     API->>API: Handle Request
-    API->>RBAC: Check Authorization
+    API->>API: Check Authorization
+
+    alt Authorized
+        API-->>Client: 200 OK + Response
+    else Unauthorized
+        API-->>Client: 403 Forbidden
+    end
+```
+
+### OAuth2 Authentication Sequence
+
+```mermaid
+sequenceDiagram
+    participant Client as Client (OAuth2)
+    participant GW as Gateway
+    participant Auth as Auth Service
+    participant KC as Keycloak
+    participant Store as User Store
+    participant API as API Handler
+
+    Client->>GW: HTTPS Request + Bearer Token
+    GW->>Auth: Extract Bearer Token
+    Auth->>KC: Verify Token
+
+    alt Token Invalid
+        KC-->>Auth: Invalid Token
+        Auth-->>Client: 401 Unauthorized
+    end
+
+    KC-->>Auth: Token Valid + Claims
+    Auth->>Auth: Extract Claims<br/>(sub, email, groups, tenant_id)
+
+    Auth->>Store: Lookup User by OAuth Subject
+
+    alt User Not Found
+        Auth->>Auth: Check Auto-Provision
+        alt Auto-Provision Enabled
+            Auth->>Store: Validate Tenant & Quota
+            Auth->>Auth: Map Groups to Role
+            Auth->>Store: Create User
+            Store-->>Auth: New User Created
+        else Auto-Provision Disabled
+            Auth-->>Client: 401 User Not Found
+        end
+    end
+
+    Store-->>Auth: User + Role + Tenant
+    Auth->>API: Set Auth Context (OAuth2)
+    API->>API: Handle Request
+    API->>API: Check Authorization
 
     alt Authorized
         API-->>Client: 200 OK + Response
@@ -560,12 +969,83 @@ openssl x509 -req -days 90 \
 echo "✅ Client certificate created: ${USER_ID}.crt"
 ```
 
-### Client Usage Examples
+### Obtaining OAuth2 Tokens
 
-#### cURL
+#### Interactive Login (Web Browser)
 
 ```bash
-# Make authenticated request
+# 1. Open browser to Keycloak login page
+open "https://keycloak.example.com/realms/netweave/protocol/openid-connect/auth?client_id=o2ims-gateway&response_type=token&redirect_uri=http://localhost:8080/callback"
+
+# 2. After login, Keycloak redirects with token in URL fragment:
+# http://localhost:8080/callback#access_token=eyJhbGc...&token_type=Bearer&expires_in=300
+
+# 3. Extract access token from URL
+TOKEN="eyJhbGc..."
+```
+
+#### Direct Token Request (Password Grant)
+
+**⚠️ Not recommended for production - use for testing only**
+
+```bash
+#!/bin/bash
+# scripts/get-token.sh
+
+KEYCLOAK_URL="https://keycloak.example.com"
+REALM="netweave"
+CLIENT_ID="o2ims-gateway"
+CLIENT_SECRET="your-client-secret"
+USERNAME="user@example.com"
+PASSWORD="your-password"
+
+# Request token
+TOKEN_RESPONSE=$(curl -s -X POST \
+    "${KEYCLOAK_URL}/realms/${REALM}/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "client_id=${CLIENT_ID}" \
+    -d "client_secret=${CLIENT_SECRET}" \
+    -d "username=${USERNAME}" \
+    -d "password=${PASSWORD}" \
+    -d "grant_type=password")
+
+# Extract access token
+ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token')
+
+echo "Access Token: $ACCESS_TOKEN"
+```
+
+#### Client Credentials Grant (Service Accounts)
+
+```bash
+#!/bin/bash
+# For service-to-service authentication
+
+KEYCLOAK_URL="https://keycloak.example.com"
+REALM="netweave"
+CLIENT_ID="o2ims-service"
+CLIENT_SECRET="service-secret"
+
+# Request token
+TOKEN_RESPONSE=$(curl -s -X POST \
+    "${KEYCLOAK_URL}/realms/${REALM}/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "client_id=${CLIENT_ID}" \
+    -d "client_secret=${CLIENT_SECRET}" \
+    -d "grant_type=client_credentials")
+
+# Extract access token
+ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token')
+
+echo "Service Token: $ACCESS_TOKEN"
+```
+
+### Client Usage Examples
+
+#### cURL with mTLS
+
+```bash
+# Make authenticated request with mTLS
 curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     --cert operator-1.crt \
     --key operator-1.key \
@@ -579,7 +1059,25 @@ curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/r
     -H "X-Tenant-ID: smo-alpha"
 ```
 
-#### Python
+#### cURL with OAuth2
+
+```bash
+# Get token first (using helper script)
+TOKEN=$(./scripts/get-token.sh)
+
+# Make authenticated request with Bearer token
+curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+    -H "Authorization: Bearer $TOKEN"
+
+# Bearer token takes priority (if oauth2.priority=true)
+curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+    -H "Authorization: Bearer $TOKEN" \
+    --cert operator-1.crt \
+    --key operator-1.key \
+    --cacert ca.crt
+```
+
+#### Python with mTLS
 
 ```python
 import requests
@@ -594,7 +1092,40 @@ response = requests.get(
 print(response.json())
 ```
 
-#### Go
+#### Python with OAuth2
+
+```python
+import requests
+import json
+
+# Get OAuth2 token
+def get_token():
+    token_url = "https://keycloak.example.com/realms/netweave/protocol/openid-connect/token"
+    data = {
+        "client_id": "o2ims-gateway",
+        "client_secret": "your-client-secret",
+        "username": "user@example.com",
+        "password": "your-password",
+        "grant_type": "password"
+    }
+
+    response = requests.post(token_url, data=data)
+    response.raise_for_status()
+    return response.json()["access_token"]
+
+# Make authenticated request
+token = get_token()
+headers = {"Authorization": f"Bearer {token}"}
+
+response = requests.get(
+    'https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools',
+    headers=headers
+)
+
+print(response.json())
+```
+
+#### Go with mTLS
 
 ```go
 package main
@@ -649,11 +1180,83 @@ func main() {
 }
 ```
 
+#### Go with OAuth2
+
+```go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+    "net/url"
+)
+
+type TokenResponse struct {
+    AccessToken string `json:"access_token"`
+    TokenType   string `json:"token_type"`
+    ExpiresIn   int    `json:"expires_in"`
+}
+
+func getToken() (string, error) {
+    tokenURL := "https://keycloak.example.com/realms/netweave/protocol/openid-connect/token"
+
+    data := url.Values{}
+    data.Set("client_id", "o2ims-gateway")
+    data.Set("client_secret", "your-client-secret")
+    data.Set("username", "user@example.com")
+    data.Set("password", "your-password")
+    data.Set("grant_type", "password")
+
+    resp, err := http.Post(tokenURL, "application/x-www-form-urlencoded", bytes.NewBufferString(data.Encode()))
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+
+    var tokenResp TokenResponse
+    if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+        return "", err
+    }
+
+    return tokenResp.AccessToken, nil
+}
+
+func main() {
+    // Get OAuth2 token
+    token, err := getToken()
+    if err != nil {
+        panic(err)
+    }
+
+    // Create authenticated request
+    req, err := http.NewRequest("GET", "https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools", nil)
+    if err != nil {
+        panic(err)
+    }
+
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+
+    // Make request
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        panic(err)
+    }
+    defer resp.Body.Close()
+
+    body, _ := io.ReadAll(resp.Body)
+    println(string(body))
+}
+```
+
 ---
 
 ## Testing Authentication
 
-### Manual Testing
+### Manual Testing - mTLS
 
 ```bash
 # 1. Test with valid certificate
@@ -675,6 +1278,45 @@ curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v
 curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     --cert wrong-client.crt --key wrong-client.key --cacert ca.crt
 # Expected: Certificate verification error
+```
+
+### Manual Testing - OAuth2
+
+```bash
+# 1. Get valid token
+TOKEN=$(./scripts/get-token.sh)
+
+# 2. Test with valid token
+curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+    -H "Authorization: Bearer $TOKEN"
+# Expected: 200 OK
+
+# 3. Test without token
+curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions
+# Expected: 401 Unauthorized (if oauth2.enabled=true and no mTLS)
+
+# 4. Test with invalid token
+curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+    -H "Authorization: Bearer invalid.token.here"
+# Expected: 401 Unauthorized
+
+# 5. Test with expired token
+EXPIRED_TOKEN="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."  # Expired token
+curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+    -H "Authorization: Bearer $EXPIRED_TOKEN"
+# Expected: 401 Unauthorized
+
+# 6. Test dual auth priority (OAuth2 priority)
+curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+    -H "Authorization: Bearer $TOKEN" \
+    --cert client.crt --key client.key --cacert ca.crt
+# Expected: 200 OK (authenticated via OAuth2)
+
+# 7. Test user auto-provisioning
+# First request with new user token → user created
+curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+    -H "Authorization: Bearer $NEW_USER_TOKEN"
+# Expected: 200 OK + user created in database
 ```
 
 ### Automated Testing
@@ -749,5 +1391,5 @@ func TestClientCertificateAuthentication(t *testing.T) {
 
 ---
 
-**Last Updated:** 2026-01-12
-**Version:** 1.0
+**Last Updated:** 2026-01-19
+**Version:** 2.0 - Added OAuth2/OIDC support and dual authentication
