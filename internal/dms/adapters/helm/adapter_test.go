@@ -774,7 +774,9 @@ func TestHelmAdapter_GetDeploymentPackage_ErrorPaths(t *testing.T) {
 			assert.Error(t, err)
 			assert.Nil(t, pkg)
 			// Skip if error is network related, check for expected error
-			if err != nil && (strings.Contains(err.Error(), "no such host") || strings.Contains(err.Error(), "connection refused")) {
+			if err != nil &&
+				(strings.Contains(err.Error(), "no such host") ||
+					strings.Contains(err.Error(), "connection refused")) {
 				t.Skip("Skipping - requires repository access")
 			}
 			assert.Contains(t, err.Error(), tt.wantErr)
@@ -1826,7 +1828,10 @@ func TestHelmAdapter_TestBuildPackageList(t *testing.T) {
 			index: &repo.IndexFile{
 				Entries: map[string]repo.ChartVersions{
 					"nginx":      {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
-					"postgresql": {{Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"}, Created: time.Now()}},
+					"postgresql": {{
+					Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"},
+					Created:  time.Now(),
+				}},
 					"redis":      {{Metadata: &chart.Metadata{Version: "3.0.0", Description: "Redis chart"}, Created: time.Now()}},
 				},
 			},
@@ -1838,7 +1843,10 @@ func TestHelmAdapter_TestBuildPackageList(t *testing.T) {
 			index: &repo.IndexFile{
 				Entries: map[string]repo.ChartVersions{
 					"nginx":      {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
-					"postgresql": {{Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"}, Created: time.Now()}},
+					"postgresql": {{
+					Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"},
+					Created:  time.Now(),
+				}},
 					"redis":      {{Metadata: &chart.Metadata{Version: "3.0.0", Description: "Redis chart"}, Created: time.Now()}},
 				},
 			},
@@ -1892,7 +1900,10 @@ func TestHelmAdapter_TestBuildPackageList(t *testing.T) {
 				Entries: map[string]repo.ChartVersions{
 					"nginx":      {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
 					"emptyChart": {},
-					"postgresql": {{Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"}, Created: time.Now()}},
+					"postgresql": {{
+					Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"},
+					Created:  time.Now(),
+				}},
 				},
 			},
 			filter:   nil,
