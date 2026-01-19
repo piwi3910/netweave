@@ -77,8 +77,3 @@ Thumbs.db
 /netweave
 !/helm/netweave/
 netweave-gateway
-
-# Ignore built binaries in cmd directories
-cmd/*/migrate-auth
-cmd/*/gateway
-cmd/*/compliance

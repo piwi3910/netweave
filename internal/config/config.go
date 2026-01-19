@@ -90,12 +90,6 @@ type OAuth2Config struct {
 	// KeycloakSecretEnvVar specifies the environment variable containing the client secret.
 	KeycloakSecretEnvVar string `mapstructure:"keycloak_secret_env_var"`
 
-	// KeycloakAdminUsername is the Keycloak admin username for Admin API access.
-	KeycloakAdminUsername string `mapstructure:"keycloak_admin_username"`
-
-	// KeycloakAdminPassword is the Keycloak admin password for Admin API access.
-	KeycloakAdminPassword string `mapstructure:"keycloak_admin_password"`
-
 	// AutoProvisionUsers enables automatic user creation from OAuth2 token claims.
 	AutoProvisionUsers bool `mapstructure:"auto_provision_users"`
 
