@@ -269,40 +269,54 @@ func (m *mockResourceTypeAdapter) CreateResourcePool(
 ) (*adapter.ResourcePool, error) {
 	return nil, adapter.ErrNotImplemented
 }
-func (m *mockResourceTypeAdapter) UpdateResourcePool(_ context.Context, _ string, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockResourceTypeAdapter) UpdateResourcePool(
+	_ context.Context, _ string, _ *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	return nil, adapter.ErrNotImplemented
 }
 func (m *mockResourceTypeAdapter) DeleteResourcePool(_ context.Context, _ string) error {
 	return nil
 }
-func (m *mockResourceTypeAdapter) ListResources(_ context.Context, _ *adapter.Filter) ([]*adapter.Resource, error) {
+func (m *mockResourceTypeAdapter) ListResources(
+	_ context.Context, _ *adapter.Filter,
+) ([]*adapter.Resource, error) {
 	return nil, adapter.ErrNotImplemented
 }
 func (m *mockResourceTypeAdapter) GetResource(_ context.Context, _ string) (*adapter.Resource, error) {
 	return nil, adapter.ErrResourceNotFound
 }
-func (m *mockResourceTypeAdapter) CreateResource(_ context.Context, _ *adapter.Resource) (*adapter.Resource, error) {
+func (m *mockResourceTypeAdapter) CreateResource(
+	_ context.Context, _ *adapter.Resource,
+) (*adapter.Resource, error) {
 	return nil, adapter.ErrNotImplemented
 }
-func (m *mockResourceTypeAdapter) UpdateResource(_ context.Context, _ string, _ *adapter.Resource) (*adapter.Resource, error) {
+func (m *mockResourceTypeAdapter) UpdateResource(
+	_ context.Context, _ string, _ *adapter.Resource,
+) (*adapter.Resource, error) {
 	return nil, adapter.ErrNotImplemented
 }
 func (m *mockResourceTypeAdapter) DeleteResource(_ context.Context, _ string) error {
 	return nil
 }
-func (m *mockResourceTypeAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *mockResourceTypeAdapter) CreateSubscription(
+	_ context.Context, sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	return sub, nil
 }
 func (m *mockResourceTypeAdapter) GetSubscription(_ context.Context, _ string) (*adapter.Subscription, error) {
 	return nil, adapter.ErrResourceNotFound
 }
-func (m *mockResourceTypeAdapter) UpdateSubscription(_ context.Context, _ string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *mockResourceTypeAdapter) UpdateSubscription(
+	_ context.Context, _ string, sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	return sub, nil
 }
 func (m *mockResourceTypeAdapter) DeleteSubscription(_ context.Context, _ string) error {
 	return nil
 }
-func (m *mockResourceTypeAdapter) ListSubscriptions(_ context.Context, _ *adapter.Filter) ([]*adapter.Subscription, error) {
+func (m *mockResourceTypeAdapter) ListSubscriptions(
+	_ context.Context, _ *adapter.Filter,
+) ([]*adapter.Subscription, error) {
 	return nil, nil
 }
 

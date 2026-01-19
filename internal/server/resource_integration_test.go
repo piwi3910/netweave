@@ -179,7 +179,8 @@ func TestResourceHandler_Integration(t *testing.T) {
 
 		body, _ := json.Marshal(updatedResource)
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodPut, "/o2ims-infrastructureInventory/v1/resources/resource-1", bytes.NewBuffer(body))
+		req, _ := http.NewRequest(http.MethodPut,
+			"/o2ims-infrastructureInventory/v1/resources/resource-1", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
 
@@ -203,14 +204,16 @@ func TestResourceHandler_Integration(t *testing.T) {
 
 		// Delete the resource
 		w = httptest.NewRecorder()
-		req, _ = http.NewRequestWithContext(context.Background(), http.MethodDelete, "/o2ims-infrastructureInventory/v1/resources/resource-2", nil)
+		req, _ = http.NewRequestWithContext(context.Background(), http.MethodDelete,
+			"/o2ims-infrastructureInventory/v1/resources/resource-2", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNoContent, w.Code)
 
 		// Verify resource is deleted
 		w = httptest.NewRecorder()
-		req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resources/resource-2", nil)
+		req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/o2ims-infrastructureInventory/v1/resources/resource-2", nil)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
@@ -266,7 +269,8 @@ func TestResourceHandler_ErrorHandling(t *testing.T) {
 
 	t.Run("create_with_invalid_body", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resources", bytes.NewBuffer([]byte("invalid json")))
+		req, _ := http.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resources",
+			bytes.NewBuffer([]byte("invalid json")))
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
 
@@ -283,11 +287,15 @@ type mockResourceIntegrationAdapter struct {
 
 func (m *mockResourceIntegrationAdapter) Name() string                       { return "mock" }
 func (m *mockResourceIntegrationAdapter) Version() string                    { return "1.0.0" }
-func (m *mockResourceIntegrationAdapter) Capabilities() []adapter.Capability { return nil }
+func (m *mockResourceIntegrationAdapter) Capabilities() []adapter.Capability {
+	return nil
+}
 func (m *mockResourceIntegrationAdapter) Health(_ context.Context) error     { return nil }
 func (m *mockResourceIntegrationAdapter) Close() error                       { return nil }
 
-func (m *mockResourceIntegrationAdapter) ListResources(_ context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
+func (m *mockResourceIntegrationAdapter) ListResources(
+	_ context.Context, filter *adapter.Filter,
+) ([]*adapter.Resource, error) {
 	if m.shouldError {
 		return nil, assert.AnError
 	}
@@ -323,7 +331,9 @@ func (m *mockResourceIntegrationAdapter) GetResource(_ context.Context, id strin
 	return nil, adapter.ErrResourceNotFound
 }
 
-func (m *mockResourceIntegrationAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+func (m *mockResourceIntegrationAdapter) CreateResource(
+	_ context.Context, resource *adapter.Resource,
+) (*adapter.Resource, error) {
 	if m.shouldError {
 		return nil, assert.AnError
 	}
@@ -333,7 +343,9 @@ func (m *mockResourceIntegrationAdapter) CreateResource(_ context.Context, resou
 	return resource, nil
 }
 
-func (m *mockResourceIntegrationAdapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+func (m *mockResourceIntegrationAdapter) UpdateResource(
+	_ context.Context, id string, resource *adapter.Resource,
+) (*adapter.Resource, error) {
 	if m.shouldError {
 		return nil, assert.AnError
 	}
@@ -371,46 +383,70 @@ func (m *mockResourceIntegrationAdapter) DeleteResource(_ context.Context, id st
 }
 
 // Implement other required methods as stubs.
-func (m *mockResourceIntegrationAdapter) ListResourceTypes(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (m *mockResourceIntegrationAdapter) ListResourceTypes(
+	_ context.Context, _ *adapter.Filter,
+) ([]*adapter.ResourceType, error) {
 	return nil, nil
 }
-func (m *mockResourceIntegrationAdapter) GetResourceType(_ context.Context, _ string) (*adapter.ResourceType, error) {
+func (m *mockResourceIntegrationAdapter) GetResourceType(
+	_ context.Context, _ string,
+) (*adapter.ResourceType, error) {
 	return nil, adapter.ErrResourceNotFound
 }
-func (m *mockResourceIntegrationAdapter) ListDeploymentManagers(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+func (m *mockResourceIntegrationAdapter) ListDeploymentManagers(
+	_ context.Context, _ *adapter.Filter,
+) ([]*adapter.DeploymentManager, error) {
 	return nil, nil
 }
-func (m *mockResourceIntegrationAdapter) GetDeploymentManager(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
+func (m *mockResourceIntegrationAdapter) GetDeploymentManager(
+	_ context.Context, _ string,
+) (*adapter.DeploymentManager, error) {
 	return nil, adapter.ErrResourceNotFound
 }
-func (m *mockResourceIntegrationAdapter) ListResourcePools(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (m *mockResourceIntegrationAdapter) ListResourcePools(
+	_ context.Context, _ *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
 	return nil, nil
 }
-func (m *mockResourceIntegrationAdapter) GetResourcePool(_ context.Context, _ string) (*adapter.ResourcePool, error) {
+func (m *mockResourceIntegrationAdapter) GetResourcePool(
+	_ context.Context, _ string,
+) (*adapter.ResourcePool, error) {
 	return nil, adapter.ErrResourceNotFound
 }
-func (m *mockResourceIntegrationAdapter) CreateResourcePool(_ context.Context, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockResourceIntegrationAdapter) CreateResourcePool(
+	_ context.Context, _ *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	return nil, adapter.ErrNotImplemented
 }
-func (m *mockResourceIntegrationAdapter) UpdateResourcePool(_ context.Context, _ string, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockResourceIntegrationAdapter) UpdateResourcePool(
+	_ context.Context, _ string, _ *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	return nil, adapter.ErrNotImplemented
 }
 func (m *mockResourceIntegrationAdapter) DeleteResourcePool(_ context.Context, _ string) error {
 	return nil
 }
-func (m *mockResourceIntegrationAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *mockResourceIntegrationAdapter) CreateSubscription(
+	_ context.Context, sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	return sub, nil
 }
-func (m *mockResourceIntegrationAdapter) GetSubscription(_ context.Context, _ string) (*adapter.Subscription, error) {
+func (m *mockResourceIntegrationAdapter) GetSubscription(
+	_ context.Context, _ string,
+) (*adapter.Subscription, error) {
 	return nil, adapter.ErrResourceNotFound
 }
-func (m *mockResourceIntegrationAdapter) UpdateSubscription(_ context.Context, _ string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *mockResourceIntegrationAdapter) UpdateSubscription(
+	_ context.Context, _ string, sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	return sub, nil
 }
 func (m *mockResourceIntegrationAdapter) DeleteSubscription(_ context.Context, _ string) error {
 	return nil
 }
-func (m *mockResourceIntegrationAdapter) ListSubscriptions(_ context.Context, _ *adapter.Filter) ([]*adapter.Subscription, error) {
+func (m *mockResourceIntegrationAdapter) ListSubscriptions(
+	_ context.Context, _ *adapter.Filter,
+) ([]*adapter.Subscription, error) {
 	return nil, nil
 }
 
@@ -420,7 +456,9 @@ type mockResourceIntegrationStore struct{}
 func (m *mockResourceIntegrationStore) Create(_ context.Context, _ *storage.Subscription) error {
 	return nil
 }
-func (m *mockResourceIntegrationStore) Get(_ context.Context, _ string) (*storage.Subscription, error) {
+func (m *mockResourceIntegrationStore) Get(
+	_ context.Context, _ string,
+) (*storage.Subscription, error) {
 	return nil, storage.ErrSubscriptionNotFound
 }
 func (m *mockResourceIntegrationStore) Update(_ context.Context, _ *storage.Subscription) error {
@@ -430,13 +468,19 @@ func (m *mockResourceIntegrationStore) Delete(_ context.Context, _ string) error
 func (m *mockResourceIntegrationStore) List(_ context.Context) ([]*storage.Subscription, error) {
 	return nil, nil
 }
-func (m *mockResourceIntegrationStore) ListByResourcePool(_ context.Context, _ string) ([]*storage.Subscription, error) {
+func (m *mockResourceIntegrationStore) ListByResourcePool(
+	_ context.Context, _ string,
+) ([]*storage.Subscription, error) {
 	return nil, nil
 }
-func (m *mockResourceIntegrationStore) ListByResourceType(_ context.Context, _ string) ([]*storage.Subscription, error) {
+func (m *mockResourceIntegrationStore) ListByResourceType(
+	_ context.Context, _ string,
+) ([]*storage.Subscription, error) {
 	return nil, nil
 }
-func (m *mockResourceIntegrationStore) ListByTenant(_ context.Context, _ string) ([]*storage.Subscription, error) {
+func (m *mockResourceIntegrationStore) ListByTenant(
+	_ context.Context, _ string,
+) ([]*storage.Subscription, error) {
 	return nil, nil
 }
 func (m *mockResourceIntegrationStore) Close() error                 { return nil }
