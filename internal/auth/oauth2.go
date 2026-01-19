@@ -9,8 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-
-	"github.com/piwi3910/netweave/internal/keycloak"
 )
 
 // TokenVerifier interface for token verification (allows mocking in tests).
@@ -70,7 +68,7 @@ type OAuth2Claims struct {
 
 // NewOAuth2Authenticator creates a new OAuth2 authenticator.
 func NewOAuth2Authenticator(
-	keycloakClient *keycloak.Client,
+	keycloakClient TokenVerifier,
 	store Store,
 	config *OAuth2Config,
 	logger *zap.Logger,
