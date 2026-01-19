@@ -62,7 +62,11 @@ func (a *Adapter) GetSubscription(ctx context.Context, id string) (*adapter.Subs
 }
 
 // UpdateSubscription updates an existing subscription.
-func (a *Adapter) UpdateSubscription(ctx context.Context, id string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (a *Adapter) UpdateSubscription(
+	ctx context.Context,
+	id string,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	if a.store == nil {
 		return nil, adapter.ErrNotImplemented
 	}
@@ -157,7 +161,9 @@ func convertToAdapterSubscription(storageSub *storage.Subscription) *adapter.Sub
 	}
 
 	// Convert filter if any field is set
-	if storageSub.Filter.ResourcePoolID != "" || storageSub.Filter.ResourceTypeID != "" || storageSub.Filter.ResourceID != "" {
+	if storageSub.Filter.ResourcePoolID != "" ||
+		storageSub.Filter.ResourceTypeID != "" ||
+		storageSub.Filter.ResourceID != "" {
 		sub.Filter = &adapter.SubscriptionFilter{
 			ResourcePoolID: storageSub.Filter.ResourcePoolID,
 			ResourceTypeID: storageSub.Filter.ResourceTypeID,

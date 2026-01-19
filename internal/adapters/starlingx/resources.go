@@ -49,7 +49,12 @@ func (a *Adapter) getLabelsIfNeeded(ctx context.Context, filter *adapter.Filter)
 	return a.client.ListLabels(ctx)
 }
 
-func (a *Adapter) convertHostsToResources(ctx context.Context, hosts []IHost, labels []Label, filter *adapter.Filter) []*adapter.Resource {
+func (a *Adapter) convertHostsToResources(
+	ctx context.Context,
+	hosts []IHost,
+	labels []Label,
+	filter *adapter.Filter,
+) []*adapter.Resource {
 	resources := make([]*adapter.Resource, 0, len(hosts))
 	for i := range hosts {
 		resource := a.createResourceFromHost(ctx, &hosts[i], labels, filter)
@@ -60,7 +65,12 @@ func (a *Adapter) convertHostsToResources(ctx context.Context, hosts []IHost, la
 	return a.applyResourcePagination(resources, filter)
 }
 
-func (a *Adapter) createResourceFromHost(ctx context.Context, host *IHost, labels []Label, filter *adapter.Filter) *adapter.Resource {
+func (a *Adapter) createResourceFromHost(
+	ctx context.Context,
+	host *IHost,
+	labels []Label,
+	filter *adapter.Filter,
+) *adapter.Resource {
 	cpus, _ := a.client.GetHostCPUs(ctx, host.UUID)
 	memories, _ := a.client.GetHostMemory(ctx, host.UUID)
 	disks, _ := a.client.GetHostDisks(ctx, host.UUID)
@@ -74,7 +84,12 @@ func (a *Adapter) createResourceFromHost(ctx context.Context, host *IHost, label
 	return resource
 }
 
-func (a *Adapter) matchesResourceFilter(resource *adapter.Resource, host *IHost, labels []Label, filter *adapter.Filter) bool {
+func (a *Adapter) matchesResourceFilter(
+	resource *adapter.Resource,
+	host *IHost,
+	labels []Label,
+	filter *adapter.Filter,
+) bool {
 	if filter == nil {
 		return true
 	}
@@ -94,7 +109,12 @@ func (a *Adapter) matchesResourceFilter(resource *adapter.Resource, host *IHost,
 	return a.matchesLocationFilter(host, filter)
 }
 
-func (a *Adapter) matchesPoolFilter(resource *adapter.Resource, host *IHost, labels []Label, filter *adapter.Filter) bool {
+func (a *Adapter) matchesPoolFilter(
+	resource *adapter.Resource,
+	host *IHost,
+	labels []Label,
+	filter *adapter.Filter,
+) bool {
 	if filter.ResourcePoolID == "" {
 		return true
 	}
@@ -269,7 +289,11 @@ func (a *Adapter) assignHostToPool(ctx context.Context, hostUUID, poolID string,
 }
 
 // UpdateResource updates a resource's mutable fields.
-func (a *Adapter) UpdateResource(ctx context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+func (a *Adapter) UpdateResource(
+	ctx context.Context,
+	id string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
 	existing, err := a.GetResource(ctx, id)
 	if err != nil {
 		return nil, err

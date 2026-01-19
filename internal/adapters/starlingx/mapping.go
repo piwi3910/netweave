@@ -112,7 +112,10 @@ func GenerateResourceTypeID(host *IHost) string {
 }
 
 // MapSystemToDeploymentManager converts a StarlingX ISystem to an O2-IMS DeploymentManager.
-func MapSystemToDeploymentManager(system *ISystem, deploymentManagerID, oCloudID, serviceURI string) *adapter.DeploymentManager {
+func MapSystemToDeploymentManager(
+	system *ISystem,
+	deploymentManagerID, oCloudID, serviceURI string,
+) *adapter.DeploymentManager {
 	extensions := make(map[string]interface{})
 	extensions["system_type"] = system.SystemType
 	extensions["system_mode"] = system.SystemMode

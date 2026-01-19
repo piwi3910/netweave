@@ -117,7 +117,11 @@ func (a *Adapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePo
 }
 
 // UpdateResourcePool updates a resource pool (updates labels on hosts).
-func (a *Adapter) UpdateResourcePool(ctx context.Context, id string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (a *Adapter) UpdateResourcePool(
+	ctx context.Context,
+	id string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	poolName := strings.TrimPrefix(id, "starlingx-pool-")
 	if poolName == id {
 		return nil, adapter.ErrResourcePoolNotFound
