@@ -49,7 +49,10 @@ func (m *mockAdapter) Close() error {
 var errNotImplemented = errors.New("method not implemented in mock")
 
 // PackageManager methods.
-func (m *mockAdapter) ListDeploymentPackages(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
+func (m *mockAdapter) ListDeploymentPackages(
+	_ context.Context,
+	_ *adapter.Filter,
+) ([]*adapter.DeploymentPackage, error) {
 	return nil, errNotImplemented
 }
 
@@ -57,7 +60,10 @@ func (m *mockAdapter) GetDeploymentPackage(_ context.Context, _ string) (*adapte
 	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) UploadDeploymentPackage(_ context.Context, _ *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
+func (m *mockAdapter) UploadDeploymentPackage(
+	_ context.Context,
+	_ *adapter.DeploymentPackageUpload,
+) (*adapter.DeploymentPackage, error) {
 	return nil, errNotImplemented
 }
 
@@ -78,7 +84,11 @@ func (m *mockAdapter) CreateDeployment(_ context.Context, _ *adapter.DeploymentR
 	return nil, errNotImplemented
 }
 
-func (m *mockAdapter) UpdateDeployment(_ context.Context, _ string, _ *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+func (m *mockAdapter) UpdateDeployment(
+	_ context.Context,
+	_ string,
+	_ *adapter.DeploymentUpdate,
+) (*adapter.Deployment, error) {
 	return nil, errNotImplemented
 }
 

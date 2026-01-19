@@ -652,12 +652,20 @@ func (r *subscriptionResolver) ResourceCreated(
 }
 
 // ResourceUpdated is the resolver for the resourceUpdated field.
-func (r *subscriptionResolver) ResourceUpdated(_ context.Context, _ *string, _ *string) (<-chan *adapter.Resource, error) {
+func (r *subscriptionResolver) ResourceUpdated(
+	_ context.Context,
+	_ *string,
+	_ *string,
+) (<-chan *adapter.Resource, error) {
 	panic(fmt.Errorf("not implemented: ResourceUpdated - resourceUpdated"))
 }
 
 // ResourceDeleted is the resolver for the resourceDeleted field.
-func (r *subscriptionResolver) ResourceDeleted(_ context.Context, _ *string, _ *string) (<-chan *model.ResourceDeletedEvent, error) {
+func (r *subscriptionResolver) ResourceDeleted(
+	_ context.Context,
+	_ *string,
+	_ *string,
+) (<-chan *model.ResourceDeletedEvent, error) {
 	panic(fmt.Errorf("not implemented: ResourceDeleted - resourceDeleted"))
 }
 
@@ -694,7 +702,10 @@ func (r *subscriptionResolver) NfDeploymentDeleted(_ context.Context) (<-chan *m
 }
 
 // NfDeploymentStatusChanged is the resolver for the nfDeploymentStatusChanged field.
-func (r *subscriptionResolver) NfDeploymentStatusChanged(_ context.Context, _ *string) (<-chan *model.NFDeploymentStatus, error) {
+func (r *subscriptionResolver) NfDeploymentStatusChanged(
+	_ context.Context,
+	_ *string,
+) (<-chan *model.NFDeploymentStatus, error) {
 	panic(fmt.Errorf("not implemented: NfDeploymentStatusChanged - nfDeploymentStatusChanged"))
 }
 

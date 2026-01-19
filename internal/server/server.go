@@ -132,7 +132,13 @@ type Metrics struct {
 //	store := storage.NewRedisStore(&storage.RedisConfig{...})
 //	authStore := auth.NewRedisStore(&auth.RedisConfig{...})
 //	srv := server.New(cfg, logger, adapter, store, authStore)
-func New(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store storage.Store, authStore AuthStore) *Server {
+func New(
+	cfg *config.Config,
+	logger *zap.Logger,
+	adp adapter.Adapter,
+	store storage.Store,
+	authStore AuthStore,
+) *Server {
 	if cfg == nil {
 		panic("config cannot be nil")
 	}
