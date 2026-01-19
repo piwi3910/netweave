@@ -67,7 +67,11 @@ func TestResourceTypeHandler_Integration(t *testing.T) {
 
 	t.Run("list_resource_types", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes", nil)
+		req, _ := http.NewRequestWithContext(
+
+			context.Background(), http.MethodGet,
+
+			"/o2ims-infrastructureInventory/v1/resourceTypes", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -89,7 +93,11 @@ func TestResourceTypeHandler_Integration(t *testing.T) {
 
 	t.Run("list_with_pagination", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes?limit=1&offset=0", nil)
+		req, _ := http.NewRequestWithContext(
+
+			context.Background(), http.MethodGet,
+
+			"/o2ims-infrastructureInventory/v1/resourceTypes?limit=1&offset=0", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -104,7 +112,11 @@ func TestResourceTypeHandler_Integration(t *testing.T) {
 
 	t.Run("get_specific_resource_type", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes/compute-m5.large", nil)
+		req, _ := http.NewRequestWithContext(
+
+			context.Background(), http.MethodGet,
+
+			"/o2ims-infrastructureInventory/v1/resourceTypes/compute-m5.large", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -120,7 +132,11 @@ func TestResourceTypeHandler_Integration(t *testing.T) {
 
 	t.Run("get_nonexistent_resource_type", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes/nonexistent", nil)
+		req, _ := http.NewRequestWithContext(
+
+			context.Background(), http.MethodGet,
+
+			"/o2ims-infrastructureInventory/v1/resourceTypes/nonexistent", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -135,7 +151,11 @@ func TestResourceTypeHandler_Integration(t *testing.T) {
 
 	t.Run("list_with_invalid_pagination", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes?limit=invalid", nil)
+		req, _ := http.NewRequestWithContext(
+
+			context.Background(), http.MethodGet,
+
+			"/o2ims-infrastructureInventory/v1/resourceTypes?limit=invalid", nil)
 		router.ServeHTTP(w, req)
 
 		// Should handle gracefully (either ignore or return 400)
@@ -166,7 +186,11 @@ func TestResourceTypeHandler_ErrorHandling(t *testing.T) {
 
 	t.Run("list_returns_error", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2ims-infrastructureInventory/v1/resourceTypes", nil)
+		req, _ := http.NewRequestWithContext(
+
+			context.Background(), http.MethodGet,
+
+			"/o2ims-infrastructureInventory/v1/resourceTypes", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
@@ -191,7 +215,10 @@ func (m *mockResourceTypeAdapter) Capabilities() []adapter.Capability { return n
 func (m *mockResourceTypeAdapter) Health(_ context.Context) error     { return nil }
 func (m *mockResourceTypeAdapter) Close() error                       { return nil }
 
-func (m *mockResourceTypeAdapter) ListResourceTypes(_ context.Context, filter *adapter.Filter) ([]*adapter.ResourceType, error) {
+func (m *mockResourceTypeAdapter) ListResourceTypes(
+	_ context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.ResourceType, error) {
 	if m.shouldError {
 		return nil, assert.AnError
 	}
@@ -217,19 +244,29 @@ func (m *mockResourceTypeAdapter) GetResourceType(_ context.Context, id string) 
 }
 
 // Implement other required methods as stubs.
-func (m *mockResourceTypeAdapter) ListDeploymentManagers(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+func (m *mockResourceTypeAdapter) ListDeploymentManagers(
+	_ context.Context, _ *adapter.Filter,
+) ([]*adapter.DeploymentManager, error) {
 	return nil, nil
 }
-func (m *mockResourceTypeAdapter) GetDeploymentManager(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
+func (m *mockResourceTypeAdapter) GetDeploymentManager(
+	_ context.Context, _ string,
+) (*adapter.DeploymentManager, error) {
 	return nil, adapter.ErrResourceNotFound
 }
-func (m *mockResourceTypeAdapter) ListResourcePools(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourcePool, error) {
+func (m *mockResourceTypeAdapter) ListResourcePools(
+	_ context.Context, _ *adapter.Filter,
+) ([]*adapter.ResourcePool, error) {
 	return nil, nil
 }
-func (m *mockResourceTypeAdapter) GetResourcePool(_ context.Context, _ string) (*adapter.ResourcePool, error) {
+func (m *mockResourceTypeAdapter) GetResourcePool(
+	_ context.Context, _ string,
+) (*adapter.ResourcePool, error) {
 	return nil, adapter.ErrResourceNotFound
 }
-func (m *mockResourceTypeAdapter) CreateResourcePool(_ context.Context, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *mockResourceTypeAdapter) CreateResourcePool(
+	_ context.Context, _ *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	return nil, adapter.ErrNotImplemented
 }
 func (m *mockResourceTypeAdapter) UpdateResourcePool(_ context.Context, _ string, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
