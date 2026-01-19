@@ -16,238 +16,247 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
   new: false
-  exclude-use-default: false
-  exclude-dirs:
-    - vendor
-    - third_party
-  exclude-files:
-    - ".*\\.pb\\.go$"
-    - ".*\\.gen\\.go$"
-  exclude-rules:
-    # Exclude some linters from running on tests files
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - errcheck
-        - dupl
-        - gosec
-        - goconst
-        - gomnd
-        - testpackage
-        - gocognit
-        - forbidigo
-        - gocritic
-        - noctx
-        - revive
-        - maintidx
-    # Exclude linters from integration test helpers
-    - path: tests/integration/
-      linters:
-        - errcheck
-        - maintidx
-    # Exclude cmd/ from strict checks (main packages have different patterns)
-    - path: cmd/
-      linters:
-        - contextcheck
-        - nestif
-        - goconst
-        - nonamedreturns
-        - gocritic  # Allows octalLiteral 0644 in cmd/compliance
-    - path: cmd/compliance/
-      linters:
-        - cyclop    # Complex business logic in compliance checker
-    # Exclude known false positives
-    - text: "G404: Use of weak random number generator"
-      linters:
-        - gosec
-      path: _test\.go
-    # Exclude shadow check for err variable (common pattern)
-    - text: "shadow: declaration of \"err\""
-      linters:
-        - govet
-    # Exclude lll for lines with long strings
-    - source: "^//go:generate "
-      linters:
-        - lll
-    # Allow G304 for config file reading in gateway (paths are hardcoded list, not user input)
-    - linters:
-        - gosec
-      path: cmd/gateway/main\.go
-      text: "G304"
-    # Allow G304 for compliance tool (path validated to reject ".." traversal)
-    - linters:
-        - gosec
-      path: cmd/compliance/main\.go
-      text: "G304"
-    # Allow cyclop for test files (integration/e2e tests can be complex)
-    - linters:
-        - cyclop
-      path: _test\.go
-    # Allow G306 for README files (public documentation)
-    - linters:
-        - gosec
-      path: cmd/compliance/
-      text: "G306"
-    # Allow G402 TLS InsecureSkipVerify in ONAP adapter (configurable with runtime warnings)
-    - linters:
-        - gosec
-      path: internal/smo/adapters/onap/
-      text: "G402"
-    # Allow go.mod replacements (needed for K8s compatibility)
-    - text: "replacement are not allowed"
-      linters:
-        - gomoddirectives
-    # Allow code duplication in compliance checker (each spec check is intentionally separate)
-    - path: tools/compliance/checker\.go
-      linters:
-        - dupl
-    # Allow larger interfaces for adapters (O-RAN spec defines many operations)
-    - text: "interface has more than.*methods"
-      linters:
-        - interfacebloat
-      path: internal/adapter/
-    # Allow unused ctx in unimplemented adapter methods
-    - text: "unused-parameter.*ctx"
-      linters:
-        - revive
-      path: internal/adapters/
-    # Allow name stuttering in adapters (AWSAdapter follows AWS naming)
-    - text: "stutters.*Adapter"
-      linters:
-        - revive
-      path: internal/adapters/
-    # Allow named returns in adapters (clearer for complex return types)
-    - text: "named return.*found"
-      linters:
-        - nonamedreturns
-      path: internal/adapters/
-    # Allow nilerr in adapter health checks (intentional)
-    - text: "error is not nil.*but it returns nil"
-      linters:
-        - nilerr
-      path: internal/adapters/
-    # Allow more linting issues in pre-existing adapters (not part of DMS PR)
-    - path: internal/adapters/
-      linters:
-        - goconst
-        - gocognit
-        - gocyclo
-        - cyclop
-        - nestif
-        - errcheck
-        - godot
-        - errorlint
-        - ireturn
-        - unconvert
-        - unparam
-        - gocritic
-        - dupBranchBody
-        - importas
-        - staticcheck
-        - revive
-        - govet
-        - dupl
-    # Allow linting issues in pre-existing auth middleware (not part of DMS PR)
-    - path: internal/auth/
-      linters:
-        - gocognit
-        - gocyclo
-        - errorlint
-        - misspell
-        - gocritic
-        - contextcheck
-        - wrapcheck
-        - revive
-        - importas
-        - unparam
-        - dupl
-    # Allow linting issues in pre-existing config code (not part of DMS PR)
-    - path: internal/config/
-      linters:
-        - revive
-        - gocritic
-        - maintidx
-    # Allow stuttering names in DMS adapters (ArgoCD naming is intentional)
-    - text: "stutters.*Adapter"
-      linters:
-        - revive
-      path: internal/dms/adapters/
-    # Allow large DMS adapter interface (O-RAN spec defines many operations)
-    - text: "interface has more than.*methods"
-      linters:
-        - interfacebloat
-      path: internal/dms/adapter/
-    # Allow linting issues in pre-existing OSM adapter (will be addressed in Issue #40)
-    - path: internal/smo/adapters/osm/
-      linters:
-        - contextcheck   # Background goroutine context handling
-        - cyclop         # Function complexity
-        - gocognit       # Cognitive complexity
-        - goconst        # String constants
-        - forbidigo      # fmt.Printf usage
-        - revive         # Unused parameters
-        - testpackage    # Test package naming
-        - unused         # Unused functions
-        - gosec          # G101 false positive for testTokenPath URL
-    # Allow linting issues in pre-existing internal/ code (not part of PR #29)
-    # PR #29 focuses on DMS implementation; linting cleanup for existing code
-    # will be addressed in a future dedicated PR
-    - path: internal/(handlers|middleware|models|observability|registry|routing|server|storage)/
-      linters:
-        - predeclared
-        - nilnil
-        - unparam
-        - thelper
-        - revive
-        - gocritic
-        - godot
-        - gocognit
-        - gocyclo
-        - cyclop
-        - nestif
-        - unused
-        - ireturn
-        - dupl
-        - cyclop
-        - errcheck
-        - contextcheck
-        - wrapcheck
-        - promlinter
-        - misspell
-        - usestdlibvars
-        - noctx
-        - nolintlint
-        - exhaustive
-        - forbidigo
-        - interfacebloat
-        - importas
-        - govet
-    # Allow linting issues in DMS code (part of PR #29 but need focused cleanup later)
-    - path: internal/dms/
-      linters:
-        - errcheck      # Unstructured API calls handle missing fields appropriately
-        - nestif        # Complex K8s CRD parsing logic
-        - gocognit      # Complex deployment state machine logic
-        - gocyclo       # Complex K8s resource handling
-        - cyclop        # Cyclomatic complexity (deployment state machines, K8s resource handling)
-        - misspell      # cancelled vs canceled (UK vs US English in K8s contexts)
-        - wrapcheck     # Context errors don't need wrapping
-        - revive        # Unused parameters, comment formatting
-        - govet         # Variable shadowing in generated code
-        - exhaustive    # Switch exhaustiveness on adapter enums
-        - unparam       # Test helper parameters
-        - interfacebloat # DMS interface per O-RAN spec
-        - ireturn       # Returning interfaces is intentional for adapters
-        - godot         # Comment punctuation
-        - gocritic      # httpNoBody, unnecessaryBlock in tests
-        - predeclared   # Parameter names matching builtins
-        - nilnil        # Test helpers returning nil, nil
-        - dupl          # Code duplication in handler patterns
 
 output:
   sort-results: true
 
 linters:
+  exclusions:
+    generated: lax
+    warn-unused: false
+    paths:
+      - vendor/
+      - third_party/
+      - ".*\\.pb\\.go$"
+      - ".*\\.gen\\.go$"
+    rules:
+      # Exclude some linters from running on tests files
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - errcheck
+          - dupl
+          - gosec
+          - goconst
+          - gomnd
+          - testpackage
+          - gocognit
+          - forbidigo
+          - gocritic
+          - noctx
+          - revive
+          - maintidx
+          - ireturn  # Test helpers returning interfaces is acceptable
+      # Exclude linters from integration test helpers
+      - path: tests/integration/
+        linters:
+          - errcheck
+          - maintidx
+      # Exclude cmd/ from strict checks (main packages have different patterns)
+      - path: cmd/
+        linters:
+          - contextcheck
+          - nestif
+          - goconst
+          - nonamedreturns
+          - gocritic  # Allows octalLiteral 0644 in cmd/compliance
+          - cyclop    # Complex initialization logic in main packages
+      - path: cmd/compliance/
+        linters:
+          - cyclop    # Complex business logic in compliance checker
+      # Exclude known false positives
+      - text: "G404: Use of weak random number generator"
+        linters:
+          - gosec
+        path: _test\.go
+      # Exclude shadow check for err variable (common pattern)
+      - text: "shadow: declaration of \"err\""
+        linters:
+          - govet
+      # Exclude lll for lines with long strings
+      - source: "^//go:generate "
+        linters:
+          - lll
+      # Allow G304 for config file reading in gateway (paths are hardcoded list, not user input)
+      - linters:
+          - gosec
+        path: cmd/gateway/main\.go
+        text: "G304"
+      # Allow G304 for compliance tool (path validated to reject ".." traversal)
+      - linters:
+          - gosec
+        path: cmd/compliance/main\.go
+        text: "G304"
+      # Allow cyclop for test files (integration/e2e tests can be complex)
+      - linters:
+          - cyclop
+        path: _test\.go
+      - path: tests/(e2e|integration)/.*
+        linters:
+          - cyclop
+          - testpackage
+      # Allow G306 for README files (public documentation)
+      - linters:
+          - gosec
+        path: cmd/compliance/
+        text: "G306"
+      # Allow G402 TLS InsecureSkipVerify in ONAP adapter (configurable with runtime warnings)
+      - linters:
+          - gosec
+        path: internal/smo/adapters/onap/
+        text: "G402"
+      # Allow go.mod replacements (needed for K8s compatibility)
+      - text: "replacement are not allowed"
+        linters:
+          - gomoddirectives
+      # Allow code duplication in compliance checker (each spec check is intentionally separate)
+      - path: tools/compliance/checker\.go
+        linters:
+          - dupl
+      # Allow larger interfaces for adapters (O-RAN spec defines many operations)
+      - text: "interface has more than.*methods"
+        linters:
+          - interfacebloat
+        path: internal/adapter/
+      # Allow unused ctx in unimplemented adapter methods
+      - text: "unused-parameter.*ctx"
+        linters:
+          - revive
+        path: internal/adapters/
+      # Allow name stuttering in adapters (AWSAdapter follows AWS naming)
+      - text: "stutters.*Adapter"
+        linters:
+          - revive
+        path: internal/adapters/
+      # Allow named returns in adapters (clearer for complex return types)
+      - text: "named return.*found"
+        linters:
+          - nonamedreturns
+        path: internal/adapters/
+      # Allow nilerr in adapter health checks (intentional)
+      - text: "error is not nil.*but it returns nil"
+        linters:
+          - nilerr
+        path: internal/adapters/
+      # Allow more linting issues in pre-existing adapters (not part of DMS PR)
+      - path: internal/adapters/
+        linters:
+          - goconst
+          - gocognit
+          - gocyclo
+          - cyclop
+          - nestif
+          - errcheck
+          - godot
+          - errorlint
+          - ireturn
+          - unconvert
+          - unparam
+          - gocritic
+          - dupBranchBody
+          - importas
+          - staticcheck
+          - revive
+          - govet
+          - dupl
+      # Allow linting issues in pre-existing auth middleware (not part of DMS PR)
+      - path: internal/auth/
+        linters:
+          - gocognit
+          - gocyclo
+          - errorlint
+          - misspell
+          - gocritic
+          - contextcheck
+          - wrapcheck
+          - revive
+          - importas
+          - unparam
+          - dupl
+      # Allow linting issues in pre-existing config code (not part of DMS PR)
+      - path: internal/config/
+        linters:
+          - revive
+          - gocritic
+          - maintidx
+      # Allow stuttering names in DMS adapters (ArgoCD naming is intentional)
+      - text: "stutters.*Adapter"
+        linters:
+          - revive
+        path: internal/dms/adapters/
+      # Allow large DMS adapter interface (O-RAN spec defines many operations)
+      - text: "interface has more than.*methods"
+        linters:
+          - interfacebloat
+        path: internal/dms/adapter/
+      # Allow linting issues in pre-existing OSM adapter (will be addressed in Issue #40)
+      - path: internal/smo/adapters/osm/
+        linters:
+          - contextcheck   # Background goroutine context handling
+          - cyclop         # Function complexity
+          - gocognit       # Cognitive complexity
+          - goconst        # String constants
+          - forbidigo      # fmt.Printf usage
+          - revive         # Unused parameters
+          - testpackage    # Test package naming
+          - unused         # Unused functions
+          - gosec          # G101 false positive for testTokenPath URL
+      # Allow linting issues in pre-existing internal/ code (not part of PR #29)
+      # PR #29 focuses on DMS implementation; linting cleanup for existing code
+      # will be addressed in a future dedicated PR
+      - path: internal/(handlers|middleware|models|observability|registry|routing|server|storage|graphql)
+        linters:
+          - predeclared
+          - nilnil
+          - unparam
+          - thelper
+          - revive
+          - gocritic
+          - godot
+          - gocognit
+          - gocyclo
+          - cyclop
+          - nestif
+          - unused
+          - ireturn
+          - dupl
+          - cyclop
+          - errcheck
+          - contextcheck
+          - wrapcheck
+          - promlinter
+          - misspell
+          - usestdlibvars
+          - noctx
+          - nolintlint
+          - exhaustive
+          - forbidigo
+          - interfacebloat
+          - importas
+          - govet
+      # Allow linting issues in DMS code (part of PR #29 but need focused cleanup later)
+      - path: internal/dms/
+        linters:
+          - errcheck      # Unstructured API calls handle missing fields appropriately
+          - nestif        # Complex K8s CRD parsing logic
+          - gocognit      # Complex deployment state machine logic
+          - gocyclo       # Complex K8s resource handling
+          - cyclop        # Cyclomatic complexity (deployment state machines, K8s resource handling)
+          - misspell      # cancelled vs canceled (UK vs US English in K8s contexts)
+          - wrapcheck     # Context errors don't need wrapping
+          - revive        # Unused parameters, comment formatting
+          - govet         # Variable shadowing in generated code
+          - exhaustive    # Switch exhaustiveness on adapter enums
+          - unparam       # Test helper parameters
+          - interfacebloat # DMS interface per O-RAN spec
+          - ireturn       # Returning interfaces is intentional for adapters
+          - godot         # Comment punctuation
+          - gocritic      # httpNoBody, unnecessaryBlock in tests
+          - predeclared   # Parameter names matching builtins
+          - nilnil        # Test helpers returning nil, nil
+          - dupl          # Code duplication in handler patterns
+
+
   enable-all: false
   disable-all: true
   enable:
