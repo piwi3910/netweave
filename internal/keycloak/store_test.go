@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 // mockKeycloakServer creates a test HTTP server that mocks Keycloak API responses.
 type mockKeycloakServer struct {
 	server          *httptest.Server
+	mu              sync.RWMutex
 	users           map[string]*User
 	roles           map[string]*Role
 	realmAttributes map[string]string
@@ -96,11 +98,18 @@ func (m *mockKeycloakServer) handleRealm(w http.ResponseWriter, r *http.Request)
 
 	switch r.Method {
 	case http.MethodGet:
+		m.mu.RLock()
+		attrs := make(map[string]string, len(m.realmAttributes))
+		for k, v := range m.realmAttributes {
+			attrs[k] = v
+		}
+		m.mu.RUnlock()
+
 		resp := map[string]interface{}{
 			"id":         "test",
 			"realm":      "test",
 			"enabled":    true,
-			"attributes": m.realmAttributes,
+			"attributes": attrs,
 		}
 		json.NewEncoder(w).Encode(resp)
 
@@ -112,12 +121,14 @@ func (m *mockKeycloakServer) handleRealm(w http.ResponseWriter, r *http.Request)
 		}
 		if attrs, ok := req["attributes"].(map[string]interface{}); ok {
 			// Replace all attributes (don't merge) to support deletion
+			m.mu.Lock()
 			m.realmAttributes = make(map[string]string)
 			for k, v := range attrs {
 				if str, ok := v.(string); ok {
 					m.realmAttributes[k] = str
 				}
 			}
+			m.mu.Unlock()
 		}
 		w.WriteHeader(http.StatusNoContent)
 
