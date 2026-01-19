@@ -179,7 +179,7 @@ func TestResourceHandler_Integration(t *testing.T) {
 
 		body, _ := json.Marshal(updatedResource)
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodPut,
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPut,
 			"/o2ims-infrastructureInventory/v1/resources/resource-1", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
@@ -269,8 +269,8 @@ func TestResourceHandler_ErrorHandling(t *testing.T) {
 
 	t.Run("create_with_invalid_body", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodPost, "/o2ims-infrastructureInventory/v1/resources",
-			bytes.NewBuffer([]byte("invalid json")))
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost,
+			"/o2ims-infrastructureInventory/v1/resources", bytes.NewBuffer([]byte("invalid json")))
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
 
