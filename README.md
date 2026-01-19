@@ -65,6 +65,7 @@ Official O-RAN Alliance specifications:
   - **VMware vSphere** - VMs, Clusters, Resource Pools
 - ✅ **O2-DMS Integration**: Deployment Management Services with Helm 3, ArgoCD, and Flux CD adapters
 - ✅ **O2-SMO Integration**: Service Management & Orchestration with ONAP and OSM adapters
+- ✅ **Flexible Authentication Backend**: Redis (default) or Keycloak for centralized user management and enterprise SSO integration
 - 🔄 **Enterprise Multi-Tenancy**: Planned feature - will support multiple SMO systems with strict resource isolation
 - 🔄 **Comprehensive RBAC**: Planned feature - will provide fine-grained role-based access control with system and tenant roles
 - ✅ **Multi-Cluster Ready**: Deploy across single or multiple Kubernetes clusters with Redis-based state synchronization

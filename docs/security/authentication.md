@@ -1391,5 +1391,142 @@ func TestClientCertificateAuthentication(t *testing.T) {
 
 ---
 
+## Authentication Backend Storage
+
+### Overview
+
+The gateway supports two backend storage options for authentication data (users, tenants, roles, audit logs):
+
+| Backend | Use Case | Data Storage | Performance | Complexity |
+|---------|----------|--------------|-------------|------------|
+| **Redis** | Default, simple deployments | Redis database | Very fast | Low |
+| **Keycloak** | Enterprise SSO integration | Keycloak Admin API | Fast | Medium |
+
+### Redis Backend (Default)
+
+**Configuration:**
+```yaml
+auth:
+  backend: redis
+```
+
+**Features:**
+- ✅ Simple, self-contained authentication
+- ✅ Very fast (in-memory storage)
+- ✅ No external dependencies beyond Redis
+- ✅ Suitable for most deployments
+
+**When to Use:**
+- Simple deployments without SSO requirements
+- Maximum performance with minimal latency
+- Development and testing environments
+- Self-contained systems without external identity providers
+
+### Keycloak Backend
+
+**Configuration:**
+```yaml
+auth:
+  backend: keycloak
+  keycloak:
+    base_url: https://keycloak.example.com
+    realm: netweave
+    client_id: netweave-gateway
+    client_secret_env_var: KEYCLOAK_CLIENT_SECRET
+    admin_username: admin
+    admin_password_env_var: KEYCLOAK_ADMIN_PASSWORD
+    timeout: 30s
+```
+
+**Features:**
+- ✅ Enterprise SSO integration (LDAP, AD, SAML)
+- ✅ Centralized user management across applications
+- ✅ Advanced authentication flows (MFA, social login)
+- ✅ User federation and synchronization
+- ✅ Compliance-ready identity management
+
+**When to Use:**
+- Enterprise SSO integration required
+- Centralized user management needed
+- Compliance requirements for identity management
+- Multiple applications sharing the same user base
+- Advanced authentication flows (MFA, conditional access)
+
+**Keycloak Setup:**
+
+1. **Create Realm:**
+   ```bash
+   # Create a realm for netweave
+   # Realm name: netweave
+   ```
+
+2. **Create Client:**
+   - Client ID: `netweave-gateway`
+   - Client Protocol: `openid-connect`
+   - Access Type: `confidential`
+   - Service Accounts Enabled: `true`
+   - Standard Flow Enabled: `true`
+
+3. **Create Admin User:**
+   - Create user with realm management permissions
+   - Grant `realm-admin` role for full realm access
+
+4. **Configure Gateway:**
+   ```yaml
+   auth:
+     backend: keycloak
+     keycloak:
+       base_url: https://keycloak.example.com
+       realm: netweave
+       client_id: netweave-gateway
+       client_secret_env_var: KEYCLOAK_CLIENT_SECRET
+       admin_username: admin
+       admin_password_env_var: KEYCLOAK_ADMIN_PASSWORD
+   ```
+
+5. **Set Environment Variables:**
+   ```bash
+   export KEYCLOAK_CLIENT_SECRET="your-client-secret"
+   export KEYCLOAK_ADMIN_PASSWORD="your-admin-password"
+   ```
+
+**Backend Selection Decision Matrix:**
+
+| Requirement | Redis | Keycloak |
+|-------------|-------|----------|
+| Simple deployment | ✅ Best | ⚠️ Overkill |
+| Enterprise SSO | ❌ No | ✅ Best |
+| Maximum performance | ✅ Best | ✅ Good |
+| User federation (LDAP/AD) | ❌ No | ✅ Yes |
+| Multi-application SSO | ❌ No | ✅ Yes |
+| MFA support | ❌ No | ✅ Yes |
+| Compliance (SOC2, HIPAA) | ⚠️ Manual | ✅ Built-in |
+| Operational complexity | ✅ Low | ⚠️ Medium |
+
+**Migration Between Backends:**
+
+To migrate from Redis to Keycloak backend:
+
+1. **Export existing data** from Redis:
+   ```bash
+   # Export tenants, users, roles, and audit logs
+   redis-cli --scan --pattern "tenant:*" | xargs redis-cli DUMP > tenants.json
+   redis-cli --scan --pattern "user:*" | xargs redis-cli DUMP > users.json
+   ```
+
+2. **Set up Keycloak** realm and client
+
+3. **Import data to Keycloak** using Keycloak Admin API
+
+4. **Update configuration** to use Keycloak backend
+
+5. **Restart gateway** with new configuration
+
+6. **Verify authentication** works with Keycloak backend
+
+**Note:** Automatic migration tools are planned for a future release.
+
+---
+
 **Last Updated:** 2026-01-19
-**Version:** 2.0 - Added OAuth2/OIDC support and dual authentication
+**Version:** 2.1 - Added authentication backend storage options (Redis and Keycloak)

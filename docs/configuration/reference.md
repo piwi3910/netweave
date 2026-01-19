@@ -239,6 +239,144 @@ NETWEAVE_TLS_MIN_VERSION
 NETWEAVE_TLS_CIPHER_SUITES  # Comma-separated
 ```
 
+## Authentication Backend
+
+Authentication backend configuration (Redis or Keycloak).
+
+```yaml
+auth:
+  backend: redis  # "redis" or "keycloak"
+  keycloak:
+    base_url: https://keycloak.example.com
+    realm: netweave
+    client_id: netweave-gateway
+    client_secret: ${KEYCLOAK_CLIENT_SECRET}  # Or use client_secret_env_var
+    client_secret_env_var: KEYCLOAK_CLIENT_SECRET
+    admin_username: admin
+    admin_password: ${KEYCLOAK_ADMIN_PASSWORD}  # Or use admin_password_env_var
+    admin_password_env_var: KEYCLOAK_ADMIN_PASSWORD
+    timeout: 30s
+```
+
+| Field | Type | Default | Description | Validation |
+|-------|------|---------|-------------|------------|
+| `backend` | string | `"redis"` | Authentication backend | `redis` or `keycloak` |
+| `keycloak.base_url` | string | `""` | Keycloak server URL | Valid URL if backend is keycloak |
+| `keycloak.realm` | string | `""` | Keycloak realm name | Required if backend is keycloak |
+| `keycloak.client_id` | string | `""` | OAuth2 client ID | Required if backend is keycloak |
+| `keycloak.client_secret` | string | `""` | OAuth2 client secret | Required if backend is keycloak |
+| `keycloak.client_secret_env_var` | string | `""` | Env var with client secret | Recommended over client_secret |
+| `keycloak.admin_username` | string | `""` | Keycloak admin username | Required if backend is keycloak |
+| `keycloak.admin_password` | string | `""` | Keycloak admin password | Required if backend is keycloak |
+| `keycloak.admin_password_env_var` | string | `""` | Env var with admin password | Recommended over admin_password |
+| `keycloak.timeout` | duration | `30s` | HTTP client timeout | > 0 |
+
+**Backend Selection:**
+
+The `auth.backend` setting determines where authentication data (users, tenants, roles, audit logs) is stored:
+
+- `redis` (default): All auth data stored in Redis. Simple, fast, suitable for most deployments.
+- `keycloak`: All auth data managed via Keycloak Admin API. Enterprise SSO integration, centralized user management.
+
+**When to Use Keycloak Backend:**
+
+- ✅ Enterprise SSO integration required (LDAP, Active Directory, SAML)
+- ✅ Centralized user management across multiple applications
+- ✅ Advanced authentication flows (MFA, social login, etc.)
+- ✅ Compliance requirements for identity management
+- ✅ Need to synchronize users between O2-IMS gateway and other systems
+
+**When to Use Redis Backend:**
+
+- ✅ Simple deployments without SSO requirements
+- ✅ Maximum performance (fewer network hops)
+- ✅ Self-contained authentication without external dependencies
+- ✅ Development and testing environments
+
+**Secret Management:**
+
+For production deployments, always use environment variables for secrets:
+
+```yaml
+auth:
+  backend: keycloak
+  keycloak:
+    base_url: https://keycloak.example.com
+    realm: netweave
+    client_id: netweave-gateway
+    client_secret_env_var: KEYCLOAK_CLIENT_SECRET
+    admin_username: admin
+    admin_password_env_var: KEYCLOAK_ADMIN_PASSWORD
+```
+
+Then set the environment variables:
+
+```bash
+export KEYCLOAK_CLIENT_SECRET="your-client-secret"
+export KEYCLOAK_ADMIN_PASSWORD="your-admin-password"
+```
+
+**Keycloak Setup:**
+
+1. Create a realm in Keycloak (e.g., `netweave`)
+2. Create a client for the gateway (e.g., `netweave-gateway`)
+3. Configure client settings:
+   - Client Protocol: `openid-connect`
+   - Access Type: `confidential`
+   - Service Accounts Enabled: `true`
+4. Create an admin user with realm management permissions
+5. Configure the gateway with the Keycloak details
+
+**Environment Variables:**
+```bash
+NETWEAVE_AUTH_BACKEND
+NETWEAVE_AUTH_KEYCLOAK_BASE_URL
+NETWEAVE_AUTH_KEYCLOAK_REALM
+NETWEAVE_AUTH_KEYCLOAK_CLIENT_ID
+NETWEAVE_AUTH_KEYCLOAK_CLIENT_SECRET
+NETWEAVE_AUTH_KEYCLOAK_CLIENT_SECRET_ENV_VAR
+NETWEAVE_AUTH_KEYCLOAK_ADMIN_USERNAME
+NETWEAVE_AUTH_KEYCLOAK_ADMIN_PASSWORD
+NETWEAVE_AUTH_KEYCLOAK_ADMIN_PASSWORD_ENV_VAR
+NETWEAVE_AUTH_KEYCLOAK_TIMEOUT
+```
+
+**Example Configurations:**
+
+Redis backend (default):
+```yaml
+auth:
+  backend: redis
+```
+
+Keycloak backend with environment variable secrets:
+```yaml
+auth:
+  backend: keycloak
+  keycloak:
+    base_url: https://keycloak.example.com
+    realm: netweave
+    client_id: netweave-gateway
+    client_secret_env_var: KEYCLOAK_CLIENT_SECRET
+    admin_username: admin
+    admin_password_env_var: KEYCLOAK_ADMIN_PASSWORD
+    timeout: 30s
+```
+
+Keycloak backend with inline secrets (NOT recommended for production):
+```yaml
+auth:
+  backend: keycloak
+  keycloak:
+    base_url: https://keycloak.example.com
+    realm: netweave
+    client_id: netweave-gateway
+    client_secret: "client-secret-here"
+    admin_username: admin
+    admin_password: "admin-password-here"
+    timeout: 30s
+```
+
 ## OAuth2/OIDC
 
 OAuth2/OIDC authentication configuration (Keycloak integration).
