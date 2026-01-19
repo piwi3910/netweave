@@ -13,9 +13,14 @@ import (
 	"github.com/piwi3910/netweave/internal/keycloak"
 )
 
+// TokenVerifier interface for token verification (allows mocking in tests).
+type TokenVerifier interface {
+	VerifyToken(ctx context.Context, token string) (map[string]interface{}, error)
+}
+
 // OAuth2Authenticator handles OAuth2/OIDC authentication using Keycloak.
 type OAuth2Authenticator struct {
-	keycloakClient *keycloak.Client
+	keycloakClient TokenVerifier
 	store          Store
 	config         *OAuth2Config
 	logger         *zap.Logger
