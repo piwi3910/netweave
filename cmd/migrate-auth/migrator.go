@@ -422,9 +422,9 @@ func (m *Migrator) migrateUser(ctx context.Context, user *auth.TenantUser) error
 
 	// Create user in Keycloak
 	kcUser := &keycloak.User{
-		Username:  user.CommonName,
-		Email:     user.Email,
-		Enabled:   user.IsActive,
+		Username: user.CommonName,
+		Email:    user.Email,
+		Enabled:  user.IsActive,
 		Attributes: map[string][]string{
 			"userId":       {user.ID},
 			"tenantId":     {user.TenantID},

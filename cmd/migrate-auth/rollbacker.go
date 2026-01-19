@@ -83,9 +83,9 @@ func (r *Rollbacker) Rollback(ctx context.Context, inputFile string) error {
 	}
 
 	systemRoles := map[string]bool{
-		"offline_access":  true,
-		"uma_authorization": true,
-		"default-roles-master": true,
+		"offline_access":         true,
+		"uma_authorization":      true,
+		"default-roles-master":   true,
 		"default-roles-netweave": true,
 	}
 
