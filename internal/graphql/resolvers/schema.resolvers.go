@@ -26,12 +26,19 @@ func (r *deploymentManagerResolver) Extensions(_ context.Context, _ *adapter.Dep
 }
 
 // CreateResourcePool is the resolver for the createResourcePool field.
-func (r *mutationResolver) CreateResourcePool(_ context.Context, _ model.CreateResourcePoolInput) (*adapter.ResourcePool, error) {
+func (r *mutationResolver) CreateResourcePool(
+	_ context.Context,
+	_ model.CreateResourcePoolInput,
+) (*adapter.ResourcePool, error) {
 	panic(fmt.Errorf("not implemented: CreateResourcePool - createResourcePool"))
 }
 
 // UpdateResourcePool is the resolver for the updateResourcePool field.
-func (r *mutationResolver) UpdateResourcePool(_ context.Context, _ string, _ model.UpdateResourcePoolInput) (*adapter.ResourcePool, error) {
+func (r *mutationResolver) UpdateResourcePool(
+	_ context.Context,
+	_ string,
+	_ model.UpdateResourcePoolInput,
+) (*adapter.ResourcePool, error) {
 	panic(fmt.Errorf("not implemented: UpdateResourcePool - updateResourcePool"))
 }
 
