@@ -69,7 +69,7 @@ func NewClient(config *Config) (*Client, error) {
 		return nil, fmt.Errorf("BaseURL is required")
 	}
 	if config.Realm == "" {
-		return nil, fmt.Errorf("Realm is required")
+		return nil, fmt.Errorf("realm is required")
 	}
 	if config.ClientID == "" {
 		return nil, fmt.Errorf("ClientID is required")
@@ -126,7 +126,9 @@ func (c *Client) VerifyToken(ctx context.Context, token string) (map[string]inte
 	if err != nil {
 		return nil, fmt.Errorf("token introspection request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -161,7 +163,9 @@ func (c *Client) GetUserInfo(ctx context.Context, accessToken string) (map[strin
 	if err != nil {
 		return nil, fmt.Errorf("userinfo request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -199,7 +203,9 @@ func (c *Client) ExchangePasswordCredentials(ctx context.Context, username, pass
 	if err != nil {
 		return nil, fmt.Errorf("token request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -239,7 +245,9 @@ func (c *Client) getAdminToken(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("admin token request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -298,7 +306,9 @@ func (c *Client) Ping(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("ping request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("keycloak server returned status %d", resp.StatusCode)

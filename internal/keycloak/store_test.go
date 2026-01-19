@@ -3,6 +3,7 @@ package keycloak
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -349,7 +350,7 @@ func TestStore_CreateTenant(t *testing.T) {
 			ctx := context.Background()
 
 			// For duplicate test, create tenant first
-			if tt.errType == auth.ErrTenantExists {
+			if errors.Is(tt.errType, auth.ErrTenantExists) {
 				firstTenant := &auth.Tenant{
 					ID:     tt.tenant.ID,
 					Name:   "First Tenant",
@@ -1705,8 +1706,7 @@ func TestStore_ConvertKeycloakToUser(t *testing.T) {
 		},
 	}
 
-	user, err := store.convertKeycloakToUser(kcUser)
-	require.NoError(t, err)
+	user := store.convertKeycloakToUser(kcUser)
 	assert.NotNil(t, user)
 	assert.Equal(t, kcUser.ID, user.ID)
 	assert.Equal(t, kcUser.Username, user.CommonName)
@@ -1749,8 +1749,7 @@ func TestStore_ConvertKeycloakToRole(t *testing.T) {
 		},
 	}
 
-	role, err := store.convertKeycloakToRole(kcRole)
-	require.NoError(t, err)
+	role := store.convertKeycloakToRole(kcRole)
 	assert.NotNil(t, role)
 	assert.Equal(t, "role-1", role.ID)
 	assert.Equal(t, auth.RoleName("test-role"), role.Name)

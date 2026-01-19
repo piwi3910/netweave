@@ -41,7 +41,9 @@ func (c *Client) CreateRealmRole(ctx context.Context, role *Role) error {
 	if err != nil {
 		return fmt.Errorf("create role request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusConflict {
 		return fmt.Errorf("role already exists")
@@ -66,7 +68,9 @@ func (c *Client) GetRealmRole(ctx context.Context, roleName string) (*Role, erro
 	if err != nil {
 		return nil, fmt.Errorf("get role request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("role not found")
@@ -101,7 +105,9 @@ func (c *Client) UpdateRealmRole(ctx context.Context, roleName string, role *Rol
 	if err != nil {
 		return fmt.Errorf("update role request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("role not found")
@@ -126,7 +132,9 @@ func (c *Client) DeleteRealmRole(ctx context.Context, roleName string) error {
 	if err != nil {
 		return fmt.Errorf("delete role request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("role not found")
@@ -146,7 +154,9 @@ func (c *Client) ListRealmRoles(ctx context.Context) ([]Role, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list roles request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -180,7 +190,9 @@ func (c *Client) CreateClientRole(ctx context.Context, clientID string, role *Ro
 	if err != nil {
 		return fmt.Errorf("create client role request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusConflict {
 		return fmt.Errorf("client role already exists")
@@ -208,7 +220,9 @@ func (c *Client) GetClientRole(ctx context.Context, clientID, roleName string) (
 	if err != nil {
 		return nil, fmt.Errorf("get client role request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("client role not found")
@@ -238,7 +252,9 @@ func (c *Client) ListClientRoles(ctx context.Context, clientID string) ([]Role, 
 	if err != nil {
 		return nil, fmt.Errorf("list client roles request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -264,7 +280,9 @@ func (c *Client) GetUserRoleMappings(ctx context.Context, userID string) (*RoleM
 	if err != nil {
 		return nil, fmt.Errorf("get user role mappings request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("user not found")
@@ -302,7 +320,9 @@ func (c *Client) AddRealmRolesToUser(ctx context.Context, userID string, roles [
 	if err != nil {
 		return fmt.Errorf("add realm roles request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("user not found")
@@ -335,7 +355,9 @@ func (c *Client) RemoveRealmRolesFromUser(ctx context.Context, userID string, ro
 	if err != nil {
 		return fmt.Errorf("remove realm roles request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("user not found")
@@ -371,7 +393,9 @@ func (c *Client) AddClientRolesToUser(ctx context.Context, userID, clientID stri
 	if err != nil {
 		return fmt.Errorf("add client roles request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("user or client not found")
@@ -407,7 +431,9 @@ func (c *Client) RemoveClientRolesFromUser(ctx context.Context, userID, clientID
 	if err != nil {
 		return fmt.Errorf("remove client roles request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("user or client not found")
@@ -431,7 +457,9 @@ func (c *Client) GetClientID(ctx context.Context, clientID string) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("list clients request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)

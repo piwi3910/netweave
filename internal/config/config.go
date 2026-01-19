@@ -61,10 +61,72 @@ type Config struct {
 	Validation    ValidationConfig    `mapstructure:"validation"`
 	MultiTenancy  MultiTenancyConfig  `mapstructure:"multi_tenancy"`
 	OAuth2        OAuth2Config        `mapstructure:"oauth2"`
+	Auth          AuthConfig          `mapstructure:"auth"`
 
 	// Environment stores the detected environment (dev/staging/prod)
 	// This field is set automatically during Load() and used for validation
 	Environment string `mapstructure:"-"`
+}
+
+// AuthConfig contains authentication backend configuration.
+type AuthConfig struct {
+	// Backend specifies the authentication storage backend: "redis" or "keycloak".
+	Backend string `mapstructure:"backend"`
+
+	// Keycloak contains Keycloak-specific configuration (when backend is "keycloak").
+	Keycloak KeycloakConfig `mapstructure:"keycloak"`
+}
+
+// KeycloakConfig contains Keycloak authentication backend configuration.
+type KeycloakConfig struct {
+	// BaseURL is the Keycloak server base URL (e.g., "http://localhost:8090").
+	BaseURL string `mapstructure:"base_url"`
+
+	// Realm is the Keycloak realm name.
+	Realm string `mapstructure:"realm"`
+
+	// ClientID is the OAuth2 client ID for the gateway.
+	ClientID string `mapstructure:"client_id"`
+
+	// ClientSecret is the OAuth2 client secret.
+	ClientSecret string `mapstructure:"client_secret"`
+
+	// ClientSecretEnvVar specifies the environment variable containing the client secret.
+	ClientSecretEnvVar string `mapstructure:"client_secret_env_var"`
+
+	// AdminUsername is the Keycloak admin username (for admin API access).
+	AdminUsername string `mapstructure:"admin_username"`
+
+	// AdminPassword is the Keycloak admin password.
+	AdminPassword string `mapstructure:"admin_password"`
+
+	// AdminPasswordEnvVar specifies the environment variable containing the admin password.
+	AdminPasswordEnvVar string `mapstructure:"admin_password_env_var"`
+
+	// Timeout is the HTTP client timeout duration.
+	Timeout time.Duration `mapstructure:"timeout"`
+}
+
+// GetClientSecret retrieves the Keycloak client secret from the configured source.
+func (k *KeycloakConfig) GetClientSecret() (string, error) {
+	if k.ClientSecretEnvVar != "" {
+		if secret := os.Getenv(k.ClientSecretEnvVar); secret != "" {
+			return secret, nil
+		}
+		return "", fmt.Errorf("environment variable %s is not set", k.ClientSecretEnvVar)
+	}
+	return k.ClientSecret, nil
+}
+
+// GetAdminPassword retrieves the Keycloak admin password from the configured source.
+func (k *KeycloakConfig) GetAdminPassword() (string, error) {
+	if k.AdminPasswordEnvVar != "" {
+		if pwd := os.Getenv(k.AdminPasswordEnvVar); pwd != "" {
+			return pwd, nil
+		}
+		return "", fmt.Errorf("environment variable %s is not set", k.AdminPasswordEnvVar)
+	}
+	return k.AdminPassword, nil
 }
 
 // OAuth2Config contains OAuth2/OIDC authentication configuration.
@@ -906,6 +968,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("multi_tenancy.default_tenant_quota.max_deployments", 200)
 	v.SetDefault("multi_tenancy.default_tenant_quota.max_users", 20)
 	v.SetDefault("multi_tenancy.default_tenant_quota.max_requests_per_minute", 1000)
+
+	// Auth backend defaults
+	v.SetDefault("auth.backend", "redis")
+	v.SetDefault("auth.keycloak.timeout", "30s")
 }
 
 // Validate validates the configuration and returns an error if any values are invalid.
@@ -939,6 +1005,10 @@ func (c *Config) Validate() error {
 	}
 
 	if err := c.validateSecurity(); err != nil {
+		return err
+	}
+
+	if err := c.validateAuth(); err != nil {
 		return err
 	}
 
@@ -1261,5 +1331,53 @@ func (c *Config) validateEndpointRateLimits() error {
 			return fmt.Errorf("endpoint[%d] burst_size: %d (must be >= 0)", i, ep.BurstSize)
 		}
 	}
+	return nil
+}
+
+// validateAuth validates auth backend configuration.
+func (c *Config) validateAuth() error {
+	// Validate backend selection
+	if c.Auth.Backend != "redis" && c.Auth.Backend != "keycloak" {
+		return fmt.Errorf("auth.backend: '%s' (must be 'redis' or 'keycloak')", c.Auth.Backend)
+	}
+
+	// Validate Keycloak config if backend is keycloak
+	if c.Auth.Backend == "keycloak" {
+		return c.validateKeycloakConfig()
+	}
+
+	return nil
+}
+
+// validateKeycloakConfig validates Keycloak-specific configuration.
+func (c *Config) validateKeycloakConfig() error {
+	if c.Auth.Keycloak.BaseURL == "" {
+		return fmt.Errorf("auth.keycloak.base_url is required when backend is keycloak")
+	}
+	if c.Auth.Keycloak.Realm == "" {
+		return fmt.Errorf("auth.keycloak.realm is required when backend is keycloak")
+	}
+	if c.Auth.Keycloak.ClientID == "" {
+		return fmt.Errorf("auth.keycloak.client_id is required when backend is keycloak")
+	}
+
+	// Validate client secret (from config or env var)
+	if _, err := c.Auth.Keycloak.GetClientSecret(); err != nil {
+		return fmt.Errorf("auth.keycloak client secret: %w", err)
+	}
+
+	if c.Auth.Keycloak.AdminUsername == "" {
+		return fmt.Errorf("auth.keycloak.admin_username is required when backend is keycloak")
+	}
+
+	// Validate admin password (from config or env var)
+	if _, err := c.Auth.Keycloak.GetAdminPassword(); err != nil {
+		return fmt.Errorf("auth.keycloak admin password: %w", err)
+	}
+
+	if c.Auth.Keycloak.Timeout <= 0 {
+		return fmt.Errorf("auth.keycloak.timeout: %s (must be > 0)", c.Auth.Keycloak.Timeout)
+	}
+
 	return nil
 }

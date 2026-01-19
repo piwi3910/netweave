@@ -58,7 +58,7 @@ const (
 	tenantAttrCreate = "_created_at"
 	tenantAttrUpdate = "_updated_at"
 
-	// Usage type keys
+	// Usage type keys.
 	usageTypeSubscriptions = "subscriptions"
 	usageTypeUsers         = "users"
 	usageTypeResourcePools = "resourcePools"
@@ -266,7 +266,7 @@ func (s *Store) convertUserToKeycloak(user *auth.TenantUser) *User {
 }
 
 // convertKeycloakToUser converts keycloak.User to auth.TenantUser.
-func (s *Store) convertKeycloakToUser(kcUser *User) (*auth.TenantUser, error) {
+func (s *Store) convertKeycloakToUser(kcUser *User) *auth.TenantUser {
 	user := &auth.TenantUser{
 		ID:         kcUser.ID,
 		CommonName: kcUser.Username,
@@ -277,7 +277,7 @@ func (s *Store) convertKeycloakToUser(kcUser *User) (*auth.TenantUser, error) {
 	s.extractUserAttributes(kcUser, user)
 	s.parseUserTimestamps(kcUser, user)
 
-	return user, nil
+	return user
 }
 
 // extractUserAttributes extracts custom attributes from Keycloak user.
@@ -365,7 +365,7 @@ func (s *Store) convertRoleToKeycloak(role *auth.Role) *Role {
 }
 
 // convertKeycloakToRole converts keycloak.Role to auth.Role.
-func (s *Store) convertKeycloakToRole(kcRole *Role) (*auth.Role, error) {
+func (s *Store) convertKeycloakToRole(kcRole *Role) *auth.Role {
 	role := &auth.Role{
 		ID:          kcRole.ID,
 		Name:        auth.RoleName(kcRole.Name),
@@ -376,7 +376,7 @@ func (s *Store) convertKeycloakToRole(kcRole *Role) (*auth.Role, error) {
 	s.parseRolePermissions(kcRole, role)
 	s.parseRoleTimestamps(kcRole, role)
 
-	return role, nil
+	return role
 }
 
 // extractRoleAttributes extracts basic attributes from Keycloak role.
@@ -434,7 +434,7 @@ func (s *Store) getRealmAttributes(_ context.Context) (map[string]string, error)
 }
 
 // setRealmAttributes updates realm attributes.
-func (s *Store) setRealmAttributes(_ context.Context, attrs map[string]string) error {
+func (s *Store) setRealmAttributes(_ context.Context, _ map[string]string) error {
 	// Placeholder: Would update realm attributes via Admin API
 	// For MVP, tenant metadata is stored as user attributes
 	return nil
@@ -716,10 +716,7 @@ func (s *Store) GetUser(ctx context.Context, id string) (*auth.TenantUser, error
 		return nil, fmt.Errorf("failed to get user from keycloak: %w", err)
 	}
 
-	user, err := s.convertKeycloakToUser(kcUser)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert keycloak user: %w", err)
-	}
+	user := s.convertKeycloakToUser(kcUser)
 
 	return user, nil
 }
@@ -741,10 +738,7 @@ func (s *Store) GetUserBySubject(ctx context.Context, subject string) (*auth.Ten
 	for _, kcUser := range kcUsers {
 		if vals, ok := kcUser.Attributes[userAttrSubject]; ok && len(vals) > 0 {
 			if vals[0] == subject {
-				user, err := s.convertKeycloakToUser(&kcUser)
-				if err != nil {
-					continue
-				}
+				user := s.convertKeycloakToUser(&kcUser)
 				return user, nil
 			}
 		}
@@ -768,10 +762,7 @@ func (s *Store) GetUserByOAuthSubject(ctx context.Context, oauthSubject string) 
 	for _, kcUser := range kcUsers {
 		if vals, ok := kcUser.Attributes[userAttrOAuthSubject]; ok && len(vals) > 0 {
 			if vals[0] == oauthSubject {
-				user, err := s.convertKeycloakToUser(&kcUser)
-				if err != nil {
-					continue
-				}
+				user := s.convertKeycloakToUser(&kcUser)
 				return user, nil
 			}
 		}
@@ -794,10 +785,7 @@ func (s *Store) GetUserByEmail(ctx context.Context, email string) (*auth.TenantU
 
 	for _, kcUser := range kcUsers {
 		if kcUser.Email == email {
-			user, err := s.convertKeycloakToUser(&kcUser)
-			if err != nil {
-				continue
-			}
+			user := s.convertKeycloakToUser(&kcUser)
 			return user, nil
 		}
 	}
@@ -865,14 +853,7 @@ func (s *Store) ListUsersByTenant(ctx context.Context, tenantID string) ([]*auth
 	for _, kcUser := range kcUsers {
 		if vals, ok := kcUser.Attributes[userAttrTenantID]; ok && len(vals) > 0 {
 			if vals[0] == tenantID {
-				user, err := s.convertKeycloakToUser(&kcUser)
-				if err != nil {
-					s.logger.Warn("failed to convert keycloak user",
-						zap.String("user_id", kcUser.ID),
-						zap.Error(err),
-					)
-					continue
-				}
+				user := s.convertKeycloakToUser(&kcUser)
 				users = append(users, user)
 			}
 		}
@@ -942,10 +923,7 @@ func (s *Store) GetRole(ctx context.Context, id string) (*auth.Role, error) {
 
 	for _, kcRole := range kcRoles {
 		if kcRole.ID == id {
-			role, err := s.convertKeycloakToRole(&kcRole)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert keycloak role: %w", err)
-			}
+			role := s.convertKeycloakToRole(&kcRole)
 			return role, nil
 		}
 	}
@@ -967,10 +945,7 @@ func (s *Store) GetRoleByName(ctx context.Context, name auth.RoleName) (*auth.Ro
 		return nil, fmt.Errorf("failed to get role from keycloak: %w", err)
 	}
 
-	role, err := s.convertKeycloakToRole(kcRole)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert keycloak role: %w", err)
-	}
+	role := s.convertKeycloakToRole(kcRole)
 
 	return role, nil
 }
@@ -1035,14 +1010,7 @@ func (s *Store) ListRoles(ctx context.Context) ([]*auth.Role, error) {
 
 	roles := make([]*auth.Role, 0, len(kcRoles))
 	for _, kcRole := range kcRoles {
-		role, err := s.convertKeycloakToRole(&kcRole)
-		if err != nil {
-			s.logger.Warn("failed to convert keycloak role",
-				zap.String("role_id", kcRole.ID),
-				zap.Error(err),
-			)
-			continue
-		}
+		role := s.convertKeycloakToRole(&kcRole)
 		roles = append(roles, role)
 	}
 
@@ -1218,7 +1186,11 @@ func (s *Store) ListEvents(_ context.Context, tenantID string, limit, offset int
 
 // ListEventsByType retrieves audit events of a specific type.
 // Note: This is a placeholder implementation.
-func (s *Store) ListEventsByType(_ context.Context, eventType auth.AuditEventType, limit int) ([]*auth.AuditEvent, error) {
+func (s *Store) ListEventsByType(
+	_ context.Context,
+	eventType auth.AuditEventType,
+	limit int,
+) ([]*auth.AuditEvent, error) {
 	// Placeholder: Return empty list
 	s.logger.Warn("ListEventsByType not fully implemented for Keycloak backend",
 		zap.String("event_type", string(eventType)),

@@ -46,7 +46,9 @@ func (c *Client) CreateUser(ctx context.Context, user *User) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("create user request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusConflict {
 		return "", fmt.Errorf("user already exists")
@@ -77,7 +79,9 @@ func (c *Client) GetUser(ctx context.Context, userID string) (*User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get user request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("user not found")
@@ -111,7 +115,9 @@ func (c *Client) GetUserByUsername(ctx context.Context, username string) (*User,
 	if err != nil {
 		return nil, fmt.Errorf("get user by username request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -146,7 +152,9 @@ func (c *Client) UpdateUser(ctx context.Context, user *User) error {
 	if err != nil {
 		return fmt.Errorf("update user request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("user not found")
@@ -171,7 +179,9 @@ func (c *Client) DeleteUser(ctx context.Context, userID string) error {
 	if err != nil {
 		return fmt.Errorf("delete user request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("user not found")
@@ -186,11 +196,11 @@ func (c *Client) DeleteUser(ctx context.Context, userID string) error {
 }
 
 // ListUsers retrieves all users.
-// max specifies the maximum number of users to return (0 for all).
-func (c *Client) ListUsers(ctx context.Context, max int) ([]User, error) {
+// maxResults specifies the maximum number of users to return (0 for all).
+func (c *Client) ListUsers(ctx context.Context, maxResults int) ([]User, error) {
 	params := url.Values{}
-	if max > 0 {
-		params.Set("max", fmt.Sprintf("%d", max))
+	if maxResults > 0 {
+		params.Set("max", fmt.Sprintf("%d", maxResults))
 	}
 
 	path := "/users"
@@ -202,7 +212,9 @@ func (c *Client) ListUsers(ctx context.Context, max int) ([]User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list users request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -242,7 +254,9 @@ func (c *Client) SetUserPassword(ctx context.Context, userID, password string, t
 	if err != nil {
 		return fmt.Errorf("set password request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("user not found")
