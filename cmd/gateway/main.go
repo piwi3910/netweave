@@ -48,6 +48,7 @@ import (
 	"github.com/piwi3910/netweave/internal/dms/adapters/helm"
 	dmsmock "github.com/piwi3910/netweave/internal/dms/adapters/mock"
 	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
+	"github.com/piwi3910/netweave/internal/keycloak"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/server"
 	"github.com/piwi3910/netweave/internal/storage"
@@ -912,8 +913,53 @@ func InitializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *
 		RequireMTLS: cfg.MultiTenancy.RequireMTLS,
 	}
 
+	// Initialize OAuth2 authenticator if enabled.
+	var oauth2Auth *auth.OAuth2Authenticator
+	var oauth2Cfg *auth.OAuth2Config
+
+	if cfg.OAuth2.Enabled {
+		// Create Keycloak client.
+		keycloakCfg := &keycloak.Config{
+			BaseURL:      cfg.OAuth2.KeycloakBaseURL,
+			Realm:        cfg.OAuth2.KeycloakRealm,
+			ClientID:     cfg.OAuth2.KeycloakClientID,
+			ClientSecret: cfg.OAuth2.KeycloakSecret,
+			Timeout:      10 * time.Second,
+		}
+
+		keycloakClient, err := keycloak.NewClient(keycloakCfg)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to initialize Keycloak client: %w", err)
+		}
+
+		// Create OAuth2 config.
+		oauth2Cfg = &auth.OAuth2Config{
+			Enabled:            cfg.OAuth2.Enabled,
+			Priority:           cfg.OAuth2.Priority,
+			AutoProvisionUsers: cfg.OAuth2.AutoProvisionUsers,
+			DefaultRole:        cfg.OAuth2.DefaultRole,
+			GroupRoleMapping:   cfg.OAuth2.GroupRoleMapping,
+			RequireTenantClaim: cfg.OAuth2.RequireTenantClaim,
+		}
+
+		// Create OAuth2 authenticator.
+		oauth2Auth = auth.NewOAuth2Authenticator(
+			keycloakClient,
+			authStore,
+			oauth2Cfg,
+			logger,
+		)
+
+		logger.Info("OAuth2 authentication enabled",
+			zap.String("keycloak_url", cfg.OAuth2.KeycloakBaseURL),
+			zap.String("realm", cfg.OAuth2.KeycloakRealm),
+			zap.Bool("priority", cfg.OAuth2.Priority),
+			zap.Bool("auto_provision", cfg.OAuth2.AutoProvisionUsers),
+		)
+	}
+
 	// Create auth middleware.
-	authMw := auth.NewMiddleware(authStore, mwConfig, logger)
+	authMw := auth.NewMiddleware(authStore, mwConfig, logger, oauth2Auth, oauth2Cfg)
 
 	logger.Info("auth middleware created",
 		zap.Int("skip_paths", len(mwConfig.SkipPaths)),

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	redis "github.com/redis/go-redis/v9"
@@ -23,21 +24,23 @@ func sanitizeSubjectKey(subject string) string {
 
 const (
 	// Redis key prefixes for auth data.
-	tenantKeyPrefix  = "tenant:"
-	tenantSetKey     = "tenants:active"
-	userKeyPrefix    = "user:"
-	userSubjectIndex = "users:subject:"
-	userTenantIndex  = "users:tenant:"
-	roleKeyPrefix    = "role:"
-	roleSetKey       = "roles:all"
-	roleTenantIndex  = "roles:tenant:"
-	roleNameIndex    = "roles:name:"
-	auditKeyPrefix   = "audit:"
-	auditListKey     = "audit:events"
-	auditTenantIndex = "audit:tenant:"
-	auditUserIndex   = "audit:user:"
-	auditTypeIndex   = "audit:type:"
-	usageKeyPrefix   = "usage:"
+	tenantKeyPrefix       = "tenant:"
+	tenantSetKey          = "tenants:active"
+	userKeyPrefix         = "user:"
+	userSubjectIndex      = "users:subject:" // mTLS subject hash -> user ID
+	userOAuthSubjectIndex = "users:oauth:"   // OAuth subject hash -> user ID
+	userEmailIndex        = "users:email:"   // email (normalized) -> user ID
+	userTenantIndex       = "users:tenant:"
+	roleKeyPrefix         = "role:"
+	roleSetKey            = "roles:all"
+	roleTenantIndex       = "roles:tenant:"
+	roleNameIndex         = "roles:name:"
+	auditKeyPrefix        = "audit:"
+	auditListKey          = "audit:events"
+	auditTenantIndex      = "audit:tenant:"
+	auditUserIndex        = "audit:user:"
+	auditTypeIndex        = "audit:type:"
+	usageKeyPrefix        = "usage:"
 
 	// Default TTL for audit events (30 days).
 	auditEventTTL = 30 * 24 * time.Hour
@@ -563,6 +566,7 @@ func (r *RedisStore) DecrementUsage(ctx context.Context, tenantID, usageType str
 
 // CreateUser creates a new user.
 // Uses a Lua script for atomic creation to prevent race conditions.
+// Maintains indices for mTLS subject, OAuth subject, and email.
 func (r *RedisStore) CreateUser(ctx context.Context, user *TenantUser) error {
 	if user.ID == "" {
 		return ErrInvalidUserID
@@ -581,6 +585,7 @@ func (r *RedisStore) CreateUser(ctx context.Context, user *TenantUser) error {
 	subjectKey := userSubjectIndex + sanitizeSubjectKey(user.Subject)
 	tenantSetKey := userTenantIndex + user.TenantID
 
+	// Create user with Lua script (handles mTLS subject index)
 	result, err := createUserScript.Run(ctx, r.client,
 		[]string{userKey, subjectKey, tenantSetKey},
 		string(data), user.ID,
@@ -591,7 +596,8 @@ func (r *RedisStore) CreateUser(ctx context.Context, user *TenantUser) error {
 
 	switch result {
 	case 1:
-		return nil
+		// User created successfully - now add OAuth and email indices if present
+		return r.createOAuthIndices(ctx, user)
 	case 0:
 		return ErrUserExists
 	case -1:
@@ -599,6 +605,25 @@ func (r *RedisStore) CreateUser(ctx context.Context, user *TenantUser) error {
 	default:
 		return fmt.Errorf("unexpected result from create user script: %d", result)
 	}
+}
+
+// createOAuthIndices creates OAuth2 and email indices for a user.
+func (r *RedisStore) createOAuthIndices(ctx context.Context, user *TenantUser) error {
+	if user.OAuthSubject != "" {
+		oauthKey := userOAuthSubjectIndex + sanitizeSubjectKey(user.OAuthSubject)
+		if err := r.client.Set(ctx, oauthKey, user.ID, 0).Err(); err != nil {
+			return fmt.Errorf("failed to create OAuth subject index: %w", err)
+		}
+	}
+
+	if user.Email != "" {
+		emailKey := userEmailIndex + normalizeEmail(user.Email)
+		if err := r.client.Set(ctx, emailKey, user.ID, 0).Err(); err != nil {
+			return fmt.Errorf("failed to create email index: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // GetUser retrieves a user by ID.
@@ -624,7 +649,7 @@ func (r *RedisStore) GetUser(ctx context.Context, id string) (*TenantUser, error
 	return &user, nil
 }
 
-// GetUserBySubject retrieves a user by certificate subject.
+// GetUserBySubject retrieves a user by certificate subject (mTLS).
 func (r *RedisStore) GetUserBySubject(ctx context.Context, subject string) (*TenantUser, error) {
 	if subject == "" {
 		return nil, ErrUserNotFound
@@ -640,6 +665,51 @@ func (r *RedisStore) GetUserBySubject(ctx context.Context, subject string) (*Ten
 	}
 
 	return r.GetUser(ctx, userID)
+}
+
+// GetUserByOAuthSubject retrieves a user by OAuth2 subject identifier.
+func (r *RedisStore) GetUserByOAuthSubject(ctx context.Context, oauthSubject string) (*TenantUser, error) {
+	if oauthSubject == "" {
+		return nil, ErrUserNotFound
+	}
+
+	// Hash OAuth subject for privacy (same approach as mTLS subject)
+	oauthKey := userOAuthSubjectIndex + sanitizeSubjectKey(oauthSubject)
+	userID, err := r.client.Get(ctx, oauthKey).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, ErrUserNotFound
+		}
+		return nil, fmt.Errorf("failed to get user by OAuth subject: %w", err)
+	}
+
+	return r.GetUser(ctx, userID)
+}
+
+// GetUserByEmail retrieves a user by email address.
+func (r *RedisStore) GetUserByEmail(ctx context.Context, email string) (*TenantUser, error) {
+	if email == "" {
+		return nil, ErrUserNotFound
+	}
+
+	// Normalize email: lowercase and trimmed
+	normalizedEmail := normalizeEmail(email)
+	emailKey := userEmailIndex + normalizedEmail
+
+	userID, err := r.client.Get(ctx, emailKey).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, ErrUserNotFound
+		}
+		return nil, fmt.Errorf("failed to get user by email: %w", err)
+	}
+
+	return r.GetUser(ctx, userID)
+}
+
+// normalizeEmail normalizes an email address for storage.
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }
 
 // UpdateUser updates an existing user.

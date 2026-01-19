@@ -193,7 +193,8 @@ func New(
 		if !ok {
 			logger.Warn("auth store does not implement auth.Store interface, auth middleware disabled")
 		} else {
-			authMw = auth.NewMiddleware(authStoreTyped, authMwConfig, logger)
+			// OAuth2 authenticator is nil here - OAuth2 setup happens in main.go
+			authMw = auth.NewMiddleware(authStoreTyped, authMwConfig, logger, nil, nil)
 
 			// Initialize audit logger with the same auth store
 			var err error

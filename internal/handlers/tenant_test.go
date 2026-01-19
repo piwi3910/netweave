@@ -109,6 +109,24 @@ func (m *mockAuthStore) GetUserBySubject(_ context.Context, subject string) (*au
 	return nil, auth.ErrUserNotFound
 }
 
+func (m *mockAuthStore) GetUserByOAuthSubject(_ context.Context, oauthSubject string) (*auth.TenantUser, error) {
+	for _, user := range m.users {
+		if user.OAuthSubject == oauthSubject {
+			return user, nil
+		}
+	}
+	return nil, auth.ErrUserNotFound
+}
+
+func (m *mockAuthStore) GetUserByEmail(_ context.Context, email string) (*auth.TenantUser, error) {
+	for _, user := range m.users {
+		if user.Email == email {
+			return user, nil
+		}
+	}
+	return nil, auth.ErrUserNotFound
+}
+
 func (m *mockAuthStore) UpdateUser(_ context.Context, user *auth.TenantUser) error {
 	if _, exists := m.users[user.ID]; !exists {
 		return auth.ErrUserNotFound

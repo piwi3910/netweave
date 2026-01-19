@@ -51,15 +51,24 @@ func DefaultMiddlewareConfig() *MiddlewareConfig {
 
 // Middleware provides authentication and authorization middleware for Gin.
 type Middleware struct {
-	store            Store
-	Config           *MiddlewareConfig // Exported for testing
-	Logger           *zap.Logger       // Exported for testing
-	compiledPatterns []*regexp.Regexp  // Pre-compiled regex patterns for skip paths
+	store               Store
+	Config              *MiddlewareConfig    // Exported for testing
+	Logger              *zap.Logger          // Exported for testing
+	compiledPatterns    []*regexp.Regexp     // Pre-compiled regex patterns for skip paths
+	oauth2Authenticator *OAuth2Authenticator // OAuth2 authentication handler
+	oauth2Config        *OAuth2Config        // OAuth2 configuration
 }
 
 // NewMiddleware creates a new authentication middleware.
 // Pre-compiles regex patterns for skip paths during initialization for performance.
-func NewMiddleware(store Store, config *MiddlewareConfig, logger *zap.Logger) *Middleware {
+// Supports both mTLS and OAuth2 authentication methods.
+func NewMiddleware(
+	store Store,
+	config *MiddlewareConfig,
+	logger *zap.Logger,
+	oauth2Authenticator *OAuth2Authenticator,
+	oauth2Config *OAuth2Config,
+) *Middleware {
 	if config == nil {
 		config = DefaultMiddlewareConfig()
 	}
@@ -83,10 +92,12 @@ func NewMiddleware(store Store, config *MiddlewareConfig, logger *zap.Logger) *M
 	}
 
 	return &Middleware{
-		store:            store,
-		Config:           config,
-		Logger:           logger,
-		compiledPatterns: compiledPatterns,
+		store:               store,
+		Config:              config,
+		Logger:              logger,
+		compiledPatterns:    compiledPatterns,
+		oauth2Authenticator: oauth2Authenticator,
+		oauth2Config:        oauth2Config,
 	}
 }
 
@@ -112,28 +123,140 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 		}
 
 		authStart := time.Now()
-		cert := m.extractCertificate(c)
 
-		if cert == nil {
-			m.handleMissingCertificate(c, requestID, authStart)
-			return
-		}
+		// Detect authentication method (OAuth2 vs mTLS)
+		authMethod := m.detectAuthMethod(c)
 
-		subject := m.BuildSubject(cert)
-		m.Logger.Debug("authenticating client",
-			zap.String("subject", SanitizeForLogging(subject, 200)),
-			zap.String("common_name", SanitizeForLogging(cert.Subject.CommonName, 100)),
-			zap.String("request_id", requestID),
+		var (
+			user       *TenantUser
+			role       *Role
+			tenant     *Tenant
+			err        error
+			subject    string
+			commonName string
 		)
 
-		user, role, tenant, err := m.authenticateAndLoadContext(c.Request.Context(), subject, requestID)
-		if err != nil {
-			m.handleAuthenticationError(c, err, subject, requestID, authStart)
+		// Authenticate based on detected method
+		switch authMethod {
+		case AuthMethodOAuth2:
+			// OAuth2 authentication
+			user, role, tenant, err = m.oauth2Authenticator.Authenticate(ctx, c, requestID)
+			if err != nil {
+				m.handleOAuth2AuthenticationFailure(c, requestID, authStart, err)
+				return
+			}
+			subject = user.OAuthSubject
+			commonName = user.CommonName
+
+		case AuthMethodMTLS:
+			// mTLS authentication
+			cert := m.extractCertificate(c)
+			if cert == nil {
+				m.handleMissingCertificate(c, requestID, authStart)
+				return
+			}
+			subject = m.BuildSubject(cert)
+			commonName = cert.Subject.CommonName
+
+			m.Logger.Debug("authenticating client with mTLS",
+				zap.String("subject", SanitizeForLogging(subject, 200)),
+				zap.String("common_name", SanitizeForLogging(commonName, 100)),
+				zap.String("request_id", requestID),
+			)
+
+			user, role, tenant, err = m.authenticateAndLoadContext(c.Request.Context(), subject, requestID)
+			if err != nil {
+				m.handleAuthenticationError(c, err, subject, requestID, authStart)
+				return
+			}
+
+		default:
+			// No valid authentication method detected
+			// Check if authentication is optional
+			if !m.Config.RequireMTLS {
+				// Authentication is optional - allow request through without authentication
+				m.Logger.Debug("no authentication method provided, but authentication is optional",
+					zap.String("request_id", requestID),
+				)
+				c.Next()
+				return
+			}
+			// Authentication is required but not provided
+			m.handleNoAuthMethod(c, requestID, authStart)
 			return
 		}
 
-		m.finalizeAuthentication(ctx, c, user, role, tenant, subject, cert.Subject.CommonName, requestID, authStart)
+		// Finalize authentication (unified for both methods)
+		m.finalizeAuthentication(ctx, c, user, role, tenant, subject, commonName, requestID, authStart, authMethod)
 	}
+}
+
+// detectAuthMethod determines which authentication method to use based on the request.
+func (m *Middleware) detectAuthMethod(c *gin.Context) AuthMethod {
+	hasBearerToken := strings.HasPrefix(c.GetHeader("Authorization"), "Bearer ")
+	hasCertificate := m.extractCertificate(c) != nil
+
+	// OAuth2 enabled and has Bearer token
+	if m.oauth2Config != nil && m.oauth2Config.Enabled && hasBearerToken {
+		// Check priority: if OAuth2 has priority or no certificate present
+		if m.oauth2Config.Priority || !hasCertificate {
+			return AuthMethodOAuth2
+		}
+	}
+
+	// mTLS if certificate present
+	if hasCertificate {
+		return AuthMethodMTLS
+	}
+
+	// OAuth2 as fallback if enabled and Bearer token present
+	if m.oauth2Config != nil && m.oauth2Config.Enabled && hasBearerToken {
+		return AuthMethodOAuth2
+	}
+
+	return "" // No valid auth method
+}
+
+// handleOAuth2AuthenticationFailure handles OAuth2 authentication failures.
+func (m *Middleware) handleOAuth2AuthenticationFailure(
+	c *gin.Context,
+	requestID string,
+	authStart time.Time,
+	err error,
+) {
+	m.Logger.Warn("OAuth2 authentication failed",
+		zap.String("path", c.Request.URL.Path),
+		zap.String("client_ip", c.ClientIP()),
+		zap.String("request_id", requestID),
+		zap.Error(err),
+	)
+
+	RecordAuthenticationAttempt("failed", "oauth2")
+	RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
+
+	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+		"error":   "Unauthorized",
+		"message": "Invalid or expired OAuth2 token",
+		"code":    http.StatusUnauthorized,
+	})
+}
+
+// handleNoAuthMethod handles cases where no valid authentication method was detected.
+func (m *Middleware) handleNoAuthMethod(c *gin.Context, requestID string, authStart time.Time) {
+	m.Logger.Warn("no valid authentication method detected",
+		zap.String("path", c.Request.URL.Path),
+		zap.String("client_ip", c.ClientIP()),
+		zap.String("request_id", requestID),
+	)
+
+	RecordAuthenticationAttempt("failed", "none")
+	RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
+
+	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+		"error":   "Unauthorized",
+		"message": "Authentication required (mTLS certificate or OAuth2 Bearer token)",
+		"code":    http.StatusUnauthorized,
+	})
 }
 
 func (m *Middleware) handleMissingCertificate(c *gin.Context, requestID string, authStart time.Time) {
@@ -324,10 +447,16 @@ func (m *Middleware) finalizeAuthentication(
 	tenant *Tenant,
 	subject, commonName, requestID string,
 	authStart time.Time,
+	authMethod AuthMethod,
 ) {
 	authUser := &AuthenticatedUser{
-		UserID: user.ID, TenantID: user.TenantID, Subject: subject, CommonName: commonName,
-		Role: role, IsPlatformAdmin: role.Type == RoleTypePlatform && role.Name == RolePlatformAdmin,
+		UserID:          user.ID,
+		TenantID:        user.TenantID,
+		Subject:         subject,
+		CommonName:      commonName,
+		Role:            role,
+		IsPlatformAdmin: role.Type == RoleTypePlatform && role.Name == RolePlatformAdmin,
+		AuthMethod:      authMethod,
 	}
 
 	c.Set("user", authUser)

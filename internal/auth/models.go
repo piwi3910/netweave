@@ -294,15 +294,26 @@ func (t *Tenant) UnmarshalBinary(data []byte) error {
 }
 
 // TenantUser represents a user's association with a tenant and their role.
-// A user is identified by their certificate subject (from mTLS).
+// A user is identified by either certificate subject (mTLS) or OAuth2 subject.
 //
-// Example:
+// Example (mTLS):
 //
 //	user := &TenantUser{
 //	    ID:       "user-123",
 //	    TenantID: "tenant-abc",
 //	    Subject:  "CN=alice,O=ACME,OU=Engineering",
 //	    RoleID:   "role-operator",
+//	}
+//
+// Example (OAuth2):
+//
+//	user := &TenantUser{
+//	    ID:            "user-456",
+//	    TenantID:      "tenant-abc",
+//	    OAuthSubject:  "keycloak-user-id-123",
+//	    OAuthProvider: "keycloak",
+//	    Email:         "alice@example.com",
+//	    RoleID:        "role-operator",
 //	}
 type TenantUser struct {
 	// ID is the unique user identifier.
@@ -311,14 +322,20 @@ type TenantUser struct {
 	// TenantID is the tenant this user belongs to.
 	TenantID string `json:"tenantId"`
 
-	// Subject is the certificate subject (CN, O, OU, etc.).
-	Subject string `json:"subject"`
+	// Subject is the certificate subject (CN, O, OU, etc.) for mTLS users.
+	Subject string `json:"subject,omitempty"`
 
-	// CommonName is extracted from the certificate CN field.
+	// CommonName is extracted from the certificate CN field (mTLS) or username (OAuth2).
 	CommonName string `json:"commonName"`
 
-	// Email is the user's email (optional, may be in certificate).
+	// Email is the user's email (optional, may be in certificate or OAuth2 claims).
 	Email string `json:"email,omitempty"`
+
+	// OAuthSubject is the OAuth2/OIDC subject identifier (e.g., Keycloak user ID).
+	OAuthSubject string `json:"oauthSubject,omitempty"`
+
+	// OAuthProvider identifies the OAuth2 provider (e.g., "keycloak").
+	OAuthProvider string `json:"oauthProvider,omitempty"`
 
 	// RoleID is the role assigned to this user.
 	RoleID string `json:"roleId"`
@@ -353,6 +370,17 @@ func (u *TenantUser) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// AuthMethod represents the authentication method used.
+type AuthMethod string
+
+const (
+	// AuthMethodMTLS indicates mTLS certificate-based authentication.
+	AuthMethodMTLS AuthMethod = "mtls"
+
+	// AuthMethodOAuth2 indicates OAuth2/OIDC token-based authentication.
+	AuthMethodOAuth2 AuthMethod = "oauth2"
+)
+
 // AuthenticatedUser represents the current authenticated user context.
 // This is stored in the request context after authentication.
 type AuthenticatedUser struct {
@@ -362,10 +390,10 @@ type AuthenticatedUser struct {
 	// TenantID is the tenant the user belongs to.
 	TenantID string
 
-	// Subject is the certificate subject.
+	// Subject is the certificate subject (mTLS) or OAuth subject (OAuth2).
 	Subject string
 
-	// CommonName is the certificate CN.
+	// CommonName is the certificate CN (mTLS) or username (OAuth2).
 	CommonName string
 
 	// Role is the user's role.
@@ -373,6 +401,9 @@ type AuthenticatedUser struct {
 
 	// IsPlatformAdmin indicates if this is a platform administrator.
 	IsPlatformAdmin bool
+
+	// AuthMethod indicates which authentication method was used.
+	AuthMethod AuthMethod `json:"authMethod"`
 }
 
 // HasPermission checks if the authenticated user has the specified permission.

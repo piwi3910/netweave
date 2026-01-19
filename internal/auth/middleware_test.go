@@ -94,6 +94,24 @@ func (m *mockStore) GetUserBySubject(_ context.Context, subject string) (*auth.T
 	return nil, auth.ErrUserNotFound
 }
 
+func (m *mockStore) GetUserByOAuthSubject(_ context.Context, oauthSubject string) (*auth.TenantUser, error) {
+	for _, user := range m.users {
+		if user.OAuthSubject == oauthSubject {
+			return user, nil
+		}
+	}
+	return nil, auth.ErrUserNotFound
+}
+
+func (m *mockStore) GetUserByEmail(_ context.Context, email string) (*auth.TenantUser, error) {
+	for _, user := range m.users {
+		if user.Email == email {
+			return user, nil
+		}
+	}
+	return nil, auth.ErrUserNotFound
+}
+
 func (m *mockStore) UpdateUser(_ context.Context, user *auth.TenantUser) error {
 	m.users[user.ID] = user
 	return nil
@@ -198,7 +216,8 @@ func setupTestMiddleware(t *testing.T, store *mockStore, config *auth.Middleware
 	if config == nil {
 		config = auth.DefaultMiddlewareConfig()
 	}
-	return auth.NewMiddleware(store, config, logger)
+	// Pass nil for OAuth2 parameters - these tests only test mTLS
+	return auth.NewMiddleware(store, config, logger, nil, nil)
 }
 
 // TestMiddleware_AuthenticationMiddleware_SkipPaths tests that excluded paths skip auth.
@@ -1035,7 +1054,7 @@ func TestShouldSkipAuth(t *testing.T) {
 	// Use NewMiddleware to ensure patterns are compiled
 	mw := auth.NewMiddleware(nil, &auth.MiddlewareConfig{
 		SkipPaths: []string{"/health", "/ready", "/api/v1/public/*"},
-	}, zap.NewNop())
+	}, zap.NewNop(), nil, nil)
 
 	tests := []struct {
 		name string
@@ -1329,13 +1348,13 @@ func TestNewMiddleware(t *testing.T) {
 
 	t.Run("with config", func(t *testing.T) {
 		config := &auth.MiddlewareConfig{Enabled: false}
-		mw := auth.NewMiddleware(store, config, logger)
+		mw := auth.NewMiddleware(store, config, logger, nil, nil)
 		assert.NotNil(t, mw)
 		assert.False(t, mw.Config.Enabled)
 	})
 
 	t.Run("without config uses defaults", func(t *testing.T) {
-		mw := auth.NewMiddleware(store, nil, logger)
+		mw := auth.NewMiddleware(store, nil, logger, nil, nil)
 		assert.NotNil(t, mw)
 		assert.True(t, mw.Config.Enabled)
 	})
@@ -1345,7 +1364,7 @@ func TestNewMiddleware(t *testing.T) {
 func TestParseXFCCHeader(t *testing.T) {
 	store := newMockStore()
 	logger := zap.NewNop()
-	mw := auth.NewMiddleware(store, nil, logger)
+	mw := auth.NewMiddleware(store, nil, logger, nil, nil)
 
 	tests := []struct {
 		name      string
@@ -1405,7 +1424,7 @@ func TestParseXFCCHeader(t *testing.T) {
 func TestExtractEmail(t *testing.T) {
 	store := newMockStore()
 	logger := zap.NewNop()
-	mw := auth.NewMiddleware(store, nil, logger)
+	mw := auth.NewMiddleware(store, nil, logger, nil, nil)
 
 	tests := []struct {
 		name      string

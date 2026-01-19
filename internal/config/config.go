@@ -60,10 +60,47 @@ type Config struct {
 	Security      SecurityConfig      `mapstructure:"security"`
 	Validation    ValidationConfig    `mapstructure:"validation"`
 	MultiTenancy  MultiTenancyConfig  `mapstructure:"multi_tenancy"`
+	OAuth2        OAuth2Config        `mapstructure:"oauth2"`
 
 	// Environment stores the detected environment (dev/staging/prod)
 	// This field is set automatically during Load() and used for validation
 	Environment string `mapstructure:"-"`
+}
+
+// OAuth2Config contains OAuth2/OIDC authentication configuration.
+type OAuth2Config struct {
+	// Enabled enables OAuth2/OIDC authentication.
+	Enabled bool `mapstructure:"enabled"`
+
+	// Priority indicates whether OAuth2 takes priority over mTLS when both are present.
+	Priority bool `mapstructure:"priority"`
+
+	// KeycloakBaseURL is the Keycloak server base URL.
+	KeycloakBaseURL string `mapstructure:"keycloak_base_url"`
+
+	// KeycloakRealm is the Keycloak realm name.
+	KeycloakRealm string `mapstructure:"keycloak_realm"`
+
+	// KeycloakClientID is the OIDC client ID.
+	KeycloakClientID string `mapstructure:"keycloak_client_id"`
+
+	// KeycloakSecret is the OIDC client secret.
+	KeycloakSecret string `mapstructure:"keycloak_secret"`
+
+	// KeycloakSecretEnvVar specifies the environment variable containing the client secret.
+	KeycloakSecretEnvVar string `mapstructure:"keycloak_secret_env_var"`
+
+	// AutoProvisionUsers enables automatic user creation from OAuth2 token claims.
+	AutoProvisionUsers bool `mapstructure:"auto_provision_users"`
+
+	// DefaultRole is the role ID to assign to auto-provisioned users.
+	DefaultRole string `mapstructure:"default_role"`
+
+	// GroupRoleMapping maps Keycloak groups to role IDs.
+	GroupRoleMapping map[string]string `mapstructure:"group_role_mapping"`
+
+	// RequireTenantClaim requires the tenant_id claim to be present in tokens.
+	RequireTenantClaim bool `mapstructure:"require_tenant_claim"`
 }
 
 // MultiTenancyConfig contains multi-tenancy and RBAC configuration.

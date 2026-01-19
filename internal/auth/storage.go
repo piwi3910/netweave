@@ -86,9 +86,17 @@ type UserStore interface {
 	// Returns ErrUserNotFound if the user does not exist.
 	GetUser(ctx context.Context, id string) (*TenantUser, error)
 
-	// GetUserBySubject retrieves a user by certificate subject.
+	// GetUserBySubject retrieves a user by certificate subject (mTLS).
 	// Returns ErrUserNotFound if no matching user exists.
 	GetUserBySubject(ctx context.Context, subject string) (*TenantUser, error)
+
+	// GetUserByOAuthSubject retrieves a user by OAuth2 subject identifier.
+	// Returns ErrUserNotFound if no matching user exists.
+	GetUserByOAuthSubject(ctx context.Context, oauthSubject string) (*TenantUser, error)
+
+	// GetUserByEmail retrieves a user by email address.
+	// Returns ErrUserNotFound if no matching user exists.
+	GetUserByEmail(ctx context.Context, email string) (*TenantUser, error)
 
 	// UpdateUser updates an existing user.
 	// Returns ErrUserNotFound if the user does not exist.
