@@ -111,6 +111,8 @@ func (m *mockKeycloakServer) handleRealm(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		if attrs, ok := req["attributes"].(map[string]interface{}); ok {
+			// Replace all attributes (don't merge) to support deletion
+			m.realmAttributes = make(map[string]string)
 			for k, v := range attrs {
 				if str, ok := v.(string); ok {
 					m.realmAttributes[k] = str
@@ -151,7 +153,10 @@ func (m *mockKeycloakServer) handleUsers(w http.ResponseWriter, r *http.Request)
 				return
 			}
 		}
-		user.ID = "user-" + user.Username
+		// Preserve the ID sent by the client (if provided)
+		if user.ID == "" {
+			user.ID = "user-" + user.Username
+		}
 		user.CreatedTimestamp = time.Now().Unix()
 		m.users[user.ID] = &user
 		w.Header().Set("Location", "/admin/realms/test/users/"+user.ID)
