@@ -61,6 +61,7 @@ linters:
           - nonamedreturns
           - gocritic  # Allows octalLiteral 0644 in cmd/compliance
           - cyclop    # Complex initialization logic in main packages
+          - ireturn   # Factory functions returning interfaces for dependency injection
       - path: cmd/compliance/
         linters:
           - cyclop    # Complex business logic in compliance checker
