@@ -55,7 +55,7 @@ func (h *K8sResourceHelper) DeleteNamespace(ctx context.Context, name string) er
 	}
 
 	// Wait for namespace to be deleted (up to 60 seconds)
-	return wait.PollUntilContextTimeout(
+	err := wait.PollUntilContextTimeout(
 		ctx, 2*time.Second, 60*time.Second, true,
 		func(pollCtx context.Context) (bool, error) {
 		_, err := h.client.CoreV1().Namespaces().Get(pollCtx, name, metav1.GetOptions{})
@@ -70,6 +70,10 @@ func (h *K8sResourceHelper) DeleteNamespace(ctx context.Context, name string) er
 		// Namespace still exists
 		return false, nil
 	})
+	if err != nil {
+		return fmt.Errorf("timeout waiting for namespace deletion: %w", err)
+	}
+	return nil
 }
 
 // CreateTestPod creates a simple test pod in the specified namespace.
@@ -160,7 +164,7 @@ func (h *K8sResourceHelper) DeletePod(ctx context.Context, namespace, name strin
 	}
 
 	// Wait for pod to be deleted (up to 30 seconds)
-	return wait.PollUntilContextTimeout(
+	err = wait.PollUntilContextTimeout(
 		ctx, 1*time.Second, 30*time.Second, true,
 		func(pollCtx context.Context) (bool, error) {
 		_, err := h.client.CoreV1().Pods(namespace).Get(pollCtx, name, metav1.GetOptions{})
@@ -175,6 +179,10 @@ func (h *K8sResourceHelper) DeletePod(ctx context.Context, namespace, name strin
 		// Pod still exists
 		return false, nil
 	})
+	if err != nil {
+		return fmt.Errorf("timeout waiting for pod deletion: %w", err)
+	}
+	return nil
 }
 
 // WaitForEvent waits for a Kubernetes event to occur.

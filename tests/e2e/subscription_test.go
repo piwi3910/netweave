@@ -46,14 +46,13 @@ func httpPost(
 	ctx context.Context,
 	client *http.Client,
 	url string,
-	contentType string,
 	body io.Reader,
 ) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create POST request: %w", err)
 	}
-	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute POST request: %w", err)
@@ -257,7 +256,7 @@ func TestSubscriptionNotifications(t *testing.T) {
 	require.NoError(t, err)
 
 	url := fw.GatewayURL + e2e.APIPathSubscriptions
-	resp, err := httpPost(fw.Context, fw.APIClient, url, "application/json", bytes.NewReader(reqBody))
+	resp, err := httpPost(fw.Context, fw.APIClient, url, bytes.NewReader(reqBody))
 	require.NoError(t, err)
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -325,7 +324,7 @@ func TestSubscriptionFiltering(t *testing.T) {
 	require.NoError(t, err)
 
 	url := fw.GatewayURL + e2e.APIPathSubscriptions
-	resp1, err := httpPost(fw.Context, fw.APIClient, url, "application/json", bytes.NewReader(reqBody1))
+	resp1, err := httpPost(fw.Context, fw.APIClient, url, bytes.NewReader(reqBody1))
 	require.NoError(t, err)
 	defer func() {
 		if err := resp1.Body.Close(); err != nil {
@@ -342,7 +341,7 @@ func TestSubscriptionFiltering(t *testing.T) {
 	reqBody2, err := json.Marshal(sub2)
 	require.NoError(t, err)
 
-	resp2, err := httpPost(fw.Context, fw.APIClient, url, "application/json", bytes.NewReader(reqBody2))
+	resp2, err := httpPost(fw.Context, fw.APIClient, url, bytes.NewReader(reqBody2))
 	require.NoError(t, err)
 	defer func() {
 		if err := resp2.Body.Close(); err != nil {
@@ -485,7 +484,7 @@ func createSubscriptionRequest(t *testing.T, fw *e2e.TestFramework, idx int, cal
 	}
 
 	url := fw.GatewayURL + e2e.APIPathSubscriptions
-	resp, err := httpPost(fw.Context, fw.APIClient, url, "application/json", bytes.NewReader(reqBody))
+	resp, err := httpPost(fw.Context, fw.APIClient, url, bytes.NewReader(reqBody))
 	if err != nil {
 		return "", fmt.Errorf("failed to create subscription%d: %w", idx, err)
 	}
@@ -606,7 +605,7 @@ func TestSubscriptionInvalidCallback(t *testing.T) {
 			require.NoError(t, err)
 
 			url := fw.GatewayURL + e2e.APIPathSubscriptions
-			resp, err := httpPost(fw.Context, fw.APIClient, url, "application/json", bytes.NewReader(reqBody))
+			resp, err := httpPost(fw.Context, fw.APIClient, url, bytes.NewReader(reqBody))
 			require.NoError(t, err)
 			defer func() {
 				if err := resp.Body.Close(); err != nil {
@@ -647,7 +646,7 @@ func TestSubscriptionDeletionStopsNotifications(t *testing.T) {
 	require.NoError(t, err)
 
 	url := fw.GatewayURL + e2e.APIPathSubscriptions
-	resp, err := httpPost(fw.Context, fw.APIClient, url, "application/json", bytes.NewReader(reqBody))
+	resp, err := httpPost(fw.Context, fw.APIClient, url, bytes.NewReader(reqBody))
 	require.NoError(t, err)
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -744,7 +743,7 @@ func TestWebhookRetryLogic(t *testing.T) {
 	require.NoError(t, err)
 
 	url := fw.GatewayURL + e2e.APIPathSubscriptions
-	resp, err := httpPost(fw.Context, fw.APIClient, url, "application/json", bytes.NewReader(reqBody))
+	resp, err := httpPost(fw.Context, fw.APIClient, url, bytes.NewReader(reqBody))
 	require.NoError(t, err)
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -815,7 +814,7 @@ func TestResourceLifecycleEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	url := fw.GatewayURL + e2e.APIPathSubscriptions
-	resp, err := httpPost(fw.Context, fw.APIClient, url, "application/json", bytes.NewReader(reqBody))
+	resp, err := httpPost(fw.Context, fw.APIClient, url, bytes.NewReader(reqBody))
 	require.NoError(t, err)
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -974,7 +973,7 @@ func TestSubscriptionFilterByResourcePool(t *testing.T) {
 	require.NoError(t, err)
 
 	url := fw.GatewayURL + e2e.APIPathSubscriptions
-	resp1, err := httpPost(fw.Context, fw.APIClient, url, "application/json", bytes.NewReader(reqBody1))
+	resp1, err := httpPost(fw.Context, fw.APIClient, url, bytes.NewReader(reqBody1))
 	require.NoError(t, err)
 	defer func() {
 		if err := resp1.Body.Close(); err != nil {
@@ -991,7 +990,7 @@ func TestSubscriptionFilterByResourcePool(t *testing.T) {
 	reqBody2, err := json.Marshal(sub2)
 	require.NoError(t, err)
 
-	resp2, err := httpPost(fw.Context, fw.APIClient, url, "application/json", bytes.NewReader(reqBody2))
+	resp2, err := httpPost(fw.Context, fw.APIClient, url, bytes.NewReader(reqBody2))
 	require.NoError(t, err)
 	defer func() {
 		if err := resp2.Body.Close(); err != nil {
