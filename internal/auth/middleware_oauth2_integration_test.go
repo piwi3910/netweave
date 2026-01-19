@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -839,6 +840,7 @@ func setupIntegrationStore(t *testing.T) Store {
 
 // integrationStore implements Store interface for integration tests.
 type integrationStore struct {
+	mu      sync.RWMutex
 	users   map[string]*TenantUser
 	roles   map[string]*Role
 	tenants map[string]*Tenant
@@ -846,11 +848,15 @@ type integrationStore struct {
 }
 
 func (s *integrationStore) CreateTenant(_ context.Context, tenant *Tenant) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.tenants[tenant.ID] = tenant
 	return nil
 }
 
 func (s *integrationStore) GetTenant(_ context.Context, id string) (*Tenant, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	tenant, ok := s.tenants[id]
 	if !ok {
 		return nil, ErrTenantNotFound
@@ -859,16 +865,22 @@ func (s *integrationStore) GetTenant(_ context.Context, id string) (*Tenant, err
 }
 
 func (s *integrationStore) UpdateTenant(_ context.Context, tenant *Tenant) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.tenants[tenant.ID] = tenant
 	return nil
 }
 
 func (s *integrationStore) DeleteTenant(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.tenants, id)
 	return nil
 }
 
 func (s *integrationStore) ListTenants(_ context.Context) ([]*Tenant, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	tenants := make([]*Tenant, 0, len(s.tenants))
 	for _, tenant := range s.tenants {
 		tenants = append(tenants, tenant)
@@ -877,11 +889,15 @@ func (s *integrationStore) ListTenants(_ context.Context) ([]*Tenant, error) {
 }
 
 func (s *integrationStore) CreateUser(_ context.Context, user *TenantUser) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.users[user.ID] = user
 	return nil
 }
 
 func (s *integrationStore) GetUser(_ context.Context, id string) (*TenantUser, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	user, ok := s.users[id]
 	if !ok {
 		return nil, ErrUserNotFound
@@ -890,6 +906,8 @@ func (s *integrationStore) GetUser(_ context.Context, id string) (*TenantUser, e
 }
 
 func (s *integrationStore) GetUserBySubject(_ context.Context, subject string) (*TenantUser, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, user := range s.users {
 		if user.Subject == subject {
 			return user, nil
@@ -899,6 +917,8 @@ func (s *integrationStore) GetUserBySubject(_ context.Context, subject string) (
 }
 
 func (s *integrationStore) GetUserByOAuthSubject(_ context.Context, oauthSubject string) (*TenantUser, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, user := range s.users {
 		if user.OAuthSubject == oauthSubject {
 			return user, nil
@@ -908,6 +928,8 @@ func (s *integrationStore) GetUserByOAuthSubject(_ context.Context, oauthSubject
 }
 
 func (s *integrationStore) GetUserByEmail(_ context.Context, email string) (*TenantUser, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, user := range s.users {
 		if user.Email == email {
 			return user, nil
@@ -917,16 +939,22 @@ func (s *integrationStore) GetUserByEmail(_ context.Context, email string) (*Ten
 }
 
 func (s *integrationStore) UpdateUser(_ context.Context, user *TenantUser) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.users[user.ID] = user
 	return nil
 }
 
 func (s *integrationStore) DeleteUser(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.users, id)
 	return nil
 }
 
 func (s *integrationStore) ListUsersByTenant(_ context.Context, tenantID string) ([]*TenantUser, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	users := make([]*TenantUser, 0)
 	for _, user := range s.users {
 		if user.TenantID == tenantID {
@@ -937,6 +965,8 @@ func (s *integrationStore) ListUsersByTenant(_ context.Context, tenantID string)
 }
 
 func (s *integrationStore) UpdateLastLogin(_ context.Context, userID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if user, ok := s.users[userID]; ok {
 		user.LastLoginAt = time.Now().UTC()
 	}
@@ -944,11 +974,15 @@ func (s *integrationStore) UpdateLastLogin(_ context.Context, userID string) err
 }
 
 func (s *integrationStore) CreateRole(_ context.Context, role *Role) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.roles[role.ID] = role
 	return nil
 }
 
 func (s *integrationStore) GetRole(_ context.Context, id string) (*Role, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	role, ok := s.roles[id]
 	if !ok {
 		return nil, ErrRoleNotFound
@@ -957,16 +991,22 @@ func (s *integrationStore) GetRole(_ context.Context, id string) (*Role, error) 
 }
 
 func (s *integrationStore) UpdateRole(_ context.Context, role *Role) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.roles[role.ID] = role
 	return nil
 }
 
 func (s *integrationStore) DeleteRole(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.roles, id)
 	return nil
 }
 
 func (s *integrationStore) ListRoles(_ context.Context) ([]*Role, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	roles := make([]*Role, 0, len(s.roles))
 	for _, role := range s.roles {
 		roles = append(roles, role)
@@ -979,23 +1019,33 @@ func (s *integrationStore) ListRolesByTenant(_ context.Context, _ string) ([]*Ro
 }
 
 func (s *integrationStore) LogEvent(_ context.Context, event *AuditEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.events = append(s.events, event)
 	return nil
 }
 
 func (s *integrationStore) ListEvents(_ context.Context, _ string, _, _ int) ([]*AuditEvent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.events, nil
 }
 
 func (s *integrationStore) ListEventsByType(_ context.Context, _ AuditEventType, _ int) ([]*AuditEvent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.events, nil
 }
 
 func (s *integrationStore) ListEventsByUser(_ context.Context, _ string, _ int) ([]*AuditEvent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.events, nil
 }
 
 func (s *integrationStore) GetRoleByName(_ context.Context, name RoleName) (*Role, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, role := range s.roles {
 		if role.Name == name {
 			return role, nil
