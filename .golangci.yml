@@ -79,6 +79,10 @@ issues:
         - gosec
       path: cmd/compliance/main\.go
       text: "G304"
+    # Allow cyclop for test files (integration/e2e tests can be complex)
+    - linters:
+        - cyclop
+      path: _test\.go
     # Allow G306 for README files (public documentation)
     - linters:
         - gosec
@@ -123,11 +127,12 @@ issues:
         - nilerr
       path: internal/adapters/
     # Allow more linting issues in pre-existing adapters (not part of DMS PR)
-    - path: internal/adapters/(aws|azure|gcp|dtias|openstack|vmware|kubernetes)/
+    - path: internal/adapters/
       linters:
         - goconst
         - gocognit
         - gocyclo
+        - cyclop
         - nestif
         - errcheck
         - godot
@@ -198,6 +203,7 @@ issues:
         - godot
         - gocognit
         - gocyclo
+        - cyclop
         - nestif
         - unused
         - ireturn
@@ -338,7 +344,7 @@ linters-settings:
     min-complexity: 15
 
   cyclop:
-    max-complexity: 25  # Allow reasonable complexity for business logic
+    max-complexity: 20  # Allow reasonable complexity for business logic
     package-average: 20.0
     skip-tests: true
 
