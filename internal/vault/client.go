@@ -153,8 +153,8 @@ func (c *Client) Ping(ctx context.Context) error {
 	healthyStatuses := []int{
 		http.StatusOK,
 		http.StatusTooManyRequests, // standby
-		472,                         // DR secondary
-		473,                         // performance standby
+		472,                        // DR secondary
+		473,                        // performance standby
 	}
 	for _, status := range healthyStatuses {
 		if resp.StatusCode == status {

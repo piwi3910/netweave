@@ -58,18 +58,18 @@ func (h *K8sResourceHelper) DeleteNamespace(ctx context.Context, name string) er
 	err = wait.PollUntilContextTimeout(
 		ctx, 2*time.Second, 60*time.Second, true,
 		func(pollCtx context.Context) (bool, error) {
-		_, err := h.client.CoreV1().Namespaces().Get(pollCtx, name, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
-			// Namespace has been successfully deleted
-			return true, nil
-		}
-		if err != nil {
-			// Other errors (network, permission, etc.) should be returned
-			return false, fmt.Errorf("failed to check resource status: %w", err)
-		}
-		// Namespace still exists
-		return false, nil
-	})
+			_, err := h.client.CoreV1().Namespaces().Get(pollCtx, name, metav1.GetOptions{})
+			if errors.IsNotFound(err) {
+				// Namespace has been successfully deleted
+				return true, nil
+			}
+			if err != nil {
+				// Other errors (network, permission, etc.) should be returned
+				return false, fmt.Errorf("failed to check resource status: %w", err)
+			}
+			// Namespace still exists
+			return false, nil
+		})
 	if err != nil {
 		return fmt.Errorf("timeout waiting for namespace deletion: %w", err)
 	}
@@ -114,12 +114,12 @@ func (h *K8sResourceHelper) CreateTestPod(
 	err = wait.PollUntilContextTimeout(
 		ctx, 1*time.Second, 30*time.Second, true,
 		func(pollCtx context.Context) (bool, error) {
-		p, err := h.client.CoreV1().Pods(namespace).Get(pollCtx, name, metav1.GetOptions{})
-		if err != nil {
-			return false, fmt.Errorf("failed to get pod status: %w", err)
-		}
-		return p.Status.Phase == corev1.PodRunning || p.Status.Phase == corev1.PodPending, nil
-	})
+			p, err := h.client.CoreV1().Pods(namespace).Get(pollCtx, name, metav1.GetOptions{})
+			if err != nil {
+				return false, fmt.Errorf("failed to get pod status: %w", err)
+			}
+			return p.Status.Phase == corev1.PodRunning || p.Status.Phase == corev1.PodPending, nil
+		})
 
 	if err != nil {
 		return nil, fmt.Errorf("pod %s/%s did not become ready: %w", namespace, name, err)
@@ -167,18 +167,18 @@ func (h *K8sResourceHelper) DeletePod(ctx context.Context, namespace, name strin
 	err = wait.PollUntilContextTimeout(
 		ctx, 1*time.Second, 30*time.Second, true,
 		func(pollCtx context.Context) (bool, error) {
-		_, err := h.client.CoreV1().Pods(namespace).Get(pollCtx, name, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
-			// Pod has been successfully deleted
-			return true, nil
-		}
-		if err != nil {
-			// Other errors (network, permission, etc.) should be returned
-			return false, fmt.Errorf("failed to check resource status: %w", err)
-		}
-		// Pod still exists
-		return false, nil
-	})
+			_, err := h.client.CoreV1().Pods(namespace).Get(pollCtx, name, metav1.GetOptions{})
+			if errors.IsNotFound(err) {
+				// Pod has been successfully deleted
+				return true, nil
+			}
+			if err != nil {
+				// Other errors (network, permission, etc.) should be returned
+				return false, fmt.Errorf("failed to check resource status: %w", err)
+			}
+			// Pod still exists
+			return false, nil
+		})
 	if err != nil {
 		return fmt.Errorf("timeout waiting for pod deletion: %w", err)
 	}

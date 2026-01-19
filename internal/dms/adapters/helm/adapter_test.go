@@ -1827,12 +1827,12 @@ func TestHelmAdapter_TestBuildPackageList(t *testing.T) {
 			name: "no filter returns all charts",
 			index: &repo.IndexFile{
 				Entries: map[string]repo.ChartVersions{
-					"nginx":      {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
+					"nginx": {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
 					"postgresql": {{
-					Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"},
-					Created:  time.Now(),
-				}},
-					"redis":      {{Metadata: &chart.Metadata{Version: "3.0.0", Description: "Redis chart"}, Created: time.Now()}},
+						Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"},
+						Created:  time.Now(),
+					}},
+					"redis": {{Metadata: &chart.Metadata{Version: "3.0.0", Description: "Redis chart"}, Created: time.Now()}},
 				},
 			},
 			filter:   nil,
@@ -1842,12 +1842,12 @@ func TestHelmAdapter_TestBuildPackageList(t *testing.T) {
 			name: "filter by chart name",
 			index: &repo.IndexFile{
 				Entries: map[string]repo.ChartVersions{
-					"nginx":      {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
+					"nginx": {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
 					"postgresql": {{
-					Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"},
-					Created:  time.Now(),
-				}},
-					"redis":      {{Metadata: &chart.Metadata{Version: "3.0.0", Description: "Redis chart"}, Created: time.Now()}},
+						Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"},
+						Created:  time.Now(),
+					}},
+					"redis": {{Metadata: &chart.Metadata{Version: "3.0.0", Description: "Redis chart"}, Created: time.Now()}},
 				},
 			},
 			filter: &dmsadapter.Filter{
@@ -1901,9 +1901,9 @@ func TestHelmAdapter_TestBuildPackageList(t *testing.T) {
 					"nginx":      {{Metadata: &chart.Metadata{Version: "1.0.0", Description: "NGINX chart"}, Created: time.Now()}},
 					"emptyChart": {},
 					"postgresql": {{
-					Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"},
-					Created:  time.Now(),
-				}},
+						Metadata: &chart.Metadata{Version: "2.0.0", Description: "PostgreSQL chart"},
+						Created:  time.Now(),
+					}},
 				},
 			},
 			filter:   nil,
