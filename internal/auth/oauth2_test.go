@@ -266,10 +266,10 @@ func TestOAuth2Authenticator_ExtractBearerToken(t *testing.T) {
 			errContains: "invalid Authorization header format",
 		},
 		{
-			name:        "bearer with different case",
-			authHeader:  "bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.test.token",
-			wantToken:   "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.test.token",
-			wantErr:     false,
+			name:       "bearer with different case",
+			authHeader: "bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.test.token",
+			wantToken:  "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.test.token",
+			wantErr:    false,
 		},
 	}
 
@@ -809,14 +809,14 @@ func TestOAuth2Authenticator_Authenticate_Integration(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name            string
-		authHeader      string
-		setupKeycloak   func(*mockKeycloakClient)
-		setupStore      func(*mockStore)
-		config          *OAuth2Config
-		wantErr         bool
-		errContains     string
-		checkUser       func(*testing.T, *TenantUser)
+		name          string
+		authHeader    string
+		setupKeycloak func(*mockKeycloakClient)
+		setupStore    func(*mockStore)
+		config        *OAuth2Config
+		wantErr       bool
+		errContains   string
+		checkUser     func(*testing.T, *TenantUser)
 	}{
 		{
 			name:       "successful authentication with existing user",
@@ -946,8 +946,8 @@ func TestOAuth2Authenticator_Authenticate_Integration(t *testing.T) {
 			errContains: "user not found and auto-provisioning disabled",
 		},
 		{
-			name:       "missing bearer token",
-			authHeader: "",
+			name:          "missing bearer token",
+			authHeader:    "",
 			setupKeycloak: func(kc *mockKeycloakClient) {},
 			setupStore:    func(s *mockStore) {},
 			config: &OAuth2Config{
