@@ -53,7 +53,11 @@ func (r *mutationResolver) CreateResource(_ context.Context, _ model.CreateResou
 }
 
 // UpdateResource is the resolver for the updateResource field.
-func (r *mutationResolver) UpdateResource(_ context.Context, _ string, _ model.UpdateResourceInput) (*adapter.Resource, error) {
+func (r *mutationResolver) UpdateResource(
+	_ context.Context,
+	_ string,
+	_ model.UpdateResourceInput,
+) (*adapter.Resource, error) {
 	panic(fmt.Errorf("not implemented: UpdateResource - updateResource"))
 }
 
@@ -63,12 +67,19 @@ func (r *mutationResolver) DeleteResource(_ context.Context, _ string) (bool, er
 }
 
 // CreateSubscription is the resolver for the createSubscription field.
-func (r *mutationResolver) CreateSubscription(_ context.Context, _ model.CreateSubscriptionInput) (*model.O2Subscription, error) {
+func (r *mutationResolver) CreateSubscription(
+	_ context.Context,
+	_ model.CreateSubscriptionInput,
+) (*model.O2Subscription, error) {
 	panic(fmt.Errorf("not implemented: CreateSubscription - createSubscription"))
 }
 
 // UpdateSubscription is the resolver for the updateSubscription field.
-func (r *mutationResolver) UpdateSubscription(_ context.Context, _ string, _ model.UpdateSubscriptionInput) (*model.O2Subscription, error) {
+func (r *mutationResolver) UpdateSubscription(
+	_ context.Context,
+	_ string,
+	_ model.UpdateSubscriptionInput,
+) (*model.O2Subscription, error) {
 	panic(fmt.Errorf("not implemented: UpdateSubscription - updateSubscription"))
 }
 
@@ -78,12 +89,19 @@ func (r *mutationResolver) DeleteSubscription(_ context.Context, _ string) (bool
 }
 
 // CreateNFDeployment is the resolver for the createNFDeployment field.
-func (r *mutationResolver) CreateNFDeployment(_ context.Context, _ model.CreateNFDeploymentInput) (*model.NFDeployment, error) {
+func (r *mutationResolver) CreateNFDeployment(
+	_ context.Context,
+	_ model.CreateNFDeploymentInput,
+) (*model.NFDeployment, error) {
 	panic(fmt.Errorf("not implemented: CreateNFDeployment - createNFDeployment"))
 }
 
 // UpdateNFDeployment is the resolver for the updateNFDeployment field.
-func (r *mutationResolver) UpdateNFDeployment(_ context.Context, _ string, _ model.UpdateNFDeploymentInput) (*model.NFDeployment, error) {
+func (r *mutationResolver) UpdateNFDeployment(
+	_ context.Context,
+	_ string,
+	_ model.UpdateNFDeploymentInput,
+) (*model.NFDeployment, error) {
 	panic(fmt.Errorf("not implemented: UpdateNFDeployment - updateNFDeployment"))
 }
 
@@ -93,7 +111,11 @@ func (r *mutationResolver) DeleteNFDeployment(_ context.Context, _ string) (bool
 }
 
 // ScaleNFDeployment is the resolver for the scaleNFDeployment field.
-func (r *mutationResolver) ScaleNFDeployment(_ context.Context, _ string, _ int) (*model.NFDeployment, error) {
+func (r *mutationResolver) ScaleNFDeployment(
+	_ context.Context,
+	_ string,
+	_ int,
+) (*model.NFDeployment, error) {
 	panic(fmt.Errorf("not implemented: ScaleNFDeployment - scaleNFDeployment"))
 }
 
@@ -103,7 +125,10 @@ func (r *mutationResolver) RollbackNFDeployment(_ context.Context, _ string) (*m
 }
 
 // CreateNFDeploymentDescriptor is the resolver for the createNFDeploymentDescriptor field.
-func (r *mutationResolver) CreateNFDeploymentDescriptor(_ context.Context, _ model.CreateDescriptorInput) (*model.NFDeploymentDescriptor, error) {
+func (r *mutationResolver) CreateNFDeploymentDescriptor(
+	_ context.Context,
+	_ model.CreateDescriptorInput,
+) (*model.NFDeploymentDescriptor, error) {
 	panic(fmt.Errorf("not implemented: CreateNFDeploymentDescriptor - createNFDeploymentDescriptor"))
 }
 
@@ -113,7 +138,10 @@ func (r *mutationResolver) DeleteNFDeploymentDescriptor(_ context.Context, _ str
 }
 
 // ExecuteWorkflow is the resolver for the executeWorkflow field.
-func (r *mutationResolver) ExecuteWorkflow(_ context.Context, _ model.ExecuteWorkflowInput) (*model.WorkflowExecution, error) {
+func (r *mutationResolver) ExecuteWorkflow(
+	_ context.Context,
+	_ model.ExecuteWorkflowInput,
+) (*model.WorkflowExecution, error) {
 	panic(fmt.Errorf("not implemented: ExecuteWorkflow - executeWorkflow"))
 }
 
@@ -123,7 +151,10 @@ func (r *mutationResolver) CancelWorkflow(_ context.Context, _ string) (bool, er
 }
 
 // CreateServiceModel is the resolver for the createServiceModel field.
-func (r *mutationResolver) CreateServiceModel(_ context.Context, _ model.CreateServiceModelInput) (*model.ServiceModel, error) {
+func (r *mutationResolver) CreateServiceModel(
+	_ context.Context,
+	_ model.CreateServiceModelInput,
+) (*model.ServiceModel, error) {
 	panic(fmt.Errorf("not implemented: CreateServiceModel - createServiceModel"))
 }
 
