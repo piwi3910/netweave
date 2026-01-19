@@ -37,6 +37,9 @@ func newMockKeycloakServer() *mockKeycloakServer {
 
 	mux := http.NewServeMux()
 
+	// Well-known endpoint (for Ping)
+	mux.HandleFunc("/realms/test/.well-known/openid-configuration", m.handleWellKnown)
+
 	// Token endpoint
 	mux.HandleFunc("/realms/test/protocol/openid-connect/token", m.handleToken)
 
@@ -53,6 +56,20 @@ func newMockKeycloakServer() *mockKeycloakServer {
 
 	m.server = httptest.NewServer(mux)
 	return m
+}
+
+func (m *mockKeycloakServer) handleWellKnown(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	resp := map[string]interface{}{
+		"issuer":                 m.server.URL + "/realms/test",
+		"authorization_endpoint": m.server.URL + "/realms/test/protocol/openid-connect/auth",
+		"token_endpoint":         m.server.URL + "/realms/test/protocol/openid-connect/token",
+	}
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (m *mockKeycloakServer) handleToken(w http.ResponseWriter, r *http.Request) {
@@ -1660,7 +1677,7 @@ func TestStore_DeserializeTenantFromAttributes(t *testing.T) {
 		"tenant_tenant-1_createdAt":      "2024-01-01T00:00:00Z",
 	}
 
-	tenant, err := store.deserializeTenantFromAttributes("tenant_tenant-1", attrs)
+	tenant, err := store.deserializeTenantFromAttributes("tenant-1", attrs)
 	require.NoError(t, err)
 	assert.NotNil(t, tenant)
 	assert.Equal(t, "tenant-1", tenant.ID)
