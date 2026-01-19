@@ -122,8 +122,8 @@ func run() error {
 	// Close errors are logged but not returned since we're shutting down anyway.
 	// The Close method still returns aggregated errors for debugging.
 	defer func() {
-		if err := components.Close(logger); err != nil {
-			logger.Error("failed to close components", zap.Error(err))
+		if closeErr := components.Close(logger); closeErr != nil {
+			logger.Error("failed to close components", zap.Error(closeErr))
 		}
 	}()
 
@@ -197,8 +197,6 @@ func setupLogger(cfg *config.Config) (*zap.Logger, error) {
 
 // initializeComponents initializes all application components.
 func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationComponents, error) {
-	ctx := context.Background()
-
 	// Initialize Redis storage
 	store, err := initializeRedisStorage(cfg, logger)
 	if err != nil {
@@ -211,90 +209,32 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		zap.Strings("addresses", cfg.Redis.Addresses),
 	)
 
-	// Initialize adapter (Kubernetes or Mock based on environment variable)
-	var imsAdapter adapter.Adapter
-	adapterType := os.Getenv("ADAPTER_TYPE")
-	if adapterType == "" {
-		adapterType = "kubernetes"
-	}
-
-	if adapterType == adapterTypeMock {
-		logger.Info("initializing mock adapter")
-		mockAdapter := mock.NewAdapter(true) // Pre-populate with sample data
-		if err := mockAdapter.Initialize(ctx); err != nil {
-			logger.Error("failed to initialize mock adapter", zap.Error(err))
-			if closeErr := store.Close(); closeErr != nil {
-				logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
-			}
-			return nil, fmt.Errorf("failed to initialize mock adapter: %w", err)
-		}
-		imsAdapter = mockAdapter
-		logger.Info("mock adapter initialized successfully",
-			zap.String("adapter", mockAdapter.Name()),
-			zap.String("version", mockAdapter.Version()),
-		)
-	} else {
-		k8sAdapter, err := initializeKubernetesAdapter(cfg, logger)
-		if err != nil {
-			logger.Error("failed to initialize Kubernetes adapter", zap.Error(err))
-			if closeErr := store.Close(); closeErr != nil {
-				logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
-			}
-			return nil, fmt.Errorf("failed to initialize Kubernetes adapter: %w", err)
-		}
-		imsAdapter = k8sAdapter
-		logger.Info("Kubernetes adapter initialized successfully",
-			zap.String("adapter", k8sAdapter.Name()),
-			zap.String("version", k8sAdapter.Version()),
-		)
+	// Initialize IMS adapter
+	imsAdapter, err := initializeIMSAdapter(cfg, logger, store)
+	if err != nil {
+		return nil, err
 	}
 
 	// Initialize health checker
 	healthChecker := initializeHealthChecker(store, imsAdapter, logger)
 	logger.Info("health checker initialized")
 
-	// Initialize auth store if multi-tenancy is enabled (done before server creation)
-	var authStore server.AuthStore
-	if cfg.MultiTenancy.Enabled {
-		var err error
-		authStore, _, err = InitializeAuth(cfg, logger)
-		if err != nil {
-			logger.Error("failed to initialize authentication subsystem")
-			if closeErr := store.Close(); closeErr != nil {
-				logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
-			}
-			if closeErr := imsAdapter.Close(); closeErr != nil {
-				logger.Warn("failed to close IMS adapter during cleanup", zap.Error(closeErr))
-			}
-			return nil, fmt.Errorf("failed to initialize auth: %w", err)
-		}
-		logger.Info("authentication store initialized",
-			zap.Bool("require_mtls", cfg.MultiTenancy.RequireMTLS),
-		)
-	}
-
-	// Create and configure HTTP server with auth store
-	srv := server.New(cfg, logger, imsAdapter, store, authStore)
-	srv.SetHealthChecker(healthChecker)
-	logger.Info("HTTP server created",
-		zap.String("host", cfg.Server.Host),
-		zap.Int("port", cfg.Server.Port),
-		zap.String("mode", cfg.Server.GinMode),
-		zap.Bool("auth_enabled", authStore != nil),
-	)
-
-	// Load OpenAPI specification for documentation endpoints
-	// This is fail-fast - server won't start without a valid OpenAPI spec
-	spec, err := loadOpenAPISpec(logger)
+	// Initialize auth store if multi-tenancy is enabled
+	authStore, err := initializeAuthStore(cfg, logger, store, imsAdapter)
 	if err != nil {
-		logger.Error("failed to load OpenAPI specification", zap.Error(err))
-		return nil, fmt.Errorf("failed to load OpenAPI specification: %w", err)
+		return nil, err
 	}
-	srv.SetOpenAPISpec(spec)
-	logger.Info("OpenAPI specification loaded",
-		zap.Int("size", len(spec)),
-	)
 
+	// Create and configure HTTP server
+	srv, err := createHTTPServer(cfg, logger, imsAdapter, store, authStore)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set health checker
+	srv.SetHealthChecker(healthChecker)
+
+	// Create components structure
 	components := &ApplicationComponents{
 		store:         store,
 		imsAdapter:    imsAdapter,
@@ -303,11 +243,8 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		authStore:     authStore,
 	}
 
-	if authStore != nil {
-		logger.Info("multi-tenancy and RBAC enabled")
-	} else {
-		logger.Info("multi-tenancy is disabled")
-	}
+	// Log multi-tenancy status
+	logMultiTenancyStatus(authStore, logger)
 
 	// Initialize DMS subsystem
 	if err := initializeDMS(cfg, srv, imsAdapter, logger); err != nil {
@@ -316,6 +253,119 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	}
 
 	return components, nil
+}
+
+// initializeIMSAdapter initializes the IMS adapter (Kubernetes or Mock).
+func initializeIMSAdapter(cfg *config.Config, logger *zap.Logger, store *storage.RedisStore) (adapter.Adapter, error) {
+	ctx := context.Background()
+	adapterType := os.Getenv("ADAPTER_TYPE")
+	if adapterType == "" {
+		adapterType = "kubernetes"
+	}
+
+	if adapterType == adapterTypeMock {
+		return initializeMockAdapter(ctx, logger, store)
+	}
+
+	return initializeKubernetesAdapterWithCleanup(cfg, logger, store)
+}
+
+// initializeMockAdapter creates and initializes a mock adapter.
+func initializeMockAdapter(ctx context.Context, logger *zap.Logger, store *storage.RedisStore) (adapter.Adapter, error) {
+	logger.Info("initializing mock adapter")
+	mockAdapter := mock.NewAdapter(true) // Pre-populate with sample data
+
+	if initErr := mockAdapter.Initialize(ctx); initErr != nil {
+		logger.Error("failed to initialize mock adapter", zap.Error(initErr))
+		if closeErr := store.Close(); closeErr != nil {
+			logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
+		}
+		return nil, fmt.Errorf("failed to initialize mock adapter: %w", initErr)
+	}
+
+	logger.Info("mock adapter initialized successfully",
+		zap.String("adapter", mockAdapter.Name()),
+		zap.String("version", mockAdapter.Version()),
+	)
+	return mockAdapter, nil
+}
+
+// initializeKubernetesAdapterWithCleanup creates and initializes a Kubernetes adapter with cleanup on error.
+func initializeKubernetesAdapterWithCleanup(cfg *config.Config, logger *zap.Logger, store *storage.RedisStore) (adapter.Adapter, error) {
+	k8sAdapter, initErr := initializeKubernetesAdapter(cfg, logger)
+	if initErr != nil {
+		logger.Error("failed to initialize Kubernetes adapter", zap.Error(initErr))
+		if closeErr := store.Close(); closeErr != nil {
+			logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
+		}
+		return nil, fmt.Errorf("failed to initialize Kubernetes adapter: %w", initErr)
+	}
+
+	logger.Info("Kubernetes adapter initialized successfully",
+		zap.String("adapter", k8sAdapter.Name()),
+		zap.String("version", k8sAdapter.Version()),
+	)
+	return k8sAdapter, nil
+}
+
+// initializeAuthStore initializes the auth store if multi-tenancy is enabled.
+func initializeAuthStore(cfg *config.Config, logger *zap.Logger, store *storage.RedisStore, imsAdapter adapter.Adapter) (server.AuthStore, error) {
+	if !cfg.MultiTenancy.Enabled {
+		return nil, nil
+	}
+
+	authStore, _, initErr := InitializeAuth(cfg, logger)
+	if initErr != nil {
+		logger.Error("failed to initialize authentication subsystem")
+		if closeErr := store.Close(); closeErr != nil {
+			logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
+		}
+		if closeErr := imsAdapter.Close(); closeErr != nil {
+			logger.Warn("failed to close IMS adapter during cleanup", zap.Error(closeErr))
+		}
+		return nil, fmt.Errorf("failed to initialize auth: %w", initErr)
+	}
+
+	logger.Info("authentication store initialized",
+		zap.Bool("require_mtls", cfg.MultiTenancy.RequireMTLS),
+	)
+	return authStore, nil
+}
+
+// createHTTPServer creates and configures the HTTP server.
+func createHTTPServer(cfg *config.Config, logger *zap.Logger, imsAdapter adapter.Adapter, store *storage.RedisStore, authStore server.AuthStore) (*server.Server, error) {
+	// Create server
+	srv := server.New(cfg, logger, imsAdapter, store, authStore)
+
+	logger.Info("HTTP server created",
+		zap.String("host", cfg.Server.Host),
+		zap.Int("port", cfg.Server.Port),
+		zap.String("mode", cfg.Server.GinMode),
+		zap.Bool("auth_enabled", authStore != nil),
+	)
+
+	// Load OpenAPI specification
+	spec, loadErr := loadOpenAPISpec(logger)
+	if loadErr != nil {
+		logger.Error("failed to load OpenAPI specification", zap.Error(loadErr))
+		return nil, fmt.Errorf("failed to load OpenAPI specification: %w", loadErr)
+	}
+
+	srv.SetOpenAPISpec(spec)
+	logger.Info("OpenAPI specification loaded",
+		zap.Int("size", len(spec)),
+	)
+
+	return srv, nil
+}
+
+// logMultiTenancyStatus logs the multi-tenancy configuration status.
+func logMultiTenancyStatus(authStore server.AuthStore, logger *zap.Logger) {
+	if authStore != nil {
+		logger.Info("multi-tenancy and RBAC enabled")
+	} else {
+		logger.Info("multi-tenancy is disabled")
+	}
 }
 
 // runServerWithShutdown starts the server and handles graceful shutdown.

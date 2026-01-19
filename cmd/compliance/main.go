@@ -73,8 +73,8 @@ func main() {
 	}
 
 	// Generate output in requested format
-	if err := generateOutput(results); err != nil {
-		logger.Error("output generation failed", zap.Error(err))
+	if outputErr := generateOutput(results); outputErr != nil {
+		logger.Error("output generation failed", zap.Error(outputErr))
 		// Exit after defer runs
 		defer os.Exit(1)
 		return
@@ -82,8 +82,8 @@ func main() {
 
 	// Update README if requested
 	if *updateReadme {
-		if err := updateReadmeFile(*readmePath, results, logger.Logger); err != nil {
-			logger.Error("failed to update README", zap.Error(err))
+		if updateErr := updateReadmeFile(*readmePath, results, logger.Logger); updateErr != nil {
+			logger.Error("failed to update README", zap.Error(updateErr))
 			// Exit after defer runs
 			defer os.Exit(1)
 			return
@@ -189,8 +189,8 @@ func updateReadmeFile(path string, results []compliance.Result, logger *zap.Logg
 	newReadme := insertBadgeSection(string(content), badgeSection, logger)
 
 	// Write updated README
-	// G306: Use 0600 permissions for security - only owner can read/write
-	if err := os.WriteFile(path, []byte(newReadme), 0600); err != nil {
+	// G306: Use 0o600 permissions for security - only owner can read/write
+	if err := os.WriteFile(path, []byte(newReadme), 0o600); err != nil {
 		return fmt.Errorf("failed to write README: %w", err)
 	}
 
