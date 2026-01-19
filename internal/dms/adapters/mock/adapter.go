@@ -156,7 +156,10 @@ func (a *Adapter) Capabilities() []adapter.Capability {
 // PackageManager implementation
 
 // ListDeploymentPackages retrieves all deployment packages matching the filter.
-func (a *Adapter) ListDeploymentPackages(_ context.Context, filter *adapter.Filter) ([]*adapter.DeploymentPackage, error) {
+func (a *Adapter) ListDeploymentPackages(
+	_ context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.DeploymentPackage, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -182,7 +185,10 @@ func (a *Adapter) GetDeploymentPackage(_ context.Context, id string) (*adapter.D
 }
 
 // UploadDeploymentPackage uploads a new deployment package.
-func (a *Adapter) UploadDeploymentPackage(_ context.Context, upload *adapter.DeploymentPackageUpload) (*adapter.DeploymentPackage, error) {
+func (a *Adapter) UploadDeploymentPackage(
+	_ context.Context,
+	upload *adapter.DeploymentPackageUpload,
+) (*adapter.DeploymentPackage, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -283,7 +289,11 @@ func (a *Adapter) CreateDeployment(_ context.Context, req *adapter.DeploymentReq
 }
 
 // UpdateDeployment updates an existing deployment.
-func (a *Adapter) UpdateDeployment(_ context.Context, id string, update *adapter.DeploymentUpdate) (*adapter.Deployment, error) {
+func (a *Adapter) UpdateDeployment(
+	_ context.Context,
+	id string,
+	update *adapter.DeploymentUpdate,
+) (*adapter.Deployment, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -506,7 +516,10 @@ func (a *Adapter) matchesFilter(dep *adapter.Deployment, filter *adapter.Filter)
 	return true
 }
 
-func (a *Adapter) applyPaginationPackages(packages []*adapter.DeploymentPackage, filter *adapter.Filter) []*adapter.DeploymentPackage {
+func (a *Adapter) applyPaginationPackages(
+	packages []*adapter.DeploymentPackage,
+	filter *adapter.Filter,
+) []*adapter.DeploymentPackage {
 	if filter == nil {
 		return packages
 	}
@@ -530,7 +543,10 @@ func (a *Adapter) applyPaginationPackages(packages []*adapter.DeploymentPackage,
 	return packages[offset:end]
 }
 
-func (a *Adapter) applyPaginationDeployments(deployments []*adapter.Deployment, filter *adapter.Filter) []*adapter.Deployment {
+func (a *Adapter) applyPaginationDeployments(
+	deployments []*adapter.Deployment,
+	filter *adapter.Filter,
+) []*adapter.Deployment {
 	if filter == nil {
 		return deployments
 	}

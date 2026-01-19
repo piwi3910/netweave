@@ -663,7 +663,10 @@ func (a *Adapter) applyPaginationResources(resources []*adapter.Resource, filter
 	return resources[offset:end]
 }
 
-func (a *Adapter) applyPaginationResourceTypes(resourceTypes []*adapter.ResourceType, filter *adapter.Filter) []*adapter.ResourceType {
+func (a *Adapter) applyPaginationResourceTypes(
+	resourceTypes []*adapter.ResourceType,
+	filter *adapter.Filter,
+) []*adapter.ResourceType {
 	if filter == nil {
 		return resourceTypes
 	}
