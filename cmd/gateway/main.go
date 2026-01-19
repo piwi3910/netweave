@@ -195,6 +195,20 @@ func setupLogger(cfg *config.Config) (*zap.Logger, error) {
 	return logger, nil
 }
 
+// cleanupOnError closes resources during error handling.
+func cleanupOnError(store *storage.RedisStore, imsAdapter adapter.Adapter, logger *zap.Logger) {
+	if store != nil {
+		if closeErr := store.Close(); closeErr != nil {
+			logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
+		}
+	}
+	if imsAdapter != nil {
+		if closeErr := imsAdapter.Close(); closeErr != nil {
+			logger.Warn("failed to close IMS adapter during cleanup", zap.Error(closeErr))
+		}
+	}
+}
+
 // initializeComponents initializes all application components.
 func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationComponents, error) {
 	// Initialize Redis storage
@@ -216,18 +230,17 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		adapterType = "kubernetes"
 	}
 
-	if adapterType == adapterTypeMock {
+	switch adapterType {
+	case adapterTypeMock:
 		mockAdp, mockErr := initializeMockAdapter(context.Background(), logger, store)
 		if mockErr != nil {
 			return nil, mockErr
 		}
 		imsAdapter = mockAdp
-	} else {
+	default:
 		k8sAdp, k8sErr := initializeKubernetesAdapter(cfg, logger)
 		if k8sErr != nil {
-			if closeErr := store.Close(); closeErr != nil {
-				logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
-			}
+			cleanupOnError(store, nil, logger)
 			return nil, fmt.Errorf("failed to initialize Kubernetes adapter: %w", k8sErr)
 		}
 		logger.Info("Kubernetes adapter initialized successfully",
@@ -248,12 +261,7 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		authStore, _, initErr = InitializeAuth(cfg, logger)
 		if initErr != nil {
 			logger.Error("failed to initialize authentication subsystem")
-			if closeErr := store.Close(); closeErr != nil {
-				logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
-			}
-			if closeErr := imsAdapter.Close(); closeErr != nil {
-				logger.Warn("failed to close IMS adapter during cleanup", zap.Error(closeErr))
-			}
+			cleanupOnError(store, imsAdapter, logger)
 			return nil, fmt.Errorf("failed to initialize auth: %w", initErr)
 		}
 
@@ -691,52 +699,15 @@ func initializeDMS(
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if dmsAdapterType == adapterTypeMock {
-		// Initialize Mock DMS adapter
-		logger.Info("initializing mock DMS adapter")
-		mockDMSAdapter := dmsmock.NewAdapter(true) // Pre-populate with sample data
-		if err := mockDMSAdapter.Initialize(ctx); err != nil {
-			return fmt.Errorf("failed to initialize mock DMS adapter: %w", err)
+	switch dmsAdapterType {
+	case adapterTypeMock:
+		if regErr := registerMockDMSAdapter(ctx, dmsReg, logger); regErr != nil {
+			return regErr
 		}
-
-		mockConfig := map[string]interface{}{
-			"populated": true,
-			"packages":  5,
+	default:
+		if regErr := registerHelmDMSAdapter(ctx, cfg, dmsReg, logger); regErr != nil {
+			return regErr
 		}
-
-		if err := dmsReg.Register(ctx, adapterTypeMock, adapterTypeMock, mockDMSAdapter, mockConfig, true); err != nil {
-			return fmt.Errorf("failed to register mock DMS adapter: %w", err)
-		}
-
-		logger.Info("mock DMS adapter registered successfully",
-			zap.String("adapter", adapterTypeMock),
-			zap.Int("packages", 5),
-		)
-	} else {
-		// Initialize Helm adapter
-		helmConfig := &helm.Config{
-			Kubeconfig: cfg.Kubernetes.ConfigPath,
-			Namespace:  cfg.Kubernetes.Namespace,
-			Timeout:    30 * time.Second,
-		}
-
-		helmAdapter, err := helm.NewAdapter(helmConfig)
-		if err != nil {
-			return fmt.Errorf("failed to create Helm adapter: %w", err)
-		}
-
-		helmAdapterConfig := map[string]interface{}{
-			"namespace": helmConfig.Namespace,
-			"timeout":   helmConfig.Timeout,
-		}
-
-		if err := dmsReg.Register(ctx, "helm", "helm", helmAdapter, helmAdapterConfig, true); err != nil {
-			return fmt.Errorf("failed to register Helm adapter: %w", err)
-		}
-
-		logger.Info("Helm DMS adapter registered successfully",
-			zap.String("adapter", "helm"),
-		)
 	}
 
 	// Setup DMS routes and handlers
@@ -747,6 +718,63 @@ func initializeDMS(
 		zap.Int("endpoints", 4), // deploymentLifecycle, nfDeployments, nfDeploymentDescriptors, subscriptions
 	)
 
+	return nil
+}
+
+// registerMockDMSAdapter registers the mock DMS adapter.
+func registerMockDMSAdapter(ctx context.Context, dmsReg *dmsregistry.Registry, logger *zap.Logger) error {
+	logger.Info("initializing mock DMS adapter")
+	mockDMSAdapter := dmsmock.NewAdapter(true) // Pre-populate with sample data
+	if initErr := mockDMSAdapter.Initialize(ctx); initErr != nil {
+		return fmt.Errorf("failed to initialize mock DMS adapter: %w", initErr)
+	}
+
+	mockConfig := map[string]interface{}{
+		"populated": true,
+		"packages":  5,
+	}
+
+	if regErr := dmsReg.Register(ctx, adapterTypeMock, adapterTypeMock, mockDMSAdapter, mockConfig, true); regErr != nil {
+		return fmt.Errorf("failed to register mock DMS adapter: %w", regErr)
+	}
+
+	logger.Info("mock DMS adapter registered successfully",
+		zap.String("adapter", adapterTypeMock),
+		zap.Int("packages", 5),
+	)
+	return nil
+}
+
+// registerHelmDMSAdapter registers the Helm DMS adapter.
+func registerHelmDMSAdapter(
+	ctx context.Context,
+	cfg *config.Config,
+	dmsReg *dmsregistry.Registry,
+	logger *zap.Logger,
+) error {
+	helmConfig := &helm.Config{
+		Kubeconfig: cfg.Kubernetes.ConfigPath,
+		Namespace:  cfg.Kubernetes.Namespace,
+		Timeout:    30 * time.Second,
+	}
+
+	helmAdapter, createErr := helm.NewAdapter(helmConfig)
+	if createErr != nil {
+		return fmt.Errorf("failed to create Helm adapter: %w", createErr)
+	}
+
+	helmAdapterConfig := map[string]interface{}{
+		"namespace": helmConfig.Namespace,
+		"timeout":   helmConfig.Timeout,
+	}
+
+	if regErr := dmsReg.Register(ctx, "helm", "helm", helmAdapter, helmAdapterConfig, true); regErr != nil {
+		return fmt.Errorf("failed to register Helm adapter: %w", regErr)
+	}
+
+	logger.Info("Helm DMS adapter registered successfully",
+		zap.String("adapter", "helm"),
+	)
 	return nil
 }
 
@@ -932,13 +960,13 @@ func InitializeAuth(cfg *config.Config, logger *zap.Logger) (auth.Store, *auth.M
 		}
 
 		// Get secrets from environment if configured
-		if secret, err := cfg.Auth.Keycloak.GetClientSecret(); err == nil {
+		if secret, secretErr := cfg.Auth.Keycloak.GetClientSecret(); secretErr == nil {
 			keycloakCfg.ClientSecret = secret
 		}
 
-		keycloakClient, err := keycloak.NewClient(keycloakCfg)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to initialize Keycloak client: %w", err)
+		keycloakClient, clientErr := keycloak.NewClient(keycloakCfg)
+		if clientErr != nil {
+			return nil, nil, fmt.Errorf("failed to initialize Keycloak client: %w", clientErr)
 		}
 
 		authStore = keycloak.NewStore(keycloakClient, logger)
@@ -959,14 +987,14 @@ func InitializeAuth(cfg *config.Config, logger *zap.Logger) (auth.Store, *auth.M
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := authStore.Ping(ctx); err != nil {
-		return nil, nil, fmt.Errorf("auth store connectivity check failed: %w", err)
+	if pingErr := authStore.Ping(ctx); pingErr != nil {
+		return nil, nil, fmt.Errorf("auth store connectivity check failed: %w", pingErr)
 	}
 
 	// Initialize default roles if configured.
 	if cfg.MultiTenancy.InitializeDefaultRoles {
-		if err := authStore.InitializeDefaultRoles(ctx); err != nil {
-			return nil, nil, fmt.Errorf("failed to initialize default roles: %w", err)
+		if rolesErr := authStore.InitializeDefaultRoles(ctx); rolesErr != nil {
+			return nil, nil, fmt.Errorf("failed to initialize default roles: %w", rolesErr)
 		}
 		logger.Info("default roles initialized")
 	}
@@ -992,9 +1020,9 @@ func InitializeAuth(cfg *config.Config, logger *zap.Logger) (auth.Store, *auth.M
 			Timeout:      10 * time.Second,
 		}
 
-		keycloakClient, err := keycloak.NewClient(keycloakCfg)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to initialize Keycloak client: %w", err)
+		keycloakClient, oauth2ClientErr := keycloak.NewClient(keycloakCfg)
+		if oauth2ClientErr != nil {
+			return nil, nil, fmt.Errorf("failed to initialize Keycloak client: %w", oauth2ClientErr)
 		}
 
 		// Create OAuth2 config.
