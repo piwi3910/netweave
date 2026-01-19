@@ -55,7 +55,7 @@ func (h *K8sResourceHelper) DeleteNamespace(ctx context.Context, name string) er
 	}
 
 	// Wait for namespace to be deleted (up to 60 seconds)
-	err := wait.PollUntilContextTimeout(
+	err = wait.PollUntilContextTimeout(
 		ctx, 2*time.Second, 60*time.Second, true,
 		func(pollCtx context.Context) (bool, error) {
 		_, err := h.client.CoreV1().Namespaces().Get(pollCtx, name, metav1.GetOptions{})
