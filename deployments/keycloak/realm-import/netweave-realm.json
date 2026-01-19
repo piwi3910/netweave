@@ -1,0 +1,240 @@
+{
+  "realm": "netweave",
+  "enabled": true,
+  "displayName": "NetWeave Gateway",
+  "displayNameHtml": "<b>NetWeave</b> Gateway",
+  "loginTheme": "keycloak",
+  "accountTheme": "keycloak",
+  "adminTheme": "keycloak",
+  "emailTheme": "keycloak",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "defaultSignatureAlgorithm": "RS256",
+  "revokeRefreshToken": false,
+  "refreshTokenMaxReuse": 0,
+  "accessTokenLifespan": 300,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "actionTokenGeneratedByAdminLifespan": 43200,
+  "actionTokenGeneratedByUserLifespan": 300,
+  "clients": [
+    {
+      "clientId": "netweave-gateway",
+      "name": "NetWeave Gateway",
+      "description": "NetWeave Gateway API",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "netweave-gateway-secret-change-in-production",
+      "redirectUris": [
+        "http://localhost:8081/*",
+        "https://localhost:8081/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8081",
+        "https://localhost:8081"
+      ],
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "fullScopeAllowed": true,
+      "attributes": {
+        "access.token.lifespan": "300",
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "tenant-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "tenantId",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "tenant",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        },
+        {
+          "name": "cert-subject-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "certSubject",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "cert_subject",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "admin-portal",
+      "name": "NetWeave Admin Portal",
+      "description": "Web UI for administration",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "admin-portal-secret-change-in-production",
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "https://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "https://localhost:3000"
+      ],
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "fullScopeAllowed": true
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "platform-admin",
+        "description": "Full platform access across all tenants",
+        "composite": false
+      },
+      {
+        "name": "tenant-admin",
+        "description": "Administrative access for tenant management",
+        "composite": false
+      }
+    ],
+    "client": {
+      "netweave-gateway": [
+        {
+          "name": "owner",
+          "description": "Full access within a tenant",
+          "composite": false
+        },
+        {
+          "name": "admin",
+          "description": "Administrative access within a tenant",
+          "composite": false
+        },
+        {
+          "name": "operator",
+          "description": "Operational access for resource management",
+          "composite": false
+        },
+        {
+          "name": "viewer",
+          "description": "Read-only access to resources",
+          "composite": false
+        }
+      ]
+    }
+  },
+  "users": [
+    {
+      "username": "admin",
+      "email": "admin@example.com",
+      "firstName": "Platform",
+      "lastName": "Administrator",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["platform-admin"],
+      "attributes": {
+        "tenantId": ["platform"],
+        "certSubject": ["CN=admin,O=NetWeave,OU=Platform"]
+      }
+    },
+    {
+      "username": "operator",
+      "email": "operator@example.com",
+      "firstName": "Test",
+      "lastName": "Operator",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "operator",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "netweave-gateway": ["operator"]
+      },
+      "attributes": {
+        "tenantId": ["tenant-test"],
+        "certSubject": ["CN=operator,O=NetWeave,OU=TenantTest"]
+      }
+    },
+    {
+      "username": "viewer",
+      "email": "viewer@example.com",
+      "firstName": "Test",
+      "lastName": "Viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "viewer",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "netweave-gateway": ["viewer"]
+      },
+      "attributes": {
+        "tenantId": ["tenant-test"],
+        "certSubject": ["CN=viewer,O=NetWeave,OU=TenantTest"]
+      }
+    }
+  ]
+}
