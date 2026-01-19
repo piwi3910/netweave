@@ -67,7 +67,7 @@ jobs:
 
       - name: Upload Snyk report artifact
         if: always() && hashFiles('snyk-report.json') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: snyk-report
           path: snyk-report.json
@@ -110,7 +110,7 @@ jobs:
 
       - name: Upload Nancy report artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: nancy-report
           path: nancy-report.json
@@ -147,7 +147,7 @@ jobs:
 
       - name: Upload govulncheck report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: govulncheck-report
           path: govulncheck-report.json
@@ -207,7 +207,7 @@ jobs:
 
       - name: Upload Trivy report artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: trivy-report
           path: trivy-report.json
@@ -241,7 +241,7 @@ jobs:
 
       - name: Upload outdated dependencies list
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: outdated-dependencies
           path: outdated.txt

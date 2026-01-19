@@ -86,7 +86,7 @@ jobs:
 
       - name: Upload license reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: license-reports
           path: |
@@ -163,14 +163,14 @@ jobs:
           done || true
 
       - name: Upload NOTICE file
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: NOTICE
           path: NOTICE
           retention-days: 90
 
       - name: Upload all license files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: third-party-licenses
           path: licenses-output/
