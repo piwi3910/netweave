@@ -37,7 +37,12 @@ func NewTestServerWithRouter(router *gin.Engine, logger *zap.Logger) *Server {
 // Each test gets its own isolated metrics registry to avoid "duplicate metrics collector" panics.
 // This is a simplified version of New() that bypasses observability.InitMetrics().
 // Usage: Call this at the start of each test that would normally call server.New().
-func NewTestServerWithMetrics(cfg *config.Config, logger *zap.Logger, adp adapter.Adapter, store storage.Store) (*Server, *prometheus.Registry) {
+func NewTestServerWithMetrics(
+	cfg *config.Config,
+	logger *zap.Logger,
+	adp adapter.Adapter,
+	store storage.Store,
+) (*Server, *prometheus.Registry) {
 	registry := prometheus.NewRegistry()
 
 	// Initialize observability metrics with custom registry (avoids global registry conflicts)

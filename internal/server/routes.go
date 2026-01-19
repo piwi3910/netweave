@@ -140,8 +140,10 @@ func (s *Server) setupV1Routes(v1 *gin.RouterGroup) {
 	// Endpoint: /deploymentManagers
 	deploymentManagers := v1.Group("/deploymentManagers")
 	{
-		deploymentManagers.GET("", s.withPermission("deploymentManagers:read", s.handleListDeploymentManagers))
-		deploymentManagers.GET("/:deploymentManagerId", s.withPermission("deploymentManagers:read", s.handleGetDeploymentManager))
+		deploymentManagers.GET("",
+			s.withPermission("deploymentManagers:read", s.handleListDeploymentManagers))
+		deploymentManagers.GET("/:deploymentManagerId",
+			s.withPermission("deploymentManagers:read", s.handleGetDeploymentManager))
 	}
 
 	// O-Cloud Infrastructure Information

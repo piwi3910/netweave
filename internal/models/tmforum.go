@@ -123,7 +123,8 @@ type TMF638Service struct {
 	// Description provides a description of the service
 	Description string `json:"description,omitempty"`
 
-	// State indicates the lifecycle state (e.g., "feasibilityChecked", "designed", "reserved", "active", "inactive", "terminated")
+	// State indicates the lifecycle state.
+	// Examples: "feasibilityChecked", "designed", "reserved", "active", "inactive", "terminated"
 	State string `json:"state,omitempty"`
 
 	// ServiceType categorizes the service (e.g., "CNF", "VNF", "PNF")

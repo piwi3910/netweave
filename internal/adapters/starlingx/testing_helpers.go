@@ -114,7 +114,9 @@ func handleHostsEndpoint(w http.ResponseWriter, r *http.Request, config *MockSer
 		return true
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v1/ihosts/") && !strings.Contains(r.URL.Path[len("/v1/ihosts/"):], "/") && r.Method == http.MethodGet {
+	if strings.HasPrefix(r.URL.Path, "/v1/ihosts/") &&
+		!strings.Contains(r.URL.Path[len("/v1/ihosts/"):], "/") &&
+		r.Method == http.MethodGet {
 		hostUUID := r.URL.Path[len("/v1/ihosts/"):]
 		for _, host := range config.Hosts {
 			if host.UUID == hostUUID {

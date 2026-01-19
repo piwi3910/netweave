@@ -67,8 +67,10 @@ func (s *Server) setupDMSV2Routes(v2 *gin.RouterGroup, handler *dmshandlers.Hand
 		batch.POST("/nfDeployments/scale", handler.ListNFDeployments)  // Placeholder - will be batch scale
 
 		// Batch descriptor operations
-		batch.POST("/nfDeploymentDescriptors", handler.ListNFDeploymentDescriptors)        // Placeholder - will be batch create
-		batch.POST("/nfDeploymentDescriptors/delete", handler.ListNFDeploymentDescriptors) // Placeholder - will be batch delete
+		// Placeholder - will be batch create
+		batch.POST("/nfDeploymentDescriptors", handler.ListNFDeploymentDescriptors)
+		// Placeholder - will be batch delete
+		batch.POST("/nfDeploymentDescriptors/delete", handler.ListNFDeploymentDescriptors)
 	}
 
 	// V2 features endpoint
@@ -94,8 +96,10 @@ func (s *Server) setupDMSV3Routes(v3 *gin.RouterGroup, handler *dmshandlers.Hand
 		batch.POST("/nfDeployments/scale", handler.ListNFDeployments)  // Placeholder - will be batch scale
 
 		// Batch descriptor operations (tenant-scoped)
-		batch.POST("/nfDeploymentDescriptors", handler.ListNFDeploymentDescriptors)        // Placeholder - will be batch create
-		batch.POST("/nfDeploymentDescriptors/delete", handler.ListNFDeploymentDescriptors) // Placeholder - will be batch delete
+		// Placeholder - will be batch create
+		batch.POST("/nfDeploymentDescriptors", handler.ListNFDeploymentDescriptors)
+		// Placeholder - will be batch delete
+		batch.POST("/nfDeploymentDescriptors/delete", handler.ListNFDeploymentDescriptors)
 	}
 
 	// V3 features endpoint
