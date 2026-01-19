@@ -256,10 +256,8 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	// Initialize auth store if multi-tenancy is enabled (done before server creation)
 	var authStore server.AuthStore
 	if cfg.MultiTenancy.Enabled {
-		var redisAuthStore *auth.RedisStore
 		var err error
-		redisAuthStore, _, err = InitializeAuth(cfg, logger)
-		authStore = redisAuthStore
+		authStore, _, err = InitializeAuth(cfg, logger)
 		if err != nil {
 			logger.Error("failed to initialize authentication subsystem")
 			if closeErr := store.Close(); closeErr != nil {
@@ -833,9 +831,9 @@ func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 // InitializeAuth creates and initializes the authentication store and middleware.
 //
 // This function performs the following initialization steps:
-//  1. Retrieves Redis credentials from environment variables, files, or config
-//  2. Builds Redis configuration with support for standalone and Sentinel modes
-//  3. Creates the auth Redis store and verifies connectivity via ping
+//  1. Retrieves authentication backend credentials from environment variables, files, or config
+//  2. Creates auth store (Redis or Keycloak) based on configured backend
+//  3. Verifies auth store connectivity via ping
 //  4. Initializes default system roles if configured (platform-admin, tenant-admin, etc.)
 //  5. Creates authentication middleware with configured skip paths and mTLS requirements
 //
@@ -844,14 +842,14 @@ func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 //   - logger: Structured logger for logging initialization progress and errors
 //
 // Returns:
-//   - authStore: Initialized Redis store for auth data (tenants, users, roles, audit)
+//   - authStore: Initialized auth store (Redis or Keycloak) for auth data (tenants, users, roles, audit)
 //   - authMw: Configured authentication middleware for request validation
 //   - err: Any error encountered during initialization
 //
 // InitializeAuth initializes the authentication store and middleware.
 // Errors are returned without exposing sensitive credential details in messages.
 // This function is only called when cfg.MultiTenancy.Enabled is true.
-func InitializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *auth.Middleware, error) {
+func InitializeAuth(cfg *config.Config, logger *zap.Logger) (auth.Store, *auth.Middleware, error) {
 	// Get Redis password (reuse the same logic as main storage).
 	password, redisModeSentinelPassword, err := getRedisPasswords(cfg, logger)
 	if err != nil {
@@ -885,8 +883,42 @@ func InitializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *
 		}
 	}
 
-	// Create auth Redis store.
-	authStore := auth.NewRedisStore(authRedisCfg)
+	// Create auth store based on configured backend.
+	var authStore auth.Store
+	switch cfg.Auth.Backend {
+	case "keycloak":
+		// Initialize Keycloak store
+		keycloakCfg := &keycloak.Config{
+			BaseURL:      cfg.Auth.Keycloak.BaseURL,
+			Realm:        cfg.Auth.Keycloak.Realm,
+			ClientID:     cfg.Auth.Keycloak.ClientID,
+			ClientSecret: cfg.Auth.Keycloak.ClientSecret,
+			Timeout:      cfg.Auth.Keycloak.Timeout,
+		}
+
+		// Get secrets from environment if configured
+		if secret, err := cfg.Auth.Keycloak.GetClientSecret(); err == nil {
+			keycloakCfg.ClientSecret = secret
+		}
+
+		keycloakClient, err := keycloak.NewClient(keycloakCfg)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to initialize Keycloak client: %w", err)
+		}
+
+		authStore = keycloak.NewStore(keycloakClient, logger)
+		logger.Info("Keycloak auth store initialized",
+			zap.String("backend", "keycloak"),
+			zap.String("base_url", cfg.Auth.Keycloak.BaseURL),
+			zap.String("realm", cfg.Auth.Keycloak.Realm),
+		)
+
+	default: // "redis"
+		authStore = auth.NewRedisStore(authRedisCfg)
+		logger.Info("Redis auth store initialized",
+			zap.String("backend", "redis"),
+		)
+	}
 
 	// Verify connectivity.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -895,8 +927,6 @@ func InitializeAuth(cfg *config.Config, logger *zap.Logger) (*auth.RedisStore, *
 	if err := authStore.Ping(ctx); err != nil {
 		return nil, nil, fmt.Errorf("auth store connectivity check failed: %w", err)
 	}
-
-	logger.Info("auth Redis store initialized")
 
 	// Initialize default roles if configured.
 	if cfg.MultiTenancy.InitializeDefaultRoles {

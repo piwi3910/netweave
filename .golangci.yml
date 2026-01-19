@@ -82,6 +82,11 @@ linters:
           - gosec
         path: cmd/gateway/main\.go
         text: "G304"
+      # Allow ireturn for InitializeAuth factory function (returns auth.Store interface for Redis/Keycloak backends)
+      - linters:
+          - ireturn
+        path: cmd/gateway/main\.go
+        text: "InitializeAuth"
       # Allow G304 for compliance tool (path validated to reject ".." traversal)
       - linters:
           - gosec
