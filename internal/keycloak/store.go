@@ -884,6 +884,9 @@ func (s *Store) CreateRole(ctx context.Context, role *auth.Role) error {
 	if role == nil {
 		return fmt.Errorf("role cannot be nil")
 	}
+	if role.ID == "" {
+		return auth.ErrInvalidRoleID
+	}
 	if role.Name == "" {
 		return fmt.Errorf("role name is required")
 	}

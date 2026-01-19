@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 // User represents a Keycloak user.
@@ -64,7 +65,18 @@ func (c *Client) CreateUser(ctx context.Context, user *User) (string, error) {
 		return "", fmt.Errorf("no location header in response")
 	}
 
-	userID := location[len(location)-36:]
+	// Extract user ID from location header (last segment after final /)
+	// Keycloak returns URLs like: /admin/realms/test/users/{userID}
+	lastSlash := strings.LastIndex(location, "/")
+	if lastSlash == -1 || lastSlash == len(location)-1 {
+		return "", fmt.Errorf("invalid location header format: %s", location)
+	}
+
+	userID := location[lastSlash+1:]
+	if userID == "" {
+		return "", fmt.Errorf("empty user ID in location header: %s", location)
+	}
+
 	return userID, nil
 }
 

@@ -40,8 +40,9 @@ func newMockKeycloakServer() *mockKeycloakServer {
 	// Well-known endpoint (for Ping)
 	mux.HandleFunc("/realms/test/.well-known/openid-configuration", m.handleWellKnown)
 
-	// Token endpoint
+	// Token endpoints (both test realm and master realm for admin auth)
 	mux.HandleFunc("/realms/test/protocol/openid-connect/token", m.handleToken)
+	mux.HandleFunc("/realms/master/protocol/openid-connect/token", m.handleToken)
 
 	// Realm endpoints
 	mux.HandleFunc("/admin/realms/test", m.handleRealm)
@@ -233,7 +234,10 @@ func (m *mockKeycloakServer) handleRoles(w http.ResponseWriter, r *http.Request)
 				return
 			}
 		}
-		role.ID = "role-" + role.Name
+		// Preserve the ID sent by the client (if provided)
+		if role.ID == "" {
+			role.ID = "role-" + role.Name
+		}
 		m.roles[role.Name] = &role
 		w.WriteHeader(http.StatusCreated)
 
