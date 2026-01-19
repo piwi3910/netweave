@@ -198,10 +198,10 @@ func setupLogger(cfg *config.Config) (*zap.Logger, error) {
 // initializeComponents initializes all application components.
 func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationComponents, error) {
 	// Initialize Redis storage
-	store, err := initializeRedisStorage(cfg, logger)
-	if err != nil {
-		logger.Error("failed to initialize Redis storage", zap.Error(err))
-		return nil, fmt.Errorf("failed to initialize Redis storage: %w", err)
+	store, storeErr := initializeRedisStorage(cfg, logger)
+	if storeErr != nil {
+		logger.Error("failed to initialize Redis storage", zap.Error(storeErr))
+		return nil, fmt.Errorf("failed to initialize Redis storage: %w", storeErr)
 	}
 
 	logger.Info("Redis storage initialized successfully",
@@ -210,9 +210,9 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	)
 
 	// Initialize IMS adapter
-	imsAdapter, err := initializeIMSAdapter(cfg, logger, store)
-	if err != nil {
-		return nil, err
+	imsAdapter, adapterErr := initializeIMSAdapterConcrete(cfg, logger, store)
+	if adapterErr != nil {
+		return nil, adapterErr
 	}
 
 	// Initialize health checker
@@ -220,15 +220,19 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	logger.Info("health checker initialized")
 
 	// Initialize auth store if multi-tenancy is enabled
-	authStore, err := initializeAuthStore(cfg, logger, store, imsAdapter)
-	if err != nil {
-		return nil, err
+	var authStore server.AuthStore
+	if cfg.MultiTenancy.Enabled {
+		var authErr error
+		authStore, authErr = initializeAuthStore(cfg, logger, store, imsAdapter)
+		if authErr != nil {
+			return nil, authErr
+		}
 	}
 
 	// Create and configure HTTP server
-	srv, err := createHTTPServer(cfg, logger, imsAdapter, store, authStore)
-	if err != nil {
-		return nil, err
+	srv, srvErr := createHTTPServer(cfg, logger, imsAdapter, store, authStore)
+	if srvErr != nil {
+		return nil, srvErr
 	}
 
 	// Set health checker
@@ -247,16 +251,17 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	logMultiTenancyStatus(authStore, logger)
 
 	// Initialize DMS subsystem
-	if err := initializeDMS(cfg, srv, imsAdapter, logger); err != nil {
-		logger.Error("failed to initialize DMS subsystem", zap.Error(err))
-		return nil, fmt.Errorf("failed to initialize DMS: %w", err)
+	if dmsErr := initializeDMS(cfg, srv, imsAdapter, logger); dmsErr != nil {
+		logger.Error("failed to initialize DMS subsystem", zap.Error(dmsErr))
+		return nil, fmt.Errorf("failed to initialize DMS: %w", dmsErr)
 	}
 
 	return components, nil
 }
 
-// initializeIMSAdapter initializes the IMS adapter (Kubernetes or Mock).
-func initializeIMSAdapter(cfg *config.Config, logger *zap.Logger, store *storage.RedisStore) (adapter.Adapter, error) {
+// initializeIMSAdapterConcrete initializes the IMS adapter (Kubernetes or Mock) and returns the concrete implementation.
+// Returns adapter.Adapter interface to allow for polymorphism.
+func initializeIMSAdapterConcrete(cfg *config.Config, logger *zap.Logger, store *storage.RedisStore) (adapter.Adapter, error) {
 	ctx := context.Background()
 	adapterType := os.Getenv("ADAPTER_TYPE")
 	if adapterType == "" {
@@ -264,35 +269,26 @@ func initializeIMSAdapter(cfg *config.Config, logger *zap.Logger, store *storage
 	}
 
 	if adapterType == adapterTypeMock {
-		return initializeMockAdapter(ctx, logger, store)
-	}
+		logger.Info("initializing mock adapter")
+		mockAdp := mock.NewAdapter(true) // Pre-populate with sample data
 
-	return initializeKubernetesAdapterWithCleanup(cfg, logger, store)
-}
-
-// initializeMockAdapter creates and initializes a mock adapter.
-func initializeMockAdapter(ctx context.Context, logger *zap.Logger, store *storage.RedisStore) (adapter.Adapter, error) {
-	logger.Info("initializing mock adapter")
-	mockAdapter := mock.NewAdapter(true) // Pre-populate with sample data
-
-	if initErr := mockAdapter.Initialize(ctx); initErr != nil {
-		logger.Error("failed to initialize mock adapter", zap.Error(initErr))
-		if closeErr := store.Close(); closeErr != nil {
-			logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
+		if initErr := mockAdp.Initialize(ctx); initErr != nil {
+			logger.Error("failed to initialize mock adapter", zap.Error(initErr))
+			if closeErr := store.Close(); closeErr != nil {
+				logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
+			}
+			return nil, fmt.Errorf("failed to initialize mock adapter: %w", initErr)
 		}
-		return nil, fmt.Errorf("failed to initialize mock adapter: %w", initErr)
+
+		logger.Info("mock adapter initialized successfully",
+			zap.String("adapter", mockAdp.Name()),
+			zap.String("version", mockAdp.Version()),
+		)
+		return mockAdp, nil
 	}
 
-	logger.Info("mock adapter initialized successfully",
-		zap.String("adapter", mockAdapter.Name()),
-		zap.String("version", mockAdapter.Version()),
-	)
-	return mockAdapter, nil
-}
-
-// initializeKubernetesAdapterWithCleanup creates and initializes a Kubernetes adapter with cleanup on error.
-func initializeKubernetesAdapterWithCleanup(cfg *config.Config, logger *zap.Logger, store *storage.RedisStore) (adapter.Adapter, error) {
-	k8sAdapter, initErr := initializeKubernetesAdapter(cfg, logger)
+	// Initialize Kubernetes adapter
+	k8sAdp, initErr := initializeKubernetesAdapter(cfg, logger)
 	if initErr != nil {
 		logger.Error("failed to initialize Kubernetes adapter", zap.Error(initErr))
 		if closeErr := store.Close(); closeErr != nil {
@@ -302,18 +298,15 @@ func initializeKubernetesAdapterWithCleanup(cfg *config.Config, logger *zap.Logg
 	}
 
 	logger.Info("Kubernetes adapter initialized successfully",
-		zap.String("adapter", k8sAdapter.Name()),
-		zap.String("version", k8sAdapter.Version()),
+		zap.String("adapter", k8sAdp.Name()),
+		zap.String("version", k8sAdp.Version()),
 	)
-	return k8sAdapter, nil
+	return k8sAdp, nil
 }
 
-// initializeAuthStore initializes the auth store if multi-tenancy is enabled.
+// initializeAuthStore initializes the auth store.
+// This function should only be called when multi-tenancy is enabled.
 func initializeAuthStore(cfg *config.Config, logger *zap.Logger, store *storage.RedisStore, imsAdapter adapter.Adapter) (server.AuthStore, error) {
-	if !cfg.MultiTenancy.Enabled {
-		return nil, nil
-	}
-
 	authStore, _, initErr := InitializeAuth(cfg, logger)
 	if initErr != nil {
 		logger.Error("failed to initialize authentication subsystem")
@@ -333,7 +326,13 @@ func initializeAuthStore(cfg *config.Config, logger *zap.Logger, store *storage.
 }
 
 // createHTTPServer creates and configures the HTTP server.
-func createHTTPServer(cfg *config.Config, logger *zap.Logger, imsAdapter adapter.Adapter, store *storage.RedisStore, authStore server.AuthStore) (*server.Server, error) {
+func createHTTPServer(
+	cfg *config.Config,
+	logger *zap.Logger,
+	imsAdapter adapter.Adapter,
+	store *storage.RedisStore,
+	authStore server.AuthStore,
+) (*server.Server, error) {
 	// Create server
 	srv := server.New(cfg, logger, imsAdapter, store, authStore)
 
@@ -418,14 +417,14 @@ func handleShutdown(
 // loadConfiguration loads and validates the application configuration.
 func loadConfiguration(configPath string) (*config.Config, error) {
 	// Load configuration from file and environment variables
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config from %s: %w", configPath, err)
+	cfg, loadErr := config.Load(configPath)
+	if loadErr != nil {
+		return nil, fmt.Errorf("failed to load config from %s: %w", configPath, loadErr)
 	}
 
 	// Validate configuration
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
+	if validateErr := cfg.Validate(); validateErr != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", validateErr)
 	}
 
 	return cfg, nil
@@ -490,21 +489,21 @@ func parseLogLevel(level string) zap.AtomicLevel {
 
 // initializeRedisStorage creates and initializes Redis storage.
 func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.RedisStore, error) {
-	password, redisModeSentinelPassword, err := getRedisPasswords(cfg, logger)
-	if err != nil {
-		return nil, err
+	password, redisModeSentinelPassword, passErr := getRedisPasswords(cfg, logger)
+	if passErr != nil {
+		return nil, passErr
 	}
 
 	redisCfg := buildRedisConfig(cfg, password, redisModeSentinelPassword)
-	if err := configureRedisMode(redisCfg, cfg, logger); err != nil {
-		return nil, err
+	if modeErr := configureRedisMode(redisCfg, cfg, logger); modeErr != nil {
+		return nil, modeErr
 	}
 
 	logSecurityWarnings(cfg, logger)
 
 	store := storage.NewRedisStore(redisCfg)
-	if err := verifyRedisConnectivity(store); err != nil {
-		return nil, err
+	if connErr := verifyRedisConnectivity(store); connErr != nil {
+		return nil, connErr
 	}
 
 	logger.Info("Redis connectivity verified")
@@ -516,9 +515,9 @@ func initializeRedisStorage(cfg *config.Config, logger *zap.Logger) (*storage.Re
 func getRedisPasswords(
 	cfg *config.Config,
 	logger *zap.Logger,
-) (string, string, error) {
+) (redisPassword string, sentinelPassword string, err error) {
 	// Get Redis password
-	redisPassword, err := cfg.Redis.GetPassword()
+	redisPassword, err = cfg.Redis.GetPassword()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get Redis password: %w", err)
 	}
@@ -532,9 +531,8 @@ func getRedisPasswords(
 	}
 
 	// Get Sentinel password (only relevant for Sentinel mode)
-	var redisModeSentinelPassword string
 	if cfg.Redis.Mode == redisModeSentinel {
-		redisModeSentinelPassword, err = cfg.Redis.GetSentinelPassword()
+		sentinelPassword, err = cfg.Redis.GetSentinelPassword()
 		if err != nil {
 			return "", "", fmt.Errorf("failed to get Sentinel password: %w", err)
 		}
@@ -548,7 +546,7 @@ func getRedisPasswords(
 		}
 	}
 
-	return redisPassword, redisModeSentinelPassword, nil
+	return redisPassword, sentinelPassword, nil
 }
 
 // buildRedisConfig creates storage.RedisConfig from config.Config.
@@ -642,24 +640,24 @@ func initializeKubernetesAdapter(cfg *config.Config, logger *zap.Logger) (*kuber
 	}
 
 	// Create Kubernetes adapter
-	adapter, err := kubernetes.New(k8sCfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Kubernetes adapter: %w", err)
+	k8sAdapter, createErr := kubernetes.New(k8sCfg)
+	if createErr != nil {
+		return nil, fmt.Errorf("failed to create Kubernetes adapter: %w", createErr)
 	}
 
 	// Verify Kubernetes connectivity
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := adapter.Health(ctx); err != nil {
+	if healthErr := k8sAdapter.Health(ctx); healthErr != nil {
 		return nil, fmt.Errorf(
 			"kubernetes connectivity check failed: %w",
-			err,
+			healthErr,
 		)
 	}
 
 	logger.Info("Kubernetes connectivity verified")
-	return adapter, nil
+	return k8sAdapter, nil
 }
 
 // initializeDMS initializes the DMS (Deployment Management Service) subsystem.

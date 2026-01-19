@@ -176,9 +176,9 @@ func updateReadmeFile(path string, results []compliance.Result, logger *zap.Logg
 	}
 
 	// Read current README
-	content, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return fmt.Errorf("failed to read README: %w", err)
+	content, readErr := os.ReadFile(filepath.Clean(path))
+	if readErr != nil {
+		return fmt.Errorf("failed to read README: %w", readErr)
 	}
 
 	// Generate badge section
@@ -190,8 +190,8 @@ func updateReadmeFile(path string, results []compliance.Result, logger *zap.Logg
 
 	// Write updated README
 	// G306: Use 0o600 permissions for security - only owner can read/write
-	if err := os.WriteFile(path, []byte(newReadme), 0o600); err != nil {
-		return fmt.Errorf("failed to write README: %w", err)
+	if writeErr := os.WriteFile(path, []byte(newReadme), 0o600); writeErr != nil {
+		return fmt.Errorf("failed to write README: %w", writeErr)
 	}
 
 	return nil
