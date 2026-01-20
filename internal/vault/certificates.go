@@ -142,6 +142,9 @@ func (c *Client) IssueCertificate(ctx context.Context, roleName string, req *Cer
 	if err != nil {
 		return nil, fmt.Errorf("issue certificate request failed: %w", err)
 	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	vaultResp, err := parseVaultResponse(resp)
 	if err != nil {
@@ -215,6 +218,9 @@ func (c *Client) SignCSR(ctx context.Context, roleName, csr string, ttl string) 
 	if err != nil {
 		return nil, fmt.Errorf("sign CSR request failed: %w", err)
 	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	vaultResp, err := parseVaultResponse(resp)
 	if err != nil {
@@ -235,6 +241,9 @@ func (c *Client) GetCertificate(ctx context.Context, serialNumber string) (strin
 	if err != nil {
 		return "", fmt.Errorf("get certificate request failed: %w", err)
 	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	vaultResp, err := parseVaultResponse(resp)
 	if err != nil {
@@ -261,6 +270,9 @@ func (c *Client) ListCertificates(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list certificates request failed: %w", err)
 	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	vaultResp, err := parseVaultResponse(resp)
 	if err != nil {

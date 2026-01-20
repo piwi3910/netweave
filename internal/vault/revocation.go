@@ -44,6 +44,9 @@ func (c *Client) RevokeCertificate(ctx context.Context, serialNumber string) (*R
 	if err != nil {
 		return nil, fmt.Errorf("revoke certificate request failed: %w", err)
 	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	vaultResp, err := parseVaultResponse(resp)
 	if err != nil {
@@ -92,6 +95,9 @@ func (c *Client) TidyCertificates(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("tidy request failed: %w", err)
 	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	_, err = parseVaultResponse(resp)
 	if err != nil {
@@ -109,6 +115,9 @@ func (c *Client) GetTidyStatus(ctx context.Context) (map[string]interface{}, err
 	if err != nil {
 		return nil, fmt.Errorf("get tidy status request failed: %w", err)
 	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	vaultResp, err := parseVaultResponse(resp)
 	if err != nil {
@@ -132,6 +141,9 @@ func (c *Client) RotateCRL(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("rotate CRL request failed: %w", err)
 	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	_, err = parseVaultResponse(resp)
 	if err != nil {
