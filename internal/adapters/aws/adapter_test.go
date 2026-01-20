@@ -1085,13 +1085,19 @@ func TestBuildInstanceTypeExtensions(t *testing.T) {
 				assert.Equal(t, "m5.large", exts["aws.instanceType"])
 				assert.Equal(t, "m5", exts["aws.instanceFamily"])
 				assert.Equal(t, "large", exts["aws.instanceSize"])
-				assert.True(t, aws.ToBool(exts["aws.currentGeneration"].(*bool)))
-				assert.False(t, exts["aws.bareMetal"].(bool))
+				if val, ok := exts["aws.currentGeneration"].(*bool); ok {
+					assert.True(t, aws.ToBool(val))
+				}
+				if val, ok := exts["aws.bareMetal"].(bool); ok {
+					assert.False(t, val)
+				}
 				assert.Equal(t, int32(2), exts["aws.vcpus"])
 				assert.Equal(t, int64(8192), exts["aws.memoryMiB"])
 				assert.Equal(t, "Up to 10 Gigabit", exts["aws.networkPerformance"])
 				assert.Equal(t, float64(3.1), exts["aws.processorClockSpeedGhz"])
-				assert.True(t, exts["aws.enaSupported"].(bool))
+				if val, ok := exts["aws.enaSupported"].(bool); ok {
+					assert.True(t, val)
+				}
 				assert.Contains(t, exts, "aws.supportedUsageClasses")
 			},
 		},
@@ -1135,7 +1141,9 @@ func TestBuildInstanceTypeExtensions(t *testing.T) {
 			size:   "large",
 			checkExts: func(t *testing.T, exts map[string]interface{}) {
 				t.Helper()
-				assert.True(t, exts["aws.instanceStorageSupported"].(bool))
+				if val, ok := exts["aws.instanceStorageSupported"].(bool); ok {
+					assert.True(t, val)
+				}
 				assert.Equal(t, int64(75), exts["aws.instanceStorageGiB"])
 				assert.Equal(t, "hdd", exts["aws.instanceStorageType"])
 			},

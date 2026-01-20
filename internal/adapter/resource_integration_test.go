@@ -212,7 +212,9 @@ func testCreateResource(t *testing.T, adp adapter.Adapter) {
 		assert.Equal(t, newResource.Description, created.Description)
 
 		// Cleanup
-		_ = adp.DeleteResource(ctx, created.ResourceID)
+		if err := adp.DeleteResource(ctx, created.ResourceID); err != nil {
+			t.Logf("cleanup failed: %v", err)
+		}
 	})
 
 	t.Run("create_invalid_resource", func(t *testing.T) {
@@ -265,7 +267,9 @@ func testUpdateResource(t *testing.T, adp adapter.Adapter) {
 		assert.Equal(t, originalResource.ResourceTypeID, updated.ResourceTypeID, "type ID should not change")
 
 		// Restore original description if possible
-		_, _ = adp.UpdateResource(ctx, originalResource.ResourceID, originalResource)
+		if _, err := adp.UpdateResource(ctx, originalResource.ResourceID, originalResource); err != nil {
+			t.Logf("cleanup: failed to restore original description: %v", err)
+		}
 	})
 
 	t.Run("update_nonexistent_resource", func(t *testing.T) {
@@ -330,7 +334,9 @@ func testResourceLifecycle(t *testing.T, adp adapter.Adapter) {
 			t.Skipf("Adapter does not support resource lifecycle operations: %v", err)
 		}
 		defer func() {
-			_ = adp.DeleteResource(ctx, created.ResourceID)
+			if err := adp.DeleteResource(ctx, created.ResourceID); err != nil {
+				t.Logf("cleanup failed: %v", err)
+			}
 		}()
 
 		assert.NotEmpty(t, created.ResourceID, "created resource should have ID")
