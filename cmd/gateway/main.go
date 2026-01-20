@@ -745,7 +745,10 @@ func registerMockDMSAdapter(ctx context.Context, dmsReg *dmsregistry.Registry, l
 		"packages":  5,
 	}
 
-	if regErr := dmsReg.Register(ctx, adapterTypeMock, adapterTypeMock, mockDMSAdapter, mockConfig, true); regErr != nil {
+	regErr := dmsReg.Register(
+		ctx, adapterTypeMock, adapterTypeMock, mockDMSAdapter, mockConfig, true,
+	)
+	if regErr != nil {
 		return fmt.Errorf("failed to register mock DMS adapter: %w", regErr)
 	}
 
