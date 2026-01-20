@@ -405,7 +405,7 @@ func TestGCPAdapter_Health(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adapter, err := gcp.New(&gcp.Config{
+	adp, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
 		OCloudID:  "test-cloud",
@@ -429,7 +429,7 @@ func TestGCPAdapter_ListResourcePools(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adapter, err := gcp.New(&gcp.Config{
+	adp, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
 		OCloudID:  "test-cloud",
@@ -455,7 +455,7 @@ func TestGCPAdapter_ListResources(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adapter, err := gcp.New(&gcp.Config{
+	adp, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
 		OCloudID:  "test-cloud",
@@ -480,7 +480,7 @@ func TestGCPAdapter_ListResourceTypes(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adapter, err := gcp.New(&gcp.Config{
+	adp, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
 		OCloudID:  "test-cloud",
@@ -505,7 +505,7 @@ func TestGCPAdapter_GetDeploymentManager(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adapter, err := gcp.New(&gcp.Config{
+	adp, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
 		OCloudID:  "test-cloud",
