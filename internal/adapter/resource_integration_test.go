@@ -212,8 +212,8 @@ func testCreateResource(t *testing.T, adp adapter.Adapter) {
 		assert.Equal(t, newResource.Description, created.Description)
 
 		// Cleanup
-		if err := adp.DeleteResource(ctx, created.ResourceID); err != nil {
-			t.Logf("cleanup failed: %v", err)
+		if cleanupErr := adp.DeleteResource(ctx, created.ResourceID); cleanupErr != nil {
+			t.Logf("cleanup failed: %v", cleanupErr)
 		}
 	})
 
@@ -267,8 +267,8 @@ func testUpdateResource(t *testing.T, adp adapter.Adapter) {
 		assert.Equal(t, originalResource.ResourceTypeID, updated.ResourceTypeID, "type ID should not change")
 
 		// Restore original description if possible
-		if _, err := adp.UpdateResource(ctx, originalResource.ResourceID, originalResource); err != nil {
-			t.Logf("cleanup: failed to restore original description: %v", err)
+		if _, cleanupErr := adp.UpdateResource(ctx, originalResource.ResourceID, originalResource); cleanupErr != nil {
+			t.Logf("cleanup: failed to restore original description: %v", cleanupErr)
 		}
 	})
 
@@ -334,8 +334,8 @@ func testResourceLifecycle(t *testing.T, adp adapter.Adapter) {
 			t.Skipf("Adapter does not support resource lifecycle operations: %v", err)
 		}
 		defer func() {
-			if err := adp.DeleteResource(ctx, created.ResourceID); err != nil {
-				t.Logf("cleanup failed: %v", err)
+			if cleanupErr := adp.DeleteResource(ctx, created.ResourceID); cleanupErr != nil {
+				t.Logf("cleanup failed: %v", cleanupErr)
 			}
 		}()
 
