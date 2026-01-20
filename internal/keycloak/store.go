@@ -422,21 +422,30 @@ func (s *Store) parseRoleTimestamps(kcRole *Role, role *auth.Role) {
 // ========== TenantStore Implementation ==========
 
 // getRealmAttributes retrieves all realm attributes.
-func (s *Store) getRealmAttributes(_ context.Context) (map[string]string, error) {
-	// Note: Keycloak Admin API doesn't have a direct "get realm attributes" endpoint.
-	// We need to get the realm object and extract attributes from it.
-	// For now, we'll implement a simpler approach using a dedicated attribute to store tenant metadata.
-	// In production, consider using a separate metadata service or Keycloak's groups API.
+func (s *Store) getRealmAttributes(ctx context.Context) (map[string]string, error) {
+	// Get realm details from Keycloak
+	realm, err := s.client.GetRealm(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get realm: %w", err)
+	}
 
-	// Placeholder: In real implementation, would query realm and extract attributes
-	// For MVP, we'll return an empty map and rely on user attributes for tenant association
-	return make(map[string]string), nil
+	// Extract attributes from realm
+	attrs := make(map[string]string)
+	if realm.Attributes != nil {
+		for k, v := range realm.Attributes {
+			attrs[k] = v
+		}
+	}
+
+	return attrs, nil
 }
 
 // setRealmAttributes updates realm attributes.
-func (s *Store) setRealmAttributes(_ context.Context, _ map[string]string) error {
-	// Placeholder: Would update realm attributes via Admin API
-	// For MVP, tenant metadata is stored as user attributes
+func (s *Store) setRealmAttributes(ctx context.Context, attrs map[string]string) error {
+	// Update realm with new attributes
+	if err := s.client.UpdateRealm(ctx, attrs); err != nil {
+		return fmt.Errorf("failed to update realm attributes: %w", err)
+	}
 	return nil
 }
 

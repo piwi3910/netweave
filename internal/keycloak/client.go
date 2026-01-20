@@ -69,7 +69,7 @@ func NewClient(config *Config) (*Client, error) {
 		return nil, fmt.Errorf("BaseURL is required")
 	}
 	if config.Realm == "" {
-		return nil, fmt.Errorf("realm is required")
+		return nil, fmt.Errorf("Realm is required")
 	}
 	if config.ClientID == "" {
 		return nil, fmt.Errorf("ClientID is required")
