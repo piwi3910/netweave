@@ -322,12 +322,12 @@ func (a *Adapter) UpdateResource(
 	if len(metadata) > 0 {
 		updateOpts := servers.MetadataOpts(metadata)
 
-		_, err := servers.UpdateMetadata(a.compute, serverID, updateOpts).Extract()
-		if err != nil {
+		_, updateErr := servers.UpdateMetadata(a.compute, serverID, updateOpts).Extract()
+		if updateErr != nil {
 			a.Logger.Error("failed to update server metadata",
 				zap.String("serverID", serverID),
-				zap.Error(err))
-			return nil, fmt.Errorf("failed to update server metadata: %w", err)
+				zap.Error(updateErr))
+			return nil, fmt.Errorf("failed to update server metadata: %w", updateErr)
 		}
 
 		a.Logger.Info("updated server metadata",

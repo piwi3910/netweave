@@ -368,12 +368,12 @@ func (a *Adapter) detectAndNotifyChanges(ctx context.Context, state *Subscriptio
 	// Process each change
 	for _, change := range changes {
 		if a.matchesFilter(state.subscription, change) {
-			if err := a.sendWebhookNotification(ctx, state.subscription, change); err != nil {
+			if webhookErr := a.sendWebhookNotification(ctx, state.subscription, change); webhookErr != nil {
 				a.Logger.Error("failed to send webhook notification",
 					zap.String("subscriptionID", state.subscription.SubscriptionID),
 					zap.String("resourceID", change.ResourceID),
 					zap.String("eventType", change.EventType),
-					zap.Error(err))
+					zap.Error(webhookErr))
 			}
 		}
 	}
