@@ -411,10 +411,8 @@ func (a *Adapter) Close() error {
 	}
 
 	// Sync logger before shutdown
-	// Ignore sync errors on stderr/stdout
-	_ = a.Logger.Sync()
-
-	return nil
+	// Sync errors on stderr/stdout are expected and can be ignored
+	return a.Logger.Sync()
 }
 
 // NOTE: Filter matching and pagination use shared helpers from internal/adapter/helpers.go

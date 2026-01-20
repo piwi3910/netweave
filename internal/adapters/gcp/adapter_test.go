@@ -237,7 +237,8 @@ func TestExtractMachineTypeName(t *testing.T) {
 			want: "n1-standard-1",
 		},
 		{
-			url:  "https://compute.googleapis.com/compute/v1/projects/my-project/zones/us-central1-a/machineTypes/e2-micro",
+			url: "https://compute.googleapis.com/compute/v1/projects/my-project/zones/" +
+				"us-central1-a/machineTypes/e2-micro",
 			want: "e2-micro",
 		},
 		{
@@ -416,7 +417,7 @@ func TestGCPAdapter_Health(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	err = adapter.Health(ctx)
+	err = adp.Health(ctx)
 	if err != nil {
 		t.Skip("Skipping - requires GCP credentials")
 	}
@@ -441,7 +442,7 @@ func TestGCPAdapter_ListResourcePools(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	pools, err := adapter.ListResourcePools(ctx, nil)
+	pools, err := adp.ListResourcePools(ctx, nil)
 	if err != nil {
 		t.Skip("Skipping - requires GCP credentials")
 	}
@@ -466,7 +467,7 @@ func TestGCPAdapter_ListResources(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	resources, err := adapter.ListResources(ctx, nil)
+	resources, err := adp.ListResources(ctx, nil)
 	if err != nil {
 		t.Skip("Skipping - requires GCP credentials")
 	}
@@ -491,7 +492,7 @@ func TestGCPAdapter_ListResourceTypes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	types, err := adapter.ListResourceTypes(ctx, nil)
+	types, err := adp.ListResourceTypes(ctx, nil)
 	if err != nil {
 		t.Skip("Skipping - requires GCP credentials")
 	}
@@ -516,7 +517,7 @@ func TestGCPAdapter_GetDeploymentManager(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	dm, err := adapter.GetDeploymentManager(ctx, "dm-1")
+	dm, err := adp.GetDeploymentManager(ctx, "dm-1")
 	if err != nil {
 		t.Skip("Skipping - requires GCP credentials")
 	}
