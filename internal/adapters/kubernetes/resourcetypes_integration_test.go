@@ -24,6 +24,10 @@ import (
 // with a fake Kubernetes client to verify resource type discovery.
 func TestKubernetesAdapter_ListResourceTypes_Integration(t *testing.T) {
 	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
+	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
@@ -153,6 +157,10 @@ func TestKubernetesAdapter_ListResourceTypes_Integration(t *testing.T) {
 // fields are properly populated with Kubernetes-specific information.
 func TestKubernetesAdapter_ResourceTypeFields_Integration(t *testing.T) {
 	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
+	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
@@ -195,6 +203,10 @@ func TestKubernetesAdapter_ResourceTypeFields_Integration(t *testing.T) {
 // TestKubernetesAdapter_ResourceTypeConsistency_Integration verifies that
 // resource types remain consistent across multiple calls.
 func TestKubernetesAdapter_ResourceTypeConsistency_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}

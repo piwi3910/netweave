@@ -16,6 +16,10 @@ import (
 
 // TestNew tests the creation of a new VMwareAdapter.
 func TestNew(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name    string
 		config  *vmware.Config
@@ -119,6 +123,10 @@ func TestNew(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := &vmware.Adapter{
 		Logger: zap.NewNop(),
 	}
@@ -152,6 +160,10 @@ func TestMetadata(t *testing.T) {
 
 // TestGenerateIDs tests ID generation functions.
 func TestGenerateIDs(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	t.Run("vmware.GenerateVMProfileID", func(t *testing.T) {
 		tests := []struct {
 			cpus     int32
@@ -219,6 +231,10 @@ func TestGenerateIDs(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := &vmware.Adapter{
 		Logger:        zap.NewNop(),
 		Subscriptions: make(map[string]*adapter.Subscription),
@@ -294,6 +310,10 @@ func TestSubscriptions(t *testing.T) {
 
 // TestCreateResourceType tests resource type creation.
 func TestCreateResourceType(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := &vmware.Adapter{
 		Logger: zap.NewNop(),
 	}
@@ -313,6 +333,10 @@ func TestCreateResourceType(t *testing.T) {
 
 // TestGetDefaultResourceTypes tests default resource type generation.
 func TestGetDefaultResourceTypes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := &vmware.Adapter{
 		Logger: zap.NewNop(),
 	}
@@ -330,6 +354,10 @@ func TestGetDefaultResourceTypes(t *testing.T) {
 
 // TestVMwareAdapter_Health tests the Health function.
 func TestVMwareAdapter_Health(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adapter, err := vmware.New(&vmware.Config{
 		VCenterURL: "https://vcenter.example.com",
 		Username:   "test",
@@ -352,6 +380,10 @@ func TestVMwareAdapter_Health(t *testing.T) {
 
 // TestVMwareAdapter_ListResourcePools tests the ListResourcePools function.
 func TestVMwareAdapter_ListResourcePools(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adapter, err := vmware.New(&vmware.Config{
 		VCenterURL: "https://vcenter.example.com",
 		Username:   "test",
@@ -375,6 +407,10 @@ func TestVMwareAdapter_ListResourcePools(t *testing.T) {
 
 // TestVMwareAdapter_ListResources tests the ListResources function.
 func TestVMwareAdapter_ListResources(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adapter, err := vmware.New(&vmware.Config{
 		VCenterURL: "https://vcenter.example.com",
 		Username:   "test",
@@ -398,6 +434,10 @@ func TestVMwareAdapter_ListResources(t *testing.T) {
 
 // TestVMwareAdapter_ListResourceTypes tests the ListResourceTypes function.
 func TestVMwareAdapter_ListResourceTypes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adapter, err := vmware.New(&vmware.Config{
 		VCenterURL: "https://vcenter.example.com",
 		Username:   "test",
@@ -421,6 +461,10 @@ func TestVMwareAdapter_ListResourceTypes(t *testing.T) {
 
 // TestVMwareAdapter_GetDeploymentManager tests the GetDeploymentManager function.
 func TestVMwareAdapter_GetDeploymentManager(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adapter, err := vmware.New(&vmware.Config{
 		VCenterURL: "https://vcenter.example.com",
 		Username:   "test",
@@ -444,6 +488,10 @@ func TestVMwareAdapter_GetDeploymentManager(t *testing.T) {
 
 // TestValidateVMResourceID tests VM resource ID validation.
 func TestValidateVMResourceID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := &vmware.Adapter{Logger: zap.NewNop()}
 
 	tests := []struct {
@@ -492,6 +540,10 @@ func TestValidateVMResourceID(t *testing.T) {
 
 // TestBuildVMAnnotation tests VM annotation building from resource fields.
 func TestBuildVMAnnotation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := &vmware.Adapter{Logger: zap.NewNop()}
 
 	tests := []struct {
@@ -578,6 +630,10 @@ func TestBuildVMAnnotation(t *testing.T) {
 
 // TestExtractCustomAttributes tests custom attribute extraction.
 func TestExtractCustomAttributes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := &vmware.Adapter{Logger: zap.NewNop()}
 
 	tests := []struct {
@@ -647,6 +703,10 @@ func TestExtractCustomAttributes(t *testing.T) {
 
 // TestGetVMDescription tests VM description determination.
 func TestGetVMDescription(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := &vmware.Adapter{Logger: zap.NewNop()}
 
 	tests := []struct {

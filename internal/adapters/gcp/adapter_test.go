@@ -15,6 +15,10 @@ import (
 
 // TestNew tests the creation of a new GCPAdapter.
 func TestNew(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name    string
 		config  *gcp.Config
@@ -88,6 +92,10 @@ func TestNew(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := &gcp.Adapter{
 		Logger: zap.NewNop(),
 	}
@@ -121,6 +129,10 @@ func TestMetadata(t *testing.T) {
 
 // TestGenerateIDs tests ID generation functions.
 func TestGenerateIDs(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	t.Run("gcp.GenerateMachineTypeID", func(t *testing.T) {
 		tests := []struct {
 			machineType string
@@ -187,6 +199,10 @@ func TestGenerateIDs(t *testing.T) {
 
 // TestExtractMachineFamily tests machine family extraction.
 func TestExtractMachineFamily(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		machineType string
 		want        string
@@ -208,6 +224,10 @@ func TestExtractMachineFamily(t *testing.T) {
 
 // TestExtractMachineTypeName tests machine type name extraction from URL.
 func TestExtractMachineTypeName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		url  string
 		want string
@@ -236,6 +256,10 @@ func TestExtractMachineTypeName(t *testing.T) {
 
 // TestExtractZoneName tests zone name extraction from URL.
 func TestExtractZoneName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		url  string
 		want string
@@ -264,6 +288,10 @@ func TestExtractZoneName(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := &gcp.Adapter{
 		Logger:        zap.NewNop(),
 		Subscriptions: make(map[string]*adapter.Subscription),
@@ -339,6 +367,10 @@ func TestSubscriptions(t *testing.T) {
 
 // TestPtrHelpers tests pointer helper functions.
 func TestPtrHelpers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	t.Run("ptrToString", func(t *testing.T) {
 		s := "hello"
 		assert.Equal(t, "hello", gcp.PtrToString(&s))
@@ -368,6 +400,10 @@ func TestPtrHelpers(t *testing.T) {
 
 // TestGCPAdapter_Health tests the Health function.
 func TestGCPAdapter_Health(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adapter, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
@@ -388,6 +424,10 @@ func TestGCPAdapter_Health(t *testing.T) {
 
 // TestGCPAdapter_ListResourcePools tests the ListResourcePools function.
 func TestGCPAdapter_ListResourcePools(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adapter, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
@@ -410,6 +450,10 @@ func TestGCPAdapter_ListResourcePools(t *testing.T) {
 
 // TestGCPAdapter_ListResources tests the ListResources function.
 func TestGCPAdapter_ListResources(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adapter, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
@@ -431,6 +475,10 @@ func TestGCPAdapter_ListResources(t *testing.T) {
 
 // TestGCPAdapter_ListResourceTypes tests the ListResourceTypes function.
 func TestGCPAdapter_ListResourceTypes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adapter, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
@@ -452,6 +500,10 @@ func TestGCPAdapter_ListResourceTypes(t *testing.T) {
 
 // TestGCPAdapter_GetDeploymentManager tests the GetDeploymentManager function.
 func TestGCPAdapter_GetDeploymentManager(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adapter, err := gcp.New(&gcp.Config{
 		ProjectID: "test-project",
 		Region:    "us-central1",
@@ -473,6 +525,10 @@ func TestGCPAdapter_GetDeploymentManager(t *testing.T) {
 
 // TestExtractZoneAndName tests zone and name extraction from resource extensions.
 func TestBuildInstanceLabels(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := &gcp.Adapter{Logger: zap.NewNop()}
 
 	tests := []struct {
@@ -567,6 +623,10 @@ func TestBuildInstanceLabels(t *testing.T) {
 
 // TestDetermineResourcePoolID tests resource pool ID determination.
 func TestDetermineResourcePoolID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name     string
 		poolMode string
@@ -605,6 +665,10 @@ func TestDetermineResourcePoolID(t *testing.T) {
 
 // TestBuildInstanceExtensions tests GCP instance extensions building.
 func TestBuildInstanceExtensions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := &gcp.Adapter{Logger: zap.NewNop()}
 
 	instName := "test-vm"

@@ -14,6 +14,10 @@ import (
 // Note: These are unit tests that verify the implementation logic.
 // Full integration tests with a real vSphere environment would be in integration tests.
 func TestUpdateResource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name          string
 		resourceID    string
@@ -111,6 +115,10 @@ func TestUpdateResource(t *testing.T) {
 
 // TestUpdateResourceValidation tests input validation.
 func TestUpdateResourceValidation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name          string
 		resourceID    string
@@ -159,6 +167,10 @@ func TestUpdateResourceValidation(t *testing.T) {
 
 // TestUpdateResourceExtensions tests Extension field handling.
 func TestUpdateResourceExtensions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name       string
 		extensions map[string]interface{}
@@ -221,6 +233,10 @@ func TestUpdateResourceExtensions(t *testing.T) {
 
 // TestGenerateVMProfileID tests VM profile ID generation.
 func TestGenerateVMProfileID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name     string
 		cpus     int32
@@ -257,6 +273,10 @@ func TestGenerateVMProfileID(t *testing.T) {
 
 // TestGenerateVMID tests VM ID generation.
 func TestGenerateVMID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name          string
 		vmName        string
@@ -293,6 +313,10 @@ func TestGenerateVMID(t *testing.T) {
 
 // TestGetResource tests the GetResource method.
 func TestGetResource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name       string
 		resourceID string
@@ -330,6 +354,10 @@ func TestGetResource(t *testing.T) {
 
 // TestCreateResource tests the CreateResource method.
 func TestCreateResource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name     string
 		resource *adapter.Resource
@@ -372,6 +400,10 @@ func TestCreateResource(t *testing.T) {
 
 // TestUpdateResource tests the UpdateResource method.
 func TestUpdateResourceCRUD(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name       string
 		resourceID string
@@ -416,6 +448,10 @@ func TestUpdateResourceCRUD(t *testing.T) {
 
 // TestDeleteResource tests the DeleteResource method.
 func TestDeleteResource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name       string
 		resourceID string

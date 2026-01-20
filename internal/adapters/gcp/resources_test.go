@@ -13,6 +13,10 @@ import (
 
 // TestUpdateResourceLabelBuilding tests label building logic for GCP.
 func TestUpdateResourceLabelBuilding(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name           string
 		resource       *adapter.Resource
@@ -135,6 +139,10 @@ func TestUpdateResourceLabelBuilding(t *testing.T) {
 
 // TestExtractZoneAndName tests zone and instance name extraction.
 func TestExtractZoneAndName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name          string
 		resource      *adapter.Resource
@@ -207,6 +215,10 @@ func TestExtractZoneAndName(t *testing.T) {
 
 // TestGetResource tests the GetResource method.
 func TestGetResource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name       string
 		resourceID string
@@ -248,6 +260,10 @@ func TestGetResource(t *testing.T) {
 
 // TestCreateResource tests the CreateResource method.
 func TestCreateResource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name     string
 		resource *adapter.Resource
@@ -294,6 +310,10 @@ func TestCreateResource(t *testing.T) {
 
 // TestUpdateResource tests the UpdateResource method.
 func TestUpdateResource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name       string
 		resourceID string
@@ -342,6 +362,10 @@ func TestUpdateResource(t *testing.T) {
 
 // TestDeleteResource tests the DeleteResource method.
 func TestDeleteResource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name       string
 		resourceID string

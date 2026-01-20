@@ -23,6 +23,10 @@ func setupTestAdapter(t *testing.T) *Adapter {
 }
 
 func TestGetNamespaceByID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	testCases := map[string]struct {
 		id           string
 		existingNS   *corev1.Namespace
@@ -71,6 +75,10 @@ func TestGetNamespaceByID(t *testing.T) {
 }
 
 func TestGetNodeByID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name         string
 		id           string

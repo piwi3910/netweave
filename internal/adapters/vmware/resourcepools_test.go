@@ -24,6 +24,10 @@ func getTestConfig() *vmwareadapter.Config {
 
 // TestGetResourcePool tests the GetResourcePool method.
 func TestGetResourcePool(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name    string
 		poolID  string
@@ -61,6 +65,10 @@ func TestGetResourcePool(t *testing.T) {
 
 // TestCreateResourcePool tests the CreateResourcePool method.
 func TestCreateResourcePool(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name    string
 		pool    *adapter.ResourcePool
@@ -103,6 +111,10 @@ func TestCreateResourcePool(t *testing.T) {
 
 // TestUpdateResourcePool tests the UpdateResourcePool method.
 func TestUpdateResourcePool(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name    string
 		poolID  string
@@ -147,6 +159,10 @@ func TestUpdateResourcePool(t *testing.T) {
 
 // TestDeleteResourcePool tests the DeleteResourcePool method.
 func TestDeleteResourcePool(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name    string
 		poolID  string

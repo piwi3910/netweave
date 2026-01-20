@@ -21,6 +21,10 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name    string
 		cfg     *kubernetes.Config
@@ -86,6 +90,10 @@ func TestNew(t *testing.T) {
 }
 
 func TestNewWithInvalidKubeconfig(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	cfg := &kubernetes.Config{
 		Kubeconfig:          "/nonexistent/path/to/kubeconfig",
 		OCloudID:            "ocloud-1",
@@ -194,11 +202,19 @@ func newTestAdapterWithStoreSilent(t *testing.T) *kubernetes.Adapter {
 }
 
 func TestKubernetesAdapter_Name(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	assert.Equal(t, "kubernetes", adp.Name())
 }
 
 func TestKubernetesAdapter_Version(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	version := adp.Version()
 	assert.NotEmpty(t, version)
@@ -206,6 +222,10 @@ func TestKubernetesAdapter_Version(t *testing.T) {
 }
 
 func TestKubernetesAdapter_Capabilities(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	caps := adp.Capabilities()
 
@@ -228,6 +248,10 @@ func TestKubernetesAdapter_Capabilities(t *testing.T) {
 }
 
 func TestKubernetesAdapter_Health(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -237,6 +261,10 @@ func TestKubernetesAdapter_Health(t *testing.T) {
 }
 
 func TestKubernetesAdapter_Close(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 
 	err := adp.Close()
@@ -244,6 +272,10 @@ func TestKubernetesAdapter_Close(t *testing.T) {
 }
 
 func TestKubernetesAdapter_GetDeploymentManager(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -267,6 +299,10 @@ func TestKubernetesAdapter_GetDeploymentManager(t *testing.T) {
 }
 
 func TestKubernetesAdapter_ListResourcePools(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	t.Run("empty cluster", func(t *testing.T) {
 		adp := newTestAdapter(t)
 		ctx := context.Background()
@@ -312,6 +348,10 @@ func TestKubernetesAdapter_ListResourcePools(t *testing.T) {
 }
 
 func TestKubernetesAdapter_GetResourcePool(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	t.Run("namespace not found", func(t *testing.T) {
 		// Use silent adapter to suppress expected ERROR logs
 		adp := newTestAdapterSilent(t)
@@ -345,6 +385,10 @@ func TestKubernetesAdapter_GetResourcePool(t *testing.T) {
 }
 
 func TestKubernetesAdapter_CreateResourcePool(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -362,6 +406,10 @@ func TestKubernetesAdapter_CreateResourcePool(t *testing.T) {
 }
 
 func TestKubernetesAdapter_UpdateResourcePool(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -389,6 +437,10 @@ func TestKubernetesAdapter_UpdateResourcePool(t *testing.T) {
 }
 
 func TestKubernetesAdapter_DeleteResourcePool(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -411,6 +463,10 @@ func TestKubernetesAdapter_DeleteResourcePool(t *testing.T) {
 }
 
 func TestKubernetesAdapter_ListResources(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	t.Run("empty cluster", func(t *testing.T) {
 		adp := newTestAdapter(t)
 		ctx := context.Background()
@@ -450,6 +506,10 @@ func TestKubernetesAdapter_ListResources(t *testing.T) {
 }
 
 func TestKubernetesAdapter_GetResource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	t.Run("node not found", func(t *testing.T) {
 		// Use silent adapter to suppress expected ERROR logs
 		adp := newTestAdapterSilent(t)
@@ -482,6 +542,10 @@ func TestKubernetesAdapter_GetResource(t *testing.T) {
 }
 
 func TestKubernetesAdapter_CreateResource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -498,6 +562,10 @@ func TestKubernetesAdapter_CreateResource(t *testing.T) {
 }
 
 func TestKubernetesAdapter_DeleteResource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -520,6 +588,10 @@ func TestKubernetesAdapter_DeleteResource(t *testing.T) {
 }
 
 func TestKubernetesAdapter_ListResourceTypes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	t.Run("empty cluster", func(t *testing.T) {
 		adp := newTestAdapter(t)
 		ctx := context.Background()
@@ -564,6 +636,10 @@ func TestKubernetesAdapter_ListResourceTypes(t *testing.T) {
 }
 
 func TestKubernetesAdapter_GetResourceType(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	t.Run("type not found", func(t *testing.T) {
 		adp := newTestAdapter(t)
 		ctx := context.Background()
@@ -598,6 +674,10 @@ func TestKubernetesAdapter_GetResourceType(t *testing.T) {
 }
 
 func TestKubernetesAdapter_CreateSubscription(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	t.Run("without store configured", func(t *testing.T) {
 		adp := newTestAdapter(t)
 		ctx := context.Background()
@@ -633,6 +713,10 @@ func TestKubernetesAdapter_CreateSubscription(t *testing.T) {
 }
 
 func TestKubernetesAdapter_GetSubscription(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	t.Run("without store configured", func(t *testing.T) {
 		adp := newTestAdapter(t)
 		ctx := context.Background()
@@ -679,6 +763,10 @@ func TestKubernetesAdapter_GetSubscription(t *testing.T) {
 }
 
 func TestKubernetesAdapter_DeleteSubscription(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	t.Run("without store configured", func(t *testing.T) {
 		adp := newTestAdapter(t)
 		ctx := context.Background()
@@ -724,6 +812,10 @@ func TestKubernetesAdapter_DeleteSubscription(t *testing.T) {
 }
 
 func TestKubernetesAdapter_ImplementsAdapterInterface(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 
 	// Verify that KubernetesAdapter implements adapterapi.Adapter
@@ -731,6 +823,10 @@ func TestKubernetesAdapter_ImplementsAdapterInterface(t *testing.T) {
 }
 
 func TestConfigDefaults(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name              string
 		namespace         string
@@ -769,6 +865,10 @@ func TestConfigDefaults(t *testing.T) {
 // Tests for boundary conditions and edge cases
 
 func TestKubernetesAdapter_GetOperations_EmptyID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -818,6 +918,10 @@ func TestKubernetesAdapter_GetOperations_EmptyID(t *testing.T) {
 }
 
 func TestKubernetesAdapter_DeleteOperations_EmptyID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -854,6 +958,10 @@ func TestKubernetesAdapter_DeleteOperations_EmptyID(t *testing.T) {
 }
 
 func TestKubernetesAdapter_CreateSubscription_EmptyCallback(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -868,6 +976,10 @@ func TestKubernetesAdapter_CreateSubscription_EmptyCallback(t *testing.T) {
 }
 
 func TestKubernetesAdapter_CreateResourcePool_EmptyName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -885,6 +997,10 @@ func TestKubernetesAdapter_CreateResourcePool_EmptyName(t *testing.T) {
 }
 
 func TestKubernetesAdapter_ListResourcePools_WithPagination(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -900,6 +1016,10 @@ func TestKubernetesAdapter_ListResourcePools_WithPagination(t *testing.T) {
 }
 
 func TestKubernetesAdapter_ListResources_WithLabels(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -919,6 +1039,10 @@ func TestKubernetesAdapter_ListResources_WithLabels(t *testing.T) {
 // Tests for context handling
 
 func TestKubernetesAdapter_ListResourcePools_WithTimeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
@@ -930,6 +1054,10 @@ func TestKubernetesAdapter_ListResourcePools_WithTimeout(t *testing.T) {
 }
 
 func TestKubernetesAdapter_ListResources_WithTimeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
@@ -943,6 +1071,10 @@ func TestKubernetesAdapter_ListResources_WithTimeout(t *testing.T) {
 // Tests for filter with extensions
 
 func TestKubernetesAdapter_ListResourcePools_WithExtensions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -962,6 +1094,10 @@ func TestKubernetesAdapter_ListResourcePools_WithExtensions(t *testing.T) {
 }
 
 func TestKubernetesAdapter_ListResources_WithExtensions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -980,6 +1116,10 @@ func TestKubernetesAdapter_ListResources_WithExtensions(t *testing.T) {
 // Tests for configuration validation
 
 func TestConfig_Validation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	tests := []struct {
 		name    string
 		cfg     *kubernetes.Config
@@ -1040,6 +1180,10 @@ func TestConfig_Validation(t *testing.T) {
 // Tests for multiple Close calls
 
 func TestKubernetesAdapter_Close_MultipleCallsAreSafe(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	// Create adapter without using newTestAdapter to avoid double close
 	adp := kubernetes.NewForTesting(fake.NewClientset(), zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)))
 
@@ -1055,6 +1199,10 @@ func TestKubernetesAdapter_Close_MultipleCallsAreSafe(t *testing.T) {
 // Tests for adapter metadata consistency
 
 func TestKubernetesAdapter_MetadataConsistency(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 
 	// Name should always return the same value
@@ -1078,6 +1226,10 @@ func TestKubernetesAdapter_MetadataConsistency(t *testing.T) {
 // Tests for subscription with filter
 
 func TestKubernetesAdapter_CreateSubscription_WithFilter(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -1101,6 +1253,10 @@ func TestKubernetesAdapter_CreateSubscription_WithFilter(t *testing.T) {
 // Tests for resource with all extensions
 
 func TestKubernetesAdapter_CreateResource_WithExtensions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -1130,6 +1286,10 @@ func TestKubernetesAdapter_CreateResource_WithExtensions(t *testing.T) {
 // Tests for resource pool with all fields
 
 func TestKubernetesAdapter_CreateResourcePool_WithAllFields(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -1158,6 +1318,10 @@ func TestKubernetesAdapter_CreateResourcePool_WithAllFields(t *testing.T) {
 // Tests for edge case validation - negative and boundary values
 
 func TestKubernetesAdapter_ListResourcePools_NegativePagination(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -1175,6 +1339,10 @@ func TestKubernetesAdapter_ListResourcePools_NegativePagination(t *testing.T) {
 }
 
 func TestKubernetesAdapter_ListResources_NegativePagination(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -1191,6 +1359,10 @@ func TestKubernetesAdapter_ListResources_NegativePagination(t *testing.T) {
 }
 
 func TestKubernetesAdapter_ListResourcePools_ZeroPagination(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -1207,6 +1379,10 @@ func TestKubernetesAdapter_ListResourcePools_ZeroPagination(t *testing.T) {
 }
 
 func TestKubernetesAdapter_ListResourcePools_LargePagination(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -1225,6 +1401,10 @@ func TestKubernetesAdapter_ListResourcePools_LargePagination(t *testing.T) {
 // Tests for JSON marshaling/unmarshaling of adapter types
 
 func TestFilter_JSONMarshal(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	filter := &adapterapi.Filter{
 		ResourcePoolID: "pool-1",
 		ResourceTypeID: "type-compute",
@@ -1257,6 +1437,10 @@ func TestFilter_JSONMarshal(t *testing.T) {
 }
 
 func TestResourcePool_JSONMarshal(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	pool := &adapterapi.ResourcePool{
 		ResourcePoolID:   "pool-123",
 		Name:             "Test Pool",
@@ -1289,6 +1473,10 @@ func TestResourcePool_JSONMarshal(t *testing.T) {
 }
 
 func TestResource_JSONMarshal(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	resource := &adapterapi.Resource{
 		ResourceID:     "res-456",
 		ResourceTypeID: "type-compute",
@@ -1320,6 +1508,10 @@ func TestResource_JSONMarshal(t *testing.T) {
 }
 
 func TestResourceType_JSONMarshal(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	rt := &adapterapi.ResourceType{
 		ResourceTypeID: "type-compute",
 		Name:           "Compute Node",
@@ -1353,6 +1545,10 @@ func TestResourceType_JSONMarshal(t *testing.T) {
 }
 
 func TestSubscription_JSONMarshal(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	sub := &adapterapi.Subscription{
 		SubscriptionID:         "sub-789",
 		Callback:               "https://smo.example.com/notify",
@@ -1385,6 +1581,10 @@ func TestSubscription_JSONMarshal(t *testing.T) {
 }
 
 func TestDeploymentManager_JSONMarshal(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	dm := &adapterapi.DeploymentManager{
 		DeploymentManagerID: "dm-001",
 		Name:                "Production DM",
@@ -1421,6 +1621,10 @@ func TestDeploymentManager_JSONMarshal(t *testing.T) {
 // Test for empty JSON unmarshaling
 
 func TestFilter_JSONUnmarshalEmpty(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	var filter adapterapi.Filter
 	err := json.Unmarshal([]byte("{}"), &filter)
 	require.NoError(t, err)
@@ -1435,6 +1639,10 @@ func TestFilter_JSONUnmarshalEmpty(t *testing.T) {
 }
 
 func TestSubscription_JSONUnmarshalWithoutFilter(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	jsonData := `{"subscriptionId":"sub-1","callback":"https://example.com/notify"}`
 
 	var sub adapterapi.Subscription
@@ -1450,6 +1658,10 @@ func TestSubscription_JSONUnmarshalWithoutFilter(t *testing.T) {
 // These tests use the -race flag during CI to detect race conditions
 
 func TestKubernetesAdapter_ConcurrentHealth(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -1468,6 +1680,10 @@ func TestKubernetesAdapter_ConcurrentHealth(t *testing.T) {
 }
 
 func TestKubernetesAdapter_ConcurrentMetadata(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 
 	const numGoroutines = 10
@@ -1518,6 +1734,10 @@ func TestKubernetesAdapter_ConcurrentMetadata(t *testing.T) {
 }
 
 func TestKubernetesAdapter_ConcurrentListOperations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	adp := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -1614,6 +1834,10 @@ func BenchmarkKubernetesAdapter_Health(b *testing.B) {
 // Logger edge case tests
 
 func TestKubernetesAdapter_WithNilLogger(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	// Create adapter with nil logger field to test nil handling
 	adp := kubernetes.NewForTesting(fake.NewClientset(), zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)))
 
@@ -1625,6 +1849,10 @@ func TestKubernetesAdapter_WithNilLogger(t *testing.T) {
 }
 
 func TestKubernetesAdapter_LoggerUsedInOperations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	// Verify logger is properly used in operations
 	adp := kubernetes.NewForTesting(fake.NewClientset(), zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel)))
 	ctx := context.Background()
