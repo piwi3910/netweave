@@ -222,7 +222,7 @@ func (a *Adapter) UpdateResource(
 
 	// Only update if there are labels to apply
 	if len(labels) > 0 {
-		op, err := a.instancesClient.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
+		op, setErr := a.instancesClient.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
 			Project:  a.projectID,
 			Zone:     zone,
 			Instance: instanceName,
@@ -231,8 +231,8 @@ func (a *Adapter) UpdateResource(
 				LabelFingerprint: instance.LabelFingerprint,
 			},
 		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to set instance labels: %w", err)
+		if setErr != nil {
+			return nil, fmt.Errorf("failed to set instance labels: %w", setErr)
 		}
 
 		// Wait for operation to complete

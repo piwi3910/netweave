@@ -235,9 +235,8 @@ func TestUpdateResourceAPIError(t *testing.T) {
 	// Create mock HTTP server that returns an error
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		if _, err := w.Write([]byte(`{"error": "internal server error"}`)); err != nil {
-			// Ignore write error in test mock
-		}
+		// Ignore write errors in test mock
+		_, _ = w.Write([]byte(`{"error": "internal server error"}`))
 	}))
 	defer mockServer.Close()
 

@@ -28,11 +28,12 @@ func (a *Adapter) ListResourcePools(
 		zap.Any("filter", filter),
 		zap.String("poolMode", a.poolMode))
 
+	var pools []*adapter.ResourcePool
 	if a.poolMode == "ig" {
-		pools, err := a.listIGPools(ctx, filter)
+		pools, err = a.listIGPools(ctx, filter)
 		return pools, err
 	}
-	pools, err := a.listZonePools(ctx, filter)
+	pools, err = a.listZonePools(ctx, filter)
 	return pools, err
 }
 
@@ -125,12 +126,12 @@ func (a *Adapter) listIGPools(ctx context.Context, filter *adapter.Filter) ([]*a
 		})
 
 		for {
-			ig, err := igIt.Next()
-			if errors.Is(err, iterator.Done) {
+			ig, igErr := igIt.Next()
+			if errors.Is(igErr, iterator.Done) {
 				break
 			}
-			if err != nil {
-				return nil, fmt.Errorf("failed to list instance groups: %w", err)
+			if igErr != nil {
+				return nil, fmt.Errorf("failed to list instance groups: %w", igErr)
 			}
 
 			igName := PtrToString(ig.Name)
