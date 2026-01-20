@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vault-system
+  labels:
+    name: vault-system
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: security

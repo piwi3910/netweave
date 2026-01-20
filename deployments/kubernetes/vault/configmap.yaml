@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-config
+  namespace: vault-system
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: security
+data:
+  vault.hcl: |
+    # Vault configuration for HA mode with Raft storage
+
+    ui = true
+
+    listener "tcp" {
+      address = "[::]:8200"
+      cluster_address = "[::]:8201"
+      tls_disable = 1
+      # TODO: Enable TLS in production
+      # tls_cert_file = "/vault/tls/tls.crt"
+      # tls_key_file = "/vault/tls/tls.key"
+    }
+
+    storage "raft" {
+      path = "/vault/data"
+
+      retry_join {
+        leader_api_addr = "http://vault-0.vault-internal:8200"
+      }
+
+      retry_join {
+        leader_api_addr = "http://vault-1.vault-internal:8200"
+      }
+
+      retry_join {
+        leader_api_addr = "http://vault-2.vault-internal:8200"
+      }
+    }
+
+    service_registration "kubernetes" {}
+
+    # Seal configuration - using Kubernetes secrets for auto-unseal
+    # In production, use cloud KMS (AWS KMS, Azure Key Vault, GCP Cloud KMS)
+    seal "transit" {
+      # This requires a separate Vault instance for transit seal
+      # For dev/staging, we'll use shamir sealing
+      disabled = true
+    }
+
+    # API and cluster addresses
+    api_addr = "http://POD_IP:8200"
+    cluster_addr = "http://POD_IP:8201"
+
+    # Telemetry
+    telemetry {
+      prometheus_retention_time = "30s"
+      disable_hostname = true
+    }
