@@ -179,18 +179,18 @@ func validateConfig(cfg *Config) error {
 }
 
 // applyDefaults applies default values to configuration.
-func applyDefaults(cfg *Config) (string, string, time.Duration) {
-	deploymentManagerID := cfg.DeploymentManagerID
+func applyDefaults(cfg *Config) (deploymentManagerID, poolMode string, timeout time.Duration) {
+	deploymentManagerID = cfg.DeploymentManagerID
 	if deploymentManagerID == "" {
 		deploymentManagerID = fmt.Sprintf("ocloud-aws-%s", cfg.Region)
 	}
 
-	poolMode := cfg.PoolMode
+	poolMode = cfg.PoolMode
 	if poolMode == "" {
 		poolMode = "az"
 	}
 
-	timeout := cfg.Timeout
+	timeout = cfg.Timeout
 	if timeout == 0 {
 		timeout = 30 * time.Second
 	}
@@ -334,7 +334,7 @@ func (a *Adapter) TestDetermineResourceKind(instanceType *ec2Types.InstanceTypeI
 }
 
 // TestParseInstanceType exports parseInstanceType for testing.
-func (a *Adapter) TestParseInstanceType(typeName string) (string, string) {
+func (a *Adapter) TestParseInstanceType(typeName string) (family, size string) {
 	return parseInstanceType(typeName)
 }
 
