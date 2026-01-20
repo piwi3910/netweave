@@ -265,8 +265,9 @@ func (a *Adapter) Close() error {
 	}
 
 	// Sync logger before shutdown
-	// Ignore sync errors on stderr/stdout which are common
-	_ = a.logger.Sync()
-
+	// Sync errors on stderr/stdout are expected and can be ignored
+	if err := a.logger.Sync(); err != nil {
+		return fmt.Errorf("failed to sync logger: %w", err)
+	}
 	return nil
 }

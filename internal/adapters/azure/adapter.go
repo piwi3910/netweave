@@ -148,21 +148,21 @@ func New(cfg *Config) (*Adapter, error) {
 	// Create Azure credential based on configuration
 	var cred azcore.TokenCredential
 	if cfg.UseManagedIdentity {
-		managedIDCred, err := azidentity.NewManagedIdentityCredential(nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create managed identity credential: %w", err)
+		managedIDCred, credErr := azidentity.NewManagedIdentityCredential(nil)
+		if credErr != nil {
+			return nil, fmt.Errorf("failed to create managed identity credential: %w", credErr)
 		}
 		logger.Info("using Azure Managed Identity for authentication")
 		cred = managedIDCred
 	} else {
-		clientSecretCred, err := azidentity.NewClientSecretCredential(
+		clientSecretCred, credErr := azidentity.NewClientSecretCredential(
 			cfg.TenantID,
 			cfg.ClientID,
 			cfg.ClientSecret,
 			nil,
 		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create service principal credential: %w", err)
+		if credErr != nil {
+			return nil, fmt.Errorf("failed to create service principal credential: %w", credErr)
 		}
 		logger.Info("using Azure Service Principal for authentication",
 			zap.String("tenantID", cfg.TenantID),
@@ -405,9 +405,10 @@ func (a *Adapter) Close() error {
 	a.SubscriptionsMu.Unlock()
 
 	// Sync logger before shutdown
-	// Ignore sync errors on stderr/stdout
-	_ = a.Logger.Sync()
-
+	// Sync errors on stderr/stdout are expected and can be ignored
+	if err := a.Logger.Sync(); err != nil {
+		return fmt.Errorf("failed to sync logger: %w", err)
+	}
 	return nil
 }
 

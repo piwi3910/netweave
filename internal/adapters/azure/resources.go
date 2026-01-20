@@ -163,9 +163,9 @@ func (a *Adapter) UpdateResource(
 			Tags: tags,
 		}
 
-		poller, err := a.vmClient.BeginUpdate(ctx, resourceGroup, vmName, updateParams, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to start VM update: %w", err)
+		poller, pollErr := a.vmClient.BeginUpdate(ctx, resourceGroup, vmName, updateParams, nil)
+		if pollErr != nil {
+			return nil, fmt.Errorf("failed to start VM update: %w", pollErr)
 		}
 
 		// Wait for update to complete

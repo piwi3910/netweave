@@ -32,8 +32,8 @@ func (a *Adapter) getAndParseResource(
 	}()
 
 	// Parse response
-	if err := a.client.parseResponse(resp, result); err != nil {
-		return fmt.Errorf("failed to parse %s response: %w", resourceType, err)
+	if parseErr := a.client.parseResponse(resp, result); parseErr != nil {
+		return fmt.Errorf("failed to parse %s response: %w", resourceType, parseErr)
 	}
 
 	return nil

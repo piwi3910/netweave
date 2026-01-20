@@ -321,7 +321,10 @@ func (a *Adapter) TestBuildRunInstanceInput(resource interface{}) *ec2.RunInstan
 		return nil
 	}
 	instanceType := extractInstanceType(r.ResourceTypeID)
-	amiID, _ := getRequiredAMI(r.Extensions)
+	amiID, err := getRequiredAMI(r.Extensions)
+	if err != nil {
+		a.Logger.Warn("failed to get AMI", zap.Error(err))
+	}
 	return buildRunInstanceInput(r, instanceType, amiID)
 }
 
@@ -358,9 +361,10 @@ func (a *Adapter) Close() error {
 	a.SubscriptionsMu.Unlock()
 
 	// Sync logger before shutdown
-	// Ignore sync errors on stderr/stdout
-	_ = a.Logger.Sync()
-
+	// Sync errors on stderr/stdout are expected and can be ignored
+	if err := a.Logger.Sync(); err != nil {
+		return fmt.Errorf("failed to sync logger: %w", err)
+	}
 	return nil
 }
 
