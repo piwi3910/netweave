@@ -453,13 +453,13 @@ func TestAWSAdapter_ListResources(t *testing.T) {
 
 // TestAWSAdapter_ListResourceTypes tests the ListResourceTypes function.
 func TestAWSAdapter_ListResourceTypes(t *testing.T) {
-	adapter, err := awsadapter.New(&awsadapter.Config{
+	adp, err := awsadapter.New(&awsadapter.Config{
 		Region:   "us-east-1",
 		OCloudID: "test-cloud",
 	})
 	require.NoError(t, err)
 
-	types, err := adapter.ListResourceTypes(context.Background(), nil)
+	types, err := adp.ListResourceTypes(context.Background(), nil)
 	if err != nil {
 		t.Skip("Skipping - requires AWS credentials")
 	}
@@ -468,13 +468,13 @@ func TestAWSAdapter_ListResourceTypes(t *testing.T) {
 
 // TestAWSAdapter_GetDeploymentManager tests the GetDeploymentManager function.
 func TestAWSAdapter_GetDeploymentManager(t *testing.T) {
-	adapter, err := awsadapter.New(&awsadapter.Config{
+	adp, err := awsadapter.New(&awsadapter.Config{
 		Region:   "us-east-1",
 		OCloudID: "test-cloud",
 	})
 	require.NoError(t, err)
 
-	dm, err := adapter.GetDeploymentManager(context.Background(), "dm-1")
+	dm, err := adp.GetDeploymentManager(context.Background(), "dm-1")
 	if err != nil {
 		t.Skip("Skipping - requires AWS credentials")
 	}
