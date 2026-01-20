@@ -202,6 +202,9 @@ func TestValidateValidConfig(t *testing.T) {
 			Addresses: []string{"localhost:6379"},
 			DB:        0,
 		},
+		Auth: config.AuthConfig{
+			Backend: "redis",
+		},
 		Observability: config.ObservabilityConfig{
 			Logging: config.LoggingConfig{
 				Level:  "info",
@@ -586,6 +589,7 @@ func TestValidateTLSConfig(t *testing.T) {
 			config: &config.Config{
 				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
 				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Auth:   config.AuthConfig{Backend: "redis"},
 				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
@@ -727,6 +731,7 @@ func TestValidateTLSConfig(t *testing.T) {
 			config: &config.Config{
 				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
 				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Auth:   config.AuthConfig{Backend: "redis"},
 				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
