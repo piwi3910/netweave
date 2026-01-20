@@ -149,6 +149,69 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
 kubectl get pods -n monitoring -l app.kubernetes.io/name=prometheus
 ```
 
+**Install Keycloak (Optional - for Keycloak auth backend):**
+
+If you want to use Keycloak as the authentication backend instead of Redis:
+
+```bash
+# Add Bitnami repo (if not already added)
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo update
+
+# Install Keycloak
+helm install keycloak bitnami/keycloak \
+  --namespace o2ims-system \
+  --set auth.adminUser=admin \
+  --set auth.adminPassword="$(openssl rand -base64 32)" \
+  --set postgresql.enabled=true \
+  --set postgresql.auth.password="$(openssl rand -base64 32)" \
+  --set service.type=ClusterIP \
+  --set ingress.enabled=false
+
+# Verify Keycloak deployment
+kubectl get pods -n o2ims-system -l app.kubernetes.io/name=keycloak
+kubectl logs -n o2ims-system -l app.kubernetes.io/name=keycloak --tail=20
+
+# Port-forward to access Keycloak admin console
+kubectl port-forward -n o2ims-system svc/keycloak 8080:80
+# Access at: http://localhost:8080
+# Username: admin
+# Password: (retrieve with: kubectl get secret -n o2ims-system keycloak -o jsonpath='{.data.admin-password}' | base64 -d)
+```
+
+**Configure Keycloak realm and client:**
+
+1. Access Keycloak admin console (http://localhost:8080 via port-forward)
+2. Create a new realm: `netweave`
+3. Create a client for the gateway:
+   - Client ID: `netweave-gateway`
+   - Client Protocol: `openid-connect`
+   - Access Type: `confidential`
+   - Service Accounts Enabled: `true`
+   - Valid Redirect URIs: `*` (restrict in production)
+4. Save and note the client secret from the Credentials tab
+5. Create admin user or use master realm admin
+6. Grant realm management permissions to the admin user
+
+**Create Keycloak secrets for gateway:**
+
+```bash
+# Get Keycloak admin password
+KEYCLOAK_ADMIN_PASSWORD=$(kubectl get secret -n o2ims-system keycloak -o jsonpath='{.data.admin-password}' | base64 -d)
+
+# Get client secret from Keycloak admin console (Clients -> netweave-gateway -> Credentials tab)
+KEYCLOAK_CLIENT_SECRET="your-client-secret-from-keycloak"
+
+# Create secrets for gateway
+kubectl create secret generic keycloak-credentials \
+  --namespace o2ims-system \
+  --from-literal=client-secret="$KEYCLOAK_CLIENT_SECRET" \
+  --from-literal=admin-password="$KEYCLOAK_ADMIN_PASSWORD"
+
+# Verify secret
+kubectl get secret -n o2ims-system keycloak-credentials
+```
+
 #### Step 2: Configure TLS Certificates
 
 **Create ClusterIssuer for cert-manager:**
@@ -227,6 +290,33 @@ redis:
   password:
     secretName: redis
     secretKey: redis-password
+
+# Authentication backend configuration
+auth:
+  backend: redis  # "redis" (default) or "keycloak"
+
+  # Keycloak configuration (only used if backend: keycloak)
+  keycloak:
+    baseURL: http://keycloak.o2ims-system.svc.cluster.local
+    realm: netweave
+    clientID: netweave-gateway
+    clientSecretEnvVar: KEYCLOAK_CLIENT_SECRET
+    adminUsername: admin
+    adminPasswordEnvVar: KEYCLOAK_ADMIN_PASSWORD
+    timeout: 30s
+
+  # Environment variables for secrets (set via extraEnv)
+  extraEnv:
+    - name: KEYCLOAK_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: keycloak-credentials
+          key: client-secret
+    - name: KEYCLOAK_ADMIN_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: keycloak-credentials
+          key: admin-password
 
 monitoring:
   enabled: true
