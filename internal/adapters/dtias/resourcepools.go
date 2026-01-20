@@ -63,8 +63,8 @@ func (a *Adapter) fetchServerPools(ctx context.Context, path string) ([]ServerPo
 
 	// Parse DTIAS wrapped response
 	var dtiasResp ResourcePoolsInventoryResponse
-	if err := a.client.parseResponse(resp, &dtiasResp); err != nil {
-		return nil, fmt.Errorf("failed to parse server pools response: %w", err)
+	if parseErr := a.client.parseResponse(resp, &dtiasResp); parseErr != nil {
+		return nil, fmt.Errorf("failed to parse server pools response: %w", parseErr)
 	}
 
 	// Check for API errors in response
@@ -175,8 +175,8 @@ func (a *Adapter) CreateResourcePool(
 
 	// Parse response
 	var serverPool ServerPool
-	if err := a.client.parseResponse(resp, &serverPool); err != nil {
-		return nil, fmt.Errorf("failed to parse create response: %w", err)
+	if parseErr := a.client.parseResponse(resp, &serverPool); parseErr != nil {
+		return nil, fmt.Errorf("failed to parse create response: %w", parseErr)
 	}
 
 	// Transform to O2-IMS resource pool
@@ -228,8 +228,8 @@ func (a *Adapter) UpdateResourcePool(
 
 	// Parse response
 	var serverPool ServerPool
-	if err := a.client.parseResponse(resp, &serverPool); err != nil {
-		return nil, fmt.Errorf("failed to parse update response: %w", err)
+	if parseErr := a.client.parseResponse(resp, &serverPool); parseErr != nil {
+		return nil, fmt.Errorf("failed to parse update response: %w", parseErr)
 	}
 
 	// Transform to O2-IMS resource pool

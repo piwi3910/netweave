@@ -138,12 +138,12 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 
 	var firstZone string
 	for {
-		zone, err := zoneIt.Next()
-		if errors.Is(err, iterator.Done) {
+		zone, zoneErr := zoneIt.Next()
+		if errors.Is(zoneErr, iterator.Done) {
 			break
 		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to list zones: %w", err)
+		if zoneErr != nil {
+			return nil, fmt.Errorf("failed to list zones: %w", zoneErr)
 		}
 
 		zoneName := PtrToString(zone.Name)

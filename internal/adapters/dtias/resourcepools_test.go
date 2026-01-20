@@ -308,9 +308,8 @@ func TestDTIASAdapter_UpdateResourcePool_FieldsAllowed(t *testing.T) {
 
 	// Test which fields can be updated
 	pool := &adapter.ResourcePool{
-		ResourcePoolID: "pool-123",
-		Name:           "Updated Name",
-		Description:    "Updated description",
+		Name:        "Updated Name",
+		Description: "Updated description",
 		Extensions: map[string]interface{}{
 			"dtias.metadata": map[string]string{
 				"updated": "true",

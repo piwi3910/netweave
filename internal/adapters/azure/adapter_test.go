@@ -440,7 +440,7 @@ func TestPtrHelpers(t *testing.T) {
 // NOTE: BenchmarkMatchesFilter and BenchmarkApplyPagination moved to internal/adapter/helpers_test.go
 // TestAzureAdapter_Health tests the Health function.
 func TestAzureAdapter_Health(t *testing.T) {
-	adapter, err := azadapter.New(&azadapter.Config{
+	adp, err := azadapter.New(&azadapter.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -451,7 +451,7 @@ func TestAzureAdapter_Health(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	err = adapter.Health(ctx)
+	err = adp.Health(ctx)
 	if err != nil {
 		t.Skip("Skipping - requires Azure credentials")
 	}
@@ -459,7 +459,7 @@ func TestAzureAdapter_Health(t *testing.T) {
 
 // TestAzureAdapter_ListResourcePools tests the ListResourcePools function.
 func TestAzureAdapter_ListResourcePools(t *testing.T) {
-	adapter, err := azadapter.New(&azadapter.Config{
+	adp, err := azadapter.New(&azadapter.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -471,7 +471,7 @@ func TestAzureAdapter_ListResourcePools(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	pools, err := adapter.ListResourcePools(ctx, nil)
+	pools, err := adp.ListResourcePools(ctx, nil)
 	if err != nil {
 		t.Skip("Skipping - requires Azure credentials")
 	}
@@ -480,7 +480,7 @@ func TestAzureAdapter_ListResourcePools(t *testing.T) {
 
 // TestAzureAdapter_ListResources tests the ListResources function.
 func TestAzureAdapter_ListResources(t *testing.T) {
-	adapter, err := azadapter.New(&azadapter.Config{
+	adp, err := azadapter.New(&azadapter.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -491,7 +491,7 @@ func TestAzureAdapter_ListResources(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	resources, err := adapter.ListResources(ctx, nil)
+	resources, err := adp.ListResources(ctx, nil)
 	if err != nil {
 		t.Skip("Skipping - requires Azure credentials")
 	}
@@ -500,7 +500,7 @@ func TestAzureAdapter_ListResources(t *testing.T) {
 
 // TestAzureAdapter_ListResourceTypes tests the ListResourceTypes function.
 func TestAzureAdapter_ListResourceTypes(t *testing.T) {
-	adapter, err := azadapter.New(&azadapter.Config{
+	adp, err := azadapter.New(&azadapter.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -511,7 +511,7 @@ func TestAzureAdapter_ListResourceTypes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	types, err := adapter.ListResourceTypes(ctx, nil)
+	types, err := adp.ListResourceTypes(ctx, nil)
 	if err != nil {
 		t.Skip("Skipping - requires Azure credentials")
 	}
@@ -520,7 +520,7 @@ func TestAzureAdapter_ListResourceTypes(t *testing.T) {
 
 // TestAzureAdapter_GetDeploymentManager tests the GetDeploymentManager function.
 func TestAzureAdapter_GetDeploymentManager(t *testing.T) {
-	adapter, err := azadapter.New(&azadapter.Config{
+	adp, err := azadapter.New(&azadapter.Config{
 		SubscriptionID:     "test-sub",
 		Location:           "eastus",
 		OCloudID:           "test-cloud",
@@ -531,7 +531,7 @@ func TestAzureAdapter_GetDeploymentManager(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	dm, err := adapter.GetDeploymentManager(ctx, "dm-1")
+	dm, err := adp.GetDeploymentManager(ctx, "dm-1")
 	if err != nil {
 		t.Skip("Skipping - requires Azure credentials")
 	}

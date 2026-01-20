@@ -130,8 +130,8 @@ func testListResources(t *testing.T, adp adapter.Adapter) {
 			filter := &adapter.Filter{
 				ResourcePoolID: allResources[0].ResourcePoolID,
 			}
-			filtered, err := adp.ListResources(ctx, filter)
-			require.NoError(t, err)
+			filtered, filterErr := adp.ListResources(ctx, filter)
+			require.NoError(t, filterErr)
 			for _, res := range filtered {
 				assert.Equal(t, allResources[0].ResourcePoolID, res.ResourcePoolID,
 					"filtered resources should match pool ID")
@@ -212,7 +212,9 @@ func testCreateResource(t *testing.T, adp adapter.Adapter) {
 		assert.Equal(t, newResource.Description, created.Description)
 
 		// Cleanup
-		_ = adp.DeleteResource(ctx, created.ResourceID)
+		if cleanupErr := adp.DeleteResource(ctx, created.ResourceID); cleanupErr != nil {
+			t.Logf("cleanup failed: %v", cleanupErr)
+		}
 	})
 
 	t.Run("create_invalid_resource", func(t *testing.T) {
@@ -265,7 +267,9 @@ func testUpdateResource(t *testing.T, adp adapter.Adapter) {
 		assert.Equal(t, originalResource.ResourceTypeID, updated.ResourceTypeID, "type ID should not change")
 
 		// Restore original description if possible
-		_, _ = adp.UpdateResource(ctx, originalResource.ResourceID, originalResource)
+		if _, cleanupErr := adp.UpdateResource(ctx, originalResource.ResourceID, originalResource); cleanupErr != nil {
+			t.Logf("cleanup: failed to restore original description: %v", cleanupErr)
+		}
 	})
 
 	t.Run("update_nonexistent_resource", func(t *testing.T) {
@@ -330,7 +334,9 @@ func testResourceLifecycle(t *testing.T, adp adapter.Adapter) {
 			t.Skipf("Adapter does not support resource lifecycle operations: %v", err)
 		}
 		defer func() {
-			_ = adp.DeleteResource(ctx, created.ResourceID)
+			if cleanupErr := adp.DeleteResource(ctx, created.ResourceID); cleanupErr != nil {
+				t.Logf("cleanup failed: %v", cleanupErr)
+			}
 		}()
 
 		assert.NotEmpty(t, created.ResourceID, "created resource should have ID")

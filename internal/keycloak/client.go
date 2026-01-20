@@ -74,7 +74,8 @@ func NewClient(config *Config) (*Client, error) {
 	if config.ClientID == "" {
 		return nil, fmt.Errorf("ClientID is required")
 	}
-	if config.ClientSecret == "" {
+	// ClientSecret is required unless using admin credentials with admin-cli
+	if config.ClientSecret == "" && !(config.ClientID == "admin-cli" && config.AdminUsername != "" && config.AdminPassword != "") {
 		return nil, fmt.Errorf("ClientSecret is required")
 	}
 

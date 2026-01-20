@@ -79,8 +79,8 @@ func (a *Adapter) fetchServers(ctx context.Context, path string) ([]Server, erro
 
 	// Parse DTIAS wrapped response
 	var dtiasResp ServersInventoryResponse
-	if err := a.client.parseResponse(resp, &dtiasResp); err != nil {
-		return nil, fmt.Errorf("failed to parse servers response: %w", err)
+	if parseErr := a.client.parseResponse(resp, &dtiasResp); parseErr != nil {
+		return nil, fmt.Errorf("failed to parse servers response: %w", parseErr)
 	}
 
 	// Check for API errors in response
@@ -199,8 +199,8 @@ func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource
 
 	// Parse response
 	var server Server
-	if err := a.client.parseResponse(resp, &server); err != nil {
-		return nil, fmt.Errorf("failed to parse provision response: %w", err)
+	if parseErr := a.client.parseResponse(resp, &server); parseErr != nil {
+		return nil, fmt.Errorf("failed to parse provision response: %w", parseErr)
 	}
 
 	// Transform to O2-IMS resource
@@ -269,8 +269,8 @@ func (a *Adapter) UpdateResource(
 
 	// Parse updated server response
 	var server Server
-	if err := a.client.parseResponse(resp, &server); err != nil {
-		return nil, fmt.Errorf("failed to parse update response: %w", err)
+	if parseErr := a.client.parseResponse(resp, &server); parseErr != nil {
+		return nil, fmt.Errorf("failed to parse update response: %w", parseErr)
 	}
 
 	// Transform to O2-IMS resource
@@ -481,8 +481,8 @@ func (a *Adapter) GetHealthMetrics(ctx context.Context, serverID string) (*Healt
 
 	// Parse response
 	var metrics HealthMetrics
-	if err := a.client.parseResponse(resp, &metrics); err != nil {
-		return nil, fmt.Errorf("failed to parse health metrics response: %w", err)
+	if parseErr := a.client.parseResponse(resp, &metrics); parseErr != nil {
+		return nil, fmt.Errorf("failed to parse health metrics response: %w", parseErr)
 	}
 
 	a.logger.Debug("retrieved health metrics",

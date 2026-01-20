@@ -29,11 +29,12 @@ func (a *Adapter) ListResourcePools(
 		zap.Any("filter", filter),
 		zap.String("poolMode", a.PoolMode))
 
+	var pools []*adapter.ResourcePool
 	if a.PoolMode == "asg" {
-		pools, err := a.listASGPools(ctx, filter)
+		pools, err = a.listASGPools(ctx, filter)
 		return pools, err
 	}
-	pools, err := a.listAZPools(ctx, filter)
+	pools, err = a.listAZPools(ctx, filter)
 	return pools, err
 }
 

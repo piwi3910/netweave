@@ -133,7 +133,7 @@ func New(cfg *Config) (*Adapter, error) {
 		return nil, err
 	}
 
-	adapter := &Adapter{
+	adp := &Adapter{
 		provider:            provider,
 		compute:             clients.compute,
 		placement:           clients.placement,
@@ -151,7 +151,7 @@ func New(cfg *Config) (*Adapter, error) {
 		zap.String("deploymentManagerID", deploymentManagerID),
 		zap.String("region", cfg.Region))
 
-	return adapter, nil
+	return adp, nil
 }
 
 // validateConfig validates required configuration fields.
@@ -444,10 +444,9 @@ func (a *Adapter) Close() error {
 	// Stop all polling goroutines
 	a.StopAllPolling()
 
-	// Sync logger before shutdown (ignore sync errors on stderr/stdout)
-	_ = a.Logger.Sync()
-
-	return nil
+	// Sync logger before shutdown
+	// Sync errors on stderr/stdout are expected and can be ignored
+	return a.Logger.Sync()
 }
 
 // NOTE: Filter matching and pagination use shared helpers from internal/adapter/helpers.go

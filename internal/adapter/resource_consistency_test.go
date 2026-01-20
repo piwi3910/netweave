@@ -311,10 +311,10 @@ func TestResource_FilterConsistency(t *testing.T) {
 	if allResources[0].ResourcePoolID != "" {
 		poolID := allResources[0].ResourcePoolID
 
-		filtered, err := adp.ListResources(ctx, &adapter.Filter{
+		filtered, filterErr := adp.ListResources(ctx, &adapter.Filter{
 			ResourcePoolID: poolID,
 		})
-		require.NoError(t, err)
+		require.NoError(t, filterErr)
 
 		// All filtered resources should have the specified pool ID
 		for i, res := range filtered {
@@ -327,10 +327,10 @@ func TestResource_FilterConsistency(t *testing.T) {
 	if len(allResources) > 0 {
 		typeID := allResources[0].ResourceTypeID
 
-		filtered, err := adp.ListResources(ctx, &adapter.Filter{
+		filtered, filterErr := adp.ListResources(ctx, &adapter.Filter{
 			ResourceTypeID: typeID,
 		})
-		require.NoError(t, err)
+		require.NoError(t, filterErr)
 
 		// All filtered resources should have the specified type ID
 		for i, res := range filtered {
