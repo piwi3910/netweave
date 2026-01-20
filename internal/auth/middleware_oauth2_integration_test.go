@@ -130,7 +130,7 @@ func TestMiddleware_DualAuth_OAuth2Priority(t *testing.T) {
 	})
 
 	// Create request with both auth methods
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer valid-oauth-token")
 
 	// Add client certificate
@@ -265,7 +265,7 @@ func TestMiddleware_DualAuth_MTLSPriority(t *testing.T) {
 	})
 
 	// Create request with both auth methods
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer valid-oauth-token")
 
 	// Add client certificate
@@ -383,7 +383,7 @@ func TestMiddleware_DualAuth_OAuth2Only(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer valid-oauth-token")
 
 	w := httptest.NewRecorder()
@@ -464,7 +464,7 @@ func TestMiddleware_DualAuth_MTLSOnly(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	// Add client certificate
 	cert := &x509.Certificate{
@@ -519,7 +519,7 @@ func TestMiddleware_DualAuth_NoAuthMethod(t *testing.T) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -614,7 +614,7 @@ func TestMiddleware_DualAuth_InvalidToken(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer invalid-token")
 
 	// Add valid client certificate
@@ -751,7 +751,7 @@ func TestMiddleware_DualAuth_ConcurrentRequests(t *testing.T) {
 	// Send OAuth2 requests
 	for i := 0; i < 10; i++ {
 		go func() {
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			req.Header.Set("Authorization", "Bearer valid-oauth-token")
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -767,7 +767,7 @@ func TestMiddleware_DualAuth_ConcurrentRequests(t *testing.T) {
 	// Send mTLS requests
 	for i := 0; i < 10; i++ {
 		go func() {
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			cert := &x509.Certificate{
 				Subject: pkix.Name{
 					CommonName:   "mtls-user",
@@ -795,10 +795,11 @@ func TestMiddleware_DualAuth_ConcurrentRequests(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		select {
 		case response := <-results:
-			if response["authMethod"] == "oauth2" {
+			switch response["authMethod"] {
+			case "oauth2":
 				oauth2Count++
 				assert.Equal(t, "user-oauth", response["userID"])
-			} else if response["authMethod"] == "mtls" {
+			case "mtls":
 				mtlsCount++
 				assert.Equal(t, "user-mtls", response["userID"])
 			}

@@ -856,6 +856,7 @@ func TestOAuth2Authenticator_Authenticate_Integration(t *testing.T) {
 			},
 			wantErr: false,
 			checkUser: func(t *testing.T, user *TenantUser) {
+				t.Helper()
 				assert.Equal(t, "existing-user", user.ID)
 				assert.Equal(t, "user-123", user.OAuthSubject)
 			},
@@ -897,6 +898,7 @@ func TestOAuth2Authenticator_Authenticate_Integration(t *testing.T) {
 			},
 			wantErr: false,
 			checkUser: func(t *testing.T, user *TenantUser) {
+				t.Helper()
 				assert.NotEmpty(t, user.ID)
 				assert.Equal(t, "new-user-123", user.OAuthSubject)
 				assert.Equal(t, "keycloak", user.OAuthProvider)
