@@ -362,9 +362,7 @@ func (a *Adapter) Close() error {
 
 	// Sync logger before shutdown
 	// Ignore sync errors on stderr/stdout as they're expected during shutdown
-	if err := a.Logger.Sync(); err != nil {
-		// Expected error when syncing stderr/stdout loggers
-	}
+	_ = a.Logger.Sync()
 
 	return nil
 }

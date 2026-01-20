@@ -408,13 +408,13 @@ func TestConfigValidation(t *testing.T) {
 
 // TestAWSAdapter_Health tests the Health function.
 func TestAWSAdapter_Health(t *testing.T) {
-	adapter, err := awsadapter.New(&awsadapter.Config{
+	adp, err := awsadapter.New(&awsadapter.Config{
 		Region:   "us-east-1",
 		OCloudID: "test-cloud",
 	})
 	require.NoError(t, err)
 
-	err = adapter.Health(context.Background())
+	err = adp.Health(context.Background())
 	if err != nil {
 		t.Skip("Skipping - requires AWS credentials")
 	}
@@ -422,14 +422,14 @@ func TestAWSAdapter_Health(t *testing.T) {
 
 // TestAWSAdapter_ListResourcePools tests the ListResourcePools function.
 func TestAWSAdapter_ListResourcePools(t *testing.T) {
-	adapter, err := awsadapter.New(&awsadapter.Config{
+	adp, err := awsadapter.New(&awsadapter.Config{
 		Region:   "us-east-1",
 		OCloudID: "test-cloud",
 		PoolMode: "az",
 	})
 	require.NoError(t, err)
 
-	pools, err := adapter.ListResourcePools(context.Background(), nil)
+	pools, err := adp.ListResourcePools(context.Background(), nil)
 	if err != nil {
 		t.Skip("Skipping - requires AWS credentials")
 	}
@@ -438,13 +438,13 @@ func TestAWSAdapter_ListResourcePools(t *testing.T) {
 
 // TestAWSAdapter_ListResources tests the ListResources function.
 func TestAWSAdapter_ListResources(t *testing.T) {
-	adapter, err := awsadapter.New(&awsadapter.Config{
+	adp, err := awsadapter.New(&awsadapter.Config{
 		Region:   "us-east-1",
 		OCloudID: "test-cloud",
 	})
 	require.NoError(t, err)
 
-	resources, err := adapter.ListResources(context.Background(), nil)
+	resources, err := adp.ListResources(context.Background(), nil)
 	if err != nil {
 		t.Skip("Skipping - requires AWS credentials")
 	}

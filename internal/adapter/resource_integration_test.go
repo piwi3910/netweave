@@ -130,8 +130,8 @@ func testListResources(t *testing.T, adp adapter.Adapter) {
 			filter := &adapter.Filter{
 				ResourcePoolID: allResources[0].ResourcePoolID,
 			}
-			filtered, err := adp.ListResources(ctx, filter)
-			require.NoError(t, err)
+			filtered, filterErr := adp.ListResources(ctx, filter)
+			require.NoError(t, filterErr)
 			for _, res := range filtered {
 				assert.Equal(t, allResources[0].ResourcePoolID, res.ResourcePoolID,
 					"filtered resources should match pool ID")
