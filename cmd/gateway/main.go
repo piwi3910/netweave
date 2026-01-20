@@ -963,16 +963,21 @@ func InitializeAuth(cfg *config.Config, logger *zap.Logger) (auth.Store, *auth.M
 	case "keycloak":
 		// Initialize Keycloak store
 		keycloakCfg := &keycloak.Config{
-			BaseURL:      cfg.Auth.Keycloak.BaseURL,
-			Realm:        cfg.Auth.Keycloak.Realm,
-			ClientID:     cfg.Auth.Keycloak.ClientID,
-			ClientSecret: cfg.Auth.Keycloak.ClientSecret,
-			Timeout:      cfg.Auth.Keycloak.Timeout,
+			BaseURL:       cfg.Auth.Keycloak.BaseURL,
+			Realm:         cfg.Auth.Keycloak.Realm,
+			ClientID:      cfg.Auth.Keycloak.ClientID,
+			ClientSecret:  cfg.Auth.Keycloak.ClientSecret,
+			AdminUsername: cfg.Auth.Keycloak.AdminUsername,
+			AdminPassword: cfg.Auth.Keycloak.AdminPassword,
+			Timeout:       cfg.Auth.Keycloak.Timeout,
 		}
 
 		// Get secrets from environment if configured
 		if secret, secretErr := cfg.Auth.Keycloak.GetClientSecret(); secretErr == nil {
 			keycloakCfg.ClientSecret = secret
+		}
+		if adminPass, adminErr := cfg.Auth.Keycloak.GetAdminPassword(); adminErr == nil {
+			keycloakCfg.AdminPassword = adminPass
 		}
 
 		keycloakClient, clientErr := keycloak.NewClient(keycloakCfg)
