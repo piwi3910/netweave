@@ -15,10 +15,15 @@ import (
 )
 
 const (
-	keycloakImage    = "quay.io/keycloak/keycloak:23.0"
-	testRealm        = "master" // Use master realm for integration tests
-	testClientID     = "admin-cli"
-	testClientSecret = "" // admin-cli is a public client
+	keycloakImage = "quay.io/keycloak/keycloak:23.0"
+	// testRealm uses the master realm for integration tests because:
+	// 1. It's guaranteed to exist in all Keycloak installations
+	// 2. It comes pre-configured with admin-cli client for API access
+	// 3. Creating custom realms in testcontainers requires additional setup complexity
+	// 4. Tests using master realm skip role CRUD tests due to permission restrictions
+	testRealm        = "master"
+	testClientID     = AdminCLIClientID // admin-cli is a public client for admin API access
+	testClientSecret = ""               // admin-cli does not require client secret
 	adminUser        = "admin"
 	adminPassword    = "admin"
 )
