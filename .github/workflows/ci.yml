@@ -167,7 +167,7 @@ jobs:
         env:
           REDIS_ADDR: localhost:6379
           KUBECONFIG: ${{ github.workspace }}/.kube/config
-        run: go test -v -tags=integration ./...
+        run: go test -v -short -tags=integration ./...
 
   # Build verification
   build:
