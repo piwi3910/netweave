@@ -362,7 +362,10 @@ func (a *Adapter) Close() error {
 
 	// Sync logger before shutdown
 	// Sync errors on stderr/stdout are expected and can be ignored
-	return a.Logger.Sync()
+	if err := a.Logger.Sync(); err != nil {
+		return fmt.Errorf("failed to sync logger: %w", err)
+	}
+	return nil
 }
 
 // GenerateInstanceTypeID generates a consistent resource type ID for an instance type.

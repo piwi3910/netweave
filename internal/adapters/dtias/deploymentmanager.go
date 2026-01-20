@@ -101,8 +101,8 @@ func (a *Adapter) getDatacenterInfo(ctx context.Context, datacenterID string) (*
 
 	// Parse response
 	var datacenterInfo DatacenterInfo
-	if err := a.client.parseResponse(resp, &datacenterInfo); err != nil {
-		return nil, fmt.Errorf("failed to parse datacenter info response: %w", err)
+	if parseErr := a.client.parseResponse(resp, &datacenterInfo); parseErr != nil {
+		return nil, fmt.Errorf("failed to parse datacenter info response: %w", parseErr)
 	}
 
 	return &datacenterInfo, nil

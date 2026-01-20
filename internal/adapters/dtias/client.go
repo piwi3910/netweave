@@ -199,9 +199,9 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 			time.Sleep(c.retryDelay)
 		}
 
-		req, err := c.createHTTPRequest(ctx, method, url, bodyReader)
-		if err != nil {
-			return nil, err
+		req, reqErr := c.createHTTPRequest(ctx, method, url, bodyReader)
+		if reqErr != nil {
+			return nil, reqErr
 		}
 
 		resp, err := c.httpClient.Do(req)
@@ -225,8 +225,8 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 // parseResponse parses a JSON response body into the target structure.
 func (c *Client) parseResponse(resp *http.Response, target interface{}) error {
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			c.logger.Warn("failed to close response body", zap.Error(err))
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
 		}
 	}()
 
@@ -240,7 +240,7 @@ func (c *Client) parseResponse(resp *http.Response, target interface{}) error {
 	if resp.StatusCode >= 400 {
 		// Try to parse error response
 		var apiErr APIError
-		if err := json.Unmarshal(body, &apiErr); err == nil && apiErr.Message != "" {
+		if unmarshalErr := json.Unmarshal(body, &apiErr); unmarshalErr == nil && apiErr.Message != "" {
 			return &apiErr
 		}
 		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
@@ -248,8 +248,8 @@ func (c *Client) parseResponse(resp *http.Response, target interface{}) error {
 
 	// Parse success response
 	if target != nil {
-		if err := json.Unmarshal(body, target); err != nil {
-			return fmt.Errorf("failed to parse response: %w", err)
+		if unmarshalErr := json.Unmarshal(body, target); unmarshalErr != nil {
+			return fmt.Errorf("failed to parse response: %w", unmarshalErr)
 		}
 	}
 
@@ -264,8 +264,8 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 		return err
 	}
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			c.logger.Warn("failed to close response body", zap.Error(err))
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.logger.Warn("failed to close response body", zap.Error(closeErr))
 		}
 	}()
 

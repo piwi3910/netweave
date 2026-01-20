@@ -75,8 +75,9 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 	// List all VM sizes and find the matching one
 	pager := a.vmSizeClient.NewListPager(a.location, nil)
 	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
+		page, pageErr := pager.NextPage(ctx)
+		if pageErr != nil {
+			err = pageErr
 			return nil, fmt.Errorf("failed to list VM sizes: %w", err)
 		}
 

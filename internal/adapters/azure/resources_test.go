@@ -170,8 +170,7 @@ func TestParseAzureResourceID(t *testing.T) {
 				idx := 0
 				for i, c := range remainder {
 					if c == '-' {
-						parts = append(parts, remainder[:i])
-						parts = append(parts, remainder[i+1:])
+						parts = append(parts, remainder[:i], remainder[i+1:])
 						idx = i
 						break
 					}
