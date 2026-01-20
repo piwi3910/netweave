@@ -14,6 +14,12 @@ import (
 	"time"
 )
 
+const (
+	// AdminCLIClientID is the public client ID used for Keycloak admin API access.
+	// This client does not require a client secret when authenticating with admin credentials.
+	AdminCLIClientID = "admin-cli"
+)
+
 // Config holds the configuration for connecting to Keycloak.
 type Config struct {
 	// BaseURL is the Keycloak server base URL (e.g., "http://localhost:8090").
@@ -74,8 +80,13 @@ func NewClient(config *Config) (*Client, error) {
 	if config.ClientID == "" {
 		return nil, fmt.Errorf("ClientID is required")
 	}
-	// ClientSecret is required unless using admin credentials with admin-cli
-	if config.ClientSecret == "" && !(config.ClientID == "admin-cli" && config.AdminUsername != "" && config.AdminPassword != "") {
+
+	// ClientSecret is required for all clients except admin-cli when using admin credentials.
+	// admin-cli is a public client in Keycloak that authenticates using username/password
+	// for admin API access and does not require a client secret.
+	isAdminCLI := config.ClientID == AdminCLIClientID
+	hasAdminCredentials := config.AdminUsername != "" && config.AdminPassword != ""
+	if config.ClientSecret == "" && !(isAdminCLI && hasAdminCredentials) {
 		return nil, fmt.Errorf("ClientSecret is required")
 	}
 
@@ -232,7 +243,7 @@ func (c *Client) getAdminToken(ctx context.Context) (string, error) {
 
 	data := url.Values{}
 	data.Set("grant_type", "password")
-	data.Set("client_id", "admin-cli")
+	data.Set("client_id", AdminCLIClientID)
 	data.Set("username", c.config.AdminUsername)
 	data.Set("password", c.config.AdminPassword)
 

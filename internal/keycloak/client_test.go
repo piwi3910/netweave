@@ -67,6 +67,66 @@ func TestNewClient(t *testing.T) {
 			errMsg:  "ClientSecret is required",
 		},
 		{
+			name: "admin-cli with admin credentials (no secret required)",
+			config: &Config{
+				BaseURL:       "http://localhost:8090",
+				Realm:         "master",
+				ClientID:      AdminCLIClientID,
+				ClientSecret:  "",
+				AdminUsername: "admin",
+				AdminPassword: "admin",
+			},
+			wantErr: false,
+		},
+		{
+			name: "admin-cli without admin credentials (secret required)",
+			config: &Config{
+				BaseURL:      "http://localhost:8090",
+				Realm:        "master",
+				ClientID:     AdminCLIClientID,
+				ClientSecret: "",
+			},
+			wantErr: true,
+			errMsg:  "ClientSecret is required",
+		},
+		{
+			name: "admin-cli with only username (secret required)",
+			config: &Config{
+				BaseURL:       "http://localhost:8090",
+				Realm:         "master",
+				ClientID:      AdminCLIClientID,
+				ClientSecret:  "",
+				AdminUsername: "admin",
+			},
+			wantErr: true,
+			errMsg:  "ClientSecret is required",
+		},
+		{
+			name: "admin-cli with only password (secret required)",
+			config: &Config{
+				BaseURL:       "http://localhost:8090",
+				Realm:         "master",
+				ClientID:      AdminCLIClientID,
+				ClientSecret:  "",
+				AdminPassword: "admin",
+			},
+			wantErr: true,
+			errMsg:  "ClientSecret is required",
+		},
+		{
+			name: "non-admin-cli with admin credentials (secret still required)",
+			config: &Config{
+				BaseURL:       "http://localhost:8090",
+				Realm:         "netweave",
+				ClientID:      "custom-client",
+				ClientSecret:  "",
+				AdminUsername: "admin",
+				AdminPassword: "admin",
+			},
+			wantErr: true,
+			errMsg:  "ClientSecret is required",
+		},
+		{
 			name: "valid config",
 			config: &Config{
 				BaseURL:      "http://localhost:8090",
