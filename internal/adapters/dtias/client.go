@@ -204,9 +204,9 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 			return nil, reqErr
 		}
 
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			lastErr = fmt.Errorf("request failed: %w", err)
+		resp, doErr := c.httpClient.Do(req)
+		if doErr != nil {
+			lastErr = fmt.Errorf("request failed: %w", doErr)
 			continue
 		}
 
