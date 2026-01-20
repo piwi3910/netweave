@@ -100,7 +100,7 @@ helm upgrade --install netweave "${PROJECT_ROOT}/helm/netweave" \
     --set image.tag=e2e-test \
     --set image.pullPolicy=Never \
     --set redis.enabled=false \
-    --set config.redis.addresses="{redis-master.${NAMESPACE}.svc.cluster.local:6379}" \
+    --set config.database.connectionString="redis://redis-master.${NAMESPACE}.svc.cluster.local:6379/0" \
     --set config.server.tls.enabled=false \
     --set config.rateLimit.enabled=false \
     --set config.multi_tenancy.enabled=false \
