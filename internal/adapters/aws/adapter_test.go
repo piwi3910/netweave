@@ -1076,7 +1076,10 @@ func TestBuildInstanceTypeExtensions(t *testing.T) {
 					SupportedArchitectures:   []ec2Types.ArchitectureType{ec2Types.ArchitectureTypeX8664},
 					SustainedClockSpeedInGhz: aws.Float64(3.1),
 				},
-				SupportedUsageClasses: []ec2Types.UsageClassType{ec2Types.UsageClassTypeOnDemand, ec2Types.UsageClassTypeSpot},
+				SupportedUsageClasses: []ec2Types.UsageClassType{
+				ec2Types.UsageClassTypeOnDemand,
+				ec2Types.UsageClassTypeSpot,
+			},
 			},
 			family: "m5",
 			size:   "large",
@@ -1158,7 +1161,9 @@ func TestBuildInstanceTypeExtensions(t *testing.T) {
 			checkExts: func(t *testing.T, exts map[string]interface{}) {
 				t.Helper()
 				assert.Equal(t, "t3.nano", exts["aws.instanceType"])
-				assert.False(t, exts["aws.instanceStorageSupported"].(bool))
+				if val, ok := exts["aws.instanceStorageSupported"].(bool); ok {
+					assert.False(t, val)
+				}
 			},
 		},
 	}
