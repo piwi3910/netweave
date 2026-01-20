@@ -143,7 +143,6 @@ func (c *Client) IssueCertificate(ctx context.Context, roleName string, req *Cer
 		return nil, fmt.Errorf("issue certificate request failed: %w", err)
 	}
 	defer func() {
-		// Close response body - ignore error as response was already processed
 		_ = resp.Body.Close()
 	}()
 
@@ -220,7 +219,6 @@ func (c *Client) SignCSR(ctx context.Context, roleName, csr string, ttl string) 
 		return nil, fmt.Errorf("sign CSR request failed: %w", err)
 	}
 	defer func() {
-		// Close response body - ignore error as response was already processed
 		_ = resp.Body.Close()
 	}()
 
@@ -244,7 +242,6 @@ func (c *Client) GetCertificate(ctx context.Context, serialNumber string) (strin
 		return "", fmt.Errorf("get certificate request failed: %w", err)
 	}
 	defer func() {
-		// Close response body - ignore error as response was already processed
 		_ = resp.Body.Close()
 	}()
 
@@ -274,7 +271,6 @@ func (c *Client) ListCertificates(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("list certificates request failed: %w", err)
 	}
 	defer func() {
-		// Close response body - ignore error as response was already processed
 		_ = resp.Body.Close()
 	}()
 

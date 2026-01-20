@@ -45,7 +45,6 @@ func (c *Client) RevokeCertificate(ctx context.Context, serialNumber string) (*R
 		return nil, fmt.Errorf("revoke certificate request failed: %w", err)
 	}
 	defer func() {
-		// Close response body - ignore error as response was already processed
 		_ = resp.Body.Close()
 	}()
 
@@ -97,7 +96,6 @@ func (c *Client) TidyCertificates(ctx context.Context) error {
 		return fmt.Errorf("tidy request failed: %w", err)
 	}
 	defer func() {
-		// Close response body - ignore error as response was already processed
 		_ = resp.Body.Close()
 	}()
 
@@ -118,7 +116,6 @@ func (c *Client) GetTidyStatus(ctx context.Context) (map[string]interface{}, err
 		return nil, fmt.Errorf("get tidy status request failed: %w", err)
 	}
 	defer func() {
-		// Close response body - ignore error as response was already processed
 		_ = resp.Body.Close()
 	}()
 
@@ -145,7 +142,6 @@ func (c *Client) RotateCRL(ctx context.Context) error {
 		return fmt.Errorf("rotate CRL request failed: %w", err)
 	}
 	defer func() {
-		// Close response body - ignore error as response was already processed
 		_ = resp.Body.Close()
 	}()
 
