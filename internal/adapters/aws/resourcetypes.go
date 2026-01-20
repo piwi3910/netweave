@@ -132,7 +132,7 @@ func determineResourceKind(instanceType *ec2Types.InstanceTypeInfo) string {
 }
 
 // parseInstanceType extracts family and size from instance type name.
-func parseInstanceType(typeName string) (family, size string) {
+func parseInstanceType(typeName string) (string, string) {
 	parts := strings.Split(typeName, ".")
 	if len(parts) >= 2 {
 		return parts[0], parts[1]
