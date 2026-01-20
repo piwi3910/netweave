@@ -1077,9 +1077,9 @@ func TestBuildInstanceTypeExtensions(t *testing.T) {
 					SustainedClockSpeedInGhz: aws.Float64(3.1),
 				},
 				SupportedUsageClasses: []ec2Types.UsageClassType{
-				ec2Types.UsageClassTypeOnDemand,
-				ec2Types.UsageClassTypeSpot,
-			},
+					ec2Types.UsageClassTypeOnDemand,
+					ec2Types.UsageClassTypeSpot,
+				},
 			},
 			family: "m5",
 			size:   "large",
