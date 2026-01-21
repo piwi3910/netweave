@@ -8,6 +8,7 @@
 ca-key.pem
 ca.crt
 ca.srl
+*.srl
 
 # Vault secrets
 vault/init/

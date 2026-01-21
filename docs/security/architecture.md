@@ -534,5 +534,336 @@ gosec ./...                    # Every commit
 
 ---
 
-**Last Updated:** 2026-01-12
-**Version:** 1.0
+## Certificate Automation Service
+
+### Overview
+
+The netweave gateway includes a **production-grade certificate automation service** that manages the complete lifecycle of mTLS certificates for authenticated clients. This service provides automatic issuance, renewal, revocation, and expiry monitoring of client certificates backed by HashiCorp Vault PKI, with seamless integration to Keycloak for user identity management.
+
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        SMO[SMO Client]
+        User[API User]
+    end
+
+    subgraph "Certificate Manager Service"
+        API[Certificate API<br/>Gin HTTP Handlers]
+        Service[Certificate Service<br/>Lifecycle Management]
+        Monitor[Background Monitor<br/>Expiry Scanning]
+
+        API --> Service
+        Service --> Monitor
+    end
+
+    subgraph "Backend Systems"
+        Vault[HashiCorp Vault PKI<br/>Certificate Authority]
+        KC[Keycloak<br/>User Identity Store]
+        Storage[In-Memory Storage<br/>⚠️ Dev Only]
+    end
+
+    subgraph "Observability"
+        Metrics[Prometheus Metrics]
+        Traces[OpenTelemetry Traces]
+        Logs[Structured Logs]
+    end
+
+    SMO -->|Request Certificate| API
+    User -->|Request Certificate| API
+
+    Service -->|Issue/Revoke| Vault
+    Service -->|Update Attributes| KC
+    Service -->|Store| Storage
+
+    Monitor -->|Auto-Renew| Service
+
+    Service --> Metrics
+    Service --> Traces
+    Service --> Logs
+
+    style "Certificate Manager Service" fill:#e8f5e9
+    style "Backend Systems" fill:#e1f5ff
+    style "Observability" fill:#f3e5f5
+    style Storage fill:#ffebee
+```
+
+### Certificate Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: IssueCertificate
+
+    Active --> ExpiringSoon: Within Renewal Window<br/>(30 days before expiry)
+    Active --> Expired: Past Expiration
+    Active --> Revoked: RevokeCertificate
+
+    ExpiringSoon --> RenewalPending: Auto-Renewal Triggered
+    ExpiringSoon --> Expired: Past Expiration
+    ExpiringSoon --> Revoked: RevokeCertificate
+
+    RenewalPending --> Active: Renewal Success<br/>(New Serial)
+    RenewalPending --> RenewalFailed: Max Retries Exceeded<br/>(3 attempts)
+    RenewalPending --> ExpiringSoon: Renewal Failed<br/>(Will Retry)
+    RenewalPending --> Expired: Past Expiration
+
+    RenewalFailed --> [*]: Manual Intervention
+    Expired --> [*]: Manual Intervention
+    Revoked --> [*]: Certificate Invalid
+
+    note right of Active
+        Status: active
+        Valid for mTLS
+    end note
+
+    note right of ExpiringSoon
+        Status: expiring_soon
+        Still valid, renewal scheduled
+    end note
+
+    note right of RenewalPending
+        Status: renewal_pending
+        Auto-renewal in progress
+    end note
+
+    note right of RenewalFailed
+        Status: renewal_failed
+        Requires manual reissuance
+    end note
+```
+
+### Key Features
+
+#### 1. Automated Certificate Issuance
+
+- **Vault PKI Integration**: Certificates issued via HashiCorp Vault PKI with configurable TTL (default: 8760h / 1 year)
+- **User Association**: Each certificate linked to Keycloak user ID and tenant ID
+- **Keycloak Sync**: Certificate metadata (serial, issued/expiry dates) stored as user attributes
+- **Default TTL**: Configurable default certificate lifetime (1 year) applied when not specified
+- **Graceful Failures**: Keycloak attribute update failures logged as warnings but don't fail issuance
+
+**Security Controls**:
+- ✅ Certificate subject (Common Name) matches user identity
+- ✅ Serial number tracking for revocation
+- ✅ TTL enforcement prevents excessively long-lived certificates
+- ✅ Private key returned only on initial issuance (never on subsequent queries)
+
+#### 2. Automatic Certificate Renewal
+
+- **Proactive Monitoring**: Background scanner runs every hour checking for expiring certificates
+- **Renewal Window**: Certificates renewed 30 days before expiry (configurable)
+- **Retry Logic**: Failed renewals retried with exponential backoff (1 hour interval, max 3 retries)
+- **Retry Interval**: Prevents rapid retry attempts (configurable, default: 1 hour)
+- **Graceful Degradation**: Old certificate revoked only after successful renewal
+- **Context Cancellation**: Proper cleanup during service shutdown
+
+**Renewal Process**:
+1. Detect certificate expiring within renewal window
+2. Check retry interval to prevent rapid retries
+3. Issue new certificate with same parameters (preserving TTL)
+4. Revoke old certificate in Vault
+5. Update certificate status and metrics
+6. Log success/failure for monitoring
+
+**Race Condition Prevention**:
+- Uses certificate pointer reference (not serial lookup) for status updates
+- Prevents issues when `IssueCertificate` modifies the certificate map
+
+#### 3. Certificate Revocation
+
+- **Vault Revocation**: Certificates revoked by serial number in Vault PKI
+- **Status Tracking**: Certificate status updated to `revoked` with revocation timestamp
+- **Immediate Effect**: Revoked certificates rejected by mTLS verification
+
+#### 4. Production Observability
+
+**Prometheus Metrics** (8 metrics):
+- `certmanager_certificate_issuances_total{status}` - Counter of issuance attempts (success/failure)
+- `certmanager_certificate_revocations_total{status}` - Counter of revocation attempts (success/failure)
+- `certmanager_certificate_renewals_total{status}` - Counter of renewal attempts (success/failure/max_retries_exceeded)
+- `certmanager_certificates_by_status{status}` - Gauge of current certificates by status
+- `certmanager_certificate_lifetime_seconds` - Histogram of certificate lifetimes
+- `certmanager_keycloak_update_failures_total` - Counter of Keycloak sync failures
+- `certmanager_monitor_loop_duration_seconds` - Histogram of monitor loop execution time
+- `certmanager_renewal_attempts` - Histogram of renewal attempt counts before success/failure
+
+**OpenTelemetry Tracing**:
+- Distributed tracing spans for `IssueCertificate` and `RevokeCertificate`
+- Span attributes: user_id, tenant_id, common_name, serial_number, ttl
+- Error recording with `span.RecordError()` and status codes
+- Events for certificate lifecycle: `certificate_issued_from_vault`, `certificate_revoked_in_vault`
+
+**Structured Logging**:
+- All operations logged with zap structured logger
+- User context (user_id, tenant_id, serial_number) included in all log entries
+- Warning-level logs for Keycloak failures (with explanation)
+- Info-level logs for successful operations
+- Error-level logs for critical failures
+
+#### 5. Storage Architecture
+
+**⚠️ CRITICAL WARNING: Development-Only Storage**
+
+The current implementation uses **in-memory storage** which is **NOT production-ready**:
+
+**Limitations**:
+- ❌ **Data Loss on Restart**: All certificates lost when service restarts
+- ❌ **No Audit Trail**: No persistent record of certificate history
+- ❌ **No Multi-Pod Support**: Cannot run multiple gateway pods
+- ❌ **No Backup/Recovery**: No disaster recovery capability
+
+**Production Implementation (Planned)**:
+```yaml
+# Redis-based persistent storage (future implementation)
+storage:
+  type: redis
+  redis:
+    addresses:
+      - redis-sentinel-0:26379
+      - redis-sentinel-1:26379
+      - redis-sentinel-2:26379
+    master_name: netweave
+    password: ${REDIS_PASSWORD}
+    tls:
+      enabled: true
+      ca_cert: /etc/certs/redis-ca.crt
+    db: 2  # Separate DB for certificates
+```
+
+**See `internal/certmanager/STORAGE_WARNING.md` for detailed migration plan.**
+
+### API Endpoints
+
+| Endpoint | Method | Description | Auth Required |
+|----------|--------|-------------|---------------|
+| `POST /api/v1/certificates` | POST | Issue new certificate | Yes (mTLS) |
+| `GET /api/v1/certificates` | GET | List certificates (filtered) | Yes (mTLS) |
+| `GET /api/v1/certificates/{serial}` | GET | Get certificate by serial | Yes (mTLS) |
+| `DELETE /api/v1/certificates/{serial}` | DELETE | Revoke certificate | Yes (mTLS) |
+| `GET /api/v1/certificates/monitoring` | GET | Get monitoring report | Yes (Admin) |
+
+**Request Example** (Issue Certificate):
+```json
+{
+  "user_id": "user-123",
+  "tenant_id": "tenant-abc",
+  "common_name": "user-123@tenant-abc.example.com",
+  "ttl": "8760h",
+  "alt_names": ["user123.example.com"],
+  "ip_sans": ["10.0.1.100"]
+}
+```
+
+**Response Example** (Certificate Issued):
+```json
+{
+  "serial_number": "7c:3e:f8:a1:2b:4d",
+  "common_name": "user-123@tenant-abc.example.com",
+  "user_id": "user-123",
+  "tenant_id": "tenant-abc",
+  "certificate_pem": "-----BEGIN CERTIFICATE-----\n...",
+  "private_key_pem": "-----BEGIN RSA PRIVATE KEY-----\n...",
+  "issuing_ca": "-----BEGIN CERTIFICATE-----\n...",
+  "ca_chain": ["-----BEGIN CERTIFICATE-----\n..."],
+  "issued_at": "2026-01-21T10:00:00Z",
+  "expires_at": "2027-01-21T10:00:00Z",
+  "ttl": "8760h",
+  "status": "active"
+}
+```
+
+**Monitoring Report Example**:
+```json
+{
+  "total_certificates": 150,
+  "active_certificates": 120,
+  "expiring_soon": 15,
+  "expired": 5,
+  "revoked": 8,
+  "renewals_pending": 2,
+  "renewals_failed": 0,
+  "generated_at": "2026-01-21T10:00:00Z"
+}
+```
+
+### Configuration
+
+```go
+// Certificate Manager Configuration
+type Config struct {
+    // Vault Configuration
+    VaultAddress    string        // Vault server address
+    VaultToken      string        // Vault authentication token
+    VaultPKIPath    string        // Vault PKI mount path (default: pki_int)
+    VaultRole       string        // Vault PKI role (default: netweave-client)
+
+    // Keycloak Configuration
+    KeycloakBaseURL       string  // Keycloak server URL
+    KeycloakRealm         string  // Keycloak realm name
+    KeycloakClientID      string  // Keycloak client ID
+    KeycloakClientSecret  string  // Keycloak client secret
+    KeycloakAdminUsername string  // Keycloak admin username
+    KeycloakAdminPassword string  // Keycloak admin password
+
+    // Monitoring & Renewal
+    MonitorInterval     time.Duration  // Scan interval (default: 1h)
+    EnableAutoRenewal   bool          // Auto-renewal enabled (default: true)
+
+    // Renewal Policy
+    RenewalPolicy *RenewalPolicy
+}
+
+type RenewalPolicy struct {
+    RenewalWindow  time.Duration  // Renew N days before expiry (default: 30d)
+    MaxRetries     int           // Max renewal attempts (default: 3)
+    RetryInterval  time.Duration // Time between retries (default: 1h)
+    NotifyAdmins   bool          // Send admin notifications (TODO: #298)
+    NotifyUser     bool          // Send user notifications (TODO: #298)
+}
+```
+
+### Security Considerations
+
+#### Authentication & Authorization
+- **Client Authentication**: Certificate API requires valid mTLS client certificate
+- **User Association**: Certificates tied to Keycloak user accounts
+- **Tenant Isolation**: Certificates scoped to tenant_id for multi-tenancy
+- **Admin-Only Operations**: Monitoring endpoints require admin role
+
+#### Certificate Security
+- **Key Storage**: Private keys returned only on initial issuance, never stored
+- **Serial Tracking**: All certificates tracked by serial number for revocation
+- **Expiry Enforcement**: Automatic expiry monitoring prevents use of expired certificates
+- **Revocation Checking**: Revoked certificates immediately invalid for mTLS
+
+#### Operational Security
+- **Graceful Failures**: Keycloak sync failures don't block certificate issuance
+- **Context Cancellation**: Proper cleanup during service shutdown prevents leaks
+- **Race Condition Prevention**: Thread-safe certificate map access with RWMutex
+- **Audit Logging**: All certificate operations logged with user context
+
+### Integration with Gateway Security
+
+The certificate manager service integrates with the gateway's zero-trust security architecture:
+
+1. **mTLS Layer (L3)**: Certificates issued by this service are used for client authentication
+2. **Authentication (L3)**: Certificate CN/SAN used to extract user and tenant identity
+3. **Authorization (L4)**: User roles from Keycloak determine API access permissions
+4. **Audit (L7)**: All certificate operations logged for compliance and forensics
+
+### Future Enhancements
+
+**Planned for Future Releases** (see GitHub issues):
+- [ ] **Persistent Storage**: Redis-backed storage for production use (#276)
+- [ ] **Notification System**: Email/webhook notifications for renewals (#298)
+- [ ] **Certificate Templates**: Pre-configured certificate profiles
+- [ ] **HSM Integration**: Hardware security module for CA private keys
+- [ ] **ACME Protocol**: Automated Certificate Management Environment support
+- [ ] **Certificate Pinning**: Public key pinning for enhanced security
+- [ ] **Multi-CA Support**: Support for multiple certificate authorities
+
+**See `internal/certmanager/` for implementation details.**
+
+---
+
+**Last Updated:** 2026-01-21
+**Version:** 1.1

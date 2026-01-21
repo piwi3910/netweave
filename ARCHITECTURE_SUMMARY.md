@@ -202,6 +202,8 @@ Security:
 ```
 ✅ mTLS everywhere (Native Go TLS 1.3)
 ✅ Client certificate validation (Go crypto/tls)
+✅ Automated certificate lifecycle management (Vault PKI)
+✅ Certificate auto-renewal with monitoring (30-day window)
 ✅ Zero-trust networking (Network Policies)
 ✅ RBAC (Kubernetes-native)
 ✅ No hardcoded secrets (cert-manager + K8s Secrets)
@@ -824,12 +826,23 @@ netweave/
 ├── .pre-commit-config.yaml      # ✅ Pre-commit hooks
 ├── .markdownlint.yml            # ✅ Markdown linting
 │
+├── internal/
+│   └── certmanager/             # ✅ Certificate automation service
+│       ├── config.go            # Configuration and validation
+│       ├── operations.go        # Issue, get, list, revoke operations
+│       ├── service.go           # Background monitoring and renewal
+│       ├── metrics.go           # Prometheus metrics (8 metrics)
+│       ├── types.go             # Certificate types and constants
+│       └── STORAGE_WARNING.md   # Production storage migration guide
+│
 └── docs/
     ├── architecture.md          # ✅ Architecture (Part 1)
     ├── architecture-part2.md    # ✅ Architecture (Part 2)
     ├── api-mapping.md           # ✅ O2-IMS ↔ K8s mappings
     ├── o2dms-o2smo-extension.md # ✅ O2-DMS & O2-SMO integration
-    └── rbac-multitenancy.md     # ✅ RBAC & Multi-Tenancy design
+    ├── rbac-multitenancy.md     # ✅ RBAC & Multi-Tenancy design
+    └── security/
+        └── architecture.md      # ✅ Security architecture + Certificate Manager
 ```
 
 ## Next Steps - Implementation Phase
