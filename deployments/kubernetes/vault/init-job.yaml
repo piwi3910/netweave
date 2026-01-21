@@ -154,28 +154,31 @@ spec:
                 echo "Unsealing $pod..."
 
                 # Wait for pod to be running
-                if ! kubectl wait --for=condition=ready pod/$pod -n vault-system --timeout=60s; then
+                if ! kubectl wait --for=condition=ready "pod/$pod" -n vault-system --timeout=60s; then
                   echo "WARNING: Pod $pod not ready, attempting unseal anyway..."
                 fi
 
-                # Unseal the pod (requires 3 keys)
+                # Unseal the pod (requires 3 keys) - use process substitution to avoid subshell
                 POD_UNSEALED=0
-                echo "$UNSEAL_KEYS" | head -n 3 | while read key; do
-                  if kubectl exec -n vault-system $pod -- vault operator unseal $key; then
+                while IFS= read -r key; do
+                  if [ -z "$key" ]; then
+                    continue
+                  fi
+                  if kubectl exec -n vault-system "$pod" -- vault operator unseal "$key"; then
                     POD_UNSEALED=$((POD_UNSEALED + 1))
                   else
                     echo "WARNING: Failed to apply unseal key to $pod"
                   fi
-                done
+                done < <(echo "$UNSEAL_KEYS" | head -n 3)
 
                 # Check if pod is unsealed
-                if ! kubectl exec -n vault-system $pod -- vault status | grep -q "Sealed.*false"; then
-                  echo "ERROR: Pod $pod remains sealed after unseal attempts"
+                if ! kubectl exec -n vault-system "$pod" -- vault status | grep -q "Sealed.*false"; then
+                  echo "ERROR: Pod $pod remains sealed after unseal attempts (applied $POD_UNSEALED keys)"
                   UNSEAL_FAILED=$((UNSEAL_FAILED + 1))
                 fi
               done
 
-              if [ $UNSEAL_FAILED -gt 0 ]; then
+              if [ "$UNSEAL_FAILED" -gt 0 ]; then
                 echo "ERROR: Failed to unseal $UNSEAL_FAILED pod(s)"
                 exit 1
               fi

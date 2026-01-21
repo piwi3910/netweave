@@ -120,7 +120,7 @@ services:
     container_name: netweave-redis
     command: >
       redis-server
-      --requirepass ${REDIS_PASSWORD:-changeme}
+      --requirepass ${REDIS_PASSWORD}
       --tls-port 6380
       --port 0
       --tls-cert-file /tls/tls.crt

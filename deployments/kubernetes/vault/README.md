@@ -157,7 +157,7 @@ kubectl get secret vault-unseal-keys -n vault-system -o jsonpath='{.data.root-to
 kubectl port-forward svc/vault -n vault-system 8200:8200 &
 
 # Set environment
-export VAULT_ADDR='http://localhost:8200'
+export VAULT_ADDR='https://localhost:8200'
 export VAULT_TOKEN=$(kubectl get secret vault-unseal-keys -n vault-system -o jsonpath='{.data.root-token}' | base64 -d)
 
 # Check PKI paths
@@ -306,7 +306,7 @@ Schedule regular backups using CronJob:
 
 ```bash
 # Check overall health
-curl http://vault.vault-system.svc.cluster.local:8200/v1/sys/health
+curl https://vault.vault-system.svc.cluster.local:8200/v1/sys/health
 
 # Check seal status
 vault status
@@ -398,7 +398,7 @@ vault operator raft list-peers
 vault operator raft remove-peer <node-id>
 
 # Join new peer
-vault operator raft join http://vault-0.vault-internal:8200
+vault operator raft join https://vault-0.vault-internal:8200
 ```
 
 ## Maintenance
