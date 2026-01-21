@@ -157,18 +157,22 @@ func TestCertificateLifecycle(t *testing.T) {
 		},
 	}
 
+	mockService.mu.Lock()
 	for _, cert := range testCerts {
 		mockService.certificates[cert.SerialNumber] = cert
 	}
+	mockService.mu.Unlock()
 
 	t.Run("GetCertificate returns certificate without private key", func(t *testing.T) {
 		// Add cert with private key
+		mockService.mu.Lock()
 		mockService.certificates["cert-with-key"] = &Certificate{
 			SerialNumber:  "cert-with-key",
 			CommonName:    "test-key.example.com",
 			PrivateKeyPEM: "PRIVATE_KEY_DATA",
 			Status:        CertStatusActive,
 		}
+		mockService.mu.Unlock()
 
 		cert, err := mockService.GetCertificate(ctx, "cert-with-key")
 		require.NoError(t, err)
@@ -264,7 +268,9 @@ func TestCertificateStatusTransitions(t *testing.T) {
 			Status:       CertStatusActive,
 			ExpiresAt:    now.Add(15 * 24 * time.Hour), // 15 days - within renewal window
 		}
+		mockService.mu.Lock()
 		mockService.certificates[cert.SerialNumber] = cert
+		mockService.mu.Unlock()
 
 		mockService.handleExpiringSoon(cert)
 
@@ -281,7 +287,9 @@ func TestCertificateStatusTransitions(t *testing.T) {
 			LastRenewalAttempt: &lastAttempt,
 			RenewalAttempts:    1,
 		}
+		mockService.mu.Lock()
 		mockService.certificates[cert.SerialNumber] = cert
+		mockService.mu.Unlock()
 
 		// Should not trigger renewal (retry interval not elapsed)
 		mockService.handleExpiringSoon(cert)
@@ -297,7 +305,9 @@ func TestCertificateStatusTransitions(t *testing.T) {
 			Status:       CertStatusActive,
 			ExpiresAt:    now.Add(-5 * 24 * time.Hour), // Expired 5 days ago
 		}
+		mockService.mu.Lock()
 		mockService.certificates[cert.SerialNumber] = cert
+		mockService.mu.Unlock()
 
 		mockService.handleExpired(cert)
 
@@ -343,7 +353,9 @@ func TestCertificateStatusTransitions(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				mockService.mu.Lock()
 				mockService.certificates[tt.cert.SerialNumber] = tt.cert
+				mockService.mu.Unlock()
 				mockService.processCertificate(tt.cert, now, renewalWindow)
 				assert.Equal(t, tt.expectedStatus, tt.cert.Status)
 			})
@@ -363,6 +375,7 @@ func TestGetAllCertificates(t *testing.T) {
 	}
 
 	// Add test certificates
+	mockService.mu.Lock()
 	for i := 0; i < 5; i++ {
 		cert := &Certificate{
 			SerialNumber: string(rune('A' + i)),
@@ -371,6 +384,7 @@ func TestGetAllCertificates(t *testing.T) {
 		}
 		mockService.certificates[cert.SerialNumber] = cert
 	}
+	mockService.mu.Unlock()
 
 	certs := mockService.getAllCertificates()
 	assert.Equal(t, 5, len(certs))
@@ -398,6 +412,7 @@ func TestUpdateCertificateMetrics(t *testing.T) {
 		CertStatusRenewalFailed,
 	}
 
+	mockService.mu.Lock()
 	for i, status := range statuses {
 		cert := &Certificate{
 			SerialNumber: string(rune('A' + i)),
@@ -405,6 +420,7 @@ func TestUpdateCertificateMetrics(t *testing.T) {
 		}
 		mockService.certificates[cert.SerialNumber] = cert
 	}
+	mockService.mu.Unlock()
 
 	// Should not panic
 	mockService.updateCertificateMetrics()

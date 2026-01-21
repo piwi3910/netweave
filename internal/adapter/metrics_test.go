@@ -132,18 +132,31 @@ func TestUpdateSubscriptionCount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset metrics
-			adapter.Metrics.SubscriptionCount.Reset()
-
-			adapter.UpdateSubscriptionCount(tt.adapterName, tt.count)
-
-			// Verify gauge value
-			value := testutil.ToFloat64(adapter.Metrics.SubscriptionCount.WithLabelValues(
-				tt.adapterName,
-			))
-			assert.Equal(t, float64(tt.count), value)
+			testGaugeUpdate(t, tt.adapterName, tt.count,
+				adapter.Metrics.SubscriptionCount,
+				adapter.UpdateSubscriptionCount,
+			)
 		})
 	}
+}
+
+// testGaugeUpdate is a helper function to test gauge metric updates.
+func testGaugeUpdate(
+	t *testing.T,
+	adapterName string,
+	count int,
+	gauge *prometheus.GaugeVec,
+	updateFunc func(string, int),
+) {
+	t.Helper()
+	// Reset metrics
+	gauge.Reset()
+
+	updateFunc(adapterName, count)
+
+	// Verify gauge value
+	value := testutil.ToFloat64(gauge.WithLabelValues(adapterName))
+	assert.Equal(t, float64(count), value)
 }
 
 func TestRecordCacheHit(t *testing.T) {
@@ -226,15 +239,10 @@ func TestUpdateResourcePoolCount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset metrics
-			adapter.Metrics.ResourcePoolsTotal.Reset()
-
-			adapter.UpdateResourcePoolCount(tt.adapterName, tt.count)
-
-			value := testutil.ToFloat64(adapter.Metrics.ResourcePoolsTotal.WithLabelValues(
-				tt.adapterName,
-			))
-			assert.Equal(t, float64(tt.count), value)
+			testGaugeUpdate(t, tt.adapterName, tt.count,
+				adapter.Metrics.ResourcePoolsTotal,
+				adapter.UpdateResourcePoolCount,
+			)
 		})
 	}
 }

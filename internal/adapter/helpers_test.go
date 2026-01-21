@@ -229,52 +229,44 @@ func BenchmarkApplyPagination(b *testing.B) {
 
 // setupKubernetesAdapter creates a Kubernetes adapter for testing.
 // Returns nil if Kubernetes environment is not available.
-func setupKubernetesAdapter(t *testing.T) adapter.Adapter {
-	t.Helper()
+func setupKubernetesAdapter(_ *testing.T) adapter.Adapter {
 	// TODO: Implementation will use existing Kubernetes adapter test helpers
-	t.Skip("Kubernetes adapter not implemented yet")
 	return nil
 }
 
 // setupAWSAdapter creates an AWS adapter for testing.
-func setupAWSAdapter(t *testing.T) adapter.Adapter {
-	t.Helper()
-	t.Skip("AWS adapter not implemented yet")
+func setupAWSAdapter(_ *testing.T) adapter.Adapter {
+	// TODO: Implement AWS adapter test setup
 	return nil
 }
 
 // setupAzureAdapter creates an Azure adapter for testing.
-func setupAzureAdapter(t *testing.T) adapter.Adapter {
-	t.Helper()
-	t.Skip("Azure adapter not implemented yet")
+func setupAzureAdapter(_ *testing.T) adapter.Adapter {
+	// TODO: Implement Azure adapter test setup
 	return nil
 }
 
 // setupGCPAdapter creates a GCP adapter for testing.
-func setupGCPAdapter(t *testing.T) adapter.Adapter {
-	t.Helper()
-	t.Skip("GCP adapter not implemented yet")
+func setupGCPAdapter(_ *testing.T) adapter.Adapter {
+	// TODO: Implement GCP adapter test setup
 	return nil
 }
 
 // setupOpenStackAdapter creates an OpenStack adapter for testing.
-func setupOpenStackAdapter(t *testing.T) adapter.Adapter {
-	t.Helper()
-	t.Skip("OpenStack adapter not implemented yet")
+func setupOpenStackAdapter(_ *testing.T) adapter.Adapter {
+	// TODO: Implement OpenStack adapter test setup
 	return nil
 }
 
 // setupVMwareAdapter creates a VMware adapter for testing.
-func setupVMwareAdapter(t *testing.T) adapter.Adapter {
-	t.Helper()
-	t.Skip("VMware adapter not implemented yet")
+func setupVMwareAdapter(_ *testing.T) adapter.Adapter {
+	// TODO: Implement VMware adapter test setup
 	return nil
 }
 
 // setupDTIASAdapter creates a DTIAS adapter for testing.
-func setupDTIASAdapter(t *testing.T) adapter.Adapter {
-	t.Helper()
-	t.Skip("DTIAS adapter not implemented yet")
+func setupDTIASAdapter(_ *testing.T) adapter.Adapter {
+	// TODO: Implement DTIAS adapter test setup
 	return nil
 }
 
