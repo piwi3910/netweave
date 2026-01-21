@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-// TestConcurrentAccess tests multiple goroutines accessing the service simultaneously
+// TestConcurrentAccess tests multiple goroutines accessing the service simultaneously.
 func TestConcurrentAccess(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()
@@ -29,10 +29,10 @@ func TestConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	numGoroutines := 10
 
-	// Test concurrent ListCertificates calls
+	// Test concurrent ListCertificates calls.
 	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
-		go func(id int) {
+		go func(_ int) {
 			defer wg.Done()
 			_, err := mockService.ListCertificates(ctx, "", "")
 			assert.NoError(t, err)
@@ -65,7 +65,7 @@ func TestConcurrentAccess(t *testing.T) {
 	assert.Equal(t, numGoroutines, len(certs))
 }
 
-// TestContextCancellation tests that operations respect context cancellation
+// TestContextCancellation tests that operations respect context cancellation.
 func TestContextCancellation(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()
@@ -113,7 +113,7 @@ func TestContextCancellation(t *testing.T) {
 	})
 }
 
-// TestCertificateLifecycle tests the complete certificate lifecycle
+// TestCertificateLifecycle tests the complete certificate lifecycle.
 func TestCertificateLifecycle(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()
@@ -241,7 +241,7 @@ func TestCertificateLifecycle(t *testing.T) {
 	})
 }
 
-// TestCertificateStatusTransitions tests certificate status changes
+// TestCertificateStatusTransitions tests certificate status changes.
 func TestCertificateStatusTransitions(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()
@@ -368,7 +368,7 @@ func TestCertificateStatusTransitions(t *testing.T) {
 	})
 }
 
-// TestGetAllCertificates tests the getAllCertificates helper
+// TestGetAllCertificates tests the getAllCertificates helper.
 func TestGetAllCertificates(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()
@@ -395,7 +395,7 @@ func TestGetAllCertificates(t *testing.T) {
 	assert.Equal(t, 5, len(certs))
 }
 
-// TestUpdateCertificateMetrics tests the metrics update function
+// TestUpdateCertificateMetrics tests the metrics update function.
 func TestUpdateCertificateMetrics(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()
@@ -431,7 +431,7 @@ func TestUpdateCertificateMetrics(t *testing.T) {
 	mockService.updateCertificateMetrics()
 }
 
-// TestServiceStartStop tests the service lifecycle
+// TestServiceStartStop tests the service lifecycle.
 func TestServiceStartStop(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()

@@ -10,7 +10,7 @@ var (
 	certificateIssuances = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "certmanager_certificate_issuances_total",
-			Help: "Total number of certificate issuance attempts",
+			Help: "Total number of certificate issuance attempts.",
 		},
 		[]string{"status"}, // success, failure
 	)
@@ -19,7 +19,7 @@ var (
 	certificateRevocations = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "certmanager_certificate_revocations_total",
-			Help: "Total number of certificate revocation attempts",
+			Help: "Total number of certificate revocation attempts.",
 		},
 		[]string{"status"}, // success, failure
 	)
@@ -28,7 +28,7 @@ var (
 	certificateRenewals = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "certmanager_certificate_renewals_total",
-			Help: "Total number of certificate renewal attempts",
+			Help: "Total number of certificate renewal attempts.",
 		},
 		[]string{"status"}, // success, failure, max_retries_exceeded
 	)
@@ -37,7 +37,7 @@ var (
 	certificatesByStatus = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "certmanager_certificates_by_status",
-			Help: "Current number of certificates grouped by status",
+			Help: "Current number of certificates grouped by status.",
 		},
 		[]string{"status"}, // active, expiring_soon, expired, revoked, renewal_pending, renewal_failed
 	)
@@ -46,7 +46,7 @@ var (
 	certificateLifetime = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "certmanager_certificate_lifetime_seconds",
-			Help:    "Certificate lifetime distribution in seconds",
+			Help:    "Certificate lifetime distribution in seconds.",
 			Buckets: []float64{86400, 604800, 2592000, 7776000, 15552000, 31536000}, // 1d, 7d, 30d, 90d, 180d, 365d
 		},
 	)
@@ -55,7 +55,7 @@ var (
 	keycloakUpdateFailures = promauto.NewCounter(
 		prometheus.CounterOpts{
 			Name: "certmanager_keycloak_update_failures_total",
-			Help: "Total number of Keycloak user attribute update failures",
+			Help: "Total number of Keycloak user attribute update failures.",
 		},
 	)
 
@@ -63,7 +63,7 @@ var (
 	monitorLoopDuration = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "certmanager_monitor_loop_duration_seconds",
-			Help:    "Monitor loop execution time in seconds",
+			Help:    "Monitor loop execution time in seconds.",
 			Buckets: prometheus.DefBuckets,
 		},
 	)
@@ -72,7 +72,7 @@ var (
 	renewalAttempts = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "certmanager_renewal_attempts",
-			Help:    "Distribution of renewal attempt counts before success or failure",
+			Help:    "Distribution of renewal attempt counts before success or failure.",
 			Buckets: []float64{1, 2, 3, 4, 5, 10},
 		},
 	)

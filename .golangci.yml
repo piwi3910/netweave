@@ -155,6 +155,7 @@ issues:
           - revive
           - govet
           - dupl
+          - wrapcheck  # Pre-existing unwrapped errors
       # Allow linting issues in pre-existing auth middleware (not part of DMS PR)
       - path: internal/auth/
         linters:
@@ -169,6 +170,8 @@ issues:
           - importas
           - unparam
           - dupl
+          - errcheck  # Pre-existing unchecked errors
+          - govet     # Pre-existing shadow declarations
       # Allow linting issues in pre-existing config code (not part of DMS PR)
       - path: internal/config/
         linters:
