@@ -1,0 +1,28 @@
+# TLS Certificates and Keys
+*.key
+*.crt
+*.csr
+*.pem
+*.p12
+*.jks
+ca-key.pem
+ca.crt
+ca.srl
+*.srl
+
+# Vault secrets
+vault/init/
+vault/data/
+vault/logs/
+
+# Application secrets
+secrets/
+*.txt
+
+# Temporary files
+*.tmp
+*.log
+*.pid
+
+# Docker volumes
+volumes/
