@@ -67,6 +67,20 @@ func DefaultConfig() *Config {
 
 // Validate checks if the configuration is valid.
 func (c *Config) Validate() error {
+	if err := c.validateVaultConfig(); err != nil {
+		return err
+	}
+	if err := c.validateKeycloakConfig(); err != nil {
+		return err
+	}
+	if err := c.validateMonitorConfig(); err != nil {
+		return err
+	}
+	return c.validateRenewalPolicy()
+}
+
+// validateVaultConfig validates Vault-related configuration.
+func (c *Config) validateVaultConfig() error {
 	if c.VaultAddress == "" {
 		return fmt.Errorf("VaultAddress is required")
 	}
@@ -76,15 +90,30 @@ func (c *Config) Validate() error {
 	if c.VaultRole == "" {
 		return fmt.Errorf("VaultRole is required")
 	}
+	return nil
+}
+
+// validateKeycloakConfig validates Keycloak-related configuration.
+func (c *Config) validateKeycloakConfig() error {
 	if c.KeycloakBaseURL == "" {
 		return fmt.Errorf("KeycloakBaseURL is required")
 	}
 	if c.KeycloakRealm == "" {
 		return fmt.Errorf("KeycloakRealm is required")
 	}
+	return nil
+}
+
+// validateMonitorConfig validates monitoring configuration.
+func (c *Config) validateMonitorConfig() error {
 	if c.MonitorInterval <= 0 {
 		return fmt.Errorf("MonitorInterval must be positive")
 	}
+	return nil
+}
+
+// validateRenewalPolicy validates renewal policy configuration.
+func (c *Config) validateRenewalPolicy() error {
 	if c.RenewalPolicy == nil {
 		return fmt.Errorf("RenewalPolicy cannot be nil")
 	}
@@ -97,6 +126,5 @@ func (c *Config) Validate() error {
 	if c.RenewalPolicy.RetryInterval <= 0 {
 		return fmt.Errorf("RenewalPolicy.RetryInterval must be positive")
 	}
-
 	return nil
 }

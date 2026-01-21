@@ -26,10 +26,10 @@ type Service struct {
 	certificates map[string]*Certificate // keyed by serial number
 
 	// Background worker control
-	stopCh       chan struct{}
-	doneCh       chan struct{}
-	renewalWg    sync.WaitGroup
-	renewalCtx   context.Context
+	stopCh        chan struct{}
+	doneCh        chan struct{}
+	renewalWg     sync.WaitGroup
+	renewalCtx    context.Context
 	renewalCancel context.CancelFunc
 }
 
@@ -136,64 +136,82 @@ func (s *Service) monitorLoop(ctx context.Context) {
 }
 
 // scanAndRenew scans all certificates and renews those expiring soon.
-func (s *Service) scanAndRenew(ctx context.Context) {
+func (s *Service) scanAndRenew(_ context.Context) {
 	s.logger.Debug("Starting certificate scan")
 
-	s.mu.RLock()
-	certs := make([]*Certificate, 0, len(s.certificates))
-	for _, cert := range s.certificates {
-		certs = append(certs, cert)
-	}
-	s.mu.RUnlock()
-
+	certs := s.getAllCertificates()
 	now := time.Now()
 	renewalWindow := now.Add(s.config.RenewalPolicy.RenewalWindow)
 
 	for _, cert := range certs {
-		// Skip if already revoked or expired
-		if cert.Status == CertStatusRevoked || cert.Status == CertStatusExpired {
-			continue
-		}
-
-		// Check if certificate is expiring soon
-		if cert.ExpiresAt.Before(renewalWindow) && cert.Status != CertStatusRenewalPending {
-			s.logger.Info("Certificate expiring soon",
-				zap.String("serial", cert.SerialNumber),
-				zap.String("common_name", cert.CommonName),
-				zap.Time("expires_at", cert.ExpiresAt))
-
-			// Update status
-			s.mu.Lock()
-			cert.Status = CertStatusExpiringSoon
-			s.mu.Unlock()
-
-			// Trigger renewal if enabled
-			if s.config.EnableAutoRenewal {
-				// Check if renewal context is still valid
-				if s.renewalCtx.Err() == nil {
-					s.renewalWg.Add(1)
-					go func(c *Certificate) {
-						defer s.renewalWg.Done()
-						s.renewCertificate(s.renewalCtx, c)
-					}(cert)
-				}
-			}
-		}
-
-		// Check if certificate has expired
-		if cert.ExpiresAt.Before(now) && cert.Status != CertStatusExpired {
-			s.logger.Warn("Certificate expired",
-				zap.String("serial", cert.SerialNumber),
-				zap.String("common_name", cert.CommonName),
-				zap.Time("expired_at", cert.ExpiresAt))
-
-			s.mu.Lock()
-			cert.Status = CertStatusExpired
-			s.mu.Unlock()
-		}
+		s.processCertificate(cert, now, renewalWindow)
 	}
 
 	s.logger.Debug("Certificate scan complete", zap.Int("total_certificates", len(certs)))
+}
+
+// getAllCertificates returns a snapshot of all certificates.
+func (s *Service) getAllCertificates() []*Certificate {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	certs := make([]*Certificate, 0, len(s.certificates))
+	for _, cert := range s.certificates {
+		certs = append(certs, cert)
+	}
+	return certs
+}
+
+// processCertificate checks and handles certificate expiry and renewal.
+func (s *Service) processCertificate(cert *Certificate, now, renewalWindow time.Time) {
+	// Skip if already revoked or expired
+	if cert.Status == CertStatusRevoked || cert.Status == CertStatusExpired {
+		return
+	}
+
+	// Handle expiring certificates
+	if cert.ExpiresAt.Before(renewalWindow) && cert.Status != CertStatusRenewalPending {
+		s.handleExpiringSoon(cert)
+	}
+
+	// Handle expired certificates
+	if cert.ExpiresAt.Before(now) && cert.Status != CertStatusExpired {
+		s.handleExpired(cert)
+	}
+}
+
+// handleExpiringSoon handles certificates that are expiring soon.
+func (s *Service) handleExpiringSoon(cert *Certificate) {
+	s.logger.Info("Certificate expiring soon",
+		zap.String("serial", cert.SerialNumber),
+		zap.String("common_name", cert.CommonName),
+		zap.Time("expires_at", cert.ExpiresAt))
+
+	// Update status
+	s.mu.Lock()
+	cert.Status = CertStatusExpiringSoon
+	s.mu.Unlock()
+
+	// Trigger renewal if enabled
+	if s.config.EnableAutoRenewal && s.renewalCtx.Err() == nil {
+		s.renewalWg.Add(1)
+		go func(c *Certificate) {
+			defer s.renewalWg.Done()
+			s.renewCertificate(s.renewalCtx, c)
+		}(cert)
+	}
+}
+
+// handleExpired handles certificates that have expired.
+func (s *Service) handleExpired(cert *Certificate) {
+	s.logger.Warn("Certificate expired",
+		zap.String("serial", cert.SerialNumber),
+		zap.String("common_name", cert.CommonName),
+		zap.Time("expired_at", cert.ExpiresAt))
+
+	s.mu.Lock()
+	cert.Status = CertStatusExpired
+	s.mu.Unlock()
 }
 
 // renewCertificate attempts to renew a certificate.
@@ -206,12 +224,17 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 	}
 
 	// Save old certificate data before any modifications
+	// This prevents race condition where IssueCertificate might replace cert in map
 	s.mu.RLock()
 	oldSerial := cert.SerialNumber
 	oldTTL := cert.TTL
 	if oldTTL == "" {
 		oldTTL = "8760h" // Default to 1 year if not set
 	}
+	oldUserID := cert.UserID
+	oldTenantID := cert.TenantID
+	oldCommonName := cert.CommonName
+	oldRenewalAttempts := cert.RenewalAttempts
 	s.mu.RUnlock()
 
 	// Update renewal tracking
@@ -224,14 +247,14 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 
 	s.logger.Info("Attempting certificate renewal",
 		zap.String("serial", oldSerial),
-		zap.String("common_name", cert.CommonName),
-		zap.Int("attempt", cert.RenewalAttempts))
+		zap.String("common_name", oldCommonName),
+		zap.Int("attempt", oldRenewalAttempts+1))
 
 	// Issue new certificate (preserving original TTL)
 	req := &CertificateRequest{
-		UserID:     cert.UserID,
-		TenantID:   cert.TenantID,
-		CommonName: cert.CommonName,
+		UserID:     oldUserID,
+		TenantID:   oldTenantID,
+		CommonName: oldCommonName,
 		TTL:        oldTTL,
 	}
 
@@ -241,7 +264,8 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 			zap.String("serial", oldSerial),
 			zap.Error(err))
 
-		// Update old certificate status (need to re-fetch as it may have been replaced)
+		// Update old certificate status
+		// Use saved values instead of accessing potentially modified cert pointer
 		s.mu.Lock()
 		if oldCert, exists := s.certificates[oldSerial]; exists {
 			if oldCert.RenewalAttempts >= s.config.RenewalPolicy.MaxRetries {

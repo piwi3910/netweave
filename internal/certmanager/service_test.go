@@ -75,10 +75,10 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "missing KeycloakBaseURL",
 			config: &Config{
-				VaultAddress:  "http://localhost:8200",
-				VaultPKIPath:  "pki_int",
-				VaultRole:     "netweave-client",
-				KeycloakRealm: "netweave",
+				VaultAddress:    "http://localhost:8200",
+				VaultPKIPath:    "pki_int",
+				VaultRole:       "netweave-client",
+				KeycloakRealm:   "netweave",
 				MonitorInterval: time.Hour,
 				RenewalPolicy:   DefaultRenewalPolicy(),
 			},

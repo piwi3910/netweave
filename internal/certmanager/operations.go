@@ -31,8 +31,8 @@ func (s *Service) IssueCertificate(ctx context.Context, req *CertificateRequest)
 		zap.String("common_name", req.CommonName))
 
 	// Check if context is cancelled
-	if ctx.Err() != nil {
-		return nil, ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
 	// Issue certificate from Vault
@@ -87,7 +87,7 @@ func (s *Service) IssueCertificate(ctx context.Context, req *CertificateRequest)
 }
 
 // GetCertificate retrieves a certificate by serial number.
-func (s *Service) GetCertificate(ctx context.Context, serialNumber string) (*Certificate, error) {
+func (s *Service) GetCertificate(_ context.Context, serialNumber string) (*Certificate, error) {
 	if serialNumber == "" {
 		return nil, fmt.Errorf("serial_number is required")
 	}
@@ -108,7 +108,7 @@ func (s *Service) GetCertificate(ctx context.Context, serialNumber string) (*Cer
 }
 
 // ListCertificates lists all certificates, optionally filtered by user or tenant.
-func (s *Service) ListCertificates(ctx context.Context, userID, tenantID string) ([]*Certificate, error) {
+func (s *Service) ListCertificates(_ context.Context, userID, tenantID string) ([]*Certificate, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -159,7 +159,7 @@ func (s *Service) RevokeCertificate(ctx context.Context, serialNumber string) er
 }
 
 // GetMonitoringReport generates a monitoring report with certificate statistics.
-func (s *Service) GetMonitoringReport(ctx context.Context) (*MonitoringReport, error) {
+func (s *Service) GetMonitoringReport(_ context.Context) (*MonitoringReport, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
