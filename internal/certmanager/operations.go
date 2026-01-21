@@ -131,9 +131,13 @@ func (s *Service) IssueCertificate(ctx context.Context, req *CertificateRequest)
 }
 
 // GetCertificate retrieves a certificate by serial number.
-// Context parameter is currently unused as this is an in-memory operation.
-// When persistent storage is implemented, context will be used for cancellation.
-func (s *Service) GetCertificate(_ context.Context, serialNumber string) (*Certificate, error) {
+// TODO(#276): Use context for Redis storage operations and timeout control.
+func (s *Service) GetCertificate(ctx context.Context, serialNumber string) (*Certificate, error) {
+	// Check context before acquiring lock
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context canceled: %w", err)
+	}
+
 	if serialNumber == "" {
 		return nil, fmt.Errorf("serial_number is required")
 	}
@@ -154,9 +158,13 @@ func (s *Service) GetCertificate(_ context.Context, serialNumber string) (*Certi
 }
 
 // ListCertificates lists all certificates, optionally filtered by user or tenant.
-// Context parameter is currently unused as this is an in-memory operation.
-// When persistent storage is implemented, context will be used for cancellation.
-func (s *Service) ListCertificates(_ context.Context, userID, tenantID string) ([]*Certificate, error) {
+// TODO(#276): Use context for Redis storage operations and timeout control.
+func (s *Service) ListCertificates(ctx context.Context, userID, tenantID string) ([]*Certificate, error) {
+	// Check context before acquiring lock
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context canceled: %w", err)
+	}
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -222,9 +230,14 @@ func (s *Service) RevokeCertificate(ctx context.Context, serialNumber string) er
 }
 
 // GetMonitoringReport generates a monitoring report with certificate statistics.
-// Context parameter is currently unused as this is an in-memory operation.
-// When persistent storage is implemented, context will be used for cancellation.
-func (s *Service) GetMonitoringReport(_ context.Context) (*MonitoringReport, error) {
+// Note: Statistics are a point-in-time snapshot; statuses may change during collection.
+// TODO(#276): Use context for Redis storage operations and timeout control.
+func (s *Service) GetMonitoringReport(ctx context.Context) (*MonitoringReport, error) {
+	// Check context before acquiring lock
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context canceled: %w", err)
+	}
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

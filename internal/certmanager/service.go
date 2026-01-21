@@ -136,9 +136,16 @@ func (s *Service) monitorLoop(ctx context.Context) {
 }
 
 // scanAndRenew scans all certificates and renews those expiring soon.
-// Context parameter is currently unused as scanning is synchronous and fast.
 // Renewal operations are spawned with renewalCtx for proper cancellation control.
-func (s *Service) scanAndRenew(_ context.Context) {
+// TODO(#276): Use context for Redis storage operations during scanning.
+func (s *Service) scanAndRenew(ctx context.Context) {
+	// Check context before starting scan
+	if err := ctx.Err(); err != nil {
+		s.logger.Debug("Scan canceled",
+			zap.Error(err))
+		return
+	}
+
 	start := time.Now()
 	defer func() {
 		monitorLoopDuration.Observe(time.Since(start).Seconds())
@@ -151,6 +158,13 @@ func (s *Service) scanAndRenew(_ context.Context) {
 	renewalWindow := now.Add(s.config.RenewalPolicy.RenewalWindow)
 
 	for _, cert := range certs {
+		// Check context periodically during long scans
+		if err := ctx.Err(); err != nil {
+			s.logger.Debug("Scan interrupted",
+				zap.Int("processed", len(certs)),
+				zap.Error(err))
+			return
+		}
 		s.processCertificate(cert, now, renewalWindow)
 	}
 
