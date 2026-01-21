@@ -274,7 +274,12 @@ func TestCertificateStatusTransitions(t *testing.T) {
 
 		mockService.handleExpiringSoon(cert)
 
-		assert.Equal(t, CertStatusExpiringSoon, cert.Status)
+		// Wait briefly for goroutine to update status, then read with lock
+		time.Sleep(10 * time.Millisecond)
+		mockService.mu.RLock()
+		status := cert.Status
+		mockService.mu.RUnlock()
+		assert.Equal(t, CertStatusExpiringSoon, status)
 	})
 
 	t.Run("handleExpiringSoon respects retry interval", func(t *testing.T) {
