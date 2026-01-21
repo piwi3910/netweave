@@ -158,17 +158,13 @@ Return the Redis port
 {{- end }}
 
 {{/*
-Return the Redis connection string
+Return the Redis connection string (without password - password passed via env var)
+Note: Application code must construct full connection string using REDIS_PASSWORD env var
 */}}
 {{- define "netweave.redis.connectionString" -}}
 {{- $host := include "netweave.redis.host" . -}}
 {{- $port := include "netweave.redis.port" . -}}
-{{- if .Values.redis.auth.enabled }}
-{{- $password := .Values.redis.auth.password | default (randAlphaNum 32) -}}
-{{- printf "redis://:%s@%s:%s/0" $password $host $port -}}
-{{- else }}
 {{- printf "redis://%s:%s/0" $host $port -}}
-{{- end }}
 {{- end }}
 
 {{/*

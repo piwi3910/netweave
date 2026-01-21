@@ -41,8 +41,15 @@ spec:
             - -c
             - |
               echo "Waiting for Keycloak to be ready..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
               until curl -sf {{ include "netweave.keycloakURL" . }}/health/ready > /dev/null 2>&1; do
-                echo "Keycloak not ready, waiting..."
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Keycloak failed to become ready after ${MAX_RETRIES} attempts (5 minutes)"
+                  exit 1
+                fi
+                echo "Keycloak not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting..."
                 sleep 5
               done
               echo "Keycloak is ready!"
@@ -54,8 +61,15 @@ spec:
             - -c
             - |
               echo "Waiting for Vault to be ready..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
               until curl -sf {{ include "netweave.vaultURL" . }}/v1/sys/health > /dev/null 2>&1; do
-                echo "Vault not ready, waiting..."
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Vault failed to become ready after ${MAX_RETRIES} attempts (5 minutes)"
+                  exit 1
+                fi
+                echo "Vault not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting..."
                 sleep 5
               done
               echo "Vault is ready!"
@@ -94,6 +108,15 @@ spec:
                 secretKeyRef:
                   name: {{ include "netweave.fullname" . }}-secret
                   key: keycloak-client-secret
+            {{- if .Values.redis.enabled }}
+            {{- if .Values.redis.auth.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netweave.fullname" . }}-secret
+                  key: redis-password
+            {{- end }}
+            {{- end }}
             {{- if .Values.vault.enabled }}
             - name: VAULT_ADDR
               value: {{ include "netweave.vaultURL" . | quote }}

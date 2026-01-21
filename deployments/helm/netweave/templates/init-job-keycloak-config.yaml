@@ -1,0 +1,149 @@
+{{- if .Values.initJobs.keycloakConfig.enabled }}
+{{- if .Values.keycloak.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "netweave.fullname" . }}-keycloak-config
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: init
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "15"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ .Values.initJobs.keycloakConfig.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.initJobs.keycloakConfig.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "netweave.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: init
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "netweave.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: keycloak-config
+          image: {{ .Values.initJobs.keycloakConfig.image.registry }}/{{ .Values.initJobs.keycloakConfig.image.repository }}:{{ .Values.initJobs.keycloakConfig.image.tag }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          env:
+            - name: KEYCLOAK_URL
+              value: {{ include "netweave.keycloakURL" . | quote }}
+            - name: KEYCLOAK_ADMIN_USER
+              value: {{ .Values.keycloak.auth.adminUser | quote }}
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netweave.fullname" . }}-keycloak
+                  key: admin-password
+            - name: GATEWAY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netweave.fullname" . }}-secret
+                  key: keycloak-client-secret
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+
+              echo "Waiting for Keycloak to be ready..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
+              until curl -sf "${KEYCLOAK_URL}/health/ready" > /dev/null 2>&1; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Keycloak failed to become ready after ${MAX_RETRIES} attempts"
+                  exit 1
+                fi
+                echo "Keycloak not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting..."
+                sleep 5
+              done
+              echo "Keycloak is ready!"
+
+              echo "Authenticating with Keycloak admin..."
+              # Get admin access token
+              TOKEN_RESPONSE=$(curl -sf -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "username=${KEYCLOAK_ADMIN_USER}" \
+                -d "password=${KEYCLOAK_ADMIN_PASSWORD}" \
+                -d "grant_type=password" \
+                -d "client_id=admin-cli")
+
+              if [ $? -ne 0 ] || [ -z "$TOKEN_RESPONSE" ]; then
+                echo "ERROR: Failed to authenticate with Keycloak"
+                exit 1
+              fi
+
+              ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+
+              if [ -z "$ACCESS_TOKEN" ]; then
+                echo "ERROR: Failed to extract access token"
+                exit 1
+              fi
+
+              echo "Successfully authenticated"
+
+              # Get client ID for netweave-gateway
+              echo "Fetching netweave-gateway client..."
+              CLIENT_RESPONSE=$(curl -sf -X GET "${KEYCLOAK_URL}/admin/realms/netweave/clients?clientId=netweave-gateway" \
+                -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                -H "Content-Type: application/json")
+
+              if [ $? -ne 0 ] || [ -z "$CLIENT_RESPONSE" ]; then
+                echo "ERROR: Failed to fetch client"
+                exit 1
+              fi
+
+              CLIENT_UUID=$(echo "$CLIENT_RESPONSE" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+              if [ -z "$CLIENT_UUID" ]; then
+                echo "ERROR: Client 'netweave-gateway' not found in realm"
+                exit 1
+              fi
+
+              echo "Found client with UUID: ${CLIENT_UUID}"
+
+              # Update client secret
+              echo "Updating client secret..."
+              curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/netweave/clients/${CLIENT_UUID}/client-secret" \
+                -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "{\"type\":\"secret\",\"value\":\"${GATEWAY_CLIENT_SECRET}\"}"
+
+              if [ $? -ne 0 ]; then
+                echo "ERROR: Failed to update client secret"
+                exit 1
+              fi
+
+              echo "Successfully configured client secret for netweave-gateway"
+
+              # Verify secret was set
+              SECRET_CHECK=$(curl -sf -X GET "${KEYCLOAK_URL}/admin/realms/netweave/clients/${CLIENT_UUID}/client-secret" \
+                -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                -H "Content-Type: application/json")
+
+              if [ $? -ne 0 ] || [ -z "$SECRET_CHECK" ]; then
+                echo "WARNING: Could not verify client secret was set"
+              else
+                echo "Client secret verified successfully"
+              fi
+
+              echo "Keycloak configuration complete"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
+{{- end }}

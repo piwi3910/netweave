@@ -9,7 +9,7 @@ metadata:
     app.kubernetes.io/component: init
   annotations:
     "helm.sh/hook": post-install
-    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-weight": "5"
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: {{ .Values.initJobs.vaultPKI.backoffLimit }}
@@ -38,8 +38,14 @@ spec:
           env:
             - name: VAULT_ADDR
               value: {{ include "netweave.vaultURL" . | quote }}
+            {{- if .Values.vault.skipTLSVerify }}
             - name: VAULT_SKIP_VERIFY
               value: "true"
+            {{- end }}
+            {{- if .Values.vault.caCert }}
+            - name: VAULT_CACERT
+              value: /etc/vault-tls/ca.crt
+            {{- end }}
           command:
             - bash
             - -c
@@ -81,12 +87,46 @@ spec:
               echo "Unsealing Vault pods..."
               UNSEAL_KEYS=$(kubectl get secret vault-unseal-keys -n {{ .Values.vault.namespace }} -o jsonpath='{.data.unseal-keys}' | base64 -d)
 
-              for pod in vault-0 vault-1 vault-2; do
-                echo "Unsealing $pod..."
-                echo "$UNSEAL_KEYS" | head -n 3 | while read key; do
-                  kubectl exec -n {{ .Values.vault.namespace }} $pod -- vault operator unseal $key || true
-                done
+              if [ -z "$UNSEAL_KEYS" ]; then
+                echo "ERROR: Failed to retrieve unseal keys from secret"
+                exit 1
+              fi
+
+              # Discover Vault pods dynamically
+              VAULT_PODS=$(kubectl get pods -n {{ .Values.vault.namespace }} -l app.kubernetes.io/name=vault -o jsonpath='{.items[*].metadata.name}')
+
+              if [ -z "$VAULT_PODS" ]; then
+                echo "ERROR: No Vault pods found in namespace {{ .Values.vault.namespace }}"
+                exit 1
+              fi
+
+              echo "Found Vault pods: $VAULT_PODS"
+
+              for pod in $VAULT_PODS; do
+                echo "Checking seal status for $pod..."
+                SEAL_STATUS=$(kubectl exec -n {{ .Values.vault.namespace }} $pod -- vault status -format=json 2>/dev/null || echo '{"sealed":true}')
+                IS_SEALED=$(echo "$SEAL_STATUS" | grep -o '"sealed":[^,}]*' | cut -d':' -f2)
+
+                if [ "$IS_SEALED" = "true" ]; then
+                  echo "Unsealing $pod..."
+                  UNSEAL_COUNT=0
+                  echo "$UNSEAL_KEYS" | head -n 3 | while read key; do
+                    if [ -n "$key" ]; then
+                      if kubectl exec -n {{ .Values.vault.namespace }} $pod -- vault operator unseal $key 2>&1; then
+                        UNSEAL_COUNT=$((UNSEAL_COUNT + 1))
+                        echo "  Applied unseal key $UNSEAL_COUNT/3"
+                      else
+                        echo "  WARNING: Failed to apply unseal key to $pod"
+                      fi
+                    fi
+                  done
+                  echo "Completed unsealing $pod"
+                else
+                  echo "$pod is already unsealed"
+                fi
               done
+
+              echo "Vault unseal process complete"
 
               # Login with root token
               ROOT_TOKEN=$(kubectl get secret vault-unseal-keys -n {{ .Values.vault.namespace }} -o jsonpath='{.data.root-token}' | base64 -d)
@@ -186,8 +226,18 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if .Values.vault.caCert }}
+            - name: vault-ca
+              mountPath: /etc/vault-tls
+              readOnly: true
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if .Values.vault.caCert }}
+        - name: vault-ca
+          secret:
+            secretName: {{ .Values.vault.caCertSecret }}
+        {{- end }}
 {{- end }}
 {{- end }}

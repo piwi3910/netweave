@@ -61,23 +61,55 @@ IMPORTANT: NetWeave Gateway Deployment
    Vault is deployed in namespace: {{ .Values.vault.namespace }}
    URL: {{ include "netweave.vaultURL" . }}
 
-   ⚠️  CRITICAL SECURITY WARNING ⚠️
+   ============================================================================
+   🔴🔴🔴 CRITICAL SECURITY WARNING - ACTION REQUIRED 🔴🔴🔴
+   ============================================================================
 
-   Vault unseal keys are stored in Kubernetes secret for DEVELOPMENT ONLY.
-   For PRODUCTION, you MUST:
+   This deployment stores Vault unseal keys and root token in Kubernetes
+   secrets. This is FUNDAMENTALLY INSECURE and ONLY acceptable for:
+   - Local development
+   - Testing environments
+   - CI/CD pipelines
 
-   1. Extract unseal keys immediately:
+   ❌ NEVER USE THIS CONFIGURATION IN PRODUCTION ❌
+
+   Why this is insecure:
+   - Kubernetes secrets are only base64-encoded (NOT encrypted by default)
+   - Anyone with cluster-admin access can read ALL secrets
+   - Root token provides unlimited Vault access
+   - Compromised unseal keys = complete access to all Vault data
+
+   MANDATORY steps for production:
+
+   1. Extract unseal keys IMMEDIATELY:
       $ kubectl get secret vault-unseal-keys -n {{ .Values.vault.namespace }} -o jsonpath='{.data.unseal-keys}' | base64 -d > unseal-keys.txt
       $ kubectl get secret vault-unseal-keys -n {{ .Values.vault.namespace }} -o jsonpath='{.data.root-token}' | base64 -d > root-token.txt
 
-   2. Store keys in secure external vault (HSM, Cloud KMS)
+   2. Store keys in secure external vault:
+      - Hardware Security Module (HSM)
+      - Cloud KMS (AWS KMS, Azure Key Vault, GCP Cloud KMS)
+      - Enterprise secret management (HashiCorp Vault Enterprise, CyberArk)
 
    3. Delete the Kubernetes secret:
       $ kubectl delete secret vault-unseal-keys -n {{ .Values.vault.namespace }}
 
-   4. Implement auto-unseal with Cloud KMS
+   4. Implement Cloud KMS auto-unseal:
+      - AWS: seal "awskms" { kms_key_id = "..." }
+      - Azure: seal "azurekeyvault" { key_name = "..." }
+      - GCP: seal "gcpckms" { crypto_key = "..." }
 
-   See SECURITY.md for detailed production hardening requirements.
+   5. Revoke root token after initial setup:
+      $ vault token revoke <root-token>
+
+{{- if .Values.vault.skipTLSVerify }}
+   ⚠️  ADDITIONAL WARNING: VAULT_SKIP_VERIFY=true ⚠️
+
+   TLS verification is disabled. This enables man-in-the-middle attacks.
+   Set vault.skipTLSVerify=false and provide vault.caCertSecret in production.
+{{- end }}
+
+   See SECURITY.md and Issue #299 for detailed production hardening guide.
+   ============================================================================
 
 {{- end }}
 
