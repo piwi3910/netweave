@@ -248,11 +248,11 @@ func TestCertificateStatusTransitions(t *testing.T) {
 	}
 
 	mockService := &Service{
-		config:         config,
-		logger:         logger,
-		certificates:   make(map[string]*Certificate),
-		renewalCtx:     context.Background(),
-		renewalCancel:  func() {},
+		config:        config,
+		logger:        logger,
+		certificates:  make(map[string]*Certificate),
+		renewalCtx:    context.Background(),
+		renewalCancel: func() {},
 	}
 
 	now := time.Now()

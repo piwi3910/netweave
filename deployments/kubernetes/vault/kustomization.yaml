@@ -11,6 +11,7 @@ resources:
   - configmap.yaml
   - service.yaml
   - statefulset.yaml
+  - networkpolicy.yaml
   - init-job.yaml
 
 labels:

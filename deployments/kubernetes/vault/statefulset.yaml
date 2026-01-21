@@ -9,6 +9,8 @@ metadata:
 spec:
   serviceName: vault-internal
   replicas: 3
+  updateStrategy:
+    type: OnDelete
   selector:
     matchLabels:
       app.kubernetes.io/name: vault
@@ -28,6 +30,11 @@ spec:
                   app.kubernetes.io/name: vault
                   app.kubernetes.io/component: security
               topologyKey: kubernetes.io/hostname
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: vault
+                  app.kubernetes.io/component: security
+              topologyKey: topology.kubernetes.io/zone
       terminationGracePeriodSeconds: 10
       securityContext:
         fsGroup: 1000
@@ -56,8 +63,8 @@ spec:
               value: "https://$(POD_IP):8200"
             - name: VAULT_CLUSTER_ADDR
               value: "https://$(POD_IP):8201"
-            - name: VAULT_SKIP_VERIFY
-              value: "true"
+            - name: VAULT_CACERT
+              value: "/vault/tls/ca.crt"
             - name: SKIP_CHOWN
               value: "true"
             - name: SKIP_SETCAP
