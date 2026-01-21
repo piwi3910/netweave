@@ -1,0 +1,80 @@
+{{- if .Values.initJobs.vaultPKI.enabled }}
+{{- if .Values.vault.enabled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: init
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vault-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: init
+rules:
+  # Allow managing secrets in this namespace
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "get", "list", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: init
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vault-init
+subjects:
+  - kind: ServiceAccount
+    name: vault-init
+    namespace: {{ .Release.Namespace }}
+---
+# Cross-namespace access to Vault namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vault-init-cross-ns
+  namespace: {{ .Values.vault.namespace }}
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: init
+rules:
+  # Allow managing secrets in vault namespace
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "get", "list", "update", "patch"]
+  # Allow exec into vault pods for unsealing
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec"]
+    verbs: ["get", "list", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-init-cross-ns
+  namespace: {{ .Values.vault.namespace }}
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: init
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vault-init-cross-ns
+subjects:
+  - kind: ServiceAccount
+    name: vault-init
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

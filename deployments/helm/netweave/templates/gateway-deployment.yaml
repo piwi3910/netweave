@@ -1,0 +1,176 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "netweave.fullname" . }}
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  {{- if not .Values.gateway.autoscaling.enabled }}
+  replicas: {{ .Values.gateway.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "netweave.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/gateway-configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/gateway-secret.yaml") . | sha256sum }}
+        {{- with .Values.gateway.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "netweave.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "netweave.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.gateway.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: wait-for-keycloak
+          image: {{ .Values.gateway.initContainers.waitForKeycloak.image.registry }}/{{ .Values.gateway.initContainers.waitForKeycloak.image.repository }}:{{ .Values.gateway.initContainers.waitForKeycloak.image.tag }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Keycloak to be ready..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
+              until curl -sf {{ include "netweave.keycloakURL" . }}/health/ready > /dev/null 2>&1; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Keycloak failed to become ready after ${MAX_RETRIES} attempts (5 minutes)"
+                  exit 1
+                fi
+                echo "Keycloak not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting..."
+                sleep 5
+              done
+              echo "Keycloak is ready!"
+        {{- if .Values.vault.enabled }}
+        - name: wait-for-vault
+          image: {{ .Values.gateway.initContainers.waitForVault.image.registry }}/{{ .Values.gateway.initContainers.waitForVault.image.repository }}:{{ .Values.gateway.initContainers.waitForVault.image.tag }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Vault to be ready..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
+              until curl -sf {{ include "netweave.vaultURL" . }}/v1/sys/health > /dev/null 2>&1; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Vault failed to become ready after ${MAX_RETRIES} attempts (5 minutes)"
+                  exit 1
+                fi
+                echo "Vault not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting..."
+                sleep 5
+              done
+              echo "Vault is ready!"
+        {{- end }}
+      containers:
+        - name: gateway
+          securityContext:
+            {{- toYaml .Values.gateway.securityContext | nindent 12 }}
+          image: {{ include "netweave.gatewayImage" . }}
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.gateway.service.targetPort }}
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: LOG_LEVEL
+              value: {{ .Values.gateway.config.logLevel | quote }}
+            - name: SERVER_ADDRESS
+              value: {{ .Values.gateway.config.server.address | quote }}
+            - name: DATABASE_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netweave.fullname" . }}-secret
+                  key: database-connection-string
+            - name: KEYCLOAK_BASE_URL
+              value: {{ include "netweave.keycloakURL" . | quote }}
+            - name: KEYCLOAK_REALM
+              value: "netweave"
+            - name: KEYCLOAK_CLIENT_ID
+              value: {{ .Values.gateway.config.auth.oauth2.clientID | quote }}
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netweave.fullname" . }}-secret
+                  key: keycloak-client-secret
+            {{- if .Values.redis.enabled }}
+            {{- if .Values.redis.auth.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netweave.fullname" . }}-secret
+                  key: redis-password
+            {{- end }}
+            {{- end }}
+            {{- if .Values.vault.enabled }}
+            - name: VAULT_ADDR
+              value: {{ include "netweave.vaultURL" . | quote }}
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netweave.fullname" . }}-secret
+                  key: vault-token
+                  optional: true
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache
+            - name: config
+              mountPath: /etc/netweave
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ include "netweave.fullname" . }}-config
+      {{- with .Values.gateway.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gateway.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gateway.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

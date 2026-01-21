@@ -1,0 +1,82 @@
+{{- if .Values.initJobs.keycloakRealm.enabled }}
+{{- if .Values.keycloak.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "netweave.fullname" . }}-keycloak-init
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: init
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ .Values.initJobs.keycloakRealm.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.initJobs.keycloakRealm.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "netweave.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: init
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "netweave.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: keycloak-init
+          image: {{ .Values.initJobs.keycloakRealm.image.registry }}/{{ .Values.initJobs.keycloakRealm.image.repository }}:{{ .Values.initJobs.keycloakRealm.image.tag }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+
+              echo "Waiting for Keycloak to be ready..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
+              until curl -sf {{ include "netweave.keycloakURL" . }}/health/ready > /dev/null 2>&1; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Keycloak failed to become ready after ${MAX_RETRIES} attempts"
+                  exit 1
+                fi
+                echo "Keycloak not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting..."
+                sleep 5
+              done
+              echo "Keycloak is ready!"
+
+              # Verify realm import - check if 'netweave' realm exists
+              echo "Verifying realm import..."
+              MAX_RETRIES=12
+              RETRY_COUNT=0
+              until curl -sf {{ include "netweave.keycloakURL" . }}/realms/netweave > /dev/null 2>&1; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Realm 'netweave' not found after ${MAX_RETRIES} attempts"
+                  echo "Realm import may have failed. Check Keycloak logs."
+                  exit 1
+                fi
+                echo "Realm not yet available (attempt $RETRY_COUNT/$MAX_RETRIES), waiting..."
+                sleep 5
+              done
+              echo "Realm 'netweave' successfully imported and available!"
+
+              echo "Keycloak realm initialization complete"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
+{{- end }}
