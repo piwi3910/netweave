@@ -256,16 +256,17 @@ func TestTMF639ResourcePoolMapping(t *testing.T) {
 	// Verify resource pools are mapped
 	tmfPoolCount := 0
 	for _, res := range tmfResources {
-		if res.AtType == "ResourcePool" {
-			tmfPoolCount++
-
-			// Verify TMF specific fields
-			assert.NotEmpty(t, res.ID)
-			assert.NotEmpty(t, res.Name)
-			assert.Equal(t, "resourcePool", res.Category)
-			assert.NotEmpty(t, res.ResourceStatus)
-			assert.NotEmpty(t, res.OperationalState)
+		if res.AtType != "ResourcePool" {
+			continue
 		}
+		tmfPoolCount++
+
+		// Verify TMF specific fields
+		assert.NotEmpty(t, res.ID)
+		assert.NotEmpty(t, res.Name)
+		assert.Equal(t, "resourcePool", res.Category)
+		assert.NotEmpty(t, res.ResourceStatus)
+		assert.NotEmpty(t, res.OperationalState)
 	}
 
 	// Should have at least as many TMF resource pools as O2-IMS resource pools
@@ -304,15 +305,16 @@ func TestTMF639ResourceMapping(t *testing.T) {
 	// Count individual resources (not pools)
 	tmfResourceCount := 0
 	for _, res := range tmfResources {
-		if res.AtType == "Resource" {
-			tmfResourceCount++
-
-			// Verify TMF specific fields
-			assert.NotEmpty(t, res.ID)
-			assert.NotEmpty(t, res.ResourceStatus)
-			assert.NotEmpty(t, res.OperationalState)
-			assert.NotEmpty(t, res.Category) // Should be resource type ID
+		if res.AtType != "Resource" {
+			continue
 		}
+		tmfResourceCount++
+
+		// Verify TMF specific fields
+		assert.NotEmpty(t, res.ID)
+		assert.NotEmpty(t, res.ResourceStatus)
+		assert.NotEmpty(t, res.OperationalState)
+		assert.NotEmpty(t, res.Category) // Should be resource type ID
 	}
 
 	// Should have at least as many TMF resources as O2-IMS resources
@@ -427,7 +429,7 @@ func TestTMForumResponseHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, tt.url, nil)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, tt.url, http.NoBody)
 			require.NoError(t, err)
 
 			client := helpers.NewTestHTTPClient()

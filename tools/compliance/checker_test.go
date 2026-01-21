@@ -35,12 +35,16 @@ func mockO2IMSHandler() http.HandlerFunc {
 		key := r.Method + ":" + r.URL.Path
 		if endpoint, ok := endpoints[key]; ok {
 			w.WriteHeader(endpoint.statusCode)
-			_, _ = w.Write([]byte(endpoint.response))
+			if _, err := w.Write([]byte(endpoint.response)); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 			return
 		}
 		// Return 404 for parameterized endpoints
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error": "NotFound"}`))
+		if _, err := w.Write([]byte(`{"error": "NotFound"}`)); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -72,7 +76,9 @@ func TestChecker_CheckO2DMS(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Return 404 for all O2-DMS endpoints (not implemented)
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error": "NotFound"}`))
+		if _, err := w.Write([]byte(`{"error": "NotFound"}`)); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}))
 	defer server.Close()
 
@@ -100,7 +106,9 @@ func TestChecker_CheckAll(t *testing.T) {
 		// Mock O2-IMS endpoints (implemented)
 		if len(r.URL.Path) >= 8 && r.URL.Path[:8] == "/o2ims/v" {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{}`))
+			if _, err := w.Write([]byte(`{}`)); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 			return
 		}
 
