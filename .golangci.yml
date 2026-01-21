@@ -38,6 +38,7 @@ issues:
         linters:
           - errcheck
           - maintidx
+          - lll  # Long lines in docs_test.go
       # Exclude cmd/ from strict checks (main packages have different patterns)
       - path: cmd/
         linters:
@@ -109,6 +110,10 @@ issues:
       - path: tools/compliance/checker\.go
         linters:
           - dupl
+      # Allow linting issues in compliance tool tests
+      - path: tools/compliance/
+        linters:
+          - lll  # Long comment lines in badge_test.go
       # Allow larger interfaces for adapters (O-RAN spec defines many operations)
       - text: "interface has more than.*methods"
         linters:
