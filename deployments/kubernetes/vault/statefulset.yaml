@@ -35,7 +35,7 @@ spec:
         runAsUser: 100
       containers:
         - name: vault
-          image: hashicorp/vault:1.15
+          image: hashicorp/vault:1.18.3
           imagePullPolicy: IfNotPresent
           command:
             - "/bin/sh"
@@ -51,11 +51,13 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: VAULT_ADDR
-              value: "http://127.0.0.1:8200"
+              value: "https://127.0.0.1:8200"
             - name: VAULT_API_ADDR
-              value: "http://$(POD_IP):8200"
+              value: "https://$(POD_IP):8200"
             - name: VAULT_CLUSTER_ADDR
-              value: "http://$(POD_IP):8201"
+              value: "https://$(POD_IP):8201"
+            - name: VAULT_SKIP_VERIFY
+              value: "true"
             - name: SKIP_CHOWN
               value: "true"
             - name: SKIP_SETCAP
@@ -76,7 +78,7 @@ spec:
             httpGet:
               path: /v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204
               port: 8200
-              scheme: HTTP
+              scheme: HTTPS
             initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 3
@@ -86,7 +88,7 @@ spec:
             httpGet:
               path: /v1/sys/health?standbyok=true
               port: 8200
-              scheme: HTTP
+              scheme: HTTPS
             initialDelaySeconds: 60
             periodSeconds: 5
             timeoutSeconds: 3
@@ -106,6 +108,9 @@ spec:
               mountPath: /vault/config
             - name: tmp
               mountPath: /tmp
+            - name: tls
+              mountPath: /vault/tls
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -118,6 +123,10 @@ spec:
             name: vault-config
         - name: tmp
           emptyDir: {}
+        - name: tls
+          secret:
+            secretName: vault-tls
+            defaultMode: 0400
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -127,7 +136,7 @@ spec:
       spec:
         accessModes:
           - ReadWriteOnce
+        storageClassName: vault-storage
         resources:
           requests:
             storage: 10Gi
-        # storageClassName: fast-ssd  # Uncomment and set for production

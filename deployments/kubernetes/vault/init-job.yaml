@@ -17,6 +17,79 @@ spec:
       serviceAccountName: vault-init
       restartPolicy: OnFailure
       initContainers:
+        - name: generate-tls-certs
+          image: alpine/openssl:latest
+          command:
+            - sh
+            - -c
+            - |
+              #!/bin/sh
+              set -e
+
+              echo "Generating TLS certificates for Vault..."
+
+              # Check if certificates already exist
+              if kubectl get secret vault-tls -n vault-system > /dev/null 2>&1; then
+                echo "TLS certificates already exist, skipping generation"
+                exit 0
+              fi
+
+              # Generate CA private key
+              openssl genrsa -out /tmp/ca-key.pem 4096
+
+              # Generate CA certificate
+              openssl req -new -x509 -days 3650 -key /tmp/ca-key.pem -out /tmp/ca-cert.pem \
+                -subj "/C=US/ST=State/L=City/O=NetWeave/OU=Infrastructure/CN=Vault CA"
+
+              # Generate server private key
+              openssl genrsa -out /tmp/tls.key 2048
+
+              # Create certificate request config
+              cat > /tmp/cert.conf <<EOF
+              [req]
+              req_extensions = v3_req
+              distinguished_name = req_distinguished_name
+
+              [req_distinguished_name]
+
+              [v3_req]
+              basicConstraints = CA:FALSE
+              keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+              extendedKeyUsage = serverAuth, clientAuth
+              subjectAltName = @alt_names
+
+              [alt_names]
+              DNS.1 = vault
+              DNS.2 = vault.vault-system
+              DNS.3 = vault.vault-system.svc
+              DNS.4 = vault.vault-system.svc.cluster.local
+              DNS.5 = vault-0.vault-internal
+              DNS.6 = vault-1.vault-internal
+              DNS.7 = vault-2.vault-internal
+              DNS.8 = vault-0.vault-internal.vault-system.svc.cluster.local
+              DNS.9 = vault-1.vault-internal.vault-system.svc.cluster.local
+              DNS.10 = vault-2.vault-internal.vault-system.svc.cluster.local
+              DNS.11 = localhost
+              IP.1 = 127.0.0.1
+              EOF
+
+              # Generate certificate signing request
+              openssl req -new -key /tmp/tls.key -out /tmp/tls.csr -config /tmp/cert.conf \
+                -subj "/C=US/ST=State/L=City/O=NetWeave/OU=Infrastructure/CN=vault.vault-system.svc.cluster.local"
+
+              # Sign certificate with CA
+              openssl x509 -req -in /tmp/tls.csr -CA /tmp/ca-cert.pem -CAkey /tmp/ca-key.pem \
+                -CAcreateserial -out /tmp/tls.crt -days 365 -extensions v3_req -extfile /tmp/cert.conf
+
+              # Create Kubernetes secret
+              kubectl create secret generic vault-tls \
+                --from-file=tls.crt=/tmp/tls.crt \
+                --from-file=tls.key=/tmp/tls.key \
+                --from-file=ca.crt=/tmp/ca-cert.pem \
+                --namespace=vault-system \
+                --dry-run=client -o yaml | kubectl apply -f -
+
+              echo "TLS certificates generated and stored in vault-tls secret"
         - name: wait-for-vault
           image: curlimages/curl:8.5.0
           command:
@@ -24,17 +97,19 @@ spec:
             - -c
             - |
               echo "Waiting for Vault to be ready..."
-              until curl -sf http://vault.vault-system.svc.cluster.local:8200/v1/sys/health > /dev/null 2>&1; do
+              until curl -skf https://vault.vault-system.svc.cluster.local:8200/v1/sys/health > /dev/null 2>&1; do
                 echo "Vault not ready, waiting..."
                 sleep 5
               done
               echo "Vault is ready!"
       containers:
         - name: vault-init
-          image: hashicorp/vault:1.15
+          image: hashicorp/vault:1.18.3
           env:
             - name: VAULT_ADDR
-              value: "http://vault.vault-system.svc.cluster.local:8200"
+              value: "https://vault.vault-system.svc.cluster.local:8200"
+            - name: VAULT_SKIP_VERIFY
+              value: "true"
           command:
             - sh
             - -c
@@ -73,18 +148,37 @@ spec:
               # Unseal all Vault pods
               echo "Unsealing Vault pods..."
               UNSEAL_KEYS=$(kubectl get secret vault-unseal-keys -n vault-system -o jsonpath='{.data.unseal-keys}' | base64 -d)
+              UNSEAL_FAILED=0
 
               for pod in vault-0 vault-1 vault-2; do
                 echo "Unsealing $pod..."
 
                 # Wait for pod to be running
-                kubectl wait --for=condition=ready pod/$pod -n vault-system --timeout=60s || true
+                if ! kubectl wait --for=condition=ready pod/$pod -n vault-system --timeout=60s; then
+                  echo "WARNING: Pod $pod not ready, attempting unseal anyway..."
+                fi
 
                 # Unseal the pod (requires 3 keys)
+                POD_UNSEALED=0
                 echo "$UNSEAL_KEYS" | head -n 3 | while read key; do
-                  kubectl exec -n vault-system $pod -- vault operator unseal $key || true
+                  if kubectl exec -n vault-system $pod -- vault operator unseal $key; then
+                    POD_UNSEALED=$((POD_UNSEALED + 1))
+                  else
+                    echo "WARNING: Failed to apply unseal key to $pod"
+                  fi
                 done
+
+                # Check if pod is unsealed
+                if ! kubectl exec -n vault-system $pod -- vault status | grep -q "Sealed.*false"; then
+                  echo "ERROR: Pod $pod remains sealed after unseal attempts"
+                  UNSEAL_FAILED=$((UNSEAL_FAILED + 1))
+                fi
               done
+
+              if [ $UNSEAL_FAILED -gt 0 ]; then
+                echo "ERROR: Failed to unseal $UNSEAL_FAILED pod(s)"
+                exit 1
+              fi
 
               echo "================================"
               echo "Setting up PKI"
@@ -147,8 +241,8 @@ data:
     # Configure CA and CRL URLs
     echo "4. Configuring CA and CRL URLs..."
     vault write pki/config/urls \
-      issuing_certificates="http://vault.vault-system.svc.cluster.local:8200/v1/pki/ca" \
-      crl_distribution_points="http://vault.vault-system.svc.cluster.local:8200/v1/pki/crl"
+      issuing_certificates="https://vault.vault-system.svc.cluster.local:8200/v1/pki/ca" \
+      crl_distribution_points="https://vault.vault-system.svc.cluster.local:8200/v1/pki/crl"
 
     # Enable PKI secrets engine for intermediate CA
     echo "5. Enabling PKI secrets engine at pki_int/..."
@@ -185,8 +279,8 @@ data:
     # Configure intermediate CA URLs
     echo "10. Configuring intermediate CA and CRL URLs..."
     vault write pki_int/config/urls \
-      issuing_certificates="http://vault.vault-system.svc.cluster.local:8200/v1/pki_int/ca" \
-      crl_distribution_points="http://vault.vault-system.svc.cluster.local:8200/v1/pki_int/crl"
+      issuing_certificates="https://vault.vault-system.svc.cluster.local:8200/v1/pki_int/ca" \
+      crl_distribution_points="https://vault.vault-system.svc.cluster.local:8200/v1/pki_int/crl"
 
     # Create role for NetWeave client certificates
     echo "11. Creating netweave-client role..."

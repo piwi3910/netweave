@@ -1,0 +1,54 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: vault-storage
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: security
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+---
+# For cloud providers, use these configurations instead:
+#
+# AWS EBS (gp3 SSD):
+# apiVersion: storage.k8s.io/v1
+# kind: StorageClass
+# metadata:
+#   name: vault-storage
+# provisioner: ebs.csi.aws.com
+# parameters:
+#   type: gp3
+#   iops: "3000"
+#   throughput: "125"
+#   encrypted: "true"
+# volumeBindingMode: WaitForFirstConsumer
+# allowVolumeExpansion: true
+# reclaimPolicy: Retain
+#
+# GCP Persistent Disk (SSD):
+# apiVersion: storage.k8s.io/v1
+# kind: StorageClass
+# metadata:
+#   name: vault-storage
+# provisioner: pd.csi.storage.gke.io
+# parameters:
+#   type: pd-ssd
+#   replication-type: regional-pd
+# volumeBindingMode: WaitForFirstConsumer
+# allowVolumeExpansion: true
+# reclaimPolicy: Retain
+#
+# Azure Managed Disk (Premium SSD):
+# apiVersion: storage.k8s.io/v1
+# kind: StorageClass
+# metadata:
+#   name: vault-storage
+# provisioner: disk.csi.azure.com
+# parameters:
+#   skuName: Premium_LRS
+#   kind: Managed
+# volumeBindingMode: WaitForFirstConsumer
+# allowVolumeExpansion: true
+# reclaimPolicy: Retain

@@ -197,24 +197,93 @@ Allows Keycloak to:
 
 ## Security Considerations
 
-### Production Hardening
+### Secure by Default
 
-1. **Enable TLS**: Uncomment TLS configuration in configmap.yaml
-2. **Use Cloud KMS**: Configure auto-unseal with AWS KMS, Azure Key Vault, or GCP Cloud KMS
-3. **Enable Audit Logging**: Configure audit device
-4. **Restrict Network**: Use NetworkPolicies
-5. **Enable Pod Security Standards**: Use restricted PSS
-6. **Rotate Root Token**: Generate new root token and revoke old one
+This deployment is configured with security best practices enabled by default:
 
-### Secret Management
+1. **TLS 1.3 Enabled**: All Vault API communication uses TLS with minimum version 1.3
+2. **Auto-Generated Certificates**: TLS certificates are automatically generated during initialization
+3. **Encrypted Storage**: Vault data is encrypted at rest using AES-256-GCM
+4. **SSD Storage Class**: Dedicated storage class with Retain policy for data persistence
+5. **Pod Security**: Read-only root filesystem, non-root user, dropped capabilities
+6. **Network Isolation**: Service accounts with least-privilege policies
+
+### TLS Configuration
+
+**Automatic Certificate Generation:**
+- Self-signed CA with 10-year validity
+- Server certificates with SANs for all pod and service names
+- Certificates stored in `vault-tls` Kubernetes secret
+- Automatic certificate rotation can be implemented via CronJob
+
+**Production Recommendations:**
+- Replace self-signed certificates with certificates from your organization's PKI
+- Use cert-manager for automatic certificate lifecycle management
+- Configure proper CA trust chain in client applications
+
+### Storage Requirements
+
+**Performance:**
+- **SSD storage required** for Raft consensus performance
+- Minimum IOPS: 3000 (AWS gp3, Azure Premium_LRS, GCP pd-ssd)
+- Network latency between pods: < 10ms recommended
+
+**Capacity:**
+- Default: 10Gi per pod (30Gi total)
+- Plan for certificate storage: ~1KB per certificate
+- Raft snapshots: ~10-50MB depending on data volume
+- Recommended production: 50Gi per pod minimum
+
+### Unseal Key Management
+
+**CRITICAL SECURITY WARNING:**
 
 The init job stores unseal keys and root token in Kubernetes secret `vault-unseal-keys`.
+This is **ONLY suitable for development/testing environments**.
 
-**CRITICAL**: In production:
-- Extract unseal keys and store in secure vault (not Kubernetes)
-- Delete the Kubernetes secret after extraction
-- Implement proper key management procedures
-- Use external KMS for auto-unsealing
+**⚠️ For Production, you MUST:**
+
+1. **Extract unseal keys immediately after initialization:**
+   ```bash
+   kubectl get secret vault-unseal-keys -n vault-system -o jsonpath='{.data.unseal-keys}' | base64 -d > unseal-keys.txt
+   kubectl get secret vault-unseal-keys -n vault-system -o jsonpath='{.data.root-token}' | base64 -d > root-token.txt
+   ```
+
+2. **Store keys in secure external vault** (NOT in Kubernetes):
+   - Hardware Security Module (HSM)
+   - Cloud KMS (AWS KMS, Azure Key Vault, GCP Cloud KMS)
+   - Enterprise secret management system (HashiCorp Vault, CyberArk)
+
+3. **Delete the Kubernetes secret:**
+   ```bash
+   kubectl delete secret vault-unseal-keys -n vault-system
+   ```
+
+4. **Implement auto-unseal with Cloud KMS:**
+   - AWS KMS: `seal "awskms" { ... }`
+   - Azure Key Vault: `seal "azurekeyvault" { ... }`
+   - GCP Cloud KMS: `seal "gcpckms" { ... }`
+
+5. **Split unseal keys** among multiple trusted operators (Shamir's Secret Sharing)
+
+**Why This Matters:**
+- Kubernetes secrets are only base64-encoded (NOT encrypted) by default
+- Anyone with cluster admin access can read unseal keys
+- Compromised unseal keys = complete access to all Vault data
+- Auto-unseal eliminates manual unsealing while improving security
+
+### Additional Production Hardening
+
+1. **Enable Audit Logging**: Configure audit device to track all Vault operations
+   ```bash
+   vault audit enable file file_path=/vault/logs/audit.log
+   ```
+
+2. **Restrict Network Access**: Use NetworkPolicies to limit pod-to-pod communication
+3. **Enable Pod Security Standards**: Use restricted PSS to enforce security constraints
+4. **Rotate Root Token**: Generate new root token and revoke old one after setup
+5. **Enable Encryption at Rest**: Configure etcd encryption in Kubernetes
+6. **Implement Backup Strategy**: Regular Raft snapshots to external object storage
 
 ### Backup and Disaster Recovery
 

@@ -12,7 +12,7 @@ spec:
   type: ClusterIP
   publishNotReadyAddresses: true
   ports:
-    - name: http
+    - name: https
       port: 8200
       targetPort: 8200
       protocol: TCP
@@ -39,7 +39,7 @@ spec:
   clusterIP: None
   publishNotReadyAddresses: true
   ports:
-    - name: http
+    - name: https
       port: 8200
       targetPort: 8200
       protocol: TCP
@@ -63,7 +63,7 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - name: http
+    - name: https
       port: 8200
       targetPort: 8200
       protocol: TCP

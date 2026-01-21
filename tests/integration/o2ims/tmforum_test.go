@@ -315,7 +315,6 @@ func TestTMF639ResourceMapping(t *testing.T) {
 		assert.NotEmpty(t, res.ResourceStatus)
 		assert.NotEmpty(t, res.OperationalState)
 		assert.NotEmpty(t, res.Category) // Should be resource type ID
-		}
 	}
 
 	// Should have at least as many TMF resources as O2-IMS resources
