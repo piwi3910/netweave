@@ -139,6 +139,11 @@ func (s *Service) monitorLoop(ctx context.Context) {
 // Context parameter is currently unused as scanning is synchronous and fast.
 // Renewal operations are spawned with renewalCtx for proper cancellation control.
 func (s *Service) scanAndRenew(_ context.Context) {
+	start := time.Now()
+	defer func() {
+		monitorLoopDuration.Observe(time.Since(start).Seconds())
+	}()
+
 	s.logger.Debug("Starting certificate scan")
 
 	certs := s.getAllCertificates()
@@ -148,6 +153,9 @@ func (s *Service) scanAndRenew(_ context.Context) {
 	for _, cert := range certs {
 		s.processCertificate(cert, now, renewalWindow)
 	}
+
+	// Update certificate status metrics after scan
+	s.updateCertificateMetrics()
 
 	s.logger.Debug("Certificate scan complete", zap.Int("total_certificates", len(certs)))
 }
@@ -238,10 +246,7 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 	// This prevents race condition where IssueCertificate might replace cert in map
 	s.mu.RLock()
 	oldSerial := cert.SerialNumber
-	oldTTL := cert.TTL
-	if oldTTL == "" {
-		oldTTL = DefaultCertificateTTL
-	}
+	oldTTL := cert.TTL // Always set during issuance, never empty
 	oldUserID := cert.UserID
 	oldTenantID := cert.TenantID
 	oldCommonName := cert.CommonName
@@ -274,6 +279,15 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 		s.logger.Error("Certificate renewal failed",
 			zap.String("serial", oldSerial),
 			zap.Error(err))
+
+		// Track renewal failure
+		if cert.RenewalAttempts >= s.config.RenewalPolicy.MaxRetries {
+			certificateRenewals.WithLabelValues("max_retries_exceeded").Inc()
+			renewalAttempts.Observe(float64(cert.RenewalAttempts))
+		} else {
+			certificateRenewals.WithLabelValues("failure").Inc()
+		}
+
 		// Update status using the original certificate reference
 		// Don't look up by serial as the map may have been modified
 		s.mu.Lock()
@@ -282,8 +296,13 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 			cert.Status = CertStatusRenewalFailed
 		}
 		s.mu.Unlock()
+
+		s.updateCertificateMetrics()
 		return
 	}
+
+	certificateRenewals.WithLabelValues("success").Inc()
+	renewalAttempts.Observe(float64(cert.RenewalAttempts))
 
 	// Revoke old certificate
 	if revokeErr := s.RevokeCertificate(ctx, oldSerial); revokeErr != nil {
