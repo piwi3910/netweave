@@ -19,5 +19,5 @@ telemetry {
   disable_hostname = true
 }
 
-# Disable mlock for containers (use IPC_LOCK capability instead)
-disable_mlock = false
+# Disable mlock for Docker (not supported without IPC_LOCK)
+disable_mlock = true
