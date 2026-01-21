@@ -78,7 +78,7 @@ var (
 	)
 )
 
-// updateCertificateMetrics updates gauge metrics based on current certificate state
+// updateCertificateMetrics updates gauge metrics based on current certificate state.
 func (s *Service) updateCertificateMetrics() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
