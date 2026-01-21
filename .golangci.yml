@@ -1,8 +1,7 @@
 # golangci-lint configuration for netweave O2-IMS Gateway
 # Version: 1.64+
 # Zero-tolerance linting - ALL issues must be fixed
-
-version: "2"
+# Config format: v1 (for golangci-lint v1.62.2)
 
 run:
   timeout: 5m
@@ -16,20 +15,7 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
   new: false
-
-output:
-  sort-results: true
-
-linters:
-  exclusions:
-    generated: lax
-    warn-unused: false
-    paths:
-      - vendor/
-      - third_party/
-      - ".*\\.pb\\.go$"
-      - ".*\\.gen\\.go$"
-    rules:
+  exclude-rules:
       # Exclude some linters from running on tests files
       - path: _test\.go
         linters:
@@ -266,7 +252,10 @@ linters:
           - nilnil        # Test helpers returning nil, nil
           - dupl          # Code duplication in handler patterns
 
+output:
+  sort-results: true
 
+linters:
   enable-all: false
   disable-all: true
   enable:
