@@ -3,6 +3,7 @@ package certmanager
 import (
 	"context"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/piwi3910/netweave/internal/vault"
@@ -209,9 +210,7 @@ func (s *Service) updateKeycloakUser(ctx context.Context, userID string, cert *C
 	if user.Attributes == nil {
 		user.Attributes = make(map[string][]string)
 	}
-	for k, v := range attributes {
-		user.Attributes[k] = v
-	}
+	maps.Copy(user.Attributes, attributes)
 
 	// Update user in Keycloak
 	if err := s.keycloakClient.UpdateUser(ctx, user); err != nil {
