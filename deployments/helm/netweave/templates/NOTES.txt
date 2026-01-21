@@ -1,0 +1,159 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+  $ helm get all {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+=============================================================================
+IMPORTANT: NetWeave Gateway Deployment
+=============================================================================
+
+{{- if .Values.gateway.enabled }}
+
+1. Gateway Service:
+{{- if .Values.gateway.ingress.enabled }}
+   The gateway is accessible via Ingress:
+{{- range .Values.gateway.ingress.hosts }}
+     http{{ if $.Values.gateway.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+   The gateway service is exposed as ClusterIP. To access it:
+
+   $ kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "netweave.fullname" . }} 8080:{{ .Values.gateway.service.port }}
+
+   Then access the gateway at: http://localhost:8080
+{{- end }}
+
+2. Health Endpoints:
+   - Liveness:  /healthz
+   - Readiness: /readyz
+   - Metrics:   /metrics (port 9090)
+
+{{- end }}
+
+{{- if .Values.keycloak.enabled }}
+
+3. Keycloak Admin Console:
+   URL: {{ include "netweave.keycloakURL" . }}
+{{- if .Values.keycloak.ingress.enabled }}
+   External: http{{ if .Values.keycloak.ingress.tls }}s{{ end }}://{{ .Values.keycloak.ingress.hostname }}
+{{- else }}
+
+   To access Keycloak admin console:
+   $ kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "netweave.fullname" . }}-keycloak 8080:80
+
+   Admin credentials:
+   Username: {{ .Values.keycloak.auth.adminUser }}
+   Password: (stored in secret {{ include "netweave.fullname" . }}-keycloak)
+
+   To retrieve admin password:
+   $ kubectl get secret {{ include "netweave.fullname" . }}-keycloak -n {{ .Release.Namespace }} -o jsonpath='{.data.admin-password}' | base64 -d
+{{- end }}
+
+{{- end }}
+
+{{- if .Values.vault.enabled }}
+
+4. Vault Status:
+   Vault is deployed in namespace: {{ .Values.vault.namespace }}
+   URL: {{ include "netweave.vaultURL" . }}
+
+   ⚠️  CRITICAL SECURITY WARNING ⚠️
+
+   Vault unseal keys are stored in Kubernetes secret for DEVELOPMENT ONLY.
+   For PRODUCTION, you MUST:
+
+   1. Extract unseal keys immediately:
+      $ kubectl get secret vault-unseal-keys -n {{ .Values.vault.namespace }} -o jsonpath='{.data.unseal-keys}' | base64 -d > unseal-keys.txt
+      $ kubectl get secret vault-unseal-keys -n {{ .Values.vault.namespace }} -o jsonpath='{.data.root-token}' | base64 -d > root-token.txt
+
+   2. Store keys in secure external vault (HSM, Cloud KMS)
+
+   3. Delete the Kubernetes secret:
+      $ kubectl delete secret vault-unseal-keys -n {{ .Values.vault.namespace }}
+
+   4. Implement auto-unseal with Cloud KMS
+
+   See SECURITY.md for detailed production hardening requirements.
+
+{{- end }}
+
+{{- if .Values.postgresql.enabled }}
+
+5. PostgreSQL Database:
+   Connection details are stored in secret: {{ include "netweave.fullname" . }}-secret
+
+   To connect to PostgreSQL:
+   $ kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "netweave.postgresql.host" . }} 5432:5432
+
+   Connection string:
+   $ kubectl get secret {{ include "netweave.fullname" . }}-secret -n {{ .Release.Namespace }} -o jsonpath='{.data.database-connection-string}' | base64 -d
+
+{{- end }}
+
+{{- if .Values.redis.enabled }}
+
+6. Redis Cache:
+   Host: {{ include "netweave.redis.host" . }}
+   Port: {{ include "netweave.redis.port" . }}
+{{- if .Values.redis.auth.enabled }}
+   Password: (stored in secret {{ include "netweave.fullname" . }}-redis)
+{{- end }}
+
+{{- end }}
+
+{{- if .Values.monitoring.enabled }}
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+
+7. Monitoring:
+   ServiceMonitor created for Prometheus Operator
+   Metrics endpoint: {{ include "netweave.fullname" . }}:9090/metrics
+   Scrape interval: {{ .Values.monitoring.serviceMonitor.interval }}
+
+{{- end }}
+{{- end }}
+
+=============================================================================
+Next Steps:
+=============================================================================
+
+1. Verify all pods are running:
+   $ kubectl get pods -n {{ .Release.Namespace }}
+
+2. Check gateway logs:
+   $ kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "netweave.name" . }},app.kubernetes.io/component=gateway -f
+
+3. Test the health endpoint:
+   $ curl http://localhost:8080/healthz
+
+{{- if .Values.vault.enabled }}
+
+4. Verify Vault PKI setup:
+   $ kubectl logs -n {{ .Release.Namespace }} job/{{ include "netweave.fullname" . }}-vault-init
+
+{{- end }}
+
+{{- if .Values.keycloak.enabled }}
+
+5. Verify Keycloak realm import:
+   $ kubectl logs -n {{ .Release.Namespace }} job/{{ include "netweave.fullname" . }}-keycloak-init
+
+{{- end }}
+
+6. Review the documentation:
+   - Architecture: docs/architecture.md
+   - API Mapping: docs/api-mapping.md
+   - Security: SECURITY.md
+
+=============================================================================
+Support:
+=============================================================================
+
+For issues and questions:
+- GitHub Issues: https://github.com/piwi3910/netweave/issues
+- Documentation: https://github.com/piwi3910/netweave/tree/main/docs
+
+Happy deploying! 🚀

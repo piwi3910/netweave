@@ -35,7 +35,7 @@ spec:
         {{- toYaml .Values.gateway.podSecurityContext | nindent 8 }}
       initContainers:
         - name: wait-for-keycloak
-          image: curlimages/curl:8.5.0
+          image: {{ .Values.gateway.initContainers.waitForKeycloak.image.registry }}/{{ .Values.gateway.initContainers.waitForKeycloak.image.repository }}:{{ .Values.gateway.initContainers.waitForKeycloak.image.tag }}
           command:
             - sh
             - -c
@@ -48,7 +48,7 @@ spec:
               echo "Keycloak is ready!"
         {{- if .Values.vault.enabled }}
         - name: wait-for-vault
-          image: curlimages/curl:8.5.0
+          image: {{ .Values.gateway.initContainers.waitForVault.image.registry }}/{{ .Values.gateway.initContainers.waitForVault.image.repository }}:{{ .Values.gateway.initContainers.waitForVault.image.tag }}
           command:
             - sh
             - -c
@@ -127,11 +127,17 @@ spec:
               mountPath: /tmp
             - name: cache
               mountPath: /var/cache
+            - name: config
+              mountPath: /etc/netweave
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir: {}
         - name: cache
           emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ include "netweave.fullname" . }}-config
       {{- with .Values.gateway.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

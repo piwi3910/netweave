@@ -28,7 +28,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: vault-init
-          image: hashicorp/vault:1.18.3
+          image: {{ .Values.initJobs.vaultPKI.image.registry }}/{{ .Values.initJobs.vaultPKI.image.repository }}:{{ .Values.initJobs.vaultPKI.image.tag }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -41,10 +41,10 @@ spec:
             - name: VAULT_SKIP_VERIFY
               value: "true"
           command:
-            - sh
+            - bash
             - -c
             - |
-              set -e
+              set -e -u -o pipefail
 
               echo "Waiting for Vault to be ready..."
               until vault status > /dev/null 2>&1 || [ $? -eq 2 ]; do

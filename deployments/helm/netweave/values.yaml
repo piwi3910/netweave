@@ -90,6 +90,19 @@ gateway:
                     - netweave
             topologyKey: kubernetes.io/hostname
 
+  # Init container configuration
+  initContainers:
+    waitForKeycloak:
+      image:
+        registry: docker.io
+        repository: curlimages/curl
+        tag: "8.5.0"
+    waitForVault:
+      image:
+        registry: docker.io
+        repository: curlimages/curl
+        tag: "8.5.0"
+
   # Gateway configuration
   config:
     # Log level: debug, info, warn, error
@@ -139,6 +152,12 @@ postgresql:
     persistence:
       enabled: true
       size: 10Gi
+    # Enable TLS for PostgreSQL connections
+    tls:
+      enabled: false  # Set to true for production
+      certificatesSecret: ""  # Name of secret containing tls.crt and tls.key
+      certFilename: "tls.crt"
+      certKeyFilename: "tls.key"
   resources:
     requests:
       cpu: 250m
@@ -160,11 +179,12 @@ keycloak:
   postgresql:
     enabled: false  # Don't deploy another PostgreSQL
   externalDatabase:
-    host: netweave-postgresql  # Main PostgreSQL service (update via --set for custom release names)
+    host: ""  # Will be set via helper template to match release name
     port: 5432
     user: keycloak
     database: keycloak
     password: ""  # Must match postgresql.auth.password
+    sslMode: "require"  # PostgreSQL SSL mode: disable, allow, prefer, require, verify-ca, verify-full
 
   ingress:
     enabled: false
@@ -235,12 +255,21 @@ initJobs:
     enabled: true
     backoffLimit: 3
     ttlSecondsAfterFinished: 86400  # 24 hours
+    image:
+      registry: docker.io
+      repository: curlimages/curl
+      tag: "8.5.0"
 
   # Vault PKI initialization
   vaultPKI:
     enabled: true
     backoffLimit: 3
     ttlSecondsAfterFinished: 86400  # 24 hours
+    # Use image with Vault CLI, kubectl, jq, and bash
+    image:
+      registry: docker.io
+      repository: hashicorp/vault-k8s
+      tag: "1.4.3"
 
 # Monitoring configuration
 monitoring:
@@ -250,9 +279,19 @@ monitoring:
     enabled: false
     interval: 30s
     scrapeTimeout: 10s
+    # Additional labels for ServiceMonitor (for Prometheus operator label selectors)
+    additionalLabels: {}
+      # prometheus: kube-prometheus
+    # Relabeling configs to apply to samples before ingestion
+    relabelings: []
+    # Metric relabeling configs to apply to samples before ingestion
+    metricRelabelings: []
 
   prometheusRule:
     enabled: false
+    # Additional labels for PrometheusRule (for Prometheus operator label selectors)
+    additionalLabels: {}
+      # prometheus: kube-prometheus
 
 # Secrets configuration
 secrets:

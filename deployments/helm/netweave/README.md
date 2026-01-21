@@ -264,6 +264,26 @@ gateway:
           - netweave.example.com
 ```
 
+### Network Security
+
+#### NetworkPolicy
+
+Enable network isolation with Kubernetes NetworkPolicy:
+
+```yaml
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+```
+
+The NetworkPolicy restricts:
+- **Ingress**: Only from ingress controller and within namespace
+- **Egress**: Only to DNS, PostgreSQL, Redis, Keycloak, Vault, and Kubernetes API
+
+**Requirements**: CNI plugin with NetworkPolicy support (Calico, Cilium, Weave Net)
+
 ### Secrets Management
 
 #### Development (Default)
@@ -274,6 +294,8 @@ Secrets are auto-generated and stored in Kubernetes:
 secrets:
   create: true
 ```
+
+**Important**: Secrets persist across `helm upgrade` using Helm's `lookup` function. Passwords are only generated on initial installation.
 
 #### Production (External Secrets)
 
@@ -288,7 +310,37 @@ secrets:
     vaultRole: netweave
 ```
 
+### Database Security
+
+#### PostgreSQL TLS
+
+Enable TLS for PostgreSQL connections:
+
+```yaml
+postgresql:
+  primary:
+    tls:
+      enabled: true
+      certificatesSecret: "postgresql-tls"
+      certFilename: "tls.crt"
+      certKeyFilename: "tls.key"
+```
+
+The connection string automatically uses `sslmode=require` when TLS is enabled, or `sslmode=disable` otherwise.
+
 ## Installation Scenarios
+
+### Testing with Different Release Names
+
+The chart supports custom release names without hardcoded hostnames:
+
+```bash
+# Install with custom name "my-release"
+helm install my-release . --namespace netweave
+
+# PostgreSQL hostname automatically becomes: my-release-postgresql
+# Keycloak URL automatically becomes: http://my-release-keycloak:80
+```
 
 ### Development Environment
 
@@ -299,6 +351,21 @@ helm install netweave . \
   --set keycloak.replicaCount=1 \
   --set postgresql.primary.persistence.size=5Gi
 ```
+
+### Development Without Vault
+
+For local development without Vault PKI:
+
+```bash
+helm install netweave . \
+  --namespace netweave \
+  --set vault.enabled=false \
+  --set gateway.config.certManager.enabled=false \
+  --set gateway.config.auth.mtls.enabled=false \
+  --set initJobs.vaultPKI.enabled=false
+```
+
+**Note**: OAuth2/OIDC authentication via Keycloak still works. Only mTLS and certificate management features are disabled.
 
 ### Staging Environment
 
@@ -373,9 +440,17 @@ monitoring:
   serviceMonitor:
     enabled: true
     interval: 30s
+    additionalLabels:
+      prometheus: kube-prometheus
 
 networkPolicy:
   enabled: true
+
+postgresql:
+  primary:
+    tls:
+      enabled: true
+      certificatesSecret: "postgresql-tls"
 EOF
 
 # 2. Install with production values
@@ -433,6 +508,8 @@ kubectl get secret netweave-secret -n netweave -o jsonpath='{.data.database-conn
 
 ### Prometheus Integration
 
+Enable ServiceMonitor for Prometheus Operator:
+
 ```yaml
 monitoring:
   enabled: true
@@ -440,7 +517,15 @@ monitoring:
     enabled: true
     interval: 30s
     scrapeTimeout: 10s
+    # Optional: Add labels for Prometheus selector
+    additionalLabels:
+      prometheus: kube-prometheus
+    # Optional: Relabeling configs
+    relabelings: []
+    metricRelabelings: []
 ```
+
+The ServiceMonitor automatically discovers and scrapes metrics from gateway pods on port 9090.
 
 ### Available Metrics
 

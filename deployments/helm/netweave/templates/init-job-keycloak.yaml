@@ -28,7 +28,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: keycloak-init
-          image: curlimages/curl:8.5.0
+          image: {{ .Values.initJobs.keycloakRealm.image.registry }}/{{ .Values.initJobs.keycloakRealm.image.repository }}:{{ .Values.initJobs.keycloakRealm.image.tag }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -42,15 +42,34 @@ spec:
               set -e
 
               echo "Waiting for Keycloak to be ready..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
               until curl -sf {{ include "netweave.keycloakURL" . }}/health/ready > /dev/null 2>&1; do
-                echo "Keycloak not ready, waiting..."
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Keycloak failed to become ready after ${MAX_RETRIES} attempts"
+                  exit 1
+                fi
+                echo "Keycloak not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting..."
                 sleep 5
               done
               echo "Keycloak is ready!"
 
-              # The realm import is handled by Keycloak's --import-realm flag
-              # via the extraEnvVars and volume mount configuration
-              # This job primarily waits for readiness
+              # Verify realm import - check if 'netweave' realm exists
+              echo "Verifying realm import..."
+              MAX_RETRIES=12
+              RETRY_COUNT=0
+              until curl -sf {{ include "netweave.keycloakURL" . }}/realms/netweave > /dev/null 2>&1; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Realm 'netweave' not found after ${MAX_RETRIES} attempts"
+                  echo "Realm import may have failed. Check Keycloak logs."
+                  exit 1
+                fi
+                echo "Realm not yet available (attempt $RETRY_COUNT/$MAX_RETRIES), waiting..."
+                sleep 5
+              done
+              echo "Realm 'netweave' successfully imported and available!"
 
               echo "Keycloak realm initialization complete"
           volumeMounts:
