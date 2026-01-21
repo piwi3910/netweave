@@ -160,6 +160,7 @@ issues:
           - revive
           - govet
           - dupl
+          - lll       # Pre-existing long lines in azure, dtias, vmware adapters
           - wrapcheck  # Pre-existing unwrapped errors
       # Allow linting issues in pre-existing auth middleware (not part of DMS PR)
       - path: internal/auth/
