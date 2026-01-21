@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	keycloakImage = "quay.io/keycloak/keycloak:23.0"
+	keycloakImage = "quay.io/keycloak/keycloak:26.0"
 	// testRealm uses the master realm for integration tests because:
 	// 1. It's guaranteed to exist in all Keycloak installations
 	// 2. It comes pre-configured with admin-cli client for API access

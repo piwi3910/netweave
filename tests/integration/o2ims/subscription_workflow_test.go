@@ -477,7 +477,8 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 
 	// Create subscription
 	subData := helpers.TestSubscription(webhookServer.URL())
-	subBody, _ := json.Marshal(subData)
+	subBody, err := json.Marshal(subData)
+	require.NoError(t, err)
 
 	subReq, err := http.NewRequestWithContext(
 		context.Background(),
@@ -488,11 +489,12 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	require.NoError(t, err)
 	subReq.Header.Set("Content-Type", "application/json")
 
-	subResp, err := http.DefaultClient.Do(subReq)
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+	subResp, err := httpClient.Do(subReq)
 	require.NoError(t, err)
 	defer func() {
-		if err := subResp.Body.Close(); err != nil {
-			t.Logf("Failed to close response body: %v", err)
+		if closeErr := subResp.Body.Close(); closeErr != nil {
+			t.Logf("Failed to close response body: %v", closeErr)
 		}
 	}()
 
@@ -506,20 +508,20 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	require.NoError(t, err)
 
 	// Delete subscription
-	req, err := http.NewRequestWithContext(
+	delReq, err := http.NewRequestWithContext(
 		context.Background(),
 		http.MethodDelete,
 		ts.O2IMSURL()+"/subscriptions/"+subscriptionID,
-		nil,
+		http.NoBody,
 	)
 	require.NoError(t, err)
 
-	client := &http.Client{}
-	delResp, err := client.Do(req)
+	client := &http.Client{Timeout: 10 * time.Second}
+	delResp, err := client.Do(delReq)
 	require.NoError(t, err)
 	defer func() {
-		if err := delResp.Body.Close(); err != nil {
-			t.Logf("Failed to close response body: %v", err)
+		if closeErr := delResp.Body.Close(); closeErr != nil {
+			t.Logf("Failed to close response body: %v", closeErr)
 		}
 	}()
 
@@ -532,7 +534,8 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 
 	// Trigger event - should NOT receive notification
 	poolData := helpers.TestResourcePool("post-delete-pool")
-	poolBody, _ := json.Marshal(poolData)
+	poolBody, err := json.Marshal(poolData)
+	require.NoError(t, err)
 
 	poolReq, err := http.NewRequestWithContext(
 		context.Background(),
@@ -543,11 +546,11 @@ func TestSubscriptionWorkflow_DeleteSubscription(t *testing.T) {
 	require.NoError(t, err)
 	poolReq.Header.Set("Content-Type", "application/json")
 
-	poolResp, err := http.DefaultClient.Do(poolReq)
+	poolResp, err := httpClient.Do(poolReq)
 	require.NoError(t, err)
 	defer func() {
-		if err := poolResp.Body.Close(); err != nil {
-			t.Logf("Failed to close response body: %v", err)
+		if closeErr := poolResp.Body.Close(); closeErr != nil {
+			t.Logf("Failed to close response body: %v", closeErr)
 		}
 	}()
 
