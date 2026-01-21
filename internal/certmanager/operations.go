@@ -167,9 +167,6 @@ func (s *Service) GetMonitoringReport(ctx context.Context) (*MonitoringReport, e
 		GeneratedAt:       time.Now(),
 	}
 
-	now := time.Now()
-	renewalWindow := now.Add(s.config.RenewalPolicy.RenewalWindow)
-
 	for _, cert := range s.certificates {
 		// Count based on current status - trust the status field
 		// (scanAndRenew updates status to ExpiringSoon when needed)
