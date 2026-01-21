@@ -29,6 +29,11 @@ func (s *Service) IssueCertificate(ctx context.Context, req *CertificateRequest)
 		zap.String("tenant_id", req.TenantID),
 		zap.String("common_name", req.CommonName))
 
+	// Check if context is cancelled
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
 	// Issue certificate from Vault
 	vaultReq := &vault.CertificateRequest{
 		CommonName: req.CommonName,
@@ -55,6 +60,7 @@ func (s *Service) IssueCertificate(ctx context.Context, req *CertificateRequest)
 		CAChain:        vaultCert.CAChain,
 		IssuedAt:       time.Now(),
 		ExpiresAt:      vaultCert.Expiration,
+		TTL:            req.TTL,
 		Status:         CertStatusActive,
 	}
 
@@ -165,6 +171,8 @@ func (s *Service) GetMonitoringReport(ctx context.Context) (*MonitoringReport, e
 	renewalWindow := now.Add(s.config.RenewalPolicy.RenewalWindow)
 
 	for _, cert := range s.certificates {
+		// Count based on current status - trust the status field
+		// (scanAndRenew updates status to ExpiringSoon when needed)
 		switch cert.Status {
 		case CertStatusActive:
 			report.ActiveCertificates++
@@ -178,12 +186,6 @@ func (s *Service) GetMonitoringReport(ctx context.Context) (*MonitoringReport, e
 			report.RenewalsPending++
 		case CertStatusRenewalFailed:
 			report.RenewalsFailed++
-		}
-
-		// Also count expiring soon (may not have status updated yet)
-		if cert.Status == CertStatusActive && cert.ExpiresAt.Before(renewalWindow) {
-			report.ExpiringSoon++
-			report.ActiveCertificates-- // Adjust count
 		}
 	}
 

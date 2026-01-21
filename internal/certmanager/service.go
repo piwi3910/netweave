@@ -18,13 +18,19 @@ type Service struct {
 	keycloakClient *keycloak.Client
 	logger         *zap.Logger
 
-	// Certificate storage (in production, use persistent storage)
+	// Certificate storage
+	// ⚠️ CRITICAL WARNING: In-memory storage is NOT production-ready
+	// See STORAGE_WARNING.md for details and migration options
+	// Data loss on restart, no audit trail, no multi-pod support
 	mu           sync.RWMutex
 	certificates map[string]*Certificate // keyed by serial number
 
 	// Background worker control
-	stopCh chan struct{}
-	doneCh chan struct{}
+	stopCh       chan struct{}
+	doneCh       chan struct{}
+	renewalWg    sync.WaitGroup
+	renewalCtx   context.Context
+	renewalCancel context.CancelFunc
 }
 
 // NewService creates a new certificate manager service.
@@ -79,6 +85,9 @@ func (s *Service) Start(ctx context.Context) error {
 		zap.Duration("monitor_interval", s.config.MonitorInterval),
 		zap.Bool("auto_renewal", s.config.EnableAutoRenewal))
 
+	// Create renewal context that can be cancelled independently
+	s.renewalCtx, s.renewalCancel = context.WithCancel(context.Background())
+
 	go s.monitorLoop(ctx)
 
 	return nil
@@ -87,8 +96,19 @@ func (s *Service) Start(ctx context.Context) error {
 // Stop gracefully stops the certificate manager service.
 func (s *Service) Stop() error {
 	s.logger.Info("Stopping certificate manager service")
+
+	// Cancel all renewal operations
+	if s.renewalCancel != nil {
+		s.renewalCancel()
+	}
+
+	// Stop monitor loop
 	close(s.stopCh)
 	<-s.doneCh
+
+	// Wait for all renewal goroutines to complete
+	s.renewalWg.Wait()
+
 	s.logger.Info("Certificate manager service stopped")
 	return nil
 }
@@ -149,7 +169,14 @@ func (s *Service) scanAndRenew(ctx context.Context) {
 
 			// Trigger renewal if enabled
 			if s.config.EnableAutoRenewal {
-				go s.renewCertificate(ctx, cert)
+				// Check if renewal context is still valid
+				if s.renewalCtx.Err() == nil {
+					s.renewalWg.Add(1)
+					go func(c *Certificate) {
+						defer s.renewalWg.Done()
+						s.renewCertificate(s.renewalCtx, c)
+					}(cert)
+				}
 			}
 		}
 
@@ -171,6 +198,23 @@ func (s *Service) scanAndRenew(ctx context.Context) {
 
 // renewCertificate attempts to renew a certificate.
 func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
+	// Check context before starting renewal
+	if ctx.Err() != nil {
+		s.logger.Debug("Context cancelled, skipping renewal",
+			zap.String("serial", cert.SerialNumber))
+		return
+	}
+
+	// Save old certificate data before any modifications
+	s.mu.RLock()
+	oldSerial := cert.SerialNumber
+	oldTTL := cert.TTL
+	if oldTTL == "" {
+		oldTTL = "8760h" // Default to 1 year if not set
+	}
+	s.mu.RUnlock()
+
+	// Update renewal tracking
 	s.mu.Lock()
 	cert.Status = CertStatusRenewalPending
 	cert.RenewalAttempts++
@@ -179,30 +223,33 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 	s.mu.Unlock()
 
 	s.logger.Info("Attempting certificate renewal",
-		zap.String("serial", cert.SerialNumber),
+		zap.String("serial", oldSerial),
 		zap.String("common_name", cert.CommonName),
 		zap.Int("attempt", cert.RenewalAttempts))
 
-	// Issue new certificate
+	// Issue new certificate (preserving original TTL)
 	req := &CertificateRequest{
 		UserID:     cert.UserID,
 		TenantID:   cert.TenantID,
 		CommonName: cert.CommonName,
-		TTL:        "8760h", // 1 year
+		TTL:        oldTTL,
 	}
 
 	newCert, err := s.IssueCertificate(ctx, req)
 	if err != nil {
 		s.logger.Error("Certificate renewal failed",
-			zap.String("serial", cert.SerialNumber),
+			zap.String("serial", oldSerial),
 			zap.Error(err))
 
+		// Update old certificate status (need to re-fetch as it may have been replaced)
 		s.mu.Lock()
-		if cert.RenewalAttempts >= s.config.RenewalPolicy.MaxRetries {
-			cert.Status = CertStatusRenewalFailed
-		} else {
-			// Schedule retry
-			cert.Status = CertStatusExpiringSoon
+		if oldCert, exists := s.certificates[oldSerial]; exists {
+			if oldCert.RenewalAttempts >= s.config.RenewalPolicy.MaxRetries {
+				oldCert.Status = CertStatusRenewalFailed
+			} else {
+				// Schedule retry
+				oldCert.Status = CertStatusExpiringSoon
+			}
 		}
 		s.mu.Unlock()
 
@@ -210,14 +257,14 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 	}
 
 	// Revoke old certificate
-	if err := s.RevokeCertificate(ctx, cert.SerialNumber); err != nil {
+	if err := s.RevokeCertificate(ctx, oldSerial); err != nil {
 		s.logger.Warn("Failed to revoke old certificate after renewal",
-			zap.String("serial", cert.SerialNumber),
+			zap.String("serial", oldSerial),
 			zap.Error(err))
 	}
 
 	s.logger.Info("Certificate renewed successfully",
-		zap.String("old_serial", cert.SerialNumber),
+		zap.String("old_serial", oldSerial),
 		zap.String("new_serial", newCert.SerialNumber),
 		zap.String("common_name", newCert.CommonName))
 

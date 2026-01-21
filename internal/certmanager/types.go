@@ -38,6 +38,9 @@ type Certificate struct {
 	// ExpiresAt is when the certificate expires.
 	ExpiresAt time.Time `json:"expires_at"`
 
+	// TTL is the original time-to-live duration for the certificate.
+	TTL string `json:"ttl,omitempty"`
+
 	// RevokedAt is when the certificate was revoked (if applicable).
 	RevokedAt *time.Time `json:"revoked_at,omitempty"`
 
