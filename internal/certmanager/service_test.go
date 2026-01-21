@@ -201,8 +201,7 @@ func TestDefaultRenewalPolicy(t *testing.T) {
 	assert.Equal(t, 30*24*time.Hour, policy.RenewalWindow)
 	assert.Equal(t, 3, policy.MaxRetries)
 	assert.Equal(t, time.Hour, policy.RetryInterval)
-	assert.True(t, policy.NotifyAdmins)
-	assert.True(t, policy.NotifyUser)
+	// Note: Notification flags removed - see issue #298 for future implementation
 }
 
 func TestCertificateStatus(t *testing.T) {
