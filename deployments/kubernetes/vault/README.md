@@ -206,7 +206,11 @@ This deployment is configured with security best practices enabled by default:
 3. **Encrypted Storage**: Vault data is encrypted at rest using AES-256-GCM
 4. **SSD Storage Class**: Dedicated storage class with Retain policy for data persistence
 5. **Pod Security**: Read-only root filesystem, non-root user, dropped capabilities
-6. **Network Isolation**: Service accounts with least-privilege policies
+6. **Network Isolation**: NetworkPolicy restricts pod-to-pod communication
+7. **Audit Logging**: File audit backend enabled automatically
+8. **Service Accounts**: Configurable via environment variables with least-privilege policies
+9. **Error Handling**: Comprehensive validation on all Vault operations
+10. **Update Strategy**: OnDelete for manual control during Vault updates
 
 ### TLS Configuration
 
@@ -236,10 +240,12 @@ This deployment is configured with security best practices enabled by default:
 
 ### Unseal Key Management
 
-**CRITICAL SECURITY WARNING:**
+**🔴 CRITICAL SECURITY WARNING 🔴**
 
 The init job stores unseal keys and root token in Kubernetes secret `vault-unseal-keys`.
 This is **ONLY suitable for development/testing environments**.
+
+**⚠️ THIS IS THE #1 SECURITY RISK IN THIS DEPLOYMENT ⚠️**
 
 **⚠️ For Production, you MUST:**
 

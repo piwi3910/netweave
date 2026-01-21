@@ -1,0 +1,97 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vault-network-policy
+  namespace: vault-system
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: security
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+      app.kubernetes.io/component: security
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from init job
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vault
+              app.kubernetes.io/component: init
+      ports:
+        - protocol: TCP
+          port: 8200
+    # Allow from gateway namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 8200
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: o2ims-system
+      ports:
+        - protocol: TCP
+          port: 8200
+    # Allow from keycloak namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: keycloak-system
+      ports:
+        - protocol: TCP
+          port: 8200
+    # Allow Vault pods to communicate with each other (Raft cluster)
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vault
+              app.kubernetes.io/component: security
+      ports:
+        - protocol: TCP
+          port: 8200
+        - protocol: TCP
+          port: 8201
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow Vault pods to communicate with each other (Raft cluster)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vault
+              app.kubernetes.io/component: security
+      ports:
+        - protocol: TCP
+          port: 8200
+        - protocol: TCP
+          port: 8201
+    # Allow access to Kubernetes API server for auth
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              component: kube-apiserver
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTPS to Kubernetes API (alternative endpoint)
+    - ports:
+        - protocol: TCP
+          port: 443
+      to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default

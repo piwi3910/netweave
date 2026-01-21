@@ -18,7 +18,7 @@ spec:
       restartPolicy: OnFailure
       initContainers:
         - name: generate-tls-certs
-          image: alpine/openssl:latest
+          image: alpine/openssl:3.1-alpine
           command:
             - sh
             - -c
@@ -108,8 +108,23 @@ spec:
           env:
             - name: VAULT_ADDR
               value: "https://vault.vault-system.svc.cluster.local:8200"
-            - name: VAULT_SKIP_VERIFY
-              value: "true"
+            - name: VAULT_CACERT
+              value: "/vault/tls/ca.crt"
+            - name: GATEWAY_SA_NAME
+              value: "o2ims-gateway"
+            - name: GATEWAY_NAMESPACES
+              value: "default,o2ims-system"
+            - name: KEYCLOAK_SA_NAME
+              value: "keycloak"
+            - name: KEYCLOAK_NAMESPACES
+              value: "keycloak-system"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
           command:
             - sh
             - -c
@@ -143,6 +158,21 @@ spec:
                   --dry-run=client -o yaml | kubectl apply -f -
 
                 echo "Vault initialized successfully"
+                echo ""
+                echo "⚠️  CRITICAL SECURITY WARNING ⚠️"
+                echo "================================"
+                echo "Unseal keys and root token are stored in Kubernetes secret 'vault-unseal-keys'"
+                echo "This is ONLY suitable for development/testing!"
+                echo ""
+                echo "FOR PRODUCTION, YOU MUST:"
+                echo "1. Extract unseal keys immediately:"
+                echo "   kubectl get secret vault-unseal-keys -n vault-system -o jsonpath='{.data.unseal-keys}' | base64 -d"
+                echo "2. Store keys in external HSM/KMS (AWS KMS, Azure Key Vault, GCP Cloud KMS)"
+                echo "3. Delete the Kubernetes secret:"
+                echo "   kubectl delete secret vault-unseal-keys -n vault-system"
+                echo "4. Implement auto-unseal with cloud KMS"
+                echo "5. Enable audit logging"
+                echo "================================"
               fi
 
               # Unseal all Vault pods
@@ -200,11 +230,18 @@ spec:
           volumeMounts:
             - name: init-script
               mountPath: /vault/scripts
+            - name: tls
+              mountPath: /vault/tls
+              readOnly: true
       volumes:
         - name: init-script
           configMap:
             name: vault-init-script
             defaultMode: 0755
+        - name: tls
+          secret:
+            secretName: vault-tls
+            defaultMode: 0400
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -218,24 +255,38 @@ data:
   init-pki.sh: |
     #!/bin/sh
     set -e
+    set -u
+    set -o pipefail
 
     echo "Setting up Vault PKI for NetWeave Gateway"
 
-    # Enable PKI secrets engine for root CA
+    # Enable PKI secrets engine for root CA (idempotent)
     echo "1. Enabling PKI secrets engine at pki/..."
-    vault secrets enable -path=pki pki || echo "PKI already enabled at pki/"
+    if ! vault secrets enable -path=pki pki 2>/dev/null; then
+      if ! vault secrets list | grep -q "^pki/"; then
+        echo "ERROR: Failed to enable PKI secrets engine" >&2
+        exit 1
+      fi
+      echo "   PKI already enabled at pki/"
+    fi
 
     # Tune max lease TTL to 10 years for root CA
     echo "2. Configuring PKI max lease TTL to 10 years..."
-    vault secrets tune -max-lease-ttl=87600h pki
+    if ! vault secrets tune -max-lease-ttl=87600h pki; then
+      echo "ERROR: Failed to tune PKI secrets engine" >&2
+      exit 1
+    fi
 
     # Generate root CA certificate (only if not exists)
     echo "3. Generating root CA certificate..."
     if ! vault read pki/cert/ca > /dev/null 2>&1; then
-      vault write -field=certificate pki/root/generate/internal \
+      if ! vault write -field=certificate pki/root/generate/internal \
         common_name="NetWeave Root CA" \
         issuer_name="netweave-root" \
-        ttl=87600h > /tmp/root_ca.crt
+        ttl=87600h > /tmp/root_ca.crt; then
+        echo "ERROR: Failed to generate root CA" >&2
+        exit 1
+      fi
       echo "   Root CA certificate generated"
     else
       echo "   Root CA already exists"
@@ -243,37 +294,68 @@ data:
 
     # Configure CA and CRL URLs
     echo "4. Configuring CA and CRL URLs..."
-    vault write pki/config/urls \
+    if ! vault write pki/config/urls \
       issuing_certificates="https://vault.vault-system.svc.cluster.local:8200/v1/pki/ca" \
-      crl_distribution_points="https://vault.vault-system.svc.cluster.local:8200/v1/pki/crl"
+      crl_distribution_points="https://vault.vault-system.svc.cluster.local:8200/v1/pki/crl" > /dev/null; then
+      echo "ERROR: Failed to configure PKI URLs" >&2
+      exit 1
+    fi
 
-    # Enable PKI secrets engine for intermediate CA
+    # Enable PKI secrets engine for intermediate CA (idempotent)
     echo "5. Enabling PKI secrets engine at pki_int/..."
-    vault secrets enable -path=pki_int pki || echo "PKI already enabled at pki_int/"
+    if ! vault secrets enable -path=pki_int pki 2>/dev/null; then
+      if ! vault secrets list | grep -q "^pki_int/"; then
+        echo "ERROR: Failed to enable intermediate PKI secrets engine" >&2
+        exit 1
+      fi
+      echo "   PKI already enabled at pki_int/"
+    fi
 
     # Tune max lease TTL to 5 years for intermediate CA
     echo "6. Configuring intermediate PKI max lease TTL to 5 years..."
-    vault secrets tune -max-lease-ttl=43800h pki_int
+    if ! vault secrets tune -max-lease-ttl=43800h pki_int; then
+      echo "ERROR: Failed to tune intermediate PKI secrets engine" >&2
+      exit 1
+    fi
 
     # Generate intermediate CA (only if not exists)
     if ! vault read pki_int/cert/ca > /dev/null 2>&1; then
       echo "7. Generating intermediate CA CSR..."
-      vault write -format=json pki_int/intermediate/generate/internal \
+      if ! vault write -format=json pki_int/intermediate/generate/internal \
         common_name="NetWeave Intermediate CA" \
         issuer_name="netweave-intermediate" \
-        | jq -r '.data.csr' > /tmp/pki_intermediate.csr
+        | jq -r '.data.csr' > /tmp/pki_intermediate.csr; then
+        echo "ERROR: Failed to generate intermediate CSR" >&2
+        exit 1
+      fi
+
+      if [ ! -s "/tmp/pki_intermediate.csr" ]; then
+        echo "ERROR: Intermediate CSR is empty or not created" >&2
+        exit 1
+      fi
 
       echo "8. Signing intermediate CA with root CA..."
-      vault write -format=json pki/root/sign-intermediate \
+      if ! vault write -format=json pki/root/sign-intermediate \
         issuer_ref="netweave-root" \
         csr=@/tmp/pki_intermediate.csr \
         format=pem_bundle \
         ttl=43800h \
-        | jq -r '.data.certificate' > /tmp/intermediate.cert.pem
+        | jq -r '.data.certificate' > /tmp/intermediate.cert.pem; then
+        echo "ERROR: Failed to sign intermediate certificate" >&2
+        exit 1
+      fi
+
+      if [ ! -s "/tmp/intermediate.cert.pem" ]; then
+        echo "ERROR: Intermediate certificate is empty or not created" >&2
+        exit 1
+      fi
 
       echo "9. Importing signed intermediate certificate..."
-      vault write pki_int/intermediate/set-signed \
-        certificate=@/tmp/intermediate.cert.pem
+      if ! vault write pki_int/intermediate/set-signed \
+        certificate=@/tmp/intermediate.cert.pem > /dev/null; then
+        echo "ERROR: Failed to set signed intermediate certificate" >&2
+        exit 1
+      fi
       echo "   Intermediate CA configured"
     else
       echo "   Intermediate CA already exists"
@@ -281,13 +363,16 @@ data:
 
     # Configure intermediate CA URLs
     echo "10. Configuring intermediate CA and CRL URLs..."
-    vault write pki_int/config/urls \
+    if ! vault write pki_int/config/urls \
       issuing_certificates="https://vault.vault-system.svc.cluster.local:8200/v1/pki_int/ca" \
-      crl_distribution_points="https://vault.vault-system.svc.cluster.local:8200/v1/pki_int/crl"
+      crl_distribution_points="https://vault.vault-system.svc.cluster.local:8200/v1/pki_int/crl" > /dev/null; then
+      echo "ERROR: Failed to configure intermediate PKI URLs" >&2
+      exit 1
+    fi
 
     # Create role for NetWeave client certificates
     echo "11. Creating netweave-client role..."
-    vault write pki_int/roles/netweave-client \
+    if ! vault write pki_int/roles/netweave-client \
       issuer_ref="netweave-intermediate" \
       allowed_domains="netweave.local,*.netweave.local,localhost" \
       allow_subdomains=true \
@@ -297,11 +382,14 @@ data:
       max_ttl=8760h \
       key_type=rsa \
       key_bits=2048 \
-      require_cn=true
+      require_cn=true > /dev/null; then
+      echo "ERROR: Failed to create netweave-client role" >&2
+      exit 1
+    fi
 
     # Create role for NetWeave server certificates
     echo "12. Creating netweave-server role..."
-    vault write pki_int/roles/netweave-server \
+    if ! vault write pki_int/roles/netweave-server \
       issuer_ref="netweave-intermediate" \
       allowed_domains="netweave.local,*.netweave.local,localhost,*.svc.cluster.local" \
       allow_subdomains=true \
@@ -312,11 +400,14 @@ data:
       client_flag=false \
       max_ttl=8760h \
       key_type=rsa \
-      key_bits=2048
+      key_bits=2048 > /dev/null; then
+      echo "ERROR: Failed to create netweave-server role" >&2
+      exit 1
+    fi
 
     # Create policy for gateway
     echo "13. Creating vault policy for gateway..."
-    vault policy write gateway - <<EOF
+    if ! vault policy write gateway - <<EOF
     # Read CA certificate
     path "pki_int/cert/ca" {
       capabilities = ["read"]
@@ -357,10 +448,14 @@ data:
       capabilities = ["read"]
     }
     EOF
+    then
+      echo "ERROR: Failed to create gateway policy" >&2
+      exit 1
+    fi
 
     # Create policy for Keycloak
     echo "14. Creating vault policy for Keycloak..."
-    vault policy write keycloak - <<EOF
+    if ! vault policy write keycloak - <<EOF
     # Issue client certificates
     path "pki_int/issue/netweave-client" {
       capabilities = ["create", "update"]
@@ -371,30 +466,59 @@ data:
       capabilities = ["read"]
     }
     EOF
+    then
+      echo "ERROR: Failed to create keycloak policy" >&2
+      exit 1
+    fi
 
-    # Enable Kubernetes auth method
+    # Enable Kubernetes auth method (idempotent)
     echo "15. Enabling Kubernetes auth method..."
-    vault auth enable kubernetes || echo "Kubernetes auth already enabled"
+    if ! vault auth enable kubernetes 2>/dev/null; then
+      if ! vault auth list | grep -q "^kubernetes/"; then
+        echo "ERROR: Failed to enable Kubernetes auth method" >&2
+        exit 1
+      fi
+      echo "   Kubernetes auth already enabled"
+    fi
 
     # Configure Kubernetes auth
     echo "16. Configuring Kubernetes auth..."
-    vault write auth/kubernetes/config \
-      kubernetes_host="https://$KUBERNETES_PORT_443_TCP_ADDR:443"
+    if ! vault write auth/kubernetes/config \
+      kubernetes_host="https://$KUBERNETES_PORT_443_TCP_ADDR:443" > /dev/null; then
+      echo "ERROR: Failed to configure Kubernetes auth" >&2
+      exit 1
+    fi
 
-    # Create role for gateway service account
+    # Create role for gateway service account (configurable via environment variables)
     echo "17. Creating Kubernetes auth role for gateway..."
-    vault write auth/kubernetes/role/gateway \
-      bound_service_account_names=o2ims-gateway \
-      bound_service_account_namespaces=default,o2ims-system \
+    if ! vault write auth/kubernetes/role/gateway \
+      bound_service_account_names="${GATEWAY_SA_NAME:-o2ims-gateway}" \
+      bound_service_account_namespaces="${GATEWAY_NAMESPACES:-default,o2ims-system}" \
       policies=gateway \
-      ttl=24h
+      ttl=24h > /dev/null; then
+      echo "ERROR: Failed to create gateway auth role" >&2
+      exit 1
+    fi
 
-    # Create role for Keycloak service account
+    # Create role for Keycloak service account (configurable via environment variables)
     echo "18. Creating Kubernetes auth role for Keycloak..."
-    vault write auth/kubernetes/role/keycloak \
-      bound_service_account_names=keycloak \
-      bound_service_account_namespaces=keycloak-system \
+    if ! vault write auth/kubernetes/role/keycloak \
+      bound_service_account_names="${KEYCLOAK_SA_NAME:-keycloak}" \
+      bound_service_account_namespaces="${KEYCLOAK_NAMESPACES:-keycloak-system}" \
       policies=keycloak \
-      ttl=24h
+      ttl=24h > /dev/null; then
+      echo "ERROR: Failed to create keycloak auth role" >&2
+      exit 1
+    fi
+
+    # Enable audit logging
+    echo "19. Enabling audit logging..."
+    if ! vault audit enable file file_path=/vault/logs/audit.log 2>/dev/null; then
+      if ! vault audit list | grep -q "^file/"; then
+        echo "ERROR: Failed to enable audit logging" >&2
+        exit 1
+      fi
+      echo "   Audit logging already enabled"
+    fi
 
     echo "Vault PKI setup complete!"
