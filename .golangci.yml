@@ -91,7 +91,7 @@ linters:
       - linters:
           - ireturn
         path: internal/adapter/helpers_integration_test\.go
-        text: "setup.*Adapter"
+        text: "setup.+Adapter returns interface"
       # Allow G304 for compliance tool (path validated to reject ".." traversal)
       - linters:
           - gosec
