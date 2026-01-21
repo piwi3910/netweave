@@ -227,48 +227,17 @@ func BenchmarkApplyPagination(b *testing.B) {
 	}
 }
 
-// setupKubernetesAdapter creates a Kubernetes adapter for testing.
-// Returns nil if Kubernetes environment is not available.
-func setupKubernetesAdapter(_ *testing.T) adapter.Adapter {
-	// TODO: Implementation will use existing Kubernetes adapter test helpers
-	return nil
-}
-
-// setupAWSAdapter creates an AWS adapter for testing.
-func setupAWSAdapter(_ *testing.T) adapter.Adapter {
-	// TODO: Implement AWS adapter test setup
-	return nil
-}
-
-// setupAzureAdapter creates an Azure adapter for testing.
-func setupAzureAdapter(_ *testing.T) adapter.Adapter {
-	// TODO: Implement Azure adapter test setup
-	return nil
-}
-
-// setupGCPAdapter creates a GCP adapter for testing.
-func setupGCPAdapter(_ *testing.T) adapter.Adapter {
-	// TODO: Implement GCP adapter test setup
-	return nil
-}
-
-// setupOpenStackAdapter creates an OpenStack adapter for testing.
-func setupOpenStackAdapter(_ *testing.T) adapter.Adapter {
-	// TODO: Implement OpenStack adapter test setup
-	return nil
-}
-
-// setupVMwareAdapter creates a VMware adapter for testing.
-func setupVMwareAdapter(_ *testing.T) adapter.Adapter {
-	// TODO: Implement VMware adapter test setup
-	return nil
-}
-
-// setupDTIASAdapter creates a DTIAS adapter for testing.
-func setupDTIASAdapter(_ *testing.T) adapter.Adapter {
-	// TODO: Implement DTIAS adapter test setup
-	return nil
-}
+// Placeholder adapter setup functions for future implementation.
+// These are intentionally not yet used but reserved for adapter test expansion.
+//
+// TODO: Implement adapter test setup when backend adapters are ready:
+// - setupKubernetesAdapter: Use existing Kubernetes adapter test helpers
+// - setupAWSAdapter: AWS adapter test configuration
+// - setupAzureAdapter: Azure adapter test configuration
+// - setupGCPAdapter: GCP adapter test configuration
+// - setupOpenStackAdapter: OpenStack adapter test configuration
+// - setupVMwareAdapter: VMware adapter test configuration
+// - setupDTIASAdapter: DTIAS adapter test configuration
 
 // TestMatchesFilter_AdvancedFiltering tests advanced filtering with operators.
 func TestMatchesFilter_AdvancedFiltering(t *testing.T) {
