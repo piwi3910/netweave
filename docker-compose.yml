@@ -32,7 +32,7 @@ services:
     user: "vault"
     environment:
       VAULT_ADDR: https://127.0.0.1:8200
-      VAULT_SKIP_VERIFY: "true"
+      VAULT_CACERT: /vault/tls/ca.crt
       SKIP_SETCAP: "1"
     ports:
       - "127.0.0.1:8200:8200"
@@ -57,13 +57,15 @@ services:
   vault-init:
     image: hashicorp/vault:1.18.3
     container_name: netweave-vault-init
+    user: root
     environment:
       VAULT_ADDR: https://vault:8200
-      VAULT_SKIP_VERIFY: "true"
+      VAULT_CACERT: /vault/tls/ca.crt
     volumes:
       - ./deployments/docker/vault/scripts:/vault/scripts:ro
+      - ./deployments/docker/vault/tls:/vault/tls:ro
       - vault_init:/vault/init
-    command: /vault/scripts/init.sh
+    command: sh -c "apk add --no-cache jq && /vault/scripts/init.sh"
     depends_on:
       vault:
         condition: service_healthy
