@@ -172,6 +172,11 @@ issues:
           - dupl
           - errcheck  # Pre-existing unchecked errors
           - govet     # Pre-existing shadow declarations
+      # Allow linting issues in pre-existing keycloak code (not part of DMS PR)
+      - path: internal/keycloak/
+        linters:
+          - errcheck  # Pre-existing unchecked io.ReadAll errors
+          - gocritic  # Pre-existing httpNoBody issues
       # Allow linting issues in pre-existing config code (not part of DMS PR)
       - path: internal/config/
         linters:

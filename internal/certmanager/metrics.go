@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	// certificateIssuances tracks certificate issuance operations
+	// certificateIssuances tracks certificate issuance operations.
 	certificateIssuances = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "certmanager_certificate_issuances_total",
@@ -15,7 +15,7 @@ var (
 		[]string{"status"}, // success, failure
 	)
 
-	// certificateRevocations tracks certificate revocation operations
+	// certificateRevocations tracks certificate revocation operations.
 	certificateRevocations = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "certmanager_certificate_revocations_total",
@@ -24,7 +24,7 @@ var (
 		[]string{"status"}, // success, failure
 	)
 
-	// certificateRenewals tracks certificate renewal operations
+	// certificateRenewals tracks certificate renewal operations.
 	certificateRenewals = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "certmanager_certificate_renewals_total",
@@ -33,7 +33,7 @@ var (
 		[]string{"status"}, // success, failure, max_retries_exceeded
 	)
 
-	// certificatesByStatus tracks certificates by their current status
+	// certificatesByStatus tracks certificates by their current status.
 	certificatesByStatus = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "certmanager_certificates_by_status",
@@ -42,7 +42,7 @@ var (
 		[]string{"status"}, // active, expiring_soon, expired, revoked, renewal_pending, renewal_failed
 	)
 
-	// certificateLifetime tracks certificate lifetime in seconds
+	// certificateLifetime tracks certificate lifetime in seconds.
 	certificateLifetime = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "certmanager_certificate_lifetime_seconds",
@@ -51,7 +51,7 @@ var (
 		},
 	)
 
-	// keycloakUpdateFailures tracks Keycloak attribute update failures
+	// keycloakUpdateFailures tracks Keycloak attribute update failures.
 	keycloakUpdateFailures = promauto.NewCounter(
 		prometheus.CounterOpts{
 			Name: "certmanager_keycloak_update_failures_total",
@@ -59,7 +59,7 @@ var (
 		},
 	)
 
-	// monitorLoopDuration tracks monitor loop execution time
+	// monitorLoopDuration tracks monitor loop execution time.
 	monitorLoopDuration = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "certmanager_monitor_loop_duration_seconds",
@@ -68,7 +68,7 @@ var (
 		},
 	)
 
-	// renewalAttempts tracks renewal attempt counts
+	// renewalAttempts tracks renewal attempt counts.
 	renewalAttempts = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "certmanager_renewal_attempts",
@@ -83,13 +83,13 @@ func (s *Service) updateCertificateMetrics() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Count by status
+	// Count by status.
 	statusCounts := make(map[CertificateStatus]float64)
 	for _, cert := range s.certificates {
 		statusCounts[cert.Status]++
 	}
 
-	// Update gauges
+	// Update gauges.
 	certificatesByStatus.WithLabelValues(string(CertStatusActive)).Set(statusCounts[CertStatusActive])
 	certificatesByStatus.WithLabelValues(string(CertStatusExpiringSoon)).Set(statusCounts[CertStatusExpiringSoon])
 	certificatesByStatus.WithLabelValues(string(CertStatusExpired)).Set(statusCounts[CertStatusExpired])
