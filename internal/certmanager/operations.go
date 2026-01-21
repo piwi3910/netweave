@@ -30,9 +30,9 @@ func (s *Service) IssueCertificate(ctx context.Context, req *CertificateRequest)
 		zap.String("tenant_id", req.TenantID),
 		zap.String("common_name", req.CommonName))
 
-	// Check if context is cancelled
-	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("context cancelled: %w", err)
+	// Check if context is canceled
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, fmt.Errorf("context canceled: %w", ctxErr)
 	}
 
 	// Issue certificate from Vault
@@ -71,10 +71,10 @@ func (s *Service) IssueCertificate(ctx context.Context, req *CertificateRequest)
 	s.mu.Unlock()
 
 	// Update Keycloak user attributes
-	if err := s.updateKeycloakUser(ctx, req.UserID, cert); err != nil {
+	if kcErr := s.updateKeycloakUser(ctx, req.UserID, cert); kcErr != nil {
 		s.logger.Warn("Failed to update Keycloak user attributes",
 			zap.String("user_id", req.UserID),
-			zap.Error(err))
+			zap.Error(kcErr))
 		// Don't fail the operation, certificate is still issued
 	}
 
@@ -213,8 +213,8 @@ func (s *Service) updateKeycloakUser(ctx context.Context, userID string, cert *C
 	maps.Copy(user.Attributes, attributes)
 
 	// Update user in Keycloak
-	if err := s.keycloakClient.UpdateUser(ctx, user); err != nil {
-		return fmt.Errorf("failed to update user: %w", err)
+	if updateErr := s.keycloakClient.UpdateUser(ctx, user); updateErr != nil {
+		return fmt.Errorf("failed to update user: %w", updateErr)
 	}
 
 	return nil

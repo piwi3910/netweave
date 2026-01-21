@@ -85,7 +85,7 @@ func (s *Service) Start(ctx context.Context) error {
 		zap.Duration("monitor_interval", s.config.MonitorInterval),
 		zap.Bool("auto_renewal", s.config.EnableAutoRenewal))
 
-	// Create renewal context that can be cancelled independently
+	// Create renewal context that can be canceled independently
 	s.renewalCtx, s.renewalCancel = context.WithCancel(context.Background())
 
 	go s.monitorLoop(ctx)
@@ -218,7 +218,7 @@ func (s *Service) handleExpired(cert *Certificate) {
 func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 	// Check context before starting renewal
 	if ctx.Err() != nil {
-		s.logger.Debug("Context cancelled, skipping renewal",
+		s.logger.Debug("Context canceled, skipping renewal",
 			zap.String("serial", cert.SerialNumber))
 		return
 	}
@@ -263,28 +263,15 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 		s.logger.Error("Certificate renewal failed",
 			zap.String("serial", oldSerial),
 			zap.Error(err))
-
-		// Update old certificate status
-		// Use saved values instead of accessing potentially modified cert pointer
-		s.mu.Lock()
-		if oldCert, exists := s.certificates[oldSerial]; exists {
-			if oldCert.RenewalAttempts >= s.config.RenewalPolicy.MaxRetries {
-				oldCert.Status = CertStatusRenewalFailed
-			} else {
-				// Schedule retry
-				oldCert.Status = CertStatusExpiringSoon
-			}
-		}
-		s.mu.Unlock()
-
+		s.handleRenewalFailure(oldSerial)
 		return
 	}
 
 	// Revoke old certificate
-	if err := s.RevokeCertificate(ctx, oldSerial); err != nil {
+	if revokeErr := s.RevokeCertificate(ctx, oldSerial); revokeErr != nil {
 		s.logger.Warn("Failed to revoke old certificate after renewal",
 			zap.String("serial", oldSerial),
-			zap.Error(err))
+			zap.Error(revokeErr))
 	}
 
 	s.logger.Info("Certificate renewed successfully",
@@ -293,6 +280,24 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 		zap.String("common_name", newCert.CommonName))
 
 	// TODO: Send notification to user and admins
+}
+
+// handleRenewalFailure updates certificate status after renewal failure.
+func (s *Service) handleRenewalFailure(oldSerial string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	oldCert, exists := s.certificates[oldSerial]
+	if !exists {
+		return
+	}
+
+	if oldCert.RenewalAttempts >= s.config.RenewalPolicy.MaxRetries {
+		oldCert.Status = CertStatusRenewalFailed
+	} else {
+		// Schedule retry
+		oldCert.Status = CertStatusExpiringSoon
+	}
 }
 
 // Health returns the health status of the service.
