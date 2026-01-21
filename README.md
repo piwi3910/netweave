@@ -71,6 +71,7 @@ Official O-RAN Alliance specifications:
 - ✅ **Multi-Cluster Ready**: Deploy across single or multiple Kubernetes clusters with Redis-based state synchronization
 - ✅ **High Availability**: Stateless gateway pods with automatic failover (99.9% uptime)
 - ✅ **Production Security**: mTLS everywhere, zero-trust networking, comprehensive audit logging
+- ✅ **Certificate Automation**: Full lifecycle management (issuance, renewal, revocation) with Vault PKI and Keycloak integration
 - ✅ **Distributed Rate Limiting**: Redis-based token bucket algorithm with per-endpoint and global limits
 - ✅ **Real-Time Notifications**: Webhook-based subscriptions for infrastructure change events
 - ✅ **Extensible Architecture**: Plugin-based adapter system with 25+ production-ready adapters
