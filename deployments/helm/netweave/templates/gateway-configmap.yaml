@@ -1,0 +1,48 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "netweave.fullname" . }}-config
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+data:
+  config.yaml: |
+    log_level: {{ .Values.gateway.config.logLevel | quote }}
+
+    server:
+      address: {{ .Values.gateway.config.server.address | quote }}
+      read_timeout: {{ .Values.gateway.config.server.readTimeout | quote }}
+      write_timeout: {{ .Values.gateway.config.server.writeTimeout | quote }}
+      idle_timeout: {{ .Values.gateway.config.server.idleTimeout | quote }}
+
+    auth:
+      oauth2:
+        enabled: {{ .Values.gateway.config.auth.oauth2.enabled }}
+        issuer_url: {{ include "netweave.keycloakURL" . }}/realms/netweave
+        client_id: {{ .Values.gateway.config.auth.oauth2.clientID | quote }}
+
+      mtls:
+        enabled: {{ .Values.gateway.config.auth.mtls.enabled }}
+
+    cert_manager:
+      enabled: {{ .Values.gateway.config.certManager.enabled }}
+      monitor_interval: {{ .Values.gateway.config.certManager.monitorInterval | quote }}
+      renewal_window: {{ .Values.gateway.config.certManager.renewalWindow | quote }}
+      max_retries: {{ .Values.gateway.config.certManager.maxRetries }}
+      retry_interval: {{ .Values.gateway.config.certManager.retryInterval | quote }}
+
+    vault:
+      {{- if .Values.vault.enabled }}
+      enabled: true
+      address: {{ include "netweave.vaultURL" . | quote }}
+      {{- else }}
+      enabled: false
+      {{- end }}
+
+    redis:
+      enabled: {{ .Values.redis.enabled }}
+      {{- if .Values.redis.enabled }}
+      connection_string: {{ include "netweave.redis.connectionString" . | quote }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,193 @@
+{{- if .Values.initJobs.vaultPKI.enabled }}
+{{- if .Values.vault.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "netweave.fullname" . }}-vault-init
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: init
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ .Values.initJobs.vaultPKI.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.initJobs.vaultPKI.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "netweave.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: init
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: vault-init
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: vault-init
+          image: hashicorp/vault:1.18.3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          env:
+            - name: VAULT_ADDR
+              value: {{ include "netweave.vaultURL" . | quote }}
+            - name: VAULT_SKIP_VERIFY
+              value: "true"
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+
+              echo "Waiting for Vault to be ready..."
+              until vault status > /dev/null 2>&1 || [ $? -eq 2 ]; do
+                echo "Vault not ready, waiting..."
+                sleep 5
+              done
+              echo "Vault is available!"
+
+              # Check if Vault is initialized
+              if ! vault status -format=json | grep -q '"initialized":true'; then
+                echo "Initializing Vault..."
+                vault operator init \
+                  -key-shares=5 \
+                  -key-threshold=3 \
+                  -format=json > /tmp/vault-init.json
+
+                # Extract unseal keys and root token
+                cat /tmp/vault-init.json | jq -r '.unseal_keys_b64[]' > /tmp/unseal-keys.txt
+                cat /tmp/vault-init.json | jq -r '.root_token' > /tmp/root-token.txt
+
+                # Store in Kubernetes secret
+                kubectl create secret generic vault-unseal-keys \
+                  --namespace={{ .Values.vault.namespace }} \
+                  --from-file=unseal-keys=/tmp/unseal-keys.txt \
+                  --from-file=root-token=/tmp/root-token.txt \
+                  --dry-run=client -o yaml | kubectl apply -f -
+
+                echo "Vault initialized successfully"
+              else
+                echo "Vault already initialized"
+              fi
+
+              # Unseal Vault pods
+              echo "Unsealing Vault pods..."
+              UNSEAL_KEYS=$(kubectl get secret vault-unseal-keys -n {{ .Values.vault.namespace }} -o jsonpath='{.data.unseal-keys}' | base64 -d)
+
+              for pod in vault-0 vault-1 vault-2; do
+                echo "Unsealing $pod..."
+                echo "$UNSEAL_KEYS" | head -n 3 | while read key; do
+                  kubectl exec -n {{ .Values.vault.namespace }} $pod -- vault operator unseal $key || true
+                done
+              done
+
+              # Login with root token
+              ROOT_TOKEN=$(kubectl get secret vault-unseal-keys -n {{ .Values.vault.namespace }} -o jsonpath='{.data.root-token}' | base64 -d)
+              export VAULT_TOKEN=$ROOT_TOKEN
+
+              # Enable PKI secrets engine for root CA
+              echo "Setting up PKI infrastructure..."
+              vault secrets enable -path=pki pki || echo "PKI already enabled"
+              vault secrets tune -max-lease-ttl=87600h pki
+
+              # Generate root CA
+              vault write -field=certificate pki/root/generate/internal \
+                common_name="NetWeave Root CA" \
+                issuer_name="root-ca" \
+                ttl=87600h \
+                key_type=rsa \
+                key_bits=4096 || echo "Root CA already generated"
+
+              vault write pki/config/urls \
+                issuing_certificates="{{ include "netweave.vaultURL" . }}/v1/pki/ca" \
+                crl_distribution_points="{{ include "netweave.vaultURL" . }}/v1/pki/crl"
+
+              # Enable PKI secrets engine for intermediate CA
+              vault secrets enable -path=pki_int pki || echo "Intermediate PKI already enabled"
+              vault secrets tune -max-lease-ttl=43800h pki_int
+
+              # Generate intermediate CSR
+              vault write -format=json pki_int/intermediate/generate/internal \
+                common_name="NetWeave Intermediate CA" \
+                issuer_name="intermediate-ca" \
+                key_type=rsa \
+                key_bits=4096 \
+                | jq -r '.data.csr' > /tmp/pki_intermediate.csr || echo "Intermediate CA already generated"
+
+              # Sign intermediate certificate with root CA
+              vault write -format=json pki/root/sign-intermediate \
+                issuer_ref="root-ca" \
+                csr=@/tmp/pki_intermediate.csr \
+                format=pem_bundle \
+                ttl=43800h \
+                | jq -r '.data.certificate' > /tmp/intermediate.cert.pem || true
+
+              # Import signed certificate
+              if [ -f /tmp/intermediate.cert.pem ]; then
+                vault write pki_int/intermediate/set-signed certificate=@/tmp/intermediate.cert.pem
+              fi
+
+              vault write pki_int/config/urls \
+                issuing_certificates="{{ include "netweave.vaultURL" . }}/v1/pki_int/ca" \
+                crl_distribution_points="{{ include "netweave.vaultURL" . }}/v1/pki_int/crl"
+
+              # Create certificate role for mTLS
+              vault write pki_int/roles/netweave-mtls \
+                issuer_ref="intermediate-ca" \
+                allowed_domains="netweave.local,*.netweave.local" \
+                allow_subdomains=true \
+                allow_bare_domains=true \
+                allow_glob_domains=true \
+                allow_any_name=true \
+                max_ttl="8760h" \
+                ttl="2160h" \
+                key_type=rsa \
+                key_bits=2048 \
+                ou="NetWeave" \
+                organization="NetWeave"
+
+              # Enable Kubernetes auth
+              vault auth enable kubernetes || echo "Kubernetes auth already enabled"
+
+              vault write auth/kubernetes/config \
+                kubernetes_host="https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT"
+
+              # Create policy for gateway
+              vault policy write netweave-gateway - <<EOF
+              path "pki_int/issue/netweave-mtls" {
+                capabilities = ["create", "update"]
+              }
+              path "pki_int/revoke" {
+                capabilities = ["create", "update"]
+              }
+              path "pki_int/certs" {
+                capabilities = ["list"]
+              }
+              path "pki_int/cert/*" {
+                capabilities = ["read"]
+              }
+              EOF
+
+              # Create Kubernetes auth role
+              vault write auth/kubernetes/role/netweave-gateway \
+                bound_service_account_names={{ include "netweave.serviceAccountName" . }} \
+                bound_service_account_namespaces={{ .Release.Namespace }} \
+                policies=netweave-gateway \
+                ttl=24h
+
+              echo "Vault PKI initialization complete"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
+{{- end }}
