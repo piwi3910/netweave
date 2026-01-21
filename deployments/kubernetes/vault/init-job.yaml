@@ -23,7 +23,7 @@ spec:
             - sh
             - -c
             - |
-              #!/bin/sh
+              #!/bin/bash
               set -e
 
               echo "Generating TLS certificates for Vault..."
@@ -129,7 +129,7 @@ spec:
             - sh
             - -c
             - |
-              #!/bin/sh
+              #!/bin/bash
               set -e
 
               echo "================================"
@@ -253,7 +253,7 @@ metadata:
     app.kubernetes.io/component: init
 data:
   init-pki.sh: |
-    #!/bin/sh
+    #!/bin/bash
     set -e
     set -u
     set -o pipefail
@@ -489,22 +489,22 @@ data:
       exit 1
     fi
 
-    # Create role for gateway service account (configurable via environment variables)
+    # Create role for gateway service account (configured via GATEWAY_SA_NAME and GATEWAY_NAMESPACES)
     echo "17. Creating Kubernetes auth role for gateway..."
     if ! vault write auth/kubernetes/role/gateway \
-      bound_service_account_names="${GATEWAY_SA_NAME:-o2ims-gateway}" \
-      bound_service_account_namespaces="${GATEWAY_NAMESPACES:-default,o2ims-system}" \
+      bound_service_account_names="$GATEWAY_SA_NAME" \
+      bound_service_account_namespaces="$GATEWAY_NAMESPACES" \
       policies=gateway \
       ttl=24h > /dev/null; then
       echo "ERROR: Failed to create gateway auth role" >&2
       exit 1
     fi
 
-    # Create role for Keycloak service account (configurable via environment variables)
+    # Create role for Keycloak service account (configured via KEYCLOAK_SA_NAME and KEYCLOAK_NAMESPACES)
     echo "18. Creating Kubernetes auth role for Keycloak..."
     if ! vault write auth/kubernetes/role/keycloak \
-      bound_service_account_names="${KEYCLOAK_SA_NAME:-keycloak}" \
-      bound_service_account_namespaces="${KEYCLOAK_NAMESPACES:-keycloak-system}" \
+      bound_service_account_names="$KEYCLOAK_SA_NAME" \
+      bound_service_account_namespaces="$KEYCLOAK_NAMESPACES" \
       policies=keycloak \
       ttl=24h > /dev/null; then
       echo "ERROR: Failed to create keycloak auth role" >&2

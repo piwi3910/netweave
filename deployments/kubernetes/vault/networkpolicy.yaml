@@ -78,20 +78,32 @@ spec:
           port: 8200
         - protocol: TCP
           port: 8201
-    # Allow access to Kubernetes API server for auth
+    # Allow outbound to Kubernetes API server for auth
+    # Note: Kubernetes API server typically runs in default namespace
+    # with service name 'kubernetes'. The actual pod labels vary by cluster
+    # type (EKS, GKE, AKS, kubeadm). This rule allows access to port 443
+    # only for pods with component=kube-apiserver or tier=control-plane.
+    # For managed Kubernetes (EKS/GKE/AKS), API access is typically via
+    # service endpoint which doesn't require NetworkPolicy rules.
     - to:
-        - namespaceSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
           podSelector:
             matchLabels:
               component: kube-apiserver
       ports:
         - protocol: TCP
           port: 443
-    # Allow HTTPS to Kubernetes API (alternative endpoint)
-    - ports:
-        - protocol: TCP
-          port: 443
-      to:
+    # Fallback: Allow to Kubernetes service endpoint (for clusters where
+    # API server is accessed via kubernetes.default.svc service)
+    - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: default
+          podSelector:
+            matchLabels:
+              tier: control-plane
+      ports:
+        - protocol: TCP
+          port: 443

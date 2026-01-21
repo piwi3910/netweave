@@ -94,6 +94,39 @@ graph TB
 - **Automatic leader election** for failover
 - **Shamir secret sharing** for unsealing (5 keys, threshold 3)
 
+### Network Security (NetworkPolicy)
+
+**Ingress Rules** (who can connect TO Vault):
+- Vault init job pods (for initialization)
+- Gateway pods in `default` and `o2ims-system` namespaces
+- Keycloak pods in `keycloak-system` namespace
+- Vault pods (for Raft cluster communication)
+
+**Egress Rules** (what Vault can connect TO):
+- DNS (kube-system namespace, UDP 53)
+- Other Vault pods (for Raft cluster communication)
+- Kubernetes API server (for Kubernetes auth method)
+
+**Default Policy**: Deny all traffic not explicitly allowed
+
+**Customization**:
+To allow Vault access from additional namespaces, add ingress rules:
+```yaml
+- from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: your-namespace
+  ports:
+    - protocol: TCP
+      port: 8200
+```
+
+**Important Notes**:
+- NetworkPolicy requires a CNI plugin that supports it (Calico, Cilium, Weave Net)
+- Kubernetes API server egress rules use pod selectors that may vary by cluster type
+- For managed Kubernetes (EKS/GKE/AKS), API server access typically works via service endpoint
+- Review and adjust selectors based on your cluster configuration
+
 ### PKI Configuration
 
 - **Root CA**: 10-year validity, stored in `pki/` path

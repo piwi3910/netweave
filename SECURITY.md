@@ -6,7 +6,7 @@
 
 Instead, please report security issues privately:
 
-1. **Email**: security@netweave.io (if available)
+1. **Email**: GitHub Security Advisory (preferred)
 2. **GitHub Security Advisory**: Use [Private Vulnerability Reporting](https://github.com/piwi3910/netweave/security/advisories/new)
 
 We will acknowledge your report within 48 hours and provide a detailed response within 5 business days.
@@ -282,7 +282,6 @@ Subscribe to [GitHub Security Advisories](https://github.com/piwi3910/netweave/s
 ## Contact
 
 For security questions or concerns:
-- **Security Team**: security@netweave.io
 - **GitHub Security**: [Private Vulnerability Reporting](https://github.com/piwi3910/netweave/security/advisories/new)
 
 ---
