@@ -227,18 +227,6 @@ func BenchmarkApplyPagination(b *testing.B) {
 	}
 }
 
-// Placeholder adapter setup functions for future implementation.
-// These are intentionally not yet used but reserved for adapter test expansion.
-//
-// TODO: Implement adapter test setup when backend adapters are ready:
-// - setupKubernetesAdapter: Use existing Kubernetes adapter test helpers
-// - setupAWSAdapter: AWS adapter test configuration
-// - setupAzureAdapter: Azure adapter test configuration
-// - setupGCPAdapter: GCP adapter test configuration
-// - setupOpenStackAdapter: OpenStack adapter test configuration
-// - setupVMwareAdapter: VMware adapter test configuration
-// - setupDTIASAdapter: DTIAS adapter test configuration
-
 // TestMatchesFilter_AdvancedFiltering tests advanced filtering with operators.
 func TestMatchesFilter_AdvancedFiltering(t *testing.T) {
 	tests := []struct {
