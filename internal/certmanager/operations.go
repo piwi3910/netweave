@@ -71,11 +71,15 @@ func (s *Service) IssueCertificate(ctx context.Context, req *CertificateRequest)
 	s.mu.Unlock()
 
 	// Update Keycloak user attributes
+	// Note: If this fails, we log a warning but don't fail the operation because:
+	// 1. The certificate is already issued and valid for mTLS authentication
+	// 2. User attributes are for informational purposes only
+	// 3. Attributes can be updated later via a dedicated endpoint
+	// 4. Certificate should not be invalid just because metadata update failed
 	if kcErr := s.updateKeycloakUser(ctx, req.UserID, cert); kcErr != nil {
 		s.logger.Warn("Failed to update Keycloak user attributes",
 			zap.String("user_id", req.UserID),
 			zap.Error(kcErr))
-		// Don't fail the operation, certificate is still issued
 	}
 
 	s.logger.Info("Certificate issued successfully",
@@ -87,6 +91,8 @@ func (s *Service) IssueCertificate(ctx context.Context, req *CertificateRequest)
 }
 
 // GetCertificate retrieves a certificate by serial number.
+// Context parameter is currently unused as this is an in-memory operation.
+// When persistent storage is implemented, context will be used for cancellation.
 func (s *Service) GetCertificate(_ context.Context, serialNumber string) (*Certificate, error) {
 	if serialNumber == "" {
 		return nil, fmt.Errorf("serial_number is required")
@@ -108,6 +114,8 @@ func (s *Service) GetCertificate(_ context.Context, serialNumber string) (*Certi
 }
 
 // ListCertificates lists all certificates, optionally filtered by user or tenant.
+// Context parameter is currently unused as this is an in-memory operation.
+// When persistent storage is implemented, context will be used for cancellation.
 func (s *Service) ListCertificates(_ context.Context, userID, tenantID string) ([]*Certificate, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -159,6 +167,8 @@ func (s *Service) RevokeCertificate(ctx context.Context, serialNumber string) er
 }
 
 // GetMonitoringReport generates a monitoring report with certificate statistics.
+// Context parameter is currently unused as this is an in-memory operation.
+// When persistent storage is implemented, context will be used for cancellation.
 func (s *Service) GetMonitoringReport(_ context.Context) (*MonitoringReport, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -203,7 +213,7 @@ func (s *Service) updateKeycloakUser(ctx context.Context, userID string, cert *C
 	// Get existing user
 	user, err := s.keycloakClient.GetUser(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
+		return fmt.Errorf("failed to get user %s for certificate attribute update: %w", userID, err)
 	}
 
 	// Update attributes
@@ -214,7 +224,7 @@ func (s *Service) updateKeycloakUser(ctx context.Context, userID string, cert *C
 
 	// Update user in Keycloak
 	if updateErr := s.keycloakClient.UpdateUser(ctx, user); updateErr != nil {
-		return fmt.Errorf("failed to update user: %w", updateErr)
+		return fmt.Errorf("failed to update user %s with certificate attributes: %w", userID, updateErr)
 	}
 
 	return nil

@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+const (
+	// DefaultCertificateTTL is the default certificate lifetime when not specified.
+	DefaultCertificateTTL = "8760h" // 1 year
+)
+
 // Certificate represents a managed certificate in the system.
 type Certificate struct {
 	// SerialNumber is the unique certificate serial number from Vault.
