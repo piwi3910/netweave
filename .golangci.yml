@@ -1,573 +1,490 @@
-# golangci-lint configuration for netweave O2-IMS Gateway
-# Version: 1.64+
-# Zero-tolerance linting - ALL issues must be fixed
-# Config format: v1 (for golangci-lint v1.62.2)
-
+version: "2"
 run:
-  timeout: 5m
-  tests: true
   build-tags:
     - integration
     - e2e
   modules-download-mode: readonly
-
+  tests: true
+linters:
+  default: none
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - contextcheck
+    - cyclop
+    - dupl
+    - durationcheck
+    - errcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - forbidigo
+    - gochecknoinits
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosec
+    - govet
+    - grouper
+    - importas
+    - ineffassign
+    - interfacebloat
+    - ireturn
+    - lll
+    - loggercheck
+    - maintidx
+    - makezero
+    - misspell
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - nonamedreturns
+    - nosprintfhostport
+    - predeclared
+    - promlinter
+    - reassign
+    - revive
+    - staticcheck
+    - testableexamples
+    - testpackage
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+    - wrapcheck
+    - zerologlint
+  settings:
+    cyclop:
+      max-complexity: 20
+      package-average: 20
+    dupl:
+      threshold: 100
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - (*github.com/redis/go-redis/v9.Client).Close
+        - (*github.com/gin-gonic/gin.Context).Error
+    forbidigo:
+      forbid:
+        - pattern: ^print.*$
+        - pattern: ^fmt\.Print.*$
+        - pattern: ^http\.DefaultClient$
+          msg: Use custom HTTP client with timeout and configuration
+    gocognit:
+      min-complexity: 20
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    gocritic:
+      disabled-checks:
+        - whyNoLint
+        - unnamedResult
+        - rangeValCopy
+        - unnecessaryDefer
+        - ifElseChain
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+    gocyclo:
+      min-complexity: 15
+    gosec:
+      excludes:
+        - G104
+        - G304
+        - G402
+      severity: medium
+      confidence: medium
+    govet:
+      disable:
+        - fieldalignment
+      enable-all: true
+      settings:
+        shadow:
+          strict: true
+    importas:
+      alias:
+        - pkg: k8s.io/api/core/v1
+          alias: corev1
+        - pkg: k8s.io/apimachinery/pkg/apis/meta/v1
+          alias: metav1
+        - pkg: k8s.io/client-go/kubernetes
+          alias: kubernetes
+        - pkg: istio.io/api/networking/v1beta1
+          alias: istiov1beta1
+        - pkg: github.com/redis/go-redis/v9
+          alias: redis
+      no-unaliased: true
+    lll:
+      line-length: 120
+      tab-width: 4
+    misspell:
+      locale: US
+      ignore-rules:
+        - oran
+        - kubernetes
+    nakedret:
+      max-func-lines: 30
+    nestif:
+      min-complexity: 4
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+        - name: waitgroup-by-value
+        - name: unconditional-recursion
+        - name: struct-tag
+        - name: string-format
+        - name: string-of-int
+        - name: range-val-in-closure
+        - name: range-val-address
+        - name: modifies-value-receiver
+        - name: modifies-parameter
+        - name: early-return
+        - name: defer
+        - name: constant-logical-expr
+        - name: confusing-naming
+        - name: confusing-results
+        - name: bool-literal-in-expr
+        - name: atomic
+    wrapcheck:
+      ignore-package-globs:
+        - github.com/yourorg/netweave/*
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - dupl
+          - errcheck
+          - forbidigo
+          - gocognit
+          - goconst
+          - gocritic
+          - gocyclo
+          - gosec
+          - ireturn
+          - maintidx
+          - mnd
+          - noctx
+          - revive
+          - testpackage
+        path: _test\.go
+      # contextcheck: Gin handler signature requires func(*gin.Context), which contextcheck
+      # flags as not propagating context. However, handlers immediately extract context via
+      # c.Request.Context() and pass it to all functions. All actual context propagation
+      # issues in internal/auth/middleware.go were fixed (commits d5c0163, 1a4f595).
+      - linters:
+          - contextcheck
+          - errcheck
+          - lll
+          - maintidx
+        path: tests/integration/
+      - linters:
+          - contextcheck
+          - cyclop
+          - goconst
+          - gocritic
+          - nestif
+          - nonamedreturns
+        path: cmd/
+      - linters:
+          - cyclop
+        path: cmd/compliance/
+      - linters:
+          - gosec
+        path: _test\.go
+        text: 'G404: Use of weak random number generator'
+      - linters:
+          - govet
+        text: 'shadow: declaration of "err"'
+      - linters:
+          - lll
+        source: '^//go:generate '
+      - linters:
+          - gosec
+        path: cmd/gateway/main\.go
+        text: G304
+      - linters:
+          - ireturn
+        path: cmd/gateway/main\.go
+        text: InitializeAuth
+      - linters:
+          - ireturn
+        path: internal/adapter/helpers_integration_test\.go
+        text: setup.+Adapter returns interface
+      - linters:
+          - gosec
+        path: cmd/compliance/main\.go
+        text: G304
+      - linters:
+          - cyclop
+        path: _test\.go
+      - linters:
+          - cyclop
+          - testpackage
+        path: tests/(e2e|integration)/.*
+      - linters:
+          - gosec
+        path: cmd/compliance/
+        text: G306
+      - linters:
+          - gosec
+        path: internal/smo/adapters/onap/
+        text: G402
+      - linters:
+          - gomoddirectives
+        text: replacement are not allowed
+      - linters:
+          - dupl
+        path: tools/compliance/checker\.go
+      - linters:
+          - lll
+        path: tools/compliance/
+      - linters:
+          - interfacebloat
+        path: internal/adapter/
+        text: interface has more than.*methods
+      - linters:
+          - revive
+        path: internal/adapters/
+        text: unused-parameter.*ctx
+      - linters:
+          - revive
+        path: internal/adapters/
+        text: stutters.*Adapter
+      - linters:
+          - nonamedreturns
+        path: internal/adapters/
+        text: named return.*found
+      - linters:
+          - nilerr
+        path: internal/adapters/
+        text: error is not nil.*but it returns nil
+      - linters:
+          - cyclop
+          - dupBranchBody
+          - dupl
+          - errcheck
+          - errorlint
+          - gocognit
+          - goconst
+          - gocritic
+          - gocyclo
+          - godot
+          - govet
+          - importas
+          - ireturn
+          - lll
+          - nestif
+          - revive
+          - staticcheck
+          - unconvert
+          - unparam
+          - wrapcheck
+        path: internal/adapters/
+      - linters:
+          - contextcheck
+          - dupl
+          - errcheck
+          - errorlint
+          - gocognit
+          - gocritic
+          - gocyclo
+          - govet
+          - importas
+          - lll
+          - misspell
+          - revive
+          - unparam
+          - wrapcheck
+        path: internal/auth/
+      - linters:
+          - dupl
+          - errcheck
+          - gocritic
+          - godot
+          - govet
+        path: internal/keycloak/
+      - linters:
+          - dupl
+          - errcheck
+          - gocritic
+          - govet
+        path: internal/vault/
+      - linters:
+          - gocognit
+          - gocritic
+          - misspell
+        path: internal/workers/
+      - linters:
+          - misspell
+        path: internal/smo/adapters/mock/
+      - linters:
+          - dupl
+        path: internal/smo/adapters/onap/
+      - linters:
+          - dupl
+        path: internal/controllers/
+      - linters:
+          - dupl
+          - lll
+        path: internal/dms/
+      - linters:
+          - lll
+        path: internal/events/
+      - linters:
+          - lll
+        path: tests/e2e/
+      - linters:
+          - gocritic
+          - maintidx
+          - revive
+        path: internal/config/
+      - linters:
+          - revive
+        path: internal/dms/adapters/
+        text: stutters.*Adapter
+      - linters:
+          - interfacebloat
+        path: internal/dms/adapter/
+        text: interface has more than.*methods
+      - linters:
+          - contextcheck
+          - cyclop
+          - forbidigo
+          - gocognit
+          - goconst
+          - gosec
+          - revive
+          - testpackage
+          - unused
+        path: internal/smo/adapters/osm/
+      - linters:
+          - lll
+        path: internal/smo/adapters/onap/
+      - linters:
+          - contextcheck
+          - cyclop
+          - dupl
+          - errcheck
+          - exhaustive
+          - forbidigo
+          - gocognit
+          - gocritic
+          - gocyclo
+          - godot
+          - govet
+          - importas
+          - interfacebloat
+          - ireturn
+          - lll
+          - misspell
+          - nestif
+          - nilnil
+          - noctx
+          - nolintlint
+          - predeclared
+          - promlinter
+          - revive
+          - thelper
+          - unparam
+          - unused
+          - usestdlibvars
+          - wrapcheck
+        path: internal/(handlers|middleware|models|observability|registry|routing|server|storage|graphql)
+      - linters:
+          - cyclop
+          - dupl
+          - errcheck
+          - exhaustive
+          - gocognit
+          - gocritic
+          - gocyclo
+          - godot
+          - govet
+          - interfacebloat
+          - ireturn
+          - misspell
+          - nestif
+          - nilnil
+          - predeclared
+          - revive
+          - unparam
+          - wrapcheck
+        path: internal/dms/
+      - linters:
+          - cyclop
+          - goconst
+        path: (.+)_test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
   new: false
-  exclude-rules:
-      # Exclude some linters from running on tests files
-      - path: _test\.go
-        linters:
-          - gocyclo
-          - errcheck
-          - dupl
-          - gosec
-          - goconst
-          - gomnd
-          - testpackage
-          - gocognit
-          - forbidigo
-          - gocritic
-          - noctx
-          - revive
-          - maintidx
-          - ireturn  # Test helpers returning interfaces is acceptable
-      # Exclude linters from integration test helpers
-      - path: tests/integration/
-        linters:
-          - errcheck
-          - maintidx
-          - lll  # Long lines in docs_test.go
-          - contextcheck  # Gin middleware patterns trigger false positives
-      # Exclude cmd/ from strict checks (main packages have different patterns)
-      - path: cmd/
-        linters:
-          - contextcheck
-          - nestif
-          - goconst
-          - nonamedreturns
-          - gocritic  # Allows octalLiteral 0644 in cmd/compliance
-          - cyclop    # Complex initialization logic in main packages
-      - path: cmd/compliance/
-        linters:
-          - cyclop    # Complex business logic in compliance checker
-      # Exclude known false positives
-      - text: "G404: Use of weak random number generator"
-        linters:
-          - gosec
-        path: _test\.go
-      # Exclude shadow check for err variable (common pattern)
-      - text: "shadow: declaration of \"err\""
-        linters:
-          - govet
-      # Exclude lll for lines with long strings
-      - source: "^//go:generate "
-        linters:
-          - lll
-      # Allow G304 for config file reading in gateway (paths are hardcoded list, not user input)
-      - linters:
-          - gosec
-        path: cmd/gateway/main\.go
-        text: "G304"
-      # Allow ireturn for InitializeAuth factory function (returns auth.Store interface for Redis/Keycloak backends)
-      - linters:
-          - ireturn
-        path: cmd/gateway/main\.go
-        text: "InitializeAuth"
-      # Allow ireturn for adapter test setup functions (return interfaces for dependency injection in tests)
-      - linters:
-          - ireturn
-        path: internal/adapter/helpers_integration_test\.go
-        text: "setup.+Adapter returns interface"
-      # Allow G304 for compliance tool (path validated to reject ".." traversal)
-      - linters:
-          - gosec
-        path: cmd/compliance/main\.go
-        text: "G304"
-      # Allow cyclop for test files (integration/e2e tests can be complex)
-      - linters:
-          - cyclop
-        path: _test\.go
-      - path: tests/(e2e|integration)/.*
-        linters:
-          - cyclop
-          - testpackage
-      # Allow G306 for README files (public documentation)
-      - linters:
-          - gosec
-        path: cmd/compliance/
-        text: "G306"
-      # Allow G402 TLS InsecureSkipVerify in ONAP adapter (configurable with runtime warnings)
-      - linters:
-          - gosec
-        path: internal/smo/adapters/onap/
-        text: "G402"
-      # Allow go.mod replacements (needed for K8s compatibility)
-      - text: "replacement are not allowed"
-        linters:
-          - gomoddirectives
-      # Allow code duplication in compliance checker (each spec check is intentionally separate)
-      - path: tools/compliance/checker\.go
-        linters:
-          - dupl
-      # Allow linting issues in compliance tool tests
-      - path: tools/compliance/
-        linters:
-          - lll  # Long comment lines in badge_test.go
-      # Allow larger interfaces for adapters (O-RAN spec defines many operations)
-      - text: "interface has more than.*methods"
-        linters:
-          - interfacebloat
-        path: internal/adapter/
-      # Allow unused ctx in unimplemented adapter methods
-      - text: "unused-parameter.*ctx"
-        linters:
-          - revive
-        path: internal/adapters/
-      # Allow name stuttering in adapters (AWSAdapter follows AWS naming)
-      - text: "stutters.*Adapter"
-        linters:
-          - revive
-        path: internal/adapters/
-      # Allow named returns in adapters (clearer for complex return types)
-      - text: "named return.*found"
-        linters:
-          - nonamedreturns
-        path: internal/adapters/
-      # Allow nilerr in adapter health checks (intentional)
-      - text: "error is not nil.*but it returns nil"
-        linters:
-          - nilerr
-        path: internal/adapters/
-      # Allow more linting issues in pre-existing adapters (not part of DMS PR)
-      - path: internal/adapters/
-        linters:
-          - goconst
-          - gocognit
-          - gocyclo
-          - cyclop
-          - nestif
-          - errcheck
-          - godot
-          - errorlint
-          - ireturn
-          - unconvert
-          - unparam
-          - gocritic
-          - dupBranchBody
-          - importas
-          - staticcheck
-          - revive
-          - govet
-          - dupl
-          - lll       # Pre-existing long lines in azure, dtias, vmware adapters
-          - wrapcheck  # Pre-existing unwrapped errors
-      # Allow linting issues in pre-existing auth middleware (not part of DMS PR)
-      - path: internal/auth/
-        linters:
-          - gocognit
-          - gocyclo
-          - errorlint
-          - misspell
-          - gocritic
-          - contextcheck
-          - wrapcheck
-          - revive
-          - importas
-          - unparam
-          - dupl
-          - lll       # Pre-existing long lines in middleware.go:365
-          - errcheck  # Pre-existing unchecked errors
-          - govet     # Pre-existing shadow declarations
-      # Allow linting issues in pre-existing keycloak code (not part of DMS PR)
-      - path: internal/keycloak/
-        linters:
-          - errcheck  # Pre-existing unchecked io.ReadAll errors
-          - gocritic  # Pre-existing httpNoBody issues
-          - godot     # Pre-existing missing comment periods
-          - govet     # Pre-existing shadow declarations
-          - dupl      # Pre-existing code duplication in roles.go, store.go, users.go
-      # Allow linting issues in pre-existing vault code (not part of DMS PR)
-      - path: internal/vault/
-        linters:
-          - errcheck  # Pre-existing unchecked io.ReadAll errors
-          - govet     # Pre-existing shadow declarations
-          - gocritic  # Pre-existing paramTypeCombine
-          - dupl      # Pre-existing code duplication in client.go
-      # Allow linting issues in pre-existing workers code (not part of DMS PR)
-      - path: internal/workers/
-        linters:
-          - gocognit  # Pre-existing high complexity
-          - gocritic  # Pre-existing importShadow
-          - misspell  # cancelled vs canceled (different English variants)
-      # Allow linting issues in pre-existing SMO mock adapter (not part of DMS PR)
-      - path: internal/smo/adapters/mock/
-        linters:
-          - misspell  # cancelled vs canceled (different English variants)
-      # Allow linting issues in pre-existing SMO ONAP adapter (not part of DMS PR)
-      - path: internal/smo/adapters/onap/
-        linters:
-          - dupl  # Pre-existing code duplication in client files and plugin.go
-      # Allow linting issues in pre-existing controllers (not part of DMS PR)
-      - path: internal/controllers/
-        linters:
-          - dupl  # Pre-existing code duplication in subscription_controller.go
-      # Allow linting issues in pre-existing DMS code (not part of DMS PR)
-      - path: internal/dms/
-        linters:
-          - lll   # Pre-existing long lines in adapters and handlers
-          - dupl  # Pre-existing code duplication
-      # Allow linting issues in pre-existing events code (not part of DMS PR)
-      - path: internal/events/
-        linters:
-          - lll  # Pre-existing long lines in interfaces.go
-      # Allow linting issues in pre-existing e2e tests (not part of DMS PR)
-      - path: tests/e2e/
-        linters:
-          - lll  # Pre-existing long lines in infrastructure_test.go
-      # Allow linting issues in pre-existing config code (not part of DMS PR)
-      - path: internal/config/
-        linters:
-          - revive
-          - gocritic
-          - maintidx
-      # Allow stuttering names in DMS adapters (ArgoCD naming is intentional)
-      - text: "stutters.*Adapter"
-        linters:
-          - revive
-        path: internal/dms/adapters/
-      # Allow large DMS adapter interface (O-RAN spec defines many operations)
-      - text: "interface has more than.*methods"
-        linters:
-          - interfacebloat
-        path: internal/dms/adapter/
-      # Allow linting issues in pre-existing OSM adapter (will be addressed in Issue #40)
-      - path: internal/smo/adapters/osm/
-        linters:
-          - contextcheck   # Background goroutine context handling
-          - cyclop         # Function complexity
-          - gocognit       # Cognitive complexity
-          - goconst        # String constants
-          - forbidigo      # fmt.Printf usage
-          - revive         # Unused parameters
-          - testpackage    # Test package naming
-          - unused         # Unused functions
-          - gosec          # G101 false positive for testTokenPath URL
-      # Allow linting issues in pre-existing ONAP adapter
-      - path: internal/smo/adapters/onap/
-        linters:
-          - lll            # Long comment lines in plugin_test.go
-      # Allow linting issues in pre-existing internal/ code (not part of PR #29)
-      # PR #29 focuses on DMS implementation; linting cleanup for existing code
-      # will be addressed in a future dedicated PR
-      - path: internal/(handlers|middleware|models|observability|registry|routing|server|storage|graphql)
-        linters:
-          - predeclared
-          - nilnil
-          - unparam
-          - thelper
-          - revive
-          - gocritic
-          - godot
-          - gocognit
-          - gocyclo
-          - cyclop
-          - nestif
-          - unused
-          - ireturn
-          - dupl
-          - cyclop
-          - errcheck
-          - contextcheck
-          - wrapcheck
-          - promlinter
-          - misspell
-          - usestdlibvars
-          - noctx
-          - nolintlint
-          - exhaustive
-          - forbidigo
-          - interfacebloat
-          - importas
-          - govet
-          - lll  # Long lines in redis.go and redis_test.go
-      # Allow linting issues in DMS code (part of PR #29 but need focused cleanup later)
-      - path: internal/dms/
-        linters:
-          - errcheck      # Unstructured API calls handle missing fields appropriately
-          - nestif        # Complex K8s CRD parsing logic
-          - gocognit      # Complex deployment state machine logic
-          - gocyclo       # Complex K8s resource handling
-          - cyclop        # Cyclomatic complexity (deployment state machines, K8s resource handling)
-          - misspell      # cancelled vs canceled (UK vs US English in K8s contexts)
-          - wrapcheck     # Context errors don't need wrapping
-          - revive        # Unused parameters, comment formatting
-          - govet         # Variable shadowing in generated code
-          - exhaustive    # Switch exhaustiveness on adapter enums
-          - unparam       # Test helper parameters
-          - interfacebloat # DMS interface per O-RAN spec
-          - ireturn       # Returning interfaces is intentional for adapters
-          - godot         # Comment punctuation
-          - gocritic      # httpNoBody, unnecessaryBlock in tests
-          - predeclared   # Parameter names matching builtins
-          - nilnil        # Test helpers returning nil, nil
-          - dupl          # Code duplication in handler patterns
-
-output:
-  sort-results: true
-
-linters:
-  enable-all: false
-  disable-all: true
-  enable:
-    # Core linters (always available)
-    - errcheck        # Check for unchecked errors
-    - govet           # Go vet
-    - ineffassign     # Detect ineffectual assignments
-    - staticcheck     # Static analysis (includes gosimple)
-    - unused          # Check for unused constants, variables, functions
-    - asasalint       # Check for pass []any as any in variadic func
-    - asciicheck      # Check for non-ASCII identifiers
-    - bidichk         # Check for dangerous unicode character sequences
-    - bodyclose       # Check whether HTTP response body is closed successfully
-    - contextcheck    # Check context is passed correctly
-    - cyclop          # Check cyclomatic complexity
-    - dupl            # Check for duplicate code
-    - durationcheck   # Check for two durations multiplied together
-    - errname         # Check error naming conventions
-    - errorlint       # Error wrapping best practices
-    - exhaustive      # Check exhaustiveness of enum switch statements
-    - forbidigo       # Forbid specific identifiers
-    - gochecknoinits  # Check for init functions
-    - gocognit        # Compute cognitive complexity
-    - goconst         # Find repeated strings that could be constants
-    - gocritic        # Comprehensive Go code checks
-    - gocyclo         # Cyclomatic complexity
-    - godot           # Check comments end with period
-    - gomoddirectives # Manage go.mod directives
-    - gomodguard      # Block direct use of certain modules
-    - goprintffuncname # Check printf-like function names
-    - gosec           # Security issues
-    - grouper         # Group declarations
-    - importas        # Enforce import aliases
-    - interfacebloat  # Check for bloated interfaces
-    - ireturn         # Accept interfaces, return concrete types
-    - lll             # Line length limit
-    - loggercheck     # Check logger usage
-    - maintidx        # Measure maintainability index
-    - makezero        # Find slice declarations with non-zero initial length
-    - misspell        # Fix commonly misspelled English words
-    - nakedret        # Find naked returns
-    - nestif          # Check deeply nested if statements
-    - nilerr          # Find code returning nil even if error is not nil
-    - nilnil          # Check simultaneous return of nil error and invalid value
-    - noctx           # Find HTTP requests without context
-    - nolintlint      # Check nolint directives
-    - nonamedreturns  # Check for named returns
-    - nosprintfhostport # Check for sprintf on host:port
-    - predeclared     # Find code that shadows predeclared identifiers
-    - promlinter      # Check Prometheus metrics naming
-    - reassign        # Check for reassigning variables
-    - revive          # Replacement for golint
-    - testableexamples # Check examples are testable
-    - testpackage     # Check tests are in _test package
-    - thelper         # Detect test helpers without t.Helper()
-    - tparallel       # Detect inappropriate usage of t.Parallel()
-    - unconvert       # Remove unnecessary type conversions
-    - unparam         # Find unused function parameters
-    - usestdlibvars   # Use standard library constants
-    - wastedassign    # Find wasted assignment statements
-    - whitespace      # Check for unnecessary whitespace
-    - wrapcheck       # Check error wrapping
-    - zerologlint     # Detect zerolog usage issues
-
-  # Note: Additional linters are available but not enabled:
-  # - depguard: Too restrictive for initial development
-  # - exhaustruct: Too strict for this project
-  # - funlen: Function length checked by gocyclo/gocognit
-  # - gochecknoglobals: Globals needed for metrics
-  # - godox: TODO/FIXME allowed with GitHub issues
-  # - nlreturn: Overly strict whitespace rules
-  # - paralleltest: Not all tests can be parallel
-  # - tagliatelle: JSON/YAML tags don't match Go conventions
-  # - varnamelen: Short names acceptable in limited scopes
-  # - wsl: Overly strict whitespace rules
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-    exclude-functions:
-      - (*github.com/redis/go-redis/v9.Client).Close
-      - (*github.com/gin-gonic/gin.Context).Error
-
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment # Premature optimization
-    settings:
-      shadow:
-        strict: true
-
-  gocyclo:
-    min-complexity: 15
-
-  cyclop:
-    max-complexity: 20  # Allow reasonable complexity for business logic
-    package-average: 20.0
-    skip-tests: true
-
-  gocognit:
-    min-complexity: 20
-
-  dupl:
-    threshold: 100
-
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-    ignore-tests: true
-
-  misspell:
-    locale: US
-    ignore-words:
-      - oran
-      - kubernetes
-
-  lll:
-    line-length: 120
-    tab-width: 4
-
-  gomnd:
-    ignored-numbers:
-      - '0'
-      - '1'
-      - '2'
-      - '10'
-      - '100'
-      - '1000'
-    ignored-functions:
-      - 'make'
-      - 'time.Duration'
-      - 'time.Minute'
-      - 'time.Second'
-      - 'time.Millisecond'
-
-  nakedret:
-    max-func-lines: 30
-
-  nestif:
-    min-complexity: 4
-
-  gosec:
-    severity: medium
-    confidence: medium
-    excludes:
-      - G104 # Checked by errcheck
-      - G304 # File path injection - documented exceptions in cmd/
-      - G402 # TLS InsecureSkipVerify - documented exceptions in adapters with runtime warnings
-
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    disabled-checks:
-      - whyNoLint # nolint directives forbidden anyway
-      - unnamedResult # Named returns checked separately
-      - rangeValCopy # Acceptable for small structs, micro-optimization
-      - unnecessaryDefer # Sometimes used intentionally for clarity
-      - ifElseChain # if-else can be clearer than switch
-
-  revive:
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
-      - name: empty-block
-      - name: superfluous-else
-      - name: unused-parameter
-      - name: unreachable-code
-      - name: redefines-builtin-id
-      - name: waitgroup-by-value
-      - name: unconditional-recursion
-      - name: struct-tag
-      - name: string-format
-      - name: string-of-int
-      - name: range-val-in-closure
-      - name: range-val-address
-      - name: modifies-value-receiver
-      - name: modifies-parameter
-      - name: early-return
-      - name: defer
-      - name: constant-logical-expr
-      - name: confusing-naming
-      - name: confusing-results
-      - name: bool-literal-in-expr
-      - name: atomic
-
-
-  gci:
-    sections:
-      - standard
-      - default
-      - prefix(github.com/yourorg/netweave)
-    custom-order: true
-
-  importas:
-    no-unaliased: true
-    alias:
-      # Kubernetes
-      - pkg: k8s.io/api/core/v1
-        alias: corev1
-      - pkg: k8s.io/apimachinery/pkg/apis/meta/v1
-        alias: metav1
-      - pkg: k8s.io/client-go/kubernetes
-        alias: kubernetes
-      # Istio
-      - pkg: istio.io/api/networking/v1beta1
-        alias: istiov1beta1
-      # Redis
-      - pkg: github.com/redis/go-redis/v9
-        alias: redis
-
-  forbidigo:
-    forbid:
-      - ^print.*$
-      - ^fmt\.Print.*$
-      - p: ^http\.DefaultClient$
-        msg: Use custom HTTP client with timeout and configuration
-    # Note: panic and os.Exit are allowed in main packages for fatal errors
-    # fmt.Errorf is allowed as it's the idiomatic Go way to wrap errors
-
-  wrapcheck:
-    ignorePackageGlobs:
-      - github.com/yourorg/netweave/*
-
-  nolintlint:
-    allow-unused: false
-    allow-no-explanation: []
-    require-explanation: true
-    require-specific: true
-
 severity:
-  default-severity: error
+  default: error
+formatters:
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/yourorg/netweave)
+      custom-order: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

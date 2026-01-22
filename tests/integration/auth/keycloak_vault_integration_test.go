@@ -448,10 +448,10 @@ func TestIntegration_OAuth2_AuthenticationFlow(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotEmpty(t, token)
 
-			// TODO: Validate token using Keycloak client
-			// Store doesn't expose ValidateToken method yet
-			// For now, just verify token was acquired
-			_ = token // Suppress unused variable warning
+			// TODO(#305): Add token validation
+			// - Parse JWT token
+			// - Verify signature against Keycloak public key
+			// - Validate claims (iss, aud, exp, etc.)
 
 			t.Logf("Successfully authenticated %s with role %s", u.username, u.role)
 		})
@@ -623,10 +623,12 @@ func TestIntegration_Authorization_TenantIsolation(t *testing.T) {
 	token2, err := acquireOAuth2Token(ctx, env.keycloak, "other@test.com", testUserPassword)
 	require.NoError(t, err)
 
-	// TODO: Validate tenant isolation using token validation
-	// For now, just verify tokens were acquired and log success
-	_ = token1
-	_ = token2
+	// TODO(#307): Implement tenant isolation validation
+	// - Verify users can only access resources in their tenant
+	// - Test cross-tenant access is denied
+	// - Verify tenant-scoped queries return correct results
+	assert.NotEmpty(t, token1, "Token for operator@test.com should not be empty")
+	assert.NotEmpty(t, token2, "Token for other@test.com should not be empty")
 
 	t.Log("Tenant isolation verification - tokens acquired for both tenants")
 }
@@ -767,7 +769,10 @@ func postKeycloakForm(ctx context.Context, url, formData string, result interfac
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("request failed with status %d (failed to read body: %w)", resp.StatusCode, err)
+		}
 		return fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -838,7 +843,10 @@ func resetUserPassword(ctx context.Context, kc *keycloakContainer, userID, passw
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("password request failed with status %d (failed to read body: %w)", resp.StatusCode, err)
+		}
 		return fmt.Errorf("password request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -854,8 +862,9 @@ func createTestMiddleware(t *testing.T, store auth.Store, logger *zap.Logger) *a
 		SkipPaths: []string{"/health"},
 	}
 
-	// TODO: Create OAuth2Authenticator and OAuth2Config for full middleware setup
+	// TODO(#306): Create OAuth2Authenticator and OAuth2Config for full middleware setup
 	// For now, create middleware with nil OAuth2 components (won't test OAuth2 features)
+	// This tests permission checking logic but not OAuth2 token validation
 	mw := auth.NewMiddleware(store, config, logger, nil, nil)
 
 	return mw
