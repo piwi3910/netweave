@@ -171,7 +171,7 @@ func initializeVaultPKI(t *testing.T, address, token string) {
 		case <-ctx.Done():
 			t.Fatal("Vault failed to become ready within timeout")
 		case <-ticker.C:
-			if err := client.Ping(context.Background()); err == nil {
+			if err := client.Ping(ctx); err == nil {
 				t.Log("Vault PKI initialized")
 				return
 			}
@@ -258,7 +258,7 @@ func setupKeycloakStore(t *testing.T, kc *keycloakContainer, logger *zap.Logger)
 		case <-ctx.Done():
 			t.Fatal("Keycloak failed to become ready within timeout")
 		case <-ticker.C:
-			if err := store.Ping(context.Background()); err == nil {
+			if err := store.Ping(ctx); err == nil {
 				return store
 			}
 		}
@@ -407,7 +407,9 @@ func (env *testEnvironment) cleanup(t *testing.T) {
 	ctx := context.Background()
 
 	if env.store != nil {
-		env.store.Close()
+		if err := env.store.Close(); err != nil {
+			t.Logf("Warning: failed to close store: %v", err)
+		}
 	}
 
 	if env.keycloak != nil && env.keycloak.container != nil {
@@ -604,6 +606,11 @@ func TestIntegration_Authorization_TenantIsolation(t *testing.T) {
 		},
 	}
 	require.NoError(t, env.store.CreateTenant(ctx, tenant2))
+	t.Cleanup(func() {
+		if err := env.store.DeleteTenant(context.Background(), tenant2.ID); err != nil {
+			t.Logf("Warning: failed to delete tenant %s: %v", tenant2.ID, err)
+		}
+	})
 
 	// Create user in second tenant
 	user2 := &auth.TenantUser{
@@ -615,6 +622,11 @@ func TestIntegration_Authorization_TenantIsolation(t *testing.T) {
 		IsActive:   true,
 	}
 	require.NoError(t, env.store.CreateUser(ctx, user2))
+	t.Cleanup(func() {
+		if err := env.store.DeleteUser(context.Background(), user2.ID); err != nil {
+			t.Logf("Warning: failed to delete user %s: %v", user2.ID, err)
+		}
+	})
 
 	// Get tokens for users from different tenants
 	token1, err := acquireOAuth2Token(ctx, env.keycloak, "operator@test.com", testUserPassword)

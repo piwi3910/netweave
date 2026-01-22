@@ -486,7 +486,7 @@ func (m *Middleware) finalizeAuthentication(
 		zap.String("role", SanitizeForLogging(string(role.Name), 50)),
 		zap.String("request_id", requestID),
 	)
-	RecordAuthenticationAttempt("success", "mtls")
+	RecordAuthenticationAttempt("success", string(authMethod))
 	RecordAuthenticationDuration("success", time.Since(authStart).Seconds())
 	c.Next()
 }
