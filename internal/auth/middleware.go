@@ -494,10 +494,11 @@ func (m *Middleware) finalizeAuthentication(
 // RequirePermission returns a middleware that checks if the user has the required permission.
 func (m *Middleware) RequirePermission(permission string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		ctx := c.Request.Context()
 		requestID := c.GetString("request_id")
 
 		// Get authenticated user from context.
-		user := UserFromContext(c.Request.Context())
+		user := UserFromContext(ctx)
 		if user == nil {
 			m.Logger.Warn("no authenticated user in context",
 				zap.String("path", c.Request.URL.Path),
@@ -521,7 +522,7 @@ func (m *Middleware) RequirePermission(permission string) gin.HandlerFunc {
 				zap.String("request_id", requestID),
 			)
 
-			m.logAccessDenied(c.Request.Context(), c, user, Permission(permission))
+			m.logAccessDenied(ctx, c, user, Permission(permission))
 			RecordAuthorizationCheck("denied", Permission(permission))
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"error":   "Forbidden",
