@@ -273,15 +273,15 @@ func setupTestData(t *testing.T, store *keycloak.Store, kc *keycloakContainer) {
 	t.Helper()
 	ctx := context.Background()
 
-	createTestTenant(t, store, ctx)
-	createTestRoles(t, store, ctx)
-	createTestUsers(t, store, kc, ctx)
+	createTestTenant(ctx, t, store)
+	createTestRoles(ctx, t, store)
+	createTestUsers(ctx, t, store, kc)
 
 	t.Log("Test data created successfully")
 }
 
 // createTestTenant creates the primary test tenant.
-func createTestTenant(t *testing.T, store *keycloak.Store, ctx context.Context) {
+func createTestTenant(ctx context.Context, t *testing.T, store *keycloak.Store) {
 	t.Helper()
 
 	tenant := &auth.Tenant{
@@ -300,7 +300,7 @@ func createTestTenant(t *testing.T, store *keycloak.Store, ctx context.Context) 
 }
 
 // createTestRoles creates all test roles with their permissions.
-func createTestRoles(t *testing.T, store *keycloak.Store, ctx context.Context) {
+func createTestRoles(ctx context.Context, t *testing.T, store *keycloak.Store) {
 	t.Helper()
 
 	roles := []*auth.Role{
@@ -315,7 +315,8 @@ func createTestRoles(t *testing.T, store *keycloak.Store, ctx context.Context) {
 				auth.PermissionSubscriptionRead, auth.PermissionSubscriptionCreate, auth.PermissionSubscriptionDelete,
 				auth.PermissionResourcePoolRead, auth.PermissionResourcePoolCreate,
 				auth.PermissionResourcePoolUpdate, auth.PermissionResourcePoolDelete,
-				auth.PermissionResourceRead, auth.PermissionResourceCreate, auth.PermissionResourceUpdate, auth.PermissionResourceDelete,
+				auth.PermissionResourceRead, auth.PermissionResourceCreate,
+				auth.PermissionResourceUpdate, auth.PermissionResourceDelete,
 				auth.PermissionResourceTypeRead,
 				auth.PermissionDeploymentManagerRead,
 				auth.PermissionAuditRead,
@@ -363,7 +364,7 @@ func createTestRoles(t *testing.T, store *keycloak.Store, ctx context.Context) {
 }
 
 // createTestUsers creates test users with passwords.
-func createTestUsers(t *testing.T, store *keycloak.Store, kcContainer *keycloakContainer, ctx context.Context) {
+func createTestUsers(ctx context.Context, t *testing.T, store *keycloak.Store, kcContainer *keycloakContainer) {
 	t.Helper()
 
 	users := []*auth.TenantUser{
@@ -817,44 +818,53 @@ func acquireOAuth2Token(ctx context.Context, kc *keycloakContainer, username, pa
 // validateOAuth2Token validates a JWT token from Keycloak.
 // It verifies the token structure, signature (using public key from Keycloak), and standard claims.
 func validateOAuth2Token(kc *keycloakContainer, token string) error {
-	// Parse the JWT token without verification first to inspect it
+	claims, err := parseAndExtractClaims(token)
+	if err != nil {
+		return err
+	}
+
+	expectedIssuer := fmt.Sprintf("%s/realms/%s", kc.baseURL, testRealm)
+	if err := validateTokenClaims(claims, expectedIssuer); err != nil {
+		return err
+	}
+
+	// Note: Full signature verification would require fetching Keycloak's public key from the JWKS endpoint.
+	// For integration tests with testcontainers, validating the token structure and claims is sufficient
+	// to verify the OAuth2 flow works correctly. In production, signature verification MUST be enabled.
+
+	return nil
+}
+
+// parseAndExtractClaims parses JWT token and extracts claims.
+func parseAndExtractClaims(token string) (jwt.MapClaims, error) {
 	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
 	parsedToken, _, err := parser.ParseUnverified(token, jwt.MapClaims{})
 	if err != nil {
-		return fmt.Errorf("failed to parse token: %w", err)
+		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
 
 	claims, ok := parsedToken.Claims.(jwt.MapClaims)
 	if !ok {
-		return fmt.Errorf("invalid token claims")
+		return nil, fmt.Errorf("invalid token claims")
 	}
 
-	// Validate standard claims
-	expectedIssuer := fmt.Sprintf("%s/realms/%s", kc.baseURL, testRealm)
+	return claims, nil
+}
+
+// validateTokenClaims validates standard JWT claims.
+func validateTokenClaims(claims jwt.MapClaims, expectedIssuer string) error {
+	// Validate issuer
 	iss, issOK := claims["iss"].(string)
 	if !issOK || iss != expectedIssuer {
 		return fmt.Errorf("invalid issuer: got %v, want %s", claims["iss"], expectedIssuer)
 	}
 
-	// Validate expiration
-	exp, expOK := claims["exp"].(float64)
-	if !expOK {
-		return fmt.Errorf("missing or invalid exp claim")
-	}
-	if time.Now().Unix() > int64(exp) {
-		return fmt.Errorf("token expired")
+	// Validate time-based claims
+	if err := validateTimeClaims(claims); err != nil {
+		return err
 	}
 
-	// Validate issued at
-	iat, iatOK := claims["iat"].(float64)
-	if !iatOK {
-		return fmt.Errorf("missing or invalid iat claim")
-	}
-	if time.Now().Unix() < int64(iat) {
-		return fmt.Errorf("token issued in the future")
-	}
-
-	// Validate audience (azp field in Keycloak)
+	// Validate audience
 	azp, azpOK := claims["azp"].(string)
 	if !azpOK || azp != testClientID {
 		return fmt.Errorf("invalid audience: got %v, want %s", claims["azp"], testClientID)
@@ -866,9 +876,26 @@ func validateOAuth2Token(kc *keycloakContainer, token string) error {
 		return fmt.Errorf("invalid token type: got %v, want Bearer", claims["typ"])
 	}
 
-	// Note: Full signature verification would require fetching Keycloak's public key from the JWKS endpoint.
-	// For integration tests with testcontainers, validating the token structure and claims is sufficient
-	// to verify the OAuth2 flow works correctly. In production, signature verification MUST be enabled.
+	return nil
+}
+
+// validateTimeClaims validates exp and iat claims.
+func validateTimeClaims(claims jwt.MapClaims) error {
+	exp, expOK := claims["exp"].(float64)
+	if !expOK {
+		return fmt.Errorf("missing or invalid exp claim")
+	}
+	if time.Now().Unix() > int64(exp) {
+		return fmt.Errorf("token expired")
+	}
+
+	iat, iatOK := claims["iat"].(float64)
+	if !iatOK {
+		return fmt.Errorf("missing or invalid iat claim")
+	}
+	if time.Now().Unix() < int64(iat) {
+		return fmt.Errorf("token issued in the future")
+	}
 
 	return nil
 }
@@ -977,7 +1004,9 @@ func resetUserPassword(ctx context.Context, kc *keycloakContainer, userID, passw
 }
 
 // Helper: createTestMiddleware creates auth middleware for testing.
-func createTestMiddleware(t *testing.T, store auth.Store, keycloakClient *keycloak.Client, logger *zap.Logger) *auth.Middleware {
+func createTestMiddleware(
+	t *testing.T, store auth.Store, keycloakClient *keycloak.Client, logger *zap.Logger,
+) *auth.Middleware {
 	t.Helper()
 
 	config := &auth.MiddlewareConfig{
