@@ -89,13 +89,15 @@ graph TB
 
 | Component | Purpose | Implementation |
 |-----------|---------|----------------|
-| **TLS/mTLS** | Encrypted communication, client authentication | Native Go TLS 1.3, cert-manager |
-| **Authentication** | Identity verification | Client certificates, tenant extraction |
-| **Authorization** | Access control | RBAC with roles, permissions, tenant isolation |
+| **TLS/mTLS** | Encrypted communication, client authentication | Native Go TLS 1.3, Vault PKI |
+| **Authentication** | Identity verification | mTLS client certificates, OAuth2/OIDC (Keycloak) |
+| **Authorization** | Access control | RBAC with Keycloak roles, permissions, tenant isolation |
+| **Certificate Management** | Automated PKI lifecycle | HashiCorp Vault PKI engine |
+| **Identity Management** | User and tenant management | Keycloak with LDAP/Azure AD integration |
 | **Input Validation** | Sanitization, DoS protection | OpenAPI 3.0 schema validation |
 | **Rate Limiting** | DDoS mitigation | Redis-backed token bucket, per-tenant |
-| **Secrets Management** | Credential protection | Kubernetes Secrets, external secret stores |
-| **Audit Logging** | Compliance, forensics | Structured logs, tenant context |
+| **Secrets Management** | Credential protection | Kubernetes Secrets, Vault secrets engine |
+| **Audit Logging** | Compliance, forensics | Structured logs, Keycloak event logging |
 | **Supply Chain Security** | Dependency protection | Vulnerability scanning, SBOM, signed images |
 
 ## Documentation Structure
@@ -106,8 +108,11 @@ graph TB
 |----------|---------|-----------------|
 | **[Architecture](architecture.md)** | Security design, threat model, zero-trust principles | Architects, Security Engineers |
 | **[TLS/mTLS](tls-mtls.md)** | TLS 1.3 configuration, certificate management, mTLS setup | Platform Engineers, Operators |
-| **[Authentication](authentication.md)** | Client certificates, tenant identification | Integrators, Developers |
+| **[Authentication](authentication.md)** | mTLS and OAuth2/OIDC authentication flows | Integrators, Developers |
 | **[Authorization](authorization.md)** | RBAC model, roles, permissions, tenant isolation | Security Engineers, Architects |
+| **[Certificate Management](certificate-management.md)** | Vault PKI setup, certificate lifecycle, renewal, revocation | Platform Engineers, Operators |
+| **[Keycloak Admin Guide](keycloak-admin-guide.md)** | Keycloak administration, user/tenant/role management | Administrators, Operators |
+| **[OAuth2 Migration Guide](oauth2-migration-guide.md)** | Migrating from Redis to Keycloak authentication | Platform Engineers, Architects |
 | **[Multi-Tenancy](multi-tenancy.md)** | Tenant isolation, resource segregation, quota management | Platform Engineers, Architects |
 | **[Hardening](hardening.md)** | Production hardening checklist, security best practices | Operators, DevOps |
 | **[Webhooks](webhooks.md)** | HMAC signature verification, webhook security | Integrators, SMO Developers |
@@ -118,10 +123,15 @@ graph TB
 **Getting Started:**
 - 🚀 [Security Architecture](architecture.md) - Start here for design overview
 - 🔐 [TLS/mTLS Setup](tls-mtls.md) - Configure encryption and client auth
+- 🔑 [Authentication Guide](authentication.md) - mTLS and OAuth2/OIDC authentication
 - ✅ [Production Hardening](hardening.md) - Pre-deployment checklist
 
+**Keycloak & Identity:**
+- 👤 [Keycloak Admin Guide](keycloak-admin-guide.md) - Manage users, tenants, roles
+- 🔄 [OAuth2 Migration Guide](oauth2-migration-guide.md) - Migrate from Redis to Keycloak
+- 📜 [Certificate Management](certificate-management.md) - Vault PKI and certificate lifecycle
+
 **Integration:**
-- 🔑 [Authentication Guide](authentication.md) - Implement client authentication
 - 🛡️ [Authorization Guide](authorization.md) - Configure RBAC and permissions
 - 🏢 [Multi-Tenancy Guide](multi-tenancy.md) - Tenant isolation and resource segregation
 - 🔔 [Webhook Security](webhooks.md) - Verify webhook notifications
