@@ -423,7 +423,7 @@ func (env *testEnvironment) cleanup(t *testing.T) {
 	}
 }
 
-// Test 1: Complete OAuth2 authentication flow with Keycloak
+// Test 1: Complete OAuth2 authentication flow with Keycloak.
 func TestIntegration_OAuth2_AuthenticationFlow(t *testing.T) {
 	env := setupTestEnvironment(t)
 	defer env.cleanup(t)
@@ -458,7 +458,7 @@ func TestIntegration_OAuth2_AuthenticationFlow(t *testing.T) {
 	}
 }
 
-// Test 2: mTLS certificate validation against Vault CA
+// Test 2: mTLS certificate validation against Vault CA.
 func TestIntegration_MTLS_CertificateValidation(t *testing.T) {
 	env := setupTestEnvironment(t)
 	defer env.cleanup(t)
@@ -503,7 +503,7 @@ func TestIntegration_MTLS_CertificateValidation(t *testing.T) {
 	t.Log("Certificate issued and validated successfully")
 }
 
-// Test 3: Authorization with Keycloak roles
+// Test 3: Authorization with Keycloak roles.
 func TestIntegration_Authorization_RoleBasedAccess(t *testing.T) {
 	env := setupTestEnvironment(t)
 	defer env.cleanup(t)
@@ -582,7 +582,7 @@ func TestIntegration_Authorization_RoleBasedAccess(t *testing.T) {
 	}
 }
 
-// Test 4: Tenant isolation
+// Test 4: Tenant isolation.
 func TestIntegration_Authorization_TenantIsolation(t *testing.T) {
 	env := setupTestEnvironment(t)
 	defer env.cleanup(t)
@@ -630,7 +630,7 @@ func TestIntegration_Authorization_TenantIsolation(t *testing.T) {
 	t.Log("Tenant isolation verification - tokens acquired for both tenants")
 }
 
-// Test 5: Certificate revocation workflow
+// Test 5: Certificate revocation workflow.
 func TestIntegration_Certificate_RevocationWorkflow(t *testing.T) {
 	env := setupTestEnvironment(t)
 	defer env.cleanup(t)
@@ -674,7 +674,7 @@ func TestIntegration_Certificate_RevocationWorkflow(t *testing.T) {
 	t.Log("Certificate revocation workflow completed successfully")
 }
 
-// Test 6: User management lifecycle
+// Test 6: User management lifecycle.
 func TestIntegration_UserManagement_Lifecycle(t *testing.T) {
 	env := setupTestEnvironment(t)
 	defer env.cleanup(t)
