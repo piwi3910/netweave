@@ -86,7 +86,7 @@ func NewClient(config *Config) (*Client, error) {
 	// for admin API access and does not require a client secret.
 	isAdminCLI := config.ClientID == AdminCLIClientID
 	hasAdminCredentials := config.AdminUsername != "" && config.AdminPassword != ""
-	if config.ClientSecret == "" && !(isAdminCLI && hasAdminCredentials) {
+	if config.ClientSecret == "" && (!isAdminCLI || !hasAdminCredentials) {
 		return nil, fmt.Errorf("ClientSecret is required")
 	}
 
