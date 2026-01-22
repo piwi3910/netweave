@@ -109,7 +109,7 @@ func setupVaultContainer(t *testing.T, logger *zap.Logger) *vaultContainer {
 		Image:        vaultImage,
 		ExposedPorts: []string{"8200/tcp"},
 		Env: map[string]string{
-			"VAULT_DEV_ROOT_TOKEN_ID": "root",
+			"VAULT_DEV_ROOT_TOKEN_ID":  "root",
 			"VAULT_DEV_LISTEN_ADDRESS": "0.0.0.0:8200",
 		},
 		Cmd: []string{"server", "-dev"},
@@ -511,11 +511,11 @@ func TestIntegration_Authorization_RoleBasedAccess(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name           string
-		username       string
-		password       string
-		permission     auth.Permission
-		expectAllowed  bool
+		name          string
+		username      string
+		password      string
+		permission    auth.Permission
+		expectAllowed bool
 	}{
 		{
 			name:          "Admin has all permissions",
