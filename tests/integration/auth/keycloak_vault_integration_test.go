@@ -89,7 +89,7 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 	kcStore := setupKeycloakStore(t, keycloakCtr, logger)
 
 	// Set up test data
-	setupTestData(t, kcStore, keycloakCtr, vaultCtr)
+	setupTestData(t, kcStore, keycloakCtr)
 
 	return &testEnvironment{
 		keycloak: keycloakCtr,
@@ -266,7 +266,7 @@ func setupKeycloakStore(t *testing.T, kc *keycloakContainer, logger *zap.Logger)
 }
 
 // setupTestData creates test tenants, users, and roles.
-func setupTestData(t *testing.T, store *keycloak.Store, kc *keycloakContainer, vault *vaultContainer) {
+func setupTestData(t *testing.T, store *keycloak.Store, kc *keycloakContainer) {
 	t.Helper()
 	ctx := context.Background()
 
