@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -50,7 +51,6 @@ type testEnvironment struct {
 	keycloak *keycloakContainer
 	vault    *vaultContainer
 	store    *keycloak.Store
-	authMW   *auth.Middleware
 	logger   *zap.Logger
 }
 
@@ -131,7 +131,7 @@ func setupVaultContainer(t *testing.T, logger *zap.Logger) *vaultContainer {
 	port, err := container.MappedPort(ctx, "8200")
 	require.NoError(t, err)
 
-	address := fmt.Sprintf("http://%s:%s", host, port.Port())
+	address := "http://" + net.JoinHostPort(host, port.Port())
 
 	logger.Info("Vault container started", zap.String("address", address))
 
@@ -214,7 +214,7 @@ func setupKeycloakContainer(t *testing.T, logger *zap.Logger) *keycloakContainer
 	port, err := container.MappedPort(ctx, "8080")
 	require.NoError(t, err)
 
-	baseURL := fmt.Sprintf("http://%s:%s", host, port.Port())
+	baseURL := "http://" + net.JoinHostPort(host, port.Port())
 
 	logger.Info("Keycloak container started", zap.String("baseURL", baseURL))
 
