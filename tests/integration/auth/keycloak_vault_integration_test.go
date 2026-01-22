@@ -35,6 +35,13 @@ const (
 	testClientSecret = "test-secret-123"
 	adminUser        = "admin"
 	adminPassword    = "admin123"
+	testUserPassword = "testUserPassword"
+
+	// Timeout constants.
+	keycloakStartupTimeout = 120 * time.Second
+	vaultStartupTimeout    = 60 * time.Second
+	keycloakReadyTimeout   = 60 * time.Second
+	httpRequestTimeout     = 10 * time.Second
 )
 
 // testEnvironment holds all test infrastructure.
@@ -151,18 +158,24 @@ func initializeVaultPKI(t *testing.T, address, token string) {
 	client, err := vault.NewClient(config)
 	require.NoError(t, err)
 
-	// Wait for Vault to be ready
-	ctx := context.Background()
-	for i := 0; i < 30; i++ {
-		if err := client.Ping(ctx); err == nil {
-			break
-		}
-		time.Sleep(time.Second)
-	}
+	// Wait for Vault to be ready with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), vaultStartupTimeout)
+	defer cancel()
 
-	// Note: In production, PKI backend is pre-configured
-	// For tests, we assume it's set up via Vault's dev mode defaults
-	t.Log("Vault PKI initialized")
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatal("Vault failed to become ready within timeout")
+		case <-ticker.C:
+			if err := client.Ping(context.Background()); err == nil {
+				t.Log("Vault PKI initialized")
+				return
+			}
+		}
+	}
 }
 
 // setupKeycloakContainer starts a Keycloak container with test realm.
@@ -232,16 +245,23 @@ func setupKeycloakStore(t *testing.T, kc *keycloakContainer, logger *zap.Logger)
 	// Create store with client
 	store := keycloak.NewStore(client, logger)
 
-	// Wait for Keycloak to be ready
-	ctx := context.Background()
-	for i := 0; i < 60; i++ {
-		if err := store.Ping(ctx); err == nil {
-			break
-		}
-		time.Sleep(time.Second)
-	}
+	// Wait for Keycloak to be ready with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), keycloakReadyTimeout)
+	defer cancel()
 
-	return store
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatal("Keycloak failed to become ready within timeout")
+		case <-ticker.C:
+			if err := store.Ping(context.Background()); err == nil {
+				return store
+			}
+		}
+	}
 }
 
 // setupTestData creates test tenants, users, and roles.
@@ -249,7 +269,17 @@ func setupTestData(t *testing.T, store *keycloak.Store, kc *keycloakContainer, v
 	t.Helper()
 	ctx := context.Background()
 
-	// Create test tenant
+	createTestTenant(t, store, ctx)
+	createTestRoles(t, store, ctx)
+	createTestUsers(t, store, kc, ctx)
+
+	t.Log("Test data created successfully")
+}
+
+// createTestTenant creates the primary test tenant.
+func createTestTenant(t *testing.T, store *keycloak.Store, ctx context.Context) {
+	t.Helper()
+
 	tenant := &auth.Tenant{
 		ID:     "tenant-test",
 		Name:   "Test Tenant",
@@ -263,8 +293,12 @@ func setupTestData(t *testing.T, store *keycloak.Store, kc *keycloakContainer, v
 		},
 	}
 	require.NoError(t, store.CreateTenant(ctx, tenant))
+}
 
-	// Create roles
+// createTestRoles creates all test roles with their permissions.
+func createTestRoles(t *testing.T, store *keycloak.Store, ctx context.Context) {
+	t.Helper()
+
 	roles := []*auth.Role{
 		{
 			ID:   "role-admin",
@@ -322,8 +356,12 @@ func setupTestData(t *testing.T, store *keycloak.Store, kc *keycloakContainer, v
 	for _, role := range roles {
 		require.NoError(t, store.CreateRole(ctx, role))
 	}
+}
 
-	// Create test users
+// createTestUsers creates test users with passwords.
+func createTestUsers(t *testing.T, store *keycloak.Store, kc *keycloakContainer, ctx context.Context) {
+	t.Helper()
+
 	users := []*auth.TenantUser{
 		{
 			ID:         "user-admin",
@@ -355,13 +393,11 @@ func setupTestData(t *testing.T, store *keycloak.Store, kc *keycloakContainer, v
 		require.NoError(t, store.CreateUser(ctx, user))
 
 		// Set password for OAuth2 login using Keycloak admin API
-		err := setUserPassword(kc, user.ID, "Password123!")
+		err := setUserPassword(kc, user.ID, "testUserPassword")
 		require.NoError(t, err, "Failed to set password for user %s", user.ID)
 
 		t.Logf("Created user %s with password", user.CommonName)
 	}
-
-	t.Log("Test data created successfully")
 }
 
 // cleanup tears down the test environment.
@@ -374,11 +410,15 @@ func (env *testEnvironment) cleanup(t *testing.T) {
 	}
 
 	if env.keycloak != nil && env.keycloak.container != nil {
-		_ = env.keycloak.container.Terminate(ctx)
+		if err := env.keycloak.container.Terminate(ctx); err != nil {
+			t.Logf("Warning: failed to terminate Keycloak container: %v", err)
+		}
 	}
 
 	if env.vault != nil && env.vault.container != nil {
-		_ = env.vault.container.Terminate(ctx)
+		if err := env.vault.container.Terminate(ctx); err != nil {
+			t.Logf("Warning: failed to terminate Vault container: %v", err)
+		}
 	}
 }
 
@@ -395,9 +435,9 @@ func TestIntegration_OAuth2_AuthenticationFlow(t *testing.T) {
 		password string
 		role     string
 	}{
-		{"admin@test.com", "Password123!", "role-admin"},
-		{"operator@test.com", "Password123!", "role-operator"},
-		{"viewer@test.com", "Password123!", "role-viewer"},
+		{"admin@test.com", "testUserPassword", "role-admin"},
+		{"operator@test.com", "testUserPassword", "role-operator"},
+		{"viewer@test.com", "testUserPassword", "role-viewer"},
 	}
 
 	for _, u := range users {
@@ -476,28 +516,28 @@ func TestIntegration_Authorization_RoleBasedAccess(t *testing.T) {
 		{
 			name:          "Admin has all permissions",
 			username:      "admin@test.com",
-			password:      "Password123!",
+			password:      "testUserPassword",
 			permission:    auth.PermissionTenantDelete,
 			expectAllowed: true,
 		},
 		{
 			name:          "Operator can create deployments",
 			username:      "operator@test.com",
-			password:      "Password123!",
+			password:      "testUserPassword",
 			permission:    auth.PermissionResourceCreate,
 			expectAllowed: true,
 		},
 		{
 			name:          "Viewer cannot create deployments",
 			username:      "viewer@test.com",
-			password:      "Password123!",
+			password:      "testUserPassword",
 			permission:    auth.PermissionResourceCreate,
 			expectAllowed: false,
 		},
 		{
 			name:          "Viewer can read resources",
 			username:      "viewer@test.com",
-			password:      "Password123!",
+			password:      "testUserPassword",
 			permission:    auth.PermissionResourceTypeRead,
 			expectAllowed: true,
 		},
@@ -572,10 +612,10 @@ func TestIntegration_Authorization_TenantIsolation(t *testing.T) {
 	require.NoError(t, env.store.CreateUser(ctx, user2))
 
 	// Get tokens for users from different tenants
-	token1, err := acquireOAuth2Token(env.keycloak, "operator@test.com", "Password123!")
+	token1, err := acquireOAuth2Token(env.keycloak, "operator@test.com", "testUserPassword")
 	require.NoError(t, err)
 
-	token2, err := acquireOAuth2Token(env.keycloak, "other@test.com", "Password123!")
+	token2, err := acquireOAuth2Token(env.keycloak, "other@test.com", "testUserPassword")
 	require.NoError(t, err)
 
 	// TODO: Validate tenant isolation using token validation
@@ -685,103 +725,108 @@ func TestIntegration_UserManagement_Lifecycle(t *testing.T) {
 	t.Log("User lifecycle test completed successfully")
 }
 
-// Helper: acquireOAuth2Token simulates token acquisition from Keycloak.
+// Helper: acquireOAuth2Token acquires an OAuth2 access token from Keycloak.
 func acquireOAuth2Token(kc *keycloakContainer, username, password string) (string, error) {
-	// Use Keycloak's token endpoint to acquire a real OAuth2 access token
-	ctx := context.Background()
 	tokenURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token", kc.baseURL, testRealm)
-
-	// Build form data
 	formData := fmt.Sprintf("grant_type=password&client_id=%s&client_secret=%s&username=%s&password=%s",
 		testClientID, testClientSecret, username, password)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL,
-		strings.NewReader(formData))
-	if err != nil {
-		return "", fmt.Errorf("failed to create token request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("token request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("token request failed with status %d: %s", resp.StatusCode, string(body))
-	}
 
 	var tokenResp struct {
 		AccessToken string `json:"access_token"`
 		TokenType   string `json:"token_type"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-		return "", fmt.Errorf("failed to decode token response: %w", err)
+	if err := postKeycloakForm(tokenURL, formData, &tokenResp); err != nil {
+		return "", err
 	}
 
 	return tokenResp.AccessToken, nil
 }
 
-// setUserPassword sets a password for a Keycloak user using the admin API.
-func setUserPassword(kc *keycloakContainer, userID, password string) error {
-	ctx := context.Background()
+// postKeycloakForm makes a POST request to Keycloak with form data.
+func postKeycloakForm(url, formData string, result interface{}) error {
+	ctx, cancel := context.WithTimeout(context.Background(), httpRequestTimeout)
+	defer cancel()
 
-	// Get admin token first
-	adminTokenURL := fmt.Sprintf("%s/realms/master/protocol/openid-connect/token", kc.baseURL)
-	adminFormData := fmt.Sprintf("grant_type=password&client_id=admin-cli&username=%s&password=%s",
-		adminUser, adminPassword)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, adminTokenURL,
-		strings.NewReader(adminFormData))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(formData))
 	if err != nil {
-		return fmt.Errorf("failed to create admin token request: %w", err)
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: httpRequestTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("admin token request failed: %w", err)
+		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("admin token request failed with status %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
 	}
+
+	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+		return fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return nil
+}
+
+// setUserPassword sets a password for a Keycloak user using the admin API.
+func setUserPassword(kc *keycloakContainer, userID, password string) error {
+	adminToken, err := getKeycloakAdminToken(kc)
+	if err != nil {
+		return err
+	}
+
+	return resetUserPassword(kc, userID, password, adminToken)
+}
+
+// getKeycloakAdminToken acquires an admin token from Keycloak master realm.
+func getKeycloakAdminToken(kc *keycloakContainer) (string, error) {
+	tokenURL := fmt.Sprintf("%s/realms/master/protocol/openid-connect/token", kc.baseURL)
+	formData := fmt.Sprintf("grant_type=password&client_id=admin-cli&username=%s&password=%s",
+		adminUser, adminPassword)
 
 	var tokenResp struct {
 		AccessToken string `json:"access_token"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-		return fmt.Errorf("failed to decode admin token: %w", err)
+
+	if err := postKeycloakForm(tokenURL, formData, &tokenResp); err != nil {
+		return "", fmt.Errorf("failed to get admin token: %w", err)
 	}
 
-	// Set user password
+	return tokenResp.AccessToken, nil
+}
+
+// resetUserPassword resets a user's password via Keycloak admin API.
+func resetUserPassword(kc *keycloakContainer, userID, password, adminToken string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), httpRequestTimeout)
+	defer cancel()
+
 	passwordURL := fmt.Sprintf("%s/admin/realms/%s/users/%s/reset-password", kc.baseURL, testRealm, userID)
 	passwordData := map[string]interface{}{
 		"type":      "password",
 		"value":     password,
 		"temporary": false,
 	}
+
 	passwordJSON, err := json.Marshal(passwordData)
 	if err != nil {
 		return fmt.Errorf("failed to marshal password data: %w", err)
 	}
 
-	req, err = http.NewRequestWithContext(ctx, http.MethodPut, passwordURL,
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, passwordURL,
 		bytes.NewReader(passwordJSON))
 	if err != nil {
 		return fmt.Errorf("failed to create password request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 
-	resp, err = client.Do(req)
+	client := &http.Client{Timeout: httpRequestTimeout}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("password request failed: %w", err)
 	}
