@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
@@ -484,8 +485,11 @@ func TestIntegration_MTLS_CertificateValidation(t *testing.T) {
 	assert.NotEmpty(t, cert.Certificate)
 	assert.NotEmpty(t, cert.PrivateKey)
 
-	// Parse certificate
-	x509Cert, err := x509.ParseCertificate([]byte(cert.Certificate))
+	// Parse certificate (decode PEM first, then parse DER)
+	block, _ := pem.Decode([]byte(cert.Certificate))
+	require.NotNil(t, block, "Failed to decode PEM certificate")
+
+	x509Cert, err := x509.ParseCertificate(block.Bytes)
 	require.NoError(t, err)
 
 	// Verify certificate subject
