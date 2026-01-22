@@ -39,6 +39,7 @@ issues:
           - errcheck
           - maintidx
           - lll  # Long lines in docs_test.go
+          - contextcheck  # Gin middleware patterns trigger false positives
       # Exclude cmd/ from strict checks (main packages have different patterns)
       - path: cmd/
         linters:
