@@ -360,7 +360,7 @@ func createTestRoles(t *testing.T, store *keycloak.Store, ctx context.Context) {
 }
 
 // createTestUsers creates test users with passwords.
-func createTestUsers(t *testing.T, store *keycloak.Store, kc *keycloakContainer, ctx context.Context) {
+func createTestUsers(t *testing.T, store *keycloak.Store, kcContainer *keycloakContainer, ctx context.Context) {
 	t.Helper()
 
 	users := []*auth.TenantUser{
@@ -394,7 +394,7 @@ func createTestUsers(t *testing.T, store *keycloak.Store, kc *keycloakContainer,
 		require.NoError(t, store.CreateUser(ctx, user))
 
 		// Set password for OAuth2 login using Keycloak admin API
-		err := setUserPassword(kc, user.ID, "testUserPassword")
+		err := setUserPassword(kcContainer, user.ID, "testUserPassword")
 		require.NoError(t, err, "Failed to set password for user %s", user.ID)
 
 		t.Logf("Created user %s with password", user.CommonName)
@@ -567,7 +567,7 @@ func TestIntegration_Authorization_RoleBasedAccess(t *testing.T) {
 			})
 
 			// Make request with token
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			req.Header.Set("Authorization", "Bearer "+token)
 
 			w := httptest.NewRecorder()
