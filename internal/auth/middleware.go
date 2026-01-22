@@ -270,7 +270,7 @@ func (m *Middleware) handleMissingCertificate(c *gin.Context, requestID string, 
 		zap.String("client_ip", c.ClientIP()),
 		zap.String("request_id", requestID),
 	)
-	m.logAuthFailure(c, "", "no client certificate")
+	m.logAuthFailure(c.Request.Context(), c, "", "no client certificate")
 	RecordAuthenticationAttempt("failed", "mtls")
 	RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -346,7 +346,7 @@ func (m *Middleware) handleAuthenticationError(
 				zap.String("client_ip", c.ClientIP()),
 				zap.String("request_id", requestID),
 			)
-			m.logAuthFailure(c, subject, "user not found")
+			m.logAuthFailure(c.Request.Context(), c, subject, "user not found")
 			RecordAuthenticationAttempt("failed", "mtls")
 			RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
 			c.AbortWithStatusJSON(
@@ -371,7 +371,7 @@ func (m *Middleware) handleAuthenticationError(
 			zap.String("subject", SanitizeForLogging(subject, 200)),
 			zap.String("request_id", requestID),
 		)
-		m.logAuthFailure(c, subject, "user inactive")
+		m.logAuthFailure(c.Request.Context(), c, subject, "user inactive")
 		RecordAuthenticationAttempt("failed", "mtls")
 		RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
 		c.AbortWithStatusJSON(
@@ -429,7 +429,7 @@ func (m *Middleware) handleAuthenticationError(
 			zap.String("tenant_id", aErr.tenantID),
 			zap.String("request_id", requestID),
 		)
-		m.logAuthFailure(c, subject, "tenant suspended")
+		m.logAuthFailure(c.Request.Context(), c, subject, "tenant suspended")
 		RecordAuthenticationAttempt("failed", "mtls")
 		RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
 		c.AbortWithStatusJSON(
@@ -521,7 +521,7 @@ func (m *Middleware) RequirePermission(permission string) gin.HandlerFunc {
 				zap.String("request_id", requestID),
 			)
 
-			m.logAccessDenied(c, user, Permission(permission))
+			m.logAccessDenied(c.Request.Context(), c, user, Permission(permission))
 			RecordAuthorizationCheck("denied", Permission(permission))
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"error":   "Forbidden",
@@ -965,7 +965,7 @@ func MatchesPathPattern(path, pattern string) bool {
 }
 
 // logAuthFailure logs an authentication failure audit event.
-func (m *Middleware) logAuthFailure(c *gin.Context, subject, reason string) {
+func (m *Middleware) logAuthFailure(ctx context.Context, c *gin.Context, subject, reason string) {
 	event := &AuditEvent{
 		ID:        uuid.New().String(),
 		Type:      AuditEventAuthFailure,
@@ -976,13 +976,13 @@ func (m *Middleware) logAuthFailure(c *gin.Context, subject, reason string) {
 		UserAgent: c.Request.UserAgent(),
 	}
 
-	if err := m.store.LogEvent(c.Request.Context(), event); err != nil {
+	if err := m.store.LogEvent(ctx, event); err != nil {
 		m.Logger.Warn("failed to log auth failure event", zap.Error(err))
 	}
 }
 
 // logAccessDenied logs an access denied audit event.
-func (m *Middleware) logAccessDenied(c *gin.Context, user *AuthenticatedUser, permission Permission) {
+func (m *Middleware) logAccessDenied(ctx context.Context, c *gin.Context, user *AuthenticatedUser, permission Permission) {
 	event := &AuditEvent{
 		ID:       uuid.New().String(),
 		Type:     AuditEventAccessDenied,
@@ -999,7 +999,7 @@ func (m *Middleware) logAccessDenied(c *gin.Context, user *AuthenticatedUser, pe
 		UserAgent: c.Request.UserAgent(),
 	}
 
-	if err := m.store.LogEvent(c.Request.Context(), event); err != nil {
+	if err := m.store.LogEvent(ctx, event); err != nil {
 		m.Logger.Warn("failed to log access denied event", zap.Error(err))
 	}
 }
