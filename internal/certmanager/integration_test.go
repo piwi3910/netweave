@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-// TestConcurrentAccess tests multiple goroutines accessing the service simultaneously
+// TestConcurrentAccess tests multiple goroutines accessing the service simultaneously.
 func TestConcurrentAccess(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()
@@ -29,10 +29,10 @@ func TestConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	numGoroutines := 10
 
-	// Test concurrent ListCertificates calls
+	// Test concurrent ListCertificates calls.
 	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
-		go func(id int) {
+		go func(_ int) {
 			defer wg.Done()
 			_, err := mockService.ListCertificates(ctx, "", "")
 			assert.NoError(t, err)
@@ -65,7 +65,7 @@ func TestConcurrentAccess(t *testing.T) {
 	assert.Equal(t, numGoroutines, len(certs))
 }
 
-// TestContextCancellation tests that operations respect context cancellation
+// TestContextCancellation tests that operations respect context cancellation.
 func TestContextCancellation(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()
@@ -113,7 +113,7 @@ func TestContextCancellation(t *testing.T) {
 	})
 }
 
-// TestCertificateLifecycle tests the complete certificate lifecycle
+// TestCertificateLifecycle tests the complete certificate lifecycle.
 func TestCertificateLifecycle(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()
@@ -157,18 +157,22 @@ func TestCertificateLifecycle(t *testing.T) {
 		},
 	}
 
+	mockService.mu.Lock()
 	for _, cert := range testCerts {
 		mockService.certificates[cert.SerialNumber] = cert
 	}
+	mockService.mu.Unlock()
 
 	t.Run("GetCertificate returns certificate without private key", func(t *testing.T) {
 		// Add cert with private key
+		mockService.mu.Lock()
 		mockService.certificates["cert-with-key"] = &Certificate{
 			SerialNumber:  "cert-with-key",
 			CommonName:    "test-key.example.com",
 			PrivateKeyPEM: "PRIVATE_KEY_DATA",
 			Status:        CertStatusActive,
 		}
+		mockService.mu.Unlock()
 
 		cert, err := mockService.GetCertificate(ctx, "cert-with-key")
 		require.NoError(t, err)
@@ -237,7 +241,7 @@ func TestCertificateLifecycle(t *testing.T) {
 	})
 }
 
-// TestCertificateStatusTransitions tests certificate status changes
+// TestCertificateStatusTransitions tests certificate status changes.
 func TestCertificateStatusTransitions(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()
@@ -264,11 +268,18 @@ func TestCertificateStatusTransitions(t *testing.T) {
 			Status:       CertStatusActive,
 			ExpiresAt:    now.Add(15 * 24 * time.Hour), // 15 days - within renewal window
 		}
+		mockService.mu.Lock()
 		mockService.certificates[cert.SerialNumber] = cert
+		mockService.mu.Unlock()
 
 		mockService.handleExpiringSoon(cert)
 
-		assert.Equal(t, CertStatusExpiringSoon, cert.Status)
+		// Wait briefly for goroutine to update status, then read with lock
+		time.Sleep(10 * time.Millisecond)
+		mockService.mu.RLock()
+		status := cert.Status
+		mockService.mu.RUnlock()
+		assert.Equal(t, CertStatusExpiringSoon, status)
 	})
 
 	t.Run("handleExpiringSoon respects retry interval", func(t *testing.T) {
@@ -281,7 +292,9 @@ func TestCertificateStatusTransitions(t *testing.T) {
 			LastRenewalAttempt: &lastAttempt,
 			RenewalAttempts:    1,
 		}
+		mockService.mu.Lock()
 		mockService.certificates[cert.SerialNumber] = cert
+		mockService.mu.Unlock()
 
 		// Should not trigger renewal (retry interval not elapsed)
 		mockService.handleExpiringSoon(cert)
@@ -297,7 +310,9 @@ func TestCertificateStatusTransitions(t *testing.T) {
 			Status:       CertStatusActive,
 			ExpiresAt:    now.Add(-5 * 24 * time.Hour), // Expired 5 days ago
 		}
+		mockService.mu.Lock()
 		mockService.certificates[cert.SerialNumber] = cert
+		mockService.mu.Unlock()
 
 		mockService.handleExpired(cert)
 
@@ -343,7 +358,9 @@ func TestCertificateStatusTransitions(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				mockService.mu.Lock()
 				mockService.certificates[tt.cert.SerialNumber] = tt.cert
+				mockService.mu.Unlock()
 				mockService.processCertificate(tt.cert, now, renewalWindow)
 				assert.Equal(t, tt.expectedStatus, tt.cert.Status)
 			})
@@ -351,7 +368,7 @@ func TestCertificateStatusTransitions(t *testing.T) {
 	})
 }
 
-// TestGetAllCertificates tests the getAllCertificates helper
+// TestGetAllCertificates tests the getAllCertificates helper.
 func TestGetAllCertificates(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()
@@ -363,6 +380,7 @@ func TestGetAllCertificates(t *testing.T) {
 	}
 
 	// Add test certificates
+	mockService.mu.Lock()
 	for i := 0; i < 5; i++ {
 		cert := &Certificate{
 			SerialNumber: string(rune('A' + i)),
@@ -371,12 +389,13 @@ func TestGetAllCertificates(t *testing.T) {
 		}
 		mockService.certificates[cert.SerialNumber] = cert
 	}
+	mockService.mu.Unlock()
 
 	certs := mockService.getAllCertificates()
 	assert.Equal(t, 5, len(certs))
 }
 
-// TestUpdateCertificateMetrics tests the metrics update function
+// TestUpdateCertificateMetrics tests the metrics update function.
 func TestUpdateCertificateMetrics(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()
@@ -398,6 +417,7 @@ func TestUpdateCertificateMetrics(t *testing.T) {
 		CertStatusRenewalFailed,
 	}
 
+	mockService.mu.Lock()
 	for i, status := range statuses {
 		cert := &Certificate{
 			SerialNumber: string(rune('A' + i)),
@@ -405,12 +425,13 @@ func TestUpdateCertificateMetrics(t *testing.T) {
 		}
 		mockService.certificates[cert.SerialNumber] = cert
 	}
+	mockService.mu.Unlock()
 
 	// Should not panic
 	mockService.updateCertificateMetrics()
 }
 
-// TestServiceStartStop tests the service lifecycle
+// TestServiceStartStop tests the service lifecycle.
 func TestServiceStartStop(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	config := DefaultConfig()
