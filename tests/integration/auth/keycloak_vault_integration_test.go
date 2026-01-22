@@ -428,7 +428,7 @@ func TestIntegration_OAuth2_AuthenticationFlow(t *testing.T) {
 	env := setupTestEnvironment(t)
 	defer env.cleanup(t)
 
-	_ = context.Background() // Reserved for future token validation
+	ctx := context.Background() // Used for token acquisition
 
 	// Test token acquisition for different users
 	users := []struct {
@@ -508,6 +508,7 @@ func TestIntegration_Authorization_RoleBasedAccess(t *testing.T) {
 	env := setupTestEnvironment(t)
 	defer env.cleanup(t)
 
+	ctx := context.Background()
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
