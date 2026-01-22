@@ -394,7 +394,7 @@ func createTestUsers(t *testing.T, store *keycloak.Store, kcContainer *keycloakC
 		require.NoError(t, store.CreateUser(ctx, user))
 
 		// Set password for OAuth2 login using Keycloak admin API
-		err := setUserPassword(ctx, kcContainer, user.ID, "testUserPassword")
+		err := setUserPassword(ctx, kcContainer, user.ID, testUserPassword)
 		require.NoError(t, err, "Failed to set password for user %s", user.ID)
 
 		t.Logf("Created user %s with password", user.CommonName)
@@ -436,9 +436,9 @@ func TestIntegration_OAuth2_AuthenticationFlow(t *testing.T) {
 		password string
 		role     string
 	}{
-		{"admin@test.com", "testUserPassword", "role-admin"},
-		{"operator@test.com", "testUserPassword", "role-operator"},
-		{"viewer@test.com", "testUserPassword", "role-viewer"},
+		{"admin@test.com", testUserPassword, "role-admin"},
+		{"operator@test.com", testUserPassword, "role-operator"},
+		{"viewer@test.com", testUserPassword, "role-viewer"},
 	}
 
 	for _, u := range users {
@@ -521,28 +521,28 @@ func TestIntegration_Authorization_RoleBasedAccess(t *testing.T) {
 		{
 			name:          "Admin has all permissions",
 			username:      "admin@test.com",
-			password:      "testUserPassword",
+			password:      testUserPassword,
 			permission:    auth.PermissionTenantDelete,
 			expectAllowed: true,
 		},
 		{
 			name:          "Operator can create deployments",
 			username:      "operator@test.com",
-			password:      "testUserPassword",
+			password:      testUserPassword,
 			permission:    auth.PermissionResourceCreate,
 			expectAllowed: true,
 		},
 		{
 			name:          "Viewer cannot create deployments",
 			username:      "viewer@test.com",
-			password:      "testUserPassword",
+			password:      testUserPassword,
 			permission:    auth.PermissionResourceCreate,
 			expectAllowed: false,
 		},
 		{
 			name:          "Viewer can read resources",
 			username:      "viewer@test.com",
-			password:      "testUserPassword",
+			password:      testUserPassword,
 			permission:    auth.PermissionResourceTypeRead,
 			expectAllowed: true,
 		},
@@ -617,10 +617,10 @@ func TestIntegration_Authorization_TenantIsolation(t *testing.T) {
 	require.NoError(t, env.store.CreateUser(ctx, user2))
 
 	// Get tokens for users from different tenants
-	token1, err := acquireOAuth2Token(ctx, env.keycloak, "operator@test.com", "testUserPassword")
+	token1, err := acquireOAuth2Token(ctx, env.keycloak, "operator@test.com", testUserPassword)
 	require.NoError(t, err)
 
-	token2, err := acquireOAuth2Token(ctx, env.keycloak, "other@test.com", "testUserPassword")
+	token2, err := acquireOAuth2Token(ctx, env.keycloak, "other@test.com", testUserPassword)
 	require.NoError(t, err)
 
 	// TODO: Validate tenant isolation using token validation

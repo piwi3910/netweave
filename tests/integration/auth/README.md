@@ -160,10 +160,10 @@ Tests automatically create the following test data:
 - `tenant-other` - Secondary tenant for isolation tests
 
 ### Users
-- `admin@test.com` (Password123!) - Platform admin
-- `operator@test.com` (Password123!) - Tenant operator
-- `viewer@test.com` (Password123!) - Tenant viewer
-- `other@test.com` (Password123!) - User in different tenant
+- `admin@test.com` (testUserPassword) - Platform admin
+- `operator@test.com` (testUserPassword) - Tenant operator
+- `viewer@test.com` (testUserPassword) - Tenant viewer
+- `other@test.com` (testUserPassword) - User in different tenant
 
 ### Roles
 - `role-admin` - Platform admin (all permissions)
