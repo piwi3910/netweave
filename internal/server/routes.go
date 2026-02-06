@@ -904,6 +904,22 @@ func (s *Server) handleGetResourcePool(c *gin.Context) {
 		return
 	}
 
+	// Tenant isolation: verify pool belongs to tenant (unless platform admin)
+	ctx := c.Request.Context()
+	tenantID := auth.TenantIDFromContext(ctx)
+	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) && pool.TenantID != "" && pool.TenantID != tenantID {
+		s.logger.Warn("tenant attempting to access resource pool from different tenant",
+			zap.String("tenant_id", tenantID),
+			zap.String("pool_tenant_id", pool.TenantID),
+			zap.String("resource_pool_id", resourcePoolID))
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "NotFound",
+			"message": "Resource pool not found: " + resourcePoolID,
+			"code":    http.StatusNotFound,
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, pool)
 }
 
@@ -916,6 +932,13 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 	// Create filter for this resource pool
 	filter := &adapter.Filter{
 		ResourcePoolID: resourcePoolID,
+	}
+
+	// Apply tenant filter for multi-tenancy isolation
+	ctx := c.Request.Context()
+	tenantID := auth.TenantIDFromContext(ctx)
+	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) {
+		filter.TenantID = tenantID
 	}
 
 	// List resources via adapter
@@ -1087,6 +1110,38 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 			"code":    http.StatusBadRequest,
 		})
 		return
+	}
+
+	// Check tenant quota before creating resource pool
+	ctx := c.Request.Context()
+	tenantID := auth.TenantIDFromContext(ctx)
+	if tenantID != "" && s.AuthStore != nil {
+		if err := s.AuthStore.IncrementUsage(ctx, tenantID, "resource_pools"); err != nil {
+			if errors.Is(err, auth.ErrQuotaExceeded) {
+				s.logger.Warn("resource pool quota exceeded",
+					zap.String("tenant_id", tenantID))
+				c.JSON(http.StatusTooManyRequests, gin.H{
+					"error":   "QuotaExceeded",
+					"message": "Resource pool quota exceeded for tenant",
+					"code":    http.StatusTooManyRequests,
+				})
+				return
+			}
+			s.logger.Error("failed to check resource pool quota",
+				zap.String("tenant_id", tenantID),
+				zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "InternalError",
+				"message": "Failed to check resource pool quota",
+				"code":    http.StatusInternalServerError,
+			})
+			return
+		}
+	}
+
+	// Set tenant ID on the resource pool for isolation
+	if tenantID != "" {
+		req.TenantID = tenantID
 	}
 
 	// Generate resource pool ID if not provided (sanitized with UUID for uniqueness)
@@ -1265,12 +1320,36 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 // DELETE /o2ims/v1/resourcePools/:resourcePoolId.
 func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 	resourcePoolID := c.Param("resourcePoolId")
-	if err := s.adapter.DeleteResourcePool(c.Request.Context(), resourcePoolID); err != nil {
+	ctx := c.Request.Context()
+	tenantID := auth.TenantIDFromContext(ctx)
+
+	// Verify tenant ownership before deletion
+	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) {
+		pool, err := s.adapter.GetResourcePool(ctx, resourcePoolID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource pool not found: " + resourcePoolID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		if pool.TenantID != "" && pool.TenantID != tenantID {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource pool not found: " + resourcePoolID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+	}
+
+	if err := s.adapter.DeleteResourcePool(ctx, resourcePoolID); err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
-			user := auth.UserFromContext(c.Request.Context())
+			user := auth.UserFromContext(ctx)
 			s.auditLogger.LogResourceOperation(
-				c.Request.Context(),
+				ctx,
 				auth.AuditEventResourcePoolDeleted,
 				"resourcepool",
 				resourcePoolID,
@@ -1301,9 +1380,9 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 
 	// Audit log the successful deletion
 	if s.auditLogger != nil {
-		user := auth.UserFromContext(c.Request.Context())
+		user := auth.UserFromContext(ctx)
 		s.auditLogger.LogResourceOperation(
-			c.Request.Context(),
+			ctx,
 			auth.AuditEventResourcePoolDeleted,
 			"resourcepool",
 			resourcePoolID,
@@ -1311,6 +1390,15 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 			true,
 			nil,
 		)
+	}
+
+	// Decrement tenant usage after successful deletion
+	if tenantID != "" && s.AuthStore != nil {
+		if err := s.AuthStore.DecrementUsage(ctx, tenantID, "resource_pools"); err != nil {
+			s.logger.Error("failed to decrement resource pool usage",
+				zap.String("tenant_id", tenantID),
+				zap.Error(err))
+		}
 	}
 
 	c.Status(http.StatusNoContent)
@@ -1486,6 +1574,22 @@ func (s *Server) handleGetResource(c *gin.Context) {
 		return
 	}
 
+	// Tenant isolation: verify resource belongs to tenant (unless platform admin)
+	ctx := c.Request.Context()
+	tenantID := auth.TenantIDFromContext(ctx)
+	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) && resource.TenantID != "" && resource.TenantID != tenantID {
+		s.logger.Warn("tenant attempting to access resource from different tenant",
+			zap.String("tenant_id", tenantID),
+			zap.String("resource_tenant_id", resource.TenantID),
+			zap.String("resource_id", resourceID))
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "NotFound",
+			"message": "Resource not found: " + resourceID,
+			"code":    http.StatusNotFound,
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, resource)
 }
 
@@ -1525,6 +1629,38 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 			"code":    http.StatusBadRequest,
 		})
 		return
+	}
+
+	// Check tenant quota before creating resource
+	ctx := c.Request.Context()
+	tenantID := auth.TenantIDFromContext(ctx)
+	if tenantID != "" && s.AuthStore != nil {
+		if err := s.AuthStore.IncrementUsage(ctx, tenantID, "resources"); err != nil {
+			if errors.Is(err, auth.ErrQuotaExceeded) {
+				s.logger.Warn("resource quota exceeded",
+					zap.String("tenant_id", tenantID))
+				c.JSON(http.StatusTooManyRequests, gin.H{
+					"error":   "QuotaExceeded",
+					"message": "Resource quota exceeded for tenant",
+					"code":    http.StatusTooManyRequests,
+				})
+				return
+			}
+			s.logger.Error("failed to check resource quota",
+				zap.String("tenant_id", tenantID),
+				zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "InternalError",
+				"message": "Failed to check resource quota",
+				"code":    http.StatusInternalServerError,
+			})
+			return
+		}
+	}
+
+	// Set tenant ID on the resource for isolation
+	if tenantID != "" {
+		req.TenantID = tenantID
 	}
 
 	// Generate resource ID if not provided (using plain UUID for simplicity)
@@ -1641,19 +1777,42 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 
 func (s *Server) handleDeleteResource(c *gin.Context) {
 	resourceID := c.Param("resourceId")
+	ctx := c.Request.Context()
+	tenantID := auth.TenantIDFromContext(ctx)
 
 	// Get resource info before deletion for audit logging
 	var resourceTypeID string
-	if existing, err := s.adapter.GetResource(c.Request.Context(), resourceID); err == nil && existing != nil {
+	if existing, err := s.adapter.GetResource(ctx, resourceID); err == nil && existing != nil {
 		resourceTypeID = existing.ResourceTypeID
 	}
 
-	if err := s.adapter.DeleteResource(c.Request.Context(), resourceID); err != nil {
+	// Verify tenant ownership before deletion
+	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) {
+		existing, err := s.adapter.GetResource(ctx, resourceID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource not found: " + resourceID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		if existing.TenantID != "" && existing.TenantID != tenantID {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource not found: " + resourceID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+	}
+
+	if err := s.adapter.DeleteResource(ctx, resourceID); err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
-			user := auth.UserFromContext(c.Request.Context())
+			user := auth.UserFromContext(ctx)
 			s.auditLogger.LogResourceOperation(
-				c.Request.Context(),
+				ctx,
 				auth.AuditEventResourceDeleted,
 				resourceTypeID,
 				resourceID,
@@ -1684,9 +1843,9 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 
 	// Audit log the successful deletion
 	if s.auditLogger != nil {
-		user := auth.UserFromContext(c.Request.Context())
+		user := auth.UserFromContext(ctx)
 		s.auditLogger.LogResourceOperation(
-			c.Request.Context(),
+			ctx,
 			auth.AuditEventResourceDeleted,
 			resourceTypeID,
 			resourceID,
@@ -1694,6 +1853,15 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 			true,
 			nil,
 		)
+	}
+
+	// Decrement tenant usage after successful deletion
+	if tenantID != "" && s.AuthStore != nil {
+		if err := s.AuthStore.DecrementUsage(ctx, tenantID, "resources"); err != nil {
+			s.logger.Error("failed to decrement resource usage",
+				zap.String("tenant_id", tenantID),
+				zap.Error(err))
+		}
 	}
 
 	c.Status(http.StatusNoContent)
