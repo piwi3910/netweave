@@ -140,7 +140,8 @@ graph LR
 #!/bin/bash
 # phase1-rollback.sh
 
-set -e
+set -euo pipefail
+trap 'echo "ERROR: Rollback step failed at line $LINENO. Manual intervention required." >&2' ERR
 echo "=== Phase 1 Rollback Started ==="
 START_TIME=$(date +%s)
 
@@ -226,7 +227,8 @@ kubectl get pvc,pv | grep -E "vault|keycloak|postgresql"
 #!/bin/bash
 # phase2-rollback.sh
 
-set -e
+set -euo pipefail
+trap 'echo "ERROR: Rollback step failed at line $LINENO. Manual intervention required." >&2' ERR
 echo "=== Phase 2 Rollback Started ==="
 START_TIME=$(date +%s)
 
@@ -329,7 +331,8 @@ curl -k -X GET https://o2ims.example.com/o2ims-infrastructureInventory/v1/api_ve
 #!/bin/bash
 # phase3-rollback.sh
 
-set -e
+set -euo pipefail
+trap 'echo "ERROR: Rollback step failed at line $LINENO. Manual intervention required." >&2' ERR
 echo "=== Phase 3 Rollback Started ==="
 START_TIME=$(date +%s)
 
@@ -409,6 +412,8 @@ done
 
 # Check authentication metrics
 kubectl port-forward -n netweave svc/netweave-gateway 9090:9090 &
+trap 'kill $(jobs -p) 2>/dev/null' EXIT
+sleep 3
 curl -s http://localhost:9090/metrics | grep o2ims_authentication_total
 # Expected: Only mtls method present, oauth2 should be absent or zero
 ```
@@ -461,6 +466,8 @@ If all clients need to rollback (mass rollback):
 
 # Monitor authentication method distribution
 kubectl port-forward -n netweave svc/netweave-gateway 9090:9090 &
+trap 'kill $(jobs -p) 2>/dev/null' EXIT
+sleep 3
 watch -n 5 'curl -s http://localhost:9090/metrics | grep o2ims_authentication_total'
 
 # Expected: oauth2 count should decrease, mtls count should increase
@@ -489,7 +496,8 @@ watch -n 5 'curl -s http://localhost:9090/metrics | grep o2ims_authentication_to
 #!/bin/bash
 # phase5-rollback.sh
 
-set -e
+set -euo pipefail
+trap 'echo "ERROR: Rollback step failed at line $LINENO. Manual intervention required." >&2' ERR
 echo "=== Phase 5 Rollback Started ==="
 START_TIME=$(date +%s)
 
@@ -774,6 +782,10 @@ Run this script after ANY rollback to verify system health:
 ```bash
 #!/bin/bash
 # post-rollback-verification.sh
+
+set -euo pipefail
+trap 'echo "ERROR: Verification failed at line $LINENO." >&2; kill $(jobs -p) 2>/dev/null' ERR
+trap 'kill $(jobs -p) 2>/dev/null' EXIT
 
 echo "=== Post-Rollback Verification ==="
 

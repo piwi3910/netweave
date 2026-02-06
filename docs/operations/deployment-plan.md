@@ -150,6 +150,33 @@ curl -k https://vault.example.com/v1/sys/health
   - Redis password
   - Vault auto-unseal keys (cloud KMS)
 
+### Secrets Generation
+
+Generate all required secrets before deployment. **Never reuse passwords across environments.**
+
+```bash
+# Generate secure random passwords (32 characters, alphanumeric)
+export KEYCLOAK_ADMIN_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+export POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+export REDIS_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+
+# Store in Kubernetes secrets immediately - do NOT persist in shell history
+kubectl create secret generic keycloak-secrets \
+  --from-literal=admin-password="$KEYCLOAK_ADMIN_PASSWORD" \
+  --from-literal=db-password="$POSTGRES_PASSWORD" \
+  -n keycloak-system
+
+kubectl create secret generic redis-secrets \
+  --from-literal=redis-password="$REDIS_PASSWORD" \
+  -n netweave
+
+# Verify secrets created
+kubectl get secrets -n keycloak-system
+kubectl get secrets -n netweave
+```
+
+> **WARNING**: Never store generated passwords in plain text files, shell history, or version control. Use `unset KEYCLOAK_ADMIN_PASSWORD POSTGRES_PASSWORD REDIS_PASSWORD` after creating Kubernetes secrets.
+
 ### Backup and Rollback
 
 - [ ] Current Redis data backed up (`redis-cli BGSAVE`)
@@ -311,6 +338,7 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=keycloak \
 
 # Keycloak API health
 kubectl port-forward -n keycloak-system svc/keycloak 8080:80 &
+trap 'kill $(jobs -p) 2>/dev/null' EXIT
 sleep 5
 curl http://localhost:8080/health
 curl http://localhost:8080/realms/master
@@ -397,6 +425,8 @@ kubectl logs -n keycloak-system job/keycloak-realm-import
 ```bash
 # Verify netweave realm exists
 kubectl port-forward -n keycloak-system svc/keycloak 8080:80 &
+trap 'kill $(jobs -p) 2>/dev/null' EXIT
+sleep 3
 curl http://localhost:8080/realms/netweave
 ```
 
@@ -836,6 +866,8 @@ kubectl logs -n netweave -l app.kubernetes.io/component=gateway | grep "authenti
 ```bash
 # Check authentication metrics
 kubectl port-forward -n netweave svc/netweave-gateway 9090:9090 &
+trap 'kill $(jobs -p) 2>/dev/null' EXIT
+sleep 3
 curl http://localhost:9090/metrics | grep o2ims_authentication
 
 # Expected metrics:
@@ -957,6 +989,8 @@ kubectl get configmap netweave-config -n netweave -o yaml | grep autoProvisionUs
 ```bash
 # Monitor authentication method distribution
 kubectl port-forward -n netweave svc/netweave-gateway 9090:9090 &
+trap 'kill $(jobs -p) 2>/dev/null' EXIT
+sleep 3
 
 # Query authentication breakdown
 curl -s http://localhost:9090/metrics | grep o2ims_authentication_total | \
