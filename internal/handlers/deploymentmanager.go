@@ -53,17 +53,10 @@ func (h *DeploymentManagerHandler) ListDeploymentManagers(c *gin.Context) {
 	// Parse query parameters
 	filter := internalmodels.ParseQueryParams(c.Request.URL.Query())
 
-	// For deployment managers, we typically return a single manager
-	// representing the current cluster. In multi-cluster setups,
-	// this would iterate through all registered adapters.
-	deploymentManagers := []models.DeploymentManager{}
-
-	// Get deployment manager from adapter
-	// Note: The adapter interface doesn't have ListDeploymentManagers,
-	// so we'll get the single deployment manager
-	dm, err := h.Adapter.GetDeploymentManager(ctx, "")
+	// List all registered deployment managers via the adapter
+	dms, err := h.Adapter.ListDeploymentManagers(ctx, nil)
 	if err != nil {
-		h.Logger.Error("failed to get deployment manager",
+		h.Logger.Error("failed to list deployment managers",
 			zap.Error(err),
 		)
 
@@ -76,16 +69,19 @@ func (h *DeploymentManagerHandler) ListDeploymentManagers(c *gin.Context) {
 	}
 
 	// Convert adapter.DeploymentManager to models.DeploymentManager
-	deploymentManagers = append(deploymentManagers, models.DeploymentManager{
-		DeploymentManagerID: dm.DeploymentManagerID,
-		Name:                dm.Name,
-		Description:         dm.Description,
-		OCloudID:            dm.OCloudID,
-		ServiceURI:          dm.ServiceURI,
-		SupportedLocations:  dm.SupportedLocations,
-		Capabilities:        dm.Capabilities,
-		Extensions:          dm.Extensions,
-	})
+	deploymentManagers := make([]models.DeploymentManager, 0, len(dms))
+	for _, dm := range dms {
+		deploymentManagers = append(deploymentManagers, models.DeploymentManager{
+			DeploymentManagerID: dm.DeploymentManagerID,
+			Name:                dm.Name,
+			Description:         dm.Description,
+			OCloudID:            dm.OCloudID,
+			ServiceURI:          dm.ServiceURI,
+			SupportedLocations:  dm.SupportedLocations,
+			Capabilities:        dm.Capabilities,
+			Extensions:          dm.Extensions,
+		})
+	}
 
 	// Apply pagination
 	totalCount := len(deploymentManagers)

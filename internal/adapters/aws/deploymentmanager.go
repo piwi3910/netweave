@@ -85,3 +85,16 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 
 	return dm, nil
 }
+
+// ListDeploymentManagers retrieves all deployment managers.
+// AWS has a single deployment manager per adapter instance.
+func (a *Adapter) ListDeploymentManagers(ctx context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+	a.Logger.Debug("ListDeploymentManagers called")
+
+	dm, err := a.GetDeploymentManager(ctx, a.DeploymentManagerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list deployment managers: %w", err)
+	}
+
+	return []*adapter.DeploymentManager{dm}, nil
+}

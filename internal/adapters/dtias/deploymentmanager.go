@@ -109,3 +109,16 @@ func (a *Adapter) getDatacenterInfo(ctx context.Context, datacenterID string) (*
 
 	return &datacenterInfo, nil
 }
+
+// ListDeploymentManagers retrieves all deployment managers.
+// DTIAS has a single deployment manager per adapter instance.
+func (a *Adapter) ListDeploymentManagers(ctx context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+	a.logger.Debug("ListDeploymentManagers called")
+
+	dm, err := a.GetDeploymentManager(ctx, a.DeploymentManagerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list deployment managers: %w", err)
+	}
+
+	return []*adapter.DeploymentManager{dm}, nil
+}

@@ -90,6 +90,9 @@ func (m *mockAdapter) ListResourceTypes(_ context.Context, _ *adapter.Filter) ([
 func (m *mockAdapter) GetResourceType(_ context.Context, _ string) (*adapter.ResourceType, error) {
 	return nil, adapter.ErrResourceNotFound
 }
+func (m *mockAdapter) ListDeploymentManagers(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+	return nil, nil
+}
 func (m *mockAdapter) GetDeploymentManager(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
 	return nil, adapter.ErrResourceNotFound
 }

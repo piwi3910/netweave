@@ -59,3 +59,16 @@ func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.D
 
 	return dm, nil
 }
+
+// ListDeploymentManagers retrieves all deployment managers.
+// Azure has a single deployment manager per adapter instance.
+func (a *Adapter) ListDeploymentManagers(ctx context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+	a.Logger.Debug("ListDeploymentManagers called")
+
+	dm, err := a.GetDeploymentManager(ctx, a.deploymentManagerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list deployment managers: %w", err)
+	}
+
+	return []*adapter.DeploymentManager{dm}, nil
+}

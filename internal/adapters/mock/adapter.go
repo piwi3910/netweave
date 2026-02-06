@@ -283,6 +283,14 @@ func (a *Adapter) Capabilities() []adapter.Capability {
 
 // DeploymentManagerClient implementation
 
+// ListDeploymentManagers retrieves all mock deployment managers.
+func (a *Adapter) ListDeploymentManagers(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return []*adapter.DeploymentManager{a.deploymentManager}, nil
+}
+
 // GetDeploymentManager retrieves the mock deployment manager.
 func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
 	a.mu.RLock()

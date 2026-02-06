@@ -172,6 +172,13 @@ func (m *mockSubscriptionAdapter) GetResourceType(_ context.Context, _ string) (
 	return nil, errNotImplementedSub
 }
 
+func (m *mockSubscriptionAdapter) ListDeploymentManagers(
+	_ context.Context,
+	_ *adapter.Filter,
+) ([]*adapter.DeploymentManager, error) {
+	return nil, errNotImplementedSub
+}
+
 func (m *mockSubscriptionAdapter) GetDeploymentManager(
 	_ context.Context,
 	_ string,

@@ -36,6 +36,13 @@ func (m *mockResourceAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{adapter.CapabilityResources, adapter.CapabilityResourcePools}
 }
 
+func (m *mockResourceAdapter) ListDeploymentManagers(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+	if m.deploymentManager == nil {
+		return nil, errors.New("deployment manager not configured")
+	}
+	return []*adapter.DeploymentManager{m.deploymentManager}, nil
+}
+
 func (m *mockResourceAdapter) GetDeploymentManager(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
 	if m.deploymentManager == nil {
 		return nil, errors.New("deployment manager not configured")
