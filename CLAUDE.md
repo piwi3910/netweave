@@ -498,27 +498,49 @@ defer span.End()
 
 ## Development Workflow
 
-### Daily Development
+### CRITICAL: Always Use Git Worktrees for Feature Branches
+
+**NEVER use `git checkout -b` or `git switch -c` in the main worktree.** All feature work MUST use isolated git worktrees. This prevents branch contamination when parallel agents are working.
+
+**Worktree directory:** `../netweave-worktrees/`
 
 ```bash
-# 1. Create feature branch
-git checkout -b feature/issue-42-add-filter
+# 1. Create worktree for feature branch (from main worktree)
+git worktree add ../netweave-worktrees/issue-42-add-filter -b issue-42-add-filter origin/main
 
-# 2. Write code + tests
+# 2. Work inside the worktree
+cd ../netweave-worktrees/issue-42-add-filter
 
-# 3. Run quality checks
+# 3. Write code + tests (all work happens here)
+
+# 4. Run quality checks
 make lint      # Every few minutes
 make test      # After each feature
 make quality   # Before commit
 
-# 4. Commit
-git commit -m "feat(subscription): add resource type filter
+# 5. Commit and push
+git add <files>
+git commit -m "[Feature] Add resource type filter
 
 Resolves #42"
+git push -u origin issue-42-add-filter
 
-# 5. Verify CI passes
+# 6. Verify CI passes
 gh run list --limit 1
+
+# 7. Cleanup after merge (from main worktree)
+cd /Users/pascal/Documents/git/netweave
+git worktree remove ../netweave-worktrees/issue-42-add-filter
+git branch -d issue-42-add-filter
 ```
+
+**Worktree Rules:**
+- The main worktree (`/Users/pascal/Documents/git/netweave`) stays on `main` — ALWAYS
+- Each feature branch gets its own worktree under `../netweave-worktrees/`
+- Worktree directory name matches the branch name
+- Clean up worktrees after branches are merged
+- NEVER have two agents working in the same worktree
+- If a worktree already exists for a branch, `cd` into it — don't create a new one
 
 ### Quality Gates (MUST PASS)
 
