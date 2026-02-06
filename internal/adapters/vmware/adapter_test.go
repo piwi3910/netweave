@@ -465,7 +465,7 @@ func TestVMwareAdapter_GetDeploymentManager(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adapter, err := vmware.New(&vmware.Config{
+	adp, err := vmware.New(&vmware.Config{
 		VCenterURL: "https://vcenter.example.com",
 		Username:   "test",
 		Password:   "test",
@@ -479,11 +479,23 @@ func TestVMwareAdapter_GetDeploymentManager(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	dm, err := adapter.GetDeploymentManager(ctx, "dm-1")
+	dm, err := adp.GetDeploymentManager(ctx, "dm-1")
 	if err != nil {
 		t.Skip("Skipping - requires VMware access")
 	}
 	assert.NotNil(t, dm)
+
+	t.Run("default alias returns configured DM", func(t *testing.T) {
+		dm, err := adp.GetDeploymentManager(ctx, "default")
+		require.NoError(t, err)
+		require.NotNil(t, dm)
+	})
+
+	t.Run("empty string alias returns configured DM", func(t *testing.T) {
+		dm, err := adp.GetDeploymentManager(ctx, "")
+		require.NoError(t, err)
+		require.NotNil(t, dm)
+	})
 }
 
 // TestValidateVMResourceID tests VM resource ID validation.

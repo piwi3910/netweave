@@ -16,7 +16,9 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 		zap.String("id", id))
 
 	// Validate that the requested ID matches our deployment manager ID
-	if id != a.DeploymentManagerID && id != "default" {
+	// Accept "default" and "" as aliases for the configured DM ID,
+	// matching the behavior used by routes.go and handlers.
+	if id != a.DeploymentManagerID && id != "default" && id != "" {
 		return nil, fmt.Errorf("%w: %s", adapter.ErrDeploymentManagerNotFound, id)
 	}
 

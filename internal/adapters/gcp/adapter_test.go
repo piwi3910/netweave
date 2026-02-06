@@ -522,6 +522,18 @@ func TestGCPAdapter_GetDeploymentManager(t *testing.T) {
 		t.Skip("Skipping - requires GCP credentials")
 	}
 	assert.NotNil(t, dm)
+
+	t.Run("default alias returns configured DM", func(t *testing.T) {
+		dm, err := adp.GetDeploymentManager(ctx, "default")
+		require.NoError(t, err)
+		require.NotNil(t, dm)
+	})
+
+	t.Run("empty string alias returns configured DM", func(t *testing.T) {
+		dm, err := adp.GetDeploymentManager(ctx, "")
+		require.NoError(t, err)
+		require.NotNil(t, dm)
+	})
 }
 
 // TestExtractZoneAndName tests zone and name extraction from resource extensions.
