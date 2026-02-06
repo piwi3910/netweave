@@ -88,6 +88,9 @@ type Server struct {
 	// TMForum subsystem
 	tmfHandler *handlers.TMForumHandler
 
+	// fullAuthStore is the full auth.Store for tenant lookups in wrapWithTenantContext.
+	fullAuthStore auth.Store
+
 	// AuthStore is the authentication store interface (public for testing)
 	AuthStore    AuthStore
 	authMw       AuthMiddleware

@@ -1,9 +1,14 @@
 package server
 
 import (
+	"errors"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/piwi3910/netweave/internal/handlers"
+	"github.com/piwi3910/netweave/internal/o2ims/models"
+	"go.uber.org/zap"
 )
 
 // AuthHandlers contains all handlers for authentication and authorization.
@@ -17,6 +22,9 @@ type AuthHandlers struct {
 // SetupAuthRoutes configures all authentication and multi-tenancy routes.
 // These routes are only enabled when multi-tenancy is configured.
 func (s *Server) SetupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) {
+	// Store the full auth store for tenant lookups in wrapWithTenantContext.
+	s.fullAuthStore = authStore
+
 	// Create handlers.
 	tenantHandler := handlers.NewTenantHandler(authStore, s.logger)
 	userHandler := handlers.NewUserHandler(authStore, s.logger)
@@ -99,6 +107,8 @@ func (s *Server) SetupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) 
 }
 
 // wrapWithTenantContext wraps a handler to inject tenant context from path parameter.
+// It overrides both the authenticated user's TenantID and the Tenant object in context
+// so that downstream handlers (e.g. CreateUser) check quota against the target tenant.
 func (s *Server) wrapWithTenantContext(handler gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantID := c.Param("tenantId")
@@ -119,9 +129,42 @@ func (s *Server) wrapWithTenantContext(handler gin.HandlerFunc) gin.HandlerFunc 
 					IsPlatformAdmin: user.IsPlatformAdmin,
 				}
 				ctx = auth.ContextWithUser(ctx, adminUser)
+
+				// Load the target tenant from the store so handlers get the correct
+				// tenant object (with proper quota/usage) instead of the admin's tenant.
+				if s.fullAuthStore != nil {
+					targetTenant, err := s.fullAuthStore.GetTenant(ctx, tenantID)
+					if err != nil {
+						s.handleTenantLookupError(c, tenantID, err)
+						return
+					}
+					ctx = auth.ContextWithTenant(ctx, targetTenant)
+				}
+
 				c.Request = c.Request.WithContext(ctx)
 			}
 		}
 		handler(c)
 	}
+}
+
+// handleTenantLookupError responds with the appropriate error when a tenant lookup fails.
+func (s *Server) handleTenantLookupError(c *gin.Context, tenantID string, err error) {
+	if errors.Is(err, auth.ErrTenantNotFound) {
+		c.JSON(http.StatusNotFound, models.ErrorResponse{
+			Error:   "NotFound",
+			Message: "Tenant not found",
+			Code:    http.StatusNotFound,
+		})
+		return
+	}
+	s.logger.Error("failed to load target tenant",
+		zap.String("tenant_id", tenantID),
+		zap.Error(err),
+	)
+	c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+		Error:   "InternalError",
+		Message: "Failed to load target tenant",
+		Code:    http.StatusInternalServerError,
+	})
 }
