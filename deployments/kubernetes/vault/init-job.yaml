@@ -18,7 +18,8 @@ spec:
       restartPolicy: OnFailure
       initContainers:
         - name: generate-tls-certs
-          image: alpine/openssl:3.1-alpine
+          # alpine/openssl:latest (pinned 2026-02-06)
+          image: alpine/openssl@sha256:4e68225ad47fd2ae4c6f558ace1f7500624a57c1ba7a76a6b9132eff1c94625d
           command:
             - sh
             - -c
@@ -91,7 +92,8 @@ spec:
 
               echo "TLS certificates generated and stored in vault-tls secret"
         - name: wait-for-vault
-          image: curlimages/curl:8.5.0
+          # curlimages/curl:8.5.0 (pinned 2026-02-06)
+          image: curlimages/curl@sha256:08e466006f0860e54fc299378de998935333e0e130a15f6f98482e9f8dab3058
           command:
             - sh
             - -c
@@ -104,7 +106,8 @@ spec:
               echo "Vault is ready!"
       containers:
         - name: vault-init
-          image: hashicorp/vault:1.18.3
+          # hashicorp/vault:1.18.3 (pinned 2026-02-06)
+          image: hashicorp/vault@sha256:8f1ba670da547c6af67be55609bd285c3ee3d8b73f88021adbfc43c82ca409e8
           env:
             - name: VAULT_ADDR
               value: "https://vault.vault-system.svc.cluster.local:8200"
