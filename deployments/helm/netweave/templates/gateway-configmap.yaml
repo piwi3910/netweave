@@ -53,6 +53,16 @@ data:
       require_tenant_claim: {{ .Values.gateway.config.oauth2.requireTenantClaim | default true }}
       {{- end }}
 
+    tls:
+      enabled: {{ .Values.gateway.config.tls.enabled }}
+      {{- if .Values.gateway.config.tls.enabled }}
+      cert_file: {{ .Values.gateway.config.tls.certFile | quote }}
+      key_file: {{ .Values.gateway.config.tls.keyFile | quote }}
+      ca_file: {{ .Values.gateway.config.tls.caFile | quote }}
+      client_auth: {{ .Values.gateway.config.tls.clientAuth | quote }}
+      min_version: {{ .Values.gateway.config.tls.minVersion | quote }}
+      {{- end }}
+
     cert_manager:
       enabled: {{ .Values.gateway.config.certManager.enabled }}
       monitor_interval: {{ .Values.gateway.config.certManager.monitorInterval | quote }}

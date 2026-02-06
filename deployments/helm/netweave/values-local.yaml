@@ -41,6 +41,16 @@ gateway:
     # OAuth2 disabled - using mTLS for authentication
     oauth2:
       enabled: false
+    # TLS enabled with mTLS client cert verification
+    tls:
+      enabled: true
+      certFile: /etc/netweave/tls/tls.crt
+      keyFile: /etc/netweave/tls/tls.key
+      caFile: /etc/netweave/tls/ca.crt
+      clientAuth: "verify"
+      minVersion: "1.3"
+      existingServerSecret: "netweave-tls-server"
+      existingCAConfigMap: "netweave-tls-ca"
 
 # Admin Portal - single replica, local image
 adminPortal:

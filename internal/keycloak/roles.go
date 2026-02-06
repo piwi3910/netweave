@@ -148,9 +148,9 @@ func (c *Client) DeleteRealmRole(ctx context.Context, roleName string) error {
 	return nil
 }
 
-// ListRealmRoles retrieves all realm roles.
+// ListRealmRoles retrieves all realm roles with full representation (including attributes).
 func (c *Client) ListRealmRoles(ctx context.Context) ([]Role, error) {
-	resp, err := c.doAdminRequest(ctx, http.MethodGet, "/roles", nil)
+	resp, err := c.doAdminRequest(ctx, http.MethodGet, "/roles?briefRepresentation=false", nil)
 	if err != nil {
 		return nil, fmt.Errorf("list roles request failed: %w", err)
 	}

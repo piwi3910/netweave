@@ -149,6 +149,20 @@ gateway:
       defaultRole: tenant-admin
       requireTenantClaim: true
 
+    # TLS configuration for mTLS (maps to tls.* in Go config)
+    tls:
+      enabled: false
+      # Path inside container where cert/key/ca are mounted
+      certFile: /etc/netweave/tls/tls.crt
+      keyFile: /etc/netweave/tls/tls.key
+      caFile: /etc/netweave/tls/ca.crt
+      clientAuth: "require-and-verify"
+      minVersion: "1.3"
+      # Name of existing K8s TLS secret (type: kubernetes.io/tls)
+      existingServerSecret: ""
+      # Name of existing K8s ConfigMap with ca.crt key
+      existingCAConfigMap: ""
+
     # Certificate manager configuration
     certManager:
       enabled: true
