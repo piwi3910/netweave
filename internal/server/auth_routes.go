@@ -113,36 +113,44 @@ func (s *Server) wrapWithTenantContext(handler gin.HandlerFunc) gin.HandlerFunc 
 	return func(c *gin.Context) {
 		tenantID := c.Param("tenantId")
 		if tenantID != "" {
-			c.Set("tenant_id", tenantID)
 			// Update context with tenant ID for handlers that use context.
 			ctx := auth.ContextWithRequestID(c.Request.Context(), c.GetString("request_id"))
-			// Create a minimal authenticated user for context.
+			// Retrieve the authenticated user from context (should always exist behind auth middleware).
 			user := auth.UserFromContext(c.Request.Context())
-			if user != nil {
-				// Override tenant ID for admin operations.
-				adminUser := &auth.AuthenticatedUser{
-					UserID:          user.UserID,
-					TenantID:        tenantID,
-					Subject:         user.Subject,
-					CommonName:      user.CommonName,
-					Role:            user.Role,
-					IsPlatformAdmin: user.IsPlatformAdmin,
-				}
-				ctx = auth.ContextWithUser(ctx, adminUser)
-
-				// Load the target tenant from the store so handlers get the correct
-				// tenant object (with proper quota/usage) instead of the admin's tenant.
-				if s.fullAuthStore != nil {
-					targetTenant, err := s.fullAuthStore.GetTenant(ctx, tenantID)
-					if err != nil {
-						s.handleTenantLookupError(c, tenantID, err)
-						return
-					}
-					ctx = auth.ContextWithTenant(ctx, targetTenant)
-				}
-
-				c.Request = c.Request.WithContext(ctx)
+			if user == nil {
+				s.logger.Error("no authenticated user in context for tenant override")
+				c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+					Error:   "InternalError",
+					Message: "Authentication context missing",
+					Code:    http.StatusInternalServerError,
+				})
+				c.Abort()
+				return
 			}
+
+			// Override tenant ID for admin operations.
+			adminUser := &auth.AuthenticatedUser{
+				UserID:          user.UserID,
+				TenantID:        tenantID,
+				Subject:         user.Subject,
+				CommonName:      user.CommonName,
+				Role:            user.Role,
+				IsPlatformAdmin: user.IsPlatformAdmin,
+			}
+			ctx = auth.ContextWithUser(ctx, adminUser)
+
+			// Load the target tenant from the store so handlers get the correct
+			// tenant object (with proper quota/usage) instead of the admin's tenant.
+			if s.fullAuthStore != nil {
+				targetTenant, err := s.fullAuthStore.GetTenant(ctx, tenantID)
+				if err != nil {
+					s.handleTenantLookupError(c, tenantID, err)
+					return
+				}
+				ctx = auth.ContextWithTenant(ctx, targetTenant)
+			}
+
+			c.Request = c.Request.WithContext(ctx)
 		}
 		handler(c)
 	}

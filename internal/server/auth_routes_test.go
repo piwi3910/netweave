@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/piwi3910/netweave/internal/auth"
+	"github.com/piwi3910/netweave/internal/o2ims/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -19,7 +21,7 @@ import (
 // It implements the full auth.Store interface with stubs, overriding GetTenant
 // to return tenants from a configurable map.
 type tenantContextAuthStore struct {
-	tenants  map[string]*auth.Tenant
+	tenants      map[string]*auth.Tenant
 	getTenantErr error
 }
 
@@ -262,8 +264,8 @@ func TestWrapWithTenantContext_LoadsTargetTenant(t *testing.T) {
 	}
 }
 
-// TestWrapWithTenantContext_NoUserInContext verifies the handler proceeds
-// without modification when no authenticated user is in context.
+// TestWrapWithTenantContext_NoUserInContext verifies the handler returns 500
+// when no authenticated user is in context (defensive check).
 func TestWrapWithTenantContext_NoUserInContext(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -285,9 +287,6 @@ func TestWrapWithTenantContext_NoUserInContext(t *testing.T) {
 	handlerCalled := false
 	innerHandler := func(c *gin.Context) {
 		handlerCalled = true
-		// Without a user in context, tenant should not be loaded.
-		tenant := auth.TenantFromContext(c.Request.Context())
-		assert.Nil(t, tenant, "tenant should not be set when no user in context")
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
 
@@ -299,8 +298,14 @@ func TestWrapWithTenantContext_NoUserInContext(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, handlerCalled, "inner handler should be called")
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.False(t, handlerCalled, "inner handler should not be called when user is nil")
+
+	var errResp models.ErrorResponse
+	err := json.Unmarshal(w.Body.Bytes(), &errResp)
+	require.NoError(t, err)
+	assert.Equal(t, "InternalError", errResp.Error)
+	assert.Equal(t, "Authentication context missing", errResp.Message)
 }
 
 // TestWrapWithTenantContext_NilAuthStore verifies that wrapWithTenantContext
@@ -356,10 +361,10 @@ func TestWrapWithTenantContext_CanAddUserQuotaCheck(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name          string
-		adminTenant   *auth.Tenant
-		targetTenant  *auth.Tenant
-		expectCanAdd  bool
+		name         string
+		adminTenant  *auth.Tenant
+		targetTenant *auth.Tenant
+		expectCanAdd bool
 	}{
 		{
 			name: "target tenant has quota available",

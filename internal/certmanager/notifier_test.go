@@ -22,9 +22,10 @@ func TestNewWebhookCertNotifier(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 
 	tests := []struct {
-		name    string
-		config  *NotificationConfig
-		logger  interface{ /* *zap.Logger */ }
+		name   string
+		config *NotificationConfig
+		logger interface { /* *zap.Logger */
+		}
 		wantErr bool
 		errMsg  string
 	}{
