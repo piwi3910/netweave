@@ -73,7 +73,7 @@ spec:
         - protocol: UDP
           port: 53
         - protocol: TCP
-          port: 53
+          port: 53  # Needed for responses >512 bytes (EDNS0/truncation fallback)
 
     # ========================================================================
     # Vault Raft Cluster Communication - Required for HA Vault cluster
@@ -121,7 +121,7 @@ spec:
         - protocol: TCP
           port: 443
 
-    # Rule 2: Self-hosted Kubernetes - control-plane tier label
+    # Rule 2: Self-hosted Kubernetes - control-plane tier label (alternative selector)
     - to:
         - namespaceSelector:
             matchLabels:
@@ -129,7 +129,6 @@ spec:
           podSelector:
             matchLabels:
               tier: control-plane
-              component: kube-apiserver
       ports:
         - protocol: TCP
           port: 443
@@ -138,9 +137,14 @@ spec:
     # Uncomment and set CIDR for your managed K8s API server.
     # Find IP: kubectl get endpoints kubernetes -n default -o jsonpath='{.subsets[].addresses[].ip}'
     #
+    # Examples:
+    #   EKS: 10.0.0.1/32 (from `aws eks describe-cluster --query cluster.endpoint`)
+    #   GKE: 10.0.0.1/32 (from `gcloud container clusters describe --format='get(endpoint)'`)
+    #   AKS: 10.0.0.1/32 (from `az aks show --query fqdn`)
+    #
     # - to:
     #     - ipBlock:
-    #         cidr: 0.0.0.0/32  # REPLACE with your API server IP/CIDR
+    #         cidr: 10.0.0.1/32  # REPLACE with your API server IP/CIDR
     #   ports:
     #     - protocol: TCP
     #       port: 443
