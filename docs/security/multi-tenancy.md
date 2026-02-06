@@ -1,51 +1,81 @@
 # Multi-Tenancy Guide
 
-The O2-IMS Gateway implements comprehensive multi-tenancy support, enabling multiple organizations to securely share the same infrastructure while maintaining complete isolation between tenants.
+> **Version**: 2.0 | **Updated**: 2026-02-06
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Tenant Isolation Layers](#tenant-isolation-layers)
-- [Configuration](#configuration)
-- [Usage Examples](#usage-examples)
-- [Best Practices](#best-practices)
-- [Troubleshooting](#troubleshooting)
+The O2-IMS Gateway implements production-grade multi-tenancy, enabling multiple organizations to securely share the same infrastructure while maintaining complete isolation between tenants.
 
 ## Overview
 
 Multi-tenancy in the O2-IMS Gateway provides:
 
-- **Complete Tenant Isolation**: Resources, subscriptions, and data are isolated per tenant
-- **Role-Based Access Control (RBAC)**: Fine-grained permissions within each tenant
+- **Dual Authentication**: mTLS via Vault PKI and OAuth2/OIDC via Keycloak
+- **Complete Tenant Isolation**: Subscriptions, resource pools, and resources are isolated per tenant
+- **Role-Based Access Control (RBAC)**: Fine-grained permissions with platform and tenant scoped roles
+- **Quota Enforcement**: Per-tenant limits on subscriptions, resource pools, deployments, users, and API requests
+- **Per-Tenant Rate Limiting**: Redis-backed sliding window rate limiter with configurable limits per tenant
 - **Infrastructure-Level Filtering**: Native cloud provider tags/labels for tenant separation
+- **Audit Trail**: All tenant operations are logged with full context for compliance
 - **Secure Cross-Tenant Prevention**: 404 responses prevent information disclosure
-- **Audit Trail**: All tenant operations are logged for compliance
 
 ### Key Concepts
 
-- **Tenant**: An organization or business unit with isolated resources
-- **TenantID**: Unique identifier for a tenant (typically a UUID)
-- **Tenant Context**: Authentication context that identifies the current tenant
-- **Tenant Isolation**: Technical mechanisms preventing cross-tenant data access
+| Concept | Description |
+|---------|-------------|
+| **Tenant** | An organization or business unit with isolated resources |
+| **TenantID** | Unique identifier for a tenant (UUID format) |
+| **Tenant Context** | Authentication context that identifies the current tenant via `auth.TenantIDFromContext(ctx)` |
+| **TenantQuota** | Resource limits assigned to each tenant (subscriptions, pools, deployments, users, requests/min) |
+| **TenantUsage** | Current resource consumption tracked per tenant |
+
+## Implementation Status
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| mTLS Authentication (Vault PKI) | Done | `BuildSubject(cert)` + `store.GetUserBySubject()` |
+| OAuth2/OIDC Authentication (Keycloak) | Done | Bearer token + `OAuth2Authenticator.Authenticate()` |
+| Tenant Model (CRUD) | Done | Redis-backed with status, quota, usage tracking |
+| RBAC (Roles & Permissions) | Done | 6 predefined roles, 20+ permissions |
+| Subscription Isolation | Done | Filter by tenant, ownership verification, quota enforcement |
+| Resource Pool Isolation | Done | Filter by tenant, ownership verification, quota enforcement |
+| Resource Isolation | Done | Filter by tenant, ownership verification, quota enforcement |
+| Per-Tenant Rate Limiting | Done | Redis sliding window, configurable per tenant |
+| Quota Enforcement | Done | Subscriptions, resource pools, deployments, users |
+| Admin API | Done | Platform admin + tenant self-service routes |
+| Audit Logging | Done | Authentication, access, CRUD events logged to Redis |
+| Infrastructure-Level Filtering | Done | Cloud provider native metadata/labels/tags |
+| Resource Type Isolation | Not Planned | Resource types are shared (not tenant-specific) |
+| Deployment Manager Isolation | Not Planned | DMs are shared infrastructure metadata |
+| Cross-Adapter Tenant Sync | Planned | Future: synchronize tenant context across adapters |
+| Tenant Deletion Cascade | Planned | Future: automated cleanup of all tenant resources |
 
 ## Architecture
 
 ```mermaid
 graph TB
-    subgraph "API Layer"
-        API[O2-IMS API Gateway]
-        MW[RBAC Middleware]
+    subgraph "External Clients"
+        SMO[O2 SMO / Client]
+    end
+
+    subgraph "Authentication"
+        VAULT[Vault PKI<br/>mTLS Certificates]
+        KC[Keycloak<br/>OAuth2/OIDC]
+    end
+
+    subgraph "API Gateway"
+        AUTH_MW[Auth Middleware<br/>mTLS + OAuth2 Detection]
+        RBAC_MW[RBAC Middleware<br/>Permission Checks]
+        RL_MW[Rate Limit Middleware<br/>Per-Tenant Sliding Window]
     end
 
     subgraph "Handler Layer"
-        SH[Subscription Handler]
-        RH[Resource Handler]
-        RPH[ResourcePool Handler]
+        SH[Subscription Handlers<br/>Tenant Isolation]
+        RPH[ResourcePool Handlers<br/>Tenant Isolation]
+        RH[Resource Handlers<br/>Tenant Isolation]
+        AH[Admin Handlers<br/>Tenant/User/Role CRUD]
     end
 
     subgraph "Storage Layer"
-        Redis[(Redis Store)]
+        REDIS[(Redis<br/>Auth Store + Subscriptions)]
     end
 
     subgraph "Adapter Layer"
@@ -58,91 +88,255 @@ graph TB
         DT[DTIAS]
     end
 
-    subgraph "Infrastructure"
-        K8SR[K8s Resources<br/>o2ims.io/tenant-id label]
-        AWSR[EC2 Instances<br/>o2ims.io/tenant-id tag]
-        AZR[Azure VMs<br/>o2ims.io/tenant-id tag]
-        GCPR[GCP Instances<br/>o2ims_io_tenant-id label]
-        OSR[Nova Servers<br/>o2ims.io/tenant-id metadata]
-        VMR[vSphere VMs<br/>o2ims.io/tenant-id ExtraConfig]
-        DTR[DTIAS Servers<br/>o2ims.io/tenant-id metadata]
+    SMO -->|Client Cert| VAULT
+    SMO -->|Bearer Token| KC
+    SMO -->|HTTPS/mTLS| AUTH_MW
+
+    AUTH_MW -->|Extract User + Tenant| RBAC_MW
+    RBAC_MW -->|Check Permissions| RL_MW
+    RL_MW -->|Rate Check| SH
+    RL_MW -->|Rate Check| RPH
+    RL_MW -->|Rate Check| RH
+    RL_MW -->|Rate Check| AH
+
+    SH -->|ListByTenant / Ownership Check| REDIS
+    RPH -->|Filter.TenantID| K8S
+    RPH -->|Filter.TenantID| AWS
+    RH -->|Filter.TenantID| AZ
+    RH -->|Filter.TenantID| GCP
+    RH -->|Filter.TenantID| OS
+    RH -->|Filter.TenantID| VM
+    RH -->|Filter.TenantID| DT
+    AH -->|CRUD| REDIS
+
+    style SMO fill:#e1f5ff
+    style VAULT fill:#e1f5ff
+    style KC fill:#e1f5ff
+    style AUTH_MW fill:#fff4e6
+    style RBAC_MW fill:#fff4e6
+    style RL_MW fill:#fff4e6
+    style REDIS fill:#ffe6f0
+    style SH fill:#e8f5e9
+    style RPH fill:#e8f5e9
+    style RH fill:#e8f5e9
+    style AH fill:#f3e5f5
+```
+
+### Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant MW as Auth Middleware
+    participant S as Auth Store (Redis)
+    participant H as Handler
+
+    C->>MW: Request (cert or Bearer token)
+    MW->>MW: detectAuthMethod()
+
+    alt mTLS Authentication
+        MW->>MW: extractCertificate(req)
+        MW->>MW: BuildSubject(cert) -> "CN=name,O=org,OU=unit"
+        MW->>S: GetUserBySubject(ctx, subject)
+    else OAuth2 Authentication
+        MW->>MW: Extract Bearer token
+        MW->>MW: OAuth2Authenticator.Authenticate()
+        MW->>S: GetUserByOAuthSubject(ctx, oauthSubject)
     end
 
-    API --> MW
-    MW -->|Extract Tenant Context| SH
-    MW -->|Extract Tenant Context| RH
-    MW -->|Extract Tenant Context| RPH
+    S-->>MW: TenantUser (with TenantID, RoleID)
+    MW->>S: GetRole(ctx, user.RoleID)
+    S-->>MW: Role (with Permissions)
+    MW->>S: GetTenant(ctx, user.TenantID)
+    S-->>MW: Tenant (with Status, Quota, Usage)
 
-    SH -->|Filter by TenantID| Redis
-    RH -->|Pass TenantID in Filter| K8S
-    RH -->|Pass TenantID in Filter| AWS
-    RH -->|Pass TenantID in Filter| AZ
-    RH -->|Pass TenantID in Filter| GCP
-    RH -->|Pass TenantID in Filter| OS
-    RH -->|Pass TenantID in Filter| VM
-    RH -->|Pass TenantID in Filter| DT
+    MW->>MW: Build AuthenticatedUser context
+    MW->>MW: ContextWithUser(ctx, authUser)
+    MW->>MW: ContextWithTenant(ctx, tenant)
 
-    K8S -->|Label Selector| K8SR
-    AWS -->|Tag Filter| AWSR
-    AZ -->|Tag Filter| AZR
-    GCP -->|Label Filter| GCPR
-    OS -->|Metadata Filter| OSR
-    VM -->|ExtraConfig Filter| VMR
-    DT -->|Metadata Filter| DTR
+    MW->>H: Forward with enriched context
+    H->>H: auth.TenantIDFromContext(ctx)
+    H->>H: Enforce tenant isolation
+```
 
-    style API fill:#fff4e6
-    style Handler Layer fill:#e8f5e9
-    style Storage Layer fill:#ffe6f0
-    style Adapter Layer fill:#f3e5f5
-    style Infrastructure fill:#e1f5ff
+## Authentication & Tenant Identification
+
+The gateway supports two authentication methods that can operate independently or together. When both are available, the `oauth2.priority` configuration determines which takes precedence.
+
+### mTLS via Vault PKI
+
+Clients present TLS certificates issued by Vault PKI using the `netweave-client` role. The middleware extracts the certificate subject and looks up the user:
+
+```
+Certificate Subject Format: CN=<name>,O=<organization>,OU=<org-unit>
+```
+
+**Authentication flow:**
+
+1. Client presents TLS certificate during handshake
+2. Middleware calls `extractCertificate(c)` (supports native TLS, X-Forwarded-Client-Cert, X-SSL-Client-DN)
+3. Middleware calls `BuildSubject(cert)` to produce a normalized `CN=...,O=...,OU=...` string
+4. Middleware calls `store.GetUserBySubject(ctx, subject)` to load the `TenantUser`
+5. Middleware loads associated `Role` and `Tenant` from Redis
+6. Middleware validates user is active and tenant is active
+7. Middleware stores `AuthenticatedUser` and `Tenant` in request context
+
+### OAuth2/OIDC via Keycloak
+
+Clients present a Bearer token obtained from Keycloak. The middleware validates the token and looks up the user:
+
+1. Client sends `Authorization: Bearer <token>` header
+2. Middleware calls `OAuth2Authenticator.Authenticate()` to validate the token with Keycloak
+3. User is looked up by OAuth2 subject or auto-provisioned if `auto_provision_users` is enabled
+4. Associated role and tenant are loaded from the store
+5. Context is enriched identically to mTLS flow
+
+### Authentication Priority
+
+When both mTLS and OAuth2 are configured:
+
+- If `oauth2.priority: true` and a Bearer token is present, OAuth2 is used
+- If `oauth2.priority: false` and a client certificate is present, mTLS is used
+- If only one method is available on the request, that method is used
+
+### Paths That Skip Authentication
+
+The following paths skip authentication by default:
+
+```
+/health, /healthz, /ready, /readyz, /metrics, /, /o2ims
+```
+
+Additional paths can be configured via `multi_tenancy.skip_auth_paths`.
+
+## Tenant Model
+
+### Tenant
+
+```go
+type Tenant struct {
+    ID           string            `json:"tenantId"`
+    Name         string            `json:"name"`
+    Description  string            `json:"description,omitempty"`
+    Status       TenantStatus      `json:"status"`       // active | suspended | pending_deletion
+    Quota        TenantQuota       `json:"quota"`
+    Usage        TenantUsage       `json:"usage"`
+    ContactEmail string            `json:"contactEmail,omitempty"`
+    Metadata     map[string]string `json:"metadata,omitempty"`
+    CreatedAt    time.Time         `json:"createdAt"`
+    UpdatedAt    time.Time         `json:"updatedAt,omitempty"`
+}
+```
+
+### TenantQuota (Default Values)
+
+| Quota | Default | Description |
+|-------|---------|-------------|
+| `MaxSubscriptions` | 100 | Maximum number of subscriptions |
+| `MaxResourcePools` | 50 | Maximum number of resource pools |
+| `MaxDeployments` | 200 | Maximum number of deployments |
+| `MaxUsers` | 20 | Maximum number of users |
+| `MaxRequestsPerMinute` | 1000 | API request rate limit |
+
+### TenantUsage
+
+```go
+type TenantUsage struct {
+    Subscriptions int `json:"subscriptions"`
+    ResourcePools int `json:"resourcePools"`
+    Deployments   int `json:"deployments"`
+    Users         int `json:"users"`
+}
+```
+
+### Tenant Status Transitions
+
+| Status | Description | Allowed Operations |
+|--------|-------------|--------------------|
+| `active` | Fully operational | All operations |
+| `suspended` | Temporarily disabled | Read-only; authentication fails for users |
+| `pending_deletion` | Scheduled for deletion | No operations |
+
+### Tenant Context Functions
+
+The `auth` package provides context helpers used throughout the handlers:
+
+```go
+// Extract tenant ID from the authenticated user in context
+tenantID := auth.TenantIDFromContext(ctx)
+
+// Check if the current user is a platform admin
+isAdmin := auth.IsPlatformAdminFromContext(ctx)
+
+// Get the full authenticated user from context
+user := auth.UserFromContext(ctx)
+
+// Check if the user has a specific permission
+hasAccess := auth.HasPermissionFromContext(ctx, auth.PermissionResourceRead)
 ```
 
 ## Tenant Isolation Layers
 
-The O2-IMS Gateway implements defense-in-depth with four isolation layers:
+The gateway implements defense-in-depth with four isolation layers.
 
-### 1. Authentication Layer (JWT)
+### Layer 1: Authentication (mTLS + OAuth2)
 
-```yaml
-# JWT Token Claims
-{
-  "sub": "user-123",
-  "email": "user@acme.com",
-  "tenant_id": "tenant-abc",          # Tenant identification
-  "role": "tenant-admin",              # Tenant-specific role
-  "permissions": ["resources:read"],   # Granted permissions
-  "exp": 1704067200
-}
-```
+Every request is authenticated via mTLS client certificates or OAuth2 Bearer tokens. The tenant identity is derived from the authenticated user record in Redis, not from any client-supplied claim.
 
-**Security Properties**:
-- Token signed by auth service (HMAC-SHA256 or RS256)
-- Tenant ID extracted from verified token
-- Token tampering results in authentication failure
+**Security properties:**
 
-### 2. Handler Layer (Tenant Context)
+- Tenant ID is loaded from the server-side auth store, not from the token/certificate directly
+- User must be active (`IsActive: true`) and tenant must be active (`Status: active`)
+- Suspended tenants cause authentication failure (403 Forbidden)
+- Failed authentication attempts are logged as audit events
 
-All handlers extract and validate tenant context:
+### Layer 2: Handler Layer (Tenant Context Enforcement)
+
+All handlers extract and validate tenant context before any data operation:
 
 ```go
 // Extract tenant ID from authenticated context
 tenantID := auth.TenantIDFromContext(ctx)
 
-// Filter subscriptions by tenant
+// Subscriptions: filter by tenant
 subscriptions, err := store.ListByTenant(ctx, tenantID)
 
-// Verify ownership before operations
-if resource.TenantID != tenantID {
+// Resource pools: verify ownership before returning
+if pool.TenantID != tenantID && !auth.IsPlatformAdminFromContext(ctx) {
     return http.StatusNotFound // Prevent information disclosure
+}
+
+// Resources: verify ownership before returning
+if resource.TenantID != tenantID && !auth.IsPlatformAdminFromContext(ctx) {
+    return http.StatusNotFound
 }
 ```
 
-**Security Properties**:
-- Always return 404 (not 403) for cross-tenant access
-- Log security events with full context
-- Never expose tenant information in error messages
+**Isolation enforcement per operation:**
 
-### 3. Storage Layer (Redis Tenant Keys)
+| Endpoint | Operation | Isolation Mechanism |
+|----------|-----------|-------------------|
+| `GET /subscriptions` | List | `store.ListByTenant(ctx, tenantID)` |
+| `GET /subscriptions/:id` | Get | Returns 404 if `sub.TenantID != tenantID` |
+| `POST /subscriptions` | Create | Sets `TenantID`, enforces subscription quota |
+| `DELETE /subscriptions/:id` | Delete | Verifies tenant ownership before deletion |
+| `GET /resourcePools` | List | `filter.TenantID` applied for non-admin users |
+| `GET /resourcePools/:id` | Get | Returns 404 if `pool.TenantID != tenantID` |
+| `POST /resourcePools` | Create | Quota check + sets `TenantID` |
+| `DELETE /resourcePools/:id` | Delete | Ownership verification + usage decrement |
+| `GET /resourcePools/:id/resources` | List | `filter.TenantID` applied for non-admin users |
+| `GET /resources/:id` | Get | Returns 404 if `resource.TenantID != tenantID` |
+| `POST /resources` | Create | Quota check + sets `TenantID` |
+| `DELETE /resources/:id` | Delete | Ownership verification + usage decrement |
+
+**Security properties:**
+
+- Always return 404 (not 403) for cross-tenant access to prevent information leakage
+- Platform admins can access all tenants' resources
+- All security events are logged with full context (user ID, tenant ID, resource ID)
+- Tenant information is never exposed in error messages
+
+### Layer 3: Storage Layer (Redis Tenant Keys)
 
 Subscription data is isolated using tenant-prefixed keys:
 
@@ -155,14 +349,15 @@ subscriptions:tenant-abc:sub-123
 subscriptions:tenant-xyz:sub-456
 ```
 
-**Security Properties**:
-- `ListByTenant()` only scans keys for specific tenant
-- Cross-tenant key access prevented by design
-- Atomic operations maintain consistency
+**Security properties:**
 
-### 4. Infrastructure Layer (Cloud Provider Metadata)
+- `ListByTenant()` only scans keys for the specific tenant
+- Cross-tenant key access prevented by key structure
+- Atomic operations maintain consistency via Redis transactions
 
-Each cloud provider uses native metadata for tenant filtering:
+### Layer 4: Infrastructure Layer (Cloud Provider Metadata)
+
+Each cloud provider uses native metadata for tenant filtering at the infrastructure API level:
 
 | Provider | Mechanism | Key Format | Example |
 |----------|-----------|------------|---------|
@@ -174,56 +369,431 @@ Each cloud provider uses native metadata for tenant filtering:
 | **VMware vSphere** | ExtraConfig | `o2ims.io/tenant-id` | `o2ims.io/tenant-id=tenant-abc` |
 | **Dell DTIAS** | Metadata | `o2ims.io/tenant-id` | `o2ims.io/tenant-id=tenant-abc` |
 
-**Note**: GCP uses underscores instead of dots/slashes due to label naming restrictions.
+**Note**: GCP uses underscores instead of dots/slashes due to GCP label naming restrictions.
 
-**Security Properties**:
+The `adapter.Filter` struct includes a `TenantID` field that each cloud adapter uses to filter using its native mechanism. The `adapter.ResourcePool` and `adapter.Resource` structs also carry a `TenantID` field (tagged `json:"-"` so it is not exposed in API responses).
+
+**Security properties:**
+
 - Server-side filtering at infrastructure API level
 - Tenant resources never returned to wrong tenant
 - Native cloud IAM policies can enforce additional restrictions
 
-## Configuration
+## Quota Enforcement
 
-### Enable Multi-Tenancy
+Quotas are enforced at creation time for each resource type. The tenant's current usage is tracked atomically in Redis.
 
-```yaml
-# config.yaml
-auth:
-  enabled: true
-  jwt:
-    secret: "${JWT_SECRET}"            # Required for token verification
-    issuer: "o2ims-auth"
-    audience: "o2ims-gateway"
-  redis:
-    addr: "redis:6379"
-    db: 0
+### Enforcement Points
 
-  # Enable tenant isolation
-  multi_tenancy:
-    enabled: true                       # Required
-    default_tenant: ""                  # Optional: tenant for non-authenticated requests
+| Resource | Quota Field | Check Method | Enforcement Location |
+|----------|------------|--------------|---------------------|
+| Subscriptions | `MaxSubscriptions` | `tenant.CanCreateSubscription()` | `handleCreateSubscription` |
+| Resource Pools | `MaxResourcePools` | `tenant.CanCreateResourcePool()` | `handleCreateResourcePool` |
+| Deployments | `MaxDeployments` | `tenant.CanCreateDeployment()` | Handler layer |
+| Users | `MaxUsers` | `tenant.CanAddUser()` | `UserHandler.CreateUser` |
+| API Requests | `MaxRequestsPerMinute` | Rate limiter middleware | `RateLimiter.Middleware()` |
+
+### Quota Check Flow
+
+```go
+// 1. Load tenant from context (set by auth middleware)
+tenant := auth.TenantFromContext(ctx)
+
+// 2. Check if creation is allowed
+if !tenant.CanCreateSubscription() {
+    // Returns false if tenant is not active OR usage >= quota
+    return http.StatusForbidden // Quota exceeded
+}
+
+// 3. Create the resource
+err := store.Create(ctx, subscription)
+
+// 4. Increment usage atomically
+err = authStore.IncrementUsage(ctx, tenantID, "subscriptions")
 ```
 
-### Create Tenants
+### Usage Tracking
+
+Usage counters are updated atomically via `IncrementUsage` and `DecrementUsage` on the `auth.Store`:
+
+- **IncrementUsage**: Called after successful resource creation
+- **DecrementUsage**: Called after successful resource deletion
+
+Both operations use Redis atomic operations to prevent race conditions.
+
+## Per-Tenant Rate Limiting
+
+The gateway implements per-tenant rate limiting using a Redis-backed token bucket algorithm with sliding window.
+
+### How It Works
+
+1. Every authenticated request extracts the tenant ID from context
+2. The rate limiter checks a Redis key `tenant:{tenantID}` using a Lua script for atomicity
+3. The Lua script implements token bucket: tokens are replenished based on elapsed time
+4. If tokens are available, the request proceeds; otherwise, 429 Too Many Requests is returned
+5. Platform admins are identified by tenant ID but still subject to global limits
+
+### Rate Limit Precedence
+
+Rate limits are checked in order, and a request is rejected if any limit is exceeded:
+
+1. **Endpoint-specific limits** (checked first, if configured for the method + path)
+2. **Per-tenant limits** (based on `PerTenant.RequestsPerSecond`)
+3. **Global limits** (total across all tenants)
+
+### Response Headers
+
+Every response includes rate limit headers:
+
+| Header | Description |
+|--------|-------------|
+| `X-RateLimit-Limit` | Maximum requests in the current window |
+| `X-RateLimit-Remaining` | Remaining requests in the current window |
+| `X-RateLimit-Reset` | Unix timestamp when the window resets |
+| `Retry-After` | Seconds to wait before retrying (only on 429 responses) |
+
+### Fail-Open Behavior
+
+If Redis is unavailable, the rate limiter fails open and allows the request through. This prevents a Redis outage from causing a total service disruption. Rate limit check failures are logged at error level.
+
+### Rate Limit Response
+
+```json
+{
+  "error": "rate limit exceeded",
+  "retry_after": 1
+}
+```
+
+HTTP status: `429 Too Many Requests`
+
+## Admin API Reference
+
+### Platform Admin Routes
+
+All routes under `/admin/*` require the `platform-admin` role.
+
+#### Tenant Management
 
 ```bash
-# Using the admin API
-curl -X POST https://gateway.example.com/admin/v1/tenants \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
+# List all tenants
+curl -X GET https://gateway.example.com/admin/tenants \
+  --cert client.crt --key client.key --cacert ca.crt
+
+# Create a tenant
+curl -X POST https://gateway.example.com/admin/tenants \
+  --cert client.crt --key client.key --cacert ca.crt \
   -H "Content-Type: application/json" \
   -d '{
-    "id": "tenant-acme",
+    "tenantId": "tenant-acme",
     "name": "ACME Corporation",
     "description": "Primary tenant for ACME Corp",
-    "quotas": {
-      "max_subscriptions": 100,
-      "max_resources": 10000
+    "status": "active",
+    "quota": {
+      "maxSubscriptions": 100,
+      "maxResourcePools": 50,
+      "maxDeployments": 200,
+      "maxUsers": 20,
+      "maxRequestsPerMinute": 1000
     }
+  }'
+
+# Get a specific tenant
+curl -X GET https://gateway.example.com/admin/tenants/tenant-acme \
+  --cert client.crt --key client.key --cacert ca.crt
+
+# Update a tenant
+curl -X PUT https://gateway.example.com/admin/tenants/tenant-acme \
+  --cert client.crt --key client.key --cacert ca.crt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "ACME Corp (Updated)",
+    "quota": {
+      "maxSubscriptions": 200
+    }
+  }'
+
+# Delete a tenant
+curl -X DELETE https://gateway.example.com/admin/tenants/tenant-acme \
+  --cert client.crt --key client.key --cacert ca.crt
+```
+
+#### Tenant User Management (Admin)
+
+```bash
+# List users in a tenant
+curl -X GET https://gateway.example.com/admin/tenants/tenant-acme/users \
+  --cert client.crt --key client.key --cacert ca.crt
+
+# Create a user in a tenant
+curl -X POST https://gateway.example.com/admin/tenants/tenant-acme/users \
+  --cert client.crt --key client.key --cacert ca.crt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user-alice",
+    "tenantId": "tenant-acme",
+    "subject": "CN=alice,O=ACME,OU=Engineering",
+    "commonName": "alice",
+    "email": "alice@acme.com",
+    "roleId": "role-operator",
+    "isActive": true
   }'
 ```
 
-### Tag Infrastructure Resources
+#### Platform Audit Logs
 
-#### Kubernetes
+```bash
+# List all audit events
+curl -X GET https://gateway.example.com/admin/audit/events \
+  --cert client.crt --key client.key --cacert ca.crt
+```
+
+### Tenant Self-Service Routes
+
+Routes under `/tenant/*` require authentication and apply to the current user's tenant.
+
+```bash
+# Get current tenant info
+curl -X GET https://gateway.example.com/tenant \
+  --cert client.crt --key client.key --cacert ca.crt
+
+# List users in my tenant (requires users:read)
+curl -X GET https://gateway.example.com/tenant/users \
+  --cert client.crt --key client.key --cacert ca.crt
+
+# Create user in my tenant (requires users:create)
+curl -X POST https://gateway.example.com/tenant/users \
+  --cert client.crt --key client.key --cacert ca.crt \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Get/Update/Delete specific user (requires respective permissions)
+curl -X GET https://gateway.example.com/tenant/users/user-bob \
+  --cert client.crt --key client.key --cacert ca.crt
+
+# List tenant audit events (requires audit:read)
+curl -X GET https://gateway.example.com/tenant/audit/events \
+  --cert client.crt --key client.key --cacert ca.crt
+
+# Filter audit events by type
+curl -X GET https://gateway.example.com/tenant/audit/events/type/auth.success \
+  --cert client.crt --key client.key --cacert ca.crt
+
+# Filter audit events by user
+curl -X GET https://gateway.example.com/tenant/audit/events/user/user-alice \
+  --cert client.crt --key client.key --cacert ca.crt
+```
+
+### Current User & Roles
+
+```bash
+# Get current user info
+curl -X GET https://gateway.example.com/user \
+  --cert client.crt --key client.key --cacert ca.crt
+
+# List available roles (requires roles:read)
+curl -X GET https://gateway.example.com/roles \
+  --cert client.crt --key client.key --cacert ca.crt
+
+# Get specific role
+curl -X GET https://gateway.example.com/roles/role-operator \
+  --cert client.crt --key client.key --cacert ca.crt
+
+# List all permissions
+curl -X GET https://gateway.example.com/permissions \
+  --cert client.crt --key client.key --cacert ca.crt
+```
+
+### Complete Route Map
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/admin/tenants` | Platform Admin | List all tenants |
+| `POST` | `/admin/tenants` | Platform Admin | Create tenant |
+| `GET` | `/admin/tenants/:tenantId` | Platform Admin | Get tenant |
+| `PUT` | `/admin/tenants/:tenantId` | Platform Admin | Update tenant |
+| `DELETE` | `/admin/tenants/:tenantId` | Platform Admin | Delete tenant |
+| `GET` | `/admin/tenants/:tenantId/users` | Platform Admin | List tenant users |
+| `POST` | `/admin/tenants/:tenantId/users` | Platform Admin | Create tenant user |
+| `GET` | `/admin/audit/events` | Platform Admin | List all audit events |
+| `GET` | `/tenant` | Authenticated | Get current tenant info |
+| `GET` | `/tenant/users` | `users:read` | List users in my tenant |
+| `POST` | `/tenant/users` | `users:create` | Create user in my tenant |
+| `GET` | `/tenant/users/:userId` | `users:read` | Get user |
+| `PUT` | `/tenant/users/:userId` | `users:update` | Update user |
+| `DELETE` | `/tenant/users/:userId` | `users:delete` | Delete user |
+| `GET` | `/tenant/audit/events` | `audit:read` | List tenant audit events |
+| `GET` | `/tenant/audit/events/type/:eventType` | `audit:read` | Filter events by type |
+| `GET` | `/tenant/audit/events/user/:userId` | `audit:read` | Filter events by user |
+| `GET` | `/user` | Authenticated | Get current user info |
+| `GET` | `/roles` | `roles:read` | List roles |
+| `GET` | `/roles/:roleId` | `roles:read` | Get role |
+| `GET` | `/permissions` | Authenticated | List all permissions |
+
+## RBAC & Permissions
+
+### Predefined Roles
+
+#### Platform-Level Roles
+
+| Role | ID | Description |
+|------|----|-------------|
+| `platform-admin` | `role-platform-admin` | Full access across all tenants (all permissions) |
+| `tenant-admin` | `role-tenant-admin` | Tenant management + user management + audit access |
+
+#### Tenant-Scoped Roles
+
+| Role | ID | Description |
+|------|----|-------------|
+| `owner` | `role-owner` | Full access within a tenant (users, resources, subscriptions, audit) |
+| `admin` | `role-admin` | Administrative access within a tenant (no audit, no user delete) |
+| `operator` | `role-operator` | Operational access (subscriptions, resources, no user management) |
+| `viewer` | `role-viewer` | Read-only access to subscriptions, resource pools, resources, types, DMs |
+
+### Permission Matrix
+
+| Permission | platform-admin | tenant-admin | owner | admin | operator | viewer |
+|-----------|:-:|:-:|:-:|:-:|:-:|:-:|
+| `tenants:read` | x | x | | | | |
+| `tenants:create` | x | x | | | | |
+| `tenants:update` | x | x | | | | |
+| `tenants:delete` | x | | | | | |
+| `users:read` | x | x | x | x | | |
+| `users:create` | x | x | x | x | | |
+| `users:update` | x | x | x | x | | |
+| `users:delete` | x | x | x | | | |
+| `roles:read` | x | | x | x | | |
+| `roles:create` | x | | | | | |
+| `roles:update` | x | | | | | |
+| `roles:delete` | x | | | | | |
+| `subscriptions:read` | x | | x | x | x | x |
+| `subscriptions:create` | x | | x | x | x | |
+| `subscriptions:delete` | x | | x | x | x | |
+| `resourcePools:read` | x | | x | x | x | x |
+| `resourcePools:create` | x | | x | x | | |
+| `resourcePools:update` | x | | x | x | | |
+| `resourcePools:delete` | x | | x | x | | |
+| `resources:read` | x | | x | x | x | x |
+| `resources:create` | x | | x | x | x | |
+| `resources:update` | x | | x | x | x | |
+| `resources:delete` | x | | x | x | | |
+| `resourceTypes:read` | x | | x | x | x | x |
+| `deploymentManagers:read` | x | | x | x | x | x |
+| `audit:read` | x | x | x | | | |
+
+### Permission Check Flow
+
+```go
+// The RBAC middleware checks permissions before handlers execute
+authMw.RequirePermission("subscriptions:create")
+
+// Platform admins bypass permission checks
+func (u *AuthenticatedUser) HasPermission(perm Permission) bool {
+    if u.IsPlatformAdmin {
+        return true
+    }
+    if u.Role == nil {
+        return false
+    }
+    return u.Role.HasPermission(perm)
+}
+```
+
+## Configuration
+
+### Multi-Tenancy Configuration
+
+```yaml
+# config.yaml
+
+# Multi-tenancy and RBAC
+multi_tenancy:
+  enabled: true
+  require_mtls: true
+  initialize_default_roles: true
+  audit_log_retention_days: 30
+  skip_auth_paths:
+    - /health
+    - /healthz
+    - /ready
+    - /readyz
+    - /metrics
+    - /
+    - /o2ims
+  default_tenant_quota:
+    max_subscriptions: 100
+    max_resource_pools: 50
+    max_deployments: 200
+    max_users: 20
+    max_requests_per_minute: 1000
+
+# Auth backend: "redis" or "keycloak"
+auth:
+  backend: redis
+  keycloak:
+    base_url: "http://keycloak:8090"
+    realm: "netweave"
+    client_id: "netweave-gateway"
+    client_secret_env_var: "KEYCLOAK_CLIENT_SECRET"
+    admin_username: "admin"
+    admin_password_env_var: "KEYCLOAK_ADMIN_PASSWORD"
+    timeout: 30s
+
+# OAuth2/OIDC authentication
+oauth2:
+  enabled: true
+  priority: false                    # mTLS takes priority when both present
+  keycloak_base_url: "http://keycloak:8090"
+  keycloak_realm: "netweave"
+  keycloak_client_id: "netweave-gateway"
+  keycloak_secret_env_var: "KEYCLOAK_SECRET"
+  auto_provision_users: false
+  default_role: "role-viewer"
+  require_tenant_claim: false
+  group_role_mapping:
+    /platform-admins: "role-platform-admin"
+    /tenant-admins: "role-tenant-admin"
+
+# TLS/mTLS
+tls:
+  enabled: true
+  cert_file: "/certs/server.crt"
+  key_file: "/certs/server.key"
+  ca_file: "/certs/ca.crt"
+  client_auth: "require-and-verify"
+  min_version: "1.3"
+
+# Redis (shared for subscriptions and auth store)
+redis:
+  mode: sentinel
+  addresses:
+    - "sentinel1:26379"
+    - "sentinel2:26379"
+    - "sentinel3:26379"
+  master_name: "mymaster"
+  password_env_var: "REDIS_PASSWORD"
+  db: 0
+
+# Rate limiting
+security:
+  rate_limit_enabled: true
+  rate_limit:
+    tenant:
+      requests_per_second: 1000
+      burst_size: 2000
+    global:
+      requests_per_second: 10000
+      max_concurrent_requests: 1000
+    endpoints:
+      - path: "/o2ims-infrastructureInventory/v1/subscriptions"
+        method: "POST"
+        requests_per_second: 10
+        burst_size: 20
+```
+
+## Cloud Provider Tagging
+
+### Kubernetes
 
 ```yaml
 apiVersion: v1
@@ -235,7 +805,7 @@ metadata:
     o2ims.io/resource-pool-id: k8s-pool-1
 ```
 
-#### AWS EC2
+### AWS EC2
 
 ```bash
 aws ec2 create-tags \
@@ -243,7 +813,7 @@ aws ec2 create-tags \
   --tags Key=o2ims.io/tenant-id,Value=tenant-acme
 ```
 
-#### Azure
+### Azure
 
 ```bash
 az vm update \
@@ -252,7 +822,7 @@ az vm update \
   --set tags.\"o2ims.io/tenant-id\"=tenant-acme
 ```
 
-#### GCP
+### GCP
 
 ```bash
 gcloud compute instances add-labels worker-1 \
@@ -260,7 +830,9 @@ gcloud compute instances add-labels worker-1 \
   --zone=us-central1-a
 ```
 
-#### OpenStack
+**Note**: GCP uses underscores (`o2ims_io_tenant-id`) instead of dots/slashes due to GCP label naming restrictions.
+
+### OpenStack
 
 ```bash
 openstack server set \
@@ -268,17 +840,16 @@ openstack server set \
   my-server
 ```
 
-#### VMware vSphere
+### VMware vSphere
 
 ```bash
 govc vm.change -vm worker-vm \
   -e="o2ims.io/tenant-id=tenant-acme"
 ```
 
-#### Dell DTIAS
+### Dell DTIAS
 
 ```bash
-# Via DTIAS API
 curl -X PUT https://dtias.example.com/v2/inventory/servers/server-123/metadata \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
@@ -288,313 +859,135 @@ curl -X PUT https://dtias.example.com/v2/inventory/servers/server-123/metadata \
   }'
 ```
 
-## Usage Examples
-
-### List Tenant Resources
-
-Each tenant sees only their own resources:
-
-```bash
-# Tenant ACME (tenant-acme) request
-curl -H "Authorization: Bearer $ACME_TOKEN" \
-  https://gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools
-
-# Response: Only ACME's resource pools returned
-{
-  "resourcePools": [
-    {
-      "resourcePoolId": "k8s-pool-acme",
-      "name": "ACME Kubernetes Cluster",
-      "location": "us-west-2"
-    }
-  ]
-}
-```
-
-```bash
-# Tenant XYZ (tenant-xyz) request
-curl -H "Authorization: Bearer $XYZ_TOKEN" \
-  https://gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools
-
-# Response: Only XYZ's resource pools returned
-{
-  "resourcePools": [
-    {
-      "resourcePoolId": "openstack-pool-xyz",
-      "name": "XYZ OpenStack Cloud",
-      "location": "eu-central-1"
-    }
-  ]
-}
-```
-
-### Cross-Tenant Access Prevention
-
-Attempting to access another tenant's resource returns 404:
-
-```bash
-# Tenant ACME attempts to access Tenant XYZ's resource
-curl -H "Authorization: Bearer $ACME_TOKEN" \
-  https://gateway.example.com/o2ims-infrastructureInventory/v1/resources/openstack-server-xyz-123
-
-# Response: 404 Not Found (resource existence not disclosed)
-{
-  "error": "NotFound",
-  "message": "Resource not found: openstack-server-xyz-123",
-  "code": 404
-}
-```
-
-**Security Note**: The gateway intentionally returns 404 (not 403) to prevent tenants from discovering the existence of other tenants' resources.
-
-### Create Tenant Subscription
-
-Subscriptions are isolated per tenant:
-
-```bash
-curl -X POST \
-  https://gateway.example.com/o2ims-infrastructureInventory/v1/subscriptions \
-  -H "Authorization: Bearer $ACME_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "consumerSubscriptionId": "sub-acme-001",
-    "callback": "https://acme-smo.example.com/notify",
-    "filter": "(resourceTypeId=k8s-node;location=us-west-2)"
-  }'
-
-# Subscription automatically tagged with tenant-acme
-# Only receives events for ACME's resources
-```
-
-### Tenant Quotas
-
-Tenants are subject to usage quotas:
-
-```bash
-# Check tenant quota usage
-curl -H "Authorization: Bearer $ACME_TOKEN" \
-  https://gateway.example.com/admin/v1/tenants/tenant-acme/usage
-
-# Response
-{
-  "tenantId": "tenant-acme",
-  "quotas": {
-    "max_subscriptions": 100,
-    "max_resources": 10000
-  },
-  "usage": {
-    "subscriptions": 12,
-    "resources": 342
-  }
-}
-```
-
-## Best Practices
-
-### 1. Tenant Identification
-
-- **Use UUIDs**: Generate tenant IDs as UUIDs (e.g., `uuid.New()`)
-- **Immutable IDs**: Never change tenant IDs after creation
-- **Consistent Format**: Use lowercase with hyphens: `tenant-acme-12345`
-
-### 2. Resource Tagging
-
-- **Tag at Creation**: Apply tenant tags when provisioning infrastructure
-- **Automated Tagging**: Use infrastructure-as-code (Terraform, CloudFormation) to ensure consistent tagging
-- **Audit Tags**: Regularly scan for untagged or mistagged resources
-- **Tag Policies**: Enforce tenant tagging via cloud provider tag policies
-
-### 3. Tenant Onboarding
-
-```bash
-#!/bin/bash
-# Automated tenant onboarding script
-
-TENANT_ID="tenant-acme"
-TENANT_NAME="ACME Corporation"
-
-# 1. Create tenant in auth system
-curl -X POST https://gateway.example.com/admin/v1/tenants \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d "{
-    \"id\": \"$TENANT_ID\",
-    \"name\": \"$TENANT_NAME\",
-    \"quotas\": {
-      \"max_subscriptions\": 100,
-      \"max_resources\": 10000
-    }
-  }"
-
-# 2. Create initial tenant admin user
-curl -X POST https://gateway.example.com/admin/v1/users \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d "{
-    \"email\": \"admin@acme.com\",
-    \"tenant_id\": \"$TENANT_ID\",
-    \"role_id\": \"tenant-admin\"
-  }"
-
-# 3. Create tenant-specific resource pool
-kubectl label namespace acme-ns "o2ims.io/tenant-id=$TENANT_ID"
-
-# 4. Tag existing infrastructure
-aws ec2 create-tags \
-  --resources $(aws ec2 describe-instances \
-    --filters "Name=tag:Project,Values=ACME" \
-    --query 'Reservations[].Instances[].InstanceId' \
-    --output text) \
-  --tags "Key=o2ims.io/tenant-id,Value=$TENANT_ID"
-
-echo "Tenant $TENANT_ID onboarded successfully"
-```
-
-### 4. Security Monitoring
-
-Monitor tenant isolation effectiveness:
-
-```yaml
-# Prometheus alerts for tenant violations
-groups:
-  - name: tenant_security
-    rules:
-      - alert: CrossTenantAccessAttempt
-        expr: |
-          rate(o2ims_tenant_access_denied_total[5m]) > 0
-        annotations:
-          summary: "Detected cross-tenant access attempt"
-          description: "User {{ $labels.user_id }} attempted to access tenant {{ $labels.target_tenant }}"
-
-      - alert: UntaggedResourceDetected
-        expr: |
-          o2ims_resources_without_tenant_tag > 0
-        annotations:
-          summary: "Resources without tenant tag detected"
-          description: "{{ $value }} resources missing o2ims.io/tenant-id tag"
-```
-
-### 5. Tenant Isolation Testing
-
-Regularly test tenant isolation:
-
-```bash
-#!/bin/bash
-# Tenant isolation test
-
-TENANT_A_TOKEN="..."
-TENANT_B_TOKEN="..."
-
-# List Tenant A's resources
-TENANT_A_RESOURCES=$(curl -s -H "Authorization: Bearer $TENANT_A_TOKEN" \
-  https://gateway.example.com/o2ims-infrastructureInventory/v1/resources \
-  | jq -r '.resources[].resourceId')
-
-# Attempt to access Tenant A's resources as Tenant B
-for RESOURCE_ID in $TENANT_A_RESOURCES; do
-  RESPONSE=$(curl -s -w "%{http_code}" -o /dev/null \
-    -H "Authorization: Bearer $TENANT_B_TOKEN" \
-    "https://gateway.example.com/o2ims-infrastructureInventory/v1/resources/$RESOURCE_ID")
-
-  if [ "$RESPONSE" != "404" ]; then
-    echo "FAIL: Cross-tenant access detected for resource $RESOURCE_ID"
-    exit 1
-  fi
-done
-
-echo "PASS: All cross-tenant access attempts properly denied"
-```
-
 ## Troubleshooting
+
+### Issue: Authentication Fails with 401 Unauthorized
+
+**Symptom**: Requests return `401 Unauthorized` with "Client certificate required" or "Invalid or expired OAuth2 token".
+
+**Diagnosis**:
+
+```bash
+# Verify the client certificate is valid and issued by the correct CA
+openssl verify -CAfile ca.crt client.crt
+
+# Check the certificate subject matches a registered user
+openssl x509 -in client.crt -noout -subject
+# Expected: subject=CN=alice,O=ACME,OU=Engineering
+
+# For OAuth2, verify the token is valid
+curl -X POST https://keycloak.example.com/realms/netweave/protocol/openid-connect/token/introspect \
+  -d "client_id=netweave-gateway&client_secret=$SECRET&token=$TOKEN"
+```
+
+**Solutions**:
+
+- Ensure the certificate is issued by the Vault PKI `netweave-client` role
+- Verify the user exists in the auth store with the matching subject
+- For OAuth2, ensure the token is not expired and is issued by the correct realm
+- Check `multi_tenancy.require_mtls` matches your intended auth method
 
 ### Issue: Resources Not Visible to Tenant
 
-**Symptom**: Resources exist but don't appear in API responses
+**Symptom**: Resources exist but do not appear in API responses.
 
 **Diagnosis**:
+
 ```bash
 # 1. Verify resource has tenant tag
 kubectl get node worker-1 -o jsonpath='{.metadata.labels.o2ims\.io/tenant-id}'
 
 # 2. Check user's tenant ID
-curl -H "Authorization: Bearer $TOKEN" \
-  https://gateway.example.com/admin/v1/users/me \
-  | jq '.tenant_id'
+curl -X GET https://gateway.example.com/user \
+  --cert client.crt --key client.key --cacert ca.crt
 
-# 3. Enable debug logging
-export LOG_LEVEL=debug
+# 3. Check gateway logs for tenant filtering
+kubectl logs -n netweave deploy/gateway | grep "tenant_id"
 ```
 
 **Solutions**:
-- Add missing tenant tag to resource
-- Verify user is assigned to correct tenant
+
+- Add missing tenant tag to the infrastructure resource
+- Verify the user is assigned to the correct tenant
 - Check adapter-specific label/tag syntax (especially GCP underscores)
+- Ensure the adapter `Filter.TenantID` is being passed correctly
 
-### Issue: Cross-Tenant Access Not Blocked
+### Issue: Cross-Tenant Access Returns Data (Should Return 404)
 
-**Symptom**: Users can see other tenants' resources
+**Symptom**: A user from one tenant can see another tenant's resources.
 
 **Diagnosis**:
+
 ```bash
-# 1. Verify multi-tenancy is enabled
-curl https://gateway.example.com/health | jq '.features.multi_tenancy'
+# 1. Verify multi-tenancy is enabled in config
+# Should show multi_tenancy.enabled: true
 
-# 2. Check JWT token contains tenant_id claim
-echo $TOKEN | jwt decode - | jq '.tenant_id'
+# 2. Check if the user is a platform admin (platform admins see all resources)
+curl -X GET https://gateway.example.com/user \
+  --cert client.crt --key client.key --cacert ca.crt
+# Check role: if "platform-admin", cross-tenant access is expected
 
-# 3. Review auth middleware configuration
+# 3. Check the resource has a TenantID set
+# Resources without TenantID may be visible to all tenants
 ```
 
 **Solutions**:
-- Enable `auth.multi_tenancy.enabled: true` in config
-- Ensure JWT tokens include `tenant_id` claim
-- Verify RBAC middleware is applied to routes
 
-### Issue: Tenant Tags Not Filtering Correctly
+- Enable `multi_tenancy.enabled: true` in config
+- Verify the RBAC middleware is applied to the route
+- Ensure resources have `TenantID` set (check `adapter.Resource.TenantID`)
+- Verify the user's role is tenant-scoped, not platform-level
 
-**Symptom**: Infrastructure queries return too many resources
+### Issue: Rate Limit Exceeded (429 Too Many Requests)
+
+**Symptom**: API requests return `429 Too Many Requests` with `Retry-After` header.
 
 **Diagnosis**:
+
 ```bash
-# 1. Test infrastructure API directly
-aws ec2 describe-instances \
-  --filters "Name=tag:o2ims.io/tenant-id,Values=tenant-acme"
+# Check rate limit headers in the response
+curl -v -X GET https://gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+  --cert client.crt --key client.key --cacert ca.crt 2>&1 | grep X-RateLimit
 
-# 2. Check adapter logs
-kubectl logs -n o2ims deploy/gateway -c gateway | grep "tenant filter"
-
-# 3. Verify tag format matches provider requirements
+# X-RateLimit-Limit: 1000
+# X-RateLimit-Remaining: 0
+# Retry-After: 1
 ```
 
 **Solutions**:
-- AWS/Azure/OpenStack: Use `o2ims.io/tenant-id`
-- GCP: Use `o2ims_io_tenant-id` (underscores, not dots)
-- Kubernetes: Ensure label selector syntax is correct
-- VMware: Verify ExtraConfig key spelling
+
+- Wait for the `Retry-After` period before retrying
+- Request a quota increase from the platform admin (increase `maxRequestsPerMinute`)
+- Implement exponential backoff in your client
+- Check if endpoint-specific limits are more restrictive than tenant limits
 
 ### Issue: Quota Exceeded Errors
 
-**Symptom**: Cannot create subscriptions or resources
+**Symptom**: Cannot create subscriptions, resource pools, or users. Returns 403 with quota error.
 
 **Diagnosis**:
+
 ```bash
-# Check current usage vs quotas
-curl -H "Authorization: Bearer $TOKEN" \
-  https://gateway.example.com/admin/v1/tenants/$TENANT_ID/usage
+# Check current tenant info (includes quota and usage)
+curl -X GET https://gateway.example.com/tenant \
+  --cert client.crt --key client.key --cacert ca.crt
 ```
 
 **Solutions**:
-- Request quota increase from platform admin
-- Delete unused subscriptions/resources
-- Review quota enforcement policies
+
+- Request quota increase from platform admin (update tenant via admin API)
+- Delete unused subscriptions, resource pools, or resources to free quota
+- Check if usage counters are accurate; contact admin if they appear stale
 
 ## Related Documentation
 
-- [Authentication](./authentication.md) - JWT token configuration
-- [Authorization](./authorization.md) - RBAC permissions
-- [Audit Trail](../operations/monitoring.md#audit-logging) - Tenant activity logging
+- [Authentication](./authentication.md) - Detailed mTLS and OAuth2 configuration
+- [Authorization](./authorization.md) - RBAC permissions reference
+- [Vault PKI](./vault-pki.md) - Certificate management with HashiCorp Vault
 - [API Reference](../api/README.md) - O2-IMS API endpoints
 
 ## References
 
 - [O-RAN O2 IMS Specification](https://specifications.o-ran.org/)
-- [NIST Multi-Tenancy Guidelines](https://csrc.nist.gov/publications/detail/sp/800-144/final)
-- [Cloud Provider Tag Policies](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_tag-policies.html)
+- [HashiCorp Vault PKI](https://developer.hashicorp.com/vault/docs/secrets/pki)
+- [Keycloak Documentation](https://www.keycloak.org/documentation)
