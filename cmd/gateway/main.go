@@ -240,7 +240,7 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		}
 		imsAdapter = mockAdp
 	default:
-		k8sAdp, k8sErr := initializeKubernetesAdapter(cfg, logger)
+		k8sAdp, k8sErr := initializeKubernetesAdapter(cfg, logger, store)
 		if k8sErr != nil {
 			cleanupOnError(store, nil, logger)
 			return nil, fmt.Errorf("failed to initialize Kubernetes adapter: %w", k8sErr)
@@ -634,7 +634,7 @@ func verifyRedisConnectivity(store *storage.RedisStore) error {
 }
 
 // initializeKubernetesAdapter creates and initializes the Kubernetes adapter.
-func initializeKubernetesAdapter(cfg *config.Config, logger *zap.Logger) (*kubernetes.Adapter, error) {
+func initializeKubernetesAdapter(cfg *config.Config, logger *zap.Logger, store storage.Store) (*kubernetes.Adapter, error) {
 	// Build Kubernetes adapter configuration
 	k8sCfg := &kubernetes.Config{
 		Kubeconfig:          cfg.Kubernetes.ConfigPath,
@@ -642,6 +642,7 @@ func initializeKubernetesAdapter(cfg *config.Config, logger *zap.Logger) (*kuber
 		DeploymentManagerID: "netweave-k8s-dm",
 		Namespace:           cfg.Kubernetes.Namespace,
 		Logger:              logger,
+		Store:               store,
 	}
 
 	// Set default namespace if not specified
