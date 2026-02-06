@@ -41,8 +41,10 @@ func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.D
 	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
-	// Validate ID matches configured deployment manager
-	if id != a.deploymentManagerID {
+	// Validate ID matches configured deployment manager.
+	// Accept "default" and "" as aliases for the configured DM ID,
+	// matching the behavior used by routes.go and handlers.
+	if id != a.deploymentManagerID && id != "default" && id != "" {
 		return nil, fmt.Errorf("deployment manager %s not found", id)
 	}
 
