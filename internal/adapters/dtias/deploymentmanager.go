@@ -19,7 +19,7 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 	// Accept "default" and "" as aliases for the configured DM ID,
 	// matching the behavior used by routes.go and handlers.
 	if id != a.DeploymentManagerID && id != "default" && id != "" {
-		return nil, fmt.Errorf("%w: %s", adapter.ErrDeploymentManagerNotFound, id)
+		return nil, fmt.Errorf("deployment manager %s: %w", id, adapter.ErrDeploymentManagerNotFound)
 	}
 
 	// Query DTIAS API for datacenter metadata (used to build deployment manager info)
@@ -108,4 +108,17 @@ func (a *Adapter) getDatacenterInfo(ctx context.Context, datacenterID string) (*
 	}
 
 	return &datacenterInfo, nil
+}
+
+// ListDeploymentManagers retrieves all deployment managers.
+// DTIAS has a single deployment manager per adapter instance.
+func (a *Adapter) ListDeploymentManagers(ctx context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+	a.logger.Debug("ListDeploymentManagers called")
+
+	dm, err := a.GetDeploymentManager(ctx, a.DeploymentManagerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list deployment managers: %w", err)
+	}
+
+	return []*adapter.DeploymentManager{dm}, nil
 }

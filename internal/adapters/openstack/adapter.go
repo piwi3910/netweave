@@ -318,7 +318,7 @@ func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.D
 	// Accept "default" and "" as aliases for the configured DM ID,
 	// matching the behavior used by routes.go and handlers.
 	if id != a.DeploymentManagerID && id != "default" && id != "" {
-		return nil, fmt.Errorf("deployment manager not found: %s", id)
+		return nil, fmt.Errorf("deployment manager %s: %w", id, adapter.ErrDeploymentManagerNotFound)
 	}
 
 	// Query OpenStack region information
@@ -373,6 +373,19 @@ func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.D
 		zap.String("region", a.Region))
 
 	return dm, nil
+}
+
+// ListDeploymentManagers retrieves all deployment managers.
+// OpenStack has a single deployment manager per adapter instance.
+func (a *Adapter) ListDeploymentManagers(ctx context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+	a.Logger.Debug("ListDeploymentManagers called")
+
+	dm, err := a.GetDeploymentManager(ctx, a.DeploymentManagerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list deployment managers: %w", err)
+	}
+
+	return []*adapter.DeploymentManager{dm}, nil
 }
 
 // Health performs a health check on the OpenStack backend.

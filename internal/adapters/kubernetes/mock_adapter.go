@@ -70,13 +70,21 @@ func (m *MockAdapter) Capabilities() []adapter.Capability {
 	}
 }
 
+// ListDeploymentManagers returns all mock deployment managers.
+func (m *MockAdapter) ListDeploymentManagers(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return []*adapter.DeploymentManager{m.deploymentManager}, nil
+}
+
 // GetDeploymentManager returns mock deployment manager metadata.
 func (m *MockAdapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	if id != m.deploymentManager.DeploymentManagerID {
-		return nil, fmt.Errorf("deployment manager not found")
+		return nil, fmt.Errorf("deployment manager %s: %w", id, adapter.ErrDeploymentManagerNotFound)
 	}
 
 	return m.deploymentManager, nil

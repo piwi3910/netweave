@@ -1886,11 +1886,9 @@ func (s *Server) handleGetResourceType(c *gin.Context) {
 func (s *Server) handleListDeploymentManagers(c *gin.Context) {
 	s.logger.Info("listing deployment managers")
 
-	// For now, return a single deployment manager representing this gateway
-	// In multi-cluster setups, this could list multiple managers
-	dm, err := s.adapter.GetDeploymentManager(c.Request.Context(), "default")
+	dms, err := s.adapter.ListDeploymentManagers(c.Request.Context(), nil)
 	if err != nil {
-		s.logger.Error("failed to get deployment manager", zap.Error(err))
+		s.logger.Error("failed to list deployment managers", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
 			"message": "Failed to retrieve deployment managers",
@@ -1900,8 +1898,8 @@ func (s *Server) handleListDeploymentManagers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"deploymentManagers": []*adapter.DeploymentManager{dm},
-		"total":              1,
+		"deploymentManagers": dms,
+		"total":              len(dms),
 	})
 }
 
@@ -1933,10 +1931,10 @@ func (s *Server) handleGetDeploymentManager(c *gin.Context) {
 func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 	s.logger.Info("getting O-Cloud infrastructure information")
 
-	// Get deployment manager to retrieve O-Cloud information
-	dm, err := s.adapter.GetDeploymentManager(c.Request.Context(), "default")
+	// List all registered deployment managers instead of looking up a hardcoded ID.
+	dms, err := s.adapter.ListDeploymentManagers(c.Request.Context(), nil)
 	if err != nil {
-		s.logger.Error("failed to get O-Cloud information", zap.Error(err))
+		s.logger.Error("failed to list deployment managers for O-Cloud info", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
 			"message": "Failed to retrieve O-Cloud information",
@@ -1944,6 +1942,19 @@ func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 		})
 		return
 	}
+
+	if len(dms) == 0 {
+		s.logger.Error("no deployment managers registered")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "No deployment managers available",
+			"code":    http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Use the first registered deployment manager for O-Cloud metadata.
+	dm := dms[0]
 
 	c.JSON(http.StatusOK, gin.H{
 		"oCloudId":    dm.OCloudID,

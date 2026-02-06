@@ -20,7 +20,18 @@ import (
 // mockDeploymentManagerAdapter is a mock implementation of adapter.Adapter for testing.
 type mockDeploymentManagerAdapter struct {
 	adapter.Adapter
-	getDeploymentManagerFunc func(ctx context.Context, id string) (*adapter.DeploymentManager, error)
+	listDeploymentManagersFunc func(ctx context.Context, filter *adapter.Filter) ([]*adapter.DeploymentManager, error)
+	getDeploymentManagerFunc   func(ctx context.Context, id string) (*adapter.DeploymentManager, error)
+}
+
+func (m *mockDeploymentManagerAdapter) ListDeploymentManagers(
+	ctx context.Context,
+	filter *adapter.Filter,
+) ([]*adapter.DeploymentManager, error) {
+	if m.listDeploymentManagersFunc != nil {
+		return m.listDeploymentManagersFunc(ctx, filter)
+	}
+	return nil, errors.New("not implemented")
 }
 
 func (m *mockDeploymentManagerAdapter) GetDeploymentManager(
@@ -66,22 +77,24 @@ func TestListDeploymentManagers(t *testing.T) {
 	tests := []struct {
 		name           string
 		queryParams    string
-		mockFunc       func(ctx context.Context, id string) (*adapter.DeploymentManager, error)
+		mockFunc       func(ctx context.Context, filter *adapter.Filter) ([]*adapter.DeploymentManager, error)
 		expectedStatus int
 		checkResponse  func(t *testing.T, w *httptest.ResponseRecorder)
 	}{
 		{
 			name:        "successful list",
 			queryParams: "",
-			mockFunc: func(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
-				return &adapter.DeploymentManager{
-					DeploymentManagerID: "dm-1",
-					Name:                "Test DM",
-					Description:         "Test deployment manager",
-					OCloudID:            "ocloud-1",
-					ServiceURI:          "https://dm.example.com",
-					SupportedLocations:  []string{"us-east-1"},
-					Capabilities:        []string{"compute", "storage"},
+			mockFunc: func(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+				return []*adapter.DeploymentManager{
+					{
+						DeploymentManagerID: "dm-1",
+						Name:                "Test DM",
+						Description:         "Test deployment manager",
+						OCloudID:            "ocloud-1",
+						ServiceURI:          "https://dm.example.com",
+						SupportedLocations:  []string{"us-east-1"},
+						Capabilities:        []string{"compute", "storage"},
+					},
 				}, nil
 			},
 			expectedStatus: http.StatusOK,
@@ -95,10 +108,12 @@ func TestListDeploymentManagers(t *testing.T) {
 		{
 			name:        "with pagination",
 			queryParams: "?offset=0&limit=10",
-			mockFunc: func(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
-				return &adapter.DeploymentManager{
-					DeploymentManagerID: "dm-1",
-					Name:                "Test DM",
+			mockFunc: func(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+				return []*adapter.DeploymentManager{
+					{
+						DeploymentManagerID: "dm-1",
+						Name:                "Test DM",
+					},
 				}, nil
 			},
 			expectedStatus: http.StatusOK,
@@ -110,7 +125,7 @@ func TestListDeploymentManagers(t *testing.T) {
 		{
 			name:        "adapter error",
 			queryParams: "",
-			mockFunc: func(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
+			mockFunc: func(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
 				return nil, errors.New("adapter failure")
 			},
 			expectedStatus: http.StatusInternalServerError,
@@ -123,10 +138,12 @@ func TestListDeploymentManagers(t *testing.T) {
 		{
 			name:        "high offset pagination",
 			queryParams: "?offset=100&limit=10",
-			mockFunc: func(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
-				return &adapter.DeploymentManager{
-					DeploymentManagerID: "dm-1",
-					Name:                "Test DM",
+			mockFunc: func(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+				return []*adapter.DeploymentManager{
+					{
+						DeploymentManagerID: "dm-1",
+						Name:                "Test DM",
+					},
 				}, nil
 			},
 			expectedStatus: http.StatusOK,
@@ -141,7 +158,7 @@ func TestListDeploymentManagers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockAdapter := &mockDeploymentManagerAdapter{
-				getDeploymentManagerFunc: tt.mockFunc,
+				listDeploymentManagersFunc: tt.mockFunc,
 			}
 			handler := handlers.NewDeploymentManagerHandler(mockAdapter, logger)
 
@@ -216,7 +233,7 @@ func TestGetDeploymentManager(t *testing.T) {
 			name:            "not found",
 			deploymentMgrID: "dm-404",
 			mockFunc: func(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
-				return nil, errors.New("deployment manager not found")
+				return nil, adapter.ErrDeploymentManagerNotFound
 			},
 			expectedStatus: http.StatusNotFound,
 			checkResponse: func(t *testing.T, w *httptest.ResponseRecorder) {

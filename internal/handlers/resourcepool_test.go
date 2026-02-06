@@ -86,6 +86,9 @@ func (m *mockAdapter) Version() string {
 func (m *mockAdapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{adapter.CapabilityResourcePools}
 }
+func (m *mockAdapter) ListDeploymentManagers(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+	return nil, errNotImplemented
+}
 func (m *mockAdapter) GetDeploymentManager(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
 	return nil, errNotImplemented
 }

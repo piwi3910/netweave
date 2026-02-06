@@ -166,6 +166,15 @@ func (m *benchMockAdapter) Name() string                       { return "mock" }
 func (m *benchMockAdapter) Version() string                    { return "1.0.0" }
 func (m *benchMockAdapter) Capabilities() []adapter.Capability { return nil }
 
+func (m *benchMockAdapter) ListDeploymentManagers(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+	return []*adapter.DeploymentManager{
+		{
+			DeploymentManagerID: "bench-dm",
+			Name:                "Test DM",
+		},
+	}, nil
+}
+
 func (m *benchMockAdapter) GetDeploymentManager(_ context.Context, dmID string) (*adapter.DeploymentManager, error) {
 	return &adapter.DeploymentManager{
 		DeploymentManagerID: dmID,

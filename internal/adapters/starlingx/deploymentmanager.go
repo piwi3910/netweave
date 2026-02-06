@@ -17,7 +17,7 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 			zap.String("requested", id),
 			zap.String("expected", a.deploymentManagerID),
 		)
-		return nil, adapter.ErrDeploymentManagerNotFound
+		return nil, fmt.Errorf("deployment manager %s: %w", id, adapter.ErrDeploymentManagerNotFound)
 	}
 
 	// List systems (should return one system)
@@ -45,4 +45,17 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 	)
 
 	return dm, nil
+}
+
+// ListDeploymentManagers retrieves all deployment managers.
+// StarlingX has a single deployment manager per adapter instance.
+func (a *Adapter) ListDeploymentManagers(ctx context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+	a.logger.Debug("ListDeploymentManagers called")
+
+	dm, err := a.GetDeploymentManager(ctx, a.deploymentManagerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list deployment managers: %w", err)
+	}
+
+	return []*adapter.DeploymentManager{dm}, nil
 }

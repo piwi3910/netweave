@@ -278,6 +278,11 @@ type Metadata interface {
 
 // DeploymentManagerClient provides deployment manager operations.
 type DeploymentManagerClient interface {
+	// ListDeploymentManagers retrieves all deployment managers matching the filter.
+	// The filter parameter can be nil to retrieve all deployment managers.
+	// Returns a slice of deployment managers or an error.
+	ListDeploymentManagers(ctx context.Context, filter *Filter) ([]*DeploymentManager, error)
+
 	// GetDeploymentManager retrieves metadata about the deployment manager.
 	// Returns the deployment manager or an error if not found.
 	GetDeploymentManager(ctx context.Context, id string) (*DeploymentManager, error)
