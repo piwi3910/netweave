@@ -114,10 +114,11 @@ type RenewalPolicy struct {
 	// RetryInterval is the time between renewal retries (default: 1 hour).
 	RetryInterval time.Duration
 
-	// TODO(#298): Add notification support for renewal events
-	// - NotifyAdmins bool   // Send notifications to administrators
-	// - NotifyUser bool     // Send notifications to certificate owner
-	// - NotificationConfig  // Email/webhook configuration
+	// NotifyAdmins enables sending notifications to administrators on renewal events.
+	NotifyAdmins bool
+
+	// NotifyUser enables sending notifications to the certificate owner on renewal events.
+	NotifyUser bool
 }
 
 // DefaultRenewalPolicy returns the default renewal policy.
