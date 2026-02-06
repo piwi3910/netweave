@@ -9,9 +9,10 @@
 3. [Vault PKI Setup](#vault-pki-setup)
 4. [Certificate Issuance](#certificate-issuance)
 5. [Certificate Renewal](#certificate-renewal)
-6. [Certificate Revocation](#certificate-revocation)
-7. [Monitoring](#monitoring)
-8. [Troubleshooting](#troubleshooting)
+6. [Certificate Renewal Notifications](#certificate-renewal-notifications)
+7. [Certificate Revocation](#certificate-revocation)
+8. [Monitoring](#monitoring)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -417,6 +418,149 @@ kubectl rollout restart deployment/o2ims-gateway -n o2ims-system
 
 ---
 
+## Certificate Renewal Notifications
+
+### Overview
+
+The certificate manager includes a built-in notification system that sends webhook-based alerts for certificate lifecycle events. This enables operators and external monitoring systems to react to certificate state changes in real time, such as upcoming expirations, successful renewals, and failures.
+
+The notification system is implemented via the `CertNotifier` interface in `internal/certmanager/notifier.go` and integrates directly with the certificate monitoring loop in the `Service`.
+
+### Certificate Lifecycle Events
+
+The following event types are emitted during the certificate lifecycle:
+
+| Event Type | Constant | Description |
+|-----------|----------|-------------|
+| `certificate.issued` | `CertEventIssued` | A new certificate was successfully issued |
+| `certificate.renewed` | `CertEventRenewed` | A certificate was successfully renewed |
+| `certificate.renewal_failed` | `CertEventRenewalFailed` | A certificate renewal attempt failed |
+| `certificate.expiring_soon` | `CertEventExpiringSoon` | A certificate will expire within the renewal window |
+| `certificate.expired` | `CertEventExpired` | A certificate has expired |
+| `certificate.revoked` | `CertEventRevoked` | A certificate was revoked |
+
+Each event is delivered as a JSON payload containing the event type, full certificate details, a timestamp, and a human-readable message.
+
+**Event Payload Example:**
+
+```json
+{
+  "event_type": "certificate.expiring_soon",
+  "certificate": {
+    "serial_number": "3a:1f:2e:4d:5c:6b",
+    "common_name": "operator-1.smo-alpha.o2ims.example.com",
+    "user_id": "user-42",
+    "tenant_id": "tenant-7",
+    "status": "expiring_soon",
+    "issued_at": "2026-01-01T00:00:00Z",
+    "expires_at": "2026-04-01T00:00:00Z"
+  },
+  "timestamp": "2026-03-25T10:30:00Z",
+  "message": "Certificate 3a:1f:2e:4d:5c:6b (operator-1.smo-alpha.o2ims.example.com) is expiring soon at 2026-04-01T00:00:00Z"
+}
+```
+
+### Notification Channel: Webhooks
+
+The notification system currently supports **HTTP POST webhooks** as the delivery channel. The `WebhookCertNotifier` sends JSON-encoded event payloads to a configured endpoint with the following characteristics:
+
+- **HTTP Method**: POST
+- **Content-Type**: `application/json`
+- **User-Agent**: `Netweave-CertManager/1.0`
+- **Retry Policy**: Up to 3 delivery attempts with 1-second backoff between retries
+- **Timeout**: 10 seconds per HTTP request
+- **Non-Blocking**: Notification failures are logged as warnings but never block certificate lifecycle operations (issuance, renewal, revocation continue regardless)
+
+### HMAC Signature Verification
+
+When an `HMACSecret` is configured, each webhook request includes an `X-Signature-SHA256` header containing an HMAC-SHA256 signature of the request body. This allows the receiving endpoint to verify the authenticity and integrity of the notification.
+
+**Signature Format:** `sha256=<hex-encoded-hmac>`
+
+**Verification Example (receiver side):**
+
+```go
+import (
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/hex"
+)
+
+func verifySignature(body []byte, signature string, secret string) bool {
+    mac := hmac.New(sha256.New, []byte(secret))
+    mac.Write(body)
+    expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+    return hmac.Equal([]byte(expected), []byte(signature))
+}
+```
+
+### Configuration
+
+The notification system is configured via the `NotificationConfig` struct:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `WebhookURL` | `string` | Yes | The HTTP endpoint to send notification events to |
+| `EnableAdminNotifications` | `bool` | No | Enable sending notifications to administrators |
+| `EnableUserNotifications` | `bool` | No | Enable sending notifications to certificate owners |
+| `HMACSecret` | `string` | No | Shared secret for HMAC-SHA256 webhook signature verification |
+
+**Configuration Example:**
+
+```yaml
+# config.yaml
+certificate_notifications:
+  webhook_url: "https://monitoring.example.com/cert-events"
+  enable_admin_notifications: true
+  enable_user_notifications: false
+  hmac_secret: "${CERT_WEBHOOK_HMAC_SECRET}"  # From environment variable
+```
+
+### Integration with the Gateway
+
+The notification system integrates with the certificate manager `Service` through the `SetNotifier` method:
+
+1. **Optional Setup**: Notifications are optional. If no notifier is configured, all certificate lifecycle operations proceed without sending notifications.
+2. **Automatic Triggers**: The certificate monitoring loop automatically sends notifications when it detects certificates in `expiring_soon` or `expired` states via the `handleExpiringSoon` and `handleExpired` methods.
+3. **Renewal Integration**: After a successful or failed renewal attempt, the appropriate event (`certificate.renewed` or `certificate.renewal_failed`) is emitted.
+4. **Graceful Degradation**: If webhook delivery fails after all retry attempts, the failure is logged but does not affect the certificate lifecycle. This ensures that transient network issues or webhook endpoint outages do not disrupt certificate management.
+
+```mermaid
+sequenceDiagram
+    participant Monitor as Certificate Monitor
+    participant Service as CertManager Service
+    participant Notifier as WebhookCertNotifier
+    participant Webhook as External Webhook
+
+    Monitor->>Service: scanAndRenew()
+    Service->>Service: Check certificate expiry
+
+    alt Certificate expiring soon
+        Service->>Notifier: Notify(CertEventExpiringSoon)
+        Notifier->>Webhook: POST /cert-events (with retry)
+        Webhook-->>Notifier: 200 OK
+        Service->>Service: Trigger auto-renewal
+    end
+
+    alt Certificate expired
+        Service->>Notifier: Notify(CertEventExpired)
+        Notifier->>Webhook: POST /cert-events (with retry)
+        Webhook-->>Notifier: 200 OK
+    end
+
+    alt Renewal succeeded
+        Service->>Notifier: Notify(CertEventRenewed)
+        Notifier->>Webhook: POST /cert-events
+    end
+
+    alt Renewal failed
+        Service->>Notifier: Notify(CertEventRenewalFailed)
+        Notifier->>Webhook: POST /cert-events
+    end
+```
+
+---
+
 ## Certificate Revocation
 
 ### Revoke Certificate
@@ -649,5 +793,5 @@ kubectl logs -n o2ims-system -l app=gateway --tail=100 | grep -i cert
 
 ---
 
-**Last Updated:** 2026-01-22
-**Version:** 1.0
+**Last Updated:** 2026-02-06
+**Version:** 1.1
