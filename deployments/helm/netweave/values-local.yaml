@@ -106,14 +106,11 @@ keycloak:
       cpu: 1000m
       memory: 512Mi
 
-# Vault - deployed separately via dev-deployment.yaml
+# Vault - deployed and configured separately (PKI certs created manually)
+# Set enabled: false so the gateway doesn't wait for Vault at startup.
+# TLS certs are provided via netweave-tls-server secret and netweave-tls-ca configmap.
 vault:
-  enabled: true
-  replicaCount: 1
-  deployViaManifests: true
-  namespace: vault-system
-  skipTLSVerify: true
-  caCert: false
+  enabled: false
 
 # Redis - official image, small
 redis:

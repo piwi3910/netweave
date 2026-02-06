@@ -262,61 +262,51 @@ graph TB
 
 Before starting the tutorials:
 
-1. **netweave gateway running** - Follow [Quickstart](quickstart.md) or [Installation](installation.md)
-2. **curl or HTTPie installed** - For making API calls
-3. **jq installed** - For JSON formatting (optional but recommended)
+1. **netweave gateway running** - Follow the [Getting Started guide](README.md) to deploy netweave
+2. **mTLS client certificate** - Generated in the Getting Started guide (Step 5.2)
+3. **curl and jq installed** - For making API calls and formatting JSON
 
 ### Verify Gateway is Ready
 
 ```bash
-# Check health
-curl http://localhost:8080/health
+# Check health (using HTTPS, -k to skip cert verification for health check)
+curl -sk https://localhost:8443/health | jq
 
 # Expected: {"status":"ok","timestamp":"..."}
 ```
 
 ### Set Environment Variables
 
-```bash
-# Development (HTTP)
-export GATEWAY_URL="http://localhost:8080"
+All API calls use mTLS authentication (per O-RAN O2-IMS specification):
 
-# Production (HTTPS with mTLS)
-export GATEWAY_URL="https://netweave.example.com"
-export CLIENT_CERT="client.crt"
-export CLIENT_KEY="client.key"
-export CA_CERT="ca.crt"
+```bash
+export GW_URL="https://localhost:8443"
+export CLIENT_CERT="/tmp/vault-tls/client.crt"
+export CLIENT_KEY="/tmp/vault-tls/client.key"
+export CA_CERT="/tmp/vault-tls/ca-chain.crt"
 ```
 
 ### Helper Function for API Calls
 
 ```bash
 # Add to ~/.bashrc or ~/.zshrc
-o2ims_api() {
-  local method=$1
-  local path=$2
-  local data=$3
+o2api() {
+  local method="${1:-GET}"
+  local path="$2"
+  local data="$3"
 
-  if [ -z "$CLIENT_CERT" ]; then
-    # Development (HTTP)
-    curl -X "$method" "$GATEWAY_URL$path" \
-      -H "Content-Type: application/json" \
-      ${data:+-d "$data"} | jq
-  else
-    # Production (HTTPS + mTLS)
-    curl -X "$method" "$GATEWAY_URL$path" \
-      --cert "$CLIENT_CERT" \
-      --key "$CLIENT_KEY" \
-      --cacert "$CA_CERT" \
-      -H "Content-Type: application/json" \
-      ${data:+-d "$data"} | jq
-  fi
+  curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+    -X "$method" "$GW_URL$path" \
+    -H "Content-Type: application/json" \
+    ${data:+-d "$data"} | jq
 }
 
 # Usage:
-# o2ims_api GET /o2ims-infrastructureInventory/v1/resourcePools
-# o2ims_api POST /o2ims-infrastructureInventory/v1/subscriptions '{"callback":"..."}'
+# o2api GET /o2ims-infrastructureInventory/v1/resourcePools
+# o2api POST /o2ims-infrastructureInventory/v1/subscriptions '{"callback":"..."}'
 ```
+
+> **Note:** All tutorial examples below use mTLS client certificates for authentication (per O-RAN O2-IMS specification). Every `curl` command includes `--cert`, `--key`, and `--cacert` flags. Make sure the environment variables from the [Prerequisites](#set-environment-variables) section are set. Alternatively, use the `o2api` helper function defined above.
 
 ## Tutorial 1: Understanding Resource Pools
 
@@ -325,7 +315,8 @@ Learn to query and manage resource pools.
 ### Step 1: List All Resource Pools
 
 ```bash
-curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools | jq
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools" | jq
 ```
 
 **Response:**
@@ -371,7 +362,7 @@ curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools | jq
 ### Step 2: Get a Specific Resource Pool
 
 ```bash
-curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem | jq
+curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem | jq
 ```
 
 **Response:**
@@ -400,7 +391,7 @@ curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-com
 ### Step 3: Create a New Resource Pool
 
 ```bash
-curl -X POST $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools \
+curl -X POST $GW_URL/o2ims-infrastructureInventory/v1/resourcePools \
   -H "Content-Type: application/json" \
   -d '{
     "name": "GPU Compute Pool",
@@ -438,7 +429,7 @@ curl -X POST $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools \
 ### Step 4: Update Resource Pool
 
 ```bash
-curl -X PUT $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-gpu-ml \
+curl -X PUT $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-gpu-ml \
   -H "Content-Type: application/json" \
   -d '{
     "name": "GPU Compute Pool",
@@ -471,7 +462,7 @@ curl -X PUT $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-gpu
 ### Step 5: Delete Resource Pool
 
 ```bash
-curl -X DELETE $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-gpu-ml
+curl -X DELETE $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-gpu-ml
 
 # Response: 204 No Content
 ```
@@ -484,7 +475,7 @@ Learn to query and filter infrastructure resources.
 
 ```bash
 # List all resources (across all pools)
-curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem/resources | jq
+curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem/resources | jq
 ```
 
 **Response:**
@@ -534,7 +525,7 @@ curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-com
 ### Step 2: Get a Specific Resource
 
 ```bash
-curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resources/node-ip-10-0-1-42 | jq
+curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resources/node-ip-10-0-1-42 | jq
 ```
 
 **Response:**
@@ -573,7 +564,7 @@ curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resources/node-ip-10-0
 
 ```bash
 # Get only compute node resources
-curl -X GET "$GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem/resources?resourceTypeId=kubernetes-node" | jq
+curl -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem/resources?resourceTypeId=kubernetes-node" | jq
 ```
 
 ### Step 4: Advanced Filtering (v2 API)
@@ -582,16 +573,16 @@ The v2 API supports advanced filtering with operators:
 
 ```bash
 # Resources with specific label
-curl -X GET "$GATEWAY_URL/o2ims/v2/resources?labels=env:prod" | jq
+curl -X GET "$GW_URL/o2ims/v2/resources?labels=env:prod" | jq
 
 # Field selection (reduce payload)
-curl -X GET "$GATEWAY_URL/o2ims/v2/resources?fields=resourceId,resourcePoolId,extensions.status" | jq
+curl -X GET "$GW_URL/o2ims/v2/resources?fields=resourceId,resourcePoolId,extensions.status" | jq
 
 # Sorting
-curl -X GET "$GATEWAY_URL/o2ims/v2/resources?sortBy=resourceId&sortOrder=desc" | jq
+curl -X GET "$GW_URL/o2ims/v2/resources?sortBy=resourceId&sortOrder=desc" | jq
 
 # Pagination
-curl -X GET "$GATEWAY_URL/o2ims/v2/resources?limit=10&offset=20" | jq
+curl -X GET "$GW_URL/o2ims/v2/resources?limit=10&offset=20" | jq
 ```
 
 ## Tutorial 3: Creating Subscriptions
@@ -612,7 +603,7 @@ Subscriptions trigger webhook notifications for these events:
 ### Step 2: Create a Simple Subscription
 
 ```bash
-curl -X POST $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions \
+curl -X POST $GW_URL/o2ims-infrastructureInventory/v1/subscriptions \
   -H "Content-Type: application/json" \
   -d '{
     "callback": "https://smo.example.com/o2ims/notifications",
@@ -638,7 +629,7 @@ This subscribes to **all** infrastructure events.
 Subscribe only to events for a specific resource pool:
 
 ```bash
-curl -X POST $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions \
+curl -X POST $GW_URL/o2ims-infrastructureInventory/v1/subscriptions \
   -H "Content-Type: application/json" \
   -d '{
     "callback": "https://smo.example.com/o2ims/notifications/highmem",
@@ -665,7 +656,7 @@ curl -X POST $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions \
 ### Step 4: List Active Subscriptions
 
 ```bash
-curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions | jq
+curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/subscriptions | jq
 ```
 
 **Response:**
@@ -697,13 +688,13 @@ curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions | jq
 ### Step 5: Get Subscription Details
 
 ```bash
-curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions/550e8400-e29b-41d4-a716-446655440001 | jq
+curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/subscriptions/550e8400-e29b-41d4-a716-446655440001 | jq
 ```
 
 ### Step 6: Delete Subscription
 
 ```bash
-curl -X DELETE $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions/550e8400-e29b-41d4-a716-446655440001
+curl -X DELETE $GW_URL/o2ims-infrastructureInventory/v1/subscriptions/550e8400-e29b-41d4-a716-446655440001
 
 # Response: 204 No Content
 ```
@@ -730,7 +721,7 @@ docker run --rm -p 9000:8080 --name webhook-receiver \
 ### Step 2: Create Subscription with Test Webhook
 
 ```bash
-curl -X POST $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions \
+curl -X POST $GW_URL/o2ims-infrastructureInventory/v1/subscriptions \
   -H "Content-Type: application/json" \
   -d '{
     "callback": "http://host.docker.internal:9000/webhook",
@@ -830,11 +821,7 @@ if __name__ == '__main__':
 Check gateway logs for webhook delivery status:
 
 ```bash
-# Development (Docker Compose)
-docker compose logs gateway | grep webhook
-
-# Kubernetes
-kubectl logs -n o2ims-system deployment/netweave-gateway | grep webhook
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave | grep webhook
 ```
 
 **Log output:**
@@ -859,7 +846,7 @@ Learn to query resource type metadata.
 ### Step 1: List All Resource Types
 
 ```bash
-curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourceTypes | jq
+curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourceTypes | jq
 ```
 
 **Response:**
@@ -910,7 +897,7 @@ curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourceTypes | jq
 ### Step 2: Get Specific Resource Type
 
 ```bash
-curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourceTypes/kubernetes-node | jq
+curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourceTypes/kubernetes-node | jq
 ```
 
 **Response:**
@@ -945,7 +932,7 @@ curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourceTypes/kubernet
 
 ```bash
 # List all resources of a specific type
-curl -X GET "$GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem/resources?resourceTypeId=kubernetes-node" | jq
+curl -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem/resources?resourceTypeId=kubernetes-node" | jq
 ```
 
 ## Common Errors and Solutions
@@ -967,7 +954,7 @@ curl -X GET "$GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-co
 
 ```bash
 # Ensure certificates are provided
-curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools \
+curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools \
   --cert client.crt \
   --key client.key \
   --cacert ca.crt
@@ -990,10 +977,10 @@ curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools \
 
 ```bash
 # List available resource pools first
-curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools | jq '.items[].resourcePoolId'
+curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools | jq '.items[].resourcePoolId'
 
 # Use correct ID
-curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem
+curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem
 ```
 
 ### Error 3: Bad Request (400)
@@ -1013,7 +1000,7 @@ curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-com
 
 ```bash
 # Ensure all required fields are present
-curl -X POST $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions \
+curl -X POST $GW_URL/o2ims-infrastructureInventory/v1/subscriptions \
   -H "Content-Type: application/json" \
   -d '{
     "callback": "https://smo.example.com/notify",
@@ -1031,7 +1018,7 @@ curl -X POST $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions \
 
 ```bash
 # Verify webhook endpoint is accessible from gateway
-curl -X POST $CALLBACK_URL/webhook \
+curl -X POST $CALLBACK_URL \
   -H "Content-Type: application/json" \
   -d '{"test": "connectivity"}'
 
@@ -1058,7 +1045,7 @@ curl -X POST $CALLBACK_URL/webhook \
 ```bash
 # Wait and retry
 sleep 60
-curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools
+curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools
 
 # Implement exponential backoff in client
 ```
@@ -1120,10 +1107,10 @@ def webhook_handler(data):
 
 ```bash
 # Good: Request only needed fields
-curl -X GET "$GATEWAY_URL/o2ims/v2/resources?fields=resourceId,resourcePoolId,extensions.status"
+curl -X GET "$GW_URL/o2ims/v2/resources?fields=resourceId,resourcePoolId,extensions.status"
 
 # Bad: Retrieve all fields when only few needed
-curl -X GET "$GATEWAY_URL/o2ims/v2/resources"
+curl -X GET "$GW_URL/o2ims/v2/resources"
 ```
 
 ### 5. Implement Retry Logic
@@ -1149,10 +1136,10 @@ def call_o2ims_api(url, method='GET', data=None, retries=3):
 
 ```bash
 # Periodically verify subscriptions are active
-curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions | jq '.items[] | {id: .subscriptionId, callback: .callback}'
+curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/subscriptions | jq '.items[] | {id: .subscriptionId, callback: .callback}'
 
 # Delete stale subscriptions
-curl -X DELETE $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions/<stale-sub-id>
+curl -X DELETE $GW_URL/o2ims-infrastructureInventory/v1/subscriptions/<stale-sub-id>
 ```
 
 ## Next Steps
@@ -1192,7 +1179,7 @@ After completing these tutorials, explore:
 ## Support and Resources
 
 - **Documentation:** [docs/](../)
-- **API Reference:** Swagger UI at `$GATEWAY_URL/docs/`
+- **API Reference:** Swagger UI at `$GW_URL/docs/`
 - **Issues:** [GitHub Issues](https://github.com/piwi3910/netweave/issues)
 - **Discussions:** [GitHub Discussions](https://github.com/piwi3910/netweave/discussions)
 
