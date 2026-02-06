@@ -138,7 +138,9 @@ func (r *RedisRateLimitStore) IncrementAndCheck(ctx context.Context, key string,
 
 	// Set TTL on first increment (when count == 1).
 	if count == 1 {
-		r.client.Expire(ctx, key, window)
+		if err := r.client.Expire(ctx, key, window).Err(); err != nil {
+			return false, 0, err
+		}
 	}
 
 	return int(count) <= limit, int(count), nil

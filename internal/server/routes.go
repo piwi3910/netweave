@@ -942,7 +942,7 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 	}
 
 	// List resources via adapter
-	resources, err := s.adapter.ListResources(c.Request.Context(), filter)
+	resources, err := s.adapter.ListResources(ctx, filter)
 	if err != nil {
 		s.logger.Error("failed to list resources in pool", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1167,6 +1167,15 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 	// Create resource pool via adapter
 	created, err := s.adapter.CreateResourcePool(c.Request.Context(), &req)
 	if err != nil {
+		// Rollback quota increment on creation failure
+		if tenantID != "" && s.AuthStore != nil {
+			if rollbackErr := s.AuthStore.DecrementUsage(ctx, tenantID, "resource_pools"); rollbackErr != nil {
+				s.logger.Error("failed to rollback resource pool quota after creation failure",
+					zap.String("tenant_id", tenantID),
+					zap.Error(rollbackErr))
+			}
+		}
+
 		// Audit log the failure
 		if s.auditLogger != nil {
 			user := auth.UserFromContext(c.Request.Context())
@@ -1684,6 +1693,15 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 	// Create resource via adapter
 	created, err := s.adapter.CreateResource(c.Request.Context(), &req)
 	if err != nil {
+		// Rollback quota increment on creation failure
+		if tenantID != "" && s.AuthStore != nil {
+			if rollbackErr := s.AuthStore.DecrementUsage(ctx, tenantID, "resources"); rollbackErr != nil {
+				s.logger.Error("failed to rollback resource quota after creation failure",
+					zap.String("tenant_id", tenantID),
+					zap.Error(rollbackErr))
+			}
+		}
+
 		// Audit log the failure
 		if s.auditLogger != nil {
 			user := auth.UserFromContext(c.Request.Context())
@@ -1780,15 +1798,15 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 	ctx := c.Request.Context()
 	tenantID := auth.TenantIDFromContext(ctx)
 
-	// Get resource info before deletion for audit logging
+	// Get resource info before deletion for audit logging and tenant ownership check.
 	var resourceTypeID string
-	if existing, err := s.adapter.GetResource(ctx, resourceID); err == nil && existing != nil {
+	existing, err := s.adapter.GetResource(ctx, resourceID)
+	if err == nil && existing != nil {
 		resourceTypeID = existing.ResourceTypeID
 	}
 
 	// Verify tenant ownership before deletion
 	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) {
-		existing, err := s.adapter.GetResource(ctx, resourceID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
