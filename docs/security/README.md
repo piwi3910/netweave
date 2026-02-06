@@ -148,7 +148,7 @@ graph TB
 - **Mutual TLS**: Client and server authentication
 - **Strong Cipher Suites**: TLS_AES_256_GCM_SHA384, TLS_CHACHA20_POLY1305_SHA256
 - **Certificate Validation**: Full chain verification, revocation checking
-- **Automated Rotation**: cert-manager integration for certificate lifecycle
+- **Automated Rotation**: Vault PKI integration for certificate lifecycle
 
 ### Authentication & Authorization
 
@@ -328,7 +328,8 @@ make test-integration          # Integration tests
 
 ### Tools & Libraries
 
-- [cert-manager](https://cert-manager.io/) - Certificate management
+- [HashiCorp Vault](https://www.vaultproject.io/) - PKI and secrets management
+- [Keycloak](https://www.keycloak.org/) - Identity and access management
 - [Trivy](https://trivy.dev/) - Vulnerability scanning
 - [gosec](https://github.com/securego/gosec) - Go security analyzer
 - [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) - Go vulnerability checker
@@ -337,5 +338,5 @@ make test-integration          # Integration tests
 
 ---
 
-**Last Updated:** 2026-01-12
-**Version:** 1.0
+**Last Updated:** 2026-02-06
+**Version:** 1.1 - Updated PKI and identity management references

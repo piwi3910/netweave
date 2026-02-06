@@ -79,21 +79,7 @@ graph TB
 
 ## Quick Start
 
-### 1. Add Bitnami Repository
-
-```bash
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm repo update
-```
-
-### 2. Install Dependencies
-
-```bash
-cd deployments/helm/netweave
-helm dependency update
-```
-
-### 3. Create Namespace
+### 1. Create Namespace
 
 ```bash
 kubectl create namespace netweave
