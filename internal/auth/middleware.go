@@ -171,18 +171,17 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 			}
 
 		default:
-			// No valid authentication method detected
-			// Check if authentication is optional
-			if !m.Config.RequireMTLS {
-				// Authentication is optional - allow request through without authentication
-				m.Logger.Debug("no authentication method provided, but authentication is optional",
-					zap.String("request_id", requestID),
-				)
-				c.Next()
+			// No valid authentication method detected.
+			// If any auth is configured (OAuth2 or mTLS), require it.
+			if (m.oauth2Config != nil && m.oauth2Config.Enabled) || m.Config.RequireMTLS {
+				m.handleNoAuthMethod(c, requestID, authStart)
 				return
 			}
-			// Authentication is required but not provided
-			m.handleNoAuthMethod(c, requestID, authStart)
+			// No auth configured — allow request through.
+			m.Logger.Debug("no authentication method provided and no authentication configured",
+				zap.String("request_id", requestID),
+			)
+			c.Next()
 			return
 		}
 

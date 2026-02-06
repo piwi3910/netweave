@@ -102,12 +102,17 @@ spec:
             - name: KEYCLOAK_REALM
               value: "netweave"
             - name: KEYCLOAK_CLIENT_ID
-              value: {{ .Values.gateway.config.auth.oauth2.clientID | quote }}
+              value: {{ .Values.gateway.config.oauth2.keycloakClientID | quote }}
             - name: KEYCLOAK_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "netweave.fullname" . }}-secret
                   key: keycloak-client-secret
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netweave.fullname" . }}-secret
+                  key: keycloak-admin-password
             {{- if .Values.redis.enabled }}
             {{- if .Values.redis.auth.enabled }}
             - name: REDIS_PASSWORD

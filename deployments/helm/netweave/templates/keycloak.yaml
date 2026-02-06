@@ -78,6 +78,12 @@ spec:
               value: "8080"
             - name: KC_HTTP_MANAGEMENT_PORT
               value: "9000"
+            - name: KC_HOSTNAME
+              value: {{ include "netweave.fullname" . }}-keycloak
+            - name: KC_HOSTNAME_PORT
+              value: "80"
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
             {{- if .Values.keycloak.proxy }}
             - name: KC_PROXY_HEADERS
               value: {{ .Values.keycloak.proxy | quote }}

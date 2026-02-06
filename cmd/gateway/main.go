@@ -254,11 +254,12 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	healthChecker := initializeHealthChecker(store, imsAdapter, logger)
 	logger.Info("health checker initialized")
 
-	// Initialize auth store if multi-tenancy is enabled
+	// Initialize auth store and middleware if multi-tenancy is enabled
 	var authStore server.AuthStore
+	var authMw *auth.Middleware
 	if cfg.MultiTenancy.Enabled {
 		var initErr error
-		authStore, _, initErr = InitializeAuth(cfg, logger)
+		authStore, authMw, initErr = InitializeAuth(cfg, logger)
 		if initErr != nil {
 			logger.Error("failed to initialize authentication subsystem")
 			cleanupOnError(store, imsAdapter, logger)
@@ -271,7 +272,7 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	}
 
 	// Create and configure HTTP server
-	srv, srvErr := createHTTPServer(cfg, logger, imsAdapter, store, authStore)
+	srv, srvErr := createHTTPServer(cfg, logger, imsAdapter, store, authStore, authMw)
 	if srvErr != nil {
 		return nil, srvErr
 	}
@@ -327,9 +328,10 @@ func createHTTPServer(
 	imsAdapter adapter.Adapter,
 	store *storage.RedisStore,
 	authStore server.AuthStore,
+	authMw *auth.Middleware,
 ) (*server.Server, error) {
-	// Create server
-	srv := server.New(cfg, logger, imsAdapter, store, authStore)
+	// Create server with the fully-configured auth middleware (including OAuth2)
+	srv := server.New(cfg, logger, imsAdapter, store, authStore, authMw)
 
 	logger.Info("HTTP server created",
 		zap.String("host", cfg.Server.Host),
@@ -1030,12 +1032,18 @@ func InitializeAuth(cfg *config.Config, logger *zap.Logger) (auth.Store, *auth.M
 	var oauth2Cfg *auth.OAuth2Config
 
 	if cfg.OAuth2.Enabled {
+		// Resolve OAuth2 client secret from env var if direct value is empty.
+		oauth2Secret := cfg.OAuth2.KeycloakSecret
+		if oauth2Secret == "" && cfg.OAuth2.KeycloakSecretEnvVar != "" {
+			oauth2Secret = os.Getenv(cfg.OAuth2.KeycloakSecretEnvVar)
+		}
+
 		// Create Keycloak client.
 		keycloakCfg := &keycloak.Config{
 			BaseURL:      cfg.OAuth2.KeycloakBaseURL,
 			Realm:        cfg.OAuth2.KeycloakRealm,
 			ClientID:     cfg.OAuth2.KeycloakClientID,
-			ClientSecret: cfg.OAuth2.KeycloakSecret,
+			ClientSecret: oauth2Secret,
 			Timeout:      10 * time.Second,
 		}
 

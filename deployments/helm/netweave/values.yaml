@@ -115,19 +115,39 @@ gateway:
     database:
       connectionString: ""  # Set via secret or override
 
-    # Authentication configuration
-    auth:
-      # Enable OAuth2/OIDC authentication
-      oauth2:
-        enabled: true
-        issuerURL: ""  # Will be set to Keycloak URL
-        clientID: netweave-gateway
-        clientSecret: ""  # Set via secret
+    # Multi-tenancy and RBAC configuration (maps to multi_tenancy.* in Go config)
+    multiTenancy:
+      enabled: true
+      requireMTLS: true
+      initializeDefaultRoles: true
+      auditLogRetentionDays: 30
+      skipAuthPaths:
+        - /healthz
+        - /readyz
 
-      # Enable mTLS authentication
-      mtls:
-        enabled: true
-        caCert: ""  # Will be fetched from Vault
+    # Auth store backend configuration (maps to auth.* in Go config)
+    auth:
+      backend: keycloak  # "keycloak" or "redis"
+      keycloak:
+        realm: netweave
+        clientID: netweave-gateway
+        clientSecretEnvVar: KEYCLOAK_CLIENT_SECRET
+        adminUsername: admin
+        adminPasswordEnvVar: KEYCLOAK_ADMIN_PASSWORD
+        timeout: 30s
+
+    # OAuth2/OIDC token validation configuration (maps to oauth2.* in Go config)
+    # Disabled by default - mTLS is the primary authentication mechanism.
+    # Enable if OAuth2 Bearer tokens are needed alongside or instead of mTLS.
+    oauth2:
+      enabled: false
+      priority: false
+      keycloakRealm: netweave
+      keycloakClientID: netweave-gateway
+      keycloakSecretEnvVar: KEYCLOAK_CLIENT_SECRET
+      autoProvisionUsers: false
+      defaultRole: tenant-admin
+      requireTenantClaim: true
 
     # Certificate manager configuration
     certManager:

@@ -23,6 +23,24 @@ gateway:
   affinity: {}
   config:
     logLevel: debug
+    # Multi-tenancy enabled with mTLS auth enforcement
+    multiTenancy:
+      enabled: true
+      requireMTLS: true
+      initializeDefaultRoles: true
+    # Auth store backend using Keycloak
+    auth:
+      backend: keycloak
+      keycloak:
+        realm: netweave
+        clientID: netweave-gateway
+        clientSecretEnvVar: KEYCLOAK_CLIENT_SECRET
+        adminUsername: admin
+        adminPasswordEnvVar: KEYCLOAK_ADMIN_PASSWORD
+        timeout: 30s
+    # OAuth2 disabled - using mTLS for authentication
+    oauth2:
+      enabled: false
 
 # Admin Portal - single replica, local image
 adminPortal:
