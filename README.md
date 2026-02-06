@@ -66,7 +66,7 @@ Official O-RAN Alliance specifications:
 - ✅ **O2-DMS Integration**: Deployment Management Services with Helm 3, ArgoCD, and Flux CD adapters
 - ✅ **O2-SMO Integration**: Service Management & Orchestration with ONAP and OSM adapters
 - ✅ **Flexible Authentication Backend**: Redis (default) or Keycloak for centralized user management and enterprise SSO integration
-- 🔄 **Enterprise Multi-Tenancy**: Planned feature - will support multiple SMO systems with strict resource isolation
+- ✅ **Enterprise Multi-Tenancy**: Subscription isolation implemented, resource isolation in progress
 - ✅ **Comprehensive RBAC**: Fine-grained role-based access control with platform and tenant roles:
   - **platform-admin**: Full system access across all tenants (IsPlatformAdmin bypass)
   - **tenant-admin**: Tenant and user management
@@ -86,7 +86,7 @@ Official O-RAN Alliance specifications:
 ### Use Cases
 
 1. **Telecom RAN Management**: Manage O-Cloud infrastructure for 5G RAN workloads via standard O2-IMS APIs
-2. **Multi-SMO Environments** (Planned): Single gateway supporting multiple SMO systems with isolated resources and quotas
+2. **Multi-SMO Environments**: Single gateway supporting multiple SMO systems with isolated resources and quotas (subscription isolation done, resource isolation in progress)
 3. **Multi-Vendor Disaggregation**: Abstract vendor-specific APIs behind O2-IMS standard interface
 4. **Cloud-Native Infrastructure**: Leverage Kubernetes for infrastructure lifecycle management
 5. **Subscription-Based Monitoring**: Real-time notifications of infrastructure changes to SMO systems
@@ -106,8 +106,14 @@ graph TB
         end
 
         Router[Intelligent Plugin Router<br/>Rule-based Backend Selection]
-        Redis[Redis State & Cache<br/>• Subscriptions<br/>• Performance Cache<br/>• Pub/Sub Coordination]
         CTRL[Event Controller<br/>• Watches Resources<br/>• Webhook Notifications]
+    end
+
+    subgraph Infrastructure [Infrastructure Services]
+        Redis[Redis<br/>State & Cache & Pub/Sub]
+        Vault[HashiCorp Vault<br/>PKI & Certificate Management]
+        KC[Keycloak<br/>Identity & Access Management]
+        PG[PostgreSQL<br/>Keycloak Database]
     end
 
     subgraph Backends [Multi-Backend Support 25+ Adapters]
@@ -143,12 +149,17 @@ graph TB
     Router --> DMS_Backends
     Router --> SMO_Backends
 
+    Gateway --> Vault
+    Gateway --> KC
+    KC --> PG
+
     CTRL --> Redis
     CTRL --> IMS_Backends
     CTRL -->|Webhooks| SMO
 
     style SMO fill:#e1f5ff
     style Gateway fill:#fff4e6
+    style Infrastructure fill:#ffe6f0
     style Backends fill:#e8f5e9
     style IMS_Backends fill:#f0f8ff
     style DMS_Backends fill:#f5f0ff
@@ -230,24 +241,23 @@ make deploy-dev
 #### Option 2: Production Deployment (Helm)
 
 ```bash
-# 1. Install prerequisites (cert-manager)
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.0/cert-manager.yaml
-
-# 2. Install Redis via Helm
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm install redis bitnami/redis \
+# 1. Deploy netweave via Helm (includes Redis, Vault, Keycloak, PostgreSQL)
+helm install netweave ./deployments/helm/netweave \
   --namespace o2ims-system \
   --create-namespace \
-  --set sentinel.enabled=true
+  --values deployments/helm/netweave/values.yaml
 
-# 3. Deploy netweave via Helm
-helm install netweave ./helm/netweave \
-  --namespace o2ims-system \
-  --values helm/netweave/values-production.yaml
-
-# 4. Verify deployment
+# 2. Verify deployment
 kubectl get pods -n o2ims-system
+
+# 3. (Optional) Use local development values
+helm install netweave ./deployments/helm/netweave \
+  --namespace o2ims-system \
+  --create-namespace \
+  --values deployments/helm/netweave/values-local.yaml
 ```
+
+See [Helm Chart Documentation](deployments/helm/netweave/README.md) for detailed configuration options.
 
 #### Option 3: Production Deployment (Operator)
 
@@ -944,6 +954,10 @@ netweave/
 │   ├── controller/           # Subscription controller
 │   ├── o2ims/                # O2-IMS models & handlers
 │   ├── observability/        # Logging, metrics, tracing
+│   ├── auth/                # Authentication & RBAC
+│   ├── vault/               # HashiCorp Vault PKI client
+│   ├── keycloak/            # Keycloak identity management client
+│   ├── certmanager/         # Certificate lifecycle management
 │   └── server/               # HTTP server
 ├── pkg/
 │   ├── cache/                # Cache abstraction
@@ -969,7 +983,10 @@ netweave/
 | Language | Go | 1.25.0+ | Core implementation |
 | Framework | Gin | 1.10+ | HTTP server |
 | Orchestration | Kubernetes | 1.30+ | Infrastructure platform |
-| TLS | Native Go + cert-manager | 1.15+ | mTLS, certificate management |
+| TLS | Native Go TLS 1.3 | - | mTLS, certificate management |
+| PKI | HashiCorp Vault | 1.15+ | Certificate lifecycle, automated renewal |
+| Identity | Keycloak | 26.0+ | OIDC, SSO, user management (optional) |
+| Database | PostgreSQL | 16+ | Keycloak backend (optional) |
 | Storage | Redis OSS | 7.4+ | State, cache, pub/sub, rate limiting |
 | Deployment | Helm + Custom Operator | 3.x+ | Application lifecycle |
 | Metrics | Prometheus | 2.54+ | Monitoring |
@@ -994,8 +1011,10 @@ netweave/
   - Standard HTTP rate limit headers (X-RateLimit-*)
   - Graceful degradation (fails open if Redis unavailable)
 - ✅ **Request Validation**: Automatic OpenAPI schema validation for all requests
-- ✅ **No Hardcoded Secrets**: All secrets via K8s Secrets or cert-manager
+- ✅ **No Hardcoded Secrets**: All secrets via K8s Secrets or Vault
 - ✅ **RBAC**: Implemented with platform-admin, tenant-admin, operator, and viewer roles (least-privilege access control)
+- ✅ **Vault PKI**: Automated certificate lifecycle management (issuance, renewal, revocation)
+- ✅ **Keycloak Integration**: Enterprise SSO with OIDC, user management, group-to-role mapping (optional)
 - ✅ **Audit Logging**: All operations logged
 - ✅ **Vulnerability Scanning**: Continuous security scanning (gosec, govulncheck, Trivy)
 
@@ -1042,10 +1061,14 @@ netweave/
 - 🔄 Advanced filtering and pagination
 - 🔄 Enhanced observability dashboards
 
-### v2.0 (Q3 2026)
-- 🔮 Multi-tenancy with tenant isolation
+### v1.2 (Q2 2026) - IN PROGRESS
+- ✅ Subscription-level tenant isolation
+- 🔄 Resource and pool tenant isolation
+- 🔄 Quota enforcement for all resource types
+- 🔄 Per-tenant rate limiting middleware
+
+### v2.0 (Future)
 - 🔮 Custom resource type definitions
-- 🔮 Batch operations API
 - 🔮 GraphQL API support
 
 ## Support

@@ -52,7 +52,7 @@ The O2-IMS Gateway supports **dual authentication** with both mTLS and OAuth2/OI
 | **Modern web applications** | OAuth2/OIDC | Built-in SSO support |
 | **Service-to-service** | mTLS | No user interaction required |
 | **Interactive users** | OAuth2/OIDC | Better UX with SSO |
-| **Kubernetes pods** | mTLS | Native cert-manager integration |
+| **Kubernetes pods** | mTLS | Native Vault PKI integration |
 | **Enterprise SSO** | OAuth2/OIDC | Leverage existing Keycloak/AD |
 
 ---
@@ -61,80 +61,41 @@ The O2-IMS Gateway supports **dual authentication** with both mTLS and OAuth2/OI
 
 ### Certificate Format
 
-Client certificates follow this subject format:
+Client certificates use the following subject format (issued by Vault PKI):
 
 ```
-Subject: CN=user-id.tenant-id.o2ims.example.com, O=Organization Name, OU=tenant-id
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^
-         Common Name (CN)                             Organization (O)     Org Unit (OU)
+Subject: CN=<common-name>, O=<organization>, OU=<organizational-unit>
 
-SAN: DNS:user-id.tenant.tenant-id, Email:user@example.com
-     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
-     DNS SAN                       Email SAN
+Example (from Vault PKI netweave-client role):
+CN=operator-1.smo-alpha.o2ims.example.com, O=SMO Alpha Inc, OU=smo-alpha
 ```
 
-**Example:**
+The gateway extracts this into a normalized subject string using `BuildSubject()`:
 ```
-CN: operator-1.smo-alpha.o2ims.example.com
-O: SMO Alpha Inc
-OU: smo-alpha
-SAN DNS: operator-1.tenant.smo-alpha
-SAN Email: operator1@smo-alpha.example.com
+CN=operator-1.smo-alpha.o2ims.example.com,O=SMO Alpha Inc,OU=smo-alpha
 ```
 
 ### Extracting Identity
 
 ```go
-// internal/auth/mtls.go
-package auth
+// internal/auth/middleware.go
 
-import (
-    "crypto/x509"
-    "fmt"
-    "strings"
-)
-
-// ExtractIdentity extracts user and tenant from certificate
-func ExtractIdentity(cert *x509.Certificate) (*Identity, error) {
-    // Parse CN: "user-id.tenant-id.o2ims.example.com"
-    cn := cert.Subject.CommonName
-    parts := strings.Split(cn, ".")
-
-    if len(parts) < 3 {
-        return nil, fmt.Errorf("invalid CN format: %s", cn)
+// BuildSubject constructs a normalized certificate subject (DN) string.
+// This subject is used as the key to look up users in the auth store.
+func (m *Middleware) BuildSubject(cert *CertificateInfo) string {
+    parts := []string{"CN=" + cert.CommonName}
+    if cert.Organization != "" {
+        parts = append(parts, "O="+cert.Organization)
     }
-
-    userID := parts[0]      // "operator-1"
-    tenantID := parts[1]    // "smo-alpha"
-
-    // Extract organization
-    var organization string
-    if len(cert.Subject.Organization) > 0 {
-        organization = cert.Subject.Organization[0]
+    if cert.OrganizationalUnit != "" {
+        parts = append(parts, "OU="+cert.OrganizationalUnit)
     }
-
-    // Extract email from SAN
-    var email string
-    if len(cert.EmailAddresses) > 0 {
-        email = cert.EmailAddresses[0]
-    }
-
-    return &Identity{
-        UserID:       userID,
-        TenantID:     tenantID,
-        Organization: organization,
-        Email:        email,
-        Certificate:  cert,
-    }, nil
+    return strings.Join(parts, ",")
 }
 
-type Identity struct {
-    UserID       string
-    TenantID     string
-    Organization string
-    Email        string
-    Certificate  *x509.Certificate
-}
+// After building the subject, the middleware looks up the user:
+// user, err := m.store.GetUserBySubject(ctx, subject)
+// This returns the TenantUser, which contains TenantID, RoleID, etc.
 ```
 
 ---
@@ -442,32 +403,29 @@ type AuthenticatedUser struct {
 
 The gateway supports three methods for tenant identification (in priority order):
 
-#### 1. Client Certificate CN (Recommended)
+#### 1. User Store Lookup (Recommended)
 
-Extract tenant from certificate Common Name:
+The tenant is determined by looking up the authenticated user in the auth store (Redis or Keycloak):
 
 ```go
-func extractTenantFromCert(cert *x509.Certificate) string {
-    // CN format: "user.tenant-id.o2ims.example.com"
-    cn := cert.Subject.CommonName
-    parts := strings.Split(cn, ".")
+// internal/auth/middleware.go
+// 1. Build subject from certificate
+subject := m.BuildSubject(certInfo)
 
-    if len(parts) >= 2 {
-        return parts[1]  // "tenant-id"
-    }
+// 2. Look up user by subject DN
+user, err := m.store.GetUserBySubject(ctx, subject)
 
-    return ""
-}
+// 3. Tenant comes from the user record, not cert parsing
+tenantID := user.TenantID
 ```
 
 **Pros:**
-- ✅ Most secure (cryptographically bound)
-- ✅ Cannot be spoofed
-- ✅ Automatically validated by TLS
+- ✅ Most secure (user-tenant mapping managed in auth store)
+- ✅ Tenant can be changed without certificate reissue
+- ✅ Supports both mTLS and OAuth2 authentication
 
 **Cons:**
-- ❌ Requires specific CN format
-- ❌ Certificate reissue needed to change tenant
+- ❌ Requires user to be pre-provisioned in auth store
 
 #### 2. Custom HTTP Header
 
@@ -814,58 +772,17 @@ sequenceDiagram
 ### Implementation
 
 ```go
-// internal/middleware/auth.go
-package middleware
-
-import (
-    "net/http"
-    "github.com/gin-gonic/gin"
-)
-
-type AuthMiddleware struct {
-    validator *auth.CertificateValidator
-    authz     *authz.Authorizer
-}
-
-func (m *AuthMiddleware) Authenticate() gin.HandlerFunc {
-    return func(c *gin.Context) {
-        // 1. Extract client certificate
-        if c.Request.TLS == nil || len(c.Request.TLS.PeerCertificates) == 0 {
-            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-                "error": "client certificate required",
-            })
-            return
-        }
-
-        cert := c.Request.TLS.PeerCertificates[0]
-
-        // 2. Validate certificate
-        if err := m.validator.Validate(cert); err != nil {
-            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-                "error": "invalid client certificate",
-                "details": err.Error(),
-            })
-            return
-        }
-
-        // 3. Extract identity
-        identity, err := auth.ExtractIdentity(cert)
-        if err != nil {
-            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-                "error": "failed to extract identity",
-            })
-            return
-        }
-
-        // 4. Store in context
-        c.Set("userId", identity.UserID)
-        c.Set("tenantId", identity.TenantID)
-        c.Set("organization", identity.Organization)
-        c.Set("identity", identity)
-
-        c.Next()
-    }
-}
+// Actual implementation: internal/auth/middleware.go
+//
+// The mTLS authentication flow:
+// 1. Extract client certificate from TLS connection
+// 2. Build normalized subject DN via BuildSubject()
+// 3. Look up user via store.GetUserBySubject(ctx, subject)
+// 4. Verify user is active
+// 5. Load role and tenant from auth store
+// 6. Set authenticated context for downstream handlers
+//
+// See internal/auth/middleware.go for the full implementation.
 ```
 
 ---
@@ -874,100 +791,48 @@ func (m *AuthMiddleware) Authenticate() gin.HandlerFunc {
 
 ### Creating Client Certificates
 
-#### Using cert-manager
+#### Using Vault PKI
 
-```yaml
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: smo-alpha-operator-cert
-  namespace: smo-alpha
-spec:
-  secretName: smo-alpha-operator-tls
-  duration: 2160h    # 90 days
-  renewBefore: 360h  # 15 days
+```bash
+# Issue a client certificate using Vault PKI
+vault write pki_int/issue/netweave-client \
+  common_name="operator-1.smo-alpha.o2ims.example.com" \
+  ttl="2160h"
 
-  # Subject (tenant identification)
-  subject:
-    organizations:
-      - "SMO Alpha Inc"
-    organizationalUnits:
-      - "smo-alpha"
-  commonName: "operator-1.smo-alpha.o2ims.example.com"
-
-  # SANs
-  dnsNames:
-    - "operator-1.tenant.smo-alpha"
-  emailAddresses:
-    - "operator1@smo-alpha.example.com"
-
-  # Key usage
-  usages:
-    - client auth
-    - digital signature
-    - key encipherment
-
-  # Issuer
-  issuerRef:
-    name: client-ca
-    kind: ClusterIssuer
+# The certificate will have:
+# - CN=operator-1.smo-alpha.o2ims.example.com
+# - Signed by the Vault intermediate CA
+# - Valid for 90 days (2160h)
+# - Key usage: Digital Signature, Key Encipherment
+# - Extended key usage: Client Authentication
 ```
 
-#### Using OpenSSL
+#### Using OpenSSL (Development Only)
+
+For development/testing when Vault is not available:
 
 ```bash
 #!/bin/bash
-# scripts/create-client-cert.sh
-
-TENANT_ID="smo-alpha"
 USER_ID="operator-1"
-EMAIL="operator1@smo-alpha.example.com"
-ORG="SMO Alpha Inc"
+TENANT_ID="smo-alpha"
 
 # Generate private key
 openssl genrsa -out "${USER_ID}.key" 4096
 
-# Create CSR config
-cat > "${USER_ID}.cnf" <<EOF
-[req]
-distinguished_name = req_distinguished_name
-req_extensions = v3_req
-prompt = no
-
-[req_distinguished_name]
-CN = ${USER_ID}.${TENANT_ID}.o2ims.example.com
-O = ${ORG}
-OU = ${TENANT_ID}
-C = US
-ST = California
-L = San Francisco
-
-[v3_req]
-keyUsage = digitalSignature, keyEncipherment
-extendedKeyUsage = clientAuth
-subjectAltName = @alt_names
-
-[alt_names]
-DNS.1 = ${USER_ID}.tenant.${TENANT_ID}
-email.1 = ${EMAIL}
-EOF
-
 # Generate CSR
 openssl req -new -key "${USER_ID}.key" \
     -out "${USER_ID}.csr" \
-    -config "${USER_ID}.cnf"
+    -subj "/CN=${USER_ID}.${TENANT_ID}.o2ims.example.com/O=Development/OU=${TENANT_ID}"
 
-# Sign with CA
+# Sign with CA (development only)
 openssl x509 -req -days 90 \
     -in "${USER_ID}.csr" \
     -CA ca.crt -CAkey ca.key \
     -CAcreateserial \
-    -out "${USER_ID}.crt" \
-    -extensions v3_req \
-    -extfile "${USER_ID}.cnf"
-
-echo "✅ Client certificate created: ${USER_ID}.crt"
+    -out "${USER_ID}.crt"
 ```
+
+**Note:** In production, always use Vault PKI for certificate issuance.
 
 ### Obtaining OAuth2 Tokens
 
@@ -1528,5 +1393,5 @@ To migrate from Redis to Keycloak backend:
 
 ---
 
-**Last Updated:** 2026-01-19
-**Version:** 2.1 - Added authentication backend storage options (Redis and Keycloak)
+**Last Updated:** 2026-02-06
+**Version:** 3.0 - Corrected cert subject format, auth flow, and Vault PKI integration

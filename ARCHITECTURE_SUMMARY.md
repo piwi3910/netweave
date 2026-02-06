@@ -4,9 +4,9 @@
 **Version:** 1.0
 **Status:** Complete
 
-## Project Complete - Ready for Implementation
+## Production System - Active Development
 
-The **netweave O2-IMS Gateway** architecture and project foundation are now fully defined and ready for development.
+The **netweave O2-IMS Gateway** is a production system under active development with O2-IMS, O2-DMS, O2-SMO APIs, multi-tenancy, and enterprise RBAC.
 
 ## What Has Been Delivered
 
@@ -82,46 +82,52 @@ The **netweave O2-IMS Gateway** architecture and project foundation are now full
 
 ### System Overview
 
-```
-O2 SMO / TMF Clients → K8s Ingress (mTLS) → Gateway Pods (3+, stateless, native Go TLS)
-                                                     ↓
-                                                  Redis (state, cache, pub/sub)
-                                                     ↓
-                                              Kubernetes API (source of truth)
-                                                     ↑
-                                           Subscription Controller (webhooks)
+```mermaid
+graph LR
+    SMO[O2 SMO / TMF Clients] -->|HTTPS/mTLS| Ingress[K8s Ingress]
+    Ingress --> GW[Gateway Pods 3+<br/>Stateless, Native Go TLS]
+    GW --> Redis[Redis<br/>State, Cache, Pub/Sub]
+    GW --> K8s[Kubernetes API<br/>Source of Truth]
+    GW --> Vault[Vault PKI<br/>Certificate Management]
+    GW --> KC[Keycloak<br/>Identity & Access]
+    KC --> PG[PostgreSQL]
+    CTRL[Subscription Controller] --> Redis
+    CTRL --> K8s
+    CTRL -->|Webhooks| SMO
+
+    style SMO fill:#e1f5ff
+    style GW fill:#fff4e6
+    style Redis fill:#ffe6f0
+    style K8s fill:#e8f5e9
+    style Vault fill:#f3e5f5
+    style KC fill:#f3e5f5
 ```
 
 ### Dual API Frontend
 
 The gateway supports both **O-RAN APIs** and **TMForum Open APIs** as alternative frontends to the same backend infrastructure:
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    FRONTEND LAYER                       │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  O-RAN APIs              TMForum APIs                   │
-│  ├─ /o2ims/v1           ├─ /tmf-api/                   │
-│  ├─ /o2dms/v1           │  serviceInventoryManagement/v4│
-│  └─ /o2smo/v1           ├─ /tmf-api/                   │
-│                         │  resourceInventoryManagement/v4│
-│                         ├─ /tmf-api/serviceOrdering/v4  │
-│                         ├─ /tmf-api/eventManagement/v4  │
-│                         └─ /tmf-api/serviceActivation/v4│
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│              TRANSLATION & ROUTING LAYER                │
-│   (Transforms between TMForum ↔ O-RAN ↔ Backend)       │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│                  BACKEND ADAPTERS                       │
-│   IMS: K8s, OpenStack, AWS, Azure, GCP, VMware, etc.   │
-│   DMS: Helm, ArgoCD, Flux, ONAP, Crossplane, etc.      │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Frontend [Frontend Layer]
+        subgraph ORAN [O-RAN APIs]
+            IMS[/o2ims/v1]
+            DMS[/o2dms/v1]
+            SMO_API[/o2smo/v1]
+        end
+        subgraph TMF [TMForum APIs]
+            TMF638[TMF638 Service Inventory]
+            TMF639[TMF639 Resource Inventory]
+            TMF641[TMF641 Service Ordering]
+        end
+    end
+
+    Frontend --> Translation[Translation & Routing Layer]
+    Translation --> Adapters[Backend Adapters<br/>IMS: K8s, OpenStack, AWS, Azure, GCP, VMware<br/>DMS: Helm, ArgoCD, Flux, ONAP, Crossplane]
+
+    style Frontend fill:#e1f5ff
+    style Translation fill:#fff4e6
+    style Adapters fill:#e8f5e9
 ```
 
 **TMForum API Support:**
@@ -144,13 +150,13 @@ The gateway supports both **O-RAN APIs** and **TMForum Open APIs** as alternativ
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| **Language** | Go 1.23+ | Performance, K8s ecosystem, type safety |
+| **Language** | Go 1.25.0+ | Performance, K8s ecosystem, type safety |
 | **Web Framework** | Gin | Fast, simple, good middleware |
 | **Storage** | Redis (always) | Subscriptions, cache, pub/sub |
 | **State Sync** | Redis Sentinel | HA failover, cross-cluster replication |
 | **Backend Pattern** | Pluggable Adapter Pattern | Multi-backend support, vendor flexibility |
 | **K8s Mapping** | MachineSet → ResourcePool | Natural fit, full lifecycle |
-| **TLS** | Native Go TLS 1.3 + cert-manager | Simpler, full control, no service mesh overhead |
+| **TLS** | Native Go TLS 1.3 + Vault PKI | Simpler, full control, no service mesh overhead |
 | **Deployment** | Helm + Custom Operator | Simpler than GitOps, familiar tooling |
 | **Scaling** | Stateless gateway | Horizontal scaling, no coordination |
 | **API Versioning** | URL-based (/v1, /v2) | Parallel version support, gradual migration |
@@ -159,15 +165,17 @@ The gateway supports both **O-RAN APIs** and **TMForum Open APIs** as alternativ
 
 ```yaml
 Core:
-  Language: Go 1.23+
+  Language: Go 1.25.0+
   Framework: Gin 1.10+
   OpenAPI: oapi-codegen v2
 
 Infrastructure:
   Orchestration: Kubernetes 1.30+
   TLS: Native Go TLS 1.3
-  Certificates: cert-manager 1.15+
-  Deployment: Helm 3.x + Custom Operator
+  PKI: HashiCorp Vault (PKI engine)
+  Identity: Keycloak 26.0+ (optional)
+  Database: PostgreSQL 16+ (Keycloak backend)
+  Deployment: Helm 3.x
 
 Data:
   Storage: Redis OSS 7.4+ (Sentinel)
@@ -182,7 +190,9 @@ Observability:
 
 Security:
   mTLS: Native Go implementation
-  Secrets: cert-manager + K8s Secrets
+  PKI: HashiCorp Vault PKI engine
+  Identity: Keycloak OIDC + RBAC
+  Secrets: Vault + K8s Secrets
   Scanning: gosec, govulncheck, Trivy
 ```
 
@@ -206,7 +216,7 @@ Security:
 ✅ Certificate auto-renewal with monitoring (30-day window)
 ✅ Zero-trust networking (Network Policies)
 ✅ RBAC (Kubernetes-native)
-✅ No hardcoded secrets (cert-manager + K8s Secrets)
+✅ No hardcoded secrets (Vault + K8s Secrets)
 ✅ Audit logging (structured, redacted)
 ✅ Vulnerability scanning (gosec, govulncheck, Trivy)
 ✅ GPG signed commits (enforced)
@@ -268,22 +278,24 @@ Multi-Cluster:
 
 The netweave gateway implements a **comprehensive plugin architecture** spanning the entire O-RAN stack:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                  netweave Plugin Ecosystem                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐      │
-│  │   O2-IMS      │  │   O2-DMS      │  │   O2-SMO      │      │
-│  │   Plugins     │  │   Plugins     │  │   Plugins     │      │
-│  │               │  │               │  │               │      │
-│  │ Infrastructure│  │  Deployment   │  │ Orchestration │      │
-│  │  Management   │  │  Management   │  │  Integration  │      │
-│  │               │  │               │  │               │      │
-│  │  10+ Backends │  │  7+ Backends  │  │  5+ Backends  │      │
-│  └───────────────┘  └───────────────┘  └───────────────┘      │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Ecosystem [netweave Plugin Ecosystem]
+        subgraph IMS [O2-IMS Plugins<br/>Infrastructure Management]
+            IMS_B[10+ Backends]
+        end
+        subgraph DMS_P [O2-DMS Plugins<br/>Deployment Management]
+            DMS_B[7+ Backends]
+        end
+        subgraph SMO_P [O2-SMO Plugins<br/>Orchestration Integration]
+            SMO_B[5+ Backends]
+        end
+    end
+
+    style Ecosystem fill:#fff4e6
+    style IMS fill:#e1f5ff
+    style DMS_P fill:#f5f0ff
+    style SMO_P fill:#fff5f0
 ```
 
 **Key Features**:
@@ -595,7 +607,7 @@ The netweave gateway is designed as a **multi-tenant platform from the ground up
 - ✅ **Role-Based Access Control**: Fine-grained permissions per tenant
 - ✅ **Resource Quotas**: Per-tenant limits on resources, CPU, memory, storage
 - ✅ **Audit Logging**: All operations logged with tenant and user context
-- ✅ **Certificate-Based Tenancy**: Tenant ID embedded in client certificate CN
+- ✅ **Certificate-Based Tenancy**: User identity extracted from client certificate subject DN, mapped to tenant via Keycloak/Redis user store
 
 ### RBAC Model
 
@@ -855,78 +867,6 @@ netweave/
         └── architecture.md      # ✅ Security architecture + Certificate Manager
 ```
 
-## Next Steps - Implementation Phase
-
-### Phase 1: Project Initialization (Week 1)
-
-```bash
-# 1. Initialize Go module
-go mod init github.com/yourorg/netweave
-
-# 2. Create directory structure
-mkdir -p cmd/gateway
-mkdir -p internal/{adapter,adapters/{k8s,mock},config,controller,o2ims/{models,handlers},server}
-mkdir -p pkg/{cache,storage,errors}
-mkdir -p deployments/kubernetes/{base,dev,staging,production}
-
-# 3. Set up GitHub branch protection
-# Follow .github/BRANCH_PROTECTION.md
-
-# 4. Commit initial structure
-git add .
-git commit -m "feat: initial project structure
-
-Initialize netweave O2-IMS Gateway project structure.
-
-Resolves #1"
-```
-
-### Phase 2: Core Implementation (Weeks 2-4)
-
-**Sprint 1: Gateway Foundation**
-- HTTP server with Gin
-- OpenAPI schema loading
-- Request validation middleware
-- Health/readiness endpoints
-- Prometheus metrics setup
-
-**Sprint 2: Kubernetes Adapter**
-- K8s client initialization
-- Node listing (Resources)
-- MachineSet listing (Resource Pools)
-- Transformation logic
-- Error handling
-
-**Sprint 3: Redis Integration**
-- Redis connection (Sentinel)
-- Subscription storage
-- Cache layer
-- Pub/Sub for invalidation
-
-**Sprint 4: Subscription Controller**
-- K8s informers (Nodes, MachineSets)
-- Subscription matching
-- Webhook delivery
-- Retry logic
-
-### Phase 3: Testing & Documentation (Weeks 5-6)
-
-- Unit tests (≥80% coverage)
-- Integration tests
-- E2E tests
-- Performance testing
-- Documentation completion
-- Deployment guides
-
-### Phase 4: Production Hardening (Weeks 7-8)
-
-- Istio integration
-- cert-manager setup
-- Security hardening
-- Observability dashboards
-- Runbooks
-- DR procedures
-
 ## Success Criteria
 
 ### Must Have (v1.0)
@@ -964,35 +904,6 @@ Resolves #1"
 | Performance issues | Medium | Medium | Caching, profiling, optimization |
 | Security vulnerabilities | Medium | High | Continuous scanning, updates |
 
-## Timeline Estimate
-
-```
-Phase 1: Project Init       - 1 week
-Phase 2: Core Implementation - 3 weeks
-Phase 3: Testing & Docs     - 2 weeks
-Phase 4: Hardening          - 2 weeks
-───────────────────────────────────────
-Total:                       8 weeks
-
-+ 2 weeks buffer
-───────────────────────────────────────
-Target: 10 weeks to v1.0
-```
-
-## Resource Requirements
-
-**Development Team:**
-- 1 Go Backend Developer (full-time)
-- 1 DevOps Engineer (50%)
-- 1 QA Engineer (50%)
-- 1 Technical Writer (25%)
-
-**Infrastructure:**
-- Kubernetes cluster (dev/staging/prod)
-- Redis cluster (3 nodes per env)
-- CI/CD pipeline (GitHub Actions)
-- Monitoring stack (Prometheus, Grafana, Jaeger)
-
 ## Conclusion
 
 The **netweave O2-IMS Gateway** is fully architected and ready for implementation:
@@ -1020,11 +931,11 @@ The **netweave O2-IMS Gateway** is fully architected and ready for implementatio
 - **Production RBAC**: Fine-grained access control from day 1
 - **SMO Integration Ready**: Support complete orchestration workflows
 
-**Ready to proceed with implementation!** 🚀
+**Production system under active development.**
 
 ---
 
-**Next Action:** Begin Phase 1 - Project Initialization
+**Current Focus:** Multi-tenancy resource isolation and documentation modernization
 
 For questions or clarifications, refer to:
 - Architecture: [docs/architecture.md](docs/architecture.md)

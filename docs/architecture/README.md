@@ -34,7 +34,7 @@ graph TB
     subgraph Ingress [Kubernetes Ingress / LoadBalancer]
         TLS[TLS Termination Native]
         LB[Load Balancing K8s]
-        CERT[cert-manager certificates]
+        CERT[Vault PKI Certificates]
         RATE[Rate Limiting middleware]
     end
 
@@ -138,7 +138,9 @@ This architecture documentation is organized into focused, standalone documents:
 | **HTTP Framework** | Gin | Latest |
 | **Storage** | Redis OSS + Sentinel | 7.4+ |
 | **Backend** | Kubernetes | 1.31+ |
-| **Certificates** | cert-manager | 1.15+ |
+| **PKI** | HashiCorp Vault | 1.15+ |
+| **Identity** | Keycloak | 26.0+ |
+| **Database** | PostgreSQL | 16+ |
 | **Observability** | Prometheus, Jaeger | Latest |
 
 ### Key Design Decisions
@@ -149,6 +151,8 @@ This architecture documentation is organized into focused, standalone documents:
 4. **Plugin Architecture**: Extensible backend adapters (K8s, OpenStack, DTIAS, VMware, AWS, etc.)
 5. **OpenAPI-First**: Strict schema validation at API boundary
 6. **Zero-Trust Security**: mTLS everywhere, least privilege, no hardcoded secrets
+7. **Vault PKI**: Automated certificate lifecycle management with HashiCorp Vault
+8. **Keycloak OIDC**: Enterprise identity management with SSO and group-to-role mapping (optional)
 
 ## Getting Started
 
