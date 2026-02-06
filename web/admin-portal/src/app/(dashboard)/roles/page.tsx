@@ -13,6 +13,7 @@ import {
 import { CardSkeleton } from "@/components/shared/loading-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { listRoles } from "@/lib/api/roles";
+import { getDisplayError } from "@/lib/utils/sanitize-error";
 import type { Role } from "@/types/api";
 
 export default function RolesPage() {
@@ -24,7 +25,7 @@ export default function RolesPage() {
     listRoles()
       .then(setRoles)
       .catch((err) =>
-        setError(err instanceof Error ? err.message : "Failed to load roles")
+        setError(getDisplayError(err))
       )
       .finally(() => setLoading(false));
   }, []);

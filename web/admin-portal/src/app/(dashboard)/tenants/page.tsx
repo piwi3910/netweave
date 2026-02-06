@@ -18,6 +18,7 @@ import {
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { listTenants, deleteTenant } from "@/lib/api/tenants";
+import { getDisplayError } from "@/lib/utils/sanitize-error";
 import type { Tenant } from "@/types/api";
 import { formatDate } from "@/lib/utils";
 
@@ -38,7 +39,7 @@ export default function TenantsPage() {
       const data = await listTenants();
       setTenants(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load tenants");
+      setError(getDisplayError(err));
     } finally {
       setLoading(false);
     }
@@ -52,9 +53,7 @@ export default function TenantsPage() {
       await deleteTenant(tenantId);
       setTenants((prev) => prev.filter((t) => t.id !== tenantId));
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to delete tenant"
-      );
+      setError(getDisplayError(err));
     }
   }
 

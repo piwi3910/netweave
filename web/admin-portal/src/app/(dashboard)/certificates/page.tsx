@@ -18,6 +18,7 @@ import {
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { listCertificates, revokeCertificate } from "@/lib/api/certificates";
+import { getDisplayError } from "@/lib/utils/sanitize-error";
 import type { Certificate } from "@/types/api";
 import { formatDate, daysUntil } from "@/lib/utils";
 
@@ -38,9 +39,7 @@ export default function CertificatesPage() {
       const data = await listCertificates();
       setCerts(data);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load certificates"
-      );
+      setError(getDisplayError(err));
     } finally {
       setLoading(false);
     }
@@ -62,9 +61,7 @@ export default function CertificatesPage() {
         )
       );
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to revoke certificate"
-      );
+      setError(getDisplayError(err));
     }
   }
 

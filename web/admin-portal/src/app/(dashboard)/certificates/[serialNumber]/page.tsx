@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { CardSkeleton } from "@/components/shared/loading-skeleton";
 import { getCertificate, revokeCertificate } from "@/lib/api/certificates";
+import { getDisplayError } from "@/lib/utils/sanitize-error";
 import type { Certificate } from "@/types/api";
 import { formatDateTime, daysUntil } from "@/lib/utils";
 
@@ -28,9 +29,7 @@ export default function CertificateDetailPage() {
     getCertificate(serial)
       .then(setCert)
       .catch((err) =>
-        setError(
-          err instanceof Error ? err.message : "Failed to load certificate"
-        )
+        setError(getDisplayError(err))
       )
       .finally(() => setLoading(false));
   }, [serial]);
@@ -48,9 +47,7 @@ export default function CertificateDetailPage() {
       await revokeCertificate(cert.serialNumber);
       setCert((c) => (c ? { ...c, status: "revoked" } : c));
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to revoke certificate"
-      );
+      setError(getDisplayError(err));
     }
   }
 

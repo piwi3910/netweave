@@ -1,5 +1,10 @@
 import apiClient from "./client";
-import type { Tenant, TenantQuota } from "@/types/api";
+import type {
+  Tenant,
+  TenantQuota,
+  CreateTenantRequest,
+  UpdateTenantRequest,
+} from "@/types/api";
 
 export async function listTenants(): Promise<Tenant[]> {
   return apiClient.get<Tenant[]>("/tenants");
@@ -10,14 +15,14 @@ export async function getTenant(tenantId: string): Promise<Tenant> {
 }
 
 export async function createTenant(
-  data: Partial<Tenant>
+  data: CreateTenantRequest
 ): Promise<Tenant> {
   return apiClient.post<Tenant>("/tenants", data);
 }
 
 export async function updateTenant(
   tenantId: string,
-  data: Partial<Tenant>
+  data: UpdateTenantRequest
 ): Promise<Tenant> {
   return apiClient.put<Tenant>(`/tenants/${tenantId}`, data);
 }

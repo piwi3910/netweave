@@ -15,6 +15,7 @@ import {
 import { CardSkeleton } from "@/components/shared/loading-skeleton";
 import { getUser, updateUser } from "@/lib/api/users";
 import { listRoles } from "@/lib/api/roles";
+import { getDisplayError } from "@/lib/utils/sanitize-error";
 import type { TenantUser, Role } from "@/types/api";
 
 export default function UserDetailPage() {
@@ -47,7 +48,7 @@ export default function UserDetailPage() {
           isActive: userData.isActive,
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load user");
+        setError(getDisplayError(err));
       } finally {
         setLoading(false);
       }
@@ -67,7 +68,7 @@ export default function UserDetailPage() {
       });
       router.push("/users");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update user");
+      setError(getDisplayError(err));
     } finally {
       setSaving(false);
     }

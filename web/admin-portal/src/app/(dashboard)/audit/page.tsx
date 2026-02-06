@@ -16,6 +16,7 @@ import {
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { listAuditEvents } from "@/lib/api/audit";
+import { getDisplayError } from "@/lib/utils/sanitize-error";
 import type { AuditEvent } from "@/types/api";
 import { formatDateTime } from "@/lib/utils";
 
@@ -37,9 +38,7 @@ export default function AuditPage() {
       });
       setEvents(data);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load audit events"
-      );
+      setError(getDisplayError(err));
     } finally {
       setLoading(false);
     }

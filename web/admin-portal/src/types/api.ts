@@ -66,6 +66,21 @@ export interface Permission {
   action: string;
 }
 
+export interface CreateTenantRequest {
+  name: string;
+  description?: string;
+  contactEmail: string;
+  quota?: Partial<TenantQuota>;
+  metadata?: Record<string, string>;
+}
+
+export interface UpdateTenantRequest {
+  name?: string;
+  description?: string;
+  contactEmail?: string;
+  metadata?: Record<string, string>;
+}
+
 export interface Certificate {
   serialNumber: string;
   commonName: string;

@@ -17,6 +17,7 @@ import {
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { listUsers, deleteUser } from "@/lib/api/users";
+import { getDisplayError } from "@/lib/utils/sanitize-error";
 import type { TenantUser } from "@/types/api";
 
 export default function UsersPage() {
@@ -36,7 +37,7 @@ export default function UsersPage() {
       const data = await listUsers();
       setUsers(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load users");
+      setError(getDisplayError(err));
     } finally {
       setLoading(false);
     }
@@ -50,7 +51,7 @@ export default function UsersPage() {
       await deleteUser(userId);
       setUsers((prev) => prev.filter((u) => u.id !== userId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete user");
+      setError(getDisplayError(err));
     }
   }
 

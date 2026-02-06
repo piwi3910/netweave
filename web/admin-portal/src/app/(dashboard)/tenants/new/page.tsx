@@ -12,11 +12,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { createTenant } from "@/lib/api/tenants";
+import { tenantSchema } from "@/lib/validation/schemas";
+import { getDisplayError } from "@/lib/utils/sanitize-error";
 
 export default function CreateTenantPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -31,12 +34,29 @@ export default function CreateTenantPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setFieldErrors({});
+
+    const result = tenantSchema.safeParse({
+      name: form.name,
+      description: form.description,
+      contactEmail: form.contactEmail,
+    });
+    if (!result.success) {
+      const errors: Record<string, string> = {};
+      for (const issue of result.error.issues) {
+        const key = issue.path[0]?.toString() ?? "form";
+        errors[key] = issue.message;
+      }
+      setFieldErrors(errors);
+      setLoading(false);
+      return;
+    }
 
     try {
       await createTenant({
-        name: form.name,
-        description: form.description,
-        contactEmail: form.contactEmail,
+        name: result.data.name,
+        description: result.data.description,
+        contactEmail: result.data.contactEmail,
         quota: {
           maxSubscriptions: parseInt(form.maxSubscriptions, 10),
           maxResourcePools: parseInt(form.maxResourcePools, 10),
@@ -46,9 +66,7 @@ export default function CreateTenantPage() {
       });
       router.push("/tenants");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to create tenant"
-      );
+      setError(getDisplayError(err));
     } finally {
       setLoading(false);
     }
@@ -83,8 +101,13 @@ export default function CreateTenantPage() {
                 }
                 placeholder="Tenant name"
                 required
-                maxLength={255}
+                maxLength={128}
               />
+              {fieldErrors.name && (
+                <p className="text-xs text-destructive mt-1">
+                  {fieldErrors.name}
+                </p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium" htmlFor="description">
@@ -112,6 +135,11 @@ export default function CreateTenantPage() {
                 }
                 placeholder="admin@example.com"
               />
+              {fieldErrors.contactEmail && (
+                <p className="text-xs text-destructive mt-1">
+                  {fieldErrors.contactEmail}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

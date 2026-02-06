@@ -22,6 +22,7 @@ import { listTenants } from "@/lib/api/tenants";
 import { listUsers } from "@/lib/api/users";
 import { getMonitoringReport } from "@/lib/api/certificates";
 import { listAuditEvents } from "@/lib/api/audit";
+import { getDisplayError } from "@/lib/utils/sanitize-error";
 import type { MonitoringReport, AuditEvent, Tenant } from "@/types/api";
 import { formatDateTime } from "@/lib/utils";
 
@@ -56,7 +57,7 @@ export default function DashboardPage() {
             events.status === "fulfilled" ? events.value : [],
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load dashboard");
+        setError(getDisplayError(err));
       }
     }
     loadStats();

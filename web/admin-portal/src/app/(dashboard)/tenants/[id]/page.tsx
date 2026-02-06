@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { CardSkeleton } from "@/components/shared/loading-skeleton";
 import { getTenant, updateTenant } from "@/lib/api/tenants";
+import { getDisplayError } from "@/lib/utils/sanitize-error";
 import type { Tenant } from "@/types/api";
 
 export default function TenantDetailPage() {
@@ -42,9 +43,7 @@ export default function TenantDetailPage() {
           contactEmail: data.contactEmail,
         });
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load tenant"
-        );
+        setError(getDisplayError(err));
       } finally {
         setLoading(false);
       }
@@ -60,9 +59,7 @@ export default function TenantDetailPage() {
       const updated = await updateTenant(tenantId, form);
       setTenant(updated);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to update tenant"
-      );
+      setError(getDisplayError(err));
     } finally {
       setSaving(false);
     }

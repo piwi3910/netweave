@@ -13,12 +13,15 @@ import {
 } from "@/components/ui/card";
 import { createUser } from "@/lib/api/users";
 import { listRoles } from "@/lib/api/roles";
+import { userSchema } from "@/lib/validation/schemas";
+import { getDisplayError } from "@/lib/utils/sanitize-error";
 import type { Role } from "@/types/api";
 
 export default function CreateUserPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [roles, setRoles] = useState<Role[]>([]);
   const [form, setForm] = useState({
     subject: "",
@@ -37,16 +40,30 @@ export default function CreateUserPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setFieldErrors({});
+
+    const result = userSchema.safeParse(form);
+    if (!result.success) {
+      const errors: Record<string, string> = {};
+      for (const issue of result.error.issues) {
+        const key = issue.path[0]?.toString() ?? "form";
+        errors[key] = issue.message;
+      }
+      setFieldErrors(errors);
+      setLoading(false);
+      return;
+    }
+
     try {
       await createUser({
-        subject: form.subject,
-        commonName: form.commonName,
-        email: form.email || undefined,
-        roleId: form.roleId,
+        subject: result.data.subject,
+        commonName: result.data.commonName,
+        email: result.data.email || undefined,
+        roleId: result.data.roleId,
       });
       router.push("/users");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create user");
+      setError(getDisplayError(err));
     } finally {
       setLoading(false);
     }
@@ -84,6 +101,11 @@ export default function CreateUserPage() {
                 placeholder="Keycloak user ID"
                 required
               />
+              {fieldErrors.subject && (
+                <p className="text-xs text-destructive mt-1">
+                  {fieldErrors.subject}
+                </p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium" htmlFor="name">
@@ -98,6 +120,11 @@ export default function CreateUserPage() {
                 placeholder="Full name"
                 required
               />
+              {fieldErrors.commonName && (
+                <p className="text-xs text-destructive mt-1">
+                  {fieldErrors.commonName}
+                </p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium" htmlFor="email">
@@ -112,6 +139,11 @@ export default function CreateUserPage() {
                 }
                 placeholder="user@example.com"
               />
+              {fieldErrors.email && (
+                <p className="text-xs text-destructive mt-1">
+                  {fieldErrors.email}
+                </p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium" htmlFor="role">
@@ -133,6 +165,11 @@ export default function CreateUserPage() {
                   </option>
                 ))}
               </select>
+              {fieldErrors.roleId && (
+                <p className="text-xs text-destructive mt-1">
+                  {fieldErrors.roleId}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
