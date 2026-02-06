@@ -87,7 +87,7 @@ jobs:
           name: sbom-syft
 
       - name: Scan SBOM with Grype
-        uses: anchore/scan-action@v5
+        uses: anchore/scan-action@v7
         id: grype-scan
         continue-on-error: true
         with:
@@ -104,7 +104,7 @@ jobs:
           sarif_file: ${{ steps.grype-scan.outputs.sarif }}
 
       - name: Generate vulnerability report
-        uses: anchore/scan-action@v5
+        uses: anchore/scan-action@v7
         id: grype-report
         continue-on-error: true
         with:
