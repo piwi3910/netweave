@@ -77,3 +77,12 @@ Thumbs.db
 /netweave
 !/helm/netweave/
 netweave-gateway
+
+# Node.js / Frontend (admin portal)
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+.vercel/
