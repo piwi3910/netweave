@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -143,6 +144,10 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 			user, role, tenant, err = m.oauth2Authenticator.Authenticate(ctx, c, requestID)
 			if err != nil {
 				m.handleOAuth2AuthenticationFailure(c, requestID, authStart, err)
+				return
+			}
+			if user == nil {
+				m.handleOAuth2AuthenticationFailure(c, requestID, authStart, fmt.Errorf("authentication returned nil user"))
 				return
 			}
 			subject = user.OAuthSubject

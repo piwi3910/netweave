@@ -186,7 +186,7 @@ func setupLogger(cfg *config.Config) (*zap.Logger, error) {
 	}
 
 	// Setup deferred sync with error handling
-	go func() {
+	defer func() {
 		if syncErr := logger.Sync(); syncErr != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to sync logger: %v\n", syncErr)
 		}

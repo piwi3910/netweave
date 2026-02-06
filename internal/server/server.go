@@ -254,7 +254,11 @@ func New(
 	if authStore != nil && authMw != nil {
 		authStoreTyped, ok := authStore.(auth.Store)
 		if ok {
-			srv.SetupAuthRoutes(authStoreTyped, authMw.(*auth.Middleware))
+			if mw, mwOk := authMw.(*auth.Middleware); mwOk {
+				srv.SetupAuthRoutes(authStoreTyped, mw)
+			} else {
+				logger.Warn("auth middleware type mismatch, skipping auth routes")
+			}
 		} else {
 			logger.Warn("auth store does not implement auth.Store interface, admin API disabled")
 		}
