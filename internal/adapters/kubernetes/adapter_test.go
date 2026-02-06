@@ -290,6 +290,20 @@ func TestKubernetesAdapter_GetDeploymentManager(t *testing.T) {
 		assert.Contains(t, dm.Capabilities, "resource-types")
 	})
 
+	t.Run("default alias returns configured DM", func(t *testing.T) {
+		dm, err := adp.GetDeploymentManager(ctx, "default")
+		require.NoError(t, err)
+		require.NotNil(t, dm)
+		assert.Equal(t, "test-dm", dm.DeploymentManagerID)
+	})
+
+	t.Run("empty string alias returns configured DM", func(t *testing.T) {
+		dm, err := adp.GetDeploymentManager(ctx, "")
+		require.NoError(t, err)
+		require.NotNil(t, dm)
+		assert.Equal(t, "test-dm", dm.DeploymentManagerID)
+	})
+
 	t.Run("invalid deployment manager ID", func(t *testing.T) {
 		dm, err := adp.GetDeploymentManager(ctx, "invalid-dm")
 		require.Error(t, err)

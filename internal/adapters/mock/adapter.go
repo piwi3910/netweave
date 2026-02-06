@@ -288,7 +288,7 @@ func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.D
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	if id != a.deploymentManager.DeploymentManagerID && id != "default" {
+	if id != a.deploymentManager.DeploymentManagerID && id != "default" && id != "" {
 		return nil, fmt.Errorf("deployment manager not found: %s", id)
 	}
 

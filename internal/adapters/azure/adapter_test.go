@@ -531,11 +531,24 @@ func TestAzureAdapter_GetDeploymentManager(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
+	// Verify adapter works with its own DM ID
 	dm, err := adp.GetDeploymentManager(ctx, "dm-1")
 	if err != nil {
 		t.Skip("Skipping - requires Azure credentials")
 	}
 	assert.NotNil(t, dm)
+
+	t.Run("default alias returns configured DM", func(t *testing.T) {
+		dm, err := adp.GetDeploymentManager(ctx, "default")
+		require.NoError(t, err)
+		require.NotNil(t, dm)
+	})
+
+	t.Run("empty string alias returns configured DM", func(t *testing.T) {
+		dm, err := adp.GetDeploymentManager(ctx, "")
+		require.NoError(t, err)
+		require.NotNil(t, dm)
+	})
 }
 
 // TestBuildAzureTags tests Azure tag building from resource fields.

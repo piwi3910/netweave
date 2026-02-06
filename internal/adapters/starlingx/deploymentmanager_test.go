@@ -64,41 +64,58 @@ func TestGetDeploymentManager(t *testing.T) {
 
 	// Create adapter with mock endpoints
 	logger := zaptest.NewLogger(t)
+	// Create adapter with a fixed deployment manager ID for all sub-tests
+	adp, err := starlingx.New(&starlingx.Config{
+		Endpoint:            starlingxMock.URL,
+		KeystoneEndpoint:    keystoneMock.URL,
+		Username:            "admin",
+		Password:            "secret",
+		OCloudID:            "test-ocloud",
+		DeploymentManagerID: "test-dm-1",
+		Logger:              logger,
+	})
+	require.NoError(t, err)
+	defer func() { _ = adp.Close() }()
+
+	ctx := context.Background()
+
 	tests := []struct {
 		name    string
-		dmID    string
+		queryID string
 		wantErr bool
 	}{
 		{
 			name:    "successful retrieval",
-			dmID:    "test-dm-1",
+			queryID: "test-dm-1",
 			wantErr: false,
+		},
+		{
+			name:    "default alias returns configured DM",
+			queryID: "default",
+			wantErr: false,
+		},
+		{
+			name:    "empty string alias returns configured DM",
+			queryID: "",
+			wantErr: false,
+		},
+		{
+			name:    "unknown ID returns error",
+			queryID: "nonexistent-dm",
+			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := starlingx.New(&starlingx.Config{
-				Endpoint:            starlingxMock.URL,
-				KeystoneEndpoint:    keystoneMock.URL,
-				Username:            "admin",
-				Password:            "secret",
-				OCloudID:            "test-ocloud",
-				DeploymentManagerID: tt.dmID,
-				Logger:              logger,
-			})
-			require.NoError(t, err)
-			defer func() { _ = adp.Close() }()
-
-			ctx := context.Background()
-			dm, err := adp.GetDeploymentManager(ctx, tt.dmID)
+			dm, dmErr := adp.GetDeploymentManager(ctx, tt.queryID)
 
 			if tt.wantErr {
-				require.Error(t, err)
+				require.Error(t, dmErr)
 			} else {
-				require.NoError(t, err)
+				require.NoError(t, dmErr)
 				require.NotNil(t, dm)
-				assert.Equal(t, tt.dmID, dm.DeploymentManagerID)
+				assert.Equal(t, "test-dm-1", dm.DeploymentManagerID)
 				assert.Equal(t, "test-ocloud", dm.OCloudID)
 				assert.NotEmpty(t, dm.Name)
 				assert.NotEmpty(t, dm.ServiceURI)

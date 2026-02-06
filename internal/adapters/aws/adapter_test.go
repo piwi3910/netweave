@@ -474,11 +474,25 @@ func TestAWSAdapter_GetDeploymentManager(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dm, err := adp.GetDeploymentManager(context.Background(), "dm-1")
+	ctx := context.Background()
+
+	dm, err := adp.GetDeploymentManager(ctx, "dm-1")
 	if err != nil {
 		t.Skip("Skipping - requires AWS credentials")
 	}
 	assert.NotNil(t, dm)
+
+	t.Run("default alias returns configured DM", func(t *testing.T) {
+		dm, err := adp.GetDeploymentManager(ctx, "default")
+		require.NoError(t, err)
+		require.NotNil(t, dm)
+	})
+
+	t.Run("empty string alias returns configured DM", func(t *testing.T) {
+		dm, err := adp.GetDeploymentManager(ctx, "")
+		require.NoError(t, err)
+		require.NotNil(t, dm)
+	})
 }
 
 // TestExtractTagValue tests tag value extraction.
