@@ -13,12 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// TestNew tests the creation of a new GCPAdapter.
-func TestNew(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
-	}
-
+// TestNew_Validation tests config validation without requiring GCP credentials.
+func TestNew_Validation(t *testing.T) {
 	tests := []struct {
 		name    string
 		config  *gcp.Config
@@ -92,10 +88,6 @@ func TestNew(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
-	}
-
 	adp := &gcp.Adapter{
 		Logger: zap.NewNop(),
 	}
@@ -129,10 +121,6 @@ func TestMetadata(t *testing.T) {
 
 // TestGenerateIDs tests ID generation functions.
 func TestGenerateIDs(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
-	}
-
 	t.Run("gcp.GenerateMachineTypeID", func(t *testing.T) {
 		tests := []struct {
 			machineType string
@@ -199,10 +187,6 @@ func TestGenerateIDs(t *testing.T) {
 
 // TestExtractMachineFamily tests machine family extraction.
 func TestExtractMachineFamily(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
-	}
-
 	tests := []struct {
 		machineType string
 		want        string
@@ -224,10 +208,6 @@ func TestExtractMachineFamily(t *testing.T) {
 
 // TestExtractMachineTypeName tests machine type name extraction from URL.
 func TestExtractMachineTypeName(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
-	}
-
 	tests := []struct {
 		url  string
 		want string
@@ -257,10 +237,6 @@ func TestExtractMachineTypeName(t *testing.T) {
 
 // TestExtractZoneName tests zone name extraction from URL.
 func TestExtractZoneName(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
-	}
-
 	tests := []struct {
 		url  string
 		want string
@@ -289,10 +265,6 @@ func TestExtractZoneName(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
-	}
-
 	adp := &gcp.Adapter{
 		Logger:        zap.NewNop(),
 		Subscriptions: make(map[string]*adapter.Subscription),
@@ -368,10 +340,6 @@ func TestSubscriptions(t *testing.T) {
 
 // TestPtrHelpers tests pointer helper functions.
 func TestPtrHelpers(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
-	}
-
 	t.Run("ptrToString", func(t *testing.T) {
 		s := "hello"
 		assert.Equal(t, "hello", gcp.PtrToString(&s))
@@ -536,12 +504,8 @@ func TestGCPAdapter_GetDeploymentManager(t *testing.T) {
 	})
 }
 
-// TestExtractZoneAndName tests zone and name extraction from resource extensions.
+// TestBuildInstanceLabels tests label building logic for GCP instances.
 func TestBuildInstanceLabels(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
-	}
-
 	adp := &gcp.Adapter{Logger: zap.NewNop()}
 
 	tests := []struct {
@@ -636,10 +600,6 @@ func TestBuildInstanceLabels(t *testing.T) {
 
 // TestDetermineResourcePoolID tests resource pool ID determination.
 func TestDetermineResourcePoolID(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
-	}
-
 	tests := []struct {
 		name     string
 		poolMode string
@@ -678,10 +638,6 @@ func TestDetermineResourcePoolID(t *testing.T) {
 
 // TestBuildInstanceExtensions tests GCP instance extensions building.
 func TestBuildInstanceExtensions(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
-	}
-
 	adp := &gcp.Adapter{Logger: zap.NewNop()}
 
 	instName := "test-vm"
@@ -819,6 +775,400 @@ func TestBuildInstanceExtensions(t *testing.T) {
 			got := adp.TestBuildInstanceExtensions(tt.instance, tt.instanceName, tt.zone, tt.machineType)
 			require.NotNil(t, got)
 			tt.checkFunc(t, got)
+		})
+	}
+}
+
+// TestSubscriptions_UpdateAndEdgeCases tests subscription update and additional edge cases.
+func TestSubscriptions_UpdateAndEdgeCases(t *testing.T) {
+	adp := &gcp.Adapter{
+		Logger:        zap.NewNop(),
+		Subscriptions: make(map[string]*adapter.Subscription),
+	}
+	ctx := context.Background()
+
+	// Create a subscription first
+	created, err := adp.CreateSubscription(ctx, &adapter.Subscription{
+		SubscriptionID:         "sub-update-test",
+		Callback:               "https://example.com/original",
+		ConsumerSubscriptionID: "consumer-1",
+		Filter: &adapter.SubscriptionFilter{
+			ResourceTypeID: "compute",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created)
+
+	t.Run("UpdateSubscription success", func(t *testing.T) {
+		updated, updateErr := adp.UpdateSubscription(ctx, "sub-update-test", &adapter.Subscription{
+			Callback:               "https://example.com/updated",
+			ConsumerSubscriptionID: "consumer-2",
+			Filter: &adapter.SubscriptionFilter{
+				ResourceTypeID: "storage",
+			},
+		})
+		require.NoError(t, updateErr)
+		require.NotNil(t, updated)
+		assert.Equal(t, "sub-update-test", updated.SubscriptionID)
+		assert.Equal(t, "https://example.com/updated", updated.Callback)
+		assert.Equal(t, "consumer-2", updated.ConsumerSubscriptionID)
+		require.NotNil(t, updated.Filter)
+		assert.Equal(t, "storage", updated.Filter.ResourceTypeID)
+	})
+
+	t.Run("UpdateSubscription persists changes", func(t *testing.T) {
+		fetched, fetchErr := adp.GetSubscription(ctx, "sub-update-test")
+		require.NoError(t, fetchErr)
+		assert.Equal(t, "https://example.com/updated", fetched.Callback)
+		assert.Equal(t, "consumer-2", fetched.ConsumerSubscriptionID)
+	})
+
+	t.Run("UpdateSubscription not found", func(t *testing.T) {
+		_, updateErr := adp.UpdateSubscription(ctx, "nonexistent", &adapter.Subscription{
+			Callback: "https://example.com/updated",
+		})
+		require.Error(t, updateErr)
+		assert.Contains(t, updateErr.Error(), "subscription not found")
+	})
+
+	t.Run("UpdateSubscription empty callback", func(t *testing.T) {
+		_, updateErr := adp.UpdateSubscription(ctx, "sub-update-test", &adapter.Subscription{
+			Callback: "",
+		})
+		require.Error(t, updateErr)
+		assert.Contains(t, updateErr.Error(), "callback URL is required")
+	})
+
+	t.Run("CreateSubscription with filter preserved", func(t *testing.T) {
+		sub, createErr := adp.CreateSubscription(ctx, &adapter.Subscription{
+			SubscriptionID: "sub-with-filter",
+			Callback:       "https://example.com/filtered",
+			Filter: &adapter.SubscriptionFilter{
+				ResourceTypeID: "compute",
+			},
+		})
+		require.NoError(t, createErr)
+		require.NotNil(t, sub)
+		require.NotNil(t, sub.Filter)
+		assert.Equal(t, "compute", sub.Filter.ResourceTypeID)
+	})
+}
+
+// TestResourcePoolOperations_ZoneMode tests resource pool operations in zone mode (all return errors).
+func TestResourcePoolOperations_ZoneMode(t *testing.T) {
+	adp := &gcp.Adapter{
+		Logger: zap.NewNop(),
+	}
+	adp.TestSetPoolMode("zone")
+
+	ctx := context.Background()
+
+	t.Run("CreateResourcePool in zone mode returns error", func(t *testing.T) {
+		pool, err := adp.CreateResourcePool(ctx, &adapter.ResourcePool{
+			Name:        "test-pool",
+			Description: "test description",
+		})
+		require.Error(t, err)
+		assert.Nil(t, pool)
+		assert.Contains(t, err.Error(), "zone")
+		assert.Contains(t, err.Error(), "GCP-managed")
+	})
+
+	t.Run("UpdateResourcePool in zone mode returns error", func(t *testing.T) {
+		pool, err := adp.UpdateResourcePool(ctx, "some-id", &adapter.ResourcePool{
+			Description: "updated description",
+		})
+		require.Error(t, err)
+		assert.Nil(t, pool)
+		assert.Contains(t, err.Error(), "zone")
+		assert.Contains(t, err.Error(), "GCP-managed")
+	})
+
+	t.Run("DeleteResourcePool in zone mode returns error", func(t *testing.T) {
+		err := adp.DeleteResourcePool(ctx, "some-id")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "zone")
+		assert.Contains(t, err.Error(), "GCP-managed")
+	})
+}
+
+// TestResourcePoolOperations_IGMode tests resource pool operations in IG mode.
+func TestResourcePoolOperations_IGMode(t *testing.T) {
+	adp := &gcp.Adapter{
+		Logger: zap.NewNop(),
+	}
+	adp.TestSetPoolMode("ig")
+
+	ctx := context.Background()
+
+	t.Run("CreateResourcePool in IG mode returns not implemented", func(t *testing.T) {
+		pool, err := adp.CreateResourcePool(ctx, &adapter.ResourcePool{
+			Name:        "test-ig",
+			Description: "test instance group",
+		})
+		require.Error(t, err)
+		assert.Nil(t, pool)
+		assert.Contains(t, err.Error(), "not yet implemented")
+	})
+
+	t.Run("UpdateResourcePool in IG mode returns not implemented", func(t *testing.T) {
+		pool, err := adp.UpdateResourcePool(ctx, "some-id", &adapter.ResourcePool{
+			Description: "updated",
+		})
+		require.Error(t, err)
+		assert.Nil(t, pool)
+		assert.Contains(t, err.Error(), "not yet implemented")
+	})
+
+	t.Run("DeleteResourcePool in IG mode returns not implemented", func(t *testing.T) {
+		err := adp.DeleteResourcePool(ctx, "some-id")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not yet implemented")
+	})
+}
+
+// TestCreateResource_ReturnsError tests that CreateResource always returns error.
+func TestCreateResource_ReturnsError(t *testing.T) {
+	adp := &gcp.Adapter{
+		Logger: zap.NewNop(),
+	}
+
+	ctx := context.Background()
+	result, err := adp.CreateResource(ctx, &adapter.Resource{
+		ResourceTypeID: "gcp-machine-type-n1-standard-1",
+		Description:    "Test instance",
+	})
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "additional configuration")
+}
+
+// TestGetResource_InvalidFormat tests GetResource with invalid ID formats.
+func TestGetResource_InvalidFormat(t *testing.T) {
+	adp := &gcp.Adapter{
+		Logger: zap.NewNop(),
+	}
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name        string
+		resourceID  string
+		errContains string
+	}{
+		{
+			name:        "missing prefix",
+			resourceID:  "invalid-format",
+			errContains: "invalid resource ID format",
+		},
+		{
+			name:        "prefix only no remainder",
+			resourceID:  "gcp-instance-",
+			errContains: "invalid resource ID format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resource, err := adp.GetResource(ctx, tt.resourceID)
+			require.Error(t, err)
+			assert.Nil(t, resource)
+			assert.Contains(t, err.Error(), tt.errContains)
+		})
+	}
+}
+
+// TestExtractZoneAndName_Exported tests the extractZoneAndName function via test helper.
+func TestExtractZoneAndName_Exported(t *testing.T) {
+	adp := &gcp.Adapter{Logger: zap.NewNop()}
+
+	tests := []struct {
+		name         string
+		resource     *adapter.Resource
+		wantZone     string
+		wantInstance string
+		expectErr    bool
+	}{
+		{
+			name: "valid resource with zone and name",
+			resource: &adapter.Resource{
+				ResourceID: "gcp-instance-us-central1-a-my-vm",
+				Extensions: map[string]interface{}{
+					"gcp.zone": "us-central1-a",
+					"gcp.name": "my-vm",
+				},
+			},
+			wantZone:     "us-central1-a",
+			wantInstance: "my-vm",
+			expectErr:    false,
+		},
+		{
+			name: "missing gcp.zone",
+			resource: &adapter.Resource{
+				ResourceID: "gcp-instance-us-central1-a-my-vm",
+				Extensions: map[string]interface{}{
+					"gcp.name": "my-vm",
+				},
+			},
+			expectErr: true,
+		},
+		{
+			name: "missing gcp.name",
+			resource: &adapter.Resource{
+				ResourceID: "gcp-instance-us-central1-a-my-vm",
+				Extensions: map[string]interface{}{
+					"gcp.zone": "us-central1-a",
+				},
+			},
+			expectErr: true,
+		},
+		{
+			name: "nil extensions",
+			resource: &adapter.Resource{
+				ResourceID: "gcp-instance-us-central1-a-my-vm",
+			},
+			expectErr: true,
+		},
+		{
+			name: "wrong type for zone",
+			resource: &adapter.Resource{
+				ResourceID: "gcp-instance-us-central1-a-my-vm",
+				Extensions: map[string]interface{}{
+					"gcp.zone": 123,
+					"gcp.name": "my-vm",
+				},
+			},
+			expectErr: true,
+		},
+		{
+			name: "wrong type for name",
+			resource: &adapter.Resource{
+				ResourceID: "gcp-instance-us-central1-a-my-vm",
+				Extensions: map[string]interface{}{
+					"gcp.zone": "us-central1-a",
+					"gcp.name": 456,
+				},
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			zone, instanceName, err := adp.TestExtractZoneAndName(tt.resource)
+			if tt.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantZone, zone)
+				assert.Equal(t, tt.wantInstance, instanceName)
+			}
+		})
+	}
+}
+
+// TestExtractMachineFamily_EdgeCases tests edge cases for machine family extraction.
+func TestExtractMachineFamily_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		machineType string
+		want        string
+	}{
+		{
+			name:        "empty string",
+			machineType: "",
+			want:        "",
+		},
+		{
+			name:        "no dash",
+			machineType: "custom",
+			want:        "custom",
+		},
+		{
+			name:        "single dash",
+			machineType: "n1-micro",
+			want:        "n1",
+		},
+		{
+			name:        "multiple dashes",
+			machineType: "a2-highgpu-1g",
+			want:        "a2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := gcp.ExtractMachineFamily(tt.machineType)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestExtractZoneName_EdgeCases tests edge cases for zone name extraction.
+func TestExtractZoneName_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{
+			name: "no slash at all",
+			url:  "us-central1-a",
+			want: "us-central1-a",
+		},
+		{
+			name: "empty string",
+			url:  "",
+			want: "",
+		},
+		{
+			name: "trailing slash",
+			url:  "https://example.com/zones/",
+			want: "",
+		},
+		{
+			name: "single slash prefix",
+			url:  "/us-central1-a",
+			want: "us-central1-a",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := gcp.ExtractZoneName(tt.url)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestExtractMachineTypeName_EdgeCases tests edge cases for machine type name extraction.
+func TestExtractMachineTypeName_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{
+			name: "plain name no slashes",
+			url:  "n1-standard-1",
+			want: "n1-standard-1",
+		},
+		{
+			name: "empty string",
+			url:  "",
+			want: "",
+		},
+		{
+			name: "full URL",
+			url:  "https://compute.googleapis.com/compute/v1/projects/my-project/zones/us-central1-a/machineTypes/e2-medium",
+			want: "e2-medium",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := gcp.ExtractMachineTypeName(tt.url)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
