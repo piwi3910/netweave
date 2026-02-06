@@ -8,7 +8,6 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 
-	"github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
@@ -25,8 +24,8 @@ func BenchmarkRedisSet(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		sub.SubscriptionID = fmt.Sprintf("test-sub-%d", i)
-		if err := store.CreateSubscription(ctx, sub); err != nil {
+		sub.ID = fmt.Sprintf("test-sub-%d", i)
+		if err := store.Create(ctx, sub); err != nil {
 			b.Fatalf("failed to create subscription: %v", err)
 		}
 	}
@@ -42,7 +41,7 @@ func BenchmarkRedisGet(b *testing.B) {
 	sub := createTestSubscription()
 
 	// Pre-populate
-	if err := store.CreateSubscription(ctx, sub); err != nil {
+	if err := store.Create(ctx, sub); err != nil {
 		b.Fatalf("failed to create subscription: %v", err)
 	}
 
@@ -50,7 +49,7 @@ func BenchmarkRedisGet(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		if _, err := store.GetSubscription(ctx, sub.SubscriptionID); err != nil {
+		if _, err := store.Get(ctx, sub.ID); err != nil {
 			b.Fatalf("failed to get subscription: %v", err)
 		}
 	}
@@ -65,12 +64,12 @@ func BenchmarkRedisDelete(b *testing.B) {
 	ctx := context.Background()
 
 	// Pre-populate
-	subs := make([]*models.O2Subscription, b.N)
+	subs := make([]*storage.Subscription, b.N)
 	for i := 0; i < b.N; i++ {
 		sub := createTestSubscription()
-		sub.SubscriptionID = fmt.Sprintf("test-sub-%d", i)
+		sub.ID = fmt.Sprintf("test-sub-%d", i)
 		subs[i] = sub
-		if err := store.CreateSubscription(ctx, sub); err != nil {
+		if err := store.Create(ctx, sub); err != nil {
 			b.Fatalf("failed to create subscription: %v", err)
 		}
 	}
@@ -79,7 +78,7 @@ func BenchmarkRedisDelete(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		if err := store.DeleteSubscription(ctx, subs[i].SubscriptionID); err != nil {
+		if err := store.Delete(ctx, subs[i].ID); err != nil {
 			b.Fatalf("failed to delete subscription: %v", err)
 		}
 	}
@@ -96,8 +95,8 @@ func BenchmarkRedisList(b *testing.B) {
 	// Pre-populate with 100 subscriptions
 	for i := 0; i < 100; i++ {
 		sub := createTestSubscription()
-		sub.SubscriptionID = fmt.Sprintf("test-sub-%d", i)
-		if err := store.CreateSubscription(ctx, sub); err != nil {
+		sub.ID = fmt.Sprintf("test-sub-%d", i)
+		if err := store.Create(ctx, sub); err != nil {
 			b.Fatalf("failed to create subscription: %v", err)
 		}
 	}
@@ -106,7 +105,7 @@ func BenchmarkRedisList(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		if _, err := store.ListSubscriptions(ctx); err != nil {
+		if _, err := store.List(ctx); err != nil {
 			b.Fatalf("failed to list subscriptions: %v", err)
 		}
 	}
@@ -122,7 +121,7 @@ func BenchmarkRedisUpdate(b *testing.B) {
 	sub := createTestSubscription()
 
 	// Pre-populate
-	if err := store.CreateSubscription(ctx, sub); err != nil {
+	if err := store.Create(ctx, sub); err != nil {
 		b.Fatalf("failed to create subscription: %v", err)
 	}
 
@@ -131,7 +130,7 @@ func BenchmarkRedisUpdate(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		sub.Callback = "https://smo.example.com/notify/updated"
-		if err := store.UpdateSubscription(ctx, sub); err != nil {
+		if err := store.Update(ctx, sub); err != nil {
 			b.Fatalf("failed to update subscription: %v", err)
 		}
 	}
@@ -148,8 +147,8 @@ func BenchmarkConcurrentRedisOps(b *testing.B) {
 	// Pre-populate
 	for i := 0; i < 100; i++ {
 		sub := createTestSubscription()
-		sub.SubscriptionID = fmt.Sprintf("test-sub-%d", i)
-		if err := store.CreateSubscription(ctx, sub); err != nil {
+		sub.ID = fmt.Sprintf("test-sub-%d", i)
+		if err := store.Create(ctx, sub); err != nil {
 			b.Fatalf("failed to create subscription: %v", err)
 		}
 	}
@@ -161,7 +160,7 @@ func BenchmarkConcurrentRedisOps(b *testing.B) {
 		i := 0
 		for pb.Next() {
 			subID := fmt.Sprintf("test-sub-%d", i%100)
-			if _, err := store.GetSubscription(ctx, subID); err != nil {
+			if _, err := store.Get(ctx, subID); err != nil {
 				b.Errorf("failed to get subscription: %v", err)
 			}
 			i++
@@ -179,7 +178,7 @@ func BenchmarkRedisConnectionPool(b *testing.B) {
 	sub := createTestSubscription()
 
 	// Pre-populate
-	if err := store.CreateSubscription(ctx, sub); err != nil {
+	if err := store.Create(ctx, sub); err != nil {
 		b.Fatalf("failed to create subscription: %v", err)
 	}
 
@@ -189,11 +188,11 @@ func BenchmarkRedisConnectionPool(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			// Mix of operations to test connection pool
-			if _, err := store.GetSubscription(ctx, sub.SubscriptionID); err != nil {
+			if _, err := store.Get(ctx, sub.ID); err != nil {
 				b.Errorf("failed to get subscription: %v", err)
 			}
 
-			if _, err := store.ListSubscriptions(ctx); err != nil {
+			if _, err := store.List(ctx); err != nil {
 				b.Errorf("failed to list subscriptions: %v", err)
 			}
 		}
@@ -221,12 +220,10 @@ func setupRedisStore(b *testing.B) (*miniredis.Miniredis, storage.Store) {
 	return s, store
 }
 
-func createTestSubscription() *models.O2Subscription {
-	return &models.O2Subscription{
-		SubscriptionID:         "test-sub-1",
+func createTestSubscription() *storage.Subscription {
+	return &storage.Subscription{
+		ID:                     "test-sub-1",
 		Callback:               "https://smo.example.com/notify",
 		ConsumerSubscriptionID: "consumer-1",
-		Filter:                 "(eq,resourceTypeId,node)",
-		EventTypes:             []string{"resourceChange"},
 	}
 }

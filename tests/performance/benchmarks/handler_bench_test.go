@@ -3,7 +3,6 @@ package benchmarks
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -12,7 +11,6 @@ import (
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/config"
-	"github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/server"
 	"github.com/piwi3910/netweave/internal/storage"
 )
@@ -153,24 +151,32 @@ func setupBenchmarkServer(b *testing.B) *server.Server {
 		},
 	}
 
-	mockAdapter := &mockAdapter{}
-	mockStore := &mockStore{}
+	adp := &benchMockAdapter{}
+	str := &benchMockStore{}
 
-	srv := server.New(cfg, logger, mockAdapter, mockStore, nil)
+	srv := server.New(cfg, logger, adp, str, nil)
 	return srv
 }
 
-// Mock adapter implementation
+// Mock adapter implementation for benchmarks.
 
-type mockAdapter struct{}
+type benchMockAdapter struct{}
 
-func (m *mockAdapter) Name() string    { return "mock" }
-func (m *mockAdapter) Version() string { return "1.0.0" }
+func (m *benchMockAdapter) Name() string                       { return "mock" }
+func (m *benchMockAdapter) Version() string                    { return "1.0.0" }
+func (m *benchMockAdapter) Capabilities() []adapter.Capability { return nil }
 
-func (m *mockAdapter) ListResourcePools(_ context.Context) ([]*models.ResourcePool, error) {
-	pools := make([]*models.ResourcePool, 10)
+func (m *benchMockAdapter) GetDeploymentManager(_ context.Context, dmID string) (*adapter.DeploymentManager, error) {
+	return &adapter.DeploymentManager{
+		DeploymentManagerID: dmID,
+		Name:                "Test DM",
+	}, nil
+}
+
+func (m *benchMockAdapter) ListResourcePools(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourcePool, error) {
+	pools := make([]*adapter.ResourcePool, 10)
 	for i := 0; i < 10; i++ {
-		pools[i] = &models.ResourcePool{
+		pools[i] = &adapter.ResourcePool{
 			ResourcePoolID: fmt.Sprintf("pool-%d", i),
 			Name:           "Test Pool",
 			Description:    "Benchmark test pool",
@@ -180,8 +186,8 @@ func (m *mockAdapter) ListResourcePools(_ context.Context) ([]*models.ResourcePo
 	return pools, nil
 }
 
-func (m *mockAdapter) GetResourcePool(_ context.Context, poolID string) (*models.ResourcePool, error) {
-	return &models.ResourcePool{
+func (m *benchMockAdapter) GetResourcePool(_ context.Context, poolID string) (*adapter.ResourcePool, error) {
+	return &adapter.ResourcePool{
 		ResourcePoolID: poolID,
 		Name:           "Test Pool",
 		Description:    "Benchmark test pool",
@@ -189,12 +195,23 @@ func (m *mockAdapter) GetResourcePool(_ context.Context, poolID string) (*models
 	}, nil
 }
 
-func (m *mockAdapter) ListResources(_ context.Context, _ string, _ string) ([]*models.Resource, error) {
-	resources := make([]*models.Resource, 100)
+func (m *benchMockAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+	return pool, nil
+}
+
+func (m *benchMockAdapter) UpdateResourcePool(_ context.Context, _ string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+	return pool, nil
+}
+
+func (m *benchMockAdapter) DeleteResourcePool(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *benchMockAdapter) ListResources(_ context.Context, _ *adapter.Filter) ([]*adapter.Resource, error) {
+	resources := make([]*adapter.Resource, 100)
 	for i := 0; i < 100; i++ {
-		resources[i] = &models.Resource{
+		resources[i] = &adapter.Resource{
 			ResourceID:     fmt.Sprintf("resource-%d", i),
-			Name:           "Test Resource",
 			ResourceTypeID: "node",
 			ResourcePoolID: "pool-1",
 		}
@@ -202,101 +219,120 @@ func (m *mockAdapter) ListResources(_ context.Context, _ string, _ string) ([]*m
 	return resources, nil
 }
 
-func (m *mockAdapter) GetResource(_ context.Context, resourceID string) (*models.Resource, error) {
-	return &models.Resource{
+func (m *benchMockAdapter) GetResource(_ context.Context, resourceID string) (*adapter.Resource, error) {
+	return &adapter.Resource{
 		ResourceID:     resourceID,
-		Name:           "Test Resource",
 		ResourceTypeID: "node",
 		ResourcePoolID: "pool-1",
 	}, nil
 }
 
-func (m *mockAdapter) ListResourceTypes(_ context.Context) ([]*models.ResourceType, error) {
-	return []*models.ResourceType{
+func (m *benchMockAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+	return resource, nil
+}
+
+func (m *benchMockAdapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (*adapter.Resource, error) {
+	return resource, nil
+}
+
+func (m *benchMockAdapter) DeleteResource(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *benchMockAdapter) ListResourceTypes(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourceType, error) {
+	return []*adapter.ResourceType{
 		{ResourceTypeID: "node", Name: "Compute Node"},
 		{ResourceTypeID: "network", Name: "Network Device"},
 	}, nil
 }
 
-func (m *mockAdapter) GetResourceType(_ context.Context, typeID string) (*models.ResourceType, error) {
-	return &models.ResourceType{
+func (m *benchMockAdapter) GetResourceType(_ context.Context, typeID string) (*adapter.ResourceType, error) {
+	return &adapter.ResourceType{
 		ResourceTypeID: typeID,
 		Name:           "Test Type",
 	}, nil
 }
 
-func (m *mockAdapter) ListDeploymentManagers(_ context.Context) ([]*models.DeploymentManager, error) {
-	return []*models.DeploymentManager{
-		{DeploymentManagerID: "dm-1", Name: "Test DM"},
-	}, nil
+func (m *benchMockAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+	return sub, nil
 }
 
-func (m *mockAdapter) GetDeploymentManager(_ context.Context, dmID string) (*models.DeploymentManager, error) {
-	return &models.DeploymentManager{
-		DeploymentManagerID: dmID,
-		Name:                "Test DM",
-	}, nil
+func (m *benchMockAdapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
+	return &adapter.Subscription{SubscriptionID: id}, nil
 }
 
-func (m *mockAdapter) GetOCloudInfrastructure(_ context.Context) (*models.OCloudInfrastructure, error) {
-	return &models.OCloudInfrastructure{
-		OCloudID: "ocloud-1",
-		Name:     "Test OCloud",
-	}, nil
+func (m *benchMockAdapter) UpdateSubscription(_ context.Context, _ string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+	return sub, nil
 }
 
-func (m *mockAdapter) Health(_ context.Context) error {
+func (m *benchMockAdapter) DeleteSubscription(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *mockAdapter) Close() error {
+func (m *benchMockAdapter) Health(_ context.Context) error {
 	return nil
 }
 
-// Ensure mockAdapter implements adapter.Adapter
-var _ adapter.Adapter = (*mockAdapter)(nil)
-
-// Mock store implementation
-
-type mockStore struct{}
-
-func (m *mockStore) CreateSubscription(_ context.Context, _ *models.O2Subscription) error {
+func (m *benchMockAdapter) Close() error {
 	return nil
 }
 
-func (m *mockStore) GetSubscription(_ context.Context, _ string) (*models.O2Subscription, error) {
-	return &models.O2Subscription{
-		SubscriptionID:         "sub-1",
+// Ensure benchMockAdapter implements adapter.Adapter.
+var _ adapter.Adapter = (*benchMockAdapter)(nil)
+
+// Mock store implementation for benchmarks.
+
+type benchMockStore struct{}
+
+func (m *benchMockStore) Create(_ context.Context, _ *storage.Subscription) error {
+	return nil
+}
+
+func (m *benchMockStore) Get(_ context.Context, _ string) (*storage.Subscription, error) {
+	return &storage.Subscription{
+		ID:                     "sub-1",
 		Callback:               "https://smo.example.com/notify",
 		ConsumerSubscriptionID: "consumer-1",
 	}, nil
 }
 
-func (m *mockStore) ListSubscriptions(_ context.Context) ([]*models.O2Subscription, error) {
-	return []*models.O2Subscription{
+func (m *benchMockStore) List(_ context.Context) ([]*storage.Subscription, error) {
+	return []*storage.Subscription{
 		{
-			SubscriptionID:         "sub-1",
+			ID:                     "sub-1",
 			Callback:               "https://smo.example.com/notify",
 			ConsumerSubscriptionID: "consumer-1",
 		},
 	}, nil
 }
 
-func (m *mockStore) UpdateSubscription(_ context.Context, _ *models.O2Subscription) error {
+func (m *benchMockStore) Update(_ context.Context, _ *storage.Subscription) error {
 	return nil
 }
 
-func (m *mockStore) DeleteSubscription(_ context.Context, _ string) error {
+func (m *benchMockStore) Delete(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *mockStore) Close() error {
+func (m *benchMockStore) ListByResourcePool(_ context.Context, _ string) ([]*storage.Subscription, error) {
+	return nil, nil
+}
+
+func (m *benchMockStore) ListByResourceType(_ context.Context, _ string) ([]*storage.Subscription, error) {
+	return nil, nil
+}
+
+func (m *benchMockStore) ListByTenant(_ context.Context, _ string) ([]*storage.Subscription, error) {
+	return nil, nil
+}
+
+func (m *benchMockStore) Close() error {
 	return nil
 }
 
-func (m *mockStore) Ping(_ context.Context) error {
+func (m *benchMockStore) Ping(_ context.Context) error {
 	return nil
 }
 
-// Ensure mockStore implements storage.Store
-var _ storage.Store = (*mockStore)(nil)
+// Ensure benchMockStore implements storage.Store.
+var _ storage.Store = (*benchMockStore)(nil)
