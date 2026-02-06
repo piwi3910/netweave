@@ -581,6 +581,14 @@ func (s *Server) buildTLSConfig() (*tls.Config, error) {
 		tlsCfg.ClientAuth = tls.NoClientCert
 	}
 
+	// Validate that CA file is provided when client verification is required.
+	if tlsCfg.ClientAuth == tls.RequireAndVerifyClientCert ||
+		tlsCfg.ClientAuth == tls.VerifyClientCertIfGiven {
+		if s.config.TLS.CAFile == "" {
+			return nil, fmt.Errorf("CA certificate file required when client_auth is %q", s.config.TLS.ClientAuth)
+		}
+	}
+
 	// Load CA certificate for client verification.
 	if s.config.TLS.CAFile != "" {
 		caCert, err := os.ReadFile(s.config.TLS.CAFile)
