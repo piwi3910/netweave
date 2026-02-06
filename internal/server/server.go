@@ -4,6 +4,8 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -132,12 +134,14 @@ type Metrics struct {
 //	store := storage.NewRedisStore(&storage.RedisConfig{...})
 //	authStore := auth.NewRedisStore(&auth.RedisConfig{...})
 //	srv := server.New(cfg, logger, adapter, store, authStore)
+//	srv := server.New(cfg, logger, adapter, store, authStore, authMw) // with pre-configured auth middleware
 func New(
 	cfg *config.Config,
 	logger *zap.Logger,
 	adp adapter.Adapter,
 	store storage.Store,
 	authStore AuthStore,
+	opts ...interface{},
 ) *Server {
 	if cfg == nil {
 		panic("config cannot be nil")
@@ -182,19 +186,33 @@ func New(
 	var authMw AuthMiddleware
 	var auditLogger *auth.AuditLogger
 	var tenantHandler *handlers.TenantHandler
-	if authStore != nil {
-		authMwConfig := &auth.MiddlewareConfig{
-			Enabled:     true,
-			RequireMTLS: cfg.MultiTenancy.RequireMTLS,
-			SkipPaths:   []string{"/health", "/healthz", "/ready", "/readyz", "/metrics"},
+
+	// Check if a pre-configured auth middleware was passed via opts
+	var preConfiguredMw *auth.Middleware
+	for _, opt := range opts {
+		if mw, ok := opt.(*auth.Middleware); ok && mw != nil {
+			preConfiguredMw = mw
 		}
+	}
+
+	if authStore != nil {
 		// Type assert authStore to auth.Store for middleware initialization
 		authStoreTyped, ok := authStore.(auth.Store)
 		if !ok {
 			logger.Warn("auth store does not implement auth.Store interface, auth middleware disabled")
 		} else {
-			// OAuth2 authenticator is nil here - OAuth2 setup happens in main.go
-			authMw = auth.NewMiddleware(authStoreTyped, authMwConfig, logger, nil, nil)
+			if preConfiguredMw != nil {
+				// Use the pre-configured middleware (includes OAuth2 authenticator)
+				authMw = preConfiguredMw
+			} else {
+				// Create a basic middleware without OAuth2
+				authMwConfig := &auth.MiddlewareConfig{
+					Enabled:     true,
+					RequireMTLS: cfg.MultiTenancy.RequireMTLS,
+					SkipPaths:   []string{"/health", "/healthz", "/ready", "/readyz", "/metrics"},
+				}
+				authMw = auth.NewMiddleware(authStoreTyped, authMwConfig, logger, nil, nil)
+			}
 
 			// Initialize audit logger with the same auth store
 			var err error
@@ -236,7 +254,11 @@ func New(
 	if authStore != nil && authMw != nil {
 		authStoreTyped, ok := authStore.(auth.Store)
 		if ok {
-			srv.SetupAuthRoutes(authStoreTyped, authMw.(*auth.Middleware))
+			if mw, mwOk := authMw.(*auth.Middleware); mwOk {
+				srv.SetupAuthRoutes(authStoreTyped, mw)
+			} else {
+				logger.Warn("auth middleware type mismatch, skipping auth routes")
+			}
 		} else {
 			logger.Warn("auth store does not implement auth.Store interface, admin API disabled")
 		}
@@ -411,6 +433,14 @@ func (s *Server) setupMiddleware() {
 		s.router.Use(s.openAPIValidator.Middleware())
 		s.logger.Info("OpenAPI request validation enabled")
 	}
+
+	// Authentication middleware - runs globally when auth is configured
+	// This puts the authenticated user into the request context for downstream
+	// permission checks (withPermission, RequirePermission, etc.)
+	if s.authMw != nil {
+		s.router.Use(s.authMw.AuthenticationMiddleware())
+		s.logger.Info("global authentication middleware enabled")
+	}
 }
 
 // securityHeadersMiddleware returns the security headers middleware.
@@ -466,6 +496,15 @@ func (s *Server) Start() error {
 		MaxHeaderBytes: s.config.Server.MaxHeaderBytes,
 	}
 
+	// Configure TLS with client certificate authentication (mTLS) if enabled.
+	if s.config.TLS.Enabled {
+		tlsCfg, tlsErr := s.buildTLSConfig()
+		if tlsErr != nil {
+			return fmt.Errorf("failed to build TLS config: %w", tlsErr)
+		}
+		s.httpServer.TLSConfig = tlsCfg
+	}
+
 	// Channel to listen for errors from the server
 	serverErrors := make(chan error, 1)
 
@@ -511,6 +550,65 @@ func (s *Server) Start() error {
 		// Graceful shutdown
 		return s.Shutdown()
 	}
+}
+
+// buildTLSConfig creates the TLS configuration for the HTTP server.
+// It configures client certificate authentication based on the ClientAuth setting.
+func (s *Server) buildTLSConfig() (*tls.Config, error) {
+	tlsCfg := &tls.Config{
+		MinVersion: tls.VersionTLS13,
+	}
+
+	// Set minimum TLS version.
+	switch s.config.TLS.MinVersion {
+	case "1.2":
+		tlsCfg.MinVersion = tls.VersionTLS12
+	case "1.3", "":
+		tlsCfg.MinVersion = tls.VersionTLS13
+	}
+
+	// Configure client certificate authentication.
+	switch s.config.TLS.ClientAuth {
+	case "require-and-verify":
+		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
+	case "require":
+		tlsCfg.ClientAuth = tls.RequireAnyClientCert
+	case "verify":
+		tlsCfg.ClientAuth = tls.VerifyClientCertIfGiven
+	case "request":
+		tlsCfg.ClientAuth = tls.RequestClientCert
+	case "none", "":
+		tlsCfg.ClientAuth = tls.NoClientCert
+	}
+
+	// Validate that CA file is provided when client verification is required.
+	if tlsCfg.ClientAuth == tls.RequireAndVerifyClientCert ||
+		tlsCfg.ClientAuth == tls.VerifyClientCertIfGiven {
+		if s.config.TLS.CAFile == "" {
+			return nil, fmt.Errorf("CA certificate file required when client_auth is %q", s.config.TLS.ClientAuth)
+		}
+	}
+
+	// Load CA certificate for client verification.
+	if s.config.TLS.CAFile != "" {
+		caCert, err := os.ReadFile(s.config.TLS.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read CA certificate %s: %w", s.config.TLS.CAFile, err)
+		}
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			return nil, fmt.Errorf("failed to parse CA certificate from %s", s.config.TLS.CAFile)
+		}
+		tlsCfg.ClientCAs = caCertPool
+		s.logger.Info("client CA certificate loaded", zap.String("ca_file", s.config.TLS.CAFile))
+	}
+
+	s.logger.Info("TLS configuration built",
+		zap.String("min_version", s.config.TLS.MinVersion),
+		zap.String("client_auth", s.config.TLS.ClientAuth),
+	)
+
+	return tlsCfg, nil
 }
 
 // Shutdown gracefully shuts down the HTTP server.

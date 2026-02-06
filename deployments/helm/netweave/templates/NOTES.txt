@@ -38,12 +38,9 @@ IMPORTANT: NetWeave Gateway Deployment
 
 3. Keycloak Admin Console:
    URL: {{ include "netweave.keycloakURL" . }}
-{{- if .Values.keycloak.ingress.enabled }}
-   External: http{{ if .Values.keycloak.ingress.tls }}s{{ end }}://{{ .Values.keycloak.ingress.hostname }}
-{{- else }}
 
    To access Keycloak admin console:
-   $ kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "netweave.fullname" . }}-keycloak 8080:80
+   $ kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "netweave.fullname" . }}-keycloak 8090:80
 
    Admin credentials:
    Username: {{ .Values.keycloak.auth.adminUser }}
@@ -51,7 +48,6 @@ IMPORTANT: NetWeave Gateway Deployment
 
    To retrieve admin password:
    $ kubectl get secret {{ include "netweave.fullname" . }}-keycloak -n {{ .Release.Namespace }} -o jsonpath='{.data.admin-password}' | base64 -d
-{{- end }}
 
 {{- end }}
 

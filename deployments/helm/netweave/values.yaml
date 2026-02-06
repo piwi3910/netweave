@@ -49,16 +49,12 @@ gateway:
     enabled: false
     className: "nginx"
     annotations: {}
-      # cert-manager.io/cluster-issuer: "letsencrypt-prod"
     hosts:
       - host: netweave.local
         paths:
           - path: /
             pathType: Prefix
     tls: []
-    #  - secretName: netweave-tls
-    #    hosts:
-    #      - netweave.local
 
   resources:
     limits:
@@ -119,19 +115,53 @@ gateway:
     database:
       connectionString: ""  # Set via secret or override
 
-    # Authentication configuration
-    auth:
-      # Enable OAuth2/OIDC authentication
-      oauth2:
-        enabled: true
-        issuerURL: ""  # Will be set to Keycloak URL
-        clientID: netweave-gateway
-        clientSecret: ""  # Set via secret
+    # Multi-tenancy and RBAC configuration (maps to multi_tenancy.* in Go config)
+    multiTenancy:
+      enabled: true
+      requireMTLS: true
+      initializeDefaultRoles: true
+      auditLogRetentionDays: 30
+      skipAuthPaths:
+        - /healthz
+        - /readyz
 
-      # Enable mTLS authentication
-      mtls:
-        enabled: true
-        caCert: ""  # Will be fetched from Vault
+    # Auth store backend configuration (maps to auth.* in Go config)
+    auth:
+      backend: keycloak  # "keycloak" or "redis"
+      keycloak:
+        realm: netweave
+        clientID: netweave-gateway
+        clientSecretEnvVar: KEYCLOAK_CLIENT_SECRET
+        adminUsername: admin
+        adminPasswordEnvVar: KEYCLOAK_ADMIN_PASSWORD
+        timeout: 30s
+
+    # OAuth2/OIDC token validation configuration (maps to oauth2.* in Go config)
+    # Disabled by default - mTLS is the primary authentication mechanism.
+    # Enable if OAuth2 Bearer tokens are needed alongside or instead of mTLS.
+    oauth2:
+      enabled: false
+      priority: false
+      keycloakRealm: netweave
+      keycloakClientID: netweave-gateway
+      keycloakSecretEnvVar: KEYCLOAK_CLIENT_SECRET
+      autoProvisionUsers: false
+      defaultRole: tenant-admin
+      requireTenantClaim: true
+
+    # TLS configuration for mTLS (maps to tls.* in Go config)
+    tls:
+      enabled: false
+      # Path inside container where cert/key/ca are mounted
+      certFile: /etc/netweave/tls/tls.crt
+      keyFile: /etc/netweave/tls/tls.key
+      caFile: /etc/netweave/tls/ca.crt
+      clientAuth: "require-and-verify"
+      minVersion: "1.3"
+      # Name of existing K8s TLS secret (type: kubernetes.io/tls)
+      existingServerSecret: ""
+      # Name of existing K8s ConfigMap with ca.crt key
+      existingCAConfigMap: ""
 
     # Certificate manager configuration
     certManager:
@@ -141,25 +171,54 @@ gateway:
       maxRetries: 3
       retryInterval: 1h
 
-# PostgreSQL configuration (for Keycloak)
+# Admin Portal configuration
+adminPortal:
+  enabled: true
+  replicas: 2
+
+  image:
+    repository: ghcr.io/piwi3910/netweave-admin-portal
+    tag: ""  # Defaults to .Chart.AppVersion
+    pullPolicy: IfNotPresent
+
+  keycloak:
+    issuer: ""  # Will be set to Keycloak issuer URL
+
+  authUrl: ""  # External URL for next-auth
+  apiBaseUrl: ""  # Gateway API base URL
+
+  auth:
+    clientId: admin-portal
+    clientSecret: ""  # Set via secret
+    authSecret: ""  # NextAuth secret, generated if empty
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# PostgreSQL configuration (official postgres image)
 postgresql:
   enabled: true
+  replicas: 1
+
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+
   auth:
     username: keycloak
     password: ""  # Set via secret, generated if empty
     database: keycloak
-  primary:
-    persistence:
-      enabled: true
-      size: 10Gi
-    # Enable TLS for PostgreSQL connections
-    tls:
-      enabled: false  # Set to true for production
-      certificatesSecret: ""  # Name of secret containing tls.crt and tls.key
-      certFilename: "tls.crt"
-      certKeyFilename: "tls.key"
-      # SSL mode when TLS is disabled (disable for local dev, require for production)
-      sslMode: "disable"  # Options: disable, allow, prefer, require, verify-ca, verify-full
+
+  persistence:
+    enabled: true
+    size: 10Gi
+
   resources:
     requests:
       cpu: 250m
@@ -168,32 +227,30 @@ postgresql:
       cpu: 1000m
       memory: 512Mi
 
-# Keycloak configuration
+# Keycloak configuration (official quay.io/keycloak/keycloak image)
 keycloak:
   enabled: true
   replicaCount: 2
 
+  image:
+    repository: quay.io/keycloak/keycloak
+    tag: "26.0"
+    pullPolicy: IfNotPresent
+
+  # Init container to wait for PostgreSQL
+  initImage:
+    repository: busybox
+    tag: "1.37"
+
+  # Use start-dev for development, start for production
+  devMode: false
+
+  # Proxy headers mode (e.g., "forwarded" or "xforwarded")
+  proxy: ""
+
   auth:
     adminUser: admin
     adminPassword: ""  # Set via secret, generated if empty
-
-  # Use the main PostgreSQL instance deployed by this chart
-  postgresql:
-    enabled: false  # Don't deploy another PostgreSQL
-  externalDatabase:
-    host: ""  # Will be set via helper template to match release name
-    port: 5432
-    user: keycloak
-    database: keycloak
-    password: ""  # Must match postgresql.auth.password
-    sslMode: "require"  # PostgreSQL SSL mode: disable, allow, prefer, require, verify-ca, verify-full
-
-  ingress:
-    enabled: false
-    ingressClassName: nginx
-    hostname: keycloak.local
-    annotations: {}
-    tls: false
 
   resources:
     requests:
@@ -203,76 +260,40 @@ keycloak:
       cpu: 2000m
       memory: 1Gi
 
-  # Keycloak realm import
-  extraVolumes:
-    - name: realm-import
-      configMap:
-        name: keycloak-realm-import
-
-  extraVolumeMounts:
-    - name: realm-import
-      mountPath: /opt/keycloak/data/import
-
-  extraEnvVars:
-    - name: KC_HEALTH_ENABLED
-      value: "true"
-    - name: KC_METRICS_ENABLED
-      value: "true"
-    - name: KEYCLOAK_EXTRA_ARGS
-      value: "--import-realm"
-
 # Vault configuration
-# ============================================================================
-# 🔴 CRITICAL SECURITY WARNING 🔴
-# ============================================================================
-# The Vault init job stores unseal keys and root token in Kubernetes secrets.
-# This is FUNDAMENTALLY INSECURE and ONLY for development/testing.
-#
-# ❌ NEVER USE IN PRODUCTION ❌
-#
-# Production requirements:
-# 1. Implement Cloud KMS auto-unseal (AWS KMS, Azure Key Vault, GCP Cloud KMS)
-# 2. Extract and securely store unseal keys in HSM or external vault
-# 3. Delete vault-unseal-keys Kubernetes secret immediately after extraction
-# 4. Revoke root token after initial setup
-# 5. Set skipTLSVerify=false and configure proper TLS
-#
-# See SECURITY.md and Issue #299 for detailed guide.
-# ============================================================================
 vault:
   enabled: true
   replicaCount: 3
-
-  # We'll deploy Vault using our custom manifests
-  # This is a placeholder for future Vault Helm chart integration
   deployViaManifests: true
   namespace: vault-system
+  skipTLSVerify: true  # Set to false in production
+  caCert: false
+  caCertSecret: "vault-tls"
 
-  # TLS Configuration
-  # WARNING: skipTLSVerify=true is INSECURE and enables MITM attacks
-  # For production, set skipTLSVerify=false and provide caCert
-  skipTLSVerify: true  # ❌ Set to false in production
-  caCert: false  # ✅ Set to true and provide caCertSecret in production
-  caCertSecret: "vault-tls"  # Name of secret containing ca.crt
-
-# Redis configuration (keeping for gradual migration)
+# Redis configuration (official redis image)
 redis:
   enabled: true
-  architecture: standalone
+
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+
   auth:
     enabled: true
     password: ""  # Set via secret, generated if empty
-  master:
-    persistence:
-      enabled: true
-      size: 8Gi
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 250m
-        memory: 256Mi
+
+  persistence:
+    enabled: true
+    size: 8Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
 
 # Init jobs configuration
 initJobs:
@@ -280,17 +301,17 @@ initJobs:
   keycloakRealm:
     enabled: true
     backoffLimit: 3
-    ttlSecondsAfterFinished: 86400  # 24 hours
+    ttlSecondsAfterFinished: 86400
     image:
       registry: docker.io
       repository: curlimages/curl
       tag: "8.5.0"
 
-  # Keycloak client secret configuration (runs after realm import)
+  # Keycloak client secret configuration
   keycloakConfig:
     enabled: true
     backoffLimit: 3
-    ttlSecondsAfterFinished: 86400  # 24 hours
+    ttlSecondsAfterFinished: 86400
     image:
       registry: docker.io
       repository: curlimages/curl
@@ -300,12 +321,11 @@ initJobs:
   vaultPKI:
     enabled: true
     backoffLimit: 3
-    ttlSecondsAfterFinished: 86400  # 24 hours
-    # Use image with Vault CLI, kubectl, jq, and bash
+    ttlSecondsAfterFinished: 86400
     image:
       registry: docker.io
-      repository: hashicorp/vault-k8s
-      tag: "1.4.3"
+      repository: hashicorp/vault
+      tag: "1.15.4"
 
 # Monitoring configuration
 monitoring:
@@ -315,26 +335,18 @@ monitoring:
     enabled: false
     interval: 30s
     scrapeTimeout: 10s
-    # Additional labels for ServiceMonitor (for Prometheus operator label selectors)
     additionalLabels: {}
-      # prometheus: kube-prometheus
-    # Relabeling configs to apply to samples before ingestion
     relabelings: []
-    # Metric relabeling configs to apply to samples before ingestion
     metricRelabelings: []
 
   prometheusRule:
     enabled: false
-    # Additional labels for PrometheusRule (for Prometheus operator label selectors)
     additionalLabels: {}
-      # prometheus: kube-prometheus
 
 # Secrets configuration
 secrets:
-  # Create secrets from values (not recommended for production)
   create: true
 
-  # Use external secrets operator
   externalSecrets:
     enabled: false
     backend: vault

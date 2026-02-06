@@ -20,11 +20,16 @@ export default function IssueCertificatePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    commonName: string;
+    altNames: string;
+    ipSANs: string;
+    ttl: "720h" | "2160h" | "4380h" | "8760h";
+  }>({
     commonName: "",
     altNames: "",
     ipSANs: "",
-    ttl: "8760h" as const,
+    ttl: "8760h",
   });
 
   async function handleSubmit(e: React.FormEvent) {

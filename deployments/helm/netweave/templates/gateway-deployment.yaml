@@ -43,7 +43,7 @@ spec:
               echo "Waiting for Keycloak to be ready..."
               MAX_RETRIES=60
               RETRY_COUNT=0
-              until curl -sf {{ include "netweave.keycloakURL" . }}/health/ready > /dev/null 2>&1; do
+              until curl -sf {{ include "netweave.keycloakHealthURL" . }}/health/ready > /dev/null 2>&1; do
                 RETRY_COUNT=$((RETRY_COUNT + 1))
                 if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
                   echo "ERROR: Keycloak failed to become ready after ${MAX_RETRIES} attempts (5 minutes)"
@@ -102,12 +102,17 @@ spec:
             - name: KEYCLOAK_REALM
               value: "netweave"
             - name: KEYCLOAK_CLIENT_ID
-              value: {{ .Values.gateway.config.auth.oauth2.clientID | quote }}
+              value: {{ .Values.gateway.config.oauth2.keycloakClientID | quote }}
             - name: KEYCLOAK_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "netweave.fullname" . }}-secret
                   key: keycloak-client-secret
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netweave.fullname" . }}-secret
+                  key: keycloak-admin-password
             {{- if .Values.redis.enabled }}
             {{- if .Values.redis.auth.enabled }}
             - name: REDIS_PASSWORD
@@ -131,6 +136,9 @@ spec:
             httpGet:
               path: /healthz
               port: http
+              {{- if .Values.gateway.config.tls.enabled }}
+              scheme: HTTPS
+              {{- end }}
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
@@ -139,6 +147,9 @@ spec:
             httpGet:
               path: /readyz
               port: http
+              {{- if .Values.gateway.config.tls.enabled }}
+              scheme: HTTPS
+              {{- end }}
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3
@@ -151,8 +162,13 @@ spec:
             - name: cache
               mountPath: /var/cache
             - name: config
-              mountPath: /etc/netweave
+              mountPath: /etc/netweave/config
               readOnly: true
+            {{- if .Values.gateway.config.tls.enabled }}
+            - name: tls-server
+              mountPath: /etc/netweave/tls
+              readOnly: true
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
@@ -161,6 +177,23 @@ spec:
         - name: config
           configMap:
             name: {{ include "netweave.fullname" . }}-config
+        {{- if .Values.gateway.config.tls.enabled }}
+        - name: tls-server
+          projected:
+            sources:
+              - secret:
+                  name: {{ .Values.gateway.config.tls.existingServerSecret }}
+                  items:
+                    - key: tls.crt
+                      path: tls.crt
+                    - key: tls.key
+                      path: tls.key
+              - configMap:
+                  name: {{ .Values.gateway.config.tls.existingCAConfigMap }}
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+        {{- end }}
       {{- with .Values.gateway.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

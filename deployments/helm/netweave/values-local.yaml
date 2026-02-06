@@ -1,0 +1,157 @@
+# values-local.yaml - Docker Desktop Kubernetes development overrides
+# Usage:
+#   1. Deploy Vault dev mode: kubectl apply -f deployments/kubernetes/vault/dev-deployment.yaml
+#   2. Install chart: helm install netweave . -f values-local.yaml -n netweave --create-namespace
+
+# Gateway - single replica, local image
+gateway:
+  replicaCount: 1
+  image:
+    registry: ""
+    repository: netweave-gateway
+    tag: "local"
+    pullPolicy: Never
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  autoscaling:
+    enabled: false
+  affinity: {}
+  config:
+    logLevel: debug
+    # Multi-tenancy enabled with mTLS auth enforcement
+    multiTenancy:
+      enabled: true
+      requireMTLS: true
+      initializeDefaultRoles: true
+    # Auth store backend using Keycloak
+    auth:
+      backend: keycloak
+      keycloak:
+        realm: netweave
+        clientID: netweave-gateway
+        clientSecretEnvVar: KEYCLOAK_CLIENT_SECRET
+        adminUsername: admin
+        adminPasswordEnvVar: KEYCLOAK_ADMIN_PASSWORD
+        timeout: 30s
+    # OAuth2 disabled - using mTLS for authentication
+    oauth2:
+      enabled: false
+    # TLS enabled with mTLS client cert verification
+    tls:
+      enabled: true
+      certFile: /etc/netweave/tls/tls.crt
+      keyFile: /etc/netweave/tls/tls.key
+      caFile: /etc/netweave/tls/ca.crt
+      clientAuth: "verify"
+      minVersion: "1.3"
+      existingServerSecret: "netweave-tls-server"
+      existingCAConfigMap: "netweave-tls-ca"
+
+# Admin Portal - single replica, local image
+adminPortal:
+  enabled: true
+  replicas: 1
+  image:
+    repository: netweave-admin-portal
+    tag: "local"
+    pullPolicy: Never
+  keycloak:
+    issuer: "http://localhost:8090/realms/netweave"
+  authUrl: "http://localhost:3000"
+  apiBaseUrl: "http://netweave-netweave:8080"
+
+# PostgreSQL - official image, small
+postgresql:
+  enabled: true
+  replicas: 1
+  image:
+    repository: postgres
+    tag: "16-alpine"
+  auth:
+    username: keycloak
+    password: "dev-password-123"
+    database: keycloak
+  persistence:
+    enabled: true
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# Keycloak - official image, dev mode, single replica
+keycloak:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: quay.io/keycloak/keycloak
+    tag: "26.0"
+  devMode: true
+  auth:
+    adminUser: admin
+    adminPassword: "admin"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+# Vault - deployed separately via dev-deployment.yaml
+vault:
+  enabled: true
+  replicaCount: 1
+  deployViaManifests: true
+  namespace: vault-system
+  skipTLSVerify: true
+  caCert: false
+
+# Redis - official image, small
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+  auth:
+    enabled: true
+    password: "dev-redis-123"
+  persistence:
+    enabled: true
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+
+# Init jobs - disable vault PKI for local dev (run manually)
+initJobs:
+  keycloakRealm:
+    enabled: true
+  keycloakConfig:
+    enabled: true
+  vaultPKI:
+    enabled: false
+
+# Secrets managed by Helm
+secrets:
+  create: true
+
+# No network policies for local dev
+networkPolicy:
+  enabled: false
+
+# No monitoring for local dev
+monitoring:
+  enabled: false

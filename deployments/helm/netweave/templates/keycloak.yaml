@@ -1,0 +1,139 @@
+{{- if .Values.keycloak.enabled }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "netweave.fullname" . }}-keycloak
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+type: Opaque
+stringData:
+  admin-password: {{ .Values.keycloak.auth.adminPassword | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "netweave.fullname" . }}-keycloak
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  replicas: {{ .Values.keycloak.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "netweave.name" . }}-keycloak
+      app.kubernetes.io/component: keycloak
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "netweave.name" . }}-keycloak
+        app.kubernetes.io/component: keycloak
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: "{{ .Values.keycloak.initImage.repository }}:{{ .Values.keycloak.initImage.tag }}"
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for PostgreSQL..."
+              until nc -z {{ include "netweave.postgresql.host" . }} 5432; do
+                echo "PostgreSQL not ready, waiting..."
+                sleep 3
+              done
+              echo "PostgreSQL is ready!"
+      containers:
+        - name: keycloak
+          image: "{{ .Values.keycloak.image.repository }}:{{ .Values.keycloak.image.tag }}"
+          imagePullPolicy: {{ .Values.keycloak.image.pullPolicy | default "IfNotPresent" }}
+          args:
+            {{- if .Values.keycloak.devMode }}
+            - start-dev
+            {{- else }}
+            - start
+            {{- end }}
+            - --import-realm
+          env:
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: "jdbc:postgresql://{{ include "netweave.postgresql.host" . }}:{{ include "netweave.postgresql.port" . }}/{{ include "netweave.postgresql.database" . }}"
+            - name: KC_DB_USERNAME
+              value: {{ include "netweave.postgresql.username" . | quote }}
+            - name: KC_DB_PASSWORD
+              value: {{ .Values.postgresql.auth.password | quote }}
+            - name: KEYCLOAK_ADMIN
+              value: {{ .Values.keycloak.auth.adminUser | quote }}
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netweave.fullname" . }}-keycloak
+                  key: admin-password
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_METRICS_ENABLED
+              value: "true"
+            - name: KC_HTTP_PORT
+              value: "8080"
+            - name: KC_HTTP_MANAGEMENT_PORT
+              value: "9000"
+            - name: KC_HOSTNAME
+              value: {{ include "netweave.fullname" . }}-keycloak
+            - name: KC_HOSTNAME_PORT
+              value: "80"
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            {{- if .Values.keycloak.proxy }}
+            - name: KC_PROXY_HEADERS
+              value: {{ .Values.keycloak.proxy | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: 9000
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: management
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.keycloak.resources | nindent 12 }}
+          volumeMounts:
+            - name: realm-import
+              mountPath: /opt/keycloak/data/import
+      volumes:
+        - name: realm-import
+          configMap:
+            name: keycloak-realm-import
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "netweave.fullname" . }}-keycloak
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      name: http
+    - port: 9000
+      targetPort: management
+      name: management
+  selector:
+    app.kubernetes.io/name: {{ include "netweave.name" . }}-keycloak
+    app.kubernetes.io/component: keycloak
+{{- end }}

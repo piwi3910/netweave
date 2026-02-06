@@ -342,16 +342,15 @@ func (s *Store) convertRoleToKeycloak(role *auth.Role) *Role {
 	}
 	kcRole.Attributes[roleAttrType] = []string{string(role.Type)}
 
-	// Serialize permissions
+	// Store permissions as multi-valued attribute entries.
+	// Each permission is stored as a separate value to stay within Keycloak's
+	// 255-char varchar limit on ROLE_ATTRIBUTE.VALUE.
 	if len(role.Permissions) > 0 {
 		perms := make([]string, len(role.Permissions))
 		for i, p := range role.Permissions {
 			perms[i] = string(p)
 		}
-		permsJSON, err := json.Marshal(perms)
-		if err == nil {
-			kcRole.Attributes[roleAttrPermissions] = []string{string(permsJSON)}
-		}
+		kcRole.Attributes[roleAttrPermissions] = perms
 	}
 
 	if !role.CreatedAt.IsZero() {
@@ -389,19 +388,32 @@ func (s *Store) extractRoleAttributes(kcRole *Role, role *auth.Role) {
 	}
 }
 
-// parseRolePermissions parses permissions JSON from role attributes.
+// parseRolePermissions parses permissions from role attributes.
+// Supports two formats:
+//   - Multi-valued: each permission is a separate attribute value (preferred)
+//   - Legacy JSON: a single value containing a JSON array of permission strings
 func (s *Store) parseRolePermissions(kcRole *Role, role *auth.Role) {
 	vals, ok := kcRole.Attributes[roleAttrPermissions]
 	if !ok || len(vals) == 0 {
 		return
 	}
 
-	var perms []string
-	if err := json.Unmarshal([]byte(vals[0]), &perms); err == nil {
-		role.Permissions = make([]auth.Permission, len(perms))
-		for i, p := range perms {
-			role.Permissions[i] = auth.Permission(p)
+	// If there's a single value that looks like a JSON array, parse it (legacy format).
+	if len(vals) == 1 && strings.HasPrefix(vals[0], "[") {
+		var perms []string
+		if err := json.Unmarshal([]byte(vals[0]), &perms); err == nil {
+			role.Permissions = make([]auth.Permission, len(perms))
+			for i, p := range perms {
+				role.Permissions[i] = auth.Permission(p)
+			}
+			return
 		}
+	}
+
+	// Multi-valued format: each value is a permission string.
+	role.Permissions = make([]auth.Permission, len(vals))
+	for i, v := range vals {
+		role.Permissions[i] = auth.Permission(v)
 	}
 }
 
@@ -914,6 +926,15 @@ func (s *Store) CreateRole(ctx context.Context, role *auth.Role) error {
 			return auth.ErrRoleExists
 		}
 		return fmt.Errorf("failed to create role in keycloak: %w", err)
+	}
+
+	// Keycloak POST /roles does not persist custom attributes.
+	// A follow-up PUT is required to save role_type, permissions, etc.
+	if err := s.client.UpdateRealmRole(ctx, string(role.Name), kcRole); err != nil {
+		s.logger.Warn("failed to update role attributes after creation",
+			zap.String("role_name", string(role.Name)),
+			zap.Error(err),
+		)
 	}
 
 	s.logger.Info("role created in keycloak", zap.String("role_name", string(role.Name)))

@@ -179,6 +179,17 @@ Return the Keycloak URL
 {{- end }}
 
 {{/*
+Return the Keycloak health URL (management port)
+*/}}
+{{- define "netweave.keycloakHealthURL" -}}
+{{- if .Values.keycloak.enabled }}
+    {{- printf "http://%s-keycloak:9000" (include "netweave.fullname" .) -}}
+{{- else }}
+    {{- required "Keycloak URL is required when keycloak.enabled is false" .Values.keycloak.externalURL -}}
+{{- end }}
+{{- end }}
+
+{{/*
 Return the Vault URL
 */}}
 {{- define "netweave.vaultURL" -}}

@@ -211,14 +211,12 @@ func (c *Client) DeleteUser(ctx context.Context, userID string) error {
 // maxResults specifies the maximum number of users to return (0 for all).
 func (c *Client) ListUsers(ctx context.Context, maxResults int) ([]User, error) {
 	params := url.Values{}
+	params.Set("briefRepresentation", "false")
 	if maxResults > 0 {
 		params.Set("max", fmt.Sprintf("%d", maxResults))
 	}
 
-	path := "/users"
-	if len(params) > 0 {
-		path = fmt.Sprintf("%s?%s", path, params.Encode())
-	}
+	path := fmt.Sprintf("/users?%s", params.Encode())
 
 	resp, err := c.doAdminRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
