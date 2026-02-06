@@ -756,6 +756,37 @@ func (s *Server) SetupAuth(authStore AuthStore, authMw AuthMiddleware) {
 	s.logger.Info("multi-tenancy and RBAC enabled")
 }
 
+// setupTenantRateLimiter configures per-tenant rate limiting based on tenant quota settings.
+// This must be called after SetupAuthRoutes since it requires fullAuthStore.
+func (s *Server) setupTenantRateLimiter() {
+	if s.fullAuthStore == nil {
+		return
+	}
+
+	redisStore, ok := s.store.(*storage.RedisStore)
+	if !ok {
+		s.logger.Warn("per-tenant rate limiting requires RedisStore, disabled")
+		return
+	}
+
+	rlStore := NewRedisRateLimitStore(redisStore.Client)
+
+	getLimit := func(ctx context.Context, tenantID string) int {
+		tenant, err := s.fullAuthStore.GetTenant(ctx, tenantID)
+		if err != nil {
+			return defaultRateLimit
+		}
+		if tenant.Quota.MaxRequestsPerMinute > 0 {
+			return tenant.Quota.MaxRequestsPerMinute
+		}
+		return defaultRateLimit
+	}
+
+	rl := NewRateLimiter(rlStore, s.logger, getLimit)
+	s.router.Use(rl.Middleware())
+	s.logger.Info("per-tenant rate limiting enabled")
+}
+
 // AuthStore returns the authentication store interface.
 // Returns nil if auth is not configured.
 // This method returns an interface by design (registry pattern).

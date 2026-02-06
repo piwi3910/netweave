@@ -25,6 +25,9 @@ func (s *Server) SetupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) 
 	// Store the full auth store for tenant lookups in wrapWithTenantContext.
 	s.fullAuthStore = authStore
 
+	// Enable per-tenant rate limiting (must come after auth middleware is set up).
+	s.setupTenantRateLimiter()
+
 	// Create handlers.
 	tenantHandler := handlers.NewTenantHandler(authStore, s.logger)
 	userHandler := handlers.NewUserHandler(authStore, s.logger)
