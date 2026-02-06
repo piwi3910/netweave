@@ -59,15 +59,25 @@ spec:
         - protocol: TCP
           port: 8201
   egress:
-    # Allow DNS
+    # ========================================================================
+    # DNS Resolution - Required for all Kubernetes DNS lookups
+    # ========================================================================
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
       ports:
         - protocol: UDP
           port: 53
-    # Allow Vault pods to communicate with each other (Raft cluster)
+        - protocol: TCP
+          port: 53
+
+    # ========================================================================
+    # Vault Raft Cluster Communication - Required for HA Vault cluster
+    # ========================================================================
     - to:
         - podSelector:
             matchLabels:
@@ -75,35 +85,62 @@ spec:
               app.kubernetes.io/component: security
       ports:
         - protocol: TCP
-          port: 8200
+          port: 8200  # Vault API
         - protocol: TCP
-          port: 8201
-    # Allow outbound to Kubernetes API server for auth
-    # Note: Kubernetes API server typically runs in default namespace
-    # with service name 'kubernetes'. The actual pod labels vary by cluster
-    # type (EKS, GKE, AKS, kubeadm). This rule allows access to port 443
-    # only for pods with component=kube-apiserver or tier=control-plane.
-    # For managed Kubernetes (EKS/GKE/AKS), API access is typically via
-    # service endpoint which doesn't require NetworkPolicy rules.
+          port: 8201  # Vault cluster port
+
+    # ========================================================================
+    # Kubernetes API Server Access - Required for Kubernetes auth method
+    # ========================================================================
+    # Vault needs to communicate with the Kubernetes API server to:
+    # 1. Validate service account tokens (Kubernetes auth method)
+    # 2. Verify pod/namespace metadata for authentication
+    #
+    # CLUSTER-SPECIFIC CONFIGURATION:
+    #
+    # Option A: Self-hosted Kubernetes (kubeadm, on-prem)
+    #   API server pods run in kube-system namespace with standard labels.
+    #
+    # Option B: Managed Kubernetes (EKS, GKE, AKS)
+    #   API server runs outside cluster (managed control plane).
+    #   Use ipBlock with API server endpoint CIDR instead.
+    #   Get CIDR: kubectl get endpoints kubernetes -o jsonpath='{.subsets[].addresses[].ip}'
+    #
+    # CURRENT: Option A (self-hosted). For managed K8s, uncomment Option B below.
+    # ========================================================================
+
+    # Rule 1: Self-hosted Kubernetes - kubeadm standard label
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: default
+              kubernetes.io/metadata.name: kube-system
           podSelector:
             matchLabels:
               component: kube-apiserver
       ports:
         - protocol: TCP
           port: 443
-    # Fallback: Allow to Kubernetes service endpoint (for clusters where
-    # API server is accessed via kubernetes.default.svc service)
+
+    # Rule 2: Self-hosted Kubernetes - control-plane tier label
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: default
+              kubernetes.io/metadata.name: kube-system
           podSelector:
             matchLabels:
               tier: control-plane
+              component: kube-apiserver
       ports:
         - protocol: TCP
           port: 443
+
+    # Rule 3: Managed Kubernetes - IP-based access (OPTIONAL)
+    # Uncomment and set CIDR for your managed K8s API server.
+    # Find IP: kubectl get endpoints kubernetes -n default -o jsonpath='{.subsets[].addresses[].ip}'
+    #
+    # - to:
+    #     - ipBlock:
+    #         cidr: 0.0.0.0/32  # REPLACE with your API server IP/CIDR
+    #   ports:
+    #     - protocol: TCP
+    #       port: 443
