@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -53,8 +54,16 @@ func (h *DeploymentManagerHandler) ListDeploymentManagers(c *gin.Context) {
 	// Parse query parameters
 	filter := internalmodels.ParseQueryParams(c.Request.URL.Query())
 
+	// Convert internal filter to adapter filter
+	adapterFilter := &adapter.Filter{
+		Location: filter.Location,
+		Labels:   filter.Labels,
+		Limit:    filter.Limit,
+		Offset:   filter.Offset,
+	}
+
 	// List all registered deployment managers via the adapter
-	dms, err := h.Adapter.ListDeploymentManagers(ctx, nil)
+	dms, err := h.Adapter.ListDeploymentManagers(ctx, adapterFilter)
 	if err != nil {
 		h.Logger.Error("failed to list deployment managers",
 			zap.Error(err),
@@ -143,7 +152,7 @@ func (h *DeploymentManagerHandler) GetDeploymentManager(c *gin.Context) {
 	dm, err := h.Adapter.GetDeploymentManager(ctx, deploymentManagerID)
 	if err != nil {
 		// Check if it's a "not found" error
-		if err.Error() == "deployment manager not found" {
+		if errors.Is(err, adapter.ErrDeploymentManagerNotFound) {
 			h.Logger.Warn("deployment manager not found",
 				zap.String("deployment_manager_id", deploymentManagerID),
 			)

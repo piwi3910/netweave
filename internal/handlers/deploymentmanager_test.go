@@ -233,7 +233,7 @@ func TestGetDeploymentManager(t *testing.T) {
 			name:            "not found",
 			deploymentMgrID: "dm-404",
 			mockFunc: func(_ context.Context, _ string) (*adapter.DeploymentManager, error) {
-				return nil, errors.New("deployment manager not found")
+				return nil, adapter.ErrDeploymentManagerNotFound
 			},
 			expectedStatus: http.StatusNotFound,
 			checkResponse: func(t *testing.T, w *httptest.ResponseRecorder) {

@@ -17,7 +17,7 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 			zap.String("requested", id),
 			zap.String("expected", a.deploymentManagerID),
 		)
-		return nil, adapter.ErrDeploymentManagerNotFound
+		return nil, fmt.Errorf("deployment manager %s: %w", id, adapter.ErrDeploymentManagerNotFound)
 	}
 
 	// List systems (should return one system)

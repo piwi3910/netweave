@@ -84,7 +84,7 @@ func (m *MockAdapter) GetDeploymentManager(_ context.Context, id string) (*adapt
 	defer m.mu.RUnlock()
 
 	if id != m.deploymentManager.DeploymentManagerID {
-		return nil, fmt.Errorf("deployment manager not found")
+		return nil, fmt.Errorf("deployment manager %s: %w", id, adapter.ErrDeploymentManagerNotFound)
 	}
 
 	return m.deploymentManager, nil
