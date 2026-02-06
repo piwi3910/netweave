@@ -67,11 +67,15 @@ Official O-RAN Alliance specifications:
 - ✅ **O2-SMO Integration**: Service Management & Orchestration with ONAP and OSM adapters
 - ✅ **Flexible Authentication Backend**: Redis (default) or Keycloak for centralized user management and enterprise SSO integration
 - 🔄 **Enterprise Multi-Tenancy**: Planned feature - will support multiple SMO systems with strict resource isolation
-- 🔄 **Comprehensive RBAC**: Planned feature - will provide fine-grained role-based access control with system and tenant roles
+- ✅ **Comprehensive RBAC**: Fine-grained role-based access control with platform and tenant roles:
+  - **platform-admin**: Full system access across all tenants (IsPlatformAdmin bypass)
+  - **tenant-admin**: Tenant and user management
+  - **operator**: O2-IMS resource operations (subscriptions, resources, resource pools)
+  - **viewer**: Read-only access to O2-IMS resources
 - ✅ **Multi-Cluster Ready**: Deploy across single or multiple Kubernetes clusters with Redis-based state synchronization
 - ✅ **High Availability**: Stateless gateway pods with automatic failover (99.9% uptime)
 - ✅ **Production Security**: mTLS everywhere, zero-trust networking, comprehensive audit logging
-- ✅ **Certificate Automation**: Full lifecycle management (issuance, renewal, revocation) with Vault PKI and Keycloak integration
+- ✅ **Certificate Automation**: Full lifecycle management (issuance, renewal, revocation) with Vault PKI integration for mTLS certificate management and Keycloak integration
 - ✅ **Distributed Rate Limiting**: Redis-based token bucket algorithm with per-endpoint and global limits
 - ✅ **Real-Time Notifications**: Webhook-based subscriptions for infrastructure change events
 - ✅ **Extensible Architecture**: Plugin-based adapter system with 25+ production-ready adapters
@@ -86,7 +90,7 @@ Official O-RAN Alliance specifications:
 3. **Multi-Vendor Disaggregation**: Abstract vendor-specific APIs behind O2-IMS standard interface
 4. **Cloud-Native Infrastructure**: Leverage Kubernetes for infrastructure lifecycle management
 5. **Subscription-Based Monitoring**: Real-time notifications of infrastructure changes to SMO systems
-6. **Enterprise Access Control** (Planned): Fine-grained RBAC for different user roles across tenant boundaries
+6. **Enterprise Access Control**: Fine-grained RBAC with platform-admin, tenant-admin, operator, and viewer roles across tenant boundaries
 
 ## Architecture
 
@@ -179,7 +183,7 @@ curl https://netweave.example.com/openapi.yaml -o o2ims-api.yaml
 
 - **[Architecture](docs/architecture.md)**: Comprehensive architecture documentation
 - **[API Mapping](docs/api-mapping.md)**: O2-IMS ↔ Kubernetes resource mappings
-- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)**: Planned enterprise multi-tenancy and access control features
+- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)**: Role-based access control (implemented) and enterprise multi-tenancy features
 - **[O2-DMS Extension](docs/o2dms-o2smo-extension.md)**: Deployment management services integration
 - **[Deployment Guide](docs/deployment.md)**: Single and multi-cluster deployment
 - **[Security](docs/security.md)**: Security architecture and mTLS configuration
@@ -740,9 +744,10 @@ Total:           433 tests, ~4,300 LOC test code
 - ❌ **Not yet implemented**
 
 **Notes:**
+- Deployment Managers: Dynamically listed from all registered adapters via the `ListDeploymentManagers` interface across all adapter backends.
 - Resource Pools and Resources: Read operations fully functional. Create/Update/Delete supported at adapter level but not exposed via O2-IMS API.
-- Subscriptions: Full CRUD except Update (no use case identified for updating subscriptions)
-- All 7 IMS backend adapters (Kubernetes, AWS, Azure, GCP, OpenStack, VMware, DTIAS) are functional
+- Subscriptions: Full CRUD except Update (no use case identified for updating subscriptions). Subscription state is persisted in the Redis backing store through the adapter layer.
+- All 8 IMS backend adapters (Kubernetes, AWS, Azure, GCP, OpenStack, VMware, DTIAS, StarlingX) are functional
 
 See [docs/api-mapping.md](docs/api-mapping.md) for O2-IMS ↔ Kubernetes resource mappings.
 
@@ -892,7 +897,7 @@ make quality
 
 - **[Architecture](docs/architecture.md)**: Comprehensive architecture documentation
 - **[API Mapping](docs/api-mapping.md)**: O2-IMS ↔ Kubernetes resource mappings
-- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)**: Planned enterprise multi-tenancy and access control features
+- **[RBAC & Multi-Tenancy](docs/rbac-multitenancy.md)**: Role-based access control (implemented) and enterprise multi-tenancy features
 - **[O2-DMS Extension](docs/o2dms-o2smo-extension.md)**: Deployment management services integration
 - **[Deployment Guide](docs/deployment.md)**: Single and multi-cluster deployment
 - **[Security](docs/security.md)**: Security architecture and mTLS configuration
@@ -990,7 +995,7 @@ netweave/
   - Graceful degradation (fails open if Redis unavailable)
 - ✅ **Request Validation**: Automatic OpenAPI schema validation for all requests
 - ✅ **No Hardcoded Secrets**: All secrets via K8s Secrets or cert-manager
-- 🔄 **RBAC** (Planned): Least-privilege access control
+- ✅ **RBAC**: Implemented with platform-admin, tenant-admin, operator, and viewer roles (least-privilege access control)
 - ✅ **Audit Logging**: All operations logged
 - ✅ **Vulnerability Scanning**: Continuous security scanning (gosec, govulncheck, Trivy)
 
@@ -1039,7 +1044,6 @@ netweave/
 
 ### v2.0 (Q3 2026)
 - 🔮 Multi-tenancy with tenant isolation
-- 🔮 Advanced RBAC with fine-grained permissions
 - 🔮 Custom resource type definitions
 - 🔮 Batch operations API
 - 🔮 GraphQL API support

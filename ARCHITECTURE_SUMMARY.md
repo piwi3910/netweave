@@ -601,34 +601,38 @@ The netweave gateway is designed as a **multi-tenant platform from the ground up
 
 **Role Hierarchy**:
 ```
-System Roles (cross-tenant):
-├─ PlatformAdmin   - Full system access
-├─ TenantAdmin     - Create/manage tenants
-└─ Auditor         - Read-only audit access
+Platform Roles (cross-tenant):
+├─ platform-admin  - Full system access (IsPlatformAdmin bypass)
+└─ tenant-admin    - Tenant and user management
 
 Tenant Roles (scoped to specific tenant):
-├─ Owner           - Full tenant access
-├─ Admin           - Manage users, resources, policies
-├─ Operator        - CRUD on resources
-├─ Viewer          - Read-only access
-└─ Custom Roles    - User-defined permissions
+├─ owner           - Full tenant access including user management
+├─ admin           - Resource and user management within tenant
+├─ operator        - O2-IMS resource operations (no user management)
+└─ viewer          - Read-only O2-IMS access
 ```
 
 **Permission Model**:
-- **Resource**: ResourcePool, Resource, Subscription, Deployment, etc.
-- **Action**: create, read, update, delete, list, manage, execute
-- **Scope**: tenant (own resources), shared (cross-tenant), all (system admin)
 
-**Example Authorization**:
+Permissions are simple `resource:action` strings (e.g., `subscriptions:read`, `resourcePools:create`):
+
+| Permission | platform-admin | tenant-admin | owner | admin | operator | viewer |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| tenants:CRUD | All | R/C/U | - | - | - | - |
+| users:CRUD | All | All | All | R/C/U | - | - |
+| subscriptions:R/C/D | All | - | All | All | All | R |
+| resourcePools:CRUD | All | - | All | All | R | R |
+| resources:CRUD | All | - | All | All | R/C/U | R |
+| resourceTypes:read | All | - | R | R | R | R |
+| deploymentManagers:read | All | - | R | R | R | R |
+| audit:read | All | R | R | - | - | - |
+
+**Auth Flow**:
 ```
-User: operator-1@smo-alpha
-Role: Operator (tenant: smo-alpha)
-Permissions:
-  - ResourcePool: manage (scope: tenant)
-  - Resource: manage (scope: tenant)
-  - Subscription: manage (scope: tenant)
-
-Result: Can CRUD resource pools ONLY within smo-alpha tenant
+mTLS cert → Extract subject DN (CN=name,O=NetWeave,OU=NetWeave)
+  → Keycloak GetUserBySubject() → Load role with permissions
+  → IsPlatformAdmin? → All permissions granted
+  → Otherwise → RequirePermission() checks user.HasPermission()
 ```
 
 ### Tenant Isolation Enforcement
@@ -663,22 +667,28 @@ metadata:
 
 ### API Design
 
-**Admin API** (system-level, requires PlatformAdmin or TenantAdmin role):
+**Admin API** (requires `platform-admin` role via `RequirePlatformAdmin` middleware):
 ```
-POST   /admin/v1/tenants           # Create tenant
-GET    /admin/v1/tenants           # List tenants
-GET    /admin/v1/tenants/:id/users # Manage tenant users
-GET    /admin/v1/audit             # Query audit logs
-```
-
-**O2-IMS API** (automatically tenant-scoped):
-```
-GET    /o2ims/v1/resourcePools     # Lists ONLY tenant's pools
-POST   /o2ims/v1/resourcePools     # Creates in tenant's namespace
-GET    /o2ims/v1/resourcePools/:id # Validates tenant ownership
+POST   /admin/tenants              # Create tenant
+GET    /admin/tenants              # List tenants
+GET    /admin/tenants/:id/users    # Manage tenant users
 ```
 
-**For complete RBAC and multi-tenancy documentation, see [docs/rbac-multitenancy.md](docs/rbac-multitenancy.md).**
+**Tenant API** (requires `users:read` permission):
+```
+GET    /tenant/users               # List users in own tenant
+POST   /tenant/users               # Create user (requires users:create)
+GET    /tenant/audit/events        # Audit logs (requires audit:read)
+```
+
+**O2-IMS API** (permission-gated per endpoint):
+```
+GET    /o2ims/.../resourcePools          # Requires resourcePools:read
+GET    /o2ims/.../deploymentManagers     # Requires deploymentManagers:read
+POST   /o2ims/.../subscriptions          # Requires subscriptions:create
+```
+
+**For complete RBAC and multi-tenancy documentation, see [docs/security/authorization.md](docs/security/authorization.md).**
 
 ## O2-DMS Extension (Deployment Management Services)
 
