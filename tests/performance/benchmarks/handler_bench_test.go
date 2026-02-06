@@ -2,6 +2,7 @@ package benchmarks
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -170,7 +171,7 @@ func (m *mockAdapter) ListResourcePools(_ context.Context) ([]*models.ResourcePo
 	pools := make([]*models.ResourcePool, 10)
 	for i := 0; i < 10; i++ {
 		pools[i] = &models.ResourcePool{
-			ResourcePoolID: "pool-" + string(rune(i)),
+			ResourcePoolID: fmt.Sprintf("pool-%d", i),
 			Name:           "Test Pool",
 			Description:    "Benchmark test pool",
 			Location:       "datacenter-1",
@@ -192,7 +193,7 @@ func (m *mockAdapter) ListResources(_ context.Context, _ string, _ string) ([]*m
 	resources := make([]*models.Resource, 100)
 	for i := 0; i < 100; i++ {
 		resources[i] = &models.Resource{
-			ResourceID:     "resource-" + string(rune(i)),
+			ResourceID:     fmt.Sprintf("resource-%d", i),
 			Name:           "Test Resource",
 			ResourceTypeID: "node",
 			ResourcePoolID: "pool-1",

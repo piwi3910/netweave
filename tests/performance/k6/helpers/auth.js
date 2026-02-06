@@ -1,5 +1,6 @@
 // Authentication helpers for k6 load tests
 import http from 'k6/http';
+import encoding from 'k6/encoding';
 import { check } from 'k6';
 
 // Get OAuth2 access token
@@ -103,12 +104,6 @@ export function refreshTokenIfNeeded(token, tokenUrl, clientId, clientSecret) {
 
 // Helper to decode base64url (JWT payloads)
 function atob(str) {
-  return decodeURIComponent(
-    Array.prototype.map
-      .call(
-        Buffer.from(str.replace(/-/g, '+').replace(/_/g, '/'), 'base64'),
-        (c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-      )
-      .join('')
-  );
+  const normalized = str.replace(/-/g, '+').replace(/_/g, '/');
+  return encoding.b64decode(normalized, 'std', 's');
 }

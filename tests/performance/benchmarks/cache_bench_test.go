@@ -2,6 +2,7 @@ package benchmarks
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ func BenchmarkRedisSet(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		sub.SubscriptionID = string(rune(i))
+		sub.SubscriptionID = fmt.Sprintf("test-sub-%d", i)
 		if err := store.CreateSubscription(ctx, sub); err != nil {
 			b.Fatalf("failed to create subscription: %v", err)
 		}
@@ -67,7 +68,7 @@ func BenchmarkRedisDelete(b *testing.B) {
 	subs := make([]*models.O2Subscription, b.N)
 	for i := 0; i < b.N; i++ {
 		sub := createTestSubscription()
-		sub.SubscriptionID = string(rune(i))
+		sub.SubscriptionID = fmt.Sprintf("test-sub-%d", i)
 		subs[i] = sub
 		if err := store.CreateSubscription(ctx, sub); err != nil {
 			b.Fatalf("failed to create subscription: %v", err)
@@ -95,7 +96,7 @@ func BenchmarkRedisList(b *testing.B) {
 	// Pre-populate with 100 subscriptions
 	for i := 0; i < 100; i++ {
 		sub := createTestSubscription()
-		sub.SubscriptionID = string(rune(i))
+		sub.SubscriptionID = fmt.Sprintf("test-sub-%d", i)
 		if err := store.CreateSubscription(ctx, sub); err != nil {
 			b.Fatalf("failed to create subscription: %v", err)
 		}
@@ -147,7 +148,7 @@ func BenchmarkConcurrentRedisOps(b *testing.B) {
 	// Pre-populate
 	for i := 0; i < 100; i++ {
 		sub := createTestSubscription()
-		sub.SubscriptionID = string(rune(i))
+		sub.SubscriptionID = fmt.Sprintf("test-sub-%d", i)
 		if err := store.CreateSubscription(ctx, sub); err != nil {
 			b.Fatalf("failed to create subscription: %v", err)
 		}
@@ -159,7 +160,7 @@ func BenchmarkConcurrentRedisOps(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
 		for pb.Next() {
-			subID := string(rune(i % 100))
+			subID := fmt.Sprintf("test-sub-%d", i%100)
 			if _, err := store.GetSubscription(ctx, subID); err != nil {
 				b.Errorf("failed to get subscription: %v", err)
 			}
