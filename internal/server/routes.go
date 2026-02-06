@@ -444,7 +444,7 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 		return
 	}
 
-	// Store subscription with tenant ID
+	// Update subscription with tenant ID (adapter already stored it in Redis)
 	storageSub := &storage.Subscription{
 		ID:                     created.SubscriptionID,
 		Callback:               created.Callback,
@@ -459,8 +459,8 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 		}
 	}
 
-	if err := s.store.Create(ctx, storageSub); err != nil {
-		s.logger.Error("failed to store subscription", zap.Error(err))
+	if err := s.store.Update(ctx, storageSub); err != nil {
+		s.logger.Error("failed to update subscription with tenant ID", zap.Error(err))
 		// Attempt to clean up adapter subscription (best effort)
 		_ = s.adapter.DeleteSubscription(ctx, created.SubscriptionID)
 		// Rollback quota increment
