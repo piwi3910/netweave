@@ -32,7 +32,7 @@ ARG BUILD_TIME=unknown
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    CGO_ENABLED=0 go build \
     -v \
     -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildTime=${BUILD_TIME}" \
     -o netweave \
@@ -68,6 +68,9 @@ COPY --from=builder --chown=netweave:netweave /build/netweave /app/netweave
 
 # Copy example config (can be overridden via ConfigMap)
 COPY --from=builder --chown=netweave:netweave /build/config/config.yaml.example /etc/netweave/config/config.yaml.example
+
+# Copy OpenAPI specification
+COPY --from=builder --chown=netweave:netweave /build/api/openapi/o2ims.yaml /app/api/openapi/o2ims.yaml
 
 # Switch to non-root user
 USER netweave:netweave

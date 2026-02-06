@@ -290,6 +290,20 @@ func TestKubernetesAdapter_GetDeploymentManager(t *testing.T) {
 		assert.Contains(t, dm.Capabilities, "resource-types")
 	})
 
+	t.Run("default alias returns configured DM", func(t *testing.T) {
+		dm, err := adp.GetDeploymentManager(ctx, "default")
+		require.NoError(t, err)
+		require.NotNil(t, dm)
+		assert.Equal(t, "test-dm", dm.DeploymentManagerID)
+	})
+
+	t.Run("empty string alias returns configured DM", func(t *testing.T) {
+		dm, err := adp.GetDeploymentManager(ctx, "")
+		require.NoError(t, err)
+		require.NotNil(t, dm)
+		assert.Equal(t, "test-dm", dm.DeploymentManagerID)
+	})
+
 	t.Run("invalid deployment manager ID", func(t *testing.T) {
 		dm, err := adp.GetDeploymentManager(ctx, "invalid-dm")
 		require.Error(t, err)
@@ -876,12 +890,6 @@ func TestKubernetesAdapter_GetOperations_EmptyID(t *testing.T) {
 		name     string
 		testFunc func() (interface{}, error)
 	}{
-		{
-			name: "GetDeploymentManager with empty ID",
-			testFunc: func() (interface{}, error) {
-				return adp.GetDeploymentManager(ctx, "")
-			},
-		},
 		{
 			name: "GetResourcePool with empty ID",
 			testFunc: func() (interface{}, error) {
