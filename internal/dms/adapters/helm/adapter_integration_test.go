@@ -64,7 +64,7 @@ func TestHelmAdapter_ListDeploymentPackages_WithMockRepo(t *testing.T) {
 	mockRepo := createMockHelmRepo()
 	defer mockRepo.Close()
 
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adp, err := helm.NewAdapter(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: mockRepo.URL,
 	})
@@ -76,13 +76,13 @@ func TestHelmAdapter_ListDeploymentPackages_WithMockRepo(t *testing.T) {
 		name          string
 		filter        *dmsadapter.Filter
 		expectedCount int
-		expectedFirst string
+		expectedNames []string
 	}{
 		{
 			name:          "list all packages",
 			filter:        nil,
 			expectedCount: 2, // nginx and postgresql latest versions
-			expectedFirst: "nginx",
+			expectedNames: []string{"nginx", "postgresql"},
 		},
 		{
 			name: "filter by chart name",
@@ -92,7 +92,7 @@ func TestHelmAdapter_ListDeploymentPackages_WithMockRepo(t *testing.T) {
 				},
 			},
 			expectedCount: 1,
-			expectedFirst: "nginx",
+			expectedNames: []string{"nginx"},
 		},
 		{
 			name: "filter by version",
@@ -102,7 +102,7 @@ func TestHelmAdapter_ListDeploymentPackages_WithMockRepo(t *testing.T) {
 				},
 			},
 			expectedCount: 1,
-			expectedFirst: "nginx",
+			expectedNames: []string{"nginx"},
 		},
 		{
 			name: "filter with no matches",
@@ -117,16 +117,23 @@ func TestHelmAdapter_ListDeploymentPackages_WithMockRepo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			packages, err := adapter.ListDeploymentPackages(ctx, tt.filter)
+			packages, err := adp.ListDeploymentPackages(ctx, tt.filter)
 			require.NoError(t, err)
 			assert.Len(t, packages, tt.expectedCount)
 
 			if tt.expectedCount > 0 {
-				assert.Equal(t, tt.expectedFirst, packages[0].Name)
-				assert.Equal(t, "helm-chart", packages[0].PackageType)
-				assert.NotEmpty(t, packages[0].ID)
-				assert.NotEmpty(t, packages[0].Version)
-				assert.NotNil(t, packages[0].Extensions)
+				names := make([]string, len(packages))
+				for i, pkg := range packages {
+					names[i] = pkg.Name
+				}
+				assert.ElementsMatch(t, tt.expectedNames, names)
+
+				for _, pkg := range packages {
+					assert.Equal(t, "helm-chart", pkg.PackageType)
+					assert.NotEmpty(t, pkg.ID)
+					assert.NotEmpty(t, pkg.Version)
+					assert.NotNil(t, pkg.Extensions)
+				}
 			}
 		})
 	}
@@ -137,7 +144,7 @@ func TestHelmAdapter_GetDeploymentPackage_WithMockRepo(t *testing.T) {
 	mockRepo := createMockHelmRepo()
 	defer mockRepo.Close()
 
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adp, err := helm.NewAdapter(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: mockRepo.URL,
 	})
@@ -206,7 +213,7 @@ func TestHelmAdapter_GetDeploymentPackage_WithMockRepo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg, err := adapter.GetDeploymentPackage(ctx, tt.packageID)
+			pkg, err := adp.GetDeploymentPackage(ctx, tt.packageID)
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -255,7 +262,7 @@ generated: "`+time.Now().Format(time.RFC3339)+`"
 	}))
 	defer mockRepo.Close()
 
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adp, err := helm.NewAdapter(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: mockRepo.URL,
 	})
@@ -264,17 +271,17 @@ generated: "`+time.Now().Format(time.RFC3339)+`"
 	ctx := context.Background()
 
 	// First call - should download index
-	err = adapter.LoadRepositoryIndex(ctx)
+	err = adp.LoadRepositoryIndex(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, callCount)
 
 	// Second call - should use cached index
-	err = adapter.LoadRepositoryIndex(ctx)
+	err = adp.LoadRepositoryIndex(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, callCount, "Index should be cached, not re-downloaded")
 
 	// Third call - should still use cached index
-	err = adapter.LoadRepositoryIndex(ctx)
+	err = adp.LoadRepositoryIndex(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, callCount, "Index should still be cached")
 }
@@ -284,7 +291,7 @@ func TestHelmAdapter_DeleteDeploymentPackage_WithMockRepo(t *testing.T) {
 	mockRepo := createMockHelmRepo()
 	defer mockRepo.Close()
 
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adp, err := helm.NewAdapter(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: mockRepo.URL,
 	})
@@ -293,17 +300,17 @@ func TestHelmAdapter_DeleteDeploymentPackage_WithMockRepo(t *testing.T) {
 	ctx := context.Background()
 
 	// Load the index first
-	err = adapter.LoadRepositoryIndex(ctx)
+	err = adp.LoadRepositoryIndex(ctx)
 	require.NoError(t, err)
 
 	// Get a package to verify it exists
-	pkg, err := adapter.GetDeploymentPackage(ctx, "nginx-1.0.0")
+	pkg, err := adp.GetDeploymentPackage(ctx, "nginx-1.0.0")
 	require.NoError(t, err)
 	require.NotNil(t, pkg)
 
 	// Try to delete it - this should fail (not fully implemented)
 	// but should clear the cache
-	err = adapter.DeleteDeploymentPackage(ctx, "nginx-1.0.0")
+	err = adp.DeleteDeploymentPackage(ctx, "nginx-1.0.0")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not fully implemented")
 
@@ -316,7 +323,7 @@ func TestHelmAdapter_UploadDeploymentPackage_Complete(t *testing.T) {
 	mockRepo := createMockHelmRepo()
 	defer mockRepo.Close()
 
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adp, err := helm.NewAdapter(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: mockRepo.URL,
 	})
@@ -352,7 +359,7 @@ func TestHelmAdapter_UploadDeploymentPackage_Complete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := adapter.UploadDeploymentPackage(ctx, tt.pkg)
+			result, err := adp.UploadDeploymentPackage(ctx, tt.pkg)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 
