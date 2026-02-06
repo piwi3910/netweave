@@ -17,9 +17,10 @@ type Service struct {
 	vaultClient    *vault.Client
 	keycloakClient *keycloak.Client
 	logger         *zap.Logger
+	notifier       CertNotifier
 
 	// Certificate storage
-	// ⚠️ CRITICAL WARNING: In-memory storage is NOT production-ready
+	// CRITICAL WARNING: In-memory storage is NOT production-ready
 	// See STORAGE_WARNING.md for details and migration options
 	// Data loss on restart, no audit trail, no multi-pod support
 	mu           sync.RWMutex
@@ -111,6 +112,34 @@ func (s *Service) Stop() error {
 
 	s.logger.Info("Certificate manager service stopped")
 	return nil
+}
+
+// SetNotifier sets the certificate event notifier.
+// Notifications are optional; if no notifier is set, lifecycle events proceed without notification.
+func (s *Service) SetNotifier(n CertNotifier) {
+	s.notifier = n
+}
+
+// sendNotification sends a certificate event notification if a notifier is configured.
+// Notification failures are logged as warnings but never block the main operation.
+func (s *Service) sendNotification(ctx context.Context, eventType string, cert *Certificate, message string) {
+	if s.notifier == nil {
+		return
+	}
+
+	event := CertEvent{
+		EventType:   eventType,
+		Certificate: cert,
+		Timestamp:   time.Now(),
+		Message:     message,
+	}
+
+	if err := s.notifier.Notify(ctx, event); err != nil {
+		s.logger.Warn("Failed to send certificate notification",
+			zap.String("event_type", eventType),
+			zap.String("serial", cert.SerialNumber),
+			zap.Error(err))
+	}
 }
 
 // monitorLoop periodically scans for expiring certificates and triggers renewals.
@@ -225,6 +254,10 @@ func (s *Service) handleExpiringSoon(cert *Certificate) {
 	cert.Status = CertStatusExpiringSoon
 	s.mu.Unlock()
 
+	s.sendNotification(context.Background(), CertEventExpiringSoon, cert,
+		fmt.Sprintf("Certificate %s (%s) is expiring soon at %s",
+			cert.SerialNumber, cert.CommonName, cert.ExpiresAt.Format(time.RFC3339)))
+
 	// Trigger renewal if enabled
 	if s.config.EnableAutoRenewal && s.renewalCtx.Err() == nil {
 		s.renewalWg.Add(1)
@@ -245,6 +278,10 @@ func (s *Service) handleExpired(cert *Certificate) {
 	s.mu.Lock()
 	cert.Status = CertStatusExpired
 	s.mu.Unlock()
+
+	s.sendNotification(context.Background(), CertEventExpired, cert,
+		fmt.Sprintf("Certificate %s (%s) has expired",
+			cert.SerialNumber, cert.CommonName))
 }
 
 // renewCertificate attempts to renew a certificate.
@@ -311,6 +348,13 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 		}
 		s.mu.Unlock()
 
+		// Notify on final failure after max retries exhausted
+		if cert.RenewalAttempts >= s.config.RenewalPolicy.MaxRetries {
+			s.sendNotification(ctx, CertEventRenewalFailed, cert,
+				fmt.Sprintf("Certificate %s (%s) renewal failed after %d attempts: %v",
+					oldSerial, oldCommonName, cert.RenewalAttempts, err))
+		}
+
 		s.updateCertificateMetrics()
 		return
 	}
@@ -330,7 +374,9 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 		zap.String("new_serial", newCert.SerialNumber),
 		zap.String("common_name", newCert.CommonName))
 
-	// TODO(#298): Send notification to user and admins about successful renewal
+	s.sendNotification(ctx, CertEventRenewed, newCert,
+		fmt.Sprintf("Certificate %s renewed successfully (old serial: %s, new serial: %s)",
+			newCert.CommonName, oldSerial, newCert.SerialNumber))
 }
 
 // Health returns the health status of the service.

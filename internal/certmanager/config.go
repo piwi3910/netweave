@@ -47,8 +47,8 @@ type Config struct {
 	// EnableAutoRenewal enables automatic certificate renewal (default: true).
 	EnableAutoRenewal bool
 
-	// NotificationWebhookURL is the webhook URL for sending notifications (optional).
-	NotificationWebhookURL string
+	// Notification holds the configuration for certificate lifecycle notifications (optional).
+	Notification *NotificationConfig
 }
 
 // DefaultConfig returns a Config with sensible defaults.

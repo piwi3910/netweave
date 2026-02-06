@@ -127,6 +127,10 @@ func (s *Service) IssueCertificate(ctx context.Context, req *CertificateRequest)
 	// Update status metrics
 	s.updateCertificateMetrics()
 
+	s.sendNotification(ctx, CertEventIssued, cert,
+		fmt.Sprintf("Certificate issued for %s (serial: %s, expires: %s)",
+			cert.CommonName, cert.SerialNumber, cert.ExpiresAt.Format(time.RFC3339)))
+
 	return cert, nil
 }
 
@@ -212,12 +216,14 @@ func (s *Service) RevokeCertificate(ctx context.Context, serialNumber string) er
 	span.AddEvent("certificate_revoked_in_vault")
 	span.SetStatus(codes.Ok, "certificate revoked successfully")
 
-	// Update certificate status
+	// Update certificate status and capture cert for notification
+	var revokedCert *Certificate
 	s.mu.Lock()
 	if cert, exists := s.certificates[serialNumber]; exists {
 		cert.Status = CertStatusRevoked
 		now := time.Now()
 		cert.RevokedAt = &now
+		revokedCert = cert
 	}
 	s.mu.Unlock()
 
@@ -225,6 +231,12 @@ func (s *Service) RevokeCertificate(ctx context.Context, serialNumber string) er
 
 	// Update status metrics
 	s.updateCertificateMetrics()
+
+	if revokedCert != nil {
+		s.sendNotification(ctx, CertEventRevoked, revokedCert,
+			fmt.Sprintf("Certificate %s (%s) has been revoked",
+				revokedCert.SerialNumber, revokedCert.CommonName))
+	}
 
 	return nil
 }
