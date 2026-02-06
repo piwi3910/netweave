@@ -63,7 +63,7 @@ jobs:
           format: spdx
 
       - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: sbom-syft
           path: |
@@ -126,7 +126,7 @@ jobs:
 
       - name: Upload Grype report
         if: always() && steps.report-path.outputs.exists == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: grype-report
           path: ${{ steps.report-path.outputs.path }}
@@ -165,7 +165,7 @@ jobs:
           echo '```' >> dependency-graph.md
 
       - name: Upload dependency graph
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dependency-graph
           path: dependency-graph.md
