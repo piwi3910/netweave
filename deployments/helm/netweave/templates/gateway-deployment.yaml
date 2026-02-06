@@ -43,7 +43,7 @@ spec:
               echo "Waiting for Keycloak to be ready..."
               MAX_RETRIES=60
               RETRY_COUNT=0
-              until curl -sf {{ include "netweave.keycloakURL" . }}/health/ready > /dev/null 2>&1; do
+              until curl -sf {{ include "netweave.keycloakHealthURL" . }}/health/ready > /dev/null 2>&1; do
                 RETRY_COUNT=$((RETRY_COUNT + 1))
                 if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
                   echo "ERROR: Keycloak failed to become ready after ${MAX_RETRIES} attempts (5 minutes)"
@@ -151,7 +151,7 @@ spec:
             - name: cache
               mountPath: /var/cache
             - name: config
-              mountPath: /etc/netweave
+              mountPath: /etc/netweave/config
               readOnly: true
       volumes:
         - name: tmp

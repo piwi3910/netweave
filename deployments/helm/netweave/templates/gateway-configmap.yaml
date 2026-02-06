@@ -43,9 +43,10 @@ data:
     redis:
       enabled: {{ .Values.redis.enabled }}
       {{- if .Values.redis.enabled }}
-      # Connection string without password (password passed via environment variable)
-      host: {{ include "netweave.redis.host" . | quote }}
-      port: {{ include "netweave.redis.port" . | quote }}
-      database: 0
+      mode: "standalone"
+      addresses:
+        - "{{ include "netweave.redis.host" . }}:{{ include "netweave.redis.port" . }}"
+      db: 0
+      password_env_var: "REDIS_PASSWORD"
       {{- end }}
 {{- end }}

@@ -2,7 +2,7 @@ apiVersion: v2
 name: netweave
 description: O-RAN O2-IMS Gateway with Keycloak and Vault integration
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "0.1.0"
 keywords:
   - o-ran
@@ -18,27 +18,4 @@ maintainers:
   - name: Pascal Watteel
     email: pascal@watteel.com
 
-dependencies:
-  # PostgreSQL for Keycloak
-  - name: postgresql
-    version: "15.5.38"
-    repository: https://charts.bitnami.com/bitnami
-    condition: postgresql.enabled
-    tags:
-      - keycloak-database
-
-  # Keycloak for user/tenant management and OAuth2
-  - name: keycloak
-    version: "25.2.0"
-    repository: https://charts.bitnami.com/bitnami
-    condition: keycloak.enabled
-    tags:
-      - authentication
-
-  # Redis for gateway state (keeping for gradual migration)
-  - name: redis
-    version: "20.5.0"
-    repository: https://charts.bitnami.com/bitnami
-    condition: redis.enabled
-    tags:
-      - gateway-state
+# No external dependencies - all templates use official upstream images

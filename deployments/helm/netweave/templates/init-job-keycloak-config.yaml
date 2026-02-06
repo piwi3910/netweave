@@ -38,6 +38,8 @@ spec:
           env:
             - name: KEYCLOAK_URL
               value: {{ include "netweave.keycloakURL" . | quote }}
+            - name: KEYCLOAK_HEALTH_URL
+              value: {{ include "netweave.keycloakHealthURL" . | quote }}
             - name: KEYCLOAK_ADMIN_USER
               value: {{ .Values.keycloak.auth.adminUser | quote }}
             - name: KEYCLOAK_ADMIN_PASSWORD
@@ -59,7 +61,7 @@ spec:
               echo "Waiting for Keycloak to be ready..."
               MAX_RETRIES=60
               RETRY_COUNT=0
-              until curl -sf "${KEYCLOAK_URL}/health/ready" > /dev/null 2>&1; do
+              until curl -sf "${KEYCLOAK_HEALTH_URL}/health/ready" > /dev/null 2>&1; do
                 RETRY_COUNT=$((RETRY_COUNT + 1))
                 if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
                   echo "ERROR: Keycloak failed to become ready after ${MAX_RETRIES} attempts"

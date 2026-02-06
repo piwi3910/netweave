@@ -1,0 +1,444 @@
+# Local Development Stack for Docker Desktop Kubernetes
+# Uses official upstream images (no Bitnami)
+# WARNING: Dev only - not for production
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: netweave
+---
+# ============================================================
+# PostgreSQL (official image)
+# ============================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgresql-secret
+  namespace: netweave
+type: Opaque
+stringData:
+  POSTGRES_USER: keycloak
+  POSTGRES_PASSWORD: dev-password-123
+  POSTGRES_DB: keycloak
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql
+  namespace: netweave
+  labels:
+    app: postgresql
+spec:
+  serviceName: postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+  template:
+    metadata:
+      labels:
+        app: postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgresql-secret
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "keycloak"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: pgdata
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql
+  namespace: netweave
+  labels:
+    app: postgresql
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgresql
+---
+# Also create a service with the name the Helm chart expects
+apiVersion: v1
+kind: Service
+metadata:
+  name: netweave-postgresql
+  namespace: netweave
+  labels:
+    app: postgresql
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgresql
+---
+# ============================================================
+# Redis (official image)
+# ============================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-secret
+  namespace: netweave
+type: Opaque
+stringData:
+  REDIS_PASSWORD: dev-redis-123
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: netweave
+  labels:
+    app: redis
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command:
+            - redis-server
+            - --requirepass
+            - $(REDIS_PASSWORD)
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: REDIS_PASSWORD
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "-a", "$(REDIS_PASSWORD)", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: netweave
+  labels:
+    app: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    app: redis
+---
+# Alias service for Helm chart compatibility
+apiVersion: v1
+kind: Service
+metadata:
+  name: netweave-redis-master
+  namespace: netweave
+  labels:
+    app: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    app: redis
+---
+# ============================================================
+# Keycloak (official image)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: netweave
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.0
+          args:
+            - start-dev
+            - --import-realm
+          env:
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: jdbc:postgresql://postgresql:5432/keycloak
+            - name: KC_DB_USERNAME
+              value: keycloak
+            - name: KC_DB_PASSWORD
+              value: dev-password-123
+            - name: KEYCLOAK_ADMIN
+              value: admin
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              value: admin
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_METRICS_ENABLED
+              value: "true"
+            - name: KC_HTTP_PORT
+              value: "8080"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: realm-import
+              mountPath: /opt/keycloak/data/import
+      volumes:
+        - name: realm-import
+          configMap:
+            name: keycloak-realm-import
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: netweave
+  labels:
+    app: keycloak
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app: keycloak
+---
+# Alias service for Helm chart compatibility (gateway expects netweave-keycloak:80)
+apiVersion: v1
+kind: Service
+metadata:
+  name: netweave-keycloak
+  namespace: netweave
+  labels:
+    app: keycloak
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http
+  selector:
+    app: keycloak
+---
+# ============================================================
+# Keycloak Realm Import ConfigMap
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-import
+  namespace: netweave
+data:
+  netweave-realm.json: |
+    {
+      "realm": "netweave",
+      "enabled": true,
+      "displayName": "NetWeave Gateway",
+      "sslRequired": "none",
+      "registrationAllowed": false,
+      "loginWithEmailAllowed": true,
+      "duplicateEmailsAllowed": false,
+      "resetPasswordAllowed": true,
+      "bruteForceProtected": true,
+      "failureFactor": 5,
+      "defaultSignatureAlgorithm": "RS256",
+      "accessTokenLifespan": 300,
+      "ssoSessionIdleTimeout": 1800,
+      "ssoSessionMaxLifespan": 36000,
+      "clients": [
+        {
+          "clientId": "netweave-gateway",
+          "name": "NetWeave Gateway",
+          "enabled": true,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "dev-gateway-secret",
+          "redirectUris": ["*"],
+          "webOrigins": ["*"],
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "directAccessGrantsEnabled": true,
+          "serviceAccountsEnabled": true,
+          "authorizationServicesEnabled": true,
+          "standardFlowEnabled": true,
+          "fullScopeAllowed": true,
+          "attributes": {
+            "pkce.code.challenge.method": "S256"
+          },
+          "protocolMappers": [
+            {
+              "name": "tenant-mapper",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-attribute-mapper",
+              "consentRequired": false,
+              "config": {
+                "userinfo.token.claim": "true",
+                "user.attribute": "tenantId",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "tenant",
+                "jsonType.label": "String"
+              }
+            },
+            {
+              "name": "roles-mapper",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-realm-role-mapper",
+              "consentRequired": false,
+              "config": {
+                "userinfo.token.claim": "true",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "roles",
+                "jsonType.label": "String",
+                "multivalued": "true"
+              }
+            }
+          ]
+        },
+        {
+          "clientId": "admin-portal",
+          "name": "NetWeave Admin Portal",
+          "enabled": true,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "dev-admin-portal-secret",
+          "redirectUris": ["http://localhost:3000/*", "https://localhost:3000/*"],
+          "webOrigins": ["http://localhost:3000", "https://localhost:3000"],
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "directAccessGrantsEnabled": true,
+          "standardFlowEnabled": true,
+          "fullScopeAllowed": true
+        }
+      ],
+      "roles": {
+        "realm": [
+          {
+            "name": "platform-admin",
+            "description": "Full platform access across all tenants"
+          },
+          {
+            "name": "tenant-admin",
+            "description": "Administrative access for tenant management"
+          }
+        ],
+        "client": {
+          "netweave-gateway": [
+            {"name": "owner", "description": "Full access within a tenant"},
+            {"name": "admin", "description": "Administrative access within a tenant"},
+            {"name": "operator", "description": "Operational access for resource management"},
+            {"name": "viewer", "description": "Read-only access to resources"}
+          ]
+        }
+      },
+      "users": [
+        {
+          "username": "testadmin",
+          "email": "testadmin@netweave.local",
+          "enabled": true,
+          "firstName": "Test",
+          "lastName": "Admin",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "testadmin123",
+              "temporary": false
+            }
+          ],
+          "realmRoles": ["platform-admin"],
+          "clientRoles": {
+            "netweave-gateway": ["admin"]
+          }
+        }
+      ]
+    }
