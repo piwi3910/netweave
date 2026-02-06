@@ -263,17 +263,50 @@ graph TB
 Before starting the tutorials:
 
 1. **netweave gateway running** - Follow [Quickstart](quickstart.md) or [Installation](installation.md)
-2. **curl or HTTPie installed** - For making API calls
-3. **jq installed** - For JSON formatting (optional but recommended)
+2. **netweave-cli installed** (recommended) or **curl** for API calls
+3. **jq installed** - For JSON formatting (optional, only needed with curl)
 
 ### Verify Gateway is Ready
 
-```bash
-# Check health
-curl http://localhost:8080/health
+Using `netweave-cli`:
 
+```bash
+netweave-cli api health
+```
+
+<details>
+<summary>Using curl</summary>
+
+```bash
+curl http://localhost:8080/health
 # Expected: {"status":"ok","timestamp":"..."}
 ```
+
+</details>
+
+### Using netweave-cli (Recommended)
+
+The `netweave-cli` tool auto-discovers services via Kubernetes port-forwarding. No environment variables or helper functions needed:
+
+```bash
+# All commands auto-connect to the gateway
+netweave-cli api resource-pools list
+netweave-cli api resources list
+netweave-cli api subscriptions list
+
+# Or use an explicit gateway URL
+netweave-cli api health --gateway-url http://localhost:8080
+
+# Use --json for machine-readable output
+netweave-cli api resource-pools list --json
+
+# mTLS is handled automatically from ~/.netweave/ credentials
+# or specify explicitly:
+netweave-cli api health --cert client.crt --key client.key --ca ca.crt
+```
+
+<details>
+<summary>Using curl (manual setup)</summary>
 
 ### Set Environment Variables
 
@@ -318,15 +351,28 @@ o2ims_api() {
 # o2ims_api POST /o2ims-infrastructureInventory/v1/subscriptions '{"callback":"..."}'
 ```
 
+</details>
+
 ## Tutorial 1: Understanding Resource Pools
 
 Learn to query and manage resource pools.
 
 ### Step 1: List All Resource Pools
 
+Using `netweave-cli`:
+
+```bash
+netweave-cli api resource-pools list
+```
+
+<details>
+<summary>Using curl</summary>
+
 ```bash
 curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools | jq
 ```
+
+</details>
 
 **Response:**
 
@@ -482,10 +528,20 @@ Learn to query and filter infrastructure resources.
 
 ### Step 1: List All Resources
 
+Using `netweave-cli`:
+
 ```bash
-# List all resources (across all pools)
+netweave-cli api resources list --pool-id pool-compute-highmem
+```
+
+<details>
+<summary>Using curl</summary>
+
+```bash
 curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem/resources | jq
 ```
+
+</details>
 
 **Response:**
 
@@ -611,6 +667,15 @@ Subscriptions trigger webhook notifications for these events:
 
 ### Step 2: Create a Simple Subscription
 
+Using `netweave-cli`:
+
+```bash
+netweave-cli api subscriptions create --callback https://smo.example.com/o2ims/notifications
+```
+
+<details>
+<summary>Using curl</summary>
+
 ```bash
 curl -X POST $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions \
   -H "Content-Type: application/json" \
@@ -619,6 +684,8 @@ curl -X POST $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions \
     "consumerSubscriptionId": "smo-sub-all-pools"
   }' | jq
 ```
+
+</details>
 
 **Response (201 Created):**
 
@@ -664,9 +731,20 @@ curl -X POST $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions \
 
 ### Step 4: List Active Subscriptions
 
+Using `netweave-cli`:
+
+```bash
+netweave-cli api subscriptions list
+```
+
+<details>
+<summary>Using curl</summary>
+
 ```bash
 curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions | jq
 ```
+
+</details>
 
 **Response:**
 
@@ -702,11 +780,22 @@ curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions/550e8400
 
 ### Step 6: Delete Subscription
 
+Using `netweave-cli`:
+
+```bash
+netweave-cli api subscriptions delete --id 550e8400-e29b-41d4-a716-446655440001
+```
+
+<details>
+<summary>Using curl</summary>
+
 ```bash
 curl -X DELETE $GATEWAY_URL/o2ims-infrastructureInventory/v1/subscriptions/550e8400-e29b-41d4-a716-446655440001
 
 # Response: 204 No Content
 ```
+
+</details>
 
 ## Tutorial 4: Testing Webhooks
 
@@ -858,9 +947,20 @@ Learn to query resource type metadata.
 
 ### Step 1: List All Resource Types
 
+Using `netweave-cli`:
+
+```bash
+netweave-cli api resource-types list
+```
+
+<details>
+<summary>Using curl</summary>
+
 ```bash
 curl -X GET $GATEWAY_URL/o2ims-infrastructureInventory/v1/resourceTypes | jq
 ```
+
+</details>
 
 **Response:**
 

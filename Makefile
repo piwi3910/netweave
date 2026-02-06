@@ -6,7 +6,9 @@
 
 # Variables
 BINARY_NAME := netweave
+CLI_BINARY_NAME := netweave-cli
 MAIN_PATH := ./cmd/gateway
+CLI_MAIN_PATH := ./cmd/cli
 BUILD_DIR := ./build
 COVERAGE_DIR := ./coverage
 DOCKER_REGISTRY := docker.io
@@ -30,6 +32,11 @@ LDFLAGS := -s -w \
 	-X main.version=$(VERSION) \
 	-X main.commit=$(COMMIT) \
 	-X main.buildTime=$(BUILD_TIME)
+
+CLI_LDFLAGS := -s -w \
+	-X github.com/piwi3910/netweave/internal/cli/cmd.CLIVersion=$(VERSION) \
+	-X github.com/piwi3910/netweave/internal/cli/cmd.Commit=$(COMMIT) \
+	-X github.com/piwi3910/netweave/internal/cli/cmd.BuildTime=$(BUILD_TIME)
 
 # Colors for output
 COLOR_RESET := \033[0m
@@ -212,6 +219,17 @@ build-all: ## Build for all platforms
 		done; \
 	done
 	@echo "$(COLOR_GREEN)✓ Multi-platform build complete$(COLOR_RESET)"
+
+build-cli: ## Build the CLI binary
+	@echo "$(COLOR_YELLOW)Building $(CLI_BINARY_NAME)...$(COLOR_RESET)"
+	@mkdir -p $(BUILD_DIR)
+	@CGO_ENABLED=0 $(GOBUILD) -v -ldflags="$(CLI_LDFLAGS)" -o $(BUILD_DIR)/$(CLI_BINARY_NAME) $(CLI_MAIN_PATH)
+	@echo "$(COLOR_GREEN)✓ Build complete: $(BUILD_DIR)/$(CLI_BINARY_NAME)$(COLOR_RESET)"
+
+install-cli: build-cli ## Install CLI to GOPATH/bin
+	@echo "$(COLOR_YELLOW)Installing $(CLI_BINARY_NAME)...$(COLOR_RESET)"
+	@cp $(BUILD_DIR)/$(CLI_BINARY_NAME) $(shell go env GOPATH)/bin/$(CLI_BINARY_NAME)
+	@echo "$(COLOR_GREEN)✓ Installed: $(shell go env GOPATH)/bin/$(CLI_BINARY_NAME)$(COLOR_RESET)"
 
 .PHONY: run run-dev run-staging run-prod
 run: build ## Build and run the gateway (default: dev environment)

@@ -63,6 +63,7 @@ Before you begin, ensure you have:
 - Kubernetes 1.30+ cluster
 - kubectl configured
 - Helm 3.x installed
+- `netweave-cli` installed (recommended)
 - Access to a Redis instance (or will install via Helm)
 
 ### For Development
@@ -105,6 +106,33 @@ After completing the getting started guides:
 
 ### Common Commands
 
+Using `netweave-cli` (recommended):
+
+```bash
+# Full setup: Vault, Helm, Keycloak, certificates
+netweave-cli setup all
+
+# Check gateway health
+netweave-cli api health
+
+# List resource pools
+netweave-cli api resource-pools list
+
+# List resources
+netweave-cli api resources list
+
+# Manage users, roles, and tenants
+netweave-cli users list
+netweave-cli roles list
+netweave-cli tenants list
+
+# Teardown everything
+netweave-cli setup teardown
+```
+
+<details>
+<summary>Manual commands (without CLI)</summary>
+
 ```bash
 # Deploy with Helm
 helm install netweave ./helm/netweave
@@ -117,14 +145,12 @@ kubectl logs -n o2ims-system -l app=netweave
 
 # Port forward for local access
 kubectl port-forward -n o2ims-system svc/netweave 8000:8000
-```
 
-### First API Call
-
-```bash
 # List resource pools
 curl -X GET http://localhost:8000/o2ims-infrastructureInventory/v1/resourcePools
 ```
+
+</details>
 
 ### Environment Variables
 
