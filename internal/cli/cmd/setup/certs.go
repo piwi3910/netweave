@@ -19,13 +19,14 @@ import (
 )
 
 const (
-	vaultPKIRole      = "netweave-mtls"
-	serverCertCN      = "netweave-gateway"
-	clientCertCN      = "admin.netweave.local"
-	serverSecretName  = "netweave-tls-server"
-	caConfigMapName   = "netweave-tls-ca"
-	certTTL           = "8760h" // 1 year
-	setupCertSteps    = 5
+	serverPKIRole    = "netweave-server"
+	clientPKIRole    = "netweave-client"
+	serverCertCN     = "netweave-gateway"
+	clientCertCN     = "admin.netweave.local"
+	serverSecretName = "netweave-tls-server"
+	caConfigMapName  = "netweave-tls-ca"
+	certTTL          = "8760h" // 1 year
+	setupCertSteps   = 5
 )
 
 func newCertsCmd() *cobra.Command {
@@ -97,7 +98,7 @@ func runCertsSetup(ctx context.Context, serverCN, clientCN string) error {
 	steps.Stepf("Issuing server certificate (CN=%s)...", serverCN)
 
 	serverCert, err := vaultClient.IssueCertificate(
-		ctx, vaultPKIRole, &vault.CertificateRequest{
+		ctx, serverPKIRole, &vault.CertificateRequest{
 			CommonName: serverCN,
 			AltNames: []string{
 				serverCN,
@@ -145,7 +146,7 @@ func runCertsSetup(ctx context.Context, serverCN, clientCN string) error {
 	steps.Stepf("Issuing client certificate (CN=%s)...", clientCN)
 
 	clientCert, err := vaultClient.IssueCertificate(
-		ctx, vaultPKIRole, &vault.CertificateRequest{
+		ctx, clientPKIRole, &vault.CertificateRequest{
 			CommonName: clientCN,
 			TTL:        certTTL,
 		},

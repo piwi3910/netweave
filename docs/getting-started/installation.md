@@ -89,14 +89,19 @@ sudo cp build/netweave-cli /usr/local/bin/
 
 ```bash
 # Full setup: Vault PKI, Helm chart, Keycloak bootstrap, certificates
-netweave-cli setup all
+netweave-cli setup all --verbose
 ```
 
 This runs the following steps automatically:
-1. Deploys and initializes Vault with PKI engine
-2. Installs the netweave Helm chart
-3. Bootstraps Keycloak with default tenant, roles, and admin user
-4. Issues server and client TLS certificates
+1. **Vault** — Deploys Vault in dev mode, initializes PKI engine (root CA, intermediate CA, server/client roles)
+2. **Certificates** — Issues gateway server certificate and admin client certificate, creates K8s TLS secrets
+3. **Helm** — Installs the netweave Helm chart (PostgreSQL, Redis, Keycloak, Gateway), waits for all pods
+4. **Keycloak** — Declares user profile attributes, creates default tenant, initializes roles with permissions, creates admin user with certificate binding
+
+Credentials are saved to `~/.netweave/`:
+- `credentials.json` — Vault root token and unseal keys
+- `client.crt` / `client.key` — Admin client certificate (used automatically by API commands)
+- `ca.crt` — CA certificate chain
 
 ### Step 3: Verify
 
@@ -104,18 +109,40 @@ This runs the following steps automatically:
 # Check gateway health
 netweave-cli api health
 
-# List resources
-netweave-cli api resource-pools list
+# List O2-IMS resources
 netweave-cli api resource-types list
+netweave-cli api resource-pools list
+netweave-cli api deployment-managers list
 
-# List users and roles
-netweave-cli users list
+# Test subscriptions
+netweave-cli api subscriptions create --callback https://example.com/notify
+netweave-cli api subscriptions list
+
+# List users, roles, and tenants
+netweave-cli users list --tenant=default
 netweave-cli roles list
+netweave-cli tenants list
+
+# Issue and verify a certificate
+netweave-cli certs issue --cn=test.netweave.local --type=client
+netweave-cli certs verify --cert ~/.netweave/client.crt
+```
+
+### Individual Setup Steps
+
+You can run each setup phase individually:
+
+```bash
+netweave-cli setup vault       # Deploy Vault + PKI
+netweave-cli setup certs       # Issue TLS certificates
+netweave-cli setup helm        # Install Helm chart
+netweave-cli setup keycloak    # Bootstrap Keycloak
 ```
 
 ### Teardown
 
 ```bash
+# Remove everything: Helm release, Vault, PVCs, namespace
 netweave-cli setup teardown
 ```
 
@@ -821,8 +848,8 @@ netweave-cli api subscriptions list
 # Verify certificates
 netweave-cli certs verify --cert ~/.netweave/client.crt
 
-# Check users and roles
-netweave-cli users list
+# Check users, roles, and tenants
+netweave-cli users list --tenant=default
 netweave-cli roles list
 netweave-cli tenants list
 ```

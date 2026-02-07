@@ -22,7 +22,8 @@ import (
 const (
 	vaultLabel       = "app=vault"
 	vaultPort        = 8200
-	vaultPKIRole     = "netweave-mtls"
+	vaultServerRole  = "netweave-server"
+	vaultClientRole  = "netweave-client"
 	vaultPKIPath     = "pki_int"
 	credentialsDir   = ".netweave"
 	credentialsFile  = "credentials.json"
@@ -83,7 +84,12 @@ func newIssueCmd() *cobra.Command {
 			}
 			defer cleanup()
 
-			cert, err := vaultClient.IssueCertificate(ctx, vaultPKIRole, &vault.CertificateRequest{
+			pkiRole := vaultClientRole
+			if certType == "server" {
+				pkiRole = vaultServerRole
+			}
+
+			cert, err := vaultClient.IssueCertificate(ctx, pkiRole, &vault.CertificateRequest{
 				CommonName: cn,
 				TTL:        ttl,
 			})
@@ -326,7 +332,8 @@ func verifyCertificate(_ context.Context, certFile, caFile string) error {
 	}
 
 	opts := x509.VerifyOptions{
-		Roots: roots,
+		Roots:     roots,
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 	}
 
 	if _, err := cert.Verify(opts); err != nil {

@@ -84,7 +84,7 @@ func runVaultSetup(_ *cobra.Command, _ []string) error {
 	// Step 2: Generate Vault TLS certs
 	steps.Stepf("Generating Vault TLS certificates...")
 	tlsCert, tlsKey, caCert, genErr := generateSelfSignedTLS(
-		"vault."+cmd.Global.Namespace+".svc",
+		"vault." + cmd.Global.Namespace + ".svc",
 	)
 	if genErr != nil {
 		return fmt.Errorf("failed to generate TLS: %w", genErr)
@@ -134,9 +134,9 @@ func runVaultSetup(_ *cobra.Command, _ []string) error {
 	}
 	steps.Donef("PKI configured with Root CA, Intermediate CA, and roles")
 
-	// Step 8: Save credentials
+	// Step 8: Save credentials (don't save ephemeral port-forward address).
 	steps.Stepf("Saving credentials...")
-	creds.VaultAddr = vaultAddr
+	creds.VaultAddr = ""
 	if saveErr := saveCredentials(creds); saveErr != nil {
 		return saveErr
 	}
@@ -342,7 +342,7 @@ func buildVaultPodSpec() corev1.PodSpec {
 				Protocol:      corev1.ProtocolTCP,
 			}},
 			Env: []corev1.EnvVar{
-				{Name: "VAULT_DEV_ROOT_TOKEN_ID", Value: ""},
+				{Name: "VAULT_DEV_ROOT_TOKEN_ID", Value: "root"},
 				{Name: "VAULT_DEV_LISTEN_ADDRESS", Value: "0.0.0.0:8200"},
 				{Name: "VAULT_API_ADDR", Value: "http://0.0.0.0:8200"},
 			},
@@ -640,20 +640,20 @@ func createPKIRole(
 	if _, err := vaultAPIPut(ctx, client, vaultAddr,
 		"/v1/pki_int/roles/"+roleName, token,
 		map[string]interface{}{
-			"allowed_domains":    []string{"netweave.local", "netweave.svc"},
-			"allow_subdomains":   true,
-			"allow_any_name":     true,
-			"allow_ip_sans":      true,
-			"max_ttl":            defaultCertTTL,
-			"key_type":           "rsa",
-			"key_bits":           2048,
-			"server_flag":        serverFlag,
-			"client_flag":        clientFlag,
-			"require_cn":         true,
-			"enforce_hostnames":  false,
-			"organization":       []string{"Netweave"},
-			"no_store":           false,
-			"generate_lease":     true,
+			"allowed_domains":   []string{"netweave.local", "netweave.svc"},
+			"allow_subdomains":  true,
+			"allow_any_name":    true,
+			"allow_ip_sans":     true,
+			"max_ttl":           defaultCertTTL,
+			"key_type":          "rsa",
+			"key_bits":          2048,
+			"server_flag":       serverFlag,
+			"client_flag":       clientFlag,
+			"require_cn":        true,
+			"enforce_hostnames": false,
+			"organization":      []string{"Netweave"},
+			"no_store":          false,
+			"generate_lease":    true,
 		},
 	); err != nil {
 		return fmt.Errorf("failed to create PKI role %s: %w", roleName, err)
@@ -684,4 +684,3 @@ func saveCredentials(creds *vaultCredentials) error {
 
 	return nil
 }
-

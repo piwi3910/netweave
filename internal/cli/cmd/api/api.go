@@ -24,7 +24,7 @@ const (
 	gatewayLabel   = "app.kubernetes.io/component=gateway"
 	gatewayPort    = 8080
 	requestTimeout = 30 * time.Second
-	o2imsBasePath  = "/o2ims/v1"
+	o2imsBasePath  = "/o2ims-infrastructureInventory/v1"
 )
 
 // apiClient holds a configured HTTP client and base URL for API calls.
@@ -115,7 +115,7 @@ func newAPIClient(ctx context.Context, c *cobra.Command) (*apiClient, error) {
 	}
 
 	client.httpClient = httpClient
-	client.baseURL = fmt.Sprintf("http://localhost:%d", fwd.LocalPort)
+	client.baseURL = fmt.Sprintf("https://localhost:%d", fwd.LocalPort)
 	client.connector = conn
 	client.stopChan = fwd.StopChan
 
@@ -332,8 +332,12 @@ func parseJSONList(data []byte) ([]json.RawMessage, error) {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	// Look for common list wrapper fields.
-	for _, key := range []string{"items", "data", "results"} {
+	// Look for common list wrapper fields (O2-IMS uses entity-specific keys).
+	for _, key := range []string{
+		"items", "data", "results",
+		"resourceTypes", "resourcePools", "resources",
+		"deploymentManagers", "subscriptions",
+	} {
 		if raw, ok := wrapper[key]; ok {
 			if err := json.Unmarshal(raw, &items); err == nil {
 				return items, nil

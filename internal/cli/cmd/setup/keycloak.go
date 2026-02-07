@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -18,7 +21,7 @@ import (
 )
 
 const (
-	keycloakLabel        = "app=keycloak"
+	keycloakLabel        = "app.kubernetes.io/component=keycloak"
 	keycloakPort         = 8080
 	keycloakReadyTimeout = 120 * time.Second
 	defaultRealm         = "netweave"
@@ -133,11 +136,8 @@ func runKeycloakSetup(
 		cmd.Printer.Verbosef("Default tenant already exists, skipping")
 	}
 
-	if err := store.InitializeDefaultRoles(ctx); err != nil {
-		if !strings.Contains(err.Error(), "already exists") {
-			return fmt.Errorf("failed to initialize default roles: %w", err)
-		}
-		cmd.Printer.Verbosef("Default roles already exist, skipping")
+	if err := initializeOrUpdateRoles(ctx, store); err != nil {
+		return fmt.Errorf("failed to initialize roles: %w", err)
 	}
 
 	steps.Donef("Default tenant and roles initialized")
@@ -214,7 +214,16 @@ func declareUserProfileAttributes(
 	}()
 
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("failed to update user profile (status %d)", resp.StatusCode)
+		respBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf(
+				"failed to update user profile (status %d)", resp.StatusCode,
+			)
+		}
+		return fmt.Errorf(
+			"failed to update user profile (status %d): %s",
+			resp.StatusCode, string(respBody),
+		)
 	}
 
 	return nil
@@ -286,8 +295,8 @@ func buildUserProfileConfig() map[string]interface{} {
 	// Start with required Keycloak built-in attributes.
 	allAttributes := []map[string]interface{}{
 		{
-			"name":    "username",
-			"display": "Username",
+			"name":        "username",
+			"displayName": "Username",
 			"validations": map[string]interface{}{
 				"length": map[string]interface{}{
 					"min": 3, "max": 255,
@@ -301,8 +310,8 @@ func buildUserProfileConfig() map[string]interface{} {
 			},
 		},
 		{
-			"name":    "email",
-			"display": "Email",
+			"name":        "email",
+			"displayName": "Email",
 			"validations": map[string]interface{}{
 				"email":  map[string]interface{}{},
 				"length": map[string]interface{}{"max": 255},
@@ -316,10 +325,10 @@ func buildUserProfileConfig() map[string]interface{} {
 			},
 		},
 		{
-			"name":    "firstName",
-			"display": "First name",
+			"name":        "firstName",
+			"displayName": "First name",
 			"validations": map[string]interface{}{
-				"length":                    map[string]interface{}{"max": 255},
+				"length":                            map[string]interface{}{"max": 255},
 				"person-name-prohibited-characters": map[string]interface{}{},
 			},
 			"permissions": map[string]interface{}{
@@ -328,10 +337,10 @@ func buildUserProfileConfig() map[string]interface{} {
 			},
 		},
 		{
-			"name":    "lastName",
-			"display": "Last name",
+			"name":        "lastName",
+			"displayName": "Last name",
 			"validations": map[string]interface{}{
-				"length":                    map[string]interface{}{"max": 255},
+				"length":                            map[string]interface{}{"max": 255},
 				"person-name-prohibited-characters": map[string]interface{}{},
 			},
 			"permissions": map[string]interface{}{
@@ -351,8 +360,8 @@ func buildUserProfileConfig() map[string]interface{} {
 
 func userProfileAttribute(name, display string) map[string]interface{} {
 	return map[string]interface{}{
-		"name":    name,
-		"display": display,
+		"name":        name,
+		"displayName": display,
 		"permissions": map[string]interface{}{
 			"view": []string{"admin"},
 			"edit": []string{"admin"},
@@ -366,9 +375,9 @@ func createKeycloakStore(
 	kcClient, err := keycloak.NewClient(&keycloak.Config{
 		BaseURL:       baseURL,
 		Realm:         realm,
-		ClientID:      defaultClientID,
-		AdminUsername:  adminUser,
-		AdminPassword:  adminPassword,
+		ClientID:      keycloak.AdminCLIClientID,
+		AdminUsername: adminUser,
+		AdminPassword: adminPassword,
 		Timeout:       30 * time.Second,
 	})
 	if err != nil {
@@ -389,10 +398,11 @@ func createAdminUser(ctx context.Context, store *keycloak.Store) error {
 	}
 
 	adminUser := &auth.TenantUser{
+		ID:         uuid.New().String(),
 		TenantID:   defaultTenantID,
 		CommonName: defaultAdminCertCN,
 		Email:      defaultAdminEmail,
-		Subject:    fmt.Sprintf("CN=%s", defaultAdminCertCN),
+		Subject:    fmt.Sprintf("CN=%s,O=Netweave", defaultAdminCertCN),
 		RoleID:     role.ID,
 		IsActive:   true,
 	}
@@ -410,5 +420,31 @@ func createAdminUser(ctx context.Context, store *keycloak.Store) error {
 		defaultAdminUsername, defaultAdminCertCN,
 	)
 
+	return nil
+}
+
+// initializeOrUpdateRoles ensures all default roles exist with correct permissions.
+// Unlike store.InitializeDefaultRoles, this also updates existing roles that
+// may have been created without permissions by the Helm chart init jobs.
+func initializeOrUpdateRoles(ctx context.Context, store *keycloak.Store) error {
+	for _, role := range auth.GetDefaultRoles() {
+		existing, err := store.GetRoleByName(ctx, role.Name)
+		if err == nil {
+			// Role exists — update with correct permissions and type.
+			existing.Type = role.Type
+			existing.Description = role.Description
+			existing.Permissions = role.Permissions
+			if updateErr := store.UpdateRole(ctx, existing); updateErr != nil {
+				return fmt.Errorf("failed to update role %s: %w", role.Name, updateErr)
+			}
+			cmd.Printer.Verbosef("Role %q updated with %d permissions", role.Name, len(role.Permissions))
+			continue
+		}
+		// Role doesn't exist — create it.
+		if createErr := store.CreateRole(ctx, role); createErr != nil {
+			return fmt.Errorf("failed to create role %s: %w", role.Name, createErr)
+		}
+		cmd.Printer.Verbosef("Role %q created with %d permissions", role.Name, len(role.Permissions))
+	}
 	return nil
 }

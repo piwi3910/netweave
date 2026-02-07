@@ -95,6 +95,11 @@ func runHelmSetup(
 		return err
 	}
 
+	// Override vault.namespace to match CLI deployment namespace.
+	// The CLI deploys Vault into the same namespace as the rest of the stack,
+	// but values-local.yaml may have a different default (e.g. vault-system).
+	applyVaultNamespaceOverride(vals, namespace)
+
 	steps.Donef("Values loaded")
 
 	// Step 3: Install or upgrade release.
@@ -245,10 +250,10 @@ func waitForAllPods(ctx context.Context, namespace string) error {
 		name     string
 		selector string
 	}{
-		{"PostgreSQL", "app=postgresql"},
-		{"Redis", "app=redis"},
-		{"Keycloak", "app=keycloak"},
-		{"Gateway", "app.kubernetes.io/name=netweave"},
+		{"PostgreSQL", "app.kubernetes.io/component=postgresql"},
+		{"Redis", "app.kubernetes.io/component=redis"},
+		{"Keycloak", "app.kubernetes.io/component=keycloak"},
+		{"Gateway", "app.kubernetes.io/component=gateway"},
 	}
 
 	for _, ls := range labelSelectors {
@@ -293,6 +298,15 @@ func renderPodSummary(pods []corev1.Pod) {
 	}
 
 	tbl.Render()
+}
+
+func applyVaultNamespaceOverride(vals map[string]interface{}, namespace string) {
+	vaultVals, ok := vals["vault"].(map[string]interface{})
+	if !ok {
+		vaultVals = make(map[string]interface{})
+		vals["vault"] = vaultVals
+	}
+	vaultVals["namespace"] = namespace
 }
 
 func countReadyContainers(pod *corev1.Pod) int {

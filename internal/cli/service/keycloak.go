@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	keycloakLabel        = "app=keycloak"
+	keycloakLabel        = "app.kubernetes.io/component=keycloak"
 	keycloakPort         = 8080
 	keycloakReadyTimeout = 120 * time.Second
 )
@@ -51,8 +51,8 @@ func ConnectKeycloak(
 		BaseURL:       baseURL,
 		Realm:         realm,
 		ClientID:      keycloak.AdminCLIClientID,
-		AdminUsername:  adminUser,
-		AdminPassword:  adminPassword,
+		AdminUsername: adminUser,
+		AdminPassword: adminPassword,
 		Timeout:       30 * time.Second,
 	})
 	if err != nil {

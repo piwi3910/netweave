@@ -22,7 +22,7 @@ func newHealthCmd() *cobra.Command {
 			}
 			defer client.Close()
 
-			body, err := client.doGet(ctx, "/health")
+			body, err := client.doGet(ctx, "/healthz")
 			if err != nil {
 				return fmt.Errorf("health check failed: %w", err)
 			}
