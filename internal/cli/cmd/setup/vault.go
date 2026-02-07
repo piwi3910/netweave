@@ -69,7 +69,12 @@ PKI secrets engine with Root CA, Intermediate CA, and the netweave-mtls
 role for certificate issuance.
 
 Data is persisted to a PVC so it survives pod restarts. After a restart
-the Vault pod will come up sealed — re-run "setup vault" to unseal it.`,
+the Vault pod will come up sealed — re-run "setup vault" to unseal it.
+
+NOTE: This command uses a single unseal key (Shamir share=1, threshold=1)
+which is suitable for local development and testing. For production
+deployments, use the official Vault Helm chart with multiple unseal keys
+or auto-unseal via a cloud KMS provider.`,
 		RunE: runVaultSetup,
 	}
 
@@ -692,8 +697,12 @@ func handleAlreadyInitialized(
 	creds, err := loadVaultCredentials()
 	if err != nil {
 		return nil, fmt.Errorf(
-			"vault is initialized but credentials not found: %w "+
-				"(if this is a fresh install, delete the vault PVC and re-run setup)", err,
+			"vault is initialized but credentials not found at ~/%s/%s: %w\n"+
+				"  Recovery options:\n"+
+				"  1. If you have the unseal keys, create the credentials file manually\n"+
+				"  2. Run 'netweave-cli setup vault credentials' on the machine that initialized Vault\n"+
+				"  3. As a last resort: 'kubectl delete pvc %s -n %s' and re-run setup (DATA LOSS)",
+			credentialsDir, credentialsFile, err, vaultPVCName, cmd.Global.Namespace,
 		)
 	}
 

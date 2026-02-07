@@ -7,8 +7,10 @@ import (
 )
 
 // NewInsecureTLSClient returns an HTTP client that skips TLS certificate
-// verification. This is used when connecting to Vault via port-forward
-// because the self-signed certificate's DNS SANs won't match localhost.
+// verification. This is intended ONLY for CLI commands that connect to Vault
+// via kubectl port-forward, where the self-signed certificate's DNS SANs
+// (e.g. vault.netweave.svc) won't match the localhost endpoint. It should
+// NOT be used for production service-to-service communication.
 func NewInsecureTLSClient(timeout time.Duration) *http.Client {
 	return &http.Client{
 		Timeout: timeout,
