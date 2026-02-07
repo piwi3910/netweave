@@ -13,6 +13,43 @@ stringData:
   POSTGRES_PASSWORD: {{ .Values.postgresql.auth.password | quote }}
   POSTGRES_DB: {{ .Values.postgresql.auth.database | quote }}
   password: {{ .Values.postgresql.auth.password | quote }}
+  {{- if .Values.postgresql.gateway }}
+  GATEWAY_DB_PASSWORD: {{ .Values.postgresql.gateway.password | default .Values.postgresql.auth.password | quote }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "netweave.fullname" . }}-postgresql-init
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+data:
+  init-netweave-db.sh: |
+    #!/bin/bash
+    set -e
+    {{- if .Values.postgresql.gateway }}
+    GATEWAY_DB="{{ .Values.postgresql.gateway.database | default "netweave" }}"
+    GATEWAY_USER="{{ .Values.postgresql.gateway.username | default "netweave" }}"
+    GATEWAY_PASS="${GATEWAY_DB_PASSWORD:-$POSTGRES_PASSWORD}"
+
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+        SELECT 'CREATE DATABASE $GATEWAY_DB' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$GATEWAY_DB')\gexec
+        DO \$\$
+        BEGIN
+            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$GATEWAY_USER') THEN
+                CREATE ROLE $GATEWAY_USER WITH LOGIN PASSWORD '$GATEWAY_PASS';
+            END IF;
+        END
+        \$\$;
+        GRANT ALL PRIVILEGES ON DATABASE $GATEWAY_DB TO $GATEWAY_USER;
+        \c $GATEWAY_DB
+        GRANT ALL ON SCHEMA public TO $GATEWAY_USER;
+    EOSQL
+    echo "Gateway database '$GATEWAY_DB' and user '$GATEWAY_USER' initialized."
+    {{- else }}
+    echo "No gateway database configuration found, skipping."
+    {{- end }}
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -48,6 +85,9 @@ spec:
             - name: data
               mountPath: /var/lib/postgresql/data
               subPath: pgdata
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", {{ .Values.postgresql.auth.username | quote }}]
@@ -60,6 +100,21 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.postgresql.resources | nindent 12 }}
+      {{- if not .Values.postgresql.persistence.enabled }}
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: init-scripts
+          configMap:
+            name: {{ include "netweave.fullname" . }}-postgresql-init
+            defaultMode: 0755
+      {{- else }}
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: {{ include "netweave.fullname" . }}-postgresql-init
+            defaultMode: 0755
+      {{- end }}
   {{- if .Values.postgresql.persistence.enabled }}
   volumeClaimTemplates:
     - metadata:
@@ -69,10 +124,6 @@ spec:
         resources:
           requests:
             storage: {{ .Values.postgresql.persistence.size }}
-  {{- else }}
-      volumes:
-        - name: data
-          emptyDir: {}
   {{- end }}
 ---
 apiVersion: v1

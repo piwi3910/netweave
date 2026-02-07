@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -582,28 +581,5 @@ func (r *RedisStore) Ping(ctx context.Context) error {
 // validateCallbackURL validates that a callback URL is properly formatted and secure.
 // It enforces HTTPS unless AllowInsecureCallbacks is enabled in the configuration.
 func (r *RedisStore) validateCallbackURL(callback string) error {
-	if callback == "" {
-		return fmt.Errorf("callback URL is empty")
-	}
-
-	u, err := url.Parse(callback)
-	if err != nil {
-		return fmt.Errorf("invalid URL format: %w", err)
-	}
-
-	// Enforce HTTPS unless explicitly allowed
-	if u.Scheme == "http" {
-		if !r.config.AllowInsecureCallbacks {
-			return fmt.Errorf("HTTP callbacks are not allowed in production. Use HTTPS for secure webhook delivery. " +
-				"To allow HTTP callbacks in development/testing, set allow_insecure_callbacks=true in security configuration")
-		}
-	} else if u.Scheme != "https" {
-		return fmt.Errorf("callback URL must use http or https scheme")
-	}
-
-	if u.Host == "" {
-		return fmt.Errorf("callback URL must have a host")
-	}
-
-	return nil
+	return ValidateCallbackURL(callback, r.config.AllowInsecureCallbacks)
 }
