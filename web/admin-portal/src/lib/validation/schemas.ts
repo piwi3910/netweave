@@ -71,6 +71,21 @@ export const userSchema = z.object({
   roleId: z.string().min(1, "Role is required"),
 });
 
+export const backendSchema = z.object({
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(128, "Name must be at most 128 characters"),
+  description: z
+    .string()
+    .max(512, "Description must be at most 512 characters")
+    .optional()
+    .default(""),
+  category: z.enum(["ims", "dms"], { required_error: "Category is required" }),
+  adapterType: z.string().min(1, "Adapter type is required"),
+});
+
 export type CertificateFormData = z.infer<typeof certificateSchema>;
 export type TenantFormData = z.infer<typeof tenantSchema>;
 export type UserFormData = z.infer<typeof userSchema>;
+export type BackendFormData = z.infer<typeof backendSchema>;

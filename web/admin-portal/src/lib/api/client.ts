@@ -16,7 +16,7 @@ function validateBaseUrl(url: string): string {
   return url;
 }
 
-class ApiClient {
+export class ApiClient {
   private baseUrl: string;
   private getToken: (() => Promise<string | null>) | null = null;
 

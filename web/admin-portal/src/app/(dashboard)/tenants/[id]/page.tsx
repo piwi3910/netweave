@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -15,8 +15,16 @@ import {
 } from "@/components/ui/card";
 import { CardSkeleton } from "@/components/shared/loading-skeleton";
 import { getTenant, updateTenant } from "@/lib/api/tenants";
+import {
+  listBackendAccess,
+  createBackendAccess,
+  deleteBackendAccess,
+  listBackends,
+} from "@/lib/api/backends";
 import { getDisplayError } from "@/lib/utils/sanitize-error";
+import { formatDate } from "@/lib/utils";
 import type { Tenant } from "@/types/api";
+import type { BackendAccess, BackendResponse } from "@/types/backends";
 
 export default function TenantDetailPage() {
   const params = useParams();
@@ -31,17 +39,32 @@ export default function TenantDetailPage() {
     description: "",
     contactEmail: "",
   });
+  const [backendAccess, setBackendAccess] = useState<BackendAccess[]>([]);
+  const [allBackends, setAllBackends] = useState<BackendResponse[]>([]);
+  const [showGrantAccess, setShowGrantAccess] = useState(false);
+  const [grantForm, setGrantForm] = useState({
+    backendId: "",
+    permissions: "read",
+  });
 
   useEffect(() => {
     async function load() {
       try {
-        const data = await getTenant(tenantId);
-        setTenant(data);
+        const [tenantData, accessData, backendsData] = await Promise.all([
+          getTenant(tenantId),
+          listBackendAccess(tenantId),
+          Promise.all([listBackends("ims"), listBackends("dms")]).then(
+            ([ims, dms]) => [...ims, ...dms]
+          ),
+        ]);
+        setTenant(tenantData);
         setForm({
-          name: data.name,
-          description: data.description,
-          contactEmail: data.contactEmail,
+          name: tenantData.name,
+          description: tenantData.description,
+          contactEmail: tenantData.contactEmail,
         });
+        setBackendAccess(accessData);
+        setAllBackends(backendsData);
       } catch (err) {
         setError(getDisplayError(err));
       } finally {
@@ -62,6 +85,34 @@ export default function TenantDetailPage() {
       setError(getDisplayError(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleGrantAccess() {
+    if (!grantForm.backendId) return;
+    try {
+      const permissions = grantForm.permissions.split(",").map((p) => p.trim());
+      const access = await createBackendAccess(tenantId, {
+        backendId: grantForm.backendId,
+        permissions,
+      });
+      setBackendAccess((prev) => [...prev, access]);
+      setGrantForm({ backendId: "", permissions: "read" });
+      setShowGrantAccess(false);
+    } catch (err) {
+      setError(getDisplayError(err));
+    }
+  }
+
+  async function handleRevokeAccess(accessId: string, backendName: string) {
+    if (!confirm(`Revoke access to "${backendName}"?`)) {
+      return;
+    }
+    try {
+      await deleteBackendAccess(tenantId, accessId);
+      setBackendAccess((prev) => prev.filter((a) => a.id !== accessId));
+    } catch (err) {
+      setError(getDisplayError(err));
     }
   }
 
@@ -183,6 +234,127 @@ export default function TenantDetailPage() {
                 max={tenant.quota.maxUsers}
               />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Backend Access</CardTitle>
+            <CardDescription>
+              Infrastructure backends this tenant can access
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {backendAccess.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No backend access granted
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {backendAccess.map((access) => {
+                  const backend = allBackends.find(
+                    (b) => b.id === access.backendId
+                  );
+                  return (
+                    <div
+                      key={access.id}
+                      className="flex items-center justify-between rounded-lg border p-3"
+                    >
+                      <div>
+                        <p className="font-medium">
+                          {backend?.name || access.backendId}
+                        </p>
+                        <div className="flex gap-2 mt-1">
+                          {access.permissions.map((perm) => (
+                            <Badge key={perm} variant="secondary" className="text-xs">
+                              {perm}
+                            </Badge>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Granted {formatDate(access.grantedAt)}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() =>
+                          handleRevokeAccess(
+                            access.id,
+                            backend?.name || access.backendId
+                          )
+                        }
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {!showGrantAccess && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowGrantAccess(true)}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Grant Access
+              </Button>
+            )}
+            {showGrantAccess && (
+              <div className="space-y-3 p-4 border rounded-lg">
+                <div>
+                  <label className="text-sm font-medium">Backend</label>
+                  <select
+                    value={grantForm.backendId}
+                    onChange={(e) =>
+                      setGrantForm((f) => ({ ...f, backendId: e.target.value }))
+                    }
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
+                  >
+                    <option value="">Select backend...</option>
+                    {allBackends.map((backend) => (
+                      <option key={backend.id} value={backend.id}>
+                        {backend.name} ({backend.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Permissions</label>
+                  <Input
+                    value={grantForm.permissions}
+                    onChange={(e) =>
+                      setGrantForm((f) => ({
+                        ...f,
+                        permissions: e.target.value,
+                      }))
+                    }
+                    placeholder="read, write, delete"
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Comma-separated list of permissions
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" onClick={handleGrantAccess}>
+                    Grant
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowGrantAccess(false);
+                      setGrantForm({ backendId: "", permissions: "read" });
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
