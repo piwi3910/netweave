@@ -1,8 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
+import { sanitizeError } from "@/lib/utils/sanitize-error";
 
 const GATEWAY_URL =
   process.env.GATEWAY_INTERNAL_URL || "https://localhost:8080";
+
+const PROXY_TIMEOUT_MS = 30_000;
+
+const ALLOWED_CONTENT_TYPES = [
+  "application/json",
+  "application/x-www-form-urlencoded",
+  "text/plain",
+];
+
+function isValidPathSegment(segment: string): boolean {
+  return segment !== ".." && segment !== "." && !/[\x00]/.test(segment);
+}
+
+function errorResponse(
+  error: string,
+  message: string,
+  code: number
+): NextResponse {
+  return NextResponse.json({ error, message, code }, { status: code });
+}
 
 async function proxyRequest(
   req: NextRequest,
@@ -10,22 +31,20 @@ async function proxyRequest(
 ): Promise<NextResponse> {
   const session = await auth();
   if (!session) {
-    return NextResponse.json(
-      { error: "Unauthorized", message: "Not authenticated", code: 401 },
-      { status: 401 }
-    );
+    return errorResponse("Unauthorized", "Not authenticated", 401);
   }
 
-  const accessToken = (session as unknown as { accessToken?: string })
-    ?.accessToken;
+  const { accessToken } = session;
   if (!accessToken) {
-    return NextResponse.json(
-      { error: "Unauthorized", message: "No access token", code: 401 },
-      { status: 401 }
-    );
+    return errorResponse("Unauthorized", "No access token", 401);
   }
 
   const { path } = await params;
+
+  if (!path.every(isValidPathSegment)) {
+    return errorResponse("BadRequest", "Invalid path", 400);
+  }
+
   const targetPath = "/" + path.join("/");
   const search = req.nextUrl.search;
   const targetUrl = `${GATEWAY_URL}${targetPath}${search}`;
@@ -36,19 +55,42 @@ async function proxyRequest(
 
   const contentType = req.headers.get("content-type");
   if (contentType) {
-    headers["Content-Type"] = contentType;
+    const baseType = contentType.split(";")[0].trim().toLowerCase();
+    if (ALLOWED_CONTENT_TYPES.includes(baseType)) {
+      headers["Content-Type"] = contentType;
+    }
   }
 
   const fetchOptions: RequestInit = {
     method: req.method,
     headers,
+    signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
   };
 
   if (req.method !== "GET" && req.method !== "HEAD") {
     fetchOptions.body = await req.text();
   }
 
-  const response = await fetch(targetUrl, fetchOptions);
+  let response: Response;
+  try {
+    response = await fetch(targetUrl, fetchOptions);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      console.error(
+        "[proxy] Gateway timeout",
+        req.method,
+        targetPath,
+      );
+      return errorResponse("GatewayTimeout", "Gateway request timed out", 504);
+    }
+    console.error(
+      "[proxy] Gateway connection error",
+      req.method,
+      targetPath,
+      err instanceof Error ? err.message : String(err),
+    );
+    return errorResponse("BadGateway", "Failed to reach gateway", 502);
+  }
 
   const responseHeaders = new Headers();
   const forwardHeaders = ["content-type", "x-request-id"];
@@ -67,7 +109,41 @@ async function proxyRequest(
   }
 
   const body = await response.text();
-  return new NextResponse(body, {
+
+  if (response.ok) {
+    return new NextResponse(body, {
+      status: response.status,
+      headers: responseHeaders,
+    });
+  }
+
+  // For error responses, sanitize the body before forwarding to prevent
+  // leaking internal details (token fragments, stack traces, file paths).
+  let sanitizedBody: string;
+  try {
+    const parsed = JSON.parse(body);
+    if (typeof parsed.message === "string") {
+      parsed.message = sanitizeError(parsed.message);
+    }
+    // Strip any fields that aren't part of the standard error shape
+    sanitizedBody = JSON.stringify({
+      error: parsed.error || "Error",
+      message: parsed.message || response.statusText,
+      code: parsed.code || response.status,
+    });
+    responseHeaders.set("content-type", "application/json");
+  } catch {
+    sanitizedBody = JSON.stringify({
+      error: "Error",
+      message: sanitizeError(body),
+      code: response.status,
+    });
+    responseHeaders.set("content-type", "application/json");
+  }
+
+  console.error("[proxy]", response.status, req.method, targetPath);
+
+  return new NextResponse(sanitizedBody, {
     status: response.status,
     headers: responseHeaders,
   });
