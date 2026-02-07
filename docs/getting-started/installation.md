@@ -1121,7 +1121,7 @@ After successful installation:
    - Upgrades and rollbacks
    - Troubleshooting
 
-4. **[Security Guide](../security.md)** - Harden deployment
+4. **[Security Guide](../security/README.md)** - Harden deployment
    - mTLS configuration
    - RBAC policies
    - Network policies

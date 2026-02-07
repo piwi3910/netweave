@@ -1265,7 +1265,7 @@ After completing these tutorials, explore:
    - Filter syntax reference
    - Extension attributes
 
-2. **[Advanced Features](../architecture.md)** - Deep dive into architecture
+2. **[Advanced Features](../architecture/README.md)** - Deep dive into architecture
    - Multi-backend support
    - High availability
    - Performance optimization
@@ -1277,7 +1277,7 @@ After completing these tutorials, explore:
    - GitOps workflows
    - Package management
 
-4. **[Security Configuration](../security.md)** - Harden your deployment
+4. **[Security Configuration](../security/README.md)** - Harden your deployment
    - mTLS certificate management
    - RBAC policies
    - Webhook authentication

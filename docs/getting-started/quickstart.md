@@ -529,7 +529,7 @@ Now that you have netweave running locally, continue with:
    - Working with webhooks
    - Common API patterns
 
-3. **[Architecture Documentation](../architecture.md)** - Deep dive into design
+3. **[Architecture Documentation](../architecture/README.md)** - Deep dive into design
    - Multi-backend support
    - Subscription controller
    - Security architecture
@@ -584,7 +584,7 @@ make dev-certs
 # Update config/config.dev.yaml to enable TLS
 ```
 
-See [Security Documentation](../security.md) for certificate management.
+See [Security Documentation](../security/README.md) for certificate management.
 
 ## Development vs. Production
 
@@ -602,7 +602,7 @@ This quickstart uses **development configuration** optimized for local testing:
 **For production deployment**, see:
 
 - [Installation Guide](installation.md) for production deployment
-- [Security Documentation](../security.md) for hardening
+- [Security Documentation](../security/README.md) for hardening
 - [Operations Guide](../operations.md) for monitoring
 
 ## Support and Resources
