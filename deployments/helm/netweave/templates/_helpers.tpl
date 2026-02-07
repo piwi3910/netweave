@@ -194,7 +194,7 @@ Return the Vault URL
 */}}
 {{- define "netweave.vaultURL" -}}
 {{- if .Values.vault.enabled }}
-    {{- printf "http://vault.%s.svc.cluster.local:8200" .Values.vault.namespace -}}
+    {{- printf "https://vault.%s.svc.cluster.local:8200" .Values.vault.namespace -}}
 {{- else }}
     {{- required "Vault URL is required when vault.enabled is false" .Values.vault.externalURL -}}
 {{- end }}

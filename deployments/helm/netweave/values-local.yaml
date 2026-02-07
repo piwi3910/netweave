@@ -106,7 +106,7 @@ keycloak:
       cpu: 1000m
       memory: 512Mi
 
-# Vault - deployed separately via dev-deployment.yaml
+# Vault - deployed via netweave-cli setup vault (production mode with TLS + file storage)
 vault:
   enabled: true
   replicaCount: 1

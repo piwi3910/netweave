@@ -4,12 +4,87 @@ Operational procedures for managing HashiCorp Vault in the netweave deployment.
 
 ## Table of Contents
 
-1. [Unsealing Procedures](#unsealing-procedures)
-2. [PKI Operations](#pki-operations)
-3. [Backup and Restore](#backup-and-restore)
-4. [Emergency Procedures](#emergency-procedures)
-5. [Monitoring and Health](#monitoring-and-health)
-6. [Troubleshooting](#troubleshooting)
+1. [CLI-Managed Vault (Local/Dev)](#cli-managed-vault-localdev)
+2. [Unsealing Procedures](#unsealing-procedures)
+3. [PKI Operations](#pki-operations)
+4. [Backup and Restore](#backup-and-restore)
+5. [Emergency Procedures](#emergency-procedures)
+6. [Monitoring and Health](#monitoring-and-health)
+7. [Troubleshooting](#troubleshooting)
+
+---
+
+## CLI-Managed Vault (Local/Dev)
+
+The `netweave-cli setup vault` command deploys Vault in **production mode** with:
+
+- **TLS encryption** — self-signed CA + server certificate with cluster DNS SANs
+- **File-based storage** — 1Gi PVC persists data across pod restarts
+- **Single unseal key** — Shamir share=1, threshold=1 (dev/local only)
+
+### Architecture
+
+```mermaid
+graph LR
+    CLI[netweave-cli] -->|port-forward + HTTPS| Vault[Vault Pod]
+    Vault -->|file storage| PVC[vault-data PVC]
+    Vault -->|TLS cert/key| TLS[vault-tls Secret]
+    Vault -->|HCL config| CM[vault-config ConfigMap]
+    GW[Gateway] -->|HTTPS in-cluster| Vault
+```
+
+### Credentials
+
+Vault credentials are saved to `~/.netweave/credentials.json` with `0600` permissions:
+
+```json
+{
+  "root_token": "hvs.XXXX...",
+  "unseal_keys": ["XXXX..."]
+}
+```
+
+> **WARNING**: If this file is lost and the Vault pod restarts (sealed), all PKI data
+> becomes permanently inaccessible. Back up this file securely.
+
+### CLI Commands
+
+```bash
+# Initial setup (deploy, init, unseal, configure PKI)
+netweave-cli setup vault --verbose
+
+# Check status (connects via port-forward)
+netweave-cli setup vault status
+
+# View saved credentials (masked by default)
+netweave-cli setup vault credentials
+netweave-cli setup vault credentials --show-secrets
+
+# After pod restart (Vault comes up sealed)
+netweave-cli setup vault
+# Detects already initialized, loads credentials, unseals, skips PKI
+
+# Full teardown (deletes PVC — DATA LOSS)
+netweave-cli setup teardown --force
+```
+
+### Production Considerations
+
+The CLI-managed Vault uses a **single unseal key** which is a single point of failure.
+For production deployments:
+
+| Feature | CLI-Managed (Dev) | Production |
+|---------|-------------------|------------|
+| Unseal keys | 1 share, 1 threshold | 5 shares, 3 threshold |
+| Storage | File (PVC) | Raft (HA) or Consul |
+| Replicas | 1 | 3+ |
+| Auto-unseal | No | AWS KMS / Azure KV / GCP CKMS |
+| TLS | Self-signed | PKI-signed certificates |
+| Deployment | `netweave-cli` | Official Vault Helm chart |
+
+For production Vault, use the [official Vault Helm chart](https://developer.hashicorp.com/vault/docs/platform/k8s/helm)
+with auto-unseal and HA storage. The netweave gateway connects to any Vault instance
+that has the PKI engine configured.
 
 ---
 

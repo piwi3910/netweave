@@ -167,10 +167,11 @@ func connectVault(ctx context.Context, c *cobra.Command) (*vault.Client, func(),
 	// If explicit flags provided, use them directly.
 	if vaultAddr != "" && vaultToken != "" {
 		client, err := vault.NewClient(&vault.Config{
-			Address: vaultAddr,
-			Token:   vaultToken,
-			PKIPath: vaultPKIPath,
-			Timeout: vaultHTTPTimeout,
+			Address:    vaultAddr,
+			Token:      vaultToken,
+			PKIPath:    vaultPKIPath,
+			Timeout:    vaultHTTPTimeout,
+			HTTPClient: service.NewInsecureTLSClient(vaultHTTPTimeout),
 		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create vault client: %w", err)
@@ -207,13 +208,14 @@ func connectVault(ctx context.Context, c *cobra.Command) (*vault.Client, func(),
 			return nil, nil, fmt.Errorf("failed to port-forward to vault: %w", fwdErr)
 		}
 
-		vaultAddr = fmt.Sprintf("http://localhost:%d", fwd.LocalPort)
+		vaultAddr = fmt.Sprintf("https://localhost:%d", fwd.LocalPort)
 
 		client, clientErr := vault.NewClient(&vault.Config{
-			Address: vaultAddr,
-			Token:   vaultToken,
-			PKIPath: vaultPKIPath,
-			Timeout: vaultHTTPTimeout,
+			Address:    vaultAddr,
+			Token:      vaultToken,
+			PKIPath:    vaultPKIPath,
+			Timeout:    vaultHTTPTimeout,
+			HTTPClient: service.NewInsecureTLSClient(vaultHTTPTimeout),
 		})
 		if clientErr != nil {
 			close(fwd.StopChan)
@@ -229,10 +231,11 @@ func connectVault(ctx context.Context, c *cobra.Command) (*vault.Client, func(),
 	}
 
 	client, err := vault.NewClient(&vault.Config{
-		Address: vaultAddr,
-		Token:   vaultToken,
-		PKIPath: vaultPKIPath,
-		Timeout: vaultHTTPTimeout,
+		Address:    vaultAddr,
+		Token:      vaultToken,
+		PKIPath:    vaultPKIPath,
+		Timeout:    vaultHTTPTimeout,
+		HTTPClient: service.NewInsecureTLSClient(vaultHTTPTimeout),
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create vault client: %w", err)
