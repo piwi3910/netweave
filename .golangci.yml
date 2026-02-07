@@ -293,6 +293,10 @@ linters:
         path: internal/adapter/
         text: interface has more than.*methods
       - linters:
+          - interfacebloat
+        path: internal/backend/
+        text: interface has more than.*methods
+      - linters:
           - revive
         path: internal/adapters/
         text: unused-parameter.*ctx
