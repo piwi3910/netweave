@@ -22,6 +22,7 @@ Comprehensive guide for deploying netweave in all environments.
 |----------|-----------------|---------|--------------|
 | **Kubernetes** | 1.30+ | Container orchestration | [Install kubectl](https://kubernetes.io/docs/tasks/tools/) |
 | **Helm** | 3.0+ | Package manager | [Install Helm](https://helm.sh/docs/intro/install/) |
+| **netweave-cli** | latest | CLI management tool | `make build-cli` |
 | **Go** | 1.25.0+ | Development only | [Install Go](https://go.dev/doc/install) |
 | **Docker** | 20.10+ | Container runtime | [Install Docker](https://docs.docker.com/get-docker/) |
 | **Redis** | 7.4+ | State backend | Installed via Helm |
@@ -71,9 +72,83 @@ go version
 | 6379 | TCP | Internal | Redis communication |
 | 9090 | TCP | Internal | Metrics (Prometheus) |
 
-## Quick Deploy (Development)
+## Quick Deploy with netweave-cli (Recommended)
 
-For local development and testing on your workstation.
+The fastest way to deploy netweave on a local Kubernetes cluster.
+
+### Step 1: Clone and Build
+
+```bash
+git clone https://github.com/piwi3910/netweave.git
+cd netweave
+make build-cli
+sudo cp build/netweave-cli /usr/local/bin/
+```
+
+### Step 2: Deploy Everything
+
+```bash
+# Full setup: Vault PKI, Helm chart, Keycloak bootstrap, certificates
+netweave-cli setup all --verbose
+```
+
+This runs the following steps automatically:
+1. **Vault** — Deploys Vault in dev mode, initializes PKI engine (root CA, intermediate CA, server/client roles)
+2. **Certificates** — Issues gateway server certificate and admin client certificate, creates K8s TLS secrets
+3. **Helm** — Installs the netweave Helm chart (PostgreSQL, Redis, Keycloak, Gateway), waits for all pods
+4. **Keycloak** — Declares user profile attributes, creates default tenant, initializes roles with permissions, creates admin user with certificate binding
+
+Credentials are saved to `~/.netweave/`:
+- `credentials.json` — Vault root token and unseal keys
+- `client.crt` / `client.key` — Admin client certificate (used automatically by API commands)
+- `ca.crt` — CA certificate chain
+
+### Step 3: Verify
+
+```bash
+# Check gateway health
+netweave-cli api health
+
+# List O2-IMS resources
+netweave-cli api resource-types list
+netweave-cli api resource-pools list
+netweave-cli api deployment-managers list
+
+# Test subscriptions
+netweave-cli api subscriptions create --callback https://example.com/notify
+netweave-cli api subscriptions list
+
+# List users, roles, and tenants
+netweave-cli users list --tenant=default
+netweave-cli roles list
+netweave-cli tenants list
+
+# Issue and verify a certificate
+netweave-cli certs issue --cn=test.netweave.local --type=client
+netweave-cli certs verify --cert ~/.netweave/client.crt
+```
+
+### Individual Setup Steps
+
+You can run each setup phase individually:
+
+```bash
+netweave-cli setup vault       # Deploy Vault + PKI
+netweave-cli setup certs       # Issue TLS certificates
+netweave-cli setup helm        # Install Helm chart
+netweave-cli setup keycloak    # Bootstrap Keycloak
+```
+
+### Teardown
+
+```bash
+# Remove everything: Helm release, Vault, PVCs, namespace
+netweave-cli setup teardown
+```
+
+## Quick Deploy (Manual)
+
+For local development and testing without the CLI.
 
 ### Step 1: Clone Repository
 
@@ -755,7 +830,31 @@ aws route53 change-resource-record-sets \
 
 Comprehensive verification checklist after deployment.
 
-### Health Checks
+### Using netweave-cli (Recommended)
+
+```bash
+# Gateway health
+netweave-cli api health
+
+# List all O2-IMS entities
+netweave-cli api deployment-managers list
+netweave-cli api resource-pools list
+netweave-cli api resource-types list
+netweave-cli api resources list
+
+# Check subscriptions
+netweave-cli api subscriptions list
+
+# Verify certificates
+netweave-cli certs verify --cert ~/.netweave/client.crt
+
+# Check users, roles, and tenants
+netweave-cli users list --tenant=default
+netweave-cli roles list
+netweave-cli tenants list
+```
+
+### Manual Health Checks
 
 ```bash
 # Gateway health
@@ -786,7 +885,10 @@ curl -X POST https://netweave.example.com/o2ims-infrastructureInventory/v1/subsc
 ### TLS Certificate Verification
 
 ```bash
-# Check certificate validity
+# Using netweave-cli
+netweave-cli certs verify --cert client.crt --ca ca.crt
+
+# Using openssl
 openssl s_client -connect netweave.example.com:443 \
   -CAfile ca.crt \
   -cert client.crt \
@@ -929,6 +1031,13 @@ curl https://localhost:8443/health --insecure
 ## Uninstallation
 
 Complete removal of netweave and dependencies.
+
+### Using netweave-cli (Recommended)
+
+```bash
+# Remove everything: Helm release, Vault, PVCs, namespace
+netweave-cli setup teardown
+```
 
 ### Uninstall Helm Deployment
 

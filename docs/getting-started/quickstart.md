@@ -15,8 +15,18 @@ By the end of this quickstart, you'll have:
 
 - **Docker Desktop** or **Docker Engine** 20.10+
 - **Docker Compose** v2.0+
-- **curl** or **HTTPie** for API testing
+- **netweave-cli** (recommended) or **curl** for API testing
 - **2GB RAM** available
+
+### Install netweave-cli
+
+```bash
+# Build from source
+git clone https://github.com/piwi3910/netweave.git
+cd netweave
+make build-cli
+sudo cp build/netweave-cli /usr/local/bin/
+```
 
 ### Verify Prerequisites
 
@@ -76,9 +86,20 @@ curl http://localhost:8080/health
 
 Make your first O2-IMS API call to list resource pools:
 
+Using `netweave-cli`:
+
+```bash
+netweave-cli api resource-pools list --gateway-url http://localhost:8080
+```
+
+<details>
+<summary>Using curl</summary>
+
 ```bash
 curl -X GET http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools | jq
 ```
+
+</details>
 
 **Expected response:**
 
@@ -164,9 +185,20 @@ observability:
 
 ### 1. List Resource Types
 
+Using `netweave-cli`:
+
+```bash
+netweave-cli api resource-types list --gateway-url http://localhost:8080
+```
+
+<details>
+<summary>Using curl</summary>
+
 ```bash
 curl -X GET http://localhost:8080/o2ims-infrastructureInventory/v1/resourceTypes | jq
 ```
+
+</details>
 
 **Response:**
 
@@ -191,9 +223,20 @@ curl -X GET http://localhost:8080/o2ims-infrastructureInventory/v1/resourceTypes
 
 ### 2. List Resources in a Pool
 
+Using `netweave-cli`:
+
+```bash
+netweave-cli api resources list --pool-id pool-default --gateway-url http://localhost:8080
+```
+
+<details>
+<summary>Using curl</summary>
+
 ```bash
 curl -X GET http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools/pool-default/resources | jq
 ```
+
+</details>
 
 **Response:**
 
@@ -217,9 +260,20 @@ curl -X GET http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools
 
 ### 3. Get Deployment Managers
 
+Using `netweave-cli`:
+
+```bash
+netweave-cli api deployment-managers list --gateway-url http://localhost:8080
+```
+
+<details>
+<summary>Using curl</summary>
+
 ```bash
 curl -X GET http://localhost:8080/o2ims-infrastructureInventory/v1/deploymentManagers | jq
 ```
+
+</details>
 
 **Response:**
 
@@ -253,6 +307,17 @@ docker run --rm -p 9000:8080 --network netweave_default \
 
 Then create a subscription:
 
+Using `netweave-cli`:
+
+```bash
+netweave-cli api subscriptions create \
+  --callback http://host.docker.internal:9000/webhook \
+  --gateway-url http://localhost:8080
+```
+
+<details>
+<summary>Using curl</summary>
+
 ```bash
 curl -X POST http://localhost:8080/o2ims-infrastructureInventory/v1/subscriptions \
   -H "Content-Type: application/json" \
@@ -264,6 +329,8 @@ curl -X POST http://localhost:8080/o2ims-infrastructureInventory/v1/subscription
     }
   }' | jq
 ```
+
+</details>
 
 **Response:**
 
