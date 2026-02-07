@@ -86,6 +86,8 @@ adminPortal:
   ingress:
     enabled: true
     className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
     hosts:
       - host: admin.netweave.local
         paths:
@@ -95,7 +97,7 @@ adminPortal:
   # Set the IP to the NGINX ingress controller's ClusterIP:
   #   kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.spec.clusterIP}'
   hostAliases:
-    - ip: "10.96.183.104"
+    - ip: "REPLACE_WITH_YOUR_INGRESS_CONTROLLER_IP"
       hostnames:
         - auth.netweave.local
         - api.netweave.local

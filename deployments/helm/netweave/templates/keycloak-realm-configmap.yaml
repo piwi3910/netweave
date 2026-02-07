@@ -57,15 +57,15 @@ data:
           "redirectUris": [
             "http://localhost:8081/*",
             "https://localhost:8081/*"
-            {{- range .Values.gateway.keycloakClient.additionalRedirectUris }},
-            {{ . | quote }}
+            {{- range .Values.gateway.keycloakClient.additionalRedirectUris }}
+            ,{{ . | quote }}
             {{- end }}
           ],
           "webOrigins": [
             "http://localhost:8081",
             "https://localhost:8081"
-            {{- range .Values.gateway.keycloakClient.additionalWebOrigins }},
-            {{ . | quote }}
+            {{- range .Values.gateway.keycloakClient.additionalWebOrigins }}
+            ,{{ . | quote }}
             {{- end }}
           ],
           "protocol": "openid-connect",
@@ -134,15 +134,15 @@ data:
           "redirectUris": [
             "http://localhost:3000/*",
             "https://localhost:3000/*"
-            {{- range .Values.adminPortal.keycloak.additionalRedirectUris }},
-            {{ . | quote }}
+            {{- range .Values.adminPortal.keycloak.additionalRedirectUris }}
+            ,{{ . | quote }}
             {{- end }}
           ],
           "webOrigins": [
             "http://localhost:3000",
             "https://localhost:3000"
-            {{- range .Values.adminPortal.keycloak.additionalWebOrigins }},
-            {{ . | quote }}
+            {{- range .Values.adminPortal.keycloak.additionalWebOrigins }}
+            ,{{ . | quote }}
             {{- end }}
           ],
           "protocol": "openid-connect",
