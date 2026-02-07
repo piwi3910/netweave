@@ -154,10 +154,13 @@ func runVaultSetup(_ *cobra.Command, _ []string) error {
 	}
 	steps.Donef("Vault ConfigMap created")
 
-	// Step 5: Create Vault PVC.
+	// Step 5: Create Vault PVC and wait for it to be bound.
 	steps.Stepf("Creating Vault persistent storage...")
 	if pvcErr := createVaultPVC(ctx, conn); pvcErr != nil {
 		return pvcErr
+	}
+	if pvcWaitErr := waitForPVCBound(ctx, conn, vaultPVCName); pvcWaitErr != nil {
+		return pvcWaitErr
 	}
 	steps.Donef("Vault PVC ready")
 
@@ -177,7 +180,10 @@ func runVaultSetup(_ *cobra.Command, _ []string) error {
 
 	// Step 8: Port-forward and initialize/unseal.
 	steps.Stepf("Initializing and unsealing Vault...")
-	tlsClient := service.NewInsecureTLSClient(vaultHTTPTimeout)
+	tlsClient, tlsClientErr := service.NewTLSClient(vaultHTTPTimeout, caCert)
+	if tlsClientErr != nil {
+		return fmt.Errorf("failed to create TLS client: %w", tlsClientErr)
+	}
 
 	fw, fwErr := conn.PortForward(ctx, vaultLabel, vaultContainerPort)
 	if fwErr != nil {
@@ -508,6 +514,35 @@ func createVaultPVC(ctx context.Context, conn *service.Connector) error {
 	return nil
 }
 
+// waitForPVCBound polls until the named PVC reaches Bound status or the
+// context is canceled. This prevents a race condition where the Vault pod
+// starts before the PVC is provisioned by the storage class.
+func waitForPVCBound(ctx context.Context, conn *service.Connector, name string) error {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		pvc, err := conn.Clientset().CoreV1().PersistentVolumeClaims(
+			conn.Namespace(),
+		).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get PVC %q: %w", name, err)
+		}
+
+		if pvc.Status.Phase == corev1.ClaimBound {
+			return nil
+		}
+
+		cmd.Printer.Verbosef("PVC %q phase: %s, waiting...", name, pvc.Status.Phase)
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for PVC %q to be bound: %w", name, ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
 func deployVault(ctx context.Context, conn *service.Connector) error {
 	labels := map[string]string{"app": "vault"}
 	replicas := int32(1)
@@ -591,11 +626,6 @@ func buildVaultPodSpec() corev1.PodSpec {
 			Env: []corev1.EnvVar{
 				{Name: "VAULT_ADDR", Value: "https://127.0.0.1:8200"},
 				{Name: "VAULT_SKIP_VERIFY", Value: "true"},
-			},
-			SecurityContext: &corev1.SecurityContext{
-				Capabilities: &corev1.Capabilities{
-					Add: []corev1.Capability{"IPC_LOCK"},
-				},
 			},
 			ReadinessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{

@@ -226,11 +226,8 @@ func TestBuildVaultPodSpec(t *testing.T) {
 	assert.Equal(t, "https://127.0.0.1:8200", envMap["VAULT_ADDR"])
 	assert.Equal(t, "true", envMap["VAULT_SKIP_VERIFY"])
 
-	// Verify IPC_LOCK capability.
-	require.NotNil(t, container.SecurityContext)
-	require.NotNil(t, container.SecurityContext.Capabilities)
-	assert.Contains(t, container.SecurityContext.Capabilities.Add,
-		corev1.Capability("IPC_LOCK"))
+	// Verify no security context (IPC_LOCK removed since disable_mlock=true).
+	assert.Nil(t, container.SecurityContext)
 
 	// Verify HTTPS readiness probe.
 	require.NotNil(t, container.ReadinessProbe)
