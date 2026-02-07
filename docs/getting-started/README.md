@@ -134,20 +134,18 @@ netweave-cli setup teardown
 <summary>Manual commands (without CLI)</summary>
 
 ```bash
-# Deploy with Helm
-helm install netweave ./helm/netweave
+# Deploy with Helm (local development)
+helm install netweave deployments/helm/netweave -f deployments/helm/netweave/values-local.yaml -n netweave --create-namespace
 
 # Check status
-kubectl get pods -n o2ims-system
+kubectl get pods -n netweave
 
 # View logs
-kubectl logs -n o2ims-system -l app=netweave
+kubectl logs -n netweave -l app.kubernetes.io/component=gateway
 
-# Port forward for local access
-kubectl port-forward -n o2ims-system svc/netweave 8000:8000
-
-# List resource pools
-curl -X GET http://localhost:8000/o2ims-infrastructureInventory/v1/resourcePools
+# Access via NGINX Ingress (recommended, see Installation Guide)
+# Requires /etc/hosts: 127.0.0.1 api.netweave.local admin.netweave.local auth.netweave.local
+curl -X GET http://api.netweave.local/o2ims-infrastructureInventory/v1/resourcePools
 ```
 
 </details>

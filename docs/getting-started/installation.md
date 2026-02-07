@@ -67,8 +67,10 @@ go version
 
 | Port | Protocol | Direction | Purpose |
 |------|----------|-----------|---------|
-| 8080 | TCP | Inbound | HTTP API (development) |
-| 8443 | TCP | Inbound | HTTPS API (production) |
+| 80 | TCP | Inbound | NGINX Ingress HTTP (development) |
+| 443 | TCP | Inbound | NGINX Ingress HTTPS (production) |
+| 8080 | TCP | Internal | Gateway HTTP API |
+| 8443 | TCP | Internal | Gateway HTTPS API |
 | 6379 | TCP | Internal | Redis communication |
 | 9090 | TCP | Internal | Metrics (Prometheus) |
 
@@ -197,30 +199,77 @@ This deploys:
 - netweave gateway (1 replica, HTTP)
 - Redis (single instance, no auth)
 - Development configuration
-- Port-forward to `localhost:8080`
 
-### Step 4: Verify Deployment
+### Step 4: Install NGINX Ingress Controller
+
+NGINX Ingress provides stable, hostname-based access to all services without
+needing `kubectl port-forward`:
+
+```bash
+# Install NGINX Ingress Controller
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.0/deploy/static/provider/cloud/deploy.yaml
+
+# Wait for the controller to be ready
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=120s
+
+# Get the ingress controller ClusterIP (needed for admin portal OIDC)
+kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.spec.clusterIP}'
+```
+
+Add local DNS entries to `/etc/hosts`:
+
+```bash
+# Add to /etc/hosts (requires sudo)
+echo "127.0.0.1 admin.netweave.local api.netweave.local auth.netweave.local" | sudo tee -a /etc/hosts
+```
+
+Update the ingress controller IP in `values-local.yaml` under
+`adminPortal.hostAliases[0].ip` with the ClusterIP from above. This allows
+the admin portal pod to resolve `auth.netweave.local` for OIDC discovery.
+
+### Step 5: Verify Deployment
 
 ```bash
 # Check pods
-kubectl get pods -n o2ims-dev
+kubectl get pods -n netweave
+
+# Check ingress resources
+kubectl get ingress -n netweave
 
 # Check gateway logs
-kubectl logs -n o2ims-dev deployment/netweave-gateway -f
+kubectl logs -n netweave deployment/netweave-netweave-gateway -f
 
-# Test API
-curl http://localhost:8080/health
+# Test API via ingress
+curl http://api.netweave.local/health
 ```
 
-### Step 5: Access Gateway
+### Step 6: Access Services
+
+With NGINX Ingress, all services are accessible via local hostnames:
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| **Gateway API** | `http://api.netweave.local` | O2-IMS API endpoints |
+| **Admin Portal** | `http://admin.netweave.local` | Web management UI |
+| **Keycloak** | `http://auth.netweave.local` | Identity provider |
 
 ```bash
-# Port-forward (if not already running)
-kubectl port-forward -n o2ims-dev svc/netweave-gateway 8080:8080
+# Test Gateway API
+curl http://api.netweave.local/o2ims-infrastructureInventory/v1/resourcePools | jq
 
-# Test API
-curl http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools | jq
+# Open Admin Portal in browser
+open http://admin.netweave.local
+
+# Keycloak admin console
+open http://auth.netweave.local/admin/
 ```
+
+> **Note:** The `netweave-cli` tool can also auto-discover the gateway via
+> Kubernetes port-forwarding. Use `--gateway-url http://api.netweave.local`
+> to route through ingress instead.
 
 ## Production Deployment with Helm
 
