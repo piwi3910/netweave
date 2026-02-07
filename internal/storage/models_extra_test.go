@@ -8,6 +8,7 @@ import (
 )
 
 func TestSubscription_MarshalBinary(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		sub  *Subscription
@@ -57,6 +58,7 @@ func TestSubscription_MarshalBinary(t *testing.T) {
 }
 
 func TestSubscription_UnmarshalBinary_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	var sub Subscription
 	err := sub.UnmarshalBinary([]byte("not valid json"))
 	require.Error(t, err)
@@ -64,6 +66,7 @@ func TestSubscription_UnmarshalBinary_InvalidJSON(t *testing.T) {
 }
 
 func TestSubscription_UnmarshalBinary_EmptyData(t *testing.T) {
+	t.Parallel()
 	var sub Subscription
 	err := sub.UnmarshalBinary([]byte("{}"))
 	require.NoError(t, err)
@@ -71,6 +74,7 @@ func TestSubscription_UnmarshalBinary_EmptyData(t *testing.T) {
 }
 
 func TestSubscriptionFilter_MatchesFilter(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		filter         SubscriptionFilter
@@ -188,6 +192,7 @@ func TestSubscriptionFilter_MatchesFilter(t *testing.T) {
 }
 
 func TestValidateCallbackURL(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		callback      string

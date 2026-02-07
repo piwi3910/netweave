@@ -8,6 +8,7 @@ import (
 )
 
 func TestRole_UnmarshalBinary_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	var role Role
 	err := role.UnmarshalBinary([]byte("not valid json"))
 	require.Error(t, err)
@@ -15,6 +16,7 @@ func TestRole_UnmarshalBinary_InvalidJSON(t *testing.T) {
 }
 
 func TestRole_MarshalBinary_Roundtrip(t *testing.T) {
+	t.Parallel()
 	role := &Role{
 		ID:          "role-1",
 		Name:        "admin",
@@ -35,6 +37,7 @@ func TestRole_MarshalBinary_Roundtrip(t *testing.T) {
 }
 
 func TestTenant_UnmarshalBinary_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	var tenant Tenant
 	err := tenant.UnmarshalBinary([]byte("not valid json"))
 	require.Error(t, err)
@@ -42,6 +45,7 @@ func TestTenant_UnmarshalBinary_InvalidJSON(t *testing.T) {
 }
 
 func TestTenant_MarshalBinary_Roundtrip(t *testing.T) {
+	t.Parallel()
 	tenant := &Tenant{
 		ID:     "tenant-1",
 		Name:   "Test",
@@ -60,6 +64,7 @@ func TestTenant_MarshalBinary_Roundtrip(t *testing.T) {
 }
 
 func TestTenantUser_UnmarshalBinary_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	var user TenantUser
 	err := user.UnmarshalBinary([]byte("not valid json"))
 	require.Error(t, err)
@@ -67,6 +72,7 @@ func TestTenantUser_UnmarshalBinary_InvalidJSON(t *testing.T) {
 }
 
 func TestTenantUser_MarshalBinary_Roundtrip(t *testing.T) {
+	t.Parallel()
 	user := &TenantUser{
 		ID:         "user-1",
 		TenantID:   "tenant-1",
@@ -87,6 +93,7 @@ func TestTenantUser_MarshalBinary_Roundtrip(t *testing.T) {
 }
 
 func TestAuditEvent_UnmarshalBinary_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	var event AuditEvent
 	err := event.UnmarshalBinary([]byte("not valid json"))
 	require.Error(t, err)
@@ -94,6 +101,7 @@ func TestAuditEvent_UnmarshalBinary_InvalidJSON(t *testing.T) {
 }
 
 func TestAuditEvent_MarshalBinary_Roundtrip(t *testing.T) {
+	t.Parallel()
 	event := &AuditEvent{
 		ID:       "event-1",
 		Type:     AuditEventUserCreated,

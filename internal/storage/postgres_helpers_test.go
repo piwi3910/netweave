@@ -11,6 +11,7 @@ import (
 )
 
 func TestDbsqlcSubscriptionToModel(t *testing.T) {
+	t.Parallel()
 	now := time.Now().Truncate(time.Second)
 	row := &dbsqlc.Subscription{
 		ID:                     "sub-1",
@@ -38,6 +39,7 @@ func TestDbsqlcSubscriptionToModel(t *testing.T) {
 }
 
 func TestDbsqlcSubscriptionsToModels(t *testing.T) {
+	t.Parallel()
 	t.Run("converts multiple rows", func(t *testing.T) {
 		rows := []dbsqlc.Subscription{
 			{
@@ -68,6 +70,7 @@ func TestDbsqlcSubscriptionsToModels(t *testing.T) {
 }
 
 func TestIsPgUniqueViolation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		err  error

@@ -15,6 +15,7 @@ import (
 )
 
 func TestMarshalPermissions(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		perms   []Permission
@@ -58,6 +59,7 @@ func TestMarshalPermissions(t *testing.T) {
 }
 
 func TestUnmarshalPermissions(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		data    json.RawMessage
@@ -101,6 +103,7 @@ func TestUnmarshalPermissions(t *testing.T) {
 }
 
 func TestMarshalStringMap(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		m       map[string]string
@@ -139,6 +142,7 @@ func TestMarshalStringMap(t *testing.T) {
 }
 
 func TestTimeToTimestamptz(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		input     time.Time
@@ -168,6 +172,7 @@ func TestTimeToTimestamptz(t *testing.T) {
 }
 
 func TestSafeIntToInt32(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		input int
@@ -219,6 +224,7 @@ func TestSafeIntToInt32(t *testing.T) {
 }
 
 func TestIsPgUniqueViolation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		err  error
@@ -255,6 +261,7 @@ func TestIsPgUniqueViolation(t *testing.T) {
 }
 
 func TestDbsqlcUserToModel(t *testing.T) {
+	t.Parallel()
 	now := time.Now().UTC()
 	loginTime := now.Add(-1 * time.Hour)
 
@@ -327,6 +334,7 @@ func TestDbsqlcUserToModel(t *testing.T) {
 }
 
 func TestDbsqlcUsersToModels(t *testing.T) {
+	t.Parallel()
 	now := time.Now().UTC()
 
 	rows := []dbsqlc.User{
@@ -359,6 +367,7 @@ func TestDbsqlcUsersToModels(t *testing.T) {
 }
 
 func TestDbsqlcRoleToModel(t *testing.T) {
+	t.Parallel()
 	now := time.Now().UTC()
 
 	tests := []struct {
@@ -416,6 +425,7 @@ func TestDbsqlcRoleToModel(t *testing.T) {
 }
 
 func TestDbsqlcRolesToModels(t *testing.T) {
+	t.Parallel()
 	now := time.Now().UTC()
 
 	t.Run("valid roles", func(t *testing.T) {
@@ -460,6 +470,7 @@ func TestDbsqlcRolesToModels(t *testing.T) {
 }
 
 func TestDbsqlcTenantToModel(t *testing.T) {
+	t.Parallel()
 	now := time.Now().UTC()
 
 	tests := []struct {
@@ -541,6 +552,7 @@ func TestDbsqlcTenantToModel(t *testing.T) {
 }
 
 func TestDbsqlcTenantsToModels(t *testing.T) {
+	t.Parallel()
 	t.Run("valid tenants", func(t *testing.T) {
 		rows := []dbsqlc.Tenant{
 			{
@@ -582,6 +594,7 @@ func TestDbsqlcTenantsToModels(t *testing.T) {
 }
 
 func TestDbsqlcAuditEventToModel(t *testing.T) {
+	t.Parallel()
 	now := time.Now().UTC()
 
 	tests := []struct {
@@ -655,6 +668,7 @@ func TestDbsqlcAuditEventToModel(t *testing.T) {
 }
 
 func TestDbsqlcAuditEventsToModels(t *testing.T) {
+	t.Parallel()
 	now := time.Now().UTC()
 
 	t.Run("valid events", func(t *testing.T) {
