@@ -1,9 +1,13 @@
 # values-local.yaml - Docker Desktop Kubernetes development overrides
 # Usage:
-#   1. Deploy Vault dev mode: kubectl apply -f deployments/kubernetes/vault/dev-deployment.yaml
-#   2. Install NGINX Ingress: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.0/deploy/static/provider/cloud/deploy.yaml
+#   1. Setup Vault:   netweave-cli setup vault
+#   2. Install NGINX: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.0/deploy/static/provider/cloud/deploy.yaml
+#                     Then enable ssl-passthrough:
+#                     kubectl -n ingress-nginx patch deployment ingress-nginx-controller --type=json \
+#                       -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--enable-ssl-passthrough"}]'
 #   3. Install chart: helm install netweave . -f values-local.yaml -n netweave --create-namespace
-#   4. Add to /etc/hosts: 127.0.0.1 admin.netweave.local api.netweave.local auth.netweave.local
+#   4. Setup certs:   netweave-cli setup certs
+#   5. Add to /etc/hosts: 127.0.0.1 admin.netweave.local api.netweave.local auth.netweave.local
 
 # Gateway - single replica, local image
 gateway:
@@ -26,6 +30,8 @@ gateway:
   ingress:
     enabled: true
     className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
     hosts:
       - host: api.netweave.local
         paths:
@@ -33,9 +39,9 @@ gateway:
             pathType: Prefix
   keycloakClient:
     additionalRedirectUris:
-      - "http://api.netweave.local/*"
+      - "https://api.netweave.local/*"
     additionalWebOrigins:
-      - "http://api.netweave.local"
+      - "https://api.netweave.local"
   config:
     logLevel: debug
     # Multi-tenancy enabled with mTLS auth enforcement
@@ -76,12 +82,12 @@ adminPortal:
     tag: "local"
     pullPolicy: Never
   keycloak:
-    issuer: "http://auth.netweave.local/realms/netweave"
+    issuer: "https://auth.netweave.local/realms/netweave"
     additionalRedirectUris:
-      - "http://admin.netweave.local/*"
+      - "https://admin.netweave.local/*"
     additionalWebOrigins:
-      - "http://admin.netweave.local"
-  authUrl: "http://admin.netweave.local"
+      - "https://admin.netweave.local"
+  authUrl: "https://admin.netweave.local"
   apiBaseUrl: "http://netweave-netweave:8080"
   ingress:
     enabled: true
@@ -93,11 +99,15 @@ adminPortal:
         paths:
           - path: /
             pathType: Prefix
+    tls:
+      - secretName: admin-portal-ingress-tls
+        hosts:
+          - admin.netweave.local
   # Resolve ingress hostnames from inside the pod for OIDC discovery.
   # Set the IP to the NGINX ingress controller's ClusterIP:
   #   kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.spec.clusterIP}'
   hostAliases:
-    - ip: "REPLACE_WITH_YOUR_INGRESS_CONTROLLER_IP"
+    - ip: "10.96.37.177"
       hostnames:
         - auth.netweave.local
         - api.netweave.local
@@ -124,14 +134,14 @@ postgresql:
       cpu: 500m
       memory: 256Mi
 
-# Keycloak - official image, dev mode, single replica
+# Keycloak - production mode, single replica
 keycloak:
   enabled: true
   replicaCount: 1
   image:
     repository: quay.io/keycloak/keycloak
     tag: "26.0"
-  devMode: true
+  devMode: false
   proxy: "xforwarded"
   ingress:
     enabled: true
@@ -143,6 +153,10 @@ keycloak:
         paths:
           - path: /
             pathType: Prefix
+    tls:
+      - secretName: keycloak-ingress-tls
+        hosts:
+          - auth.netweave.local
   auth:
     adminUser: admin
     adminPassword: "admin"
@@ -159,7 +173,7 @@ vault:
   enabled: true
   replicaCount: 1
   deployViaManifests: true
-  namespace: vault-system
+  namespace: netweave
   skipTLSVerify: true
   caCert: false
 

@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -154,17 +155,14 @@ func runVaultSetup(_ *cobra.Command, _ []string) error {
 	}
 	steps.Donef("Vault ConfigMap created")
 
-	// Step 5: Create Vault PVC and wait for it to be bound.
+	// Step 5: Create Vault PVC.
 	steps.Stepf("Creating Vault persistent storage...")
 	if pvcErr := createVaultPVC(ctx, conn); pvcErr != nil {
 		return pvcErr
 	}
-	if pvcWaitErr := waitForPVCBound(ctx, conn, vaultPVCName); pvcWaitErr != nil {
-		return pvcWaitErr
-	}
-	steps.Donef("Vault PVC ready")
+	steps.Donef("Vault PVC created")
 
-	// Step 6: Deploy Vault.
+	// Step 6: Deploy Vault (PVC binds when the pod is scheduled).
 	steps.Stepf("Deploying Vault...")
 	if depErr := deployVault(ctx, conn); depErr != nil {
 		return depErr
@@ -378,6 +376,10 @@ func generateSelfSignedTLS(
 			"vault." + cmd.Global.Namespace + ".svc",
 			"vault." + cmd.Global.Namespace + ".svc.cluster.local",
 			"localhost",
+		},
+		IPAddresses: []net.IP{
+			net.ParseIP("127.0.0.1"),
+			net.ParseIP("::1"),
 		},
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().Add(365 * 24 * time.Hour),

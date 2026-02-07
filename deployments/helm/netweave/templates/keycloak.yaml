@@ -78,14 +78,23 @@ spec:
               value: "8080"
             - name: KC_HTTP_MANAGEMENT_PORT
               value: "9000"
+            {{- if and (not .Values.keycloak.devMode) .Values.keycloak.proxy }}
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            {{- end }}
             - name: KC_HOSTNAME
               {{- if and .Values.keycloak.ingress.enabled (gt (len .Values.keycloak.ingress.hosts) 0) }}
               value: {{ (index .Values.keycloak.ingress.hosts 0).host }}
               {{- else }}
               value: {{ include "netweave.fullname" . }}-keycloak
               {{- end }}
+            {{- if and .Values.keycloak.ingress.enabled .Values.keycloak.ingress.tls }}
+            - name: KC_HOSTNAME_PORT
+              value: "443"
+            {{- else }}
             - name: KC_HOSTNAME_PORT
               value: "80"
+            {{- end }}
             - name: KC_HOSTNAME_STRICT
               value: "false"
             {{- if .Values.keycloak.proxy }}
@@ -97,18 +106,24 @@ spec:
               containerPort: 8080
             - name: management
               containerPort: 9000
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: management
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /health/ready
               port: management
-            initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /health/live
               port: management
-            initialDelaySeconds: 60
             periodSeconds: 30
             timeoutSeconds: 5
           resources:
