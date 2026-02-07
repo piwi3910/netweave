@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/piwi3910/netweave/internal/database"
 	"github.com/spf13/viper"
 )
 
@@ -62,6 +63,8 @@ type Config struct {
 	MultiTenancy  MultiTenancyConfig  `mapstructure:"multi_tenancy"`
 	OAuth2        OAuth2Config        `mapstructure:"oauth2"`
 	Auth          AuthConfig          `mapstructure:"auth"`
+	Postgres      database.PostgresConfig `mapstructure:"postgres"`
+	StorageMode   string                  `mapstructure:"storage_mode"`
 
 	// Environment stores the detected environment (dev/staging/prod)
 	// This field is set automatically during Load() and used for validation
@@ -972,6 +975,19 @@ func setDefaults(v *viper.Viper) {
 	// Auth backend defaults
 	v.SetDefault("auth.backend", "redis")
 	v.SetDefault("auth.keycloak.timeout", "30s")
+
+	// Storage mode defaults
+	v.SetDefault("storage_mode", "redis")
+
+	// PostgreSQL defaults
+	v.SetDefault("postgres.host", "localhost")
+	v.SetDefault("postgres.port", 5432)
+	v.SetDefault("postgres.database", "netweave")
+	v.SetDefault("postgres.user", "netweave")
+	v.SetDefault("postgres.password_env_var", "POSTGRES_PASSWORD")
+	v.SetDefault("postgres.ssl_mode", "prefer")
+	v.SetDefault("postgres.max_conns", 25)
+	v.SetDefault("postgres.min_conns", 5)
 }
 
 // Validate validates the configuration and returns an error if any values are invalid.
@@ -1005,6 +1021,10 @@ func (c *Config) Validate() error {
 	}
 
 	if err := c.validateSecurity(); err != nil {
+		return err
+	}
+
+	if err := c.validateStorageMode(); err != nil {
 		return err
 	}
 
@@ -1335,10 +1355,31 @@ func (c *Config) validateEndpointRateLimits() error {
 }
 
 // validateAuth validates auth backend configuration.
+// validateStorageMode validates the storage mode and PostgreSQL configuration.
+func (c *Config) validateStorageMode() error {
+	// Default to "redis" for backward compatibility with configs that don't set storage_mode.
+	if c.StorageMode == "" {
+		c.StorageMode = "redis"
+	}
+
+	validModes := map[string]bool{"redis": true, "postgres": true, "dual": true}
+	if !validModes[c.StorageMode] {
+		return fmt.Errorf("storage_mode: '%s' (must be 'redis', 'postgres', or 'dual')", c.StorageMode)
+	}
+
+	if c.StorageMode == "postgres" || c.StorageMode == "dual" {
+		if err := c.Postgres.Validate(); err != nil {
+			return fmt.Errorf("postgres config: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (c *Config) validateAuth() error {
 	// Validate backend selection
-	if c.Auth.Backend != "redis" && c.Auth.Backend != "keycloak" {
-		return fmt.Errorf("auth.backend: '%s' (must be 'redis' or 'keycloak')", c.Auth.Backend)
+	if c.Auth.Backend != "redis" && c.Auth.Backend != "keycloak" && c.Auth.Backend != "postgres" {
+		return fmt.Errorf("auth.backend: '%s' (must be 'redis', 'postgres', or 'keycloak')", c.Auth.Backend)
 	}
 
 	// Validate Keycloak config if backend is keycloak

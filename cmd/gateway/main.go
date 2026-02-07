@@ -44,10 +44,14 @@ import (
 	"github.com/piwi3910/netweave/internal/adapters/kubernetes"
 	"github.com/piwi3910/netweave/internal/adapters/mock"
 	"github.com/piwi3910/netweave/internal/auth"
+	"github.com/piwi3910/netweave/internal/backend"
 	"github.com/piwi3910/netweave/internal/config"
+	"github.com/piwi3910/netweave/internal/database"
 	"github.com/piwi3910/netweave/internal/dms/adapters/helm"
 	dmsmock "github.com/piwi3910/netweave/internal/dms/adapters/mock"
 	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
+	"github.com/piwi3910/netweave/internal/encryption"
+	"github.com/piwi3910/netweave/internal/handlers"
 	"github.com/piwi3910/netweave/internal/keycloak"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/server"
@@ -133,7 +137,9 @@ func run() error {
 
 // ApplicationComponents holds all initialized application components.
 type ApplicationComponents struct {
-	store         *storage.RedisStore
+	redisStore    *storage.RedisStore  // Always needed for rate limiting, events, pub/sub
+	store         storage.Store        // Subscription store (redis, postgres, or dual)
+	pgDB          *database.DB         // PostgreSQL connection (nil if storage_mode="redis")
 	imsAdapter    adapter.Adapter
 	healthChecker *observability.HealthChecker
 	server        *server.Server
@@ -145,6 +151,16 @@ type ApplicationComponents struct {
 func NewApplicationComponentsForTest(authStore server.AuthStore) *ApplicationComponents {
 	return &ApplicationComponents{
 		authStore: authStore,
+	}
+}
+
+// NewApplicationComponentsForTestFull creates an ApplicationComponents instance for testing
+// with all fields configurable.
+func NewApplicationComponentsForTestFull(authStore server.AuthStore, store storage.Store, pgDB *database.DB) *ApplicationComponents {
+	return &ApplicationComponents{
+		authStore: authStore,
+		store:     store,
+		pgDB:      pgDB,
 	}
 }
 
@@ -170,9 +186,19 @@ func (c *ApplicationComponents) Close(logger *zap.Logger) error {
 	}
 	if c.store != nil {
 		if err := c.store.Close(); err != nil {
+			logger.Warn("failed to close subscription store", zap.Error(err))
+			closeErrors = append(closeErrors, fmt.Errorf("subscription store: %w", err))
+		}
+	}
+	if c.redisStore != nil && c.redisStore != c.store {
+		if err := c.redisStore.Close(); err != nil {
 			logger.Warn("failed to close Redis connection", zap.Error(err))
 			closeErrors = append(closeErrors, fmt.Errorf("redis store: %w", err))
 		}
+	}
+	if c.pgDB != nil {
+		c.pgDB.Close()
+		logger.Info("PostgreSQL connection closed")
 	}
 
 	return errors.Join(closeErrors...)
@@ -198,9 +224,9 @@ func setupLogger(cfg *config.Config) (*zap.Logger, error) {
 }
 
 // cleanupOnError closes resources during error handling.
-func cleanupOnError(store *storage.RedisStore, imsAdapter adapter.Adapter, logger *zap.Logger) {
-	if store != nil {
-		if closeErr := store.Close(); closeErr != nil {
+func cleanupOnError(redisStore *storage.RedisStore, imsAdapter adapter.Adapter, logger *zap.Logger) {
+	if redisStore != nil {
+		if closeErr := redisStore.Close(); closeErr != nil {
 			logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
 		}
 	}
@@ -211,10 +237,129 @@ func cleanupOnError(store *storage.RedisStore, imsAdapter adapter.Adapter, logge
 	}
 }
 
+// cleanupPgOnError closes PostgreSQL resources during error handling.
+func cleanupPgOnError(pgDB *database.DB) {
+	if pgDB != nil {
+		pgDB.Close()
+	}
+}
+
+// initializePostgres creates and initializes a PostgreSQL connection and runs migrations.
+func initializePostgres(cfg *config.Config, logger *zap.Logger) (*database.DB, error) {
+	pgPassword := os.Getenv(cfg.Postgres.PasswordEnvVar)
+	if pgPassword == "" {
+		return nil, fmt.Errorf("environment variable %s not set for PostgreSQL password", cfg.Postgres.PasswordEnvVar)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	pgDB, err := database.New(ctx, &cfg.Postgres, pgPassword)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize PostgreSQL: %w", err)
+	}
+
+	// Run migrations
+	if migrateErr := database.Migrate(ctx, pgDB.Pool); migrateErr != nil {
+		pgDB.Close()
+		return nil, fmt.Errorf("failed to run database migrations: %w", migrateErr)
+	}
+
+	logger.Info("PostgreSQL initialized and migrations applied",
+		zap.String("host", cfg.Postgres.Host),
+		zap.Int("port", cfg.Postgres.Port),
+		zap.String("database", cfg.Postgres.Database),
+		zap.String("storage_mode", cfg.StorageMode),
+	)
+
+	return pgDB, nil
+}
+
+// selectSubscriptionStore returns the appropriate subscription store based on storage mode.
+func selectSubscriptionStore(
+	cfg *config.Config,
+	redisStore *storage.RedisStore,
+	pgDB *database.DB,
+	logger *zap.Logger,
+) storage.Store {
+	switch cfg.StorageMode {
+	case "postgres":
+		logger.Info("using PostgreSQL as subscription store")
+		return storage.NewPostgresStore(pgDB, cfg.Security.AllowInsecureCallbacks)
+
+	case "dual":
+		pgStore := storage.NewPostgresStore(pgDB, cfg.Security.AllowInsecureCallbacks)
+		logger.Info("using dual store (primary=redis, secondary=postgres)")
+		return storage.NewDualStore(redisStore, pgStore, logger)
+
+	default: // "redis"
+		logger.Info("using Redis as subscription store")
+		return redisStore
+	}
+}
+
+// initializeBackendAdmin sets up the backend admin API if PostgreSQL is available.
+func initializeBackendAdmin(cfg *config.Config, srv *server.Server, pgDB *database.DB, logger *zap.Logger) {
+	if pgDB == nil {
+		return
+	}
+
+	enc := createEncryptor(cfg, logger)
+	if enc == nil {
+		logger.Warn("no encryptor available, backend admin API disabled")
+		return
+	}
+
+	backendStore := backend.NewPostgresStore(pgDB.Pool)
+	schemaRegistry := backend.NewSchemaRegistry()
+	backend.RegisterBuiltinSchemas(schemaRegistry)
+	backendHandler := handlers.NewBackendHandler(backendStore, enc, schemaRegistry, logger)
+	srv.SetupBackendAdmin(backendHandler)
+
+	logger.Info("backend admin API initialized")
+}
+
+// createEncryptor creates an encryption.Encryptor from environment configuration.
+// Returns nil if no encryptor can be created.
+func createEncryptor(_ *config.Config, logger *zap.Logger) encryption.Encryptor {
+	vaultAddr := os.Getenv("VAULT_ADDR")
+	vaultToken := os.Getenv("VAULT_TOKEN")
+
+	if vaultAddr != "" && vaultToken != "" {
+		vaultCfg := encryption.VaultConfig{
+			Address:   vaultAddr,
+			Token:     vaultToken,
+			MountPath: "transit",
+			KeyName:   "netweave",
+		}
+		logger.Info("using Vault transit encryptor for backend credentials",
+			zap.String("vault_addr", vaultAddr),
+		)
+		return encryption.NewVaultEncryptor(vaultCfg)
+	}
+
+	// Fallback to AES for development
+	aesKeyStr := os.Getenv("ENCRYPTION_KEY")
+	if aesKeyStr == "" {
+		logger.Warn("ENCRYPTION_KEY not set, using zero key for development only")
+	}
+	aesKey := make([]byte, encryption.AESKeySize)
+	copy(aesKey, []byte(aesKeyStr))
+
+	enc, aesErr := encryption.NewAESEncryptor(aesKey)
+	if aesErr != nil {
+		logger.Warn("failed to create AES encryptor", zap.Error(aesErr))
+		return nil
+	}
+
+	logger.Info("using AES encryptor for backend credentials (development mode)")
+	return enc
+}
+
 // initializeComponents initializes all application components.
 func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationComponents, error) {
-	// Initialize Redis storage
-	store, storeErr := initializeRedisStorage(cfg, logger)
+	// Initialize Redis storage (always needed for rate limiting, events, pub/sub)
+	redisStore, storeErr := initializeRedisStorage(cfg, logger)
 	if storeErr != nil {
 		logger.Error("failed to initialize Redis storage", zap.Error(storeErr))
 		return nil, fmt.Errorf("failed to initialize Redis storage: %w", storeErr)
@@ -225,6 +370,20 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		zap.Strings("addresses", cfg.Redis.Addresses),
 	)
 
+	// Initialize PostgreSQL if storage mode requires it
+	var pgDB *database.DB
+	if cfg.StorageMode == "postgres" || cfg.StorageMode == "dual" {
+		var pgErr error
+		pgDB, pgErr = initializePostgres(cfg, logger)
+		if pgErr != nil {
+			cleanupOnError(redisStore, nil, logger)
+			return nil, pgErr
+		}
+	}
+
+	// Select subscription store based on storage mode
+	subscriptionStore := selectSubscriptionStore(cfg, redisStore, pgDB, logger)
+
 	// Initialize IMS adapter
 	var imsAdapter adapter.Adapter
 	adapterType := os.Getenv("ADAPTER_TYPE")
@@ -234,15 +393,17 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 
 	switch adapterType {
 	case adapterTypeMock:
-		mockAdp, mockErr := initializeMockAdapter(context.Background(), logger, store)
+		mockAdp, mockErr := initializeMockAdapter(context.Background(), logger, redisStore, subscriptionStore)
 		if mockErr != nil {
+			cleanupPgOnError(pgDB)
 			return nil, mockErr
 		}
 		imsAdapter = mockAdp
 	default:
-		k8sAdp, k8sErr := initializeKubernetesAdapter(cfg, logger, store)
+		k8sAdp, k8sErr := initializeKubernetesAdapter(cfg, logger, subscriptionStore)
 		if k8sErr != nil {
-			cleanupOnError(store, nil, logger)
+			cleanupOnError(redisStore, nil, logger)
+			cleanupPgOnError(pgDB)
 			return nil, fmt.Errorf("failed to initialize Kubernetes adapter: %w", k8sErr)
 		}
 		logger.Info("Kubernetes adapter initialized successfully",
@@ -253,7 +414,7 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	}
 
 	// Initialize health checker
-	healthChecker := initializeHealthChecker(store, imsAdapter, logger)
+	healthChecker := initializeHealthChecker(redisStore, imsAdapter, pgDB, logger)
 	logger.Info("health checker initialized")
 
 	// Initialize auth store and middleware if multi-tenancy is enabled
@@ -261,10 +422,11 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	var authMw *auth.Middleware
 	if cfg.MultiTenancy.Enabled {
 		var initErr error
-		authStore, authMw, initErr = InitializeAuth(cfg, logger)
+		authStore, authMw, initErr = InitializeAuth(cfg, logger, pgDB)
 		if initErr != nil {
 			logger.Error("failed to initialize authentication subsystem")
-			cleanupOnError(store, imsAdapter, logger)
+			cleanupOnError(redisStore, imsAdapter, logger)
+			cleanupPgOnError(pgDB)
 			return nil, fmt.Errorf("failed to initialize auth: %w", initErr)
 		}
 
@@ -274,7 +436,7 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	}
 
 	// Create and configure HTTP server
-	srv, srvErr := createHTTPServer(cfg, logger, imsAdapter, store, authStore, authMw)
+	srv, srvErr := createHTTPServer(cfg, logger, imsAdapter, subscriptionStore, authStore, authMw)
 	if srvErr != nil {
 		return nil, srvErr
 	}
@@ -282,9 +444,14 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	// Set health checker
 	srv.SetHealthChecker(healthChecker)
 
+	// Initialize backend admin API if PostgreSQL is available
+	initializeBackendAdmin(cfg, srv, pgDB, logger)
+
 	// Create components structure
 	components := &ApplicationComponents{
-		store:         store,
+		redisStore:    redisStore,
+		store:         subscriptionStore,
+		pgDB:          pgDB,
 		imsAdapter:    imsAdapter,
 		healthChecker: healthChecker,
 		server:        srv,
@@ -304,13 +471,13 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 }
 
 // initializeMockAdapter creates and initializes a mock adapter, returning the concrete type.
-func initializeMockAdapter(ctx context.Context, logger *zap.Logger, store *storage.RedisStore) (*mock.Adapter, error) {
+func initializeMockAdapter(ctx context.Context, logger *zap.Logger, redisStore *storage.RedisStore, _ storage.Store) (*mock.Adapter, error) {
 	logger.Info("initializing mock adapter")
 	mockAdp := mock.NewAdapter(true) // Pre-populate with sample data
 
 	if initErr := mockAdp.Initialize(ctx); initErr != nil {
 		logger.Error("failed to initialize mock adapter", zap.Error(initErr))
-		if closeErr := store.Close(); closeErr != nil {
+		if closeErr := redisStore.Close(); closeErr != nil {
 			logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
 		}
 		return nil, fmt.Errorf("failed to initialize mock adapter: %w", initErr)
@@ -328,7 +495,7 @@ func createHTTPServer(
 	cfg *config.Config,
 	logger *zap.Logger,
 	imsAdapter adapter.Adapter,
-	store *storage.RedisStore,
+	store storage.Store,
 	authStore server.AuthStore,
 	authMw *auth.Middleware,
 ) (*server.Server, error) {
@@ -799,8 +966,9 @@ func registerHelmDMSAdapter(
 
 // initializeHealthChecker creates and configures the health checker.
 func initializeHealthChecker(
-	store *storage.RedisStore,
+	redisStore *storage.RedisStore,
 	imsAdapter adapter.Adapter,
+	pgDB *database.DB,
 	logger *zap.Logger,
 ) *observability.HealthChecker {
 	healthChecker := observability.NewHealthChecker(Version)
@@ -808,9 +976,11 @@ func initializeHealthChecker(
 	// Set health check timeout
 	healthChecker.SetTimeout(5 * time.Second)
 
+	checkCount := 2
+
 	// Register Redis health check
 	healthChecker.RegisterHealthCheck("redis", observability.RedisHealthCheck(func(ctx context.Context) error {
-		return store.Ping(ctx)
+		return redisStore.Ping(ctx)
 	}))
 
 	// Register IMS adapter health check
@@ -824,7 +994,7 @@ func initializeHealthChecker(
 	// Register the same checks for readiness
 	healthChecker.RegisterReadinessCheck("redis",
 		observability.RedisHealthCheck(func(ctx context.Context) error {
-			return store.Ping(ctx)
+			return redisStore.Ping(ctx)
 		}))
 
 	healthChecker.RegisterReadinessCheck("ims-adapter",
@@ -832,9 +1002,20 @@ func initializeHealthChecker(
 			return imsAdapter.Health(ctx)
 		}))
 
+	// Register PostgreSQL health check if available
+	if pgDB != nil {
+		checkCount++
+		healthChecker.RegisterHealthCheck("postgres", func(ctx context.Context) error {
+			return pgDB.Ping(ctx)
+		})
+		healthChecker.RegisterReadinessCheck("postgres", func(ctx context.Context) error {
+			return pgDB.Ping(ctx)
+		})
+	}
+
 	logger.Info("health checks registered",
-		zap.Int("health_checks", 2),
-		zap.Int("readiness_checks", 2),
+		zap.Int("health_checks", checkCount),
+		zap.Int("readiness_checks", checkCount),
 	)
 
 	return healthChecker
@@ -931,7 +1112,7 @@ func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 // InitializeAuth initializes the authentication store and middleware.
 // Errors are returned without exposing sensitive credential details in messages.
 // This function is only called when cfg.MultiTenancy.Enabled is true.
-func InitializeAuth(cfg *config.Config, logger *zap.Logger) (auth.Store, *auth.Middleware, error) {
+func InitializeAuth(cfg *config.Config, logger *zap.Logger, pgDB *database.DB) (auth.Store, *auth.Middleware, error) {
 	// Get Redis password (reuse the same logic as main storage).
 	passwords, err := getRedisPasswords(cfg, logger)
 	if err != nil {
@@ -998,6 +1179,15 @@ func InitializeAuth(cfg *config.Config, logger *zap.Logger) (auth.Store, *auth.M
 			zap.String("backend", "keycloak"),
 			zap.String("base_url", cfg.Auth.Keycloak.BaseURL),
 			zap.String("realm", cfg.Auth.Keycloak.Realm),
+		)
+
+	case "postgres":
+		if pgDB == nil {
+			return nil, nil, fmt.Errorf("auth backend is postgres but PostgreSQL is not initialized (storage_mode may be redis)")
+		}
+		authStore = auth.NewPostgresStore(pgDB)
+		logger.Info("PostgreSQL auth store initialized",
+			zap.String("backend", "postgres"),
 		)
 
 	default: // "redis"
