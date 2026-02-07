@@ -248,13 +248,13 @@ func setupTenantTestRouter(t *testing.T, store *mockAuthStore) *gin.Engine {
 	logger := zap.NewNop()
 	handler := handlers.NewTenantHandler(store, logger)
 
-	// Register routes.
-	router.GET("/admin/tenants", handler.ListTenants)
-	router.POST("/admin/tenants", handler.CreateTenant)
-	router.GET("/admin/tenants/:tenantId", handler.GetTenant)
-	router.PUT("/admin/tenants/:tenantId", handler.UpdateTenant)
-	router.DELETE("/admin/tenants/:tenantId", handler.DeleteTenant)
-	router.GET("/tenant", handler.GetCurrentTenant)
+	// Register routes matching consolidated admin structure.
+	router.GET("/admin/platform/tenants", handler.ListTenants)
+	router.POST("/admin/platform/tenants", handler.CreateTenant)
+	router.GET("/admin/platform/tenants/:tenantId", handler.GetTenant)
+	router.PUT("/admin/platform/tenants/:tenantId", handler.UpdateTenant)
+	router.DELETE("/admin/platform/tenants/:tenantId", handler.DeleteTenant)
+	router.GET("/admin/tenant", handler.GetCurrentTenant)
 
 	return router
 }
@@ -322,7 +322,7 @@ func TestTenantHandler_ListTenants(t *testing.T) {
 			}
 			router := setupTenantTestRouter(t, store)
 
-			req := httptest.NewRequest(http.MethodGet, "/admin/tenants", nil)
+			req := httptest.NewRequest(http.MethodGet, "/admin/platform/tenants", nil)
 			req.Header.Set("Accept", "application/json")
 			w := httptest.NewRecorder()
 
@@ -425,7 +425,7 @@ func TestTenantHandler_CreateTenant(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/admin/tenants", bytes.NewReader(body))
+			req := httptest.NewRequest(http.MethodPost, "/admin/platform/tenants", bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Accept", "application/json")
 			w := httptest.NewRecorder()
@@ -502,9 +502,9 @@ func TestTenantHandler_GetTenant(t *testing.T) {
 			}
 			router := setupTenantTestRouter(t, store)
 
-			url := "/admin/tenants/" + tt.tenantID
+			url := "/admin/platform/tenants/" + tt.tenantID
 			if tt.tenantID == "" {
-				url = "/admin/tenants/"
+				url = "/admin/platform/tenants/"
 			}
 			req := httptest.NewRequest(http.MethodGet, url, nil)
 			req.Header.Set("Accept", "application/json")
@@ -625,7 +625,7 @@ func TestTenantHandler_UpdateTenant(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			url := "/admin/tenants/" + tt.tenantID
+			url := "/admin/platform/tenants/" + tt.tenantID
 			req := httptest.NewRequest(http.MethodPut, url, bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Accept", "application/json")
@@ -702,7 +702,7 @@ func TestTenantHandler_DeleteTenant(t *testing.T) {
 			}
 			router := setupTenantTestRouter(t, store)
 
-			url := "/admin/tenants/" + tt.tenantID
+			url := "/admin/platform/tenants/" + tt.tenantID
 			req := httptest.NewRequest(http.MethodDelete, url, nil)
 			req.Header.Set("Accept", "application/json")
 			w := httptest.NewRecorder()
@@ -738,7 +738,7 @@ func TestTenantHandler_GetCurrentTenant(t *testing.T) {
 			store := newMockAuthStore()
 			router := setupTenantTestRouter(t, store)
 
-			req := httptest.NewRequest(http.MethodGet, "/tenant", nil)
+			req := httptest.NewRequest(http.MethodGet, "/admin/tenant", nil)
 			req.Header.Set("Accept", "application/json")
 			w := httptest.NewRecorder()
 

@@ -1,32 +1,10 @@
 import { ApiError } from "@/types/api";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "http://localhost:8080/o2ims-infrastructureInventory/v1";
-
 export class ApiClient {
   private baseUrl: string;
-  private getToken: (() => Promise<string | null>) | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
-  }
-
-  setTokenProvider(provider: () => Promise<string | null>) {
-    this.getToken = provider;
-  }
-
-  private async headers(): Promise<HeadersInit> {
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-    if (this.getToken) {
-      const token = await this.getToken();
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-    }
-    return headers;
   }
 
   private async request<T>(
@@ -37,7 +15,7 @@ export class ApiClient {
     const response = await fetch(url, {
       ...options,
       headers: {
-        ...(await this.headers()),
+        "Content-Type": "application/json",
         ...(options.headers || {}),
       },
     });
@@ -89,5 +67,8 @@ export class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient(API_BASE_URL);
+// All API calls go through the server-side proxy to avoid CORS/TLS issues.
+// The proxy at /api/gateway/* forwards requests to the gateway with
+// the access token extracted from the NextAuth session server-side.
+export const apiClient = new ApiClient("/api/gateway/admin");
 export default apiClient;

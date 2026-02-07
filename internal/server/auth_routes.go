@@ -20,6 +20,11 @@ type AuthHandlers struct {
 }
 
 // SetupAuthRoutes configures all authentication and multi-tenancy routes.
+// All admin routes are consolidated under /admin with three sub-groups:
+//   - /admin/platform/* — platform-admin routes (tenant management, platform audit)
+//   - /admin/tenant/*   — tenant-scoped routes (current tenant, users, roles, audit)
+//   - /admin/infrastructure/* — backend admin routes (registered via SetupBackendAdmin)
+//
 // These routes are only enabled when multi-tenancy is configured.
 func (s *Server) SetupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) {
 	// Store the full auth store for tenant lookups in wrapWithTenantContext.
@@ -34,14 +39,17 @@ func (s *Server) SetupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) 
 	roleHandler := handlers.NewRoleHandler(authStore, s.logger)
 	auditHandler := handlers.NewAuditHandler(authStore, s.logger)
 
-	// Platform Admin Routes (/admin/*)
-	// These require platform-admin role.
+	// All admin routes live under /admin.
 	admin := s.router.Group("/admin")
-	admin.Use(authMw.AuthenticationMiddleware())
-	admin.Use(authMw.RequirePlatformAdmin())
+
+	// --- Platform Admin Routes (/admin/platform/*) ---
+	// These require platform-admin role.
+	platform := admin.Group("/platform")
+	platform.Use(authMw.AuthenticationMiddleware())
+	platform.Use(authMw.RequirePlatformAdmin())
 	{
 		// Tenant Management.
-		tenants := admin.Group("/tenants")
+		tenants := platform.Group("/tenants")
 		{
 			tenants.GET("", tenantHandler.ListTenants)
 			tenants.POST("", tenantHandler.CreateTenant)
@@ -55,16 +63,19 @@ func (s *Server) SetupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) 
 		}
 
 		// Platform-level audit logs.
-		admin.GET("/audit/events", auditHandler.ListAuditEvents)
+		platform.GET("/audit/events", auditHandler.ListAuditEvents)
 	}
 
-	// Tenant Routes (/tenant/*)
+	// --- Tenant Routes (/admin/tenant/*) ---
 	// These require tenant-level authentication.
-	tenant := s.router.Group("/tenant")
+	tenant := admin.Group("/tenant")
 	tenant.Use(authMw.AuthenticationMiddleware())
 	{
 		// Current tenant info.
 		tenant.GET("", tenantHandler.GetCurrentTenant)
+
+		// Current user info.
+		tenant.GET("/me", userHandler.GetCurrentUser)
 
 		// User management within tenant.
 		users := tenant.Group("/users")
@@ -77,6 +88,17 @@ func (s *Server) SetupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) 
 			users.DELETE("/:userId", authMw.RequirePermission(string(auth.PermissionUserDelete)), userHandler.DeleteUser)
 		}
 
+		// Role routes (read-only for authenticated users).
+		roles := tenant.Group("/roles")
+		roles.Use(authMw.RequirePermission(string(auth.PermissionRoleRead)))
+		{
+			roles.GET("", roleHandler.ListRoles)
+			roles.GET("/:roleId", roleHandler.GetRole)
+		}
+
+		// Permissions endpoint.
+		tenant.GET("/permissions", roleHandler.ListPermissions)
+
 		// Tenant-level audit logs.
 		audit := tenant.Group("/audit")
 		audit.Use(authMw.RequirePermission(string(auth.PermissionAuditRead)))
@@ -86,27 +108,6 @@ func (s *Server) SetupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) 
 			audit.GET("/events/user/:userId", auditHandler.ListAuditEventsByUser)
 		}
 	}
-
-	// Current User Routes (/user/*)
-	// These require any authenticated user.
-	user := s.router.Group("/user")
-	user.Use(authMw.AuthenticationMiddleware())
-	{
-		user.GET("", userHandler.GetCurrentUser)
-	}
-
-	// Role Routes (/roles/*)
-	// Read-only access to roles for all authenticated users.
-	roles := s.router.Group("/roles")
-	roles.Use(authMw.AuthenticationMiddleware())
-	roles.Use(authMw.RequirePermission(string(auth.PermissionRoleRead)))
-	{
-		roles.GET("", roleHandler.ListRoles)
-		roles.GET("/:roleId", roleHandler.GetRole)
-	}
-
-	// Permissions endpoint.
-	s.router.GET("/permissions", authMw.AuthenticationMiddleware(), roleHandler.ListPermissions)
 }
 
 // wrapWithTenantContext wraps a handler to inject tenant context from path parameter.

@@ -205,7 +205,6 @@ adminPortal:
     additionalWebOrigins: []
 
   authUrl: ""  # External URL for next-auth
-  apiBaseUrl: ""  # Gateway API base URL
 
   auth:
     clientId: admin-portal

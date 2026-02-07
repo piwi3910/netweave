@@ -14,7 +14,7 @@ export async function listAuditEvents(
   if (params?.limit) queryParams.limit = String(params.limit);
   if (params?.offset) queryParams.offset = String(params.offset);
   if (params?.tenantId) queryParams.tenantId = params.tenantId;
-  return apiClient.get<AuditEvent[]>("/audit/events", queryParams);
+  return apiClient.get<AuditEvent[]>("/platform/audit/events", queryParams);
 }
 
 export async function listAuditEventsByType(
@@ -24,7 +24,7 @@ export async function listAuditEventsByType(
   const params: Record<string, string> = {};
   if (limit) params.limit = String(limit);
   return apiClient.get<AuditEvent[]>(
-    `/audit/events/type/${eventType}`,
+    `/platform/audit/events/type/${eventType}`,
     params
   );
 }
