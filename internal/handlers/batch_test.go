@@ -29,11 +29,20 @@ const testAdapterVersion = "1.0.0"
 type mockBatchAdapter struct {
 	mu               sync.Mutex
 	resourcePools    []*adapter.ResourcePool
+	resources        []*adapter.Resource
 	createPoolErr    error
 	getPoolErr       error
 	deletePoolErr    error
 	createPoolCount  int
 	failOnCreatePool int // Fail on nth create (0 = never fail)
+
+	// Resource operation fields
+	createResourceErr    error
+	getResourceErr       error
+	updateResourceErr    error
+	deleteResourceErr    error
+	createResourceCount  int
+	failOnCreateResource int // Fail on nth create (0 = never fail)
 }
 
 func (m *mockBatchAdapter) ListResourcePools(
@@ -111,23 +120,67 @@ func (m *mockBatchAdapter) GetDeploymentManager(_ context.Context, _ string) (*a
 }
 
 func (m *mockBatchAdapter) ListResources(_ context.Context, _ *adapter.Filter) ([]*adapter.Resource, error) {
-	return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.resources, nil
 }
 
-func (m *mockBatchAdapter) GetResource(_ context.Context, _ string) (*adapter.Resource, error) {
-	return nil, errors.New("not implemented")
+func (m *mockBatchAdapter) GetResource(_ context.Context, id string) (*adapter.Resource, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.getResourceErr != nil {
+		return nil, m.getResourceErr
+	}
+	for _, r := range m.resources {
+		if r.ResourceID == id {
+			return r, nil
+		}
+	}
+	return nil, errors.New("resource not found")
 }
 
-func (m *mockBatchAdapter) CreateResource(_ context.Context, _ *adapter.Resource) (*adapter.Resource, error) {
-	return nil, errors.New("not implemented")
+func (m *mockBatchAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.createResourceCount++
+	if m.failOnCreateResource > 0 && m.createResourceCount == m.failOnCreateResource {
+		return nil, errors.New("simulated create resource failure")
+	}
+	if m.createResourceErr != nil {
+		return nil, m.createResourceErr
+	}
+	m.resources = append(m.resources, resource)
+	return resource, nil
 }
 
-func (m *mockBatchAdapter) UpdateResource(_ context.Context, _ string, _ *adapter.Resource) (*adapter.Resource, error) {
-	return nil, errors.New("not implemented")
+func (m *mockBatchAdapter) UpdateResource(_ context.Context, id string, resource *adapter.Resource) (*adapter.Resource, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.updateResourceErr != nil {
+		return nil, m.updateResourceErr
+	}
+	for i, r := range m.resources {
+		if r.ResourceID == id {
+			m.resources[i] = resource
+			return resource, nil
+		}
+	}
+	return nil, errors.New("resource not found")
 }
 
-func (m *mockBatchAdapter) DeleteResource(_ context.Context, _ string) error {
-	return errors.New("not implemented")
+func (m *mockBatchAdapter) DeleteResource(_ context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.deleteResourceErr != nil {
+		return m.deleteResourceErr
+	}
+	for i, r := range m.resources {
+		if r.ResourceID == id {
+			m.resources = append(m.resources[:i], m.resources[i+1:]...)
+			return nil
+		}
+	}
+	return errors.New("resource not found")
 }
 
 func (m *mockBatchAdapter) ListResourceTypes(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourceType, error) {
@@ -191,6 +244,7 @@ type mockBatchStore struct {
 	createErr     error
 	getErr        error
 	deleteErr     error
+	updateErr     error
 }
 
 func (m *mockBatchStore) Create(_ context.Context, sub *storage.Subscription) error {
@@ -218,6 +272,9 @@ func (m *mockBatchStore) Get(_ context.Context, id string) (*storage.Subscriptio
 }
 
 func (m *mockBatchStore) Update(_ context.Context, _ *storage.Subscription) error {
+	if m.updateErr != nil {
+		return m.updateErr
+	}
 	return nil
 }
 
@@ -1275,4 +1332,639 @@ func TestBatchUpdateResourcePools_AtomicFailure(t *testing.T) {
 
 	// Verify no resource pools were updated (atomic rollback)
 	assert.Equal(t, "test-pool", adapter.resourcePools[0].Name)
+}
+
+// --- Batch Resource Tests (BatchCreateResources, BatchDeleteResources, BatchUpdateResources) ---
+
+func TestBatchCreateResources_Success(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchResourceCreate{
+		Resources: []models.Resource{
+			{
+				ResourceID:     "res-1",
+				ResourceTypeID: "type-1",
+				ResourcePoolID: "pool-1",
+				Description:    "Resource 1",
+			},
+			{
+				ResourceID:     "res-2",
+				ResourceTypeID: "type-1",
+				ResourcePoolID: "pool-1",
+				Description:    "Resource 2",
+			},
+		},
+		Atomic: false,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchCreateResources(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response handlers.BatchResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.True(t, response.Success)
+	assert.Equal(t, 2, response.SuccessCount)
+	assert.Equal(t, 0, response.FailureCount)
+	assert.Len(t, response.Results, 2)
+}
+
+func TestBatchCreateResources_PartialFailure(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{
+		failOnCreateResource: 2, // Fail on 2nd create
+	}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchResourceCreate{
+		Resources: []models.Resource{
+			{ResourceID: "res-1", ResourceTypeID: "type-1", ResourcePoolID: "pool-1"},
+			{ResourceID: "res-2", ResourceTypeID: "type-1", ResourcePoolID: "pool-1"},
+			{ResourceID: "res-3", ResourceTypeID: "type-1", ResourcePoolID: "pool-1"},
+		},
+		Atomic: false,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchCreateResources(c)
+
+	assert.Equal(t, http.StatusMultiStatus, w.Code)
+
+	var response handlers.BatchResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.False(t, response.Success)
+	assert.Equal(t, 2, response.SuccessCount)
+	assert.Equal(t, 1, response.FailureCount)
+}
+
+func TestBatchCreateResources_AtomicRollback(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{
+		failOnCreateResource: 2, // Fail on 2nd create
+	}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchResourceCreate{
+		Resources: []models.Resource{
+			{ResourceID: "res-1", ResourceTypeID: "type-1", ResourcePoolID: "pool-1"},
+			{ResourceID: "res-2", ResourceTypeID: "type-1", ResourcePoolID: "pool-1"},
+		},
+		Atomic: true,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchCreateResources(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response handlers.BatchResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.False(t, response.Success)
+	assert.Equal(t, 0, response.SuccessCount)
+	assert.Equal(t, 2, response.FailureCount)
+}
+
+func TestBatchCreateResources_InvalidJSON(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources", bytes.NewReader([]byte("invalid json")))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchCreateResources(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestBatchDeleteResources_Success(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{
+		resources: []*adapter.Resource{
+			{ResourceID: "res-1", ResourceTypeID: "type-1", ResourcePoolID: "pool-1"},
+			{ResourceID: "res-2", ResourceTypeID: "type-1", ResourcePoolID: "pool-1"},
+		},
+	}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchResourceDelete{
+		ResourceIDs: []string{"res-1", "res-2"},
+		Atomic:      false,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources/delete", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchDeleteResources(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response handlers.BatchResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.True(t, response.Success)
+	assert.Equal(t, 2, response.SuccessCount)
+	assert.Equal(t, 0, response.FailureCount)
+	assert.Empty(t, adp.resources)
+}
+
+func TestBatchDeleteResources_NotFound(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchResourceDelete{
+		ResourceIDs: []string{"non-existent"},
+		Atomic:      false,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources/delete", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchDeleteResources(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response handlers.BatchResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.False(t, response.Success)
+	assert.Equal(t, 0, response.SuccessCount)
+	assert.Equal(t, 1, response.FailureCount)
+}
+
+func TestBatchDeleteResources_AtomicFailure(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{
+		resources: []*adapter.Resource{
+			{ResourceID: "res-1", ResourceTypeID: "type-1", ResourcePoolID: "pool-1"},
+		},
+	}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchResourceDelete{
+		ResourceIDs: []string{"res-1", "non-existent"},
+		Atomic:      true,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources/delete", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchDeleteResources(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response handlers.BatchResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.False(t, response.Success)
+	// Atomic pre-validation failed, no deletes happened
+	assert.Len(t, adp.resources, 1)
+}
+
+func TestBatchUpdateResources_Success(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{
+		resources: []*adapter.Resource{
+			{ResourceID: "res-1", ResourceTypeID: "type-1", ResourcePoolID: "pool-1", Description: "old-desc-1"},
+			{ResourceID: "res-2", ResourceTypeID: "type-1", ResourcePoolID: "pool-1", Description: "old-desc-2"},
+		},
+	}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchResourceUpdate{
+		Updates: []handlers.ResourceUpdateItem{
+			{
+				ResourceID: "res-1",
+				Update:     models.Resource{Description: "new-desc-1"},
+			},
+			{
+				ResourceID: "res-2",
+				Update:     models.Resource{Description: "new-desc-2"},
+			},
+		},
+		Atomic: false,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources/update", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchUpdateResources(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response handlers.BatchResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.True(t, response.Success)
+	assert.Equal(t, 2, response.SuccessCount)
+	assert.Equal(t, 0, response.FailureCount)
+}
+
+func TestBatchUpdateResources_NotFound(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{
+		resources: []*adapter.Resource{
+			{ResourceID: "res-1", ResourceTypeID: "type-1", ResourcePoolID: "pool-1"},
+		},
+	}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchResourceUpdate{
+		Updates: []handlers.ResourceUpdateItem{
+			{
+				ResourceID: "non-existent",
+				Update:     models.Resource{Description: "new-desc"},
+			},
+		},
+		Atomic: false,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources/update", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchUpdateResources(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response handlers.BatchResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.False(t, response.Success)
+	assert.Equal(t, 0, response.SuccessCount)
+	assert.Equal(t, 1, response.FailureCount)
+}
+
+func TestBatchUpdateResources_AtomicPrevalidation(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{
+		resources: []*adapter.Resource{
+			{ResourceID: "res-1", ResourceTypeID: "type-1", ResourcePoolID: "pool-1", Description: "old"},
+		},
+	}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchResourceUpdate{
+		Updates: []handlers.ResourceUpdateItem{
+			{
+				ResourceID: "res-1",
+				Update:     models.Resource{Description: "new"},
+			},
+			{
+				ResourceID: "non-existent",
+				Update:     models.Resource{Description: "new"},
+			},
+		},
+		Atomic: true,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources/update", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchUpdateResources(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	// Verify no resources were updated
+	assert.Equal(t, "old", adp.resources[0].Description)
+}
+
+func TestBatchUpdateResources_UpdateError(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{
+		resources: []*adapter.Resource{
+			{ResourceID: "res-1", ResourceTypeID: "type-1", ResourcePoolID: "pool-1"},
+		},
+		updateResourceErr: errors.New("update failed"),
+	}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchResourceUpdate{
+		Updates: []handlers.ResourceUpdateItem{
+			{
+				ResourceID: "res-1",
+				Update:     models.Resource{Description: "new-desc"},
+			},
+		},
+		Atomic: false,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources/update", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchUpdateResources(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response handlers.BatchResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.False(t, response.Success)
+	assert.Equal(t, 1, response.FailureCount)
+}
+
+func TestBatchUpdateResources_WithGlobalAssetAndExtensions(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{
+		resources: []*adapter.Resource{
+			{ResourceID: "res-1", ResourceTypeID: "type-1", ResourcePoolID: "pool-1",
+				Description: "old", GlobalAssetID: "old-asset"},
+		},
+	}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchResourceUpdate{
+		Updates: []handlers.ResourceUpdateItem{
+			{
+				ResourceID: "res-1",
+				Update: models.Resource{
+					Description:   "new-desc",
+					GlobalAssetID: "new-asset",
+					Extensions:    map[string]interface{}{"key": "val"},
+				},
+			},
+		},
+		Atomic: false,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources/update", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchUpdateResources(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response handlers.BatchResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.True(t, response.Success)
+	assert.Equal(t, 1, response.SuccessCount)
+}
+
+// TestBatchSubscriptionUpdate_StoreFails tests makeSubscriptionUpdateFailedResult.
+func TestBatchSubscriptionUpdate_StoreFails(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{}
+	store := &mockBatchStore{
+		subscriptions: []*storage.Subscription{
+			{
+				ID:       "sub-1",
+				Callback: "https://example.com/old",
+			},
+		},
+		updateErr: errors.New("storage write failed"),
+	}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchSubscriptionUpdate{
+		Updates: []handlers.SubscriptionUpdateItem{
+			{
+				SubscriptionID: "sub-1",
+				Update: models.Subscription{
+					Callback: "https://example.com/new",
+				},
+			},
+		},
+		Atomic: false,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/subscriptions/update", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchUpdateSubscriptions(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response handlers.BatchResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.False(t, response.Success)
+	assert.Equal(t, 0, response.SuccessCount)
+	assert.Equal(t, 1, response.FailureCount)
+	assert.Equal(t, http.StatusInternalServerError, response.Results[0].Status)
+}
+
+func TestBatchCreateResources_AllFail(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{
+		createResourceErr: errors.New("create failed"),
+	}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchResourceCreate{
+		Resources: []models.Resource{
+			{ResourceID: "res-1", ResourceTypeID: "type-1", ResourcePoolID: "pool-1"},
+		},
+		Atomic: false,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchCreateResources(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response handlers.BatchResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.False(t, response.Success)
+	assert.Equal(t, 0, response.SuccessCount)
+	assert.Equal(t, 1, response.FailureCount)
+}
+
+func TestBatchDeleteResources_InvalidJSON(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources/delete", bytes.NewReader([]byte("bad json")))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchDeleteResources(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestBatchUpdateResources_InvalidJSON(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources/update", bytes.NewReader([]byte("bad json")))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchUpdateResources(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestBatchCreateResources_AtomicRollbackWithDeleteFailure tests rollbackResources with partial failure.
+func TestBatchCreateResources_AtomicRollbackWithDeleteFailure(t *testing.T) {
+	setupTestMetrics()
+	gin.SetMode(gin.TestMode)
+
+	adp := &mockBatchAdapter{
+		failOnCreateResource: 2,
+		deleteResourceErr:    errors.New("delete failed"), // Rollback will fail
+	}
+	store := &mockBatchStore{}
+	logger := zap.NewNop()
+	handler := handlers.NewBatchHandler(adp, store, logger, nil)
+
+	req := handlers.BatchResourceCreate{
+		Resources: []models.Resource{
+			{ResourceID: "res-1", ResourceTypeID: "type-1", ResourcePoolID: "pool-1"},
+			{ResourceID: "res-2", ResourceTypeID: "type-1", ResourcePoolID: "pool-1"},
+		},
+		Atomic: true,
+	}
+
+	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/batch/resources", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.BatchCreateResources(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response handlers.BatchResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.False(t, response.Success)
 }
