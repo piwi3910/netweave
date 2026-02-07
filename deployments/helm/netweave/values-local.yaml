@@ -63,7 +63,8 @@ gateway:
     oauth2:
       enabled: true
       autoProvisionUsers: true
-      defaultRole: platform-admin
+      # Use tenant-admin for local dev; grant platform-admin explicitly per user
+      defaultRole: tenant-admin
     # TLS enabled with mTLS client cert verification
     tls:
       enabled: true

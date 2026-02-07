@@ -5,13 +5,20 @@ import { sanitizeError } from "@/lib/utils/sanitize-error";
 const GATEWAY_URL =
   process.env.GATEWAY_INTERNAL_URL || "https://localhost:8080";
 
-const PROXY_TIMEOUT_MS = 30_000;
+const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT_MS) || 30_000;
 
 const ALLOWED_CONTENT_TYPES = [
   "application/json",
   "application/x-www-form-urlencoded",
   "text/plain",
 ];
+
+let gatewayOrigin: string;
+try {
+  gatewayOrigin = new URL(GATEWAY_URL).origin;
+} catch {
+  throw new Error(`Invalid GATEWAY_INTERNAL_URL: ${GATEWAY_URL}`);
+}
 
 function isValidPathSegment(segment: string): boolean {
   return segment !== ".." && segment !== "." && !/[\x00]/.test(segment);
@@ -20,18 +27,35 @@ function isValidPathSegment(segment: string): boolean {
 function errorResponse(
   error: string,
   message: string,
-  code: number
+  code: number,
 ): NextResponse {
   return NextResponse.json({ error, message, code }, { status: code });
 }
 
+function buildTargetUrl(targetPath: string, search: string): string | null {
+  const raw = `${GATEWAY_URL}${targetPath}${search}`;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.origin !== gatewayOrigin) {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 async function proxyRequest(
   req: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  { params }: { params: Promise<{ path: string[] }> },
 ): Promise<NextResponse> {
   const session = await auth();
   if (!session) {
     return errorResponse("Unauthorized", "Not authenticated", 401);
+  }
+
+  if (session.error === "RefreshTokenError") {
+    return errorResponse("Unauthorized", "Session expired", 401);
   }
 
   const { accessToken } = session;
@@ -47,7 +71,12 @@ async function proxyRequest(
 
   const targetPath = "/" + path.join("/");
   const search = req.nextUrl.search;
-  const targetUrl = `${GATEWAY_URL}${targetPath}${search}`;
+  const targetUrl = buildTargetUrl(targetPath, search);
+
+  if (!targetUrl) {
+    console.error("[proxy] Invalid target URL", req.method, targetPath);
+    return errorResponse("BadRequest", "Invalid request URL", 400);
+  }
 
   const headers: HeadersInit = {
     Authorization: `Bearer ${accessToken}`,
@@ -76,12 +105,12 @@ async function proxyRequest(
     response = await fetch(targetUrl, fetchOptions);
   } catch (err) {
     if (err instanceof DOMException && err.name === "TimeoutError") {
-      console.error(
-        "[proxy] Gateway timeout",
-        req.method,
-        targetPath,
+      console.error("[proxy] Gateway timeout", req.method, targetPath);
+      return errorResponse(
+        "GatewayTimeout",
+        "Gateway request timed out",
+        504,
       );
-      return errorResponse("GatewayTimeout", "Gateway request timed out", 504);
     }
     console.error(
       "[proxy] Gateway connection error",
@@ -117,6 +146,15 @@ async function proxyRequest(
     });
   }
 
+  // Log all error responses for debugging and correlation
+  console.error(
+    "[proxy]",
+    response.status,
+    req.method,
+    targetPath,
+    response.headers.get("x-request-id") ?? "-",
+  );
+
   // For error responses, sanitize the body before forwarding to prevent
   // leaking internal details (token fragments, stack traces, file paths).
   let sanitizedBody: string;
@@ -125,7 +163,6 @@ async function proxyRequest(
     if (typeof parsed.message === "string") {
       parsed.message = sanitizeError(parsed.message);
     }
-    // Strip any fields that aren't part of the standard error shape
     sanitizedBody = JSON.stringify({
       error: parsed.error || "Error",
       message: parsed.message || response.statusText,
@@ -140,8 +177,6 @@ async function proxyRequest(
     });
     responseHeaders.set("content-type", "application/json");
   }
-
-  console.error("[proxy]", response.status, req.method, targetPath);
 
   return new NextResponse(sanitizedBody, {
     status: response.status,
