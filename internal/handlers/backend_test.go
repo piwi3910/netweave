@@ -232,8 +232,8 @@ func setupBackendTestRouter(
 	backend.RegisterBuiltinSchemas(registry)
 
 	handler := handlers.NewBackendHandler(store, enc, registry, logger)
-	admin := router.Group("/admin")
-	handler.RegisterRoutes(admin)
+	infra := router.Group("/admin/infrastructure")
+	handler.RegisterRoutes(infra)
 
 	return router
 }
@@ -290,7 +290,7 @@ func TestBackendHandler_ListBackends(t *testing.T) {
 			router := setupBackendTestRouter(t, store, &mockEncryptor{})
 
 			w := httptest.NewRecorder()
-			req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/admin/backends"+tt.query, nil)
+			req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/admin/infrastructure/backends"+tt.query, nil)
 			router.ServeHTTP(w, req)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
@@ -385,7 +385,7 @@ func TestBackendHandler_CreateBackend(t *testing.T) {
 			req, _ := http.NewRequestWithContext(
 				context.Background(),
 				http.MethodPost,
-				"/admin/backends",
+				"/admin/infrastructure/backends",
 				bytes.NewReader(bodyBytes),
 			)
 			req.Header.Set("Content-Type", "application/json")
@@ -439,7 +439,7 @@ func TestBackendHandler_GetBackend(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			req, _ := http.NewRequestWithContext(
-				context.Background(), http.MethodGet, "/admin/backends/"+tt.id, nil,
+				context.Background(), http.MethodGet, "/admin/infrastructure/backends/"+tt.id, nil,
 			)
 			router.ServeHTTP(w, req)
 
@@ -500,7 +500,7 @@ func TestBackendHandler_UpdateBackend(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			req, _ := http.NewRequestWithContext(
-				context.Background(), http.MethodPut, "/admin/backends/"+tt.id, bytes.NewReader(bodyBytes),
+				context.Background(), http.MethodPut, "/admin/infrastructure/backends/"+tt.id, bytes.NewReader(bodyBytes),
 			)
 			req.Header.Set("Content-Type", "application/json")
 			router.ServeHTTP(w, req)
@@ -541,7 +541,7 @@ func TestBackendHandler_DeleteBackend(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			req, _ := http.NewRequestWithContext(
-				context.Background(), http.MethodDelete, "/admin/backends/"+tt.id, nil,
+				context.Background(), http.MethodDelete, "/admin/infrastructure/backends/"+tt.id, nil,
 			)
 			router.ServeHTTP(w, req)
 
@@ -557,7 +557,7 @@ func TestBackendHandler_TestBackend(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequestWithContext(
-		context.Background(), http.MethodPost, "/admin/backends/b1/test", nil,
+		context.Background(), http.MethodPost, "/admin/infrastructure/backends/b1/test", nil,
 	)
 	router.ServeHTTP(w, req)
 
@@ -583,7 +583,7 @@ func TestBackendHandler_DMSLinks(t *testing.T) {
 		body, _ := json.Marshal(handlers.CreateDMSLinkRequest{DMSID: "dms1"})
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodPost, "/admin/backends/ims1/dms-links", bytes.NewReader(body),
+			context.Background(), http.MethodPost, "/admin/infrastructure/backends/ims1/dms-links", bytes.NewReader(body),
 		)
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
@@ -593,7 +593,7 @@ func TestBackendHandler_DMSLinks(t *testing.T) {
 	t.Run("list links", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodGet, "/admin/backends/ims1/dms-links", nil,
+			context.Background(), http.MethodGet, "/admin/infrastructure/backends/ims1/dms-links", nil,
 		)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -608,7 +608,7 @@ func TestBackendHandler_DMSLinks(t *testing.T) {
 		body, _ := json.Marshal(handlers.CreateDMSLinkRequest{DMSID: "dms1"})
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodPost, "/admin/backends/ims1/dms-links", bytes.NewReader(body),
+			context.Background(), http.MethodPost, "/admin/infrastructure/backends/ims1/dms-links", bytes.NewReader(body),
 		)
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
@@ -618,7 +618,7 @@ func TestBackendHandler_DMSLinks(t *testing.T) {
 	t.Run("delete link", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodDelete, "/admin/backends/ims1/dms-links/dms1", nil,
+			context.Background(), http.MethodDelete, "/admin/infrastructure/backends/ims1/dms-links/dms1", nil,
 		)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNoContent, w.Code)
@@ -627,7 +627,7 @@ func TestBackendHandler_DMSLinks(t *testing.T) {
 	t.Run("delete non-existent link", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodDelete, "/admin/backends/ims1/dms-links/missing", nil,
+			context.Background(), http.MethodDelete, "/admin/infrastructure/backends/ims1/dms-links/missing", nil,
 		)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -649,7 +649,7 @@ func TestBackendHandler_BackendAccess(t *testing.T) {
 		})
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodPost, "/admin/tenants/t1/backend-access", bytes.NewReader(body),
+			context.Background(), http.MethodPost, "/admin/infrastructure/tenants/t1/backend-access", bytes.NewReader(body),
 		)
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
@@ -666,7 +666,7 @@ func TestBackendHandler_BackendAccess(t *testing.T) {
 	t.Run("list access", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodGet, "/admin/tenants/t1/backend-access", nil,
+			context.Background(), http.MethodGet, "/admin/infrastructure/tenants/t1/backend-access", nil,
 		)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -684,7 +684,7 @@ func TestBackendHandler_BackendAccess(t *testing.T) {
 		})
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodPost, "/admin/tenants/t1/backend-access", bytes.NewReader(body),
+			context.Background(), http.MethodPost, "/admin/infrastructure/tenants/t1/backend-access", bytes.NewReader(body),
 		)
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
@@ -697,7 +697,7 @@ func TestBackendHandler_BackendAccess(t *testing.T) {
 		})
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodPut, "/admin/tenants/t1/backend-access/"+accessID, bytes.NewReader(body),
+			context.Background(), http.MethodPut, "/admin/infrastructure/tenants/t1/backend-access/"+accessID, bytes.NewReader(body),
 		)
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
@@ -707,7 +707,7 @@ func TestBackendHandler_BackendAccess(t *testing.T) {
 	t.Run("delete access", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodDelete, "/admin/tenants/t1/backend-access/"+accessID, nil,
+			context.Background(), http.MethodDelete, "/admin/infrastructure/tenants/t1/backend-access/"+accessID, nil,
 		)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNoContent, w.Code)
@@ -716,7 +716,7 @@ func TestBackendHandler_BackendAccess(t *testing.T) {
 	t.Run("delete non-existent access", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodDelete, "/admin/tenants/t1/backend-access/missing", nil,
+			context.Background(), http.MethodDelete, "/admin/infrastructure/tenants/t1/backend-access/missing", nil,
 		)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -730,7 +730,7 @@ func TestBackendHandler_BackendTypes(t *testing.T) {
 	t.Run("list all types", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodGet, "/admin/backend-types", nil,
+			context.Background(), http.MethodGet, "/admin/infrastructure/backend-types", nil,
 		)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -746,7 +746,7 @@ func TestBackendHandler_BackendTypes(t *testing.T) {
 	t.Run("filter by category", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodGet, "/admin/backend-types?category=dms", nil,
+			context.Background(), http.MethodGet, "/admin/infrastructure/backend-types?category=dms", nil,
 		)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -755,7 +755,7 @@ func TestBackendHandler_BackendTypes(t *testing.T) {
 	t.Run("get specific schema", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodGet, "/admin/backend-types/kubernetes/schema", nil,
+			context.Background(), http.MethodGet, "/admin/infrastructure/backend-types/kubernetes/schema", nil,
 		)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -770,7 +770,7 @@ func TestBackendHandler_BackendTypes(t *testing.T) {
 	t.Run("schema not found", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequestWithContext(
-			context.Background(), http.MethodGet, "/admin/backend-types/unknown/schema", nil,
+			context.Background(), http.MethodGet, "/admin/infrastructure/backend-types/unknown/schema", nil,
 		)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)

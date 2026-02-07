@@ -51,8 +51,8 @@ spec:
                   key: auth-secret
             - name: AUTH_URL
               value: {{ .Values.adminPortal.authUrl | quote }}
-            - name: NEXT_PUBLIC_API_BASE_URL
-              value: {{ .Values.adminPortal.apiBaseUrl | quote }}
+            - name: GATEWAY_INTERNAL_URL
+              value: "https://{{ include "netweave.fullname" . }}:{{ .Values.gateway.service.port | default 8080 }}"
             {{- if .Values.adminPortal.trustCA }}
             - name: NODE_EXTRA_CA_CERTS
               value: /etc/netweave/tls/ca.crt

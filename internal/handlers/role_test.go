@@ -42,10 +42,10 @@ func setupRoleTestRouter(t *testing.T, store *mockAuthStore) *gin.Engine {
 		c.Next()
 	})
 
-	// Register routes.
-	router.GET("/roles", handler.ListRoles)
-	router.GET("/roles/:roleId", handler.GetRole)
-	router.GET("/permissions", handler.ListPermissions)
+	// Register routes matching consolidated admin structure.
+	router.GET("/admin/tenant/roles", handler.ListRoles)
+	router.GET("/admin/tenant/roles/:roleId", handler.GetRole)
+	router.GET("/admin/tenant/permissions", handler.ListPermissions)
 
 	return router
 }
@@ -141,7 +141,7 @@ func TestRoleHandler_ListRoles(t *testing.T) {
 			}
 			router := setupRoleTestRouter(t, store)
 
-			req := httptest.NewRequest(http.MethodGet, "/roles", nil)
+			req := httptest.NewRequest(http.MethodGet, "/admin/tenant/roles", nil)
 			req.Header.Set("Accept", "application/json")
 			req.Header.Set("X-Tenant-ID", tt.tenantID)
 			if tt.isPlatformAdmin {
@@ -298,9 +298,9 @@ func TestRoleHandler_GetRole(t *testing.T) {
 			// Construct URL
 			var url string
 			if tt.roleID == "" {
-				url = "/roles/"
+				url = "/admin/tenant/roles/"
 			} else {
-				url = "/roles/" + tt.roleID
+				url = "/admin/tenant/roles/" + tt.roleID
 			}
 
 			// Setup request with headers
@@ -327,7 +327,7 @@ func TestRoleHandler_ListPermissions(t *testing.T) {
 	store := newMockAuthStore()
 	router := setupRoleTestRouter(t, store)
 
-	req := httptest.NewRequest(http.MethodGet, "/permissions", nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin/tenant/permissions", nil)
 	req.Header.Set("Accept", "application/json")
 	w := httptest.NewRecorder()
 

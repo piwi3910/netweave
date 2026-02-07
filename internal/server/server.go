@@ -709,9 +709,10 @@ func (s *Server) DMSRegistry() *dmsregistry.Registry {
 
 // SetupBackendAdmin registers the backend admin API routes on the server.
 // The handler manages backend instances, DMS links, and tenant access configuration.
+// Routes are registered under /admin/infrastructure to consolidate all admin endpoints.
 func (s *Server) SetupBackendAdmin(handler *handlers.BackendHandler) {
-	admin := s.router.Group("/api/v1/admin")
-	handler.RegisterRoutes(admin)
+	infra := s.router.Group("/admin/infrastructure")
+	handler.RegisterRoutes(infra)
 	s.logger.Info("backend admin API routes registered")
 }
 

@@ -49,13 +49,13 @@ func setupUserTestRouter(t *testing.T, store *mockAuthStore) *gin.Engine {
 		c.Next()
 	})
 
-	// Register routes.
-	router.GET("/tenant/users", handler.ListUsers)
-	router.POST("/tenant/users", handler.CreateUser)
-	router.GET("/tenant/users/:userId", handler.GetUser)
-	router.PUT("/tenant/users/:userId", handler.UpdateUser)
-	router.DELETE("/tenant/users/:userId", handler.DeleteUser)
-	router.GET("/user", handler.GetCurrentUser)
+	// Register routes matching consolidated admin structure.
+	router.GET("/admin/tenant/users", handler.ListUsers)
+	router.POST("/admin/tenant/users", handler.CreateUser)
+	router.GET("/admin/tenant/users/:userId", handler.GetUser)
+	router.PUT("/admin/tenant/users/:userId", handler.UpdateUser)
+	router.DELETE("/admin/tenant/users/:userId", handler.DeleteUser)
+	router.GET("/admin/tenant/me", handler.GetCurrentUser)
 
 	return router
 }
@@ -139,7 +139,7 @@ func TestUserHandler_ListUsers(t *testing.T) {
 			}
 			router := setupUserTestRouter(t, store)
 
-			req := httptest.NewRequest(http.MethodGet, "/tenant/users", nil)
+			req := httptest.NewRequest(http.MethodGet, "/admin/tenant/users", nil)
 			req.Header.Set("Accept", "application/json")
 			if tt.tenantID != "" {
 				req.Header.Set("X-Tenant-ID", tt.tenantID)
@@ -324,7 +324,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/tenant/users", bytes.NewReader(body))
+			req := httptest.NewRequest(http.MethodPost, "/admin/tenant/users", bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Accept", "application/json")
 			if tt.tenantID != "" {
@@ -434,7 +434,7 @@ func TestUserHandler_GetUser(t *testing.T) {
 			}
 			router := setupUserTestRouter(t, store)
 
-			url := "/tenant/users/" + tt.userID
+			url := "/admin/tenant/users/" + tt.userID
 			req := httptest.NewRequest(http.MethodGet, url, nil)
 			req.Header.Set("Accept", "application/json")
 			if tt.tenantID != "" {
@@ -558,7 +558,7 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			url := "/tenant/users/" + tt.userID
+			url := "/admin/tenant/users/" + tt.userID
 			req := httptest.NewRequest(http.MethodPut, url, bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Accept", "application/json")
@@ -646,7 +646,7 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 			}
 			router := setupUserTestRouter(t, store)
 
-			url := "/tenant/users/" + tt.userID
+			url := "/admin/tenant/users/" + tt.userID
 			req := httptest.NewRequest(http.MethodDelete, url, nil)
 			req.Header.Set("Accept", "application/json")
 			if tt.tenantID != "" {
@@ -699,7 +699,7 @@ func TestUserHandler_GetCurrentUser(t *testing.T) {
 			}
 			router := setupUserTestRouter(t, store)
 
-			req := httptest.NewRequest(http.MethodGet, "/user", nil)
+			req := httptest.NewRequest(http.MethodGet, "/admin/tenant/me", nil)
 			req.Header.Set("Accept", "application/json")
 			if tt.tenantID != "" {
 				req.Header.Set("X-Tenant-ID", tt.tenantID)

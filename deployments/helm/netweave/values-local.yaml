@@ -59,9 +59,11 @@ gateway:
         adminUsername: admin
         adminPasswordEnvVar: KEYCLOAK_ADMIN_PASSWORD
         timeout: 30s
-    # OAuth2 disabled - using mTLS for authentication
+    # OAuth2 enabled for admin portal Bearer token auth
     oauth2:
-      enabled: false
+      enabled: true
+      autoProvisionUsers: true
+      defaultRole: platform-admin
     # TLS enabled with mTLS client cert verification
     tls:
       enabled: true
@@ -88,7 +90,6 @@ adminPortal:
     additionalWebOrigins:
       - "https://admin.netweave.local"
   authUrl: "https://admin.netweave.local"
-  apiBaseUrl: "https://api.netweave.local"
   ingress:
     enabled: true
     className: "nginx"
