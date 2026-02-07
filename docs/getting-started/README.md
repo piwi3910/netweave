@@ -122,7 +122,7 @@ netweave-cli api resource-pools list
 netweave-cli api resources list
 
 # Manage users, roles, and tenants
-netweave-cli users list
+netweave-cli users list --tenant=default
 netweave-cli roles list
 netweave-cli tenants list
 
