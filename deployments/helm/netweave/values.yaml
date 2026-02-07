@@ -111,9 +111,19 @@ gateway:
       writeTimeout: 30s
       idleTimeout: 120s
 
-    # Database configuration
-    database:
-      connectionString: ""  # Set via secret or override
+    # PostgreSQL storage configuration (for subscriptions, auth, backends)
+    postgres:
+      host: ""  # Auto-resolved from Helm if empty
+      port: 5432
+      database: netweave
+      user: netweave
+      passwordEnvVar: POSTGRES_PASSWORD
+      sslMode: prefer
+      maxConns: 25
+      minConns: 5
+
+    # Storage mode: "redis" (legacy), "postgres" (recommended), "dual" (migration)
+    storageMode: postgres
 
     # Multi-tenancy and RBAC configuration (maps to multi_tenancy.* in Go config)
     multiTenancy:
@@ -214,6 +224,12 @@ postgresql:
     username: keycloak
     password: ""  # Set via secret, generated if empty
     database: keycloak
+
+  # Gateway database (created alongside keycloak DB on the same PG instance)
+  gateway:
+    database: netweave
+    username: netweave
+    password: ""  # Set via secret, uses postgresql.auth.password if empty
 
   persistence:
     enabled: true
