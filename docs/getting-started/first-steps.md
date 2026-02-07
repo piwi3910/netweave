@@ -270,7 +270,7 @@ Before starting the tutorials:
 
 ```bash
 # Check health (using HTTPS, -k to skip cert verification for health check)
-curl -sk https://localhost:8443/health | jq
+curl -sk https://localhost:8443/healthz | jq
 
 # Expected: {"status":"ok","timestamp":"..."}
 ```
@@ -362,7 +362,8 @@ curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
 ### Step 2: Get a Specific Resource Pool
 
 ```bash
-curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem | jq
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem" | jq
 ```
 
 **Response:**
@@ -391,7 +392,8 @@ curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-
 ### Step 3: Create a New Resource Pool
 
 ```bash
-curl -X POST $GW_URL/o2ims-infrastructureInventory/v1/resourcePools \
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X POST "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "GPU Compute Pool",
@@ -429,7 +431,8 @@ curl -X POST $GW_URL/o2ims-infrastructureInventory/v1/resourcePools \
 ### Step 4: Update Resource Pool
 
 ```bash
-curl -X PUT $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-gpu-ml \
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X PUT "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-gpu-ml" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "GPU Compute Pool",
@@ -462,7 +465,8 @@ curl -X PUT $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-gpu-ml \
 ### Step 5: Delete Resource Pool
 
 ```bash
-curl -X DELETE $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-gpu-ml
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X DELETE "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-gpu-ml"
 
 # Response: 204 No Content
 ```
@@ -474,8 +478,9 @@ Learn to query and filter infrastructure resources.
 ### Step 1: List All Resources
 
 ```bash
-# List all resources (across all pools)
-curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem/resources | jq
+# List all resources in the pool
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem/resources" | jq
 ```
 
 **Response:**
@@ -525,7 +530,8 @@ curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-
 ### Step 2: Get a Specific Resource
 
 ```bash
-curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resources/node-ip-10-0-1-42 | jq
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resources/node-ip-10-0-1-42" | jq
 ```
 
 **Response:**
@@ -564,7 +570,8 @@ curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resources/node-ip-10-0-1-42
 
 ```bash
 # Get only compute node resources
-curl -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem/resources?resourceTypeId=kubernetes-node" | jq
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem/resources?resourceTypeId=kubernetes-node" | jq
 ```
 
 ### Step 4: Advanced Filtering (v2 API)
@@ -573,16 +580,20 @@ The v2 API supports advanced filtering with operators:
 
 ```bash
 # Resources with specific label
-curl -X GET "$GW_URL/o2ims/v2/resources?labels=env:prod" | jq
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims/v2/resources?labels=env:prod" | jq
 
 # Field selection (reduce payload)
-curl -X GET "$GW_URL/o2ims/v2/resources?fields=resourceId,resourcePoolId,extensions.status" | jq
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims/v2/resources?fields=resourceId,resourcePoolId,extensions.status" | jq
 
 # Sorting
-curl -X GET "$GW_URL/o2ims/v2/resources?sortBy=resourceId&sortOrder=desc" | jq
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims/v2/resources?sortBy=resourceId&sortOrder=desc" | jq
 
 # Pagination
-curl -X GET "$GW_URL/o2ims/v2/resources?limit=10&offset=20" | jq
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims/v2/resources?limit=10&offset=20" | jq
 ```
 
 ## Tutorial 3: Creating Subscriptions
@@ -603,7 +614,8 @@ Subscriptions trigger webhook notifications for these events:
 ### Step 2: Create a Simple Subscription
 
 ```bash
-curl -X POST $GW_URL/o2ims-infrastructureInventory/v1/subscriptions \
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X POST "$GW_URL/o2ims-infrastructureInventory/v1/subscriptions" \
   -H "Content-Type: application/json" \
   -d '{
     "callback": "https://smo.example.com/o2ims/notifications",
@@ -629,7 +641,8 @@ This subscribes to **all** infrastructure events.
 Subscribe only to events for a specific resource pool:
 
 ```bash
-curl -X POST $GW_URL/o2ims-infrastructureInventory/v1/subscriptions \
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X POST "$GW_URL/o2ims-infrastructureInventory/v1/subscriptions" \
   -H "Content-Type: application/json" \
   -d '{
     "callback": "https://smo.example.com/o2ims/notifications/highmem",
@@ -656,7 +669,8 @@ curl -X POST $GW_URL/o2ims-infrastructureInventory/v1/subscriptions \
 ### Step 4: List Active Subscriptions
 
 ```bash
-curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/subscriptions | jq
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/subscriptions" | jq
 ```
 
 **Response:**
@@ -688,13 +702,15 @@ curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/subscriptions | jq
 ### Step 5: Get Subscription Details
 
 ```bash
-curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/subscriptions/550e8400-e29b-41d4-a716-446655440001 | jq
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/subscriptions/550e8400-e29b-41d4-a716-446655440001" | jq
 ```
 
 ### Step 6: Delete Subscription
 
 ```bash
-curl -X DELETE $GW_URL/o2ims-infrastructureInventory/v1/subscriptions/550e8400-e29b-41d4-a716-446655440001
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X DELETE "$GW_URL/o2ims-infrastructureInventory/v1/subscriptions/550e8400-e29b-41d4-a716-446655440001"
 
 # Response: 204 No Content
 ```
@@ -721,7 +737,8 @@ docker run --rm -p 9000:8080 --name webhook-receiver \
 ### Step 2: Create Subscription with Test Webhook
 
 ```bash
-curl -X POST $GW_URL/o2ims-infrastructureInventory/v1/subscriptions \
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X POST "$GW_URL/o2ims-infrastructureInventory/v1/subscriptions" \
   -H "Content-Type: application/json" \
   -d '{
     "callback": "http://host.docker.internal:9000/webhook",
@@ -846,7 +863,8 @@ Learn to query resource type metadata.
 ### Step 1: List All Resource Types
 
 ```bash
-curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourceTypes | jq
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourceTypes" | jq
 ```
 
 **Response:**
@@ -897,7 +915,8 @@ curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourceTypes | jq
 ### Step 2: Get Specific Resource Type
 
 ```bash
-curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourceTypes/kubernetes-node | jq
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourceTypes/kubernetes-node" | jq
 ```
 
 **Response:**
@@ -932,7 +951,8 @@ curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourceTypes/kubernetes-no
 
 ```bash
 # List all resources of a specific type
-curl -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem/resources?resourceTypeId=kubernetes-node" | jq
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem/resources?resourceTypeId=kubernetes-node" | jq
 ```
 
 ## Common Errors and Solutions
@@ -954,10 +974,8 @@ curl -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute
 
 ```bash
 # Ensure certificates are provided
-curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools \
-  --cert client.crt \
-  --key client.key \
-  --cacert ca.crt
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools" | jq
 ```
 
 ### Error 2: Not Found (404)
@@ -977,10 +995,12 @@ curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools \
 
 ```bash
 # List available resource pools first
-curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools | jq '.items[].resourcePoolId'
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools" | jq '.items[].resourcePoolId'
 
 # Use correct ID
-curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-highmem" | jq
 ```
 
 ### Error 3: Bad Request (400)
@@ -1000,12 +1020,13 @@ curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools/pool-compute-
 
 ```bash
 # Ensure all required fields are present
-curl -X POST $GW_URL/o2ims-infrastructureInventory/v1/subscriptions \
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X POST "$GW_URL/o2ims-infrastructureInventory/v1/subscriptions" \
   -H "Content-Type: application/json" \
   -d '{
     "callback": "https://smo.example.com/notify",
     "consumerSubscriptionId": "my-sub-1"
-  }'
+  }' | jq
 ```
 
 ### Error 4: Webhook Delivery Failed
@@ -1045,7 +1066,8 @@ curl -X POST $CALLBACK_URL \
 ```bash
 # Wait and retry
 sleep 60
-curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/resourcePools
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/resourcePools" | jq
 
 # Implement exponential backoff in client
 ```
@@ -1107,10 +1129,12 @@ def webhook_handler(data):
 
 ```bash
 # Good: Request only needed fields
-curl -X GET "$GW_URL/o2ims/v2/resources?fields=resourceId,resourcePoolId,extensions.status"
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims/v2/resources?fields=resourceId,resourcePoolId,extensions.status" | jq
 
 # Bad: Retrieve all fields when only few needed
-curl -X GET "$GW_URL/o2ims/v2/resources"
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims/v2/resources" | jq
 ```
 
 ### 5. Implement Retry Logic
@@ -1136,10 +1160,12 @@ def call_o2ims_api(url, method='GET', data=None, retries=3):
 
 ```bash
 # Periodically verify subscriptions are active
-curl -X GET $GW_URL/o2ims-infrastructureInventory/v1/subscriptions | jq '.items[] | {id: .subscriptionId, callback: .callback}'
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X GET "$GW_URL/o2ims-infrastructureInventory/v1/subscriptions" | jq '.items[] | {id: .subscriptionId, callback: .callback}'
 
 # Delete stale subscriptions
-curl -X DELETE $GW_URL/o2ims-infrastructureInventory/v1/subscriptions/<stale-sub-id>
+curl -s --cert "$CLIENT_CERT" --key "$CLIENT_KEY" --cacert "$CA_CERT" \
+  -X DELETE "$GW_URL/o2ims-infrastructureInventory/v1/subscriptions/<stale-sub-id>"
 ```
 
 ## Next Steps
@@ -1152,7 +1178,7 @@ After completing these tutorials, explore:
    - Filter syntax reference
    - Extension attributes
 
-2. **[Advanced Features](../architecture.md)** - Deep dive into architecture
+2. **[Advanced Features](../architecture/README.md)** - Deep dive into architecture
    - Multi-backend support
    - High availability
    - Performance optimization
@@ -1164,7 +1190,7 @@ After completing these tutorials, explore:
    - GitOps workflows
    - Package management
 
-4. **[Security Configuration](../security.md)** - Harden your deployment
+4. **[Security Configuration](../security/README.md)** - Harden your deployment
    - mTLS certificate management
    - RBAC policies
    - Webhook authentication
