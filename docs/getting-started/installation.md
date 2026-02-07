@@ -67,8 +67,7 @@ go version
 
 | Port | Protocol | Direction | Purpose |
 |------|----------|-----------|---------|
-| 80 | TCP | Inbound | NGINX Ingress HTTP (development) |
-| 443 | TCP | Inbound | NGINX Ingress HTTPS (production) |
+| 443 | TCP | Inbound | NGINX Ingress HTTPS (all environments) |
 | 8080 | TCP | Internal | Gateway HTTP API |
 | 8443 | TCP | Internal | Gateway HTTPS API |
 | 6379 | TCP | Internal | Redis communication |
@@ -95,9 +94,9 @@ netweave-cli setup all --verbose
 ```
 
 This runs the following steps automatically:
-1. **Vault** — Deploys Vault in dev mode, initializes PKI engine (root CA, intermediate CA, server/client roles)
-2. **Certificates** — Issues gateway server certificate and admin client certificate, creates K8s TLS secrets
-3. **Helm** — Installs the netweave Helm chart (PostgreSQL, Redis, Keycloak, Gateway), waits for all pods
+1. **Vault** — Deploys Vault in production mode (TLS + file storage), initializes PKI engine (root CA, intermediate CA, server/client roles)
+2. **Certificates** — Issues gateway server certificate, ingress TLS certificates (admin portal, Keycloak), and admin client certificate; creates K8s TLS secrets
+3. **Helm** — Installs the netweave Helm chart (PostgreSQL, Redis, Keycloak, Gateway, NGINX Ingress), waits for all pods
 4. **Keycloak** — Declares user profile attributes, creates default tenant, initializes roles with permissions, creates admin user with certificate binding
 
 Credentials are saved to `~/.netweave/`:
@@ -202,8 +201,7 @@ This deploys:
 
 ### Step 4: Install NGINX Ingress Controller
 
-NGINX Ingress provides stable, hostname-based access to all services without
-needing `kubectl port-forward`:
+NGINX Ingress provides stable, hostname-based HTTPS access to all services:
 
 ```bash
 # Install NGINX Ingress Controller
@@ -214,6 +212,10 @@ kubectl wait --namespace ingress-nginx \
   --for=condition=ready pod \
   --selector=app.kubernetes.io/component=controller \
   --timeout=120s
+
+# Enable SSL passthrough (required for gateway mTLS)
+kubectl -n ingress-nginx patch deployment ingress-nginx-controller --type=json \
+  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--enable-ssl-passthrough"}]'
 
 # Get the ingress controller ClusterIP (needed for admin portal OIDC)
 kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.spec.clusterIP}'
@@ -240,36 +242,51 @@ kubectl get pods -n netweave
 kubectl get ingress -n netweave
 
 # Check gateway logs
-kubectl logs -n netweave deployment/netweave-netweave-gateway -f
+kubectl logs -n netweave deployment/netweave-netweave -f
 
-# Test API via ingress
-curl http://api.netweave.local/health
+# Test Gateway API via mTLS passthrough
+curl --cert ~/.netweave/client.crt --key ~/.netweave/client.key \
+  --cacert ~/.netweave/ca.crt \
+  https://api.netweave.local/o2ims-infrastructureInventory/v1/api_versions
+
+# Test Keycloak OIDC discovery (NGINX TLS termination)
+curl -sk https://auth.netweave.local/realms/netweave/.well-known/openid-configuration | jq .issuer
 ```
 
 ### Step 6: Access Services
 
-With NGINX Ingress, all services are accessible via local hostnames:
+All services are accessible via HTTPS with local hostnames:
 
-| Service | URL | Purpose |
-|---------|-----|---------|
-| **Gateway API** | `http://api.netweave.local` | O2-IMS API endpoints |
-| **Admin Portal** | `http://admin.netweave.local` | Web management UI |
-| **Keycloak** | `http://auth.netweave.local` | Identity provider |
+| Service | URL | TLS Mode | Purpose |
+|---------|-----|----------|---------|
+| **Gateway API** | `https://api.netweave.local` | SSL Passthrough (mTLS) | O2-IMS API endpoints |
+| **Admin Portal** | `https://admin.netweave.local` | TLS Termination (Vault cert) | Web management UI |
+| **Keycloak** | `https://auth.netweave.local` | TLS Termination (Vault cert) | Identity provider |
+
+The gateway uses SSL passthrough so mTLS client certificates reach the gateway
+directly (O-RAN spec compliant). Admin portal and Keycloak use TLS termination
+at NGINX with Vault-issued certificates.
 
 ```bash
-# Test Gateway API
-curl http://api.netweave.local/o2ims-infrastructureInventory/v1/resourcePools | jq
+# Gateway API (requires client cert for authenticated endpoints)
+curl --cert ~/.netweave/client.crt --key ~/.netweave/client.key \
+  --cacert ~/.netweave/ca.crt \
+  https://api.netweave.local/o2ims-infrastructureInventory/v1/resourcePools | jq
 
-# Open Admin Portal in browser
-open http://admin.netweave.local
+# Open Admin Portal in browser (trust CA cert first)
+open https://admin.netweave.local
 
 # Keycloak admin console
-open http://auth.netweave.local/admin/
+open https://auth.netweave.local/admin/
 ```
 
-> **Note:** The `netweave-cli` tool can also auto-discover the gateway via
-> Kubernetes port-forwarding. Use `--gateway-url http://api.netweave.local`
-> to route through ingress instead.
+> **Browser TLS:** Since certificates are signed by a private Vault CA, import
+> `~/.netweave/ca.crt` into your browser's trusted certificate authorities to
+> avoid security warnings.
+>
+> **CLI access:** The `netweave-cli` tool auto-discovers the gateway via
+> Kubernetes port-forwarding with mTLS. Use `--gateway-url https://api.netweave.local`
+> to route through ingress instead (requires CA trust).
 
 ## Production Deployment with Helm
 
