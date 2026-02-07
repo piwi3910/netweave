@@ -26,8 +26,20 @@ const (
 	serverSecretName = "netweave-tls-server"
 	caConfigMapName  = "netweave-tls-ca"
 	certTTL          = "8760h" // 1 year
-	setupCertSteps   = 5
+	setupCertSteps   = 6
 )
+
+// ingressCert defines a TLS certificate to issue for an ingress host.
+type ingressCert struct {
+	hostname   string
+	secretName string
+}
+
+// ingressCerts lists the ingress hosts that need Vault-issued TLS certificates.
+var ingressCerts = []ingressCert{
+	{hostname: "admin.netweave.local", secretName: "admin-portal-ingress-tls"},
+	{hostname: "auth.netweave.local", secretName: "keycloak-ingress-tls"},
+}
 
 func newCertsCmd() *cobra.Command {
 	var (
@@ -39,7 +51,9 @@ func newCertsCmd() *cobra.Command {
 		Use:   "certs",
 		Short: "Issue gateway server and client certificates",
 		Long: `Issues server and client TLS certificates from the Vault PKI engine
-and creates the corresponding Kubernetes TLS secrets for the gateway.`,
+and creates the corresponding Kubernetes TLS secrets for the gateway.
+Also issues individual TLS certificates for ingress hosts (admin portal, Keycloak)
+so NGINX can terminate TLS with Vault-signed certificates.`,
 		RunE: func(c *cobra.Command, _ []string) error {
 			return runCertsSetup(c.Context(), serverCN, clientCN)
 		},
@@ -106,6 +120,7 @@ func runCertsSetup(ctx context.Context, serverCN, clientCN string) error {
 				fmt.Sprintf("%s.%s.svc", serverCN, namespace),
 				fmt.Sprintf("%s.%s.svc.cluster.local", serverCN, namespace),
 				"localhost",
+				"api.netweave.local",
 			},
 			IPSANs: []string{"127.0.0.1"},
 			TTL:    certTTL,
@@ -143,7 +158,34 @@ func runCertsSetup(ctx context.Context, serverCN, clientCN string) error {
 
 	steps.Donef("CA ConfigMap %q created", caConfigMapName)
 
-	// Step 5: Issue client certificate and save locally.
+	// Step 5: Issue ingress TLS certificates.
+	steps.Stepf("Issuing ingress TLS certificates...")
+
+	for _, ic := range ingressCerts {
+		cert, issueErr := vaultClient.IssueCertificate(
+			ctx, serverPKIRole, &vault.CertificateRequest{
+				CommonName: ic.hostname,
+				AltNames:   []string{ic.hostname},
+				TTL:        certTTL,
+			},
+		)
+		if issueErr != nil {
+			return fmt.Errorf("failed to issue certificate for %s: %w", ic.hostname, issueErr)
+		}
+
+		if secretErr := createTLSSecret(
+			ctx, conn, namespace, ic.secretName,
+			cert.Certificate, cert.PrivateKey,
+		); secretErr != nil {
+			return fmt.Errorf("failed to create TLS secret %s: %w", ic.secretName, secretErr)
+		}
+
+		cmd.Printer.Verbosef("  %s -> secret %q", ic.hostname, ic.secretName)
+	}
+
+	steps.Donef("Ingress TLS secrets created (%d certificates)", len(ingressCerts))
+
+	// Step 6: Issue client certificate and save locally.
 	steps.Stepf("Issuing client certificate (CN=%s)...", clientCN)
 
 	clientCert, err := vaultClient.IssueCertificate(
@@ -163,6 +205,7 @@ func runCertsSetup(ctx context.Context, serverCN, clientCN string) error {
 	steps.Donef("Client certificate saved to ~/%s/", credentialsDir)
 
 	cmd.Printer.Success("Certificate setup complete")
+	cmd.Printer.Infof("To trust the CA in your browser, import ~/%s/ca.crt", credentialsDir)
 	return nil
 }
 

@@ -286,7 +286,7 @@ curl http://localhost:8080/health
 
 ### Using netweave-cli (Recommended)
 
-The `netweave-cli` tool auto-discovers services via Kubernetes port-forwarding. No environment variables or helper functions needed:
+The `netweave-cli` tool auto-discovers services via Kubernetes. No environment variables or helper functions needed:
 
 ```bash
 # All commands auto-connect to the gateway
@@ -311,7 +311,10 @@ netweave-cli api health --cert client.crt --key client.key --ca ca.crt
 ### Set Environment Variables
 
 ```bash
-# Development (HTTP)
+# Local development with NGINX Ingress (recommended)
+export GATEWAY_URL="http://api.netweave.local"
+
+# Or Docker Compose development (HTTP)
 export GATEWAY_URL="http://localhost:8080"
 
 # Production (HTTPS with mTLS)
