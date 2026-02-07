@@ -74,6 +74,27 @@ spec:
               done
               echo "Vault is ready!"
         {{- end }}
+        {{- if .Values.postgresql.enabled }}
+        - name: wait-for-postgres
+          image: {{ .Values.gateway.initContainers.waitForKeycloak.image.registry }}/{{ .Values.gateway.initContainers.waitForKeycloak.image.repository }}:{{ .Values.gateway.initContainers.waitForKeycloak.image.tag }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for PostgreSQL to be ready..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
+              until nc -z {{ include "netweave.postgresql.host" . }} 5432; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: PostgreSQL failed to become ready after ${MAX_RETRIES} attempts"
+                  exit 1
+                fi
+                echo "PostgreSQL not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting..."
+                sleep 5
+              done
+              echo "PostgreSQL is ready!"
+        {{- end }}
       containers:
         - name: gateway
           securityContext:
@@ -121,6 +142,13 @@ spec:
                   name: {{ include "netweave.fullname" . }}-secret
                   key: redis-password
             {{- end }}
+            {{- end }}
+            {{- if .Values.postgresql.enabled }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netweave.postgresql.secretName" . }}
+                  key: GATEWAY_DB_PASSWORD
             {{- end }}
             {{- if .Values.vault.enabled }}
             - name: VAULT_ADDR

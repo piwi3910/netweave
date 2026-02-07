@@ -707,6 +707,14 @@ func (s *Server) DMSRegistry() *dmsregistry.Registry {
 	return s.dmsRegistry
 }
 
+// SetupBackendAdmin registers the backend admin API routes on the server.
+// The handler manages backend instances, DMS links, and tenant access configuration.
+func (s *Server) SetupBackendAdmin(handler *handlers.BackendHandler) {
+	admin := s.router.Group("/api/v1/admin")
+	handler.RegisterRoutes(admin)
+	s.logger.Info("backend admin API routes registered")
+}
+
 // SetSMORegistry sets the SMO plugin registry and configures SMO API routes.
 // This enables the O2-SMO API endpoints for workflow orchestration, service modeling,
 // policy management, and infrastructure synchronization.

@@ -87,4 +87,19 @@ data:
       db: 0
       password_env_var: "REDIS_PASSWORD"
       {{- end }}
+
+    # PostgreSQL configuration
+    {{- if .Values.postgresql.enabled }}
+    postgres:
+      host: {{ include "netweave.postgresql.host" . | quote }}
+      port: 5432
+      database: {{ .Values.postgresql.gateway.database | default "netweave" | quote }}
+      user: {{ .Values.postgresql.gateway.username | default "netweave" | quote }}
+      password_env_var: "POSTGRES_PASSWORD"
+      ssl_mode: {{ .Values.gateway.config.postgres.sslMode | default "prefer" | quote }}
+      max_conns: {{ .Values.gateway.config.postgres.maxConns | default 25 }}
+      min_conns: {{ .Values.gateway.config.postgres.minConns | default 5 }}
+    {{- end }}
+
+    storage_mode: {{ .Values.gateway.config.storageMode | default "postgres" | quote }}
 {{- end }}

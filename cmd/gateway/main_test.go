@@ -39,7 +39,7 @@ func TestInitializeAuth_Standalone(t *testing.T) {
 
 	logger := zap.NewNop()
 
-	authStore, authMw, err := main.InitializeAuth(cfg, logger)
+	authStore, authMw, err := main.InitializeAuth(cfg, logger, nil)
 	require.NoError(t, err)
 	require.NotNil(t, authStore)
 	require.NotNil(t, authMw)
@@ -74,7 +74,7 @@ func TestInitializeAuth_StandaloneNoDefaultRoles(t *testing.T) {
 
 	logger := zap.NewNop()
 
-	authStore, authMw, err := main.InitializeAuth(cfg, logger)
+	authStore, authMw, err := main.InitializeAuth(cfg, logger, nil)
 	require.NoError(t, err)
 	require.NotNil(t, authStore)
 	require.NotNil(t, authMw)
@@ -111,7 +111,7 @@ func TestInitializeAuth_DefaultAddress(t *testing.T) {
 
 	logger := zap.NewNop()
 
-	authStore, authMw, err := main.InitializeAuth(cfg, logger)
+	authStore, authMw, err := main.InitializeAuth(cfg, logger, nil)
 	require.NoError(t, err)
 	require.NotNil(t, authStore)
 	require.NotNil(t, authMw)
@@ -150,7 +150,7 @@ func TestInitializeAuth_SentinelMode(t *testing.T) {
 
 	// Note: This will fail because miniredis doesn't support Sentinel protocol,
 	// but we're testing that the configuration path works correctly.
-	authStore, authMw, err := main.InitializeAuth(cfg, logger)
+	authStore, authMw, err := main.InitializeAuth(cfg, logger, nil)
 
 	// Sentinel mode with miniredis will fail connectivity check.
 	// This is expected behavior - we're testing the config path.
@@ -185,7 +185,7 @@ func TestInitializeAuth_ConnectionFailure(t *testing.T) {
 
 	logger := zap.NewNop()
 
-	authStore, authMw, err := main.InitializeAuth(cfg, logger)
+	authStore, authMw, err := main.InitializeAuth(cfg, logger, nil)
 	assert.Error(t, err)
 	assert.Nil(t, authStore)
 	assert.Nil(t, authMw)
@@ -228,7 +228,7 @@ func TestApplicationComponents_Close(t *testing.T) {
 
 		logger := zap.NewNop()
 
-		authStore, _, err := main.InitializeAuth(cfg, logger)
+		authStore, _, err := main.InitializeAuth(cfg, logger, nil)
 		require.NoError(t, err)
 
 		components := main.NewApplicationComponentsForTest(authStore)
