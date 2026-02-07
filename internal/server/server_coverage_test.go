@@ -4050,6 +4050,325 @@ func TestListResourceTypes_WithAdapterData(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+// --- SMO DefaultPlugin ghost: registry has DefaultPlugin pointing to a non-existent plugin ---
+
+// TestSMO_DefaultPluginGhost tests the edge case where DefaultPlugin name is set
+// but the actual plugin object has been removed from the Plugins map.
+func TestSMO_DefaultPluginGhost(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+	}
+	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+
+	// Create a registry where DefaultPlugin is set to a name that doesn't exist in the Plugins map
+	smoReg := smo.NewRegistry(zap.NewNop())
+	// Manually set DefaultPlugin to a ghost name without actually adding the plugin
+	smoReg.Mu.Lock()
+	smoReg.DefaultPlugin = "ghost-plugin"
+	smoReg.Mu.Unlock()
+	srv.SetSMORegistry(smoReg)
+	router := srv.Router()
+
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		body       string
+		wantStatus int
+	}{
+		{
+			name:       "execute workflow - default plugin ghost",
+			method:     http.MethodPost,
+			path:       "/o2smo/v1/workflows",
+			body:       `{"workflowName":"deploy","parameters":{"app":"test"}}`,
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "list service models - default plugin ghost",
+			method:     http.MethodGet,
+			path:       "/o2smo/v1/serviceModels",
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "publish infra event - default plugin ghost",
+			method:     http.MethodPost,
+			path:       "/o2smo/v1/events/infrastructure",
+			body:       `{"eventType":"ResourceCreated","resourceType":"node","resourceId":"res-1"}`,
+			wantStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var req *http.Request
+			if tt.body != "" {
+				req = httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req = httptest.NewRequest(tt.method, tt.path, nil)
+			}
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			assert.Equal(t, tt.wantStatus, w.Code, "unexpected status for %s %s", tt.method, tt.path)
+		})
+	}
+}
+
+// TestTMForumRoutes_AdditionalWithDMS tests TMForum routes that were missing from
+// the original DMS-initialized test (hub DELETE, alarm PATCH, activation POST).
+func TestTMForumRoutes_AdditionalWithDMS(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+	}
+	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	dmsReg := dmsregistry.NewRegistry(zap.NewNop(), nil)
+	srv.SetupDMS(dmsReg)
+	router := srv.Router()
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{"TMF688 delete hub", http.MethodDelete, "/tmf-api/eventManagement/v4/hub/hub-1"},
+		{"TMF642 acknowledge alarm", http.MethodPatch, "/tmf-api/alarmManagement/v4/alarm/alm-1/acknowledge"},
+		{"TMF642 clear alarm", http.MethodPatch, "/tmf-api/alarmManagement/v4/alarm/alm-1/clear"},
+		{"TMF640 create activation", http.MethodPost, "/tmf-api/serviceActivation/v4/serviceActivation"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var req *http.Request
+			if tt.method == http.MethodPost || tt.method == http.MethodPatch {
+				req = httptest.NewRequest(tt.method, tt.path, strings.NewReader("{}"))
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req = httptest.NewRequest(tt.method, tt.path, nil)
+			}
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			assert.NotEqual(t, http.StatusServiceUnavailable, w.Code,
+				"TMForum route should not be 503 when DMS is initialized: %s %s (got %d)",
+				tt.method, tt.path, w.Code)
+		})
+	}
+}
+
+// TestCreateResource_URNValidation tests resource creation with various invalid URN formats.
+func TestCreateResource_URNValidation(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+	}
+	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	router := srv.Router()
+
+	tests := []struct {
+		name    string
+		body    string
+		wantMsg string
+	}{
+		{
+			name:    "URN missing prefix",
+			body:    `{"resourceTypeId":"type-1","resourcePoolId":"pool-1","globalAssetId":"not-a-urn:foo:bar"}`,
+			wantMsg: "globalAssetId must start with 'urn:'",
+		},
+		{
+			name:    "URN missing nss",
+			body:    `{"resourceTypeId":"type-1","resourcePoolId":"pool-1","globalAssetId":"urn:foo"}`,
+			wantMsg: "URN format",
+		},
+		{
+			name:    "URN empty nss",
+			body:    `{"resourceTypeId":"type-1","resourcePoolId":"pool-1","globalAssetId":"urn:foo:"}`,
+			wantMsg: "namespace specific string must not be empty",
+		},
+		{
+			name:    "URN nid too short",
+			body:    `{"resourceTypeId":"type-1","resourcePoolId":"pool-1","globalAssetId":"urn:x:bar"}`,
+			wantMsg: "2-32 characters",
+		},
+		{
+			name:    "URN nid starts with hyphen",
+			body:    `{"resourceTypeId":"type-1","resourcePoolId":"pool-1","globalAssetId":"urn:-foo:bar"}`,
+			wantMsg: "start with alphanumeric",
+		},
+		{
+			name:    "URN nid with invalid char",
+			body:    `{"resourceTypeId":"type-1","resourcePoolId":"pool-1","globalAssetId":"urn:fo.o:bar"}`,
+			wantMsg: "alphanumeric characters and hyphens",
+		},
+		{
+			name:    "globalAssetId too long",
+			body:    `{"resourceTypeId":"type-1","resourcePoolId":"pool-1","globalAssetId":"urn:oran:` + strings.Repeat("x", 250) + `"}`,
+			wantMsg: "must not exceed 256 characters",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost,
+				"/o2ims-infrastructureInventory/v1/resources", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), tt.wantMsg)
+		})
+	}
+}
+
+// TestCreateResourcePool_PoolIDTooLong tests resource pool creation with an ID exceeding max length.
+func TestCreateResourcePool_PoolIDTooLong(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+	}
+	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	router := srv.Router()
+
+	longID := strings.Repeat("a", 256) // Exceeds MaxResourcePoolIDLength of 255
+	body := `{"name":"test-pool","resourcePoolId":"` + longID + `"}`
+	req := httptest.NewRequest(http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "must not exceed")
+}
+
+// TestCreateResourcePool_PoolIDInvalidChars tests resource pool creation with invalid characters in ID.
+func TestCreateResourcePool_PoolIDInvalidChars(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+	}
+	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	router := srv.Router()
+
+	body := `{"name":"test-pool","resourcePoolId":"pool/with@special!chars"}`
+	req := httptest.NewRequest(http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resourcePools", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "alphanumeric")
+}
+
+// TestCreateResource_WithExplicitResourceID tests resource creation with an explicit valid UUID resource ID.
+func TestCreateResource_WithExplicitResourceID(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+	}
+	adp := &mockAdapterCreateResourceSuccess{}
+	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), adp, &mockStoreWithData{
+		subs: make(map[string]*storage.Subscription),
+	})
+	router := srv.Router()
+
+	body := `{"resourceTypeId":"type-1","resourcePoolId":"pool-1","resourceId":"550e8400-e29b-41d4-a716-446655440000"}`
+	req := httptest.NewRequest(http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+}
+
+// TestCreateResource_WithInvalidResourceID tests resource creation with a non-UUID explicit resource ID.
+func TestCreateResource_WithInvalidResourceID(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+	}
+	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
+	router := srv.Router()
+
+	body := `{"resourceTypeId":"type-1","resourcePoolId":"pool-1","resourceId":"not-a-uuid"}`
+	req := httptest.NewRequest(http.MethodPost,
+		"/o2ims-infrastructureInventory/v1/resources", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "valid UUID")
+}
+
+// TestLogAuditEvent_WithGinContextUser tests the logAuditEvent user extraction from gin context.
+func TestLogAuditEvent_WithGinContextUser(t *testing.T) {
+	cfg := &config.Config{
+		Server:   config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+		Security: config.SecurityConfig{DisableSSRFProtection: true},
+	}
+	store := &mockStoreWithData{
+		subs: map[string]*storage.Subscription{
+			"sub-1": {
+				ID:       "sub-1",
+				Callback: "https://example.com/cb",
+			},
+		},
+	}
+	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), &mockAdapter{}, store)
+	// Use a middleware that actually sets the "user" key in gin context
+	srv.SetupAuth(&mockAuthStore{}, &mockUserInjectingMiddleware{
+		tenantID: "tenant-1",
+		userID:   "user-123",
+		subject:  "admin@example.com",
+	})
+	router := srv.Router()
+
+	// Delete subscription triggers logAuditEvent with gin context user
+	req := httptest.NewRequest(http.MethodDelete,
+		"/o2ims-infrastructureInventory/v1/subscriptions/sub-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// The handler will proceed (may succeed or fail based on adapter behavior)
+	// The important thing is that logAuditEvent was exercised with user in context
+	assert.NotEqual(t, http.StatusServiceUnavailable, w.Code)
+}
+
+// TestUpdateResource_ValidateFieldsError tests update resource with invalid field values.
+func TestUpdateResource_ValidateFieldsError(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+	}
+	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), &mockAdapterUpdateResourceSuccess{}, &mockStore{})
+	router := srv.Router()
+
+	// Send resource update with invalid globalAssetId to trigger validateUpdateRequest -> validateResourceFields
+	body := `{"globalAssetId":"not-a-urn"}`
+	req := httptest.NewRequest(http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resources/res-1", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "urn:")
+}
+
+// TestUpdateResource_ImmutablePoolID tests that resourcePoolId cannot be changed in an update.
+func TestUpdateResource_ImmutablePoolID(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
+	}
+	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), &mockAdapterUpdateResourceSuccess{}, &mockStore{})
+	router := srv.Router()
+
+	body := `{"resourcePoolId":"different-pool"}`
+	req := httptest.NewRequest(http.MethodPut,
+		"/o2ims-infrastructureInventory/v1/resources/res-1", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "immutable")
+}
+
 // --- Mock types ---
 
 // mockStoreWithData implements storage.Store with actual in-memory storage.
@@ -4678,4 +4997,46 @@ type mockAdapterWithResources struct{ mockAdapter }
 
 func (m *mockAdapterWithResources) ListResources(_ context.Context, _ *adapter.Filter) ([]*adapter.Resource, error) {
 	return []*adapter.Resource{{ResourceID: "res-1", Description: "test resource"}}, nil
+}
+
+// mockAdapterCreateResourceSuccess succeeds on CreateResource.
+type mockAdapterCreateResourceSuccess struct{ mockAdapter }
+
+func (m *mockAdapterCreateResourceSuccess) CreateResource(_ context.Context, res *adapter.Resource) (*adapter.Resource, error) {
+	return &adapter.Resource{
+		ResourceID:     res.ResourceID,
+		ResourceTypeID: res.ResourceTypeID,
+		ResourcePoolID: res.ResourcePoolID,
+		Description:    res.Description,
+	}, nil
+}
+
+// mockUserInjectingMiddleware injects both tenant context and user into gin context.
+type mockUserInjectingMiddleware struct {
+	tenantID string
+	userID   string
+	subject  string
+}
+
+func (m *mockUserInjectingMiddleware) AuthenticationMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Set user in gin context so logAuditEvent can extract it
+		c.Set("user", &auth.AuthenticatedUser{
+			UserID:  m.userID,
+			Subject: m.subject,
+		})
+		c.Next()
+	}
+}
+
+func (m *mockUserInjectingMiddleware) RequirePermission(_ string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+	}
+}
+
+func (m *mockUserInjectingMiddleware) RequirePlatformAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+	}
 }
