@@ -79,7 +79,11 @@ spec:
             - name: KC_HTTP_MANAGEMENT_PORT
               value: "9000"
             - name: KC_HOSTNAME
+              {{- if and .Values.keycloak.ingress.enabled .Values.keycloak.ingress.hosts }}
+              value: {{ (index .Values.keycloak.ingress.hosts 0).host }}
+              {{- else }}
               value: {{ include "netweave.fullname" . }}-keycloak
+              {{- end }}
             - name: KC_HOSTNAME_PORT
               value: "80"
             - name: KC_HOSTNAME_STRICT

@@ -19,6 +19,10 @@ spec:
         app.kubernetes.io/name: {{ include "netweave.name" . }}-admin-portal
         app.kubernetes.io/component: admin-portal
     spec:
+      {{- with .Values.adminPortal.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: admin-portal
           image: "{{ .Values.adminPortal.image.repository }}:{{ .Values.adminPortal.image.tag | default .Chart.AppVersion }}"
