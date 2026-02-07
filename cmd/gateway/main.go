@@ -137,9 +137,9 @@ func run() error {
 
 // ApplicationComponents holds all initialized application components.
 type ApplicationComponents struct {
-	redisStore    *storage.RedisStore  // Always needed for rate limiting, events, pub/sub
-	store         storage.Store        // Subscription store (redis, postgres, or dual)
-	pgDB          *database.DB         // PostgreSQL connection (nil if storage_mode="redis")
+	redisStore    *storage.RedisStore // Always needed for rate limiting, events, pub/sub
+	store         storage.Store       // Subscription store (redis, postgres, or dual)
+	pgDB          *database.DB        // PostgreSQL connection (nil if storage_mode="redis")
 	imsAdapter    adapter.Adapter
 	healthChecker *observability.HealthChecker
 	server        *server.Server

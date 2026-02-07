@@ -56,7 +56,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25.5'
+          go-version: '1.25.7'
           cache: true
 
       - name: Run gofmt
@@ -97,7 +97,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25.5'
+          go-version: '1.25.7'
           cache: true
 
       - name: Run gosec
@@ -132,7 +132,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25.5'
+          go-version: '1.25.7'
           cache: true
 
       - name: Run unit tests
@@ -190,7 +190,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25.5'
+          go-version: '1.25.7'
           cache: true
 
       - name: Build binary
