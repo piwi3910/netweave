@@ -52,6 +52,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "netweave.fullname" . }}-secret
                   key: keycloak-client-secret
+            - name: ADMIN_PORTAL_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netweave.fullname" . }}-admin-portal
+                  key: keycloak-client-secret
           command:
             - sh
             - -c
@@ -115,19 +120,41 @@ spec:
 
               echo "Found client with UUID: ${CLIENT_UUID}"
 
-              # Update client secret via PUT on the client representation
-              echo "Updating client secret..."
-              curl -sf -X PUT "${KEYCLOAK_URL}/admin/realms/netweave/clients/${CLIENT_UUID}" \
+              # Fetch full client representation, merge updates, and PUT back.
+              # This preserves all existing fields (protocolMappers, attributes, etc.)
+              echo "Updating netweave-gateway client..."
+              FULL_CLIENT=$(curl -sf -X GET "${KEYCLOAK_URL}/admin/realms/netweave/clients/${CLIENT_UUID}" \
                 -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-                -H "Content-Type: application/json" \
-                -d "{\"clientId\":\"netweave-gateway\",\"secret\":\"${GATEWAY_CLIENT_SECRET}\",\"serviceAccountsEnabled\":true,\"directAccessGrantsEnabled\":true}"
+                -H "Content-Type: application/json")
 
-              if [ $? -ne 0 ]; then
-                echo "ERROR: Failed to update client secret"
+              if [ $? -ne 0 ] || [ -z "$FULL_CLIENT" ]; then
+                echo "ERROR: Failed to fetch full client representation"
                 exit 1
               fi
 
-              echo "Successfully configured client secret for netweave-gateway"
+              # Build the redirect URIs and web origins JSON arrays from Helm values
+              GATEWAY_REDIRECT_URIS='["http://localhost:8081/*","https://localhost:8081/*"{{ range .Values.gateway.keycloakClient.additionalRedirectUris }},"{{ . }}"{{ end }}]'
+              GATEWAY_WEB_ORIGINS='["http://localhost:8081","https://localhost:8081"{{ range .Values.gateway.keycloakClient.additionalWebOrigins }},"{{ . }}"{{ end }}]'
+
+              # Merge fields into the full client representation
+              UPDATED_CLIENT=$(echo "$FULL_CLIENT" | sed \
+                -e "s|\"secret\":\"[^\"]*\"|\"secret\":\"${GATEWAY_CLIENT_SECRET}\"|" \
+                -e "s|\"serviceAccountsEnabled\":[a-z]*|\"serviceAccountsEnabled\":true|" \
+                -e "s|\"directAccessGrantsEnabled\":[a-z]*|\"directAccessGrantsEnabled\":true|" \
+                -e "s|\"redirectUris\":\[[^]]*\]|\"redirectUris\":${GATEWAY_REDIRECT_URIS}|" \
+                -e "s|\"webOrigins\":\[[^]]*\]|\"webOrigins\":${GATEWAY_WEB_ORIGINS}|")
+
+              curl -sf -X PUT "${KEYCLOAK_URL}/admin/realms/netweave/clients/${CLIENT_UUID}" \
+                -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "$UPDATED_CLIENT"
+
+              if [ $? -ne 0 ]; then
+                echo "ERROR: Failed to update netweave-gateway client"
+                exit 1
+              fi
+
+              echo "Successfully configured netweave-gateway client"
 
               # Verify secret was set correctly
               SECRET_RESPONSE=$(curl -sf -X GET "${KEYCLOAK_URL}/admin/realms/netweave/clients/${CLIENT_UUID}/client-secret" \
@@ -141,6 +168,44 @@ spec:
               else
                 echo "WARNING: Client secret mismatch after update (expected: ${GATEWAY_CLIENT_SECRET:0:5}..., got: ${ACTUAL_SECRET:0:5}...)"
                 exit 1
+              fi
+
+              # Update admin-portal client redirect URIs
+              echo "Fetching admin-portal client..."
+              AP_CLIENT_RESPONSE=$(curl -sf -X GET "${KEYCLOAK_URL}/admin/realms/netweave/clients?clientId=admin-portal" \
+                -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                -H "Content-Type: application/json")
+
+              AP_CLIENT_UUID=$(echo "$AP_CLIENT_RESPONSE" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+              if [ -n "$AP_CLIENT_UUID" ]; then
+                echo "Found admin-portal client: ${AP_CLIENT_UUID}"
+
+                FULL_AP_CLIENT=$(curl -sf -X GET "${KEYCLOAK_URL}/admin/realms/netweave/clients/${AP_CLIENT_UUID}" \
+                  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                  -H "Content-Type: application/json")
+
+                AP_REDIRECT_URIS='["http://localhost:3000/*","https://localhost:3000/*"{{ range .Values.adminPortal.keycloak.additionalRedirectUris }},"{{ . }}"{{ end }}]'
+                AP_WEB_ORIGINS='["http://localhost:3000","https://localhost:3000"{{ range .Values.adminPortal.keycloak.additionalWebOrigins }},"{{ . }}"{{ end }}]'
+
+                UPDATED_AP_CLIENT=$(echo "$FULL_AP_CLIENT" | sed \
+                  -e "s|\"publicClient\":[a-z]*|\"publicClient\":false|" \
+                  -e "s|\"secret\":\"[^\"]*\"|\"secret\":\"${ADMIN_PORTAL_CLIENT_SECRET}\"|" \
+                  -e "s|\"redirectUris\":\[[^]]*\]|\"redirectUris\":${AP_REDIRECT_URIS}|" \
+                  -e "s|\"webOrigins\":\[[^]]*\]|\"webOrigins\":${AP_WEB_ORIGINS}|")
+
+                curl -sf -X PUT "${KEYCLOAK_URL}/admin/realms/netweave/clients/${AP_CLIENT_UUID}" \
+                  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                  -H "Content-Type: application/json" \
+                  -d "$UPDATED_AP_CLIENT"
+
+                if [ $? -ne 0 ]; then
+                  echo "WARNING: Failed to update admin-portal redirect URIs"
+                else
+                  echo "Successfully configured admin-portal redirect URIs"
+                fi
+              else
+                echo "INFO: admin-portal client not found, skipping"
               fi
 
               echo "Keycloak configuration complete"

@@ -10,11 +10,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, account }) {
+    async jwt({ token, account, profile }) {
       if (account) {
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
+      }
+      if (profile) {
+        token.roles = (profile as Record<string, unknown>).roles as
+          | string[]
+          | undefined;
       }
       return token;
     },
@@ -22,6 +27,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return {
         ...session,
         accessToken: token.accessToken as string,
+        user: {
+          ...session.user,
+          roles: token.roles as string[] | undefined,
+        },
       };
     },
   },
