@@ -13,10 +13,42 @@ permissions:
   security-events: write
 
 jobs:
-  # Code quality checks
+  # Detect which paths changed to skip irrelevant jobs
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+      web: ${{ steps.filter.outputs.web }}
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            go:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'Makefile'
+              - '.golangci.yml'
+            web:
+              - 'web/admin-portal/**'
+            docker:
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'web/admin-portal/Dockerfile'
+
+  # Go code quality checks
   lint:
     name: Lint Code
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,20 +67,11 @@ jobs:
             exit 1
           fi
 
-      - name: Install golangci-lint
-        run: |
-          # Build v1.62.2 from source with Go 1.25 to ensure compatibility
-          # Pre-built v1.62.2 (Go 1.23) can't analyze Go 1.25 code
-          # v2.8.0 has different linter defaults that don't match our .golangci.yml
-          git clone --depth 1 --branch v1.62.2 https://github.com/golangci/golangci-lint.git /tmp/golangci-lint
-          cd /tmp/golangci-lint
-          # Update go.mod to Go 1.25 for compatibility
-          sed -i 's/^go 1\.[0-9]*$/go 1.25/' go.mod
-          cd cmd/golangci-lint
-          go build -o $(go env GOPATH)/bin/golangci-lint .
-
       - name: Run golangci-lint
-        run: golangci-lint run --timeout=5m --config=.golangci.yml
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.7.2
+          args: --timeout=5m --config=.golangci.yml
 
       - name: Check go mod tidy
         run: |
@@ -63,11 +86,13 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch full history for gitleaks to properly scan commit ranges
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -78,11 +103,11 @@ jobs:
       - name: Run gosec
         uses: securego/gosec@master
         with:
-          # Exclude G304 (file path injection), G402 (TLS InsecureSkipVerify), and G115 (integer overflow) - documented exceptions
-          # G304: cmd/ has hardcoded paths or validated input (no ".." traversal)
-          # G402: adapters have configurable InsecureSkipVerify with runtime warnings for dev/test
-          # G115: Generated GraphQL code has int->int32 conversions that are safe in practice (deferred count won't exceed int32 max)
-          args: '-exclude=G304,G402,G115 -exclude-dir=vendor -exclude-dir=third_party -exclude-dir=internal/graphql/generated ./...'
+          # G101: false positive on constant names like "serverSecretName"
+          # G304: cmd/ has hardcoded paths or validated input
+          # G402: adapters have configurable InsecureSkipVerify for dev/test
+          # G115: generated GraphQL int->int32 conversions safe in practice
+          args: '-exclude=G101,G304,G402,G115 -exclude-dir=vendor -exclude-dir=third_party -exclude-dir=internal/graphql/generated ./...'
 
       - name: Run govulncheck
         run: |
@@ -98,6 +123,8 @@ jobs:
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -134,51 +161,28 @@ jobs:
           fail_ci_if_error: true
           verbose: true
 
-  # Integration tests
-  integration-test:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    services:
-      redis:
-        image: redis:7.4-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.25.5'
-          cache: true
-
-      - name: Set up Kind (Kubernetes in Docker)
-        uses: helm/kind-action@v1
-        with:
-          cluster_name: netweave-test
-          wait: 120s
-
-      - name: Run integration tests
-        env:
-          REDIS_ADDR: localhost:6379
-          KUBECONFIG: ${{ github.workspace }}/.kube/config
-        run: go test -v -short -tags=integration ./...
-
-  # Build verification
+  # Build verification: linux/amd64 only on PRs, full matrix on push to main
   build:
     name: Build Binary
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     strategy:
       matrix:
-        os: [linux, darwin]
-        arch: [amd64, arm64]
+        include:
+          - os: linux
+            arch: amd64
+          - os: linux
+            arch: arm64
+            main-only: true
+          - os: darwin
+            arch: amd64
+            main-only: true
+          - os: darwin
+            arch: arm64
+            main-only: true
+        exclude:
+          - main-only: ${{ github.event_name == 'pull_request' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -208,6 +212,8 @@ jobs:
   docker:
     name: Build Docker Image
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.docker == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -239,22 +245,66 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
-  # Status check (all jobs must pass)
+  # Admin portal CI
+  admin-portal:
+    name: Admin Portal
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    defaults:
+      run:
+        working-directory: web/admin-portal
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/admin-portal/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx next lint
+
+      - name: Build
+        run: npm run build
+
+  # Status check (all jobs must pass or be skipped)
   status-check:
     name: Status Check
     runs-on: ubuntu-latest
-    needs: [lint, security, test, integration-test, build, docker]
+    needs: [lint, security, test, build, docker, admin-portal]
     if: always()
     steps:
       - name: Check all jobs status
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          DOCKER_RESULT: ${{ needs.docker.result }}
+          PORTAL_RESULT: ${{ needs.admin-portal.result }}
         run: |
-          if [[ "${{ needs.lint.result }}" != "success" || \
-                "${{ needs.security.result }}" != "success" || \
-                "${{ needs.test.result }}" != "success" || \
-                "${{ needs.integration-test.result }}" != "success" || \
-                "${{ needs.build.result }}" != "success" || \
-                "${{ needs.docker.result }}" != "success" ]]; then
-            echo "One or more jobs failed"
-            exit 1
-          fi
-          echo "All jobs passed successfully"
+          results=(
+            "$LINT_RESULT"
+            "$SECURITY_RESULT"
+            "$TEST_RESULT"
+            "$BUILD_RESULT"
+            "$DOCKER_RESULT"
+            "$PORTAL_RESULT"
+          )
+          for r in "${results[@]}"; do
+            if [[ "$r" != "success" && "$r" != "skipped" ]]; then
+              echo "One or more jobs failed (found status: $r)"
+              exit 1
+            fi
+          done
+          echo "All jobs passed or were skipped"

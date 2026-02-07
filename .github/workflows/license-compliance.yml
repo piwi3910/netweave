@@ -24,7 +24,7 @@ permissions:
   issues: write
 
 jobs:
-  # License scanning with go-licenses
+  # License scanning, policy check, and reporting (consolidated)
   license-scan:
     name: License Compliance Check
     runs-on: ubuntu-latest
@@ -46,7 +46,6 @@ jobs:
         run: |
           echo "=== Checking dependency licenses ==="
           # Note: go-licenses may report non-critical errors for stdlib packages with Go 1.25+
-          # These errors can be safely ignored as they don't affect license compliance
           go-licenses check ./... --allowed_licenses=Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC,MPL-2.0 \
             --ignore github.com/piwi3910/netweave
 
@@ -69,7 +68,7 @@ jobs:
 
           for license in $FORBIDDEN; do
             if grep -qi "$license" licenses.csv 2>/dev/null; then
-              echo "❌ FORBIDDEN LICENSE FOUND: $license"
+              echo "FORBIDDEN LICENSE FOUND: $license"
               grep -i "$license" licenses.csv
               FOUND_FORBIDDEN=true
             fi
@@ -77,11 +76,11 @@ jobs:
 
           if [ "$FOUND_FORBIDDEN" = true ]; then
             echo ""
-            echo "⚠️ One or more forbidden licenses detected!"
+            echo "One or more forbidden licenses detected!"
             echo "Please review and remove dependencies with forbidden licenses."
             exit 1
           else
-            echo "✅ No forbidden licenses detected"
+            echo "No forbidden licenses detected"
           fi
 
       - name: Upload license reports
@@ -94,24 +93,35 @@ jobs:
             licenses.json
           retention-days: 30
 
+      - name: Generate compliance summary
+        if: always()
+        run: |
+          echo "# License Compliance Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Allowed Licenses" >> $GITHUB_STEP_SUMMARY
+          echo "- Apache-2.0, MIT, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Forbidden Licenses" >> $GITHUB_STEP_SUMMARY
+          echo "- GPL-2.0, GPL-3.0, LGPL-2.0, LGPL-2.1, LGPL-3.0, AGPL-3.0" >> $GITHUB_STEP_SUMMARY
+
       - name: Comment on PR with license summary
         if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            let comment = '## 📋 License Compliance Report\n\n';
-            
+            let comment = '## License Compliance Report\n\n';
+
             try {
               const csvContent = fs.readFileSync('licenses.csv', 'utf8');
               const lines = csvContent.split('\n').filter(l => l.trim());
-              
-              comment += `✅ Found ${lines.length - 1} dependencies\n\n`;
+
+              comment += `Found ${lines.length - 1} dependencies\n\n`;
               comment += '<details><summary>View License Summary</summary>\n\n';
               comment += '```\n' + csvContent.slice(0, 2000) + '\n```\n';
               comment += '</details>';
             } catch (error) {
-              comment += '⚠️ Unable to generate license summary\n';
+              comment += 'Unable to generate license summary\n';
             }
 
             github.rest.issues.createComment({
@@ -121,10 +131,11 @@ jobs:
               body: comment
             });
 
-  # License attribution generation
+  # License attribution generation (push to main and releases only)
   attribution:
     name: Generate Attribution File
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -175,60 +186,3 @@ jobs:
           name: third-party-licenses
           path: licenses-output/
           retention-days: 90
-
-  # License policy validation
-  policy-check:
-    name: License Policy Validation
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.25.5'
-          cache: true
-
-      - name: Install go-licenses
-        run: go install github.com/google/go-licenses@latest
-
-      - name: Validate license policy
-        continue-on-error: true
-        run: |
-          echo "=== License Policy Validation ==="
-          echo ""
-          echo "Allowed Licenses:"
-          echo "  ✅ Apache-2.0"
-          echo "  ✅ MIT"
-          echo "  ✅ BSD-2-Clause"
-          echo "  ✅ BSD-3-Clause"
-          echo "  ✅ ISC"
-          echo "  ✅ MPL-2.0"
-          echo ""
-          echo "Forbidden Licenses:"
-          echo "  ❌ GPL-2.0, GPL-3.0 (strong copyleft)"
-          echo "  ❌ LGPL-2.0, LGPL-2.1, LGPL-3.0 (weak copyleft)"
-          echo "  ❌ AGPL-3.0 (network copyleft)"
-          echo ""
-
-          # Run compliance check (may produce non-critical stdlib warnings with Go 1.25+)
-          go-licenses check ./... \
-            --allowed_licenses=Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC,MPL-2.0 \
-            --ignore github.com/piwi3910/netweave
-
-      - name: Generate compliance summary
-        if: always()
-        run: |
-          echo "# 📋 License Compliance Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Policy Status" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ All dependencies comply with license policy" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Allowed Licenses" >> $GITHUB_STEP_SUMMARY
-          echo "- Apache-2.0" >> $GITHUB_STEP_SUMMARY
-          echo "- MIT" >> $GITHUB_STEP_SUMMARY
-          echo "- BSD-2-Clause, BSD-3-Clause" >> $GITHUB_STEP_SUMMARY
-          echo "- ISC" >> $GITHUB_STEP_SUMMARY
-          echo "- MPL-2.0" >> $GITHUB_STEP_SUMMARY

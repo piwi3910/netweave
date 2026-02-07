@@ -7,6 +7,11 @@ on:
       - 'v*'
   pull_request:
     branches: [main, develop]
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+      - '**/*.go'
+      - 'Dockerfile'
   release:
     types: [published]
   schedule:
@@ -115,8 +120,9 @@ jobs:
       - name: Save Grype report path
         if: always()
         id: report-path
+        env:
+          REPORT_PATH: ${{ steps.grype-report.outputs.json }}
         run: |
-          REPORT_PATH="${{ steps.grype-report.outputs.json }}"
           if [ -n "$REPORT_PATH" ] && [ -f "$REPORT_PATH" ]; then
             echo "path=$REPORT_PATH" >> $GITHUB_OUTPUT
             echo "exists=true" >> $GITHUB_OUTPUT
@@ -132,10 +138,11 @@ jobs:
           path: ${{ steps.report-path.outputs.path }}
           retention-days: 30
 
-  # Generate dependency graph
+  # Generate dependency graph (push to main and scheduled only)
   dependency-graph:
     name: Generate Dependency Graph
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -188,9 +195,12 @@ jobs:
 
       - name: Get version
         id: get_version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          if [[ "$EVENT_NAME" == "release" ]]; then
+            echo "version=$RELEASE_TAG" >> $GITHUB_OUTPUT
           else
             echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
@@ -207,8 +217,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Submit dependency snapshot to GitHub
-  # GitHub automatically detects and analyzes Go module dependencies from go.mod/go.sum
-  # This ensures the dependency graph is up-to-date for Dependabot and security alerts
   dependency-submission:
     name: Submit Dependency Snapshot
     runs-on: ubuntu-latest
@@ -235,7 +243,7 @@ jobs:
   sbom-summary:
     name: SBOM Summary
     runs-on: ubuntu-latest
-    needs: [syft-sbom, grype-scan, dependency-graph]
+    needs: [syft-sbom, grype-scan]
     if: always()
     steps:
       - name: Download SBOM artifacts
@@ -251,7 +259,7 @@ jobs:
 
       - name: Create SBOM summary
         run: |
-          echo "# 📦 Software Bill of Materials (SBOM)" >> $GITHUB_STEP_SUMMARY
+          echo "# Software Bill of Materials (SBOM)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Generated Artifacts" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -261,22 +269,22 @@ jobs:
           echo "| CycloneDX JSON | sbom-cyclonedx.json | CycloneDX 1.4 format (machine-readable) |" >> $GITHUB_STEP_SUMMARY
           echo "| SPDX SPDX | sbom.spdx | SPDX tag-value format (human-readable) |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ -f "grype-report.json" ]; then
             CRITICAL=$(jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length' grype-report.json)
             HIGH=$(jq '[.matches[] | select(.vulnerability.severity == "High")] | length' grype-report.json)
             MEDIUM=$(jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length' grype-report.json)
             LOW=$(jq '[.matches[] | select(.vulnerability.severity == "Low")] | length' grype-report.json)
-            
+
             echo "## Vulnerability Scan Results (Grype)" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
             echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-            echo "| 🔴 Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🟠 High | $HIGH |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🟡 Medium | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🟢 Low | $LOW |" >> $GITHUB_STEP_SUMMARY
+            echo "| Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+            echo "| Medium | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
+            echo "| Low | $LOW |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
-          
-          echo "📥 SBOM artifacts are available for download in the workflow run." >> $GITHUB_STEP_SUMMARY
+
+          echo "SBOM artifacts are available for download in the workflow run." >> $GITHUB_STEP_SUMMARY
