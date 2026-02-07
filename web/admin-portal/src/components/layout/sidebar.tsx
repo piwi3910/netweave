@@ -9,16 +9,25 @@ import {
   ShieldCheck,
   FileKey,
   ScrollText,
+  Cloud,
+  Package,
+  Link2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const navigation = [
+const mainNavigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Tenants", href: "/tenants", icon: Building2 },
   { name: "Users", href: "/users", icon: Users },
   { name: "Roles", href: "/roles", icon: ShieldCheck },
   { name: "Certificates", href: "/certificates", icon: FileKey },
   { name: "Audit Log", href: "/audit", icon: ScrollText },
+];
+
+const infrastructureNavigation = [
+  { name: "O-Clouds", href: "/infrastructure/o-clouds", icon: Cloud },
+  { name: "DMS", href: "/infrastructure/dms", icon: Package },
+  { name: "Links", href: "/infrastructure/links", icon: Link2 },
 ];
 
 export function Sidebar() {
@@ -35,7 +44,29 @@ export function Sidebar() {
         </Link>
       </div>
       <nav className="flex flex-col gap-1 p-4">
-        {navigation.map((item) => {
+        {mainNavigation.map((item) => {
+          const isActive = pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <item.icon className="h-4 w-4" />
+              {item.name}
+            </Link>
+          );
+        })}
+        <div className="my-2 border-t" />
+        <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase">
+          Infrastructure
+        </p>
+        {infrastructureNavigation.map((item) => {
           const isActive = pathname.startsWith(item.href);
           return (
             <Link
