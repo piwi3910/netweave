@@ -1,7 +1,9 @@
 # values-local.yaml - Docker Desktop Kubernetes development overrides
 # Usage:
 #   1. Deploy Vault dev mode: kubectl apply -f deployments/kubernetes/vault/dev-deployment.yaml
-#   2. Install chart: helm install netweave . -f values-local.yaml -n netweave --create-namespace
+#   2. Install NGINX Ingress: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.0/deploy/static/provider/cloud/deploy.yaml
+#   3. Install chart: helm install netweave . -f values-local.yaml -n netweave --create-namespace
+#   4. Add to /etc/hosts: 127.0.0.1 admin.netweave.local api.netweave.local auth.netweave.local
 
 # Gateway - single replica, local image
 gateway:
@@ -21,6 +23,19 @@ gateway:
   autoscaling:
     enabled: false
   affinity: {}
+  ingress:
+    enabled: true
+    className: "nginx"
+    hosts:
+      - host: api.netweave.local
+        paths:
+          - path: /
+            pathType: Prefix
+  keycloakClient:
+    additionalRedirectUris:
+      - "http://api.netweave.local/*"
+    additionalWebOrigins:
+      - "http://api.netweave.local"
   config:
     logLevel: debug
     # Multi-tenancy enabled with mTLS auth enforcement
@@ -61,9 +76,31 @@ adminPortal:
     tag: "local"
     pullPolicy: Never
   keycloak:
-    issuer: "http://localhost:8090/realms/netweave"
-  authUrl: "http://localhost:3000"
+    issuer: "http://auth.netweave.local/realms/netweave"
+    additionalRedirectUris:
+      - "http://admin.netweave.local/*"
+    additionalWebOrigins:
+      - "http://admin.netweave.local"
+  authUrl: "http://admin.netweave.local"
   apiBaseUrl: "http://netweave-netweave:8080"
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    hosts:
+      - host: admin.netweave.local
+        paths:
+          - path: /
+            pathType: Prefix
+  # Resolve ingress hostnames from inside the pod for OIDC discovery.
+  # Set the IP to the NGINX ingress controller's ClusterIP:
+  #   kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.spec.clusterIP}'
+  hostAliases:
+    - ip: "REPLACE_WITH_YOUR_INGRESS_CONTROLLER_IP"
+      hostnames:
+        - auth.netweave.local
+        - api.netweave.local
 
 # PostgreSQL - official image, small
 postgresql:
@@ -95,6 +132,17 @@ keycloak:
     repository: quay.io/keycloak/keycloak
     tag: "26.0"
   devMode: true
+  proxy: "xforwarded"
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    hosts:
+      - host: auth.netweave.local
+        paths:
+          - path: /
+            pathType: Prefix
   auth:
     adminUser: admin
     adminPassword: "admin"

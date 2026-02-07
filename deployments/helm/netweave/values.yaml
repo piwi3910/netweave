@@ -56,6 +56,12 @@ gateway:
             pathType: Prefix
     tls: []
 
+  # Additional redirect URIs and web origins for the netweave-gateway Keycloak client.
+  # Used to add ingress hostnames alongside the default localhost entries.
+  keycloakClient:
+    additionalRedirectUris: []
+    additionalWebOrigins: []
+
   resources:
     limits:
       cpu: 1000m
@@ -193,6 +199,10 @@ adminPortal:
 
   keycloak:
     issuer: ""  # Will be set to Keycloak issuer URL
+    # Additional redirect URIs and web origins for the admin-portal Keycloak client.
+    # Used to add ingress hostnames alongside the default localhost entries.
+    additionalRedirectUris: []
+    additionalWebOrigins: []
 
   authUrl: ""  # External URL for next-auth
   apiBaseUrl: ""  # Gateway API base URL
@@ -201,6 +211,21 @@ adminPortal:
     clientId: admin-portal
     clientSecret: ""  # Set via secret
     authSecret: ""  # NextAuth secret, generated if empty
+
+  ingress:
+    enabled: false
+    className: "nginx"
+    annotations: {}
+    hosts:
+      - host: admin.netweave.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+
+  # hostAliases injects entries into the pod's /etc/hosts.
+  # Used to resolve ingress hostnames from inside the pod (e.g., for OIDC discovery).
+  hostAliases: []
 
   resources:
     requests:
@@ -263,6 +288,18 @@ keycloak:
 
   # Proxy headers mode (e.g., "forwarded" or "xforwarded")
   proxy: ""
+
+  ingress:
+    enabled: false
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    hosts:
+      - host: auth.netweave.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
 
   auth:
     adminUser: admin
