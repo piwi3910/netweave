@@ -35,12 +35,20 @@ const (
 	vaultLabel          = "app=vault"
 	vaultServiceName    = "vault"
 	vaultDeploymentName = "vault"
+	vaultConfigMapName  = "vault-config"
+	vaultPVCName        = "vault-data"
+	vaultPVCSize        = "1Gi"
+	vaultDataPath       = "/vault/data"
+	vaultTLSPath        = "/vault/tls"
+	vaultConfigPath     = "/vault/config"
 	credentialsDir      = ".netweave"
 	credentialsFile     = "credentials.json"
 	defaultPKITTL       = "87600h" // 10 years
 	defaultIntPKITTL    = "43800h" // 5 years
 	defaultCertTTL      = "8760h"  // 1 year
 	vaultReadyTimeout   = 120 * time.Second
+	vaultHTTPTimeout    = 10 * time.Second
+	vaultSetupSteps     = 10
 )
 
 // vaultCredentials holds Vault access credentials saved to disk.
@@ -51,15 +59,51 @@ type vaultCredentials struct {
 }
 
 func newVaultCmd() *cobra.Command {
-	return &cobra.Command{
+	vaultCmd := &cobra.Command{
 		Use:   "vault",
 		Short: "Deploy Vault, initialize, unseal, and configure PKI",
-		Long: `Deploys HashiCorp Vault into the Kubernetes cluster, generates TLS
-certificates for Vault itself, initializes and unseals the Vault instance,
-and sets up the PKI secrets engine with Root CA, Intermediate CA, and the
-netweave-mtls role for certificate issuance.`,
+		Long: `Deploys HashiCorp Vault in production mode into the Kubernetes cluster
+with TLS encryption and file-based storage. Generates TLS certificates for
+Vault itself, initializes and unseals the Vault instance, and sets up the
+PKI secrets engine with Root CA, Intermediate CA, and the netweave-mtls
+role for certificate issuance.
+
+Data is persisted to a PVC so it survives pod restarts. After a restart
+the Vault pod will come up sealed — re-run "setup vault" to unseal it.`,
 		RunE: runVaultSetup,
 	}
+
+	vaultCmd.AddCommand(newVaultStatusCmd())
+	vaultCmd.AddCommand(newVaultCredentialsCmd())
+
+	return vaultCmd
+}
+
+func newVaultStatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show Vault initialization and seal status",
+		RunE:  runVaultStatus,
+	}
+}
+
+func newVaultCredentialsCmd() *cobra.Command {
+	var showSecrets bool
+
+	credCmd := &cobra.Command{
+		Use:   "credentials",
+		Short: "Display saved Vault credentials",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return runVaultCredentials(showSecrets)
+		},
+	}
+
+	credCmd.Flags().BoolVar(
+		&showSecrets, "show-secrets", false,
+		"Show full token and unseal key values (default: masked)",
+	)
+
+	return credCmd
 }
 
 func runVaultSetup(_ *cobra.Command, _ []string) error {
@@ -72,16 +116,16 @@ func runVaultSetup(_ *cobra.Command, _ []string) error {
 	}
 	defer conn.Close()
 
-	steps := cmd.Printer.NewStepProgress(8)
+	steps := cmd.Printer.NewStepProgress(vaultSetupSteps)
 
-	// Step 1: Create namespace
+	// Step 1: Create namespace.
 	steps.Stepf("Creating namespace %q...", cmd.Global.Namespace)
 	if nsErr := ensureNamespace(ctx, conn); nsErr != nil {
 		return nsErr
 	}
 	steps.Donef("Namespace ready")
 
-	// Step 2: Generate Vault TLS certs
+	// Step 2: Generate Vault TLS certs.
 	steps.Stepf("Generating Vault TLS certificates...")
 	tlsCert, tlsKey, caCert, genErr := generateSelfSignedTLS(
 		"vault." + cmd.Global.Namespace + ".svc",
@@ -91,50 +135,69 @@ func runVaultSetup(_ *cobra.Command, _ []string) error {
 	}
 	steps.Donef("TLS certificates generated")
 
-	// Step 3: Create K8s secrets for Vault TLS
+	// Step 3: Create K8s secrets for Vault TLS.
 	steps.Stepf("Creating Vault TLS secrets...")
 	if secErr := createVaultTLSSecrets(ctx, conn, tlsCert, tlsKey, caCert); secErr != nil {
 		return secErr
 	}
 	steps.Donef("TLS secrets created")
 
-	// Step 4: Deploy Vault
+	// Step 4: Create Vault config ConfigMap.
+	steps.Stepf("Creating Vault configuration...")
+	if cmErr := createVaultConfigMap(ctx, conn); cmErr != nil {
+		return cmErr
+	}
+	steps.Donef("Vault ConfigMap created")
+
+	// Step 5: Create Vault PVC.
+	steps.Stepf("Creating Vault persistent storage...")
+	if pvcErr := createVaultPVC(ctx, conn); pvcErr != nil {
+		return pvcErr
+	}
+	steps.Donef("Vault PVC ready")
+
+	// Step 6: Deploy Vault.
 	steps.Stepf("Deploying Vault...")
 	if depErr := deployVault(ctx, conn); depErr != nil {
 		return depErr
 	}
 	steps.Donef("Vault deployed")
 
-	// Step 5: Wait for Vault pod
-	steps.Stepf("Waiting for Vault pod to be ready...")
+	// Step 7: Wait for Vault pod.
+	steps.Stepf("Waiting for Vault pod to be running...")
 	if waitErr := conn.WaitForPod(ctx, vaultLabel, vaultReadyTimeout); waitErr != nil {
 		return fmt.Errorf("vault pod not ready: %w", waitErr)
 	}
 	steps.Donef("Vault pod running")
 
-	// Step 6: Port-forward and initialize
-	steps.Stepf("Initializing Vault...")
+	// Step 8: Port-forward and initialize/unseal.
+	steps.Stepf("Initializing and unsealing Vault...")
+	tlsClient := service.NewInsecureTLSClient(vaultHTTPTimeout)
+
 	fw, fwErr := conn.PortForward(ctx, vaultLabel, vaultContainerPort)
 	if fwErr != nil {
 		return fmt.Errorf("failed to port-forward to Vault: %w", fwErr)
 	}
 	defer close(fw.StopChan)
 
-	vaultAddr := fmt.Sprintf("http://127.0.0.1:%d", fw.LocalPort)
-	creds, initErr := initAndUnsealVault(ctx, vaultAddr)
+	vaultAddr := fmt.Sprintf("https://127.0.0.1:%d", fw.LocalPort)
+	creds, initErr := initAndUnsealVault(ctx, tlsClient, vaultAddr)
 	if initErr != nil {
 		return initErr
 	}
 	steps.Donef("Vault initialized and unsealed")
 
-	// Step 7: Setup PKI
+	// Step 9: Setup PKI using the in-cluster address for CA URLs.
 	steps.Stepf("Setting up PKI secrets engine...")
-	if pkiErr := setupVaultPKI(ctx, vaultAddr, creds.RootToken); pkiErr != nil {
+	inClusterAddr := fmt.Sprintf(
+		"https://vault.%s.svc.cluster.local:8200", cmd.Global.Namespace,
+	)
+	if pkiErr := setupVaultPKI(ctx, tlsClient, vaultAddr, inClusterAddr, creds.RootToken); pkiErr != nil {
 		return pkiErr
 	}
 	steps.Donef("PKI configured with Root CA, Intermediate CA, and roles")
 
-	// Step 8: Save credentials (don't save ephemeral port-forward address).
+	// Step 10: Save credentials (don't save ephemeral port-forward address).
 	steps.Stepf("Saving credentials...")
 	creds.VaultAddr = ""
 	if saveErr := saveCredentials(creds); saveErr != nil {
@@ -144,6 +207,103 @@ func runVaultSetup(_ *cobra.Command, _ []string) error {
 
 	cmd.Printer.Success("Vault setup complete!")
 	return nil
+}
+
+// runVaultStatus connects to Vault and displays its health and seal status.
+func runVaultStatus(_ *cobra.Command, _ []string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	conn, err := service.NewConnector(cmd.Global.Kubeconfig, cmd.Global.Namespace)
+	if err != nil {
+		return fmt.Errorf("failed to create K8s connector: %w", err)
+	}
+	defer conn.Close()
+
+	fw, fwErr := conn.PortForward(ctx, vaultLabel, vaultContainerPort)
+	if fwErr != nil {
+		return fmt.Errorf("failed to port-forward to Vault: %w", fwErr)
+	}
+	defer close(fw.StopChan)
+
+	vaultAddr := fmt.Sprintf("https://127.0.0.1:%d", fw.LocalPort)
+	tlsClient := service.NewInsecureTLSClient(vaultHTTPTimeout)
+
+	statusCode, health, err := vaultAPIGetRaw(
+		ctx, tlsClient, vaultAddr, "/v1/sys/health", "",
+	)
+	if err != nil {
+		return fmt.Errorf("failed to query Vault health: %w", err)
+	}
+
+	initialized := boolFromMap(health, "initialized")
+	sealed := boolFromMap(health, "sealed")
+	version := stringFromMap(health, "version")
+	storageType := stringFromMap(health, "storage_type")
+
+	cmd.Printer.Infof("Vault Status (HTTP %d)", statusCode)
+	cmd.Printer.Infof("  Initialized:  %t", initialized)
+	cmd.Printer.Infof("  Sealed:       %t", sealed)
+	cmd.Printer.Infof("  Version:      %s", version)
+	cmd.Printer.Infof("  Storage Type: %s", storageType)
+
+	return nil
+}
+
+// runVaultCredentials loads and displays saved Vault credentials.
+func runVaultCredentials(showSecrets bool) error {
+	creds, err := loadVaultCredentials()
+	if err != nil {
+		return fmt.Errorf("failed to load credentials: %w", err)
+	}
+
+	token := maskSecret(creds.RootToken, showSecrets)
+
+	cmd.Printer.Infof("Vault Credentials (~/%s/%s)", credentialsDir, credentialsFile)
+	cmd.Printer.Infof("  Root Token:  %s", token)
+
+	if len(creds.UnsealKeys) == 0 {
+		cmd.Printer.Infof("  Unseal Keys: (none)")
+	}
+	for i, key := range creds.UnsealKeys {
+		cmd.Printer.Infof("  Unseal Key %d: %s", i+1, maskSecret(key, showSecrets))
+	}
+
+	if !showSecrets {
+		cmd.Printer.Infof("")
+		cmd.Printer.Infof("Use --show-secrets to reveal full values")
+	}
+
+	return nil
+}
+
+// maskSecret returns a masked version of a secret string.
+func maskSecret(s string, reveal bool) string {
+	if reveal || len(s) == 0 {
+		return s
+	}
+	if len(s) <= 8 {
+		return strings.Repeat("*", len(s))
+	}
+	return s[:4] + strings.Repeat("*", len(s)-8) + s[len(s)-4:]
+}
+
+// boolFromMap safely extracts a bool from a map.
+func boolFromMap(m map[string]interface{}, key string) bool {
+	v, ok := m[key].(bool)
+	if !ok {
+		return false
+	}
+	return v
+}
+
+// stringFromMap safely extracts a string from a map.
+func stringFromMap(m map[string]interface{}, key string) string {
+	v, ok := m[key].(string)
+	if !ok {
+		return ""
+	}
+	return v
 }
 
 func ensureNamespace(ctx context.Context, conn *service.Connector) error {
@@ -162,7 +322,6 @@ func ensureNamespace(ctx context.Context, conn *service.Connector) error {
 func generateSelfSignedTLS(
 	dnsName string,
 ) (certPEM, keyPEM, caCertPEM []byte, err error) {
-	// Generate CA key
 	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to generate CA key: %w", err)
@@ -187,7 +346,6 @@ func generateSelfSignedTLS(
 
 	caCertPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caCertDER})
 
-	// Generate server key
 	serverKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to generate server key: %w", err)
@@ -199,7 +357,6 @@ func generateSelfSignedTLS(
 	}
 	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: serverKeyDER})
 
-	// Create server certificate
 	serverTemplate := &x509.Certificate{
 		SerialNumber: big.NewInt(2),
 		Subject:      pkix.Name{CommonName: dnsName},
@@ -267,6 +424,85 @@ func createVaultTLSSecrets(
 	return nil
 }
 
+// createVaultConfigMap creates a ConfigMap with the Vault HCL configuration
+// for production mode: file storage backend and TLS listener.
+func createVaultConfigMap(ctx context.Context, conn *service.Connector) error {
+	vaultHCL := `disable_mlock = true
+ui            = true
+
+storage "file" {
+  path = "` + vaultDataPath + `"
+}
+
+listener "tcp" {
+  address       = "0.0.0.0:8200"
+  tls_cert_file = "` + vaultTLSPath + `/tls.crt"
+  tls_key_file  = "` + vaultTLSPath + `/tls.key"
+}
+
+api_addr     = "https://0.0.0.0:8200"
+cluster_addr = "https://0.0.0.0:8201"
+`
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      vaultConfigMapName,
+			Namespace: conn.Namespace(),
+		},
+		Data: map[string]string{
+			"vault.hcl": vaultHCL,
+		},
+	}
+
+	_, err := conn.Clientset().CoreV1().ConfigMaps(conn.Namespace()).Create(
+		ctx, cm, metav1.CreateOptions{},
+	)
+	if apierrors.IsAlreadyExists(err) {
+		_, err = conn.Clientset().CoreV1().ConfigMaps(conn.Namespace()).Update(
+			ctx, cm, metav1.UpdateOptions{},
+		)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to create vault config configmap: %w", err)
+	}
+
+	return nil
+}
+
+// createVaultPVC creates a PersistentVolumeClaim for Vault file storage.
+// PVCs are immutable once created, so existing PVCs are left as-is.
+func createVaultPVC(ctx context.Context, conn *service.Connector) error {
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      vaultPVCName,
+			Namespace: conn.Namespace(),
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteOnce,
+			},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse(vaultPVCSize),
+				},
+			},
+		},
+	}
+
+	_, err := conn.Clientset().CoreV1().PersistentVolumeClaims(conn.Namespace()).Create(
+		ctx, pvc, metav1.CreateOptions{},
+	)
+	if apierrors.IsAlreadyExists(err) {
+		cmd.Printer.Verbosef("PVC %q already exists, skipping", vaultPVCName)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to create vault PVC: %w", err)
+	}
+
+	return nil
+}
+
 func deployVault(ctx context.Context, conn *service.Connector) error {
 	labels := map[string]string{"app": "vault"}
 	replicas := int32(1)
@@ -280,6 +516,9 @@ func deployVault(ctx context.Context, conn *service.Connector) error {
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{MatchLabels: labels},
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RecreateDeploymentStrategyType,
+			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{Labels: labels},
 				Spec:       buildVaultPodSpec(),
@@ -299,7 +538,6 @@ func deployVault(ctx context.Context, conn *service.Connector) error {
 		return fmt.Errorf("failed to deploy Vault: %w", err)
 	}
 
-	// Create service
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vaultServiceName,
@@ -309,7 +547,7 @@ func deployVault(ctx context.Context, conn *service.Connector) error {
 		Spec: corev1.ServiceSpec{
 			Selector: labels,
 			Ports: []corev1.ServicePort{{
-				Name:       "http",
+				Name:       "https",
 				Port:       int32(vaultContainerPort),
 				TargetPort: intstr.FromInt32(int32(vaultContainerPort)),
 				Protocol:   corev1.ProtocolTCP,
@@ -337,23 +575,29 @@ func buildVaultPodSpec() corev1.PodSpec {
 		Containers: []corev1.Container{{
 			Name:  "vault",
 			Image: vaultImage,
+			Command: []string{
+				"vault", "server",
+				"-config=" + vaultConfigPath + "/vault.hcl",
+			},
 			Ports: []corev1.ContainerPort{{
 				ContainerPort: int32(vaultContainerPort),
 				Protocol:      corev1.ProtocolTCP,
 			}},
 			Env: []corev1.EnvVar{
-				{Name: "VAULT_DEV_ROOT_TOKEN_ID", Value: "root"},
-				{Name: "VAULT_DEV_LISTEN_ADDRESS", Value: "0.0.0.0:8200"},
-				{Name: "VAULT_API_ADDR", Value: "http://0.0.0.0:8200"},
+				{Name: "VAULT_ADDR", Value: "https://127.0.0.1:8200"},
+				{Name: "VAULT_SKIP_VERIFY", Value: "true"},
 			},
-			Command: []string{"vault", "server", "-dev",
-				"-dev-listen-address=0.0.0.0:8200"},
+			SecurityContext: &corev1.SecurityContext{
+				Capabilities: &corev1.Capabilities{
+					Add: []corev1.Capability{"IPC_LOCK"},
+				},
+			},
 			ReadinessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{
-						Path:   "/v1/sys/health",
+						Path:   "/v1/sys/health?standbyok=true&uninitcode=200&sealedcode=200",
 						Port:   intstr.FromInt32(int32(vaultContainerPort)),
-						Scheme: corev1.URISchemeHTTP,
+						Scheme: corev1.URISchemeHTTPS,
 					},
 				},
 				InitialDelaySeconds: 5,
@@ -369,36 +613,116 @@ func buildVaultPodSpec() corev1.PodSpec {
 					corev1.ResourceMemory: resource.MustParse("256Mi"),
 				},
 			},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "vault-data",
+					MountPath: vaultDataPath,
+				},
+				{
+					Name:      "vault-tls",
+					MountPath: vaultTLSPath,
+					ReadOnly:  true,
+				},
+				{
+					Name:      "vault-config",
+					MountPath: vaultConfigPath,
+					ReadOnly:  true,
+				},
+			},
 		}},
+		Volumes: []corev1.Volume{
+			{
+				Name: "vault-data",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: vaultPVCName,
+					},
+				},
+			},
+			{
+				Name: "vault-tls",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: "vault-tls",
+					},
+				},
+			},
+			{
+				Name: "vault-config",
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: vaultConfigMapName,
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
-// initAndUnsealVault initializes Vault and returns credentials.
-// For dev-mode Vault, init/unseal is automatic; we just retrieve the token.
+// initAndUnsealVault initializes Vault if needed and unseals it.
+// When already initialized, it loads credentials from disk and unseals.
 func initAndUnsealVault(
 	ctx context.Context,
+	client *http.Client,
 	vaultAddr string,
 ) (*vaultCredentials, error) {
-	client := &http.Client{Timeout: 10 * time.Second}
-
-	// Check if Vault is already initialized
 	initStatus, err := vaultAPIGet(ctx, client, vaultAddr, "/v1/sys/init", "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to check Vault init status: %w", err)
 	}
 
-	initialized, ok := initStatus["initialized"].(bool)
-	if ok && initialized {
-		// Dev mode: root token is "root" by default unless configured
-		cmd.Printer.Verbosef("Vault already initialized, using dev-mode token")
-		return &vaultCredentials{
-			VaultAddr:  vaultAddr,
-			RootToken:  "root",
-			UnsealKeys: []string{},
-		}, nil
+	initialized := boolFromMap(initStatus, "initialized")
+	if initialized {
+		return handleAlreadyInitialized(ctx, client, vaultAddr)
 	}
 
-	// Initialize Vault with 1 key share, 1 threshold (dev-like)
+	return initializeAndUnseal(ctx, client, vaultAddr)
+}
+
+// handleAlreadyInitialized loads saved credentials and unseals Vault if sealed.
+func handleAlreadyInitialized(
+	ctx context.Context,
+	client *http.Client,
+	vaultAddr string,
+) (*vaultCredentials, error) {
+	cmd.Printer.Verbosef("Vault already initialized, loading credentials...")
+
+	creds, err := loadVaultCredentials()
+	if err != nil {
+		return nil, fmt.Errorf(
+			"vault is initialized but credentials not found: %w "+
+				"(if this is a fresh install, delete the vault PVC and re-run setup)", err,
+		)
+	}
+
+	sealStatus, sealErr := vaultAPIGet(ctx, client, vaultAddr, "/v1/sys/seal-status", "")
+	if sealErr != nil {
+		return nil, fmt.Errorf("failed to check seal status: %w", sealErr)
+	}
+
+	if !boolFromMap(sealStatus, "sealed") {
+		cmd.Printer.Verbosef("Vault is already unsealed")
+		creds.VaultAddr = vaultAddr
+		return creds, nil
+	}
+
+	cmd.Printer.Verbosef("Vault is sealed, unsealing...")
+	if unsealErr := unsealVault(ctx, client, vaultAddr, creds.UnsealKeys); unsealErr != nil {
+		return nil, unsealErr
+	}
+
+	creds.VaultAddr = vaultAddr
+	return creds, nil
+}
+
+// initializeAndUnseal initializes Vault with 1 key share and unseals it.
+func initializeAndUnseal(
+	ctx context.Context,
+	client *http.Client,
+	vaultAddr string,
+) (*vaultCredentials, error) {
 	initReq := map[string]interface{}{
 		"secret_shares":    1,
 		"secret_threshold": 1,
@@ -424,14 +748,8 @@ func initAndUnsealVault(
 		}
 	}
 
-	// Unseal
-	for _, key := range unsealKeys {
-		unsealReq := map[string]interface{}{"key": key}
-		if _, unsealErr := vaultAPIPut(
-			ctx, client, vaultAddr, "/v1/sys/unseal", "", unsealReq,
-		); unsealErr != nil {
-			return nil, fmt.Errorf("failed to unseal Vault: %w", unsealErr)
-		}
+	if unsealErr := unsealVault(ctx, client, vaultAddr, unsealKeys); unsealErr != nil {
+		return nil, unsealErr
 	}
 
 	return &vaultCredentials{
@@ -441,14 +759,34 @@ func initAndUnsealVault(
 	}, nil
 }
 
-func setupVaultPKI(ctx context.Context, vaultAddr, token string) error {
-	client := &http.Client{Timeout: 30 * time.Second}
+// unsealVault applies each unseal key to the Vault unseal endpoint.
+func unsealVault(
+	ctx context.Context,
+	client *http.Client,
+	vaultAddr string,
+	keys []string,
+) error {
+	for _, key := range keys {
+		unsealReq := map[string]interface{}{"key": key}
+		if _, err := vaultAPIPut(
+			ctx, client, vaultAddr, "/v1/sys/unseal", "", unsealReq,
+		); err != nil {
+			return fmt.Errorf("failed to unseal Vault: %w", err)
+		}
+	}
+	return nil
+}
 
-	if err := setupRootCA(ctx, client, vaultAddr, token); err != nil {
+func setupVaultPKI(
+	ctx context.Context,
+	client *http.Client,
+	vaultAddr, inClusterAddr, token string,
+) error {
+	if err := setupRootCA(ctx, client, vaultAddr, inClusterAddr, token); err != nil {
 		return err
 	}
 
-	if err := setupIntermediateCA(ctx, client, vaultAddr, token); err != nil {
+	if err := setupIntermediateCA(ctx, client, vaultAddr, inClusterAddr, token); err != nil {
 		return err
 	}
 
@@ -458,7 +796,7 @@ func setupVaultPKI(ctx context.Context, vaultAddr, token string) error {
 func setupRootCA(
 	ctx context.Context,
 	client *http.Client,
-	vaultAddr, token string,
+	vaultAddr, inClusterAddr, token string,
 ) error {
 	if err := enableSecretEngine(
 		ctx, client, vaultAddr, token, "pki", "pki",
@@ -490,8 +828,8 @@ func setupRootCA(
 	if _, err := vaultAPIPut(ctx, client, vaultAddr,
 		"/v1/pki/config/urls", token,
 		map[string]interface{}{
-			"issuing_certificates":    vaultAddr + "/v1/pki/ca",
-			"crl_distribution_points": vaultAddr + "/v1/pki/crl",
+			"issuing_certificates":    inClusterAddr + "/v1/pki/ca",
+			"crl_distribution_points": inClusterAddr + "/v1/pki/crl",
 		},
 	); err != nil {
 		return fmt.Errorf("failed to configure CA URLs: %w", err)
@@ -503,7 +841,7 @@ func setupRootCA(
 func setupIntermediateCA(
 	ctx context.Context,
 	client *http.Client,
-	vaultAddr, token string,
+	vaultAddr, inClusterAddr, token string,
 ) error {
 	if err := enableSecretEngine(
 		ctx, client, vaultAddr, token, "pki_int", "pki",
@@ -533,8 +871,8 @@ func setupIntermediateCA(
 	if _, err := vaultAPIPut(ctx, client, vaultAddr,
 		"/v1/pki_int/config/urls", token,
 		map[string]interface{}{
-			"issuing_certificates":    vaultAddr + "/v1/pki_int/ca",
-			"crl_distribution_points": vaultAddr + "/v1/pki_int/crl",
+			"issuing_certificates":    inClusterAddr + "/v1/pki_int/ca",
+			"crl_distribution_points": inClusterAddr + "/v1/pki_int/crl",
 		},
 	); err != nil {
 		return fmt.Errorf("failed to configure intermediate CA URLs: %w", err)
@@ -622,7 +960,6 @@ func enableSecretEngine(
 		map[string]interface{}{"type": engineType},
 	)
 	if err != nil {
-		// Check if already enabled
 		if strings.Contains(err.Error(), "path is already in use") {
 			return nil
 		}

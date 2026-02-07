@@ -81,12 +81,13 @@ func runCertsSetup(ctx context.Context, serverCN, clientCN string) error {
 	}
 	defer close(fwd.StopChan)
 
-	vaultAddr := fmt.Sprintf("http://localhost:%d", fwd.LocalPort)
+	vaultAddr := fmt.Sprintf("https://localhost:%d", fwd.LocalPort)
 	vaultClient, err := vault.NewClient(&vault.Config{
-		Address: vaultAddr,
-		Token:   creds.RootToken,
-		PKIPath: "pki_int",
-		Timeout: 30 * time.Second,
+		Address:    vaultAddr,
+		Token:      creds.RootToken,
+		PKIPath:    "pki_int",
+		Timeout:    30 * time.Second,
+		HTTPClient: service.NewInsecureTLSClient(30 * time.Second),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create vault client: %w", err)

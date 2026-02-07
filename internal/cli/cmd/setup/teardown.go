@@ -142,12 +142,15 @@ func deleteVaultResources(ctx context.Context, namespace string) error {
 		}
 	}
 
-	// Delete CA ConfigMap.
-	err = clientset.CoreV1().ConfigMaps(namespace).Delete(
-		ctx, caConfigMapName, metav1.DeleteOptions{},
-	)
-	if err != nil && !apierrors.IsNotFound(err) {
-		cmd.Printer.Verbosef("Failed to delete configmap %q: %v", caConfigMapName, err)
+	// Delete ConfigMaps.
+	configMaps := []string{caConfigMapName, vaultConfigMapName}
+	for _, name := range configMaps {
+		err = clientset.CoreV1().ConfigMaps(namespace).Delete(
+			ctx, name, metav1.DeleteOptions{},
+		)
+		if err != nil && !apierrors.IsNotFound(err) {
+			cmd.Printer.Verbosef("Failed to delete configmap %q: %v", name, err)
+		}
 	}
 
 	return nil
