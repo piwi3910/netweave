@@ -4,24 +4,12 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   "http://localhost:8080/o2ims-infrastructureInventory/v1";
 
-function validateBaseUrl(url: string): string {
-  if (
-    process.env.NODE_ENV === "production" &&
-    !url.startsWith("https://")
-  ) {
-    throw new Error(
-      "API base URL must use HTTPS in production"
-    );
-  }
-  return url;
-}
-
 export class ApiClient {
   private baseUrl: string;
   private getToken: (() => Promise<string | null>) | null = null;
 
   constructor(baseUrl: string) {
-    this.baseUrl = validateBaseUrl(baseUrl);
+    this.baseUrl = baseUrl;
   }
 
   setTokenProvider(provider: () => Promise<string | null>) {
