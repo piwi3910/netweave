@@ -88,7 +88,7 @@ adminPortal:
     additionalWebOrigins:
       - "https://admin.netweave.local"
   authUrl: "https://admin.netweave.local"
-  apiBaseUrl: "http://netweave-netweave:8080"
+  apiBaseUrl: "https://api.netweave.local"
   ingress:
     enabled: true
     className: "nginx"
@@ -103,6 +103,8 @@ adminPortal:
       - secretName: admin-portal-ingress-tls
         hosts:
           - admin.netweave.local
+  # Trust the Vault CA so Node.js can verify TLS when reaching Keycloak via ingress.
+  trustCA: "netweave-tls-ca"
   # Resolve ingress hostnames from inside the pod for OIDC discovery.
   # Set the IP to the NGINX ingress controller's ClusterIP:
   #   kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.spec.clusterIP}'

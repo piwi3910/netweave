@@ -53,6 +53,16 @@ spec:
               value: {{ .Values.adminPortal.authUrl | quote }}
             - name: NEXT_PUBLIC_API_BASE_URL
               value: {{ .Values.adminPortal.apiBaseUrl | quote }}
+            {{- if .Values.adminPortal.trustCA }}
+            - name: NODE_EXTRA_CA_CERTS
+              value: /etc/netweave/tls/ca.crt
+            {{- end }}
+          {{- if .Values.adminPortal.trustCA }}
+          volumeMounts:
+            - name: ca-cert
+              mountPath: /etc/netweave/tls
+              readOnly: true
+          {{- end }}
           livenessProbe:
             httpGet:
               path: /
@@ -67,6 +77,12 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml (.Values.adminPortal.resources | default (dict "requests" (dict "cpu" "100m" "memory" "128Mi") "limits" (dict "cpu" "500m" "memory" "256Mi"))) | nindent 12 }}
+      {{- if .Values.adminPortal.trustCA }}
+      volumes:
+        - name: ca-cert
+          configMap:
+            name: {{ .Values.adminPortal.trustCA }}
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service

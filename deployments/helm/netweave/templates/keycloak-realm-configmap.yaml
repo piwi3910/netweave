@@ -146,11 +146,28 @@ data:
             {{- end }}
           ],
           "protocol": "openid-connect",
-          "publicClient": true,
+          "publicClient": false,
           "directAccessGrantsEnabled": true,
+          "serviceAccountsEnabled": false,
           "standardFlowEnabled": true,
           "implicitFlowEnabled": false,
-          "fullScopeAllowed": true
+          "fullScopeAllowed": true,
+          "protocolMappers": [
+            {
+              "name": "roles-mapper",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-realm-role-mapper",
+              "consentRequired": false,
+              "config": {
+                "userinfo.token.claim": "true",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "roles",
+                "jsonType.label": "String",
+                "multivalued": "true"
+              }
+            }
+          ]
         }
       ],
       "roles": {
