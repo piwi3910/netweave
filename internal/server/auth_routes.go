@@ -64,6 +64,19 @@ func (s *Server) SetupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) 
 
 		// Platform-level audit logs.
 		platform.GET("/audit/events", auditHandler.ListAuditEvents)
+
+		// Frontend plugin management.
+		if s.pluginRegistry != nil {
+			pluginAdapter := newPluginRegistryAdapter(s.pluginRegistry)
+			pluginHandler := handlers.NewPluginHandler(pluginAdapter, s.logger)
+
+			plugins := platform.Group("/plugins")
+			{
+				plugins.GET("", pluginHandler.ListPlugins)
+				plugins.GET("/:name", pluginHandler.GetPlugin)
+				plugins.PUT("/:name", pluginHandler.UpdatePlugin)
+			}
+		}
 	}
 
 	// --- Tenant Routes (/admin/tenant/*) ---

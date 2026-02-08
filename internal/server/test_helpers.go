@@ -117,3 +117,8 @@ func (s *Server) HTTPServer() *http.Server {
 func (s *Server) SetHTTPServer(srv *http.Server) {
 	s.httpServer = srv
 }
+
+// PluginRegistry returns the frontend plugin registry for testing.
+func (s *Server) PluginRegistry() *FrontendPluginRegistry {
+	return s.pluginRegistry
+}

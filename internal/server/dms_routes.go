@@ -10,6 +10,7 @@ import (
 func (s *Server) setupDMSRoutes(handler *dmshandlers.Handler) {
 	// O2-DMS API v1 routes (all features consolidated)
 	v1 := s.router.Group("/o2dms/v1")
+	v1.Use(PluginGuard(s.pluginRegistry, "o2dms"))
 
 	// Apply dynamic routing middleware to resolve DMS registry per-request.
 	v1.Use(s.dmsAdapterMiddleware())
