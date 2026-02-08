@@ -18,6 +18,7 @@ func TestSubscription_MarshalBinary(t *testing.T) {
 			sub: &Subscription{
 				ID:                     "sub-1",
 				TenantID:               "tenant-1",
+				BackendID:              "backend-k8s-1",
 				Callback:               "https://example.com/cb",
 				ConsumerSubscriptionID: "consumer-123",
 				Filter: SubscriptionFilter{
@@ -52,6 +53,8 @@ func TestSubscription_MarshalBinary(t *testing.T) {
 			err = got.UnmarshalBinary(data)
 			require.NoError(t, err)
 			assert.Equal(t, tt.sub.ID, got.ID)
+			assert.Equal(t, tt.sub.TenantID, got.TenantID)
+			assert.Equal(t, tt.sub.BackendID, got.BackendID)
 			assert.Equal(t, tt.sub.Callback, got.Callback)
 			assert.Equal(t, tt.sub.Filter.ResourcePoolID, got.Filter.ResourcePoolID)
 		})

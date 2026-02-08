@@ -146,10 +146,12 @@ func TestSubscriptionController_ProcessNodeEvent(t *testing.T) {
 		},
 	}
 
-	// Create test subscription
+	// Create test subscription with tenant and backend metadata
 	sub := &storage.Subscription{
-		ID:       "sub-123",
-		Callback: "https://smo.example.com/notify",
+		ID:        "sub-123",
+		TenantID:  "tenant-acme",
+		BackendID: "backend-k8s-prod",
+		Callback:  "https://smo.example.com/notify",
 		Filter: storage.SubscriptionFilter{
 			ResourcePoolID: "test-pool",
 			ResourceTypeID: "k8s-node",
@@ -199,6 +201,8 @@ func TestSubscriptionController_ProcessNodeEvent(t *testing.T) {
 	assert.Equal(t, "test-pool", event.ResourcePoolID)
 	assert.Equal(t, "test-node-1", event.GlobalResourceID)
 	assert.Equal(t, "https://smo.example.com/notify", event.CallbackURL)
+	assert.Equal(t, "tenant-acme", event.TenantID)
+	assert.Equal(t, "backend-k8s-prod", event.BackendID)
 }
 
 func TestSubscriptionController_ProcessNamespaceEvent(t *testing.T) {
@@ -223,10 +227,12 @@ func TestSubscriptionController_ProcessNamespaceEvent(t *testing.T) {
 		},
 	}
 
-	// Create test subscription
+	// Create test subscription with tenant and backend metadata
 	sub := &storage.Subscription{
-		ID:       "sub-456",
-		Callback: "https://smo.example.com/notify",
+		ID:        "sub-456",
+		TenantID:  "tenant-beta",
+		BackendID: "backend-openstack-1",
+		Callback:  "https://smo.example.com/notify",
 		Filter: storage.SubscriptionFilter{
 			ResourceTypeID: "k8s-namespace",
 		},
@@ -274,6 +280,8 @@ func TestSubscriptionController_ProcessNamespaceEvent(t *testing.T) {
 	assert.Equal(t, "k8s-namespace", event.ResourceTypeID)
 	assert.Equal(t, "test-namespace", event.GlobalResourceID)
 	assert.Equal(t, "https://smo.example.com/notify", event.CallbackURL)
+	assert.Equal(t, "tenant-beta", event.TenantID)
+	assert.Equal(t, "backend-openstack-1", event.BackendID)
 }
 
 func TestSubscriptionController_MatchesFilter(t *testing.T) {

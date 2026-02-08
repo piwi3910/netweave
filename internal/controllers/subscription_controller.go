@@ -74,6 +74,12 @@ type ResourceEvent struct {
 
 	// CallbackURL is the webhook endpoint to deliver to.
 	CallbackURL string `json:"callbackUrl"`
+
+	// TenantID is the tenant that owns the subscription (for multi-tenancy filtering).
+	TenantID string `json:"tenantId,omitempty"`
+
+	// BackendID is the backend/adapter instance that generated this event.
+	BackendID string `json:"backendId,omitempty"`
 }
 
 // SubscriptionController watches Kubernetes resources and delivers webhook notifications.
@@ -389,6 +395,8 @@ func (c *SubscriptionController) ProcessNodeEvent(ctx context.Context, node *cor
 				Timestamp:        time.Now(),
 				NotificationID:   fmt.Sprintf("notif-%s-%d", node.Name, time.Now().UnixNano()),
 				CallbackURL:      sub.Callback,
+				TenantID:         sub.TenantID,
+				BackendID:        sub.BackendID,
 			}
 
 			if err := c.queueEvent(ctx, event); err != nil {
@@ -431,6 +439,8 @@ func (c *SubscriptionController) ProcessNamespaceEvent(ctx context.Context, ns *
 				Timestamp:        time.Now(),
 				NotificationID:   fmt.Sprintf("notif-%s-%d", ns.Name, time.Now().UnixNano()),
 				CallbackURL:      sub.Callback,
+				TenantID:         sub.TenantID,
+				BackendID:        sub.BackendID,
 			}
 
 			if err := c.queueEvent(ctx, event); err != nil {

@@ -28,6 +28,10 @@ type Subscription struct {
 	// TenantID is the tenant that owns this subscription (for multi-tenancy)
 	TenantID string `json:"tenantId,omitempty"`
 
+	// BackendID is the backend/adapter instance this subscription was created for.
+	// When set, webhook events are scoped to this backend only.
+	BackendID string `json:"backendId,omitempty"`
+
 	// Callback is the webhook URL for notifications
 	Callback string `json:"callback"`
 
