@@ -21,6 +21,7 @@ import (
 // It stores all data in memory and provides deterministic responses for testing.
 type Adapter struct {
 	mu                sync.RWMutex
+	ocloudID          string
 	resourcePools     map[string]*adapter.ResourcePool
 	resources         map[string]*adapter.Resource
 	resourceTypes     map[string]*adapter.ResourceType
@@ -28,16 +29,31 @@ type Adapter struct {
 	deploymentManager *adapter.DeploymentManager
 }
 
+// DefaultOCloudID is the default O-Cloud identifier used by mock adapters.
+const DefaultOCloudID = "mock-ocloud-01"
+
 // NewAdapter creates a new mock adapter with sample data.
 // Pass populateSampleData=true to pre-populate with realistic test data.
 func NewAdapter(populateSampleData bool) *Adapter {
-	a := &Adapter{
-		resourcePools:     make(map[string]*adapter.ResourcePool),
-		resources:         make(map[string]*adapter.Resource),
-		resourceTypes:     make(map[string]*adapter.ResourceType),
-		subscriptions:     make(map[string]*adapter.Subscription),
-		deploymentManager: createMockDeploymentManager(),
+	return NewAdapterWithOCloudID(DefaultOCloudID, populateSampleData)
+}
+
+// NewAdapterWithOCloudID creates a new mock adapter with a custom O-Cloud ID.
+// Each instance gets distinct sample data prefixed with its ocloudID, ensuring
+// different tenants see different O-Clouds with unique resources.
+func NewAdapterWithOCloudID(ocloudID string, populateSampleData bool) *Adapter {
+	if ocloudID == "" {
+		ocloudID = DefaultOCloudID
 	}
+
+	a := &Adapter{
+		ocloudID:      ocloudID,
+		resourcePools: make(map[string]*adapter.ResourcePool),
+		resources:     make(map[string]*adapter.Resource),
+		resourceTypes: make(map[string]*adapter.ResourceType),
+		subscriptions: make(map[string]*adapter.Subscription),
+	}
+	a.deploymentManager = a.createDeploymentManager()
 
 	if populateSampleData {
 		a.populateSampleData()
@@ -46,13 +62,18 @@ func NewAdapter(populateSampleData bool) *Adapter {
 	return a
 }
 
-// createMockDeploymentManager creates a mock deployment manager.
-func createMockDeploymentManager() *adapter.DeploymentManager {
+// OCloudID returns the O-Cloud identifier for this adapter instance.
+func (a *Adapter) OCloudID() string {
+	return a.ocloudID
+}
+
+// createDeploymentManager creates the deployment manager using the adapter's ocloudID.
+func (a *Adapter) createDeploymentManager() *adapter.DeploymentManager {
 	return &adapter.DeploymentManager{
-		DeploymentManagerID: "mock-dm-001",
-		Name:                "Mock O2-IMS Deployment Manager",
-		Description:         "Mock deployment manager for development and testing",
-		OCloudID:            "mock-ocloud-01",
+		DeploymentManagerID: a.ocloudID + "-dm",
+		Name:                "Mock DM (" + a.ocloudID + ")",
+		Description:         "Mock deployment manager for " + a.ocloudID,
+		OCloudID:            a.ocloudID,
 		ServiceURI:          "http://localhost:8080/o2ims",
 		SupportedLocations:  []string{"us-east-1", "us-west-2", "eu-central-1"},
 		Capabilities: []string{
@@ -74,9 +95,12 @@ func (a *Adapter) populateSampleData() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	// Use ocloudID prefix to ensure unique IDs across mock instances
+	prefix := a.ocloudID
+
 	// Create resource types first
 	cpuType := &adapter.ResourceType{
-		ResourceTypeID: "rt-cpu-001",
+		ResourceTypeID: prefix + "-rt-cpu-001",
 		Name:           "CPU",
 		Description:    "CPU cores for compute workloads",
 		Vendor:         "Intel",
@@ -94,7 +118,7 @@ func (a *Adapter) populateSampleData() {
 	a.resourceTypes[cpuType.ResourceTypeID] = cpuType
 
 	gpuType := &adapter.ResourceType{
-		ResourceTypeID: "rt-gpu-001",
+		ResourceTypeID: prefix + "-rt-gpu-001",
 		Name:           "GPU",
 		Description:    "NVIDIA GPU for AI/ML workloads",
 		Vendor:         "NVIDIA",
@@ -112,7 +136,7 @@ func (a *Adapter) populateSampleData() {
 	a.resourceTypes[gpuType.ResourceTypeID] = gpuType
 
 	memoryType := &adapter.ResourceType{
-		ResourceTypeID: "rt-memory-001",
+		ResourceTypeID: prefix + "-rt-memory-001",
 		Name:           "Memory",
 		Description:    "System memory for compute nodes",
 		Vendor:         "Samsung",
@@ -130,7 +154,7 @@ func (a *Adapter) populateSampleData() {
 	a.resourceTypes[memoryType.ResourceTypeID] = memoryType
 
 	storageType := &adapter.ResourceType{
-		ResourceTypeID: "rt-storage-001",
+		ResourceTypeID: prefix + "-rt-storage-001",
 		Name:           "NVMe Storage",
 		Description:    "High-speed NVMe storage",
 		Vendor:         "Samsung",
@@ -149,8 +173,8 @@ func (a *Adapter) populateSampleData() {
 
 	// Create resource pools
 	usEast1Pool := &adapter.ResourcePool{
-		ResourcePoolID:   "pool-us-east-1",
-		OCloudID:         "mock-ocloud-01",
+		ResourcePoolID:   prefix + "-pool-us-east-1",
+		OCloudID:         a.ocloudID,
 		Name:             "US East Compute Pool",
 		Description:      "Compute resources in US East region",
 		Location:         "us-east-1",
@@ -163,8 +187,8 @@ func (a *Adapter) populateSampleData() {
 	a.resourcePools[usEast1Pool.ResourcePoolID] = usEast1Pool
 
 	usWest2Pool := &adapter.ResourcePool{
-		ResourcePoolID:   "pool-us-west-2",
-		OCloudID:         "mock-ocloud-01",
+		ResourcePoolID:   prefix + "-pool-us-west-2",
+		OCloudID:         a.ocloudID,
 		Name:             "US West GPU Pool",
 		Description:      "GPU resources for AI/ML workloads",
 		Location:         "us-west-2",
@@ -178,8 +202,8 @@ func (a *Adapter) populateSampleData() {
 	a.resourcePools[usWest2Pool.ResourcePoolID] = usWest2Pool
 
 	euCentralPool := &adapter.ResourcePool{
-		ResourcePoolID:   "pool-eu-central-1",
-		OCloudID:         "mock-ocloud-01",
+		ResourcePoolID:   prefix + "-pool-eu-central-1",
+		OCloudID:         a.ocloudID,
 		Name:             "EU Central Pool",
 		Description:      "European compute and storage resources",
 		Location:         "eu-central-1",
@@ -195,7 +219,7 @@ func (a *Adapter) populateSampleData() {
 	// US East resources
 	for i := 1; i <= 5; i++ {
 		resource := &adapter.Resource{
-			ResourceID:     fmt.Sprintf("res-cpu-us-east-%03d", i),
+			ResourceID:     fmt.Sprintf("%s-res-cpu-us-east-%03d", prefix, i),
 			ResourceTypeID: cpuType.ResourceTypeID,
 			ResourcePoolID: usEast1Pool.ResourcePoolID,
 			GlobalAssetID:  uuid.New().String(),
@@ -211,7 +235,7 @@ func (a *Adapter) populateSampleData() {
 	// US West GPU resources
 	for i := 1; i <= 8; i++ {
 		resource := &adapter.Resource{
-			ResourceID:     fmt.Sprintf("res-gpu-us-west-%03d", i),
+			ResourceID:     fmt.Sprintf("%s-res-gpu-us-west-%03d", prefix, i),
 			ResourceTypeID: gpuType.ResourceTypeID,
 			ResourcePoolID: usWest2Pool.ResourcePoolID,
 			GlobalAssetID:  uuid.New().String(),
@@ -229,7 +253,7 @@ func (a *Adapter) populateSampleData() {
 	// EU Central mixed resources
 	for i := 1; i <= 3; i++ {
 		cpuResource := &adapter.Resource{
-			ResourceID:     fmt.Sprintf("res-cpu-eu-central-%03d", i),
+			ResourceID:     fmt.Sprintf("%s-res-cpu-eu-central-%03d", prefix, i),
 			ResourceTypeID: cpuType.ResourceTypeID,
 			ResourcePoolID: euCentralPool.ResourcePoolID,
 			GlobalAssetID:  uuid.New().String(),
@@ -242,7 +266,7 @@ func (a *Adapter) populateSampleData() {
 		a.resources[cpuResource.ResourceID] = cpuResource
 
 		storageResource := &adapter.Resource{
-			ResourceID:     fmt.Sprintf("res-storage-eu-central-%03d", i),
+			ResourceID:     fmt.Sprintf("%s-res-storage-eu-central-%03d", prefix, i),
 			ResourceTypeID: storageType.ResourceTypeID,
 			ResourcePoolID: euCentralPool.ResourcePoolID,
 			GlobalAssetID:  uuid.New().String(),

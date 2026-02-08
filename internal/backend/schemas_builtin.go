@@ -11,6 +11,7 @@ func registerIMSSchemas(registry *SchemaRegistry) {
 	registry.Register(awsSchema())
 	registry.Register(azureSchema())
 	registry.Register(openstackSchema())
+	registry.Register(mockSchema())
 }
 
 func registerDMSSchemas(registry *SchemaRegistry) {
@@ -191,6 +192,34 @@ func openstackSchema() *AdapterTypeSchema {
 				Description: "OpenStack password.",
 			},
 		},
+	}
+}
+
+func mockSchema() *AdapterTypeSchema {
+	return &AdapterTypeSchema{
+		Type:        "mock",
+		Category:    "ims",
+		DisplayName: "Mock O-Cloud",
+		Description: "Mock adapter for development, testing, and demos. Generates realistic sample data in memory.",
+		ConfigSchema: []FieldSpec{
+			{
+				Name:    "populate_sample_data",
+				Label:   "Populate Sample Data",
+				Type:    FieldTypeBoolean,
+				Default: "true",
+				Description: "Pre-populate the adapter with realistic sample " +
+					"resource pools, resources, and resource types.",
+			},
+			{
+				Name:        "ocloud_id",
+				Label:       "O-Cloud ID",
+				Type:        FieldTypeString,
+				Placeholder: "mock-ocloud-01",
+				Description: "Unique identifier for this mock O-Cloud instance. " +
+					"Used to distinguish resources between instances.",
+			},
+		},
+		CredentialSchema: nil,
 	}
 }
 
