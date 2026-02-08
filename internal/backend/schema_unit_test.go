@@ -129,12 +129,12 @@ func TestRegisterBuiltinSchemas(t *testing.T) {
 
 	t.Run("registers all expected schemas", func(t *testing.T) {
 		schemas := reg.List()
-		assert.Len(t, schemas, 8, "expected 8 builtin schemas")
+		assert.Len(t, schemas, 20, "expected 20 builtin schemas")
 	})
 
 	t.Run("IMS schemas are registered", func(t *testing.T) {
 		imsSchemas := reg.ListByCategory("ims")
-		assert.Len(t, imsSchemas, 5, "expected 5 IMS schemas")
+		assert.Len(t, imsSchemas, 9, "expected 9 IMS schemas")
 
 		imsTypes := map[string]bool{}
 		for _, s := range imsSchemas {
@@ -145,11 +145,15 @@ func TestRegisterBuiltinSchemas(t *testing.T) {
 		assert.True(t, imsTypes["azure"])
 		assert.True(t, imsTypes["openstack"])
 		assert.True(t, imsTypes["mock"])
+		assert.True(t, imsTypes["gcp"])
+		assert.True(t, imsTypes["vmware"])
+		assert.True(t, imsTypes["starlingx"])
+		assert.True(t, imsTypes["dtias"])
 	})
 
 	t.Run("DMS schemas are registered", func(t *testing.T) {
 		dmsSchemas := reg.ListByCategory("dms")
-		assert.Len(t, dmsSchemas, 3, "expected 3 DMS schemas")
+		assert.Len(t, dmsSchemas, 8, "expected 8 DMS schemas")
 
 		dmsTypes := map[string]bool{}
 		for _, s := range dmsSchemas {
@@ -158,6 +162,24 @@ func TestRegisterBuiltinSchemas(t *testing.T) {
 		assert.True(t, dmsTypes["helm"])
 		assert.True(t, dmsTypes["argocd"])
 		assert.True(t, dmsTypes["flux"])
+		assert.True(t, dmsTypes["crossplane"])
+		assert.True(t, dmsTypes["kustomize"])
+		assert.True(t, dmsTypes["onaplcm"])
+		assert.True(t, dmsTypes["osmlcm"])
+		assert.True(t, dmsTypes["mock-dms"])
+	})
+
+	t.Run("SMO schemas are registered", func(t *testing.T) {
+		smoSchemas := reg.ListByCategory("smo")
+		assert.Len(t, smoSchemas, 3, "expected 3 SMO schemas")
+
+		smoTypes := map[string]bool{}
+		for _, s := range smoSchemas {
+			smoTypes[s.Type] = true
+		}
+		assert.True(t, smoTypes["onap"])
+		assert.True(t, smoTypes["osm"])
+		assert.True(t, smoTypes["mock-smo"])
 	})
 
 	t.Run("kubernetes schema has correct fields", func(t *testing.T) {
@@ -168,12 +190,12 @@ func TestRegisterBuiltinSchemas(t *testing.T) {
 		assert.Len(t, schema.ConfigSchema, 2)
 		assert.Len(t, schema.CredentialSchema, 1)
 
-		// Check config fields
+		// Check config fields.
 		assert.Equal(t, "context", schema.ConfigSchema[0].Name)
 		assert.Equal(t, "namespace", schema.ConfigSchema[1].Name)
 		assert.Equal(t, "default", schema.ConfigSchema[1].Default)
 
-		// Check credential fields
+		// Check credential fields.
 		assert.Equal(t, "kubeconfig", schema.CredentialSchema[0].Name)
 		assert.True(t, schema.CredentialSchema[0].Required)
 		assert.True(t, schema.CredentialSchema[0].Secret)
@@ -274,6 +296,231 @@ func TestRegisterBuiltinSchemas(t *testing.T) {
 		assert.Equal(t, "main", schema.ConfigSchema[1].Default)
 		assert.Equal(t, "ssh_key", schema.CredentialSchema[0].Name)
 		assert.Equal(t, backend.FieldTypeText, schema.CredentialSchema[0].Type)
+	})
+
+	t.Run("gcp schema has correct fields", func(t *testing.T) {
+		schema, ok := reg.Get("gcp")
+		require.True(t, ok)
+		assert.Equal(t, "Google Cloud Platform", schema.DisplayName)
+		assert.Equal(t, "ims", schema.Category)
+		assert.Len(t, schema.ConfigSchema, 3)
+		assert.Len(t, schema.CredentialSchema, 1)
+
+		assert.Equal(t, "project_id", schema.ConfigSchema[0].Name)
+		assert.True(t, schema.ConfigSchema[0].Required)
+		assert.Equal(t, "region", schema.ConfigSchema[1].Name)
+		assert.True(t, schema.ConfigSchema[1].Required)
+		assert.Equal(t, "zone", schema.ConfigSchema[2].Name)
+		assert.False(t, schema.ConfigSchema[2].Required)
+
+		assert.Equal(t, "service_account_json", schema.CredentialSchema[0].Name)
+		assert.True(t, schema.CredentialSchema[0].Secret)
+		assert.Equal(t, backend.FieldTypeText, schema.CredentialSchema[0].Type)
+	})
+
+	t.Run("vmware schema has correct fields", func(t *testing.T) {
+		schema, ok := reg.Get("vmware")
+		require.True(t, ok)
+		assert.Equal(t, "VMware vSphere", schema.DisplayName)
+		assert.Equal(t, "ims", schema.Category)
+		assert.Len(t, schema.ConfigSchema, 3)
+		assert.Len(t, schema.CredentialSchema, 2)
+
+		assert.Equal(t, "vcenter_url", schema.ConfigSchema[0].Name)
+		assert.True(t, schema.ConfigSchema[0].Required)
+		assert.Equal(t, "datacenter", schema.ConfigSchema[1].Name)
+		assert.True(t, schema.ConfigSchema[1].Required)
+		assert.Equal(t, "cluster", schema.ConfigSchema[2].Name)
+		assert.False(t, schema.ConfigSchema[2].Required)
+
+		assert.Equal(t, "username", schema.CredentialSchema[0].Name)
+		assert.True(t, schema.CredentialSchema[0].Secret)
+		assert.Equal(t, "password", schema.CredentialSchema[1].Name)
+		assert.True(t, schema.CredentialSchema[1].Secret)
+	})
+
+	t.Run("starlingx schema has correct fields", func(t *testing.T) {
+		schema, ok := reg.Get("starlingx")
+		require.True(t, ok)
+		assert.Equal(t, "StarlingX", schema.DisplayName)
+		assert.Equal(t, "ims", schema.Category)
+		assert.Len(t, schema.ConfigSchema, 3)
+		assert.Len(t, schema.CredentialSchema, 2)
+
+		assert.Equal(t, "api_url", schema.ConfigSchema[0].Name)
+		assert.True(t, schema.ConfigSchema[0].Required)
+		assert.Equal(t, "region", schema.ConfigSchema[1].Name)
+		assert.Equal(t, "system_name", schema.ConfigSchema[2].Name)
+
+		assert.Equal(t, "auth_token", schema.CredentialSchema[0].Name)
+		assert.True(t, schema.CredentialSchema[0].Required)
+		assert.True(t, schema.CredentialSchema[0].Secret)
+		assert.Equal(t, "ca_cert", schema.CredentialSchema[1].Name)
+		assert.Equal(t, backend.FieldTypeText, schema.CredentialSchema[1].Type)
+	})
+
+	t.Run("dtias schema has correct fields", func(t *testing.T) {
+		schema, ok := reg.Get("dtias")
+		require.True(t, ok)
+		assert.Equal(t, "Dell TIAS", schema.DisplayName)
+		assert.Equal(t, "ims", schema.Category)
+		assert.Len(t, schema.ConfigSchema, 2)
+		assert.Len(t, schema.CredentialSchema, 2)
+
+		assert.Equal(t, "api_url", schema.ConfigSchema[0].Name)
+		assert.True(t, schema.ConfigSchema[0].Required)
+		assert.Equal(t, "cluster_name", schema.ConfigSchema[1].Name)
+
+		assert.Equal(t, "api_key", schema.CredentialSchema[0].Name)
+		assert.True(t, schema.CredentialSchema[0].Required)
+		assert.True(t, schema.CredentialSchema[0].Secret)
+		assert.Equal(t, "ca_cert", schema.CredentialSchema[1].Name)
+		assert.Equal(t, backend.FieldTypeText, schema.CredentialSchema[1].Type)
+	})
+
+	t.Run("crossplane schema has correct fields", func(t *testing.T) {
+		schema, ok := reg.Get("crossplane")
+		require.True(t, ok)
+		assert.Equal(t, "Crossplane", schema.DisplayName)
+		assert.Equal(t, "dms", schema.Category)
+		assert.Len(t, schema.ConfigSchema, 3)
+		assert.Len(t, schema.CredentialSchema, 1)
+
+		assert.Equal(t, "kubeconfig", schema.ConfigSchema[0].Name)
+		assert.Equal(t, "provider", schema.ConfigSchema[1].Name)
+		assert.True(t, schema.ConfigSchema[1].Required)
+		assert.Equal(t, "namespace", schema.ConfigSchema[2].Name)
+		assert.Equal(t, "crossplane-system", schema.ConfigSchema[2].Default)
+
+		assert.Equal(t, "kubeconfig_data", schema.CredentialSchema[0].Name)
+		assert.True(t, schema.CredentialSchema[0].Secret)
+	})
+
+	t.Run("kustomize schema has correct fields", func(t *testing.T) {
+		schema, ok := reg.Get("kustomize")
+		require.True(t, ok)
+		assert.Equal(t, "Kustomize", schema.DisplayName)
+		assert.Equal(t, "dms", schema.Category)
+		assert.Len(t, schema.ConfigSchema, 3)
+		assert.Len(t, schema.CredentialSchema, 1)
+
+		assert.Equal(t, "kubeconfig", schema.ConfigSchema[0].Name)
+		assert.Equal(t, "base_path", schema.ConfigSchema[1].Name)
+		assert.True(t, schema.ConfigSchema[1].Required)
+		assert.Equal(t, "namespace", schema.ConfigSchema[2].Name)
+
+		assert.Equal(t, "kubeconfig_data", schema.CredentialSchema[0].Name)
+		assert.True(t, schema.CredentialSchema[0].Secret)
+	})
+
+	t.Run("onaplcm schema has correct fields", func(t *testing.T) {
+		schema, ok := reg.Get("onaplcm")
+		require.True(t, ok)
+		assert.Equal(t, "ONAP LCM", schema.DisplayName)
+		assert.Equal(t, "dms", schema.Category)
+		assert.Len(t, schema.ConfigSchema, 3)
+		assert.Len(t, schema.CredentialSchema, 2)
+
+		assert.Equal(t, "api_url", schema.ConfigSchema[0].Name)
+		assert.True(t, schema.ConfigSchema[0].Required)
+		assert.Equal(t, "vnf_catalog_url", schema.ConfigSchema[1].Name)
+		assert.Equal(t, "so_endpoint", schema.ConfigSchema[2].Name)
+
+		assert.Equal(t, "username", schema.CredentialSchema[0].Name)
+		assert.True(t, schema.CredentialSchema[0].Required)
+		assert.Equal(t, "password", schema.CredentialSchema[1].Name)
+		assert.True(t, schema.CredentialSchema[1].Required)
+	})
+
+	t.Run("osmlcm schema has correct fields", func(t *testing.T) {
+		schema, ok := reg.Get("osmlcm")
+		require.True(t, ok)
+		assert.Equal(t, "OSM LCM", schema.DisplayName)
+		assert.Equal(t, "dms", schema.Category)
+		assert.Len(t, schema.ConfigSchema, 3)
+		assert.Len(t, schema.CredentialSchema, 2)
+
+		assert.Equal(t, "api_url", schema.ConfigSchema[0].Name)
+		assert.True(t, schema.ConfigSchema[0].Required)
+		assert.Equal(t, "project", schema.ConfigSchema[1].Name)
+		assert.Equal(t, "admin", schema.ConfigSchema[1].Default)
+		assert.Equal(t, "vim_account", schema.ConfigSchema[2].Name)
+
+		assert.Equal(t, "username", schema.CredentialSchema[0].Name)
+		assert.True(t, schema.CredentialSchema[0].Required)
+		assert.Equal(t, "password", schema.CredentialSchema[1].Name)
+		assert.True(t, schema.CredentialSchema[1].Required)
+	})
+
+	t.Run("mock-dms schema has correct fields", func(t *testing.T) {
+		schema, ok := reg.Get("mock-dms")
+		require.True(t, ok)
+		assert.Equal(t, "Mock DMS", schema.DisplayName)
+		assert.Equal(t, "dms", schema.Category)
+		assert.Len(t, schema.ConfigSchema, 2)
+		assert.Nil(t, schema.CredentialSchema)
+
+		assert.Equal(t, "populate_sample_data", schema.ConfigSchema[0].Name)
+		assert.Equal(t, backend.FieldTypeBoolean, schema.ConfigSchema[0].Type)
+		assert.Equal(t, "true", schema.ConfigSchema[0].Default)
+		assert.Equal(t, "deployment_delay_ms", schema.ConfigSchema[1].Name)
+		assert.Equal(t, backend.FieldTypeNumber, schema.ConfigSchema[1].Type)
+		assert.Equal(t, "0", schema.ConfigSchema[1].Default)
+	})
+
+	t.Run("onap schema has correct fields", func(t *testing.T) {
+		schema, ok := reg.Get("onap")
+		require.True(t, ok)
+		assert.Equal(t, "ONAP SMO", schema.DisplayName)
+		assert.Equal(t, "smo", schema.Category)
+		assert.Len(t, schema.ConfigSchema, 3)
+		assert.Len(t, schema.CredentialSchema, 2)
+
+		assert.Equal(t, "api_url", schema.ConfigSchema[0].Name)
+		assert.True(t, schema.ConfigSchema[0].Required)
+		assert.Equal(t, "aai_url", schema.ConfigSchema[1].Name)
+		assert.Equal(t, "so_url", schema.ConfigSchema[2].Name)
+
+		assert.Equal(t, "username", schema.CredentialSchema[0].Name)
+		assert.True(t, schema.CredentialSchema[0].Required)
+		assert.Equal(t, "password", schema.CredentialSchema[1].Name)
+		assert.True(t, schema.CredentialSchema[1].Required)
+	})
+
+	t.Run("osm schema has correct fields", func(t *testing.T) {
+		schema, ok := reg.Get("osm")
+		require.True(t, ok)
+		assert.Equal(t, "OSM SMO", schema.DisplayName)
+		assert.Equal(t, "smo", schema.Category)
+		assert.Len(t, schema.ConfigSchema, 3)
+		assert.Len(t, schema.CredentialSchema, 2)
+
+		assert.Equal(t, "api_url", schema.ConfigSchema[0].Name)
+		assert.True(t, schema.ConfigSchema[0].Required)
+		assert.Equal(t, "project", schema.ConfigSchema[1].Name)
+		assert.Equal(t, "admin", schema.ConfigSchema[1].Default)
+		assert.Equal(t, "kafka_broker", schema.ConfigSchema[2].Name)
+
+		assert.Equal(t, "username", schema.CredentialSchema[0].Name)
+		assert.True(t, schema.CredentialSchema[0].Required)
+		assert.Equal(t, "password", schema.CredentialSchema[1].Name)
+		assert.True(t, schema.CredentialSchema[1].Required)
+	})
+
+	t.Run("mock-smo schema has correct fields", func(t *testing.T) {
+		schema, ok := reg.Get("mock-smo")
+		require.True(t, ok)
+		assert.Equal(t, "Mock SMO", schema.DisplayName)
+		assert.Equal(t, "smo", schema.Category)
+		assert.Len(t, schema.ConfigSchema, 2)
+		assert.Nil(t, schema.CredentialSchema)
+
+		assert.Equal(t, "populate_sample_data", schema.ConfigSchema[0].Name)
+		assert.Equal(t, backend.FieldTypeBoolean, schema.ConfigSchema[0].Type)
+		assert.Equal(t, "true", schema.ConfigSchema[0].Default)
+		assert.Equal(t, "simulate_workflows", schema.ConfigSchema[1].Name)
+		assert.Equal(t, backend.FieldTypeBoolean, schema.ConfigSchema[1].Type)
+		assert.Equal(t, "false", schema.ConfigSchema[1].Default)
 	})
 }
 
@@ -386,7 +633,7 @@ func TestAccessStruct(t *testing.T) {
 // We test this indirectly by verifying the NewPostgresStore function returns a valid store.
 func TestNewPostgresStore_NilPool(t *testing.T) {
 	// NewPostgresStore should not panic with a nil pool
-	// It creates the store; queries will fail at runtime
+	// It creates the store; queries will fail at runtime.
 	store := backend.NewPostgresStore(nil)
 	assert.NotNil(t, store)
 }
@@ -395,13 +642,13 @@ func TestNewPostgresStore_NilPool(t *testing.T) {
 // Since isUniqueViolation is unexported, we test it indirectly through
 // the PostgresStore methods. Here we verify the PgError code constant works.
 func TestPgErrorCodeDetection(t *testing.T) {
-	// Create a PgError with the unique violation code
+	// Create a PgError with the unique violation code.
 	pgErr := &pgconn.PgError{
 		Code: "23505",
 	}
 	assert.Equal(t, "23505", pgErr.Code)
 
-	// Create a PgError with a different code
+	// Create a PgError with a different code.
 	otherErr := &pgconn.PgError{
 		Code: "23503",
 	}

@@ -81,7 +81,9 @@ export const backendSchema = z.object({
     .max(512, "Description must be at most 512 characters")
     .optional()
     .default(""),
-  category: z.enum(["ims", "dms"], { required_error: "Category is required" }),
+  category: z.enum(["ims", "dms", "smo"], {
+    required_error: "Category is required",
+  }),
   adapterType: z.string().min(1, "Adapter type is required"),
 });
 
