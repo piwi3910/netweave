@@ -1,19 +1,9 @@
 name: E2E Tests
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - '**/*.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'Dockerfile'
-      - 'deployments/**'
-      - 'Makefile'
-  workflow_dispatch:  # Allow manual trigger
-  schedule:
-    - cron: '0 2 * * *'  # Nightly at 2 AM UTC
+  # E2E tests require local infrastructure (Kind cluster, Redis, gateway)
+  # not available in GitHub Actions runners. Manual trigger only.
+  workflow_dispatch:
 
 jobs:
   e2e-tests:
