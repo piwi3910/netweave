@@ -353,7 +353,12 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 
 // handleRenewalFailure handles a failed certificate renewal attempt by updating
 // metrics, status, and sending notifications when max retries are exhausted.
-func (s *Service) handleRenewalFailure(ctx context.Context, cert *Certificate, oldSerial, oldCommonName string, err error) {
+func (s *Service) handleRenewalFailure(
+	ctx context.Context,
+	cert *Certificate,
+	oldSerial, oldCommonName string,
+	err error,
+) {
 	s.logger.Error("Certificate renewal failed",
 		zap.String("serial", oldSerial),
 		zap.Error(err))

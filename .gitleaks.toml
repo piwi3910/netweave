@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "False positives: test fixture OAuth subject values are not real secrets"
+fingerprints = [
+  "42a28efbd186b33aee6099a9364047a4c697de1a:internal/keycloak/store_extra_test.go:generic-api-key:103",
+  "42a28efbd186b33aee6099a9364047a4c697de1a:internal/keycloak/store_extra_test.go:generic-api-key:119",
+]
