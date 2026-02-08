@@ -242,33 +242,18 @@ func (h *SMOHandler) getPluginFromQuery(c *gin.Context) (smo.Plugin, error) {
 	return plugin, nil
 }
 
-// setupSMORoutes configures all O2-SMO API routes (v1, v2, v3).
-// It organizes routes into the following groups:
-//   - /o2smo/v1/* - Original SMO API
-//   - /o2smo/v2/* - V2 API with enhanced filtering and batch operations
-//   - /o2smo/v3/* - V3 API with multi-tenancy support
+// setupSMORoutes configures all O2-SMO API routes under /o2smo/v1.
+// All features (batch operations, feature discovery, multi-tenancy) are consolidated in v1.
 func (s *Server) setupSMORoutes(smoHandler *SMOHandler) {
-	// O2-SMO API v1 routes
+	// O2-SMO API v1 routes (all features consolidated)
 	v1 := s.router.Group("/o2smo/v1")
 	{
 		s.setupSMOV1Routes(v1, smoHandler)
 	}
-
-	// O2-SMO API v2 routes (enhanced filtering, batch operations)
-	v2 := s.router.Group("/o2smo/v2")
-	{
-		s.setupSMOV2Routes(v2, smoHandler)
-	}
-
-	// O2-SMO API v3 routes (multi-tenancy)
-	v3 := s.router.Group("/o2smo/v3")
-	{
-		v3.Use(TenantMiddleware())
-		s.setupSMOV3Routes(v3, smoHandler)
-	}
 }
 
-// setupSMOV1Routes configures the O2-SMO API v1 endpoints.
+// setupSMOV1Routes configures the O2-SMO API v1 endpoints with all features.
+// This includes batch operations, feature discovery, and multi-tenancy support.
 func (s *Server) setupSMOV1Routes(v1 *gin.RouterGroup, smoHandler *SMOHandler) {
 	// Plugin Management
 	plugins := v1.Group("/plugins")
@@ -311,19 +296,9 @@ func (s *Server) setupSMOV1Routes(v1 *gin.RouterGroup, smoHandler *SMOHandler) {
 
 	// Health check for SMO components
 	v1.GET("/health", smoHandler.HandleSMOHealth)
-}
 
-// setupSMOV2Routes configures the O2-SMO API v2 endpoints with enhanced features.
-// V2 includes all v1 features plus:
-//   - Enhanced filtering for workflows, service models, and policies
-//   - Batch operations for workflows and service models
-//   - Field selection and cursor pagination
-func (s *Server) setupSMOV2Routes(v2 *gin.RouterGroup, smoHandler *SMOHandler) {
-	// Include all v1 routes
-	s.setupSMOV1Routes(v2, smoHandler)
-
-	// Batch operations (v2 feature)
-	batch := v2.Group("/batch")
+	// Batch operations
+	batch := v1.Group("/batch")
 	{
 		// Batch workflow operations
 		batch.POST("/workflows", smoHandler.HandleListServiceModels)        // Placeholder - will be batch execute
@@ -338,53 +313,27 @@ func (s *Server) setupSMOV2Routes(v2 *gin.RouterGroup, smoHandler *SMOHandler) {
 		batch.POST("/policies/delete", smoHandler.HandleListServiceModels) // Placeholder - will be batch delete
 	}
 
-	// V2 features endpoint
-	v2.GET("/features", s.handleSMOV2Features)
+	// Features endpoint
+	v1.GET("/features", s.handleSMOFeatures)
 }
 
-// setupSMOV3Routes configures the O2-SMO API v3 endpoints with multi-tenancy support.
-// V3 includes all v2 features plus:
-//   - Multi-tenant workflow isolation
-//   - Tenant quotas for workflows and policies
-//   - Cross-tenant visibility controls
-//   - Tenant-scoped service models and policies
-func (s *Server) setupSMOV3Routes(v3 *gin.RouterGroup, smoHandler *SMOHandler) {
-	// Include all v1 routes (with tenant context applied via middleware)
-	s.setupSMOV1Routes(v3, smoHandler)
-
-	// Batch Operations (v2 feature with tenant context)
-	batch := v3.Group("/batch")
-	{
-		// Batch workflow operations (tenant-scoped)
-		batch.POST("/workflows", smoHandler.HandleListServiceModels)        // Placeholder - will be batch execute
-		batch.POST("/workflows/cancel", smoHandler.HandleListServiceModels) // Placeholder - will be batch cancel
-
-		// Batch service model operations (tenant-scoped)
-		batch.POST("/serviceModels", smoHandler.HandleListServiceModels)        // Placeholder - will be batch create
-		batch.POST("/serviceModels/delete", smoHandler.HandleListServiceModels) // Placeholder - will be batch delete
-
-		// Batch policy operations (tenant-scoped)
-		batch.POST("/policies", smoHandler.HandleListServiceModels)        // Placeholder - will be batch apply
-		batch.POST("/policies/delete", smoHandler.HandleListServiceModels) // Placeholder - will be batch delete
-	}
-
-	// V3 features endpoint
-	v3.GET("/features", s.handleSMOV3Features)
-}
-
-// handleSMOV2Features returns v2 API feature information.
-// GET /o2smo/v2/features.
-func (s *Server) handleSMOV2Features(c *gin.Context) {
+// handleSMOFeatures returns v1 API feature information.
+// GET /o2smo/v1/features.
+func (s *Server) handleSMOFeatures(c *gin.Context) {
 	c.JSON(200, gin.H{
-		"version":     "v2",
-		"apiVersion":  "v2",
-		"description": "O2-SMO API v2 with enhanced filtering, batch operations",
+		"version":     "v1",
+		"apiVersion":  "v1",
+		"description": "O2-SMO API v1 with batch operations, feature discovery, and multi-tenancy",
 		"features": []string{
 			"enhanced_filtering",
 			"field_selection",
 			"cursor_pagination",
 			"batch_operations",
 			"workflow_history",
+			"multi_tenancy",
+			"tenant_isolation",
+			"tenant_quotas",
+			"cross_tenant_visibility",
 		},
 		"batch_operations": []string{
 			"batch_execute_workflows",
@@ -393,24 +342,6 @@ func (s *Server) handleSMOV2Features(c *gin.Context) {
 			"batch_delete_service_models",
 			"batch_apply_policies",
 			"batch_delete_policies",
-		},
-	})
-}
-
-// handleSMOV3Features returns v3 API feature information.
-// GET /o2smo/v3/features.
-func (s *Server) handleSMOV3Features(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"version":     "v3",
-		"apiVersion":  "v3",
-		"description": "O2-SMO API v3 with multi-tenancy support",
-		"features": []string{
-			"multi_tenancy",
-			"tenant_isolation",
-			"tenant_quotas",
-			"cross_tenant_visibility",
-			"enhanced_filtering",
-			"batch_operations",
 		},
 		"tenancy": map[string]interface{}{
 			"isolation": "hard",

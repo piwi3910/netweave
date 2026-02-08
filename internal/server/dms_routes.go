@@ -5,36 +5,21 @@ import (
 	dmshandlers "github.com/piwi3910/netweave/internal/dms/handlers"
 )
 
-// setupDMSRoutes configures all O2-DMS API routes (v1, v2, v3).
-// It organizes routes into the following groups:
-//   - /o2dms/v1/* - Original DMS API
-//   - /o2dms/v2/* - V2 API with enhanced filtering and batch operations
-//   - /o2dms/v3/* - V3 API with multi-tenancy support
+// setupDMSRoutes configures all O2-DMS API routes under /o2dms/v1.
+// All features (batch operations, feature discovery, multi-tenancy) are consolidated in v1.
 func (s *Server) setupDMSRoutes(handler *dmshandlers.Handler) {
-	// O2-DMS API v1 routes
+	// O2-DMS API v1 routes (all features consolidated)
 	v1 := s.router.Group("/o2dms/v1")
 	{
 		s.setupDMSV1Routes(v1, handler)
-	}
-
-	// O2-DMS API v2 routes (enhanced filtering, batch operations)
-	v2 := s.router.Group("/o2dms/v2")
-	{
-		s.setupDMSV2Routes(v2, handler)
-	}
-
-	// O2-DMS API v3 routes (multi-tenancy)
-	v3 := s.router.Group("/o2dms/v3")
-	{
-		v3.Use(TenantMiddleware())
-		s.setupDMSV3Routes(v3, handler)
 	}
 
 	// API information endpoint
 	s.router.GET("/o2dms", s.HandleDMSAPIInfo)
 }
 
-// setupDMSV1Routes configures the O2-DMS API v1 endpoints.
+// setupDMSV1Routes configures the O2-DMS API v1 endpoints with all features.
+// This includes batch operations, feature discovery, and multi-tenancy support.
 func (s *Server) setupDMSV1Routes(v1 *gin.RouterGroup, handler *dmshandlers.Handler) {
 	// Deployment Lifecycle Information
 	v1.GET("/deploymentLifecycle", handler.GetDeploymentLifecycleInfo)
@@ -47,19 +32,9 @@ func (s *Server) setupDMSV1Routes(v1 *gin.RouterGroup, handler *dmshandlers.Hand
 
 	// DMS Subscription Management
 	s.setupDMSSubscriptionRoutes(v1, handler)
-}
 
-// setupDMSV2Routes configures the O2-DMS API v2 endpoints with enhanced features.
-// V2 includes all v1 features plus:
-//   - Enhanced filtering for deployments and descriptors
-//   - Batch operations for create/delete/scale
-//   - Field selection and cursor pagination
-func (s *Server) setupDMSV2Routes(v2 *gin.RouterGroup, handler *dmshandlers.Handler) {
-	// Include all v1 routes
-	s.setupDMSV1Routes(v2, handler)
-
-	// Batch operations (v2 feature)
-	batch := v2.Group("/batch")
+	// Batch operations
+	batch := v1.Group("/batch")
 	{
 		// Batch deployment operations
 		batch.POST("/nfDeployments", handler.ListNFDeployments)        // Placeholder - will be batch create
@@ -73,52 +48,27 @@ func (s *Server) setupDMSV2Routes(v2 *gin.RouterGroup, handler *dmshandlers.Hand
 		batch.POST("/nfDeploymentDescriptors/delete", handler.ListNFDeploymentDescriptors)
 	}
 
-	// V2 features endpoint
-	v2.GET("/features", s.handleDMSV2Features)
+	// Features endpoint
+	v1.GET("/features", s.handleDMSFeatures)
 }
 
-// setupDMSV3Routes configures the O2-DMS API v3 endpoints with multi-tenancy support.
-// V3 includes all v2 features plus:
-//   - Multi-tenant deployment isolation
-//   - Tenant quotas for deployments
-//   - Cross-tenant deployment visibility controls
-//   - Tenant-scoped deployment descriptors
-func (s *Server) setupDMSV3Routes(v3 *gin.RouterGroup, handler *dmshandlers.Handler) {
-	// Include all v1 routes (with tenant context applied via middleware)
-	s.setupDMSV1Routes(v3, handler)
-
-	// Batch Operations (v2 feature with tenant context)
-	batch := v3.Group("/batch")
-	{
-		// Batch deployment operations (tenant-scoped)
-		batch.POST("/nfDeployments", handler.ListNFDeployments)        // Placeholder - will be batch create
-		batch.POST("/nfDeployments/delete", handler.ListNFDeployments) // Placeholder - will be batch delete
-		batch.POST("/nfDeployments/scale", handler.ListNFDeployments)  // Placeholder - will be batch scale
-
-		// Batch descriptor operations (tenant-scoped)
-		// Placeholder - will be batch create
-		batch.POST("/nfDeploymentDescriptors", handler.ListNFDeploymentDescriptors)
-		// Placeholder - will be batch delete
-		batch.POST("/nfDeploymentDescriptors/delete", handler.ListNFDeploymentDescriptors)
-	}
-
-	// V3 features endpoint
-	v3.GET("/features", s.handleDMSV3Features)
-}
-
-// handleDMSV2Features returns v2 API feature information.
-// GET /o2dms/v2/features.
-func (s *Server) handleDMSV2Features(c *gin.Context) {
+// handleDMSFeatures returns v1 API feature information.
+// GET /o2dms/v1/features.
+func (s *Server) handleDMSFeatures(c *gin.Context) {
 	c.JSON(200, gin.H{
-		"version":     "v2",
-		"apiVersion":  "v2",
-		"description": "O2-DMS API v2 with enhanced filtering, batch operations",
+		"version":     "v1",
+		"apiVersion":  "v1",
+		"description": "O2-DMS API v1 with batch operations, feature discovery, and multi-tenancy",
 		"features": []string{
 			"enhanced_filtering",
 			"field_selection",
 			"cursor_pagination",
 			"batch_operations",
 			"deployment_history",
+			"multi_tenancy",
+			"tenant_isolation",
+			"tenant_quotas",
+			"cross_tenant_visibility",
 		},
 		"batch_operations": []string{
 			"batch_create_deployments",
@@ -126,24 +76,6 @@ func (s *Server) handleDMSV2Features(c *gin.Context) {
 			"batch_scale_deployments",
 			"batch_create_descriptors",
 			"batch_delete_descriptors",
-		},
-	})
-}
-
-// handleDMSV3Features returns v3 API feature information.
-// GET /o2dms/v3/features.
-func (s *Server) handleDMSV3Features(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"version":     "v3",
-		"apiVersion":  "v3",
-		"description": "O2-DMS API v3 with multi-tenancy support",
-		"features": []string{
-			"multi_tenancy",
-			"tenant_isolation",
-			"tenant_quotas",
-			"cross_tenant_visibility",
-			"enhanced_filtering",
-			"batch_operations",
 		},
 		"tenancy": map[string]interface{}{
 			"isolation": "hard",
