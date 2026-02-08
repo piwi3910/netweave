@@ -43,6 +43,40 @@ func NewTMForumHandler(
 	}
 }
 
+// Context keys for per-request dynamic routing.
+// These must match the keys used by server middleware.
+const (
+	// contextKeyIMSAdapter stores the resolved IMS adapter for the current request.
+	contextKeyIMSAdapter = "resolved_ims_adapter"
+
+	// contextKeyDMSRegistry stores the resolved DMS registry for the current request.
+	contextKeyDMSRegistry = "resolved_dms_registry"
+)
+
+// getActiveAdapter returns the IMS adapter for the current request.
+// It checks gin context for a per-request override (set by dynamic routing middleware),
+// falling back to the handler's static adapter.
+func (h *TMForumHandler) getActiveAdapter(c *gin.Context) imsadapter.Adapter {
+	if adp, exists := c.Get(contextKeyIMSAdapter); exists {
+		if a, ok := adp.(imsadapter.Adapter); ok && a != nil {
+			return a
+		}
+	}
+	return h.adapter
+}
+
+// getActiveDMSRegistry returns the DMS registry for the current request.
+// It checks gin context for a per-request override (set by dynamic routing middleware),
+// falling back to the handler's static DMS registry.
+func (h *TMForumHandler) getActiveDMSRegistry(c *gin.Context) *registry.Registry {
+	if reg, exists := c.Get(contextKeyDMSRegistry); exists {
+		if r, ok := reg.(*registry.Registry); ok && r != nil {
+			return r
+		}
+	}
+	return h.dmsRegistry
+}
+
 // ========================================
 // TMF639 - Resource Inventory Management
 // ========================================
@@ -51,6 +85,7 @@ func NewTMForumHandler(
 // GET /tmf-api/resourceInventoryManagement/v4/resource.
 func (h *TMForumHandler) ListTMF639Resources(c *gin.Context) {
 	ctx := c.Request.Context()
+	adp := h.getActiveAdapter(c)
 
 	// Get query parameters
 	category := c.Query("resourceSpecification.category")
@@ -61,7 +96,7 @@ func (h *TMForumHandler) ListTMF639Resources(c *gin.Context) {
 
 	// If category is categoryResourcePool or empty, include resource pools
 	if category == "" || category == categoryResourcePool {
-		pools, err := h.adapter.ListResourcePools(ctx, nil)
+		pools, err := adp.ListResourcePools(ctx, nil)
 		if err != nil {
 			h.logger.Error("failed to list resource pools",
 				zap.Error(err),
@@ -81,7 +116,7 @@ func (h *TMForumHandler) ListTMF639Resources(c *gin.Context) {
 
 	// If category is not categoryResourcePool, include individual resources
 	if category != categoryResourcePool {
-		resourceList, err := h.adapter.ListResources(ctx, nil)
+		resourceList, err := adp.ListResources(ctx, nil)
 		if err != nil {
 			h.logger.Error("failed to list resources",
 				zap.Error(err),
@@ -106,12 +141,13 @@ func (h *TMForumHandler) ListTMF639Resources(c *gin.Context) {
 // GET /tmf-api/resourceInventoryManagement/v4/resource/:id.
 func (h *TMForumHandler) GetTMF639Resource(c *gin.Context) {
 	ctx := c.Request.Context()
+	adp := h.getActiveAdapter(c)
 	resourceID := c.Param("id")
 
 	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
 
 	// Try to get as resource pool first
-	pool, err := h.adapter.GetResourcePool(ctx, resourceID)
+	pool, err := adp.GetResourcePool(ctx, resourceID)
 	if err == nil {
 		tmfResource := TransformResourcePoolToTMF639Resource(pool, baseURL)
 		c.JSON(http.StatusOK, tmfResource)
@@ -119,7 +155,7 @@ func (h *TMForumHandler) GetTMF639Resource(c *gin.Context) {
 	}
 
 	// Try to get as individual resource
-	resource, err := h.adapter.GetResource(ctx, resourceID)
+	resource, err := adp.GetResource(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, imsadapter.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -148,6 +184,7 @@ func (h *TMForumHandler) GetTMF639Resource(c *gin.Context) {
 // POST /tmf-api/resourceInventoryManagement/v4/resource.
 func (h *TMForumHandler) CreateTMF639Resource(c *gin.Context) {
 	ctx := c.Request.Context()
+	adp := h.getActiveAdapter(c)
 
 	var createReq models.TMF639ResourceCreate
 	if err := c.ShouldBindJSON(&createReq); err != nil {
@@ -184,7 +221,7 @@ func (h *TMForumHandler) CreateTMF639Resource(c *gin.Context) {
 		// Create as resource pool
 		pool := TransformTMF639ResourceToResourcePool(tmfResource)
 
-		createdPool, err := h.adapter.CreateResourcePool(ctx, pool)
+		createdPool, err := adp.CreateResourcePool(ctx, pool)
 		if err != nil {
 			h.logger.Error("failed to create resource pool",
 				zap.Error(err),
@@ -202,7 +239,7 @@ func (h *TMForumHandler) CreateTMF639Resource(c *gin.Context) {
 		// Create as individual resource
 		resource := TransformTMF639ResourceToResource(tmfResource)
 
-		createdResource, err := h.adapter.CreateResource(ctx, resource)
+		createdResource, err := adp.CreateResource(ctx, resource)
 		if err != nil {
 			h.logger.Error("failed to create resource",
 				zap.Error(err),
@@ -223,6 +260,7 @@ func (h *TMForumHandler) CreateTMF639Resource(c *gin.Context) {
 // PATCH /tmf-api/resourceInventoryManagement/v4/resource/:id.
 func (h *TMForumHandler) UpdateTMF639Resource(c *gin.Context) {
 	ctx := c.Request.Context()
+	adp := h.getActiveAdapter(c)
 	resourceID := c.Param("id")
 
 	var updateReq models.TMF639ResourceUpdate
@@ -237,11 +275,11 @@ func (h *TMForumHandler) UpdateTMF639Resource(c *gin.Context) {
 	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
 
 	// Try to update as resource pool first
-	pool, err := h.adapter.GetResourcePool(ctx, resourceID)
+	pool, err := adp.GetResourcePool(ctx, resourceID)
 	if err == nil {
 		applyTMF639ResourceUpdate(pool, &updateReq)
 
-		updatedPool, err := h.adapter.UpdateResourcePool(ctx, resourceID, pool)
+		updatedPool, err := adp.UpdateResourcePool(ctx, resourceID, pool)
 		if err != nil {
 			h.logger.Error("failed to update resource pool",
 				zap.String("categoryResourcePoolId", resourceID),
@@ -270,17 +308,18 @@ func (h *TMForumHandler) UpdateTMF639Resource(c *gin.Context) {
 // DELETE /tmf-api/resourceInventoryManagement/v4/resource/:id.
 func (h *TMForumHandler) DeleteTMF639Resource(c *gin.Context) {
 	ctx := c.Request.Context()
+	adp := h.getActiveAdapter(c)
 	resourceID := c.Param("id")
 
 	// Try to delete as resource pool first
-	err := h.adapter.DeleteResourcePool(ctx, resourceID)
+	err := adp.DeleteResourcePool(ctx, resourceID)
 	if err == nil {
 		c.Status(http.StatusNoContent)
 		return
 	}
 
 	// Try to delete as individual resource
-	err = h.adapter.DeleteResource(ctx, resourceID)
+	err = adp.DeleteResource(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, imsadapter.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -312,11 +351,12 @@ func (h *TMForumHandler) DeleteTMF639Resource(c *gin.Context) {
 // GET /tmf-api/serviceInventoryManagement/v4/service.
 func (h *TMForumHandler) ListTMF638Services(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 
 	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
 
 	// List all deployments from all adapters
-	adapters := h.dmsRegistry.List()
+	adapters := dmsReg.List()
 	var services []*models.TMF638Service
 
 	for _, dmsAdapter := range adapters {
@@ -342,12 +382,13 @@ func (h *TMForumHandler) ListTMF638Services(c *gin.Context) {
 // GET /tmf-api/serviceInventoryManagement/v4/service/:id.
 func (h *TMForumHandler) GetTMF638Service(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 	serviceID := c.Param("id")
 
 	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
 
 	// Try to find deployment across all adapters
-	adapters := h.dmsRegistry.List()
+	adapters := dmsReg.List()
 	for _, dmsAdapter := range adapters {
 		dep, err := dmsAdapter.GetDeployment(ctx, serviceID)
 		if err == nil {
@@ -367,6 +408,7 @@ func (h *TMForumHandler) GetTMF638Service(c *gin.Context) {
 // POST /tmf-api/serviceInventoryManagement/v4/service.
 func (h *TMForumHandler) CreateTMF638Service(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 
 	var createReq models.TMF638ServiceCreate
 	if err := c.ShouldBindJSON(&createReq); err != nil {
@@ -383,7 +425,7 @@ func (h *TMForumHandler) CreateTMF638Service(c *gin.Context) {
 	deploymentReq := TransformTMF638ServiceToDeployment(&createReq)
 
 	// Create deployment using default DMS adapter
-	dmsAdapter := h.dmsRegistry.GetDefault()
+	dmsAdapter := dmsReg.GetDefault()
 	if dmsAdapter == nil {
 		h.logger.Error("no default DMS adapter available")
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -413,6 +455,7 @@ func (h *TMForumHandler) CreateTMF638Service(c *gin.Context) {
 // PATCH /tmf-api/serviceInventoryManagement/v4/service/:id.
 func (h *TMForumHandler) UpdateTMF638Service(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 	serviceID := c.Param("id")
 
 	var updateReq models.TMF638ServiceUpdate
@@ -427,7 +470,7 @@ func (h *TMForumHandler) UpdateTMF638Service(c *gin.Context) {
 	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
 
 	// Find deployment across all adapters
-	adapters := h.dmsRegistry.List()
+	adapters := dmsReg.List()
 	for _, dmsAdapter := range adapters {
 		dep, err := dmsAdapter.GetDeployment(ctx, serviceID)
 		if err != nil {
@@ -455,10 +498,11 @@ func (h *TMForumHandler) UpdateTMF638Service(c *gin.Context) {
 // DELETE /tmf-api/serviceInventoryManagement/v4/service/:id.
 func (h *TMForumHandler) DeleteTMF638Service(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 	serviceID := c.Param("id")
 
 	// Try to delete deployment from all adapters
-	adapters := h.dmsRegistry.List()
+	adapters := dmsReg.List()
 	for _, dmsAdapter := range adapters {
 		err := dmsAdapter.DeleteDeployment(ctx, serviceID)
 		if err == nil {
@@ -481,6 +525,7 @@ func (h *TMForumHandler) DeleteTMF638Service(c *gin.Context) {
 // GET /tmf-api/serviceOrdering/v4/serviceOrder.
 func (h *TMForumHandler) ListTMF641ServiceOrders(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 
 	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
 
@@ -489,7 +534,7 @@ func (h *TMForumHandler) ListTMF641ServiceOrders(c *gin.Context) {
 	externalID := c.Query("externalId")
 
 	// List all deployments and convert to service orders
-	adapters := h.dmsRegistry.List()
+	adapters := dmsReg.List()
 	var orders []*models.TMF641ServiceOrder
 
 	for _, dmsAdapter := range adapters {
@@ -524,12 +569,13 @@ func (h *TMForumHandler) ListTMF641ServiceOrders(c *gin.Context) {
 // GET /tmf-api/serviceOrdering/v4/serviceOrder/:id.
 func (h *TMForumHandler) GetTMF641ServiceOrder(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 	orderID := c.Param("id")
 
 	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
 
 	// Try to find deployment across all adapters
-	adapters := h.dmsRegistry.List()
+	adapters := dmsReg.List()
 	for _, dmsAdapter := range adapters {
 		dep, err := dmsAdapter.GetDeployment(ctx, orderID)
 		if err == nil {
@@ -549,6 +595,7 @@ func (h *TMForumHandler) GetTMF641ServiceOrder(c *gin.Context) {
 // POST /tmf-api/serviceOrdering/v4/serviceOrder.
 func (h *TMForumHandler) CreateTMF641ServiceOrder(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 
 	var createReq models.TMF641ServiceOrderCreate
 	if err := c.ShouldBindJSON(&createReq); err != nil {
@@ -571,7 +618,7 @@ func (h *TMForumHandler) CreateTMF641ServiceOrder(c *gin.Context) {
 	}
 
 	// Get default DMS adapter
-	dmsAdapter := h.dmsRegistry.GetDefault()
+	dmsAdapter := dmsReg.GetDefault()
 	if dmsAdapter == nil {
 		h.logger.Error("no default DMS adapter available")
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -607,6 +654,7 @@ func (h *TMForumHandler) CreateTMF641ServiceOrder(c *gin.Context) {
 // PATCH /tmf-api/serviceOrdering/v4/serviceOrder/:id.
 func (h *TMForumHandler) UpdateTMF641ServiceOrder(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 	orderID := c.Param("id")
 
 	var updateReq models.TMF641ServiceOrderUpdate
@@ -621,7 +669,7 @@ func (h *TMForumHandler) UpdateTMF641ServiceOrder(c *gin.Context) {
 	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
 
 	// Find deployment across all adapters
-	adapters := h.dmsRegistry.List()
+	adapters := dmsReg.List()
 	for _, dmsAdapter := range adapters {
 		dep, err := dmsAdapter.GetDeployment(ctx, orderID)
 		if err != nil {
@@ -647,10 +695,11 @@ func (h *TMForumHandler) UpdateTMF641ServiceOrder(c *gin.Context) {
 // DELETE /tmf-api/serviceOrdering/v4/serviceOrder/:id.
 func (h *TMForumHandler) DeleteTMF641ServiceOrder(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 	orderID := c.Param("id")
 
 	// Try to delete deployment from all adapters
-	adapters := h.dmsRegistry.List()
+	adapters := dmsReg.List()
 	for _, dmsAdapter := range adapters {
 		err := dmsAdapter.DeleteDeployment(ctx, orderID)
 		if err == nil {
@@ -714,6 +763,7 @@ func (h *TMForumHandler) CreateTMF688Event(c *gin.Context) {
 // POST /tmf-api/eventManagement/v4/hub.
 func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 	ctx := c.Request.Context()
+	adp := h.getActiveAdapter(c)
 
 	var hubReq models.TMF688HubCreate
 	if err := c.ShouldBindJSON(&hubReq); err != nil {
@@ -744,7 +794,7 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 		Filter:                 filter,
 	}
 
-	createdSub, err := h.adapter.CreateSubscription(ctx, subscription)
+	createdSub, err := adp.CreateSubscription(ctx, subscription)
 	if err != nil {
 		h.logger.Error("failed to create O2-IMS subscription",
 			zap.String("callback", hubReq.Callback),
@@ -775,7 +825,7 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 			zap.Error(err))
 
 		// Cleanup: Delete O2-IMS subscription
-		if delErr := h.adapter.DeleteSubscription(ctx, createdSub.SubscriptionID); delErr != nil {
+		if delErr := adp.DeleteSubscription(ctx, createdSub.SubscriptionID); delErr != nil {
 			h.logger.Warn("failed to cleanup O2-IMS subscription after hub store error",
 				zap.String("subscriptionId", createdSub.SubscriptionID),
 				zap.Error(delErr))
@@ -809,6 +859,7 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 // DELETE /tmf-api/eventManagement/v4/hub/:id.
 func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
 	ctx := c.Request.Context()
+	adp := h.getActiveAdapter(c)
 	hubID := c.Param("id")
 
 	// Get hub registration
@@ -832,7 +883,7 @@ func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
 	}
 
 	// Delete O2-IMS subscription
-	if err := h.adapter.DeleteSubscription(ctx, registration.SubscriptionID); err != nil {
+	if err := adp.DeleteSubscription(ctx, registration.SubscriptionID); err != nil {
 		h.logger.Warn("failed to delete O2-IMS subscription",
 			zap.String("hubId", hubID),
 			zap.String("subscriptionId", registration.SubscriptionID),
@@ -940,11 +991,12 @@ func (h *TMForumHandler) ClearTMF642Alarm(c *gin.Context) {
 // GET /tmf-api/serviceActivation/v4/serviceActivation.
 func (h *TMForumHandler) ListTMF640ServiceActivations(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 
 	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
 
 	// Map deployments to service activations
-	adapters := h.dmsRegistry.List()
+	adapters := dmsReg.List()
 	var activations []*models.TMF640ServiceActivation
 
 	for _, dmsAdapter := range adapters {
@@ -970,12 +1022,13 @@ func (h *TMForumHandler) ListTMF640ServiceActivations(c *gin.Context) {
 // GET /tmf-api/serviceActivation/v4/serviceActivation/:id.
 func (h *TMForumHandler) GetTMF640ServiceActivation(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 	activationID := c.Param("id")
 
 	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
 
 	// Find deployment across all adapters
-	adapters := h.dmsRegistry.List()
+	adapters := dmsReg.List()
 	for _, dmsAdapter := range adapters {
 		dep, err := dmsAdapter.GetDeployment(ctx, activationID)
 		if err == nil {
@@ -1008,11 +1061,12 @@ func (h *TMForumHandler) CreateTMF640ServiceActivation(c *gin.Context) {
 // GET /tmf-api/productCatalog/v4/productOffering.
 func (h *TMForumHandler) ListTMF620ProductOfferings(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 
 	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
 
 	// Map DMS packages to product offerings
-	adapters := h.dmsRegistry.List()
+	adapters := dmsReg.List()
 	var offerings []*models.TMF620ProductOffering
 
 	for _, dmsAdapter := range adapters {
@@ -1038,12 +1092,13 @@ func (h *TMForumHandler) ListTMF620ProductOfferings(c *gin.Context) {
 // GET /tmf-api/productCatalog/v4/productOffering/:id.
 func (h *TMForumHandler) GetTMF620ProductOffering(c *gin.Context) {
 	ctx := c.Request.Context()
+	dmsReg := h.getActiveDMSRegistry(c)
 	offeringID := c.Param("id")
 
 	baseURL := buildBaseURL(c.Request.URL.Scheme, c.Request.Host)
 
 	// Find package across all adapters
-	adapters := h.dmsRegistry.List()
+	adapters := dmsReg.List()
 	for _, dmsAdapter := range adapters {
 		pkg, err := dmsAdapter.GetDeploymentPackage(ctx, offeringID)
 		if err == nil {

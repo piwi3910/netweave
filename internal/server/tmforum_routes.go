@@ -177,6 +177,8 @@ func (s *Server) setupTMForumRoutesEarly() {
 
 // tmfHandlerOrUnavailable returns a handler that delegates to the TMForum handler if available,
 // or returns 503 Service Unavailable if DMS has not been initialized yet.
+// It also injects the per-request resolved IMS adapter and DMS registry into gin context
+// so the TMForum handler can use dynamic per-tenant routing.
 func (s *Server) tmfHandlerOrUnavailable(getHandler func(*handlers.TMForumHandler) gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if s.tmfHandler == nil {
@@ -186,6 +188,17 @@ func (s *Server) tmfHandlerOrUnavailable(getHandler func(*handlers.TMForumHandle
 			})
 			return
 		}
+
+		// Inject resolved adapter and DMS registry for per-tenant routing.
+		adp := s.resolveAdapterSilent(c)
+		if adp != nil {
+			c.Set(ctxKeyIMSAdapter, adp)
+		}
+		reg := s.resolveDMSRegistry(c)
+		if reg != nil {
+			c.Set(ctxKeyDMSRegistry, reg)
+		}
+
 		handler := getHandler(s.tmfHandler)
 		handler(c)
 	}

@@ -153,24 +153,25 @@ func (h *SMOHandler) setEventDefaults(eventID *string, timestamp *time.Time) {
 // publishEvent publishes an event using the provided plugin function.
 func (h *SMOHandler) publishEvent(c *gin.Context, publishFn func(context.Context, smo.Plugin) error) error {
 	pluginName := c.Query("plugin")
+	reg := h.getActiveRegistry(c)
 
 	// Get plugin inline (avoid ireturn linter)
 	var plugin smo.Plugin
 	var err error
 
 	if pluginName != "" {
-		h.registry.Mu.RLock()
-		plugin = h.registry.Plugins[pluginName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		plugin = reg.Plugins[pluginName]
+		reg.Mu.RUnlock()
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
-		h.registry.Mu.RLock()
-		defaultName := h.registry.DefaultPlugin
-		plugin = h.registry.Plugins[defaultName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		defaultName := reg.DefaultPlugin
+		plugin = reg.Plugins[defaultName]
+		reg.Mu.RUnlock()
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -207,17 +208,34 @@ func NewSMOHandler(registry *smo.Registry, logger *zap.Logger) *SMOHandler {
 	}
 }
 
+// contextKeySMORegistry is the gin context key used to store a per-request SMO registry override.
+// When set by server middleware, it takes priority over the handler's static registry.
+const contextKeySMORegistry = "resolved_smo_registry"
+
+// getActiveRegistry returns the SMO registry for the current request.
+// It checks gin context for a per-request override (set by dynamic routing middleware),
+// falling back to the handler's static registry.
+func (h *SMOHandler) getActiveRegistry(c *gin.Context) *smo.Registry {
+	if reg, exists := c.Get(contextKeySMORegistry); exists {
+		if r, ok := reg.(*smo.Registry); ok && r != nil {
+			return r
+		}
+	}
+	return h.registry
+}
+
 // getPluginFromQuery retrieves a plugin from the registry using the plugin query parameter.
 // Returns smo.Plugin interface (factory/lookup pattern).
 // Note: Returning interface is idiomatic for factory/lookup methods.
 func (h *SMOHandler) getPluginFromQuery(c *gin.Context) (smo.Plugin, error) {
 	pluginName := c.Query("plugin")
+	reg := h.getActiveRegistry(c)
 	var plugin smo.Plugin
 
 	if pluginName != "" {
-		h.registry.Mu.RLock()
-		plugin = h.registry.Plugins[pluginName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		plugin = reg.Plugins[pluginName]
+		reg.Mu.RUnlock()
 
 		if plugin == nil {
 			return nil, fmt.Errorf("plugin %s not found", pluginName)
@@ -226,10 +244,10 @@ func (h *SMOHandler) getPluginFromQuery(c *gin.Context) (smo.Plugin, error) {
 	}
 
 	// Use default plugin
-	h.registry.Mu.RLock()
-	defaultName := h.registry.DefaultPlugin
-	plugin = h.registry.Plugins[defaultName]
-	h.registry.Mu.RUnlock()
+	reg.Mu.RLock()
+	defaultName := reg.DefaultPlugin
+	plugin = reg.Plugins[defaultName]
+	reg.Mu.RUnlock()
 
 	if defaultName == "" {
 		return nil, fmt.Errorf("no default plugin configured")
@@ -247,6 +265,10 @@ func (h *SMOHandler) getPluginFromQuery(c *gin.Context) (smo.Plugin, error) {
 func (s *Server) setupSMORoutes(smoHandler *SMOHandler) {
 	// O2-SMO API v1 routes (all features consolidated)
 	v1 := s.router.Group("/o2smo/v1")
+
+	// Apply dynamic routing middleware to resolve SMO registry per-request.
+	v1.Use(s.smoAdapterMiddleware())
+
 	{
 		s.setupSMOV1Routes(v1, smoHandler)
 	}
@@ -357,8 +379,9 @@ func (s *Server) handleSMOFeatures(c *gin.Context) {
 // GET /o2smo/v1/plugins.
 func (h *SMOHandler) HandleListPlugins(c *gin.Context) {
 	h.logger.Info("listing SMO plugins")
+	reg := h.getActiveRegistry(c)
 
-	plugins := h.registry.List()
+	plugins := reg.List()
 
 	c.JSON(http.StatusOK, gin.H{
 		"plugins": plugins,
@@ -370,12 +393,13 @@ func (h *SMOHandler) HandleListPlugins(c *gin.Context) {
 // GET /o2smo/v1/plugins/:pluginId.
 func (h *SMOHandler) HandleGetPlugin(c *gin.Context) {
 	pluginID := c.Param("pluginId")
+	reg := h.getActiveRegistry(c)
 	h.logger.Info("getting SMO plugin", zap.String("plugin_id", pluginID))
 
-	h.registry.Mu.RLock()
+	reg.Mu.RLock()
 	var exists bool
-	plugin, exists := h.registry.Plugins[pluginID]
-	h.registry.Mu.RUnlock()
+	plugin, exists := reg.Plugins[pluginID]
+	reg.Mu.RUnlock()
 	var err error
 	if !exists {
 		err = fmt.Errorf("plugin %s not found", pluginID)
@@ -412,6 +436,7 @@ type WorkflowRequest struct {
 // POST /o2smo/v1/workflows.
 func (h *SMOHandler) HandleExecuteWorkflow(c *gin.Context) {
 	start := time.Now()
+	reg := h.getActiveRegistry(c)
 	h.logger.Info("executing workflow")
 
 	var req WorkflowRequest
@@ -427,9 +452,9 @@ func (h *SMOHandler) HandleExecuteWorkflow(c *gin.Context) {
 	var err error
 
 	if req.PluginName != "" {
-		h.registry.Mu.RLock()
-		plugin = h.registry.Plugins[req.PluginName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		plugin = reg.Plugins[req.PluginName]
+		reg.Mu.RUnlock()
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", req.PluginName)
 			h.respondWithNotFound(c, err)
@@ -438,10 +463,10 @@ func (h *SMOHandler) HandleExecuteWorkflow(c *gin.Context) {
 		}
 		pluginName = req.PluginName
 	} else {
-		h.registry.Mu.RLock()
-		defaultName := h.registry.DefaultPlugin
-		plugin = h.registry.Plugins[defaultName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		defaultName := reg.DefaultPlugin
+		plugin = reg.Plugins[defaultName]
+		reg.Mu.RUnlock()
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -519,6 +544,7 @@ func (h *SMOHandler) HandleGetWorkflowStatus(c *gin.Context) {
 // DELETE /o2smo/v1/workflows/:executionId.
 func (h *SMOHandler) HandleCancelWorkflow(c *gin.Context) {
 	executionID := c.Param("executionId")
+	reg := h.getActiveRegistry(c)
 	pluginName := c.Query("plugin")
 
 	// Validate execution ID
@@ -534,18 +560,18 @@ func (h *SMOHandler) HandleCancelWorkflow(c *gin.Context) {
 	var err error
 	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
-		h.registry.Mu.RLock()
-		plugin = h.registry.Plugins[pluginName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		plugin = reg.Plugins[pluginName]
+		reg.Mu.RUnlock()
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
-		h.registry.Mu.RLock()
-		defaultName := h.registry.DefaultPlugin
-		plugin = h.registry.Plugins[defaultName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		defaultName := reg.DefaultPlugin
+		plugin = reg.Plugins[defaultName]
+		reg.Mu.RUnlock()
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -586,6 +612,7 @@ type ServiceModelRequest struct {
 // GET /o2smo/v1/serviceModels.
 func (h *SMOHandler) HandleListServiceModels(c *gin.Context) {
 	pluginName := c.Query("plugin")
+	reg := h.getActiveRegistry(c)
 	h.logger.Info("listing service models")
 
 	// Get plugin
@@ -593,18 +620,18 @@ func (h *SMOHandler) HandleListServiceModels(c *gin.Context) {
 	var err error
 	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
-		h.registry.Mu.RLock()
-		plugin = h.registry.Plugins[pluginName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		plugin = reg.Plugins[pluginName]
+		reg.Mu.RUnlock()
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
-		h.registry.Mu.RLock()
-		defaultName := h.registry.DefaultPlugin
-		plugin = h.registry.Plugins[defaultName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		defaultName := reg.DefaultPlugin
+		plugin = reg.Plugins[defaultName]
+		reg.Mu.RUnlock()
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -635,6 +662,7 @@ func (h *SMOHandler) HandleListServiceModels(c *gin.Context) {
 // POST /o2smo/v1/serviceModels.
 func (h *SMOHandler) HandleCreateServiceModel(c *gin.Context) {
 	h.logger.Info("creating service model")
+	reg := h.getActiveRegistry(c)
 
 	var req ServiceModelRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -647,18 +675,18 @@ func (h *SMOHandler) HandleCreateServiceModel(c *gin.Context) {
 	var err error
 	// Get plugin inline (avoid ireturn linter)
 	if req.PluginName != "" {
-		h.registry.Mu.RLock()
-		plugin = h.registry.Plugins[req.PluginName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		plugin = reg.Plugins[req.PluginName]
+		reg.Mu.RUnlock()
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", req.PluginName)
 		}
 	} else {
-		h.registry.Mu.RLock()
-		defaultName := h.registry.DefaultPlugin
-		plugin = h.registry.Plugins[defaultName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		defaultName := reg.DefaultPlugin
+		plugin = reg.Plugins[defaultName]
+		reg.Mu.RUnlock()
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -756,6 +784,7 @@ type PolicyRequest struct {
 // POST /o2smo/v1/policies.
 func (h *SMOHandler) HandleApplyPolicy(c *gin.Context) {
 	h.logger.Info("applying policy")
+	reg := h.getActiveRegistry(c)
 
 	var req PolicyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -768,18 +797,18 @@ func (h *SMOHandler) HandleApplyPolicy(c *gin.Context) {
 	var err error
 	// Get plugin inline (avoid ireturn linter)
 	if req.PluginName != "" {
-		h.registry.Mu.RLock()
-		plugin = h.registry.Plugins[req.PluginName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		plugin = reg.Plugins[req.PluginName]
+		reg.Mu.RUnlock()
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", req.PluginName)
 		}
 	} else {
-		h.registry.Mu.RLock()
-		defaultName := h.registry.DefaultPlugin
-		plugin = h.registry.Plugins[defaultName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		defaultName := reg.DefaultPlugin
+		plugin = reg.Plugins[defaultName]
+		reg.Mu.RUnlock()
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -849,6 +878,7 @@ func (h *SMOHandler) HandleGetPolicyStatus(c *gin.Context) {
 // POST /o2smo/v1/sync/infrastructure.
 func (h *SMOHandler) HandleSyncInfrastructure(c *gin.Context) {
 	pluginName := c.Query("plugin")
+	reg := h.getActiveRegistry(c)
 	h.logger.Info("syncing infrastructure inventory")
 
 	var inventory smo.InfrastructureInventory
@@ -862,18 +892,18 @@ func (h *SMOHandler) HandleSyncInfrastructure(c *gin.Context) {
 	var err error
 	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
-		h.registry.Mu.RLock()
-		plugin = h.registry.Plugins[pluginName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		plugin = reg.Plugins[pluginName]
+		reg.Mu.RUnlock()
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
-		h.registry.Mu.RLock()
-		defaultName := h.registry.DefaultPlugin
-		plugin = h.registry.Plugins[defaultName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		defaultName := reg.DefaultPlugin
+		plugin = reg.Plugins[defaultName]
+		reg.Mu.RUnlock()
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -909,6 +939,7 @@ func (h *SMOHandler) HandleSyncInfrastructure(c *gin.Context) {
 // POST /o2smo/v1/sync/deployments.
 func (h *SMOHandler) HandleSyncDeployments(c *gin.Context) {
 	pluginName := c.Query("plugin")
+	reg := h.getActiveRegistry(c)
 	h.logger.Info("syncing deployment inventory")
 
 	var inventory smo.DeploymentInventory
@@ -922,18 +953,18 @@ func (h *SMOHandler) HandleSyncDeployments(c *gin.Context) {
 	var err error
 	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
-		h.registry.Mu.RLock()
-		plugin = h.registry.Plugins[pluginName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		plugin = reg.Plugins[pluginName]
+		reg.Mu.RUnlock()
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
-		h.registry.Mu.RLock()
-		defaultName := h.registry.DefaultPlugin
-		plugin = h.registry.Plugins[defaultName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		defaultName := reg.DefaultPlugin
+		plugin = reg.Plugins[defaultName]
+		reg.Mu.RUnlock()
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -1006,8 +1037,9 @@ func (h *SMOHandler) HandlePublishDeploymentEvent(c *gin.Context) {
 // GET /o2smo/v1/health.
 func (h *SMOHandler) HandleSMOHealth(c *gin.Context) {
 	h.logger.Info("checking SMO health")
+	reg := h.getActiveRegistry(c)
 
-	plugins := h.registry.List()
+	plugins := reg.List()
 	healthy := 0
 	unhealthy := 0
 
