@@ -18,6 +18,7 @@ import (
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/auth"
+	"github.com/piwi3910/netweave/internal/backend"
 	"github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/storage"
 )
@@ -43,6 +44,62 @@ func (s *Server) withPermission(permission string, handler gin.HandlerFunc) gin.
 		// Execute handler
 		handler(c)
 	}
+}
+
+// resolveAdapter determines which adapter to use for the current request.
+// Resolution order:
+//  1. If X-Backend-ID header is set (platform admin only), use that specific backend.
+//  2. If adapterRegistry is configured and tenant has backend access, use the tenant's backend.
+//  3. Fall back to the static adapter (s.adapter).
+func (s *Server) resolveAdapter(c *gin.Context) adapter.Adapter {
+	ctx := c.Request.Context()
+
+	// Skip dynamic resolution if registry is not configured
+	if s.adapterRegistry == nil || s.backendStore == nil {
+		return s.adapter
+	}
+
+	// Platform admin can explicitly select a backend via header
+	backendID := c.GetHeader("X-Backend-ID")
+	if backendID != "" && auth.IsPlatformAdminFromContext(ctx) {
+		adp, err := s.adapterRegistry.GetAdapter(backendID)
+		if err != nil {
+			s.logger.Warn("X-Backend-ID header specified but adapter not found, using default",
+				zap.String("backend_id", backendID),
+				zap.Error(err),
+			)
+			return s.adapter
+		}
+		return adp
+	}
+
+	// Resolve adapter based on tenant's backend access
+	tenantID := auth.TenantIDFromContext(ctx)
+	if tenantID == "" {
+		return s.adapter
+	}
+
+	// Platform admins without X-Backend-ID use the default adapter
+	if auth.IsPlatformAdminFromContext(ctx) {
+		return s.adapter
+	}
+
+	adp, err := s.adapterRegistry.GetAdapterForTenant(ctx, tenantID, s.backendStore)
+	if err != nil {
+		if errors.Is(err, backend.ErrNoBackendAccess) || errors.Is(err, backend.ErrAdapterNotFound) {
+			s.logger.Debug("no dynamic backend for tenant, using default adapter",
+				zap.String("tenant_id", tenantID),
+			)
+			return s.adapter
+		}
+		s.logger.Warn("failed to resolve adapter for tenant, using default",
+			zap.String("tenant_id", tenantID),
+			zap.Error(err),
+		)
+		return s.adapter
+	}
+
+	return adp
 }
 
 // setupRoutes configures all HTTP routes for the O2-IMS Gateway.
@@ -398,7 +455,7 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 	req.SubscriptionID = "sub-" + uuid.New().String()
 
 	// Create subscription via adapter
-	created, err := s.adapter.CreateSubscription(ctx, &req)
+	created, err := s.resolveAdapter(c).CreateSubscription(ctx, &req)
 	if err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
@@ -462,7 +519,7 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 	if err := s.store.Update(ctx, storageSub); err != nil {
 		s.logger.Error("failed to update subscription with tenant ID", zap.Error(err))
 		// Attempt to clean up adapter subscription (best effort)
-		_ = s.adapter.DeleteSubscription(ctx, created.SubscriptionID)
+		_ = s.resolveAdapter(c).DeleteSubscription(ctx, created.SubscriptionID)
 		// Rollback quota increment
 		if tenantID != "" && s.AuthStore != nil {
 			if decErr := s.AuthStore.DecrementUsage(ctx, tenantID, "subscriptions"); decErr != nil {
@@ -638,7 +695,7 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 
 	// Update subscription via adapter
 	// The adapter handles validation and persistence to its backend storage
-	updated, err := s.adapter.UpdateSubscription(c.Request.Context(), subscriptionID, &req)
+	updated, err := s.resolveAdapter(c).UpdateSubscription(c.Request.Context(), subscriptionID, &req)
 	if err != nil {
 		// Check for not found error using sentinel error
 		if errors.Is(err, adapter.ErrSubscriptionNotFound) {
@@ -723,7 +780,7 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 	}
 
 	// Delete from adapter
-	if err := s.adapter.DeleteSubscription(ctx, subscriptionID); err != nil {
+	if err := s.resolveAdapter(c).DeleteSubscription(ctx, subscriptionID); err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
 			user := auth.UserFromContext(ctx)
@@ -869,7 +926,7 @@ func (s *Server) handleListResourcePools(c *gin.Context) {
 	}
 
 	// List resource pools via adapter.
-	pools, err := s.adapter.ListResourcePools(c.Request.Context(), filter)
+	pools, err := s.resolveAdapter(c).ListResourcePools(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resource pools", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -893,7 +950,7 @@ func (s *Server) handleGetResourcePool(c *gin.Context) {
 	s.logger.Info("getting resource pool", zap.String("resource_pool_id", resourcePoolID))
 
 	// Get resource pool via adapter
-	pool, err := s.adapter.GetResourcePool(c.Request.Context(), resourcePoolID)
+	pool, err := s.resolveAdapter(c).GetResourcePool(c.Request.Context(), resourcePoolID)
 	if err != nil {
 		s.logger.Error("failed to get resource pool", zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{
@@ -942,7 +999,7 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 	}
 
 	// List resources via adapter
-	resources, err := s.adapter.ListResources(ctx, filter)
+	resources, err := s.resolveAdapter(c).ListResources(ctx, filter)
 	if err != nil {
 		s.logger.Error("failed to list resources in pool", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1165,7 +1222,7 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 	}
 
 	// Create resource pool via adapter
-	created, err := s.adapter.CreateResourcePool(c.Request.Context(), &req)
+	created, err := s.resolveAdapter(c).CreateResourcePool(c.Request.Context(), &req)
 	if err != nil {
 		// Rollback quota increment on creation failure
 		if tenantID != "" && s.AuthStore != nil {
@@ -1264,7 +1321,7 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 	}
 
 	// Update resource pool via adapter
-	updated, err := s.adapter.UpdateResourcePool(c.Request.Context(), resourcePoolID, &req)
+	updated, err := s.resolveAdapter(c).UpdateResourcePool(c.Request.Context(), resourcePoolID, &req)
 	if err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
@@ -1334,7 +1391,7 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 
 	// Verify tenant ownership before deletion
 	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) {
-		pool, err := s.adapter.GetResourcePool(ctx, resourcePoolID)
+		pool, err := s.resolveAdapter(c).GetResourcePool(ctx, resourcePoolID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
@@ -1353,7 +1410,7 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 		}
 	}
 
-	if err := s.adapter.DeleteResourcePool(ctx, resourcePoolID); err != nil {
+	if err := s.resolveAdapter(c).DeleteResourcePool(ctx, resourcePoolID); err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
 			user := auth.UserFromContext(ctx)
@@ -1538,7 +1595,7 @@ func (s *Server) handleListResources(c *gin.Context) {
 	}
 
 	// List resources via adapter.
-	resources, err := s.adapter.ListResources(c.Request.Context(), filter)
+	resources, err := s.resolveAdapter(c).ListResources(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resources", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1562,7 +1619,7 @@ func (s *Server) handleGetResource(c *gin.Context) {
 	s.logger.Info("getting resource", zap.String("resource_id", resourceID))
 
 	// Get resource via adapter
-	resource, err := s.adapter.GetResource(c.Request.Context(), resourceID)
+	resource, err := s.resolveAdapter(c).GetResource(c.Request.Context(), resourceID)
 	if err != nil {
 		// Use sentinel error for better error detection
 		if errors.Is(err, adapter.ErrResourceNotFound) {
@@ -1691,7 +1748,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 	}
 
 	// Create resource via adapter
-	created, err := s.adapter.CreateResource(c.Request.Context(), &req)
+	created, err := s.resolveAdapter(c).CreateResource(c.Request.Context(), &req)
 	if err != nil {
 		// Rollback quota increment on creation failure
 		if tenantID != "" && s.AuthStore != nil {
@@ -1800,7 +1857,7 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 
 	// Get resource info before deletion for audit logging and tenant ownership check.
 	var resourceTypeID string
-	existing, err := s.adapter.GetResource(ctx, resourceID)
+	existing, err := s.resolveAdapter(c).GetResource(ctx, resourceID)
 	if err == nil && existing != nil {
 		resourceTypeID = existing.ResourceTypeID
 	}
@@ -1825,7 +1882,7 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 		}
 	}
 
-	if err := s.adapter.DeleteResource(ctx, resourceID); err != nil {
+	if err := s.resolveAdapter(c).DeleteResource(ctx, resourceID); err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
 			user := auth.UserFromContext(ctx)
@@ -1887,7 +1944,7 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 
 // getExistingResource retrieves an existing resource and handles errors.
 func (s *Server) getExistingResource(c *gin.Context, resourceID string) (*adapter.Resource, error) {
-	existing, err := s.adapter.GetResource(c.Request.Context(), resourceID)
+	existing, err := s.resolveAdapter(c).GetResource(c.Request.Context(), resourceID)
 	if err != nil {
 		if errors.Is(err, adapter.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -1957,7 +2014,7 @@ func (s *Server) applyResourceUpdate(c *gin.Context, resourceID string, req, exi
 	}
 
 	// Update via adapter
-	updated, err := s.adapter.UpdateResource(c.Request.Context(), resourceID, req)
+	updated, err := s.resolveAdapter(c).UpdateResource(c.Request.Context(), resourceID, req)
 	if err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
@@ -2027,7 +2084,7 @@ func (s *Server) handleListResourceTypes(c *gin.Context) {
 	}
 
 	// List resource types via adapter.
-	types, err := s.adapter.ListResourceTypes(c.Request.Context(), filter)
+	types, err := s.resolveAdapter(c).ListResourceTypes(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resource types", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -2051,7 +2108,7 @@ func (s *Server) handleGetResourceType(c *gin.Context) {
 	s.logger.Info("getting resource type", zap.String("resource_type_id", resourceTypeID))
 
 	// Get resource type via adapter
-	resType, err := s.adapter.GetResourceType(c.Request.Context(), resourceTypeID)
+	resType, err := s.resolveAdapter(c).GetResourceType(c.Request.Context(), resourceTypeID)
 	if err != nil {
 		s.logger.Error("failed to get resource type", zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{
@@ -2072,7 +2129,7 @@ func (s *Server) handleGetResourceType(c *gin.Context) {
 func (s *Server) handleListDeploymentManagers(c *gin.Context) {
 	s.logger.Info("listing deployment managers")
 
-	dms, err := s.adapter.ListDeploymentManagers(c.Request.Context(), nil)
+	dms, err := s.resolveAdapter(c).ListDeploymentManagers(c.Request.Context(), nil)
 	if err != nil {
 		s.logger.Error("failed to list deployment managers", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -2096,7 +2153,7 @@ func (s *Server) handleGetDeploymentManager(c *gin.Context) {
 	s.logger.Info("getting deployment manager", zap.String("deployment_manager_id", deploymentManagerID))
 
 	// Get deployment manager via adapter
-	dm, err := s.adapter.GetDeploymentManager(c.Request.Context(), deploymentManagerID)
+	dm, err := s.resolveAdapter(c).GetDeploymentManager(c.Request.Context(), deploymentManagerID)
 	if err != nil {
 		s.logger.Error("failed to get deployment manager", zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{
@@ -2118,7 +2175,7 @@ func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 	s.logger.Info("getting O-Cloud infrastructure information")
 
 	// List all registered deployment managers instead of looking up a hardcoded ID.
-	dms, err := s.adapter.ListDeploymentManagers(c.Request.Context(), nil)
+	dms, err := s.resolveAdapter(c).ListDeploymentManagers(c.Request.Context(), nil)
 	if err != nil {
 		s.logger.Error("failed to list deployment managers for O-Cloud info", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{

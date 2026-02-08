@@ -129,12 +129,12 @@ func TestRegisterBuiltinSchemas(t *testing.T) {
 
 	t.Run("registers all expected schemas", func(t *testing.T) {
 		schemas := reg.List()
-		assert.Len(t, schemas, 7, "expected 7 builtin schemas")
+		assert.Len(t, schemas, 8, "expected 8 builtin schemas")
 	})
 
 	t.Run("IMS schemas are registered", func(t *testing.T) {
 		imsSchemas := reg.ListByCategory("ims")
-		assert.Len(t, imsSchemas, 4, "expected 4 IMS schemas")
+		assert.Len(t, imsSchemas, 5, "expected 5 IMS schemas")
 
 		imsTypes := map[string]bool{}
 		for _, s := range imsSchemas {
@@ -144,6 +144,7 @@ func TestRegisterBuiltinSchemas(t *testing.T) {
 		assert.True(t, imsTypes["aws"])
 		assert.True(t, imsTypes["azure"])
 		assert.True(t, imsTypes["openstack"])
+		assert.True(t, imsTypes["mock"])
 	})
 
 	t.Run("DMS schemas are registered", func(t *testing.T) {

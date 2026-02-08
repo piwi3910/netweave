@@ -137,13 +137,14 @@ func run() error {
 
 // ApplicationComponents holds all initialized application components.
 type ApplicationComponents struct {
-	redisStore    *storage.RedisStore // Always needed for rate limiting, events, pub/sub
-	store         storage.Store       // Subscription store (redis, postgres, or dual)
-	pgDB          *database.DB        // PostgreSQL connection (nil if storage_mode="redis")
-	imsAdapter    adapter.Adapter
-	healthChecker *observability.HealthChecker
-	server        *server.Server
-	authStore     server.AuthStore
+	redisStore      *storage.RedisStore // Always needed for rate limiting, events, pub/sub
+	store           storage.Store       // Subscription store (redis, postgres, or dual)
+	pgDB            *database.DB        // PostgreSQL connection (nil if storage_mode="redis")
+	imsAdapter      adapter.Adapter
+	adapterRegistry *backend.AdapterRegistry // Dynamic backend adapter registry
+	healthChecker   *observability.HealthChecker
+	server          *server.Server
+	authStore       server.AuthStore
 }
 
 // NewApplicationComponentsForTest creates an ApplicationComponents instance for testing.
@@ -176,6 +177,12 @@ func NewApplicationComponentsForTestFull(
 func (c *ApplicationComponents) Close(logger *zap.Logger) error {
 	var closeErrors []error
 
+	if c.adapterRegistry != nil {
+		if err := c.adapterRegistry.Close(); err != nil {
+			logger.Warn("failed to close adapter registry", zap.Error(err))
+			closeErrors = append(closeErrors, fmt.Errorf("adapter registry: %w", err))
+		}
+	}
 	if c.imsAdapter != nil {
 		if err := c.imsAdapter.Close(); err != nil {
 			logger.Warn("failed to close IMS adapter", zap.Error(err))
@@ -303,17 +310,23 @@ func selectSubscriptionStore(
 	}
 }
 
-// initializeBackendAdmin sets up the backend admin API if PostgreSQL is available.
-func initializeBackendAdmin(cfg *config.Config, srv *server.Server, pgDB *database.DB, logger *zap.Logger) {
+// initializeBackendAdmin sets up the backend admin API and dynamic adapter registry if PostgreSQL is available.
+// Returns the adapter registry (nil if PostgreSQL or encryption is unavailable).
+func initializeBackendAdmin(
+	cfg *config.Config,
+	srv *server.Server,
+	pgDB *database.DB,
+	logger *zap.Logger,
+) *backend.AdapterRegistry {
 	if pgDB == nil {
-		return
+		return nil
 	}
 
 	var enc encryption.Encryptor
 	createEncryptor(&enc, cfg, logger)
 	if enc == nil {
 		logger.Warn("no encryptor available, backend admin API disabled")
-		return
+		return nil
 	}
 
 	backendStore := backend.NewPostgresStore(pgDB.Pool)
@@ -323,6 +336,29 @@ func initializeBackendAdmin(cfg *config.Config, srv *server.Server, pgDB *databa
 	srv.SetupBackendAdmin(backendHandler)
 
 	logger.Info("backend admin API initialized")
+
+	// Initialize dynamic adapter registry
+	factory := backend.NewAdapterFactory()
+	registry := backend.NewAdapterRegistry(factory, logger)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	loaded, loadErr := registry.LoadFromStore(ctx, backendStore)
+	if loadErr != nil {
+		logger.Warn("failed to load backend adapters from store, dynamic routing disabled",
+			zap.Error(loadErr),
+		)
+		return nil
+	}
+
+	srv.SetAdapterRegistry(registry, backendStore)
+
+	logger.Info("dynamic adapter registry initialized",
+		zap.Int("adapters_loaded", loaded),
+	)
+
+	return registry
 }
 
 // createEncryptor sets dest to an encryption.Encryptor from environment configuration.
@@ -458,18 +494,19 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	// Set health checker
 	srv.SetHealthChecker(healthChecker)
 
-	// Initialize backend admin API if PostgreSQL is available
-	initializeBackendAdmin(cfg, srv, pgDB, logger)
+	// Initialize backend admin API and dynamic adapter registry if PostgreSQL is available
+	adapterReg := initializeBackendAdmin(cfg, srv, pgDB, logger)
 
 	// Create components structure
 	components := &ApplicationComponents{
-		redisStore:    redisStore,
-		store:         subscriptionStore,
-		pgDB:          pgDB,
-		imsAdapter:    imsAdapter,
-		healthChecker: healthChecker,
-		server:        srv,
-		authStore:     authStore,
+		redisStore:      redisStore,
+		store:           subscriptionStore,
+		pgDB:            pgDB,
+		imsAdapter:      imsAdapter,
+		adapterRegistry: adapterReg,
+		healthChecker:   healthChecker,
+		server:          srv,
+		authStore:       authStore,
 	}
 
 	// Log multi-tenancy status

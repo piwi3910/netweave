@@ -22,6 +22,7 @@ import (
 
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/auth"
+	"github.com/piwi3910/netweave/internal/backend"
 	"github.com/piwi3910/netweave/internal/config"
 	dmshandlers "github.com/piwi3910/netweave/internal/dms/handlers"
 	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
@@ -87,6 +88,10 @@ type Server struct {
 
 	// TMForum subsystem
 	tmfHandler *handlers.TMForumHandler
+
+	// Dynamic backend adapter routing
+	adapterRegistry *backend.AdapterRegistry
+	backendStore    backend.Store
 
 	// fullAuthStore is the full auth.Store for tenant lookups in wrapWithTenantContext.
 	fullAuthStore auth.Store
@@ -705,6 +710,17 @@ func (s *Server) SetupDMS(reg *dmsregistry.Registry) {
 // DMSRegistry returns the DMS adapter registry.
 func (s *Server) DMSRegistry() *dmsregistry.Registry {
 	return s.dmsRegistry
+}
+
+// SetAdapterRegistry configures the dynamic backend adapter registry and backend store.
+// When set, O2-IMS API handlers will resolve adapters per-tenant using backend access records
+// instead of always using the static adapter.
+func (s *Server) SetAdapterRegistry(registry *backend.AdapterRegistry, store backend.Store) {
+	s.adapterRegistry = registry
+	s.backendStore = store
+	s.logger.Info("adapter registry configured",
+		zap.Int("adapter_count", registry.Count()),
+	)
 }
 
 // SetupBackendAdmin registers the backend admin API routes on the server.

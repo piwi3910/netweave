@@ -297,6 +297,10 @@ linters:
         path: internal/backend/
         text: interface has more than.*methods
       - linters:
+          - ireturn
+        path: internal/backend/adapter_(factory|registry)\.go
+        text: returns interface
+      - linters:
           - revive
         path: internal/adapters/
         text: unused-parameter.*ctx
