@@ -45,8 +45,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/moby/spdystream v0.5.0 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
-	golang.org/x/mod v0.32.0 // indirect
-	golang.org/x/telemetry v0.0.0-20260109210033-bd525da824e2 // indirect
 )
 
 require (
