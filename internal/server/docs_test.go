@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/piwi3910/netweave/internal/config"
 	"github.com/piwi3910/netweave/internal/server"
 
 	"github.com/gin-gonic/gin"
@@ -41,7 +42,7 @@ paths: {}`)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "application/x-yaml", w.Header().Get("Content-Type"))
-		assert.Equal(t, "public, max-age=3600", w.Header().Get("Cache-Control"))
+		assert.Equal(t, "public, max-age=60", w.Header().Get("Cache-Control"))
 		assert.Equal(t, string(testSpec), w.Body.String())
 	})
 
@@ -286,6 +287,115 @@ func TestSwaggerUISRIHashes(t *testing.T) {
 
 	// Verify crossorigin attributes (2 JS files)
 	assert.Equal(t, 2, strings.Count(body, `crossorigin="anonymous"`))
+}
+
+func TestFilteredOpenAPISpec_DisabledO2IMS(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	testSpec := []byte(`openapi: 3.0.3
+info:
+  title: O2-IMS API
+  version: 1.0.0
+servers:
+  - url: /o2ims-infrastructureInventory/v1
+    description: O2-IMS Infrastructure Inventory API v1
+paths:
+  /subscriptions:
+    get:
+      summary: List subscriptions
+  /resourcePools:
+    get:
+      summary: List resource pools`)
+
+	cfg := config.FrontendPlugins{
+		O2IMS: config.FrontendPluginConfig{Enabled: false},
+	}
+	registry := server.NewFrontendPluginRegistry(cfg)
+
+	srv := createTestServer()
+	srv.SetOpenAPISpec(testSpec)
+	srv.SetPluginRegistry(registry)
+	srv.Router().GET("/openapi.yaml", srv.HandleOpenAPIYAML)
+
+	req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	body := w.Body.String()
+	// When O2-IMS is disabled, its paths (relative to server /o2ims-infrastructureInventory/v1)
+	// should be removed.
+	assert.NotContains(t, body, "/subscriptions")
+	assert.NotContains(t, body, "/resourcePools")
+	// The spec should still contain the info section.
+	assert.Contains(t, body, "O2-IMS API")
+}
+
+func TestFilteredOpenAPISpec_EnabledPlugins(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	testSpec := []byte(`openapi: 3.0.3
+info:
+  title: O2-IMS API
+  version: 1.0.0
+servers:
+  - url: /o2ims-infrastructureInventory/v1
+    description: O2-IMS Infrastructure Inventory API v1
+paths:
+  /subscriptions:
+    get:
+      summary: List subscriptions
+  /resourcePools:
+    get:
+      summary: List resource pools`)
+
+	cfg := config.FrontendPlugins{
+		O2IMS: config.FrontendPluginConfig{Enabled: true},
+	}
+	registry := server.NewFrontendPluginRegistry(cfg)
+
+	srv := createTestServer()
+	srv.SetOpenAPISpec(testSpec)
+	srv.SetPluginRegistry(registry)
+	srv.Router().GET("/openapi.yaml", srv.HandleOpenAPIYAML)
+
+	req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	body := w.Body.String()
+	// When O2-IMS is enabled, its paths should remain.
+	assert.Contains(t, body, "/subscriptions")
+	assert.Contains(t, body, "/resourcePools")
+}
+
+func TestFilteredOpenAPISpec_NilRegistry(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	testSpec := []byte(`openapi: 3.0.3
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /subscriptions:
+    get:
+      summary: List subscriptions`)
+
+	srv := createTestServer()
+	srv.SetOpenAPISpec(testSpec)
+	// No plugin registry set (nil).
+	srv.Router().GET("/openapi.yaml", srv.HandleOpenAPIYAML)
+
+	req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	// With nil registry, original spec is returned unchanged.
+	assert.Equal(t, string(testSpec), w.Body.String())
 }
 
 func TestSwaggerUICSPConstants(t *testing.T) {

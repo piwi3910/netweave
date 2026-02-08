@@ -105,6 +105,19 @@ gateway:
         repository: curlimages/curl
         tag: "8.5.0"
 
+  # Frontend plugin toggles (which API frontends are enabled at deploy time)
+  plugins:
+    o2ims:
+      enabled: false
+    o2dms:
+      enabled: false
+    o2smo:
+      enabled: false
+    tmforum:
+      enabled: false
+    graphql:
+      enabled: false
+
   # Gateway configuration
   config:
     # Log level: debug, info, warn, error

@@ -3,8 +3,10 @@ package server
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gopkg.in/yaml.v3"
 )
 
 // Swagger UI version and CDN configuration with SRI hashes for security.
@@ -55,6 +57,8 @@ func (s *Server) SetupDocsRoutes() {
 }
 
 // HandleOpenAPIYAML serves the OpenAPI specification in YAML format.
+// When a plugin registry is configured, paths belonging to disabled plugins
+// are removed from the spec before serving.
 func (s *Server) HandleOpenAPIYAML(c *gin.Context) {
 	if len(s.openAPISpec) == 0 {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -64,9 +68,156 @@ func (s *Server) HandleOpenAPIYAML(c *gin.Context) {
 		})
 		return
 	}
+
+	spec := s.filteredOpenAPISpec()
+
 	c.Header("Content-Type", "application/x-yaml")
-	c.Header("Cache-Control", "public, max-age=3600")
-	c.Data(http.StatusOK, "application/x-yaml", s.openAPISpec)
+	c.Header("Cache-Control", "public, max-age=60")
+	c.Data(http.StatusOK, "application/x-yaml", spec)
+}
+
+// disabledBasePaths returns the base paths of all disabled plugins.
+func (s *Server) disabledBasePaths() []string {
+	if s.pluginRegistry == nil {
+		return nil
+	}
+
+	var disabled []string
+	for _, p := range s.pluginRegistry.List() {
+		if !p.Enabled {
+			disabled = append(disabled, p.BasePaths...)
+		}
+	}
+	return disabled
+}
+
+// filteredOpenAPISpec returns the OpenAPI spec with disabled plugin paths removed.
+// If no plugins are disabled or the registry is nil, the original spec is returned unchanged.
+func (s *Server) filteredOpenAPISpec() []byte {
+	disabled := s.disabledBasePaths()
+	if len(disabled) == 0 {
+		return s.openAPISpec
+	}
+
+	// Parse spec as generic YAML map.
+	var doc yaml.Node
+	if err := yaml.Unmarshal(s.openAPISpec, &doc); err != nil {
+		return s.openAPISpec
+	}
+
+	// Resolve server base paths from the spec to understand path prefixes.
+	serverBases := extractServerBasePaths(&doc)
+
+	// Filter the paths section.
+	if !filterOpenAPIPaths(&doc, disabled, serverBases) {
+		return s.openAPISpec
+	}
+
+	out, err := yaml.Marshal(&doc)
+	if err != nil {
+		return s.openAPISpec
+	}
+	return out
+}
+
+// extractServerBasePaths extracts the base URLs from the OpenAPI servers section.
+func extractServerBasePaths(doc *yaml.Node) []string {
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
+		return nil
+	}
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return nil
+	}
+
+	for i := 0; i < len(root.Content)-1; i += 2 {
+		if root.Content[i].Value == "servers" {
+			serversNode := root.Content[i+1]
+			if serversNode.Kind != yaml.SequenceNode {
+				return nil
+			}
+			var bases []string
+			for _, server := range serversNode.Content {
+				if server.Kind != yaml.MappingNode {
+					continue
+				}
+				for j := 0; j < len(server.Content)-1; j += 2 {
+					if server.Content[j].Value == "url" {
+						bases = append(bases, server.Content[j+1].Value)
+					}
+				}
+			}
+			return bases
+		}
+	}
+	return nil
+}
+
+// filterOpenAPIPaths removes disabled plugin paths from the OpenAPI spec's paths section.
+// Returns true if any paths were removed.
+func filterOpenAPIPaths(doc *yaml.Node, disabled, serverBases []string) bool {
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
+		return false
+	}
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return false
+	}
+
+	for i := 0; i < len(root.Content)-1; i += 2 {
+		if root.Content[i].Value != "paths" {
+			continue
+		}
+		pathsNode := root.Content[i+1]
+		if pathsNode.Kind != yaml.MappingNode {
+			return false
+		}
+
+		filtered := filterPathEntries(pathsNode, disabled, serverBases)
+		if filtered {
+			return true
+		}
+	}
+	return false
+}
+
+// filterPathEntries removes path entries matching disabled base paths.
+func filterPathEntries(pathsNode *yaml.Node, disabled, serverBases []string) bool {
+	var newContent []*yaml.Node
+	removed := false
+
+	for i := 0; i < len(pathsNode.Content)-1; i += 2 {
+		pathKey := pathsNode.Content[i].Value
+		if isPathDisabled(pathKey, disabled, serverBases) {
+			removed = true
+			continue
+		}
+		newContent = append(newContent, pathsNode.Content[i], pathsNode.Content[i+1])
+	}
+
+	if removed {
+		pathsNode.Content = newContent
+	}
+	return removed
+}
+
+// isPathDisabled checks whether an OpenAPI path matches any disabled plugin base path.
+// It checks both the raw path and the path prefixed with each server base URL.
+func isPathDisabled(path string, disabled, serverBases []string) bool {
+	for _, base := range disabled {
+		// Direct match: path starts with the disabled base.
+		if strings.HasPrefix(path, base) {
+			return true
+		}
+		// Check if any server base + path matches.
+		for _, sb := range serverBases {
+			fullPath := sb + path
+			if strings.HasPrefix(fullPath, base) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // HandleOpenAPIJSON redirects to the YAML endpoint.

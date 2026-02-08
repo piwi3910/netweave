@@ -122,3 +122,8 @@ func (s *Server) SetHTTPServer(srv *http.Server) {
 func (s *Server) PluginRegistry() *FrontendPluginRegistry {
 	return s.pluginRegistry
 }
+
+// SetPluginRegistry sets the frontend plugin registry for testing.
+func (s *Server) SetPluginRegistry(registry *FrontendPluginRegistry) {
+	s.pluginRegistry = registry
+}
