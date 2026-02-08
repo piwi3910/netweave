@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
 	"github.com/piwi3910/netweave/internal/auth"
@@ -168,10 +169,11 @@ func newCreateCmd() *cobra.Command {
 			}
 
 			user := &auth.TenantUser{
+				ID:         uuid.New().String(),
 				TenantID:   tenantID,
 				CommonName: certCN,
 				Email:      email,
-				Subject:    fmt.Sprintf("CN=%s", certCN),
+				Subject:    fmt.Sprintf("CN=%s,O=Netweave", certCN),
 				RoleID:     role.ID,
 				IsActive:   true,
 			}
