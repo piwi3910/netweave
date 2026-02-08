@@ -27,7 +27,6 @@ func setupTestRedisEdge(t *testing.T) (*auth.RedisStore, *miniredis.Miniredis) {
 }
 
 func TestRedisStore_NewRedisStore_SentinelMode(t *testing.T) {
-	t.Parallel()
 	cfg := &auth.RedisConfig{
 		UseSentinel:      true,
 		MasterName:       "mymaster",
@@ -50,7 +49,6 @@ func TestRedisStore_NewRedisStore_SentinelMode(t *testing.T) {
 }
 
 func TestRedisStore_NewRedisStore_NilConfig(t *testing.T) {
-	t.Parallel()
 	store := auth.NewRedisStore(nil)
 	require.NotNil(t, store)
 	assert.NotNil(t, store.Config)
@@ -58,7 +56,6 @@ func TestRedisStore_NewRedisStore_NilConfig(t *testing.T) {
 }
 
 func TestRedisStore_Close_Error(t *testing.T) {
-	t.Parallel()
 	store, mr := setupTestRedisEdge(t)
 
 	// Close miniredis first to force a client close error.
@@ -70,7 +67,6 @@ func TestRedisStore_Close_Error(t *testing.T) {
 }
 
 func TestRedisStore_ListTenants_WithCorruptData(t *testing.T) {
-	t.Parallel()
 	store, mr := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -96,7 +92,6 @@ func TestRedisStore_ListTenants_WithCorruptData(t *testing.T) {
 }
 
 func TestRedisStore_ListRoles_WithCorruptData(t *testing.T) {
-	t.Parallel()
 	store, mr := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -122,7 +117,6 @@ func TestRedisStore_ListRoles_WithCorruptData(t *testing.T) {
 }
 
 func TestRedisStore_ListUsersByTenant_EdgeCases(t *testing.T) {
-	t.Parallel()
 	store, mr := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -173,7 +167,6 @@ func TestRedisStore_ListUsersByTenant_EdgeCases(t *testing.T) {
 }
 
 func TestRedisStore_ListEvents_EdgeCases(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -225,7 +218,6 @@ func TestRedisStore_ListEvents_EdgeCases(t *testing.T) {
 }
 
 func TestRedisStore_ListEvents_ExpiredEventSkipped(t *testing.T) {
-	t.Parallel()
 	store, mr := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -252,7 +244,6 @@ func TestRedisStore_ListEvents_ExpiredEventSkipped(t *testing.T) {
 }
 
 func TestRedisStore_ListEventsByType_EdgeCases(t *testing.T) {
-	t.Parallel()
 	store, mr := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -289,7 +280,6 @@ func TestRedisStore_ListEventsByType_EdgeCases(t *testing.T) {
 }
 
 func TestRedisStore_ListEventsByUser_EdgeCases(t *testing.T) {
-	t.Parallel()
 	store, mr := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -326,7 +316,6 @@ func TestRedisStore_ListEventsByUser_EdgeCases(t *testing.T) {
 }
 
 func TestRedisStore_GetAuditEvent_UnmarshalError(t *testing.T) {
-	t.Parallel()
 	store, mr := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -344,7 +333,6 @@ func TestRedisStore_GetAuditEvent_UnmarshalError(t *testing.T) {
 }
 
 func TestRedisStore_DecrementUsage_UnknownType(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -355,7 +343,6 @@ func TestRedisStore_DecrementUsage_UnknownType(t *testing.T) {
 }
 
 func TestRedisStore_DecrementUsage_EmptyTenantID(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -366,7 +353,6 @@ func TestRedisStore_DecrementUsage_EmptyTenantID(t *testing.T) {
 }
 
 func TestRedisStore_DecrementUsage_TenantNotFound(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -377,7 +363,6 @@ func TestRedisStore_DecrementUsage_TenantNotFound(t *testing.T) {
 }
 
 func TestRedisStore_IncrementUsage_UnexpectedResult(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -401,7 +386,6 @@ func TestRedisStore_IncrementUsage_UnexpectedResult(t *testing.T) {
 }
 
 func TestRedisStore_CreateUser_OAuthIndices(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -468,7 +452,6 @@ func TestRedisStore_CreateUser_OAuthIndices(t *testing.T) {
 }
 
 func TestRedisStore_InitializeDefaultRoles_Idempotent(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -486,7 +469,6 @@ func TestRedisStore_InitializeDefaultRoles_Idempotent(t *testing.T) {
 }
 
 func TestRedisStore_ListRolesByTenant_FiltersBothGlobalAndTenant(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -534,7 +516,6 @@ func TestRedisStore_ListRolesByTenant_FiltersBothGlobalAndTenant(t *testing.T) {
 }
 
 func TestRedisStore_LogEvent_WithAllIndices(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -569,7 +550,6 @@ func TestRedisStore_LogEvent_WithAllIndices(t *testing.T) {
 }
 
 func TestRedisStore_BatchListFromSet_NonStringType(t *testing.T) {
-	t.Parallel()
 	// This test exercises the "unexpected data type" path in batchListFromSet.
 	// We can trigger this by putting a non-string value at a key via miniredis.
 	store, mr := setupTestRedisEdge(t)
@@ -588,7 +568,6 @@ func TestRedisStore_BatchListFromSet_NonStringType(t *testing.T) {
 }
 
 func TestRedisStore_UpdateTenant_MarshalPath(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -624,7 +603,6 @@ func TestRedisStore_UpdateTenant_MarshalPath(t *testing.T) {
 }
 
 func TestRedisStore_UpdateRole_NameChange_Edge(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -658,7 +636,6 @@ func TestRedisStore_UpdateRole_NameChange_Edge(t *testing.T) {
 }
 
 func TestRedisStore_CreateTenant_MarshalAndSAddPaths(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -683,7 +660,6 @@ func TestRedisStore_CreateTenant_MarshalAndSAddPaths(t *testing.T) {
 }
 
 func TestRedisStore_CreateRole_WithTenantID(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -705,7 +681,6 @@ func TestRedisStore_CreateRole_WithTenantID(t *testing.T) {
 }
 
 func TestRedisStore_DeleteRole_WithTenantID(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -726,7 +701,6 @@ func TestRedisStore_DeleteRole_WithTenantID(t *testing.T) {
 }
 
 func TestRedisStore_GetUser_NotFound_GenericError(t *testing.T) {
-	t.Parallel()
 	store, mr := setupTestRedisEdge(t)
 
 	ctx := context.Background()
@@ -761,7 +735,6 @@ func TestRedisStore_GetUser_NotFound_GenericError(t *testing.T) {
 }
 
 func TestRedisStore_GetTenant_UnmarshalError(t *testing.T) {
-	t.Parallel()
 	store, mr := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -775,7 +748,6 @@ func TestRedisStore_GetTenant_UnmarshalError(t *testing.T) {
 }
 
 func TestRedisStore_GetRole_UnmarshalError(t *testing.T) {
-	t.Parallel()
 	store, mr := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -788,7 +760,6 @@ func TestRedisStore_GetRole_UnmarshalError(t *testing.T) {
 }
 
 func TestRedisStore_IncrementUsage_InvalidType(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -799,7 +770,6 @@ func TestRedisStore_IncrementUsage_InvalidType(t *testing.T) {
 }
 
 func TestRedisStore_IncrementUsage_EmptyTenantID(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -810,7 +780,6 @@ func TestRedisStore_IncrementUsage_EmptyTenantID(t *testing.T) {
 }
 
 func TestRedisStore_IncrementUsage_TenantNotFound(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -821,7 +790,6 @@ func TestRedisStore_IncrementUsage_TenantNotFound(t *testing.T) {
 }
 
 func TestRedisStore_IncrementUsage_QuotaExceeded(t *testing.T) {
-	t.Parallel()
 	store, mr := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -853,7 +821,6 @@ func TestRedisStore_IncrementUsage_QuotaExceeded(t *testing.T) {
 }
 
 func TestRedisStore_IncrementUsage_AllValidTypes(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -877,7 +844,6 @@ func TestRedisStore_IncrementUsage_AllValidTypes(t *testing.T) {
 }
 
 func TestRedisStore_UpdateUser_FullPaths(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -908,7 +874,7 @@ func TestRedisStore_UpdateUser_FullPaths(t *testing.T) {
 	// Update subject and tenant to exercise index update branches.
 	updated := &auth.TenantUser{
 		ID:         "user-upd-full",
-		TenantID:   "tenant-upd-b", // Changed tenant.
+		TenantID:   "tenant-upd-b",              // Changed tenant.
 		Subject:    "CN=updfull-changed,O=ACME", // Changed subject.
 		CommonName: "updfull-changed",
 		RoleID:     "role-2",
@@ -924,7 +890,6 @@ func TestRedisStore_UpdateUser_FullPaths(t *testing.T) {
 }
 
 func TestRedisStore_CreateUser_EmptyID_Edge(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -939,7 +904,6 @@ func TestRedisStore_CreateUser_EmptyID_Edge(t *testing.T) {
 }
 
 func TestRedisStore_CreateUser_DuplicateSubject(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -975,7 +939,6 @@ func TestRedisStore_CreateUser_DuplicateSubject(t *testing.T) {
 }
 
 func TestRedisStore_GetRoleByName_NotFound_Edge(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -986,7 +949,6 @@ func TestRedisStore_GetRoleByName_NotFound_Edge(t *testing.T) {
 }
 
 func TestRedisStore_UpdateRole_NotFound(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1001,7 +963,6 @@ func TestRedisStore_UpdateRole_NotFound(t *testing.T) {
 }
 
 func TestRedisStore_UpdateRole_EmptyID(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1013,7 +974,6 @@ func TestRedisStore_UpdateRole_EmptyID(t *testing.T) {
 }
 
 func TestRedisStore_DeleteUser_NotFound(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1024,7 +984,6 @@ func TestRedisStore_DeleteUser_NotFound(t *testing.T) {
 }
 
 func TestRedisStore_Ping_Edge(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 
@@ -1033,7 +992,6 @@ func TestRedisStore_Ping_Edge(t *testing.T) {
 }
 
 func TestRedisStore_LogEvent_EmptyTimestamp(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1053,7 +1011,6 @@ func TestRedisStore_LogEvent_EmptyTimestamp(t *testing.T) {
 }
 
 func TestRedisStore_LogEvent_EmptyID_Edge(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1068,7 +1025,6 @@ func TestRedisStore_LogEvent_EmptyID_Edge(t *testing.T) {
 }
 
 func TestRedisStore_GetUserBySubject_NotFound(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1079,7 +1035,6 @@ func TestRedisStore_GetUserBySubject_NotFound(t *testing.T) {
 }
 
 func TestRedisStore_LogEvent_WithoutTenantOrUser(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1095,7 +1050,6 @@ func TestRedisStore_LogEvent_WithoutTenantOrUser(t *testing.T) {
 }
 
 func TestRedisStore_UpdateUser_EmptyID(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1107,7 +1061,6 @@ func TestRedisStore_UpdateUser_EmptyID(t *testing.T) {
 }
 
 func TestRedisStore_UpdateUser_NotFound(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1119,7 +1072,6 @@ func TestRedisStore_UpdateUser_NotFound(t *testing.T) {
 }
 
 func TestRedisStore_UpdateTenant_EmptyID(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1131,7 +1083,6 @@ func TestRedisStore_UpdateTenant_EmptyID(t *testing.T) {
 }
 
 func TestRedisStore_UpdateTenant_NotFound(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1143,7 +1094,6 @@ func TestRedisStore_UpdateTenant_NotFound(t *testing.T) {
 }
 
 func TestRedisStore_DeleteTenant_EmptyID(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1154,7 +1104,6 @@ func TestRedisStore_DeleteTenant_EmptyID(t *testing.T) {
 }
 
 func TestRedisStore_DeleteTenant_NotFound(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1165,7 +1114,6 @@ func TestRedisStore_DeleteTenant_NotFound(t *testing.T) {
 }
 
 func TestRedisStore_CreateTenant_EmptyID(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1177,7 +1125,6 @@ func TestRedisStore_CreateTenant_EmptyID(t *testing.T) {
 }
 
 func TestRedisStore_CreateRole_EmptyID_Edge(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1189,7 +1136,6 @@ func TestRedisStore_CreateRole_EmptyID_Edge(t *testing.T) {
 }
 
 func TestRedisStore_CreateRole_Duplicate(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1208,7 +1154,6 @@ func TestRedisStore_CreateRole_Duplicate(t *testing.T) {
 }
 
 func TestRedisStore_DeleteRole_EmptyID(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1219,7 +1164,6 @@ func TestRedisStore_DeleteRole_EmptyID(t *testing.T) {
 }
 
 func TestRedisStore_DeleteRole_NotFound(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1230,7 +1174,6 @@ func TestRedisStore_DeleteRole_NotFound(t *testing.T) {
 }
 
 func TestRedisStore_DeleteUser_EmptyID(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1241,7 +1184,6 @@ func TestRedisStore_DeleteUser_EmptyID(t *testing.T) {
 }
 
 func TestRedisStore_GetUser_EmptyID(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1252,7 +1194,6 @@ func TestRedisStore_GetUser_EmptyID(t *testing.T) {
 }
 
 func TestRedisStore_GetTenant_EmptyID(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1263,7 +1204,6 @@ func TestRedisStore_GetTenant_EmptyID(t *testing.T) {
 }
 
 func TestRedisStore_GetRole_EmptyID_Edge(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1274,7 +1214,6 @@ func TestRedisStore_GetRole_EmptyID_Edge(t *testing.T) {
 }
 
 func TestRedisStore_GetUserByEmail_EmptyEmail(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
@@ -1285,7 +1224,6 @@ func TestRedisStore_GetUserByEmail_EmptyEmail(t *testing.T) {
 }
 
 func TestRedisStore_ListUsersByTenant_MGetError(t *testing.T) {
-	t.Parallel()
 	store, mr := setupTestRedisEdge(t)
 	ctx := context.Background()
 
@@ -1303,7 +1241,6 @@ func TestRedisStore_ListUsersByTenant_MGetError(t *testing.T) {
 }
 
 func TestRedisStore_LogEvent_MarshalMetadata(t *testing.T) {
-	t.Parallel()
 	store, _ := setupTestRedisEdge(t)
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()

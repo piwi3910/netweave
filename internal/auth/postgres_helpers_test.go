@@ -46,6 +46,7 @@ func TestMarshalPermissions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := marshalPermissions(tt.perms)
 
 			if tt.wantErr {
@@ -90,6 +91,7 @@ func TestUnmarshalPermissions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := unmarshalPermissions(tt.data)
 
 			if tt.wantErr {
@@ -129,6 +131,7 @@ func TestMarshalStringMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := marshalStringMap(tt.m)
 
 			if tt.wantErr {
@@ -162,6 +165,7 @@ func TestTimeToTimestamptz(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := timeToTimestamptz(tt.input)
 			assert.Equal(t, tt.wantValid, got.Valid)
 			if tt.wantValid {
@@ -217,6 +221,7 @@ func TestSafeIntToInt32(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := safeIntToInt32(tt.input)
 			assert.Equal(t, tt.want, got)
 		})
@@ -254,6 +259,7 @@ func TestIsPgUniqueViolation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := isPgUniqueViolation(tt.err)
 			assert.Equal(t, tt.want, got)
 		})
@@ -327,6 +333,7 @@ func TestDbsqlcUserToModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := dbsqlcUserToModel(tt.row)
 			assert.Equal(t, tt.want, got)
 		})
@@ -412,6 +419,7 @@ func TestDbsqlcRoleToModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := dbsqlcRoleToModel(tt.row)
 
 			if tt.wantErr {
@@ -429,6 +437,7 @@ func TestDbsqlcRolesToModels(t *testing.T) {
 	now := time.Now().UTC()
 
 	t.Run("valid roles", func(t *testing.T) {
+		t.Parallel()
 		rows := []dbsqlc.Role{
 			{
 				ID:          "role-1",
@@ -456,6 +465,7 @@ func TestDbsqlcRolesToModels(t *testing.T) {
 	})
 
 	t.Run("invalid permissions stops iteration", func(t *testing.T) {
+		t.Parallel()
 		rows := []dbsqlc.Role{
 			{
 				ID:          "role-1",
@@ -538,6 +548,7 @@ func TestDbsqlcTenantToModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := dbsqlcTenantToModel(tt.row)
 
 			if tt.wantErr {
@@ -554,6 +565,7 @@ func TestDbsqlcTenantToModel(t *testing.T) {
 func TestDbsqlcTenantsToModels(t *testing.T) {
 	t.Parallel()
 	t.Run("valid tenants", func(t *testing.T) {
+		t.Parallel()
 		rows := []dbsqlc.Tenant{
 			{
 				ID:       "tenant-1",
@@ -579,6 +591,7 @@ func TestDbsqlcTenantsToModels(t *testing.T) {
 	})
 
 	t.Run("invalid tenant stops iteration", func(t *testing.T) {
+		t.Parallel()
 		rows := []dbsqlc.Tenant{
 			{
 				ID:       "tenant-1",
@@ -654,6 +667,7 @@ func TestDbsqlcAuditEventToModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := dbsqlcAuditEventToModel(tt.row)
 
 			if tt.wantErr {
@@ -672,6 +686,7 @@ func TestDbsqlcAuditEventsToModels(t *testing.T) {
 	now := time.Now().UTC()
 
 	t.Run("valid events", func(t *testing.T) {
+		t.Parallel()
 		rows := []dbsqlc.AuditEvent{
 			{ID: "event-1", Type: "auth.success", Action: "login", Details: json.RawMessage(`{}`), Timestamp: now},
 			{ID: "event-2", Type: "auth.failure", Action: "login", Details: json.RawMessage(`{}`), Timestamp: now},
@@ -683,6 +698,7 @@ func TestDbsqlcAuditEventsToModels(t *testing.T) {
 	})
 
 	t.Run("invalid event stops iteration", func(t *testing.T) {
+		t.Parallel()
 		rows := []dbsqlc.AuditEvent{
 			{ID: "event-1", Type: "auth.success", Action: "login", Details: json.RawMessage(`{"bad`), Timestamp: now},
 		}

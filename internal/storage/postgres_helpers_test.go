@@ -41,6 +41,7 @@ func TestDbsqlcSubscriptionToModel(t *testing.T) {
 func TestDbsqlcSubscriptionsToModels(t *testing.T) {
 	t.Parallel()
 	t.Run("converts multiple rows", func(t *testing.T) {
+		t.Parallel()
 		rows := []dbsqlc.Subscription{
 			{
 				ID:       "sub-1",
@@ -59,11 +60,13 @@ func TestDbsqlcSubscriptionsToModels(t *testing.T) {
 	})
 
 	t.Run("empty rows returns empty slice", func(t *testing.T) {
+		t.Parallel()
 		subs := dbsqlcSubscriptionsToModels([]dbsqlc.Subscription{})
 		assert.Empty(t, subs)
 	})
 
 	t.Run("nil rows returns empty slice", func(t *testing.T) {
+		t.Parallel()
 		subs := dbsqlcSubscriptionsToModels(nil)
 		assert.Empty(t, subs)
 	})
@@ -100,6 +103,7 @@ func TestIsPgUniqueViolation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := isPgUniqueViolation(tt.err)
 			assert.Equal(t, tt.want, got)
 		})

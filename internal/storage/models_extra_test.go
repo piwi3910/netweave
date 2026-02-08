@@ -42,6 +42,7 @@ func TestSubscription_MarshalBinary(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			data, err := tt.sub.MarshalBinary()
 			require.NoError(t, err)
 			assert.NotEmpty(t, data)
@@ -185,6 +186,7 @@ func TestSubscriptionFilter_MatchesFilter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := tt.filter.MatchesFilter(tt.resourcePoolID, tt.resourceTypeID, tt.resourceID)
 			assert.Equal(t, tt.want, got)
 		})
@@ -263,6 +265,7 @@ func TestValidateCallbackURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := ValidateCallbackURL(tt.callback, tt.allowInsecure)
 
 			if tt.wantErr {
