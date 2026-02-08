@@ -38,7 +38,7 @@ func BenchmarkMTLSAuthentication(b *testing.B) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.TLS = &tls.ConnectionState{
 		PeerCertificates: []*x509.Certificate{createTestCertificate()},
 	}
@@ -82,7 +82,7 @@ func BenchmarkOAuth2TokenValidation(b *testing.B) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer test-token")
 
 	b.ResetTimer()
@@ -128,7 +128,7 @@ func BenchmarkAuthorizationCheck(b *testing.B) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -160,7 +160,7 @@ func BenchmarkConcurrentAuthentication(b *testing.B) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.TLS = &tls.ConnectionState{
 		PeerCertificates: []*x509.Certificate{createTestCertificate()},
 	}

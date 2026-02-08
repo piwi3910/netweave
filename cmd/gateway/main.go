@@ -137,9 +137,9 @@ func run() error {
 
 // ApplicationComponents holds all initialized application components.
 type ApplicationComponents struct {
-	redisStore    *storage.RedisStore  // Always needed for rate limiting, events, pub/sub
-	store         storage.Store        // Subscription store (redis, postgres, or dual)
-	pgDB          *database.DB         // PostgreSQL connection (nil if storage_mode="redis")
+	redisStore    *storage.RedisStore // Always needed for rate limiting, events, pub/sub
+	store         storage.Store       // Subscription store (redis, postgres, or dual)
+	pgDB          *database.DB        // PostgreSQL connection (nil if storage_mode="redis")
 	imsAdapter    adapter.Adapter
 	healthChecker *observability.HealthChecker
 	server        *server.Server
@@ -156,7 +156,11 @@ func NewApplicationComponentsForTest(authStore server.AuthStore) *ApplicationCom
 
 // NewApplicationComponentsForTestFull creates an ApplicationComponents instance for testing
 // with all fields configurable.
-func NewApplicationComponentsForTestFull(authStore server.AuthStore, store storage.Store, pgDB *database.DB) *ApplicationComponents {
+func NewApplicationComponentsForTestFull(
+	authStore server.AuthStore,
+	store storage.Store,
+	pgDB *database.DB,
+) *ApplicationComponents {
 	return &ApplicationComponents{
 		authStore: authStore,
 		store:     store,
@@ -275,26 +279,27 @@ func initializePostgres(cfg *config.Config, logger *zap.Logger) (*database.DB, e
 	return pgDB, nil
 }
 
-// selectSubscriptionStore returns the appropriate subscription store based on storage mode.
+// selectSubscriptionStore sets dest to the appropriate subscription store based on storage mode.
 func selectSubscriptionStore(
+	dest *storage.Store,
 	cfg *config.Config,
 	redisStore *storage.RedisStore,
 	pgDB *database.DB,
 	logger *zap.Logger,
-) storage.Store {
+) {
 	switch cfg.StorageMode {
 	case "postgres":
 		logger.Info("using PostgreSQL as subscription store")
-		return storage.NewPostgresStore(pgDB, cfg.Security.AllowInsecureCallbacks)
+		*dest = storage.NewPostgresStore(pgDB, cfg.Security.AllowInsecureCallbacks)
 
 	case "dual":
 		pgStore := storage.NewPostgresStore(pgDB, cfg.Security.AllowInsecureCallbacks)
 		logger.Info("using dual store (primary=redis, secondary=postgres)")
-		return storage.NewDualStore(redisStore, pgStore, logger)
+		*dest = storage.NewDualStore(redisStore, pgStore, logger)
 
 	default: // "redis"
 		logger.Info("using Redis as subscription store")
-		return redisStore
+		*dest = redisStore
 	}
 }
 
@@ -304,7 +309,8 @@ func initializeBackendAdmin(cfg *config.Config, srv *server.Server, pgDB *databa
 		return
 	}
 
-	enc := createEncryptor(cfg, logger)
+	var enc encryption.Encryptor
+	createEncryptor(&enc, cfg, logger)
 	if enc == nil {
 		logger.Warn("no encryptor available, backend admin API disabled")
 		return
@@ -319,9 +325,13 @@ func initializeBackendAdmin(cfg *config.Config, srv *server.Server, pgDB *databa
 	logger.Info("backend admin API initialized")
 }
 
-// createEncryptor creates an encryption.Encryptor from environment configuration.
-// Returns nil if no encryptor can be created.
-func createEncryptor(_ *config.Config, logger *zap.Logger) encryption.Encryptor {
+// createEncryptor sets dest to an encryption.Encryptor from environment configuration.
+// If no encryptor can be created, dest is left unchanged (nil).
+func createEncryptor(
+	dest *encryption.Encryptor,
+	_ *config.Config,
+	logger *zap.Logger,
+) {
 	vaultAddr := os.Getenv("VAULT_ADDR")
 	vaultToken := os.Getenv("VAULT_TOKEN")
 
@@ -335,7 +345,9 @@ func createEncryptor(_ *config.Config, logger *zap.Logger) encryption.Encryptor 
 		logger.Info("using Vault transit encryptor for backend credentials",
 			zap.String("vault_addr", vaultAddr),
 		)
-		return encryption.NewVaultEncryptor(vaultCfg)
+		*dest = encryption.NewVaultEncryptor(vaultCfg)
+
+		return
 	}
 
 	// Fallback to AES for development
@@ -349,11 +361,12 @@ func createEncryptor(_ *config.Config, logger *zap.Logger) encryption.Encryptor 
 	enc, aesErr := encryption.NewAESEncryptor(aesKey)
 	if aesErr != nil {
 		logger.Warn("failed to create AES encryptor", zap.Error(aesErr))
-		return nil
+
+		return
 	}
 
 	logger.Info("using AES encryptor for backend credentials (development mode)")
-	return enc
+	*dest = enc
 }
 
 // initializeComponents initializes all application components.
@@ -382,7 +395,8 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	}
 
 	// Select subscription store based on storage mode
-	subscriptionStore := selectSubscriptionStore(cfg, redisStore, pgDB, logger)
+	var subscriptionStore storage.Store
+	selectSubscriptionStore(&subscriptionStore, cfg, redisStore, pgDB, logger)
 
 	// Initialize IMS adapter
 	var imsAdapter adapter.Adapter
@@ -471,7 +485,12 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 }
 
 // initializeMockAdapter creates and initializes a mock adapter, returning the concrete type.
-func initializeMockAdapter(ctx context.Context, logger *zap.Logger, redisStore *storage.RedisStore, _ storage.Store) (*mock.Adapter, error) {
+func initializeMockAdapter(
+	ctx context.Context,
+	logger *zap.Logger,
+	redisStore *storage.RedisStore,
+	_ storage.Store,
+) (*mock.Adapter, error) {
 	logger.Info("initializing mock adapter")
 	mockAdp := mock.NewAdapter(true) // Pre-populate with sample data
 
@@ -801,7 +820,11 @@ func verifyRedisConnectivity(store *storage.RedisStore) error {
 }
 
 // initializeKubernetesAdapter creates and initializes the Kubernetes adapter.
-func initializeKubernetesAdapter(cfg *config.Config, logger *zap.Logger, store storage.Store) (*kubernetes.Adapter, error) {
+func initializeKubernetesAdapter(
+	cfg *config.Config,
+	logger *zap.Logger,
+	store storage.Store,
+) (*kubernetes.Adapter, error) {
 	// Build Kubernetes adapter configuration
 	k8sCfg := &kubernetes.Config{
 		Kubeconfig:          cfg.Kubernetes.ConfigPath,
@@ -1091,35 +1114,11 @@ func loadOpenAPISpec(logger *zap.Logger) ([]byte, error) {
 	return nil, fmt.Errorf("OpenAPI specification not found in any of the expected locations")
 }
 
-// InitializeAuth creates and initializes the authentication store and middleware.
-//
-// This function performs the following initialization steps:
-//  1. Retrieves authentication backend credentials from environment variables, files, or config
-//  2. Creates auth store (Redis or Keycloak) based on configured backend
-//  3. Verifies auth store connectivity via ping
-//  4. Initializes default system roles if configured (platform-admin, tenant-admin, etc.)
-//  5. Creates authentication middleware with configured skip paths and mTLS requirements
-//
-// Parameters:
-//   - cfg: Application configuration containing multi-tenancy and Redis settings
-//   - logger: Structured logger for logging initialization progress and errors
-//
-// Returns:
-//   - authStore: Initialized auth store (Redis or Keycloak) for auth data (tenants, users, roles, audit)
-//   - authMw: Configured authentication middleware for request validation
-//   - err: Any error encountered during initialization
-//
-// InitializeAuth initializes the authentication store and middleware.
-// Errors are returned without exposing sensitive credential details in messages.
-// This function is only called when cfg.MultiTenancy.Enabled is true.
-func InitializeAuth(cfg *config.Config, logger *zap.Logger, pgDB *database.DB) (auth.Store, *auth.Middleware, error) {
-	// Get Redis password (reuse the same logic as main storage).
-	passwords, err := getRedisPasswords(cfg, logger)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get Redis passwords for auth: %w", err)
-	}
-
-	// Build auth Redis config.
+// buildAuthRedisConfig creates the Redis configuration for the auth store.
+func buildAuthRedisConfig(
+	cfg *config.Config,
+	passwords *redisPasswordConfig,
+) *auth.RedisConfig {
 	authRedisCfg := &auth.RedisConfig{
 		DB:               cfg.Redis.DB,
 		Password:         passwords.redisPassword,
@@ -1131,7 +1130,6 @@ func InitializeAuth(cfg *config.Config, logger *zap.Logger, pgDB *database.DB) (
 		PoolSize:         cfg.Redis.PoolSize,
 	}
 
-	// Configure Redis mode.
 	switch cfg.Redis.Mode {
 	case redisModeSentinel:
 		authRedisCfg.UseSentinel = true
@@ -1146,55 +1144,183 @@ func InitializeAuth(cfg *config.Config, logger *zap.Logger, pgDB *database.DB) (
 		}
 	}
 
-	// Create auth store based on configured backend.
-	var authStore auth.Store
+	return authRedisCfg
+}
+
+// createAuthStore sets dest to the auth store based on the configured backend.
+func createAuthStore(
+	dest *auth.Store,
+	cfg *config.Config,
+	authRedisCfg *auth.RedisConfig,
+	pgDB *database.DB,
+	logger *zap.Logger,
+) error {
 	switch cfg.Auth.Backend {
 	case "keycloak":
-		// Initialize Keycloak store
-		keycloakCfg := &keycloak.Config{
-			BaseURL:       cfg.Auth.Keycloak.BaseURL,
-			Realm:         cfg.Auth.Keycloak.Realm,
-			ClientID:      cfg.Auth.Keycloak.ClientID,
-			ClientSecret:  cfg.Auth.Keycloak.ClientSecret,
-			AdminUsername: cfg.Auth.Keycloak.AdminUsername,
-			AdminPassword: cfg.Auth.Keycloak.AdminPassword,
-			Timeout:       cfg.Auth.Keycloak.Timeout,
-		}
-
-		// Get secrets from environment if configured
-		if secret, secretErr := cfg.Auth.Keycloak.GetClientSecret(); secretErr == nil {
-			keycloakCfg.ClientSecret = secret
-		}
-		if adminPass, adminErr := cfg.Auth.Keycloak.GetAdminPassword(); adminErr == nil {
-			keycloakCfg.AdminPassword = adminPass
-		}
-
-		keycloakClient, clientErr := keycloak.NewClient(keycloakCfg)
-		if clientErr != nil {
-			return nil, nil, fmt.Errorf("failed to initialize Keycloak client: %w", clientErr)
-		}
-
-		authStore = keycloak.NewStore(keycloakClient, logger)
-		logger.Info("Keycloak auth store initialized",
-			zap.String("backend", "keycloak"),
-			zap.String("base_url", cfg.Auth.Keycloak.BaseURL),
-			zap.String("realm", cfg.Auth.Keycloak.Realm),
-		)
+		return createKeycloakAuthStore(dest, cfg, logger)
 
 	case "postgres":
 		if pgDB == nil {
-			return nil, nil, fmt.Errorf("auth backend is postgres but PostgreSQL is not initialized (storage_mode may be redis)")
+			return fmt.Errorf(
+				"auth backend is postgres but PostgreSQL is not initialized",
+			)
 		}
-		authStore = auth.NewPostgresStore(pgDB)
 		logger.Info("PostgreSQL auth store initialized",
 			zap.String("backend", "postgres"),
 		)
+		*dest = auth.NewPostgresStore(pgDB)
+
+		return nil
 
 	default: // "redis"
-		authStore = auth.NewRedisStore(authRedisCfg)
 		logger.Info("Redis auth store initialized",
 			zap.String("backend", "redis"),
 		)
+		*dest = auth.NewRedisStore(authRedisCfg)
+
+		return nil
+	}
+}
+
+// createKeycloakAuthStore initializes a Keycloak-backed auth store and sets dest.
+func createKeycloakAuthStore(
+	dest *auth.Store,
+	cfg *config.Config,
+	logger *zap.Logger,
+) error {
+	keycloakCfg := &keycloak.Config{
+		BaseURL:       cfg.Auth.Keycloak.BaseURL,
+		Realm:         cfg.Auth.Keycloak.Realm,
+		ClientID:      cfg.Auth.Keycloak.ClientID,
+		ClientSecret:  cfg.Auth.Keycloak.ClientSecret,
+		AdminUsername: cfg.Auth.Keycloak.AdminUsername,
+		AdminPassword: cfg.Auth.Keycloak.AdminPassword,
+		Timeout:       cfg.Auth.Keycloak.Timeout,
+	}
+
+	// Get secrets from environment if configured.
+	if secret, secretErr := cfg.Auth.Keycloak.GetClientSecret(); secretErr == nil {
+		keycloakCfg.ClientSecret = secret
+	}
+	if adminPass, adminErr := cfg.Auth.Keycloak.GetAdminPassword(); adminErr == nil {
+		keycloakCfg.AdminPassword = adminPass
+	}
+
+	keycloakClient, clientErr := keycloak.NewClient(keycloakCfg)
+	if clientErr != nil {
+		return fmt.Errorf("failed to initialize Keycloak client: %w", clientErr)
+	}
+
+	logger.Info("Keycloak auth store initialized",
+		zap.String("backend", "keycloak"),
+		zap.String("base_url", cfg.Auth.Keycloak.BaseURL),
+		zap.String("realm", cfg.Auth.Keycloak.Realm),
+	)
+
+	*dest = keycloak.NewStore(keycloakClient, logger)
+
+	return nil
+}
+
+// initializeOAuth2 creates the OAuth2 authenticator and config if OAuth2 is enabled.
+func initializeOAuth2(
+	cfg *config.Config,
+	authStore auth.Store,
+	logger *zap.Logger,
+) (*auth.OAuth2Authenticator, *auth.OAuth2Config, error) {
+	if !cfg.OAuth2.Enabled {
+		return nil, nil, nil
+	}
+
+	// Resolve OAuth2 client secret from env var if direct value is empty.
+	oauth2Secret := cfg.OAuth2.KeycloakSecret
+	if oauth2Secret == "" && cfg.OAuth2.KeycloakSecretEnvVar != "" {
+		oauth2Secret = os.Getenv(cfg.OAuth2.KeycloakSecretEnvVar)
+	}
+
+	// Create Keycloak client.
+	keycloakCfg := &keycloak.Config{
+		BaseURL:      cfg.OAuth2.KeycloakBaseURL,
+		Realm:        cfg.OAuth2.KeycloakRealm,
+		ClientID:     cfg.OAuth2.KeycloakClientID,
+		ClientSecret: oauth2Secret,
+		Timeout:      10 * time.Second,
+	}
+
+	keycloakClient, oauth2ClientErr := keycloak.NewClient(keycloakCfg)
+	if oauth2ClientErr != nil {
+		return nil, nil, fmt.Errorf(
+			"failed to initialize OAuth2 Keycloak client: %w",
+			oauth2ClientErr,
+		)
+	}
+
+	// Create OAuth2 config.
+	oauth2Cfg := &auth.OAuth2Config{
+		Enabled:            cfg.OAuth2.Enabled,
+		Priority:           cfg.OAuth2.Priority,
+		AutoProvisionUsers: cfg.OAuth2.AutoProvisionUsers,
+		DefaultRole:        cfg.OAuth2.DefaultRole,
+		GroupRoleMapping:   cfg.OAuth2.GroupRoleMapping,
+		RequireTenantClaim: cfg.OAuth2.RequireTenantClaim,
+	}
+
+	// Create OAuth2 authenticator.
+	oauth2Auth := auth.NewOAuth2Authenticator(
+		keycloakClient,
+		authStore,
+		oauth2Cfg,
+		logger,
+	)
+
+	logger.Info("OAuth2 authentication enabled",
+		zap.String("keycloak_url", cfg.OAuth2.KeycloakBaseURL),
+		zap.String("realm", cfg.OAuth2.KeycloakRealm),
+		zap.Bool("priority", cfg.OAuth2.Priority),
+		zap.Bool("auto_provision", cfg.OAuth2.AutoProvisionUsers),
+	)
+
+	return oauth2Auth, oauth2Cfg, nil
+}
+
+// InitializeAuth initializes the authentication store and middleware.
+// Errors are returned without exposing sensitive credential details in messages.
+// This function is only called when cfg.MultiTenancy.Enabled is true.
+//
+// The initialization sequence:
+//  1. Builds Redis configuration for the auth store
+//  2. Creates the auth store based on the configured backend (redis, keycloak, postgres)
+//  3. Verifies store connectivity and initializes default roles if configured
+//  4. Initializes OAuth2 authenticator if enabled
+//  5. Creates authentication middleware with configured skip paths and mTLS requirements
+//
+// Parameters:
+//   - cfg: Application configuration containing multi-tenancy and Redis settings
+//   - logger: Structured logger for logging initialization progress and errors
+//   - pgDB: Optional PostgreSQL database (required if auth backend is "postgres")
+//
+// Returns:
+//   - authStore: Initialized auth store for auth data (tenants, users, roles, audit)
+//   - authMw: Configured authentication middleware for request validation
+//   - err: Any error encountered during initialization
+func InitializeAuth(
+	cfg *config.Config,
+	logger *zap.Logger,
+	pgDB *database.DB,
+) (auth.Store, *auth.Middleware, error) {
+	// Get Redis password (reuse the same logic as main storage).
+	passwords, err := getRedisPasswords(cfg, logger)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get Redis passwords for auth: %w", err)
+	}
+
+	// Build auth Redis config.
+	authRedisCfg := buildAuthRedisConfig(cfg, passwords)
+
+	// Create auth store based on configured backend.
+	var authStore auth.Store
+	if storeErr := createAuthStore(&authStore, cfg, authRedisCfg, pgDB, logger); storeErr != nil {
+		return nil, nil, fmt.Errorf("failed to create auth store: %w", storeErr)
 	}
 
 	// Verify connectivity.
@@ -1213,62 +1339,17 @@ func InitializeAuth(cfg *config.Config, logger *zap.Logger, pgDB *database.DB) (
 		logger.Info("default roles initialized")
 	}
 
+	// Initialize OAuth2 authenticator if enabled.
+	oauth2Auth, oauth2Cfg, oauth2Err := initializeOAuth2(cfg, authStore, logger)
+	if oauth2Err != nil {
+		return nil, nil, oauth2Err
+	}
+
 	// Create middleware config.
 	mwConfig := &auth.MiddlewareConfig{
 		Enabled:     true,
 		SkipPaths:   cfg.MultiTenancy.SkipAuthPaths,
 		RequireMTLS: cfg.MultiTenancy.RequireMTLS,
-	}
-
-	// Initialize OAuth2 authenticator if enabled.
-	var oauth2Auth *auth.OAuth2Authenticator
-	var oauth2Cfg *auth.OAuth2Config
-
-	if cfg.OAuth2.Enabled {
-		// Resolve OAuth2 client secret from env var if direct value is empty.
-		oauth2Secret := cfg.OAuth2.KeycloakSecret
-		if oauth2Secret == "" && cfg.OAuth2.KeycloakSecretEnvVar != "" {
-			oauth2Secret = os.Getenv(cfg.OAuth2.KeycloakSecretEnvVar)
-		}
-
-		// Create Keycloak client.
-		keycloakCfg := &keycloak.Config{
-			BaseURL:      cfg.OAuth2.KeycloakBaseURL,
-			Realm:        cfg.OAuth2.KeycloakRealm,
-			ClientID:     cfg.OAuth2.KeycloakClientID,
-			ClientSecret: oauth2Secret,
-			Timeout:      10 * time.Second,
-		}
-
-		keycloakClient, oauth2ClientErr := keycloak.NewClient(keycloakCfg)
-		if oauth2ClientErr != nil {
-			return nil, nil, fmt.Errorf("failed to initialize Keycloak client: %w", oauth2ClientErr)
-		}
-
-		// Create OAuth2 config.
-		oauth2Cfg = &auth.OAuth2Config{
-			Enabled:            cfg.OAuth2.Enabled,
-			Priority:           cfg.OAuth2.Priority,
-			AutoProvisionUsers: cfg.OAuth2.AutoProvisionUsers,
-			DefaultRole:        cfg.OAuth2.DefaultRole,
-			GroupRoleMapping:   cfg.OAuth2.GroupRoleMapping,
-			RequireTenantClaim: cfg.OAuth2.RequireTenantClaim,
-		}
-
-		// Create OAuth2 authenticator.
-		oauth2Auth = auth.NewOAuth2Authenticator(
-			keycloakClient,
-			authStore,
-			oauth2Cfg,
-			logger,
-		)
-
-		logger.Info("OAuth2 authentication enabled",
-			zap.String("keycloak_url", cfg.OAuth2.KeycloakBaseURL),
-			zap.String("realm", cfg.OAuth2.KeycloakRealm),
-			zap.Bool("priority", cfg.OAuth2.Priority),
-			zap.Bool("auto_provision", cfg.OAuth2.AutoProvisionUsers),
-		)
 	}
 
 	// Create auth middleware.

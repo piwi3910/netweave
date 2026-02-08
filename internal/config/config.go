@@ -53,16 +53,16 @@ const (
 //	    log.Fatal(err)
 //	}
 type Config struct {
-	Server        ServerConfig        `mapstructure:"server"`
-	Redis         RedisConfig         `mapstructure:"redis"`
-	Kubernetes    KubernetesConfig    `mapstructure:"kubernetes"`
-	TLS           TLSConfig           `mapstructure:"tls"`
-	Observability ObservabilityConfig `mapstructure:"observability"`
-	Security      SecurityConfig      `mapstructure:"security"`
-	Validation    ValidationConfig    `mapstructure:"validation"`
-	MultiTenancy  MultiTenancyConfig  `mapstructure:"multi_tenancy"`
-	OAuth2        OAuth2Config        `mapstructure:"oauth2"`
-	Auth          AuthConfig          `mapstructure:"auth"`
+	Server        ServerConfig            `mapstructure:"server"`
+	Redis         RedisConfig             `mapstructure:"redis"`
+	Kubernetes    KubernetesConfig        `mapstructure:"kubernetes"`
+	TLS           TLSConfig               `mapstructure:"tls"`
+	Observability ObservabilityConfig     `mapstructure:"observability"`
+	Security      SecurityConfig          `mapstructure:"security"`
+	Validation    ValidationConfig        `mapstructure:"validation"`
+	MultiTenancy  MultiTenancyConfig      `mapstructure:"multi_tenancy"`
+	OAuth2        OAuth2Config            `mapstructure:"oauth2"`
+	Auth          AuthConfig              `mapstructure:"auth"`
 	Postgres      database.PostgresConfig `mapstructure:"postgres"`
 	StorageMode   string                  `mapstructure:"storage_mode"`
 

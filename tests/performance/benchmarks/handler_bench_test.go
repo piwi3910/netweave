@@ -3,6 +3,7 @@ package benchmarks
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -19,7 +20,7 @@ import (
 // Measures handler performance including database queries and JSON serialization.
 func BenchmarkListResourcePools(b *testing.B) {
 	srv := setupBenchmarkServer(b)
-	req := httptest.NewRequest("GET", "/o2ims-infrastructureInventory/v1/resourcePools", nil)
+	req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourcePools", nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -34,7 +35,7 @@ func BenchmarkListResourcePools(b *testing.B) {
 // Measures single item retrieval performance.
 func BenchmarkGetResourcePool(b *testing.B) {
 	srv := setupBenchmarkServer(b)
-	req := httptest.NewRequest("GET", "/o2ims-infrastructureInventory/v1/resourcePools/pool-1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourcePools/pool-1", nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -49,7 +50,7 @@ func BenchmarkGetResourcePool(b *testing.B) {
 // Measures performance with large result sets.
 func BenchmarkListResources(b *testing.B) {
 	srv := setupBenchmarkServer(b)
-	req := httptest.NewRequest("GET", "/o2ims-infrastructureInventory/v1/resources", nil)
+	req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resources", nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -65,7 +66,7 @@ func BenchmarkListResources(b *testing.B) {
 func BenchmarkListResourcesWithFilter(b *testing.B) {
 	srv := setupBenchmarkServer(b)
 	req := httptest.NewRequest(
-		"GET",
+		http.MethodGet,
 		"/o2ims-infrastructureInventory/v1/resources?filter=(eq,resourceTypeId,node)",
 		nil,
 	)
@@ -83,7 +84,7 @@ func BenchmarkListResourcesWithFilter(b *testing.B) {
 // Measures Redis lookup performance.
 func BenchmarkGetSubscription(b *testing.B) {
 	srv := setupBenchmarkServer(b)
-	req := httptest.NewRequest("GET", "/o2ims-infrastructureInventory/v1/subscriptions/sub-1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/subscriptions/sub-1", nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -98,7 +99,7 @@ func BenchmarkGetSubscription(b *testing.B) {
 // Simulates realistic multi-user load.
 func BenchmarkConcurrentRequests(b *testing.B) {
 	srv := setupBenchmarkServer(b)
-	req := httptest.NewRequest("GET", "/o2ims-infrastructureInventory/v1/resourcePools", nil)
+	req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourcePools", nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -115,7 +116,7 @@ func BenchmarkConcurrentRequests(b *testing.B) {
 // Measures overhead of all middleware components.
 func BenchmarkMiddlewareChain(b *testing.B) {
 	srv := setupBenchmarkServer(b)
-	req := httptest.NewRequest("GET", "/o2ims-infrastructureInventory/v1/resourcePools", nil)
+	req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1/resourcePools", nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -166,7 +167,10 @@ func (m *benchMockAdapter) Name() string                       { return "mock" }
 func (m *benchMockAdapter) Version() string                    { return "1.0.0" }
 func (m *benchMockAdapter) Capabilities() []adapter.Capability { return nil }
 
-func (m *benchMockAdapter) ListDeploymentManagers(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
+func (m *benchMockAdapter) ListDeploymentManagers(
+	_ context.Context,
+	_ *adapter.Filter,
+) ([]*adapter.DeploymentManager, error) {
 	return []*adapter.DeploymentManager{
 		{
 			DeploymentManagerID: "bench-dm",
@@ -204,11 +208,18 @@ func (m *benchMockAdapter) GetResourcePool(_ context.Context, poolID string) (*a
 	}, nil
 }
 
-func (m *benchMockAdapter) CreateResourcePool(_ context.Context, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *benchMockAdapter) CreateResourcePool(
+	_ context.Context,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	return pool, nil
 }
 
-func (m *benchMockAdapter) UpdateResourcePool(_ context.Context, _ string, pool *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+func (m *benchMockAdapter) UpdateResourcePool(
+	_ context.Context,
+	_ string,
+	pool *adapter.ResourcePool,
+) (*adapter.ResourcePool, error) {
 	return pool, nil
 }
 
@@ -240,7 +251,11 @@ func (m *benchMockAdapter) CreateResource(_ context.Context, resource *adapter.R
 	return resource, nil
 }
 
-func (m *benchMockAdapter) UpdateResource(_ context.Context, _ string, resource *adapter.Resource) (*adapter.Resource, error) {
+func (m *benchMockAdapter) UpdateResource(
+	_ context.Context,
+	_ string,
+	resource *adapter.Resource,
+) (*adapter.Resource, error) {
 	return resource, nil
 }
 
@@ -262,7 +277,10 @@ func (m *benchMockAdapter) GetResourceType(_ context.Context, typeID string) (*a
 	}, nil
 }
 
-func (m *benchMockAdapter) CreateSubscription(_ context.Context, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *benchMockAdapter) CreateSubscription(
+	_ context.Context,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	return sub, nil
 }
 
@@ -270,7 +288,11 @@ func (m *benchMockAdapter) GetSubscription(_ context.Context, id string) (*adapt
 	return &adapter.Subscription{SubscriptionID: id}, nil
 }
 
-func (m *benchMockAdapter) UpdateSubscription(_ context.Context, _ string, sub *adapter.Subscription) (*adapter.Subscription, error) {
+func (m *benchMockAdapter) UpdateSubscription(
+	_ context.Context,
+	_ string,
+	sub *adapter.Subscription,
+) (*adapter.Subscription, error) {
 	return sub, nil
 }
 

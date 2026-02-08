@@ -601,7 +601,7 @@ func TestService_HandleExpiringSoon_SendsNotification(t *testing.T) {
 		Status:       CertStatusActive,
 	}
 
-	svc.handleExpiringSoon(cert)
+	svc.handleExpiringSoon(context.Background(), cert)
 
 	// Give async operations a moment
 	time.Sleep(100 * time.Millisecond)
@@ -642,7 +642,7 @@ func TestService_HandleExpired_SendsNotification(t *testing.T) {
 		Status:       CertStatusExpiringSoon,
 	}
 
-	svc.handleExpired(cert)
+	svc.handleExpired(context.Background(), cert)
 
 	assert.Equal(t, CertEventExpired, receivedEvent.EventType)
 	assert.Equal(t, "expired-notify", receivedEvent.Certificate.SerialNumber)
