@@ -12,7 +12,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/piwi3910/netweave/internal/dms/adapter"
-	dmshandlers "github.com/piwi3910/netweave/internal/dms/handlers"
 	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -282,105 +281,37 @@ func TestDMSRegistry(t *testing.T) {
 	assert.Equal(t, reg, srv.DMSRegistry())
 }
 
-// TestDMSV2Routes verifies that v2 routes are registered and respond.
-func TestDMSV2Routes(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-
+// TestDMSFeaturesEndpoint verifies that the v1 features endpoint returns all features.
+func TestDMSFeaturesEndpoint(t *testing.T) {
+	srv := setupTestServer(t)
 	logger := zap.NewNop()
-	registry := dmsregistry.NewRegistry(logger, nil)
 
-	mockAdapter := newMockDMSAdapter()
-	err := registry.Register(context.Background(), "test-adapter", "mock", mockAdapter, nil, true)
+	// Create a registry with a mock adapter.
+	reg := dmsregistry.NewRegistry(logger, nil)
+	mockAdp := newMockDMSAdapter()
+	err := reg.Register(context.Background(), "test-adapter", "mock", mockAdp, nil, true)
 	require.NoError(t, err)
 
-	// Setup handler
-	handler := dmshandlers.NewHandler(registry, nil, logger)
+	// Set up DMS.
+	srv.SetupDMS(reg)
 
-	// Set up v2 routes manually
-	v2 := router.Group("/o2dms/v2")
-	v2.GET("/deploymentLifecycle", handler.GetDeploymentLifecycleInfo)
-
-	// Add v2 features endpoint
-	v2.GET("/features", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"version":     "v2",
-			"apiVersion":  "v2",
-			"description": "O2-DMS API v2 with enhanced filtering, batch operations",
-			"newFeatures": []string{
-				"enhanced_filtering",
-				"batch_deployments",
-			},
-		})
-	})
-
-	// Test v2 features endpoint.
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2dms/v2/features", nil)
+	// Test v1 features endpoint.
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2dms/v1/features", nil)
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	srv.Router().ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var response map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.Equal(t, "v2", response["version"])
-	assert.Contains(t, response, "newFeatures")
+	assert.Equal(t, "v1", response["version"])
+	assert.Contains(t, w.Body.String(), "batch_operations")
+	assert.Contains(t, w.Body.String(), "multi_tenancy")
+	assert.Contains(t, w.Body.String(), "enhanced_filtering")
 
-	// Test that v2 includes v1 routes (deployment lifecycle info).
-	req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2dms/v2/deploymentLifecycle", nil)
+	// Test that batch routes are registered under v1.
+	req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2dms/v1/deploymentLifecycle", nil)
 	w = httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code)
-}
-
-// TestDMSV3Routes verifies that v3 routes are registered and respond.
-func TestDMSV3Routes(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-
-	logger := zap.NewNop()
-	registry := dmsregistry.NewRegistry(logger, nil)
-
-	mockAdapter := newMockDMSAdapter()
-	err := registry.Register(context.Background(), "test-adapter", "mock", mockAdapter, nil, true)
-	require.NoError(t, err)
-
-	// Setup handler
-	handler := dmshandlers.NewHandler(registry, nil, logger)
-
-	// Set up v3 routes manually
-	v3 := router.Group("/o2dms/v3")
-	v3.GET("/nfDeployments", handler.ListNFDeployments)
-
-	// Add v3 features endpoint
-	v3.GET("/features", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"version":     "v3",
-			"apiVersion":  "v3",
-			"description": "O2-DMS API v3 with multi-tenancy support",
-			"newFeatures": []string{
-				"multi_tenancy",
-				"tenant_quotas",
-			},
-		})
-	})
-
-	// Test v3 features endpoint.
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2dms/v3/features", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	var response map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &response)
-	require.NoError(t, err)
-	assert.Equal(t, "v3", response["version"])
-	assert.Contains(t, response, "newFeatures")
-
-	// Test that v3 includes v1 routes.
-	req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2dms/v3/nfDeployments", nil)
-	w = httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-	// Should work (returns 200 with empty list from mock adapter).
+	srv.Router().ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 }

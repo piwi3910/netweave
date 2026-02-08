@@ -79,8 +79,8 @@ func TestSetupBackendAdmin_RegistersRoutes(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-// TestDMSV2Features_Coverage tests handleDMSV2Features via DMS route setup.
-func TestDMSV2Features_Coverage(t *testing.T) {
+// TestDMSFeatures_Coverage tests handleDMSFeatures via DMS route setup.
+func TestDMSFeatures_Coverage(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Port:    8080,
@@ -93,34 +93,13 @@ func TestDMSV2Features_Coverage(t *testing.T) {
 
 	router := srv.Router()
 
-	req := httptest.NewRequest(http.MethodGet, "/o2dms/v2/features", nil)
+	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/features", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "enhanced_filtering")
 	assert.Contains(t, w.Body.String(), "batch_operations")
-}
-
-// TestDMSV3Features_Coverage tests handleDMSV3Features via DMS route setup.
-func TestDMSV3Features_Coverage(t *testing.T) {
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: gin.TestMode,
-		},
-	}
-	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
-	dmsReg := dmsregistry.NewRegistry(zap.NewNop(), nil)
-	srv.SetupDMS(dmsReg)
-
-	router := srv.Router()
-
-	req := httptest.NewRequest(http.MethodGet, "/o2dms/v3/features", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "multi_tenancy")
 	assert.Contains(t, w.Body.String(), "tenant_isolation")
 }
@@ -151,8 +130,7 @@ func TestSetSMORegistry_RegistersRoutes(t *testing.T) {
 		path   string
 	}{
 		{"smo v1 plugins", http.MethodGet, "/o2smo/v1/plugins"},
-		{"smo v2 features", http.MethodGet, "/o2smo/v2/features"},
-		{"smo v3 features", http.MethodGet, "/o2smo/v3/features"},
+		{"smo v1 features", http.MethodGet, "/o2smo/v1/features"},
 		{"smo health", http.MethodGet, "/o2smo/v1/health"},
 	}
 
@@ -167,8 +145,8 @@ func TestSetSMORegistry_RegistersRoutes(t *testing.T) {
 	}
 }
 
-// TestSMOV2Features tests the SMO V2 features endpoint.
-func TestSMOV2Features(t *testing.T) {
+// TestSMOFeatures tests the SMO v1 features endpoint.
+func TestSMOFeatures(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
 	}
@@ -176,23 +154,7 @@ func TestSMOV2Features(t *testing.T) {
 	smoReg := smo.NewRegistry(zap.NewNop())
 	srv.SetSMORegistry(smoReg)
 
-	req := httptest.NewRequest(http.MethodGet, "/o2smo/v2/features", nil)
-	w := httptest.NewRecorder()
-	srv.Router().ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-}
-
-// TestSMOV3Features tests the SMO V3 features endpoint.
-func TestSMOV3Features(t *testing.T) {
-	cfg := &config.Config{
-		Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
-	}
-	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
-	smoReg := smo.NewRegistry(zap.NewNop())
-	srv.SetSMORegistry(smoReg)
-
-	req := httptest.NewRequest(http.MethodGet, "/o2smo/v3/features", nil)
+	req := httptest.NewRequest(http.MethodGet, "/o2smo/v1/features", nil)
 	w := httptest.NewRecorder()
 	srv.Router().ServeHTTP(w, req)
 
@@ -682,8 +644,7 @@ func TestDMSRoutes_AfterSetup(t *testing.T) {
 	}{
 		// /o2dms is the API info root (registered by SetupDMS via setupDMSRoutes)
 		{"dms api info root", http.MethodGet, "/o2dms"},
-		{"dms v2 features", http.MethodGet, "/o2dms/v2/features"},
-		{"dms v3 features", http.MethodGet, "/o2dms/v3/features"},
+		{"dms v1 features", http.MethodGet, "/o2dms/v1/features"},
 	}
 
 	for _, tt := range tests {
@@ -3755,8 +3716,8 @@ func TestCreateSubscription_AdapterCreateError(t *testing.T) {
 
 // --- SMO v2/v3 feature endpoints ---
 
-// TestSMOV2Features_WithRegistry tests the SMO v2 features endpoint with registry.
-func TestSMOV2Features_WithRegistry(t *testing.T) {
+// TestSMOFeatures_WithRegistry tests the SMO v1 features endpoint with registry.
+func TestSMOFeatures_WithRegistry(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
 	}
@@ -3765,24 +3726,7 @@ func TestSMOV2Features_WithRegistry(t *testing.T) {
 	srv.SetSMORegistry(smoReg)
 	router := srv.Router()
 
-	req := httptest.NewRequest(http.MethodGet, "/o2smo/v2/features", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-}
-
-// TestSMOV3Features_WithRegistry tests the SMO v3 features endpoint with registry.
-func TestSMOV3Features_WithRegistry(t *testing.T) {
-	cfg := &config.Config{
-		Server: config.ServerConfig{Port: 8080, GinMode: gin.TestMode},
-	}
-	srv, _ := server.NewTestServerWithMetrics(cfg, zap.NewNop(), &mockAdapter{}, &mockStore{})
-	smoReg := smo.NewRegistry(zap.NewNop())
-	srv.SetSMORegistry(smoReg)
-	router := srv.Router()
-
-	req := httptest.NewRequest(http.MethodGet, "/o2smo/v3/features", nil)
+	req := httptest.NewRequest(http.MethodGet, "/o2smo/v1/features", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

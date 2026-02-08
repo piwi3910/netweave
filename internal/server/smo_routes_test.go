@@ -876,87 +876,29 @@ func TestSMOHandler_HealthUnhealthy(t *testing.T) {
 	assert.Equal(t, "unhealthy", result["status"])
 }
 
-// TestSMOV2Routes verifies that v2 routes are registered properly.
-func TestSMOV2Routes(t *testing.T) {
+// TestSMOFeaturesEndpoint verifies that the v1 features endpoint returns all features.
+func TestSMOFeaturesEndpoint(t *testing.T) {
 	handler := setupTestSMOHandler(t)
-	router := gin.New()
+	router := setupTestRouter(handler)
 
-	// Set up all routes including v2 and v3
+	// Add features endpoint (normally set up by setupSMOV1Routes on Server)
 	v1 := router.Group("/o2smo/v1")
-	v2 := router.Group("/o2smo/v2")
-	v3 := router.Group("/o2smo/v3")
-
-	// Setup v1 routes for v2 (following same pattern as dms_routes.go)
-	v2.GET("/plugins", handler.HandleListPlugins)
-
-	// Add v2 features handler
-	v2.GET("/features", func(c *gin.Context) {
+	v1.GET("/features", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"version":     "v2",
-			"apiVersion":  "v2",
-			"description": "O2-SMO API v2 with enhanced filtering, batch operations",
-			"newFeatures": []string{
+			"version":     "v1",
+			"apiVersion":  "v1",
+			"description": "O2-SMO API v1 with batch operations, feature discovery, and multi-tenancy",
+			"features": []string{
 				"enhanced_filtering",
-				"batch_workflows",
-			},
-		})
-	})
-
-	// Unused to satisfy linter
-	_ = v1
-	_ = v3
-
-	// Test v2 features endpoint
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v2/features", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	var response map[string]interface{}
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	require.NoError(t, err)
-	assert.Equal(t, "v2", response["version"])
-	assert.Contains(t, response, "newFeatures")
-
-	// Test that v2 includes v1 routes (plugins list)
-	req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v2/plugins", nil)
-	w = httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code)
-}
-
-// TestSMOV3Routes verifies that v3 routes are registered properly.
-func TestSMOV3Routes(t *testing.T) {
-	handler := setupTestSMOHandler(t)
-	router := gin.New()
-
-	// Set up all routes including v2 and v3
-	v1 := router.Group("/o2smo/v1")
-	v2 := router.Group("/o2smo/v2")
-	v3 := router.Group("/o2smo/v3")
-
-	// Setup v1 routes for v3 (following same pattern as dms_routes.go)
-	v3.GET("/plugins", handler.HandleListPlugins)
-
-	// Add v3 features handler
-	v3.GET("/features", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"version":     "v3",
-			"apiVersion":  "v3",
-			"description": "O2-SMO API v3 with multi-tenancy support",
-			"newFeatures": []string{
+				"batch_operations",
 				"multi_tenancy",
 				"tenant_isolation",
 			},
 		})
 	})
 
-	// Unused to satisfy linter
-	_ = v1
-	_ = v2
-
-	// Test v3 features endpoint
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v3/features", nil)
+	// Test v1 features endpoint.
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v1/features", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -964,12 +906,8 @@ func TestSMOV3Routes(t *testing.T) {
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.Equal(t, "v3", response["version"])
-	assert.Contains(t, response, "newFeatures")
-
-	// Test that v3 includes v1 routes (plugins list)
-	req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2smo/v3/plugins", nil)
-	w = httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "v1", response["version"])
+	assert.Contains(t, w.Body.String(), "batch_operations")
+	assert.Contains(t, w.Body.String(), "multi_tenancy")
+	assert.Contains(t, w.Body.String(), "enhanced_filtering")
 }
