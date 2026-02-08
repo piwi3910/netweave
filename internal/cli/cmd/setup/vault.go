@@ -516,35 +516,6 @@ func createVaultPVC(ctx context.Context, conn *service.Connector) error {
 	return nil
 }
 
-// waitForPVCBound polls until the named PVC reaches Bound status or the
-// context is canceled. This prevents a race condition where the Vault pod
-// starts before the PVC is provisioned by the storage class.
-func waitForPVCBound(ctx context.Context, conn *service.Connector, name string) error {
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		pvc, err := conn.Clientset().CoreV1().PersistentVolumeClaims(
-			conn.Namespace(),
-		).Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to get PVC %q: %w", name, err)
-		}
-
-		if pvc.Status.Phase == corev1.ClaimBound {
-			return nil
-		}
-
-		cmd.Printer.Verbosef("PVC %q phase: %s, waiting...", name, pvc.Status.Phase)
-
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("timeout waiting for PVC %q to be bound: %w", name, ctx.Err())
-		case <-ticker.C:
-		}
-	}
-}
-
 func deployVault(ctx context.Context, conn *service.Connector) error {
 	labels := map[string]string{"app": "vault"}
 	replicas := int32(1)

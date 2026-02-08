@@ -123,7 +123,7 @@ func (d *DualStore) Close() error {
 	primaryErr := d.primary.Close()
 	secondaryErr := d.secondary.Close()
 	if primaryErr != nil && secondaryErr != nil {
-		return fmt.Errorf("primary close: %w; secondary close: %v", primaryErr, secondaryErr)
+		return fmt.Errorf("primary close: %w; secondary close: %w", primaryErr, secondaryErr)
 	}
 	if primaryErr != nil {
 		return fmt.Errorf("primary close: %w", primaryErr)

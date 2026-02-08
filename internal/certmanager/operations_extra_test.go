@@ -1145,7 +1145,7 @@ func TestProcessCertificate_ExpiringSoonWithRenewalPending(t *testing.T) {
 		ExpiresAt:    now.Add(15 * 24 * time.Hour), // Within renewal window
 	}
 
-	svc.processCertificate(cert, now, renewalWindow)
+	svc.processCertificate(context.Background(), cert, now, renewalWindow)
 	// Status should remain RenewalPending (not changed to ExpiringSoon)
 	assert.Equal(t, CertStatusRenewalPending, cert.Status)
 }
@@ -1325,7 +1325,7 @@ func TestHandleExpiringSoon_AutoRenewalEnabled(t *testing.T) {
 		ExpiresAt:    time.Now().Add(7 * 24 * time.Hour),
 	}
 
-	svc.handleExpiringSoon(cert)
+	svc.handleExpiringSoon(context.Background(), cert)
 
 	// Wait for goroutine to spawn and exit
 	time.Sleep(50 * time.Millisecond)
@@ -1362,7 +1362,7 @@ func TestHandleExpiringSoon_AutoRenewalDisabled(t *testing.T) {
 		ExpiresAt:    time.Now().Add(7 * 24 * time.Hour),
 	}
 
-	svc.handleExpiringSoon(cert)
+	svc.handleExpiringSoon(context.Background(), cert)
 
 	svc.mu.RLock()
 	assert.Equal(t, CertStatusExpiringSoon, cert.Status)

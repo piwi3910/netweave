@@ -15,6 +15,7 @@ const (
 	stateInProgress = "inProgress"
 	stateFailed     = "failed"
 	statePending    = "pending"
+	stateCompleted  = "completed"
 )
 
 // TMForum ↔ Internal Model Transformations
@@ -599,7 +600,7 @@ func mapDeploymentStatusToOrderState(status dmsadapter.DeploymentStatus) string 
 	case dmsadapter.DeploymentStatusDeploying:
 		return stateInProgress
 	case dmsadapter.DeploymentStatusDeployed:
-		return "completed"
+		return stateCompleted
 	case dmsadapter.DeploymentStatusFailed:
 		return stateFailed
 	case dmsadapter.DeploymentStatusRollingBack:
@@ -618,7 +619,7 @@ func mapOrderStateToDeploymentStatus(state string) dmsadapter.DeploymentStatus {
 		return dmsadapter.DeploymentStatusPending
 	case stateInProgress, "held":
 		return dmsadapter.DeploymentStatusDeploying
-	case "completed":
+	case stateCompleted:
 		return dmsadapter.DeploymentStatusDeployed
 	case stateFailed, "rejected":
 		return dmsadapter.DeploymentStatusFailed

@@ -100,7 +100,7 @@ func TestStore_GetUserByOAuthSubject(t *testing.T) {
 		TenantID:      "tenant-oauth",
 		CommonName:    "oauthuser",
 		Email:         "oauth@example.com",
-		OAuthSubject:  "keycloak-sub-123",
+		OAuthSubject:  "test-oauth-subject",
 		OAuthProvider: "keycloak",
 		RoleID:        "role-1",
 		IsActive:      true,
@@ -116,7 +116,7 @@ func TestStore_GetUserByOAuthSubject(t *testing.T) {
 	}{
 		{
 			name:         "find user by OAuth subject",
-			oauthSubject: "keycloak-sub-123",
+			oauthSubject: "test-oauth-subject",
 			wantErr:      false,
 		},
 		{

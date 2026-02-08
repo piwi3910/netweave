@@ -272,7 +272,7 @@ func TestCertificateStatusTransitions(t *testing.T) {
 		mockService.certificates[cert.SerialNumber] = cert
 		mockService.mu.Unlock()
 
-		mockService.handleExpiringSoon(cert)
+		mockService.handleExpiringSoon(context.Background(), cert)
 
 		// Wait briefly for goroutine to update status, then read with lock
 		time.Sleep(10 * time.Millisecond)
@@ -297,7 +297,7 @@ func TestCertificateStatusTransitions(t *testing.T) {
 		mockService.mu.Unlock()
 
 		// Should not trigger renewal (retry interval not elapsed)
-		mockService.handleExpiringSoon(cert)
+		mockService.handleExpiringSoon(context.Background(), cert)
 
 		// Status should remain ExpiringSoon
 		assert.Equal(t, CertStatusExpiringSoon, cert.Status)
@@ -314,7 +314,7 @@ func TestCertificateStatusTransitions(t *testing.T) {
 		mockService.certificates[cert.SerialNumber] = cert
 		mockService.mu.Unlock()
 
-		mockService.handleExpired(cert)
+		mockService.handleExpired(context.Background(), cert)
 
 		assert.Equal(t, CertStatusExpired, cert.Status)
 	})
@@ -361,7 +361,7 @@ func TestCertificateStatusTransitions(t *testing.T) {
 				mockService.mu.Lock()
 				mockService.certificates[tt.cert.SerialNumber] = tt.cert
 				mockService.mu.Unlock()
-				mockService.processCertificate(tt.cert, now, renewalWindow)
+				mockService.processCertificate(context.Background(), tt.cert, now, renewalWindow)
 				assert.Equal(t, tt.expectedStatus, tt.cert.Status)
 			})
 		}

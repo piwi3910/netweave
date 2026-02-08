@@ -194,7 +194,7 @@ func (s *Service) scanAndRenew(ctx context.Context) {
 				zap.Error(err))
 			return
 		}
-		s.processCertificate(cert, now, renewalWindow)
+		s.processCertificate(ctx, cert, now, renewalWindow)
 	}
 
 	// Update certificate status metrics after scan
@@ -216,7 +216,7 @@ func (s *Service) getAllCertificates() []*Certificate {
 }
 
 // processCertificate checks and handles certificate expiry and renewal.
-func (s *Service) processCertificate(cert *Certificate, now, renewalWindow time.Time) {
+func (s *Service) processCertificate(ctx context.Context, cert *Certificate, now, renewalWindow time.Time) {
 	// Skip if already revoked or expired
 	if cert.Status == CertStatusRevoked || cert.Status == CertStatusExpired {
 		return
@@ -224,17 +224,17 @@ func (s *Service) processCertificate(cert *Certificate, now, renewalWindow time.
 
 	// Handle expiring certificates
 	if cert.ExpiresAt.Before(renewalWindow) && cert.Status != CertStatusRenewalPending {
-		s.handleExpiringSoon(cert)
+		s.handleExpiringSoon(ctx, cert)
 	}
 
 	// Handle expired certificates
 	if cert.ExpiresAt.Before(now) && cert.Status != CertStatusExpired {
-		s.handleExpired(cert)
+		s.handleExpired(ctx, cert)
 	}
 }
 
 // handleExpiringSoon handles certificates that are expiring soon.
-func (s *Service) handleExpiringSoon(cert *Certificate) {
+func (s *Service) handleExpiringSoon(ctx context.Context, cert *Certificate) {
 	// Check if we should retry renewal based on retry interval
 	if cert.LastRenewalAttempt != nil {
 		timeSinceLastAttempt := time.Since(*cert.LastRenewalAttempt)
@@ -254,7 +254,7 @@ func (s *Service) handleExpiringSoon(cert *Certificate) {
 	cert.Status = CertStatusExpiringSoon
 	s.mu.Unlock()
 
-	s.sendNotification(context.Background(), CertEventExpiringSoon, cert,
+	s.sendNotification(ctx, CertEventExpiringSoon, cert,
 		fmt.Sprintf("Certificate %s (%s) is expiring soon at %s",
 			cert.SerialNumber, cert.CommonName, cert.ExpiresAt.Format(time.RFC3339)))
 
@@ -269,7 +269,7 @@ func (s *Service) handleExpiringSoon(cert *Certificate) {
 }
 
 // handleExpired handles certificates that have expired.
-func (s *Service) handleExpired(cert *Certificate) {
+func (s *Service) handleExpired(ctx context.Context, cert *Certificate) {
 	s.logger.Warn("Certificate expired",
 		zap.String("serial", cert.SerialNumber),
 		zap.String("common_name", cert.CommonName),
@@ -279,7 +279,7 @@ func (s *Service) handleExpired(cert *Certificate) {
 	cert.Status = CertStatusExpired
 	s.mu.Unlock()
 
-	s.sendNotification(context.Background(), CertEventExpired, cert,
+	s.sendNotification(ctx, CertEventExpired, cert,
 		fmt.Sprintf("Certificate %s (%s) has expired",
 			cert.SerialNumber, cert.CommonName))
 }
@@ -327,35 +327,7 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 
 	newCert, err := s.IssueCertificate(ctx, req)
 	if err != nil {
-		s.logger.Error("Certificate renewal failed",
-			zap.String("serial", oldSerial),
-			zap.Error(err))
-
-		// Track renewal failure
-		if cert.RenewalAttempts >= s.config.RenewalPolicy.MaxRetries {
-			certificateRenewals.WithLabelValues("max_retries_exceeded").Inc()
-			renewalAttempts.Observe(float64(cert.RenewalAttempts))
-		} else {
-			certificateRenewals.WithLabelValues("failure").Inc()
-		}
-
-		// Update status using the original certificate reference
-		// Don't look up by serial as the map may have been modified
-		s.mu.Lock()
-		cert.Status = CertStatusExpiringSoon
-		if cert.RenewalAttempts >= s.config.RenewalPolicy.MaxRetries {
-			cert.Status = CertStatusRenewalFailed
-		}
-		s.mu.Unlock()
-
-		// Notify on final failure after max retries exhausted
-		if cert.RenewalAttempts >= s.config.RenewalPolicy.MaxRetries {
-			s.sendNotification(ctx, CertEventRenewalFailed, cert,
-				fmt.Sprintf("Certificate %s (%s) renewal failed after %d attempts: %v",
-					oldSerial, oldCommonName, cert.RenewalAttempts, err))
-		}
-
-		s.updateCertificateMetrics()
+		s.handleRenewalFailure(ctx, cert, oldSerial, oldCommonName, err)
 		return
 	}
 
@@ -377,6 +349,42 @@ func (s *Service) renewCertificate(ctx context.Context, cert *Certificate) {
 	s.sendNotification(ctx, CertEventRenewed, newCert,
 		fmt.Sprintf("Certificate %s renewed successfully (old serial: %s, new serial: %s)",
 			newCert.CommonName, oldSerial, newCert.SerialNumber))
+}
+
+// handleRenewalFailure handles a failed certificate renewal attempt by updating
+// metrics, status, and sending notifications when max retries are exhausted.
+func (s *Service) handleRenewalFailure(ctx context.Context, cert *Certificate, oldSerial, oldCommonName string, err error) {
+	s.logger.Error("Certificate renewal failed",
+		zap.String("serial", oldSerial),
+		zap.Error(err))
+
+	maxRetriesExceeded := cert.RenewalAttempts >= s.config.RenewalPolicy.MaxRetries
+
+	// Track renewal failure metrics
+	if maxRetriesExceeded {
+		certificateRenewals.WithLabelValues("max_retries_exceeded").Inc()
+		renewalAttempts.Observe(float64(cert.RenewalAttempts))
+	} else {
+		certificateRenewals.WithLabelValues("failure").Inc()
+	}
+
+	// Update status using the original certificate reference.
+	// Don't look up by serial as the map may have been modified.
+	s.mu.Lock()
+	cert.Status = CertStatusExpiringSoon
+	if maxRetriesExceeded {
+		cert.Status = CertStatusRenewalFailed
+	}
+	s.mu.Unlock()
+
+	// Notify on final failure after max retries exhausted
+	if maxRetriesExceeded {
+		s.sendNotification(ctx, CertEventRenewalFailed, cert,
+			fmt.Sprintf("Certificate %s (%s) renewal failed after %d attempts: %v",
+				oldSerial, oldCommonName, cert.RenewalAttempts, err))
+	}
+
+	s.updateCertificateMetrics()
 }
 
 // Health returns the health status of the service.
