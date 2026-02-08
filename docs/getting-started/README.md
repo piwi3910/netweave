@@ -23,19 +23,19 @@ netweave is a production-grade O-RAN O2 Gateway that implements:
 Start here if you want to see netweave in action immediately:
 
 - [**Quickstart Guide →**](quickstart.md)
-  - Deploy with Docker Compose
-  - Make your first API call
-  - See webhook notifications
+  - Deploy to Kubernetes with `netweave-cli setup all`
+  - Make your first O2-IMS API call with mTLS
+  - Explore the admin portal
 
 ### 2. Installation (30 minutes)
 
 Choose your installation method:
 
 - [**Installation Guide →**](installation.md)
-  - Kubernetes with Helm
-  - Kubernetes with Operator
-  - Docker Compose for development
-  - Local development setup
+  - Automated setup with `netweave-cli` (recommended)
+  - Manual Kubernetes deployment
+  - Production deployment with Helm
+  - Multi-cluster deployment
 
 ### 3. First Steps (1 hour)
 
@@ -54,8 +54,9 @@ Before you begin, ensure you have:
 
 ### For Quickstart
 
-- Docker and Docker Compose installed
-- `curl` or similar HTTP client
+- Kubernetes cluster (Docker Desktop, Kind, or minikube)
+- kubectl, Helm, and Go 1.25.0+ installed
+- NGINX Ingress Controller
 - 5 minutes of your time
 
 ### For Production Installation
@@ -145,7 +146,10 @@ kubectl logs -n netweave -l app.kubernetes.io/component=gateway
 
 # Access via NGINX Ingress (recommended, see Installation Guide)
 # Requires /etc/hosts: 127.0.0.1 api.netweave.local admin.netweave.local auth.netweave.local
-curl -X GET http://api.netweave.local/o2ims-infrastructureInventory/v1/resourcePools
+# O2-IMS API uses mTLS authentication
+curl --cert ~/.netweave/client.crt --key ~/.netweave/client.key \
+  --cacert ~/.netweave/ca.crt \
+  https://api.netweave.local/o2ims-infrastructureInventory/v1/resourceTypes
 ```
 
 </details>
