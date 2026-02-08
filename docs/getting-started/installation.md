@@ -242,12 +242,12 @@ kubectl get pods -n netweave
 kubectl get ingress -n netweave
 
 # Check gateway logs
-kubectl logs -n netweave deployment/netweave-netweave -f
+kubectl logs -n netweave deployment/netweave -f
 
 # Test Gateway API via mTLS passthrough
 curl --cert ~/.netweave/client.crt --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
-  https://api.netweave.local/o2ims-infrastructureInventory/v1/api_versions
+  https://api.netweave.local/o2ims-infrastructureInventory/v1/resourceTypes
 
 # Test Keycloak OIDC discovery (NGINX TLS termination)
 curl -sk https://auth.netweave.local/realms/netweave/.well-known/openid-configuration | jq .issuer
