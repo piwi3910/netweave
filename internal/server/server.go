@@ -694,15 +694,15 @@ func (s *Server) SetupDMS(reg *dmsregistry.Registry) {
 
 	s.logger.Info("DMS subsystem initialized")
 
-	// Initialize TMForum handler only if a static adapter is available.
-	// With dynamic backend routing, TMForum routes return 503 via tmfHandlerOrUnavailable
-	// until TMForum is updated to support dynamic adapter resolution.
+	// Initialize TMForum handler with the static adapter (may be nil for dynamic routing).
+	// When dynamic routing is active, the handler's getActiveAdapter(c) method resolves
+	// the adapter per-request from gin context, falling back to the static adapter.
+	hubStore := storage.NewInMemoryHubStore()
+	s.tmfHandler = handlers.NewTMForumHandler(s.adapter, s.dmsRegistry, hubStore, s.logger)
 	if s.adapter != nil {
-		hubStore := storage.NewInMemoryHubStore()
-		s.tmfHandler = handlers.NewTMForumHandler(s.adapter, s.dmsRegistry, hubStore, s.logger)
-		s.logger.Info("TMForum API initialized", zap.Int("apis", 2))
+		s.logger.Info("TMForum API initialized with static adapter")
 	} else {
-		s.logger.Info("TMForum API deferred (no static adapter, uses dynamic routing)")
+		s.logger.Info("TMForum API initialized with dynamic routing (adapter resolved per-request)")
 	}
 }
 

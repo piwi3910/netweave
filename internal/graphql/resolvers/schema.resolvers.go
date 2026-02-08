@@ -211,7 +211,7 @@ func (r *mutationResolver) DeleteTenant(_ context.Context, _ string) (bool, erro
 
 // DeploymentManager is the resolver for the deploymentManager field.
 func (r *queryResolver) DeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
-	dm, err := r.adapter.GetDeploymentManager(ctx, id)
+	dm, err := r.getActiveAdapter(ctx).GetDeploymentManager(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployment manager: %w", err)
 	}
@@ -222,7 +222,7 @@ func (r *queryResolver) DeploymentManager(ctx context.Context, id string) (*adap
 func (r *queryResolver) DeploymentManagers(ctx context.Context) ([]*adapter.DeploymentManager, error) {
 	// For now, return a single deployment manager representing this gateway
 	// In multi-cluster setups, this could list multiple managers
-	dm, err := r.adapter.GetDeploymentManager(ctx, "default")
+	dm, err := r.getActiveAdapter(ctx).GetDeploymentManager(ctx, "default")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get default deployment manager: %w", err)
 	}
@@ -231,7 +231,7 @@ func (r *queryResolver) DeploymentManagers(ctx context.Context) ([]*adapter.Depl
 
 // ResourcePool is the resolver for the resourcePool field.
 func (r *queryResolver) ResourcePool(ctx context.Context, id string) (*adapter.ResourcePool, error) {
-	pool, err := r.adapter.GetResourcePool(ctx, id)
+	pool, err := r.getActiveAdapter(ctx).GetResourcePool(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resource pool: %w", err)
 	}
@@ -272,7 +272,7 @@ func (r *queryResolver) ResourcePools(
 	}
 
 	// Query resource pools
-	pools, err := r.adapter.ListResourcePools(ctx, adapterFilter)
+	pools, err := r.getActiveAdapter(ctx).ListResourcePools(ctx, adapterFilter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list resource pools: %w", err)
 	}
@@ -311,7 +311,7 @@ func (r *queryResolver) ResourcePools(
 
 // Resource is the resolver for the resource field.
 func (r *queryResolver) Resource(ctx context.Context, id string) (*adapter.Resource, error) {
-	resource, err := r.adapter.GetResource(ctx, id)
+	resource, err := r.getActiveAdapter(ctx).GetResource(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resource: %w", err)
 	}
@@ -356,7 +356,7 @@ func (r *queryResolver) Resources(
 	}
 
 	// Query resources
-	resources, err := r.adapter.ListResources(ctx, adapterFilter)
+	resources, err := r.getActiveAdapter(ctx).ListResources(ctx, adapterFilter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list resources: %w", err)
 	}
@@ -395,7 +395,7 @@ func (r *queryResolver) Resources(
 
 // ResourceType is the resolver for the resourceType field.
 func (r *queryResolver) ResourceType(ctx context.Context, id string) (*adapter.ResourceType, error) {
-	rt, err := r.adapter.GetResourceType(ctx, id)
+	rt, err := r.getActiveAdapter(ctx).GetResourceType(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resource type: %w", err)
 	}
@@ -429,7 +429,7 @@ func (r *queryResolver) ResourceTypes(
 	}
 
 	// Query resource types
-	resourceTypes, err := r.adapter.ListResourceTypes(ctx, adapterFilter)
+	resourceTypes, err := r.getActiveAdapter(ctx).ListResourceTypes(ctx, adapterFilter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list resource types: %w", err)
 	}

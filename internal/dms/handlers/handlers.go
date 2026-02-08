@@ -47,6 +47,22 @@ func NewHandler(reg *registry.Registry, store storage.Store, logger *zap.Logger)
 	}
 }
 
+// ContextKeyDMSRegistry is the gin context key used to store a per-request DMS registry override.
+// When set by server middleware, it takes priority over the handler's static registry.
+const ContextKeyDMSRegistry = "resolved_dms_registry"
+
+// getActiveRegistry returns the DMS registry for the current request.
+// It checks gin context for a per-request override (set by dynamic routing middleware),
+// falling back to the handler's static registry.
+func (h *Handler) getActiveRegistry(c *gin.Context) *registry.Registry {
+	if reg, exists := c.Get(ContextKeyDMSRegistry); exists {
+		if r, ok := reg.(*registry.Registry); ok && r != nil {
+			return r
+		}
+	}
+	return h.registry
+}
+
 // getAdapterFromQuery retrieves a DMS adapter using the adapter query parameter.
 // Returns adapter.DMSAdapter interface (factory/lookup pattern).
 // Note: Returning interface is idiomatic for factory/lookup methods.
@@ -54,10 +70,12 @@ func (h *Handler) getAdapterFromQuery(c *gin.Context) (adapter.DMSAdapter, error
 	adapterName := c.Query("adapter")
 	var adp adapter.DMSAdapter
 
+	reg := h.getActiveRegistry(c)
+
 	if adapterName != "" {
-		h.registry.Mu.RLock()
-		adp = h.registry.Plugins[adapterName]
-		h.registry.Mu.RUnlock()
+		reg.Mu.RLock()
+		adp = reg.Plugins[adapterName]
+		reg.Mu.RUnlock()
 
 		if adp == nil {
 			return nil, fmt.Errorf("adapter not found: %s", adapterName)
@@ -66,11 +84,11 @@ func (h *Handler) getAdapterFromQuery(c *gin.Context) (adapter.DMSAdapter, error
 	}
 
 	// Use default adapter
-	h.registry.Mu.RLock()
-	if h.registry.DefaultPlugin != "" {
-		adp = h.registry.Plugins[h.registry.DefaultPlugin]
+	reg.Mu.RLock()
+	if reg.DefaultPlugin != "" {
+		adp = reg.Plugins[reg.DefaultPlugin]
 	}
-	h.registry.Mu.RUnlock()
+	reg.Mu.RUnlock()
 
 	if adp == nil {
 		return nil, fmt.Errorf("no default DMS adapter configured")
@@ -927,7 +945,8 @@ func (h *Handler) DeleteDMSSubscription(c *gin.Context) {
 func (h *Handler) GetDeploymentLifecycleInfo(c *gin.Context) {
 	h.logger.Info("getting deployment lifecycle info")
 
-	adapters := h.registry.ListMetadata()
+	reg := h.getActiveRegistry(c)
+	adapters := reg.ListMetadata()
 
 	adapterInfo := make([]gin.H, 0, len(adapters))
 	for _, meta := range adapters {
