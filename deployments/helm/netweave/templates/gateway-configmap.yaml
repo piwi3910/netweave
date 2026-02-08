@@ -102,4 +102,16 @@ data:
     {{- end }}
 
     storage_mode: {{ .Values.gateway.config.storageMode | default "postgres" | quote }}
+
+    frontend_plugins:
+      o2ims:
+        enabled: {{ .Values.gateway.plugins.o2ims.enabled }}
+      o2dms:
+        enabled: {{ .Values.gateway.plugins.o2dms.enabled }}
+      o2smo:
+        enabled: {{ .Values.gateway.plugins.o2smo.enabled }}
+      tmforum:
+        enabled: {{ .Values.gateway.plugins.tmforum.enabled }}
+      graphql:
+        enabled: {{ .Values.gateway.plugins.graphql.enabled }}
 {{- end }}

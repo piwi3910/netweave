@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
   Building2,
@@ -14,8 +15,16 @@ import {
   Link2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePlugins } from "@/lib/contexts/plugin-context";
 
-const mainNavigation = [
+interface NavItem {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  pluginName?: string;
+}
+
+const mainNavigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Tenants", href: "/tenants", icon: Building2 },
   { name: "Users", href: "/users", icon: Users },
@@ -24,14 +33,19 @@ const mainNavigation = [
   { name: "Audit Log", href: "/audit", icon: ScrollText },
 ];
 
-const infrastructureNavigation = [
-  { name: "O-Clouds", href: "/infrastructure/o-clouds", icon: Cloud },
-  { name: "DMS", href: "/infrastructure/dms", icon: Package },
+const infrastructureNavigation: NavItem[] = [
+  { name: "O-Clouds", href: "/infrastructure/o-clouds", icon: Cloud, pluginName: "o2ims" },
+  { name: "DMS", href: "/infrastructure/dms", icon: Package, pluginName: "o2dms" },
   { name: "Links", href: "/infrastructure/links", icon: Link2 },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { isPluginEnabled } = usePlugins();
+
+  const visibleInfraNav = infrastructureNavigation.filter(
+    (item) => !item.pluginName || isPluginEnabled(item.pluginName)
+  );
 
   return (
     <aside className="hidden w-64 shrink-0 border-r bg-card lg:block">
@@ -62,28 +76,32 @@ export function Sidebar() {
             </Link>
           );
         })}
-        <div className="my-2 border-t" />
-        <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase">
-          Infrastructure
-        </p>
-        {infrastructureNavigation.map((item) => {
-          const isActive = pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.name}
-            </Link>
-          );
-        })}
+        {visibleInfraNav.length > 0 && (
+          <>
+            <div className="my-2 border-t" />
+            <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase">
+              Infrastructure
+            </p>
+            {visibleInfraNav.map((item) => {
+              const isActive = pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </>
+        )}
       </nav>
     </aside>
   );

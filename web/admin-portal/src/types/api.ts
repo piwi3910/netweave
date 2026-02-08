@@ -148,6 +148,17 @@ export interface Subscription {
   };
 }
 
+export interface FrontendPlugin {
+  name: string;
+  displayName: string;
+  enabled: boolean;
+  basePaths: string[];
+}
+
+export interface PluginListResponse {
+  plugins: FrontendPlugin[];
+}
+
 export interface ApiError {
   error: string;
   message: string;
