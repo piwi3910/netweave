@@ -101,13 +101,13 @@ jobs:
           cache: true
 
       - name: Run gosec
-        uses: securego/gosec@master
-        with:
-          # G101: false positive on constant names like "serverSecretName"
-          # G304: cmd/ has hardcoded paths or validated input
-          # G402: adapters have configurable InsecureSkipVerify for dev/test
-          # G115: generated GraphQL int->int32 conversions safe in practice
-          args: '-exclude=G101,G304,G402,G115 -exclude-dir=vendor -exclude-dir=third_party -exclude-dir=internal/graphql/generated ./...'
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.22.11
+          gosec -exclude=G101,G304,G402,G115 \
+            -exclude-dir=vendor \
+            -exclude-dir=third_party \
+            -exclude-dir=internal/graphql/generated \
+            ./...
 
       - name: Run govulncheck
         run: |
