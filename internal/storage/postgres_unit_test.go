@@ -1,3 +1,7 @@
+// postgres_unit_test.go contains unit tests for PostgresStore using a mock DBTX.
+// These tests do NOT require a real PostgreSQL database — they mock the
+// dbsqlc.DBTX interface (Exec/Query/QueryRow) to test all store methods
+// in isolation. Run with: go test -short ./internal/storage/...
 package storage_test
 
 import (
