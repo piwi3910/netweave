@@ -46,9 +46,6 @@ func NewBatchHandler(
 	logger *zap.Logger,
 	metrics *observability.Metrics,
 ) *BatchHandler {
-	if adp == nil {
-		panic("adapter cannot be nil")
-	}
 	if store == nil {
 		panic("store cannot be nil")
 	}

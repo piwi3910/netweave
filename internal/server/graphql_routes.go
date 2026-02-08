@@ -19,6 +19,13 @@ import (
 //   - Real-time subscriptions via WebSocket
 //   - Introspection for schema exploration
 func (s *Server) setupGraphQLRoutes() {
+	// GraphQL requires an adapter — skip setup if no static adapter is available.
+	// With dynamic backend routing, GraphQL is deferred until it supports adapter resolution.
+	if s.adapter == nil {
+		s.logger.Info("GraphQL API deferred (no static adapter, uses dynamic routing)")
+		return
+	}
+
 	// Create GraphQL resolver with server dependencies
 	// Note: SMO handler not included to avoid import cycles
 	resolver := resolvers.NewResolver(

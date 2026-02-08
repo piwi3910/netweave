@@ -343,8 +343,8 @@ func TestNewBatchHandler_Panics(t *testing.T) {
 	store := &mockBatchStore{}
 	logger := zap.NewNop()
 
-	t.Run("nil adapter panics", func(t *testing.T) {
-		assert.Panics(t, func() {
+	t.Run("nil adapter accepted", func(t *testing.T) {
+		assert.NotPanics(t, func() {
 			handlers.NewBatchHandler(nil, store, logger, nil)
 		})
 	})

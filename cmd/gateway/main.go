@@ -40,9 +40,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/piwi3910/netweave/internal/adapter"
-	"github.com/piwi3910/netweave/internal/adapters/kubernetes"
-	"github.com/piwi3910/netweave/internal/adapters/mock"
 	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/piwi3910/netweave/internal/backend"
 	"github.com/piwi3910/netweave/internal/config"
@@ -137,12 +134,11 @@ func run() error {
 
 // ApplicationComponents holds all initialized application components.
 type ApplicationComponents struct {
-	redisStore      *storage.RedisStore // Always needed for rate limiting, events, pub/sub
-	store           storage.Store       // Subscription store (redis, postgres, or dual)
-	pgDB            *database.DB        // PostgreSQL connection (nil if storage_mode="redis")
-	imsAdapter      adapter.Adapter
-	adapterRegistry *backend.AdapterRegistry // Dynamic backend adapter registry
-	healthChecker   *observability.HealthChecker
+	redisStore      *storage.RedisStore          // Always needed for rate limiting, events, pub/sub
+	store           storage.Store                // Subscription store (redis, postgres, or dual)
+	pgDB            *database.DB                 // PostgreSQL connection (nil if storage_mode="redis")
+	adapterRegistry *backend.AdapterRegistry     // Dynamic backend adapter registry
+	healthChecker   *observability.HealthChecker // Health and readiness checks
 	server          *server.Server
 	authStore       server.AuthStore
 }
@@ -181,12 +177,6 @@ func (c *ApplicationComponents) Close(logger *zap.Logger) error {
 		if err := c.adapterRegistry.Close(); err != nil {
 			logger.Warn("failed to close adapter registry", zap.Error(err))
 			closeErrors = append(closeErrors, fmt.Errorf("adapter registry: %w", err))
-		}
-	}
-	if c.imsAdapter != nil {
-		if err := c.imsAdapter.Close(); err != nil {
-			logger.Warn("failed to close IMS adapter", zap.Error(err))
-			closeErrors = append(closeErrors, fmt.Errorf("ims adapter: %w", err))
 		}
 	}
 	if c.authStore != nil {
@@ -235,15 +225,10 @@ func setupLogger(cfg *config.Config) (*zap.Logger, error) {
 }
 
 // cleanupOnError closes resources during error handling.
-func cleanupOnError(redisStore *storage.RedisStore, imsAdapter adapter.Adapter, logger *zap.Logger) {
+func cleanupOnError(redisStore *storage.RedisStore, logger *zap.Logger) {
 	if redisStore != nil {
 		if closeErr := redisStore.Close(); closeErr != nil {
 			logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
-		}
-	}
-	if imsAdapter != nil {
-		if closeErr := imsAdapter.Close(); closeErr != nil {
-			logger.Warn("failed to close IMS adapter during cleanup", zap.Error(closeErr))
 		}
 	}
 }
@@ -425,7 +410,7 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		var pgErr error
 		pgDB, pgErr = initializePostgres(cfg, logger)
 		if pgErr != nil {
-			cleanupOnError(redisStore, nil, logger)
+			cleanupOnError(redisStore, logger)
 			return nil, pgErr
 		}
 	}
@@ -434,37 +419,8 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	var subscriptionStore storage.Store
 	selectSubscriptionStore(&subscriptionStore, cfg, redisStore, pgDB, logger)
 
-	// Initialize IMS adapter
-	var imsAdapter adapter.Adapter
-	adapterType := os.Getenv("ADAPTER_TYPE")
-	if adapterType == "" {
-		adapterType = "kubernetes"
-	}
-
-	switch adapterType {
-	case adapterTypeMock:
-		mockAdp, mockErr := initializeMockAdapter(context.Background(), logger, redisStore, subscriptionStore)
-		if mockErr != nil {
-			cleanupPgOnError(pgDB)
-			return nil, mockErr
-		}
-		imsAdapter = mockAdp
-	default:
-		k8sAdp, k8sErr := initializeKubernetesAdapter(cfg, logger, subscriptionStore)
-		if k8sErr != nil {
-			cleanupOnError(redisStore, nil, logger)
-			cleanupPgOnError(pgDB)
-			return nil, fmt.Errorf("failed to initialize Kubernetes adapter: %w", k8sErr)
-		}
-		logger.Info("Kubernetes adapter initialized successfully",
-			zap.String("adapter", k8sAdp.Name()),
-			zap.String("version", k8sAdp.Version()),
-		)
-		imsAdapter = k8sAdp
-	}
-
-	// Initialize health checker
-	healthChecker := initializeHealthChecker(redisStore, imsAdapter, pgDB, logger)
+	// Initialize health checker (adapter health checks are registered dynamically)
+	healthChecker := initializeHealthChecker(redisStore, pgDB, logger)
 	logger.Info("health checker initialized")
 
 	// Initialize auth store and middleware if multi-tenancy is enabled
@@ -475,7 +431,7 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		authStore, authMw, initErr = InitializeAuth(cfg, logger, pgDB)
 		if initErr != nil {
 			logger.Error("failed to initialize authentication subsystem")
-			cleanupOnError(redisStore, imsAdapter, logger)
+			cleanupOnError(redisStore, logger)
 			cleanupPgOnError(pgDB)
 			return nil, fmt.Errorf("failed to initialize auth: %w", initErr)
 		}
@@ -485,8 +441,8 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		)
 	}
 
-	// Create and configure HTTP server
-	srv, srvErr := createHTTPServer(cfg, logger, imsAdapter, subscriptionStore, authStore, authMw)
+	// Create and configure HTTP server (no static adapter — adapters are loaded dynamically)
+	srv, srvErr := createHTTPServer(cfg, logger, subscriptionStore, authStore, authMw)
 	if srvErr != nil {
 		return nil, srvErr
 	}
@@ -502,7 +458,6 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		redisStore:      redisStore,
 		store:           subscriptionStore,
 		pgDB:            pgDB,
-		imsAdapter:      imsAdapter,
 		adapterRegistry: adapterReg,
 		healthChecker:   healthChecker,
 		server:          srv,
@@ -513,7 +468,7 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	logMultiTenancyStatus(authStore, logger)
 
 	// Initialize DMS subsystem
-	if dmsErr := initializeDMS(cfg, srv, imsAdapter, logger); dmsErr != nil {
+	if dmsErr := initializeDMS(cfg, srv, logger); dmsErr != nil {
 		logger.Error("failed to initialize DMS subsystem", zap.Error(dmsErr))
 		return nil, fmt.Errorf("failed to initialize DMS: %w", dmsErr)
 	}
@@ -521,42 +476,16 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 	return components, nil
 }
 
-// initializeMockAdapter creates and initializes a mock adapter, returning the concrete type.
-func initializeMockAdapter(
-	ctx context.Context,
-	logger *zap.Logger,
-	redisStore *storage.RedisStore,
-	_ storage.Store,
-) (*mock.Adapter, error) {
-	logger.Info("initializing mock adapter")
-	mockAdp := mock.NewAdapter(true) // Pre-populate with sample data
-
-	if initErr := mockAdp.Initialize(ctx); initErr != nil {
-		logger.Error("failed to initialize mock adapter", zap.Error(initErr))
-		if closeErr := redisStore.Close(); closeErr != nil {
-			logger.Warn("failed to close Redis connection during cleanup", zap.Error(closeErr))
-		}
-		return nil, fmt.Errorf("failed to initialize mock adapter: %w", initErr)
-	}
-
-	logger.Info("mock adapter initialized successfully",
-		zap.String("adapter", mockAdp.Name()),
-		zap.String("version", mockAdp.Version()),
-	)
-	return mockAdp, nil
-}
-
 // createHTTPServer creates and configures the HTTP server.
 func createHTTPServer(
 	cfg *config.Config,
 	logger *zap.Logger,
-	imsAdapter adapter.Adapter,
 	store storage.Store,
 	authStore server.AuthStore,
 	authMw *auth.Middleware,
 ) (*server.Server, error) {
-	// Create server with the fully-configured auth middleware (including OAuth2)
-	srv := server.New(cfg, logger, imsAdapter, store, authStore, authMw)
+	// Create server (no static adapter — adapters are loaded dynamically via registry)
+	srv := server.New(cfg, logger, nil, store, authStore, authMw)
 
 	logger.Info("HTTP server created",
 		zap.String("host", cfg.Server.Host),
@@ -856,48 +785,6 @@ func verifyRedisConnectivity(store *storage.RedisStore) error {
 	return nil
 }
 
-// initializeKubernetesAdapter creates and initializes the Kubernetes adapter.
-func initializeKubernetesAdapter(
-	cfg *config.Config,
-	logger *zap.Logger,
-	store storage.Store,
-) (*kubernetes.Adapter, error) {
-	// Build Kubernetes adapter configuration
-	k8sCfg := &kubernetes.Config{
-		Kubeconfig:          cfg.Kubernetes.ConfigPath,
-		OCloudID:            "default-ocloud",
-		DeploymentManagerID: "netweave-k8s-dm",
-		Namespace:           cfg.Kubernetes.Namespace,
-		Logger:              logger,
-		Store:               store,
-	}
-
-	// Set default namespace if not specified
-	if k8sCfg.Namespace == "" {
-		k8sCfg.Namespace = "o2ims-system"
-	}
-
-	// Create Kubernetes adapter
-	k8sAdapter, createErr := kubernetes.New(k8sCfg)
-	if createErr != nil {
-		return nil, fmt.Errorf("failed to create Kubernetes adapter: %w", createErr)
-	}
-
-	// Verify Kubernetes connectivity
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if healthErr := k8sAdapter.Health(ctx); healthErr != nil {
-		return nil, fmt.Errorf(
-			"kubernetes connectivity check failed: %w",
-			healthErr,
-		)
-	}
-
-	logger.Info("Kubernetes connectivity verified")
-	return k8sAdapter, nil
-}
-
 // initializeDMS initializes the DMS (Deployment Management Service) subsystem.
 // It creates a DMS registry and registers available deployment management adapters.
 //
@@ -922,7 +809,6 @@ func initializeKubernetesAdapter(
 func initializeDMS(
 	cfg *config.Config,
 	srv *server.Server,
-	_ adapter.Adapter,
 	logger *zap.Logger,
 ) error {
 	// Create DMS registry with default configuration
@@ -1027,7 +913,6 @@ func registerHelmDMSAdapter(
 // initializeHealthChecker creates and configures the health checker.
 func initializeHealthChecker(
 	redisStore *storage.RedisStore,
-	imsAdapter adapter.Adapter,
 	pgDB *database.DB,
 	logger *zap.Logger,
 ) *observability.HealthChecker {
@@ -1036,30 +921,17 @@ func initializeHealthChecker(
 	// Set health check timeout
 	healthChecker.SetTimeout(5 * time.Second)
 
-	checkCount := 2
+	checkCount := 1
 
 	// Register Redis health check
 	healthChecker.RegisterHealthCheck("redis", observability.RedisHealthCheck(func(ctx context.Context) error {
 		return redisStore.Ping(ctx)
 	}))
 
-	// Register IMS adapter health check
-	healthChecker.RegisterHealthCheck(
-		"ims-adapter",
-		observability.KubernetesHealthCheck(func(ctx context.Context) error {
-			return imsAdapter.Health(ctx)
-		}),
-	)
-
 	// Register the same checks for readiness
 	healthChecker.RegisterReadinessCheck("redis",
 		observability.RedisHealthCheck(func(ctx context.Context) error {
 			return redisStore.Ping(ctx)
-		}))
-
-	healthChecker.RegisterReadinessCheck("ims-adapter",
-		observability.KubernetesHealthCheck(func(ctx context.Context) error {
-			return imsAdapter.Health(ctx)
 		}))
 
 	// Register PostgreSQL health check if available

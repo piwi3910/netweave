@@ -47,16 +47,25 @@ func (s *Server) withPermission(permission string, handler gin.HandlerFunc) gin.
 }
 
 // resolveAdapter determines which adapter to use for the current request.
+// Returns nil and writes an error response if no adapter can be resolved.
+//
 // Resolution order:
-//  1. If X-Backend-ID header is set (platform admin only), use that specific backend.
-//  2. If adapterRegistry is configured and tenant has backend access, use the tenant's backend.
-//  3. Fall back to the static adapter (s.adapter).
+//  1. If the adapter registry is configured, resolve dynamically (tenant access or X-Backend-ID).
+//  2. If no registry but a static adapter exists (legacy/testing), use that.
+//  3. Otherwise, return nil (503 Service Unavailable).
 func (s *Server) resolveAdapter(c *gin.Context) adapter.Adapter {
 	ctx := c.Request.Context()
 
-	// Skip dynamic resolution if registry is not configured
+	// If no registry is configured, fall back to static adapter (legacy/testing mode)
 	if s.adapterRegistry == nil || s.backendStore == nil {
-		return s.adapter
+		if s.adapter != nil {
+			return s.adapter
+		}
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error":   "ServiceUnavailable",
+			"message": "No backend adapters configured. Create backend instances via the admin API.",
+		})
+		return nil
 	}
 
 	// Platform admin can explicitly select a backend via header
@@ -64,11 +73,11 @@ func (s *Server) resolveAdapter(c *gin.Context) adapter.Adapter {
 	if backendID != "" && auth.IsPlatformAdminFromContext(ctx) {
 		adp, err := s.adapterRegistry.GetAdapter(backendID)
 		if err != nil {
-			s.logger.Warn("X-Backend-ID header specified but adapter not found, using default",
-				zap.String("backend_id", backendID),
-				zap.Error(err),
-			)
-			return s.adapter
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": fmt.Sprintf("Backend %q not found in registry", backendID),
+			})
+			return nil
 		}
 		return adp
 	}
@@ -76,27 +85,55 @@ func (s *Server) resolveAdapter(c *gin.Context) adapter.Adapter {
 	// Resolve adapter based on tenant's backend access
 	tenantID := auth.TenantIDFromContext(ctx)
 	if tenantID == "" {
-		return s.adapter
+		// Platform admins must specify X-Backend-ID
+		if auth.IsPlatformAdminFromContext(ctx) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "BadRequest",
+				"message": "Platform admins must specify X-Backend-ID header to select a backend",
+			})
+			return nil
+		}
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   "Unauthorized",
+			"message": "No tenant context available",
+		})
+		return nil
 	}
 
-	// Platform admins without X-Backend-ID use the default adapter
+	// Platform admins without X-Backend-ID header
 	if auth.IsPlatformAdminFromContext(ctx) {
-		return s.adapter
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Platform admins must specify X-Backend-ID header to select a backend",
+		})
+		return nil
 	}
 
 	adp, err := s.adapterRegistry.GetAdapterForTenant(ctx, tenantID, s.backendStore)
 	if err != nil {
-		if errors.Is(err, backend.ErrNoBackendAccess) || errors.Is(err, backend.ErrAdapterNotFound) {
-			s.logger.Debug("no dynamic backend for tenant, using default adapter",
-				zap.String("tenant_id", tenantID),
-			)
-			return s.adapter
+		if errors.Is(err, backend.ErrNoBackendAccess) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":   "Forbidden",
+				"message": "No backend access configured for this tenant",
+			})
+			return nil
 		}
-		s.logger.Warn("failed to resolve adapter for tenant, using default",
+		if errors.Is(err, backend.ErrAdapterNotFound) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error":   "ServiceUnavailable",
+				"message": "Assigned backend is not currently available",
+			})
+			return nil
+		}
+		s.logger.Warn("failed to resolve adapter for tenant",
 			zap.String("tenant_id", tenantID),
 			zap.Error(err),
 		)
-		return s.adapter
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalServerError",
+			"message": "Failed to resolve backend adapter",
+		})
+		return nil
 	}
 
 	return adp
@@ -455,7 +492,13 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 	req.SubscriptionID = "sub-" + uuid.New().String()
 
 	// Create subscription via adapter
-	created, err := s.resolveAdapter(c).CreateSubscription(ctx, &req)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	created, err := adp.CreateSubscription(ctx, &req)
 	if err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
@@ -519,7 +562,7 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 	if err := s.store.Update(ctx, storageSub); err != nil {
 		s.logger.Error("failed to update subscription with tenant ID", zap.Error(err))
 		// Attempt to clean up adapter subscription (best effort)
-		_ = s.resolveAdapter(c).DeleteSubscription(ctx, created.SubscriptionID)
+		_ = adp.DeleteSubscription(ctx, created.SubscriptionID)
 		// Rollback quota increment
 		if tenantID != "" && s.AuthStore != nil {
 			if decErr := s.AuthStore.DecrementUsage(ctx, tenantID, "subscriptions"); decErr != nil {
@@ -695,7 +738,13 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 
 	// Update subscription via adapter
 	// The adapter handles validation and persistence to its backend storage
-	updated, err := s.resolveAdapter(c).UpdateSubscription(c.Request.Context(), subscriptionID, &req)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	updated, err := adp.UpdateSubscription(c.Request.Context(), subscriptionID, &req)
 	if err != nil {
 		// Check for not found error using sentinel error
 		if errors.Is(err, adapter.ErrSubscriptionNotFound) {
@@ -780,7 +829,13 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 	}
 
 	// Delete from adapter
-	if err := s.resolveAdapter(c).DeleteSubscription(ctx, subscriptionID); err != nil {
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	if err := adp.DeleteSubscription(ctx, subscriptionID); err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
 			user := auth.UserFromContext(ctx)
@@ -926,7 +981,13 @@ func (s *Server) handleListResourcePools(c *gin.Context) {
 	}
 
 	// List resource pools via adapter.
-	pools, err := s.resolveAdapter(c).ListResourcePools(c.Request.Context(), filter)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	pools, err := adp.ListResourcePools(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resource pools", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -950,7 +1011,13 @@ func (s *Server) handleGetResourcePool(c *gin.Context) {
 	s.logger.Info("getting resource pool", zap.String("resource_pool_id", resourcePoolID))
 
 	// Get resource pool via adapter
-	pool, err := s.resolveAdapter(c).GetResourcePool(c.Request.Context(), resourcePoolID)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	pool, err := adp.GetResourcePool(c.Request.Context(), resourcePoolID)
 	if err != nil {
 		s.logger.Error("failed to get resource pool", zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{
@@ -999,7 +1066,13 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 	}
 
 	// List resources via adapter
-	resources, err := s.resolveAdapter(c).ListResources(ctx, filter)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	resources, err := adp.ListResources(ctx, filter)
 	if err != nil {
 		s.logger.Error("failed to list resources in pool", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1222,7 +1295,13 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 	}
 
 	// Create resource pool via adapter
-	created, err := s.resolveAdapter(c).CreateResourcePool(c.Request.Context(), &req)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	created, err := adp.CreateResourcePool(c.Request.Context(), &req)
 	if err != nil {
 		// Rollback quota increment on creation failure
 		if tenantID != "" && s.AuthStore != nil {
@@ -1321,7 +1400,13 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 	}
 
 	// Update resource pool via adapter
-	updated, err := s.resolveAdapter(c).UpdateResourcePool(c.Request.Context(), resourcePoolID, &req)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	updated, err := adp.UpdateResourcePool(c.Request.Context(), resourcePoolID, &req)
 	if err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
@@ -1390,8 +1475,14 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 	tenantID := auth.TenantIDFromContext(ctx)
 
 	// Verify tenant ownership before deletion
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
 	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) {
-		pool, err := s.resolveAdapter(c).GetResourcePool(ctx, resourcePoolID)
+		pool, err := adp.GetResourcePool(ctx, resourcePoolID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
@@ -1410,7 +1501,7 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 		}
 	}
 
-	if err := s.resolveAdapter(c).DeleteResourcePool(ctx, resourcePoolID); err != nil {
+	if err := adp.DeleteResourcePool(ctx, resourcePoolID); err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
 			user := auth.UserFromContext(ctx)
@@ -1595,7 +1686,13 @@ func (s *Server) handleListResources(c *gin.Context) {
 	}
 
 	// List resources via adapter.
-	resources, err := s.resolveAdapter(c).ListResources(c.Request.Context(), filter)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	resources, err := adp.ListResources(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resources", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1619,7 +1716,13 @@ func (s *Server) handleGetResource(c *gin.Context) {
 	s.logger.Info("getting resource", zap.String("resource_id", resourceID))
 
 	// Get resource via adapter
-	resource, err := s.resolveAdapter(c).GetResource(c.Request.Context(), resourceID)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	resource, err := adp.GetResource(c.Request.Context(), resourceID)
 	if err != nil {
 		// Use sentinel error for better error detection
 		if errors.Is(err, adapter.ErrResourceNotFound) {
@@ -1748,7 +1851,13 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 	}
 
 	// Create resource via adapter
-	created, err := s.resolveAdapter(c).CreateResource(c.Request.Context(), &req)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	created, err := adp.CreateResource(c.Request.Context(), &req)
 	if err != nil {
 		// Rollback quota increment on creation failure
 		if tenantID != "" && s.AuthStore != nil {
@@ -1856,8 +1965,14 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 	tenantID := auth.TenantIDFromContext(ctx)
 
 	// Get resource info before deletion for audit logging and tenant ownership check.
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
 	var resourceTypeID string
-	existing, err := s.resolveAdapter(c).GetResource(ctx, resourceID)
+	existing, err := adp.GetResource(ctx, resourceID)
 	if err == nil && existing != nil {
 		resourceTypeID = existing.ResourceTypeID
 	}
@@ -1882,7 +1997,7 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 		}
 	}
 
-	if err := s.resolveAdapter(c).DeleteResource(ctx, resourceID); err != nil {
+	if err := adp.DeleteResource(ctx, resourceID); err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
 			user := auth.UserFromContext(ctx)
@@ -1944,7 +2059,12 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 
 // getExistingResource retrieves an existing resource and handles errors.
 func (s *Server) getExistingResource(c *gin.Context, resourceID string) (*adapter.Resource, error) {
-	existing, err := s.resolveAdapter(c).GetResource(c.Request.Context(), resourceID)
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return nil, errors.New("no adapter available")
+	}
+
+	existing, err := adp.GetResource(c.Request.Context(), resourceID)
 	if err != nil {
 		if errors.Is(err, adapter.ErrResourceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -2014,7 +2134,13 @@ func (s *Server) applyResourceUpdate(c *gin.Context, resourceID string, req, exi
 	}
 
 	// Update via adapter
-	updated, err := s.resolveAdapter(c).UpdateResource(c.Request.Context(), resourceID, req)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	updated, err := adp.UpdateResource(c.Request.Context(), resourceID, req)
 	if err != nil {
 		// Audit log the failure
 		if s.auditLogger != nil {
@@ -2084,7 +2210,13 @@ func (s *Server) handleListResourceTypes(c *gin.Context) {
 	}
 
 	// List resource types via adapter.
-	types, err := s.resolveAdapter(c).ListResourceTypes(c.Request.Context(), filter)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	types, err := adp.ListResourceTypes(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resource types", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -2108,7 +2240,13 @@ func (s *Server) handleGetResourceType(c *gin.Context) {
 	s.logger.Info("getting resource type", zap.String("resource_type_id", resourceTypeID))
 
 	// Get resource type via adapter
-	resType, err := s.resolveAdapter(c).GetResourceType(c.Request.Context(), resourceTypeID)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	resType, err := adp.GetResourceType(c.Request.Context(), resourceTypeID)
 	if err != nil {
 		s.logger.Error("failed to get resource type", zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{
@@ -2129,7 +2267,12 @@ func (s *Server) handleGetResourceType(c *gin.Context) {
 func (s *Server) handleListDeploymentManagers(c *gin.Context) {
 	s.logger.Info("listing deployment managers")
 
-	dms, err := s.resolveAdapter(c).ListDeploymentManagers(c.Request.Context(), nil)
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	dms, err := adp.ListDeploymentManagers(c.Request.Context(), nil)
 	if err != nil {
 		s.logger.Error("failed to list deployment managers", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -2153,7 +2296,13 @@ func (s *Server) handleGetDeploymentManager(c *gin.Context) {
 	s.logger.Info("getting deployment manager", zap.String("deployment_manager_id", deploymentManagerID))
 
 	// Get deployment manager via adapter
-	dm, err := s.resolveAdapter(c).GetDeploymentManager(c.Request.Context(), deploymentManagerID)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	dm, err := adp.GetDeploymentManager(c.Request.Context(), deploymentManagerID)
 	if err != nil {
 		s.logger.Error("failed to get deployment manager", zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{
@@ -2175,7 +2324,13 @@ func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 	s.logger.Info("getting O-Cloud infrastructure information")
 
 	// List all registered deployment managers instead of looking up a hardcoded ID.
-	dms, err := s.resolveAdapter(c).ListDeploymentManagers(c.Request.Context(), nil)
+
+	adp := s.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
+	dms, err := adp.ListDeploymentManagers(c.Request.Context(), nil)
 	if err != nil {
 		s.logger.Error("failed to list deployment managers for O-Cloud info", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{

@@ -157,9 +157,6 @@ func New(
 	if logger == nil {
 		panic("logger cannot be nil")
 	}
-	if adp == nil {
-		panic("adapter cannot be nil")
-	}
 	if store == nil {
 		panic("store cannot be nil")
 	}
@@ -697,14 +694,16 @@ func (s *Server) SetupDMS(reg *dmsregistry.Registry) {
 
 	s.logger.Info("DMS subsystem initialized")
 
-	// Initialize TMForum hub store for TMF688 event management
-	hubStore := storage.NewInMemoryHubStore()
-
-	// Initialize TMForum handler (uses both IMS adapter and DMS registry)
-	// Routes were already registered during server initialization
-	s.tmfHandler = handlers.NewTMForumHandler(s.adapter, s.dmsRegistry, hubStore, s.logger)
-
-	s.logger.Info("TMForum API initialized", zap.Int("apis", 2))
+	// Initialize TMForum handler only if a static adapter is available.
+	// With dynamic backend routing, TMForum routes return 503 via tmfHandlerOrUnavailable
+	// until TMForum is updated to support dynamic adapter resolution.
+	if s.adapter != nil {
+		hubStore := storage.NewInMemoryHubStore()
+		s.tmfHandler = handlers.NewTMForumHandler(s.adapter, s.dmsRegistry, hubStore, s.logger)
+		s.logger.Info("TMForum API initialized", zap.Int("apis", 2))
+	} else {
+		s.logger.Info("TMForum API deferred (no static adapter, uses dynamic routing)")
+	}
 }
 
 // DMSRegistry returns the DMS adapter registry.
