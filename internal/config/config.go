@@ -53,22 +53,40 @@ const (
 //	    log.Fatal(err)
 //	}
 type Config struct {
-	Server        ServerConfig            `mapstructure:"server"`
-	Redis         RedisConfig             `mapstructure:"redis"`
-	Kubernetes    KubernetesConfig        `mapstructure:"kubernetes"`
-	TLS           TLSConfig               `mapstructure:"tls"`
-	Observability ObservabilityConfig     `mapstructure:"observability"`
-	Security      SecurityConfig          `mapstructure:"security"`
-	Validation    ValidationConfig        `mapstructure:"validation"`
-	MultiTenancy  MultiTenancyConfig      `mapstructure:"multi_tenancy"`
-	OAuth2        OAuth2Config            `mapstructure:"oauth2"`
-	Auth          AuthConfig              `mapstructure:"auth"`
-	Postgres      database.PostgresConfig `mapstructure:"postgres"`
-	StorageMode   string                  `mapstructure:"storage_mode"`
+	Server          ServerConfig            `mapstructure:"server"`
+	Redis           RedisConfig             `mapstructure:"redis"`
+	Kubernetes      KubernetesConfig        `mapstructure:"kubernetes"`
+	TLS             TLSConfig               `mapstructure:"tls"`
+	Observability   ObservabilityConfig     `mapstructure:"observability"`
+	Security        SecurityConfig          `mapstructure:"security"`
+	Validation      ValidationConfig        `mapstructure:"validation"`
+	MultiTenancy    MultiTenancyConfig      `mapstructure:"multi_tenancy"`
+	OAuth2          OAuth2Config            `mapstructure:"oauth2"`
+	Auth            AuthConfig              `mapstructure:"auth"`
+	Postgres        database.PostgresConfig `mapstructure:"postgres"`
+	StorageMode     string                  `mapstructure:"storage_mode"`
+	FrontendPlugins FrontendPlugins         `mapstructure:"frontend_plugins"`
 
 	// Environment stores the detected environment (dev/staging/prod)
 	// This field is set automatically during Load() and used for validation
 	Environment string `mapstructure:"-"`
+}
+
+// FrontendPlugins configures which protocol API frontends are enabled.
+// All plugins are disabled by default and must be explicitly enabled by platform admins.
+type FrontendPlugins struct {
+	O2IMS   FrontendPluginConfig `mapstructure:"o2ims"`
+	O2DMS   FrontendPluginConfig `mapstructure:"o2dms"`
+	O2SMO   FrontendPluginConfig `mapstructure:"o2smo"`
+	TMForum FrontendPluginConfig `mapstructure:"tmforum"`
+	GraphQL FrontendPluginConfig `mapstructure:"graphql"`
+}
+
+// FrontendPluginConfig contains configuration for a single frontend plugin.
+type FrontendPluginConfig struct {
+	// Enabled controls whether this frontend plugin is active.
+	// Default: false (all plugins disabled by default).
+	Enabled bool `mapstructure:"enabled"`
 }
 
 // AuthConfig contains authentication backend configuration.
@@ -978,6 +996,13 @@ func setDefaults(v *viper.Viper) {
 
 	// Storage mode defaults
 	v.SetDefault("storage_mode", "redis")
+
+	// Frontend plugins defaults (all disabled by default)
+	v.SetDefault("frontend_plugins.o2ims.enabled", false)
+	v.SetDefault("frontend_plugins.o2dms.enabled", false)
+	v.SetDefault("frontend_plugins.o2smo.enabled", false)
+	v.SetDefault("frontend_plugins.tmforum.enabled", false)
+	v.SetDefault("frontend_plugins.graphql.enabled", false)
 
 	// PostgreSQL defaults
 	v.SetDefault("postgres.host", "localhost")

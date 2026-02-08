@@ -93,6 +93,9 @@ type Server struct {
 	adapterRegistry *backend.AdapterRegistry
 	backendStore    backend.Store
 
+	// Frontend plugin toggle system
+	pluginRegistry *FrontendPluginRegistry
+
 	// fullAuthStore is the full auth.Store for tenant lookups in wrapWithTenantContext.
 	fullAuthStore auth.Store
 
@@ -231,6 +234,9 @@ func New(
 		}
 	}
 
+	// Initialize frontend plugin registry
+	pluginReg := NewFrontendPluginRegistry(cfg.FrontendPlugins)
+
 	// Create server instance
 	srv := &Server{
 		config:           cfg,
@@ -247,6 +253,7 @@ func New(
 		AuthStore:        authStore,
 		authMw:           authMw,
 		auditLogger:      auditLogger,
+		pluginRegistry:   pluginReg,
 	}
 
 	// Setup middleware

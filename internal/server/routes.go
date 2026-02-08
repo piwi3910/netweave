@@ -163,6 +163,7 @@ func (s *Server) setupRoutes() {
 	// Base path: /o2ims-infrastructureInventory/v1 (per O-RAN O2 IMS specification)
 	// Includes all features: basic operations, batch operations, and multi-tenancy support
 	v1 := s.router.Group("/o2ims-infrastructureInventory/v1")
+	v1.Use(PluginGuard(s.pluginRegistry, "o2ims"))
 	v1.Use(VersioningMiddleware(versionConfig))
 
 	// Apply tenant middleware if multi-tenancy is enabled

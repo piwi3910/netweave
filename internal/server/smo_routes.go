@@ -265,6 +265,7 @@ func (h *SMOHandler) getPluginFromQuery(c *gin.Context) (smo.Plugin, error) {
 func (s *Server) setupSMORoutes(smoHandler *SMOHandler) {
 	// O2-SMO API v1 routes (all features consolidated)
 	v1 := s.router.Group("/o2smo/v1")
+	v1.Use(PluginGuard(s.pluginRegistry, "o2smo"))
 
 	// Apply dynamic routing middleware to resolve SMO registry per-request.
 	v1.Use(s.smoAdapterMiddleware())
