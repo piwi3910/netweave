@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/controllers"
+	"github.com/piwi3910/netweave/internal/storage"
 )
 
 const (
@@ -62,6 +63,9 @@ type WebhookWorker struct {
 	// logger provides structured logging.
 	logger *zap.Logger
 
+	// subscriptionStore provides access to subscription data for tenant filtering.
+	subscriptionStore SubscriptionLookup
+
 	// workerCount is the number of worker goroutines.
 	WorkerCount int
 
@@ -84,6 +88,12 @@ type WebhookWorker struct {
 	wg sync.WaitGroup
 }
 
+// SubscriptionLookup defines the minimal interface the webhook worker needs
+// to look up subscription metadata for tenant filtering.
+type SubscriptionLookup interface {
+	Get(ctx context.Context, id string) (*storage.Subscription, error)
+}
+
 // Config holds configuration for creating a WebhookWorker.
 type Config struct {
 	// RedisClient is used for stream operations.
@@ -91,6 +101,10 @@ type Config struct {
 
 	// Logger is the logger to use.
 	Logger *zap.Logger
+
+	// SubscriptionStore provides subscription lookup for tenant filtering (optional).
+	// When set, the worker validates tenant/backend ownership before delivering webhooks.
+	SubscriptionStore SubscriptionLookup
 
 	// WorkerCount is the number of worker goroutines (default: 10).
 	WorkerCount int
@@ -150,15 +164,16 @@ func NewWebhookWorker(cfg *Config) (*WebhookWorker, error) {
 	}
 
 	return &WebhookWorker{
-		redisClient:  cfg.RedisClient,
-		HTTPClient:   &http.Client{Timeout: timeout},
-		logger:       cfg.Logger,
-		WorkerCount:  workerCount,
-		MaxRetries:   maxRetries,
-		retryBackoff: retryBackoff,
-		maxBackoff:   maxBackoff,
-		HMACSecret:   cfg.HMACSecret,
-		stopCh:       make(chan struct{}),
+		redisClient:       cfg.RedisClient,
+		HTTPClient:        &http.Client{Timeout: timeout},
+		logger:            cfg.Logger,
+		subscriptionStore: cfg.SubscriptionStore,
+		WorkerCount:       workerCount,
+		MaxRetries:        maxRetries,
+		retryBackoff:      retryBackoff,
+		maxBackoff:        maxBackoff,
+		HMACSecret:        cfg.HMACSecret,
+		stopCh:            make(chan struct{}),
 	}, nil
 }
 
@@ -307,6 +322,16 @@ func (w *WebhookWorker) HandleMessage(ctx context.Context, _ string, msg redis.X
 		return w.AcknowledgeMessage(ctx, msg.ID)
 	}
 
+	// Validate tenant/backend ownership as defense-in-depth
+	if !w.validateEventTenancy(ctx, &event) {
+		w.logger.Warn("event skipped due to tenant/backend mismatch",
+			zap.String("subscription", event.SubscriptionID),
+			zap.String("event_tenant_id", event.TenantID),
+			zap.String("event_backend_id", event.BackendID))
+		// Acknowledge and skip — do not deliver
+		return w.AcknowledgeMessage(ctx, msg.ID)
+	}
+
 	// Deliver webhook with retries
 	startTime := time.Now()
 	if err := w.DeliverWithRetries(ctx, &event); err != nil {
@@ -331,6 +356,46 @@ func (w *WebhookWorker) HandleMessage(ctx context.Context, _ string, msg redis.X
 
 	// Acknowledge message
 	return w.AcknowledgeMessage(ctx, msg.ID)
+}
+
+// validateEventTenancy checks that the event's tenant and backend metadata match
+// the subscription's ownership. This is a defense-in-depth check; the controller
+// already scopes events to the correct subscription, but this guard prevents
+// delivery if metadata is inconsistent.
+//
+// Returns true if delivery should proceed, false if it should be skipped.
+func (w *WebhookWorker) validateEventTenancy(ctx context.Context, event *controllers.ResourceEvent) bool {
+	// Legacy events without tenant info are always delivered (backward compatible)
+	if event.TenantID == "" {
+		return true
+	}
+
+	// If no subscription store is configured, skip validation
+	if w.subscriptionStore == nil {
+		return true
+	}
+
+	sub, err := w.subscriptionStore.Get(ctx, event.SubscriptionID)
+	if err != nil {
+		w.logger.Warn("failed to look up subscription for tenant validation, allowing delivery",
+			zap.String("subscription", event.SubscriptionID),
+			zap.Error(err))
+		// If we cannot look up the subscription, allow delivery to avoid dropping
+		// events due to transient storage errors
+		return true
+	}
+
+	// Check tenant ID match
+	if sub.TenantID != "" && sub.TenantID != event.TenantID {
+		return false
+	}
+
+	// Check backend ID match (only if both are set)
+	if event.BackendID != "" && sub.BackendID != "" && sub.BackendID != event.BackendID {
+		return false
+	}
+
+	return true
 }
 
 // DeliverWithRetries attempts webhook delivery with exponential backoff.
@@ -399,6 +464,11 @@ func (w *WebhookWorker) DeliverWebhook(ctx context.Context, event *controllers.R
 	req.Header.Set("X-O2IMS-Event-Type", event.EventType)
 	req.Header.Set("X-O2IMS-Notification-ID", event.NotificationID)
 	req.Header.Set("X-O2IMS-Subscription-ID", event.SubscriptionID)
+
+	// Add backend ID header for traceability
+	if event.BackendID != "" {
+		req.Header.Set("X-Netweave-Backend-ID", event.BackendID)
+	}
 
 	// Add HMAC signature if secret is configured
 	if w.HMACSecret != "" {

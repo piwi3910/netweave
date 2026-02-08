@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +22,25 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/piwi3910/netweave/internal/controllers"
+	"github.com/piwi3910/netweave/internal/storage"
 )
+
+// mockSubscriptionStore implements workers.SubscriptionLookup for testing.
+type mockSubscriptionStore struct {
+	subscriptions map[string]*storage.Subscription
+	err           error
+}
+
+func (m *mockSubscriptionStore) Get(_ context.Context, id string) (*storage.Subscription, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	sub, ok := m.subscriptions[id]
+	if !ok {
+		return nil, fmt.Errorf("subscription not found: %s", id)
+	}
+	return sub, nil
+}
 
 // addAndReadMessage is a helper that adds a message to Redis stream and reads it back.
 // Returns the read message.
@@ -803,4 +822,311 @@ func TestWebhookWorker_Stop(t *testing.T) {
 		err := worker.Stop()
 		require.NoError(t, err)
 	})
+}
+
+// TestWebhookWorker_DeliverWebhook_BackendIDHeader verifies the X-Netweave-Backend-ID header.
+func TestWebhookWorker_DeliverWebhook_BackendIDHeader(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() {
+		require.NoError(t, rdb.Close())
+	}()
+
+	t.Run("sets backend ID header when present", func(t *testing.T) {
+		receivedBackendID := make(chan string, 1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			receivedBackendID <- r.Header.Get("X-Netweave-Backend-ID")
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		worker, err := workers.NewWebhookWorker(&workers.Config{
+			RedisClient: rdb,
+			Logger:      zaptest.NewLogger(t),
+			WorkerCount: 1,
+		})
+		require.NoError(t, err)
+
+		event := &controllers.ResourceEvent{
+			SubscriptionID: "sub-123",
+			EventType:      "o2ims.Resource.Created",
+			CallbackURL:    server.URL,
+			BackendID:      "backend-k8s-cluster-1",
+		}
+
+		err = worker.DeliverWebhook(context.Background(), event)
+		require.NoError(t, err)
+
+		select {
+		case backendID := <-receivedBackendID:
+			assert.Equal(t, "backend-k8s-cluster-1", backendID)
+		case <-time.After(2 * time.Second):
+			t.Fatal("timeout waiting for webhook")
+		}
+	})
+
+	t.Run("omits backend ID header when empty", func(t *testing.T) {
+		hasHeader := make(chan bool, 1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, exists := r.Header["X-Netweave-Backend-Id"]
+			hasHeader <- exists
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		worker, err := workers.NewWebhookWorker(&workers.Config{
+			RedisClient: rdb,
+			Logger:      zaptest.NewLogger(t),
+			WorkerCount: 1,
+		})
+		require.NoError(t, err)
+
+		event := &controllers.ResourceEvent{
+			SubscriptionID: "sub-123",
+			EventType:      "o2ims.Resource.Created",
+			CallbackURL:    server.URL,
+		}
+
+		err = worker.DeliverWebhook(context.Background(), event)
+		require.NoError(t, err)
+
+		select {
+		case exists := <-hasHeader:
+			assert.False(t, exists, "X-Netweave-Backend-ID header should not be set for events without BackendID")
+		case <-time.After(2 * time.Second):
+			t.Fatal("timeout waiting for webhook")
+		}
+	})
+}
+
+// TestWebhookWorker_TenantFiltering tests the tenant/backend validation in HandleMessage.
+func TestWebhookWorker_TenantFiltering(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() {
+		require.NoError(t, rdb.Close())
+	}()
+
+	ctx := context.Background()
+
+	// Setup webhook server that tracks delivery attempts
+	deliveryCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		deliveryCount++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	tests := []struct {
+		name              string
+		eventTenantID     string
+		eventBackendID    string
+		subTenantID       string
+		subBackendID      string
+		expectDelivery    bool
+		subscriptionStore *mockSubscriptionStore
+	}{
+		{
+			name:           "legacy event without tenant delivers to all",
+			eventTenantID:  "",
+			eventBackendID: "",
+			subTenantID:    "tenant-A",
+			subBackendID:   "backend-1",
+			expectDelivery: true,
+			subscriptionStore: &mockSubscriptionStore{
+				subscriptions: map[string]*storage.Subscription{
+					"sub-123": {ID: "sub-123", TenantID: "tenant-A", BackendID: "backend-1"},
+				},
+			},
+		},
+		{
+			name:           "matching tenant and backend delivers",
+			eventTenantID:  "tenant-A",
+			eventBackendID: "backend-1",
+			subTenantID:    "tenant-A",
+			subBackendID:   "backend-1",
+			expectDelivery: true,
+			subscriptionStore: &mockSubscriptionStore{
+				subscriptions: map[string]*storage.Subscription{
+					"sub-123": {ID: "sub-123", TenantID: "tenant-A", BackendID: "backend-1"},
+				},
+			},
+		},
+		{
+			name:           "matching tenant with no backend constraint delivers",
+			eventTenantID:  "tenant-A",
+			eventBackendID: "backend-1",
+			subTenantID:    "tenant-A",
+			subBackendID:   "",
+			expectDelivery: true,
+			subscriptionStore: &mockSubscriptionStore{
+				subscriptions: map[string]*storage.Subscription{
+					"sub-123": {ID: "sub-123", TenantID: "tenant-A", BackendID: ""},
+				},
+			},
+		},
+		{
+			name:           "tenant mismatch blocks delivery",
+			eventTenantID:  "tenant-A",
+			eventBackendID: "",
+			subTenantID:    "tenant-B",
+			subBackendID:   "",
+			expectDelivery: false,
+			subscriptionStore: &mockSubscriptionStore{
+				subscriptions: map[string]*storage.Subscription{
+					"sub-123": {ID: "sub-123", TenantID: "tenant-B", BackendID: ""},
+				},
+			},
+		},
+		{
+			name:           "backend mismatch blocks delivery",
+			eventTenantID:  "tenant-A",
+			eventBackendID: "backend-1",
+			subTenantID:    "tenant-A",
+			subBackendID:   "backend-2",
+			expectDelivery: false,
+			subscriptionStore: &mockSubscriptionStore{
+				subscriptions: map[string]*storage.Subscription{
+					"sub-123": {ID: "sub-123", TenantID: "tenant-A", BackendID: "backend-2"},
+				},
+			},
+		},
+		{
+			name:           "subscription store error allows delivery",
+			eventTenantID:  "tenant-A",
+			eventBackendID: "backend-1",
+			expectDelivery: true,
+			subscriptionStore: &mockSubscriptionStore{
+				err: fmt.Errorf("storage unavailable"),
+			},
+		},
+		{
+			name:              "no subscription store allows delivery",
+			eventTenantID:     "tenant-A",
+			eventBackendID:    "backend-1",
+			expectDelivery:    true,
+			subscriptionStore: nil,
+		},
+		{
+			name:           "event tenant set but subscription has no tenant allows delivery",
+			eventTenantID:  "tenant-A",
+			eventBackendID: "",
+			expectDelivery: true,
+			subscriptionStore: &mockSubscriptionStore{
+				subscriptions: map[string]*storage.Subscription{
+					"sub-123": {ID: "sub-123", TenantID: "", BackendID: ""},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deliveryCount = 0
+
+			var subStore workers.SubscriptionLookup
+			if tt.subscriptionStore != nil {
+				subStore = tt.subscriptionStore
+			}
+
+			worker, err := workers.NewWebhookWorker(&workers.Config{
+				RedisClient:       rdb,
+				Logger:            zaptest.NewLogger(t),
+				WorkerCount:       1,
+				MaxRetries:        1,
+				SubscriptionStore: subStore,
+			})
+			require.NoError(t, err)
+
+			err = worker.CreateConsumerGroup(ctx)
+			require.NoError(t, err)
+
+			event := &controllers.ResourceEvent{
+				SubscriptionID: "sub-123",
+				EventType:      "o2ims.Resource.Created",
+				CallbackURL:    server.URL,
+				TenantID:       tt.eventTenantID,
+				BackendID:      tt.eventBackendID,
+			}
+
+			eventData, err := json.Marshal(event)
+			require.NoError(t, err)
+
+			consumerName := fmt.Sprintf("consumer-%s", tt.name)
+			msg := addAndReadMessage(ctx, t, rdb, consumerName, string(eventData))
+
+			err = worker.HandleMessage(ctx, consumerName, msg)
+			require.NoError(t, err)
+
+			if tt.expectDelivery {
+				assert.Equal(t, 1, deliveryCount,
+					"expected webhook delivery for test case: %s", tt.name)
+			} else {
+				assert.Equal(t, 0, deliveryCount,
+					"expected no webhook delivery for test case: %s", tt.name)
+			}
+		})
+	}
+}
+
+// TestWebhookWorker_EventTenantFields verifies tenant/backend fields are serialized in events.
+func TestWebhookWorker_EventTenantFields(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() {
+		require.NoError(t, rdb.Close())
+	}()
+
+	// Verify tenant fields round-trip through JSON serialization
+	receivedEvent := make(chan controllers.ResourceEvent, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		var event controllers.ResourceEvent
+		err = json.Unmarshal(body, &event)
+		require.NoError(t, err)
+
+		receivedEvent <- event
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	worker, err := workers.NewWebhookWorker(&workers.Config{
+		RedisClient: rdb,
+		Logger:      zaptest.NewLogger(t),
+		WorkerCount: 1,
+	})
+	require.NoError(t, err)
+
+	event := &controllers.ResourceEvent{
+		SubscriptionID:   "sub-123",
+		EventType:        "o2ims.Resource.Created",
+		ObjectRef:        "/o2ims/v1/resources/test-node",
+		ResourceTypeID:   "k8s-node",
+		GlobalResourceID: "test-node",
+		Timestamp:        time.Now(),
+		NotificationID:   "notif-123",
+		CallbackURL:      server.URL,
+		TenantID:         "tenant-acme",
+		BackendID:        "backend-k8s-prod",
+	}
+
+	err = worker.DeliverWebhook(context.Background(), event)
+	require.NoError(t, err)
+
+	select {
+	case received := <-receivedEvent:
+		assert.Equal(t, "tenant-acme", received.TenantID)
+		assert.Equal(t, "backend-k8s-prod", received.BackendID)
+		assert.Equal(t, "sub-123", received.SubscriptionID)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for webhook")
+	}
 }
