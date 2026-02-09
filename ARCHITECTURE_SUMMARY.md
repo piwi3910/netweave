@@ -849,13 +849,10 @@ netweave/
 ├── .markdownlint.yml            # ✅ Markdown linting
 │
 ├── internal/
-│   └── certmanager/             # ✅ Certificate automation service
-│       ├── config.go            # Configuration and validation
-│       ├── operations.go        # Issue, get, list, revoke operations
-│       ├── service.go           # Background monitoring and renewal
-│       ├── metrics.go           # Prometheus metrics (8 metrics)
-│       ├── types.go             # Certificate types and constants
-│       └── STORAGE_WARNING.md   # Production storage migration guide
+│   └── vault/                   # ✅ Vault PKI certificate operations
+│       ├── certificates.go      # Certificate issuance and signing
+│       ├── client.go            # Vault client configuration
+│       └── revocation.go        # Certificate revocation and CRL
 │
 └── docs/
     ├── architecture.md          # ✅ Architecture (Part 1)

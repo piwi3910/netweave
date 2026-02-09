@@ -955,9 +955,8 @@ netweave/
 │   ├── o2ims/                # O2-IMS models & handlers
 │   ├── observability/        # Logging, metrics, tracing
 │   ├── auth/                # Authentication & RBAC
-│   ├── vault/               # HashiCorp Vault PKI client
+│   ├── vault/               # HashiCorp Vault PKI client (certificate operations)
 │   ├── keycloak/            # Keycloak identity management client
-│   ├── certmanager/         # Certificate lifecycle management
 │   └── server/               # HTTP server
 ├── pkg/
 │   ├── cache/                # Cache abstraction

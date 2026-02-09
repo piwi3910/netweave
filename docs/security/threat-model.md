@@ -672,7 +672,7 @@ The following endpoints bypass authentication and are accessible to any network 
 - Static token never rotated (HIGH-03)
 - Token has access to all PKI operations (issue, revoke, sign)
 - Token transmitted in cleartext when HTTP is used
-- Missing VaultToken validation in certmanager config
+- Legacy certmanager removed; Vault PKI used directly (see #408)
 
 **Recommended Mitigations:**
 - Implement Vault Kubernetes auth method with auto-rotating tokens

@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -78,6 +79,7 @@ type WebhookNotifier struct {
 	httpClient      *http.Client
 	logger          *zap.Logger
 	deliveryTracker DeliveryTracker
+	cbMu            sync.RWMutex
 	circuitBreakers map[string]*gobreaker.CircuitBreaker
 }
 
@@ -461,19 +463,30 @@ func (n *WebhookNotifier) executeWithCircuitBreaker(
 }
 
 // getCircuitBreaker gets or creates a circuit breaker for a callback URL.
+// It is safe for concurrent use.
 func (n *WebhookNotifier) getCircuitBreaker(callbackURL string) *gobreaker.CircuitBreaker {
-	if cb, ok := n.circuitBreakers[callbackURL]; ok {
+	n.cbMu.RLock()
+	cb, ok := n.circuitBreakers[callbackURL]
+	n.cbMu.RUnlock()
+	if ok {
 		return cb
 	}
 
-	// Create new circuit breaker
+	n.cbMu.Lock()
+	defer n.cbMu.Unlock()
+
+	// Double-check after acquiring write lock.
+	if cb, ok = n.circuitBreakers[callbackURL]; ok {
+		return cb
+	}
+
+	// Create new circuit breaker.
 	settings := gobreaker.Settings{
 		Name:        callbackURL,
 		MaxRequests: 3,
 		Interval:    60 * time.Second,
 		Timeout:     30 * time.Second,
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
-			// Open circuit after 3 consecutive failures
 			return counts.ConsecutiveFailures >= 3
 		},
 		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
@@ -482,7 +495,6 @@ func (n *WebhookNotifier) getCircuitBreaker(callbackURL string) *gobreaker.Circu
 				zap.String("from", from.String()),
 				zap.String("to", to.String()),
 			)
-			// Record circuit breaker state: 0=closed, 1=half-open, 2=open
 			var state float64
 			switch to {
 			case gobreaker.StateClosed:
@@ -496,7 +508,7 @@ func (n *WebhookNotifier) getCircuitBreaker(callbackURL string) *gobreaker.Circu
 		},
 	}
 
-	cb := gobreaker.NewCircuitBreaker(settings)
+	cb = gobreaker.NewCircuitBreaker(settings)
 	n.circuitBreakers[callbackURL] = cb
 
 	return cb

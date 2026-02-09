@@ -676,15 +676,8 @@ stateDiagram-v2
 
 #### 4. Production Observability
 
-**Prometheus Metrics** (8 metrics):
-- `certmanager_certificate_issuances_total{status}` - Counter of issuance attempts (success/failure)
-- `certmanager_certificate_revocations_total{status}` - Counter of revocation attempts (success/failure)
-- `certmanager_certificate_renewals_total{status}` - Counter of renewal attempts (success/failure/max_retries_exceeded)
-- `certmanager_certificates_by_status{status}` - Gauge of current certificates by status
-- `certmanager_certificate_lifetime_seconds` - Histogram of certificate lifetimes
-- `certmanager_keycloak_update_failures_total` - Counter of Keycloak sync failures
-- `certmanager_monitor_loop_duration_seconds` - Histogram of monitor loop execution time
-- `certmanager_renewal_attempts` - Histogram of renewal attempt counts before success/failure
+**Prometheus Metrics**:
+Certificate lifecycle metrics are planned as part of the Vault PKI automation work (see GitHub issue #412). The legacy certmanager metrics have been removed along with the package.
 
 **OpenTelemetry Tracing**:
 - Distributed tracing spans for `IssueCertificate` and `RevokeCertificate`
@@ -729,7 +722,7 @@ storage:
     db: 2  # Separate DB for certificates
 ```
 
-**See `internal/certmanager/STORAGE_WARNING.md` for detailed migration plan.**
+**Note:** The legacy `internal/certmanager/` package has been removed. Certificate operations now use Vault PKI directly via `internal/vault/`. See GitHub issue #408 for the certificate lifecycle automation roadmap.
 
 ### API Endpoints
 
@@ -861,7 +854,7 @@ The certificate manager service integrates with the gateway's zero-trust securit
 - [ ] **Certificate Pinning**: Public key pinning for enhanced security
 - [ ] **Multi-CA Support**: Support for multiple certificate authorities
 
-**See `internal/certmanager/` for implementation details.**
+**See `internal/vault/` for Vault PKI implementation and GitHub issue #408 for the lifecycle automation roadmap.**
 
 ---
 

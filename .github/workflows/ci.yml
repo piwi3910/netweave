@@ -103,7 +103,11 @@ jobs:
       - name: Run gosec
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@v2.22.11
-          gosec -exclude=G101,G304,G402,G115 \
+          # G101: False positive on K8s secret resource names (not actual credentials)
+          # G115: False positives on safe int/int64 conversions
+          # G304: Config file path from env var (validated by validateConfigPath)
+          # G402: InsecureSkipVerify used only in ONAP adapter with explicit security warnings
+          gosec -exclude=G101,G115,G304,G402 \
             -exclude-dir=vendor \
             -exclude-dir=third_party \
             -exclude-dir=internal/graphql/generated \

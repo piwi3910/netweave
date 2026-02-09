@@ -137,7 +137,6 @@ Implement Vault auto-unseal with cloud KMS:
 
 **Prometheus Metrics**:
 - `vault_core_unsealed` - Seal status
-- `certmanager_certificate_expirations` - Certificate expiry
 - `gateway_auth_failures_total` - Authentication failures
 
 #### 9. Backup and Disaster Recovery
