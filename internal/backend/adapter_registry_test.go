@@ -228,6 +228,67 @@ func TestAdapterRegistry_RefreshAdapter(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, registry.Count())
 	})
+
+	t.Run("registers new adapter without prior load", func(t *testing.T) {
+		registry := newTestRegistry(t)
+		assert.Equal(t, 0, registry.Count())
+
+		store := &fakeBackendStore{
+			backends: []*backend.Instance{
+				{
+					ID:          "new-backend",
+					AdapterType: "mock",
+					Status:      "active",
+				},
+			},
+		}
+
+		err := registry.RefreshAdapter(
+			context.Background(), store, "new-backend",
+		)
+		require.NoError(t, err)
+		assert.Equal(t, 1, registry.Count())
+
+		adp, err := registry.GetAdapter("new-backend")
+		require.NoError(t, err)
+		require.NotNil(t, adp)
+		assert.Equal(t, "mock", adp.Name())
+	})
+}
+
+func TestAdapterRegistry_RemoveAdapter(t *testing.T) {
+	t.Run("removes existing adapter", func(t *testing.T) {
+		registry := newTestRegistry(t)
+		store := &fakeBackendStore{
+			backends: []*backend.Instance{
+				{
+					ID:          "b1",
+					AdapterType: "mock",
+					Status:      "active",
+				},
+			},
+		}
+
+		loaded, err := registry.LoadFromStore(
+			context.Background(), store,
+		)
+		require.NoError(t, err)
+		assert.Equal(t, 1, loaded)
+
+		registry.RemoveAdapter("b1")
+		assert.Equal(t, 0, registry.Count())
+
+		_, err = registry.GetAdapter("b1")
+		assert.ErrorIs(t, err, backend.ErrAdapterNotFound)
+	})
+
+	t.Run("no-op for non-existent adapter", func(t *testing.T) {
+		registry := newTestRegistry(t)
+		assert.Equal(t, 0, registry.Count())
+
+		registry.RemoveAdapter("nonexistent")
+		assert.Equal(t, 0, registry.Count())
+	})
 }
 
 func TestAdapterRegistry_Close(t *testing.T) {

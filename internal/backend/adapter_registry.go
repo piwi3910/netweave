@@ -155,6 +155,25 @@ func (r *AdapterRegistry) RefreshAdapter(ctx context.Context, store Store, backe
 	return nil
 }
 
+// RemoveAdapter removes and closes the adapter for a given backend ID.
+func (r *AdapterRegistry) RemoveAdapter(backendID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if adp, ok := r.adapters[backendID]; ok {
+		if err := adp.Close(); err != nil {
+			r.logger.Warn("failed to close adapter during removal",
+				zap.String("backend_id", backendID),
+				zap.Error(err),
+			)
+		}
+		delete(r.adapters, backendID)
+		r.logger.Info("adapter removed for backend",
+			zap.String("backend_id", backendID),
+		)
+	}
+}
+
 // Count returns the number of adapters in the registry.
 func (r *AdapterRegistry) Count() int {
 	r.mu.RLock()

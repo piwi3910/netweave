@@ -347,6 +347,7 @@ func initializeBackendAdmin(
 	}
 
 	srv.SetAdapterRegistry(registry, backendStore)
+	backendHandler.SetAdapterRegistry(registry)
 
 	logger.Info("dynamic adapter registry initialized",
 		zap.Int("adapters_loaded", loaded),
