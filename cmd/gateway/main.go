@@ -970,17 +970,45 @@ func initializeCertLifecycle(
 		hmacSecret = os.Getenv(cfg.CertLifecycle.WebhookHMACSecretEnvVar)
 	}
 
+	// Create Keycloak client for cert attribute sync if enabled.
+	var keycloakClient certlifecycle.KeycloakUserClient
+	if cfg.CertLifecycle.KeycloakSync && cfg.Auth.Keycloak.BaseURL != "" {
+		kcCfg := &keycloak.Config{
+			BaseURL:       cfg.Auth.Keycloak.BaseURL,
+			Realm:         cfg.Auth.Keycloak.Realm,
+			ClientID:      cfg.Auth.Keycloak.ClientID,
+			ClientSecret:  cfg.Auth.Keycloak.ClientSecret,
+			AdminUsername: cfg.Auth.Keycloak.AdminUsername,
+			AdminPassword: cfg.Auth.Keycloak.AdminPassword,
+			Timeout:       cfg.Auth.Keycloak.Timeout,
+		}
+		if secret, secretErr := cfg.Auth.Keycloak.GetClientSecret(); secretErr == nil {
+			kcCfg.ClientSecret = secret
+		}
+		if adminPass, adminErr := cfg.Auth.Keycloak.GetAdminPassword(); adminErr == nil {
+			kcCfg.AdminPassword = adminPass
+		}
+		kcClient, kcErr := keycloak.NewClient(kcCfg)
+		if kcErr != nil {
+			logger.Warn("failed to create Keycloak client for cert sync",
+				zap.Error(kcErr))
+		} else {
+			keycloakClient = kcClient
+		}
+	}
+
 	// Create lifecycle manager.
 	mgr, err := certlifecycle.NewManager(&certlifecycle.ManagerConfig{
-		Store:         certStore,
-		VaultClient:   vaultPKI,
-		Logger:        logger,
-		ScanInterval:  cfg.CertLifecycle.ScanInterval,
-		RenewalWindow: cfg.CertLifecycle.RenewalWindow,
-		MaxRetries:    cfg.CertLifecycle.MaxRenewalRetries,
-		RetryInterval: cfg.CertLifecycle.RenewalRetryInterval,
-		WebhookURL:    cfg.CertLifecycle.WebhookURL,
-		HMACSecret:    hmacSecret,
+		Store:          certStore,
+		VaultClient:    vaultPKI,
+		KeycloakClient: keycloakClient,
+		Logger:         logger,
+		ScanInterval:   cfg.CertLifecycle.ScanInterval,
+		RenewalWindow:  cfg.CertLifecycle.RenewalWindow,
+		MaxRetries:     cfg.CertLifecycle.MaxRenewalRetries,
+		RetryInterval:  cfg.CertLifecycle.RenewalRetryInterval,
+		WebhookURL:     cfg.CertLifecycle.WebhookURL,
+		HMACSecret:     hmacSecret,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cert lifecycle manager: %w", err)
@@ -995,6 +1023,7 @@ func initializeCertLifecycle(
 		zap.Duration("renewal_window", cfg.CertLifecycle.RenewalWindow),
 		zap.Bool("vault_configured", vaultPKI != nil),
 		zap.Bool("webhook_configured", cfg.CertLifecycle.WebhookURL != ""),
+		zap.Bool("keycloak_sync", keycloakClient != nil),
 	)
 
 	return mgr, nil
