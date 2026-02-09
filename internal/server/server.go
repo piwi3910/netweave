@@ -23,6 +23,7 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/piwi3910/netweave/internal/backend"
+	"github.com/piwi3910/netweave/internal/certlifecycle"
 	"github.com/piwi3910/netweave/internal/config"
 	dmshandlers "github.com/piwi3910/netweave/internal/dms/handlers"
 	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
@@ -785,6 +786,15 @@ func (s *Server) SetupAuth(authStore AuthStore, authMw AuthMiddleware) {
 	}
 
 	s.logger.Info("multi-tenancy and RBAC enabled")
+}
+
+// SetupCertLifecycle registers certificate lifecycle admin API routes on the server.
+// The handler provides endpoints for querying certificate metadata and monitoring stats.
+// Routes are registered under /admin/certificates.
+func (s *Server) SetupCertLifecycle(handler *certlifecycle.Handler) {
+	admin := s.router.Group("/admin")
+	handler.RegisterRoutes(admin)
+	s.logger.Info("certificate lifecycle admin routes registered")
 }
 
 // setupTenantRateLimiter configures per-tenant rate limiting based on tenant quota settings.

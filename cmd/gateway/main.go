@@ -42,6 +42,7 @@ import (
 
 	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/piwi3910/netweave/internal/backend"
+	"github.com/piwi3910/netweave/internal/certlifecycle"
 	"github.com/piwi3910/netweave/internal/config"
 	"github.com/piwi3910/netweave/internal/database"
 	"github.com/piwi3910/netweave/internal/dms/adapters/helm"
@@ -53,6 +54,7 @@ import (
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/server"
 	"github.com/piwi3910/netweave/internal/storage"
+	vaultpkg "github.com/piwi3910/netweave/internal/vault"
 )
 
 const (
@@ -141,6 +143,7 @@ type ApplicationComponents struct {
 	healthChecker   *observability.HealthChecker // Health and readiness checks
 	server          *server.Server
 	authStore       server.AuthStore
+	certManager     *certlifecycle.Manager // Certificate lifecycle manager (nil if disabled)
 }
 
 // NewApplicationComponentsForTest creates an ApplicationComponents instance for testing.
@@ -173,6 +176,12 @@ func NewApplicationComponentsForTestFull(
 func (c *ApplicationComponents) Close(logger *zap.Logger) error {
 	var closeErrors []error
 
+	if c.certManager != nil {
+		if err := c.certManager.Stop(); err != nil {
+			logger.Warn("failed to stop certificate lifecycle manager", zap.Error(err))
+			closeErrors = append(closeErrors, fmt.Errorf("cert manager: %w", err))
+		}
+	}
 	if c.adapterRegistry != nil {
 		if err := c.adapterRegistry.Close(); err != nil {
 			logger.Warn("failed to close adapter registry", zap.Error(err))
@@ -473,6 +482,16 @@ func initializeComponents(cfg *config.Config, logger *zap.Logger) (*ApplicationC
 		return nil, fmt.Errorf("failed to initialize DMS: %w", dmsErr)
 	}
 
+	// Initialize certificate lifecycle manager if enabled and PostgreSQL is available
+	if cfg.CertLifecycle.Enabled && pgDB != nil {
+		certMgr, certErr := initializeCertLifecycle(cfg, srv, pgDB, logger)
+		if certErr != nil {
+			logger.Warn("failed to initialize certificate lifecycle manager", zap.Error(certErr))
+		} else {
+			components.certManager = certMgr
+		}
+	}
+
 	return components, nil
 }
 
@@ -522,6 +541,13 @@ func logMultiTenancyStatus(authStore server.AuthStore, logger *zap.Logger) {
 func runServerWithShutdown(cfg *config.Config, logger *zap.Logger, components *ApplicationComponents) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Start certificate lifecycle manager if initialized.
+	if components.certManager != nil {
+		if err := components.certManager.Start(ctx); err != nil {
+			logger.Error("failed to start certificate lifecycle manager", zap.Error(err))
+		}
+	}
 
 	// Setup signal handling
 	shutdown := make(chan os.Signal, 1)
@@ -908,6 +934,70 @@ func registerHelmDMSAdapter(
 		zap.String("adapter", "helm"),
 	)
 	return nil
+}
+
+// initializeCertLifecycle creates and configures the certificate lifecycle manager.
+// It initializes the certificate metadata store, manager, and admin API handler.
+func initializeCertLifecycle(
+	cfg *config.Config,
+	srv *server.Server,
+	pgDB *database.DB,
+	logger *zap.Logger,
+) (*certlifecycle.Manager, error) {
+	// Create certificate metadata store.
+	certStore := certlifecycle.NewPostgresStore(pgDB)
+
+	// Create vault PKI client if vault is configured.
+	var vaultPKI certlifecycle.VaultPKI
+	vaultAddr := os.Getenv("VAULT_ADDR")
+	vaultToken := os.Getenv("VAULT_TOKEN")
+	if vaultAddr != "" && vaultToken != "" {
+		vaultCfg := &vaultpkg.Config{
+			Address: vaultAddr,
+			Token:   vaultToken,
+			PKIPath: cfg.CertLifecycle.VaultPKIPath,
+		}
+		vaultClient, vaultErr := vaultpkg.NewClient(vaultCfg)
+		if vaultErr != nil {
+			return nil, fmt.Errorf("failed to create vault client: %w", vaultErr)
+		}
+		vaultPKI = vaultClient
+	}
+
+	// Resolve HMAC secret from environment.
+	hmacSecret := ""
+	if cfg.CertLifecycle.WebhookHMACSecretEnvVar != "" {
+		hmacSecret = os.Getenv(cfg.CertLifecycle.WebhookHMACSecretEnvVar)
+	}
+
+	// Create lifecycle manager.
+	mgr, err := certlifecycle.NewManager(&certlifecycle.ManagerConfig{
+		Store:         certStore,
+		VaultClient:   vaultPKI,
+		Logger:        logger,
+		ScanInterval:  cfg.CertLifecycle.ScanInterval,
+		RenewalWindow: cfg.CertLifecycle.RenewalWindow,
+		MaxRetries:    cfg.CertLifecycle.MaxRenewalRetries,
+		RetryInterval: cfg.CertLifecycle.RenewalRetryInterval,
+		WebhookURL:    cfg.CertLifecycle.WebhookURL,
+		HMACSecret:    hmacSecret,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cert lifecycle manager: %w", err)
+	}
+
+	// Register admin API handler.
+	handler := certlifecycle.NewHandler(certStore, logger)
+	srv.SetupCertLifecycle(handler)
+
+	logger.Info("certificate lifecycle manager initialized",
+		zap.Duration("scan_interval", cfg.CertLifecycle.ScanInterval),
+		zap.Duration("renewal_window", cfg.CertLifecycle.RenewalWindow),
+		zap.Bool("vault_configured", vaultPKI != nil),
+		zap.Bool("webhook_configured", cfg.CertLifecycle.WebhookURL != ""),
+	)
+
+	return mgr, nil
 }
 
 // initializeHealthChecker creates and configures the health checker.

@@ -67,6 +67,7 @@ type Config struct {
 	Postgres        database.PostgresConfig `mapstructure:"postgres"`
 	StorageMode     string                  `mapstructure:"storage_mode"`
 	FrontendPlugins FrontendPlugins         `mapstructure:"frontend_plugins"`
+	CertLifecycle   CertLifecycleConfig     `mapstructure:"cert_lifecycle"`
 
 	// Environment stores the detected environment (dev/staging/prod)
 	// This field is set automatically during Load() and used for validation
@@ -88,6 +89,36 @@ type FrontendPluginConfig struct {
 	// Enabled controls whether this frontend plugin is active.
 	// Default: false (all plugins disabled by default).
 	Enabled bool `mapstructure:"enabled"`
+}
+
+// CertLifecycleConfig configures automated certificate lifecycle management.
+type CertLifecycleConfig struct {
+	// Enabled activates certificate lifecycle automation.
+	Enabled bool `mapstructure:"enabled"`
+
+	// ScanInterval is how often to scan for expiring certificates.
+	ScanInterval time.Duration `mapstructure:"scan_interval"`
+
+	// RenewalWindow is how far before expiry to trigger renewal.
+	RenewalWindow time.Duration `mapstructure:"renewal_window"`
+
+	// MaxRenewalRetries is the maximum renewal attempts before giving up.
+	MaxRenewalRetries int `mapstructure:"max_renewal_retries"`
+
+	// RenewalRetryInterval is the base interval between renewal retries.
+	RenewalRetryInterval time.Duration `mapstructure:"renewal_retry_interval"`
+
+	// WebhookURL is the target URL for lifecycle event notifications.
+	WebhookURL string `mapstructure:"webhook_url"`
+
+	// WebhookHMACSecretEnvVar is the env var containing the HMAC secret.
+	WebhookHMACSecretEnvVar string `mapstructure:"webhook_hmac_secret_env_var"`
+
+	// VaultPKIPath is the Vault PKI mount path.
+	VaultPKIPath string `mapstructure:"vault_pki_path"`
+
+	// KeycloakSync enables Keycloak user attribute synchronization.
+	KeycloakSync bool `mapstructure:"keycloak_sync"`
 }
 
 // AuthConfig contains authentication backend configuration.
@@ -1004,6 +1035,14 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("frontend_plugins.o2smo.enabled", false)
 	v.SetDefault("frontend_plugins.tmforum.enabled", false)
 	v.SetDefault("frontend_plugins.graphql.enabled", false)
+
+	// Certificate lifecycle defaults
+	v.SetDefault("cert_lifecycle.enabled", false)
+	v.SetDefault("cert_lifecycle.scan_interval", "5m")
+	v.SetDefault("cert_lifecycle.renewal_window", "720h")
+	v.SetDefault("cert_lifecycle.max_renewal_retries", 3)
+	v.SetDefault("cert_lifecycle.renewal_retry_interval", "1h")
+	v.SetDefault("cert_lifecycle.vault_pki_path", "pki_int")
 
 	// PostgreSQL defaults
 	v.SetDefault("postgres.host", "localhost")
