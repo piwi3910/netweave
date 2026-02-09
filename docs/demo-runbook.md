@@ -348,7 +348,7 @@ OPERATOR_ROLE_ID=$(curl -ks https://api.netweave.local/admin/tenant/roles \
   --cert ~/.netweave/client.crt \
   --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
-  -H "Authorization: Bearer $TOKEN" | jq -r '.roles[] | select(.name=="operator") | .roleId')
+  -H "Authorization: Bearer $TOKEN" | jq -r --arg n operator '.roles[] | select(.name==$n) | .roleId')
 
 echo "Operator Role ID: $OPERATOR_ROLE_ID"
 ```
