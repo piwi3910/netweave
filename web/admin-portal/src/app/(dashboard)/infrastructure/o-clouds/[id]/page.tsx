@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Save, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,7 @@ export default function OCloudDetailPage() {
   const [showAddDms, setShowAddDms] = useState(false);
   const [selectedDms, setSelectedDms] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const [backendData, dmsData, allDmsData] = await Promise.all([
         getBackend(backendId),
@@ -64,11 +64,11 @@ export default function OCloudDetailPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [backendId]);
 
   useEffect(() => {
     load();
-  }, [backendId]);
+  }, [load]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
