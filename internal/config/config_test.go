@@ -1137,3 +1137,126 @@ func TestRedisConfig_IsUsingDeprecatedSentinelPassword(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateProductionSecurityRules tests production-specific security validation rules.
+func TestValidateProductionSecurityRules(t *testing.T) {
+	// Helper function to create a valid production config
+	newValidProductionConfig := func(tmpDir string) *config.Config {
+		certFile := filepath.Join(tmpDir, "cert.pem")
+		keyFile := filepath.Join(tmpDir, "key.pem")
+		caFile := filepath.Join(tmpDir, "ca.pem")
+		require.NoError(t, os.WriteFile(certFile, []byte("cert"), 0600))
+		require.NoError(t, os.WriteFile(keyFile, []byte("key"), 0600))
+		require.NoError(t, os.WriteFile(caFile, []byte("ca"), 0600))
+
+		cfg := &config.Config{
+			Server: config.ServerConfig{
+				Port:    8080,
+				GinMode: "release",
+			},
+			Redis: config.RedisConfig{
+				Mode:      "standalone",
+				Addresses: []string{"localhost:6379"},
+			},
+			Auth: config.AuthConfig{
+				Backend: "redis",
+			},
+			TLS: config.TLSConfig{
+				Enabled:    true,
+				CertFile:   certFile,
+				KeyFile:    keyFile,
+				CAFile:     caFile,
+				ClientAuth: "require-and-verify",
+				MinVersion: "1.3",
+			},
+			Observability: config.ObservabilityConfig{
+				Logging: config.LoggingConfig{
+					Level:       "info",
+					Format:      "json",
+					Development: false,
+				},
+			},
+			Security: config.SecurityConfig{
+				RateLimitEnabled:       true,
+				DisableSSRFProtection:  false,
+				AllowInsecureCallbacks: false,
+			},
+			Validation: config.ValidationConfig{
+				ValidateResponse: false,
+			},
+			Environment: "prod",
+		}
+		return cfg
+	}
+
+	tests := []struct {
+		name    string
+		config  func(tmpDir string) *config.Config
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid production config with security enabled",
+			config: func(tmpDir string) *config.Config {
+				return newValidProductionConfig(tmpDir)
+			},
+			wantErr: false,
+		},
+		{
+			name: "production rejects disabled SSRF protection",
+			config: func(tmpDir string) *config.Config {
+				cfg := newValidProductionConfig(tmpDir)
+				cfg.Security.DisableSSRFProtection = true
+				return cfg
+			},
+			wantErr: true,
+			errMsg:  "SSRF protection",
+		},
+		{
+			name: "production rejects insecure callbacks",
+			config: func(tmpDir string) *config.Config {
+				cfg := newValidProductionConfig(tmpDir)
+				cfg.Security.AllowInsecureCallbacks = true
+				return cfg
+			},
+			wantErr: true,
+			errMsg:  "insecure",
+		},
+		{
+			name: "staging allows insecure callbacks",
+			config: func(tmpDir string) *config.Config {
+				cfg := newValidProductionConfig(tmpDir)
+				cfg.Environment = "staging"
+				cfg.Security.AllowInsecureCallbacks = true
+				return cfg
+			},
+			wantErr: false,
+		},
+		{
+			name: "development allows insecure callbacks",
+			config: func(tmpDir string) *config.Config {
+				cfg := newValidProductionConfig(tmpDir)
+				cfg.Environment = ""
+				cfg.Security.AllowInsecureCallbacks = true
+				return cfg
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			cfg := tt.config(tmpDir)
+
+			err := cfg.Validate()
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
