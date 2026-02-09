@@ -261,7 +261,7 @@ ACME_ID=$(curl -ks -X POST https://api.netweave.local/admin/platform/tenants \
       "maxUsers": 20,
       "maxRequestsPerMinute": 500
     }
-  }' | jq -r '.id')
+  }' | jq -r '.tenantId')
 
 echo "Acme Tenant ID: $ACME_ID"
 ```
@@ -286,7 +286,7 @@ GLOBALNET_ID=$(curl -ks -X POST https://api.netweave.local/admin/platform/tenant
       "maxUsers": 20,
       "maxRequestsPerMinute": 500
     }
-  }' | jq -r '.id')
+  }' | jq -r '.tenantId')
 
 echo "GlobalNet Tenant ID: $GLOBALNET_ID"
 ```
@@ -298,7 +298,7 @@ curl -ks https://api.netweave.local/admin/platform/tenants \
   --cert ~/.netweave/client.crt \
   --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
-  -H "Authorization: Bearer $TOKEN" | jq '.tenants[] | {id, name, status}'
+  -H "Authorization: Bearer $TOKEN" | jq '.tenants[] | {tenantId, name, status}'
 ```
 
 ---
@@ -346,7 +346,7 @@ OPERATOR_ROLE_ID=$(curl -ks https://api.netweave.local/admin/tenant/roles \
   --cert ~/.netweave/client.crt \
   --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
-  -H "Authorization: Bearer $TOKEN" | jq -r '.roles[] | select(.name=="tenant-admin") | .id')
+  -H "Authorization: Bearer $TOKEN" | jq -r '.roles[] | select(.name=="tenant-admin") | .roleId')
 
 echo "Operator Role ID: $OPERATOR_ROLE_ID"
 ```
