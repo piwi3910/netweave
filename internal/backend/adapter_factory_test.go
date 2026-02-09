@@ -104,6 +104,54 @@ func TestAdapterFactory_CreateAdapter(t *testing.T) {
 		assert.Contains(t, err.Error(), "parse mock adapter config")
 	})
 
+	t.Run("mock adapter with string-valued config from admin API", func(t *testing.T) {
+		// Admin API stores config as map[string]string, so booleans become strings.
+		cfg := map[string]string{
+			"populate_sample_data": "true",
+			"ocloud_id":            "string-ocloud",
+		}
+		cfgJSON, err := json.Marshal(cfg)
+		require.NoError(t, err)
+
+		instance := &backend.Instance{
+			ID:          "test-backend-string-config",
+			AdapterType: "mock",
+			Config:      cfgJSON,
+		}
+		adp, err := factory.CreateAdapter(instance)
+		require.NoError(t, err)
+		require.NotNil(t, adp)
+
+		dms, dmErr := adp.ListDeploymentManagers(
+			context.Background(), nil,
+		)
+		require.NoError(t, dmErr)
+		require.Len(t, dms, 1)
+		assert.Equal(t, "string-ocloud", dms[0].OCloudID)
+	})
+
+	t.Run("mock adapter with string false disables sample data", func(t *testing.T) {
+		cfg := map[string]string{
+			"populate_sample_data": "false",
+		}
+		cfgJSON, err := json.Marshal(cfg)
+		require.NoError(t, err)
+
+		instance := &backend.Instance{
+			ID:          "test-string-false",
+			AdapterType: "mock",
+			Config:      cfgJSON,
+		}
+		adp, err := factory.CreateAdapter(instance)
+		require.NoError(t, err)
+
+		pools, poolErr := adp.ListResourcePools(
+			context.Background(), nil,
+		)
+		require.NoError(t, poolErr)
+		assert.Empty(t, pools)
+	})
+
 	t.Run("mock adapter uses instance ID as OCloudID when not configured", func(t *testing.T) {
 		instance := &backend.Instance{
 			ID:          "my-special-backend",
