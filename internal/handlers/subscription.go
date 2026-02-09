@@ -210,9 +210,11 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 		// Rollback quota increment on failure
 		if tenantID != "" && h.AuthStore != nil {
 			if decErr := h.AuthStore.DecrementUsage(ctx, tenantID, "subscriptions"); decErr != nil {
-				h.Logger.Error("failed to rollback subscription quota",
+				h.Logger.Error("CRITICAL: quota rollback failed - tenant quota leaked",
 					zap.String("tenant_id", tenantID),
+					zap.String("subscription_id", subscriptionID),
 					zap.Error(decErr),
+					zap.NamedError("original_error", err),
 				)
 			}
 		}
@@ -568,8 +570,9 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 	// Decrement tenant quota after successful deletion
 	if tenantID != "" && h.AuthStore != nil {
 		if err := h.AuthStore.DecrementUsage(ctx, tenantID, "subscriptions"); err != nil {
-			h.Logger.Error("failed to decrement subscription quota",
+			h.Logger.Error("CRITICAL: quota decrement failed after deletion - tenant quota leaked",
 				zap.String("tenant_id", tenantID),
+				zap.String("subscription_id", subscriptionID),
 				zap.Error(err),
 			)
 			// Don't fail the delete operation if quota decrement fails

@@ -192,7 +192,7 @@ linters:
         - name: atomic
     wrapcheck:
       ignore-package-globs:
-        - github.com/yourorg/netweave/*
+        - github.com/piwi3910/netweave/*
   exclusions:
     generated: lax
     presets:
@@ -488,7 +488,7 @@ formatters:
       sections:
         - standard
         - default
-        - prefix(github.com/yourorg/netweave)
+        - prefix(github.com/piwi3910/netweave)
       custom-order: true
   exclusions:
     generated: lax

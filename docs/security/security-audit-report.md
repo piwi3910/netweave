@@ -43,10 +43,7 @@ The overall security posture is **Moderate** with identified areas requiring imm
 | Vault Client | `internal/vault/client.go` | HashiCorp Vault PKI integration |
 | Vault Certificates | `internal/vault/certificates.go` | Certificate issuance and signing |
 | Vault Revocation | `internal/vault/revocation.go` | Certificate revocation and CRL |
-| Cert Manager Service | `internal/certmanager/service.go` | Certificate lifecycle management |
-| Cert Manager Config | `internal/certmanager/config.go` | Certificate manager configuration |
-| Cert Manager Types | `internal/certmanager/types.go` | Certificate data models |
-| Cert Manager Ops | `internal/certmanager/operations.go` | Certificate operations |
+| *(Removed)* | *(Legacy `internal/certmanager/` removed — see #408)* | Certificate lifecycle automation planned via Vault PKI |
 | Security Headers | `internal/middleware/security_headers.go` | HTTP security headers |
 | Rate Limiter | `internal/middleware/ratelimit.go` | Redis-based rate limiting |
 | Auth Routes | `internal/server/auth_routes.go` | Route setup and authorization |
@@ -88,32 +85,9 @@ The audit employed the following techniques:
 
 ### Critical Severity
 
-#### CRIT-01: In-Memory Certificate Storage Not Production-Ready
+#### CRIT-01: ~~In-Memory Certificate Storage Not Production-Ready~~ (RESOLVED)
 
-**Component:** `internal/certmanager/service.go`
-**CWE:** CWE-311 (Missing Encryption of Sensitive Data), CWE-693 (Protection Mechanism Failure)
-**CVSS 3.1:** 9.1 (Critical)
-
-**Description:**
-The certificate manager stores all certificate data, including private key metadata and serial numbers, in an in-memory Go map (`s.certificates`). The code itself contains a warning comment acknowledging this is "NOT production-ready."
-
-```go
-// Service manages the lifecycle of certificates.
-type Service struct {
-    // ...
-    certificates map[string]*Certificate // In-memory storage - NOT production-ready
-    mu           sync.RWMutex
-}
-```
-
-**Impact:**
-- Complete data loss on pod restart or crash (all certificate tracking lost)
-- No multi-pod coordination -- each gateway pod has independent certificate state
-- Inability to detect or revoke compromised certificates after a restart
-- In a multi-replica deployment (3+ pods as per architecture), each pod maintains a completely separate certificate registry
-
-**Remediation:**
-Implement persistent storage backend (Redis or PostgreSQL) for certificate state. Certificate records must survive pod restarts and be shared across replicas. Consider encrypting certificate metadata at rest. This is a prerequisite for production deployment.
+**Status:** Resolved — the legacy `internal/certmanager/` package has been removed. Certificate operations now use HashiCorp Vault PKI directly (`internal/vault/`). Certificate lifecycle automation (auto-renewal, expiry monitoring, metrics) is tracked in GitHub issue #408.
 
 ---
 
@@ -155,7 +129,7 @@ Use Keycloak's attribute-based search queries (`GET /admin/realms/{realm}/users?
 
 #### HIGH-01: Default Configurations Use Insecure HTTP for Keycloak and Vault
 
-**Component:** `internal/keycloak/client.go`, `internal/vault/client.go`, `internal/certmanager/config.go`
+**Component:** `internal/keycloak/client.go`, `internal/vault/client.go`
 **CWE:** CWE-319 (Cleartext Transmission of Sensitive Information)
 **CVSS 3.1:** 8.1 (High)
 
@@ -169,9 +143,7 @@ BaseURL: "http://localhost:8090"
 // internal/vault/client.go - DefaultConfig()
 Address: "http://localhost:8200"
 
-// internal/certmanager/config.go - DefaultConfig()
-VaultAddress: "http://localhost:8200"
-KeycloakBaseURL: "http://localhost:8090"
+// Note: internal/certmanager/ was removed (legacy). Vault PKI is used directly.
 ```
 
 The Vault client (`internal/vault/client.go`) has no TLS configuration options at all. Additionally, the Helm chart includes `vault.skipTLSVerify: true`.
@@ -223,7 +195,7 @@ Implement local JWT signature verification using Keycloak's JWKS endpoint (`/rea
 
 #### HIGH-03: Static Vault Token Authentication
 
-**Component:** `internal/vault/client.go`, `internal/certmanager/config.go`
+**Component:** `internal/vault/client.go`
 **CWE:** CWE-798 (Use of Hard-Coded Credentials)
 **CVSS 3.1:** 7.5 (High)
 
@@ -240,35 +212,17 @@ type Config struct {
 req.Header.Set("X-Vault-Token", c.config.Token)
 ```
 
-Additionally, in `internal/certmanager/config.go`, the `VaultToken` field is present but NOT validated as required by `validateVaultConfig()`:
-
-```go
-func (c *Config) validateVaultConfig() error {
-    if c.VaultAddress == "" {
-        return fmt.Errorf("VaultAddress is required")
-    }
-    if c.VaultPKIPath == "" {
-        return fmt.Errorf("VaultPKIPath is required")
-    }
-    if c.VaultRole == "" {
-        return fmt.Errorf("VaultRole is required")
-    }
-    return nil
-    // NOTE: VaultToken is NOT checked here
-}
-```
+Note: The legacy `internal/certmanager/` package has been removed. Vault PKI is now used directly.
 
 **Impact:**
 - Static tokens cannot be automatically rotated, increasing the window of exposure if compromised
 - A leaked token provides persistent access to all PKI operations (issue, revoke, sign certificates)
 - The config comment mentions Kubernetes auth method but it is not implemented
-- Missing validation means the service can start without a token, potentially failing at runtime
 
 **Remediation:**
 1. Implement Vault Kubernetes auth method (`auth/kubernetes/login`) for dynamic token acquisition
 2. Add token rotation support with periodic re-authentication
-3. Add `VaultToken` to the validation requirements in `validateVaultConfig()`
-4. Remove static token support in production configurations
+3. Remove static token support in production configurations
 
 ---
 

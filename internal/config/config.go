@@ -6,6 +6,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -764,8 +765,7 @@ func resolveConfigPath(configPath string) string {
 	// Priority 1: Explicit path provided
 	if configPath != "" && configPath != DefaultConfigPath {
 		if err := validateConfigPath(configPath); err != nil {
-			// Log error but don't expose path details in error message
-			// Return empty to fall back to defaults
+			log.Printf("SECURITY: rejected config path %q: %v (falling back to defaults)", configPath, err)
 			return ""
 		}
 		return configPath
@@ -774,8 +774,7 @@ func resolveConfigPath(configPath string) string {
 	// Priority 2: NETWEAVE_CONFIG environment variable
 	if envConfig := os.Getenv("NETWEAVE_CONFIG"); envConfig != "" {
 		if err := validateConfigPath(envConfig); err != nil {
-			// Security: Don't load arbitrary files from environment variables
-			// Return empty to fall back to defaults
+			log.Printf("SECURITY: rejected NETWEAVE_CONFIG env var %q: %v (falling back to defaults)", envConfig, err)
 			return ""
 		}
 		return envConfig
@@ -800,6 +799,8 @@ func resolveConfigPath(configPath string) string {
 //   - Must have .yaml or .yml extension (prevents loading arbitrary files)
 //   - Path must not contain directory traversal (../../../etc/passwd)
 //   - For production safety, relative paths should be in ./config/ or current dir
+//
+// Security logging for rejected paths is handled by the caller (resolveConfigPath).
 func validateConfigPath(path string) error {
 	if path == "" {
 		return fmt.Errorf("config path is empty")
@@ -1114,6 +1115,16 @@ func (c *Config) validateProductionRules() error {
 	// CORS should typically be disabled or restricted
 	if c.Security.EnableCORS && len(c.Security.AllowedOrigins) == 0 {
 		return fmt.Errorf("CORS enabled in production but allowed_origins is empty")
+	}
+
+	// SSRF protection must not be disabled in production
+	if c.Security.DisableSSRFProtection {
+		return fmt.Errorf("SSRF protection must not be disabled in production")
+	}
+
+	// Insecure (HTTP) webhook callbacks must not be allowed in production
+	if c.Security.AllowInsecureCallbacks {
+		return fmt.Errorf("insecure (HTTP) webhook callbacks must not be allowed in production")
 	}
 
 	return nil

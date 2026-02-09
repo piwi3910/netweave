@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -287,4 +289,89 @@ func TestNewRateLimiter_NilGetLimit(t *testing.T) {
 	// The default function should return defaultRateLimit.
 	limit := rl.getLimit(context.Background(), "any-tenant")
 	assert.Equal(t, defaultRateLimit, limit)
+}
+
+func TestRedisRateLimitStore_AtomicIncrementAndCheck(t *testing.T) {
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer client.Close()
+
+	store := NewRedisRateLimitStore(client)
+	ctx := context.Background()
+
+	t.Run("first request sets TTL atomically", func(t *testing.T) {
+		allowed, count, err := store.IncrementAndCheck(ctx, "ratelimit:tenant-1", 10, time.Minute)
+		require.NoError(t, err)
+		assert.True(t, allowed)
+		assert.Equal(t, 1, count)
+
+		// Verify TTL was set (miniredis tracks TTL).
+		mr.FastForward(30 * time.Second)
+		assert.True(t, mr.Exists("ratelimit:tenant-1"))
+		mr.FastForward(31 * time.Second)
+		assert.False(t, mr.Exists("ratelimit:tenant-1"))
+	})
+
+	t.Run("increments correctly and enforces limit", func(t *testing.T) {
+		key := "ratelimit:tenant-2"
+		limit := 3
+
+		for i := 1; i <= limit; i++ {
+			allowed, count, err := store.IncrementAndCheck(ctx, key, limit, time.Minute)
+			require.NoError(t, err)
+			assert.True(t, allowed, "request %d should be allowed", i)
+			assert.Equal(t, i, count)
+		}
+
+		// Next request should be denied.
+		allowed, count, err := store.IncrementAndCheck(ctx, key, limit, time.Minute)
+		require.NoError(t, err)
+		assert.False(t, allowed)
+		assert.Equal(t, 4, count)
+	})
+
+	t.Run("orphaned key without TTL cannot occur", func(t *testing.T) {
+		// Verify that PEXPIRE is always set atomically with INCR.
+		// If INCR creates the key (count == 1), the Lua script sets PEXPIRE in the
+		// same atomic operation. Simulate by checking TTL is always present after
+		// the first increment.
+		key := "ratelimit:orphan-check"
+
+		allowed, count, err := store.IncrementAndCheck(ctx, key, 10, 5*time.Second)
+		require.NoError(t, err)
+		assert.True(t, allowed)
+		assert.Equal(t, 1, count)
+
+		ttl := mr.TTL(key)
+		assert.True(t, ttl > 0, "key must have a TTL after first increment, got %v", ttl)
+
+		// Second increment should NOT reset the TTL (only count==1 sets it).
+		mr.FastForward(2 * time.Second)
+		_, _, err = store.IncrementAndCheck(ctx, key, 10, 5*time.Second)
+		require.NoError(t, err)
+
+		ttlAfter := mr.TTL(key)
+		assert.True(t, ttlAfter > 0, "key must still have a TTL after second increment")
+		assert.True(t, ttlAfter < 4*time.Second, "TTL should not have been reset by second increment")
+	})
+
+	t.Run("key expires and resets counter", func(t *testing.T) {
+		key := "ratelimit:tenant-3"
+		limit := 2
+
+		// Exhaust the limit.
+		for i := 0; i < limit+1; i++ {
+			_, _, err := store.IncrementAndCheck(ctx, key, limit, time.Minute)
+			require.NoError(t, err)
+		}
+
+		// Fast-forward past the window.
+		mr.FastForward(61 * time.Second)
+
+		// Counter should have reset.
+		allowed, count, err := store.IncrementAndCheck(ctx, key, limit, time.Minute)
+		require.NoError(t, err)
+		assert.True(t, allowed)
+		assert.Equal(t, 1, count)
+	})
 }

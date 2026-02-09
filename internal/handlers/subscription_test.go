@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/piwi3910/netweave/internal/handlers"
 
 	"github.com/gin-gonic/gin"
@@ -451,4 +452,125 @@ func TestDeleteSubscription_StoreError(t *testing.T) {
 	handler.DeleteSubscription(c)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// decrementFailAuthStore wraps mockAuthStore but fails on DecrementUsage.
+type decrementFailAuthStore struct {
+	*mockAuthStore
+	decrementErr error
+}
+
+func (m *decrementFailAuthStore) DecrementUsage(_ context.Context, _, _ string) error {
+	return m.decrementErr
+}
+
+// TestCreateSubscription_QuotaRollbackOnStoreFailure verifies that when store.Create fails,
+// the handler attempts to rollback quota increment. If the rollback also fails, the handler
+// should log a CRITICAL error but not crash.
+func TestCreateSubscription_QuotaRollbackOnStoreFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Store that fails on Create
+	store := &mockSubscriptionStore{
+		createErr: errors.New("database connection lost"),
+	}
+
+	// AuthStore that fails on DecrementUsage
+	authStore := &decrementFailAuthStore{
+		mockAuthStore: newMockAuthStore(),
+		decrementErr:  errors.New("redis connection failed"),
+	}
+
+	handler := handlers.NewSubscriptionHandler(store, authStore, zap.NewNop())
+
+	reqBody := models.Subscription{
+		Callback: "https://example.com/notify",
+		Filter: models.SubscriptionFilter{
+			ResourcePoolID: []string{"pool-1"},
+		},
+	}
+
+	body, _ := json.Marshal(reqBody)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/o2ims/v1/subscriptions", bytes.NewBuffer(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	// Add authenticated user with tenant to trigger quota logic
+	ctx := c.Request.Context()
+	user := &auth.AuthenticatedUser{
+		UserID:   "user-123",
+		TenantID: "tenant-abc",
+		Subject:  "test-user",
+	}
+	ctx = auth.ContextWithUser(ctx, user)
+	c.Request = c.Request.WithContext(ctx)
+
+	handler.CreateSubscription(c)
+
+	// Should return 500 due to store.Create failure
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var response models.ErrorResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Equal(t, "InternalError", response.Error)
+
+	// Verify handler didn't crash (quota rollback failure is logged, not fatal)
+	assert.Empty(t, store.subscriptions)
+}
+
+// TestDeleteSubscription_QuotaDecrementFailure verifies that when subscription deletion succeeds
+// but quota decrement fails, the handler should log a CRITICAL error but still return success
+// for the delete operation.
+func TestDeleteSubscription_QuotaDecrementFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	now := time.Now()
+	store := &mockSubscriptionStore{
+		subscriptions: []*storage.Subscription{
+			{
+				ID:        "sub-1",
+				Callback:  "https://example.com/notify",
+				TenantID:  "tenant-abc",
+				CreatedAt: now,
+			},
+		},
+	}
+
+	// AuthStore that fails on DecrementUsage
+	authStore := &decrementFailAuthStore{
+		mockAuthStore: newMockAuthStore(),
+		decrementErr:  errors.New("quota service unavailable"),
+	}
+
+	handler := handlers.NewSubscriptionHandler(store, authStore, zap.NewNop())
+
+	// Use router to properly handle path parameters
+	router := gin.New()
+
+	// Add middleware to inject authenticated user context
+	router.Use(func(c *gin.Context) {
+		ctx := c.Request.Context()
+		user := &auth.AuthenticatedUser{
+			UserID:   "user-123",
+			TenantID: "tenant-abc",
+			Subject:  "test-user",
+		}
+		ctx = auth.ContextWithUser(ctx, user)
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	})
+
+	router.DELETE("/o2ims/v1/subscriptions/:subscriptionId", handler.DeleteSubscription)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/o2ims/v1/subscriptions/sub-1", nil)
+	router.ServeHTTP(w, req)
+
+	// Should return 204 - delete succeeded despite quota decrement failure
+	assert.Equal(t, http.StatusNoContent, w.Code)
+
+	// Verify subscription was actually deleted
+	assert.Empty(t, store.subscriptions)
 }

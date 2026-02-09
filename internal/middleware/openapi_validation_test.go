@@ -602,6 +602,133 @@ func TestOpenAPIValidator_MaxBodySize(t *testing.T) {
 		cfg := middleware.DefaultValidationConfig()
 		assert.Equal(t, middleware.DefaultMaxBodySize, cfg.MaxBodySize)
 	})
+
+	t.Run("rejects when Content-Length exceeds limit without reading body", func(t *testing.T) {
+		cfg := &middleware.ValidationConfig{
+			ValidateRequest: true,
+			MaxBodySize:     100, // 100 bytes limit
+		}
+		router := setupTestRouter(t, cfg)
+
+		router.POST("/o2ims/v1/subscriptions", func(c *gin.Context) {
+			c.JSON(http.StatusCreated, gin.H{"subscriptionId": "test-123"})
+		})
+
+		// Create a request with Content-Length header set to a large value
+		// The body itself doesn't matter since we're testing the fail-fast path
+		req := httptest.NewRequest(http.MethodPost, "/o2ims/v1/subscriptions", bytes.NewReader([]byte("small")))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Length", "10000") // Claim 10KB size
+		req.ContentLength = 10000                  // Set ContentLength field
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "RequestEntityTooLarge", response["error"])
+		assert.Contains(t, response["message"], "Request body exceeds maximum size")
+	})
+
+	t.Run("rejects body exceeding limit when Content-Length is missing", func(t *testing.T) {
+		cfg := &middleware.ValidationConfig{
+			ValidateRequest: true,
+			MaxBodySize:     100, // 100 bytes limit
+		}
+		router := setupTestRouter(t, cfg)
+
+		router.POST("/o2ims/v1/subscriptions", func(c *gin.Context) {
+			c.JSON(http.StatusCreated, gin.H{"subscriptionId": "test-123"})
+		})
+
+		// Create a body larger than 100 bytes
+		largeBody := make([]byte, 200)
+		for i := range largeBody {
+			largeBody[i] = 'a'
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/o2ims/v1/subscriptions", bytes.NewReader(largeBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.ContentLength = -1 // Simulate missing Content-Length (chunked encoding)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "RequestEntityTooLarge", response["error"])
+	})
+
+	t.Run("accepts request with Content-Length zero", func(t *testing.T) {
+		cfg := &middleware.ValidationConfig{
+			ValidateRequest: true,
+			MaxBodySize:     100, // 100 bytes limit
+		}
+		router := setupTestRouter(t, cfg)
+
+		router.POST("/o2ims/v1/subscriptions", func(c *gin.Context) {
+			c.JSON(http.StatusCreated, gin.H{
+				"subscriptionId": "test-123",
+				"callback":       "https://example.com/callback",
+			})
+		})
+
+		// Create request with empty body and Content-Length: 0
+		req := httptest.NewRequest(http.MethodPost, "/o2ims/v1/subscriptions", bytes.NewReader([]byte{}))
+		req.Header.Set("Content-Type", "application/json")
+		req.ContentLength = 0
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		// Should fail validation (missing required callback field), but NOT due to body size
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "ValidationError", response["error"]) // Schema validation, not size
+	})
+
+	t.Run("rejects when actual body exceeds limit despite small Content-Length", func(t *testing.T) {
+		cfg := &middleware.ValidationConfig{
+			ValidateRequest: true,
+			MaxBodySize:     100, // 100 bytes limit
+		}
+		router := setupTestRouter(t, cfg)
+
+		router.POST("/o2ims/v1/subscriptions", func(c *gin.Context) {
+			c.JSON(http.StatusCreated, gin.H{"subscriptionId": "test-123"})
+		})
+
+		// Create a body larger than 100 bytes
+		largeBody := make([]byte, 200)
+		for i := range largeBody {
+			largeBody[i] = 'a'
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/o2ims/v1/subscriptions", bytes.NewReader(largeBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Length", "50") // Lie about the size
+		req.ContentLength = 50                  // Set ContentLength field to small value
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		// MaxBytesReader should catch the actual oversized body
+		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "RequestEntityTooLarge", response["error"])
+	})
 }
 
 func TestOpenAPIValidator_LoadSpecFromFile(t *testing.T) {

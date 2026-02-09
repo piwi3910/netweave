@@ -651,8 +651,8 @@ kubectl get secret netweave-secret -n netweave -o yaml
 ### Certificate Issues
 
 ```bash
-# Check certificate manager logs
-kubectl logs -n netweave -l app.kubernetes.io/component=gateway | grep certmanager
+# Check certificate-related logs
+kubectl logs -n netweave -l app.kubernetes.io/component=gateway | grep vault
 
 # Verify Vault PKI role
 kubectl exec -n vault-system vault-0 -- \

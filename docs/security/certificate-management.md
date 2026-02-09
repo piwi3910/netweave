@@ -424,7 +424,7 @@ kubectl rollout restart deployment/o2ims-gateway -n o2ims-system
 
 The certificate manager includes a built-in notification system that sends webhook-based alerts for certificate lifecycle events. This enables operators and external monitoring systems to react to certificate state changes in real time, such as upcoming expirations, successful renewals, and failures.
 
-The notification system is implemented via the `CertNotifier` interface in `internal/certmanager/notifier.go` and integrates directly with the certificate monitoring loop in the `Service`.
+**Note:** The legacy `internal/certmanager/` package has been removed. The notification system described below is planned for reimplementation on Vault PKI (see GitHub issue #411). Certificate operations now use `internal/vault/` directly.
 
 ### Certificate Lifecycle Events
 

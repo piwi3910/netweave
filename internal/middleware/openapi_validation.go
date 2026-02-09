@@ -240,13 +240,15 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 		},
 	}
 
-	if c.Request.Body != nil && c.Request.ContentLength > 0 {
-		// Check content length against max body size
+	if c.Request.Body != nil && c.Request.ContentLength != 0 {
 		maxBodySize := v.Config.MaxBodySize
 		if maxBodySize <= 0 {
 			maxBodySize = DefaultMaxBodySize
 		}
 
+		// Fail-fast optimization: reject immediately when Content-Length is known
+		// and exceeds the limit, avoiding the cost of reading the body.
+		// MaxBytesReader below handles the general case (including chunked encoding).
 		if c.Request.ContentLength > maxBodySize {
 			v.logger.Warn("request body too large",
 				zap.Int64("content_length", c.Request.ContentLength),
@@ -260,10 +262,23 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 			return fmt.Errorf("request body too large: %d > %d", c.Request.ContentLength, maxBodySize)
 		}
 
-		// Use LimitReader to prevent reading more than max body size
-		limitedReader := io.LimitReader(c.Request.Body, maxBodySize+1)
-		bodyBytes, err := io.ReadAll(limitedReader)
+		// Use http.MaxBytesReader which enforces the limit regardless of
+		// Content-Length header (handles chunked transfer encoding safely).
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodySize)
+		bodyBytes, err := io.ReadAll(c.Request.Body)
 		if err != nil {
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(err, &maxBytesErr) {
+				v.logger.Warn("request body too large",
+					zap.Int64("max_body_size", maxBodySize),
+				)
+				c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{
+					"error":   "RequestEntityTooLarge",
+					"message": fmt.Sprintf("Request body exceeds maximum size of %d bytes", maxBodySize),
+					"code":    http.StatusRequestEntityTooLarge,
+				})
+				return fmt.Errorf("request body too large: limit %d", maxBodySize)
+			}
 			v.logger.Error("failed to read request body", zap.Error(err))
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 				"error":   "InternalError",
@@ -271,20 +286,6 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 				"code":    http.StatusInternalServerError,
 			})
 			return fmt.Errorf("failed to read request body: %w", err)
-		}
-
-		// Double check actual bytes read (for chunked encoding where ContentLength may be -1)
-		if int64(len(bodyBytes)) > maxBodySize {
-			v.logger.Warn("request body too large (chunked)",
-				zap.Int("body_size", len(bodyBytes)),
-				zap.Int64("max_body_size", maxBodySize),
-			)
-			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{
-				"error":   "RequestEntityTooLarge",
-				"message": fmt.Sprintf("Request body exceeds maximum size of %d bytes", maxBodySize),
-				"code":    http.StatusRequestEntityTooLarge,
-			})
-			return fmt.Errorf("request body too large: %d > %d", len(bodyBytes), maxBodySize)
 		}
 
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))

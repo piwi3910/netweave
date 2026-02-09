@@ -127,21 +127,27 @@ func NewRedisRateLimitStore(client redis.UniversalClient) *RedisRateLimitStore {
 	return &RedisRateLimitStore{client: client}
 }
 
+// rateLimitScript is a Lua script that atomically increments a counter and sets
+// TTL on first increment. This prevents a race condition where INCR succeeds but
+// EXPIRE fails (e.g., due to crash or network error), which would leave the key
+// without a TTL and permanently block the tenant.
+var rateLimitScript = redis.NewScript(`
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then
+    redis.call("PEXPIRE", KEYS[1], ARGV[1])
+end
+return count
+`)
+
 // IncrementAndCheck atomically increments a counter for the given key and checks
-// whether the current count is within the limit. The TTL is set on the first
-// increment so the key automatically expires after the window elapses.
+// whether the current count is within the limit. Uses a Lua script to ensure the
+// INCR and PEXPIRE are executed atomically within Redis.
 func (r *RedisRateLimitStore) IncrementAndCheck(ctx context.Context, key string, limit int, window time.Duration) (bool, int, error) {
-	count, err := r.client.Incr(ctx, key).Result()
+	result, err := rateLimitScript.Run(ctx, r.client, []string{key}, window.Milliseconds()).Int64()
 	if err != nil {
 		return false, 0, err
 	}
 
-	// Set TTL on first increment (when count == 1).
-	if count == 1 {
-		if err := r.client.Expire(ctx, key, window).Err(); err != nil {
-			return false, 0, err
-		}
-	}
-
-	return int(count) <= limit, int(count), nil
+	count := int(result)
+	return count <= limit, count, nil
 }
