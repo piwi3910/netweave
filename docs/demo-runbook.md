@@ -341,12 +341,14 @@ curl -ks -X POST "https://api.netweave.local/admin/infrastructure/tenants/${GLOB
 
 ### 8.1 Get the Operator Role ID
 
+The `operator` role is a tenant-scoped role with O-RAN resource read/write permissions:
+
 ```bash
 OPERATOR_ROLE_ID=$(curl -ks https://api.netweave.local/admin/tenant/roles \
   --cert ~/.netweave/client.crt \
   --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
-  -H "Authorization: Bearer $TOKEN" | jq -r '.roles[] | select(.name=="tenant-admin") | .roleId')
+  -H "Authorization: Bearer $TOKEN" | jq -r '.roles[] | select(.name=="operator") | .roleId')
 
 echo "Operator Role ID: $OPERATOR_ROLE_ID"
 ```
