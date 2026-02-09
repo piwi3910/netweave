@@ -3,15 +3,15 @@ package service
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os/exec"
 	"strings"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -199,23 +199,22 @@ func readClientSecret(
 		namespace = "netweave"
 	}
 
-	args := []string{
-		"get", "secret", "-n", namespace, defaultSecretName,
-		"-o", "jsonpath={.data." + defaultSecretKey + "}",
-	}
-	if kubeconfig != "" {
-		args = append([]string{"--kubeconfig", kubeconfig}, args...)
-	}
-
-	out, err := exec.CommandContext(ctx, "kubectl", args...).Output()
+	conn, err := NewConnector(kubeconfig, namespace)
 	if err != nil {
-		return "", fmt.Errorf("kubectl get secret failed: %w", err)
+		return "", fmt.Errorf("failed to create K8s client: %w", err)
 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(out)))
+	secret, err := conn.Clientset().CoreV1().Secrets(namespace).Get(
+		ctx, defaultSecretName, metav1.GetOptions{},
+	)
 	if err != nil {
-		return "", fmt.Errorf("failed to decode secret: %w", err)
+		return "", fmt.Errorf("failed to read secret %s: %w", defaultSecretName, err)
 	}
 
-	return strings.TrimSpace(string(decoded)), nil
+	value, ok := secret.Data[defaultSecretKey]
+	if !ok {
+		return "", fmt.Errorf("key %s not found in secret %s", defaultSecretKey, defaultSecretName)
+	}
+
+	return strings.TrimSpace(string(value)), nil
 }
