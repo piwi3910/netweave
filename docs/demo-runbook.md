@@ -123,8 +123,8 @@ Get a Bearer token from Keycloak:
 
 ```bash
 # Get the gateway client secret from K8s
-CLIENT_SECRET=$(kubectl get secret -n netweave netweave-keycloak-client \
-  -o jsonpath='{.data.client-secret}' | base64 -d)
+CLIENT_SECRET=$(kubectl get secret -n netweave netweave-secret \
+  -o jsonpath='{.data.keycloak-client-secret}' | base64 -d)
 
 echo "Gateway client secret: $CLIENT_SECRET"
 
