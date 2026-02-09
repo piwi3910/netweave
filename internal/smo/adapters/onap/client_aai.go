@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -351,7 +352,12 @@ func createTLSConfig(config *Config) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
+// transactionCounter ensures unique transaction IDs even when consecutive calls
+// occur within the same nanosecond.
+var transactionCounter atomic.Uint64
+
 // generateTransactionID generates a unique transaction ID for A&AI requests.
 func generateTransactionID() string {
-	return fmt.Sprintf("netweave-%d", time.Now().UnixNano())
+	seq := transactionCounter.Add(1)
+	return fmt.Sprintf("netweave-%d-%d", time.Now().UnixNano(), seq)
 }
