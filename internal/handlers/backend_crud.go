@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -86,6 +87,8 @@ func (h *BackendHandler) CreateBackend(c *gin.Context) {
 		zap.String("backend_id", instance.ID),
 		zap.String("name", instance.Name),
 	)
+
+	h.refreshAdapterAsync(c.Request.Context(), instance.ID)
 
 	c.JSON(http.StatusCreated, backendToResponse(instance))
 }
@@ -235,6 +238,9 @@ func (h *BackendHandler) UpdateBackend(c *gin.Context) {
 	}
 
 	h.logger.Info("backend updated", zap.String("backend_id", id))
+
+	h.refreshAdapterAsync(c.Request.Context(), id)
+
 	c.JSON(http.StatusOK, backendToResponse(existing))
 }
 
@@ -294,6 +300,8 @@ func (h *BackendHandler) DeleteBackend(c *gin.Context) {
 		return
 	}
 
+	h.removeAdapter(id)
+
 	h.logger.Info("backend deleted", zap.String("backend_id", id))
 	c.Status(http.StatusNoContent)
 }
@@ -326,6 +334,28 @@ func (h *BackendHandler) TestBackend(c *gin.Context) {
 		"status":    "unknown",
 		"message":   "Connection test not yet implemented",
 	})
+}
+
+// refreshAdapterAsync refreshes the adapter for a backend in the registry.
+// Errors are logged but do not fail the HTTP request.
+func (h *BackendHandler) refreshAdapterAsync(ctx context.Context, backendID string) {
+	if h.adapterRegistry == nil {
+		return
+	}
+	if err := h.adapterRegistry.RefreshAdapter(ctx, h.store, backendID); err != nil {
+		h.logger.Warn("failed to refresh adapter after backend change",
+			zap.String("backend_id", backendID),
+			zap.Error(err),
+		)
+	}
+}
+
+// removeAdapter removes an adapter from the registry.
+func (h *BackendHandler) removeAdapter(backendID string) {
+	if h.adapterRegistry == nil {
+		return
+	}
+	h.adapterRegistry.RemoveAdapter(backendID)
 }
 
 // encryptMap marshals a map to JSON and encrypts it.

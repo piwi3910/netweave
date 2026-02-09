@@ -11,10 +11,11 @@ import (
 
 // BackendHandler handles admin API endpoints for backend instance management.
 type BackendHandler struct {
-	store     backend.Store
-	encryptor encryption.Encryptor
-	registry  *backend.SchemaRegistry
-	logger    *zap.Logger
+	store           backend.Store
+	encryptor       encryption.Encryptor
+	registry        *backend.SchemaRegistry
+	adapterRegistry *backend.AdapterRegistry
+	logger          *zap.Logger
 }
 
 // NewBackendHandler creates a new BackendHandler.
@@ -43,6 +44,13 @@ func NewBackendHandler(
 		registry:  registry,
 		logger:    logger,
 	}
+}
+
+// SetAdapterRegistry sets the adapter registry for live adapter management.
+// When set, backend CRUD operations will automatically register/refresh/remove
+// adapters in the registry so they become available immediately without restart.
+func (h *BackendHandler) SetAdapterRegistry(ar *backend.AdapterRegistry) {
+	h.adapterRegistry = ar
 }
 
 // RegisterRoutes registers all backend admin API routes on the given router group.
