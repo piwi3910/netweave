@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ export default function DMSDetailPage() {
     description: "",
   });
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const backendData = await getBackend(backendId);
       setBackend(backendData);
@@ -47,11 +47,11 @@ export default function DMSDetailPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [backendId]);
 
   useEffect(() => {
     load();
-  }, [backendId]);
+  }, [load]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();

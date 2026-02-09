@@ -619,7 +619,7 @@ func TestOpenAPIValidator_MaxBodySize(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/o2ims/v1/subscriptions", bytes.NewReader([]byte("small")))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Length", "10000") // Claim 10KB size
-		req.ContentLength = 10000                  // Set ContentLength field
+		req.ContentLength = 10000                 // Set ContentLength field
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -716,7 +716,7 @@ func TestOpenAPIValidator_MaxBodySize(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/o2ims/v1/subscriptions", bytes.NewReader(largeBody))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Length", "50") // Lie about the size
-		req.ContentLength = 50                  // Set ContentLength field to small value
+		req.ContentLength = 50                 // Set ContentLength field to small value
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
