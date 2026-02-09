@@ -330,6 +330,31 @@ func TestRedisRateLimitStore_AtomicIncrementAndCheck(t *testing.T) {
 		assert.Equal(t, 4, count)
 	})
 
+	t.Run("orphaned key without TTL cannot occur", func(t *testing.T) {
+		// Verify that PEXPIRE is always set atomically with INCR.
+		// If INCR creates the key (count == 1), the Lua script sets PEXPIRE in the
+		// same atomic operation. Simulate by checking TTL is always present after
+		// the first increment.
+		key := "ratelimit:orphan-check"
+
+		allowed, count, err := store.IncrementAndCheck(ctx, key, 10, 5*time.Second)
+		require.NoError(t, err)
+		assert.True(t, allowed)
+		assert.Equal(t, 1, count)
+
+		ttl := mr.TTL(key)
+		assert.True(t, ttl > 0, "key must have a TTL after first increment, got %v", ttl)
+
+		// Second increment should NOT reset the TTL (only count==1 sets it).
+		mr.FastForward(2 * time.Second)
+		_, _, err = store.IncrementAndCheck(ctx, key, 10, 5*time.Second)
+		require.NoError(t, err)
+
+		ttlAfter := mr.TTL(key)
+		assert.True(t, ttlAfter > 0, "key must still have a TTL after second increment")
+		assert.True(t, ttlAfter < 4*time.Second, "TTL should not have been reset by second increment")
+	})
+
 	t.Run("key expires and resets counter", func(t *testing.T) {
 		key := "ratelimit:tenant-3"
 		limit := 2

@@ -37,6 +37,13 @@ const (
 
 	// Backoff multiplier.
 	backoffMultiplier = 2
+
+	// maxCircuitBreakers is the maximum number of circuit breakers to keep.
+	// When exceeded, the least recently used entries are evicted.
+	maxCircuitBreakers = 1000
+
+	// cbCleanupInterval is how often we check for stale circuit breakers.
+	cbCleanupInterval = 10 * time.Minute
 )
 
 // NotifierConfig holds configuration for the webhook notifier.
@@ -81,6 +88,8 @@ type WebhookNotifier struct {
 	deliveryTracker DeliveryTracker
 	cbMu            sync.RWMutex
 	circuitBreakers map[string]*gobreaker.CircuitBreaker
+	cbLastUsed      map[string]time.Time
+	stopCleanup     chan struct{}
 }
 
 // NewWebhookNotifier creates a new WebhookNotifier instance.
@@ -110,13 +119,19 @@ func NewWebhookNotifier(
 		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
 	}
 
-	return &WebhookNotifier{
+	notifier := &WebhookNotifier{
 		config:          config,
 		httpClient:      httpClient,
 		logger:          logger,
 		deliveryTracker: deliveryTracker,
 		circuitBreakers: make(map[string]*gobreaker.CircuitBreaker),
-	}, nil
+		cbLastUsed:      make(map[string]time.Time),
+		stopCleanup:     make(chan struct{}),
+	}
+
+	go notifier.cleanupCircuitBreakers()
+
+	return notifier, nil
 }
 
 // createHTTPClient creates an HTTP client with optional mTLS configuration.
@@ -463,12 +478,15 @@ func (n *WebhookNotifier) executeWithCircuitBreaker(
 }
 
 // getCircuitBreaker gets or creates a circuit breaker for a callback URL.
-// It is safe for concurrent use.
+// It is safe for concurrent use and tracks last-used time for cleanup.
 func (n *WebhookNotifier) getCircuitBreaker(callbackURL string) *gobreaker.CircuitBreaker {
 	n.cbMu.RLock()
 	cb, ok := n.circuitBreakers[callbackURL]
 	n.cbMu.RUnlock()
 	if ok {
+		n.cbMu.Lock()
+		n.cbLastUsed[callbackURL] = time.Now()
+		n.cbMu.Unlock()
 		return cb
 	}
 
@@ -477,7 +495,13 @@ func (n *WebhookNotifier) getCircuitBreaker(callbackURL string) *gobreaker.Circu
 
 	// Double-check after acquiring write lock.
 	if cb, ok = n.circuitBreakers[callbackURL]; ok {
+		n.cbLastUsed[callbackURL] = time.Now()
 		return cb
+	}
+
+	// Evict oldest entries if at capacity.
+	if len(n.circuitBreakers) >= maxCircuitBreakers {
+		n.evictOldestLocked()
 	}
 
 	// Create new circuit breaker.
@@ -510,12 +534,78 @@ func (n *WebhookNotifier) getCircuitBreaker(callbackURL string) *gobreaker.Circu
 
 	cb = gobreaker.NewCircuitBreaker(settings)
 	n.circuitBreakers[callbackURL] = cb
+	n.cbLastUsed[callbackURL] = time.Now()
 
 	return cb
 }
 
+// evictOldestLocked removes the least recently used circuit breaker.
+// Caller must hold cbMu write lock.
+func (n *WebhookNotifier) evictOldestLocked() {
+	var oldestURL string
+	var oldestTime time.Time
+
+	for url, lastUsed := range n.cbLastUsed {
+		if oldestURL == "" || lastUsed.Before(oldestTime) {
+			oldestURL = url
+			oldestTime = lastUsed
+		}
+	}
+
+	if oldestURL != "" {
+		delete(n.circuitBreakers, oldestURL)
+		delete(n.cbLastUsed, oldestURL)
+		n.logger.Debug("evicted stale circuit breaker",
+			zap.String("callback", oldestURL),
+			zap.Time("last_used", oldestTime),
+			zap.Int("remaining", len(n.circuitBreakers)),
+		)
+	}
+}
+
+// cleanupCircuitBreakers periodically removes circuit breakers that haven't
+// been used within the cleanup interval, preventing unbounded map growth.
+func (n *WebhookNotifier) cleanupCircuitBreakers() {
+	ticker := time.NewTicker(cbCleanupInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-n.stopCleanup:
+			return
+		case <-ticker.C:
+			n.pruneStaleCircuitBreakers()
+		}
+	}
+}
+
+// pruneStaleCircuitBreakers removes circuit breakers not used within the cleanup interval.
+func (n *WebhookNotifier) pruneStaleCircuitBreakers() {
+	n.cbMu.Lock()
+	defer n.cbMu.Unlock()
+
+	cutoff := time.Now().Add(-cbCleanupInterval)
+	pruned := 0
+
+	for url, lastUsed := range n.cbLastUsed {
+		if lastUsed.Before(cutoff) {
+			delete(n.circuitBreakers, url)
+			delete(n.cbLastUsed, url)
+			pruned++
+		}
+	}
+
+	if pruned > 0 {
+		n.logger.Info("pruned stale circuit breakers",
+			zap.Int("pruned", pruned),
+			zap.Int("remaining", len(n.circuitBreakers)),
+		)
+	}
+}
+
 // Close closes the notifier and releases resources.
 func (n *WebhookNotifier) Close() error {
+	close(n.stopCleanup)
 	n.httpClient.CloseIdleConnections()
 	return nil
 }

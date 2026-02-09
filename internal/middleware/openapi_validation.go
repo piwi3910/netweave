@@ -246,7 +246,9 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 			maxBodySize = DefaultMaxBodySize
 		}
 
-		// Reject early if Content-Length is known and exceeds the limit.
+		// Fail-fast optimization: reject immediately when Content-Length is known
+		// and exceeds the limit, avoiding the cost of reading the body.
+		// MaxBytesReader below handles the general case (including chunked encoding).
 		if c.Request.ContentLength > maxBodySize {
 			v.logger.Warn("request body too large",
 				zap.Int64("content_length", c.Request.ContentLength),

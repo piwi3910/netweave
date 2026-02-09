@@ -799,6 +799,8 @@ func resolveConfigPath(configPath string) string {
 //   - Must have .yaml or .yml extension (prevents loading arbitrary files)
 //   - Path must not contain directory traversal (../../../etc/passwd)
 //   - For production safety, relative paths should be in ./config/ or current dir
+//
+// Security logging for rejected paths is handled by the caller (resolveConfigPath).
 func validateConfigPath(path string) error {
 	if path == "" {
 		return fmt.Errorf("config path is empty")
