@@ -142,11 +142,8 @@ jobs:
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Total coverage: ${COVERAGE}%"
-          # Incremental progress: Increased from 50% to 55% (Issue #206)
-          # Current: 59.3% (improved from Issue #38 work)
-          # Target: 80% (tracked in CLAUDE.md)
-          if (( $(echo "$COVERAGE < 55" | bc -l) )); then
-            echo "Coverage ${COVERAGE}% is below minimum 55%"
+          if (( $(echo "$COVERAGE < 75" | bc -l) )); then
+            echo "Coverage ${COVERAGE}% is below minimum 75%"
             exit 1
           fi
 
