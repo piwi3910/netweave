@@ -21,18 +21,19 @@ import (
 )
 
 const (
-	keycloakLabel        = "app.kubernetes.io/component=keycloak"
-	keycloakPort         = 8080
-	keycloakReadyTimeout = 120 * time.Second
-	defaultRealm         = "netweave"
-	defaultClientID      = "netweave-gateway"
-	defaultAdminUser     = "admin"
-	defaultAdminPassword = "admin"
-	defaultTenantID      = "default"
-	defaultTenantName    = "Default Tenant"
-	defaultAdminUsername = "netweave-admin"
-	defaultAdminEmail    = "admin@netweave.local"
-	defaultAdminCertCN   = "admin.netweave.local"
+	keycloakLabel              = "app.kubernetes.io/component=keycloak"
+	keycloakPort               = 8080
+	keycloakReadyTimeout       = 120 * time.Second
+	defaultRealm               = "netweave"
+	defaultClientID            = "netweave-gateway"
+	defaultAdminUser           = "admin"
+	defaultAdminPassword       = "admin"
+	defaultTenantID            = "default"
+	defaultTenantName          = "Default Tenant"
+	defaultAdminUsername       = "netweave-admin"
+	defaultAdminEmail          = "admin@netweave.local"
+	defaultAdminCertCN         = "admin.netweave.local"
+	defaultAdminPortalPassword = "admin"
 )
 
 func newKeycloakCmd() *cobra.Command {
@@ -115,7 +116,6 @@ func runKeycloakSetup(
 	if err != nil {
 		return err
 	}
-	_ = kcClient // kept for potential future use
 
 	if err := store.CreateTenant(ctx, &auth.Tenant{
 		ID:          defaultTenantID,
@@ -145,7 +145,7 @@ func runKeycloakSetup(
 	// Step 4: Create admin user.
 	steps.Stepf("Creating admin user...")
 
-	if err := createAdminUser(ctx, store); err != nil {
+	if err := createAdminUser(ctx, kcClient, store); err != nil {
 		return err
 	}
 
@@ -390,7 +390,7 @@ func createKeycloakStore(
 	return kcClient, store, nil
 }
 
-func createAdminUser(ctx context.Context, store *keycloak.Store) error {
+func createAdminUser(ctx context.Context, client *keycloak.Client, store *keycloak.Store) error {
 	// Get the platform-admin role.
 	role, err := store.GetRoleByName(ctx, auth.RolePlatformAdmin)
 	if err != nil {
@@ -415,9 +415,14 @@ func createAdminUser(ctx context.Context, store *keycloak.Store) error {
 		return fmt.Errorf("failed to create admin user: %w", err)
 	}
 
+	// Set a default password so the admin can log into the portal immediately.
+	if err := client.SetUserPassword(ctx, adminUser.ID, defaultAdminPortalPassword, false); err != nil {
+		return fmt.Errorf("failed to set admin user password: %w", err)
+	}
+
 	cmd.Printer.Verbosef(
-		"Admin user created: %s (cert CN: %s)",
-		defaultAdminUsername, defaultAdminCertCN,
+		"Admin user created: %s (cert CN: %s, password: %s)",
+		defaultAdminUsername, defaultAdminCertCN, defaultAdminPortalPassword,
 	)
 
 	return nil
