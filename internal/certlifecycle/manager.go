@@ -11,24 +11,26 @@ import (
 
 // ManagerConfig holds configuration for the lifecycle manager.
 type ManagerConfig struct {
-	Store         Store
-	VaultClient   VaultPKI
-	Logger        *zap.Logger
-	ScanInterval  time.Duration
-	RenewalWindow time.Duration
-	MaxRetries    int
-	RetryInterval time.Duration
-	WebhookURL    string
-	HMACSecret    string
+	Store          Store
+	VaultClient    VaultPKI
+	KeycloakClient KeycloakUserClient
+	Logger         *zap.Logger
+	ScanInterval   time.Duration
+	RenewalWindow  time.Duration
+	MaxRetries     int
+	RetryInterval  time.Duration
+	WebhookURL     string
+	HMACSecret     string
 }
 
 // Manager orchestrates certificate lifecycle automation.
-// It ties together the monitor, renewer, and notifier.
+// It ties together the monitor, renewer, notifier, and Keycloak syncer.
 type Manager struct {
 	store    Store
 	monitor  *Monitor
 	renewer  *Renewer
 	notifier *Notifier
+	keycloak *KeycloakSyncer
 	logger   *zap.Logger
 	stopCh   chan struct{}
 	wg       sync.WaitGroup
@@ -72,6 +74,11 @@ func NewManager(cfg *ManagerConfig) (*Manager, error) {
 			Notifier:      m.notifier,
 			Logger:        cfg.Logger,
 		})
+	}
+
+	// Initialize Keycloak syncer if client is provided.
+	if cfg.KeycloakClient != nil {
+		m.keycloak = NewKeycloakSyncer(cfg.KeycloakClient, cfg.Logger)
 	}
 
 	// Initialize monitor.
@@ -140,6 +147,10 @@ func (m *Manager) RecordIssuance(
 		}
 	}
 
+	if m.keycloak != nil {
+		m.keycloak.SyncIssuance(ctx, cert)
+	}
+
 	return nil
 }
 
@@ -168,6 +179,10 @@ func (m *Manager) RecordRevocation(
 		}
 	}
 
+	if m.keycloak != nil {
+		m.keycloak.SyncRevocation(ctx, meta.UserID)
+	}
+
 	return nil
 }
 
@@ -181,6 +196,10 @@ func (m *Manager) onExpiringSoon(ctx context.Context, meta *CertificateMetadata)
 				zap.String("serial", meta.SerialNumber),
 				zap.Error(err))
 		}
+	}
+
+	if m.keycloak != nil {
+		m.keycloak.SyncExpiringSoon(ctx, meta)
 	}
 
 	// Attempt automatic renewal if renewer is available.
