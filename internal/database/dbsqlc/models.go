@@ -57,6 +57,27 @@ type BackendLink struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type CertificateMetadatum struct {
+	SerialNumber string             `json:"serial_number"`
+	UserID       string             `json:"user_id"`
+	TenantID     string             `json:"tenant_id"`
+	CommonName   string             `json:"common_name"`
+	RoleName     string             `json:"role_name"`
+	Status       string             `json:"status"`
+	IssuedAt     time.Time          `json:"issued_at"`
+	ExpiresAt    time.Time          `json:"expires_at"`
+	RevokedAt    pgtype.Timestamptz `json:"revoked_at"`
+	RenewedAt    pgtype.Timestamptz `json:"renewed_at"`
+	RenewedFrom  string             `json:"renewed_from"`
+	RenewedTo    string             `json:"renewed_to"`
+	RenewalCount int32              `json:"renewal_count"`
+	LastError    string             `json:"last_error"`
+	RetryCount   int32              `json:"retry_count"`
+	NextRetryAt  pgtype.Timestamptz `json:"next_retry_at"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+}
+
 type NotificationDelivery struct {
 	ID             string             `json:"id"`
 	EventID        string             `json:"event_id"`
