@@ -89,15 +89,31 @@ func (m *mockStore) MarkRenewalFailed(
 }
 
 func (m *mockStore) ListByTenant(
-	_ context.Context, _ string,
+	_ context.Context, tenantID string,
 ) ([]*certMeta, error) {
-	return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []*certMeta
+	for _, cert := range m.certs {
+		if cert.TenantID == tenantID {
+			result = append(result, cert)
+		}
+	}
+	return result, nil
 }
 
 func (m *mockStore) ListByUser(
-	_ context.Context, _ string,
+	_ context.Context, userID string,
 ) ([]*certMeta, error) {
-	return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []*certMeta
+	for _, cert := range m.certs {
+		if cert.UserID == userID {
+			result = append(result, cert)
+		}
+	}
+	return result, nil
 }
 
 func (m *mockStore) ListByStatus(
@@ -130,9 +146,19 @@ func (m *mockStore) ListExpiring(
 }
 
 func (m *mockStore) ListRenewalFailed(
-	_ context.Context, _ time.Time,
+	_ context.Context, now time.Time,
 ) ([]*certMeta, error) {
-	return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []*certMeta
+	for _, cert := range m.certs {
+		if cert.Status == certlifecycle.StatusRenewalFailed &&
+			!cert.NextRetryAt.IsZero() &&
+			cert.NextRetryAt.Before(now) {
+			result = append(result, cert)
+		}
+	}
+	return result, nil
 }
 
 func (m *mockStore) CountByStatus(
