@@ -9,13 +9,21 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/backend"
+	"github.com/piwi3910/netweave/internal/encryption"
 )
 
 func newTestRegistry(t *testing.T) *backend.AdapterRegistry {
 	t.Helper()
 	factory := backend.NewAdapterFactory()
 	logger := zap.NewNop()
-	return backend.NewAdapterRegistry(factory, logger)
+	return backend.NewAdapterRegistry(factory, nil, logger)
+}
+
+func newTestRegistryWithEncryptor(t *testing.T, enc encryption.Encryptor) *backend.AdapterRegistry {
+	t.Helper()
+	factory := backend.NewAdapterFactory()
+	logger := zap.NewNop()
+	return backend.NewAdapterRegistry(factory, enc, logger)
 }
 
 func TestAdapterRegistry_GetAdapter(t *testing.T) {
@@ -318,6 +326,78 @@ func TestAdapterRegistry_Close(t *testing.T) {
 		err = registry.Close()
 		require.NoError(t, err)
 		assert.Equal(t, 0, registry.Count())
+	})
+}
+
+func TestAdapterRegistry_LoadFromStore_WithEncryption(t *testing.T) {
+	t.Run("decrypts config before creating adapter", func(t *testing.T) {
+		key := make([]byte, 32)
+		for i := range key {
+			key[i] = byte(i)
+		}
+		enc, err := encryption.NewAESEncryptor(key)
+		require.NoError(t, err)
+
+		plainConfig := []byte(`{"populate_sample_data":true}`)
+		encConfig, err := enc.Encrypt(plainConfig)
+		require.NoError(t, err)
+
+		registry := newTestRegistryWithEncryptor(t, enc)
+		store := &fakeBackendStore{
+			backends: []*backend.Instance{
+				{
+					ID:          "encrypted-backend",
+					AdapterType: "mock",
+					Status:      "active",
+					Config:      encConfig,
+				},
+			},
+		}
+
+		loaded, loadErr := registry.LoadFromStore(context.Background(), store)
+		require.NoError(t, loadErr)
+		assert.Equal(t, 1, loaded)
+
+		adp, adpErr := registry.GetAdapter("encrypted-backend")
+		require.NoError(t, adpErr)
+		require.NotNil(t, adp)
+		assert.Equal(t, "mock", adp.Name())
+	})
+}
+
+func TestAdapterRegistry_RefreshAdapter_WithEncryption(t *testing.T) {
+	t.Run("decrypts config before creating adapter", func(t *testing.T) {
+		key := make([]byte, 32)
+		for i := range key {
+			key[i] = byte(i)
+		}
+		enc, err := encryption.NewAESEncryptor(key)
+		require.NoError(t, err)
+
+		plainConfig := []byte(`{"populate_sample_data":true}`)
+		encConfig, err := enc.Encrypt(plainConfig)
+		require.NoError(t, err)
+
+		registry := newTestRegistryWithEncryptor(t, enc)
+		store := &fakeBackendStore{
+			backends: []*backend.Instance{
+				{
+					ID:          "encrypted-backend",
+					AdapterType: "mock",
+					Status:      "active",
+					Config:      encConfig,
+				},
+			},
+		}
+
+		refreshErr := registry.RefreshAdapter(context.Background(), store, "encrypted-backend")
+		require.NoError(t, refreshErr)
+		assert.Equal(t, 1, registry.Count())
+
+		adp, adpErr := registry.GetAdapter("encrypted-backend")
+		require.NoError(t, adpErr)
+		require.NotNil(t, adp)
+		assert.Equal(t, "mock", adp.Name())
 	})
 }
 

@@ -333,7 +333,7 @@ func initializeBackendAdmin(
 
 	// Initialize dynamic adapter registry
 	factory := backend.NewAdapterFactory()
-	registry := backend.NewAdapterRegistry(factory, logger)
+	registry := backend.NewAdapterRegistry(factory, enc, logger)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

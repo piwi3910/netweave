@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/encryption"
 )
 
 // ErrNoBackendAccess is returned when a tenant has no backend access configured.
@@ -20,19 +21,49 @@ var ErrAdapterNotFound = fmt.Errorf("adapter not found in registry")
 // It is thread-safe and supports loading adapters from the backend store on startup,
 // as well as refreshing individual adapters when backend configuration changes.
 type AdapterRegistry struct {
-	mu       sync.RWMutex
-	adapters map[string]adapter.Adapter
-	factory  *AdapterFactory
-	logger   *zap.Logger
+	mu        sync.RWMutex
+	adapters  map[string]adapter.Adapter
+	factory   *AdapterFactory
+	encryptor encryption.Encryptor
+	logger    *zap.Logger
 }
 
 // NewAdapterRegistry creates a new AdapterRegistry.
-func NewAdapterRegistry(factory *AdapterFactory, logger *zap.Logger) *AdapterRegistry {
+// The encryptor is used to decrypt backend Config and Credentials fields
+// loaded from the store before passing them to the adapter factory.
+func NewAdapterRegistry(factory *AdapterFactory, enc encryption.Encryptor, logger *zap.Logger) *AdapterRegistry {
 	return &AdapterRegistry{
-		adapters: make(map[string]adapter.Adapter),
-		factory:  factory,
-		logger:   logger,
+		adapters:  make(map[string]adapter.Adapter),
+		factory:   factory,
+		encryptor: enc,
+		logger:    logger,
 	}
+}
+
+// decryptInstance decrypts the Config and Credentials fields of a backend instance in-place.
+// If the encryptor is nil or a field is empty, that field is left unchanged.
+func (r *AdapterRegistry) decryptInstance(inst *Instance) error {
+	if r.encryptor == nil {
+		return nil
+	}
+
+	if len(inst.Config) > 0 {
+		decrypted, err := r.encryptor.Decrypt(inst.Config)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt config for backend %s: %w", inst.ID, err)
+		}
+		inst.Config = decrypted
+	}
+
+	if len(inst.Credentials) > 0 {
+		decrypted, err := r.encryptor.Decrypt(inst.Credentials)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt credentials for backend %s: %w", inst.ID, err)
+		}
+		inst.Credentials = decrypted
+	}
+
+	return nil
 }
 
 // LoadFromStore loads all active backend instances from the store and creates adapters.
@@ -50,6 +81,14 @@ func (r *AdapterRegistry) LoadFromStore(ctx context.Context, store Store) (int, 
 			r.logger.Info("skipping backend with non-active status",
 				zap.String("backend_id", inst.ID),
 				zap.String("status", inst.Status),
+			)
+			continue
+		}
+
+		if decErr := r.decryptInstance(inst); decErr != nil {
+			r.logger.Warn("failed to decrypt backend config, skipping",
+				zap.String("backend_id", inst.ID),
+				zap.Error(decErr),
 			)
 			continue
 		}
@@ -127,6 +166,10 @@ func (r *AdapterRegistry) RefreshAdapter(ctx context.Context, store Store, backe
 	instance, err := store.GetBackend(ctx, backendID)
 	if err != nil {
 		return fmt.Errorf("failed to get backend %s: %w", backendID, err)
+	}
+
+	if decErr := r.decryptInstance(instance); decErr != nil {
+		return fmt.Errorf("failed to decrypt backend %s: %w", backendID, decErr)
 	}
 
 	adp, createErr := r.factory.CreateAdapter(instance)
