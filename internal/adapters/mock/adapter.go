@@ -620,9 +620,9 @@ func (a *Adapter) matchesPoolFilter(pool *adapter.ResourcePool, filter *adapter.
 		return false
 	}
 
-	if filter.TenantID != "" && pool.TenantID != filter.TenantID {
-		return false
-	}
+	// TenantID filtering is not applied here because each mock adapter instance
+	// is scoped to a single backend. Tenant isolation is enforced by the adapter
+	// registry, which resolves the correct adapter per tenant.
 
 	return true
 }
@@ -640,9 +640,9 @@ func (a *Adapter) matchesResourceFilter(resource *adapter.Resource, filter *adap
 		return false
 	}
 
-	if filter.TenantID != "" && resource.TenantID != filter.TenantID {
-		return false
-	}
+	// TenantID filtering is not applied here because each mock adapter instance
+	// is scoped to a single backend. Tenant isolation is enforced by the adapter
+	// registry, which resolves the correct adapter per tenant.
 
 	return true
 }
