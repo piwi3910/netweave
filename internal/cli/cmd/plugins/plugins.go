@@ -10,42 +10,7 @@ import (
 
 	"github.com/piwi3910/netweave/internal/cli/cmd"
 	"github.com/piwi3910/netweave/internal/cli/output"
-	"github.com/piwi3910/netweave/internal/cli/service"
 )
-
-// gatewayFlags holds the shared gateway connection flags.
-type gatewayFlags struct {
-	gatewayURL   string
-	authURL      string
-	username     string
-	password     string
-	clientSecret string
-}
-
-func addGatewayFlags(c *cobra.Command, gf *gatewayFlags) {
-	pf := c.PersistentFlags()
-	pf.StringVar(&gf.gatewayURL, "gateway-url", "https://api.netweave.local", "Gateway API URL")
-	pf.StringVar(&gf.authURL, "auth-url", "https://auth.netweave.local", "Keycloak auth URL")
-	pf.StringVar(&gf.username, "username", "admin@netweave.local", "Admin username")
-	pf.StringVar(&gf.password, "password", "admin", "Admin password")
-	pf.StringVar(&gf.clientSecret, "client-secret", "", "OAuth2 client secret (auto-read from K8s if empty)")
-}
-
-func connectGateway(ctx context.Context, gf *gatewayFlags) (*service.GatewayConnection, error) {
-	gw, err := service.ConnectGateway(ctx, &service.GatewayConfig{
-		GatewayURL:   gf.gatewayURL,
-		AuthURL:      gf.authURL,
-		Username:     gf.username,
-		Password:     gf.password,
-		ClientSecret: gf.clientSecret,
-		Namespace:    cmd.Global.Namespace,
-		Kubeconfig:   cmd.Global.Kubeconfig,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to gateway: %w", err)
-	}
-	return gw, nil
-}
 
 // pluginInfo mirrors the API response for a plugin.
 type pluginInfo struct {
@@ -62,7 +27,7 @@ type pluginListResponse struct {
 
 // NewPluginsCmd creates the parent "plugins" command.
 func NewPluginsCmd() *cobra.Command {
-	var gf gatewayFlags
+	var gf cmd.GatewayFlags
 
 	parent := &cobra.Command{
 		Use:   "plugins",
@@ -70,7 +35,7 @@ func NewPluginsCmd() *cobra.Command {
 		Long:  `List, enable, and disable frontend plugins.`,
 	}
 
-	addGatewayFlags(parent, &gf)
+	cmd.AddGatewayFlags(parent, &gf)
 
 	parent.AddCommand(newListCmd(&gf))
 	parent.AddCommand(newEnableCmd(&gf))
@@ -79,14 +44,14 @@ func NewPluginsCmd() *cobra.Command {
 	return parent
 }
 
-func newListCmd(gf *gatewayFlags) *cobra.Command {
+func newListCmd(gf *cmd.GatewayFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List all plugins",
 		RunE: func(c *cobra.Command, _ []string) error {
 			ctx := c.Context()
 
-			gw, err := connectGateway(ctx, gf)
+			gw, err := cmd.ConnectGateway(ctx, gf)
 			if err != nil {
 				return err
 			}
@@ -119,7 +84,7 @@ func newListCmd(gf *gatewayFlags) *cobra.Command {
 	}
 }
 
-func newEnableCmd(gf *gatewayFlags) *cobra.Command {
+func newEnableCmd(gf *cmd.GatewayFlags) *cobra.Command {
 	var pluginName string
 
 	enableCmd := &cobra.Command{
@@ -130,11 +95,12 @@ func newEnableCmd(gf *gatewayFlags) *cobra.Command {
 		},
 	}
 
-	enableCmd.Flags().StringVar(&pluginName, "name", "", "Plugin name (required)")
+	enableCmd.Flags().StringVar(&pluginName, "name", "", "Plugin name")
+	cmd.MustMarkRequired(enableCmd, "name")
 	return enableCmd
 }
 
-func newDisableCmd(gf *gatewayFlags) *cobra.Command {
+func newDisableCmd(gf *cmd.GatewayFlags) *cobra.Command {
 	var pluginName string
 
 	disableCmd := &cobra.Command{
@@ -145,16 +111,13 @@ func newDisableCmd(gf *gatewayFlags) *cobra.Command {
 		},
 	}
 
-	disableCmd.Flags().StringVar(&pluginName, "name", "", "Plugin name (required)")
+	disableCmd.Flags().StringVar(&pluginName, "name", "", "Plugin name")
+	cmd.MustMarkRequired(disableCmd, "name")
 	return disableCmd
 }
 
-func setPluginState(ctx context.Context, gf *gatewayFlags, pluginName string, enabled bool) error {
-	if pluginName == "" {
-		return fmt.Errorf("--name flag is required")
-	}
-
-	gw, err := connectGateway(ctx, gf)
+func setPluginState(ctx context.Context, gf *cmd.GatewayFlags, pluginName string, enabled bool) error {
+	gw, err := cmd.ConnectGateway(ctx, gf)
 	if err != nil {
 		return err
 	}

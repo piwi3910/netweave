@@ -2,7 +2,6 @@
 package backends
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -11,42 +10,7 @@ import (
 
 	"github.com/piwi3910/netweave/internal/cli/cmd"
 	"github.com/piwi3910/netweave/internal/cli/output"
-	"github.com/piwi3910/netweave/internal/cli/service"
 )
-
-// gatewayFlags holds the shared gateway connection flags.
-type gatewayFlags struct {
-	gatewayURL   string
-	authURL      string
-	username     string
-	password     string
-	clientSecret string
-}
-
-func addGatewayFlags(c *cobra.Command, gf *gatewayFlags) {
-	pf := c.PersistentFlags()
-	pf.StringVar(&gf.gatewayURL, "gateway-url", "https://api.netweave.local", "Gateway API URL")
-	pf.StringVar(&gf.authURL, "auth-url", "https://auth.netweave.local", "Keycloak auth URL")
-	pf.StringVar(&gf.username, "username", "admin@netweave.local", "Admin username")
-	pf.StringVar(&gf.password, "password", "admin", "Admin password")
-	pf.StringVar(&gf.clientSecret, "client-secret", "", "OAuth2 client secret (auto-read from K8s if empty)")
-}
-
-func connectGateway(ctx context.Context, gf *gatewayFlags) (*service.GatewayConnection, error) {
-	gw, err := service.ConnectGateway(ctx, &service.GatewayConfig{
-		GatewayURL:   gf.gatewayURL,
-		AuthURL:      gf.authURL,
-		Username:     gf.username,
-		Password:     gf.password,
-		ClientSecret: gf.clientSecret,
-		Namespace:    cmd.Global.Namespace,
-		Kubeconfig:   cmd.Global.Kubeconfig,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to gateway: %w", err)
-	}
-	return gw, nil
-}
 
 // backendResponse mirrors the API response for a backend instance.
 type backendResponse struct {
@@ -70,7 +34,7 @@ type listResponse struct {
 
 // NewBackendsCmd creates the parent "backends" command.
 func NewBackendsCmd() *cobra.Command {
-	var gf gatewayFlags
+	var gf cmd.GatewayFlags
 
 	parent := &cobra.Command{
 		Use:   "backends",
@@ -78,7 +42,7 @@ func NewBackendsCmd() *cobra.Command {
 		Long:  `CRUD operations for infrastructure backend instances (IMS/DMS).`,
 	}
 
-	addGatewayFlags(parent, &gf)
+	cmd.AddGatewayFlags(parent, &gf)
 
 	parent.AddCommand(newListCmd(&gf))
 	parent.AddCommand(newGetCmd(&gf))
@@ -89,7 +53,7 @@ func NewBackendsCmd() *cobra.Command {
 	return parent
 }
 
-func newListCmd(gf *gatewayFlags) *cobra.Command {
+func newListCmd(gf *cmd.GatewayFlags) *cobra.Command {
 	var category string
 
 	listCmd := &cobra.Command{
@@ -98,7 +62,7 @@ func newListCmd(gf *gatewayFlags) *cobra.Command {
 		RunE: func(c *cobra.Command, _ []string) error {
 			ctx := c.Context()
 
-			gw, err := connectGateway(ctx, gf)
+			gw, err := cmd.ConnectGateway(ctx, gf)
 			if err != nil {
 				return err
 			}
@@ -135,7 +99,7 @@ func newListCmd(gf *gatewayFlags) *cobra.Command {
 	return listCmd
 }
 
-func newGetCmd(gf *gatewayFlags) *cobra.Command {
+func newGetCmd(gf *cmd.GatewayFlags) *cobra.Command {
 	var backendID string
 
 	getCmd := &cobra.Command{
@@ -144,11 +108,7 @@ func newGetCmd(gf *gatewayFlags) *cobra.Command {
 		RunE: func(c *cobra.Command, _ []string) error {
 			ctx := c.Context()
 
-			if backendID == "" {
-				return fmt.Errorf("--id flag is required")
-			}
-
-			gw, err := connectGateway(ctx, gf)
+			gw, err := cmd.ConnectGateway(ctx, gf)
 			if err != nil {
 				return err
 			}
@@ -178,11 +138,12 @@ func newGetCmd(gf *gatewayFlags) *cobra.Command {
 		},
 	}
 
-	getCmd.Flags().StringVar(&backendID, "id", "", "Backend ID (required)")
+	getCmd.Flags().StringVar(&backendID, "id", "", "Backend ID")
+	cmd.MustMarkRequired(getCmd, "id")
 	return getCmd
 }
 
-func newCreateCmd(gf *gatewayFlags) *cobra.Command {
+func newCreateCmd(gf *cmd.GatewayFlags) *cobra.Command {
 	var (
 		name        string
 		category    string
@@ -197,11 +158,7 @@ func newCreateCmd(gf *gatewayFlags) *cobra.Command {
 		RunE: func(c *cobra.Command, _ []string) error {
 			ctx := c.Context()
 
-			if name == "" || category == "" || adapterType == "" {
-				return fmt.Errorf("--name, --category, and --adapter-type flags are required")
-			}
-
-			gw, err := connectGateway(ctx, gf)
+			gw, err := cmd.ConnectGateway(ctx, gf)
 			if err != nil {
 				return err
 			}
@@ -236,15 +193,18 @@ func newCreateCmd(gf *gatewayFlags) *cobra.Command {
 		},
 	}
 
-	createCmd.Flags().StringVar(&name, "name", "", "Backend name (required)")
-	createCmd.Flags().StringVar(&category, "category", "", "Category: ims or dms (required)")
-	createCmd.Flags().StringVar(&adapterType, "adapter-type", "", "Adapter type, e.g. mock (required)")
+	createCmd.Flags().StringVar(&name, "name", "", "Backend name")
+	createCmd.Flags().StringVar(&category, "category", "", "Category: ims or dms")
+	createCmd.Flags().StringVar(&adapterType, "adapter-type", "", "Adapter type, e.g. mock")
 	createCmd.Flags().StringVar(&description, "description", "", "Backend description")
 	createCmd.Flags().StringArrayVar(&configPairs, "config", nil, "Config key=value pairs (repeatable)")
+	cmd.MustMarkRequired(createCmd, "name")
+	cmd.MustMarkRequired(createCmd, "category")
+	cmd.MustMarkRequired(createCmd, "adapter-type")
 	return createCmd
 }
 
-func newUpdateCmd(gf *gatewayFlags) *cobra.Command {
+func newUpdateCmd(gf *cmd.GatewayFlags) *cobra.Command {
 	var (
 		backendID   string
 		name        string
@@ -258,11 +218,7 @@ func newUpdateCmd(gf *gatewayFlags) *cobra.Command {
 		RunE: func(c *cobra.Command, _ []string) error {
 			ctx := c.Context()
 
-			if backendID == "" {
-				return fmt.Errorf("--id flag is required")
-			}
-
-			gw, err := connectGateway(ctx, gf)
+			gw, err := cmd.ConnectGateway(ctx, gf)
 			if err != nil {
 				return err
 			}
@@ -294,14 +250,15 @@ func newUpdateCmd(gf *gatewayFlags) *cobra.Command {
 		},
 	}
 
-	updateCmd.Flags().StringVar(&backendID, "id", "", "Backend ID (required)")
+	updateCmd.Flags().StringVar(&backendID, "id", "", "Backend ID")
 	updateCmd.Flags().StringVar(&name, "name", "", "New name")
 	updateCmd.Flags().StringVar(&description, "description", "", "New description")
 	updateCmd.Flags().StringArrayVar(&configPairs, "config", nil, "Config key=value pairs (repeatable)")
+	cmd.MustMarkRequired(updateCmd, "id")
 	return updateCmd
 }
 
-func newDeleteCmd(gf *gatewayFlags) *cobra.Command {
+func newDeleteCmd(gf *cmd.GatewayFlags) *cobra.Command {
 	var backendID string
 
 	deleteCmd := &cobra.Command{
@@ -310,11 +267,7 @@ func newDeleteCmd(gf *gatewayFlags) *cobra.Command {
 		RunE: func(c *cobra.Command, _ []string) error {
 			ctx := c.Context()
 
-			if backendID == "" {
-				return fmt.Errorf("--id flag is required")
-			}
-
-			gw, err := connectGateway(ctx, gf)
+			gw, err := cmd.ConnectGateway(ctx, gf)
 			if err != nil {
 				return err
 			}
@@ -328,7 +281,8 @@ func newDeleteCmd(gf *gatewayFlags) *cobra.Command {
 		},
 	}
 
-	deleteCmd.Flags().StringVar(&backendID, "id", "", "Backend ID (required)")
+	deleteCmd.Flags().StringVar(&backendID, "id", "", "Backend ID")
+	cmd.MustMarkRequired(deleteCmd, "id")
 	return deleteCmd
 }
 

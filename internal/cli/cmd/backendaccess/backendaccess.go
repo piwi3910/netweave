@@ -2,7 +2,6 @@
 package backendaccess
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -11,42 +10,7 @@ import (
 
 	"github.com/piwi3910/netweave/internal/cli/cmd"
 	"github.com/piwi3910/netweave/internal/cli/output"
-	"github.com/piwi3910/netweave/internal/cli/service"
 )
-
-// gatewayFlags holds the shared gateway connection flags.
-type gatewayFlags struct {
-	gatewayURL   string
-	authURL      string
-	username     string
-	password     string
-	clientSecret string
-}
-
-func addGatewayFlags(c *cobra.Command, gf *gatewayFlags) {
-	pf := c.PersistentFlags()
-	pf.StringVar(&gf.gatewayURL, "gateway-url", "https://api.netweave.local", "Gateway API URL")
-	pf.StringVar(&gf.authURL, "auth-url", "https://auth.netweave.local", "Keycloak auth URL")
-	pf.StringVar(&gf.username, "username", "admin@netweave.local", "Admin username")
-	pf.StringVar(&gf.password, "password", "admin", "Admin password")
-	pf.StringVar(&gf.clientSecret, "client-secret", "", "OAuth2 client secret (auto-read from K8s if empty)")
-}
-
-func connectGateway(ctx context.Context, gf *gatewayFlags) (*service.GatewayConnection, error) {
-	gw, err := service.ConnectGateway(ctx, &service.GatewayConfig{
-		GatewayURL:   gf.gatewayURL,
-		AuthURL:      gf.authURL,
-		Username:     gf.username,
-		Password:     gf.password,
-		ClientSecret: gf.clientSecret,
-		Namespace:    cmd.Global.Namespace,
-		Kubeconfig:   cmd.Global.Kubeconfig,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to gateway: %w", err)
-	}
-	return gw, nil
-}
 
 // accessEntry mirrors the API response for a backend access record.
 type accessEntry struct {
@@ -66,7 +30,7 @@ type accessListResponse struct {
 
 // NewBackendAccessCmd creates the parent "backend-access" command.
 func NewBackendAccessCmd() *cobra.Command {
-	var gf gatewayFlags
+	var gf cmd.GatewayFlags
 
 	parent := &cobra.Command{
 		Use:   "backend-access",
@@ -74,7 +38,7 @@ func NewBackendAccessCmd() *cobra.Command {
 		Long:  `Grant, list, and revoke tenant access to infrastructure backends.`,
 	}
 
-	addGatewayFlags(parent, &gf)
+	cmd.AddGatewayFlags(parent, &gf)
 
 	parent.AddCommand(newListCmd(&gf))
 	parent.AddCommand(newGrantCmd(&gf))
@@ -83,7 +47,7 @@ func NewBackendAccessCmd() *cobra.Command {
 	return parent
 }
 
-func newListCmd(gf *gatewayFlags) *cobra.Command {
+func newListCmd(gf *cmd.GatewayFlags) *cobra.Command {
 	var tenantID string
 
 	listCmd := &cobra.Command{
@@ -92,11 +56,7 @@ func newListCmd(gf *gatewayFlags) *cobra.Command {
 		RunE: func(c *cobra.Command, _ []string) error {
 			ctx := c.Context()
 
-			if tenantID == "" {
-				return fmt.Errorf("--tenant flag is required")
-			}
-
-			gw, err := connectGateway(ctx, gf)
+			gw, err := cmd.ConnectGateway(ctx, gf)
 			if err != nil {
 				return err
 			}
@@ -131,11 +91,12 @@ func newListCmd(gf *gatewayFlags) *cobra.Command {
 		},
 	}
 
-	listCmd.Flags().StringVar(&tenantID, "tenant", "", "Tenant ID (required)")
+	listCmd.Flags().StringVar(&tenantID, "tenant", "", "Tenant ID")
+	cmd.MustMarkRequired(listCmd, "tenant")
 	return listCmd
 }
 
-func newGrantCmd(gf *gatewayFlags) *cobra.Command {
+func newGrantCmd(gf *cmd.GatewayFlags) *cobra.Command {
 	var (
 		tenantID    string
 		backendID   string
@@ -148,11 +109,7 @@ func newGrantCmd(gf *gatewayFlags) *cobra.Command {
 		RunE: func(c *cobra.Command, _ []string) error {
 			ctx := c.Context()
 
-			if tenantID == "" || backendID == "" || permissions == "" {
-				return fmt.Errorf("--tenant, --backend, and --permissions flags are required")
-			}
-
-			gw, err := connectGateway(ctx, gf)
+			gw, err := cmd.ConnectGateway(ctx, gf)
 			if err != nil {
 				return err
 			}
@@ -187,16 +144,19 @@ func newGrantCmd(gf *gatewayFlags) *cobra.Command {
 		},
 	}
 
-	grantCmd.Flags().StringVar(&tenantID, "tenant", "", "Tenant ID (required)")
-	grantCmd.Flags().StringVar(&backendID, "backend", "", "Backend ID (required)")
+	grantCmd.Flags().StringVar(&tenantID, "tenant", "", "Tenant ID")
+	grantCmd.Flags().StringVar(&backendID, "backend", "", "Backend ID")
 	grantCmd.Flags().StringVar(
 		&permissions, "permissions", "",
-		"Comma-separated permissions, e.g. read,subscribe (required)",
+		"Comma-separated permissions, e.g. read,subscribe",
 	)
+	cmd.MustMarkRequired(grantCmd, "tenant")
+	cmd.MustMarkRequired(grantCmd, "backend")
+	cmd.MustMarkRequired(grantCmd, "permissions")
 	return grantCmd
 }
 
-func newRevokeCmd(gf *gatewayFlags) *cobra.Command {
+func newRevokeCmd(gf *cmd.GatewayFlags) *cobra.Command {
 	var (
 		tenantID string
 		accessID string
@@ -208,11 +168,7 @@ func newRevokeCmd(gf *gatewayFlags) *cobra.Command {
 		RunE: func(c *cobra.Command, _ []string) error {
 			ctx := c.Context()
 
-			if tenantID == "" || accessID == "" {
-				return fmt.Errorf("--tenant and --id flags are required")
-			}
-
-			gw, err := connectGateway(ctx, gf)
+			gw, err := cmd.ConnectGateway(ctx, gf)
 			if err != nil {
 				return err
 			}
@@ -227,7 +183,9 @@ func newRevokeCmd(gf *gatewayFlags) *cobra.Command {
 		},
 	}
 
-	revokeCmd.Flags().StringVar(&tenantID, "tenant", "", "Tenant ID (required)")
-	revokeCmd.Flags().StringVar(&accessID, "id", "", "Access ID (required)")
+	revokeCmd.Flags().StringVar(&tenantID, "tenant", "", "Tenant ID")
+	revokeCmd.Flags().StringVar(&accessID, "id", "", "Access ID")
+	cmd.MustMarkRequired(revokeCmd, "tenant")
+	cmd.MustMarkRequired(revokeCmd, "id")
 	return revokeCmd
 }

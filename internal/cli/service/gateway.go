@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,7 +24,11 @@ const (
 	defaultClientID      = "netweave-gateway"
 	defaultSecretName    = "netweave-secret"
 	defaultSecretKey     = "keycloak-client-secret"
+	maxNamespaceLength   = 63
 )
+
+// dns1123LabelRegex validates DNS-1123 label format for Kubernetes namespace names.
+var dns1123LabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
 // GatewayConnection holds an authenticated connection to the gateway admin API.
 type GatewayConnection struct {
@@ -59,7 +64,7 @@ func ConnectGateway(ctx context.Context, cfg *GatewayConfig) (*GatewayConnection
 	if clientSecret == "" {
 		secret, err := readClientSecret(ctx, cfg.Namespace, cfg.Kubeconfig)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read client secret from K8s (use --client-secret flag): %w", err)
+			return nil, fmt.Errorf("failed to read client secret from Kubernetes (use --client-secret flag)")
 		}
 		clientSecret = secret
 	}
@@ -108,6 +113,9 @@ func (g *GatewayConnection) doJSONRequest(ctx context.Context, method, path stri
 }
 
 func (g *GatewayConnection) doRequest(ctx context.Context, method, path string, body io.Reader) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, gatewayClientTimeout)
+	defer cancel()
+
 	reqURL := g.baseURL + path
 
 	req, err := http.NewRequestWithContext(ctx, method, reqURL, body)
@@ -177,7 +185,7 @@ func acquireToken(
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("token request failed (HTTP %d): %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("authentication failed (HTTP %d): check credentials and auth URL", resp.StatusCode)
 	}
 
 	var tokenResp tokenResponse
@@ -192,6 +200,17 @@ func acquireToken(
 	return tokenResp.AccessToken, nil
 }
 
+// validateNamespace checks that a namespace is a valid DNS-1123 label.
+func validateNamespace(namespace string) error {
+	if len(namespace) > maxNamespaceLength {
+		return fmt.Errorf("namespace %q exceeds maximum length of %d characters", namespace, maxNamespaceLength)
+	}
+	if !dns1123LabelRegex.MatchString(namespace) {
+		return fmt.Errorf("namespace %q is not a valid DNS-1123 label", namespace)
+	}
+	return nil
+}
+
 func readClientSecret(
 	ctx context.Context, namespace, kubeconfig string,
 ) (string, error) {
@@ -199,21 +218,25 @@ func readClientSecret(
 		namespace = "netweave"
 	}
 
+	if err := validateNamespace(namespace); err != nil {
+		return "", err
+	}
+
 	conn, err := NewConnector(kubeconfig, namespace)
 	if err != nil {
-		return "", fmt.Errorf("failed to create K8s client: %w", err)
+		return "", fmt.Errorf("failed to create Kubernetes client: %w", err)
 	}
 
 	secret, err := conn.Clientset().CoreV1().Secrets(namespace).Get(
 		ctx, defaultSecretName, metav1.GetOptions{},
 	)
 	if err != nil {
-		return "", fmt.Errorf("failed to read secret %s: %w", defaultSecretName, err)
+		return "", fmt.Errorf("failed to read secret %q in namespace %q", defaultSecretName, namespace)
 	}
 
 	value, ok := secret.Data[defaultSecretKey]
 	if !ok {
-		return "", fmt.Errorf("key %s not found in secret %s", defaultSecretKey, defaultSecretName)
+		return "", fmt.Errorf("key %q not found in secret %q", defaultSecretKey, defaultSecretName)
 	}
 
 	return strings.TrimSpace(string(value)), nil
