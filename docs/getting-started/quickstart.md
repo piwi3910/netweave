@@ -11,7 +11,7 @@ By the end of this quickstart, you'll have:
 - PostgreSQL, Redis, and Keycloak deployed and configured
 - Admin Portal with Keycloak OIDC authentication
 - NGINX Ingress with TLS for all services
-- Working API endpoints at `https://api.netweave.local`
+- Working API endpoints at `https://o2.netweave.local` (O2-IMS) and `https://api.netweave.local` (Admin)
 
 ## Prerequisites
 
@@ -19,7 +19,7 @@ By the end of this quickstart, you'll have:
 - **kubectl** configured and connected to your cluster
 - **Helm** 3.x installed
 - **NGINX Ingress Controller** installed (see [Installation Guide](installation.md#step-4-install-nginx-ingress-controller))
-- **Go 1.25.0+** (to build the CLI)
+- **Go 1.25.7+** (to build the CLI)
 - **2GB RAM** available
 
 ### Verify Prerequisites
@@ -35,7 +35,7 @@ helm version --short
 
 # Check Go
 go version
-# Expected: go1.25.0 or later
+# Expected: go1.25.7 or later
 ```
 
 ### DNS Setup
@@ -43,7 +43,7 @@ go version
 Add local DNS entries to `/etc/hosts`:
 
 ```bash
-echo "127.0.0.1 admin.netweave.local api.netweave.local auth.netweave.local" | sudo tee -a /etc/hosts
+echo "127.0.0.1 admin.netweave.local api.netweave.local auth.netweave.local o2.netweave.local tmf.netweave.local graphql.netweave.local" | sudo tee -a /etc/hosts
 ```
 
 ## Quick Deploy
@@ -126,7 +126,7 @@ k8s-node-type-generic  k8s-node-type-generic  Unknown  <nil>  v1.33.1
 ```bash
 curl --cert ~/.netweave/client.crt --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
-  https://api.netweave.local/o2ims-infrastructureInventory/v1/resourceTypes
+  https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourceTypes
 ```
 
 </details>
@@ -172,7 +172,8 @@ graph LR
 
 | Service | URL | Auth | Purpose |
 |---------|-----|------|---------|
-| **Gateway API** | `https://api.netweave.local` | mTLS client cert | O2-IMS API endpoints |
+| **O2-IMS API** | `https://o2.netweave.local` | mTLS client cert | O2-IMS API endpoints |
+| **Admin API** | `https://api.netweave.local` | OAuth2/OIDC (Keycloak) | Admin API endpoints |
 | **Admin Portal** | `https://admin.netweave.local` | OAuth2/OIDC (Keycloak) | Web management UI |
 | **Keycloak** | `https://auth.netweave.local` | Admin credentials | Identity provider |
 
@@ -379,7 +380,8 @@ You've successfully:
 
 **What's running:**
 
-- netweave gateway with mTLS at `https://api.netweave.local`
+- netweave O2-IMS API with mTLS at `https://o2.netweave.local`
+- netweave Admin API with OAuth2 at `https://api.netweave.local`
 - Admin portal with OAuth2 at `https://admin.netweave.local`
 - Keycloak identity provider at `https://auth.netweave.local`
 - PostgreSQL, Redis, and Vault backing services

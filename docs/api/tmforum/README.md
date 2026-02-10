@@ -102,13 +102,13 @@ graph TB
 All TMForum APIs are available under the `/tmf-api/` prefix:
 
 ```
-https://<gateway-host>/tmf-api/resourceInventoryManagement/v4
-https://<gateway-host>/tmf-api/serviceInventoryManagement/v4
-https://<gateway-host>/tmf-api/serviceOrdering/v4
-https://<gateway-host>/tmf-api/eventManagement/v4
-https://<gateway-host>/tmf-api/serviceActivation/v4
-https://<gateway-host>/tmf-api/productCatalog/v4
-https://<gateway-host>/tmf-api/alarmManagement/v4
+https://tmf.netweave.local:8444/tmf-api/resourceInventoryManagement/v4
+https://tmf.netweave.local:8444/tmf-api/serviceInventoryManagement/v4
+https://tmf.netweave.local:8444/tmf-api/serviceOrdering/v4
+https://tmf.netweave.local:8444/tmf-api/eventManagement/v4
+https://tmf.netweave.local:8444/tmf-api/serviceActivation/v4
+https://tmf.netweave.local:8444/tmf-api/productCatalog/v4
+https://tmf.netweave.local:8444/tmf-api/alarmManagement/v4
 ```
 
 ## Quick Start
@@ -122,7 +122,7 @@ https://<gateway-host>/tmf-api/alarmManagement/v4
 ### Example: List Resources (TMF639)
 
 ```bash
-curl -X GET https://gateway.example.com/tmf-api/resourceInventoryManagement/v4/resource \
+curl -X GET https://tmf.netweave.local:8444/tmf-api/resourceInventoryManagement/v4/resource \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -152,7 +152,7 @@ Response:
 ### Example: Create Service (TMF638)
 
 ```bash
-curl -X POST https://gateway.example.com/tmf-api/serviceInventoryManagement/v4/service \
+curl -X POST https://tmf.netweave.local:8444/tmf-api/serviceInventoryManagement/v4/service \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -d '{
@@ -173,7 +173,7 @@ curl -X POST https://gateway.example.com/tmf-api/serviceInventoryManagement/v4/s
 ### Example: Register Event Hub (TMF688)
 
 ```bash
-curl -X POST https://gateway.example.com/tmf-api/eventManagement/v4/hub \
+curl -X POST https://tmf.netweave.local:8444/tmf-api/eventManagement/v4/hub \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -d '{
@@ -303,7 +303,7 @@ All resources include HATEOAS links for navigation:
 Register a webhook endpoint to receive event notifications:
 
 ```bash
-curl -X POST https://gateway.example.com/tmf-api/eventManagement/v4/hub \
+curl -X POST https://tmf.netweave.local:8444/tmf-api/eventManagement/v4/hub \
   -H "Content-Type: application/json" \
   -d '{
     "callback": "https://consumer.example.com/notifications",
@@ -345,13 +345,15 @@ curl -X POST https://gateway.example.com/tmf-api/eventManagement/v4/hub \
 
 ## Authentication & Authorization
 
-The TMForum APIs use the same authentication as the O-RAN APIs:
+The TMForum APIs are served on port **8444** (`tmf.netweave.local`) and use **OAuth2/OIDC** authentication:
 
-- **mTLS**: Mutual TLS for production deployments
-- **JWT Tokens**: Bearer token authentication
+- **OAuth2 Bearer Tokens**: JWT tokens via Keycloak
+- **TLS**: Encrypted transport (no client certificate required)
 - **RBAC**: Role-based access control
 
-See [Authentication Guide](../../security.md) for details.
+**Note**: Unlike O2-IMS APIs (which use mTLS on port 8443), TMForum APIs use OAuth2 tokens.
+
+See [Authentication Guide](../security/authentication.md) for details.
 
 ## Performance & Scalability
 
@@ -411,11 +413,13 @@ If you're using O-RAN APIs and want to migrate to TMForum:
 You can use both APIs simultaneously:
 
 ```python
-# O-RAN API
-response = requests.get("https://gateway/o2ims-infrastructureInventory/v1/resourcePools")
+# O-RAN API (mTLS on port 8443)
+response = requests.get("https://o2.netweave.local:8443/o2ims-infrastructureInventory/v1/resourcePools",
+                        cert=("client.crt", "client.key"), verify="ca.crt")
 
-# TMForum API (same data, different format)
-response = requests.get("https://gateway/tmf-api/resourceInventoryManagement/v4/resource?category=resourcePool")
+# TMForum API (OAuth2 on port 8444, same data, different format)
+response = requests.get("https://tmf.netweave.local:8444/tmf-api/resourceInventoryManagement/v4/resource?category=resourcePool",
+                        headers={"Authorization": f"Bearer {token}"})
 ```
 
 ## Additional Resources

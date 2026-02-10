@@ -312,7 +312,7 @@ sequenceDiagram
 - Client certificates issued by trusted CA
 - CN contains SMO identifier or tenant ID
 - SAN includes callback domain (for webhooks)
-- Certificates rotated every 90 days (cert-manager automation)
+- Certificates rotated every 90 days (Vault PKI automation)
 
 ### Authorization Model
 

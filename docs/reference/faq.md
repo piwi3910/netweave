@@ -71,7 +71,7 @@ All core adapters are functional and can be used in production with proper error
 ### What are the minimum requirements?
 
 **Runtime:**
-- Go 1.25.0+ (required by k8s.io/client-go v0.35.0)
+- Go 1.25.7+ (required by k8s.io/client-go v0.35.0)
 - Kubernetes 1.28+ cluster
 - Redis 7.4+ (Sentinel for HA)
 - 2 CPU cores, 4GB RAM minimum per gateway pod
@@ -279,7 +279,7 @@ See [Roadmap](../../README.md#roadmap) for planned features.
 
 **Kubernetes Deployments:**
 - Kubernetes Secrets for credentials
-- cert-manager for TLS certificate management
+- HashiCorp Vault PKI for TLS certificate management
 - Optional: External Secrets Operator
 
 **Standalone Deployments:**
@@ -521,7 +521,7 @@ See [Implementation Status](../IMPLEMENTATION_STATUS.md) for details.
 
 **Common Causes:**
 1. Redis not accessible → Check `NETWEAVE_REDIS_ADDR`
-2. TLS certificate issues → Verify cert-manager or manual certs
+2. TLS certificate issues → Verify Vault PKI or manual certs
 3. Backend API unreachable → Check adapter configuration
 4. Out of memory → Increase pod memory limits
 
@@ -549,7 +549,7 @@ kubectl describe pod -n netweave <pod-name>
 kubectl get subscriptions -n netweave
 
 # Check notifier metrics
-curl http://gateway:8080/metrics | grep notifier
+curl http://gateway:8080/metrics | grep notifier   # Metrics served on admin port
 ```
 
 ### High API latency
@@ -563,10 +563,10 @@ curl http://gateway:8080/metrics | grep notifier
 **Optimization:**
 ```bash
 # Check cache metrics
-curl http://gateway:8080/metrics | grep cache
+curl http://gateway:8080/metrics | grep cache   # Metrics served on admin port
 
 # Check adapter latency
-curl http://gateway:8080/metrics | grep adapter_request_duration
+curl http://gateway:8080/metrics | grep adapter_request_duration   # Metrics served on admin port
 ```
 
 ### Redis connection failures

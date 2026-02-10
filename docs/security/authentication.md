@@ -130,7 +130,7 @@ OAuth2/OIDC tokens are JWT (JSON Web Tokens) with standard and custom claims:
   ],
   "tenant_id": "smo-alpha",
   "iss": "https://keycloak.example.com/realms/netweave",
-  "aud": "o2ims-gateway",
+  "aud": "netweave-gateway",
   "exp": 1737123456,
   "iat": 1737120000
 }
@@ -155,7 +155,7 @@ OAuth2/OIDC tokens are JWT (JSON Web Tokens) with standard and custom claims:
 Clients send Bearer tokens in the Authorization header:
 
 ```bash
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
 
@@ -280,7 +280,7 @@ oauth2:
   # Keycloak connection details
   keycloak_base_url: "https://keycloak.example.com"
   keycloak_realm: "netweave"
-  keycloak_client_id: "o2ims-gateway"
+  keycloak_client_id: "netweave-gateway"
   keycloak_secret: "${KEYCLOAK_CLIENT_SECRET}"
 
   # User provisioning
@@ -840,7 +840,7 @@ openssl x509 -req -days 90 \
 
 ```bash
 # 1. Open browser to Keycloak login page
-open "https://keycloak.example.com/realms/netweave/protocol/openid-connect/auth?client_id=o2ims-gateway&response_type=token&redirect_uri=http://localhost:8080/callback"
+open "https://keycloak.example.com/realms/netweave/protocol/openid-connect/auth?client_id=netweave-gateway&response_type=token&redirect_uri=http://localhost:8080/callback"
 
 # 2. After login, Keycloak redirects with token in URL fragment:
 # http://localhost:8080/callback#access_token=eyJhbGc...&token_type=Bearer&expires_in=300
@@ -859,7 +859,7 @@ TOKEN="eyJhbGc..."
 
 KEYCLOAK_URL="https://keycloak.example.com"
 REALM="netweave"
-CLIENT_ID="o2ims-gateway"
+CLIENT_ID="netweave-gateway"
 CLIENT_SECRET="your-client-secret"
 USERNAME="user@example.com"
 PASSWORD="your-password"
@@ -911,13 +911,13 @@ echo "Service Token: $ACCESS_TOKEN"
 
 ```bash
 # Make authenticated request with mTLS
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     --cert operator-1.crt \
     --key operator-1.key \
     --cacert ca.crt
 
 # With custom tenant header (fallback)
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     --cert operator-1.crt \
     --key operator-1.key \
     --cacert ca.crt \
@@ -931,11 +931,11 @@ curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/r
 TOKEN=$(./scripts/get-token.sh)
 
 # Make authenticated request with Bearer token
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     -H "Authorization: Bearer $TOKEN"
 
 # Bearer token takes priority (if oauth2.priority=true)
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     -H "Authorization: Bearer $TOKEN" \
     --cert operator-1.crt \
     --key operator-1.key \
@@ -949,7 +949,7 @@ import requests
 
 # Configure mTLS
 response = requests.get(
-    'https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools',
+    'https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools',
     cert=('operator-1.crt', 'operator-1.key'),
     verify='ca.crt'
 )
@@ -967,7 +967,7 @@ import json
 def get_token():
     token_url = "https://keycloak.example.com/realms/netweave/protocol/openid-connect/token"
     data = {
-        "client_id": "o2ims-gateway",
+        "client_id": "netweave-gateway",
         "client_secret": "your-client-secret",
         "username": "user@example.com",
         "password": "your-password",
@@ -983,7 +983,7 @@ token = get_token()
 headers = {"Authorization": f"Bearer {token}"}
 
 response = requests.get(
-    'https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools',
+    'https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools',
     headers=headers
 )
 
@@ -1034,7 +1034,7 @@ func main() {
     }
 
     // Make request
-    resp, err := client.Get("https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools")
+    resp, err := client.Get("https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools")
     if err != nil {
         panic(err)
     }
@@ -1069,7 +1069,7 @@ func getToken() (string, error) {
     tokenURL := "https://keycloak.example.com/realms/netweave/protocol/openid-connect/token"
 
     data := url.Values{}
-    data.Set("client_id", "o2ims-gateway")
+    data.Set("client_id", "netweave-gateway")
     data.Set("client_secret", "your-client-secret")
     data.Set("username", "user@example.com")
     data.Set("password", "your-password")
@@ -1097,7 +1097,7 @@ func main() {
     }
 
     // Create authenticated request
-    req, err := http.NewRequest("GET", "https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools", nil)
+    req, err := http.NewRequest("GET", "https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools", nil)
     if err != nil {
         panic(err)
     }
@@ -1125,22 +1125,22 @@ func main() {
 
 ```bash
 # 1. Test with valid certificate
-curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -v -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     --cert client.crt --key client.key --cacert ca.crt
 # Expected: 200 OK
 
 # 2. Test without certificate
-curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -v -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     --cacert ca.crt
 # Expected: TLS handshake failure or 401 Unauthorized
 
 # 3. Test with expired certificate
-curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -v -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     --cert expired-client.crt --key expired-client.key --cacert ca.crt
 # Expected: Certificate verification error
 
 # 4. Test with wrong CA
-curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -v -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     --cert wrong-client.crt --key wrong-client.key --cacert ca.crt
 # Expected: Certificate verification error
 ```
@@ -1152,34 +1152,34 @@ curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v
 TOKEN=$(./scripts/get-token.sh)
 
 # 2. Test with valid token
-curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -v -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     -H "Authorization: Bearer $TOKEN"
 # Expected: 200 OK
 
 # 3. Test without token
-curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions
+curl -v -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions
 # Expected: 401 Unauthorized (if oauth2.enabled=true and no mTLS)
 
 # 4. Test with invalid token
-curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -v -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     -H "Authorization: Bearer invalid.token.here"
 # Expected: 401 Unauthorized
 
 # 5. Test with expired token
 EXPIRED_TOKEN="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."  # Expired token
-curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -v -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     -H "Authorization: Bearer $EXPIRED_TOKEN"
 # Expected: 401 Unauthorized
 
 # 6. Test dual auth priority (OAuth2 priority)
-curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -v -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     -H "Authorization: Bearer $TOKEN" \
     --cert client.crt --key client.key --cacert ca.crt
 # Expected: 200 OK (authenticated via OAuth2)
 
 # 7. Test user auto-provisioning
 # First request with new user token → user created
-curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -v -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
     -H "Authorization: Bearer $NEW_USER_TOKEN"
 # Expected: 200 OK + user created in database
 ```

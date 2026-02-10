@@ -389,7 +389,7 @@ apiVersion: v1
 kind: ResourceQuota
 metadata:
   name: o2ims-quota
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   hard:
     requests.cpu: "20"

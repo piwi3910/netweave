@@ -50,7 +50,10 @@ HTTP server configuration.
 ```yaml
 server:
   host: "0.0.0.0"
-  port: 8080
+  admin_port: 8080
+  o2_port: 8443
+  tmf_port: 8444
+  graphql_port: 8445
   read_timeout: 30s
   write_timeout: 30s
   idle_timeout: 120s
@@ -62,7 +65,10 @@ server:
 | Field | Type | Default | Description | Validation |
 |-------|------|---------|-------------|------------|
 | `host` | string | `"0.0.0.0"` | Server bind address | Valid IP or hostname |
-| `port` | int | `8080` | HTTP(S) port | 1-65535 |
+| `admin_port` | int | `8080` | Admin API port (OAuth2, TLS, no clientAuth) | 1-65535 |
+| `o2_port` | int | `8443` | O2-IMS API port (mTLS, TLS + clientAuth) | 1-65535 |
+| `tmf_port` | int | `8444` | TMF API port (OAuth2, TLS, no clientAuth) | 1-65535 |
+| `graphql_port` | int | `8445` | GraphQL API port (OAuth2, TLS, no clientAuth) | 1-65535 |
 | `read_timeout` | duration | `30s` | Request read timeout | > 0 |
 | `write_timeout` | duration | `30s` | Response write timeout | > 0 |
 | `idle_timeout` | duration | `120s` | Keep-alive idle timeout | > 0 |
@@ -73,7 +79,10 @@ server:
 **Environment Variables:**
 ```bash
 NETWEAVE_SERVER_HOST
-NETWEAVE_SERVER_PORT
+NETWEAVE_SERVER_ADMIN_PORT
+NETWEAVE_SERVER_O2_PORT
+NETWEAVE_SERVER_TMF_PORT
+NETWEAVE_SERVER_GRAPHQL_PORT
 NETWEAVE_SERVER_READ_TIMEOUT
 NETWEAVE_SERVER_WRITE_TIMEOUT
 NETWEAVE_SERVER_IDLE_TIMEOUT
@@ -241,11 +250,11 @@ NETWEAVE_TLS_CIPHER_SUITES  # Comma-separated
 
 ## Authentication Backend
 
-Authentication backend configuration (Redis or Keycloak).
+Authentication backend configuration (Redis, PostgreSQL, or Keycloak).
 
 ```yaml
 auth:
-  backend: redis  # "redis" or "keycloak"
+  backend: redis  # "redis", "postgres", or "keycloak"
   keycloak:
     base_url: https://keycloak.example.com
     realm: netweave
@@ -260,7 +269,7 @@ auth:
 
 | Field | Type | Default | Description | Validation |
 |-------|------|---------|-------------|------------|
-| `backend` | string | `"redis"` | Authentication backend | `redis` or `keycloak` |
+| `backend` | string | `"redis"` | Authentication backend | `redis`, `postgres`, or `keycloak` |
 | `keycloak.base_url` | string | `""` | Keycloak server URL | Valid URL if backend is keycloak |
 | `keycloak.realm` | string | `""` | Keycloak realm name | Required if backend is keycloak |
 | `keycloak.client_id` | string | `""` | OAuth2 client ID | Required if backend is keycloak |
@@ -276,6 +285,7 @@ auth:
 The `auth.backend` setting determines where authentication data (users, tenants, roles, audit logs) is stored:
 
 - `redis` (default): All auth data stored in Redis. Simple, fast, suitable for most deployments.
+- `postgres`: All auth data stored in PostgreSQL. Durable, ACID-compliant, suitable for production.
 - `keycloak`: All auth data managed via Keycloak Admin API. Enterprise SSO integration, centralized user management.
 
 **When to Use Keycloak Backend:**
@@ -387,7 +397,7 @@ oauth2:
   priority: false
   keycloak_base_url: https://keycloak.example.com
   keycloak_realm: netweave
-  keycloak_client_id: o2ims-gateway
+  keycloak_client_id: netweave-gateway
   keycloak_secret: ${KEYCLOAK_CLIENT_SECRET}
   auto_provision_users: false
   default_role: tenant-viewer
@@ -479,7 +489,7 @@ oauth2:
   priority: true
   keycloak_base_url: https://keycloak.example.com
   keycloak_realm: netweave
-  keycloak_client_id: o2ims-gateway
+  keycloak_client_id: netweave-gateway
   keycloak_secret: ${KEYCLOAK_CLIENT_SECRET}
   auto_provision_users: true
   default_role: tenant-viewer
@@ -496,7 +506,7 @@ oauth2:
   priority: false  # mTLS takes priority
   keycloak_base_url: https://keycloak.example.com
   keycloak_realm: netweave
-  keycloak_client_id: o2ims-gateway
+  keycloak_client_id: netweave-gateway
   keycloak_secret: ${KEYCLOAK_CLIENT_SECRET}
   auto_provision_users: false  # Manual user management
   require_tenant_claim: false
@@ -815,7 +825,7 @@ All environment variables use the `NETWEAVE_` prefix and follow this pattern:
 
 ```bash
 # Simple value
-NETWEAVE_SERVER_PORT=8443
+NETWEAVE_SERVER_O2_PORT=8443
 
 # Nested value
 NETWEAVE_OBSERVABILITY_LOGGING_LEVEL=info
@@ -838,7 +848,10 @@ NETWEAVE_KUBERNETES_TIMEOUT=1m
 **Server:**
 ```bash
 NETWEAVE_SERVER_HOST
-NETWEAVE_SERVER_PORT
+NETWEAVE_SERVER_ADMIN_PORT
+NETWEAVE_SERVER_O2_PORT
+NETWEAVE_SERVER_TMF_PORT
+NETWEAVE_SERVER_GRAPHQL_PORT
 NETWEAVE_SERVER_READ_TIMEOUT
 NETWEAVE_SERVER_WRITE_TIMEOUT
 NETWEAVE_SERVER_IDLE_TIMEOUT

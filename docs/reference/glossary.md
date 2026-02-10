@@ -196,7 +196,7 @@ Distributes network traffic across multiple servers. Kubernetes LoadBalancer ser
 **Transport Layer Security** - Cryptographic protocol securing network communications. Successor to SSL, provides encryption, authentication, and integrity.
 
 ### Certificate Authority (CA)
-Entity issuing digital certificates. cert-manager in Kubernetes can act as CA for internal certificates.
+Entity issuing digital certificates. HashiCorp Vault PKI in Kubernetes can act as CA for internal certificates.
 
 ### GPG Signing
 Using GPG keys to cryptographically sign git commits. Verifies commit author identity and prevents tampering.

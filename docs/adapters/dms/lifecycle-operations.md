@@ -82,7 +82,7 @@ HTTP/1.1 204 No Content
 #### Scale Up to 5 Replicas
 
 ```bash
-curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/scale" \
+curl -X POST "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/scale" \
   -H "Content-Type: application/json" \
   -d '{
     "replicas": 5
@@ -97,7 +97,7 @@ HTTP/1.1 204 No Content
 #### Scale Down to 1 Replica
 
 ```bash
-curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/scale" \
+curl -X POST "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/scale" \
   -H "Content-Type: application/json" \
   -d '{
     "replicas": 1
@@ -107,7 +107,7 @@ curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/scale" \
 #### Scale to Zero (Maintenance Mode)
 
 ```bash
-curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/scale" \
+curl -X POST "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/scale" \
   -H "Content-Type: application/json" \
   -d '{
     "replicas": 0
@@ -148,7 +148,7 @@ curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/scale" \
 **Post-Scale Verification:**
 ```bash
 # Check deployment status
-curl "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/status"
+curl "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/status"
 
 # Expected response
 {
@@ -223,7 +223,7 @@ POST /o2dms/v1/nfDeployments/{nfDeploymentId}/rollback
 #### Rollback to Previous Revision
 
 ```bash
-curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/rollback" \
+curl -X POST "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/rollback" \
   -H "Content-Type: application/json" \
   -d '{
     "revision": 0
@@ -236,10 +236,10 @@ curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/rollback" 
 
 ```bash
 # First, check revision history
-curl "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/history"
+curl "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/history"
 
 # Then rollback to known-good revision
-curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/rollback" \
+curl -X POST "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/rollback" \
   -H "Content-Type: application/json" \
   -d '{
     "revision": 3
@@ -326,10 +326,10 @@ sequenceDiagram
 **Post-Rollback Verification:**
 ```bash
 # Verify rollback success
-curl "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod"
+curl "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod"
 
 # Check deployment history
-curl "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/history"
+curl "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/history"
 ```
 
 ### Error Scenarios
@@ -412,7 +412,7 @@ PUT /o2dms/v1/nfDeployments/{nfDeploymentId}
 #### Update Image Version
 
 ```bash
-curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
+curl -X PUT "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod" \
   -H "Content-Type: application/json" \
   -d '{
     "parameters": {
@@ -428,7 +428,7 @@ curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
 #### Update Chart Version and Configuration
 
 ```bash
-curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
+curl -X PUT "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod" \
   -H "Content-Type: application/json" \
   -d '{
     "descriptorId": "nginx-chart-1.2.0",
@@ -450,7 +450,7 @@ curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
 #### Update Resource Limits
 
 ```bash
-curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
+curl -X PUT "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod" \
   -H "Content-Type: application/json" \
   -d '{
     "parameters": {
@@ -478,7 +478,7 @@ curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
 - Configurable via `maxUnavailable` and `maxSurge`
 
 ```bash
-curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
+curl -X PUT "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod" \
   -H "Content-Type: application/json" \
   -d '{
     "parameters": {
@@ -500,7 +500,7 @@ curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
 - Useful for stateful applications
 
 ```bash
-curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
+curl -X PUT "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod" \
   -H "Content-Type: application/json" \
   -d '{
     "parameters": {
@@ -537,7 +537,7 @@ curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
 
 ```bash
 # Monitor upgrade status
-watch -n 2 'curl -s "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/status"'
+watch -n 2 'curl -s "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/status"'
 
 # Expected progress sequence:
 # Progress: 0%  - Upgrade initiated
@@ -558,7 +558,7 @@ watch -n 2 'curl -s "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/sta
 **Post-Upgrade Verification:**
 ```bash
 # Verify upgrade
-curl "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod"
+curl "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod"
 
 # Check pods are healthy
 kubectl get pods -n production -l app=nginx-prod
@@ -633,7 +633,7 @@ GET /o2dms/v1/nfDeployments/{nfDeploymentId}/status
 ### Example
 
 ```bash
-curl "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/status"
+curl "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/status"
 ```
 
 ---
@@ -688,7 +688,7 @@ GET /o2dms/v1/nfDeployments/{nfDeploymentId}/history
 ### Example
 
 ```bash
-curl "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/history"
+curl "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/history"
 ```
 
 ---
@@ -701,7 +701,7 @@ curl "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/history"
 
 ```bash
 # Configure readiness probe in deployment
-curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
+curl -X PUT "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod" \
   -H "Content-Type: application/json" \
   -d '{
     "parameters": {
@@ -736,7 +736,7 @@ curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
 
 ```bash
 # 1. Deploy "green" version
-curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments" \
+curl -X POST "https://o2.netweave.local:8443/o2dms/v1/nfDeployments" \
   -d '{
     "name": "nginx-prod-green",
     "descriptorId": "nginx-chart-1.2.0",
@@ -749,7 +749,7 @@ curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments" \
 curl "http://nginx-prod-green-service:80/health"
 
 # 3. Switch traffic (update service selector)
-curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
+curl -X PUT "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod" \
   -d '{
     "parameters": {
       "service": {
@@ -759,7 +759,7 @@ curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
   }'
 
 # 4. Decommission blue deployment
-curl -X DELETE "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod-blue"
+curl -X DELETE "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod-blue"
 ```
 
 ### Canary Deployment
@@ -768,7 +768,7 @@ curl -X DELETE "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod-blue"
 
 ```bash
 # 1. Deploy canary with 10% traffic
-curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments" \
+curl -X POST "https://o2.netweave.local:8443/o2dms/v1/nfDeployments" \
   -d '{
     "name": "nginx-prod-canary",
     "descriptorId": "nginx-chart-1.2.0",
@@ -783,11 +783,11 @@ curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments" \
 
 # 2. Monitor metrics
 # If successful, increase traffic
-curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod-canary" \
+curl -X PUT "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod-canary" \
   -d '{"parameters": {"canary": {"weight": 50}}}'
 
 # 3. Full rollout
-curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
+curl -X PUT "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod" \
   -d '{"descriptorId": "nginx-chart-1.2.0"}'
 ```
 
@@ -953,10 +953,10 @@ kubectl delete pod <pod-name> -n production --grace-period=0 --force
 **Solutions:**
 ```bash
 # Check available revisions
-curl "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/history"
+curl "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/history"
 
 # If history cleared, deploy known-good version
-curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
+curl -X PUT "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod" \
   -d '{"descriptorId": "nginx-chart-1.0.0"}'
 ```
 
@@ -1002,13 +1002,13 @@ kubectl get pvc -n production
 **Solutions:**
 ```bash
 # Get deployment package schema
-curl "http://localhost:8080/o2dms/v1/nfDeploymentDescriptors/nginx-chart-1.2.0"
+curl "https://o2.netweave.local:8443/o2dms/v1/nfDeploymentDescriptors/nginx-chart-1.2.0"
 
 # Validate parameters against schema before upgrade
 # Use JSON schema validation tools
 
 # Try upgrade with minimal parameters first
-curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
+curl -X PUT "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod" \
   -d '{"descriptorId": "nginx-chart-1.2.0"}'
 ```
 
@@ -1024,7 +1024,7 @@ curl -X PUT "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod" \
 **Solutions:**
 ```bash
 # Check deployment status
-curl "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/status"
+curl "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/status"
 
 # Check pod status
 kubectl get pods -n production -l app=nginx-prod
@@ -1036,7 +1036,7 @@ kubectl describe quota -n production
 kubectl logs -n production <pod-name>
 
 # If upgrade appears stuck, may need to rollback
-curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod/rollback" \
+curl -X POST "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod/rollback" \
   -d '{"revision": 0}'
 ```
 

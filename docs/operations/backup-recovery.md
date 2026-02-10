@@ -64,7 +64,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: redis-config
-  namespace: o2ims-system
+  namespace: netweave
 data:
   redis.conf: |
     # RDB Snapshots
@@ -83,13 +83,13 @@ data:
 
 ```bash
 # Trigger manual backup
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli BGSAVE
+kubectl exec -n netweave redis-node-0 -- redis-cli BGSAVE
 
 # Check backup status
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli LASTSAVE
+kubectl exec -n netweave redis-node-0 -- redis-cli LASTSAVE
 
 # Copy snapshot file
-kubectl exec -n o2ims-system redis-node-0 -- tar czf - /data/dump.rdb | \
+kubectl exec -n netweave redis-node-0 -- tar czf - /data/dump.rdb | \
   cat > backup-$(date +%Y%m%d-%H%M%S).rdb.tar.gz
 ```
 
@@ -102,7 +102,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: redis-backup
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   schedule: "0 */6 * * *"  # Every 6 hours
   concurrencyPolicy: Forbid
@@ -147,7 +147,7 @@ spec:
               done
 
               # Copy dump.rdb from Redis pod
-              kubectl cp o2ims-system/redis-node-0:/data/dump.rdb /tmp/dump.rdb
+              kubectl cp netweave/redis-node-0:/data/dump.rdb /tmp/dump.rdb
 
               # Create timestamped backup
               TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -174,15 +174,15 @@ spec:
 **Create ServiceAccount and RBAC:**
 
 ```bash
-kubectl create serviceaccount redis-backup -n o2ims-system
+kubectl create serviceaccount redis-backup -n netweave
 
-kubectl create role redis-backup-role -n o2ims-system \
+kubectl create role redis-backup-role -n netweave \
   --verb=get,list \
   --resource=pods,pods/exec
 
-kubectl create rolebinding redis-backup-binding -n o2ims-system \
+kubectl create rolebinding redis-backup-binding -n netweave \
   --role=redis-backup-role \
-  --serviceaccount=o2ims-system:redis-backup
+  --serviceaccount=netweave:redis-backup
 ```
 
 ### Strategy 2: Redis AOF (Append-Only File)
@@ -199,7 +199,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: redis-config
-  namespace: o2ims-system
+  namespace: netweave
 data:
   redis.conf: |
     # AOF Configuration
@@ -219,13 +219,13 @@ data:
 
 ```bash
 # Trigger AOF rewrite (compaction)
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli BGREWRITEAOF
+kubectl exec -n netweave redis-node-0 -- redis-cli BGREWRITEAOF
 
 # Check rewrite status
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli INFO persistence | grep aof_rewrite_in_progress
+kubectl exec -n netweave redis-node-0 -- redis-cli INFO persistence | grep aof_rewrite_in_progress
 
 # Copy AOF file
-kubectl exec -n o2ims-system redis-node-0 -- tar czf - /data/appendonly.aof | \
+kubectl exec -n netweave redis-node-0 -- tar czf - /data/appendonly.aof | \
   cat > backup-aof-$(date +%Y%m%d-%H%M%S).tar.gz
 ```
 
@@ -261,15 +261,15 @@ graph LR
 
 ```bash
 # In DR cluster, configure Redis as replica of primary
-kubectl exec -n o2ims-system redis-dr-0 -- redis-cli \
+kubectl exec -n netweave redis-dr-0 -- redis-cli \
   REPLICAOF redis-primary.us-east.example.com 6379
 
 # Set read-only on DR replica
-kubectl exec -n o2ims-system redis-dr-0 -- redis-cli \
+kubectl exec -n netweave redis-dr-0 -- redis-cli \
   CONFIG SET replica-read-only yes
 
 # Monitor replication lag
-kubectl exec -n o2ims-system redis-dr-0 -- redis-cli INFO replication
+kubectl exec -n netweave redis-dr-0 -- redis-cli INFO replication
 ```
 
 ### Strategy 4: Volume Snapshots
@@ -285,7 +285,7 @@ apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshot
 metadata:
   name: redis-snapshot-20260112
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   volumeSnapshotClassName: csi-snapclass
   source:
@@ -299,7 +299,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: redis-volume-snapshot
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   schedule: "0 */6 * * *"
   jobTemplate:
@@ -321,7 +321,7 @@ spec:
               kind: VolumeSnapshot
               metadata:
                 name: redis-snapshot-${TIMESTAMP}
-                namespace: o2ims-system
+                namespace: netweave
               spec:
                 volumeSnapshotClassName: csi-snapclass
                 source:
@@ -330,16 +330,16 @@ spec:
 
               # Wait for snapshot to be ready
               kubectl wait --for=condition=ready volumesnapshot/redis-snapshot-${TIMESTAMP} \
-                -n o2ims-system --timeout=300s
+                -n netweave --timeout=300s
 
               echo "Snapshot redis-snapshot-${TIMESTAMP} created successfully"
 
               # Delete snapshots older than 7 days
-              kubectl get volumesnapshots -n o2ims-system \
+              kubectl get volumesnapshots -n netweave \
                 --sort-by=.metadata.creationTimestamp | \
                 head -n -168 | \
                 awk '{print $1}' | \
-                xargs -r kubectl delete volumesnapshot -n o2ims-system
+                xargs -r kubectl delete volumesnapshot -n netweave
           restartPolicy: OnFailure
 ```
 
@@ -359,19 +359,19 @@ spec:
 
 ```bash
 # Verify pod status
-kubectl get pods -n o2ims-system -l app.kubernetes.io/name=netweave
+kubectl get pods -n netweave -l app.kubernetes.io/name=netweave
 
 # Check pod logs
-kubectl logs -n o2ims-system <failed-pod> --previous
+kubectl logs -n netweave <failed-pod> --previous
 
 # Delete failed pod (StatefulSet will recreate)
-kubectl delete pod <failed-pod> -n o2ims-system
+kubectl delete pod <failed-pod> -n netweave
 
 # Monitor recreation
-kubectl get pods -n o2ims-system -w
+kubectl get pods -n netweave -w
 
 # Verify new pod is healthy
-kubectl logs -n o2ims-system <new-pod> --tail=50
+kubectl logs -n netweave <new-pod> --tail=50
 curl -k https://<pod-ip>:8080/healthz
 ```
 
@@ -393,18 +393,18 @@ curl -k https://<pod-ip>:8080/healthz
 
 ```bash
 # Verify Sentinel detects failure
-kubectl exec -n o2ims-system redis-sentinel-0 -- \
+kubectl exec -n netweave redis-sentinel-0 -- \
   redis-cli -p 26379 SENTINEL get-master-addr-by-name mymaster
 
 # Monitor automatic failover
-kubectl logs -n o2ims-system redis-sentinel-0 -f
+kubectl logs -n netweave redis-sentinel-0 -f
 
 # Verify new master elected
-kubectl exec -n o2ims-system redis-sentinel-0 -- \
+kubectl exec -n netweave redis-sentinel-0 -- \
   redis-cli -p 26379 SENTINEL masters
 
 # Check gateway reconnection
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | grep "redis"
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave | grep "redis"
 
 # Verify service restored
 curl -k https://o2ims.example.com/o2ims-infrastructureInventory/v1/api_versions
@@ -427,24 +427,24 @@ curl -k https://o2ims.example.com/o2ims-infrastructureInventory/v1/api_versions
 
 ```bash
 # Check Redis logs
-kubectl logs -n o2ims-system redis-node-0
+kubectl logs -n netweave redis-node-0
 
 # If AOF corrupted, try repair
-kubectl exec -n o2ims-system redis-node-0 -- redis-check-aof --fix /data/appendonly.aof
+kubectl exec -n netweave redis-node-0 -- redis-check-aof --fix /data/appendonly.aof
 
 # If RDB corrupted, try repair
-kubectl exec -n o2ims-system redis-node-0 -- redis-check-rdb /data/dump.rdb
+kubectl exec -n netweave redis-node-0 -- redis-check-rdb /data/dump.rdb
 
 # If repair fails, restore from backup
 # 1. Stop Redis
-kubectl scale statefulset redis-node -n o2ims-system --replicas=0
+kubectl scale statefulset redis-node -n netweave --replicas=0
 
 # 2. Download latest backup from S3
 aws s3 cp s3://netweave-backups/redis-snapshots/dump-latest.rdb.gz /tmp/
 gunzip /tmp/dump-latest.rdb.gz
 
 # 3. Copy to Redis PVC
-kubectl run -n o2ims-system restore-helper --rm -it \
+kubectl run -n netweave restore-helper --rm -it \
   --image=redis:7.4-alpine \
   --overrides='
   {
@@ -468,14 +468,14 @@ kubectl run -n o2ims-system restore-helper --rm -it \
   }'
 
 # In separate terminal, copy backup
-kubectl cp /tmp/dump-latest.rdb o2ims-system/restore-helper:/data/dump.rdb
+kubectl cp /tmp/dump-latest.rdb netweave/restore-helper:/data/dump.rdb
 
 # 4. Restart Redis
-kubectl scale statefulset redis-node -n o2ims-system --replicas=3
+kubectl scale statefulset redis-node -n netweave --replicas=3
 
 # 5. Verify data restored
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli DBSIZE
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli KEYS "subscription:*"
+kubectl exec -n netweave redis-node-0 -- redis-cli DBSIZE
+kubectl exec -n netweave redis-node-0 -- redis-cli KEYS "subscription:*"
 ```
 
 **RTO**: 15-30 minutes
@@ -501,22 +501,22 @@ kubectl cluster-info  # Should fail
 kubectl config use-context dr-cluster
 
 # 3. Promote DR Redis replica to master
-kubectl exec -n o2ims-system redis-dr-0 -- redis-cli REPLICAOF NO ONE
+kubectl exec -n netweave redis-dr-0 -- redis-cli REPLICAOF NO ONE
 
 # 4. Verify promotion
-kubectl exec -n o2ims-system redis-dr-0 -- redis-cli INFO replication | grep role
+kubectl exec -n netweave redis-dr-0 -- redis-cli INFO replication | grep role
 
 # 5. Update DNS to point to DR cluster
 # Update o2ims.example.com -> dr-cluster-lb-ip
 
 # 6. Scale up gateway pods in DR cluster
-kubectl scale deployment netweave-gateway -n o2ims-system --replicas=3
+kubectl scale deployment netweave-gateway -n netweave --replicas=3
 
 # 7. Verify service restored
 curl -k https://o2ims.example.com/healthz
 
 # 8. Monitor metrics
-kubectl port-forward -n o2ims-system svc/netweave-gateway 8080:8080 &
+kubectl port-forward -n netweave svc/netweave-gateway 8080:8080 &
 curl http://localhost:8080/metrics
 ```
 
@@ -544,7 +544,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: redis-restore
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   template:
     spec:
@@ -581,17 +581,17 @@ spec:
 EOF
 
 # 4. Monitor restore
-kubectl logs -n o2ims-system job/redis-restore -f
+kubectl logs -n netweave job/redis-restore -f
 
 # 5. Verify data restored
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli DBSIZE
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli KEYS "subscription:*"
+kubectl exec -n netweave redis-node-0 -- redis-cli DBSIZE
+kubectl exec -n netweave redis-node-0 -- redis-cli KEYS "subscription:*"
 
 # 6. Re-enable writes
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli CONFIG SET stop-writes-on-bgsave-error yes
+kubectl exec -n netweave redis-node-0 -- redis-cli CONFIG SET stop-writes-on-bgsave-error yes
 
 # 7. Restart gateway pods to clear caches
-kubectl rollout restart deployment/netweave-gateway -n o2ims-system
+kubectl rollout restart deployment/netweave-gateway -n netweave
 ```
 
 **RTO**: 20-40 minutes
@@ -621,16 +621,16 @@ curl -k -X POST https://o2ims.example.com/o2ims-infrastructureInventory/v1/subsc
   }"
 
 # 2. Verify subscription exists
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli GET "subscription:${TEST_SUB_ID}"
+kubectl exec -n netweave redis-node-0 -- redis-cli GET "subscription:${TEST_SUB_ID}"
 
 # 3. Trigger backup
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli BGSAVE
+kubectl exec -n netweave redis-node-0 -- redis-cli BGSAVE
 
 # Wait for backup to complete
 sleep 10
 
 # 4. Download backup
-kubectl exec -n o2ims-system redis-node-0 -- cat /data/dump.rdb > /tmp/test-backup.rdb
+kubectl exec -n netweave redis-node-0 -- cat /data/dump.rdb > /tmp/test-backup.rdb
 
 # 5. Restore to test Redis instance
 docker run -d --name redis-test -p 6380:6379 redis:7.4-alpine
@@ -653,7 +653,7 @@ fi
 
 # 7. Cleanup
 docker rm -f redis-test
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli DEL "subscription:${TEST_SUB_ID}"
+kubectl exec -n netweave redis-node-0 -- redis-cli DEL "subscription:${TEST_SUB_ID}"
 
 echo "Backup restore test completed successfully"
 ```
@@ -668,7 +668,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: redis-backup-alerts
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   groups:
   - name: redis_backup
@@ -676,7 +676,7 @@ spec:
     rules:
     - alert: RedisBackupFailed
       expr: |
-        kube_job_status_failed{namespace="o2ims-system",job_name=~"redis-backup.*"} > 0
+        kube_job_status_failed{namespace="netweave",job_name=~"redis-backup.*"} > 0
       for: 5m
       labels:
         severity: critical
@@ -804,29 +804,29 @@ echo "Start time: $(date)"
 
 # 1. Baseline metrics
 echo "Recording baseline metrics..."
-BASELINE_SUBS=$(kubectl exec -n o2ims-system redis-node-0 -- redis-cli DBSIZE)
+BASELINE_SUBS=$(kubectl exec -n netweave redis-node-0 -- redis-cli DBSIZE)
 echo "  Subscriptions: ${BASELINE_SUBS}"
 
 # 2. Simulate failure
 echo "Simulating primary cluster failure..."
 START_TIME=$(date +%s)
-kubectl scale deployment netweave-gateway -n o2ims-system --replicas=0
-kubectl scale statefulset redis-node -n o2ims-system --replicas=0
+kubectl scale deployment netweave-gateway -n netweave --replicas=0
+kubectl scale statefulset redis-node -n netweave --replicas=0
 
 # 3. Switch to DR
 echo "Switching to DR cluster..."
 kubectl config use-context dr-cluster
 
 # 4. Promote DR Redis
-kubectl exec -n o2ims-system redis-dr-0 -- redis-cli REPLICAOF NO ONE
+kubectl exec -n netweave redis-dr-0 -- redis-cli REPLICAOF NO ONE
 
 # 5. Scale up DR gateway
-kubectl scale deployment netweave-gateway -n o2ims-system --replicas=3
+kubectl scale deployment netweave-gateway -n netweave --replicas=3
 
 # 6. Wait for pods ready
 kubectl wait --for=condition=ready pod \
   -l app.kubernetes.io/name=netweave \
-  -n o2ims-system --timeout=300s
+  -n netweave --timeout=300s
 
 END_TIME=$(date +%s)
 RTO=$((END_TIME - START_TIME))
@@ -844,7 +844,7 @@ else
 fi
 
 # 8. Verify data
-DR_SUBS=$(kubectl exec -n o2ims-system redis-dr-0 -- redis-cli DBSIZE)
+DR_SUBS=$(kubectl exec -n netweave redis-dr-0 -- redis-cli DBSIZE)
 echo "  DR Subscriptions: ${DR_SUBS}"
 
 DATA_LOSS=$((BASELINE_SUBS - DR_SUBS))

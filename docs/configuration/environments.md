@@ -107,7 +107,10 @@ graph TB
 ```yaml
 server:
   host: "0.0.0.0"
-  port: 8080
+  admin_port: 8080             # Admin API (OAuth2, TLS)
+  o2_port: 8443                # O2-IMS API (mTLS)
+  tmf_port: 8444               # TMF API (OAuth2, TLS)
+  graphql_port: 8445           # GraphQL API (OAuth2, TLS)
   gin_mode: debug              # Verbose Gin logging
 
 redis:
@@ -153,7 +156,7 @@ multi_tenancy:
 
 | Feature | Setting | Reason |
 |---------|---------|--------|
-| TLS | Disabled | Easier local testing without certificates |
+| TLS | Disabled | Easier local testing without certificates (all ports) |
 | Logging | Debug + Console | Verbose, human-readable debugging |
 | Redis Auth | Disabled | Simpler local Redis setup |
 | Rate Limiting | Disabled | Unrestricted testing |
@@ -186,7 +189,10 @@ NETWEAVE_OBSERVABILITY_LOGGING_LEVEL=debug \
 ```yaml
 server:
   host: "0.0.0.0"
-  port: 8443
+  admin_port: 8080             # Admin API (OAuth2, TLS)
+  o2_port: 8443                # O2-IMS API (mTLS)
+  tmf_port: 8444               # TMF API (OAuth2, TLS)
+  graphql_port: 8445           # GraphQL API (OAuth2, TLS)
   gin_mode: release
 
 redis:
@@ -265,7 +271,7 @@ multi_tenancy:
 # Kubernetes deployment
 helm install netweave ./helm/netweave \
   --values helm/netweave/values-staging.yaml \
-  --namespace o2ims-staging
+  --namespace netweave-staging
 
 # Or with environment variable
 export NETWEAVE_ENV=staging
@@ -281,7 +287,10 @@ export NETWEAVE_ENV=staging
 ```yaml
 server:
   host: "0.0.0.0"
-  port: 8443
+  admin_port: 8080             # Admin API (OAuth2, TLS)
+  o2_port: 8443                # O2-IMS API (mTLS)
+  tmf_port: 8444               # TMF API (OAuth2, TLS)
+  graphql_port: 8445           # GraphQL API (OAuth2, TLS)
   read_timeout: 30s
   write_timeout: 30s
   idle_timeout: 120s
@@ -379,7 +388,7 @@ multi_tenancy:
 helm install netweave ./helm/netweave \
   --values helm/netweave/values-prod.yaml \
   --set image.tag=v1.0.0 \
-  --namespace o2ims-prod
+  --namespace netweave-prod
 
 # Or with environment variable
 export NETWEAVE_ENV=prod
@@ -501,7 +510,7 @@ helm/netweave/
 ```bash
 helm install netweave ./helm/netweave \
   --values helm/netweave/values-dev.yaml \
-  --namespace o2ims-dev \
+  --namespace netweave-dev \
   --create-namespace
 ```
 
@@ -522,7 +531,10 @@ resources:
 
 config:
   server:
-    port: 8080
+    admin_port: 8080
+    o2_port: 8443
+    tmf_port: 8444
+    graphql_port: 8445
   tls:
     enabled: false
   security:
@@ -534,7 +546,7 @@ config:
 ```bash
 helm install netweave ./helm/netweave \
   --values helm/netweave/values-staging.yaml \
-  --namespace o2ims-staging \
+  --namespace netweave-staging \
   --create-namespace
 ```
 
@@ -570,7 +582,7 @@ config:
 helm install netweave ./helm/netweave \
   --values helm/netweave/values-prod.yaml \
   --set image.tag=v1.0.0 \
-  --namespace o2ims-prod \
+  --namespace netweave-prod \
   --create-namespace
 ```
 

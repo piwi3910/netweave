@@ -26,7 +26,7 @@ This project adheres to a code of professional conduct:
 
 ### Prerequisites
 
-- Go 1.23 or later
+- Go 1.25.7 or later
 - Docker (for container builds)
 - Kubernetes cluster access (for integration tests)
 - Git with GPG signing configured
@@ -86,23 +86,19 @@ gpg --armor --export YOUR_KEY_ID
 
 ### 1. Create a Feature Branch
 
-Always create a new branch for your work:
+Always use git worktrees for feature branches (never `git checkout -b` in the main worktree):
 
 ```bash
 # Update your local main
-git checkout main
 git pull upstream main
 
-# Create feature branch
-git checkout -b feature/issue-42-add-subscription-filter
+# Create feature branch using worktree
+git worktree add ../netweave-worktrees/issue-42-add-subscription-filter -b issue-42-add-subscription-filter origin/main
+cd ../netweave-worktrees/issue-42-add-subscription-filter
 ```
 
 Branch naming conventions:
-- `feature/issue-NUM-description` - New features
-- `fix/issue-NUM-description` - Bug fixes
-- `docs/issue-NUM-description` - Documentation only
-- `refactor/issue-NUM-description` - Code refactoring
-- `test/issue-NUM-description` - Test additions/improvements
+- `issue-NUM-description` - Standard branch naming (worktree directory matches)
 
 ### 2. Make Your Changes
 
@@ -155,7 +151,7 @@ Resolves #42"
 
 ```bash
 # Push your branch
-git push origin feature/issue-42-add-subscription-filter
+git push -u origin issue-42-add-subscription-filter
 
 # Create pull request via GitHub UI or gh CLI
 gh pr create --title "feat(subscription): add resource type filter" \

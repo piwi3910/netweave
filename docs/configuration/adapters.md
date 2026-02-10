@@ -163,7 +163,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: netweave-gateway
-  namespace: o2ims-system
+  namespace: netweave
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -198,7 +198,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: netweave-gateway
-    namespace: o2ims-system
+    namespace: netweave
 ```
 
 ## GCP Adapter
@@ -413,7 +413,7 @@ kubectl --kubeconfig=/path/to/kubeconfig cluster-info
 
 # Check ServiceAccount permissions (in-cluster)
 kubectl auth can-i list namespaces \
-  --as=system:serviceaccount:o2ims-system:netweave-gateway
+  --as=system:serviceaccount:netweave:netweave-gateway
 
 # Test API server connectivity
 curl -k https://kubernetes.default.svc/api/v1/namespaces
@@ -449,7 +449,7 @@ kubectl get my-resource-type -n my-resource-pool
 
 ```bash
 # Monitor rate limiting in logs
-kubectl logs deployment/gateway -n o2ims-system | grep "rate limit"
+kubectl logs deployment/gateway -n netweave | grep "rate limit"
 
 # Increase limits
 export NETWEAVE_KUBERNETES_QPS=200.0

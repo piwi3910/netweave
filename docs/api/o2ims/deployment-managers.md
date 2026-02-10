@@ -26,7 +26,7 @@ Deployment Manager represents an O-Cloud infrastructure manager. Each registered
   "extensions": {
     "kubernetes.io/adapter-version": "1.30.0",
     "kubernetes.io/deployment-manager-id": "netweave-k8s-dm",
-    "kubernetes.io/namespace": "o2ims-system",
+    "kubernetes.io/namespace": "netweave",
     "kubernetes.io/o-cloud-id": "default-ocloud"
   }
 }
@@ -141,7 +141,7 @@ Accept: application/json
       "extensions": {
         "kubernetes.io/adapter-version": "1.30.0",
         "kubernetes.io/deployment-manager-id": "netweave-k8s-dm",
-        "kubernetes.io/namespace": "o2ims-system",
+        "kubernetes.io/namespace": "netweave",
         "kubernetes.io/o-cloud-id": "default-ocloud"
       }
     }
@@ -179,7 +179,7 @@ Accept: application/json
   "extensions": {
     "kubernetes.io/adapter-version": "1.30.0",
     "kubernetes.io/deployment-manager-id": "netweave-k8s-dm",
-    "kubernetes.io/namespace": "o2ims-system",
+    "kubernetes.io/namespace": "netweave",
     "kubernetes.io/o-cloud-id": "default-ocloud",
     "kubernetes.io/version": "v1.30.0",
     "kubernetes.io/platform": "linux/amd64",

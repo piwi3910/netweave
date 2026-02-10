@@ -8,43 +8,43 @@ Comprehensive guide for diagnosing and resolving common issues with the netweave
 
 ```bash
 # Check pod status
-kubectl get pods -n o2ims-system -l app.kubernetes.io/name=netweave
+kubectl get pods -n netweave -l app.kubernetes.io/name=netweave
 
 # Check pod logs (last 50 lines)
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave --tail=50
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave --tail=50
 
 # Stream logs in real-time
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave -f
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave -f
 
 # Check pod events
-kubectl describe pod -n o2ims-system <pod-name>
+kubectl describe pod -n netweave <pod-name>
 
 # Check resource usage
-kubectl top pods -n o2ims-system -l app.kubernetes.io/name=netweave
+kubectl top pods -n netweave -l app.kubernetes.io/name=netweave
 ```
 
 ### Redis Status
 
 ```bash
 # Check Redis connectivity
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli PING
+kubectl exec -n netweave redis-node-0 -- redis-cli PING
 
 # Check replication status
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli INFO replication
+kubectl exec -n netweave redis-node-0 -- redis-cli INFO replication
 
 # Check Sentinel status
-kubectl exec -n o2ims-system redis-sentinel-0 -- \
+kubectl exec -n netweave redis-sentinel-0 -- \
   redis-cli -p 26379 SENTINEL master mymaster
 
 # Check Redis logs
-kubectl logs -n o2ims-system redis-node-0 -c redis
+kubectl logs -n netweave redis-node-0 -c redis
 ```
 
 ### API Health
 
 ```bash
 # Health check endpoint
-kubectl port-forward -n o2ims-system svc/netweave-gateway 8080:8080 &
+kubectl port-forward -n netweave svc/netweave-gateway 8080:8080 &
 curl -k https://localhost:8080/healthz
 
 # Readiness check
@@ -62,7 +62,7 @@ curl http://localhost:8080/metrics | grep o2ims_
 
 **Check restart count:**
 ```bash
-kubectl get pods -n o2ims-system -l app.kubernetes.io/name=netweave \
+kubectl get pods -n netweave -l app.kubernetes.io/name=netweave \
   -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.containerStatuses[0].restartCount}{"\n"}{end}'
 ```
 
@@ -70,12 +70,12 @@ kubectl get pods -n o2ims-system -l app.kubernetes.io/name=netweave \
 
 1. **Check pod status:**
    ```bash
-   kubectl describe pod -n o2ims-system <pod-name>
+   kubectl describe pod -n netweave <pod-name>
    ```
 
 2. **Check logs from previous container:**
    ```bash
-   kubectl logs -n o2ims-system <pod-name> --previous
+   kubectl logs -n netweave <pod-name> --previous
    ```
 
 3. **Look for common error patterns:**
@@ -90,10 +90,10 @@ kubectl get pods -n o2ims-system -l app.kubernetes.io/name=netweave \
 
 ```bash
 # Check memory usage
-kubectl top pod -n o2ims-system <pod-name>
+kubectl top pod -n netweave <pod-name>
 
 # Check OOM events
-kubectl get events -n o2ims-system --field-selector involvedObject.name=<pod-name> \
+kubectl get events -n netweave --field-selector involvedObject.name=<pod-name> \
   | grep OOMKilled
 ```
 
@@ -101,7 +101,7 @@ kubectl get events -n o2ims-system --field-selector involvedObject.name=<pod-nam
 ```bash
 # Increase memory limits
 helm upgrade netweave ./helm/netweave \
-  --namespace o2ims-system \
+  --namespace netweave \
   --set resources.limits.memory=2Gi \
   --reuse-values
 ```
@@ -110,10 +110,10 @@ helm upgrade netweave ./helm/netweave \
 
 ```bash
 # Check liveness probe config
-kubectl get pod -n o2ims-system <pod-name> -o yaml | grep -A 5 livenessProbe
+kubectl get pod -n netweave <pod-name> -o yaml | grep -A 5 livenessProbe
 
 # Test liveness endpoint manually
-kubectl exec -n o2ims-system <pod-name> -- \
+kubectl exec -n netweave <pod-name> -- \
   wget -qO- http://localhost:8080/healthz
 ```
 
@@ -135,7 +135,7 @@ livenessProbe:
 
 ```bash
 # Check logs for panic
-kubectl logs -n o2ims-system <pod-name> | grep "panic:"
+kubectl logs -n netweave <pod-name> | grep "panic:"
 ```
 
 **Resolution:**
@@ -148,23 +148,23 @@ kubectl logs -n o2ims-system <pod-name> | grep "panic:"
 
 ```bash
 # Check Redis connectivity
-kubectl exec -n o2ims-system <pod-name> -- \
+kubectl exec -n netweave <pod-name> -- \
   redis-cli -h redis-node-0 PING
 
 # Check network policies
-kubectl get networkpolicies -n o2ims-system
+kubectl get networkpolicies -n netweave
 ```
 
 **Resolution:**
 ```bash
 # Verify Redis is running
-kubectl get pods -n o2ims-system -l app.kubernetes.io/name=redis
+kubectl get pods -n netweave -l app.kubernetes.io/name=redis
 
 # Check Redis password secret
-kubectl get secret redis-password -n o2ims-system -o jsonpath='{.data.password}' | base64 -d
+kubectl get secret redis-password -n netweave -o jsonpath='{.data.password}' | base64 -d
 
 # Test connectivity
-kubectl run -n o2ims-system redis-test --rm -it --image=redis:7.4-alpine -- \
+kubectl run -n netweave redis-test --rm -it --image=redis:7.4-alpine -- \
   redis-cli -h redis-node-0 -a <password> PING
 ```
 
@@ -172,17 +172,17 @@ kubectl run -n o2ims-system redis-test --rm -it --image=redis:7.4-alpine -- \
 
 **Check crash loop timing:**
 ```bash
-kubectl get pod -n o2ims-system <pod-name> \
+kubectl get pod -n netweave <pod-name> \
   -o jsonpath='{.status.containerStatuses[0].state.waiting.message}'
 ```
 
 **Diagnosis:**
 ```bash
 # Check logs from all restarts
-kubectl logs -n o2ims-system <pod-name> --previous --timestamps
+kubectl logs -n netweave <pod-name> --previous --timestamps
 
 # Check pod events
-kubectl describe pod -n o2ims-system <pod-name> | grep -A 10 Events
+kubectl describe pod -n netweave <pod-name> | grep -A 10 Events
 ```
 
 **Common Causes:**
@@ -194,16 +194,16 @@ kubectl describe pod -n o2ims-system <pod-name> | grep -A 10 Events
 **Resolution:**
 ```bash
 # Verify ConfigMap
-kubectl get configmap netweave-config -n o2ims-system -o yaml
+kubectl get configmap netweave-config -n netweave -o yaml
 
 # Verify Secrets
-kubectl get secrets -n o2ims-system | grep netweave
+kubectl get secrets -n netweave | grep netweave
 
 # Check mounted volumes
-kubectl describe pod -n o2ims-system <pod-name> | grep -A 5 Mounts
+kubectl describe pod -n netweave <pod-name> | grep -A 5 Mounts
 
 # Test configuration manually
-kubectl run -n o2ims-system debug --rm -it --image=busybox -- sh
+kubectl run -n netweave debug --rm -it --image=busybox -- sh
 # Inside pod: wget -O- http://netweave-gateway:8080/healthz
 ```
 
@@ -213,27 +213,27 @@ kubectl run -n o2ims-system debug --rm -it --image=busybox -- sh
 
 **Check logs:**
 ```bash
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | grep "connection refused"
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave | grep "connection refused"
 ```
 
 **Diagnosis:**
 
 1. **Verify Redis is running:**
    ```bash
-   kubectl get pods -n o2ims-system -l app.kubernetes.io/name=redis
-   kubectl logs -n o2ims-system redis-node-0 -c redis --tail=50
+   kubectl get pods -n netweave -l app.kubernetes.io/name=redis
+   kubectl logs -n netweave redis-node-0 -c redis --tail=50
    ```
 
 2. **Test Redis connectivity:**
    ```bash
-   kubectl exec -n o2ims-system <gateway-pod> -- \
+   kubectl exec -n netweave <gateway-pod> -- \
      redis-cli -h redis-node-0 PING
    ```
 
 3. **Check Redis Service:**
    ```bash
-   kubectl get svc -n o2ims-system redis-headless
-   kubectl describe svc -n o2ims-system redis-headless
+   kubectl get svc -n netweave redis-headless
+   kubectl describe svc -n netweave redis-headless
    ```
 
 **Resolution:**
@@ -241,19 +241,19 @@ kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | grep "connecti
 **If Redis pods not running:**
 ```bash
 # Check Redis deployment
-kubectl get statefulset -n o2ims-system redis-node
+kubectl get statefulset -n netweave redis-node
 
 # Scale up if scaled down
-kubectl scale statefulset redis-node -n o2ims-system --replicas=3
+kubectl scale statefulset redis-node -n netweave --replicas=3
 
 # Check PVC status
-kubectl get pvc -n o2ims-system
+kubectl get pvc -n netweave
 ```
 
 **If Redis running but unreachable:**
 ```bash
 # Check network policies
-kubectl get networkpolicy -n o2ims-system
+kubectl get networkpolicy -n netweave
 
 # Create network policy to allow gateway -> Redis
 cat <<EOF | kubectl apply -f -
@@ -261,7 +261,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-gateway-to-redis
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   podSelector:
     matchLabels:
@@ -283,10 +283,10 @@ EOF
 
 **Check Sentinel status:**
 ```bash
-kubectl exec -n o2ims-system redis-sentinel-0 -- \
+kubectl exec -n netweave redis-sentinel-0 -- \
   redis-cli -p 26379 INFO sentinel
 
-kubectl exec -n o2ims-system redis-sentinel-0 -- \
+kubectl exec -n netweave redis-sentinel-0 -- \
   redis-cli -p 26379 SENTINEL masters
 ```
 
@@ -294,13 +294,13 @@ kubectl exec -n o2ims-system redis-sentinel-0 -- \
 
 1. **Check Sentinel configuration:**
    ```bash
-   kubectl exec -n o2ims-system redis-sentinel-0 -- \
+   kubectl exec -n netweave redis-sentinel-0 -- \
      redis-cli -p 26379 SENTINEL get-master-addr-by-name mymaster
    ```
 
 2. **Check quorum:**
    ```bash
-   kubectl exec -n o2ims-system redis-sentinel-0 -- \
+   kubectl exec -n netweave redis-sentinel-0 -- \
      redis-cli -p 26379 SENTINEL ckquorum mymaster
    ```
 
@@ -309,27 +309,27 @@ kubectl exec -n o2ims-system redis-sentinel-0 -- \
 **If master not elected:**
 ```bash
 # Force failover
-kubectl exec -n o2ims-system redis-sentinel-0 -- \
+kubectl exec -n netweave redis-sentinel-0 -- \
   redis-cli -p 26379 SENTINEL failover mymaster
 
 # Verify new master
-kubectl exec -n o2ims-system redis-sentinel-0 -- \
+kubectl exec -n netweave redis-sentinel-0 -- \
   redis-cli -p 26379 SENTINEL get-master-addr-by-name mymaster
 ```
 
 **If quorum lost:**
 ```bash
 # Check Sentinel replicas
-kubectl get pods -n o2ims-system -l app.kubernetes.io/component=sentinel
+kubectl get pods -n netweave -l app.kubernetes.io/component=sentinel
 
 # Scale Sentinels if needed (must be 3 or 5)
-kubectl scale statefulset redis-sentinel -n o2ims-system --replicas=3
+kubectl scale statefulset redis-sentinel -n netweave --replicas=3
 
 # Wait for Sentinels to sync
 sleep 60
 
 # Verify quorum
-kubectl exec -n o2ims-system redis-sentinel-0 -- \
+kubectl exec -n netweave redis-sentinel-0 -- \
   redis-cli -p 26379 SENTINEL ckquorum mymaster
 ```
 
@@ -339,7 +339,7 @@ kubectl exec -n o2ims-system redis-sentinel-0 -- \
 
 **Check logs:**
 ```bash
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | \
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave | \
   grep -i "unauthorized\|forbidden"
 ```
 
@@ -347,8 +347,8 @@ kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | \
 
 1. **Check ServiceAccount:**
    ```bash
-   kubectl get sa -n o2ims-system netweave-gateway
-   kubectl describe sa -n o2ims-system netweave-gateway
+   kubectl get sa -n netweave netweave-gateway
+   kubectl describe sa -n netweave netweave-gateway
    ```
 
 2. **Check RBAC:**
@@ -360,8 +360,8 @@ kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | \
 
 3. **Test permissions:**
    ```bash
-   kubectl auth can-i get deployments --as=system:serviceaccount:o2ims-system:netweave-gateway
-   kubectl auth can-i list nodes --as=system:serviceaccount:o2ims-system:netweave-gateway
+   kubectl auth can-i get deployments --as=system:serviceaccount:netweave:netweave-gateway
+   kubectl auth can-i list nodes --as=system:serviceaccount:netweave:netweave-gateway
    ```
 
 **Resolution:**
@@ -395,18 +395,18 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: netweave-gateway
-    namespace: o2ims-system
+    namespace: netweave
 EOF
 
 # Restart pods to pick up new permissions
-kubectl rollout restart deployment/netweave-gateway -n o2ims-system
+kubectl rollout restart deployment/netweave-gateway -n netweave
 ```
 
 #### Symptom: Kubernetes API Timeout
 
 **Check logs:**
 ```bash
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | grep "context deadline exceeded"
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave | grep "context deadline exceeded"
 ```
 
 **Diagnosis:**
@@ -419,7 +419,7 @@ kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | grep "context 
 
 2. **Check network latency:**
    ```bash
-   kubectl exec -n o2ims-system <gateway-pod> -- \
+   kubectl exec -n netweave <gateway-pod> -- \
      wget -qO- --timeout=5 https://kubernetes.default.svc.cluster.local/healthz
    ```
 
@@ -427,7 +427,7 @@ kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | grep "context 
 
 ```bash
 # Increase timeout in gateway configuration
-kubectl edit configmap netweave-config -n o2ims-system
+kubectl edit configmap netweave-config -n netweave
 
 # Add/update:
 # kubernetes:
@@ -436,7 +436,7 @@ kubectl edit configmap netweave-config -n o2ims-system
 #   burst: 100
 
 # Restart gateway
-kubectl rollout restart deployment/netweave-gateway -n o2ims-system
+kubectl rollout restart deployment/netweave-gateway -n netweave
 ```
 
 ### Performance Issues
@@ -445,7 +445,7 @@ kubectl rollout restart deployment/netweave-gateway -n o2ims-system
 
 **Check metrics:**
 ```bash
-kubectl exec -n o2ims-system <gateway-pod> -- \
+kubectl exec -n netweave <gateway-pod> -- \
   wget -qO- http://localhost:8080/metrics | \
   grep o2ims_http_request_duration_seconds
 ```
@@ -454,21 +454,21 @@ kubectl exec -n o2ims-system <gateway-pod> -- \
 
 1. **Check backend latency:**
    ```bash
-   kubectl exec -n o2ims-system <gateway-pod> -- \
+   kubectl exec -n netweave <gateway-pod> -- \
      wget -qO- http://localhost:8080/metrics | \
      grep o2ims_adapter_backend_latency_seconds
    ```
 
 2. **Check cache hit ratio:**
    ```bash
-   kubectl exec -n o2ims-system <gateway-pod> -- \
+   kubectl exec -n netweave <gateway-pod> -- \
      wget -qO- http://localhost:8080/metrics | \
      grep o2ims_adapter_cache
    ```
 
 3. **Check resource usage:**
    ```bash
-   kubectl top pod -n o2ims-system -l app.kubernetes.io/name=netweave
+   kubectl top pod -n netweave -l app.kubernetes.io/name=netweave
    ```
 
 **Common Causes:**
@@ -477,7 +477,7 @@ kubectl exec -n o2ims-system <gateway-pod> -- \
 
 ```bash
 # Check current cache hit ratio
-kubectl exec -n o2ims-system <gateway-pod> -- \
+kubectl exec -n netweave <gateway-pod> -- \
   wget -qO- http://localhost:8080/metrics | \
   awk '/o2ims_adapter_cache_hits_total/ || /o2ims_adapter_cache_misses_total/'
 ```
@@ -485,7 +485,7 @@ kubectl exec -n o2ims-system <gateway-pod> -- \
 **Resolution:**
 ```bash
 # Increase cache TTL
-kubectl edit configmap netweave-config -n o2ims-system
+kubectl edit configmap netweave-config -n netweave
 
 # Update:
 # cache:
@@ -494,14 +494,14 @@ kubectl edit configmap netweave-config -n o2ims-system
 #     resource_pools: 600s  # Increase from 300s
 
 # Restart pods
-kubectl rollout restart deployment/netweave-gateway -n o2ims-system
+kubectl rollout restart deployment/netweave-gateway -n netweave
 ```
 
 **Cause 2: Backend API Slowness**
 
 ```bash
 # Check backend latency
-kubectl exec -n o2ims-system <gateway-pod> -- \
+kubectl exec -n netweave <gateway-pod> -- \
   wget -qO- http://localhost:8080/metrics | \
   grep backend_latency | grep quantile
 ```
@@ -516,10 +516,10 @@ kubectl exec -n o2ims-system <gateway-pod> -- \
 
 ```bash
 # Check CPU usage
-kubectl top pod -n o2ims-system -l app.kubernetes.io/name=netweave
+kubectl top pod -n netweave -l app.kubernetes.io/name=netweave
 
 # Check CPU throttling
-kubectl exec -n o2ims-system <gateway-pod> -- \
+kubectl exec -n netweave <gateway-pod> -- \
   cat /sys/fs/cgroup/cpu/cpu.stat | grep throttled
 ```
 
@@ -527,7 +527,7 @@ kubectl exec -n o2ims-system <gateway-pod> -- \
 ```bash
 # Increase CPU limits
 helm upgrade netweave ./helm/netweave \
-  --namespace o2ims-system \
+  --namespace netweave \
   --set resources.limits.cpu=2000m \
   --reuse-values
 ```
@@ -536,9 +536,9 @@ helm upgrade netweave ./helm/netweave \
 
 **Check memory:**
 ```bash
-kubectl top pod -n o2ims-system -l app.kubernetes.io/name=netweave
+kubectl top pod -n netweave -l app.kubernetes.io/name=netweave
 
-kubectl exec -n o2ims-system <gateway-pod> -- \
+kubectl exec -n netweave <gateway-pod> -- \
   wget -qO- http://localhost:8080/debug/pprof/heap > heap.out
 ```
 
@@ -548,14 +548,14 @@ kubectl exec -n o2ims-system <gateway-pod> -- \
    ```bash
    # Compare memory over time
    for i in {1..10}; do
-     kubectl top pod -n o2ims-system <gateway-pod>
+     kubectl top pod -n netweave <gateway-pod>
      sleep 60
    done
    ```
 
 2. **Check goroutine count:**
    ```bash
-   kubectl exec -n o2ims-system <gateway-pod> -- \
+   kubectl exec -n netweave <gateway-pod> -- \
      wget -qO- http://localhost:8080/debug/pprof/goroutine?debug=1 | grep goroutine
    ```
 
@@ -564,7 +564,7 @@ kubectl exec -n o2ims-system <gateway-pod> -- \
 **If memory leak suspected:**
 ```bash
 # Enable pprof for detailed profiling
-kubectl port-forward -n o2ims-system <gateway-pod> 6060:6060 &
+kubectl port-forward -n netweave <gateway-pod> 6060:6060 &
 go tool pprof http://localhost:6060/debug/pprof/heap
 
 # Analyze in pprof:
@@ -576,12 +576,12 @@ go tool pprof http://localhost:6060/debug/pprof/heap
 ```bash
 # Increase memory limits
 helm upgrade netweave ./helm/netweave \
-  --namespace o2ims-system \
+  --namespace netweave \
   --set resources.limits.memory=2Gi \
   --reuse-values
 
 # Reduce cache size
-kubectl edit configmap netweave-config -n o2ims-system
+kubectl edit configmap netweave-config -n netweave
 # Update cache max_entries
 ```
 
@@ -591,7 +591,7 @@ kubectl edit configmap netweave-config -n o2ims-system
 
 **Check logs:**
 ```bash
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | \
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave | \
   grep -i "tls\|certificate\|handshake"
 ```
 
@@ -599,19 +599,19 @@ kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | \
 
 1. **Check certificate status:**
    ```bash
-   kubectl get certificate -n o2ims-system
-   kubectl describe certificate netweave-tls -n o2ims-system
+   kubectl exec -n vault-system vault-0 -- vault read pki_int/cert/ca
+   kubectl get secret netweave-tls -n netweave
    ```
 
 2. **Check certificate contents:**
    ```bash
-   kubectl get secret netweave-tls -n o2ims-system -o jsonpath='{.data.tls\.crt}' | \
+   kubectl get secret netweave-tls -n netweave -o jsonpath='{.data.tls\.crt}' | \
      base64 -d | openssl x509 -text -noout
    ```
 
 3. **Check certificate expiry:**
    ```bash
-   kubectl get secret netweave-tls -n o2ims-system -o jsonpath='{.data.tls\.crt}' | \
+   kubectl get secret netweave-tls -n netweave -o jsonpath='{.data.tls\.crt}' | \
      base64 -d | openssl x509 -enddate -noout
    ```
 
@@ -619,50 +619,41 @@ kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | \
 
 **If certificate expired:**
 ```bash
-# Force renewal
-kubectl delete certificate netweave-tls -n o2ims-system
-kubectl apply -f - <<EOF
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: netweave-tls
-  namespace: o2ims-system
-spec:
-  secretName: netweave-tls
-  issuerRef:
-    name: ca-issuer
-    kind: ClusterIssuer
-  dnsNames:
-    - netweave-gateway.o2ims-system.svc.cluster.local
-    - o2ims.example.com
-  duration: 2160h  # 90 days
-  renewBefore: 720h  # 30 days
-EOF
+# Re-issue certificate via Vault PKI
+kubectl exec -n vault-system vault-0 -- vault write -format=json \
+  pki_int/issue/netweave-mtls \
+  common_name="netweave-gateway.netweave.svc.cluster.local" \
+  alt_names="o2.netweave.local,api.netweave.local,tmf.netweave.local,graphql.netweave.local" \
+  ttl=2160h > certificate.json
 
-# Wait for certificate to be ready
-kubectl wait --for=condition=ready certificate/netweave-tls -n o2ims-system --timeout=300s
+# Extract and update TLS secret
+kubectl create secret tls netweave-tls \
+  --cert=<(jq -r '.data.certificate' certificate.json) \
+  --key=<(jq -r '.data.private_key' certificate.json) \
+  -n netweave \
+  --dry-run=client -o yaml | kubectl apply -f -
 
 # Restart gateway pods
-kubectl rollout restart deployment/netweave-gateway -n o2ims-system
+kubectl rollout restart deployment/netweave-gateway -n netweave
 ```
 
-**If cert-manager issues:**
+**If Vault PKI issues:**
 ```bash
-# Check cert-manager logs
-kubectl logs -n cert-manager -l app=cert-manager
+# Check Vault PKI status
+kubectl exec -n vault-system vault-0 -- vault secrets list | grep pki
 
-# Check certificate request
-kubectl get certificaterequest -n o2ims-system
+# Check PKI role configuration
+kubectl exec -n vault-system vault-0 -- vault read pki_int/roles/netweave-mtls
 
-# Check issuer
-kubectl get clusterissuer ca-issuer -o yaml
+# Verify Vault is unsealed
+kubectl exec -n vault-system vault-0 -- vault status | grep Sealed
 ```
 
 #### Symptom: Client Certificate Validation Failures
 
 **Check logs:**
 ```bash
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | \
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave | \
   grep "client certificate"
 ```
 
@@ -670,7 +661,7 @@ kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | \
 
 1. **Check CA bundle:**
    ```bash
-   kubectl get secret ca-bundle -n o2ims-system -o jsonpath='{.data.ca\.crt}' | \
+   kubectl get secret ca-bundle -n netweave -o jsonpath='{.data.ca\.crt}' | \
      base64 -d | openssl x509 -text -noout
    ```
 
@@ -684,12 +675,12 @@ kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | \
 ```bash
 # Update CA bundle
 kubectl create secret generic ca-bundle \
-  --namespace o2ims-system \
+  --namespace netweave \
   --from-file=ca.crt=updated-ca-bundle.crt \
   --dry-run=client -o yaml | kubectl apply -f -
 
 # Restart gateway
-kubectl rollout restart deployment/netweave-gateway -n o2ims-system
+kubectl rollout restart deployment/netweave-gateway -n netweave
 ```
 
 ### Network Issues
@@ -698,13 +689,13 @@ kubectl rollout restart deployment/netweave-gateway -n o2ims-system
 
 **Check logs:**
 ```bash
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | \
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave | \
   grep "webhook\|notification"
 ```
 
 **Check metrics:**
 ```bash
-kubectl exec -n o2ims-system <gateway-pod> -- \
+kubectl exec -n netweave <gateway-pod> -- \
   wget -qO- http://localhost:8080/metrics | \
   grep o2ims_webhook_delivery
 ```
@@ -713,14 +704,14 @@ kubectl exec -n o2ims-system <gateway-pod> -- \
 
 1. **Test webhook endpoint:**
    ```bash
-   kubectl exec -n o2ims-system <gateway-pod> -- \
+   kubectl exec -n netweave <gateway-pod> -- \
      wget --timeout=5 -O- https://smo.example.com/notify
    ```
 
 2. **Check network policies:**
    ```bash
-   kubectl get networkpolicy -n o2ims-system
-   kubectl describe networkpolicy -n o2ims-system
+   kubectl get networkpolicy -n netweave
+   kubectl describe networkpolicy -n netweave
    ```
 
 **Resolution:**
@@ -732,7 +723,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-gateway-egress
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   podSelector:
     matchLabels:
@@ -777,8 +768,8 @@ EOF
 
 **Check Ingress:**
 ```bash
-kubectl get ingress -n o2ims-system
-kubectl describe ingress netweave-gateway -n o2ims-system
+kubectl get ingress -n netweave
+kubectl describe ingress netweave-gateway -n netweave
 ```
 
 **Diagnosis:**
@@ -791,7 +782,7 @@ kubectl describe ingress netweave-gateway -n o2ims-system
 
 2. **Test Service directly:**
    ```bash
-   kubectl port-forward -n o2ims-system svc/netweave-gateway 8080:8080 &
+   kubectl port-forward -n netweave svc/netweave-gateway 8080:8080 &
    curl -k https://localhost:8080/healthz
    ```
 
@@ -799,14 +790,14 @@ kubectl describe ingress netweave-gateway -n o2ims-system
 
 ```bash
 # Verify Ingress configuration
-kubectl get ingress netweave-gateway -n o2ims-system -o yaml
+kubectl get ingress netweave-gateway -n netweave -o yaml
 
 # Check for proper annotations
 # nginx.ingress.kubernetes.io/ssl-redirect: "true"
 # nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
 
 # Update if needed
-kubectl annotate ingress netweave-gateway -n o2ims-system \
+kubectl annotate ingress netweave-gateway -n netweave \
   nginx.ingress.kubernetes.io/backend-protocol=HTTPS --overwrite
 ```
 
@@ -815,21 +806,21 @@ kubectl annotate ingress netweave-gateway -n o2ims-system \
 ### Enable Debug Logging
 
 ```bash
-kubectl edit configmap netweave-config -n o2ims-system
+kubectl edit configmap netweave-config -n netweave
 
 # Add/update:
 # logging:
 #   level: debug
 #   format: json
 
-kubectl rollout restart deployment/netweave-gateway -n o2ims-system
+kubectl rollout restart deployment/netweave-gateway -n netweave
 ```
 
 ### Use Debug Pod
 
 ```bash
 # Run debug pod with network tools
-kubectl run -n o2ims-system debug --rm -it \
+kubectl run -n netweave debug --rm -it \
   --image=nicolaka/netshoot -- /bin/bash
 
 # Inside debug pod:
@@ -842,13 +833,13 @@ kubectl run -n o2ims-system debug --rm -it \
 
 ```bash
 # Forward gateway port
-kubectl port-forward -n o2ims-system svc/netweave-gateway 8080:8080 &
+kubectl port-forward -n netweave svc/netweave-gateway 8080:8080 &
 
 # Forward metrics port
-kubectl port-forward -n o2ims-system svc/netweave-gateway 8081:8080 &
+kubectl port-forward -n netweave svc/netweave-gateway 8081:8080 &
 
 # Forward Redis port
-kubectl port-forward -n o2ims-system svc/redis-headless 6379:6379 &
+kubectl port-forward -n netweave svc/redis-headless 6379:6379 &
 
 # Test locally
 curl -k https://localhost:8080/o2ims-infrastructureInventory/v1/api_versions
@@ -860,11 +851,11 @@ redis-cli -h localhost PING
 
 ```bash
 # Capture traffic on gateway pod
-kubectl exec -n o2ims-system <gateway-pod> -- \
+kubectl exec -n netweave <gateway-pod> -- \
   tcpdump -i any -w /tmp/capture.pcap port 8080
 
 # Copy capture file
-kubectl cp o2ims-system/<gateway-pod>:/tmp/capture.pcap ./capture.pcap
+kubectl cp netweave/<gateway-pod>:/tmp/capture.pcap ./capture.pcap
 
 # Analyze with Wireshark
 wireshark capture.pcap
@@ -877,11 +868,11 @@ wireshark capture.pcap
 ```bash
 # Collect all relevant logs
 mkdir -p debug-logs
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave > debug-logs/gateway-logs.txt
-kubectl logs -n o2ims-system redis-node-0 > debug-logs/redis-logs.txt
-kubectl get all -n o2ims-system -o yaml > debug-logs/resources.yaml
-kubectl describe pods -n o2ims-system > debug-logs/pod-descriptions.txt
-kubectl get events -n o2ims-system --sort-by='.lastTimestamp' > debug-logs/events.txt
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave > debug-logs/gateway-logs.txt
+kubectl logs -n netweave redis-node-0 > debug-logs/redis-logs.txt
+kubectl get all -n netweave -o yaml > debug-logs/resources.yaml
+kubectl describe pods -n netweave > debug-logs/pod-descriptions.txt
+kubectl get events -n netweave --sort-by='.lastTimestamp' > debug-logs/events.txt
 
 # Create tarball
 tar czf debug-logs-$(date +%Y%m%d-%H%M%S).tar.gz debug-logs/

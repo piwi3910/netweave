@@ -113,7 +113,7 @@ func initializeDMS(
 
 ```bash
 # Test basic DMS API info endpoint
-curl -k http://localhost:8080/o2dms
+curl -k https://o2.netweave.local:8443/o2dms
 
 # Expected response:
 {
@@ -141,7 +141,7 @@ curl -k http://localhost:8080/o2dms
 
 ```bash
 # Get deployment lifecycle information
-curl -k http://localhost:8080/o2dms/v1/deploymentLifecycle
+curl -k https://o2.netweave.local:8443/o2dms/v1/deploymentLifecycle
 
 # Expected: 200 OK with lifecycle capabilities
 ```
@@ -150,7 +150,7 @@ curl -k http://localhost:8080/o2dms/v1/deploymentLifecycle
 
 ```bash
 # List NF deployments
-curl -k http://localhost:8080/o2dms/v1/nfDeployments
+curl -k https://o2.netweave.local:8443/o2dms/v1/nfDeployments
 
 # Expected: 200 OK with empty array [] (no deployments yet)
 ```
@@ -159,7 +159,7 @@ curl -k http://localhost:8080/o2dms/v1/nfDeployments
 
 ```bash
 # List deployment descriptors
-curl -k http://localhost:8080/o2dms/v1/nfDeploymentDescriptors
+curl -k https://o2.netweave.local:8443/o2dms/v1/nfDeploymentDescriptors
 
 # Expected: 200 OK with empty array []
 ```
@@ -168,7 +168,7 @@ curl -k http://localhost:8080/o2dms/v1/nfDeploymentDescriptors
 
 ```bash
 # List DMS subscriptions
-curl -k http://localhost:8080/o2dms/v1/subscriptions
+curl -k https://o2.netweave.local:8443/o2dms/v1/subscriptions
 
 # Expected: 200 OK with empty array []
 ```

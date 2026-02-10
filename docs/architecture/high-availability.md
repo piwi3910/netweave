@@ -222,7 +222,7 @@ func (c *Controller) Run(ctx context.Context) error {
     lock := &resourcelock.LeaseLock{
         LeaseMeta: metav1.ObjectMeta{
             Name:      "subscription-controller-leader",
-            Namespace: "o2ims-system",
+            Namespace: "netweave",
         },
         Client: c.k8sClient,
         LockConfig: resourcelock.ResourceLockConfig{
@@ -294,7 +294,7 @@ while [ $(redis-cli -h redis-master LASTSAVE) -eq $LASTSAVE ]; do
 done
 
 # 3. Copy RDB to persistent storage
-kubectl cp o2ims-system/redis-master-0:/data/dump.rdb \
+kubectl cp netweave/redis-master-0:/data/dump.rdb \
   /backups/redis/dump-$(date +%Y%m%d-%H%M%S).rdb
 
 # 4. Upload to object storage (S3, GCS, etc.)
@@ -308,8 +308,9 @@ aws s3 cp /backups/redis/dump-*.rdb \
 
 ```bash
 # 1. Provision new Kubernetes cluster
-# 2. Install prerequisites (cert-manager, ingress controller)
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.0/cert-manager.yaml
+# 2. Install prerequisites (Vault, ingress controller)
+# Deploy HashiCorp Vault for PKI certificate management
+helm install vault hashicorp/vault --namespace netweave
 
 # 3. Install Redis via Helm
 helm repo add bitnami https://charts.bitnami.com/bitnami
@@ -340,7 +341,7 @@ kubectl exec redis-master-0 -- redis-cli SHUTDOWN NOSAVE
 
 # 3. Restore from latest backup
 kubectl cp s3://netweave-backups/redis/dump-latest.rdb \
-  o2ims-system/redis-master-0:/data/dump.rdb
+  netweave/redis-master-0:/data/dump.rdb
 
 # 4. Start Redis
 kubectl exec redis-master-0 -- redis-server /etc/redis/redis.conf

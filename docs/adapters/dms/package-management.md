@@ -120,7 +120,7 @@ Retrieves all Helm charts from configured repositories.
 
 **Request:**
 ```bash
-curl -X GET "http://localhost:8080/o2dms/v1/nfDeploymentDescriptors" \
+curl -X GET "https://o2.netweave.local:8443/o2dms/v1/nfDeploymentDescriptors" \
   -H "Accept: application/json"
 ```
 
@@ -157,7 +157,7 @@ Retrieves detailed information about a specific Helm chart.
 
 **Request:**
 ```bash
-curl -X GET "http://localhost:8080/o2dms/v1/nfDeploymentDescriptors/nginx-1.0.0" \
+curl -X GET "https://o2.netweave.local:8443/o2dms/v1/nfDeploymentDescriptors/nginx-1.0.0" \
   -H "Accept: application/json"
 ```
 
@@ -195,7 +195,7 @@ Uploads a new Helm chart to the configured repository.
 
 **Request:**
 ```bash
-curl -X POST "http://localhost:8080/o2dms/v1/nfDeploymentDescriptors" \
+curl -X POST "https://o2.netweave.local:8443/o2dms/v1/nfDeploymentDescriptors" \
   -H "Content-Type: multipart/form-data" \
   -F "name=my-app" \
   -F "artifactVersion=1.0.0" \
@@ -233,7 +233,7 @@ Deletes a Helm chart from the repository.
 
 **Request:**
 ```bash
-curl -X DELETE "http://localhost:8080/o2dms/v1/nfDeploymentDescriptors/my-app-1.0.0"
+curl -X DELETE "https://o2.netweave.local:8443/o2dms/v1/nfDeploymentDescriptors/my-app-1.0.0"
 ```
 
 **Response:**

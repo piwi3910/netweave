@@ -134,7 +134,7 @@ This architecture documentation is organized into focused, standalone documents:
 
 | Component | Technology | Version |
 |-----------|-----------|---------|
-| **Language** | Go | 1.25.0+ |
+| **Language** | Go | 1.25.7+ |
 | **HTTP Framework** | Gin | Latest |
 | **Storage** | Redis OSS + Sentinel | 7.4+ |
 | **Backend** | Kubernetes | 1.31+ |

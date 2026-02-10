@@ -35,7 +35,7 @@ curl https://github.com/grafana/k6/releases/download/v0.48.0/k6-v0.48.0-linux-am
 sudo mv k6-v0.48.0-linux-amd64/k6 /usr/local/bin
 
 # Install Go (for benchmarks)
-go version  # Requires Go 1.25.0+
+go version  # Requires Go 1.25.7+
 
 # Verify installation
 k6 version
@@ -49,7 +49,7 @@ go test -bench=. -benchmem ./tests/performance/benchmarks
 make test-e2e-setup
 
 # Or use existing deployment
-export BASE_URL=https://netweave-gateway.example.com:8443
+export BASE_URL=https://o2.netweave.local:8443
 ```
 
 ### Authentication Setup
@@ -70,8 +70,8 @@ export CA_CERT=./certs/ca.crt
 
 ```bash
 # Configure OAuth2 credentials
-export OAUTH2_TOKEN_URL=https://keycloak:8080/realms/o2ims/protocol/openid-connect/token
-export OAUTH2_CLIENT_ID=netweave-client
+export OAUTH2_TOKEN_URL=https://auth.netweave.local/realms/netweave/protocol/openid-connect/token
+export OAUTH2_CLIENT_ID=netweave-gateway
 export OAUTH2_CLIENT_SECRET=your-secret-here
 export OAUTH2_USERNAME=testuser
 export OAUTH2_PASSWORD=testpass
@@ -377,7 +377,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.25.7'
 
       - name: Setup test environment
         run: make test-e2e-setup
@@ -420,13 +420,13 @@ benchstat baseline.txt new.txt
 
 ```bash
 # Check gateway is running
-curl -k https://localhost:8443/health
+curl -k https://o2.netweave.local:8443/health
 
 # Verify certificates
-openssl s_client -connect localhost:8443 -cert $MTLS_CERT -key $MTLS_KEY
+openssl s_client -connect o2.netweave.local:8443 -cert $MTLS_CERT -key $MTLS_KEY
 
 # Check DNS resolution
-ping netweave-gateway.example.com
+ping o2.netweave.local
 ```
 
 #### High Error Rates

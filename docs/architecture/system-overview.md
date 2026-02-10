@@ -162,7 +162,7 @@ graph TB
 
 | Component | Technology | Version | Rationale |
 |-----------|-----------|---------|-----------|
-| **Language** | Go | 1.25.0+ | Performance, concurrency, K8s ecosystem |
+| **Language** | Go | 1.25.7+ | Performance, concurrency, K8s ecosystem |
 | **HTTP Framework** | Gin | Latest | Fast, minimal, production-proven |
 | **Storage** | Redis OSS | 7.4+ | Low latency, Sentinel HA, pub/sub |
 | **Backend** | Kubernetes | 1.31+ | Source of truth for infrastructure |
@@ -173,7 +173,7 @@ graph TB
 
 ```go
 // go.mod - Required versions (DO NOT DOWNGRADE)
-go 1.25.0
+go 1.25.7
 
 require (
     k8s.io/client-go v0.35.0
@@ -185,7 +185,7 @@ require (
 ```
 
 **Why these versions:**
-- **Go 1.25.0+**: Required by k8s.io/client-go v0.35.0
+- **Go 1.25.7+**: Required by k8s.io/client-go v0.35.0
 - **k8s.io v0.35.0**: Resolves yaml.v3 module path conflicts
 - **structured-merge-diff v6**: K8s v0.35+ compatibility (migrated from v4)
 
@@ -318,7 +318,7 @@ require (
 - mTLS for all external communication
 - Client certificate validation (CN, SAN)
 - Kubernetes RBAC for API access
-- No hardcoded secrets (cert-manager, K8s Secrets)
+- No hardcoded secrets (Vault PKI, K8s Secrets)
 - Network policies (restrict ingress/egress)
 - Audit logging (all operations)
 - Rate limiting (DoS protection)

@@ -36,15 +36,18 @@ The mock configuration (`config/mock.yaml`) automatically:
 Once started, you can verify the mock data is available:
 
 ```bash
-# Check IMS resource pools
-curl http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools
+# Check IMS resource pools (O2 port with mTLS)
+curl https://o2.netweave.local:8443/o2ims-infrastructureInventory/v1/resourcePools \
+  --cert client.crt --key client.key --cacert ca.crt
 
-# Check DMS deployment packages
-curl http://localhost:8080/o2dms/v1/deploymentPackages
+# Check DMS deployment packages (O2 port with mTLS)
+curl https://o2.netweave.local:8443/o2dms/v1/deploymentPackages \
+  --cert client.crt --key client.key --cacert ca.crt
 
-# Check SMO service models (via GraphQL)
-curl -X POST http://localhost:8080/graphql \
+# Check SMO service models (via GraphQL port with OAuth2)
+curl -X POST https://graphql.netweave.local:8445/graphql \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"query": "{ serviceModels { id name version } }"}'
 ```
 
@@ -70,17 +73,21 @@ The mock IMS adapter includes:
 ### API Examples
 
 ```bash
-# List all resource pools
-curl http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools
+# List all resource pools (O2 port)
+curl https://o2.netweave.local:8443/o2ims-infrastructureInventory/v1/resourcePools \
+  --cert client.crt --key client.key --cacert ca.crt
 
 # Get specific resource pool
-curl http://localhost:8080/o2ims-infrastructureInventory/v1/resourcePools/pool-us-east-1
+curl https://o2.netweave.local:8443/o2ims-infrastructureInventory/v1/resourcePools/pool-us-east-1 \
+  --cert client.crt --key client.key --cacert ca.crt
 
 # List resources in a pool
-curl http://localhost:8080/o2ims-infrastructureInventory/v1/resources?resourcePoolId=pool-us-west-2
+curl https://o2.netweave.local:8443/o2ims-infrastructureInventory/v1/resources?resourcePoolId=pool-us-west-2 \
+  --cert client.crt --key client.key --cacert ca.crt
 
 # List all resource types
-curl http://localhost:8080/o2ims-infrastructureInventory/v1/resourceTypes
+curl https://o2.netweave.local:8443/o2ims-infrastructureInventory/v1/resourceTypes \
+  --cert client.crt --key client.key --cacert ca.crt
 ```
 
 ## Mock DMS Adapter
@@ -109,11 +116,13 @@ Status progression happens automatically in the background.
 ### API Examples
 
 ```bash
-# List deployment packages
-curl http://localhost:8080/o2dms/v1/deploymentPackages
+# List deployment packages (O2 port)
+curl https://o2.netweave.local:8443/o2dms/v1/deploymentPackages \
+  --cert client.crt --key client.key --cacert ca.crt
 
 # Create a new deployment
-curl -X POST http://localhost:8080/o2dms/v1/deployments \
+curl -X POST https://o2.netweave.local:8443/o2dms/v1/deployments \
+  --cert client.crt --key client.key --cacert ca.crt \
   -H "Content-Type: application/json" \
   -d '{
     "name": "my-cuup-deployment",
@@ -130,10 +139,12 @@ curl -X POST http://localhost:8080/o2dms/v1/deployments \
 
 # Wait 2 seconds, then check deployment status
 sleep 2
-curl http://localhost:8080/o2dms/v1/deployments/{deployment-id}
+curl https://o2.netweave.local:8443/o2dms/v1/deployments/{deployment-id} \
+  --cert client.crt --key client.key --cacert ca.crt
 
 # Rollback a deployment
-curl -X POST http://localhost:8080/o2dms/v1/deployments/{deployment-id}/rollback \
+curl -X POST https://o2.netweave.local:8443/o2dms/v1/deployments/{deployment-id}/rollback \
+  --cert client.crt --key client.key --cacert ca.crt \
   -H "Content-Type: application/json" \
   -d '{"targetVersion": 1}'
 ```
@@ -162,11 +173,13 @@ The mock SMO simulates realistic workflow execution:
 ### API Examples
 
 ```bash
-# List service models
-curl http://localhost:8080/smo/v1/serviceModels
+# List service models (admin port with OAuth2)
+curl https://api.netweave.local:8080/smo/v1/serviceModels \
+  -H "Authorization: Bearer $TOKEN"
 
 # Execute a workflow
-curl -X POST http://localhost:8080/smo/v1/workflows \
+curl -X POST https://api.netweave.local:8080/smo/v1/workflows \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "workflowName": "deploy-5g-ran",
@@ -178,11 +191,13 @@ curl -X POST http://localhost:8080/smo/v1/workflows \
   }'
 
 # Check workflow status (immediately - will be pending)
-curl http://localhost:8080/smo/v1/workflows/{execution-id}/status
+curl https://api.netweave.local:8080/smo/v1/workflows/{execution-id}/status \
+  -H "Authorization: Bearer $TOKEN"
 
 # Wait 4 seconds for completion
 sleep 4
-curl http://localhost:8080/smo/v1/workflows/{execution-id}/status
+curl https://api.netweave.local:8080/smo/v1/workflows/{execution-id}/status \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ## Using GraphQL with Mocks
@@ -263,7 +278,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.25.7'
 
       - name: Run E2E Tests with Mocks
         run: |

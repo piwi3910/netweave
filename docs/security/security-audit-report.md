@@ -614,11 +614,11 @@ Remove the ROPC grant implementation or gate it behind a development-only flag. 
 The govulncheck scan could not complete due to a Go version mismatch. The scanner was built with Go 1.24 but the project requires Go 1.25:
 
 ```
-package requires newer Go version go1.25 (application built with go1.24)
+package requires newer Go version go1.25.7 (application built with go1.24)
 ```
 
 **Recommendation:**
-Update the local Go toolchain to 1.25+ and re-run `govulncheck ./...` to identify known vulnerabilities in dependencies. Include this in the CI pipeline.
+Update the local Go toolchain to 1.25.7+ and re-run `govulncheck ./...` to identify known vulnerabilities in dependencies. Include this in the CI pipeline.
 
 ---
 
@@ -679,13 +679,13 @@ The codebase demonstrates several commendable security practices that should be 
 **Database:** vuln.go.dev (last modified: 2025-12-30)
 **Status:** FAILED -- Go version mismatch
 
-The scan could not complete because the local Go toolchain (1.24) does not meet the project requirement (1.25). No vulnerability data was produced.
+The scan could not complete because the local Go toolchain (1.24) does not meet the project requirement (1.25.7). No vulnerability data was produced.
 
-**Action Required:** Re-run with Go 1.25+ toolchain.
+**Action Required:** Re-run with Go 1.25.7+ toolchain.
 
 ### go.mod Dependency Analysis
 
-**Go version:** 1.25.5
+**Go version:** 1.25.7
 **Key dependencies reviewed:**
 
 | Dependency | Version | Assessment |

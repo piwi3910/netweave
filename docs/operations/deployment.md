@@ -64,10 +64,11 @@ curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stabl
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 kubectl version --client
 
-# cert-manager CLI (optional)
-OS=$(go env GOOS); ARCH=$(go env GOARCH); curl -sSL -o cmctl.tar.gz https://github.com/cert-manager/cmctl/releases/latest/download/cmctl-$OS-$ARCH.tar.gz
-tar xzf cmctl.tar.gz
-sudo mv cmctl /usr/local/bin
+# Vault CLI (optional, for certificate management)
+curl -sSL https://releases.hashicorp.com/vault/1.17.0/vault_1.17.0_linux_amd64.zip -o vault.zip
+unzip vault.zip
+sudo mv vault /usr/local/bin
+vault version
 ```
 
 ## Deployment Options
@@ -116,13 +117,19 @@ kubectl logs -n netweave -l app=netweave-gateway --tail=20
 
 #### Step 1: Install Prerequisites
 
-**Install cert-manager:**
+**Install HashiCorp Vault (for PKI certificate management):**
 ```bash
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.0/cert-manager.yaml
+helm repo add hashicorp https://helm.releases.hashicorp.com
+helm repo update
+
+helm install vault hashicorp/vault \
+  --namespace vault-system \
+  --create-namespace \
+  --set server.dev.enabled=false
 
 # Verify installation
-kubectl get pods -n cert-manager
-cmctl check api
+kubectl get pods -n vault-system
+vault status
 ```
 
 **Install Redis Sentinel cluster:**
@@ -226,31 +233,42 @@ kubectl get secret -n netweave keycloak-credentials
 
 #### Step 2: Configure TLS Certificates
 
-**Create ClusterIssuer for cert-manager:**
+**Configure Vault PKI for certificate management:**
 ```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: ca-issuer
-spec:
-  ca:
-    secretName: ca-key-pair
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ca-key-pair
-  namespace: cert-manager
-type: kubernetes.io/tls
-data:
-  tls.crt: $(cat ca.crt | base64 -w0)
-  tls.key: $(cat ca.key | base64 -w0)
-EOF
+# Enable PKI secrets engine
+vault secrets enable pki
+vault secrets tune -max-lease-ttl=87600h pki
 
-# Verify issuer
-kubectl get clusterissuer ca-issuer
-cmctl check api
+# Generate root CA
+vault write -field=certificate pki/root/generate/internal \
+  common_name="Netweave Root CA" \
+  issuer_name="netweave-root" \
+  ttl=87600h > ca.crt
+
+# Enable intermediate PKI
+vault secrets enable -path=pki_int pki
+vault secrets tune -max-lease-ttl=43800h pki_int
+
+# Create intermediate CA
+vault write -format=json pki_int/intermediate/generate/internal \
+  common_name="Netweave Intermediate CA" | jq -r '.data.csr' > pki_int.csr
+
+# Sign intermediate with root
+vault write -format=json pki/root/sign-intermediate \
+  csr=@pki_int.csr \
+  format=pem_bundle \
+  ttl=43800h | jq -r '.data.certificate' > signed_certificate.pem
+
+vault write pki_int/intermediate/set-signed certificate=@signed_certificate.pem
+
+# Create PKI role for gateway certificates
+vault write pki_int/roles/netweave-mtls \
+  allowed_domains="netweave.local" \
+  allow_subdomains=true \
+  max_ttl=720h
+
+# Verify PKI setup
+vault read pki_int/roles/netweave-mtls
 ```
 
 #### Step 3: Deploy Gateway with Helm
@@ -1074,11 +1092,15 @@ kubectl exec -n netweave redis-sentinel-0 -- \
 kubectl get certificate -n netweave
 kubectl describe certificate netweave-tls -n netweave
 
-# Check cert-manager logs
-kubectl logs -n cert-manager -l app=cert-manager
+# Check Vault PKI status
+vault read pki_int/cert/ca
+kubectl get secret netweave-tls -n netweave
 
-# Manually trigger certificate renewal
-cmctl renew netweave-tls -n netweave
+# Issue new certificate via Vault PKI
+vault write pki_int/issue/netweave-mtls \
+  common_name="o2.netweave.local" \
+  alt_names="api.netweave.local,tmf.netweave.local,graphql.netweave.local" \
+  ttl=720h
 ```
 
 ## Rollback Procedures

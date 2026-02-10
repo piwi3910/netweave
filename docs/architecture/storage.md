@@ -455,7 +455,7 @@ while [ $(redis-cli -h redis-master LASTSAVE) -eq $LASTSAVE ]; do
 done
 
 # 3. Copy RDB to persistent storage
-kubectl cp o2ims-system/redis-master-0:/data/dump.rdb \
+kubectl cp netweave/redis-master-0:/data/dump.rdb \
   /backups/redis/dump-$(date +%Y%m%d-%H%M%S).rdb
 
 # 4. Upload to object storage (S3, GCS, etc.)
@@ -476,7 +476,7 @@ kubectl exec redis-master-0 -- redis-cli SHUTDOWN NOSAVE
 
 # 3. Restore from latest backup
 kubectl cp s3://netweave-backups/redis/dump-latest.rdb \
-  o2ims-system/redis-master-0:/data/dump.rdb
+  netweave/redis-master-0:/data/dump.rdb
 
 # 4. Start Redis
 kubectl exec redis-master-0 -- redis-server /etc/redis/redis.conf

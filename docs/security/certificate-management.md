@@ -299,8 +299,8 @@ curl -X POST \
 
 ```bash
 vault write -format=json o2ims-pki-int/issue/server \
-    common_name="o2ims-gateway.example.com" \
-    alt_names="o2ims-gateway.svc.cluster.local,*.o2ims-gateway.svc.cluster.local" \
+    common_name="netweave-gateway.example.com" \
+    alt_names="api.netweave.local,o2.netweave.local,tmf.netweave.local,graphql.netweave.local,netweave-gateway.netweave.svc,netweave-gateway.netweave.svc.cluster.local" \
     ip_sans="10.96.0.10" \
     ttl=2160h \
     | jq -r '.data' > server-cert.json
@@ -413,7 +413,7 @@ jq -r '.certificate' client-cert-renewed.json > client.crt
 jq -r '.private_key' client-cert-renewed.json > client.key
 
 # Restart services using the certificate
-kubectl rollout restart deployment/o2ims-gateway -n o2ims-system
+kubectl rollout restart deployment/netweave-gateway -n netweave
 ```
 
 ---
@@ -593,7 +593,7 @@ curl https://vault.example.com:8200/v1/o2ims-pki-int/crl | \
 
 # Test with gateway
 curl -k --cert revoked-client.crt --key revoked-client.key \
-    https://o2ims-gateway.example.com/health
+    https://netweave-gateway.example.com/health
 # Expected: TLS handshake failure or 401 Unauthorized
 ```
 
@@ -626,7 +626,7 @@ tls:
 
 ```promql
 # Certificates expiring in 7 days
-certificate_expiry_seconds{job="o2ims-gateway"} < 604800
+certificate_expiry_seconds{job="netweave-gateway"} < 604800
 
 # Certificate renewal failures
 rate(certificate_renewal_failures_total[5m]) > 0
@@ -691,7 +691,7 @@ vault token lookup
 vault read o2ims-pki-int/roles/client
 
 # Check gateway logs
-kubectl logs -n o2ims-system -l app=gateway | grep "certificate renewal"
+kubectl logs -n netweave -l app=gateway | grep "certificate renewal"
 ```
 
 **Issue: Certificate Verification Failing**
@@ -705,7 +705,7 @@ curl -s https://vault.example.com:8200/v1/o2ims-pki-int/crl | \
     openssl crl -inform DER -text -noout
 
 # Test TLS handshake
-openssl s_client -connect o2ims-gateway.example.com:443 \
+openssl s_client -connect netweave-gateway.example.com:8443 \
     -cert client.crt -key client.key -CAfile ca-chain.crt
 ```
 
@@ -743,7 +743,7 @@ certificate_renewal:
 
 ```bash
 # View debug logs
-kubectl logs -n o2ims-system -l app=gateway --tail=100 | grep -i cert
+kubectl logs -n netweave -l app=gateway --tail=100 | grep -i cert
 ```
 
 ---
@@ -787,7 +787,6 @@ kubectl logs -n o2ims-system -l app=gateway --tail=100 | grep -i cert
 
 ### Tools
 
-- [cert-manager](https://cert-manager.io/) - Kubernetes certificate management
 - [openssl](https://www.openssl.org/) - Certificate utilities
 - [cfssl](https://github.com/cloudflare/cfssl) - PKI toolkit
 

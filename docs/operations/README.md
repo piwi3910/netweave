@@ -20,7 +20,7 @@ Comprehensive operational documentation for the netweave O2-IMS Gateway. This do
 **Required Infrastructure:**
 - Kubernetes 1.30+ cluster
 - Redis 7.4+ (Sentinel mode for HA)
-- cert-manager 1.15+ (for TLS)
+- HashiCorp Vault PKI (for TLS/mTLS certificates)
 - Prometheus 2.x+ (for monitoring)
 - Grafana 9.x+ (for visualization)
 
@@ -34,27 +34,27 @@ Comprehensive operational documentation for the netweave O2-IMS Gateway. This do
 
 **Check Gateway Health:**
 ```bash
-kubectl get pods -n o2ims-system -l app=netweave-gateway
-kubectl logs -n o2ims-system -l app=netweave-gateway --tail=50
-curl -k https://netweave-gateway.o2ims-system.svc.cluster.local/healthz
+kubectl get pods -n netweave -l app=netweave-gateway
+kubectl logs -n netweave -l app=netweave-gateway --tail=50
+curl -k https://netweave-gateway.netweave.svc.cluster.local/healthz
 ```
 
 **Check Redis Status:**
 ```bash
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli INFO replication
-kubectl exec -n o2ims-system redis-sentinel-0 -- redis-cli -p 26379 SENTINEL master mymaster
+kubectl exec -n netweave redis-node-0 -- redis-cli INFO replication
+kubectl exec -n netweave redis-sentinel-0 -- redis-cli -p 26379 SENTINEL master mymaster
 ```
 
 **View Metrics:**
 ```bash
-kubectl port-forward -n o2ims-system svc/netweave-gateway 8080:8080
+kubectl port-forward -n netweave svc/netweave-gateway 8080:8080
 curl http://localhost:8080/metrics
 ```
 
 **Check Subscriptions:**
 ```bash
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli KEYS "subscription:*"
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli GET "subscription:sub-123"
+kubectl exec -n netweave redis-node-0 -- redis-cli KEYS "subscription:*"
+kubectl exec -n netweave redis-node-0 -- redis-cli GET "subscription:sub-123"
 ```
 
 ### Emergency Contacts
@@ -201,7 +201,7 @@ Each adapter implements the same interface, enabling consistent operations acros
 **Production-like, single cluster:**
 - 3 gateway pods
 - Redis Sentinel (3 nodes, 3 sentinels)
-- mTLS with cert-manager
+- mTLS with Vault PKI
 - Full observability stack
 
 **Use for:**
@@ -240,7 +240,7 @@ Each adapter implements the same interface, enabling consistent operations acros
 
 ### Certificate Management
 
-- **cert-manager**: Automated certificate issuance and renewal
+- **Vault PKI**: Automated certificate issuance and renewal via HashiCorp Vault
 - **CA Hierarchy**: Root CA → Intermediate CA → Leaf certificates
 - **Certificate Rotation**: Automated rotation 30 days before expiry
 - **Certificate Monitoring**: Alerts 14 days before expiry

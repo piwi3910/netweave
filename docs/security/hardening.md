@@ -23,8 +23,8 @@ The O2-IMS Gateway requires TLS 1.3 for all external connections. This is enforc
 # config.yaml
 server:
   tls_enabled: true
-  tls_cert_file: /etc/o2ims/certs/server.crt
-  tls_key_file: /etc/o2ims/certs/server.key
+  tls_cert_file: /etc/netweave/certs/server.crt
+  tls_key_file: /etc/netweave/certs/server.key
   tls_min_version: "1.3"
 ```
 
@@ -41,12 +41,12 @@ openssl req -new -x509 -days 3650 -key ca.key -out ca.crt \
 # Generate server certificate
 openssl genrsa -out server.key 4096
 openssl req -new -key server.key -out server.csr \
-    -subj "/CN=o2ims-gateway/O=ORAN/OU=O-Cloud"
+    -subj "/CN=netweave-gateway/O=ORAN/OU=O-Cloud"
 
 # Sign with CA
 openssl x509 -req -days 365 -in server.csr -CA ca.crt -CAkey ca.key \
     -CAcreateserial -out server.crt \
-    -extfile <(echo "subjectAltName=DNS:o2ims-gateway,DNS:localhost,IP:127.0.0.1")
+    -extfile <(echo "subjectAltName=DNS:netweave-gateway,DNS:localhost,DNS:api.netweave.local,DNS:o2.netweave.local,DNS:tmf.netweave.local,DNS:graphql.netweave.local,IP:127.0.0.1")
 ```
 
 #### Production Certificates
@@ -65,7 +65,7 @@ Enable mutual TLS to authenticate both clients and servers:
 # config.yaml
 server:
   mtls_enabled: true
-  mtls_client_ca_file: /etc/o2ims/certs/client-ca.crt
+  mtls_client_ca_file: /etc/netweave/certs/client-ca.crt
   mtls_client_cert_verification: "require_and_verify"
 ```
 
@@ -76,24 +76,22 @@ Client certificate requirements:
 
 ### Certificate Rotation
 
-Implement automated certificate rotation:
+Implement automated certificate rotation using Vault PKI:
 
-```yaml
-# Kubernetes cert-manager configuration
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: o2ims-gateway-cert
-  namespace: o2ims
-spec:
-  secretName: o2ims-gateway-tls
-  duration: 2160h    # 90 days
-  renewBefore: 360h  # 15 days before expiry
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
-  dnsNames:
-    - o2ims-gateway.example.com
+```bash
+# Issue server certificate via Vault PKI with automatic renewal
+vault write -format=json o2ims-pki-int/issue/server \
+    common_name="netweave-gateway.example.com" \
+    alt_names="api.netweave.local,o2.netweave.local,tmf.netweave.local,graphql.netweave.local" \
+    ttl=2160h
+
+# Configure gateway for automatic renewal
+# config.yaml
+certificate_renewal:
+  enabled: true
+  renew_before_expiry: 168h  # Renew 7 days before expiration
+  check_interval: 1h
+  vault_role: "server"
 ```
 
 ### Cipher Suite Selection
@@ -168,13 +166,13 @@ Best practices:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: o2ims-gateway
-  namespace: o2ims
+  name: netweave-gateway
+  namespace: netweave
   annotations:
     # AWS: Use IRSA for role assumption
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789:role/o2ims-gateway
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789:role/netweave-gateway
     # GCP: Use Workload Identity
-    iam.gke.io/gcp-service-account: o2ims@project.iam.gserviceaccount.com
+    iam.gke.io/gcp-service-account: netweave@project.iam.gserviceaccount.com
 ```
 
 ---
@@ -189,12 +187,12 @@ Restrict network access using Kubernetes NetworkPolicies:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: o2ims-gateway-policy
-  namespace: o2ims
+  name: netweave-gateway-policy
+  namespace: netweave
 spec:
   podSelector:
     matchLabels:
-      app: o2ims-gateway
+      app: netweave-gateway
   policyTypes:
     - Ingress
     - Egress
@@ -248,7 +246,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: o2ims-gateway
+  name: netweave-gateway
   annotations:
     # NGINX ingress annotations
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
@@ -269,17 +267,17 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - o2ims-gateway.example.com
-      secretName: o2ims-gateway-tls
+        - netweave-gateway.example.com
+      secretName: netweave-gateway-tls
   rules:
-    - host: o2ims-gateway.example.com
+    - host: netweave-gateway.example.com
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: o2ims-gateway
+                name: netweave-gateway
                 port:
                   number: 8443
 ```
@@ -291,12 +289,12 @@ Example firewall rules for cloud environments:
 ```bash
 # AWS Security Group
 aws ec2 create-security-group \
-    --group-name o2ims-gateway-sg \
+    --group-name netweave-gateway-sg \
     --description "O2-IMS Gateway security group"
 
 # Allow HTTPS from known SMO IP ranges
 aws ec2 authorize-security-group-ingress \
-    --group-name o2ims-gateway-sg \
+    --group-name netweave-gateway-sg \
     --protocol tcp \
     --port 8443 \
     --cidr 203.0.113.0/24
@@ -339,8 +337,8 @@ Store sensitive configuration in Kubernetes Secrets:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: o2ims-gateway-secrets
-  namespace: o2ims
+  name: netweave-gateway-secrets
+  namespace: netweave
 type: Opaque
 stringData:
   redis-password: "${REDIS_PASSWORD}"
@@ -359,23 +357,23 @@ Integrate with external secret managers:
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: o2ims-gateway-secrets
-  namespace: o2ims
+  name: netweave-gateway-secrets
+  namespace: netweave
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: aws-secrets-manager
     kind: ClusterSecretStore
   target:
-    name: o2ims-gateway-secrets
+    name: netweave-gateway-secrets
   data:
     - secretKey: redis-password
       remoteRef:
-        key: o2ims/redis
+        key: netweave/redis
         property: password
     - secretKey: webhook-secret
       remoteRef:
-        key: o2ims/webhook
+        key: netweave/webhook
         property: hmac-secret
 ```
 
@@ -465,13 +463,13 @@ Tenants are isolated at multiple levels:
 
 ```bash
 # Test that tenant A cannot access tenant B's resources
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/subscriptions \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/subscriptions \
     --cert tenant-a-client.crt \
     --key tenant-a-client.key
 
 # Should return only tenant A's subscriptions
 # Attempting to access tenant B's subscription should return 404
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/subscriptions/tenant-b-sub-123 \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/subscriptions/tenant-b-sub-123 \
     --cert tenant-a-client.crt \
     --key tenant-a-client.key
 # Returns: 404 Not Found
@@ -575,7 +573,7 @@ Run these commands regularly:
 
 ```bash
 # Scan container image for vulnerabilities
-trivy image o2ims-gateway:latest
+trivy image netweave-gateway:latest
 
 # Check Go dependencies for vulnerabilities
 govulncheck ./...
@@ -607,15 +605,15 @@ gitleaks detect --source .
 
 ```bash
 # Check recent security events
-curl -X GET "https://o2ims-gateway/o2ims-infrastructureInventory/v1/audit/events?type=access.denied&limit=100" \
+curl -X GET "https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/audit/events?type=access.denied&limit=100" \
     --cert admin.crt --key admin.key
 
 # Revoke compromised API key
-curl -X DELETE "https://o2ims-gateway/o2ims-infrastructureInventory/v1/auth/api-keys/compromised-key-id" \
+curl -X DELETE "https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/auth/api-keys/compromised-key-id" \
     --cert admin.crt --key admin.key
 
 # Suspend tenant (if compromised)
-curl -X PATCH "https://o2ims-gateway/o2ims-infrastructureInventory/v1/tenants/tenant-id" \
+curl -X PATCH "https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/tenants/tenant-id" \
     -d '{"status": "suspended"}' \
     --cert admin.crt --key admin.key
 ```

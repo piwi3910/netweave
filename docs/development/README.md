@@ -15,7 +15,7 @@ Welcome to the netweave development documentation. This guide provides everythin
 
 netweave is built with production-grade standards:
 
-- **Language:** Go 1.25.0+
+- **Language:** Go 1.25.7+
 - **Framework:** Gin for HTTP
 - **Testing:** ≥80% coverage required
 - **Quality:** Zero-tolerance linting (no warnings allowed)
@@ -28,7 +28,7 @@ netweave is built with production-grade standards:
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| **Go** | 1.25.0+ | Core language (required by k8s.io/client-go v0.35.0) |
+| **Go** | 1.25.7+ | Core language (required by k8s.io/client-go v0.35.0) |
 | **Docker** | Latest | Container builds and testing |
 | **Kubernetes** | 1.30+ | Primary infrastructure platform |
 | **kubectl** | 1.30+ | Kubernetes CLI |
@@ -83,7 +83,8 @@ gh issue create \
 
 ```bash
 # Branch naming: issue-NUM-brief-description
-git checkout -b issue-42-add-resource-filter
+git worktree add ../netweave-worktrees/issue-42-add-resource-filter -b issue-42-add-resource-filter origin/main
+cd ../netweave-worktrees/issue-42-add-resource-filter
 ```
 
 ### 3. Develop with Quality Checks
@@ -176,12 +177,10 @@ make quality
 ```
 
 This runs:
-1. ✅ `make fmt` - Code formatting (no changes)
+1. ✅ `make fmt-check` - Code formatting (no changes)
 2. ✅ `make lint` - All linters pass (zero warnings)
-3. ✅ `make test` - All tests pass (≥80% coverage)
-4. ✅ `make test-integration` - Integration tests pass
-5. ✅ `make security-scan` - No vulnerabilities
-6. ✅ `make lint-docs` - Documentation formatting
+3. ✅ `make security-scan` - No vulnerabilities
+4. ✅ `make test-coverage` - All tests pass (≥80% coverage)
 
 ### Linting Rules
 
@@ -383,7 +382,7 @@ netweave/
 
 ```go
 // go.mod - Critical versions
-go 1.25.0  // Required by k8s.io/client-go v0.35.0
+go 1.25.7  // Required by k8s.io/client-go v0.35.0
 
 require (
     // Kubernetes client libraries
@@ -392,7 +391,7 @@ require (
     k8s.io/apimachinery v0.35.0
 
     // HTTP framework
-    github.com/gin-gonic/gin v1.10.0
+    github.com/gin-gonic/gin v1.11.0
 
     // Storage & cache
     github.com/redis/go-redis/v9 v9.7.0
@@ -403,14 +402,14 @@ require (
     github.com/prometheus/client_golang v1.20.5
 
     // Testing
-    github.com/stretchr/testify v1.10.0
+    github.com/stretchr/testify v1.11.1
     go.uber.org/mock v0.5.0
 )
 ```
 
 ### Why These Versions?
 
-**Go 1.25.0+**
+**Go 1.25.7+**
 - Required by k8s.io/client-go v0.35.0
 - Provides latest security and performance improvements
 

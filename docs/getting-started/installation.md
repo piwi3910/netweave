@@ -23,7 +23,7 @@ Comprehensive guide for deploying netweave in all environments.
 | **Kubernetes** | 1.30+ | Container orchestration | [Install kubectl](https://kubernetes.io/docs/tasks/tools/) |
 | **Helm** | 3.0+ | Package manager | [Install Helm](https://helm.sh/docs/intro/install/) |
 | **netweave-cli** | latest | CLI management tool | `make build-cli` |
-| **Go** | 1.25.0+ | Development only | [Install Go](https://go.dev/doc/install) |
+| **Go** | 1.25.7+ | Development only | [Install Go](https://go.dev/doc/install) |
 | **Docker** | 20.10+ | Container runtime | [Install Docker](https://docs.docker.com/get-docker/) |
 | **Redis** | 7.4+ | State backend | Installed via Helm |
 | **HashiCorp Vault** | 1.15+ | PKI certificate management | [Install Vault](https://developer.hashicorp.com/vault/docs/install) |
@@ -176,7 +176,7 @@ make verify-setup
 **Expected output:**
 
 ```text
-✓ Go 1.25.0 installed
+✓ Go 1.25.7 installed
 ✓ golangci-lint installed
 ✓ Docker installed
 ✓ kubectl configured

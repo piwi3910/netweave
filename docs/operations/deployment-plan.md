@@ -83,14 +83,14 @@ graph TB
 - [ ] Storage class with dynamic provisioning available
 - [ ] Network policies supported (Calico, Cilium, or Weave Net)
 - [ ] Ingress controller deployed (nginx or Istio)
-- [ ] cert-manager 1.15+ installed for TLS certificates
+- [ ] HashiCorp Vault deployed for PKI certificate management
 
 **Verification:**
 ```bash
 kubectl version --short
 kubectl get nodes -o wide
 kubectl get storageclass
-kubectl get pods -n cert-manager
+kubectl get pods -n vault-system
 ```
 
 #### Database Requirements
@@ -775,7 +775,7 @@ gateway:
         enabled: true
         caCert: ""  # From Vault
 
-    certManager:
+    vaultPKI:
       enabled: true
       monitorInterval: 1h
       renewalWindow: 720h  # 30 days

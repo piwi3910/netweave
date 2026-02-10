@@ -103,7 +103,7 @@ open http://localhost:8080
 
 ```bash
 # Access via ingress
-open https://keycloak.o2ims.example.com
+open https://auth.netweave.local
 ```
 
 **Default Credentials:**
@@ -419,20 +419,20 @@ netweave realm
 
 ### Gateway Client
 
-The `o2ims-gateway` client is pre-configured for OAuth2/OIDC authentication.
+The `netweave-gateway` client is pre-configured for OAuth2/OIDC authentication.
 
 **View Client Configuration:**
 
 1. Navigate to **Clients** (left sidebar)
-2. Click **o2ims-gateway**
+2. Click **netweave-gateway**
 3. Review configuration:
-   - **Client ID**: `o2ims-gateway`
+   - **Client ID**: `netweave-gateway`
    - **Client authentication**: ON (confidential client)
    - **Authorization**: OFF (not using fine-grained authorization)
    - **Standard flow**: ON (authorization code flow)
    - **Direct access grants**: ON (password grant for testing)
-   - **Valid redirect URIs**: `https://o2ims-gateway.example.com/*`
-   - **Web origins**: `https://o2ims-gateway.example.com`
+   - **Valid redirect URIs**: `https://api.netweave.local/*`
+   - **Web origins**: `https://api.netweave.local`
 
 **Get Client Secret:**
 
@@ -659,7 +659,7 @@ openssl s_client -connect keycloak.example.com:443 -showcerts
 # Test token introspection
 curl -X POST \
     -d "token=$ACCESS_TOKEN" \
-    -d "client_id=o2ims-gateway" \
+    -d "client_id=netweave-gateway" \
     -d "client_secret=$CLIENT_SECRET" \
     https://keycloak.example.com/realms/netweave/protocol/openid-connect/token/introspect
 ```

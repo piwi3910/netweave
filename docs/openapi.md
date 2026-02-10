@@ -212,7 +212,7 @@ import (
 func main() {
     // Configure client
     cfg := o2ims.NewConfiguration()
-    cfg.Host = "gateway.example.com"
+    cfg.Host = "o2.netweave.local:8443"
     cfg.Scheme = "https"
 
     client := o2ims.NewAPIClient(cfg)
@@ -637,7 +637,7 @@ paths:
       x-code-samples:
         - lang: curl
           source: |
-            curl -X POST https://gateway.example.com/o2ims-infrastructureInventory/v1/subscriptions \
+            curl -X POST https://o2.netweave.local:8443/o2ims-infrastructureInventory/v1/subscriptions \
               -H "Content-Type: application/json" \
               -d '{"callback": "https://smo.example.com/notify"}'
 
@@ -1245,7 +1245,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.25.7'
 
       - name: Run contract tests
         run: |

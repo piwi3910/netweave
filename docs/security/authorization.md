@@ -568,24 +568,24 @@ if err := s.AuthStore.DecrementUsage(ctx, tenantID, "subscriptions"); decErr != 
 
 ```bash
 # 1. Test as platform-admin (full access)
-curl -X GET https://o2ims-gateway.example.com/admin/tenants \
+curl -X GET https://netweave-gateway.example.com/admin/tenants \
   --cert platform-admin.crt --key platform-admin.key --cacert ca.crt
 # Expected: 200 OK
 
 # 2. Test as operator (resource access)
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
   --cert operator.crt --key operator.key --cacert ca.crt
 # Expected: 200 OK
 
 # 3. Test viewer cannot create subscriptions
-curl -X POST https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/subscriptions \
+curl -X POST https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/subscriptions \
   --cert viewer.crt --key viewer.key --cacert ca.crt \
   -H "Content-Type: application/json" \
   -d '{"callback": "https://smo.example.com/notify"}'
 # Expected: 403 Forbidden
 
 # 4. Test without certificate
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/subscriptions
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/subscriptions
 # Expected: 401 Unauthorized (Client certificate required)
 ```
 

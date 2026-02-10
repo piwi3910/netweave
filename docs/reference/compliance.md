@@ -183,7 +183,10 @@ make compliance-update-readme
         ┌───────────────┐
         │   netweave    │
         │   Gateway     │
-        │  :8080        │
+        │  :8080 admin  │
+        │  :8443 o2     │
+        │  :8444 tmf    │
+        │  :8445 graphql│
         └───────────────┘
 ```
 
@@ -262,7 +265,7 @@ func TestChecker_CheckO2IMS(t *testing.T) {
 **Example 2: Endpoint Coverage Test**
 ```go
 func TestEndpointTest_Coverage(t *testing.T) {
-    checker := compliance.NewChecker("http://localhost:8080", zap.NewNop())
+    checker := compliance.NewChecker("http://localhost:8443", zap.NewNop())
     spec := compliance.SpecVersion{Name: "O2-IMS", Version: "v3.0.0"}
 
     ctx := context.Background()
@@ -336,7 +339,7 @@ sleep 5
 go test ./tools/compliance/... -v -tags=integration
 
 # Or use the compliance CLI
-./build/compliance -url http://localhost:8080
+./build/compliance -url http://localhost:8443
 ```
 
 ### Mock Handler Example
@@ -383,26 +386,26 @@ go build -o build/compliance ./cmd/compliance
 
 ```bash
 # Run compliance check against local gateway
-./build/compliance -url http://localhost:8080
+./build/compliance -url http://localhost:8443
 
 # Run against remote gateway
-./build/compliance -url https://netweave.example.com
+./build/compliance -url https://o2.netweave.local:8443
 
 # Generate JSON report
-./build/compliance -url http://localhost:8080 -output json > compliance-report.json
+./build/compliance -url http://localhost:8443 -output json > compliance-report.json
 
 # Generate badges for README
-./build/compliance -url http://localhost:8080 -output badges
+./build/compliance -url http://localhost:8443 -output badges
 
 # Update README.md with compliance badges
-./build/compliance -url http://localhost:8080 -update-readme
+./build/compliance -url http://localhost:8443 -update-readme
 ```
 
 ### Command-Line Options
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-url` | Gateway base URL | `http://localhost:8080` |
+| `-url` | Gateway base URL | `http://localhost:8443` |
 | `-output` | Output format: text, json, badges | `text` |
 | `-update-readme` | Update README.md with badges | `false` |
 | `-readme` | Path to README.md file | `README.md` |
@@ -471,7 +474,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.25.7'
 
       - name: Start Gateway
         run: |
