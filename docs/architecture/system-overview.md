@@ -16,14 +16,18 @@
 ```mermaid
 graph TB
     subgraph External [External Systems]
-        SMO[O2 SMO Client]
+        SMO[O2 SMO Client<br/>mTLS → o2.netweave.local:8443]
+        Admin[Admin Portal / CLI<br/>OAuth2 → api.netweave.local:8080]
+        TMF[TMForum Client<br/>OAuth2 → tmf.netweave.local:8444]
         Prom[Prometheus<br/>Monitoring]
-        Logging[ELK/Loki<br/>Logging]
     end
 
-    subgraph Gateway [netweave O2-IMS Gateway]
-        subgraph GWLayer [Gateway Layer]
-            API[O2-IMS API Implementation<br/>Request Validation OpenAPI<br/>Auth/AuthZ<br/>Rate Limiting]
+    subgraph Gateway [netweave Multi-Port Gateway]
+        subgraph GWLayer [Gateway Layer — 4 Listeners]
+            O2Port[O2 Router :8443<br/>mTLS Auth]
+            AdminPort[Admin Router :8080<br/>OAuth2 Auth]
+            TMFPort[TMF Router :8444<br/>OAuth2 Auth]
+            GQLPort[GraphQL Router :8445<br/>OAuth2 Auth]
         end
         subgraph TransLayer [Translation Layer]
             Trans[O2-IMS ↔ Kubernetes Mapping<br/>Data Transformation<br/>Error Translation]
@@ -38,11 +42,15 @@ graph TB
         Redis[Redis Sentinel Cluster<br/>• Master + Replicas<br/>• Automatic Failover<br/>• Persistence AOF+RDB]
     end
 
-    SMO -->|O2-IMS API<br/>HTTPS/mTLS| GWLayer
-    Prom -->|Metrics<br/>Prometheus scrape| GWLayer
-    Logging -->|Logs<br/>JSON structured| GWLayer
+    SMO -->|mTLS client certs| O2Port
+    Admin -->|OAuth2 Bearer| AdminPort
+    TMF -->|OAuth2 Bearer| TMFPort
+    Prom -->|Metrics scrape| AdminPort
 
-    GWLayer --> TransLayer
+    O2Port --> TransLayer
+    AdminPort --> TransLayer
+    TMFPort --> TransLayer
+    GQLPort --> TransLayer
     TransLayer --> AdapterLayer
 
     AdapterLayer -->|K8s API<br/>gRPC/HTTPS| K8s
@@ -58,10 +66,13 @@ graph TB
 
 ### System Responsibilities
 
-**Gateway Layer**:
-- O2-IMS API endpoint implementation
+**Gateway Layer** (4 separate listeners):
+- **Port 8080 (admin)**: Admin API, health, docs, metrics — OAuth2 Bearer auth
+- **Port 8443 (o2)**: O2-IMS, O2-DMS, O2-SMO — mTLS client certificate auth
+- **Port 8444 (tmf)**: TMForum Open APIs — OAuth2 Bearer auth
+- **Port 8445 (graphql)**: GraphQL API — OAuth2 Bearer auth
 - Request validation (OpenAPI 3.0 schema)
-- Authentication (mTLS client certificates)
+- Per-port authentication (mTLS for O2, OAuth2 for admin/TMF/GraphQL)
 - Authorization (RBAC, multi-tenancy)
 - Rate limiting (distributed, token bucket)
 - Observability (metrics, tracing, logs)
@@ -151,18 +162,18 @@ graph TB
 
 | Component | Technology | Version | Rationale |
 |-----------|-----------|---------|-----------|
-| **Language** | Go | 1.25.0+ | Performance, concurrency, K8s ecosystem |
+| **Language** | Go | 1.25.7+ | Performance, concurrency, K8s ecosystem |
 | **HTTP Framework** | Gin | Latest | Fast, minimal, production-proven |
 | **Storage** | Redis OSS | 7.4+ | Low latency, Sentinel HA, pub/sub |
 | **Backend** | Kubernetes | 1.31+ | Source of truth for infrastructure |
-| **Certificates** | cert-manager | 1.15+ | Automated cert lifecycle |
+| **PKI** | HashiCorp Vault | 1.15+ | Certificate lifecycle, automated renewal |
 | **Observability** | Prometheus, Jaeger | Latest | Industry standard |
 
 ### Kubernetes Dependencies
 
 ```go
 // go.mod - Required versions (DO NOT DOWNGRADE)
-go 1.25.0
+go 1.25.7
 
 require (
     k8s.io/client-go v0.35.0
@@ -174,7 +185,7 @@ require (
 ```
 
 **Why these versions:**
-- **Go 1.25.0+**: Required by k8s.io/client-go v0.35.0
+- **Go 1.25.7+**: Required by k8s.io/client-go v0.35.0
 - **k8s.io v0.35.0**: Resolves yaml.v3 module path conflicts
 - **structured-merge-diff v6**: K8s v0.35+ compatibility (migrated from v4)
 
@@ -211,14 +222,15 @@ require (
 - ✅ **Pros**: Instant scaling, simple architecture, no state migration
 - ❌ **Cons**: Redis dependency, slightly higher latency for cache misses
 
-### 2. Native Go TLS (No Service Mesh)
+### 2. Native Go TLS with Per-Port Configuration (No Service Mesh)
 
-**Decision**: Implement TLS 1.3 directly in Go application code using cert-manager for certificate lifecycle.
+**Decision**: Implement TLS 1.3 directly in Go application code with per-port ClientAuth settings, using Vault PKI for certificate lifecycle.
 
 **Rationale**:
 - **Simplicity**: No additional infrastructure (Istio, Linkerd)
 - **Performance**: Native Go TLS is fast and efficient
-- **Control**: Full control over TLS configuration and client cert validation
+- **Per-Port Auth**: O2 port requires mTLS client certs, admin/TMF/GraphQL ports use OAuth2 only
+- **Control**: Full control over TLS configuration per listener
 - **Reduced Attack Surface**: Fewer components to secure
 
 **Trade-offs**:
@@ -306,7 +318,7 @@ require (
 - mTLS for all external communication
 - Client certificate validation (CN, SAN)
 - Kubernetes RBAC for API access
-- No hardcoded secrets (cert-manager, K8s Secrets)
+- No hardcoded secrets (Vault PKI, K8s Secrets)
 - Network policies (restrict ingress/egress)
 - Audit logging (all operations)
 - Rate limiting (DoS protection)

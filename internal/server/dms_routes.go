@@ -8,8 +8,8 @@ import (
 // setupDMSRoutes configures all O2-DMS API routes under /o2dms/v1.
 // All features (batch operations, feature discovery, multi-tenancy) are consolidated in v1.
 func (s *Server) setupDMSRoutes(handler *dmshandlers.Handler) {
-	// O2-DMS API v1 routes (all features consolidated)
-	v1 := s.router.Group("/o2dms/v1")
+	// O2-DMS API v1 routes on O2 router (mTLS)
+	v1 := s.o2Router.Group("/o2dms/v1")
 	v1.Use(PluginGuard(s.pluginRegistry, "o2dms"))
 
 	// Apply dynamic routing middleware to resolve DMS registry per-request.
@@ -19,8 +19,8 @@ func (s *Server) setupDMSRoutes(handler *dmshandlers.Handler) {
 		s.setupDMSV1Routes(v1, handler)
 	}
 
-	// API information endpoint
-	s.router.GET("/o2dms", s.HandleDMSAPIInfo)
+	// API information endpoint on admin router
+	s.adminRouter.GET("/o2dms", s.HandleDMSAPIInfo)
 }
 
 // setupDMSV1Routes configures the O2-DMS API v1 endpoints with all features.

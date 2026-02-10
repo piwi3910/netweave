@@ -88,7 +88,7 @@ Retrieve a list of all deployed services.
 **Request:**
 ```http
 GET /tmf-api/serviceInventoryManagement/v4/service HTTP/1.1
-Host: gateway.example.com
+Host: tmf.netweave.local:8444
 Authorization: Bearer <token>
 ```
 
@@ -165,7 +165,7 @@ Retrieve details of a specific service.
 **Request:**
 ```http
 GET /tmf-api/serviceInventoryManagement/v4/service/{id} HTTP/1.1
-Host: gateway.example.com
+Host: tmf.netweave.local:8444
 Authorization: Bearer <token>
 ```
 
@@ -239,7 +239,7 @@ Deploy a new service.
 **Request:**
 ```http
 POST /tmf-api/serviceInventoryManagement/v4/service HTTP/1.1
-Host: gateway.example.com
+Host: tmf.netweave.local:8444
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -302,7 +302,7 @@ Update service configuration (PATCH semantics).
 **Request:**
 ```http
 PATCH /tmf-api/serviceInventoryManagement/v4/service/{id} HTTP/1.1
-Host: gateway.example.com
+Host: tmf.netweave.local:8444
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -340,7 +340,7 @@ Delete (undeploy) a service.
 **Request:**
 ```http
 DELETE /tmf-api/serviceInventoryManagement/v4/service/{id} HTTP/1.1
-Host: gateway.example.com
+Host: tmf.netweave.local:8444
 Authorization: Bearer <token>
 ```
 
@@ -450,28 +450,28 @@ This maps to:
 ### List Services by State
 
 ```bash
-curl -X GET "https://gateway.example.com/tmf-api/serviceInventoryManagement/v4/service?state=activated" \
+curl -X GET "https://tmf.netweave.local:8444/tmf-api/serviceInventoryManagement/v4/service?state=activated" \
   -H "Authorization: Bearer <token>"
 ```
 
 ### Filter by Service Type
 
 ```bash
-curl -X GET "https://gateway.example.com/tmf-api/serviceInventoryManagement/v4/service?serviceType=network-function" \
+curl -X GET "https://tmf.netweave.local:8444/tmf-api/serviceInventoryManagement/v4/service?serviceType=network-function" \
   -H "Authorization: Bearer <token>"
 ```
 
 ### Get Specific Fields Only
 
 ```bash
-curl -X GET "https://gateway.example.com/tmf-api/serviceInventoryManagement/v4/service?fields=id,name,state" \
+curl -X GET "https://tmf.netweave.local:8444/tmf-api/serviceInventoryManagement/v4/service?fields=id,name,state" \
   -H "Authorization: Bearer <token>"
 ```
 
 ### Deploy 5G NF Service
 
 ```bash
-curl -X POST "https://gateway.example.com/tmf-api/serviceInventoryManagement/v4/service" \
+curl -X POST "https://tmf.netweave.local:8444/tmf-api/serviceInventoryManagement/v4/service" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -489,7 +489,7 @@ curl -X POST "https://gateway.example.com/tmf-api/serviceInventoryManagement/v4/
 ### Scale Service (Update Replicas)
 
 ```bash
-curl -X PATCH "https://gateway.example.com/tmf-api/serviceInventoryManagement/v4/service/dep-smf-001" \
+curl -X PATCH "https://tmf.netweave.local:8444/tmf-api/serviceInventoryManagement/v4/service/dep-smf-001" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -502,7 +502,7 @@ curl -X PATCH "https://gateway.example.com/tmf-api/serviceInventoryManagement/v4
 ### Deploy Edge Application
 
 ```bash
-curl -X POST "https://gateway.example.com/tmf-api/serviceInventoryManagement/v4/service" \
+curl -X POST "https://tmf.netweave.local:8444/tmf-api/serviceInventoryManagement/v4/service" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -524,7 +524,7 @@ curl -X POST "https://gateway.example.com/tmf-api/serviceInventoryManagement/v4/
 Create service via service order:
 
 ```bash
-curl -X POST "https://gateway.example.com/tmf-api/serviceOrdering/v4/serviceOrder" \
+curl -X POST "https://tmf.netweave.local:8444/tmf-api/serviceOrdering/v4/serviceOrder" \
   -H "Content-Type: application/json" \
   -d '{
     "serviceOrderItem": [
@@ -562,7 +562,7 @@ Services reference underlying resources:
 Subscribe to service state changes:
 
 ```bash
-curl -X POST "https://gateway.example.com/tmf-api/eventManagement/v4/hub" \
+curl -X POST "https://tmf.netweave.local:8444/tmf-api/eventManagement/v4/hub" \
   -H "Content-Type: application/json" \
   -d '{
     "callback": "https://consumer.example.com/webhook",

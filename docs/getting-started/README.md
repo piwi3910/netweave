@@ -55,7 +55,7 @@ Before you begin, ensure you have:
 ### For Quickstart
 
 - Kubernetes cluster (Docker Desktop, Kind, or minikube)
-- kubectl, Helm, and Go 1.25.0+ installed
+- kubectl, Helm, and Go 1.25.7+ installed
 - NGINX Ingress Controller
 - 5 minutes of your time
 
@@ -69,7 +69,7 @@ Before you begin, ensure you have:
 
 ### For Development
 
-- Go 1.25.0+ installed
+- Go 1.25.7+ installed
 - Docker for container builds
 - make for build automation
 - Access to a Kubernetes cluster (kind, minikube, or cloud)
@@ -145,11 +145,11 @@ kubectl get pods -n netweave
 kubectl logs -n netweave -l app.kubernetes.io/component=gateway
 
 # Access via NGINX Ingress (recommended, see Installation Guide)
-# Requires /etc/hosts: 127.0.0.1 api.netweave.local admin.netweave.local auth.netweave.local
-# O2-IMS API uses mTLS authentication
+# Requires /etc/hosts: 127.0.0.1 admin.netweave.local api.netweave.local auth.netweave.local o2.netweave.local tmf.netweave.local graphql.netweave.local
+# O2-IMS API uses mTLS authentication on o2.netweave.local
 curl --cert ~/.netweave/client.crt --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
-  https://api.netweave.local/o2ims-infrastructureInventory/v1/resourceTypes
+  https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourceTypes
 ```
 
 </details>

@@ -24,7 +24,7 @@ This guide provides step-by-step instructions for setting up a complete netweave
 
 | Tool | Min Version | Recommended | Installation |
 |------|-------------|-------------|--------------|
-| **Go** | 1.25.0 | Latest | [go.dev/dl](https://go.dev/dl/) |
+| **Go** | 1.25.7 | Latest | [go.dev/dl](https://go.dev/dl/) |
 | **Docker** | 20.10+ | Latest | [docker.com](https://www.docker.com/get-started) |
 | **kubectl** | 1.30+ | 1.31+ | [kubernetes.io](https://kubernetes.io/docs/tasks/tools/) |
 | **Helm** | 3.0+ | 3.16+ | [helm.sh](https://helm.sh/docs/intro/install/) |
@@ -55,16 +55,16 @@ This guide provides step-by-step instructions for setting up a complete netweave
 brew install go
 
 # Verify installation
-go version  # Should be 1.25.0 or higher
+go version  # Should be 1.25.7 or higher
 ```
 
 #### Linux
 
 ```bash
 # Download and install
-wget https://go.dev/dl/go1.25.0.linux-amd64.tar.gz
+wget https://go.dev/dl/go1.25.7.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf go1.25.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.25.7.linux-amd64.tar.gz
 
 # Add to PATH (add to ~/.bashrc or ~/.zshrc)
 export PATH=$PATH:/usr/local/go/bin
@@ -288,7 +288,7 @@ source ~/.zshrc
 #### Option 1: kind (Recommended for development)
 
 ```bash
-# Create cluster with port forwarding for gateway
+# Create cluster with port forwarding for gateway (multi-port architecture)
 cat <<EOF | kind create cluster --name netweave-dev --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
@@ -297,10 +297,16 @@ nodes:
   extraPortMappings:
   - containerPort: 30080
     hostPort: 8080
-    protocol: TCP
+    protocol: TCP    # Admin API (OAuth2, TLS)
   - containerPort: 30443
     hostPort: 8443
-    protocol: TCP
+    protocol: TCP    # O2-IMS API (mTLS)
+  - containerPort: 30444
+    hostPort: 8444
+    protocol: TCP    # TMF API (OAuth2, TLS)
+  - containerPort: 30445
+    hostPort: 8445
+    protocol: TCP    # GraphQL API (OAuth2, TLS)
 EOF
 
 # Verify cluster
@@ -368,7 +374,10 @@ vi config/config.local.yaml
 
 ```yaml
 server:
-  port: 8080
+  admin_port: 8080             # Admin API (OAuth2, TLS)
+  o2_port: 8443                # O2-IMS API (mTLS)
+  tmf_port: 8444               # TMF API (OAuth2, TLS)
+  graphql_port: 8445           # GraphQL API (OAuth2, TLS)
   tls:
     enabled: false  # Disable TLS for local dev
 
@@ -411,7 +420,7 @@ make verify-setup
 **Expected output:**
 
 ```
-✓ Go version: 1.25.0
+✓ Go version: 1.25.7
 ✓ Docker: Running
 ✓ Kubernetes: kind-netweave-dev reachable
 ✓ Redis: localhost:6379 responding
@@ -443,8 +452,11 @@ make run-dev
 ### Test API Endpoint
 
 ```bash
-# In another terminal, test the API
-curl http://localhost:8080/o2ims-infrastructureInventory/v1/deploymentManagers
+# In another terminal, test the Admin API (port 8080)
+curl http://localhost:8080/api/health
+
+# Test the O2-IMS API (port 8443, mTLS in production)
+curl http://localhost:8443/o2ims-infrastructureInventory/v1/deploymentManagers
 
 # Expected response (will vary based on your K8s cluster):
 {
@@ -543,11 +555,11 @@ Create `.vscode/launch.json` for debugging:
 
 #### Go Version Mismatch
 
-**Problem:** `go: module requires Go 1.25.0`
+**Problem:** `go: module requires Go 1.25.7`
 
 **Solution:**
 ```bash
-# Update Go to 1.25.0+
+# Update Go to 1.25.7+
 go version  # Check current version
 
 # macOS
@@ -657,7 +669,7 @@ go mod download
 make build
 
 # If still failing, check Go version
-go version  # Must be 1.25.0+
+go version  # Must be 1.25.7+
 ```
 
 ### Getting Help

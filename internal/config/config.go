@@ -253,8 +253,17 @@ type ServerConfig struct {
 	// Host is the network interface to bind to (e.g., "0.0.0.0", "localhost")
 	Host string `mapstructure:"host"`
 
-	// Port is the HTTP server port (default: 8080)
+	// Port is the admin HTTP server port (default: 8080)
 	Port int `mapstructure:"port"`
+
+	// O2Port is the O2-IMS mTLS port for O2-IMS, O2-DMS, O2-SMO endpoints (default: 8443)
+	O2Port int `mapstructure:"o2_port"`
+
+	// TMFPort is the TMForum API port (default: 8444)
+	TMFPort int `mapstructure:"tmf_port"`
+
+	// GraphQLPort is the GraphQL API port (default: 8445)
+	GraphQLPort int `mapstructure:"graphql_port"`
 
 	// ReadTimeout is the maximum duration for reading the entire request
 	ReadTimeout time.Duration `mapstructure:"read_timeout"`
@@ -931,6 +940,9 @@ func setDefaults(v *viper.Viper) {
 	// Server defaults
 	v.SetDefault("server.host", "0.0.0.0")
 	v.SetDefault("server.port", 8080)
+	v.SetDefault("server.o2_port", 8443)
+	v.SetDefault("server.tmf_port", 8444)
+	v.SetDefault("server.graphql_port", 8445)
 	v.SetDefault("server.read_timeout", "30s")
 	v.SetDefault("server.write_timeout", "30s")
 	v.SetDefault("server.idle_timeout", "120s")
@@ -1186,14 +1198,40 @@ func (c *Config) validateStagingRules() error {
 
 // validateServer validates the server configuration.
 func (c *Config) validateServer() error {
-	if c.Server.Port < 1 || c.Server.Port > 65535 {
-		return fmt.Errorf("invalid server port: %d (must be 1-65535)", c.Server.Port)
+	ports := map[string]int{
+		"server.port":         c.Server.Port,
+		"server.o2_port":      c.Server.O2Port,
+		"server.tmf_port":     c.Server.TMFPort,
+		"server.graphql_port": c.Server.GraphQLPort,
+	}
+
+	for name, port := range ports {
+		if port < 1 || port > 65535 {
+			return fmt.Errorf("invalid %s: %d (must be 1-65535)", name, port)
+		}
+	}
+
+	// Check for duplicate ports
+	if err := c.validateNoDuplicatePorts(ports); err != nil {
+		return err
 	}
 
 	if c.Server.GinMode != "debug" && c.Server.GinMode != "release" && c.Server.GinMode != "test" {
 		return fmt.Errorf("invalid gin_mode: %s (must be debug, release, or test)", c.Server.GinMode)
 	}
 
+	return nil
+}
+
+// validateNoDuplicatePorts ensures all server ports are unique.
+func (c *Config) validateNoDuplicatePorts(ports map[string]int) error {
+	seen := make(map[int]string)
+	for name, port := range ports {
+		if existing, ok := seen[port]; ok {
+			return fmt.Errorf("duplicate server port %d used by both %s and %s", port, existing, name)
+		}
+		seen[port] = name
+	}
 	return nil
 }
 

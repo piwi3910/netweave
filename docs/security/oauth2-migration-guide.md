@@ -61,7 +61,7 @@ curl https://keycloak.example.com/realms/netweave
 ### 2. Keycloak Realm Configuration
 
 - ✅ Realm created: `netweave`
-- ✅ Client configured: `o2ims-gateway`
+- ✅ Client configured: `netweave-gateway`
 - ✅ Client secret obtained
 - ✅ Groups created for role mapping:
   - `/platform-admins`
@@ -73,7 +73,7 @@ curl https://keycloak.example.com/realms/netweave
 
 ```bash
 # Check gateway version (must be >= v2.0)
-curl https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions
+curl https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions
 
 # Expected: version >= 2.0 with OAuth2 support
 ```
@@ -147,21 +147,21 @@ tls:
 
 ```bash
 # Deploy with Helm (example)
-helm upgrade o2ims-gateway netweave/o2ims-gateway \
+helm upgrade netweave-gateway netweave/netweave \
   --version 2.0.0 \
   --set oauth2.enabled=false \
   --wait
 
 # Or with kubectl
 kubectl apply -f k8s/gateway-v2.0.yaml
-kubectl rollout status deployment/o2ims-gateway
+kubectl rollout status deployment/netweave-gateway
 ```
 
 ### Step 1.3: Verify mTLS Still Works
 
 ```bash
 # Test with existing mTLS client
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
   --cert client.crt --key client.key --cacert ca.crt
 
 # Expected: 200 OK with API versions
@@ -171,17 +171,17 @@ curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/a
 
 ```bash
 # Check logs for any errors
-kubectl logs -f deployment/o2ims-gateway
+kubectl logs -f deployment/netweave-gateway
 
 # Check metrics
-curl https://o2ims-gateway.example.com/metrics | grep authentication
+curl https://netweave-gateway.example.com/metrics | grep authentication
 
 # Expected: No increase in authentication failures
 ```
 
 **Rollback**: If issues detected, rollback to previous version:
 ```bash
-helm rollback o2ims-gateway
+helm rollback netweave-gateway
 ```
 
 ---
@@ -202,7 +202,7 @@ oauth2:
   # Keycloak connection
   keycloak_base_url: https://keycloak.example.com
   keycloak_realm: netweave
-  keycloak_client_id: o2ims-gateway
+  keycloak_client_id: netweave-gateway
   keycloak_secret: ${KEYCLOAK_CLIENT_SECRET}  # From environment
 
   # Conservative settings for soft launch
@@ -224,10 +224,10 @@ oauth2:
 # Kubernetes secret for Keycloak client secret
 kubectl create secret generic keycloak-secret \
   --from-literal=client-secret='your-keycloak-client-secret' \
-  --namespace=o2ims
+  --namespace=netweave
 
 # Update deployment to use secret
-kubectl set env deployment/o2ims-gateway \
+kubectl set env deployment/netweave-gateway \
   KEYCLOAK_CLIENT_SECRET=secret://keycloak-secret/client-secret
 ```
 
@@ -235,18 +235,18 @@ kubectl set env deployment/o2ims-gateway \
 
 ```bash
 # Update configuration
-helm upgrade o2ims-gateway netweave/o2ims-gateway \
+helm upgrade netweave-gateway netweave/netweave \
   --version 2.0.0 \
   --set oauth2.enabled=true \
   --set oauth2.priority=false \
   --set oauth2.keycloakBaseURL=https://keycloak.example.com \
   --set oauth2.keycloakRealm=netweave \
-  --set oauth2.keycloakClientID=o2ims-gateway \
+  --set oauth2.keycloakClientID=netweave-gateway \
   --set-string oauth2.autoProvisionUsers=false \
   --wait
 
 # Verify deployment
-kubectl rollout status deployment/o2ims-gateway
+kubectl rollout status deployment/netweave-gateway
 ```
 
 ### Step 2.4: Test OAuth2 Authentication
@@ -255,7 +255,7 @@ kubectl rollout status deployment/o2ims-gateway
 # Get test token from Keycloak
 TOKEN=$(curl -s -X POST \
   https://keycloak.example.com/realms/netweave/protocol/openid-connect/token \
-  -d "client_id=o2ims-gateway" \
+  -d "client_id=netweave-gateway" \
   -d "client_secret=your-secret" \
   -d "username=test@example.com" \
   -d "password=test-password" \
@@ -263,7 +263,7 @@ TOKEN=$(curl -s -X POST \
   | jq -r '.access_token')
 
 # Test OAuth2 authentication
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
   -H "Authorization: Bearer $TOKEN"
 
 # Expected: 401 Unauthorized (user not provisioned yet)
@@ -287,7 +287,7 @@ redis-cli HSET user:test-user-id \
 redis-cli SET "users:oauth:$(echo -n 'keycloak-user-id' | sha256sum | cut -d' ' -f1)" test-user-id
 
 # Test again
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
   -H "Authorization: Bearer $TOKEN"
 
 # Expected: 200 OK
@@ -298,7 +298,7 @@ curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/a
 ```bash
 # Request with both Bearer token AND certificate
 # Should use mTLS (priority=false)
-curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -v -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
   -H "Authorization: Bearer $TOKEN" \
   --cert client.crt --key client.key --cacert ca.crt
 
@@ -310,7 +310,7 @@ curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v
 
 ```bash
 # Check authentication metrics
-curl -s https://o2ims-gateway.example.com/metrics | grep o2ims_authentication
+curl -s https://netweave-gateway.example.com/metrics | grep o2ims_authentication
 
 # Expected metrics:
 # o2ims_authentication_total{method="mtls",status="success"} 1000+
@@ -349,7 +349,7 @@ oauth2:
 ### Step 3.2: Deploy Priority Change
 
 ```bash
-helm upgrade o2ims-gateway netweave/o2ims-gateway \
+helm upgrade netweave-gateway netweave/netweave \
   --version 2.0.0 \
   --set oauth2.enabled=true \
   --set oauth2.priority=true \
@@ -362,7 +362,7 @@ helm upgrade o2ims-gateway netweave/o2ims-gateway \
 ```bash
 # Request with both auth methods
 # Should now use OAuth2 (priority=true)
-curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -v -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
   -H "Authorization: Bearer $TOKEN" \
   --cert client.crt --key client.key --cacert ca.crt
 
@@ -375,7 +375,7 @@ curl -v -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v
 # Get token for NEW user (not in database)
 NEW_TOKEN=$(curl -s -X POST \
   https://keycloak.example.com/realms/netweave/protocol/openid-connect/token \
-  -d "client_id=o2ims-gateway" \
+  -d "client_id=netweave-gateway" \
   -d "client_secret=your-secret" \
   -d "username=newuser@example.com" \
   -d "password=password" \
@@ -383,7 +383,7 @@ NEW_TOKEN=$(curl -s -X POST \
   | jq -r '.access_token')
 
 # First request - user auto-provisioned
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/api_versions \
   -H "Authorization: Bearer $NEW_TOKEN"
 
 # Expected: 200 OK + user created in Redis
@@ -396,10 +396,10 @@ redis-cli KEYS "user:*" | grep newuser
 
 ```bash
 # Check provisioning metrics
-curl -s https://o2ims-gateway.example.com/metrics | grep oauth2_user_provisions_total
+curl -s https://netweave-gateway.example.com/metrics | grep oauth2_user_provisions_total
 
 # Check audit logs
-kubectl logs deployment/o2ims-gateway | grep "Auto-provisioned OAuth2 user"
+kubectl logs deployment/netweave-gateway | grep "Auto-provisioned OAuth2 user"
 ```
 
 **Success Criteria**:
@@ -427,7 +427,7 @@ oauth2:
   # Production Keycloak
   keycloak_base_url: https://keycloak.prod.example.com
   keycloak_realm: netweave-prod
-  keycloak_client_id: o2ims-gateway
+  keycloak_client_id: netweave-gateway
   keycloak_secret: ${KEYCLOAK_CLIENT_SECRET}
 
   # Production settings
@@ -492,7 +492,7 @@ redis-cli HSET user:<user-id> isActive true
 **Scenario 2: Keycloak downtime**
 ```bash
 # Temporarily disable OAuth2 (emergency)
-helm upgrade o2ims-gateway \
+helm upgrade netweave-gateway \
   --set oauth2.enabled=false \
   --wait
 
@@ -516,7 +516,7 @@ Create client migration guide:
 **mTLS Client (Keep as-is)**:
 ```bash
 # No changes required - continues to work
-curl -X GET https://o2ims-gateway.example.com/api/v1/resources \
+curl -X GET https://netweave-gateway.example.com/api/v1/resources \
   --cert client.crt --key client.key --cacert ca.crt
 ```
 
@@ -529,7 +529,7 @@ def get_token():
     response = requests.post(
         "https://keycloak.example.com/realms/netweave/protocol/openid-connect/token",
         data={
-            "client_id": "o2ims-gateway",
+            "client_id": "netweave-gateway",
             "client_secret": "secret",
             "username": "user@example.com",
             "password": "password",
@@ -541,7 +541,7 @@ def get_token():
 # Make authenticated request
 token = get_token()
 response = requests.get(
-    "https://o2ims-gateway.example.com/api/v1/resources",
+    "https://netweave-gateway.example.com/api/v1/resources",
     headers={"Authorization": f"Bearer {token}"}
 )
 ```
@@ -554,7 +554,7 @@ response = requests.get(
 
 ```bash
 # Immediate: Disable OAuth2 via helm
-helm upgrade o2ims-gateway \
+helm upgrade netweave-gateway \
   --set oauth2.enabled=false \
   --wait
 
@@ -565,7 +565,7 @@ helm upgrade o2ims-gateway \
 
 ```bash
 # Keep OAuth2 enabled but make mTLS primary
-helm upgrade o2ims-gateway \
+helm upgrade netweave-gateway \
   --set oauth2.enabled=true \
   --set oauth2.priority=false \
   --wait
@@ -577,10 +577,10 @@ helm upgrade o2ims-gateway \
 
 ```bash
 # Rollback to previous version
-helm rollback o2ims-gateway
+helm rollback netweave-gateway
 
 # Or redeploy old version
-helm upgrade o2ims-gateway netweave/o2ims-gateway \
+helm upgrade netweave-gateway netweave/netweave \
   --version 1.x.x \
   --wait
 ```
@@ -602,14 +602,14 @@ curl -H "Authorization: Bearer $TOKEN" https://gateway.example.com/api
 # 1. Verify token is valid
 curl -X POST https://keycloak.example.com/realms/netweave/protocol/openid-connect/token/introspect \
   -d "token=$TOKEN" \
-  -d "client_id=o2ims-gateway" \
+  -d "client_id=netweave-gateway" \
   -d "client_secret=secret"
 
 # 2. Check gateway logs
-kubectl logs deployment/o2ims-gateway | grep "token verification failed"
+kubectl logs deployment/netweave-gateway | grep "token verification failed"
 
 # 3. Verify Keycloak connectivity
-kubectl exec -it deployment/o2ims-gateway -- \
+kubectl exec -it deployment/netweave-gateway -- \
   curl -v https://keycloak.example.com/realms/netweave
 ```
 
@@ -631,7 +631,7 @@ curl -H "Authorization: Bearer $TOKEN" https://gateway.example.com/api
 **Diagnosis**:
 ```bash
 # 1. Check config
-kubectl get configmap o2ims-config -o yaml | grep auto_provision_users
+kubectl get configmap netweave-config -o yaml | grep auto_provision_users
 
 # 2. Check tenant exists
 redis-cli GET tenant:<tenant-id-from-token>
@@ -659,10 +659,10 @@ curl -v -H "Authorization: Bearer $TOKEN" --cert client.crt ... https://gateway.
 **Diagnosis**:
 ```bash
 # Check priority setting
-kubectl get configmap o2ims-config -o yaml | grep priority
+kubectl get configmap netweave-config -o yaml | grep priority
 
 # Check logs
-kubectl logs deployment/o2ims-gateway | grep "authentication method detected"
+kubectl logs deployment/netweave-gateway | grep "authentication method detected"
 ```
 
 **Solutions**:
@@ -685,7 +685,7 @@ redis-cli HGET user:<user-id> roleID
 echo $TOKEN | jwt decode - | jq .groups
 
 # 2. Check group_role_mapping
-kubectl get configmap o2ims-config -o yaml | grep -A 10 group_role_mapping
+kubectl get configmap netweave-config -o yaml | grep -A 10 group_role_mapping
 
 # 3. Check if role exists
 redis-cli GET role:<role-id-from-mapping>

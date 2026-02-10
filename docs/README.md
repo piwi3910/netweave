@@ -219,7 +219,7 @@ netweave is a production-grade O-RAN O2 Gateway that provides:
 
 | Component | Technology | Version |
 |-----------|-----------|---------|
-| Language | Go | 1.25.0+ |
+| Language | Go | 1.25.7+ |
 | HTTP Framework | Gin | 1.10+ |
 | Storage | Redis OSS (Sentinel) | 7.4+ |
 | Orchestration | Kubernetes | 1.30+ |

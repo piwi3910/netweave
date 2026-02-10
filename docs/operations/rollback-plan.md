@@ -669,7 +669,7 @@ kubectl exec -n keycloak-system keycloak-0 -- \
 
 1. **Re-initialize Vault** if corruption detected
 2. **Re-import PKI configuration** from source control
-3. **Re-issue certificates** for all clients (automated via cert manager)
+3. **Re-issue certificates** for all clients (automated via Vault PKI)
 
 ---
 

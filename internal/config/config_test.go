@@ -194,8 +194,11 @@ func TestLoadWithoutConfigFile(t *testing.T) {
 func TestValidateValidConfig(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: "release",
+			Port:        8080,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "standalone",
@@ -239,8 +242,11 @@ func TestValidateValidConfig(t *testing.T) {
 func TestValidateInvalidServerPortTooLow(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    0,
-			GinMode: "release",
+			Port:        0,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "standalone",
@@ -250,15 +256,18 @@ func TestValidateInvalidServerPortTooLow(t *testing.T) {
 
 	err := cfg.Validate()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid server port")
+	assert.Contains(t, err.Error(), "server.port")
 }
 
 // TestValidateInvalidServerPortTooHigh tests validation with server port too high.
 func TestValidateInvalidServerPortTooHigh(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    70000,
-			GinMode: "release",
+			Port:        70000,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "standalone",
@@ -268,15 +277,18 @@ func TestValidateInvalidServerPortTooHigh(t *testing.T) {
 
 	err := cfg.Validate()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid server port")
+	assert.Contains(t, err.Error(), "server.port")
 }
 
 // TestValidateInvalidGinMode tests validation with invalid gin mode.
 func TestValidateInvalidGinMode(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: "invalid",
+			Port:        8080,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "invalid",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "standalone",
@@ -293,8 +305,11 @@ func TestValidateInvalidGinMode(t *testing.T) {
 func TestValidateInvalidRedisMode(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: "release",
+			Port:        8080,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "invalid",
@@ -311,8 +326,11 @@ func TestValidateInvalidRedisMode(t *testing.T) {
 func TestValidateEmptyRedisAddresses(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: "release",
+			Port:        8080,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "standalone",
@@ -329,8 +347,11 @@ func TestValidateEmptyRedisAddresses(t *testing.T) {
 func TestValidateSentinelModeWithoutMasterName(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: "release",
+			Port:        8080,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:       "sentinel",
@@ -348,8 +369,11 @@ func TestValidateSentinelModeWithoutMasterName(t *testing.T) {
 func TestValidateInvalidRedisDB(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: "release",
+			Port:        8080,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "standalone",
@@ -367,8 +391,11 @@ func TestValidateInvalidRedisDB(t *testing.T) {
 func TestValidateInvalidLoggingLevel(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: "release",
+			Port:        8080,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "standalone",
@@ -391,8 +418,11 @@ func TestValidateInvalidLoggingLevel(t *testing.T) {
 func TestValidateInvalidLoggingFormat(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: "release",
+			Port:        8080,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "standalone",
@@ -415,8 +445,11 @@ func TestValidateInvalidLoggingFormat(t *testing.T) {
 func TestValidateInvalidMetricsPort(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: "release",
+			Port:        8080,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "standalone",
@@ -444,8 +477,11 @@ func TestValidateInvalidMetricsPort(t *testing.T) {
 func TestValidateTracingEnabledWithoutEndpoint(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: "release",
+			Port:        8080,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "standalone",
@@ -473,8 +509,11 @@ func TestValidateTracingEnabledWithoutEndpoint(t *testing.T) {
 func TestValidateInvalidTracingSamplingRate(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: "release",
+			Port:        8080,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "standalone",
@@ -503,8 +542,11 @@ func TestValidateInvalidTracingSamplingRate(t *testing.T) {
 func TestValidateInvalidRateLimitRequestsPerSecond(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: "release",
+			Port:        8080,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "standalone",
@@ -536,8 +578,11 @@ func TestValidateInvalidRateLimitRequestsPerSecond(t *testing.T) {
 func TestValidateInvalidRateLimitBurstSize(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Port:    8080,
-			GinMode: "release",
+			Port:        8080,
+			O2Port:      8443,
+			TMFPort:     8444,
+			GraphQLPort: 8445,
+			GinMode:     "release",
 		},
 		Redis: config.RedisConfig{
 			Mode:      "standalone",
@@ -587,9 +632,11 @@ func TestValidateTLSConfig(t *testing.T) {
 		{
 			name: "valid TLS config",
 			config: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				Auth:   config.AuthConfig{Backend: "redis"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Auth:  config.AuthConfig{Backend: "redis"},
 				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
@@ -606,8 +653,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		{
 			name: "TLS enabled without cert file",
 			config: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				TLS: config.TLSConfig{
 					Enabled:    true,
 					KeyFile:    keyFile,
@@ -620,8 +669,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		{
 			name: "TLS enabled without key file",
 			config: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
@@ -634,8 +685,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		{
 			name: "cert file does not exist",
 			config: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   "/nonexistent/cert.pem",
@@ -649,8 +702,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		{
 			name: "key file does not exist",
 			config: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
@@ -664,8 +719,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		{
 			name: "invalid client auth mode",
 			config: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
@@ -680,8 +737,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		{
 			name: "client auth enabled without CA file",
 			config: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
@@ -696,8 +755,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		{
 			name: "CA file does not exist",
 			config: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
@@ -713,8 +774,10 @@ func TestValidateTLSConfig(t *testing.T) {
 		{
 			name: "invalid min TLS version",
 			config: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
@@ -729,9 +792,11 @@ func TestValidateTLSConfig(t *testing.T) {
 		{
 			name: "valid mTLS config",
 			config: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				Auth:   config.AuthConfig{Backend: "redis"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Auth:  config.AuthConfig{Backend: "redis"},
 				TLS: config.TLSConfig{
 					Enabled:    true,
 					CertFile:   certFile,
@@ -1151,8 +1216,11 @@ func TestValidateProductionSecurityRules(t *testing.T) {
 
 		cfg := &config.Config{
 			Server: config.ServerConfig{
-				Port:    8080,
-				GinMode: "release",
+				Port:        8080,
+				O2Port:      8443,
+				TMFPort:     8444,
+				GraphQLPort: 8445,
+				GinMode:     "release",
 			},
 			Redis: config.RedisConfig{
 				Mode:      "standalone",

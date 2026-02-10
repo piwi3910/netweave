@@ -18,48 +18,66 @@ This directory contains the complete O2-IMS API documentation for the netweave g
 
 ## Quick Start
 
-### Base URL
+### Base URLs (Multi-Port Architecture)
+
+The gateway exposes different API surfaces on dedicated ports:
+
+| Port | Hostname | Auth | APIs |
+|------|----------|------|------|
+| 8080 | `api.netweave.local` | OAuth2/TLS | Admin API |
+| 8443 | `o2.netweave.local` | mTLS | O2-IMS, O2-DMS |
+| 8444 | `tmf.netweave.local` | OAuth2/TLS | TMForum APIs |
+| 8445 | `graphql.netweave.local` | OAuth2/TLS | GraphQL API |
 
 ```
-https://gateway.example.com/o2ims-infrastructureInventory/v1
+# O2-IMS API (mTLS on port 8443)
+https://o2.netweave.local:8443/o2ims-infrastructureInventory/v1
+
+# TMForum API (OAuth2 on port 8444)
+https://tmf.netweave.local:8444/tmf-api/resourceInventoryManagement/v4
+
+# Admin API (OAuth2 on port 8080)
+https://api.netweave.local:8080/api/v1
 ```
 
 ### Authentication
 
-The gateway supports **dual authentication** - both mTLS and OAuth2/OIDC:
+The gateway uses **port-based authentication** - each port has its own auth method:
 
-#### Option 1: mTLS Certificate Authentication
+#### O2-IMS/O2-DMS: mTLS Certificate Authentication (Port 8443)
 
 ```bash
-curl -X GET https://gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+curl -X GET https://o2.netweave.local:8443/o2ims-infrastructureInventory/v1/resourcePools \
   --cert client.crt \
   --key client.key \
   --cacert ca.crt
 ```
 
-#### Option 2: OAuth2/OIDC Token Authentication
+#### Admin/TMF/GraphQL: OAuth2/OIDC Token Authentication (Ports 8080, 8444, 8445)
 
 ```bash
 # Get token from Keycloak
 TOKEN=$(curl -s -X POST \
-  https://keycloak.example.com/realms/netweave/protocol/openid-connect/token \
-  -d "client_id=o2ims-gateway" \
+  https://auth.netweave.local/realms/netweave/protocol/openid-connect/token \
+  -d "client_id=netweave-gateway" \
   -d "client_secret=secret" \
   -d "username=user@example.com" \
   -d "password=password" \
   -d "grant_type=password" \
   | jq -r '.access_token')
 
-# Make authenticated request
-curl -X GET https://gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+# Make authenticated request to TMF API
+curl -X GET https://tmf.netweave.local:8444/tmf-api/resourceInventoryManagement/v4/resource \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-#### Dual Authentication Priority
+#### Port-Based Authentication
 
-When both Bearer token and certificate are present:
-- **OAuth2 priority** (`oauth2.priority: true`): Uses Bearer token
-- **mTLS priority** (`oauth2.priority: false`): Uses client certificate
+Each port enforces its own authentication:
+- **Port 8443** (O2): mTLS with client certificates (clientAuth required)
+- **Port 8080** (Admin): OAuth2 Bearer tokens (TLS, no clientAuth)
+- **Port 8444** (TMF): OAuth2 Bearer tokens (TLS, no clientAuth)
+- **Port 8445** (GraphQL): OAuth2 Bearer tokens (TLS, no clientAuth)
 
 See [Authentication Documentation](../security/authentication.md) for complete details.
 

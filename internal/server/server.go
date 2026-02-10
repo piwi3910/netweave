@@ -64,10 +64,23 @@ var o2imsOpenAPISpec []byte
 //	    log.Fatal(err)
 //	}
 type Server struct {
-	config           *config.Config
-	logger           *zap.Logger
-	router           *gin.Engine
-	httpServer       *http.Server
+	config *config.Config
+	logger *zap.Logger
+
+	// Multi-port routers: each port gets its own Gin engine with appropriate auth.
+	adminRouter   *gin.Engine // Admin, health, docs, metrics (port 8080)
+	o2Router      *gin.Engine // O2-IMS, O2-DMS, O2-SMO with mTLS (port 8443)
+	tmfRouter     *gin.Engine // TMForum APIs with OAuth2 (port 8444)
+	graphqlRouter *gin.Engine // GraphQL API with OAuth2 (port 8445)
+
+	// router is an alias for adminRouter for backward compatibility with tests.
+	router *gin.Engine
+
+	// Multi-port HTTP servers
+	httpServer       *http.Server // Admin listener (8080)
+	o2Server         *http.Server // O2 mTLS listener (8443)
+	tmfServer        *http.Server // TMForum listener (8444)
+	graphqlServer    *http.Server // GraphQL listener (8445)
 	metrics          *Metrics
 	adapter          adapter.Adapter
 	store            storage.Store
@@ -103,6 +116,7 @@ type Server struct {
 	// AuthStore is the authentication store interface (public for testing)
 	AuthStore    AuthStore
 	authMw       AuthMiddleware
+	o2AuthMw     AuthMiddleware    // mTLS-only auth middleware for O2 router
 	auditLogger  *auth.AuditLogger // Audit logging for security events
 	shutdownOnce sync.Once         // Ensures shutdown logic runs only once
 }
@@ -168,8 +182,11 @@ func New(
 	// Set Gin mode based on configuration
 	gin.SetMode(cfg.Server.GinMode)
 
-	// Create Gin router
-	router := gin.New()
+	// Create 4 separate Gin routers for multi-port architecture
+	adminRouter := gin.New()
+	o2Router := gin.New()
+	tmfRouter := gin.New()
+	graphqlRouter := gin.New()
 
 	// Initialize metrics
 	metrics := initMetrics(cfg)
@@ -193,6 +210,7 @@ func New(
 
 	// Initialize auth middleware and tenant handler if auth store is provided
 	var authMw AuthMiddleware
+	var o2AuthMw AuthMiddleware
 	var auditLogger *auth.AuditLogger
 	var tenantHandler *handlers.TenantHandler
 
@@ -211,17 +229,25 @@ func New(
 			logger.Warn("auth store does not implement auth.Store interface, auth middleware disabled")
 		} else {
 			if preConfiguredMw != nil {
-				// Use the pre-configured middleware (includes OAuth2 authenticator)
+				// Use the pre-configured middleware for admin/TMF/GraphQL (OAuth2-only)
 				authMw = preConfiguredMw
 			} else {
-				// Create a basic middleware without OAuth2
-				authMwConfig := &auth.MiddlewareConfig{
+				// Create OAuth2-only middleware for admin/TMF/GraphQL routers
+				adminMwConfig := &auth.MiddlewareConfig{
 					Enabled:     true,
-					RequireMTLS: cfg.MultiTenancy.RequireMTLS,
+					RequireMTLS: false,
 					SkipPaths:   []string{"/health", "/healthz", "/ready", "/readyz", "/metrics"},
 				}
-				authMw = auth.NewMiddleware(authStoreTyped, authMwConfig, logger, nil, nil)
+				authMw = auth.NewMiddleware(authStoreTyped, adminMwConfig, logger, nil, nil)
 			}
+
+			// Create mTLS-required middleware for O2 router
+			o2MwConfig := &auth.MiddlewareConfig{
+				Enabled:     true,
+				RequireMTLS: cfg.MultiTenancy.RequireMTLS,
+				SkipPaths:   []string{},
+			}
+			o2AuthMw = auth.NewMiddleware(authStoreTyped, o2MwConfig, logger, nil, nil)
 
 			// Initialize audit logger with the same auth store
 			var err error
@@ -242,7 +268,11 @@ func New(
 	srv := &Server{
 		config:           cfg,
 		logger:           logger,
-		router:           router,
+		adminRouter:      adminRouter,
+		o2Router:         o2Router,
+		tmfRouter:        tmfRouter,
+		graphqlRouter:    graphqlRouter,
+		router:           adminRouter, // backward compat alias
 		metrics:          metrics,
 		adapter:          adp,
 		store:            store,
@@ -253,14 +283,15 @@ func New(
 		tenantHandler:    tenantHandler,
 		AuthStore:        authStore,
 		authMw:           authMw,
+		o2AuthMw:         o2AuthMw,
 		auditLogger:      auditLogger,
 		pluginRegistry:   pluginReg,
 	}
 
-	// Setup middleware
+	// Setup middleware on all routers
 	srv.setupMiddleware()
 
-	// Setup routes
+	// Setup routes on appropriate routers
 	srv.setupRoutes()
 
 	// Setup auth routes if multi-tenancy is enabled
@@ -409,50 +440,55 @@ func initOpenAPIValidator(cfg *config.Config, logger *zap.Logger) (*middleware.O
 	return validator, nil
 }
 
-// setupMiddleware configures middleware for the Gin router.
-// Middleware is executed in the order they are added.
+// setupMiddleware configures middleware for all Gin routers.
+// Shared middleware (recovery, logging, metrics, security headers) is applied to all routers.
+// Auth middleware is applied per-router: mTLS for O2, OAuth2 for admin/TMF/GraphQL.
 func (s *Server) setupMiddleware() {
-	// Recovery middleware - must be first to catch panics
-	s.router.Use(s.RecoveryMiddleware())
+	allRouters := []*gin.Engine{s.adminRouter, s.o2Router, s.tmfRouter, s.graphqlRouter}
 
-	// Security headers middleware - add early to ensure headers are set
-	s.router.Use(s.securityHeadersMiddleware())
+	// Apply shared middleware to all routers
+	for _, r := range allRouters {
+		r.Use(s.RecoveryMiddleware())
+		r.Use(s.securityHeadersMiddleware())
+		r.Use(s.LoggingMiddleware())
 
-	// Request logging middleware
-	s.router.Use(s.LoggingMiddleware())
+		if s.config.Observability.Metrics.Enabled {
+			r.Use(s.MetricsMiddleware())
+		}
 
-	// Metrics middleware (if enabled)
-	if s.config.Observability.Metrics.Enabled {
-		s.router.Use(s.MetricsMiddleware())
+		if s.config.Security.EnableCORS {
+			r.Use(s.corsMiddleware())
+		}
+
+		if s.config.Security.RateLimitEnabled {
+			r.Use(s.rateLimitMiddleware())
+		}
+
+		if s.config.Security.RateLimit.PerResource.Enabled {
+			r.Use(s.resourceRateLimitMiddleware())
+		}
 	}
 
-	// CORS middleware (if enabled)
-	if s.config.Security.EnableCORS {
-		s.router.Use(s.corsMiddleware())
-	}
-
-	// Rate limiting middleware (if enabled)
-	if s.config.Security.RateLimitEnabled {
-		s.router.Use(s.rateLimitMiddleware())
-	}
-
-	// Resource-type rate limiting middleware (if enabled)
-	if s.config.Security.RateLimit.PerResource.Enabled {
-		s.router.Use(s.resourceRateLimitMiddleware())
-	}
-
-	// OpenAPI validation middleware (if enabled and validator is available)
+	// OpenAPI validation only on admin and O2 routers (O2-IMS spec applies there)
 	if s.openAPIValidator != nil && s.config.Validation.Enabled {
-		s.router.Use(s.openAPIValidator.Middleware())
+		s.adminRouter.Use(s.openAPIValidator.Middleware())
+		s.o2Router.Use(s.openAPIValidator.Middleware())
 		s.logger.Info("OpenAPI request validation enabled")
 	}
 
-	// Authentication middleware - runs globally when auth is configured
-	// This puts the authenticated user into the request context for downstream
-	// permission checks (withPermission, RequirePermission, etc.)
+	// Auth middleware per-router:
+	// - O2 router: mTLS-required auth (s.o2AuthMw)
+	// - Admin/TMF/GraphQL routers: OAuth2-only auth (s.authMw)
+	if s.o2AuthMw != nil {
+		s.o2Router.Use(s.o2AuthMw.AuthenticationMiddleware())
+		s.logger.Info("O2 router: mTLS authentication middleware enabled")
+	}
+
 	if s.authMw != nil {
-		s.router.Use(s.authMw.AuthenticationMiddleware())
-		s.logger.Info("global authentication middleware enabled")
+		s.adminRouter.Use(s.authMw.AuthenticationMiddleware())
+		s.tmfRouter.Use(s.authMw.AuthenticationMiddleware())
+		s.graphqlRouter.Use(s.authMw.AuthenticationMiddleware())
+		s.logger.Info("admin/TMF/GraphQL routers: OAuth2 authentication middleware enabled")
 	}
 }
 
@@ -498,60 +534,78 @@ func (s *Server) securityHeadersMiddleware() gin.HandlerFunc {
 //	    log.Fatalf("Server failed: %v", err)
 //	}
 func (s *Server) Start() error {
-	// Create HTTP server
-	addr := fmt.Sprintf("%s:%d", s.config.Server.Host, s.config.Server.Port)
-	s.httpServer = &http.Server{
-		Addr:           addr,
-		Handler:        s.router,
-		ReadTimeout:    s.config.Server.ReadTimeout,
-		WriteTimeout:   s.config.Server.WriteTimeout,
-		IdleTimeout:    s.config.Server.IdleTimeout,
-		MaxHeaderBytes: s.config.Server.MaxHeaderBytes,
-	}
+	host := s.config.Server.Host
 
-	// Configure TLS with client certificate authentication (mTLS) if enabled.
+	// Build TLS configs if TLS is enabled
+	var standardTLS, o2TLS *tls.Config
 	if s.config.TLS.Enabled {
-		tlsCfg, tlsErr := s.buildTLSConfig()
-		if tlsErr != nil {
-			return fmt.Errorf("failed to build TLS config: %w", tlsErr)
+		var err error
+		standardTLS, err = s.buildStandardTLSConfig()
+		if err != nil {
+			return fmt.Errorf("failed to build standard TLS config: %w", err)
 		}
-		s.httpServer.TLSConfig = tlsCfg
+		o2TLS, err = s.buildO2TLSConfig()
+		if err != nil {
+			return fmt.Errorf("failed to build O2 mTLS config: %w", err)
+		}
 	}
 
-	// Channel to listen for errors from the server
-	serverErrors := make(chan error, 1)
+	// Create admin server (port 8080)
+	adminAddr := fmt.Sprintf("%s:%d", host, s.config.Server.Port)
+	s.httpServer = s.newHTTPServer(adminAddr, s.adminRouter, standardTLS)
 
-	// Start server in a goroutine
-	go func() {
-		s.logger.Info("starting HTTP server",
-			zap.String("address", addr),
-			zap.String("mode", s.config.Server.GinMode),
+	// Create O2 mTLS server (port 8443)
+	o2Addr := fmt.Sprintf("%s:%d", host, s.config.Server.O2Port)
+	s.o2Server = s.newHTTPServer(o2Addr, s.o2Router, o2TLS)
+
+	// Create TMForum server (port 8444)
+	tmfAddr := fmt.Sprintf("%s:%d", host, s.config.Server.TMFPort)
+	s.tmfServer = s.newHTTPServer(tmfAddr, s.tmfRouter, standardTLS)
+
+	// Create GraphQL server (port 8445)
+	gqlAddr := fmt.Sprintf("%s:%d", host, s.config.Server.GraphQLPort)
+	s.graphqlServer = s.newHTTPServer(gqlAddr, s.graphqlRouter, standardTLS)
+
+	// Channel to listen for errors from any server
+	serverErrors := make(chan error, 4)
+
+	// Start all 4 servers
+	s.startListener("admin", s.httpServer, serverErrors)
+	s.startListener("o2", s.o2Server, serverErrors)
+	s.startListener("tmf", s.tmfServer, serverErrors)
+	s.startListener("graphql", s.graphqlServer, serverErrors)
+
+	// Brief grace period for port binding failures to surface.
+	// ListenAndServe returns immediately on bind errors (e.g. port in use),
+	// so 200ms is enough to detect them before entering the main loop.
+	time.Sleep(200 * time.Millisecond)
+
+	// Drain any startup errors that arrived during the grace period.
+	var startupErrs []error
+	for {
+		select {
+		case err := <-serverErrors:
+			startupErrs = append(startupErrs, err)
+		default:
+			goto doneCheck
+		}
+	}
+doneCheck:
+	if len(startupErrs) > 0 {
+		s.logger.Error("server startup failed, shutting down all listeners",
+			zap.Int("failedCount", len(startupErrs)),
 		)
+		s.Shutdown()
+		return fmt.Errorf("server startup failed: %w", errors.Join(startupErrs...))
+	}
 
-		var err error
-		if s.config.TLS.Enabled {
-			s.logger.Info("TLS enabled",
-				zap.String("cert_file", s.config.TLS.CertFile),
-				zap.String("min_version", s.config.TLS.MinVersion),
-			)
-			err = s.httpServer.ListenAndServeTLS(
-				s.config.TLS.CertFile,
-				s.config.TLS.KeyFile,
-			)
-		} else {
-			err = s.httpServer.ListenAndServe()
-		}
-
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			serverErrors <- err
-		}
-	}()
+	s.logger.Info("all servers started successfully")
 
 	// Channel to listen for interrupt signals
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
 
-	// Block until we receive a signal or an error
+	// Block until we receive a signal or a runtime error
 	select {
 	case err := <-serverErrors:
 		return fmt.Errorf("server error: %w", err)
@@ -559,20 +613,56 @@ func (s *Server) Start() error {
 		s.logger.Info("shutdown signal received",
 			zap.String("signal", sig.String()),
 		)
-
-		// Graceful shutdown
 		return s.Shutdown()
 	}
 }
 
-// buildTLSConfig creates the TLS configuration for the HTTP server.
-// It configures client certificate authentication based on the ClientAuth setting.
-func (s *Server) buildTLSConfig() (*tls.Config, error) {
+// newHTTPServer creates an http.Server with shared timeout config.
+func (s *Server) newHTTPServer(addr string, handler http.Handler, tlsCfg *tls.Config) *http.Server {
+	srv := &http.Server{
+		Addr:           addr,
+		Handler:        handler,
+		ReadTimeout:    s.config.Server.ReadTimeout,
+		WriteTimeout:   s.config.Server.WriteTimeout,
+		IdleTimeout:    s.config.Server.IdleTimeout,
+		MaxHeaderBytes: s.config.Server.MaxHeaderBytes,
+	}
+	if tlsCfg != nil {
+		srv.TLSConfig = tlsCfg
+	}
+	return srv
+}
+
+// startListener starts an HTTP/HTTPS server in a goroutine.
+func (s *Server) startListener(name string, srv *http.Server, errCh chan<- error) {
+	go func() {
+		s.logger.Info("starting HTTP server",
+			zap.String("name", name),
+			zap.String("address", srv.Addr),
+		)
+
+		var err error
+		if s.config.TLS.Enabled {
+			err = srv.ListenAndServeTLS(
+				s.config.TLS.CertFile,
+				s.config.TLS.KeyFile,
+			)
+		} else {
+			err = srv.ListenAndServe()
+		}
+
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- fmt.Errorf("%s server: %w", name, err)
+		}
+	}()
+}
+
+// buildBaseTLSConfig creates a base TLS config with minimum version setting.
+func (s *Server) buildBaseTLSConfig() *tls.Config {
 	tlsCfg := &tls.Config{
 		MinVersion: tls.VersionTLS13,
 	}
 
-	// Set minimum TLS version.
 	switch s.config.TLS.MinVersion {
 	case "1.2":
 		tlsCfg.MinVersion = tls.VersionTLS12
@@ -580,7 +670,46 @@ func (s *Server) buildTLSConfig() (*tls.Config, error) {
 		tlsCfg.MinVersion = tls.VersionTLS13
 	}
 
-	// Configure client certificate authentication.
+	return tlsCfg
+}
+
+// loadClientCAs loads the CA certificate pool for client verification.
+func (s *Server) loadClientCAs() (*x509.CertPool, error) {
+	if s.config.TLS.CAFile == "" {
+		return nil, nil
+	}
+
+	caCert, err := os.ReadFile(s.config.TLS.CAFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CA certificate %s: %w", s.config.TLS.CAFile, err)
+	}
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("failed to parse CA certificate from %s", s.config.TLS.CAFile)
+	}
+	s.logger.Info("client CA certificate loaded", zap.String("ca_file", s.config.TLS.CAFile))
+	return caCertPool, nil
+}
+
+// buildStandardTLSConfig creates TLS config for admin, TMF, and GraphQL servers.
+// No client certificate is required (NoClientCert).
+func (s *Server) buildStandardTLSConfig() (*tls.Config, error) {
+	tlsCfg := s.buildBaseTLSConfig()
+	tlsCfg.ClientAuth = tls.NoClientCert
+
+	s.logger.Info("standard TLS configuration built (no client auth)",
+		zap.String("min_version", s.config.TLS.MinVersion),
+	)
+
+	return tlsCfg, nil
+}
+
+// buildO2TLSConfig creates TLS config for the O2 mTLS server.
+// Client certificate authentication is configured based on the config's ClientAuth setting.
+func (s *Server) buildO2TLSConfig() (*tls.Config, error) {
+	tlsCfg := s.buildBaseTLSConfig()
+
+	// Configure client certificate authentication from config
 	switch s.config.TLS.ClientAuth {
 	case "require-and-verify":
 		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
@@ -594,7 +723,7 @@ func (s *Server) buildTLSConfig() (*tls.Config, error) {
 		tlsCfg.ClientAuth = tls.NoClientCert
 	}
 
-	// Validate that CA file is provided when client verification is required.
+	// Validate that CA file is provided when client verification is required
 	if tlsCfg.ClientAuth == tls.RequireAndVerifyClientCert ||
 		tlsCfg.ClientAuth == tls.VerifyClientCertIfGiven {
 		if s.config.TLS.CAFile == "" {
@@ -602,26 +731,27 @@ func (s *Server) buildTLSConfig() (*tls.Config, error) {
 		}
 	}
 
-	// Load CA certificate for client verification.
-	if s.config.TLS.CAFile != "" {
-		caCert, err := os.ReadFile(s.config.TLS.CAFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read CA certificate %s: %w", s.config.TLS.CAFile, err)
-		}
-		caCertPool := x509.NewCertPool()
-		if !caCertPool.AppendCertsFromPEM(caCert) {
-			return nil, fmt.Errorf("failed to parse CA certificate from %s", s.config.TLS.CAFile)
-		}
+	// Load CA certificate for client verification
+	caCertPool, err := s.loadClientCAs()
+	if err != nil {
+		return nil, err
+	}
+	if caCertPool != nil {
 		tlsCfg.ClientCAs = caCertPool
-		s.logger.Info("client CA certificate loaded", zap.String("ca_file", s.config.TLS.CAFile))
 	}
 
-	s.logger.Info("TLS configuration built",
+	s.logger.Info("O2 mTLS configuration built",
 		zap.String("min_version", s.config.TLS.MinVersion),
 		zap.String("client_auth", s.config.TLS.ClientAuth),
 	)
 
 	return tlsCfg, nil
+}
+
+// buildTLSConfig is kept for backward compatibility with tests.
+// It delegates to buildO2TLSConfig which preserves the original behavior.
+func (s *Server) buildTLSConfig() (*tls.Config, error) {
+	return s.buildO2TLSConfig()
 }
 
 // Shutdown gracefully shuts down the HTTP server.
@@ -659,23 +789,57 @@ func (s *Server) shutdownWithContext(ctx context.Context) error {
 			}
 		}
 
-		// Shutdown HTTP server
-		if err := s.httpServer.Shutdown(ctx); err != nil {
-			s.logger.Error("error during shutdown", zap.Error(err))
-			shutdownErr = fmt.Errorf("server shutdown failed: %w", err)
-			return
+		// Shutdown all HTTP servers, collecting all errors
+		servers := map[string]*http.Server{
+			"admin":   s.httpServer,
+			"o2":      s.o2Server,
+			"tmf":     s.tmfServer,
+			"graphql": s.graphqlServer,
 		}
 
-		s.logger.Info("server shutdown complete")
+		var shutdownErrs []error
+		for name, srv := range servers {
+			if srv == nil {
+				continue
+			}
+			if err := srv.Shutdown(ctx); err != nil {
+				s.logger.Error("error during shutdown",
+					zap.String("server", name),
+					zap.Error(err),
+				)
+				shutdownErrs = append(shutdownErrs, fmt.Errorf("%s: %w", name, err))
+			}
+		}
+
+		if len(shutdownErrs) > 0 {
+			shutdownErr = errors.Join(shutdownErrs...)
+		}
+
+		s.logger.Info("all servers shutdown complete")
 	})
 
 	return shutdownErr
 }
 
-// Router returns the underlying Gin router.
+// Router returns the admin Gin router (backward compatible).
 // This is useful for testing and adding custom routes.
 func (s *Server) Router() *gin.Engine {
-	return s.router
+	return s.adminRouter
+}
+
+// O2Router returns the O2 mTLS Gin router.
+func (s *Server) O2Router() *gin.Engine {
+	return s.o2Router
+}
+
+// TMFRouter returns the TMForum Gin router.
+func (s *Server) TMFRouter() *gin.Engine {
+	return s.tmfRouter
+}
+
+// GraphQLRouter returns the GraphQL Gin router.
+func (s *Server) GraphQLRouter() *gin.Engine {
+	return s.graphqlRouter
 }
 
 // SetHealthChecker sets the health checker for the server.
@@ -734,7 +898,7 @@ func (s *Server) SetAdapterRegistry(registry *backend.AdapterRegistry, store bac
 // The handler manages backend instances, DMS links, and tenant access configuration.
 // Routes are registered under /admin/infrastructure to consolidate all admin endpoints.
 func (s *Server) SetupBackendAdmin(handler *handlers.BackendHandler) {
-	infra := s.router.Group("/admin/infrastructure")
+	infra := s.adminRouter.Group("/admin/infrastructure")
 	handler.RegisterRoutes(infra)
 	s.logger.Info("backend admin API routes registered")
 }
@@ -792,7 +956,7 @@ func (s *Server) SetupAuth(authStore AuthStore, authMw AuthMiddleware) {
 // The handler provides endpoints for querying certificate metadata and monitoring stats.
 // Routes are registered under /admin/certificates.
 func (s *Server) SetupCertLifecycle(handler *certlifecycle.Handler) {
-	admin := s.router.Group("/admin")
+	admin := s.adminRouter.Group("/admin")
 	handler.RegisterRoutes(admin)
 	s.logger.Info("certificate lifecycle admin routes registered")
 }
@@ -824,7 +988,11 @@ func (s *Server) setupTenantRateLimiter() {
 	}
 
 	rl := NewRateLimiter(rlStore, s.logger, getLimit)
-	s.router.Use(rl.Middleware())
+	// Apply per-tenant rate limiting to all routers
+	s.adminRouter.Use(rl.Middleware())
+	s.o2Router.Use(rl.Middleware())
+	s.tmfRouter.Use(rl.Middleware())
+	s.graphqlRouter.Use(rl.Middleware())
 	s.logger.Info("per-tenant rate limiting enabled")
 }
 

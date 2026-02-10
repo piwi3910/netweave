@@ -14,6 +14,23 @@ TLS, mTLS, authentication, secrets management, CORS, and rate limiting configura
 - [Certificate Management](#certificate-management)
 - [Best Practices](#best-practices)
 
+## Per-Port Authentication Model
+
+The gateway runs 4 separate listeners, each with independent TLS and auth configuration:
+
+| Port | Hostname | TLS ClientAuth | Auth Method | Use Case |
+|------|----------|---------------|-------------|----------|
+| **8080** | `api.netweave.local` | `NoClientCert` | OAuth2 Bearer (Keycloak) | Admin API, health, docs, metrics |
+| **8443** | `o2.netweave.local` | `RequireAndVerifyClientCert` | mTLS client certificates | O2-IMS, O2-DMS, O2-SMO |
+| **8444** | `tmf.netweave.local` | `NoClientCert` | OAuth2 Bearer (Keycloak) | TMForum Open APIs |
+| **8445** | `graphql.netweave.local` | `NoClientCert` | OAuth2 Bearer (Keycloak) | GraphQL API |
+
+All 4 listeners share the same server certificate and CA file. Only the `ClientAuth` setting differs:
+- **O2 port (8443)**: Requires and verifies client certificates — mTLS end-to-end
+- **Admin/TMF/GraphQL ports**: No client certificates — OAuth2 Bearer tokens via Keycloak
+
+The NGINX Ingress for the O2 port uses `ssl-passthrough` to preserve mTLS client certificates. Admin, TMF, and GraphQL ingresses use standard TLS termination at NGINX.
+
 ## TLS Configuration
 
 Transport Layer Security (TLS) encrypts all HTTP traffic between clients and the gateway.
@@ -26,10 +43,12 @@ tls:
   cert_file: /etc/certs/tls.crt
   key_file: /etc/certs/tls.key
   ca_file: /etc/certs/ca.crt
-  client_auth: none              # TLS without client certificates
+  client_auth: verify            # Applied to O2 port only (mTLS)
   min_version: "1.3"
   cipher_suites: []              # Empty = Go defaults (recommended)
 ```
+
+**Note:** The `client_auth` setting only affects the O2 port (8443). Admin, TMF, and GraphQL ports always use `NoClientCert` regardless of this setting.
 
 ### Field Reference
 
@@ -173,16 +192,20 @@ openssl x509 -req -in client.csr \
 ### Testing mTLS
 
 ```bash
-# Test with curl (valid client cert)
+# Test with curl (valid client cert) — mTLS via O2 port
 curl --cacert ca.crt \
   --cert client.crt \
   --key client.key \
-  https://o2ims-gateway.example.com:8443/o2ims-infrastructureInventory/v1/resourcePools
+  https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourcePools
 
-# Test without client cert (should fail)
+# Test without client cert (should fail on O2 port)
 curl --cacert ca.crt \
-  https://o2ims-gateway.example.com:8443/o2ims-infrastructureInventory/v1/resourcePools
+  https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourcePools
 # Error: SSL certificate problem: unable to get local issuer certificate
+
+# Test admin port (OAuth2, no client cert needed)
+curl -k -H "Authorization: Bearer $TOKEN" \
+  https://api.netweave.local/health
 ```
 
 ## Secrets Management
@@ -208,7 +231,7 @@ redis:
 kubectl create secret generic netweave-secrets \
   --from-literal=redis-password='your-redis-password' \
   --from-literal=sentinel-password='your-sentinel-password' \
-  --namespace=o2ims-system
+  --namespace=netweave
 
 # Reference in pod spec
 apiVersion: v1
@@ -589,8 +612,12 @@ security:
 ### Testing Security Headers
 
 ```bash
-# Check all headers
-curl -I https://localhost:8443/o2ims-infrastructureInventory/v1/resourcePools
+# Check all headers (admin port — no mTLS required)
+curl -I -k https://api.netweave.local/health
+
+# Check headers on O2 port (mTLS required)
+curl -I --cert client.crt --key client.key --cacert ca.crt \
+  https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourcePools
 
 # Expected output:
 HTTP/1.1 200 OK
@@ -660,7 +687,7 @@ security:
 
 #### 1. Tenant Rate Limits
 
-Applies per tenant (extracted from mTLS certificate CN).
+Applies per tenant (extracted from mTLS certificate CN on O2 port, or from OAuth2 token claims on admin/TMF/GraphQL ports).
 
 ```yaml
 tenant:
@@ -870,7 +897,7 @@ When multi-tenancy is enabled, the gateway enforces tenant isolation and RBAC.
 ```yaml
 multi_tenancy:
   enabled: true
-  require_mtls: true                   # Extract tenant from client cert
+  require_mtls: true                   # Extract tenant from client cert (O2 port only)
   initialize_default_roles: true       # Create system roles on startup
   audit_log_retention_days: 90
   skip_auth_paths:
@@ -887,22 +914,35 @@ multi_tenancy:
 
 ### Authentication Flow
 
+The authentication flow differs by port:
+
+- **O2 port (8443)**: mTLS client certificates — tenant ID extracted from certificate CN
+- **Admin/TMF/GraphQL ports (8080/8444/8445)**: OAuth2 Bearer tokens via Keycloak — tenant ID from token claims
+
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant GW as Gateway
+    participant SMO as O2 SMO Client
+    participant O2 as O2 Port :8443
+    participant Admin as Admin Port :8080
     participant Auth as Auth Store (Redis)
     participant K8s as Kubernetes
 
-    Client->>GW: HTTPS + mTLS (cert CN=tenant-1)
-    GW->>GW: Extract tenant ID from cert CN
-    GW->>Auth: Lookup tenant & user
-    Auth-->>GW: Tenant + User + Roles
-    GW->>GW: Check permissions (RBAC)
-    GW->>K8s: List resources (filtered by tenant)
-    K8s-->>GW: Resources
-    GW->>Auth: Log audit event
-    GW-->>Client: Response
+    Note over SMO,O2: O2 API — mTLS Authentication
+    SMO->>O2: HTTPS + mTLS (cert CN=tenant-1)
+    O2->>O2: Extract tenant ID from cert CN
+    O2->>Auth: Lookup tenant & user
+    Auth-->>O2: Tenant + User + Roles
+    O2->>O2: Check permissions (RBAC)
+    O2->>K8s: List resources (filtered by tenant)
+    K8s-->>O2: Resources
+    O2->>Auth: Log audit event
+    O2-->>SMO: Response
+
+    Note over Admin,Auth: Admin API — OAuth2 Authentication
+    Admin->>Admin: Validate Bearer token (Keycloak)
+    Admin->>Auth: Lookup tenant & user from token claims
+    Auth-->>Admin: Tenant + User + Roles
+    Admin->>Admin: Check permissions (RBAC)
 ```
 
 ### Default Roles
@@ -999,12 +1039,12 @@ docker run -v /host/certs:/etc/certs:ro netweave-gateway
 kubectl create secret tls gateway-tls \
   --cert=server.crt \
   --key=server.key \
-  --namespace=o2ims-system
+  --namespace=netweave
 
 # CA certificate (for client verification)
 kubectl create configmap gateway-ca \
   --from-file=ca.crt=ca.crt \
-  --namespace=o2ims-system
+  --namespace=netweave
 ```
 
 ### Mounting in Deployment
@@ -1041,21 +1081,22 @@ spec:
 
 ### Certificate Rotation
 
-**Automated with cert-manager:**
-```yaml
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: gateway-tls
-spec:
-  secretName: gateway-tls
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
-  dnsNames:
-  - o2ims-gateway.example.com
-  renewBefore: 720h  # Renew 30 days before expiry
+**Automated with Vault PKI:**
+
+The gateway uses HashiCorp Vault PKI for certificate lifecycle management. The `netweave-cli setup vault` command initializes the PKI engine with root CA, intermediate CA, and server/client roles.
+
+```bash
+# Issue gateway server certificate via CLI
+netweave-cli certs issue --cn=gateway.netweave.local --type=server
+
+# Issue client certificate for mTLS
+netweave-cli certs issue --cn=smo-tenant-1 --type=client
+
+# Verify certificate
+netweave-cli certs verify --cert ~/.netweave/client.crt
 ```
+
+See the [Certificate Automation Service](../security/architecture.md#certificate-automation-service) for details on automatic renewal and revocation.
 
 **Manual rotation:**
 ```bash
@@ -1071,20 +1112,21 @@ kubectl create secret tls gateway-tls \
   --key=server.key \
   --dry-run=client -o yaml | kubectl apply -f -
 
-# 4. Restart gateway pods
-kubectl rollout restart deployment/gateway -n o2ims-system
+# 4. Restart gateway pods (all 4 ports use the same cert)
+kubectl rollout restart deployment/netweave -n netweave
 ```
 
 ## Best Practices
 
 ### TLS/mTLS
 
-1. **Always enable TLS in production** - Non-negotiable
+1. **Always enable TLS in production** - Non-negotiable for all 4 ports
 2. **Use TLS 1.3** - Modern, secure, performant
-3. **Use require-and-verify for mTLS** - Strongest client authentication
-4. **Rotate certificates regularly** - Every 90 days or less
-5. **Monitor certificate expiry** - Alert 30 days before expiry
-6. **Use cert-manager** - Automate certificate lifecycle
+3. **Use require-and-verify for O2 mTLS** - Strongest client authentication for O2-IMS endpoints
+4. **Keep admin/TMF/GraphQL ports OAuth2-only** - No client certs needed for Bearer-token flows
+5. **Rotate certificates regularly** - Every 90 days or less
+6. **Monitor certificate expiry** - Alert 30 days before expiry
+7. **Use Vault PKI** - Automate certificate lifecycle with HashiCorp Vault
 
 ### Secrets
 
@@ -1135,8 +1177,12 @@ openssl x509 -noout -modulus -in server.crt | openssl md5
 openssl rsa -noout -modulus -in server.key | openssl md5
 # MD5 hashes should match
 
-# Test TLS connection
-openssl s_client -connect gateway.example.com:8443 -CAfile ca.crt
+# Test TLS connection to O2 port (mTLS)
+openssl s_client -connect o2.netweave.local:443 -CAfile ca.crt \
+  -cert client.crt -key client.key
+
+# Test TLS connection to admin port (no client cert)
+openssl s_client -connect api.netweave.local:443 -CAfile ca.crt
 ```
 
 ### mTLS authentication failing
@@ -1145,9 +1191,14 @@ openssl s_client -connect gateway.example.com:8443 -CAfile ca.crt
 # Verify client certificate
 openssl x509 -in client.crt -text -noout | grep "CN="
 
-# Test mTLS connection
+# Test mTLS connection (must use O2 hostname, not admin)
 curl -v --cacert ca.crt --cert client.crt --key client.key \
-  https://gateway.example.com:8443/health
+  https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourcePools
+
+# Common mistake: sending client certs to admin port (not needed)
+# Admin port uses OAuth2 Bearer tokens, not mTLS
+curl -v -H "Authorization: Bearer $TOKEN" \
+  https://api.netweave.local/health
 ```
 
 ### Redis password not working
@@ -1168,7 +1219,7 @@ redis-cli -h redis.example.com -p 6379 -a "$REDIS_PASSWORD" PING
 
 ```bash
 # Check current limits in logs
-kubectl logs deployment/gateway -n o2ims-system | grep "rate limit"
+kubectl logs deployment/netweave -n netweave | grep "rate limit"
 
 # Temporarily disable for testing
 export NETWEAVE_SECURITY_RATE_LIMIT_ENABLED=false

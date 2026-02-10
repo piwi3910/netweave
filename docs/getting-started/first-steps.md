@@ -76,7 +76,7 @@ Represents the entire infrastructure domain managed by netweave.
   "oCloudId": "ocloud-kubernetes-prod",
   "name": "Production Kubernetes O-Cloud",
   "description": "Multi-region production Kubernetes infrastructure",
-  "serviceUri": "https://netweave.example.com/o2ims-infrastructureInventory/v1"
+  "serviceUri": "https://o2.netweave.local:8443/o2ims-infrastructureInventory/v1"
 }
 ```
 
@@ -278,7 +278,8 @@ netweave-cli api health
 <summary>Using curl</summary>
 
 ```bash
-curl http://localhost:8080/health
+curl https://api.netweave.local/health \
+  --cert ~/.netweave/client.crt --key ~/.netweave/client.key --cacert ~/.netweave/ca.crt
 # Expected: {"status":"ok","timestamp":"..."}
 ```
 
@@ -295,7 +296,7 @@ netweave-cli api resources list
 netweave-cli api subscriptions list
 
 # Or use an explicit gateway URL
-netweave-cli api health --gateway-url http://localhost:8080
+netweave-cli api health --gateway-url https://api.netweave.local
 
 # Use --json for machine-readable output
 netweave-cli api resource-pools list --json
@@ -312,13 +313,10 @@ netweave-cli api health --cert client.crt --key client.key --ca ca.crt
 
 ```bash
 # Local development with NGINX Ingress (recommended)
-export GATEWAY_URL="http://api.netweave.local"
-
-# Or Docker Compose development (HTTP)
-export GATEWAY_URL="http://localhost:8080"
+export GATEWAY_URL="https://o2.netweave.local"
 
 # Production (HTTPS with mTLS)
-export GATEWAY_URL="https://netweave.example.com"
+export GATEWAY_URL="https://o2.netweave.local:8443"
 export CLIENT_CERT="client.crt"
 export CLIENT_KEY="client.key"
 export CA_CERT="ca.crt"
@@ -926,7 +924,7 @@ Check gateway logs for webhook delivery status:
 docker compose logs gateway | grep webhook
 
 # Kubernetes
-kubectl logs -n o2ims-system deployment/netweave-gateway | grep webhook
+kubectl logs -n netweave deployment/netweave-gateway | grep webhook
 ```
 
 **Log output:**

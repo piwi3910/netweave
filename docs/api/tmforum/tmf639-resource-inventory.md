@@ -89,7 +89,7 @@ Retrieve a list of all resources (both pools and individual resources).
 **Request:**
 ```http
 GET /tmf-api/resourceInventoryManagement/v4/resource HTTP/1.1
-Host: gateway.example.com
+Host: tmf.netweave.local:8444
 Authorization: Bearer <token>
 ```
 
@@ -165,7 +165,7 @@ Retrieve details of a specific resource.
 **Request:**
 ```http
 GET /tmf-api/resourceInventoryManagement/v4/resource/{id} HTTP/1.1
-Host: gateway.example.com
+Host: tmf.netweave.local:8444
 Authorization: Bearer <token>
 ```
 
@@ -229,7 +229,7 @@ Create a new resource (currently supports resource pools only).
 **Request:**
 ```http
 POST /tmf-api/resourceInventoryManagement/v4/resource HTTP/1.1
-Host: gateway.example.com
+Host: tmf.netweave.local:8444
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -282,7 +282,7 @@ Update resource attributes (PATCH semantics).
 **Request:**
 ```http
 PATCH /tmf-api/resourceInventoryManagement/v4/resource/{id} HTTP/1.1
-Host: gateway.example.com
+Host: tmf.netweave.local:8444
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -320,7 +320,7 @@ Delete a resource.
 **Request:**
 ```http
 DELETE /tmf-api/resourceInventoryManagement/v4/resource/{id} HTTP/1.1
-Host: gateway.example.com
+Host: tmf.netweave.local:8444
 Authorization: Bearer <token>
 ```
 
@@ -426,28 +426,28 @@ The `place` array indicates resource location:
 ### List Resource Pools Only
 
 ```bash
-curl -X GET "https://gateway.example.com/tmf-api/resourceInventoryManagement/v4/resource?category=resourcePool" \
+curl -X GET "https://tmf.netweave.local:8444/tmf-api/resourceInventoryManagement/v4/resource?category=resourcePool" \
   -H "Authorization: Bearer <token>"
 ```
 
 ### Filter by Operational State
 
 ```bash
-curl -X GET "https://gateway.example.com/tmf-api/resourceInventoryManagement/v4/resource?operationalState=enabled" \
+curl -X GET "https://tmf.netweave.local:8444/tmf-api/resourceInventoryManagement/v4/resource?operationalState=enabled" \
   -H "Authorization: Bearer <token>"
 ```
 
 ### Get Specific Fields Only
 
 ```bash
-curl -X GET "https://gateway.example.com/tmf-api/resourceInventoryManagement/v4/resource?fields=id,name,resourceStatus" \
+curl -X GET "https://tmf.netweave.local:8444/tmf-api/resourceInventoryManagement/v4/resource?fields=id,name,resourceStatus" \
   -H "Authorization: Bearer <token>"
 ```
 
 ### Create Edge Resource Pool
 
 ```bash
-curl -X POST "https://gateway.example.com/tmf-api/resourceInventoryManagement/v4/resource" \
+curl -X POST "https://tmf.netweave.local:8444/tmf-api/resourceInventoryManagement/v4/resource" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -465,7 +465,7 @@ curl -X POST "https://gateway.example.com/tmf-api/resourceInventoryManagement/v4
 ### Update Resource Description
 
 ```bash
-curl -X PATCH "https://gateway.example.com/tmf-api/resourceInventoryManagement/v4/resource/pool-edge-42" \
+curl -X PATCH "https://tmf.netweave.local:8444/tmf-api/resourceInventoryManagement/v4/resource/pool-edge-42" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -494,7 +494,7 @@ Services reference resources they're deployed on:
 Subscribe to resource lifecycle events:
 
 ```bash
-curl -X POST "https://gateway.example.com/tmf-api/eventManagement/v4/hub" \
+curl -X POST "https://tmf.netweave.local:8444/tmf-api/eventManagement/v4/hub" \
   -H "Content-Type: application/json" \
   -d '{
     "callback": "https://consumer.example.com/webhook",

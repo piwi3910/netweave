@@ -191,10 +191,10 @@ func TestDMSMiddleware_InjectsDMSRegistry(t *testing.T) {
 
 	srv.SetupDMS(dmsReg)
 
-	// The deployment lifecycle endpoint should return adapter info.
+	// The deployment lifecycle endpoint is on the O2 router (mTLS port).
 	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/deploymentLifecycle", nil)
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	srv.O2Router().ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -226,10 +226,10 @@ func TestDMSMiddleware_ListNFDeployments(t *testing.T) {
 
 	srv.SetupDMS(dmsReg)
 
-	// List NF deployments endpoint.
+	// List NF deployments endpoint is on the O2 router (mTLS port).
 	req := httptest.NewRequest(http.MethodGet, "/o2dms/v1/nfDeployments", nil)
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	srv.O2Router().ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
@@ -248,10 +248,10 @@ func TestSMOMiddleware_ListPlugins(t *testing.T) {
 	smoReg := smo.NewRegistry(logger)
 	srv.SetSMORegistry(smoReg)
 
-	// List plugins endpoint.
+	// List plugins endpoint is on the O2 router (mTLS port).
 	req := httptest.NewRequest(http.MethodGet, "/o2smo/v1/plugins", nil)
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	srv.O2Router().ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -272,10 +272,10 @@ func TestSMOMiddleware_HealthEndpoint(t *testing.T) {
 	smoReg := smo.NewRegistry(logger)
 	srv.SetSMORegistry(smoReg)
 
-	// Health endpoint.
+	// Health endpoint is on the O2 router (mTLS port).
 	req := httptest.NewRequest(http.MethodGet, "/o2smo/v1/health", nil)
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	srv.O2Router().ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }

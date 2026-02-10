@@ -61,13 +61,14 @@ Operational checklist for deployment day execution and validation.
   - [ ] Ingress controller healthy
   - [ ] DNS resolution working
 
-- [ ] **cert-manager Health**
+- [ ] **Vault PKI Health**
   ```bash
-  kubectl get pods -n cert-manager
-  cmctl check api
+  kubectl get pods -n vault-system
+  kubectl exec -n vault-system vault-0 -- vault status | grep -i sealed
+  kubectl exec -n vault-system vault-0 -- vault read pki_int/roles/netweave-mtls
   ```
-  - [ ] All cert-manager pods Running
-  - [ ] cert-manager API check passes
+  - [ ] All Vault pods Running and unsealed
+  - [ ] PKI engine configured with netweave-mtls role
 
 #### Backups
 

@@ -669,7 +669,7 @@ func isPrivateIP(host string) bool {
 
 **Success:**
 ```bash
-curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments" \
+curl -X POST "https://o2.netweave.local:8443/o2dms/v1/nfDeployments" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "nginx-prod",
@@ -689,7 +689,7 @@ curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments" \
 
 **Error: Invalid Name (400)**
 ```bash
-curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments" \
+curl -X POST "https://o2.netweave.local:8443/o2dms/v1/nfDeployments" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Nginx_Prod",
@@ -708,7 +708,7 @@ curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments" \
 
 **Error: Missing Required Field (400)**
 ```bash
-curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments" \
+curl -X POST "https://o2.netweave.local:8443/o2dms/v1/nfDeployments" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "nginx-prod"
@@ -726,7 +726,7 @@ curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments" \
 
 **Error: Adapter Unavailable (503)**
 ```bash
-curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments?adapter=argocd" \
+curl -X POST "https://o2.netweave.local:8443/o2dms/v1/nfDeployments?adapter=argocd" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "nginx-prod",
@@ -747,7 +747,7 @@ curl -X POST "http://localhost:8080/o2dms/v1/nfDeployments?adapter=argocd" \
 
 **Error: Not Found (404)**
 ```bash
-curl "http://localhost:8080/o2dms/v1/nfDeployments/nonexistent-id"
+curl "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nonexistent-id"
 ```
 
 **Response:**
@@ -763,7 +763,7 @@ curl "http://localhost:8080/o2dms/v1/nfDeployments/nonexistent-id"
 
 **Error: Invalid Pagination (400)**
 ```bash
-curl "http://localhost:8080/o2dms/v1/nfDeployments?limit=2000"
+curl "https://o2.netweave.local:8443/o2dms/v1/nfDeployments?limit=2000"
 ```
 
 **Response:**
@@ -779,14 +779,14 @@ curl "http://localhost:8080/o2dms/v1/nfDeployments?limit=2000"
 
 **Success:**
 ```bash
-curl -X DELETE "http://localhost:8080/o2dms/v1/nfDeployments/nginx-prod-abc123"
+curl -X DELETE "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nginx-prod-abc123"
 ```
 
 **Response:** `204 No Content`
 
 **Error: Not Found (404)**
 ```bash
-curl -X DELETE "http://localhost:8080/o2dms/v1/nfDeployments/nonexistent-id"
+curl -X DELETE "https://o2.netweave.local:8443/o2dms/v1/nfDeployments/nonexistent-id"
 ```
 
 **Response:**

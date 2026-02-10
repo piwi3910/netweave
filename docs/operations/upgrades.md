@@ -60,41 +60,41 @@ curl -s https://raw.githubusercontent.com/piwi3910/netweave/v1.2.0/CHANGELOG.md
 
 ```bash
 # Current version
-kubectl get deployment netweave-gateway -n o2ims-system \
+kubectl get deployment netweave-gateway -n netweave \
   -o jsonpath='{.spec.template.spec.containers[0].image}'
 
 # Pod health
-kubectl get pods -n o2ims-system -l app.kubernetes.io/name=netweave
+kubectl get pods -n netweave -l app.kubernetes.io/name=netweave
 
 # Resource usage
-kubectl top pods -n o2ims-system -l app.kubernetes.io/name=netweave
+kubectl top pods -n netweave -l app.kubernetes.io/name=netweave
 
 # Redis health
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli INFO replication
+kubectl exec -n netweave redis-node-0 -- redis-cli INFO replication
 
 # Active subscriptions
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli DBSIZE
+kubectl exec -n netweave redis-node-0 -- redis-cli DBSIZE
 ```
 
 ### 3. Backup Current State
 
 ```bash
 # Backup Redis data
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli BGSAVE
+kubectl exec -n netweave redis-node-0 -- redis-cli BGSAVE
 
 # Wait for backup to complete
 sleep 10
 
 # Copy backup
-kubectl exec -n o2ims-system redis-node-0 -- tar czf - /data/dump.rdb | \
+kubectl exec -n netweave redis-node-0 -- tar czf - /data/dump.rdb | \
   cat > backup-pre-upgrade-$(date +%Y%m%d-%H%M%S).rdb.tar.gz
 
 # Backup Kubernetes resources
-kubectl get all,configmap,secret,ingress -n o2ims-system -o yaml > \
+kubectl get all,configmap,secret,ingress -n netweave -o yaml > \
   backup-k8s-$(date +%Y%m%d-%H%M%S).yaml
 
 # Backup Helm values
-helm get values netweave -n o2ims-system > \
+helm get values netweave -n netweave > \
   backup-helm-values-$(date +%Y%m%d-%H%M%S).yaml
 ```
 
@@ -172,7 +172,7 @@ ls -la netweave/
 ```bash
 # Compare current values with new defaults
 helm show values netweave/netweave --version 1.2.0 > new-values.yaml
-helm get values netweave -n o2ims-system > current-values.yaml
+helm get values netweave -n netweave > current-values.yaml
 
 diff -u current-values.yaml new-values.yaml
 ```
@@ -189,45 +189,45 @@ diff -u current-values.yaml new-values.yaml
 # Dry run to preview changes
 helm upgrade netweave netweave/netweave \
   --version 1.2.0 \
-  --namespace o2ims-system \
+  --namespace netweave \
   --values current-values.yaml \
   --dry-run --debug
 
 # Perform upgrade
 helm upgrade netweave netweave/netweave \
   --version 1.2.0 \
-  --namespace o2ims-system \
+  --namespace netweave \
   --values current-values.yaml \
   --wait \
   --timeout 10m
 
 # Monitor rollout
-kubectl rollout status deployment/netweave-gateway -n o2ims-system -w
+kubectl rollout status deployment/netweave-gateway -n netweave -w
 ```
 
 #### Step 4: Verify Upgrade
 
 ```bash
 # Check deployed version
-helm list -n o2ims-system
-kubectl get deployment netweave-gateway -n o2ims-system \
+helm list -n netweave
+kubectl get deployment netweave-gateway -n netweave \
   -o jsonpath='{.spec.template.spec.containers[0].image}'
 
 # Check pod status
-kubectl get pods -n o2ims-system -l app.kubernetes.io/name=netweave
+kubectl get pods -n netweave -l app.kubernetes.io/name=netweave
 
 # Check pod logs
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave --tail=50
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave --tail=50
 
 # Test health endpoint
-kubectl port-forward -n o2ims-system svc/netweave-gateway 8080:8080 &
+kubectl port-forward -n netweave svc/netweave-gateway 8080:8080 &
 curl -k https://localhost:8080/healthz
 
 # Test API version endpoint
 curl -k https://o2ims.example.com/o2ims-infrastructureInventory/v1/api_versions
 
 # Verify subscriptions preserved
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli DBSIZE
+kubectl exec -n netweave redis-node-0 -- redis-cli DBSIZE
 ```
 
 ### Option 2: Kubectl Rolling Update
@@ -238,16 +238,16 @@ kubectl exec -n o2ims-system redis-node-0 -- redis-cli DBSIZE
 # Update deployment image
 kubectl set image deployment/netweave-gateway \
   gateway=ghcr.io/piwi3910/netweave:v1.2.0 \
-  -n o2ims-system
+  -n netweave
 
 # Monitor rollout
-kubectl rollout status deployment/netweave-gateway -n o2ims-system -w
+kubectl rollout status deployment/netweave-gateway -n netweave -w
 
 # Pause rollout if issues detected
-kubectl rollout pause deployment/netweave-gateway -n o2ims-system
+kubectl rollout pause deployment/netweave-gateway -n netweave
 
 # Resume after verification
-kubectl rollout resume deployment/netweave-gateway -n o2ims-system
+kubectl rollout resume deployment/netweave-gateway -n netweave
 ```
 
 ### Option 3: Blue-Green Upgrade
@@ -261,7 +261,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: netweave-gateway-v2
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   replicas: 3
   selector:
@@ -282,26 +282,26 @@ EOF
 
 # Wait for new pods to be ready
 kubectl wait --for=condition=ready pod \
-  -l version=v1.2.0 -n o2ims-system --timeout=300s
+  -l version=v1.2.0 -n netweave --timeout=300s
 
 # Test new version internally
-kubectl port-forward -n o2ims-system deploy/netweave-gateway-v2 8080:8080 &
+kubectl port-forward -n netweave deploy/netweave-gateway-v2 8080:8080 &
 curl -k https://localhost:8080/healthz
 
 # Run smoke tests
 ./scripts/smoke-test.sh localhost:8080
 
 # Switch Service to new version
-kubectl patch svc netweave-gateway -n o2ims-system \
+kubectl patch svc netweave-gateway -n netweave \
   -p '{"spec":{"selector":{"version":"v1.2.0"}}}'
 
 # Monitor for 30 minutes
-watch -n 30 'kubectl get pods -n o2ims-system && \
-  kubectl exec -n o2ims-system netweave-gateway-v2-0 -- \
+watch -n 30 'kubectl get pods -n netweave && \
+  kubectl exec -n netweave netweave-gateway-v2-0 -- \
   wget -qO- http://localhost:8080/metrics | grep o2ims_http_requests_total'
 
 # If successful, delete old version
-kubectl delete deployment netweave-gateway-v1 -n o2ims-system
+kubectl delete deployment netweave-gateway-v1 -n netweave
 ```
 
 ### Option 4: Canary Upgrade (with Service Mesh)
@@ -317,7 +317,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: netweave-gateway-canary
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   replicas: 1
   selector:
@@ -342,7 +342,7 @@ apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
   name: netweave-gateway
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   hosts:
     - netweave-gateway
@@ -368,7 +368,7 @@ spec:
 EOF
 
 # Monitor canary metrics
-kubectl exec -n o2ims-system netweave-gateway-canary-0 -- \
+kubectl exec -n netweave netweave-gateway-canary-0 -- \
   wget -qO- http://localhost:8080/metrics | \
   grep -E "o2ims_http_requests_total|o2ims_http_request_duration_seconds"
 
@@ -376,30 +376,30 @@ kubectl exec -n o2ims-system netweave-gateway-canary-0 -- \
 # 10% -> 25% -> 50% -> 75% -> 100%
 for weight in 25 50 75 100; do
   echo "Increasing canary to ${weight}%..."
-  kubectl patch virtualservice netweave-gateway -n o2ims-system \
+  kubectl patch virtualservice netweave-gateway -n netweave \
     --type merge -p "{\"spec\":{\"http\":[{\"route\":[{\"destination\":{\"host\":\"netweave-gateway\",\"subset\":\"v1.1.5\"},\"weight\":$((100-weight))},{\"destination\":{\"host\":\"netweave-gateway\",\"subset\":\"v1.2.0-canary\"},\"weight\":${weight}}]}]}}"
 
   # Monitor for 15 minutes
   sleep 900
 
   # Check error rate
-  ERROR_RATE=$(kubectl exec -n o2ims-system netweave-gateway-canary-0 -- \
+  ERROR_RATE=$(kubectl exec -n netweave netweave-gateway-canary-0 -- \
     wget -qO- http://localhost:8080/metrics | \
     awk '/o2ims_http_requests_total.*status="5[0-9][0-9]"/{sum+=$2} END{print sum}')
 
   if [ "${ERROR_RATE}" -gt 10 ]; then
     echo "Error rate too high, rolling back..."
-    kubectl patch virtualservice netweave-gateway -n o2ims-system \
+    kubectl patch virtualservice netweave-gateway -n netweave \
       --type merge -p '{"spec":{"http":[{"route":[{"destination":{"host":"netweave-gateway","subset":"v1.1.5"},"weight":100}]}]}}'
     exit 1
   fi
 done
 
 # Scale canary to full capacity
-kubectl scale deployment netweave-gateway-canary -n o2ims-system --replicas=3
+kubectl scale deployment netweave-gateway-canary -n netweave --replicas=3
 
 # Delete old version
-kubectl delete deployment netweave-gateway -n o2ims-system
+kubectl delete deployment netweave-gateway -n netweave
 kubectl label deployment netweave-gateway-canary version=v1.2.0 --overwrite
 ```
 
@@ -409,7 +409,7 @@ kubectl label deployment netweave-gateway-canary version=v1.2.0 --overwrite
 
 ```bash
 # Pod status
-kubectl get pods -n o2ims-system -l app.kubernetes.io/name=netweave
+kubectl get pods -n netweave -l app.kubernetes.io/name=netweave
 
 # All pods should be Running with 1/1 ready
 # NAME                               READY   STATUS    RESTARTS   AGE
@@ -455,7 +455,7 @@ curl -k -X DELETE https://o2ims.example.com/o2ims-infrastructureInventory/v1/sub
 
 ```bash
 # Check metrics
-kubectl exec -n o2ims-system netweave-gateway-0 -- \
+kubectl exec -n netweave netweave-gateway-0 -- \
   wget -qO- http://localhost:8080/metrics | \
   grep -E "o2ims_http_request_duration_seconds|o2ims_adapter_operations_total"
 
@@ -475,7 +475,7 @@ hey -n 1000 -c 10 -m GET \
 # p99 should be < 500ms
 
 # Check for errors
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave --tail=100 | grep -i error
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave --tail=100 | grep -i error
 ```
 
 ### 4. Data Integrity Verification
@@ -483,7 +483,7 @@ kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave --tail=100 | gre
 ```bash
 # Verify subscription count unchanged
 BEFORE_COUNT=$(grep "subscriptions:" backup-redis-before.txt | awk '{print $2}')
-AFTER_COUNT=$(kubectl exec -n o2ims-system redis-node-0 -- redis-cli DBSIZE | awk '{print $1}')
+AFTER_COUNT=$(kubectl exec -n netweave redis-node-0 -- redis-cli DBSIZE | awk '{print $1}')
 
 if [ "$BEFORE_COUNT" -eq "$AFTER_COUNT" ]; then
   echo "✓ Subscription count verified: ${AFTER_COUNT}"
@@ -492,10 +492,10 @@ else
 fi
 
 # Sample subscriptions to verify integrity
-kubectl exec -n o2ims-system redis-node-0 -- \
+kubectl exec -n netweave redis-node-0 -- \
   redis-cli KEYS "subscription:*" | head -5 | \
   while read key; do
-    kubectl exec -n o2ims-system redis-node-0 -- redis-cli GET "$key"
+    kubectl exec -n netweave redis-node-0 -- redis-cli GET "$key"
   done
 ```
 
@@ -528,19 +528,19 @@ kubectl port-forward -n monitoring svc/grafana 3000:80 &
 
 ```bash
 # Check rollback history
-helm history netweave -n o2ims-system
+helm history netweave -n netweave
 
 # Rollback to previous version
-helm rollback netweave -n o2ims-system
+helm rollback netweave -n netweave
 
 # Rollback to specific revision
-helm rollback netweave 5 -n o2ims-system
+helm rollback netweave 5 -n netweave
 
 # Wait for rollback to complete
-kubectl rollout status deployment/netweave-gateway -n o2ims-system -w
+kubectl rollout status deployment/netweave-gateway -n netweave -w
 
 # Verify rollback
-kubectl get deployment netweave-gateway -n o2ims-system \
+kubectl get deployment netweave-gateway -n netweave \
   -o jsonpath='{.spec.template.spec.containers[0].image}'
 ```
 
@@ -550,33 +550,33 @@ kubectl get deployment netweave-gateway -n o2ims-system \
 
 ```bash
 # Check rollout history
-kubectl rollout history deployment/netweave-gateway -n o2ims-system
+kubectl rollout history deployment/netweave-gateway -n netweave
 
 # Rollback to previous version
-kubectl rollout undo deployment/netweave-gateway -n o2ims-system
+kubectl rollout undo deployment/netweave-gateway -n netweave
 
 # Rollback to specific revision
-kubectl rollout undo deployment/netweave-gateway -n o2ims-system --to-revision=5
+kubectl rollout undo deployment/netweave-gateway -n netweave --to-revision=5
 
 # Monitor rollback
-kubectl rollout status deployment/netweave-gateway -n o2ims-system -w
+kubectl rollout status deployment/netweave-gateway -n netweave -w
 ```
 
 ### Blue-Green Rollback
 
 ```bash
 # Switch Service back to old version
-kubectl patch svc netweave-gateway -n o2ims-system \
+kubectl patch svc netweave-gateway -n netweave \
   -p '{"spec":{"selector":{"version":"v1.1.5"}}}'
 
 # Verify service switched
-kubectl describe svc netweave-gateway -n o2ims-system | grep Selector
+kubectl describe svc netweave-gateway -n netweave | grep Selector
 
 # Test service
 curl -k https://o2ims.example.com/healthz
 
 # Delete new version
-kubectl delete deployment netweave-gateway-v2 -n o2ims-system
+kubectl delete deployment netweave-gateway-v2 -n netweave
 ```
 
 **Expected rollback time:** < 30 seconds
@@ -587,27 +587,27 @@ kubectl delete deployment netweave-gateway-v2 -n o2ims-system
 
 ```bash
 # 1. Scale down current version
-kubectl scale deployment netweave-gateway -n o2ims-system --replicas=0
+kubectl scale deployment netweave-gateway -n netweave --replicas=0
 
 # 2. Restore Redis from pre-upgrade backup
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli FLUSHALL
+kubectl exec -n netweave redis-node-0 -- redis-cli FLUSHALL
 
 # Copy backup to Redis pod
-kubectl cp backup-pre-upgrade.rdb o2ims-system/redis-node-0:/tmp/dump.rdb
+kubectl cp backup-pre-upgrade.rdb netweave/redis-node-0:/tmp/dump.rdb
 
 # Restore data
-kubectl exec -n o2ims-system redis-node-0 -- sh -c \
+kubectl exec -n netweave redis-node-0 -- sh -c \
   'cp /tmp/dump.rdb /data/dump.rdb && redis-cli SHUTDOWN NOSAVE'
 
 # Wait for Redis to restart and load backup
 sleep 30
 
 # 3. Rollback to previous version
-helm rollback netweave -n o2ims-system --wait
+helm rollback netweave -n netweave --wait
 
 # 4. Verify data restored
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli DBSIZE
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli KEYS "subscription:*" | wc -l
+kubectl exec -n netweave redis-node-0 -- redis-cli DBSIZE
+kubectl exec -n netweave redis-node-0 -- redis-cli KEYS "subscription:*" | wc -l
 ```
 
 **Expected rollback time:** 10-15 minutes
@@ -618,8 +618,8 @@ kubectl exec -n o2ims-system redis-node-0 -- redis-cli KEYS "subscription:*" | w
 
 **Diagnosis:**
 ```bash
-kubectl describe pod -n o2ims-system <pod-name>
-kubectl logs -n o2ims-system <pod-name> --previous
+kubectl describe pod -n netweave <pod-name>
+kubectl logs -n netweave <pod-name> --previous
 ```
 
 **Common Causes:**
@@ -630,10 +630,10 @@ kubectl logs -n o2ims-system <pod-name> --previous
 **Resolution:**
 ```bash
 # Check for configuration errors
-kubectl get configmap netweave-config -n o2ims-system -o yaml
+kubectl get configmap netweave-config -n netweave -o yaml
 
 # Rollback and review release notes
-helm rollback netweave -n o2ims-system
+helm rollback netweave -n netweave
 gh release view v1.2.0 --repo piwi3910/netweave | grep -A 20 "Configuration Changes"
 ```
 
@@ -642,18 +642,18 @@ gh release view v1.2.0 --repo piwi3910/netweave | grep -A 20 "Configuration Chan
 **Diagnosis:**
 ```bash
 # Check error metrics
-kubectl exec -n o2ims-system netweave-gateway-0 -- \
+kubectl exec -n netweave netweave-gateway-0 -- \
   wget -qO- http://localhost:8080/metrics | \
   grep o2ims_http_requests_total | grep status=\"5
 
 # Check logs for errors
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave | grep ERROR
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave | grep ERROR
 ```
 
 **Resolution:**
 ```bash
 # If > 5% error rate, immediate rollback
-ERROR_RATE=$(kubectl exec -n o2ims-system netweave-gateway-0 -- \
+ERROR_RATE=$(kubectl exec -n netweave netweave-gateway-0 -- \
   wget -qO- http://localhost:8080/metrics | \
   awk '/o2ims_http_requests_total.*status="[45][0-9][0-9]"/{errors+=$2} \
        /o2ims_http_requests_total/{total+=$2} \
@@ -661,7 +661,7 @@ ERROR_RATE=$(kubectl exec -n o2ims-system netweave-gateway-0 -- \
 
 if (( $(echo "$ERROR_RATE > 5" | bc -l) )); then
   echo "Error rate ${ERROR_RATE}% exceeds threshold, rolling back..."
-  helm rollback netweave -n o2ims-system
+  helm rollback netweave -n netweave
 fi
 ```
 
@@ -670,24 +670,24 @@ fi
 **Diagnosis:**
 ```bash
 # Check latency metrics
-kubectl exec -n o2ims-system netweave-gateway-0 -- \
+kubectl exec -n netweave netweave-gateway-0 -- \
   wget -qO- http://localhost:8080/metrics | \
   grep o2ims_http_request_duration_seconds | grep quantile
 
 # Check resource usage
-kubectl top pods -n o2ims-system -l app.kubernetes.io/name=netweave
+kubectl top pods -n netweave -l app.kubernetes.io/name=netweave
 ```
 
 **Resolution:**
 ```bash
 # If p99 > 500ms, investigate before rolling back
 # Check if configuration tuning needed
-kubectl edit configmap netweave-config -n o2ims-system
+kubectl edit configmap netweave-config -n netweave
 
 # Adjust cache TTLs, connection pools, etc.
 
 # If no improvement after tuning, rollback
-helm rollback netweave -n o2ims-system
+helm rollback netweave -n netweave
 ```
 
 ## Version-Specific Upgrade Notes
@@ -703,12 +703,12 @@ helm rollback netweave -n o2ims-system
 ```bash
 # 1. Deploy Redis Sentinel if not present
 helm upgrade redis bitnami/redis \
-  --namespace o2ims-system \
+  --namespace netweave \
   --set sentinel.enabled=true \
   --reuse-values
 
 # 2. Update configuration
-kubectl edit configmap netweave-config -n o2ims-system
+kubectl edit configmap netweave-config -n netweave
 
 # Old format:
 # cache_ttl: 300
@@ -720,7 +720,7 @@ kubectl edit configmap netweave-config -n o2ims-system
 #     resource_pools: 300s
 
 # 3. Proceed with upgrade
-helm upgrade netweave netweave/netweave --version 1.2.0 -n o2ims-system
+helm upgrade netweave netweave/netweave --version 1.2.0 -n netweave
 ```
 
 ### Upgrading to v1.1.0
@@ -731,16 +731,16 @@ helm upgrade netweave netweave/netweave --version 1.2.0 -n o2ims-system
 
 **Migration Steps:**
 ```bash
-# 1. Deploy cert-manager if not present
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.0/cert-manager.yaml
+# 1. Deploy Vault PKI if not present
+kubectl apply -k deployments/kubernetes/vault/
 
-# 2. Create ClusterIssuer
-kubectl apply -f deployments/tls/cluster-issuer.yaml
+# 2. Initialize Vault PKI
+kubectl apply -f deployments/kubernetes/vault/init-job.yaml
 
 # 3. Notify SMO of webhook format change
 
 # 4. Proceed with upgrade
-helm upgrade netweave netweave/netweave --version 1.1.0 -n o2ims-system
+helm upgrade netweave netweave/netweave --version 1.1.0 -n netweave
 ```
 
 ## Upgrade Automation
@@ -765,7 +765,7 @@ spec:
         - values-prod.yaml
   destination:
     server: https://kubernetes.default.svc
-    namespace: o2ims-system
+    namespace: netweave
   syncPolicy:
     automated:
       prune: true

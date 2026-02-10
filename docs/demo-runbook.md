@@ -31,7 +31,7 @@ kubectl -n ingress-nginx wait --for=condition=available deployment/ingress-nginx
 ### Configure /etc/hosts
 
 ```bash
-sudo bash -c 'echo "127.0.0.1 admin.netweave.local api.netweave.local auth.netweave.local" >> /etc/hosts'
+sudo bash -c 'echo "127.0.0.1 admin.netweave.local api.netweave.local auth.netweave.local o2.netweave.local tmf.netweave.local graphql.netweave.local" >> /etc/hosts'
 ```
 
 ---
@@ -102,10 +102,7 @@ kubectl get svc -n netweave
 ### 2.3 Verify Health
 
 ```bash
-curl -ks https://api.netweave.local/healthz \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
-  --cacert ~/.netweave/ca.crt | jq .
+curl -ks https://api.netweave.local/healthz --cacert ~/.netweave/ca.crt | jq .
 ```
 
 ---
@@ -140,6 +137,16 @@ TOKEN=$(curl -ks https://auth.netweave.local/realms/netweave/protocol/openid-con
 echo "Admin token obtained (${#TOKEN} chars)"
 ```
 
+### 3.2 Verify Admin Access
+
+Test the admin API with OAuth2 Bearer token:
+
+```bash
+curl -ks https://api.netweave.local/admin/tenant/me \
+  --cacert ~/.netweave/ca.crt \
+  -H "Authorization: Bearer $TOKEN" | jq .
+```
+
 ---
 
 ## Phase 4: Enable the O2-IMS Interface
@@ -162,8 +169,6 @@ build/netweave-cli plugins list
 ```bash
 # Enable plugin
 curl -ks -X PUT https://api.netweave.local/admin/platform/plugins/o2ims \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -171,8 +176,6 @@ curl -ks -X PUT https://api.netweave.local/admin/platform/plugins/o2ims \
 
 # List plugins
 curl -ks https://api.netweave.local/admin/platform/plugins \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" | jq .
 ```
@@ -225,8 +228,6 @@ build/netweave-cli backends list
 ```bash
 # Create Alpha
 ALPHA_ID=$(curl -ks -X POST https://api.netweave.local/admin/infrastructure/backends \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -243,8 +244,6 @@ ALPHA_ID=$(curl -ks -X POST https://api.netweave.local/admin/infrastructure/back
 
 # Create Beta
 BETA_ID=$(curl -ks -X POST https://api.netweave.local/admin/infrastructure/backends \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -261,8 +260,6 @@ BETA_ID=$(curl -ks -X POST https://api.netweave.local/admin/infrastructure/backe
 
 # List backends
 curl -ks https://api.netweave.local/admin/infrastructure/backends \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" | jq '.backends[] | {id, name, category, adapterType, status}'
 ```
@@ -277,8 +274,6 @@ curl -ks https://api.netweave.local/admin/infrastructure/backends \
 
 ```bash
 ACME_ID=$(curl -ks -X POST https://api.netweave.local/admin/platform/tenants \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -302,8 +297,6 @@ echo "Acme Tenant ID: $ACME_ID"
 
 ```bash
 GLOBALNET_ID=$(curl -ks -X POST https://api.netweave.local/admin/platform/tenants \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -327,8 +320,6 @@ echo "GlobalNet Tenant ID: $GLOBALNET_ID"
 
 ```bash
 curl -ks https://api.netweave.local/admin/platform/tenants \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" | jq '.tenants[] | {tenantId, name, status}'
 ```
@@ -361,8 +352,6 @@ build/netweave-cli backend-access grant \
 ```bash
 # Grant Alpha to Acme
 curl -ks -X POST "https://api.netweave.local/admin/infrastructure/tenants/${ACME_ID}/backend-access" \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -373,8 +362,6 @@ curl -ks -X POST "https://api.netweave.local/admin/infrastructure/tenants/${ACME
 
 # Grant Beta to GlobalNet
 curl -ks -X POST "https://api.netweave.local/admin/infrastructure/tenants/${GLOBALNET_ID}/backend-access" \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -396,8 +383,6 @@ The `operator` role is a tenant-scoped role with O-RAN resource read/write permi
 
 ```bash
 OPERATOR_ROLE_ID=$(curl -ks https://api.netweave.local/admin/tenant/roles \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" | jq -r --arg n operator '.roles[] | select(.name==$n) | .roleId')
 
@@ -408,8 +393,6 @@ echo "Operator Role ID: $OPERATOR_ROLE_ID"
 
 ```bash
 curl -ks -X POST "https://api.netweave.local/admin/platform/tenants/${ACME_ID}/users" \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -425,8 +408,6 @@ curl -ks -X POST "https://api.netweave.local/admin/platform/tenants/${ACME_ID}/u
 
 ```bash
 curl -ks -X POST "https://api.netweave.local/admin/platform/tenants/${GLOBALNET_ID}/users" \
-  --cert ~/.netweave/client.crt \
-  --key ~/.netweave/client.key \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -479,7 +460,7 @@ This is the key demo: each operator sees only their own O-Cloud data.
 
 ```bash
 echo "=== Acme Telecom - Deployment Managers ==="
-curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/deploymentManagers \
+curl -ks https://o2.netweave.local/o2ims-infrastructureInventory/v1/deploymentManagers \
   --cert ~/.netweave/test-users/acme-operator/client.crt \
   --key ~/.netweave/test-users/acme-operator/client.key \
   --cacert ~/.netweave/ca.crt | jq '.deploymentManagers[] | {deploymentManagerId, name}'
@@ -489,7 +470,7 @@ curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/deploymentM
 
 ```bash
 echo "=== Acme Telecom - Resource Pools ==="
-curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/resourcePools \
+curl -ks https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourcePools \
   --cert ~/.netweave/test-users/acme-operator/client.crt \
   --key ~/.netweave/test-users/acme-operator/client.key \
   --cacert ~/.netweave/ca.crt | jq '.resourcePools[] | {resourcePoolId, name, location}'
@@ -499,7 +480,7 @@ curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/resourcePoo
 
 ```bash
 echo "=== Acme Telecom - Resource Types ==="
-curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/resourceTypes \
+curl -ks https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourceTypes \
   --cert ~/.netweave/test-users/acme-operator/client.crt \
   --key ~/.netweave/test-users/acme-operator/client.key \
   --cacert ~/.netweave/ca.crt | jq '.resourceTypes[] | {resourceTypeId, name, vendor}'
@@ -509,7 +490,7 @@ curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/resourceTyp
 
 ```bash
 echo "=== Acme Telecom - Resources ==="
-curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/resources \
+curl -ks https://o2.netweave.local/o2ims-infrastructureInventory/v1/resources \
   --cert ~/.netweave/test-users/acme-operator/client.crt \
   --key ~/.netweave/test-users/acme-operator/client.key \
   --cacert ~/.netweave/ca.crt | jq '{total, resources: [.resources[] | {resourceId, description}]}'
@@ -521,7 +502,7 @@ curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/resources \
 
 ```bash
 echo "=== GlobalNet Corp - Deployment Managers ==="
-curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/deploymentManagers \
+curl -ks https://o2.netweave.local/o2ims-infrastructureInventory/v1/deploymentManagers \
   --cert ~/.netweave/test-users/globalnet-operator/client.crt \
   --key ~/.netweave/test-users/globalnet-operator/client.key \
   --cacert ~/.netweave/ca.crt | jq '.deploymentManagers[] | {deploymentManagerId, name}'
@@ -531,7 +512,7 @@ curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/deploymentM
 
 ```bash
 echo "=== GlobalNet Corp - Resource Pools ==="
-curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/resourcePools \
+curl -ks https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourcePools \
   --cert ~/.netweave/test-users/globalnet-operator/client.crt \
   --key ~/.netweave/test-users/globalnet-operator/client.key \
   --cacert ~/.netweave/ca.crt | jq '.resourcePools[] | {resourcePoolId, name, location}'
@@ -541,7 +522,7 @@ curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/resourcePoo
 
 ```bash
 echo "=== GlobalNet Corp - Resource Types ==="
-curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/resourceTypes \
+curl -ks https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourceTypes \
   --cert ~/.netweave/test-users/globalnet-operator/client.crt \
   --key ~/.netweave/test-users/globalnet-operator/client.key \
   --cacert ~/.netweave/ca.crt | jq '.resourceTypes[] | {resourceTypeId, name, vendor}'
@@ -551,7 +532,7 @@ curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/resourceTyp
 
 ```bash
 echo "=== GlobalNet Corp - Resources ==="
-curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/resources \
+curl -ks https://o2.netweave.local/o2ims-infrastructureInventory/v1/resources \
   --cert ~/.netweave/test-users/globalnet-operator/client.crt \
   --key ~/.netweave/test-users/globalnet-operator/client.key \
   --cacert ~/.netweave/ca.crt | jq '{total, resources: [.resources[] | {resourceId, description}]}'
@@ -563,7 +544,7 @@ Get a resource pool ID from Acme's view, then try to access it with GlobalNet's 
 
 ```bash
 # Get Acme's first resource pool ID
-ACME_POOL=$(curl -ks https://api.netweave.local/o2ims-infrastructureInventory/v1/resourcePools \
+ACME_POOL=$(curl -ks https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourcePools \
   --cert ~/.netweave/test-users/acme-operator/client.crt \
   --key ~/.netweave/test-users/acme-operator/client.key \
   --cacert ~/.netweave/ca.crt | jq -r '.resourcePools[0].resourcePoolId')
@@ -572,7 +553,7 @@ echo "Acme's pool: $ACME_POOL"
 
 # GlobalNet tries to access Acme's pool - should return empty/not found
 echo "=== Cross-tenant access attempt ==="
-curl -ks "https://api.netweave.local/o2ims-infrastructureInventory/v1/resourcePools/$ACME_POOL" \
+curl -ks "https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourcePools/$ACME_POOL" \
   --cert ~/.netweave/test-users/globalnet-operator/client.crt \
   --key ~/.netweave/test-users/globalnet-operator/client.key \
   --cacert ~/.netweave/ca.crt | jq .
@@ -625,11 +606,14 @@ This removes:
 
 ### Hostnames
 
-| Service | URL | Auth |
-|---------|-----|------|
-| Gateway API | `https://api.netweave.local` | mTLS + OAuth2 |
-| Admin Portal | `https://admin.netweave.local` | OAuth2/OIDC |
-| Keycloak | `https://auth.netweave.local` | Username/Password |
+| Service | URL | Auth | Port |
+|---------|-----|------|------|
+| Admin API | `https://api.netweave.local` | OAuth2 Bearer | 8080 |
+| O2-IMS API | `https://o2.netweave.local` | mTLS (client certs) | 8443 |
+| TMForum API | `https://tmf.netweave.local` | OAuth2 Bearer | 8444 |
+| GraphQL API | `https://graphql.netweave.local` | OAuth2 Bearer | 8445 |
+| Admin Portal | `https://admin.netweave.local` | OAuth2/OIDC | — |
+| Keycloak | `https://auth.netweave.local` | Username/Password | — |
 
 ### Default Credentials
 
@@ -674,7 +658,7 @@ This removes:
 | `plugins enable --name NAME` | Enable a plugin |
 | `plugins disable --name NAME` | Disable a plugin |
 
-### Admin API Endpoints
+### Admin API Endpoints (via `api.netweave.local`, OAuth2 Bearer required)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -689,7 +673,7 @@ This removes:
 | `/admin/tenant/me` | GET | Current user info |
 | `/admin/tenant/roles` | GET | List roles |
 
-### O-RAN O2-IMS API Endpoints
+### O-RAN O2-IMS API Endpoints (via `o2.netweave.local`, mTLS required)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|

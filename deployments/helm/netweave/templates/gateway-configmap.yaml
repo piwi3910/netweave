@@ -12,6 +12,10 @@ data:
 
     server:
       address: {{ .Values.gateway.config.server.address | quote }}
+      port: {{ .Values.gateway.service.port }}
+      o2_port: {{ .Values.gateway.service.o2Port }}
+      tmf_port: {{ .Values.gateway.service.tmfPort }}
+      graphql_port: {{ .Values.gateway.service.graphqlPort }}
       read_timeout: {{ .Values.gateway.config.server.readTimeout | quote }}
       write_timeout: {{ .Values.gateway.config.server.writeTimeout | quote }}
       idle_timeout: {{ .Values.gateway.config.server.idleTimeout | quote }}
@@ -44,13 +48,13 @@ data:
       enabled: {{ .Values.gateway.config.oauth2.enabled }}
       {{- if .Values.gateway.config.oauth2.enabled }}
       priority: {{ .Values.gateway.config.oauth2.priority | default false }}
-      keycloak_base_url: {{ include "netweave.keycloakURL" . | quote }}
+      keycloak_base_url: {{ .Values.gateway.config.oauth2.keycloakBaseURL | default (include "netweave.keycloakURL" .) | quote }}
       keycloak_realm: {{ .Values.gateway.config.oauth2.keycloakRealm | default "netweave" | quote }}
       keycloak_client_id: {{ .Values.gateway.config.oauth2.keycloakClientID | default "netweave-gateway" | quote }}
       keycloak_secret_env_var: {{ .Values.gateway.config.oauth2.keycloakSecretEnvVar | default "KEYCLOAK_CLIENT_SECRET" | quote }}
       auto_provision_users: {{ .Values.gateway.config.oauth2.autoProvisionUsers | default false }}
       default_role: {{ .Values.gateway.config.oauth2.defaultRole | default "tenant-admin" | quote }}
-      require_tenant_claim: {{ .Values.gateway.config.oauth2.requireTenantClaim | default true }}
+      require_tenant_claim: {{ hasKey .Values.gateway.config.oauth2 "requireTenantClaim" | ternary .Values.gateway.config.oauth2.requireTenantClaim true }}
       {{- end }}
 
     tls:

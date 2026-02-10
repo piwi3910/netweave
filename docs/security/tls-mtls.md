@@ -9,7 +9,7 @@
 3. [Certificate Management](#certificate-management)
 4. [mTLS Configuration](#mtls-configuration)
 5. [Certificate Hierarchy](#certificate-hierarchy)
-6. [cert-manager Integration](#cert-manager-integration)
+6. [Vault PKI Integration](#vault-pki-integration)
 7. [Certificate Rotation](#certificate-rotation)
 8. [Troubleshooting](#troubleshooting)
 
@@ -72,13 +72,13 @@ graph LR
 server:
   # TLS Settings
   tls_enabled: true
-  tls_cert_file: /etc/o2ims/certs/tls.crt
-  tls_key_file: /etc/o2ims/certs/tls.key
+  tls_cert_file: /etc/netweave/certs/tls.crt
+  tls_key_file: /etc/netweave/certs/tls.key
   tls_min_version: "1.3"  # Only TLS 1.3
 
   # mTLS Settings
   mtls_enabled: true
-  mtls_client_ca_file: /etc/o2ims/certs/client-ca.crt
+  mtls_client_ca_file: /etc/netweave/certs/client-ca.crt
   mtls_client_cert_verification: "require_and_verify"
 
   # Cipher Suites (TLS 1.3)
@@ -150,16 +150,16 @@ func configureTLS(cfg *Config) (*tls.Config, error) {
 
 ```bash
 # Test TLS 1.3 enforcement
-openssl s_client -connect o2ims-gateway.example.com:8443 \
+openssl s_client -connect netweave-gateway.example.com:8443 \
     -tls1_3 -showcerts
 
 # Verify TLS 1.2 is rejected
-openssl s_client -connect o2ims-gateway.example.com:8443 \
+openssl s_client -connect netweave-gateway.example.com:8443 \
     -tls1_2
 # Expected: handshake failure
 
 # Test with client certificate
-openssl s_client -connect o2ims-gateway.example.com:8443 \
+openssl s_client -connect netweave-gateway.example.com:8443 \
     -cert client.crt -key client.key -CAfile ca.crt \
     -tls1_3 -showcerts
 ```
@@ -183,8 +183,11 @@ key_usage:
 extended_key_usage:
   - Server Authentication
 subject_alternative_names:
-  - DNS: o2ims-gateway.example.com
-  - DNS: *.o2ims-gateway.example.com
+  - DNS: netweave-gateway.example.com
+  - DNS: api.netweave.local
+  - DNS: o2.netweave.local
+  - DNS: tmf.netweave.local
+  - DNS: graphql.netweave.local
   - IP: 10.0.1.100
 ```
 
@@ -232,11 +235,11 @@ openssl req -new -x509 -days 3650 -key "$CERTS_DIR/ca.key" \
 openssl genrsa -out "$CERTS_DIR/server.key" 4096
 openssl req -new -key "$CERTS_DIR/server.key" \
     -out "$CERTS_DIR/server.csr" \
-    -subj "/CN=o2ims-gateway/O=Development/OU=O-Cloud"
+    -subj "/CN=netweave-gateway/O=Development/OU=O-Cloud"
 
 # Sign server certificate
 cat > "$CERTS_DIR/server-ext.cnf" <<EOF
-subjectAltName = DNS:o2ims-gateway,DNS:localhost,IP:127.0.0.1
+subjectAltName = DNS:netweave-gateway,DNS:localhost,DNS:api.netweave.local,DNS:o2.netweave.local,DNS:tmf.netweave.local,DNS:graphql.netweave.local,IP:127.0.0.1
 extendedKeyUsage = serverAuth
 keyUsage = digitalSignature, keyEncipherment
 EOF
@@ -272,48 +275,41 @@ echo "✅ Development certificates generated in $CERTS_DIR"
 
 ### Production: Certificate Authorities
 
-#### Public CA (Let's Encrypt)
+#### Public CA (Let's Encrypt via Vault ACME)
 
-For publicly accessible endpoints:
+For publicly accessible endpoints, configure Vault PKI with ACME support:
 
 ```bash
-# Install cert-manager
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+# Enable ACME on Vault PKI intermediate
+vault write o2ims-pki-int/config/cluster \
+    path="https://vault.example.com:8200/v1/o2ims-pki-int" \
+    aia_path="https://vault.example.com:8200/v1/o2ims-pki-int"
 
-# Create Let's Encrypt ClusterIssuer
-kubectl apply -f - <<EOF
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-prod
-spec:
-  acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: admin@example.com
-    privateKeySecretRef:
-      name: letsencrypt-prod-account-key
-    solvers:
-      - http01:
-          ingress:
-            class: nginx
-EOF
+vault write o2ims-pki-int/config/acme \
+    enabled=true \
+    allow_role_ext_key_usage=true
+
+# Issue publicly-trusted certificate via Vault
+vault write -format=json o2ims-pki-int/issue/server \
+    common_name="netweave-gateway.example.com" \
+    alt_names="api.netweave.local,o2.netweave.local,tmf.netweave.local,graphql.netweave.local" \
+    ttl=2160h
 ```
 
 #### Enterprise CA
 
-For internal services:
+For internal services, import the enterprise CA into Vault:
 
 ```bash
-# Create enterprise CA ClusterIssuer
-kubectl apply -f - <<EOF
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: enterprise-ca
-spec:
-  ca:
-    secretName: enterprise-ca-key-pair
-EOF
+# Import enterprise CA into Vault PKI intermediate
+vault write o2ims-pki-int/intermediate/set-signed \
+    certificate=@enterprise-ca-signed.pem
+
+# Issue server certificate signed by enterprise CA
+vault write -format=json o2ims-pki-int/issue/server \
+    common_name="netweave-gateway.internal.example.com" \
+    alt_names="api.netweave.local,o2.netweave.local,tmf.netweave.local,graphql.netweave.local" \
+    ttl=2160h
 ```
 
 #### Cloud CA (AWS, GCP, Azure)
@@ -322,8 +318,8 @@ AWS Certificate Manager:
 ```bash
 # Request certificate via AWS ACM
 aws acm request-certificate \
-    --domain-name o2ims-gateway.example.com \
-    --subject-alternative-names "*.o2ims-gateway.example.com" \
+    --domain-name netweave-gateway.example.com \
+    --subject-alternative-names "api.netweave.local,o2.netweave.local,tmf.netweave.local,graphql.netweave.local" \
     --validation-method DNS \
     --region us-east-1
 
@@ -340,11 +336,11 @@ aws acm request-certificate \
 # config/config.yaml
 server:
   mtls_enabled: true
-  mtls_client_ca_file: /etc/o2ims/certs/client-ca.crt
+  mtls_client_ca_file: /etc/netweave/certs/client-ca.crt
   mtls_client_cert_verification: "require_and_verify"
 
   # Optional: CRL for revocation checking
-  mtls_crl_file: /etc/o2ims/certs/client-ca.crl
+  mtls_crl_file: /etc/netweave/certs/client-ca.crl
 ```
 
 ### Client Certificate Validation
@@ -405,16 +401,16 @@ func (a *MTLSAuthenticator) Authenticate(cert *x509.Certificate) (*AuthContext, 
 
 ```bash
 # Test with valid client certificate
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     --cert client.crt --key client.key --cacert ca.crt
 
 # Test without client certificate (should fail)
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     --cacert ca.crt
 # Expected: 401 Unauthorized
 
 # Test with invalid client certificate
-curl -X GET https://o2ims-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
+curl -X GET https://netweave-gateway.example.com/o2ims-infrastructureInventory/v1/resourcePools \
     --cert invalid-client.crt --key invalid-client.key --cacert ca.crt
 # Expected: TLS handshake failure
 ```
@@ -469,154 +465,74 @@ graph TB
 | CA Type | Purpose | Validity | Storage |
 |---------|---------|----------|---------|
 | **Root CA** | Sign intermediate CAs | 10 years | Offline, HSM |
-| **Server Intermediate** | Sign server certificates | 5 years | Online, cert-manager |
-| **Client Intermediate** | Sign client certificates | 5 years | Online, cert-manager |
-| **Webhook Intermediate** | Sign webhook client certs | 5 years | Online, cert-manager |
+| **Server Intermediate** | Sign server certificates | 5 years | Online, Vault PKI |
+| **Client Intermediate** | Sign client certificates | 5 years | Online, Vault PKI |
+| **Webhook Intermediate** | Sign webhook client certs | 5 years | Online, Vault PKI |
 
 ---
 
-## cert-manager Integration
+## Vault PKI Integration
 
-### Installation
+### Prerequisites
 
 ```bash
-# Install cert-manager
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
-
-# Verify installation
-kubectl get pods -n cert-manager
+# Vault deployed and accessible
+export VAULT_ADDR=https://vault.example.com:8200
+export VAULT_TOKEN=<admin-token>
+vault status
 ```
 
-### ClusterIssuers
+### PKI Engine Setup
 
-#### Root CA
+See [Certificate Management](certificate-management.md) for detailed Vault PKI setup instructions.
 
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: root-ca-key-pair
-  namespace: cert-manager
-type: kubernetes.io/tls
-data:
-  tls.crt: <base64-encoded-root-ca-cert>
-  tls.key: <base64-encoded-root-ca-key>
----
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: root-ca
-spec:
-  ca:
-    secretName: root-ca-key-pair
-```
+```bash
+# Enable PKI engine for gateway certificates
+vault secrets enable -path=o2ims-pki pki
+vault secrets tune -max-lease-ttl=87600h o2ims-pki
 
-#### Server Intermediate CA
-
-```yaml
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: server-ca
-  namespace: cert-manager
-spec:
-  secretName: server-ca-key-pair
-  isCA: true
-  commonName: "O2-IMS Server CA"
-  duration: 43800h  # 5 years
-  renewBefore: 8760h  # 1 year
-  issuerRef:
-    name: root-ca
-    kind: ClusterIssuer
----
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: server-ca
-spec:
-  ca:
-    secretName: server-ca-key-pair
+# Enable intermediate PKI engine
+vault secrets enable -path=o2ims-pki-int pki
+vault secrets tune -max-lease-ttl=43800h o2ims-pki-int
 ```
 
 ### Gateway Server Certificate
 
-```yaml
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: o2ims-gateway-server-cert
-  namespace: o2ims
-spec:
-  secretName: o2ims-gateway-tls
-  duration: 2160h    # 90 days
-  renewBefore: 360h  # 15 days before expiry
+```bash
+# Issue server certificate via Vault PKI
+vault write -format=json o2ims-pki-int/issue/server \
+    common_name="netweave-gateway.example.com" \
+    alt_names="api.netweave.local,o2.netweave.local,tmf.netweave.local,graphql.netweave.local,netweave-gateway.netweave.svc,netweave-gateway.netweave.svc.cluster.local" \
+    ip_sans="10.0.1.100" \
+    ttl=2160h \
+    | jq -r '.data' > server-cert.json
 
-  # Subject
-  subject:
-    organizations:
-      - "O-RAN Alliance"
-    organizationalUnits:
-      - "O2-IMS Gateway"
-  commonName: "o2ims-gateway.example.com"
+# Extract certificate and key
+jq -r '.certificate' server-cert.json > server.crt
+jq -r '.private_key' server-cert.json > server.key
+jq -r '.ca_chain[]' server-cert.json > ca-chain.crt
 
-  # SANs
-  dnsNames:
-    - o2ims-gateway.example.com
-    - "*.o2ims-gateway.example.com"
-    - o2ims-gateway.o2ims.svc
-    - o2ims-gateway.o2ims.svc.cluster.local
-  ipAddresses:
-    - 10.0.1.100
-
-  # Key usage
-  usages:
-    - server auth
-    - digital signature
-    - key encipherment
-
-  # Issuer
-  issuerRef:
-    name: server-ca
-    kind: ClusterIssuer
+# Store in Kubernetes secret
+kubectl create secret tls netweave-gateway-tls \
+    --cert=server.crt \
+    --key=server.key \
+    -n netweave
 ```
 
 ### Client Certificate (Per Tenant)
 
-```yaml
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: smo-alpha-operator-cert
-  namespace: o2ims
-spec:
-  secretName: smo-alpha-operator-tls
-  duration: 2160h    # 90 days
-  renewBefore: 360h  # 15 days
+```bash
+# Issue client certificate for SMO operator via Vault PKI
+vault write -format=json o2ims-pki-int/issue/client \
+    common_name="operator-1.smo-alpha.o2ims.example.com" \
+    alt_names="operator-1.tenant.smo-alpha" \
+    ttl=2160h \
+    | jq -r '.data' > client-cert.json
 
-  # Subject (tenant identification)
-  subject:
-    organizations:
-      - "SMO Alpha Inc"
-    organizationalUnits:
-      - "smo-alpha"  # Tenant ID
-  commonName: "operator-1.smo-alpha.o2ims.example.com"
-
-  # SANs
-  dnsNames:
-    - "operator-1.tenant.smo-alpha"
-  emailAddresses:
-    - "operator1@smo-alpha.example.com"
-
-  # Key usage
-  usages:
-    - client auth
-    - digital signature
-    - key encipherment
-
-  # Issuer
-  issuerRef:
-    name: client-ca
-    kind: ClusterIssuer
+# Extract certificate and key
+jq -r '.certificate' client-cert.json > operator-1.crt
+jq -r '.private_key' client-cert.json > operator-1.key
+jq -r '.ca_chain[]' client-cert.json > ca-chain.crt
 ```
 
 ---
@@ -625,25 +541,30 @@ spec:
 
 ### Automated Rotation
 
-cert-manager handles rotation automatically:
+Vault PKI handles rotation via short-lived certificates and automatic renewal:
 
 ```yaml
-# Certificate with automated rotation
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: o2ims-gateway-cert
-spec:
-  secretName: o2ims-gateway-tls
-  duration: 2160h    # 90 days
-  renewBefore: 360h  # Renew 15 days before expiry
+# config.yaml - Gateway certificate renewal configuration
+certificate_renewal:
+  enabled: true
+  renew_before_expiry: 168h  # Renew 7 days before expiration
+  check_interval: 1h
+  vault_role: "server"
+```
 
-  # cert-manager will:
-  # 1. Monitor certificate expiry
-  # 2. Request renewal when renewBefore threshold reached
-  # 3. Update Secret with new certificate
-  # 4. Kubernetes will detect Secret change
-  # 5. Gateway pods restart automatically (if needed)
+```bash
+# Vault PKI renewal workflow:
+# 1. Gateway monitors certificate expiry via check_interval
+# 2. When renew_before_expiry threshold reached, requests new cert from Vault
+# 3. New certificate is loaded via hot-reload (no restart needed)
+# 4. Old certificate remains valid until expiry
+
+# Manual renewal via Vault CLI
+vault write -format=json o2ims-pki-int/issue/server \
+    common_name="netweave-gateway.example.com" \
+    alt_names="api.netweave.local,o2.netweave.local,tmf.netweave.local,graphql.netweave.local" \
+    ttl=2160h \
+    | jq -r '.data' > server-cert.json
 ```
 
 ### Zero-Downtime Rotation
@@ -699,13 +620,22 @@ func (s *Server) reloadCertificates() {
 For emergency rotation:
 
 ```bash
-# Delete existing certificate
-kubectl delete certificate o2ims-gateway-cert -n o2ims
+# Issue new certificate from Vault PKI
+vault write -format=json o2ims-pki-int/issue/server \
+    common_name="netweave-gateway.example.com" \
+    alt_names="api.netweave.local,o2.netweave.local,tmf.netweave.local,graphql.netweave.local" \
+    ttl=2160h \
+    | jq -r '.data' > server-cert.json
 
-# cert-manager will automatically request new certificate
+# Extract and update Kubernetes secret
+jq -r '.certificate' server-cert.json > server.crt
+jq -r '.private_key' server-cert.json > server.key
+kubectl create secret tls netweave-gateway-tls \
+    --cert=server.crt --key=server.key \
+    -n netweave --dry-run=client -o yaml | kubectl apply -f -
 
 # Verify new certificate
-kubectl get secret o2ims-gateway-tls -n o2ims -o jsonpath='{.data.tls\.crt}' | \
+kubectl get secret netweave-gateway-tls -n netweave -o jsonpath='{.data.tls\.crt}' | \
     base64 -d | openssl x509 -noout -text
 ```
 
@@ -719,11 +649,11 @@ kubectl get secret o2ims-gateway-tls -n o2ims -o jsonpath='{.data.tls\.crt}' | \
 
 ```bash
 # Enable verbose OpenSSL output
-openssl s_client -connect o2ims-gateway.example.com:8443 \
+openssl s_client -connect netweave-gateway.example.com:8443 \
     -tls1_3 -showcerts -debug
 
 # Check certificate chain
-openssl s_client -connect o2ims-gateway.example.com:8443 \
+openssl s_client -connect netweave-gateway.example.com:8443 \
     -showcerts | openssl x509 -noout -text
 ```
 
@@ -743,15 +673,17 @@ openssl x509 -in client.crt -noout -text | grep -A 1 "X509v3 Extended Key Usage"
 #### 3. Certificate Not Renewed
 
 ```bash
-# Check cert-manager logs
-kubectl logs -n cert-manager deploy/cert-manager -f
+# Check Vault PKI lease status
+vault list o2ims-pki-int/certs
 
-# Describe Certificate resource
-kubectl describe certificate o2ims-gateway-cert -n o2ims
+# Check gateway certificate renewal logs
+kubectl logs -n netweave deploy/netweave-gateway | grep -i "certificate\|renewal\|tls"
 
-# Check CertificateRequest
-kubectl get certificaterequest -n o2ims
-kubectl describe certificaterequest <name> -n o2ims
+# Verify Vault PKI role configuration
+vault read o2ims-pki-int/roles/server
+
+# Check Vault token permissions
+vault token lookup
 ```
 
 #### 4. CN/SAN Mismatch
@@ -761,28 +693,28 @@ kubectl describe certificaterequest <name> -n o2ims
 openssl x509 -in server.crt -noout -text | grep -A 1 "Subject Alternative Name"
 
 # Test with specific hostname
-openssl s_client -connect o2ims-gateway.example.com:8443 \
-    -servername o2ims-gateway.example.com
+openssl s_client -connect netweave-gateway.example.com:8443 \
+    -servername netweave-gateway.example.com
 ```
 
 ### Debugging Commands
 
 ```bash
 # Test TLS connection
-curl -v https://o2ims-gateway.example.com/healthz
+curl -v https://netweave-gateway.example.com/healthz
 
 # Check certificate details
-echo | openssl s_client -connect o2ims-gateway.example.com:8443 2>/dev/null | \
+echo | openssl s_client -connect netweave-gateway.example.com:8443 2>/dev/null | \
     openssl x509 -noout -text
 
 # Verify certificate chain
-echo | openssl s_client -showcerts -connect o2ims-gateway.example.com:8443 2>/dev/null
+echo | openssl s_client -showcerts -connect netweave-gateway.example.com:8443 2>/dev/null
 
 # Check cipher suites
-nmap --script ssl-enum-ciphers -p 8443 o2ims-gateway.example.com
+nmap --script ssl-enum-ciphers -p 8443 netweave-gateway.example.com
 
-# Monitor cert-manager
-kubectl get certificate -A -w
+# Monitor Vault PKI certificate leases
+vault list o2ims-pki-int/certs
 ```
 
 ---

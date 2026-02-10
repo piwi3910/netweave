@@ -62,7 +62,7 @@ Key points for implementing this decision.
 
 ## Active ADRs
 
-### ADR-001: Use Go 1.25.0 as Minimum Version
+### ADR-001: Use Go 1.25.7 as Minimum Version
 
 **Status:** Accepted
 **Date:** 2026-01-06
@@ -75,7 +75,7 @@ The project requires Kubernetes client libraries (k8s.io/client-go) for infrastr
 
 #### Decision
 
-Set minimum Go version to 1.25.0 and use k8s.io/client-go v0.35.0.
+Set minimum Go version to 1.25.7 and use k8s.io/client-go v0.35.0.
 
 #### Consequences
 
@@ -86,12 +86,12 @@ Set minimum Go version to 1.25.0 and use k8s.io/client-go v0.35.0.
 - Future-proofs against upcoming K8s API changes
 
 **Negative:**
-- Requires developers to upgrade to Go 1.25.0+
+- Requires developers to upgrade to Go 1.25.7+
 - May cause compatibility issues with older tooling
 - Increases minimum system requirements
 
 **Neutral:**
-- Go 1.25.0 released in 2026, widely available
+- Go 1.25.7 released in 2026, widely available
 - Toolchain auto-management handles version switching
 
 #### Alternatives Considered
@@ -106,8 +106,8 @@ Set minimum Go version to 1.25.0 and use k8s.io/client-go v0.35.0.
 
 #### Implementation Notes
 
-- Update go.mod: `go 1.25.0`
-- Update CI workflows to use Go 1.25.0
+- Update go.mod: `go 1.25.7`
+- Update CI workflows to use Go 1.25.7
 - Update documentation with new requirements
 - Add version check to Makefile
 
@@ -361,6 +361,76 @@ Mandate table-driven tests for all business logic testing. Use AAA pattern (Arra
 
 - [Testing Guidelines](testing.md#table-driven-tests)
 - [Go Wiki: Table Driven Tests](https://github.com/golang/go/wiki/TableDrivenTests)
+
+---
+
+### ADR-006: Multi-Port Gateway Architecture
+
+**Status:** Accepted
+**Date:** 2026-02-01
+**Deciders:** Core team
+**Tags:** architecture, security, networking
+
+#### Context
+
+The gateway serves multiple API protocols with different authentication and security requirements: O2-IMS requires mTLS client certificate authentication, while Admin, TMF, and GraphQL APIs use OAuth2 bearer tokens. Running all APIs on a single port forces compromises in TLS configuration and makes it impossible to enforce different client authentication policies per API.
+
+#### Decision
+
+Adopt a multi-port gateway architecture with dedicated ports per API type:
+- **Port 8080**: Admin API (OAuth2, TLS, no clientAuth)
+- **Port 8443**: O2-IMS API (mTLS, TLS + clientAuth required)
+- **Port 8444**: TMF API (OAuth2, TLS, no clientAuth)
+- **Port 8445**: GraphQL API (OAuth2, TLS, no clientAuth)
+
+Each port has a dedicated hostname:
+- `api.netweave.local` (admin)
+- `o2.netweave.local` (O2-IMS)
+- `tmf.netweave.local` (TMF)
+- `graphql.netweave.local` (GraphQL)
+
+Certificate management uses HashiCorp Vault PKI instead of cert-manager.
+
+#### Consequences
+
+**Positive:**
+- Each API gets its own TLS configuration and authentication policy
+- O2-IMS can enforce strict mTLS without affecting OAuth2-based APIs
+- Clear separation of concerns at the network level
+- NGINX Ingress can route by hostname to the correct port
+- Easier firewall rules and network policies per API
+
+**Negative:**
+- More ports to manage and expose
+- More complex Helm chart and Kubernetes Service definitions
+- Requires `/etc/hosts` or DNS entries for local development
+- Increases operational complexity
+
+**Neutral:**
+- Each port runs independently in the same process
+- All ports share the same codebase and configuration
+- Frontend plugins (o2ims, o2dms, o2smo, tmforum, graphql) are all disabled by default
+
+#### Alternatives Considered
+
+**Alternative 1: Single port with path-based routing**
+- Simpler deployment
+- Not chosen because cannot enforce different TLS clientAuth policies per path
+
+**Alternative 2: Multiple gateway binaries**
+- Complete isolation
+- Not chosen due to operational overhead and resource waste
+
+#### Implementation Notes
+
+- Update Helm chart to expose all four ports in Service and Ingress
+- Configure NGINX Ingress with per-hostname TLS settings
+- Use Vault PKI for certificate lifecycle management
+- Update `/etc/hosts` for local development: `127.0.0.1 admin.netweave.local api.netweave.local auth.netweave.local o2.netweave.local tmf.netweave.local graphql.netweave.local`
+
+#### References
+
+- [Issue #434](https://github.com/piwi3910/netweave/issues/434)
 
 ---
 

@@ -539,7 +539,7 @@ Error: 429 Too Many Requests
 grep rateLimit config/config.prod.yaml
 
 # Monitor rate limit metrics
-curl http://gateway:8080/metrics | grep rate_limit
+curl http://gateway:8080/metrics | grep rate_limit   # Metrics served on admin port
 
 # Adjust if appropriate (in config)
 rateLimit:
@@ -555,23 +555,23 @@ rateLimit:
 
 ```bash
 # Gateway logs
-kubectl logs -n o2ims-system deployment/netweave-gateway -f
+kubectl logs -n netweave deployment/netweave-gateway -f
 
 # Filter for errors
-kubectl logs -n o2ims-system deployment/netweave-gateway | grep ERROR
+kubectl logs -n netweave deployment/netweave-gateway | grep ERROR
 
 # Controller logs
-kubectl logs -n o2ims-system deployment/netweave-controller -f
+kubectl logs -n netweave deployment/netweave-controller -f
 ```
 
 ### 2. Verify Configuration
 
 ```bash
 # Check config loaded correctly
-kubectl get configmap -n o2ims-system netweave-config -o yaml
+kubectl get configmap -n netweave netweave-config -o yaml
 
 # Verify environment variables
-kubectl describe pod -n o2ims-system <pod-name> | grep Environment -A 20
+kubectl describe pod -n netweave <pod-name> | grep Environment -A 20
 
 # Test configuration locally
 ./bin/gateway --config=config/config.dev.yaml --validate
@@ -589,7 +589,7 @@ redis-cli -h <redis-host> ping
 redis-cli -h <redis-host> info
 
 # Adapter health
-curl http://gateway:8080/health/adapters
+curl http://gateway:8080/health/adapters   # Health checks on admin port
 ```
 
 ### 4. Trace Requests
@@ -609,7 +609,7 @@ open http://jaeger:16686/trace/1234567890abcdef
 
 ```bash
 # Test subscription directly
-curl -X POST http://localhost:8080/o2ims-infrastructureInventory/v1/subscriptions \
+curl -X POST http://localhost:8443/o2ims-infrastructureInventory/v1/subscriptions \
   -H "Content-Type: application/json" \
   -d '{"callback": "https://webhook.site/test"}'
 

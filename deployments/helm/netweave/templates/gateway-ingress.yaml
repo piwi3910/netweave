@@ -1,23 +1,23 @@
 {{- if .Values.gateway.enabled }}
-{{- if .Values.gateway.ingress.enabled }}
+{{- if .Values.gateway.ingress.admin.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "netweave.fullname" . }}
+  name: {{ include "netweave.fullname" . }}-admin
   labels:
     {{- include "netweave.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway
-  {{- with .Values.gateway.ingress.annotations }}
+  {{- with .Values.gateway.ingress.admin.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  {{- if .Values.gateway.ingress.className }}
-  ingressClassName: {{ .Values.gateway.ingress.className }}
+  {{- if .Values.gateway.ingress.admin.className }}
+  ingressClassName: {{ .Values.gateway.ingress.admin.className }}
   {{- end }}
-  {{- if .Values.gateway.ingress.tls }}
+  {{- if .Values.gateway.ingress.admin.tls }}
   tls:
-    {{- range .Values.gateway.ingress.tls }}
+    {{- range .Values.gateway.ingress.admin.tls }}
     - hosts:
         {{- range .hosts }}
         - {{ . | quote }}
@@ -26,7 +26,7 @@ spec:
     {{- end }}
   {{- end }}
   rules:
-    {{- range .Values.gateway.ingress.hosts }}
+    {{- range .Values.gateway.ingress.admin.hosts }}
     - host: {{ .host | quote }}
       http:
         paths:
@@ -37,7 +37,136 @@ spec:
               service:
                 name: {{ include "netweave.fullname" $ }}
                 port:
-                  name: http
+                  name: admin
+          {{- end }}
+    {{- end }}
+{{- end }}
+---
+{{- if .Values.gateway.ingress.o2.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "netweave.fullname" . }}-o2
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+  {{- with .Values.gateway.ingress.o2.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.gateway.ingress.o2.className }}
+  ingressClassName: {{ .Values.gateway.ingress.o2.className }}
+  {{- end }}
+  {{- if .Values.gateway.ingress.o2.tls }}
+  tls:
+    {{- range .Values.gateway.ingress.o2.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.gateway.ingress.o2.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "netweave.fullname" $ }}
+                port:
+                  name: o2
+          {{- end }}
+    {{- end }}
+{{- end }}
+---
+{{- if .Values.gateway.ingress.tmf.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "netweave.fullname" . }}-tmf
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+  {{- with .Values.gateway.ingress.tmf.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.gateway.ingress.tmf.className }}
+  ingressClassName: {{ .Values.gateway.ingress.tmf.className }}
+  {{- end }}
+  {{- if .Values.gateway.ingress.tmf.tls }}
+  tls:
+    {{- range .Values.gateway.ingress.tmf.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.gateway.ingress.tmf.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "netweave.fullname" $ }}
+                port:
+                  name: tmf
+          {{- end }}
+    {{- end }}
+{{- end }}
+---
+{{- if .Values.gateway.ingress.graphql.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "netweave.fullname" . }}-graphql
+  labels:
+    {{- include "netweave.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+  {{- with .Values.gateway.ingress.graphql.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.gateway.ingress.graphql.className }}
+  ingressClassName: {{ .Values.gateway.ingress.graphql.className }}
+  {{- end }}
+  {{- if .Values.gateway.ingress.graphql.tls }}
+  tls:
+    {{- range .Values.gateway.ingress.graphql.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.gateway.ingress.graphql.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "netweave.fullname" $ }}
+                port:
+                  name: graphql
           {{- end }}
     {{- end }}
 {{- end }}

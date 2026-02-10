@@ -84,8 +84,16 @@ The **netweave O2-IMS Gateway** is a production system under active development 
 
 ```mermaid
 graph LR
-    SMO[O2 SMO / TMF Clients] -->|HTTPS/mTLS| Ingress[K8s Ingress]
-    Ingress --> GW[Gateway Pods 3+<br/>Stateless, Native Go TLS]
+    SMO[O2 SMO Clients] -->|mTLS :8443| Ingress_O2[O2 Ingress<br/>ssl-passthrough]
+    Admin[Admin / CLI] -->|OAuth2 :8080| Ingress_Admin[Admin Ingress<br/>TLS termination]
+    TMF[TMF Clients] -->|OAuth2 :8444| Ingress_TMF[TMF Ingress]
+    GQL[GraphQL Clients] -->|OAuth2 :8445| Ingress_GQL[GraphQL Ingress]
+
+    Ingress_O2 --> GW[Gateway Pods 3+<br/>4 Listeners, Native Go TLS]
+    Ingress_Admin --> GW
+    Ingress_TMF --> GW
+    Ingress_GQL --> GW
+
     GW --> Redis[Redis<br/>State, Cache, Pub/Sub]
     GW --> K8s[Kubernetes API<br/>Source of Truth]
     GW --> Vault[Vault PKI<br/>Certificate Management]
@@ -103,9 +111,26 @@ graph LR
     style KC fill:#f3e5f5
 ```
 
-### Dual API Frontend
+### Multi-Port Gateway Architecture
 
-The gateway supports both **O-RAN APIs** and **TMForum Open APIs** as alternative frontends to the same backend infrastructure:
+The gateway runs **4 separate HTTP listeners**, each with its own TLS configuration and authentication method:
+
+| Port | Hostname | Auth Method | Routes | NGINX Ingress Mode |
+|------|----------|-------------|--------|-------------------|
+| **8080** | `api.netweave.local` | OAuth2 Bearer | Admin API, health, docs, metrics | TLS termination |
+| **8443** | `o2.netweave.local` | mTLS (require client certs) | O2-IMS, O2-DMS, O2-SMO | ssl-passthrough |
+| **8444** | `tmf.netweave.local` | OAuth2 Bearer | TMForum Open APIs | TLS termination |
+| **8445** | `graphql.netweave.local` | OAuth2 Bearer | GraphQL API | TLS termination |
+
+**Key design decisions:**
+- **Same server cert/key** for all ports — only `ClientAuth` differs (mTLS for O2, none for others)
+- **ssl-passthrough only for O2** — mTLS requires end-to-end TLS to preserve client certificates
+- **Health probes on admin port** — kubelet health checks don't send client certs
+- **One hostname per plugin flavor** — enables fully independent NGINX configuration per API type
+
+### Dual API Frontend (Port-Separated)
+
+The gateway supports both **O-RAN APIs** and **TMForum Open APIs** as alternative frontends to the same backend infrastructure, served on **separate ports** with independent authentication:
 
 ```mermaid
 graph TB
@@ -156,7 +181,7 @@ graph TB
 | **State Sync** | Redis Sentinel | HA failover, cross-cluster replication |
 | **Backend Pattern** | Pluggable Adapter Pattern | Multi-backend support, vendor flexibility |
 | **K8s Mapping** | MachineSet → ResourcePool | Natural fit, full lifecycle |
-| **TLS** | Native Go TLS 1.3 + Vault PKI | Simpler, full control, no service mesh overhead |
+| **TLS** | Native Go TLS 1.3 + Vault PKI | Per-port TLS config, mTLS on O2 only, no service mesh overhead |
 | **Deployment** | Helm + Custom Operator | Simpler than GitOps, familiar tooling |
 | **Scaling** | Stateless gateway | Horizontal scaling, no coordination |
 | **API Versioning** | URL-based (/v1, /v2) | Parallel version support, gradual migration |
@@ -932,7 +957,7 @@ The **netweave O2-IMS Gateway** is fully architected and ready for implementatio
 
 ---
 
-**Current Focus:** Multi-tenancy resource isolation and documentation modernization
+**Current Focus:** Multi-port gateway architecture with per-port auth (mTLS for O2, OAuth2 for admin/TMF/GraphQL) and full tenant isolation
 
 For questions or clarifications, refer to:
 - Architecture: [docs/architecture.md](docs/architecture.md)

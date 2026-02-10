@@ -39,8 +39,8 @@ const (
 // SetupDocsRoutes configures documentation endpoints.
 // This includes the OpenAPI specification and Swagger UI for interactive API exploration.
 func (s *Server) SetupDocsRoutes() {
-	// API Documentation group
-	docs := s.router.Group("/docs")
+	// API Documentation group on admin router
+	docs := s.adminRouter.Group("/docs")
 	{
 		// Serve OpenAPI specification
 		docs.GET("/openapi.yaml", s.HandleOpenAPIYAML)
@@ -52,8 +52,8 @@ func (s *Server) SetupDocsRoutes() {
 	}
 
 	// Alternative path for OpenAPI spec at root level
-	s.router.GET("/openapi.yaml", s.HandleOpenAPIYAML)
-	s.router.GET("/openapi.json", s.HandleOpenAPIJSON)
+	s.adminRouter.GET("/openapi.yaml", s.HandleOpenAPIYAML)
+	s.adminRouter.GET("/openapi.json", s.HandleOpenAPIJSON)
 }
 
 // HandleOpenAPIYAML serves the OpenAPI specification in YAML format.

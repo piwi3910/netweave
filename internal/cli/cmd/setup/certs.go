@@ -39,6 +39,9 @@ type ingressCert struct {
 var ingressCerts = []ingressCert{
 	{hostname: "admin.netweave.local", secretName: "admin-portal-ingress-tls"},
 	{hostname: "auth.netweave.local", secretName: "keycloak-ingress-tls"},
+	{hostname: "api.netweave.local", secretName: "gateway-admin-ingress-tls"},
+	{hostname: "tmf.netweave.local", secretName: "gateway-tmf-ingress-tls"},
+	{hostname: "graphql.netweave.local", secretName: "gateway-graphql-ingress-tls"},
 }
 
 func newCertsCmd() *cobra.Command {
@@ -121,6 +124,9 @@ func runCertsSetup(ctx context.Context, serverCN, clientCN string) error {
 				fmt.Sprintf("%s.%s.svc.cluster.local", serverCN, namespace),
 				"localhost",
 				"api.netweave.local",
+				"o2.netweave.local",
+				"tmf.netweave.local",
+				"graphql.netweave.local",
 			},
 			IPSANs: []string{"127.0.0.1"},
 			TTL:    certTTL,

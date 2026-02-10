@@ -212,6 +212,8 @@ func (a *OAuth2Authenticator) validateClaims(claims *OAuth2Claims) error {
 }
 
 // getOrCreateUser retrieves an existing user by OAuth subject or provisions a new one.
+// It first tries OAuth subject lookup, then falls back to email lookup (to link
+// mTLS-bootstrapped users with their OAuth identity), and finally auto-provisions.
 func (a *OAuth2Authenticator) getOrCreateUser(
 	ctx context.Context,
 	claims *OAuth2Claims,
@@ -220,20 +222,61 @@ func (a *OAuth2Authenticator) getOrCreateUser(
 	// Try to find existing user by OAuth subject
 	user, err := a.store.GetUserByOAuthSubject(ctx, claims.Subject)
 	if err == nil {
-		// User found
 		return user, nil
 	}
 	if err != ErrUserNotFound {
 		return nil, fmt.Errorf("failed to lookup user by OAuth subject: %w", err)
 	}
 
-	// User not found - check if auto-provisioning is enabled
+	// OAuth subject not found — try email fallback to link existing users
+	// (e.g., users bootstrapped via mTLS/CLI that don't yet have an OAuthSubject)
+	if claims.Email != "" {
+		user, err = a.linkExistingUserByEmail(ctx, claims, requestID)
+		if err == nil {
+			return user, nil
+		}
+		// Only continue if the error was "not found"; propagate other errors
+		if err != ErrUserNotFound {
+			return nil, err
+		}
+	}
+
+	// User not found by any method — check if auto-provisioning is enabled
 	if !a.config.AutoProvisionUsers {
 		return nil, fmt.Errorf("user not found and auto-provisioning disabled")
 	}
 
 	// Auto-provision new user
 	return a.provisionUser(ctx, claims, requestID)
+}
+
+// linkExistingUserByEmail finds a user by email and links their OAuth subject.
+// This bridges mTLS-bootstrapped users with OAuth2 identity on first OAuth2 login.
+func (a *OAuth2Authenticator) linkExistingUserByEmail(
+	ctx context.Context,
+	claims *OAuth2Claims,
+	requestID string,
+) (*TenantUser, error) {
+	user, err := a.store.GetUserByEmail(ctx, claims.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	// Link the OAuth subject to this existing user
+	user.OAuthSubject = claims.Subject
+	user.OAuthProvider = "keycloak"
+	if err := a.store.UpdateUser(ctx, user); err != nil {
+		return nil, fmt.Errorf("failed to link OAuth subject to existing user: %w", err)
+	}
+
+	a.logger.Info("Linked OAuth2 subject to existing user",
+		zap.String("requestID", requestID),
+		zap.String("userID", user.ID),
+		zap.String("email", claims.Email),
+		zap.String("oauthSubject", claims.Subject),
+	)
+
+	return user, nil
 }
 
 // provisionUser creates a new user from OAuth2 claims.

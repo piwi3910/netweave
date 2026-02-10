@@ -804,6 +804,163 @@ func TestOAuth2Authenticator_ValidateTenantForProvisioning(t *testing.T) {
 	}
 }
 
+// TestOAuth2Authenticator_LinkExistingUserByEmail tests email-based user linking.
+func TestOAuth2Authenticator_LinkExistingUserByEmail(t *testing.T) {
+	tests := []struct {
+		name        string
+		claims      *OAuth2Claims
+		setupStore  func(*mockStore)
+		config      *OAuth2Config
+		wantErr     bool
+		errContains string
+		checkUser   func(*testing.T, *TenantUser, *mockStore)
+	}{
+		{
+			name: "links OAuth subject to existing mTLS user by email",
+			claims: &OAuth2Claims{
+				Subject:           "keycloak-uuid-123",
+				Email:             "admin@netweave.local",
+				PreferredUsername: "netweave-admin",
+			},
+			setupStore: func(s *mockStore) {
+				s.users["user-1"] = &TenantUser{
+					ID:         "user-1",
+					TenantID:   "default",
+					Subject:    "CN=admin.netweave.local,O=Netweave",
+					CommonName: "admin.netweave.local",
+					Email:      "admin@netweave.local",
+					RoleID:     "role-admin",
+					IsActive:   true,
+				}
+				s.roles["role-admin"] = &Role{
+					ID:   "role-admin",
+					Name: RolePlatformAdmin,
+					Type: RoleTypePlatform,
+				}
+				s.tenants["default"] = &Tenant{
+					ID:     "default",
+					Status: TenantStatusActive,
+				}
+			},
+			config: &OAuth2Config{
+				Enabled:            true,
+				AutoProvisionUsers: true,
+				RequireTenantClaim: false,
+			},
+			wantErr: false,
+			checkUser: func(t *testing.T, user *TenantUser, s *mockStore) {
+				t.Helper()
+				assert.Equal(t, "user-1", user.ID)
+				assert.Equal(t, "keycloak-uuid-123", user.OAuthSubject)
+				assert.Equal(t, "keycloak", user.OAuthProvider)
+				// Verify the store was updated
+				storedUser := s.users["user-1"]
+				assert.Equal(t, "keycloak-uuid-123", storedUser.OAuthSubject)
+			},
+		},
+		{
+			name: "no email in claims skips email fallback",
+			claims: &OAuth2Claims{
+				Subject: "keycloak-uuid-456",
+			},
+			setupStore: func(s *mockStore) {
+				s.users["user-1"] = &TenantUser{
+					ID:       "user-1",
+					TenantID: "default",
+					Email:    "admin@netweave.local",
+					RoleID:   "role-admin",
+					IsActive: true,
+				}
+			},
+			config: &OAuth2Config{
+				Enabled:            true,
+				AutoProvisionUsers: false,
+			},
+			wantErr:     true,
+			errContains: "user not found and auto-provisioning disabled",
+		},
+		{
+			name: "email not found in store falls through to auto-provision",
+			claims: &OAuth2Claims{
+				Subject:  "keycloak-uuid-789",
+				Email:    "unknown@example.com",
+				TenantID: "tenant-1",
+			},
+			setupStore: func(s *mockStore) {
+				s.tenants["tenant-1"] = &Tenant{
+					ID:     "tenant-1",
+					Status: TenantStatusActive,
+					Quota:  TenantQuota{MaxUsers: 10},
+				}
+				s.roles["role-default"] = &Role{
+					ID:   "role-default",
+					Name: "tenant-admin",
+				}
+			},
+			config: &OAuth2Config{
+				Enabled:            true,
+				AutoProvisionUsers: true,
+				DefaultRole:        "role-default",
+			},
+			wantErr: false,
+			checkUser: func(t *testing.T, user *TenantUser, _ *mockStore) {
+				t.Helper()
+				// Should be a newly provisioned user (not the email fallback)
+				assert.Equal(t, "keycloak-uuid-789", user.OAuthSubject)
+				assert.Equal(t, "tenant-1", user.TenantID)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newMockStore()
+			tt.setupStore(store)
+
+			keycloakClient := &mockKeycloakClient{
+				verifyTokenFunc: func(_ context.Context, _ string) (map[string]interface{}, error) {
+					claims := map[string]interface{}{
+						"sub": tt.claims.Subject,
+					}
+					if tt.claims.Email != "" {
+						claims["email"] = tt.claims.Email
+					}
+					if tt.claims.PreferredUsername != "" {
+						claims["preferred_username"] = tt.claims.PreferredUsername
+					}
+					if tt.claims.TenantID != "" {
+						claims["tenant_id"] = tt.claims.TenantID
+					}
+					return claims, nil
+				},
+			}
+
+			auth := NewOAuth2Authenticator(keycloakClient, store, tt.config, zap.NewNop())
+
+			gin.SetMode(gin.TestMode)
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			c.Request.Header.Set("Authorization", "Bearer test-token")
+
+			user, _, _, err := auth.Authenticate(context.Background(), c, "test-request")
+
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, user)
+				if tt.checkUser != nil {
+					tt.checkUser(t, user, store)
+				}
+			}
+		})
+	}
+}
+
 // TestOAuth2Authenticator_Authenticate_Integration tests full authentication flow.
 func TestOAuth2Authenticator_Authenticate_Integration(t *testing.T) {
 	gin.SetMode(gin.TestMode)

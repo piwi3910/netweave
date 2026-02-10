@@ -57,7 +57,7 @@ type Gateway struct {
 3. Connect to Kubernetes API
 4. Load OpenAPI specification
 5. Register routes and middleware
-6. Start HTTP server on port 8080
+6. Start HTTP servers (admin :8080, O2 mTLS :8443, TMF :8444, GraphQL :8445)
 7. Signal readiness (liveness/readiness probes)
 
 ### API Documentation
@@ -214,7 +214,7 @@ func (c *Controller) Run(ctx context.Context) error {
     lock := &resourcelock.LeaseLock{
         LeaseMeta: metav1.ObjectMeta{
             Name:      "subscription-controller-leader",
-            Namespace: "o2ims-system",
+            Namespace: "netweave",
         },
         Client: c.k8sClient,
         LockConfig: resourcelock.ResourceLockConfig{
@@ -442,7 +442,7 @@ Content-Type: application/json
 
 **Responsibility**: Secure communication, certificate lifecycle
 
-**Implementation**: Native Go TLS + cert-manager
+**Implementation**: Native Go TLS + Vault PKI
 
 ### Native Go TLS 1.3
 
@@ -471,9 +471,9 @@ func configureTLS(cfg *config.Config) *tls.Config {
 }
 ```
 
-### cert-manager Integration
+### Vault PKI Integration
 
-- Automatic certificate issuance
+- Automatic certificate issuance via HashiCorp Vault PKI engine
 - Auto-renewal (90-day rotation)
 - Kubernetes Secret storage
 - No manual certificate management
@@ -482,7 +482,7 @@ func configureTLS(cfg *config.Config) *tls.Config {
 
 ```mermaid
 graph TB
-    Root[Root CA<br/>cert-manager ClusterIssuer]
+    Root[Root CA<br/>Vault PKI Engine]
 
     Root --> ServerCA[Server CA<br/>for gateway pods]
     Root --> ClientCA[Client CA<br/>for external clients]
@@ -492,7 +492,7 @@ graph TB
     ServerCA --> RedisCert[Redis TLS certs]
     ServerCA --> ServiceCert[Internal service certs]
 
-    ClientCA --> SMOCert[SMO client certs<br/>issued externally or via cert-manager]
+    ClientCA --> SMOCert[SMO client certs<br/>issued externally or via Vault PKI]
     ClientCA --> TrustedCert[Trusted client certificates]
 
     WebhookCA --> WebhookCert[Outbound webhook client certs<br/>for calling SMO]

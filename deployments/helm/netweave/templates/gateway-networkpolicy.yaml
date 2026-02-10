@@ -15,22 +15,32 @@ spec:
   policyTypes:
     {{- toYaml .Values.networkPolicy.policyTypes | nindent 4 }}
   ingress:
-    # Allow ingress from ingress controller (if ingress enabled)
-    {{- if .Values.gateway.ingress.enabled }}
+    # Allow ingress from ingress controller on all gateway ports
     - from:
         - namespaceSelector:
             matchLabels:
-              name: {{ .Values.gateway.ingress.namespace | default "ingress-nginx" }}
+              name: ingress-nginx
       ports:
         - protocol: TCP
-          port: {{ .Values.gateway.service.targetPort }}
-    {{- end }}
+          port: {{ .Values.gateway.service.port }}
+        - protocol: TCP
+          port: {{ .Values.gateway.service.o2Port }}
+        - protocol: TCP
+          port: {{ .Values.gateway.service.tmfPort }}
+        - protocol: TCP
+          port: {{ .Values.gateway.service.graphqlPort }}
     # Allow ingress from within namespace (for testing/debugging)
     - from:
         - podSelector: {}
       ports:
         - protocol: TCP
-          port: {{ .Values.gateway.service.targetPort }}
+          port: {{ .Values.gateway.service.port }}
+        - protocol: TCP
+          port: {{ .Values.gateway.service.o2Port }}
+        - protocol: TCP
+          port: {{ .Values.gateway.service.tmfPort }}
+        - protocol: TCP
+          port: {{ .Values.gateway.service.graphqlPort }}
         - protocol: TCP
           port: 9090  # Metrics port
   egress:

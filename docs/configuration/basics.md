@@ -13,12 +13,15 @@ Core configuration options for server, Redis, logging, and observability.
 
 ## Server Configuration
 
-HTTP server settings for the gateway API.
+The gateway runs **4 separate HTTP listeners**, each with its own port, TLS configuration, and authentication method.
 
 ```yaml
 server:
   host: "0.0.0.0"              # Bind address (0.0.0.0 = all interfaces)
-  port: 8443                    # HTTP(S) port
+  port: 8080                    # Admin port (OAuth2 — health, docs, admin API)
+  o2_port: 8443                 # O2 mTLS port (O2-IMS, O2-DMS, O2-SMO)
+  tmf_port: 8444                # TMForum port (OAuth2)
+  graphql_port: 8445            # GraphQL port (OAuth2)
   read_timeout: 30s             # Request read timeout
   write_timeout: 30s            # Response write timeout
   idle_timeout: 120s            # Keep-alive idle timeout
@@ -27,12 +30,26 @@ server:
   gin_mode: release             # Gin mode: debug, release, test
 ```
 
+### Multi-Port Architecture
+
+| Port | Config Field | Hostname | Auth | Routes |
+|------|-------------|----------|------|--------|
+| **8080** | `port` | `api.netweave.local` | OAuth2 Bearer | Admin API, health, docs, metrics |
+| **8443** | `o2_port` | `o2.netweave.local` | mTLS (client certs) | O2-IMS, O2-DMS, O2-SMO |
+| **8444** | `tmf_port` | `tmf.netweave.local` | OAuth2 Bearer | TMForum Open APIs |
+| **8445** | `graphql_port` | `graphql.netweave.local` | OAuth2 Bearer | GraphQL API |
+
+All 4 listeners share the same server certificate but differ in `ClientAuth` — the O2 port requires and verifies client certificates (mTLS), while admin/TMF/GraphQL ports accept no client certs (OAuth2 only).
+
 ### Field Reference
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `host` | string | `"0.0.0.0"` | Server bind address. Use `0.0.0.0` for all interfaces, `127.0.0.1` for localhost only |
-| `port` | int | `8080` | HTTP server port. Must be 1-65535 |
+| `port` | int | `8080` | Admin HTTP server port (OAuth2, health, docs). Must be 1-65535 |
+| `o2_port` | int | `8443` | O2 mTLS server port (O2-IMS, O2-DMS, O2-SMO). Must be 1-65535 |
+| `tmf_port` | int | `8444` | TMForum server port (OAuth2). Must be 1-65535 |
+| `graphql_port` | int | `8445` | GraphQL server port (OAuth2). Must be 1-65535 |
 | `read_timeout` | duration | `30s` | Maximum time to read request headers and body |
 | `write_timeout` | duration | `30s` | Maximum time to write response |
 | `idle_timeout` | duration | `120s` | Keep-alive timeout for idle connections |
@@ -44,7 +61,10 @@ server:
 
 ```bash
 export NETWEAVE_SERVER_HOST=0.0.0.0
-export NETWEAVE_SERVER_PORT=8443
+export NETWEAVE_SERVER_PORT=8080
+export NETWEAVE_SERVER_O2_PORT=8443
+export NETWEAVE_SERVER_TMF_PORT=8444
+export NETWEAVE_SERVER_GRAPHQL_PORT=8445
 export NETWEAVE_SERVER_READ_TIMEOUT=30s
 export NETWEAVE_SERVER_WRITE_TIMEOUT=30s
 export NETWEAVE_SERVER_GIN_MODE=release
@@ -56,6 +76,9 @@ export NETWEAVE_SERVER_GIN_MODE=release
 ```yaml
 server:
   port: 8080
+  o2_port: 8443
+  tmf_port: 8444
+  graphql_port: 8445
   gin_mode: debug  # Enables Gin debug logging
 ```
 
@@ -63,7 +86,10 @@ server:
 ```yaml
 server:
   host: "0.0.0.0"
-  port: 8443
+  port: 8080
+  o2_port: 8443
+  tmf_port: 8444
+  graphql_port: 8445
   read_timeout: 30s
   write_timeout: 30s
   gin_mode: release  # Minimal logging
@@ -250,7 +276,7 @@ kubernetes:
 
 ```bash
 export NETWEAVE_KUBERNETES_CONFIG_PATH=/path/to/kubeconfig
-export NETWEAVE_KUBERNETES_NAMESPACE=o2ims-system
+export NETWEAVE_KUBERNETES_NAMESPACE=netweave
 export NETWEAVE_KUBERNETES_QPS=100.0
 export NETWEAVE_KUBERNETES_BURST=200
 ```
