@@ -66,7 +66,7 @@ Official O-RAN Alliance specifications:
 - ✅ **O2-DMS Integration**: Deployment Management Services with Helm 3, ArgoCD, and Flux CD adapters
 - ✅ **O2-SMO Integration**: Service Management & Orchestration with ONAP and OSM adapters
 - ✅ **Flexible Authentication Backend**: Redis (default) or Keycloak for centralized user management and enterprise SSO integration
-- ✅ **Enterprise Multi-Tenancy**: Subscription isolation implemented, resource isolation in progress
+- ✅ **Enterprise Multi-Tenancy**: Full tenant isolation with mTLS-based resource segregation
 - ✅ **Comprehensive RBAC**: Fine-grained role-based access control with platform and tenant roles:
   - **platform-admin**: Full system access across all tenants (IsPlatformAdmin bypass)
   - **tenant-admin**: Tenant and user management
@@ -86,7 +86,7 @@ Official O-RAN Alliance specifications:
 ### Use Cases
 
 1. **Telecom RAN Management**: Manage O-Cloud infrastructure for 5G RAN workloads via standard O2-IMS APIs
-2. **Multi-SMO Environments**: Single gateway supporting multiple SMO systems with isolated resources and quotas (subscription isolation done, resource isolation in progress)
+2. **Multi-SMO Environments**: Single gateway supporting multiple SMO systems with fully isolated resources and quotas via mTLS-based tenant segregation
 3. **Multi-Vendor Disaggregation**: Abstract vendor-specific APIs behind O2-IMS standard interface
 4. **Cloud-Native Infrastructure**: Leverage Kubernetes for infrastructure lifecycle management
 5. **Subscription-Based Monitoring**: Real-time notifications of infrastructure changes to SMO systems
@@ -97,12 +97,16 @@ Official O-RAN Alliance specifications:
 ```mermaid
 graph TB
     SMO[O2 SMO Systems<br/>Service Management & Orchestration]
+    TMF_Client[TMForum Clients]
+    GQL_Client[GraphQL Clients]
+    Admin[Admin Portal / CLI]
 
-    subgraph Gateway [netweave Complete O2 Gateway]
-        subgraph APIs [O2 API Layer]
-            IMS[O2-IMS API<br/>Infrastructure Management]
-            DMS[O2-DMS API<br/>Deployment Management]
-            SMO_API[O2-SMO API<br/>Orchestration Integration]
+    subgraph Gateway [netweave Multi-Port Gateway]
+        subgraph Ports [Per-Port Listeners]
+            P8443[Port 8443 — O2 mTLS<br/>o2.netweave.local<br/>O2-IMS, O2-DMS, O2-SMO]
+            P8080[Port 8080 — Admin OAuth2<br/>api.netweave.local<br/>Admin API, Health, Docs]
+            P8444[Port 8444 — TMF OAuth2<br/>tmf.netweave.local<br/>TMForum Open APIs]
+            P8445[Port 8445 — GraphQL OAuth2<br/>graphql.netweave.local<br/>GraphQL API]
         end
 
         Router[Intelligent Plugin Router<br/>Rule-based Backend Selection]
@@ -127,10 +131,6 @@ graph TB
             Helm[Helm 3]
             Argo[ArgoCD]
             Flux[Flux CD]
-            Kust[Kustomize]
-            XPlane[Crossplane]
-            ONAP_LCM[ONAP-LCM]
-            OSM_LCM[OSM-LCM]
         end
 
         subgraph SMO_Backends [SMO: Orchestration 5+]
@@ -139,10 +139,15 @@ graph TB
         end
     end
 
-    SMO -->|O2-IMS/DMS/SMO APIs<br/>HTTPS/mTLS| APIs
-    IMS --> Router
-    DMS --> Router
-    SMO_API --> Router
+    SMO -->|mTLS client certs| P8443
+    Admin -->|OAuth2 Bearer| P8080
+    TMF_Client -->|OAuth2 Bearer| P8444
+    GQL_Client -->|OAuth2 Bearer| P8445
+
+    P8443 --> Router
+    P8080 --> Router
+    P8444 --> Router
+    P8445 --> Router
 
     Router --> Redis
     Router --> IMS_Backends
@@ -166,6 +171,19 @@ graph TB
     style SMO_Backends fill:#fff5f0
 ```
 
+### Multi-Port Gateway Architecture
+
+The gateway runs **4 separate listeners**, each with its own TLS configuration and authentication method:
+
+| Port | Hostname | Auth | Routes |
+|------|----------|------|--------|
+| **8080** | `api.netweave.local` | OAuth2 Bearer | Admin API, health, docs, metrics |
+| **8443** | `o2.netweave.local` | mTLS (client certs) | O2-IMS, O2-DMS, O2-SMO |
+| **8444** | `tmf.netweave.local` | OAuth2 Bearer | TMForum Open APIs |
+| **8445** | `graphql.netweave.local` | OAuth2 Bearer | GraphQL API |
+
+Each port has a dedicated NGINX Ingress resource. The O2 port uses `ssl-passthrough` to preserve mTLS client certificates end-to-end, while admin/TMF/GraphQL ports use standard TLS termination at NGINX.
+
 ### API Documentation
 
 The gateway provides interactive API documentation via Swagger UI:
@@ -175,11 +193,11 @@ The gateway provides interactive API documentation via Swagger UI:
 - **Try It Out**: Test API endpoints directly from the documentation
 
 ```bash
-# Access Swagger UI (after deployment)
-open https://netweave.example.com/docs/
+# Access Swagger UI (after deployment, served on admin port)
+open https://api.netweave.local/docs/
 
 # Download OpenAPI spec
-curl https://netweave.example.com/openapi.yaml -o o2ims-api.yaml
+curl -k https://api.netweave.local/openapi.yaml -o o2ims-api.yaml
 ```
 
 ### Documentation
@@ -243,16 +261,16 @@ make deploy-dev
 ```bash
 # 1. Deploy netweave via Helm (includes Redis, Vault, Keycloak, PostgreSQL)
 helm install netweave ./deployments/helm/netweave \
-  --namespace o2ims-system \
+  --namespace netweave \
   --create-namespace \
   --values deployments/helm/netweave/values.yaml
 
 # 2. Verify deployment
-kubectl get pods -n o2ims-system
+kubectl get pods -n netweave
 
 # 3. (Optional) Use local development values
 helm install netweave ./deployments/helm/netweave \
-  --namespace o2ims-system \
+  --namespace netweave \
   --create-namespace \
   --values deployments/helm/netweave/values-local.yaml
 ```
@@ -439,10 +457,10 @@ For a complete configuration reference including all options, validation rules, 
 
 ### Basic Usage
 
-#### 1. List Resource Pools
+#### 1. List Resource Pools (O2 mTLS port)
 
 ```bash
-curl -X GET https://netweave.example.com/o2ims/v1/resourcePools \
+curl -X GET https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourcePools \
   --cert client.crt \
   --key client.key \
   --cacert ca.crt
@@ -463,10 +481,10 @@ curl -X GET https://netweave.example.com/o2ims/v1/resourcePools \
 }
 ```
 
-#### 2. Create Resource Pool
+#### 2. Create Resource Pool (O2 mTLS port)
 
 ```bash
-curl -X POST https://netweave.example.com/o2ims/v1/resourcePools \
+curl -X POST https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourcePools \
   --cert client.crt \
   --key client.key \
   --cacert ca.crt \
@@ -483,10 +501,10 @@ curl -X POST https://netweave.example.com/o2ims/v1/resourcePools \
   }'
 ```
 
-#### 3. Subscribe to Events
+#### 3. Subscribe to Events (O2 mTLS port)
 
 ```bash
-curl -X POST https://netweave.example.com/o2ims/v1/subscriptions \
+curl -X POST https://o2.netweave.local/o2ims-infrastructureInventory/v1/subscriptions \
   --cert client.crt \
   --key client.key \
   --cacert ca.crt \
@@ -521,7 +539,7 @@ Batch operations enable efficient bulk create/delete with atomic transaction sup
 
 **Batch Create Subscriptions (Atomic):**
 ```bash
-curl -X POST https://netweave.example.com/o2ims/v2/batch/subscriptions \
+curl -X POST https://o2.netweave.local/o2ims/v2/batch/subscriptions \
   --cert client.crt \
   --key client.key \
   --cacert ca.crt \
@@ -568,7 +586,7 @@ curl -X POST https://netweave.example.com/o2ims/v2/batch/subscriptions \
 
 **Batch Delete Subscriptions (Non-Atomic):**
 ```bash
-curl -X POST https://netweave.example.com/o2ims/v2/batch/subscriptions/delete \
+curl -X POST https://o2.netweave.local/o2ims/v2/batch/subscriptions/delete \
   --cert client.crt \
   --key client.key \
   --cacert ca.crt \
@@ -584,7 +602,7 @@ curl -X POST https://netweave.example.com/o2ims/v2/batch/subscriptions/delete \
 
 **Batch Create Resource Pools:**
 ```bash
-curl -X POST https://netweave.example.com/o2ims/v2/batch/resourcePools \
+curl -X POST https://o2.netweave.local/o2ims/v2/batch/resourcePools \
   --cert client.crt \
   --key client.key \
   --cacert ca.crt \
@@ -621,7 +639,7 @@ Filter queries with operators, field selection, and sorting.
 **Filter with Operators:**
 ```bash
 # Resource pools with location prefix "us-east" OR labels "env:prod"
-curl -X GET "https://netweave.example.com/o2ims/v2/resourcePools?location=us-east&labels=env:prod&limit=50&sortBy=name&sortOrder=asc" \
+curl -X GET "https://o2.netweave.local/o2ims/v2/resourcePools?location=us-east&labels=env:prod&limit=50&sortBy=name&sortOrder=asc" \
   --cert client.crt \
   --key client.key \
   --cacert ca.crt
@@ -630,7 +648,7 @@ curl -X GET "https://netweave.example.com/o2ims/v2/resourcePools?location=us-eas
 **Field Selection:**
 ```bash
 # Return only specific fields (reduces payload size)
-curl -X GET "https://netweave.example.com/o2ims/v2/resourcePools?fields=resourcePoolId,name,location" \
+curl -X GET "https://o2.netweave.local/o2ims/v2/resourcePools?fields=resourcePoolId,name,location" \
   --cert client.crt \
   --key client.key \
   --cacert ca.crt
@@ -652,7 +670,7 @@ curl -X GET "https://netweave.example.com/o2ims/v2/resourcePools?fields=resource
 **Nested Field Selection:**
 ```bash
 # Select only specific nested fields
-curl -X GET "https://netweave.example.com/o2ims/v2/resourcePools?fields=resourcePoolId,extensions.instanceType,extensions.replicas" \
+curl -X GET "https://o2.netweave.local/o2ims/v2/resourcePools?fields=resourcePoolId,extensions.instanceType,extensions.replicas" \
   --cert client.crt \
   --key client.key \
   --cacert ca.crt
@@ -1002,7 +1020,8 @@ netweave/
 
 ## Security
 
-- ✅ **mTLS Everywhere**: All communication encrypted
+- ✅ **Multi-Port Security**: Separate listeners with per-port auth (mTLS for O2, OAuth2 for admin/TMF/GraphQL)
+- ✅ **mTLS for O2 APIs**: Client certificate authentication on dedicated O2 port (8443)
 - ✅ **Zero-Trust Networking**: Verify every request
 - ✅ **Distributed Rate Limiting**: Protection against DDoS, resource exhaustion, and abuse
   - Token bucket algorithm with Redis backend
@@ -1062,7 +1081,8 @@ netweave/
 
 ### v1.2 (Q2 2026) - IN PROGRESS
 - ✅ Subscription-level tenant isolation
-- 🔄 Resource and pool tenant isolation
+- ✅ Resource and pool tenant isolation (via mTLS + multi-port gateway)
+- ✅ Multi-port gateway architecture (O2 mTLS, Admin OAuth2, TMF, GraphQL)
 - 🔄 Quota enforcement for all resource types
 - 🔄 Per-tenant rate limiting middleware
 

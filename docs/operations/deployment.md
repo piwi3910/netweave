@@ -13,13 +13,25 @@ Comprehensive deployment strategies and procedures for the netweave O2-IMS Gatew
 - Storage: 100GB persistent storage for Redis
 
 **Network Requirements:**
-- Ingress controller (nginx, Istio, or equivalent)
+- NGINX Ingress controller (with ssl-passthrough enabled for mTLS)
 - Network policies support
 - LoadBalancer or NodePort support
 - Egress access to backend systems
 
+**Network Ports:**
+
+| Port | Protocol | Direction | Purpose |
+|------|----------|-----------|---------|
+| 443 | TCP | Inbound | NGINX Ingress HTTPS (all hostnames) |
+| 8080 | TCP | Internal | Admin port (OAuth2, health, docs, metrics) |
+| 8443 | TCP | Internal | O2 port (mTLS, O2-IMS/DMS/SMO) |
+| 8444 | TCP | Internal | TMF port (OAuth2, TMForum APIs) |
+| 8445 | TCP | Internal | GraphQL port (OAuth2, GraphQL API) |
+| 6379 | TCP | Internal | Redis communication |
+| 9090 | TCP | Internal | Metrics (Prometheus) |
+
 **Required Components:**
-- cert-manager 1.15+ (TLS certificate management)
+- HashiCorp Vault 1.15+ (PKI certificate management)
 - Redis 7.4+ (state storage)
 - Prometheus 2.x+ (metrics)
 - Grafana 9.x+ (dashboards)
@@ -32,12 +44,12 @@ kubectl cluster-info
 kubectl get nodes
 
 # Verify required namespaces
-kubectl create namespace o2ims-system --dry-run=client -o yaml
+kubectl create namespace netweave --dry-run=client -o yaml
 
 # Verify RBAC permissions
-kubectl auth can-i create deployments --namespace o2ims-system
-kubectl auth can-i create services --namespace o2ims-system
-kubectl auth can-i create secrets --namespace o2ims-system
+kubectl auth can-i create deployments --namespace netweave
+kubectl auth can-i create services --namespace netweave
+kubectl auth can-i create secrets --namespace netweave
 ```
 
 ### Tool Installation
@@ -78,8 +90,8 @@ make install-tools
 make deploy-dev
 
 # Verify deployment
-kubectl get pods -n o2ims-system
-kubectl logs -n o2ims-system -l app=netweave-gateway --tail=20
+kubectl get pods -n netweave
+kubectl logs -n netweave -l app=netweave-gateway --tail=20
 ```
 
 **What this does:**
@@ -119,7 +131,7 @@ helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo update
 
 helm install redis bitnami/redis \
-  --namespace o2ims-system \
+  --namespace netweave \
   --create-namespace \
   --set sentinel.enabled=true \
   --set sentinel.quorum=2 \
@@ -131,8 +143,8 @@ helm install redis bitnami/redis \
   --set auth.password="$(openssl rand -base64 32)"
 
 # Verify Redis deployment
-kubectl get pods -n o2ims-system -l app.kubernetes.io/name=redis
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli INFO replication
+kubectl get pods -n netweave -l app.kubernetes.io/name=redis
+kubectl exec -n netweave redis-node-0 -- redis-cli INFO replication
 ```
 
 **Install Prometheus (if not present):**
@@ -160,7 +172,7 @@ helm repo update
 
 # Install Keycloak
 helm install keycloak bitnami/keycloak \
-  --namespace o2ims-system \
+  --namespace netweave \
   --set auth.adminUser=admin \
   --set auth.adminPassword="$(openssl rand -base64 32)" \
   --set postgresql.enabled=true \
@@ -169,14 +181,14 @@ helm install keycloak bitnami/keycloak \
   --set ingress.enabled=false
 
 # Verify Keycloak deployment
-kubectl get pods -n o2ims-system -l app.kubernetes.io/name=keycloak
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=keycloak --tail=20
+kubectl get pods -n netweave -l app.kubernetes.io/name=keycloak
+kubectl logs -n netweave -l app.kubernetes.io/name=keycloak --tail=20
 
 # Port-forward to access Keycloak admin console
-kubectl port-forward -n o2ims-system svc/keycloak 8080:80
+kubectl port-forward -n netweave svc/keycloak 8080:80
 # Access at: http://localhost:8080
 # Username: admin
-# Password: (retrieve with: kubectl get secret -n o2ims-system keycloak -o jsonpath='{.data.admin-password}' | base64 -d)
+# Password: (retrieve with: kubectl get secret -n netweave keycloak -o jsonpath='{.data.admin-password}' | base64 -d)
 ```
 
 **Configure Keycloak realm and client:**
@@ -197,19 +209,19 @@ kubectl port-forward -n o2ims-system svc/keycloak 8080:80
 
 ```bash
 # Get Keycloak admin password
-KEYCLOAK_ADMIN_PASSWORD=$(kubectl get secret -n o2ims-system keycloak -o jsonpath='{.data.admin-password}' | base64 -d)
+KEYCLOAK_ADMIN_PASSWORD=$(kubectl get secret -n netweave keycloak -o jsonpath='{.data.admin-password}' | base64 -d)
 
 # Get client secret from Keycloak admin console (Clients -> netweave-gateway -> Credentials tab)
 KEYCLOAK_CLIENT_SECRET="your-client-secret-from-keycloak"
 
 # Create secrets for gateway
 kubectl create secret generic keycloak-credentials \
-  --namespace o2ims-system \
+  --namespace netweave \
   --from-literal=client-secret="$KEYCLOAK_CLIENT_SECRET" \
   --from-literal=admin-password="$KEYCLOAK_ADMIN_PASSWORD"
 
 # Verify secret
-kubectl get secret -n o2ims-system keycloak-credentials
+kubectl get secret -n netweave keycloak-credentials
 ```
 
 #### Step 2: Configure TLS Certificates
@@ -284,9 +296,9 @@ redis:
   sentinel: true
   masterSet: "mymaster"
   addresses:
-    - "redis-node-0.redis-headless.o2ims-system.svc.cluster.local:26379"
-    - "redis-node-1.redis-headless.o2ims-system.svc.cluster.local:26379"
-    - "redis-node-2.redis-headless.o2ims-system.svc.cluster.local:26379"
+    - "redis-node-0.redis-headless.netweave.svc.cluster.local:26379"
+    - "redis-node-1.redis-headless.netweave.svc.cluster.local:26379"
+    - "redis-node-2.redis-headless.netweave.svc.cluster.local:26379"
   password:
     secretName: redis
     secretKey: redis-password
@@ -297,7 +309,7 @@ auth:
 
   # Keycloak configuration (only used if backend: keycloak)
   keycloak:
-    baseURL: http://keycloak.o2ims-system.svc.cluster.local
+    baseURL: http://keycloak.netweave.svc.cluster.local
     realm: netweave
     clientID: netweave-gateway
     clientSecretEnvVar: KEYCLOAK_CLIENT_SECRET
@@ -331,56 +343,76 @@ autoscaling:
   targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
 
+# Multi-port gateway configuration
+# The gateway runs 4 separate listeners with independent TLS/auth
+# See docs/architecture/system-overview.md for details
+gateway:
+  server:
+    port: 8080       # Admin (OAuth2)
+    o2_port: 8443    # O2 (mTLS)
+    tmf_port: 8444   # TMForum (OAuth2)
+    graphql_port: 8445  # GraphQL (OAuth2)
+
+# 4 separate ingress resources (one per hostname/port)
 ingress:
-  enabled: true
-  className: nginx
-  annotations:
-    cert-manager.io/cluster-issuer: ca-issuer
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
-  hosts:
-    - host: o2ims.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: o2ims-tls
-      hosts:
-        - o2ims.example.com
+  admin:
+    enabled: true
+    className: nginx
+    host: api.netweave.local
+    tls:
+      secretName: netweave-admin-tls
+  o2:
+    enabled: true
+    className: nginx
+    host: o2.netweave.local
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+  tmf:
+    enabled: true
+    className: nginx
+    host: tmf.netweave.local
+    tls:
+      secretName: netweave-tmf-tls
+  graphql:
+    enabled: true
+    className: nginx
+    host: graphql.netweave.local
+    tls:
+      secretName: netweave-graphql-tls
 ```
 
 **Deploy gateway:**
 ```bash
 helm install netweave ./helm/netweave \
-  --namespace o2ims-system \
+  --namespace netweave \
   --values values-custom.yaml \
   --timeout 10m \
   --wait
 
 # Verify deployment
-helm status netweave -n o2ims-system
-kubectl get pods -n o2ims-system -l app.kubernetes.io/name=netweave
+helm status netweave -n netweave
+kubectl get pods -n netweave -l app.kubernetes.io/name=netweave
 ```
 
 #### Step 4: Verify Deployment
 
 ```bash
 # Check pod status
-kubectl get pods -n o2ims-system -l app.kubernetes.io/name=netweave
+kubectl get pods -n netweave -l app.kubernetes.io/name=netweave
 
 # Check pod logs
-kubectl logs -n o2ims-system -l app.kubernetes.io/name=netweave --tail=50
+kubectl logs -n netweave -l app.kubernetes.io/name=netweave --tail=50
 
 # Check TLS certificates
-kubectl get certificate -n o2ims-system
-kubectl describe certificate netweave-tls -n o2ims-system
+kubectl get certificate -n netweave
+kubectl describe certificate netweave-tls -n netweave
 
 # Test health endpoint
-kubectl port-forward -n o2ims-system svc/netweave-gateway 8080:8080 &
+kubectl port-forward -n netweave svc/netweave-gateway 8080:8080 &
 curl -k https://localhost:8080/healthz
 
 # Test Redis connectivity
-kubectl exec -n o2ims-system -it netweave-gateway-0 -- sh -c 'redis-cli -h redis-node-0 PING'
+kubectl exec -n netweave -it netweave-gateway-0 -- sh -c 'redis-cli -h redis-node-0 PING'
 
 # Check metrics endpoint
 curl http://localhost:8080/metrics | grep o2ims_adapter_operations_total
@@ -417,7 +449,7 @@ apiVersion: o2ims.oran.org/v1alpha1
 kind: O2IMSGateway
 metadata:
   name: netweave-production
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   # Gateway configuration
   replicas: 3
@@ -470,11 +502,20 @@ spec:
     maxReplicas: 10
     targetCPUUtilizationPercentage: 80
 
-  # Ingress
+  # Ingress (4 separate ingresses for multi-port gateway)
   ingress:
-    enabled: true
-    className: nginx
-    host: o2ims.example.com
+    admin:
+      enabled: true
+      host: api.netweave.local
+    o2:
+      enabled: true
+      host: o2.netweave.local
+    tmf:
+      enabled: true
+      host: tmf.netweave.local
+    graphql:
+      enabled: true
+      host: graphql.netweave.local
 ```
 
 **Apply custom resource:**
@@ -482,7 +523,7 @@ spec:
 kubectl apply -f o2imsgateway-production.yaml
 
 # Watch operator reconcile
-kubectl get o2imsgateways -n o2ims-system -w
+kubectl get o2imsgateways -n netweave -w
 
 # Check operator logs
 kubectl logs -n o2ims-operator-system -l app=o2ims-operator -f
@@ -492,13 +533,13 @@ kubectl logs -n o2ims-operator-system -l app=o2ims-operator -f
 
 ```bash
 # Check custom resource status
-kubectl get o2imsgateways netweave-production -n o2ims-system -o yaml
+kubectl get o2imsgateways netweave-production -n netweave -o yaml
 
 # Check created resources
-kubectl get all -n o2ims-system -l app.kubernetes.io/managed-by=o2ims-operator
+kubectl get all -n netweave -l app.kubernetes.io/managed-by=o2ims-operator
 
 # Verify health
-kubectl port-forward -n o2ims-system svc/netweave-production-gateway 8080:8080 &
+kubectl port-forward -n netweave svc/netweave-production-gateway 8080:8080 &
 curl -k https://localhost:8080/healthz
 ```
 
@@ -521,15 +562,15 @@ strategy:
 ```bash
 # Update image version
 helm upgrade netweave ./helm/netweave \
-  --namespace o2ims-system \
+  --namespace netweave \
   --set image.tag=v1.1.0 \
   --wait
 
 # Monitor rollout
-kubectl rollout status deployment/netweave-gateway -n o2ims-system -w
+kubectl rollout status deployment/netweave-gateway -n netweave -w
 
 # Verify new version
-kubectl get pods -n o2ims-system -l app.kubernetes.io/name=netweave \
+kubectl get pods -n netweave -l app.kubernetes.io/name=netweave \
   -o jsonpath='{.items[*].spec.containers[0].image}'
 ```
 
@@ -549,7 +590,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: netweave-gateway-blue
-  namespace: o2ims-system
+  namespace: netweave
   labels:
     app: netweave-gateway
     version: v1.0.0
@@ -577,7 +618,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: netweave-gateway-green
-  namespace: o2ims-system
+  namespace: netweave
   labels:
     app: netweave-gateway
     version: v1.1.0
@@ -606,25 +647,25 @@ kubectl apply -f green-deployment.yaml
 
 # 2. Wait for green pods to be ready
 kubectl wait --for=condition=ready pod \
-  -l color=green -n o2ims-system --timeout=300s
+  -l color=green -n netweave --timeout=300s
 
 # 3. Test green deployment internally
-kubectl port-forward -n o2ims-system deploy/netweave-gateway-green 8080:8080 &
+kubectl port-forward -n netweave deploy/netweave-gateway-green 8080:8080 &
 curl -k https://localhost:8080/healthz
 curl -k https://localhost:8080/o2ims-infrastructureInventory/v1/api_versions
 
 # 4. Switch Service selector to green
-kubectl patch svc netweave-gateway -n o2ims-system \
+kubectl patch svc netweave-gateway -n netweave \
   -p '{"spec":{"selector":{"color":"green"}}}'
 
 # 5. Monitor for 10 minutes
-watch kubectl get pods -n o2ims-system
+watch kubectl get pods -n netweave
 
 # 6. If successful, delete blue deployment
-kubectl delete deployment netweave-gateway-blue -n o2ims-system
+kubectl delete deployment netweave-gateway-blue -n netweave
 
 # ROLLBACK if issues:
-kubectl patch svc netweave-gateway -n o2ims-system \
+kubectl patch svc netweave-gateway -n netweave \
   -p '{"spec":{"selector":{"color":"blue"}}}'
 ```
 
@@ -642,7 +683,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: netweave-gateway-canary
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   replicas: 1  # Start with 1 canary pod
   selector:
@@ -666,10 +707,10 @@ apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
   name: netweave-gateway
-  namespace: o2ims-system
+  namespace: netweave
 spec:
   hosts:
-    - netweave-gateway.o2ims-system.svc.cluster.local
+    - netweave-gateway.netweave.svc.cluster.local
   http:
     - match:
         - headers:
@@ -698,11 +739,11 @@ kubectl apply -f canary-deployment.yaml
 kubectl apply -f virtual-service.yaml
 
 # 2. Monitor canary metrics (10% traffic)
-watch 'kubectl top pods -n o2ims-system | grep canary'
+watch 'kubectl top pods -n netweave | grep canary'
 
 # 3. Gradually increase canary traffic
 # 10% -> 25% -> 50% -> 75% -> 100%
-kubectl patch virtualservice netweave-gateway -n o2ims-system \
+kubectl patch virtualservice netweave-gateway -n netweave \
   --type merge -p '
   {
     "spec": {
@@ -716,15 +757,15 @@ kubectl patch virtualservice netweave-gateway -n o2ims-system \
   }'
 
 # 4. Monitor error rates, latency
-kubectl exec -n o2ims-system netweave-gateway-canary-0 -- \
+kubectl exec -n netweave netweave-gateway-canary-0 -- \
   wget -qO- localhost:8080/metrics | grep o2ims_http_request_duration_seconds
 
 # 5. If successful, scale up canary to replace stable
-kubectl scale deployment netweave-gateway-canary -n o2ims-system --replicas=3
-kubectl scale deployment netweave-gateway -n o2ims-system --replicas=0
+kubectl scale deployment netweave-gateway-canary -n netweave --replicas=3
+kubectl scale deployment netweave-gateway -n netweave --replicas=0
 
 # 6. Update VirtualService to 100% canary
-kubectl patch virtualservice netweave-gateway -n o2ims-system \
+kubectl patch virtualservice netweave-gateway -n netweave \
   --type merge -p '
   {
     "spec": {
@@ -793,7 +834,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: redis-config
-  namespace: o2ims-system
+  namespace: netweave
 data:
   redis.conf: |
     bind 0.0.0.0
@@ -820,11 +861,11 @@ data:
 
 ```bash
 # Configure replication from Cluster 2 Redis to Cluster 1
-kubectl exec -n o2ims-system redis-node-0 -c redis -- redis-cli \
+kubectl exec -n netweave redis-node-0 -c redis -- redis-cli \
   REPLICAOF redis-cluster1.example.com 6379
 
 # Verify replication
-kubectl exec -n o2ims-system redis-node-0 -c redis -- redis-cli INFO replication
+kubectl exec -n netweave redis-node-0 -c redis -- redis-cli INFO replication
 ```
 
 ### Gateway Configuration for Multi-Cluster
@@ -835,16 +876,16 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: netweave-config
-  namespace: o2ims-system
+  namespace: netweave
 data:
   config.yaml: |
     redis:
       sentinel: true
       master_set: "mymaster"
       sentinel_addresses:
-        - "redis-sentinel-0.redis-headless.o2ims-system.svc.cluster.local:26379"
-        - "redis-sentinel-1.redis-headless.o2ims-system.svc.cluster.local:26379"
-        - "redis-sentinel-2.redis-headless.o2ims-system.svc.cluster.local:26379"
+        - "redis-sentinel-0.redis-headless.netweave.svc.cluster.local:26379"
+        - "redis-sentinel-1.redis-headless.netweave.svc.cluster.local:26379"
+        - "redis-sentinel-2.redis-headless.netweave.svc.cluster.local:26379"
       # Fallback to remote cluster if local unavailable
       fallback_addresses:
         - "redis-sentinel.cluster1.example.com:26379"
@@ -926,18 +967,18 @@ autoscaling:
 ```bash
 # Create Redis password secret
 kubectl create secret generic redis-password \
-  --namespace o2ims-system \
+  --namespace netweave \
   --from-literal=password="$(openssl rand -base64 32)"
 
 # Create TLS secrets
 kubectl create secret tls gateway-tls \
-  --namespace o2ims-system \
+  --namespace netweave \
   --cert=server.crt \
   --key=server.key
 
 # Create CA bundle secret
 kubectl create secret generic ca-bundle \
-  --namespace o2ims-system \
+  --namespace netweave \
   --from-file=ca.crt=ca-bundle.crt
 ```
 
@@ -947,29 +988,35 @@ kubectl create secret generic ca-bundle \
 
 ```bash
 # Gateway health
-kubectl exec -n o2ims-system netweave-gateway-0 -- \
+kubectl exec -n netweave netweave-gateway-0 -- \
   wget -qO- http://localhost:8080/healthz
 
 # Redis health
-kubectl exec -n o2ims-system redis-node-0 -- redis-cli PING
+kubectl exec -n netweave redis-node-0 -- redis-cli PING
 
 # Sentinel health
-kubectl exec -n o2ims-system redis-sentinel-0 -- \
+kubectl exec -n netweave redis-sentinel-0 -- \
   redis-cli -p 26379 SENTINEL master mymaster
 ```
 
 ### Functional Tests
 
 ```bash
-# Test API versions endpoint
-curl -k https://o2ims.example.com/o2ims-infrastructureInventory/v1/api_versions
+# Test health endpoint (admin port, no mTLS)
+curl -k https://api.netweave.local/health
 
-# Test resource pool listing
-curl -k -H "Accept: application/json" \
-  https://o2ims.example.com/o2ims-infrastructureInventory/v1/resourcePools
+# Test O2-IMS API (O2 port, requires mTLS client cert)
+curl --cert client.crt --key client.key --cacert ca.crt \
+  https://o2.netweave.local/o2ims-infrastructureInventory/v1/api_versions
 
-# Create test subscription
-curl -k -X POST https://o2ims.example.com/o2ims-infrastructureInventory/v1/subscriptions \
+# Test resource pool listing (O2 port)
+curl --cert client.crt --key client.key --cacert ca.crt \
+  -H "Accept: application/json" \
+  https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourcePools
+
+# Create test subscription (O2 port)
+curl --cert client.crt --key client.key --cacert ca.crt \
+  -X POST https://o2.netweave.local/o2ims-infrastructureInventory/v1/subscriptions \
   -H "Content-Type: application/json" \
   -d '{
     "callback": "https://smo.example.com/notify",
@@ -980,12 +1027,13 @@ curl -k -X POST https://o2ims.example.com/o2ims-infrastructureInventory/v1/subsc
 ### Performance Validation
 
 ```bash
-# Load test with hey
+# Load test with hey (O2 port, requires mTLS)
 hey -n 1000 -c 10 -m GET \
-  https://o2ims.example.com/o2ims-infrastructureInventory/v1/resourcePools
+  -cert client.crt -key client.key \
+  https://o2.netweave.local/o2ims-infrastructureInventory/v1/resourcePools
 
 # Check p95 latency (should be < 100ms)
-kubectl exec -n o2ims-system netweave-gateway-0 -- \
+kubectl exec -n netweave netweave-gateway-0 -- \
   wget -qO- http://localhost:8080/metrics | \
   grep o2ims_http_request_duration_seconds | grep quantile
 ```
@@ -996,7 +1044,7 @@ kubectl exec -n o2ims-system netweave-gateway-0 -- \
 
 ```bash
 # Check pod status
-kubectl describe pod -n o2ims-system netweave-gateway-0
+kubectl describe pod -n netweave netweave-gateway-0
 
 # Common issues:
 # - ImagePullBackOff: Check image repository and credentials
@@ -1008,14 +1056,14 @@ kubectl describe pod -n o2ims-system netweave-gateway-0
 
 ```bash
 # Test Redis connectivity
-kubectl exec -n o2ims-system netweave-gateway-0 -- \
+kubectl exec -n netweave netweave-gateway-0 -- \
   redis-cli -h redis-node-0 PING
 
 # Check Redis logs
-kubectl logs -n o2ims-system redis-node-0
+kubectl logs -n netweave redis-node-0
 
 # Verify Sentinel
-kubectl exec -n o2ims-system redis-sentinel-0 -- \
+kubectl exec -n netweave redis-sentinel-0 -- \
   redis-cli -p 26379 SENTINEL get-master-addr-by-name mymaster
 ```
 
@@ -1023,14 +1071,14 @@ kubectl exec -n o2ims-system redis-sentinel-0 -- \
 
 ```bash
 # Check certificate status
-kubectl get certificate -n o2ims-system
-kubectl describe certificate netweave-tls -n o2ims-system
+kubectl get certificate -n netweave
+kubectl describe certificate netweave-tls -n netweave
 
 # Check cert-manager logs
 kubectl logs -n cert-manager -l app=cert-manager
 
 # Manually trigger certificate renewal
-cmctl renew netweave-tls -n o2ims-system
+cmctl renew netweave-tls -n netweave
 ```
 
 ## Rollback Procedures
@@ -1039,26 +1087,26 @@ cmctl renew netweave-tls -n o2ims-system
 
 ```bash
 # List release history
-helm history netweave -n o2ims-system
+helm history netweave -n netweave
 
 # Rollback to previous version
-helm rollback netweave -n o2ims-system
+helm rollback netweave -n netweave
 
 # Rollback to specific revision
-helm rollback netweave 3 -n o2ims-system
+helm rollback netweave 3 -n netweave
 ```
 
 ### Kubectl Rollback
 
 ```bash
 # Rollback deployment
-kubectl rollout undo deployment/netweave-gateway -n o2ims-system
+kubectl rollout undo deployment/netweave-gateway -n netweave
 
 # Rollback to specific revision
-kubectl rollout undo deployment/netweave-gateway -n o2ims-system --to-revision=2
+kubectl rollout undo deployment/netweave-gateway -n netweave --to-revision=2
 
 # Check rollout history
-kubectl rollout history deployment/netweave-gateway -n o2ims-system
+kubectl rollout history deployment/netweave-gateway -n netweave
 ```
 
 ## Related Documentation

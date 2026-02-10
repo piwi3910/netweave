@@ -41,36 +41,52 @@ The O2-IMS Gateway security architecture is built on these fundamental principle
 
 ### Never Trust, Always Verify
 
-Every request is treated as potentially malicious, regardless of source:
+Every request is treated as potentially malicious, regardless of source. The gateway runs 4 separate listeners with per-port authentication:
+
+| Port | Hostname | Auth Method | TLS ClientAuth |
+|------|----------|-------------|----------------|
+| **8080** | `api.netweave.local` | OAuth2 Bearer (Keycloak) | `NoClientCert` |
+| **8443** | `o2.netweave.local` | mTLS client certificates | `RequireAndVerifyClientCert` |
+| **8444** | `tmf.netweave.local` | OAuth2 Bearer (Keycloak) | `NoClientCert` |
+| **8445** | `graphql.netweave.local` | OAuth2 Bearer (Keycloak) | `NoClientCert` |
 
 ```mermaid
 sequenceDiagram
     participant SMO as O2 SMO Client
-    participant GW as O2-IMS Gateway
+    participant O2 as O2 Port :8443
+    participant Admin as Admin Port :8080
     participant K8s as Kubernetes API
 
-    SMO->>GW: Request (mTLS)
-    Note over GW: 1. Verify Client Cert
-    Note over GW: 2. Extract Tenant ID
-    Note over GW: 3. Load User Roles
-    Note over GW: 4. Check Permissions
-    Note over GW: 5. Validate Schema
-    Note over GW: 6. Check Rate Limits
-    GW->>K8s: Authorized Request
-    K8s->>GW: Response
-    Note over GW: 7. Audit Log
-    GW->>SMO: Response
+    Note over SMO,O2: O2 API — mTLS Authentication
+    SMO->>O2: Request (mTLS client cert)
+    Note over O2: 1. Verify Client Cert
+    Note over O2: 2. Extract Tenant ID from CN
+    Note over O2: 3. Load User Roles
+    Note over O2: 4. Check Permissions
+    Note over O2: 5. Validate Schema
+    Note over O2: 6. Check Rate Limits
+    O2->>K8s: Authorized Request
+    K8s->>O2: Response
+    Note over O2: 7. Audit Log
+    O2->>SMO: Response
+
+    Note over Admin: Admin API — OAuth2 Authentication
+    Admin->>Admin: 1. Validate Bearer Token
+    Admin->>Admin: 2. Extract Tenant from Claims
+    Admin->>Admin: 3-7. Same RBAC + Audit
 ```
 
 ### Implementation
 
 #### 1. Verify Explicitly
 
-Every request must present valid credentials:
+Every request must present valid credentials appropriate for its port:
 
-- **mTLS Client Certificates**: Cryptographic identity proof
-- **Certificate Validation**: Full chain verification, expiration, revocation
-- **Tenant Extraction**: Identity mapped to tenant from certificate CN/SAN
+- **O2 Port (8443)**: mTLS client certificates — cryptographic identity proof
+- **Admin/TMF/GraphQL Ports (8080/8444/8445)**: OAuth2 Bearer tokens — Keycloak OIDC
+- **Certificate Validation**: Full chain verification, expiration, revocation (O2 port)
+- **Token Validation**: JWT signature, expiration, audience, issuer (admin/TMF/GraphQL ports)
+- **Tenant Extraction**: From certificate CN (O2) or token claims (admin/TMF/GraphQL)
 
 #### 2. Least Privilege Access
 
@@ -123,7 +139,8 @@ graph TB
     end
 
     subgraph "Layer 3: Authentication"
-        mTLS[mTLS Verification]
+        mTLS[mTLS Verification<br/>O2 Port :8443]
+        OAuth2[OAuth2 Bearer Tokens<br/>Admin/TMF/GraphQL Ports]
         CertVal[Certificate Validation]
         TenantID[Tenant Extraction]
     end
@@ -157,7 +174,7 @@ graph TB
 |-------|---------|----------|----------------|
 | **L1: Transport** | Encryption | TLS 1.3, strong ciphers, HSTS | Connection rejected |
 | **L2: Network** | Network isolation | NetworkPolicies, firewall, ingress | Traffic blocked |
-| **L3: Authentication** | Identity verification | mTLS, cert validation, tenant ID | 401 Unauthorized |
+| **L3: Authentication** | Identity verification | mTLS (O2), OAuth2 (admin/TMF/GraphQL), tenant ID | 401 Unauthorized |
 | **L4: Authorization** | Access control | RBAC, tenant isolation, quotas | 403 Forbidden |
 | **L5: Input Validation** | Data sanitization | Schema validation, size limits | 400 Bad Request |
 | **L6: Rate Limiting** | DoS protection | Token bucket, per-tenant limits | 429 Too Many Requests |
@@ -179,23 +196,29 @@ Each layer operates independently - if one layer is bypassed, others still prote
 
 ### System Architecture
 
+The gateway uses a multi-port architecture with separate security boundaries per port:
+
 ```mermaid
 graph TB
     subgraph External["External Zone (Untrusted)"]
-        SMO1[SMO Client A]
-        SMO2[SMO Client B]
+        SMO1[SMO Client A<br/>mTLS → o2.netweave.local]
+        SMO2[SMO Client B<br/>mTLS → o2.netweave.local]
+        AdminUser[Admin User<br/>OAuth2 → api.netweave.local]
         Attacker[Potential Attacker]
     end
 
-    subgraph DMZ["DMZ (Ingress)"]
-        Ingress[Ingress Controller<br/>TLS Termination]
-        LB[Load Balancer<br/>DDoS Protection]
+    subgraph DMZ["DMZ (4 NGINX Ingress Resources)"]
+        IngressO2[O2 Ingress<br/>ssl-passthrough<br/>o2.netweave.local]
+        IngressAdmin[Admin Ingress<br/>TLS termination<br/>api.netweave.local]
+        IngressTMF[TMF Ingress<br/>TLS termination<br/>tmf.netweave.local]
+        IngressGQL[GraphQL Ingress<br/>TLS termination<br/>graphql.netweave.local]
     end
 
-    subgraph Gateway["Gateway Zone (Semi-Trusted)"]
-        GW1[Gateway Pod 1]
-        GW2[Gateway Pod 2]
-        GW3[Gateway Pod 3]
+    subgraph Gateway["Gateway Zone (4 Listeners)"]
+        O2Port[O2 Router :8443<br/>mTLS Auth]
+        AdminPort[Admin Router :8080<br/>OAuth2 Auth]
+        TMFPort[TMF Router :8444<br/>OAuth2 Auth]
+        GQLPort[GraphQL Router :8445<br/>OAuth2 Auth]
     end
 
     subgraph Backend["Backend Zone (Trusted)"]
@@ -203,19 +226,18 @@ graph TB
         Redis[Redis Sentinel<br/>TLS + Auth]
     end
 
-    SMO1 -->|mTLS| LB
-    SMO2 -->|mTLS| LB
-    Attacker -.->|Blocked| LB
-    LB --> Ingress
-    Ingress -->|mTLS| GW1
-    Ingress -->|mTLS| GW2
-    Ingress -->|mTLS| GW3
-    GW1 -->|ServiceAccount| K8s
-    GW2 -->|ServiceAccount| K8s
-    GW3 -->|ServiceAccount| K8s
-    GW1 -->|TLS + Password| Redis
-    GW2 -->|TLS + Password| Redis
-    GW3 -->|TLS + Password| Redis
+    SMO1 -->|mTLS| IngressO2
+    SMO2 -->|mTLS| IngressO2
+    AdminUser -->|OAuth2| IngressAdmin
+    Attacker -.->|Blocked| IngressO2
+    IngressO2 -->|ssl-passthrough| O2Port
+    IngressAdmin -->|HTTPS| AdminPort
+    IngressTMF -->|HTTPS| TMFPort
+    IngressGQL -->|HTTPS| GQLPort
+    O2Port -->|ServiceAccount| K8s
+    AdminPort -->|ServiceAccount| K8s
+    O2Port -->|TLS + Password| Redis
+    AdminPort -->|TLS + Password| Redis
 
     style External fill:#ffebee
     style DMZ fill:#fff4e6
@@ -228,29 +250,31 @@ graph TB
 #### Boundary 1: Internet → DMZ
 
 **Controls:**
-- TLS 1.3 enforcement
-- mTLS client certificate requirement
+- TLS 1.3 enforcement on all 4 ingress resources
+- mTLS client certificate requirement on O2 ingress (ssl-passthrough)
+- OAuth2 Bearer token validation on admin/TMF/GraphQL ingresses
 - DDoS protection at load balancer
-- IP allowlisting (optional)
+- IP allowlisting (optional, per-ingress)
 - Rate limiting at ingress
 
 **Threats Mitigated:**
-- MITM attacks (TLS encryption)
-- Unauthorized access (mTLS)
+- MITM attacks (TLS encryption on all ports)
+- Unauthorized access (mTLS on O2 port, OAuth2 on others)
 - DDoS attacks (rate limiting, connection limits)
 - Network sniffing (encryption)
 
 #### Boundary 2: DMZ → Gateway
 
 **Controls:**
+- 4 separate NGINX Ingress resources with independent configs
+- O2 ingress uses ssl-passthrough (mTLS preserved end-to-end)
+- Admin/TMF/GraphQL ingresses use TLS termination at NGINX
 - Network policies restrict ingress to DMZ only
-- mTLS between ingress and gateway pods
 - No direct pod access from external networks
-- Service mesh ready (Istio, Linkerd)
 
 **Threats Mitigated:**
 - Lateral movement (network policies)
-- Pod compromise (mTLS verification)
+- Auth method confusion (per-port isolation)
 - Container breakout (namespace isolation)
 
 #### Boundary 3: Gateway → Backend
@@ -404,8 +428,8 @@ graph TB
 
 | Zone | Trust Level | Network Access | Authentication | Authorization |
 |------|-------------|----------------|----------------|---------------|
-| **Untrusted (Internet)** | None | Blocked by default | mTLS client cert | Per-request RBAC |
-| **DMZ (Ingress)** | Low | Restricted ingress | TLS termination | Rate limiting |
+| **Untrusted (Internet)** | None | Blocked by default | mTLS (O2) / OAuth2 (admin/TMF/GraphQL) | Per-request RBAC |
+| **DMZ (Ingress)** | Low | 4 separate ingresses | ssl-passthrough (O2) / TLS termination (others) | Rate limiting |
 | **Application (Gateway)** | Medium | Internal only | ServiceAccount | RBAC enforced |
 | **Data (Backend)** | High | Internal only | Strong auth | Least privilege |
 | **Management (Admin)** | High | Read-only | MFA required | Admin roles only |
@@ -419,15 +443,17 @@ graph TB
 #### Cryptographic Controls
 
 ```yaml
-# TLS Configuration
+# TLS Configuration (shared by all 4 ports)
 tls:
   min_version: "1.3"
   cipher_suites:
     - TLS_AES_256_GCM_SHA384
     - TLS_CHACHA20_POLY1305_SHA256
     - TLS_AES_128_GCM_SHA256
-  client_auth: required
-  client_ca_file: /etc/o2ims/certs/client-ca.crt
+  # client_auth only affects O2 port (8443)
+  # Admin/TMF/GraphQL ports always use NoClientCert
+  client_auth: require-and-verify
+  ca_file: /etc/certs/ca.crt
 
 # Certificate Requirements
 certificates:
@@ -439,9 +465,11 @@ certificates:
 
 #### Authentication Controls
 
-- **Primary**: mTLS client certificates
-- **Service Accounts**: Kubernetes ServiceAccount tokens
-- **API Keys**: Optional, for service-to-service (with expiration)
+- **O2 Port (8443)**: mTLS client certificates — required for O2-IMS, O2-DMS, O2-SMO
+- **Admin Port (8080)**: OAuth2 Bearer tokens via Keycloak — for admin API, health, docs
+- **TMF Port (8444)**: OAuth2 Bearer tokens via Keycloak — for TMForum APIs
+- **GraphQL Port (8445)**: OAuth2 Bearer tokens via Keycloak — for GraphQL API
+- **Service Accounts**: Kubernetes ServiceAccount tokens (gateway → K8s API)
 - **MFA**: Required for admin operations (future)
 
 #### Authorization Controls
@@ -858,5 +886,5 @@ The certificate manager service integrates with the gateway's zero-trust securit
 
 ---
 
-**Last Updated:** 2026-01-21
-**Version:** 1.1
+**Last Updated:** 2026-02-10
+**Version:** 1.2
