@@ -102,8 +102,17 @@ spec:
           image: {{ include "netweave.gatewayImage" . }}
           imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
           ports:
-            - name: http
-              containerPort: {{ .Values.gateway.service.targetPort }}
+            - name: admin
+              containerPort: {{ .Values.gateway.service.port }}
+              protocol: TCP
+            - name: o2
+              containerPort: {{ .Values.gateway.service.o2Port }}
+              protocol: TCP
+            - name: tmf
+              containerPort: {{ .Values.gateway.service.tmfPort }}
+              protocol: TCP
+            - name: graphql
+              containerPort: {{ .Values.gateway.service.graphqlPort }}
               protocol: TCP
             - name: metrics
               containerPort: 9090
@@ -163,7 +172,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /healthz
-              port: http
+              port: admin
               {{- if .Values.gateway.config.tls.enabled }}
               scheme: HTTPS
               {{- end }}
@@ -174,7 +183,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /readyz
-              port: http
+              port: admin
               {{- if .Values.gateway.config.tls.enabled }}
               scheme: HTTPS
               {{- end }}

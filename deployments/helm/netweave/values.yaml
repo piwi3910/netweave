@@ -41,20 +41,56 @@ gateway:
 
   service:
     type: ClusterIP
-    port: 8080
-    targetPort: 8080
+    port: 8080         # Admin port (health, docs, metrics, admin API)
+    o2Port: 8443       # O2 mTLS port (O2-IMS, O2-DMS, O2-SMO)
+    tmfPort: 8444      # TMForum port
+    graphqlPort: 8445  # GraphQL port
     annotations: {}
 
+  # Per-flavor ingress configuration. Each flavor gets its own hostname,
+  # annotations, and TLS settings for fully independent NGINX configuration.
   ingress:
-    enabled: false
-    className: "nginx"
-    annotations: {}
-    hosts:
-      - host: netweave.local
-        paths:
-          - path: /
-            pathType: Prefix
-    tls: []
+    admin:
+      enabled: false
+      className: "nginx"
+      annotations: {}
+      hosts:
+        - host: api.netweave.local
+          paths:
+            - path: /
+              pathType: Prefix
+      tls: []
+    o2:
+      enabled: false
+      className: "nginx"
+      annotations:
+        nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+      hosts:
+        - host: o2.netweave.local
+          paths:
+            - path: /
+              pathType: Prefix
+      tls: []
+    tmf:
+      enabled: false
+      className: "nginx"
+      annotations: {}
+      hosts:
+        - host: tmf.netweave.local
+          paths:
+            - path: /
+              pathType: Prefix
+      tls: []
+    graphql:
+      enabled: false
+      className: "nginx"
+      annotations: {}
+      hosts:
+        - host: graphql.netweave.local
+          paths:
+            - path: /
+              pathType: Prefix
+      tls: []
 
   # Additional redirect URIs and web origins for the netweave-gateway Keycloak client.
   # Used to add ingress hostnames alongside the default localhost entries.

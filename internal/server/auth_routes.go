@@ -39,8 +39,8 @@ func (s *Server) SetupAuthRoutes(authStore auth.Store, authMw *auth.Middleware) 
 	roleHandler := handlers.NewRoleHandler(authStore, s.logger)
 	auditHandler := handlers.NewAuditHandler(authStore, s.logger)
 
-	// All admin routes live under /admin.
-	admin := s.router.Group("/admin")
+	// All admin routes live under /admin on the admin router.
+	admin := s.adminRouter.Group("/admin")
 
 	// --- Platform Admin Routes (/admin/platform/*) ---
 	// These require platform-admin role.

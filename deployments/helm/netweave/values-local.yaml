@@ -7,7 +7,7 @@
 #                       -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--enable-ssl-passthrough"}]'
 #   3. Install chart: helm install netweave . -f values-local.yaml -n netweave --create-namespace
 #   4. Setup certs:   netweave-cli setup certs
-#   5. Add to /etc/hosts: 127.0.0.1 admin.netweave.local api.netweave.local auth.netweave.local
+#   5. Add to /etc/hosts: 127.0.0.1 admin.netweave.local api.netweave.local auth.netweave.local o2.netweave.local tmf.netweave.local graphql.netweave.local
 
 # Gateway - single replica, local image
 gateway:
@@ -28,15 +28,62 @@ gateway:
     enabled: false
   affinity: {}
   ingress:
-    enabled: true
-    className: "nginx"
-    annotations:
-      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-    hosts:
-      - host: api.netweave.local
-        paths:
-          - path: /
-            pathType: Prefix
+    # Admin ingress: OAuth2 Bearer, TLS terminated at NGINX
+    admin:
+      enabled: true
+      className: "nginx"
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+      hosts:
+        - host: api.netweave.local
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: gateway-admin-ingress-tls
+          hosts:
+            - api.netweave.local
+    # O2 ingress: mTLS end-to-end via ssl-passthrough
+    o2:
+      enabled: true
+      className: "nginx"
+      annotations:
+        nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+      hosts:
+        - host: o2.netweave.local
+          paths:
+            - path: /
+              pathType: Prefix
+    # TMForum ingress: OAuth2 Bearer, TLS terminated at NGINX
+    tmf:
+      enabled: true
+      className: "nginx"
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+      hosts:
+        - host: tmf.netweave.local
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: gateway-tmf-ingress-tls
+          hosts:
+            - tmf.netweave.local
+    # GraphQL ingress: OAuth2 Bearer, TLS terminated at NGINX
+    graphql:
+      enabled: true
+      className: "nginx"
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+      hosts:
+        - host: graphql.netweave.local
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: gateway-graphql-ingress-tls
+          hosts:
+            - graphql.netweave.local
   keycloakClient:
     additionalRedirectUris:
       - "https://api.netweave.local/*"
@@ -65,7 +112,8 @@ gateway:
       autoProvisionUsers: true
       # Use tenant-admin for local dev; grant platform-admin explicitly per user
       defaultRole: tenant-admin
-    # TLS enabled with mTLS client cert verification
+    # TLS enabled - clientAuth applies to O2 mTLS port only.
+    # Admin, TMF, and GraphQL ports use NoClientCert (OAuth2 Bearer).
     tls:
       enabled: true
       certFile: /etc/netweave/tls/tls.crt
@@ -115,6 +163,9 @@ adminPortal:
       hostnames:
         - auth.netweave.local
         - api.netweave.local
+        - o2.netweave.local
+        - tmf.netweave.local
+        - graphql.netweave.local
 
 # PostgreSQL - official image, small
 postgresql:

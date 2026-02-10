@@ -14,9 +14,21 @@ spec:
   type: {{ .Values.gateway.service.type }}
   ports:
     - port: {{ .Values.gateway.service.port }}
-      targetPort: http
+      targetPort: admin
       protocol: TCP
-      name: http
+      name: admin
+    - port: {{ .Values.gateway.service.o2Port }}
+      targetPort: o2
+      protocol: TCP
+      name: o2
+    - port: {{ .Values.gateway.service.tmfPort }}
+      targetPort: tmf
+      protocol: TCP
+      name: tmf
+    - port: {{ .Values.gateway.service.graphqlPort }}
+      targetPort: graphql
+      protocol: TCP
+      name: graphql
     - port: 9090
       targetPort: metrics
       protocol: TCP

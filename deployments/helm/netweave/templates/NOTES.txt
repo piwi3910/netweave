@@ -13,18 +13,34 @@ IMPORTANT: NetWeave Gateway Deployment
 
 {{- if .Values.gateway.enabled }}
 
-1. Gateway Service:
-{{- if .Values.gateway.ingress.enabled }}
-   The gateway is accessible via Ingress:
-{{- range .Values.gateway.ingress.hosts }}
-     http{{ if $.Values.gateway.ingress.tls }}s{{ end }}://{{ .host }}
+1. Gateway Service (Multi-Port Architecture):
+   The gateway exposes 4 ports with different auth models:
+
+   Admin  ({{ .Values.gateway.service.port }}):    Health, docs, metrics, admin API (OAuth2)
+   O2     ({{ .Values.gateway.service.o2Port }}):   O2-IMS, O2-DMS, O2-SMO (mTLS)
+   TMF    ({{ .Values.gateway.service.tmfPort }}):  TMForum APIs (OAuth2)
+   GraphQL({{ .Values.gateway.service.graphqlPort }}): GraphQL API (OAuth2)
+
+{{- if .Values.gateway.ingress.admin.enabled }}
+   Ingress endpoints:
+{{- range .Values.gateway.ingress.admin.hosts }}
+     Admin:   https://{{ .host }}
+{{- end }}
+{{- range .Values.gateway.ingress.o2.hosts }}
+     O2:      https://{{ .host }} (mTLS)
+{{- end }}
+{{- range .Values.gateway.ingress.tmf.hosts }}
+     TMF:     https://{{ .host }}
+{{- end }}
+{{- range .Values.gateway.ingress.graphql.hosts }}
+     GraphQL: https://{{ .host }}
 {{- end }}
 {{- else }}
    The gateway service is exposed as ClusterIP. To access it:
 
    $ kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "netweave.fullname" . }} 8080:{{ .Values.gateway.service.port }}
 
-   Then access the gateway at: http://localhost:8080
+   Then access the admin API at: http://localhost:8080
 {{- end }}
 
 2. Health Endpoints:

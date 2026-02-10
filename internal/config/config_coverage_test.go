@@ -177,7 +177,9 @@ func TestValidateProductionRules(t *testing.T) {
 		{
 			name: "production without TLS fails",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				Environment: "prod",
@@ -193,7 +195,9 @@ func TestValidateProductionRules(t *testing.T) {
 		{
 			name: "production without mTLS require-and-verify fails",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				Environment: "prod",
@@ -212,7 +216,9 @@ func TestValidateProductionRules(t *testing.T) {
 		{
 			name: "production without rate limiting fails",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				Environment: "prod",
@@ -231,7 +237,9 @@ func TestValidateProductionRules(t *testing.T) {
 		{
 			name: "production with development logging fails",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				Environment: "prod",
@@ -250,7 +258,9 @@ func TestValidateProductionRules(t *testing.T) {
 		{
 			name: "production with debug logging fails",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				Environment: "prod",
@@ -269,7 +279,9 @@ func TestValidateProductionRules(t *testing.T) {
 		{
 			name: "production with response validation fails",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				Environment: "prod",
@@ -289,7 +301,9 @@ func TestValidateProductionRules(t *testing.T) {
 		{
 			name: "production CORS enabled without origins fails",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				Environment: "prod",
@@ -312,7 +326,9 @@ func TestValidateProductionRules(t *testing.T) {
 		{
 			name: "valid production config passes",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				Environment: "prod",
@@ -362,7 +378,9 @@ func TestValidateStagingRules(t *testing.T) {
 		{
 			name: "staging without TLS fails",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				Environment: "staging",
@@ -378,7 +396,9 @@ func TestValidateStagingRules(t *testing.T) {
 		{
 			name: "staging without rate limiting fails",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				Environment: "staging",
@@ -397,7 +417,9 @@ func TestValidateStagingRules(t *testing.T) {
 		{
 			name: "valid staging config passes",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				Environment: "staging",
@@ -497,9 +519,11 @@ func TestValidateGlobalRateLimit(t *testing.T) {
 		{
 			name: "negative global requests per second",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				Auth:   config.AuthConfig{Backend: "redis"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Auth:  config.AuthConfig{Backend: "redis"},
 				Observability: config.ObservabilityConfig{
 					Logging: config.LoggingConfig{Level: "info", Format: "json"},
 				},
@@ -518,9 +542,11 @@ func TestValidateGlobalRateLimit(t *testing.T) {
 		{
 			name: "negative global max concurrent requests",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				Auth:   config.AuthConfig{Backend: "redis"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Auth:  config.AuthConfig{Backend: "redis"},
 				Observability: config.ObservabilityConfig{
 					Logging: config.LoggingConfig{Level: "info", Format: "json"},
 				},
@@ -562,9 +588,11 @@ func TestValidateEndpointRateLimits(t *testing.T) {
 		{
 			name: "endpoint with empty path",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				Auth:   config.AuthConfig{Backend: "redis"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Auth:  config.AuthConfig{Backend: "redis"},
 				Observability: config.ObservabilityConfig{
 					Logging: config.LoggingConfig{Level: "info", Format: "json"},
 				},
@@ -583,9 +611,11 @@ func TestValidateEndpointRateLimits(t *testing.T) {
 		{
 			name: "endpoint with empty method",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				Auth:   config.AuthConfig{Backend: "redis"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Auth:  config.AuthConfig{Backend: "redis"},
 				Observability: config.ObservabilityConfig{
 					Logging: config.LoggingConfig{Level: "info", Format: "json"},
 				},
@@ -604,9 +634,11 @@ func TestValidateEndpointRateLimits(t *testing.T) {
 		{
 			name: "endpoint with negative requests per second",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				Auth:   config.AuthConfig{Backend: "redis"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Auth:  config.AuthConfig{Backend: "redis"},
 				Observability: config.ObservabilityConfig{
 					Logging: config.LoggingConfig{Level: "info", Format: "json"},
 				},
@@ -625,9 +657,11 @@ func TestValidateEndpointRateLimits(t *testing.T) {
 		{
 			name: "endpoint with negative burst size",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				Auth:   config.AuthConfig{Backend: "redis"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Auth:  config.AuthConfig{Backend: "redis"},
 				Observability: config.ObservabilityConfig{
 					Logging: config.LoggingConfig{Level: "info", Format: "json"},
 				},
@@ -646,9 +680,11 @@ func TestValidateEndpointRateLimits(t *testing.T) {
 		{
 			name: "valid endpoint rate limit config",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				Auth:   config.AuthConfig{Backend: "redis"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Auth:  config.AuthConfig{Backend: "redis"},
 				Observability: config.ObservabilityConfig{
 					Logging: config.LoggingConfig{Level: "info", Format: "json"},
 				},
@@ -689,7 +725,9 @@ func TestValidateStorageMode(t *testing.T) {
 		{
 			name: "invalid storage mode",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				StorageMode: "invalid",
@@ -703,7 +741,9 @@ func TestValidateStorageMode(t *testing.T) {
 		{
 			name: "redis storage mode valid",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				StorageMode: "redis",
@@ -716,7 +756,9 @@ func TestValidateStorageMode(t *testing.T) {
 		{
 			name: "empty storage mode defaults to redis",
 			cfg: &config.Config{
-				Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
 				Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth:        config.AuthConfig{Backend: "redis"},
 				StorageMode: "",
@@ -753,9 +795,11 @@ func TestValidateAuth(t *testing.T) {
 		{
 			name: "invalid auth backend",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				Auth:   config.AuthConfig{Backend: "invalid"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Auth:  config.AuthConfig{Backend: "invalid"},
 				Observability: config.ObservabilityConfig{
 					Logging: config.LoggingConfig{Level: "info", Format: "json"},
 				},
@@ -766,9 +810,11 @@ func TestValidateAuth(t *testing.T) {
 		{
 			name: "postgres auth backend valid",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-				Auth:   config.AuthConfig{Backend: "postgres"},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Auth:  config.AuthConfig{Backend: "postgres"},
 				Observability: config.ObservabilityConfig{
 					Logging: config.LoggingConfig{Level: "info", Format: "json"},
 				},
@@ -778,8 +824,10 @@ func TestValidateAuth(t *testing.T) {
 		{
 			name: "keycloak backend missing base_url",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth: config.AuthConfig{
 					Backend: "keycloak",
 					Keycloak: config.KeycloakConfig{
@@ -797,8 +845,10 @@ func TestValidateAuth(t *testing.T) {
 		{
 			name: "keycloak backend missing realm",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth: config.AuthConfig{
 					Backend: "keycloak",
 					Keycloak: config.KeycloakConfig{
@@ -816,8 +866,10 @@ func TestValidateAuth(t *testing.T) {
 		{
 			name: "keycloak backend missing client_id",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth: config.AuthConfig{
 					Backend: "keycloak",
 					Keycloak: config.KeycloakConfig{
@@ -835,8 +887,10 @@ func TestValidateAuth(t *testing.T) {
 		{
 			name: "keycloak backend missing admin_username",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth: config.AuthConfig{
 					Backend: "keycloak",
 					Keycloak: config.KeycloakConfig{
@@ -856,8 +910,10 @@ func TestValidateAuth(t *testing.T) {
 		{
 			name: "keycloak backend with invalid timeout",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth: config.AuthConfig{
 					Backend: "keycloak",
 					Keycloak: config.KeycloakConfig{
@@ -880,8 +936,10 @@ func TestValidateAuth(t *testing.T) {
 		{
 			name: "valid keycloak backend config",
 			cfg: &config.Config{
-				Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-				Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+				Server: config.ServerConfig{
+					Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+				},
+				Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 				Auth: config.AuthConfig{
 					Backend: "keycloak",
 					Keycloak: config.KeycloakConfig{
@@ -922,9 +980,11 @@ func TestValidateAuth(t *testing.T) {
 // TestValidateInvalidTracingProvider tests invalid tracing provider validation.
 func TestValidateInvalidTracingProvider(t *testing.T) {
 	cfg := &config.Config{
-		Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-		Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-		Auth:   config.AuthConfig{Backend: "redis"},
+		Server: config.ServerConfig{
+			Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+		},
+		Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+		Auth:  config.AuthConfig{Backend: "redis"},
 		Observability: config.ObservabilityConfig{
 			Logging: config.LoggingConfig{Level: "info", Format: "json"},
 			Tracing: config.TracingConfig{
@@ -943,9 +1003,11 @@ func TestValidateInvalidTracingProvider(t *testing.T) {
 // TestValidateMetricsEmptyPath tests metrics with empty path validation.
 func TestValidateMetricsEmptyPath(t *testing.T) {
 	cfg := &config.Config{
-		Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-		Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-		Auth:   config.AuthConfig{Backend: "redis"},
+		Server: config.ServerConfig{
+			Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+		},
+		Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+		Auth:  config.AuthConfig{Backend: "redis"},
 		Observability: config.ObservabilityConfig{
 			Logging: config.LoggingConfig{Level: "info", Format: "json"},
 			Metrics: config.MetricsConfig{
@@ -963,9 +1025,11 @@ func TestValidateMetricsEmptyPath(t *testing.T) {
 // TestValidateRateLimitDisabled tests that validation passes when rate limit is disabled.
 func TestValidateRateLimitDisabled(t *testing.T) {
 	cfg := &config.Config{
-		Server: config.ServerConfig{Port: 8080, GinMode: "release"},
-		Redis:  config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
-		Auth:   config.AuthConfig{Backend: "redis"},
+		Server: config.ServerConfig{
+			Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+		},
+		Redis: config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
+		Auth:  config.AuthConfig{Backend: "redis"},
 		Observability: config.ObservabilityConfig{
 			Logging: config.LoggingConfig{Level: "info", Format: "json"},
 		},
@@ -1022,7 +1086,9 @@ func TestResolveConfigPath_InvalidExtension(t *testing.T) {
 // TestValidateEnvironmentRulesUnknown tests unknown environment defaults to development.
 func TestValidateEnvironmentRulesUnknown(t *testing.T) {
 	cfg := &config.Config{
-		Server:      config.ServerConfig{Port: 8080, GinMode: "release"},
+		Server: config.ServerConfig{
+			Port: 8080, O2Port: 8443, TMFPort: 8444, GraphQLPort: 8445, GinMode: "release",
+		},
 		Redis:       config.RedisConfig{Mode: "standalone", Addresses: []string{"localhost:6379"}},
 		Auth:        config.AuthConfig{Backend: "redis"},
 		Environment: "unknown-env",

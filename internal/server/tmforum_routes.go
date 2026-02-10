@@ -45,7 +45,7 @@ func (s *Server) setupTMForumRoutesEarly() {
 	tmfGuard := PluginGuard(s.pluginRegistry, "tmforum")
 
 	// TMF639 - Resource Inventory Management API v4
-	tmf639 := s.router.Group("/tmf-api/resourceInventoryManagement/v4")
+	tmf639 := s.tmfRouter.Group("/tmf-api/resourceInventoryManagement/v4")
 	tmf639.Use(tmfGuard)
 	{
 		// Resource CRUD operations
@@ -67,7 +67,7 @@ func (s *Server) setupTMForumRoutesEarly() {
 	}
 
 	// TMF638 - Service Inventory Management API v4
-	tmf638 := s.router.Group("/tmf-api/serviceInventoryManagement/v4")
+	tmf638 := s.tmfRouter.Group("/tmf-api/serviceInventoryManagement/v4")
 	tmf638.Use(tmfGuard)
 	{
 		// Service CRUD operations
@@ -89,7 +89,7 @@ func (s *Server) setupTMForumRoutesEarly() {
 	}
 
 	// TMF641 - Service Ordering Management API v4
-	tmf641 := s.router.Group("/tmf-api/serviceOrdering/v4")
+	tmf641 := s.tmfRouter.Group("/tmf-api/serviceOrdering/v4")
 	tmf641.Use(tmfGuard)
 	{
 		// Service Order CRUD operations
@@ -111,7 +111,7 @@ func (s *Server) setupTMForumRoutesEarly() {
 	}
 
 	// TMF688 - Event Management API v4
-	tmf688 := s.router.Group("/tmf-api/eventManagement/v4")
+	tmf688 := s.tmfRouter.Group("/tmf-api/eventManagement/v4")
 	tmf688.Use(tmfGuard)
 	{
 		// Event operations
@@ -135,7 +135,7 @@ func (s *Server) setupTMForumRoutesEarly() {
 	}
 
 	// TMF642 - Alarm Management API v4
-	tmf642 := s.router.Group("/tmf-api/alarmManagement/v4")
+	tmf642 := s.tmfRouter.Group("/tmf-api/alarmManagement/v4")
 	tmf642.Use(tmfGuard)
 	{
 		// Alarm operations
@@ -154,7 +154,7 @@ func (s *Server) setupTMForumRoutesEarly() {
 	}
 
 	// TMF640 - Service Activation and Configuration API v4
-	tmf640 := s.router.Group("/tmf-api/serviceActivation/v4")
+	tmf640 := s.tmfRouter.Group("/tmf-api/serviceActivation/v4")
 	tmf640.Use(tmfGuard)
 	{
 		// Service activation operations
@@ -170,7 +170,7 @@ func (s *Server) setupTMForumRoutesEarly() {
 	}
 
 	// TMF620 - Product Catalog Management API v4
-	tmf620 := s.router.Group("/tmf-api/productCatalog/v4")
+	tmf620 := s.tmfRouter.Group("/tmf-api/productCatalog/v4")
 	tmf620.Use(tmfGuard)
 	{
 		// Product offering operations

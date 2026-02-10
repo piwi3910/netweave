@@ -46,13 +46,13 @@ func (s *Server) setupGraphQLRoutes() {
 	// GraphQL query endpoint (POST /graphql).
 	// The graphqlContextMiddleware resolves the adapter per-request and injects it into
 	// the standard context.Context so that gqlgen resolvers can access it.
-	s.router.POST("/graphql", gqlGuard, s.graphqlContextMiddleware(), gqlserver.GinHandler(gqlSrv))
+	s.graphqlRouter.POST("/graphql", gqlGuard, s.graphqlContextMiddleware(), gqlserver.GinHandler(gqlSrv))
 
 	// GraphQL playground UI (GET /graphql).
 	// Only enabled in development mode for security.
 	// Provides interactive IDE for exploring the GraphQL schema.
 	if s.config.Server.GinMode != "release" {
-		s.router.GET("/graphql", gqlGuard, gqlserver.PlaygroundHandler("/graphql"))
+		s.graphqlRouter.GET("/graphql", gqlGuard, gqlserver.PlaygroundHandler("/graphql"))
 		s.logger.Info("GraphQL playground enabled at /graphql")
 	}
 

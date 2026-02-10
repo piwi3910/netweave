@@ -139,51 +139,46 @@ func (s *Server) resolveAdapter(c *gin.Context) adapter.Adapter {
 	return adp
 }
 
-// setupRoutes configures all HTTP routes for the O2-IMS Gateway.
-// It organizes routes into logical groups:
-//   - Health and readiness endpoints
-//   - Prometheus metrics endpoint
-//   - O2-IMS API v1 endpoints (consolidated with all features)
+// setupRoutes configures all HTTP routes across the multi-port architecture.
+// Routes are distributed across 4 routers:
+//   - adminRouter: Health, metrics, docs, admin API, info endpoints
+//   - o2Router:    O2-IMS, O2-DMS, O2-SMO (mTLS authenticated)
+//   - tmfRouter:   TMForum APIs (OAuth2 authenticated)
+//   - graphqlRouter: GraphQL API (OAuth2 authenticated)
 func (s *Server) setupRoutes() {
-	// Health check endpoints (no authentication required)
-	s.router.GET("/health", s.handleHealth)
-	s.router.GET("/healthz", s.handleHealth)
-	s.router.GET("/ready", s.handleReadiness)
-	s.router.GET("/readyz", s.handleReadiness)
+	// === Admin Router (port 8080): health, metrics, docs, admin, info ===
+	s.adminRouter.GET("/health", s.handleHealth)
+	s.adminRouter.GET("/healthz", s.handleHealth)
+	s.adminRouter.GET("/ready", s.handleReadiness)
+	s.adminRouter.GET("/readyz", s.handleReadiness)
 
-	// Metrics endpoint (if enabled)
 	if s.config.Observability.Metrics.Enabled {
-		s.router.GET(s.config.Observability.Metrics.Path, s.handleMetrics)
+		s.adminRouter.GET(s.config.Observability.Metrics.Path, s.handleMetrics)
 	}
 
-	// Initialize version configuration
+	s.adminRouter.GET("/o2ims", s.handleAPIInfo)
+	s.adminRouter.GET("/", s.handleRoot)
+
+	// Documentation endpoints on admin router
+	s.SetupDocsRoutes()
+
+	// === O2 Router (port 8443): O2-IMS v1 routes with mTLS ===
 	versionConfig := NewVersionConfig()
 
-	// O2-IMS API v1 routes (O-RAN compliant)
-	// Base path: /o2ims-infrastructureInventory/v1 (per O-RAN O2 IMS specification)
-	// Includes all features: basic operations, batch operations, and multi-tenancy support
-	v1 := s.router.Group("/o2ims-infrastructureInventory/v1")
+	v1 := s.o2Router.Group("/o2ims-infrastructureInventory/v1")
 	v1.Use(PluginGuard(s.pluginRegistry, "o2ims"))
 	v1.Use(VersioningMiddleware(versionConfig))
 
-	// Apply tenant middleware if multi-tenancy is enabled
 	if s.tenantHandler != nil {
 		v1.Use(TenantMiddleware())
 	}
 
 	s.setupV1Routes(v1)
 
-	// TMForum API routes (handler will be set when DMS is initialized)
+	// === TMF Router (port 8444): TMForum API routes ===
 	s.setupTMForumRoutesEarly()
 
-	// API information endpoint
-	s.router.GET("/o2ims", s.handleAPIInfo)
-	s.router.GET("/", s.handleRoot)
-
-	// Documentation endpoints (Swagger UI, OpenAPI spec)
-	s.SetupDocsRoutes()
-
-	// GraphQL API endpoint
+	// === GraphQL Router (port 8445): GraphQL endpoint ===
 	s.setupGraphQLRoutes()
 }
 

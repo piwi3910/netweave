@@ -164,41 +164,46 @@ func TestSetupDMSRoutes(t *testing.T) {
 	// Set up DMS using the server.server method.
 	srv.SetupDMS(reg)
 
-	// Verify all routes are registered by checking each endpoint.
-	routes := srv.Router().Routes()
-	routePaths := make(map[string][]string)
-	for _, r := range routes {
-		routePaths[r.Path] = append(routePaths[r.Path], r.Method)
+	// Check main DMS info endpoint (on admin router).
+	adminRoutes := srv.Router().Routes()
+	adminRoutePaths := make(map[string][]string)
+	for _, r := range adminRoutes {
+		adminRoutePaths[r.Path] = append(adminRoutePaths[r.Path], r.Method)
+	}
+	assert.Contains(t, adminRoutePaths["/o2dms"], http.MethodGet)
+
+	// Check DMS API routes (on O2 router).
+	o2Routes := srv.O2Router().Routes()
+	o2RoutePaths := make(map[string][]string)
+	for _, r := range o2Routes {
+		o2RoutePaths[r.Path] = append(o2RoutePaths[r.Path], r.Method)
 	}
 
-	// Check main DMS info endpoint.
-	assert.Contains(t, routePaths["/o2dms"], http.MethodGet)
-
 	// Check deployment lifecycle endpoint.
-	assert.Contains(t, routePaths["/o2dms/v1/deploymentLifecycle"], http.MethodGet)
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/deploymentLifecycle"], http.MethodGet)
 
 	// Check nfDeployments endpoints.
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments"], http.MethodGet)
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments"], "POST")
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId"], http.MethodGet)
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId"], "PUT")
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId"], "DELETE")
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/scale"], "POST")
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/rollback"], "POST")
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/status"], http.MethodGet)
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/history"], http.MethodGet)
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/nfDeployments"], http.MethodGet)
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/nfDeployments"], "POST")
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/nfDeployments/:nfDeploymentId"], http.MethodGet)
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/nfDeployments/:nfDeploymentId"], "PUT")
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/nfDeployments/:nfDeploymentId"], "DELETE")
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/scale"], "POST")
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/rollback"], "POST")
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/status"], http.MethodGet)
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/nfDeployments/:nfDeploymentId/history"], http.MethodGet)
 
 	// Check nfDeploymentDescriptors endpoints.
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeploymentDescriptors"], http.MethodGet)
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeploymentDescriptors"], "POST")
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeploymentDescriptors/:nfDeploymentDescriptorId"], http.MethodGet)
-	assert.Contains(t, routePaths["/o2dms/v1/nfDeploymentDescriptors/:nfDeploymentDescriptorId"], "DELETE")
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/nfDeploymentDescriptors"], http.MethodGet)
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/nfDeploymentDescriptors"], "POST")
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/nfDeploymentDescriptors/:nfDeploymentDescriptorId"], http.MethodGet)
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/nfDeploymentDescriptors/:nfDeploymentDescriptorId"], "DELETE")
 
 	// Check subscriptions endpoints.
-	assert.Contains(t, routePaths["/o2dms/v1/subscriptions"], http.MethodGet)
-	assert.Contains(t, routePaths["/o2dms/v1/subscriptions"], "POST")
-	assert.Contains(t, routePaths["/o2dms/v1/subscriptions/:subscriptionId"], http.MethodGet)
-	assert.Contains(t, routePaths["/o2dms/v1/subscriptions/:subscriptionId"], "DELETE")
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/subscriptions"], http.MethodGet)
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/subscriptions"], "POST")
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/subscriptions/:subscriptionId"], http.MethodGet)
+	assert.Contains(t, o2RoutePaths["/o2dms/v1/subscriptions/:subscriptionId"], "DELETE")
 }
 
 func TestDMSRoutesIntegration(t *testing.T) {
@@ -215,40 +220,47 @@ func TestDMSRoutesIntegration(t *testing.T) {
 	srv.SetupDMS(reg)
 
 	// Test that we can hit each endpoint type.
+	// DMS info endpoint is on admin router, DMS API routes are on O2 router.
 	testCases := []struct {
 		name           string
 		method         string
 		path           string
+		router         string // "admin" or "o2"
 		expectedStatus int
 	}{
 		{
 			name:           "DMS API info",
 			method:         http.MethodGet,
 			path:           "/o2dms",
+			router:         "admin",
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "Deployment lifecycle info",
 			method:         http.MethodGet,
 			path:           "/o2dms/v1/deploymentLifecycle",
+			router:         "o2",
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "List NF deployments",
 			method:         http.MethodGet,
 			path:           "/o2dms/v1/nfDeployments",
+			router:         "o2",
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "List NF deployment descriptors",
 			method:         http.MethodGet,
 			path:           "/o2dms/v1/nfDeploymentDescriptors",
+			router:         "o2",
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "List DMS subscriptions",
 			method:         http.MethodGet,
 			path:           "/o2dms/v1/subscriptions",
+			router:         "o2",
 			expectedStatus: http.StatusOK,
 		},
 	}
@@ -258,7 +270,11 @@ func TestDMSRoutesIntegration(t *testing.T) {
 			req := httptest.NewRequest(tc.method, tc.path, nil)
 			w := httptest.NewRecorder()
 
-			srv.Router().ServeHTTP(w, req)
+			if tc.router == "o2" {
+				srv.O2Router().ServeHTTP(w, req)
+			} else {
+				srv.Router().ServeHTTP(w, req)
+			}
 
 			assert.Equal(t, tc.expectedStatus, w.Code, "Unexpected status for %s %s", tc.method, tc.path)
 		})
@@ -295,10 +311,10 @@ func TestDMSFeaturesEndpoint(t *testing.T) {
 	// Set up DMS.
 	srv.SetupDMS(reg)
 
-	// Test v1 features endpoint.
+	// Test v1 features endpoint (on O2 router).
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2dms/v1/features", nil)
 	w := httptest.NewRecorder()
-	srv.Router().ServeHTTP(w, req)
+	srv.O2Router().ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var response map[string]interface{}
@@ -309,9 +325,9 @@ func TestDMSFeaturesEndpoint(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "multi_tenancy")
 	assert.Contains(t, w.Body.String(), "enhanced_filtering")
 
-	// Test that batch routes are registered under v1.
+	// Test that batch routes are registered under v1 (on O2 router).
 	req, _ = http.NewRequestWithContext(context.Background(), http.MethodGet, "/o2dms/v1/deploymentLifecycle", nil)
 	w = httptest.NewRecorder()
-	srv.Router().ServeHTTP(w, req)
+	srv.O2Router().ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 }

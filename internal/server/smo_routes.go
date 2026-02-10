@@ -263,8 +263,8 @@ func (h *SMOHandler) getPluginFromQuery(c *gin.Context) (smo.Plugin, error) {
 // setupSMORoutes configures all O2-SMO API routes under /o2smo/v1.
 // All features (batch operations, feature discovery, multi-tenancy) are consolidated in v1.
 func (s *Server) setupSMORoutes(smoHandler *SMOHandler) {
-	// O2-SMO API v1 routes (all features consolidated)
-	v1 := s.router.Group("/o2smo/v1")
+	// O2-SMO API v1 routes on O2 router (mTLS)
+	v1 := s.o2Router.Group("/o2smo/v1")
 	v1.Use(PluginGuard(s.pluginRegistry, "o2smo"))
 
 	// Apply dynamic routing middleware to resolve SMO registry per-request.

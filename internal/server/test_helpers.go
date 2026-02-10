@@ -24,11 +24,16 @@ func NewTestServer(cfg *config.Config) *Server {
 }
 
 // NewTestServerWithRouter creates a Server instance for testing with router and logger.
-// This is useful for testing route handlers.
+// This is useful for testing route handlers. The provided router is used as the admin router,
+// and separate routers are created for O2, TMF, and GraphQL to support multi-port architecture.
 func NewTestServerWithRouter(router *gin.Engine, logger *zap.Logger) *Server {
 	return &Server{
-		router: router,
-		logger: logger,
+		adminRouter:   router,
+		o2Router:      gin.New(),
+		tmfRouter:     gin.New(),
+		graphqlRouter: gin.New(),
+		router:        router,
+		logger:        logger,
 	}
 }
 
@@ -51,7 +56,9 @@ func NewTestServerWithMetrics(
 	// Set Gin mode
 	gin.SetMode(cfg.Server.GinMode)
 
-	// Create router
+	// For testing, all routers point to the same engine so that tests can
+	// use a single ServeHTTP call to reach any route regardless of which
+	// port it would be served on in production.
 	router := gin.New()
 
 	// Initialize batch handler (needed for resource CRUD operations)
@@ -59,13 +66,17 @@ func NewTestServerWithMetrics(
 
 	// Create minimal server for testing
 	srv := &Server{
-		config:       cfg,
-		logger:       logger,
-		router:       router,
-		adapter:      adp,
-		store:        store,
-		metrics:      nil, // Server's own metrics - not needed for these tests
-		batchHandler: batchHandler,
+		config:        cfg,
+		logger:        logger,
+		adminRouter:   router,
+		o2Router:      router,
+		tmfRouter:     router,
+		graphqlRouter: router,
+		router:        router,
+		adapter:       adp,
+		store:         store,
+		metrics:       nil, // Server's own metrics - not needed for these tests
+		batchHandler:  batchHandler,
 	}
 
 	// Setup routes (needed for resource CRUD tests)
