@@ -28,12 +28,13 @@ gateway:
     enabled: false
   affinity: {}
   ingress:
-    # Admin ingress: OAuth2 Bearer, TLS terminated at NGINX
+    # Admin ingress: OAuth2 Bearer, NGINX terminates external TLS and re-encrypts to backend
     admin:
       enabled: true
       className: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+        nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
       hosts:
         - host: api.netweave.local
           paths:
@@ -54,12 +55,13 @@ gateway:
           paths:
             - path: /
               pathType: Prefix
-    # TMForum ingress: OAuth2 Bearer, TLS terminated at NGINX
+    # TMForum ingress: OAuth2 Bearer, NGINX terminates external TLS and re-encrypts to backend
     tmf:
       enabled: true
       className: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+        nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
       hosts:
         - host: tmf.netweave.local
           paths:
@@ -69,12 +71,13 @@ gateway:
         - secretName: gateway-tmf-ingress-tls
           hosts:
             - tmf.netweave.local
-    # GraphQL ingress: OAuth2 Bearer, TLS terminated at NGINX
+    # GraphQL ingress: OAuth2 Bearer, NGINX terminates external TLS and re-encrypts to backend
     graphql:
       enabled: true
       className: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+        nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
       hosts:
         - host: graphql.netweave.local
           paths:
