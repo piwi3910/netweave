@@ -29,12 +29,16 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -1276,6 +1280,19 @@ func initializeOAuth2(
 		Timeout:      10 * time.Second,
 	}
 
+	// When the OAuth2 Keycloak URL is HTTPS and a CA file is configured,
+	// create a custom HTTP client that trusts the CA certificate.
+	if strings.HasPrefix(cfg.OAuth2.KeycloakBaseURL, "https://") && cfg.TLS.CAFile != "" {
+		httpClient, tlsErr := buildOAuth2HTTPClient(cfg.TLS.CAFile, 10*time.Second)
+		if tlsErr != nil {
+			logger.Warn("Failed to build TLS HTTP client for OAuth2, falling back to default",
+				zap.Error(tlsErr),
+			)
+		} else {
+			keycloakCfg.HTTPClient = httpClient
+		}
+	}
+
 	keycloakClient, oauth2ClientErr := keycloak.NewClient(keycloakCfg)
 	if oauth2ClientErr != nil {
 		return nil, nil, fmt.Errorf(
@@ -1310,6 +1327,29 @@ func initializeOAuth2(
 	)
 
 	return oauth2Auth, oauth2Cfg, nil
+}
+
+// buildOAuth2HTTPClient creates an HTTP client that trusts the given CA file.
+func buildOAuth2HTTPClient(caFile string, timeout time.Duration) (*http.Client, error) {
+	caCert, err := os.ReadFile(caFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CA file %s: %w", caFile, err)
+	}
+
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("failed to parse CA certificate from %s", caFile)
+	}
+
+	return &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs:    caCertPool,
+				MinVersion: tls.VersionTLS12,
+			},
+		},
+	}, nil
 }
 
 // InitializeAuth initializes the authentication store and middleware.

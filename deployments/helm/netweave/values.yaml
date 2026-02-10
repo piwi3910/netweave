@@ -98,6 +98,11 @@ gateway:
     additionalRedirectUris: []
     additionalWebOrigins: []
 
+  # hostAliases injects entries into the gateway pod's /etc/hosts.
+  # Used to resolve ingress hostnames from inside the pod (e.g., for OAuth2 introspection
+  # via Keycloak's external URL so the token issuer matches).
+  hostAliases: []
+
   resources:
     limits:
       cpu: 1000m

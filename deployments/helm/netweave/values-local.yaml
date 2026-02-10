@@ -87,6 +87,14 @@ gateway:
         - secretName: gateway-graphql-ingress-tls
           hosts:
             - graphql.netweave.local
+  # Resolve auth.netweave.local from inside the gateway pod for OAuth2 introspection.
+  # The token issuer is https://auth.netweave.local, so introspection must use the same URL.
+  # Set the IP to the NGINX ingress controller's ClusterIP:
+  #   kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.spec.clusterIP}'
+  hostAliases:
+    - ip: "10.96.37.177"
+      hostnames:
+        - auth.netweave.local
   keycloakClient:
     additionalRedirectUris:
       - "https://api.netweave.local/*"
@@ -112,7 +120,12 @@ gateway:
     # OAuth2 enabled for admin portal Bearer token auth
     oauth2:
       enabled: true
+      # Use the external Keycloak URL so the token issuer matches during introspection.
+      # The gateway pod resolves auth.netweave.local via hostAliases above.
+      keycloakBaseURL: "https://auth.netweave.local"
       autoProvisionUsers: true
+      # Don't require tenant_id claim — platform-admin tokens don't have one.
+      requireTenantClaim: false
       # Use tenant-admin for local dev; grant platform-admin explicitly per user
       defaultRole: tenant-admin
     # TLS enabled - clientAuth applies to O2 mTLS port only.

@@ -31,6 +31,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "netweave.serviceAccountName" . }}
+      {{- with .Values.gateway.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         {{- toYaml .Values.gateway.podSecurityContext | nindent 8 }}
       initContainers:
