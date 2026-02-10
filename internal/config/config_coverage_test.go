@@ -1119,3 +1119,82 @@ redis:
 	require.NotNil(t, cfg)
 	assert.Equal(t, 7070, cfg.Server.Port)
 }
+
+// TestValidateNoDuplicatePorts tests that duplicate server port configurations are rejected.
+func TestValidateNoDuplicatePorts(t *testing.T) {
+	tests := []struct {
+		name        string
+		port        int
+		o2Port      int
+		tmfPort     int
+		graphqlPort int
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:        "all unique ports passes port validation",
+			port:        8080,
+			o2Port:      8443,
+			tmfPort:     8444,
+			graphqlPort: 8445,
+			wantErr:     false,
+		},
+		{
+			name:        "admin and o2 duplicate",
+			port:        8080,
+			o2Port:      8080,
+			tmfPort:     8444,
+			graphqlPort: 8445,
+			wantErr:     true,
+			errContains: "duplicate server port 8080",
+		},
+		{
+			name:        "tmf and graphql duplicate",
+			port:        8080,
+			o2Port:      8443,
+			tmfPort:     8444,
+			graphqlPort: 8444,
+			wantErr:     true,
+			errContains: "duplicate server port 8444",
+		},
+		{
+			name:        "all same port",
+			port:        9090,
+			o2Port:      9090,
+			tmfPort:     9090,
+			graphqlPort: 9090,
+			wantErr:     true,
+			errContains: "duplicate server port 9090",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Server: config.ServerConfig{
+					Port:        tt.port,
+					O2Port:      tt.o2Port,
+					TMFPort:     tt.tmfPort,
+					GraphQLPort: tt.graphqlPort,
+					GinMode:     "release",
+				},
+				Redis: config.RedisConfig{
+					Mode:      "standalone",
+					Addresses: []string{"localhost:6379"},
+				},
+			}
+
+			err := cfg.Validate()
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+			} else {
+				// Validate() may fail on other config sections (logging, etc.)
+				// but should NOT fail on duplicate port validation.
+				if err != nil {
+					assert.NotContains(t, err.Error(), "duplicate server port")
+				}
+			}
+		})
+	}
+}

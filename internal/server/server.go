@@ -575,11 +575,37 @@ func (s *Server) Start() error {
 	s.startListener("tmf", s.tmfServer, serverErrors)
 	s.startListener("graphql", s.graphqlServer, serverErrors)
 
+	// Brief grace period for port binding failures to surface.
+	// ListenAndServe returns immediately on bind errors (e.g. port in use),
+	// so 200ms is enough to detect them before entering the main loop.
+	time.Sleep(200 * time.Millisecond)
+
+	// Drain any startup errors that arrived during the grace period.
+	var startupErrs []error
+	for {
+		select {
+		case err := <-serverErrors:
+			startupErrs = append(startupErrs, err)
+		default:
+			goto doneCheck
+		}
+	}
+doneCheck:
+	if len(startupErrs) > 0 {
+		s.logger.Error("server startup failed, shutting down all listeners",
+			zap.Int("failedCount", len(startupErrs)),
+		)
+		s.Shutdown()
+		return fmt.Errorf("server startup failed: %w", errors.Join(startupErrs...))
+	}
+
+	s.logger.Info("all servers started successfully")
+
 	// Channel to listen for interrupt signals
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
 
-	// Block until we receive a signal or an error
+	// Block until we receive a signal or a runtime error
 	select {
 	case err := <-serverErrors:
 		return fmt.Errorf("server error: %w", err)
@@ -763,7 +789,7 @@ func (s *Server) shutdownWithContext(ctx context.Context) error {
 			}
 		}
 
-		// Shutdown all HTTP servers
+		// Shutdown all HTTP servers, collecting all errors
 		servers := map[string]*http.Server{
 			"admin":   s.httpServer,
 			"o2":      s.o2Server,
@@ -771,6 +797,7 @@ func (s *Server) shutdownWithContext(ctx context.Context) error {
 			"graphql": s.graphqlServer,
 		}
 
+		var shutdownErrs []error
 		for name, srv := range servers {
 			if srv == nil {
 				continue
@@ -780,10 +807,12 @@ func (s *Server) shutdownWithContext(ctx context.Context) error {
 					zap.String("server", name),
 					zap.Error(err),
 				)
-				if shutdownErr == nil {
-					shutdownErr = fmt.Errorf("%s server shutdown failed: %w", name, err)
-				}
+				shutdownErrs = append(shutdownErrs, fmt.Errorf("%s: %w", name, err))
 			}
+		}
+
+		if len(shutdownErrs) > 0 {
+			shutdownErr = errors.Join(shutdownErrs...)
 		}
 
 		s.logger.Info("all servers shutdown complete")
