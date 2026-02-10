@@ -109,14 +109,15 @@ curl -ks https://api.netweave.local/healthz --cacert ~/.netweave/ca.crt | jq .
 
 ## Phase 3: Get Admin Access
 
-### 3.1 Obtain an OAuth2 Token
+The CLI commands for backends, plugins, and backend-access handle OAuth2 authentication automatically. They read the client secret from the K8s secret `netweave-secret` and obtain a Bearer token from Keycloak.
 
-The admin user was created during bootstrap with:
+Default credentials (set during bootstrap):
 - Email: `admin@netweave.local`
 - Password: `admin`
-- Cert CN: `admin.netweave.local`
 
-Get a Bearer token from Keycloak:
+### 3.1 Verify Admin Access
+
+For commands that still use curl, obtain a token manually:
 
 ```bash
 # Get the gateway client secret from K8s
@@ -150,23 +151,36 @@ curl -ks https://api.netweave.local/admin/tenant/me \
 
 ## Phase 4: Enable the O2-IMS Interface
 
-The O2-IMS plugin is disabled by default. Enable it via the admin API:
+The O2-IMS plugin is disabled by default. Enable it via the CLI:
 
 ```bash
-curl -ks -X PUT https://api.netweave.local/admin/platform/plugins/o2ims \
-  --cacert ~/.netweave/ca.crt \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"enabled": true}' | jq .
+build/netweave-cli plugins enable --name o2ims
 ```
 
 Verify it's enabled:
 
 ```bash
+build/netweave-cli plugins list
+```
+
+<details>
+<summary>Equivalent curl commands (reference)</summary>
+
+```bash
+# Enable plugin
+curl -ks -X PUT https://api.netweave.local/admin/platform/plugins/o2ims \
+  --cacert ~/.netweave/ca.crt \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": true}' | jq .
+
+# List plugins
 curl -ks https://api.netweave.local/admin/platform/plugins \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" | jq .
 ```
+
+</details>
 
 ---
 
@@ -175,6 +189,44 @@ curl -ks https://api.netweave.local/admin/platform/plugins \
 ### 5.1 Create Backend Alpha
 
 ```bash
+ALPHA_ID=$(build/netweave-cli backends create \
+  --name "Mock IMS Alpha" \
+  --category ims \
+  --adapter-type mock \
+  --description "Simulated O-Cloud infrastructure for Acme Telecom" \
+  --config populate_sample_data=true \
+  --config ocloud_id=ocloud-alpha-001 \
+  --json | jq -r '.id')
+
+echo "Alpha Backend ID: $ALPHA_ID"
+```
+
+### 5.2 Create Backend Beta
+
+```bash
+BETA_ID=$(build/netweave-cli backends create \
+  --name "Mock IMS Beta" \
+  --category ims \
+  --adapter-type mock \
+  --description "Simulated O-Cloud infrastructure for GlobalNet Corp" \
+  --config populate_sample_data=true \
+  --config ocloud_id=ocloud-beta-002 \
+  --json | jq -r '.id')
+
+echo "Beta Backend ID: $BETA_ID"
+```
+
+### 5.3 Verify Backends
+
+```bash
+build/netweave-cli backends list
+```
+
+<details>
+<summary>Equivalent curl commands (reference)</summary>
+
+```bash
+# Create Alpha
 ALPHA_ID=$(curl -ks -X POST https://api.netweave.local/admin/infrastructure/backends \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" \
@@ -190,12 +242,7 @@ ALPHA_ID=$(curl -ks -X POST https://api.netweave.local/admin/infrastructure/back
     }
   }' | jq -r '.id')
 
-echo "Alpha Backend ID: $ALPHA_ID"
-```
-
-### 5.2 Create Backend Beta
-
-```bash
+# Create Beta
 BETA_ID=$(curl -ks -X POST https://api.netweave.local/admin/infrastructure/backends \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" \
@@ -211,16 +258,13 @@ BETA_ID=$(curl -ks -X POST https://api.netweave.local/admin/infrastructure/backe
     }
   }' | jq -r '.id')
 
-echo "Beta Backend ID: $BETA_ID"
-```
-
-### 5.3 Verify Backends
-
-```bash
+# List backends
 curl -ks https://api.netweave.local/admin/infrastructure/backends \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" | jq '.backends[] | {id, name, category, adapterType, status}'
 ```
+
+</details>
 
 ---
 
@@ -287,6 +331,26 @@ curl -ks https://api.netweave.local/admin/platform/tenants \
 ### 7.1 Map Alpha Backend to Acme Telecom
 
 ```bash
+build/netweave-cli backend-access grant \
+  --tenant "$ACME_ID" \
+  --backend "$ALPHA_ID" \
+  --permissions read,subscribe
+```
+
+### 7.2 Map Beta Backend to GlobalNet Corp
+
+```bash
+build/netweave-cli backend-access grant \
+  --tenant "$GLOBALNET_ID" \
+  --backend "$BETA_ID" \
+  --permissions read,subscribe
+```
+
+<details>
+<summary>Equivalent curl commands (reference)</summary>
+
+```bash
+# Grant Alpha to Acme
 curl -ks -X POST "https://api.netweave.local/admin/infrastructure/tenants/${ACME_ID}/backend-access" \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" \
@@ -295,11 +359,8 @@ curl -ks -X POST "https://api.netweave.local/admin/infrastructure/tenants/${ACME
     \"backendId\": \"$ALPHA_ID\",
     \"permissions\": [\"read\", \"subscribe\"]
   }" | jq .
-```
 
-### 7.2 Map Beta Backend to GlobalNet Corp
-
-```bash
+# Grant Beta to GlobalNet
 curl -ks -X POST "https://api.netweave.local/admin/infrastructure/tenants/${GLOBALNET_ID}/backend-access" \
   --cacert ~/.netweave/ca.crt \
   -H "Authorization: Bearer $TOKEN" \
@@ -309,6 +370,8 @@ curl -ks -X POST "https://api.netweave.local/admin/infrastructure/tenants/${GLOB
     \"permissions\": [\"read\", \"subscribe\"]
   }" | jq .
 ```
+
+</details>
 
 ---
 
@@ -583,6 +646,17 @@ This removes:
 | `setup teardown --force` | Remove everything |
 | `certs issue --cn NAME --type client --out DIR` | Issue a client certificate |
 | `certs verify --cert FILE` | Verify a certificate |
+| `backends list` | List all backends |
+| `backends get --id ID` | Get backend details |
+| `backends create --name N --category C --adapter-type T` | Create a backend |
+| `backends update --id ID` | Update a backend |
+| `backends delete --id ID` | Delete a backend |
+| `backend-access list --tenant ID` | List tenant backend access |
+| `backend-access grant --tenant T --backend B --permissions P` | Grant backend access |
+| `backend-access revoke --tenant T --id ID` | Revoke backend access |
+| `plugins list` | List all plugins |
+| `plugins enable --name NAME` | Enable a plugin |
+| `plugins disable --name NAME` | Disable a plugin |
 
 ### Admin API Endpoints (via `api.netweave.local`, OAuth2 Bearer required)
 

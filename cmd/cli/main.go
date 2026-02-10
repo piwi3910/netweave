@@ -9,7 +9,10 @@ import (
 
 	"github.com/piwi3910/netweave/internal/cli/cmd"
 	apicommands "github.com/piwi3910/netweave/internal/cli/cmd/api"
+	"github.com/piwi3910/netweave/internal/cli/cmd/backendaccess"
+	"github.com/piwi3910/netweave/internal/cli/cmd/backends"
 	"github.com/piwi3910/netweave/internal/cli/cmd/certs"
+	"github.com/piwi3910/netweave/internal/cli/cmd/plugins"
 	"github.com/piwi3910/netweave/internal/cli/cmd/roles"
 	"github.com/piwi3910/netweave/internal/cli/cmd/setup"
 	"github.com/piwi3910/netweave/internal/cli/cmd/tenants"
@@ -34,6 +37,9 @@ func run() error {
 	root.AddCommand(roles.NewRolesCmd())
 	root.AddCommand(tenants.NewTenantsCmd())
 	root.AddCommand(certs.NewCertsCmd())
+	root.AddCommand(backends.NewBackendsCmd())
+	root.AddCommand(backendaccess.NewBackendAccessCmd())
+	root.AddCommand(plugins.NewPluginsCmd())
 
 	if err := root.Execute(); err != nil {
 		return fmt.Errorf("command failed: %w", err)
