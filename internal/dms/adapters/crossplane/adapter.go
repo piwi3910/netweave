@@ -134,43 +134,43 @@ func NewAdapter(config *Config) (*Adapter, error) {
 }
 
 // initialize performs lazy initialization of the Kubernetes client.
-func (c *Adapter) initialize() error {
-	c.InitOnce.Do(func() {
+func (a *Adapter) initialize() error {
+	a.InitOnce.Do(func() {
 		var cfg *rest.Config
 		var err error
 
-		if c.Config.Kubeconfig != "" {
-			cfg, err = clientcmd.BuildConfigFromFlags("", c.Config.Kubeconfig)
+		if a.Config.Kubeconfig != "" {
+			cfg, err = clientcmd.BuildConfigFromFlags("", a.Config.Kubeconfig)
 		} else {
 			cfg, err = rest.InClusterConfig()
 		}
 		if err != nil {
-			c.initErr = fmt.Errorf("failed to create Kubernetes config: %w", err)
+			a.initErr = fmt.Errorf("failed to create Kubernetes config: %w", err)
 			return
 		}
 
-		c.DynamicClient, err = dynamic.NewForConfig(cfg)
+		a.DynamicClient, err = dynamic.NewForConfig(cfg)
 		if err != nil {
-			c.initErr = fmt.Errorf("failed to create dynamic client: %w", err)
+			a.initErr = fmt.Errorf("failed to create dynamic client: %w", err)
 			return
 		}
 	})
 
-	return c.initErr
+	return a.initErr
 }
 
 // Name returns the adapter name.
-func (c *Adapter) Name() string {
+func (a *Adapter) Name() string {
 	return AdapterName
 }
 
 // Version returns the Crossplane version supported by this adapter.
-func (c *Adapter) Version() string {
+func (a *Adapter) Version() string {
 	return AdapterVersion
 }
 
 // Capabilities returns the capabilities supported by the Crossplane adapter.
-func (c *Adapter) Capabilities() []adapter.Capability {
+func (a *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityPackageManagement,
 		adapter.CapabilityDeploymentLifecycle,
@@ -179,7 +179,7 @@ func (c *Adapter) Capabilities() []adapter.Capability {
 }
 
 // ListDeploymentPackages retrieves all Crossplane Compositions.
-func (c *Adapter) ListDeploymentPackages(
+func (a *Adapter) ListDeploymentPackages(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.DeploymentPackage, error) {
@@ -187,31 +187,31 @@ func (c *Adapter) ListDeploymentPackages(
 		return nil, fmt.Errorf("context cancelled during list deployment packages: %w", err)
 	}
 
-	if err := c.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	compositions, err := c.DynamicClient.Resource(compositionsGVR).List(ctx, metav1.ListOptions{})
+	compositions, err := a.DynamicClient.Resource(compositionsGVR).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list compositions: %w", err)
 	}
 
 	packages := make([]*adapter.DeploymentPackage, 0, len(compositions.Items))
 	for i := range compositions.Items {
-		pkg := c.transformCompositionToPackage(&compositions.Items[i])
+		pkg := a.transformCompositionToPackage(&compositions.Items[i])
 		packages = append(packages, pkg)
 	}
 
 	// Apply pagination
 	if filter != nil && (filter.Limit > 0 || filter.Offset > 0) {
-		packages = c.applyPackagePagination(packages, filter.Limit, filter.Offset)
+		packages = a.applyPackagePagination(packages, filter.Limit, filter.Offset)
 	}
 
 	return packages, nil
 }
 
 // GetDeploymentPackage retrieves a specific Crossplane Composition by ID.
-func (c *Adapter) GetDeploymentPackage(
+func (a *Adapter) GetDeploymentPackage(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentPackage, error) {
@@ -219,20 +219,20 @@ func (c *Adapter) GetDeploymentPackage(
 		return nil, fmt.Errorf("context cancelled during get deployment package: %w", err)
 	}
 
-	if err := c.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	composition, err := c.DynamicClient.Resource(compositionsGVR).Get(ctx, id, metav1.GetOptions{})
+	composition, err := a.DynamicClient.Resource(compositionsGVR).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("package %s: %w", id, ErrPackageNotFound)
 	}
 
-	return c.transformCompositionToPackage(composition), nil
+	return a.transformCompositionToPackage(composition), nil
 }
 
 // UploadDeploymentPackage creates a new Crossplane Composition reference.
-func (c *Adapter) UploadDeploymentPackage(
+func (a *Adapter) UploadDeploymentPackage(
 	ctx context.Context,
 	pkg *adapter.DeploymentPackageUpload,
 ) (*adapter.DeploymentPackage, error) {
@@ -263,7 +263,7 @@ func (c *Adapter) UploadDeploymentPackage(
 }
 
 // DeleteDeploymentPackage is not supported for Crossplane.
-func (c *Adapter) DeleteDeploymentPackage(
+func (a *Adapter) DeleteDeploymentPackage(
 	ctx context.Context,
 	_ string,
 ) error {
@@ -275,7 +275,7 @@ func (c *Adapter) DeleteDeploymentPackage(
 }
 
 // ListDeployments retrieves all Crossplane Claims.
-func (c *Adapter) ListDeployments(
+func (a *Adapter) ListDeployments(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.Deployment, error) {
@@ -283,19 +283,19 @@ func (c *Adapter) ListDeployments(
 		return nil, fmt.Errorf("context cancelled during list deployments: %w", err)
 	}
 
-	if err := c.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
 	// List all Configurations as deployments
-	configs, err := c.DynamicClient.Resource(configurationGVR).List(ctx, metav1.ListOptions{})
+	configs, err := a.DynamicClient.Resource(configurationGVR).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list configurations: %w", err)
 	}
 
 	deployments := make([]*adapter.Deployment, 0, len(configs.Items))
 	for i := range configs.Items {
-		deployment := c.transformConfigurationToDeployment(&configs.Items[i])
+		deployment := a.transformConfigurationToDeployment(&configs.Items[i])
 
 		// Apply status filter
 		if filter != nil && filter.Status != "" && deployment.Status != filter.Status {
@@ -307,14 +307,14 @@ func (c *Adapter) ListDeployments(
 
 	// Apply pagination
 	if filter != nil {
-		deployments = c.ApplyPagination(deployments, filter.Limit, filter.Offset)
+		deployments = a.ApplyPagination(deployments, filter.Limit, filter.Offset)
 	}
 
 	return deployments, nil
 }
 
 // GetDeployment retrieves a specific Crossplane Configuration by ID.
-func (c *Adapter) GetDeployment(
+func (a *Adapter) GetDeployment(
 	ctx context.Context,
 	id string,
 ) (*adapter.Deployment, error) {
@@ -322,20 +322,20 @@ func (c *Adapter) GetDeployment(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := c.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	config, err := c.DynamicClient.Resource(configurationGVR).Get(ctx, id, metav1.GetOptions{})
+	config, err := a.DynamicClient.Resource(configurationGVR).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
 
-	return c.transformConfigurationToDeployment(config), nil
+	return a.transformConfigurationToDeployment(config), nil
 }
 
 // CreateDeployment creates a new Crossplane Configuration.
-func (c *Adapter) CreateDeployment(
+func (a *Adapter) CreateDeployment(
 	ctx context.Context,
 	req *adapter.DeploymentRequest,
 ) (*adapter.Deployment, error) {
@@ -343,30 +343,30 @@ func (c *Adapter) CreateDeployment(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := c.validateCreateRequest(req); err != nil {
+	if err := a.validateCreateRequest(req); err != nil {
 		return nil, err
 	}
 
-	if err := c.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	packageRef, err := c.getPackageReference(req)
+	packageRef, err := a.getPackageReference(req)
 	if err != nil {
 		return nil, err
 	}
 
-	config := c.buildConfiguration(req.Name, packageRef, req.Extensions)
+	config := a.buildConfiguration(req.Name, packageRef, req.Extensions)
 
-	created, err := c.DynamicClient.Resource(configurationGVR).Create(ctx, config, metav1.CreateOptions{})
+	created, err := a.DynamicClient.Resource(configurationGVR).Create(ctx, config, metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create configuration: %w", err)
 	}
 
-	return c.transformConfigurationToDeployment(created), nil
+	return a.transformConfigurationToDeployment(created), nil
 }
 
-func (c *Adapter) validateCreateRequest(req *adapter.DeploymentRequest) error {
+func (a *Adapter) validateCreateRequest(req *adapter.DeploymentRequest) error {
 	if req == nil {
 		return fmt.Errorf("deployment request cannot be nil")
 	}
@@ -376,7 +376,7 @@ func (c *Adapter) validateCreateRequest(req *adapter.DeploymentRequest) error {
 	return ValidateName(req.Name)
 }
 
-func (c *Adapter) getPackageReference(req *adapter.DeploymentRequest) (string, error) {
+func (a *Adapter) getPackageReference(req *adapter.DeploymentRequest) (string, error) {
 	packageRef := req.PackageID
 	if req.Extensions != nil {
 		if ref, ok := req.Extensions["crossplane.package"].(string); ok && ref != "" {
@@ -389,7 +389,7 @@ func (c *Adapter) getPackageReference(req *adapter.DeploymentRequest) (string, e
 	return packageRef, nil
 }
 
-func (c *Adapter) buildConfiguration(
+func (a *Adapter) buildConfiguration(
 	name, packageRef string,
 	extensions map[string]interface{},
 ) *unstructured.Unstructured {
@@ -420,7 +420,7 @@ func (c *Adapter) buildConfiguration(
 }
 
 // UpdateDeployment updates an existing Crossplane Configuration.
-func (c *Adapter) UpdateDeployment(
+func (a *Adapter) UpdateDeployment(
 	ctx context.Context,
 	id string,
 	update *adapter.DeploymentUpdate,
@@ -433,39 +433,39 @@ func (c *Adapter) UpdateDeployment(
 		return nil, fmt.Errorf("update cannot be nil")
 	}
 
-	if err := c.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	config, err := c.getConfigurationForUpdate(ctx, id)
+	config, err := a.getConfigurationForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := c.applyConfigurationUpdates(config, update.Extensions); err != nil {
+	if err := a.applyConfigurationUpdates(config, update.Extensions); err != nil {
 		return nil, err
 	}
 
-	updated, err := c.DynamicClient.Resource(configurationGVR).Update(ctx, config, metav1.UpdateOptions{})
+	updated, err := a.DynamicClient.Resource(configurationGVR).Update(ctx, config, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update configuration: %w", err)
 	}
 
-	return c.transformConfigurationToDeployment(updated), nil
+	return a.transformConfigurationToDeployment(updated), nil
 }
 
-func (c *Adapter) getConfigurationForUpdate(
+func (a *Adapter) getConfigurationForUpdate(
 	ctx context.Context,
 	id string,
 ) (*unstructured.Unstructured, error) {
-	config, err := c.DynamicClient.Resource(configurationGVR).Get(ctx, id, metav1.GetOptions{})
+	config, err := a.DynamicClient.Resource(configurationGVR).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
 	return config, nil
 }
 
-func (c *Adapter) applyConfigurationUpdates(
+func (a *Adapter) applyConfigurationUpdates(
 	config *unstructured.Unstructured,
 	extensions map[string]interface{},
 ) error {
@@ -489,7 +489,7 @@ func (c *Adapter) applyConfigurationUpdates(
 }
 
 // DeleteDeployment deletes a Crossplane Configuration.
-func (c *Adapter) DeleteDeployment(
+func (a *Adapter) DeleteDeployment(
 	ctx context.Context,
 	id string,
 ) error {
@@ -497,11 +497,11 @@ func (c *Adapter) DeleteDeployment(
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := c.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return err
 	}
 
-	err := c.DynamicClient.Resource(configurationGVR).Delete(ctx, id, metav1.DeleteOptions{})
+	err := a.DynamicClient.Resource(configurationGVR).Delete(ctx, id, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -510,7 +510,7 @@ func (c *Adapter) DeleteDeployment(
 }
 
 // ScaleDeployment is not directly supported by Crossplane.
-func (c *Adapter) ScaleDeployment(
+func (a *Adapter) ScaleDeployment(
 	ctx context.Context,
 	_ string,
 	replicas int,
@@ -527,7 +527,7 @@ func (c *Adapter) ScaleDeployment(
 }
 
 // RollbackDeployment is not directly supported by Crossplane.
-func (c *Adapter) RollbackDeployment(
+func (a *Adapter) RollbackDeployment(
 	ctx context.Context,
 	_ string,
 	revision int,
@@ -547,7 +547,7 @@ func (c *Adapter) RollbackDeployment(
 }
 
 // GetDeploymentStatus retrieves detailed status for a deployment.
-func (c *Adapter) GetDeploymentStatus(
+func (a *Adapter) GetDeploymentStatus(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentStatusDetail, error) {
@@ -555,22 +555,22 @@ func (c *Adapter) GetDeploymentStatus(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := c.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	deployment, err := c.GetDeployment(ctx, id)
+	deployment, err := a.GetDeployment(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	conditions := c.extractConditions(deployment.Extensions)
+	conditions := a.extractConditions(deployment.Extensions)
 
 	return &adapter.DeploymentStatusDetail{
 		DeploymentID: deployment.ID,
 		Status:       deployment.Status,
 		Message:      deployment.Description,
-		Progress:     c.CalculateProgress(deployment.Status),
+		Progress:     a.CalculateProgress(deployment.Status),
 		UpdatedAt:    deployment.UpdatedAt,
 		Conditions:   conditions,
 		Extensions:   deployment.Extensions,
@@ -578,7 +578,7 @@ func (c *Adapter) GetDeploymentStatus(
 }
 
 // GetDeploymentHistory retrieves the revision history for a deployment.
-func (c *Adapter) GetDeploymentHistory(
+func (a *Adapter) GetDeploymentHistory(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentHistory, error) {
@@ -586,11 +586,11 @@ func (c *Adapter) GetDeploymentHistory(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := c.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	deployment, err := c.GetDeployment(ctx, id)
+	deployment, err := a.GetDeployment(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -611,7 +611,7 @@ func (c *Adapter) GetDeploymentHistory(
 }
 
 // GetDeploymentLogs retrieves logs for a deployment.
-func (c *Adapter) GetDeploymentLogs(
+func (a *Adapter) GetDeploymentLogs(
 	ctx context.Context,
 	id string,
 	_ *adapter.LogOptions,
@@ -620,11 +620,11 @@ func (c *Adapter) GetDeploymentLogs(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := c.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	deployment, err := c.GetDeployment(ctx, id)
+	deployment, err := a.GetDeployment(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -647,32 +647,32 @@ func (c *Adapter) GetDeploymentLogs(
 }
 
 // SupportsRollback returns false as Crossplane doesn't support direct rollback.
-func (c *Adapter) SupportsRollback() bool {
+func (a *Adapter) SupportsRollback() bool {
 	return false
 }
 
 // SupportsScaling returns false as Crossplane doesn't support direct scaling.
-func (c *Adapter) SupportsScaling() bool {
+func (a *Adapter) SupportsScaling() bool {
 	return false
 }
 
 // SupportsGitOps returns true as Crossplane is typically used with GitOps.
-func (c *Adapter) SupportsGitOps() bool {
+func (a *Adapter) SupportsGitOps() bool {
 	return true
 }
 
 // Health performs a health check on the Crossplane backend.
-func (c *Adapter) Health(ctx context.Context) error {
+func (a *Adapter) Health(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := c.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return fmt.Errorf("crossplane adapter not healthy: %w", err)
 	}
 
 	// Try to list providers to verify Crossplane is installed
-	_, err := c.DynamicClient.Resource(providerGVR).List(ctx, metav1.ListOptions{Limit: 1})
+	_, err := a.DynamicClient.Resource(providerGVR).List(ctx, metav1.ListOptions{Limit: 1})
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}
@@ -681,14 +681,14 @@ func (c *Adapter) Health(ctx context.Context) error {
 }
 
 // Close cleanly shuts down the adapter.
-func (c *Adapter) Close() error {
-	c.DynamicClient = nil
+func (a *Adapter) Close() error {
+	a.DynamicClient = nil
 	return nil
 }
 
 // Helper functions
 
-func (c *Adapter) transformCompositionToPackage(
+func (a *Adapter) transformCompositionToPackage(
 	composition *unstructured.Unstructured,
 ) *adapter.DeploymentPackage {
 	name := composition.GetName()
@@ -711,7 +711,7 @@ func (c *Adapter) transformCompositionToPackage(
 	}
 }
 
-func (c *Adapter) transformConfigurationToDeployment(
+func (a *Adapter) transformConfigurationToDeployment(
 	config *unstructured.Unstructured,
 ) *adapter.Deployment {
 	name := config.GetName()
@@ -722,7 +722,7 @@ func (c *Adapter) transformConfigurationToDeployment(
 	// Extract status conditions
 	conditions, _, _ := unstructured.NestedSlice(config.Object, "status", "conditions")
 
-	status := c.extractStatus(conditions)
+	status := a.extractStatus(conditions)
 	version := 1
 
 	// Try to get current revision
@@ -747,7 +747,7 @@ func (c *Adapter) transformConfigurationToDeployment(
 	}
 }
 
-func (c *Adapter) extractStatus(conditions []interface{}) adapter.DeploymentStatus {
+func (a *Adapter) extractStatus(conditions []interface{}) adapter.DeploymentStatus {
 	for _, cond := range conditions {
 		condMap, ok := cond.(map[string]interface{})
 		if !ok {
@@ -771,7 +771,7 @@ func (c *Adapter) extractStatus(conditions []interface{}) adapter.DeploymentStat
 	return adapter.DeploymentStatusDeploying
 }
 
-func (c *Adapter) extractConditions(extensions map[string]interface{}) []adapter.DeploymentCondition {
+func (a *Adapter) extractConditions(extensions map[string]interface{}) []adapter.DeploymentCondition {
 	var result []adapter.DeploymentCondition
 
 	if conditions, ok := extensions["crossplane.conditions"].([]interface{}); ok {
@@ -810,7 +810,7 @@ func (c *Adapter) extractConditions(extensions map[string]interface{}) []adapter
 }
 
 // CalculateProgress calculates deployment progress percentage based on status.
-func (c *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
+func (a *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return 100
@@ -830,7 +830,7 @@ func (c *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 }
 
 // ApplyPagination applies pagination to a list of deployments.
-func (c *Adapter) ApplyPagination(
+func (a *Adapter) ApplyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
 ) []*adapter.Deployment {
@@ -848,7 +848,7 @@ func (c *Adapter) ApplyPagination(
 	return deployments[start:end]
 }
 
-func (c *Adapter) applyPackagePagination(
+func (a *Adapter) applyPackagePagination(
 	packages []*adapter.DeploymentPackage,
 	limit, offset int,
 ) []*adapter.DeploymentPackage {

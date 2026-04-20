@@ -117,48 +117,48 @@ func NewAdapter(config *Config) (*Adapter, error) {
 }
 
 // initialize performs lazy initialization of the Kubernetes client.
-func (k *Adapter) initialize() error {
+func (a *Adapter) initialize() error {
 	// Skip initialization if DynamicClient is already set (e.g., in tests)
-	if k.DynamicClient != nil {
+	if a.DynamicClient != nil {
 		return nil
 	}
 
-	k.InitOnce.Do(func() {
+	a.InitOnce.Do(func() {
 		var cfg *rest.Config
 		var err error
 
-		if k.Config.Kubeconfig != "" {
-			cfg, err = clientcmd.BuildConfigFromFlags("", k.Config.Kubeconfig)
+		if a.Config.Kubeconfig != "" {
+			cfg, err = clientcmd.BuildConfigFromFlags("", a.Config.Kubeconfig)
 		} else {
 			cfg, err = rest.InClusterConfig()
 		}
 		if err != nil {
-			k.initErr = fmt.Errorf("failed to create Kubernetes config: %w", err)
+			a.initErr = fmt.Errorf("failed to create Kubernetes config: %w", err)
 			return
 		}
 
-		k.DynamicClient, err = dynamic.NewForConfig(cfg)
+		a.DynamicClient, err = dynamic.NewForConfig(cfg)
 		if err != nil {
-			k.initErr = fmt.Errorf("failed to create dynamic client: %w", err)
+			a.initErr = fmt.Errorf("failed to create dynamic client: %w", err)
 			return
 		}
 	})
 
-	return k.initErr
+	return a.initErr
 }
 
 // Name returns the adapter name.
-func (k *Adapter) Name() string {
+func (a *Adapter) Name() string {
 	return AdapterName
 }
 
 // Version returns the Kustomize version supported by this adapter.
-func (k *Adapter) Version() string {
+func (a *Adapter) Version() string {
 	return AdapterVersion
 }
 
 // Capabilities returns the capabilities supported by the Kustomize adapter.
-func (k *Adapter) Capabilities() []adapter.Capability {
+func (a *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityDeploymentLifecycle,
 		adapter.CapabilityHealthChecks,
@@ -166,7 +166,7 @@ func (k *Adapter) Capabilities() []adapter.Capability {
 }
 
 // ListDeploymentPackages retrieves all Kustomize bases/overlays.
-func (k *Adapter) ListDeploymentPackages(
+func (a *Adapter) ListDeploymentPackages(
 	ctx context.Context,
 	_ *adapter.Filter,
 ) ([]*adapter.DeploymentPackage, error) {
@@ -174,7 +174,7 @@ func (k *Adapter) ListDeploymentPackages(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := k.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
@@ -182,16 +182,16 @@ func (k *Adapter) ListDeploymentPackages(
 	// Return configured base packages
 	packages := []*adapter.DeploymentPackage{}
 
-	if k.Config.BaseURL != "" {
+	if a.Config.BaseURL != "" {
 		pkg := &adapter.DeploymentPackage{
-			ID:          GeneratePackageID(k.Config.BaseURL),
+			ID:          GeneratePackageID(a.Config.BaseURL),
 			Name:        "kustomize-base",
 			Version:     "latest",
 			PackageType: "kustomize",
 			Description: "Kustomize base configuration",
 			UploadedAt:  time.Now(),
 			Extensions: map[string]interface{}{
-				"kustomize.url": k.Config.BaseURL,
+				"kustomize.url": a.Config.BaseURL,
 			},
 		}
 		packages = append(packages, pkg)
@@ -201,7 +201,7 @@ func (k *Adapter) ListDeploymentPackages(
 }
 
 // GetDeploymentPackage retrieves a specific Kustomize package by ID.
-func (k *Adapter) GetDeploymentPackage(
+func (a *Adapter) GetDeploymentPackage(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentPackage, error) {
@@ -209,12 +209,12 @@ func (k *Adapter) GetDeploymentPackage(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := k.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
 	// Check if the ID matches our configured base
-	if k.Config.BaseURL != "" && id == GeneratePackageID(k.Config.BaseURL) {
+	if a.Config.BaseURL != "" && id == GeneratePackageID(a.Config.BaseURL) {
 		return &adapter.DeploymentPackage{
 			ID:          id,
 			Name:        "kustomize-base",
@@ -223,7 +223,7 @@ func (k *Adapter) GetDeploymentPackage(
 			Description: "Kustomize base configuration",
 			UploadedAt:  time.Now(),
 			Extensions: map[string]interface{}{
-				"kustomize.url": k.Config.BaseURL,
+				"kustomize.url": a.Config.BaseURL,
 			},
 		}, nil
 	}
@@ -232,7 +232,7 @@ func (k *Adapter) GetDeploymentPackage(
 }
 
 // UploadDeploymentPackage registers a new Kustomize package reference.
-func (k *Adapter) UploadDeploymentPackage(
+func (a *Adapter) UploadDeploymentPackage(
 	ctx context.Context,
 	pkg *adapter.DeploymentPackageUpload,
 ) (*adapter.DeploymentPackage, error) {
@@ -263,7 +263,7 @@ func (k *Adapter) UploadDeploymentPackage(
 }
 
 // DeleteDeploymentPackage is not supported for Kustomize.
-func (k *Adapter) DeleteDeploymentPackage(
+func (a *Adapter) DeleteDeploymentPackage(
 	ctx context.Context,
 	_ string,
 ) error {
@@ -275,7 +275,7 @@ func (k *Adapter) DeleteDeploymentPackage(
 }
 
 // ListDeployments retrieves all Kustomize deployments.
-func (k *Adapter) ListDeployments(
+func (a *Adapter) ListDeployments(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.Deployment, error) {
@@ -283,31 +283,31 @@ func (k *Adapter) ListDeployments(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := k.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	cms, err := k.listConfigMaps(ctx, filter)
+	cms, err := a.listConfigMaps(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
 
-	deployments := k.filterAndTransformConfigMaps(cms.Items, filter)
+	deployments := a.filterAndTransformConfigMaps(cms.Items, filter)
 
 	if filter != nil {
-		deployments = k.ApplyPagination(deployments, filter.Limit, filter.Offset)
+		deployments = a.ApplyPagination(deployments, filter.Limit, filter.Offset)
 	}
 
 	return deployments, nil
 }
 
-func (k *Adapter) listConfigMaps(ctx context.Context, filter *adapter.Filter) (*unstructured.UnstructuredList, error) {
-	namespace := k.Config.Namespace
+func (a *Adapter) listConfigMaps(ctx context.Context, filter *adapter.Filter) (*unstructured.UnstructuredList, error) {
+	namespace := a.Config.Namespace
 	if filter != nil && filter.Namespace != "" {
 		namespace = filter.Namespace
 	}
 
-	cms, err := k.DynamicClient.Resource(configMapGVR).Namespace(namespace).List(ctx, metav1.ListOptions{
+	cms, err := a.DynamicClient.Resource(configMapGVR).Namespace(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: "app.kubernetes.io/managed-by=kustomize-adapter",
 	})
 	if err != nil {
@@ -316,12 +316,12 @@ func (k *Adapter) listConfigMaps(ctx context.Context, filter *adapter.Filter) (*
 	return cms, nil
 }
 
-func (k *Adapter) filterAndTransformConfigMaps(
+func (a *Adapter) filterAndTransformConfigMaps(
 	items []unstructured.Unstructured, filter *adapter.Filter,
 ) []*adapter.Deployment {
 	deployments := make([]*adapter.Deployment, 0, len(items))
 	for i := range items {
-		deployment := k.transformConfigMapToDeployment(&items[i])
+		deployment := a.transformConfigMapToDeployment(&items[i])
 
 		if filter != nil && filter.Status != "" && deployment.Status != filter.Status {
 			continue
@@ -333,7 +333,7 @@ func (k *Adapter) filterAndTransformConfigMaps(
 }
 
 // GetDeployment retrieves a specific Kustomize deployment by ID.
-func (k *Adapter) GetDeployment(
+func (a *Adapter) GetDeployment(
 	ctx context.Context,
 	id string,
 ) (*adapter.Deployment, error) {
@@ -341,11 +341,11 @@ func (k *Adapter) GetDeployment(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := k.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	cm, err := k.DynamicClient.Resource(configMapGVR).Namespace(k.Config.Namespace).Get(
+	cm, err := a.DynamicClient.Resource(configMapGVR).Namespace(a.Config.Namespace).Get(
 		ctx,
 		fmt.Sprintf("kustomize-%s", id),
 		metav1.GetOptions{},
@@ -354,11 +354,11 @@ func (k *Adapter) GetDeployment(
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
 
-	return k.transformConfigMapToDeployment(cm), nil
+	return a.transformConfigMapToDeployment(cm), nil
 }
 
 // CreateDeployment creates a new Kustomize deployment.
-func (k *Adapter) CreateDeployment(
+func (a *Adapter) CreateDeployment(
 	ctx context.Context,
 	req *adapter.DeploymentRequest,
 ) (*adapter.Deployment, error) {
@@ -366,23 +366,23 @@ func (k *Adapter) CreateDeployment(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := k.validateCreateRequest(req); err != nil {
+	if err := a.validateCreateRequest(req); err != nil {
 		return nil, err
 	}
 
-	if err := k.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	path, err := k.extractAndValidatePath(req.Extensions)
+	path, err := a.extractAndValidatePath(req.Extensions)
 	if err != nil {
 		return nil, err
 	}
 
-	namespace := k.getNamespaceOrDefault(req.Namespace)
-	cm := k.buildConfigMapForDeployment(req, namespace, path)
+	namespace := a.getNamespaceOrDefault(req.Namespace)
+	cm := a.buildConfigMapForDeployment(req, namespace, path)
 
-	created, err := k.DynamicClient.Resource(configMapGVR).Namespace(namespace).Create(
+	created, err := a.DynamicClient.Resource(configMapGVR).Namespace(namespace).Create(
 		ctx,
 		cm,
 		metav1.CreateOptions{},
@@ -391,10 +391,10 @@ func (k *Adapter) CreateDeployment(
 		return nil, fmt.Errorf("failed to create deployment: %w", err)
 	}
 
-	return k.transformConfigMapToDeployment(created), nil
+	return a.transformConfigMapToDeployment(created), nil
 }
 
-func (k *Adapter) validateCreateRequest(req *adapter.DeploymentRequest) error {
+func (a *Adapter) validateCreateRequest(req *adapter.DeploymentRequest) error {
 	if req == nil {
 		return fmt.Errorf("deployment request cannot be nil")
 	}
@@ -404,7 +404,7 @@ func (k *Adapter) validateCreateRequest(req *adapter.DeploymentRequest) error {
 	return ValidateName(req.Name)
 }
 
-func (k *Adapter) extractAndValidatePath(extensions map[string]interface{}) (string, error) {
+func (a *Adapter) extractAndValidatePath(extensions map[string]interface{}) (string, error) {
 	path := "./"
 	if extensions != nil {
 		if p, ok := extensions["kustomize.path"].(string); ok {
@@ -417,14 +417,14 @@ func (k *Adapter) extractAndValidatePath(extensions map[string]interface{}) (str
 	return path, nil
 }
 
-func (k *Adapter) getNamespaceOrDefault(namespace string) string {
+func (a *Adapter) getNamespaceOrDefault(namespace string) string {
 	if namespace == "" {
-		return k.Config.Namespace
+		return a.Config.Namespace
 	}
 	return namespace
 }
 
-func (k *Adapter) buildConfigMapForDeployment(
+func (a *Adapter) buildConfigMapForDeployment(
 	req *adapter.DeploymentRequest, namespace, path string,
 ) *unstructured.Unstructured {
 	now := time.Now()
@@ -455,7 +455,7 @@ func (k *Adapter) buildConfigMapForDeployment(
 }
 
 // UpdateDeployment updates an existing Kustomize deployment.
-func (k *Adapter) UpdateDeployment(
+func (a *Adapter) UpdateDeployment(
 	ctx context.Context,
 	id string,
 	update *adapter.DeploymentUpdate,
@@ -468,24 +468,24 @@ func (k *Adapter) UpdateDeployment(
 		return nil, fmt.Errorf("update cannot be nil")
 	}
 
-	if err := k.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	cm, err := k.getConfigMapForUpdate(ctx, id)
+	cm, err := a.getConfigMapForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := k.applyPathUpdate(cm, update.Extensions); err != nil {
+	if err := a.applyPathUpdate(cm, update.Extensions); err != nil {
 		return nil, err
 	}
 
-	if err := k.applyMetadataUpdates(cm, update); err != nil {
+	if err := a.applyMetadataUpdates(cm, update); err != nil {
 		return nil, err
 	}
 
-	updated, err := k.DynamicClient.Resource(configMapGVR).Namespace(k.Config.Namespace).Update(
+	updated, err := a.DynamicClient.Resource(configMapGVR).Namespace(a.Config.Namespace).Update(
 		ctx,
 		cm,
 		metav1.UpdateOptions{},
@@ -494,11 +494,11 @@ func (k *Adapter) UpdateDeployment(
 		return nil, fmt.Errorf("failed to update deployment: %w", err)
 	}
 
-	return k.transformConfigMapToDeployment(updated), nil
+	return a.transformConfigMapToDeployment(updated), nil
 }
 
-func (k *Adapter) getConfigMapForUpdate(ctx context.Context, id string) (*unstructured.Unstructured, error) {
-	cm, err := k.DynamicClient.Resource(configMapGVR).Namespace(k.Config.Namespace).Get(
+func (a *Adapter) getConfigMapForUpdate(ctx context.Context, id string) (*unstructured.Unstructured, error) {
+	cm, err := a.DynamicClient.Resource(configMapGVR).Namespace(a.Config.Namespace).Get(
 		ctx,
 		fmt.Sprintf("kustomize-%s", id),
 		metav1.GetOptions{},
@@ -509,7 +509,7 @@ func (k *Adapter) getConfigMapForUpdate(ctx context.Context, id string) (*unstru
 	return cm, nil
 }
 
-func (k *Adapter) applyPathUpdate(cm *unstructured.Unstructured, extensions map[string]interface{}) error {
+func (a *Adapter) applyPathUpdate(cm *unstructured.Unstructured, extensions map[string]interface{}) error {
 	if extensions == nil {
 		return nil
 	}
@@ -531,10 +531,10 @@ func (k *Adapter) applyPathUpdate(cm *unstructured.Unstructured, extensions map[
 	return nil
 }
 
-func (k *Adapter) applyMetadataUpdates(cm *unstructured.Unstructured, update *adapter.DeploymentUpdate) error {
+func (a *Adapter) applyMetadataUpdates(cm *unstructured.Unstructured, update *adapter.DeploymentUpdate) error {
 	data, _, _ := unstructured.NestedStringMap(cm.Object, "data")
 
-	version := k.parseVersion(data["version"])
+	version := a.parseVersion(data["version"])
 	data["version"] = strconv.Itoa(version + 1)
 	data["updatedAt"] = time.Now().Format(time.RFC3339)
 
@@ -548,7 +548,7 @@ func (k *Adapter) applyMetadataUpdates(cm *unstructured.Unstructured, update *ad
 	return nil
 }
 
-func (k *Adapter) parseVersion(versionStr string) int {
+func (a *Adapter) parseVersion(versionStr string) int {
 	if versionStr == "" {
 		return 1
 	}
@@ -559,7 +559,7 @@ func (k *Adapter) parseVersion(versionStr string) int {
 }
 
 // DeleteDeployment deletes a Kustomize deployment.
-func (k *Adapter) DeleteDeployment(
+func (a *Adapter) DeleteDeployment(
 	ctx context.Context,
 	id string,
 ) error {
@@ -567,11 +567,11 @@ func (k *Adapter) DeleteDeployment(
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := k.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return err
 	}
 
-	err := k.DynamicClient.Resource(configMapGVR).Namespace(k.Config.Namespace).Delete(
+	err := a.DynamicClient.Resource(configMapGVR).Namespace(a.Config.Namespace).Delete(
 		ctx,
 		fmt.Sprintf("kustomize-%s", id),
 		metav1.DeleteOptions{},
@@ -585,7 +585,7 @@ func (k *Adapter) DeleteDeployment(
 
 // ScaleDeployment is not directly supported by Kustomize.
 // Scaling must be done through Kustomize patches.
-func (k *Adapter) ScaleDeployment(
+func (a *Adapter) ScaleDeployment(
 	ctx context.Context,
 	_ string,
 	replicas int,
@@ -603,7 +603,7 @@ func (k *Adapter) ScaleDeployment(
 
 // RollbackDeployment is not directly supported by Kustomize.
 // Rollback must be done through Git or source control.
-func (k *Adapter) RollbackDeployment(
+func (a *Adapter) RollbackDeployment(
 	ctx context.Context,
 	_ string,
 	revision int,
@@ -620,7 +620,7 @@ func (k *Adapter) RollbackDeployment(
 }
 
 // GetDeploymentStatus retrieves detailed status for a deployment.
-func (k *Adapter) GetDeploymentStatus(
+func (a *Adapter) GetDeploymentStatus(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentStatusDetail, error) {
@@ -628,11 +628,11 @@ func (k *Adapter) GetDeploymentStatus(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := k.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	deployment, err := k.GetDeployment(ctx, id)
+	deployment, err := a.GetDeployment(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -641,13 +641,13 @@ func (k *Adapter) GetDeploymentStatus(
 		DeploymentID: deployment.ID,
 		Status:       deployment.Status,
 		Message:      deployment.Description,
-		Progress:     k.CalculateProgress(deployment.Status),
+		Progress:     a.CalculateProgress(deployment.Status),
 		UpdatedAt:    deployment.UpdatedAt,
 		Conditions: []adapter.DeploymentCondition{
 			{
 				Type:               "Ready",
-				Status:             k.conditionStatus(deployment.Status),
-				Reason:             k.conditionReason(deployment.Status),
+				Status:             a.conditionStatus(deployment.Status),
+				Reason:             a.conditionReason(deployment.Status),
 				Message:            deployment.Description,
 				LastTransitionTime: deployment.UpdatedAt,
 			},
@@ -657,7 +657,7 @@ func (k *Adapter) GetDeploymentStatus(
 }
 
 // GetDeploymentHistory retrieves the revision history for a deployment.
-func (k *Adapter) GetDeploymentHistory(
+func (a *Adapter) GetDeploymentHistory(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentHistory, error) {
@@ -665,11 +665,11 @@ func (k *Adapter) GetDeploymentHistory(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := k.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	deployment, err := k.GetDeployment(ctx, id)
+	deployment, err := a.GetDeployment(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -691,7 +691,7 @@ func (k *Adapter) GetDeploymentHistory(
 }
 
 // GetDeploymentLogs retrieves logs for a deployment.
-func (k *Adapter) GetDeploymentLogs(
+func (a *Adapter) GetDeploymentLogs(
 	ctx context.Context,
 	id string,
 	_ *adapter.LogOptions,
@@ -700,11 +700,11 @@ func (k *Adapter) GetDeploymentLogs(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := k.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return nil, err
 	}
 
-	deployment, err := k.GetDeployment(ctx, id)
+	deployment, err := a.GetDeployment(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -726,32 +726,32 @@ func (k *Adapter) GetDeploymentLogs(
 }
 
 // SupportsRollback returns false as Kustomize doesn't support direct rollback.
-func (k *Adapter) SupportsRollback() bool {
+func (a *Adapter) SupportsRollback() bool {
 	return false
 }
 
 // SupportsScaling returns false as Kustomize doesn't support direct scaling.
-func (k *Adapter) SupportsScaling() bool {
+func (a *Adapter) SupportsScaling() bool {
 	return false
 }
 
 // SupportsGitOps returns true as Kustomize is typically used with GitOps.
-func (k *Adapter) SupportsGitOps() bool {
+func (a *Adapter) SupportsGitOps() bool {
 	return true
 }
 
 // Health performs a health check on the Kubernetes cluster.
-func (k *Adapter) Health(ctx context.Context) error {
+func (a *Adapter) Health(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := k.initialize(); err != nil {
+	if err := a.initialize(); err != nil {
 		return fmt.Errorf("kustomize adapter not healthy: %w", err)
 	}
 
 	// Try to list namespaces to verify connectivity
-	_, err := k.DynamicClient.Resource(schema.GroupVersionResource{
+	_, err := a.DynamicClient.Resource(schema.GroupVersionResource{
 		Group:    "",
 		Version:  "v1",
 		Resource: "namespaces",
@@ -765,14 +765,14 @@ func (k *Adapter) Health(ctx context.Context) error {
 }
 
 // Close cleanly shuts down the adapter.
-func (k *Adapter) Close() error {
-	k.DynamicClient = nil
+func (a *Adapter) Close() error {
+	a.DynamicClient = nil
 	return nil
 }
 
 // Helper functions
 
-func (k *Adapter) transformConfigMapToDeployment(
+func (a *Adapter) transformConfigMapToDeployment(
 	cm *unstructured.Unstructured,
 ) *adapter.Deployment {
 	data, _, _ := unstructured.NestedStringMap(cm.Object, "data")
@@ -822,7 +822,7 @@ func (k *Adapter) transformConfigMapToDeployment(
 }
 
 // ApplyPagination applies pagination to a list of deployments.
-func (k *Adapter) ApplyPagination(
+func (a *Adapter) ApplyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
 ) []*adapter.Deployment {
@@ -841,7 +841,7 @@ func (k *Adapter) ApplyPagination(
 }
 
 // CalculateProgress calculates deployment progress percentage based on status.
-func (k *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
+func (a *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return 100
@@ -860,14 +860,14 @@ func (k *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	}
 }
 
-func (k *Adapter) conditionStatus(status adapter.DeploymentStatus) string {
+func (a *Adapter) conditionStatus(status adapter.DeploymentStatus) string {
 	if status == adapter.DeploymentStatusDeployed {
 		return "True"
 	}
 	return "False"
 }
 
-func (k *Adapter) conditionReason(status adapter.DeploymentStatus) string {
+func (a *Adapter) conditionReason(status adapter.DeploymentStatus) string {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return "ReconciliationSucceeded"

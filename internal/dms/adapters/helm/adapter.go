@@ -115,8 +115,8 @@ func NewAdapter(config *Config) (*Adapter, error) {
 
 // Initialize performs lazy initialization of the Helm action configuration.
 // This allows the adapter to be created without requiring immediate Kubernetes connectivity.
-func (h *Adapter) Initialize(_ context.Context) error {
-	if h.Initialized {
+func (a *Adapter) Initialize(_ context.Context) error {
+	if a.Initialized {
 		return nil
 	}
 
@@ -125,7 +125,7 @@ func (h *Adapter) Initialize(_ context.Context) error {
 
 	// Setup debug logger that respects debug flag
 	debugOut := io.Discard
-	if h.Config.Debug {
+	if a.Config.Debug {
 		debugOut = os.Stderr
 	}
 	debugLog := func(format string, v ...interface{}) {
@@ -134,32 +134,32 @@ func (h *Adapter) Initialize(_ context.Context) error {
 
 	// Initialize with Kubernetes backend
 	if err := actionCfg.Init(
-		h.Settings.RESTClientGetter(),
-		h.Config.Namespace,
+		a.Settings.RESTClientGetter(),
+		a.Config.Namespace,
 		"secret", // Use Kubernetes secrets for storage
 		debugLog,
 	); err != nil {
 		return fmt.Errorf("failed to initialize Helm action configuration: %w", err)
 	}
 
-	h.ActionCfg = actionCfg
-	h.Initialized = true
+	a.ActionCfg = actionCfg
+	a.Initialized = true
 
 	return nil
 }
 
 // Name returns the adapter name.
-func (h *Adapter) Name() string {
+func (a *Adapter) Name() string {
 	return AdapterName
 }
 
 // Version returns the Helm version supported by this adapter.
-func (h *Adapter) Version() string {
+func (a *Adapter) Version() string {
 	return AdapterVersion
 }
 
 // Capabilities returns the capabilities supported by the Helm adapter.
-func (h *Adapter) Capabilities() []adapter.Capability {
+func (a *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityPackageManagement,
 		adapter.CapabilityDeploymentLifecycle,
@@ -171,35 +171,35 @@ func (h *Adapter) Capabilities() []adapter.Capability {
 }
 
 // ListDeploymentPackages retrieves all Helm charts from the configured repository.
-func (h *Adapter) ListDeploymentPackages(
+func (a *Adapter) ListDeploymentPackages(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.DeploymentPackage, error) {
-	if err := h.Initialize(ctx); err != nil {
+	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	idx, err := h.getRepositoryIndex(ctx)
+	idx, err := a.getRepositoryIndex(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return h.buildPackageList(idx, filter), nil
+	return a.buildPackageList(idx, filter), nil
 }
 
-func (h *Adapter) getRepositoryIndex(ctx context.Context) (*repo.IndexFile, error) {
-	if err := h.LoadRepositoryIndex(ctx); err != nil {
+func (a *Adapter) getRepositoryIndex(ctx context.Context) (*repo.IndexFile, error) {
+	if err := a.LoadRepositoryIndex(ctx); err != nil {
 		return nil, fmt.Errorf("failed to load repository index: %w", err)
 	}
 
-	idx, exists := h.repoIndex[h.Config.RepositoryURL]
+	idx, exists := a.repoIndex[a.Config.RepositoryURL]
 	if !exists {
 		return nil, fmt.Errorf("repository index not loaded")
 	}
 	return idx, nil
 }
 
-func (h *Adapter) buildPackageList(idx *repo.IndexFile, filter *adapter.Filter) []*adapter.DeploymentPackage {
+func (a *Adapter) buildPackageList(idx *repo.IndexFile, filter *adapter.Filter) []*adapter.DeploymentPackage {
 	packages := make([]*adapter.DeploymentPackage, 0)
 
 	for chartName, chartVersions := range idx.Entries {
@@ -208,17 +208,17 @@ func (h *Adapter) buildPackageList(idx *repo.IndexFile, filter *adapter.Filter) 
 		}
 
 		latestChart := chartVersions[0]
-		if !h.matchesChartFilter(chartName, latestChart.Version, filter) {
+		if !a.matchesChartFilter(chartName, latestChart.Version, filter) {
 			continue
 		}
 
-		packages = append(packages, h.buildPackage(chartName, latestChart))
+		packages = append(packages, a.buildPackage(chartName, latestChart))
 	}
 
 	return packages
 }
 
-func (h *Adapter) matchesChartFilter(chartName, chartVersion string, filter *adapter.Filter) bool {
+func (a *Adapter) matchesChartFilter(chartName, chartVersion string, filter *adapter.Filter) bool {
 	if filter == nil || filter.Extensions == nil {
 		return true
 	}
@@ -232,7 +232,7 @@ func (h *Adapter) matchesChartFilter(chartName, chartVersion string, filter *ada
 	return true
 }
 
-func (h *Adapter) buildPackage(chartName string, chart *repo.ChartVersion) *adapter.DeploymentPackage {
+func (a *Adapter) buildPackage(chartName string, chart *repo.ChartVersion) *adapter.DeploymentPackage {
 	return &adapter.DeploymentPackage{
 		ID:          fmt.Sprintf("%s-%s", chartName, chart.Version),
 		Name:        chartName,
@@ -244,7 +244,7 @@ func (h *Adapter) buildPackage(chartName string, chart *repo.ChartVersion) *adap
 			"helm.chartName":    chartName,
 			"helm.chartVersion": chart.Version,
 			"helm.appVersion":   chart.AppVersion,
-			"helm.repository":   h.Config.RepositoryURL,
+			"helm.repository":   a.Config.RepositoryURL,
 			"helm.apiVersion":   chart.APIVersion,
 			"helm.deprecated":   chart.Deprecated,
 		},
@@ -253,18 +253,18 @@ func (h *Adapter) buildPackage(chartName string, chart *repo.ChartVersion) *adap
 
 // GetDeploymentPackage retrieves a specific Helm chart by ID.
 // The ID format is expected to be "{chartName}-{version}".
-func (h *Adapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
-	if err := h.Initialize(ctx); err != nil {
+func (a *Adapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter.DeploymentPackage, error) {
+	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
 	// Load repository index
-	if err := h.LoadRepositoryIndex(ctx); err != nil {
+	if err := a.LoadRepositoryIndex(ctx); err != nil {
 		return nil, fmt.Errorf("failed to load repository index: %w", err)
 	}
 
 	// Get the index
-	idx, exists := h.repoIndex[h.Config.RepositoryURL]
+	idx, exists := a.repoIndex[a.Config.RepositoryURL]
 	if !exists {
 		return nil, fmt.Errorf("repository index not loaded")
 	}
@@ -285,7 +285,7 @@ func (h *Adapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter
 						"helm.chartName":    chartName,
 						"helm.chartVersion": chartVersion.Version,
 						"helm.appVersion":   chartVersion.AppVersion,
-						"helm.repository":   h.Config.RepositoryURL,
+						"helm.repository":   a.Config.RepositoryURL,
 						"helm.apiVersion":   chartVersion.APIVersion,
 						"helm.deprecated":   chartVersion.Deprecated,
 						"helm.urls":         chartVersion.URLs,
@@ -300,11 +300,11 @@ func (h *Adapter) GetDeploymentPackage(ctx context.Context, id string) (*adapter
 }
 
 // UploadDeploymentPackage uploads a new Helm chart to the repository.
-func (h *Adapter) UploadDeploymentPackage(
+func (a *Adapter) UploadDeploymentPackage(
 	ctx context.Context,
 	pkg *adapter.DeploymentPackageUpload,
 ) (*adapter.DeploymentPackage, error) {
-	if err := h.Initialize(ctx); err != nil {
+	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
@@ -325,7 +325,7 @@ func (h *Adapter) UploadDeploymentPackage(
 		Extensions: map[string]interface{}{
 			"helm.chartName":    pkg.Name,
 			"helm.chartVersion": pkg.Version,
-			"helm.repository":   h.Config.RepositoryURL,
+			"helm.repository":   a.Config.RepositoryURL,
 		},
 	}
 
@@ -335,19 +335,19 @@ func (h *Adapter) UploadDeploymentPackage(
 // DeleteDeploymentPackage deletes a Helm chart from the repository.
 // Note: Chart deletion depends on repository type support (ChartMuseum, Harbor, etc.).
 // OCI registries and some HTTP repositories may not support deletion via API.
-func (h *Adapter) DeleteDeploymentPackage(ctx context.Context, id string) error {
-	if err := h.Initialize(ctx); err != nil {
+func (a *Adapter) DeleteDeploymentPackage(ctx context.Context, id string) error {
+	if err := a.Initialize(ctx); err != nil {
 		return err
 	}
 
 	// Parse chart name and version from ID (format: {chartName}-{version})
-	pkg, err := h.GetDeploymentPackage(ctx, id)
+	pkg, err := a.GetDeploymentPackage(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to get package for deletion: %w", err)
 	}
 
 	// Invalidate cached repository index
-	delete(h.repoIndex, h.Config.RepositoryURL)
+	delete(a.repoIndex, a.Config.RepositoryURL)
 
 	// Note: Actual deletion would require repository-specific API calls
 	// For ChartMuseum: DELETE /api/charts/{name}/{version}
@@ -359,28 +359,28 @@ func (h *Adapter) DeleteDeploymentPackage(ctx context.Context, id string) error 
 }
 
 // ListDeployments retrieves all Helm releases matching the filter.
-func (h *Adapter) ListDeployments(ctx context.Context, filter *adapter.Filter) ([]*adapter.Deployment, error) {
-	if err := h.Initialize(ctx); err != nil {
+func (a *Adapter) ListDeployments(ctx context.Context, filter *adapter.Filter) ([]*adapter.Deployment, error) {
+	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	releases, err := h.fetchAllReleases()
+	releases, err := a.fetchAllReleases()
 	if err != nil {
 		return nil, err
 	}
 
-	deployments := h.FilterAndTransformReleases(releases, filter)
+	deployments := a.FilterAndTransformReleases(releases, filter)
 
 	if filter != nil {
-		deployments = h.ApplyPagination(deployments, filter.Limit, filter.Offset)
+		deployments = a.ApplyPagination(deployments, filter.Limit, filter.Offset)
 	}
 
 	return deployments, nil
 }
 
 // fetchAllReleases retrieves all Helm releases.
-func (h *Adapter) fetchAllReleases() ([]*release.Release, error) {
-	client := action.NewList(h.ActionCfg)
+func (a *Adapter) fetchAllReleases() ([]*release.Release, error) {
+	client := action.NewList(a.ActionCfg)
 	client.All = true
 	client.AllNamespaces = true
 
@@ -392,14 +392,14 @@ func (h *Adapter) fetchAllReleases() ([]*release.Release, error) {
 }
 
 // FilterAndTransformReleases transforms releases and applies filters.
-func (h *Adapter) FilterAndTransformReleases(
+func (a *Adapter) FilterAndTransformReleases(
 	releases []*release.Release,
 	filter *adapter.Filter,
 ) []*adapter.Deployment {
 	deployments := make([]*adapter.Deployment, 0, len(releases))
 	for _, rel := range releases {
-		deployment := h.TransformReleaseToDeployment(rel)
-		if h.MatchesDeploymentFilter(rel, deployment, filter) {
+		deployment := a.TransformReleaseToDeployment(rel)
+		if a.MatchesDeploymentFilter(rel, deployment, filter) {
 			deployments = append(deployments, deployment)
 		}
 	}
@@ -407,7 +407,7 @@ func (h *Adapter) FilterAndTransformReleases(
 }
 
 // MatchesDeploymentFilter checks if a release matches the filter criteria.
-func (h *Adapter) MatchesDeploymentFilter(
+func (a *Adapter) MatchesDeploymentFilter(
 	rel *release.Release,
 	deployment *adapter.Deployment,
 	filter *adapter.Filter,
@@ -427,12 +427,12 @@ func (h *Adapter) MatchesDeploymentFilter(
 }
 
 // GetDeployment retrieves a specific Helm release by ID.
-func (h *Adapter) GetDeployment(ctx context.Context, id string) (*adapter.Deployment, error) {
-	if err := h.Initialize(ctx); err != nil {
+func (a *Adapter) GetDeployment(ctx context.Context, id string) (*adapter.Deployment, error) {
+	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	client := action.NewGet(h.ActionCfg)
+	client := action.NewGet(a.ActionCfg)
 	rel, err := client.Run(id)
 	if err != nil {
 		if errors.Is(err, driver.ErrReleaseNotFound) {
@@ -441,15 +441,15 @@ func (h *Adapter) GetDeployment(ctx context.Context, id string) (*adapter.Deploy
 		return nil, fmt.Errorf("failed to get Helm release: %w", err)
 	}
 
-	return h.TransformReleaseToDeployment(rel), nil
+	return a.TransformReleaseToDeployment(rel), nil
 }
 
 // CreateDeployment installs a new Helm release.
-func (h *Adapter) CreateDeployment(
+func (a *Adapter) CreateDeployment(
 	ctx context.Context,
 	req *adapter.DeploymentRequest,
 ) (*adapter.Deployment, error) {
-	if err := h.Initialize(ctx); err != nil {
+	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
@@ -463,18 +463,18 @@ func (h *Adapter) CreateDeployment(
 		return nil, fmt.Errorf("package ID is required")
 	}
 
-	client := action.NewInstall(h.ActionCfg)
+	client := action.NewInstall(a.ActionCfg)
 	client.Namespace = req.Namespace
 	if client.Namespace == "" {
-		client.Namespace = h.Config.Namespace
+		client.Namespace = a.Config.Namespace
 	}
 	client.ReleaseName = req.Name
 	client.Wait = true
-	client.Timeout = h.Config.Timeout
+	client.Timeout = a.Config.Timeout
 	client.CreateNamespace = true
 
 	// Load chart
-	chartPath, err := client.LocateChart(req.PackageID, h.Settings)
+	chartPath, err := client.LocateChart(req.PackageID, a.Settings)
 	if err != nil {
 		return nil, fmt.Errorf("failed to locate chart %s: %w", req.PackageID, err)
 	}
@@ -490,16 +490,16 @@ func (h *Adapter) CreateDeployment(
 		return nil, fmt.Errorf("helm install failed: %w", err)
 	}
 
-	return h.TransformReleaseToDeployment(rel), nil
+	return a.TransformReleaseToDeployment(rel), nil
 }
 
 // UpdateDeployment upgrades an existing Helm release.
-func (h *Adapter) UpdateDeployment(
+func (a *Adapter) UpdateDeployment(
 	ctx context.Context,
 	id string,
 	update *adapter.DeploymentUpdate,
 ) (*adapter.Deployment, error) {
-	if err := h.Initialize(ctx); err != nil {
+	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
@@ -507,13 +507,13 @@ func (h *Adapter) UpdateDeployment(
 		return nil, fmt.Errorf("deployment update cannot be nil")
 	}
 
-	client := action.NewUpgrade(h.ActionCfg)
+	client := action.NewUpgrade(a.ActionCfg)
 	client.Wait = true
-	client.Timeout = h.Config.Timeout
-	client.MaxHistory = h.Config.MaxHistory
+	client.Timeout = a.Config.Timeout
+	client.MaxHistory = a.Config.MaxHistory
 
 	// Get current release to obtain chart information
-	getClient := action.NewGet(h.ActionCfg)
+	getClient := action.NewGet(a.ActionCfg)
 	currentRelease, err := getClient.Run(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current release: %w", err)
@@ -525,18 +525,18 @@ func (h *Adapter) UpdateDeployment(
 		return nil, fmt.Errorf("helm upgrade failed: %w", err)
 	}
 
-	return h.TransformReleaseToDeployment(rel), nil
+	return a.TransformReleaseToDeployment(rel), nil
 }
 
 // DeleteDeployment uninstalls a Helm release.
-func (h *Adapter) DeleteDeployment(ctx context.Context, id string) error {
-	if err := h.Initialize(ctx); err != nil {
+func (a *Adapter) DeleteDeployment(ctx context.Context, id string) error {
+	if err := a.Initialize(ctx); err != nil {
 		return err
 	}
 
-	client := action.NewUninstall(h.ActionCfg)
+	client := action.NewUninstall(a.ActionCfg)
 	client.Wait = true
-	client.Timeout = h.Config.Timeout
+	client.Timeout = a.Config.Timeout
 
 	_, err := client.Run(id)
 	if err != nil {
@@ -550,8 +550,8 @@ func (h *Adapter) DeleteDeployment(ctx context.Context, id string) error {
 }
 
 // ScaleDeployment scales a deployment by updating replica values.
-func (h *Adapter) ScaleDeployment(ctx context.Context, id string, replicas int) error {
-	if err := h.Initialize(ctx); err != nil {
+func (a *Adapter) ScaleDeployment(ctx context.Context, id string, replicas int) error {
+	if err := a.Initialize(ctx); err != nil {
 		return err
 	}
 
@@ -560,7 +560,7 @@ func (h *Adapter) ScaleDeployment(ctx context.Context, id string, replicas int) 
 	}
 
 	// Get current release
-	getClient := action.NewGet(h.ActionCfg)
+	getClient := action.NewGet(a.ActionCfg)
 	currentRelease, err := getClient.Run(id)
 	if err != nil {
 		return fmt.Errorf("failed to get release: %w", err)
@@ -574,10 +574,10 @@ func (h *Adapter) ScaleDeployment(ctx context.Context, id string, replicas int) 
 	values["replicaCount"] = replicas
 
 	// Perform upgrade with new replica count
-	upgradeClient := action.NewUpgrade(h.ActionCfg)
+	upgradeClient := action.NewUpgrade(a.ActionCfg)
 	upgradeClient.Wait = true
-	upgradeClient.Timeout = h.Config.Timeout
-	upgradeClient.MaxHistory = h.Config.MaxHistory
+	upgradeClient.Timeout = a.Config.Timeout
+	upgradeClient.MaxHistory = a.Config.MaxHistory
 	upgradeClient.ReuseValues = true
 
 	_, err = upgradeClient.RunWithContext(ctx, id, currentRelease.Chart, values)
@@ -589,8 +589,8 @@ func (h *Adapter) ScaleDeployment(ctx context.Context, id string, replicas int) 
 }
 
 // RollbackDeployment rolls back a release to a previous revision.
-func (h *Adapter) RollbackDeployment(ctx context.Context, id string, revision int) error {
-	if err := h.Initialize(ctx); err != nil {
+func (a *Adapter) RollbackDeployment(ctx context.Context, id string, revision int) error {
+	if err := a.Initialize(ctx); err != nil {
 		return err
 	}
 
@@ -598,10 +598,10 @@ func (h *Adapter) RollbackDeployment(ctx context.Context, id string, revision in
 		return fmt.Errorf("revision must be non-negative")
 	}
 
-	client := action.NewRollback(h.ActionCfg)
+	client := action.NewRollback(a.ActionCfg)
 	client.Version = revision
 	client.Wait = true
-	client.Timeout = h.Config.Timeout
+	client.Timeout = a.Config.Timeout
 	client.CleanupOnFail = true
 
 	if err := client.Run(id); err != nil {
@@ -612,28 +612,28 @@ func (h *Adapter) RollbackDeployment(ctx context.Context, id string, revision in
 }
 
 // GetDeploymentStatus retrieves detailed status for a deployment.
-func (h *Adapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.DeploymentStatusDetail, error) {
-	if err := h.Initialize(ctx); err != nil {
+func (a *Adapter) GetDeploymentStatus(ctx context.Context, id string) (*adapter.DeploymentStatusDetail, error) {
+	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	client := action.NewStatus(h.ActionCfg)
+	client := action.NewStatus(a.ActionCfg)
 	rel, err := client.Run(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get release status: %w", err)
 	}
 
-	return h.TransformReleaseToStatus(rel), nil
+	return a.TransformReleaseToStatus(rel), nil
 }
 
 // GetDeploymentHistory retrieves the revision history for a deployment.
-func (h *Adapter) GetDeploymentHistory(ctx context.Context, id string) (*adapter.DeploymentHistory, error) {
-	if err := h.Initialize(ctx); err != nil {
+func (a *Adapter) GetDeploymentHistory(ctx context.Context, id string) (*adapter.DeploymentHistory, error) {
+	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	client := action.NewHistory(h.ActionCfg)
-	client.Max = h.Config.MaxHistory
+	client := action.NewHistory(a.ActionCfg)
+	client.Max = a.Config.MaxHistory
 
 	releases, err := client.Run(id)
 	if err != nil {
@@ -646,7 +646,7 @@ func (h *Adapter) GetDeploymentHistory(ctx context.Context, id string) (*adapter
 			Revision:    rel.Version,
 			Version:     rel.Chart.Metadata.Version,
 			DeployedAt:  rel.Info.LastDeployed.Time,
-			Status:      h.TransformHelmStatus(rel.Info.Status),
+			Status:      a.TransformHelmStatus(rel.Info.Status),
 			Description: rel.Info.Description,
 		})
 	}
@@ -659,22 +659,22 @@ func (h *Adapter) GetDeploymentHistory(ctx context.Context, id string) (*adapter
 
 // GetDeploymentLogs retrieves logs for a deployment.
 // Note: Helm doesn't directly provide logs, so this queries Kubernetes pods.
-func (h *Adapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapter.LogOptions) ([]byte, error) {
-	if err := h.Initialize(ctx); err != nil {
+func (a *Adapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapter.LogOptions) ([]byte, error) {
+	if err := a.Initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	rel, err := h.getRelease(id)
+	rel, err := a.getRelease(id)
 	if err != nil {
 		return nil, err
 	}
 
-	clientset, err := h.createK8sClientset()
+	clientset, err := a.createK8sClientset()
 	if err != nil {
 		return nil, err
 	}
 
-	pods, err := h.listReleasePods(ctx, clientset, rel)
+	pods, err := a.listReleasePods(ctx, clientset, rel)
 	if err != nil {
 		return nil, err
 	}
@@ -683,11 +683,11 @@ func (h *Adapter) GetDeploymentLogs(ctx context.Context, id string, opts *adapte
 		return []byte(fmt.Sprintf("No pods found for release %s in namespace %s", id, rel.Namespace)), nil
 	}
 
-	return h.aggregatePodLogs(ctx, clientset, rel.Namespace, pods.Items, opts), nil
+	return a.aggregatePodLogs(ctx, clientset, rel.Namespace, pods.Items, opts), nil
 }
 
-func (h *Adapter) getRelease(id string) (*release.Release, error) {
-	client := action.NewGet(h.ActionCfg)
+func (a *Adapter) getRelease(id string) (*release.Release, error) {
+	client := action.NewGet(a.ActionCfg)
 	rel, err := client.Run(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get release: %w", err)
@@ -695,8 +695,8 @@ func (h *Adapter) getRelease(id string) (*release.Release, error) {
 	return rel, nil
 }
 
-func (h *Adapter) createK8sClientset() (*kubernetes.Clientset, error) {
-	config, err := clientcmd.BuildConfigFromFlags("", h.Config.Kubeconfig)
+func (a *Adapter) createK8sClientset() (*kubernetes.Clientset, error) {
+	config, err := clientcmd.BuildConfigFromFlags("", a.Config.Kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes config: %w", err)
 	}
@@ -708,7 +708,7 @@ func (h *Adapter) createK8sClientset() (*kubernetes.Clientset, error) {
 	return clientset, nil
 }
 
-func (h *Adapter) listReleasePods(
+func (a *Adapter) listReleasePods(
 	ctx context.Context, clientset *kubernetes.Clientset, rel *release.Release,
 ) (*corev1.PodList, error) {
 	labelSelector := fmt.Sprintf("app.kubernetes.io/instance=%s", rel.Name)
@@ -721,7 +721,7 @@ func (h *Adapter) listReleasePods(
 	return pods, nil
 }
 
-func (h *Adapter) aggregatePodLogs(
+func (a *Adapter) aggregatePodLogs(
 	ctx context.Context, clientset *kubernetes.Clientset, namespace string,
 	pods []corev1.Pod, opts *adapter.LogOptions,
 ) []byte {
@@ -733,14 +733,14 @@ func (h *Adapter) aggregatePodLogs(
 		}
 		logBuffer.WriteString("===== Pod: " + pod.Name + " =====\n\n")
 
-		logOpts := h.buildPodLogOptions(opts)
-		h.streamPodLogs(ctx, clientset, namespace, pod.Name, logOpts, &logBuffer)
+		logOpts := a.buildPodLogOptions(opts)
+		a.streamPodLogs(ctx, clientset, namespace, pod.Name, logOpts, &logBuffer)
 	}
 
 	return logBuffer.Bytes()
 }
 
-func (h *Adapter) buildPodLogOptions(opts *adapter.LogOptions) *corev1.PodLogOptions {
+func (a *Adapter) buildPodLogOptions(opts *adapter.LogOptions) *corev1.PodLogOptions {
 	logOpts := &corev1.PodLogOptions{}
 	if opts == nil {
 		return logOpts
@@ -757,7 +757,7 @@ func (h *Adapter) buildPodLogOptions(opts *adapter.LogOptions) *corev1.PodLogOpt
 	return logOpts
 }
 
-func (h *Adapter) streamPodLogs(
+func (a *Adapter) streamPodLogs(
 	ctx context.Context, clientset *kubernetes.Clientset, namespace, podName string,
 	logOpts *corev1.PodLogOptions, logBuffer *bytes.Buffer,
 ) {
@@ -779,28 +779,28 @@ func (h *Adapter) streamPodLogs(
 }
 
 // SupportsRollback returns true as Helm supports rollback.
-func (h *Adapter) SupportsRollback() bool {
+func (a *Adapter) SupportsRollback() bool {
 	return true
 }
 
 // SupportsScaling returns true as scaling can be done via value updates.
-func (h *Adapter) SupportsScaling() bool {
+func (a *Adapter) SupportsScaling() bool {
 	return true
 }
 
 // SupportsGitOps returns false as this is direct Helm, not GitOps-based.
-func (h *Adapter) SupportsGitOps() bool {
+func (a *Adapter) SupportsGitOps() bool {
 	return false
 }
 
 // Health performs a health check on the Helm backend.
-func (h *Adapter) Health(ctx context.Context) error {
-	if err := h.Initialize(ctx); err != nil {
+func (a *Adapter) Health(ctx context.Context) error {
+	if err := a.Initialize(ctx); err != nil {
 		return fmt.Errorf("helm adapter not healthy: %w", err)
 	}
 
 	// Try to list releases to verify connectivity
-	client := action.NewList(h.ActionCfg)
+	client := action.NewList(a.ActionCfg)
 	client.Limit = 1
 
 	_, err := client.Run()
@@ -814,64 +814,64 @@ func (h *Adapter) Health(ctx context.Context) error {
 // Test helper exports for testing private functions
 
 // TestBuildPackageList exports buildPackageList for testing.
-func (h *Adapter) TestBuildPackageList(idx *repo.IndexFile, filter *adapter.Filter) []*adapter.DeploymentPackage {
-	return h.buildPackageList(idx, filter)
+func (a *Adapter) TestBuildPackageList(idx *repo.IndexFile, filter *adapter.Filter) []*adapter.DeploymentPackage {
+	return a.buildPackageList(idx, filter)
 }
 
 // TestMatchesChartFilter exports matchesChartFilter for testing.
-func (h *Adapter) TestMatchesChartFilter(chartName, chartVersion string, filter *adapter.Filter) bool {
-	return h.matchesChartFilter(chartName, chartVersion, filter)
+func (a *Adapter) TestMatchesChartFilter(chartName, chartVersion string, filter *adapter.Filter) bool {
+	return a.matchesChartFilter(chartName, chartVersion, filter)
 }
 
 // TestBuildPackage exports buildPackage for testing.
-func (h *Adapter) TestBuildPackage(chartName string, chart *repo.ChartVersion) *adapter.DeploymentPackage {
-	return h.buildPackage(chartName, chart)
+func (a *Adapter) TestBuildPackage(chartName string, chart *repo.ChartVersion) *adapter.DeploymentPackage {
+	return a.buildPackage(chartName, chart)
 }
 
 // TestBuildPodLogOptions exports buildPodLogOptions for testing.
-func (h *Adapter) TestBuildPodLogOptions(opts *adapter.LogOptions) *corev1.PodLogOptions {
-	return h.buildPodLogOptions(opts)
+func (a *Adapter) TestBuildPodLogOptions(opts *adapter.LogOptions) *corev1.PodLogOptions {
+	return a.buildPodLogOptions(opts)
 }
 
 // Close cleanly shuts down the adapter.
-func (h *Adapter) Close() error {
-	h.Initialized = false
-	h.ActionCfg = nil
+func (a *Adapter) Close() error {
+	a.Initialized = false
+	a.ActionCfg = nil
 	return nil
 }
 
 // LoadRepositoryIndex loads and caches the Helm chart repository index.
-func (h *Adapter) LoadRepositoryIndex(_ context.Context) error {
-	if h.Config.RepositoryURL == "" {
+func (a *Adapter) LoadRepositoryIndex(_ context.Context) error {
+	if a.Config.RepositoryURL == "" {
 		return fmt.Errorf("repository URL not configured")
 	}
 
 	// Check if already loaded
-	if _, exists := h.repoIndex[h.Config.RepositoryURL]; exists {
+	if _, exists := a.repoIndex[a.Config.RepositoryURL]; exists {
 		return nil
 	}
 
 	// Create repository entry
 	chartRepo := &repo.Entry{
 		Name: "default",
-		URL:  h.Config.RepositoryURL,
+		URL:  a.Config.RepositoryURL,
 	}
 
 	// Add authentication if configured
-	if h.Config.RepositoryUsername != "" {
-		chartRepo.Username = h.Config.RepositoryUsername
-		chartRepo.Password = h.Config.RepositoryPassword
+	if a.Config.RepositoryUsername != "" {
+		chartRepo.Username = a.Config.RepositoryUsername
+		chartRepo.Password = a.Config.RepositoryPassword
 	}
 
 	// Create chart repository with getters
-	providers := getter.All(h.Settings)
+	providers := getter.All(a.Settings)
 	r, err := repo.NewChartRepository(chartRepo, providers)
 	if err != nil {
 		return fmt.Errorf("failed to create chart repository: %w", err)
 	}
 
 	// Set cache path
-	r.CachePath = h.Settings.RepositoryCache
+	r.CachePath = a.Settings.RepositoryCache
 
 	// Download index file
 	indexFile, err := r.DownloadIndexFile()
@@ -886,19 +886,19 @@ func (h *Adapter) LoadRepositoryIndex(_ context.Context) error {
 	}
 
 	// Cache the index
-	h.repoIndex[h.Config.RepositoryURL] = idx
+	a.repoIndex[a.Config.RepositoryURL] = idx
 
 	return nil
 }
 
 // TransformReleaseToDeployment converts a Helm release to a Deployment.
-func (h *Adapter) TransformReleaseToDeployment(rel *release.Release) *adapter.Deployment {
+func (a *Adapter) TransformReleaseToDeployment(rel *release.Release) *adapter.Deployment {
 	return &adapter.Deployment{
 		ID:          rel.Name,
 		Name:        rel.Name,
 		PackageID:   fmt.Sprintf("%s-%s", rel.Chart.Name(), rel.Chart.Metadata.Version),
 		Namespace:   rel.Namespace,
-		Status:      h.TransformHelmStatus(rel.Info.Status),
+		Status:      a.TransformHelmStatus(rel.Info.Status),
 		Version:     rel.Version,
 		Description: rel.Info.Description,
 		CreatedAt:   rel.Info.FirstDeployed.Time,
@@ -915,12 +915,12 @@ func (h *Adapter) TransformReleaseToDeployment(rel *release.Release) *adapter.De
 }
 
 // TransformReleaseToStatus converts a Helm release to detailed status.
-func (h *Adapter) TransformReleaseToStatus(rel *release.Release) *adapter.DeploymentStatusDetail {
+func (a *Adapter) TransformReleaseToStatus(rel *release.Release) *adapter.DeploymentStatusDetail {
 	status := &adapter.DeploymentStatusDetail{
 		DeploymentID: rel.Name,
-		Status:       h.TransformHelmStatus(rel.Info.Status),
+		Status:       a.TransformHelmStatus(rel.Info.Status),
 		Message:      rel.Info.Description,
-		Progress:     h.CalculateProgress(rel),
+		Progress:     a.CalculateProgress(rel),
 		UpdatedAt:    rel.Info.LastDeployed.Time,
 		Extensions: map[string]interface{}{
 			"helm.status":    rel.Info.Status.String(),
@@ -931,13 +931,13 @@ func (h *Adapter) TransformReleaseToStatus(rel *release.Release) *adapter.Deploy
 	}
 
 	// Add conditions based on Helm status
-	status.Conditions = h.BuildConditions(rel)
+	status.Conditions = a.BuildConditions(rel)
 
 	return status
 }
 
 // TransformHelmStatus converts Helm release status to DMS deployment status.
-func (h *Adapter) TransformHelmStatus(helmStatus release.Status) adapter.DeploymentStatus {
+func (a *Adapter) TransformHelmStatus(helmStatus release.Status) adapter.DeploymentStatus {
 	switch helmStatus {
 	case release.StatusPendingInstall:
 		return adapter.DeploymentStatusPending
@@ -959,7 +959,7 @@ func (h *Adapter) TransformHelmStatus(helmStatus release.Status) adapter.Deploym
 }
 
 // CalculateProgress estimates deployment progress based on Helm status.
-func (h *Adapter) CalculateProgress(rel *release.Release) int {
+func (a *Adapter) CalculateProgress(rel *release.Release) int {
 	switch rel.Info.Status {
 	case release.StatusDeployed:
 		return 100
@@ -977,7 +977,7 @@ func (h *Adapter) CalculateProgress(rel *release.Release) int {
 }
 
 // BuildConditions creates deployment conditions from Helm release info.
-func (h *Adapter) BuildConditions(rel *release.Release) []adapter.DeploymentCondition {
+func (a *Adapter) BuildConditions(rel *release.Release) []adapter.DeploymentCondition {
 	conditions := []adapter.DeploymentCondition{}
 
 	// Add deployment condition
@@ -1002,7 +1002,7 @@ func (h *Adapter) BuildConditions(rel *release.Release) []adapter.DeploymentCond
 }
 
 // ApplyPagination applies limit and offset to deployment list.
-func (h *Adapter) ApplyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
+func (a *Adapter) ApplyPagination(deployments []*adapter.Deployment, limit, offset int) []*adapter.Deployment {
 	if offset >= len(deployments) {
 		return []*adapter.Deployment{}
 	}

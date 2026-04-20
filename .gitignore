@@ -46,6 +46,11 @@ tmp/
 temp/
 *.tmp
 
+# Backup files
+*.bak
+*.bak[0-9]
+*.orig
+
 # Profiling and debugging
 *.prof
 cpu.prof
