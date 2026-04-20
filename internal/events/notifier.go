@@ -4,13 +4,11 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -20,6 +18,7 @@ import (
 
 	"github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/storage"
+	"github.com/piwi3910/netweave/internal/webhook"
 )
 
 const (
@@ -68,6 +67,11 @@ type NotifierConfig struct {
 
 	// InsecureSkipVerify disables certificate verification (for testing only)
 	InsecureSkipVerify bool
+
+	// AllowPrivateNetworks disables the outbound SSRF IP guard. Intended
+	// strictly for unit/integration tests that drive httptest.NewServer on
+	// loopback. Production callers MUST leave this false.
+	AllowPrivateNetworks bool
 }
 
 // DefaultNotifierConfig returns a NotifierConfig with sensible defaults.
@@ -135,53 +139,27 @@ func NewWebhookNotifier(
 }
 
 // createHTTPClient creates an HTTP client with optional mTLS configuration.
-// WARNING: InsecureSkipVerify disables certificate validation and should only be used in development/testing.
-// Production deployments must use proper certificate validation (InsecureSkipVerify=false).
-// This security control prevents man-in-the-middle attacks by ensuring webhook endpoints present valid certificates.
+// It delegates to the shared webhook.NewHTTPClient constructor so that the
+// TLS floor, idle-connection pool, and SSRF-safe dialer stay aligned with
+// workers.WebhookWorker.
+//
+// WARNING: InsecureSkipVerify disables certificate validation and should only
+// be used in development/testing. Production deployments must use proper
+// certificate validation (InsecureSkipVerify=false).
 func createHTTPClient(config *NotifierConfig) (*http.Client, error) {
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS13,
-	}
-
-	// Only skip verification if explicitly configured (for development/testing only)
-	// Production deployments must validate certificates
-	if config.InsecureSkipVerify {
-		tlsConfig.InsecureSkipVerify = true
-	}
-
-	// Load client certificate for mTLS
-	if config.EnableMTLS && config.ClientCertFile != "" && config.ClientKeyFile != "" {
-		cert, err := tls.LoadX509KeyPair(config.ClientCertFile, config.ClientKeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load client certificate: %w", err)
-		}
-		tlsConfig.Certificates = []tls.Certificate{cert}
-	}
-
-	// Load CA certificate
-	if config.CACertFile != "" {
-		caCert, err := os.ReadFile(config.CACertFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read CA certificate: %w", err)
-		}
-		caCertPool := x509.NewCertPool()
-		if !caCertPool.AppendCertsFromPEM(caCert) {
-			return nil, errors.New("failed to parse CA certificate")
-		}
-		tlsConfig.RootCAs = caCertPool
-	}
-
-	transport := &http.Transport{
-		TLSClientConfig:     tlsConfig,
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
-	}
-
-	return &http.Client{
-		Transport: transport,
-		Timeout:   config.HTTPTimeout,
-	}, nil
+	return webhook.NewHTTPClient(&webhook.ClientConfig{
+		Timeout: config.HTTPTimeout,
+		// Retain TLS 1.3 as the floor for this caller — stricter than the
+		// shared default of TLS 1.2 — because the notifier path is the
+		// preferred delivery route and has no interoperability concerns.
+		MinTLSVersion:        tls.VersionTLS13,
+		InsecureSkipVerify:   config.InsecureSkipVerify,
+		EnableMTLS:           config.EnableMTLS,
+		ClientCertFile:       config.ClientCertFile,
+		ClientKeyFile:        config.ClientKeyFile,
+		CACertFile:           config.CACertFile,
+		AllowPrivateNetworks: config.AllowPrivateNetworks,
+	})
 }
 
 // Notify sends a notification to a subscriber's callback URL.

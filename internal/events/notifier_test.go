@@ -54,7 +54,7 @@ func TestDefaultNotifierConfig(t *testing.T) {
 // Testevents.NewWebhookNotifier tests notifier creation.
 func TestNewWebhookNotifier(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	tracker := &mockDeliveryTracker{}
 
 	t.Run("creates notifier successfully", func(t *testing.T) {
@@ -73,7 +73,7 @@ func TestNewWebhookNotifier(t *testing.T) {
 // TestWebhookNotifier_Notify tests the Notify function.
 func TestWebhookNotifier_Notify(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	cfg.HTTPTimeout = 2 * time.Second
 	tracker := &mockDeliveryTracker{}
 
@@ -136,7 +136,7 @@ func TestWebhookNotifier_Notify(t *testing.T) {
 		}))
 		defer server.Close()
 
-		timeoutCfg := events.DefaultNotifierConfig()
+		timeoutCfg := testNotifierConfig()
 		timeoutCfg.HTTPTimeout = 100 * time.Millisecond
 
 		notifier, err := events.NewWebhookNotifier(timeoutCfg, tracker, logger)
@@ -162,7 +162,7 @@ func TestWebhookNotifier_Notify(t *testing.T) {
 // TestWebhookNotifier_NotifyWithRetry tests the NotifyWithRetry function.
 func TestWebhookNotifier_NotifyWithRetry(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	cfg.HTTPTimeout = 2 * time.Second
 	cfg.MaxRetries = 2
 	tracker := &mockDeliveryTracker{}
@@ -228,7 +228,7 @@ func TestWebhookNotifier_NotifyWithRetry(t *testing.T) {
 // TestWebhookNotifier_Close tests the Close function.
 func TestWebhookNotifier_Close(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	tracker := &mockDeliveryTracker{}
 
 	notifier, err := events.NewWebhookNotifier(cfg, tracker, logger)

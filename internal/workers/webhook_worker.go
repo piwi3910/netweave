@@ -21,6 +21,7 @@ import (
 
 	"github.com/piwi3910/netweave/internal/controllers"
 	"github.com/piwi3910/netweave/internal/storage"
+	"github.com/piwi3910/netweave/internal/webhook"
 )
 
 const (
@@ -123,6 +124,11 @@ type Config struct {
 
 	// HMACSecret is the secret key for HMAC signature generation.
 	HMACSecret string
+
+	// AllowPrivateNetworks disables the outbound SSRF IP guard. Intended
+	// strictly for unit/integration tests driven by httptest.NewServer on
+	// loopback. Production callers MUST leave this false.
+	AllowPrivateNetworks bool
 }
 
 // NewWebhookWorker creates a new WebhookWorker.
@@ -163,9 +169,22 @@ func NewWebhookWorker(cfg *Config) (*WebhookWorker, error) {
 		maxBackoff = DefaultMaxBackoff
 	}
 
+	// Build a hardened HTTP client shared with events.WebhookNotifier:
+	//   - TLS 1.2 floor (prevents negotiation down to TLS 1.0/1.1)
+	//   - bounded idle-connection pool (prevents FD exhaustion)
+	//   - SSRF-safe DialContext (closes the DNS-rebinding TOCTOU window
+	//     between subscription registration and webhook delivery)
+	httpClient, err := webhook.NewHTTPClient(&webhook.ClientConfig{
+		Timeout:              timeout,
+		AllowPrivateNetworks: cfg.AllowPrivateNetworks,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct webhook HTTP client: %w", err)
+	}
+
 	return &WebhookWorker{
 		redisClient:       cfg.RedisClient,
-		HTTPClient:        &http.Client{Timeout: timeout},
+		HTTPClient:        httpClient,
 		logger:            cfg.Logger,
 		subscriptionStore: cfg.SubscriptionStore,
 		WorkerCount:       workerCount,

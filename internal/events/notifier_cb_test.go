@@ -23,7 +23,7 @@ import (
 // simultaneously (run with go test -race).
 func TestWebhookNotifier_CircuitBreaker_ConcurrentAccess(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	cfg.HTTPTimeout = 100 * time.Millisecond
 	tracker := &mockDeliveryTracker{}
 
@@ -71,7 +71,7 @@ func TestWebhookNotifier_CircuitBreaker_ConcurrentAccess(t *testing.T) {
 // without issues, indirectly testing that eviction works when the limit is exceeded.
 func TestWebhookNotifier_ManyCircuitBreakers(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	cfg.HTTPTimeout = 100 * time.Millisecond
 	tracker := &mockDeliveryTracker{}
 
@@ -111,7 +111,7 @@ func TestWebhookNotifier_ManyCircuitBreakers(t *testing.T) {
 // callback URL reuse the same circuit breaker instance.
 func TestWebhookNotifier_CircuitBreaker_ReusesSameBreaker(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	cfg.HTTPTimeout = 100 * time.Millisecond
 	tracker := &mockDeliveryTracker{}
 
@@ -157,7 +157,7 @@ func TestWebhookNotifier_CircuitBreaker_ReusesSameBreaker(t *testing.T) {
 // callback URLs get their own circuit breaker instances.
 func TestWebhookNotifier_CircuitBreaker_DifferentURLsGetDifferentBreakers(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	cfg.HTTPTimeout = 100 * time.Millisecond
 	tracker := &mockDeliveryTracker{}
 
@@ -223,7 +223,7 @@ func TestWebhookNotifier_CircuitBreaker_DifferentURLsGetDifferentBreakers(t *tes
 // cleanup goroutine that prunes stale circuit breakers.
 func TestWebhookNotifier_Close_StopsCleanupGoroutine(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	cfg.HTTPTimeout = 100 * time.Millisecond
 	tracker := &mockDeliveryTracker{}
 
@@ -247,7 +247,7 @@ func TestWebhookNotifier_Close_StopsCleanupGoroutine(t *testing.T) {
 // updates its last-used timestamp by making notifications and verifying they succeed.
 func TestWebhookNotifier_CircuitBreaker_LastUsedTracking(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	cfg.HTTPTimeout = 100 * time.Millisecond
 	tracker := &mockDeliveryTracker{}
 

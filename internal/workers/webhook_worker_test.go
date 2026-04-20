@@ -198,10 +198,11 @@ func TestWebhookWorker_DeliverWebhook_Success(t *testing.T) {
 
 	// Create worker
 	worker, err := workers.NewWebhookWorker(&workers.Config{
-		RedisClient: rdb,
-		Logger:      zaptest.NewLogger(t),
-		WorkerCount: 1,
-		Timeout:     5 * time.Second,
+		RedisClient:          rdb,
+		Logger:               zaptest.NewLogger(t),
+		AllowPrivateNetworks: true,
+		WorkerCount:          1,
+		Timeout:              5 * time.Second,
 	})
 	require.NoError(t, err)
 
@@ -271,10 +272,11 @@ func TestWebhookWorker_DeliverWebhook_WithHMAC(t *testing.T) {
 
 	// Create worker with HMAC secret
 	worker, err := workers.NewWebhookWorker(&workers.Config{
-		RedisClient: rdb,
-		Logger:      zaptest.NewLogger(t),
-		WorkerCount: 1,
-		HMACSecret:  hmacSecret,
+		RedisClient:          rdb,
+		Logger:               zaptest.NewLogger(t),
+		AllowPrivateNetworks: true,
+		WorkerCount:          1,
+		HMACSecret:           hmacSecret,
 	})
 	require.NoError(t, err)
 
@@ -313,9 +315,10 @@ func TestWebhookWorker_DeliverWebhook_Failure(t *testing.T) {
 
 	// Create worker
 	worker, err := workers.NewWebhookWorker(&workers.Config{
-		RedisClient: rdb,
-		Logger:      zaptest.NewLogger(t),
-		WorkerCount: 1,
+		RedisClient:          rdb,
+		Logger:               zaptest.NewLogger(t),
+		AllowPrivateNetworks: true,
+		WorkerCount:          1,
 	})
 	require.NoError(t, err)
 
@@ -361,11 +364,12 @@ func TestWebhookWorker_DeliverWithRetries(t *testing.T) {
 
 	// Create worker with retries
 	worker, err := workers.NewWebhookWorker(&workers.Config{
-		RedisClient:  rdb,
-		Logger:       zaptest.NewLogger(t),
-		WorkerCount:  1,
-		MaxRetries:   3,
-		RetryBackoff: 100 * time.Millisecond,
+		RedisClient:          rdb,
+		Logger:               zaptest.NewLogger(t),
+		AllowPrivateNetworks: true,
+		WorkerCount:          1,
+		MaxRetries:           3,
+		RetryBackoff:         100 * time.Millisecond,
 	})
 	require.NoError(t, err)
 
@@ -405,11 +409,12 @@ func TestWebhookWorker_DeliverWithRetries_MaxRetriesExceeded(t *testing.T) {
 
 	// Create worker with limited retries
 	worker, err := workers.NewWebhookWorker(&workers.Config{
-		RedisClient:  rdb,
-		Logger:       zaptest.NewLogger(t),
-		WorkerCount:  1,
-		MaxRetries:   2,
-		RetryBackoff: 50 * time.Millisecond,
+		RedisClient:          rdb,
+		Logger:               zaptest.NewLogger(t),
+		AllowPrivateNetworks: true,
+		WorkerCount:          1,
+		MaxRetries:           2,
+		RetryBackoff:         50 * time.Millisecond,
 	})
 	require.NoError(t, err)
 
@@ -466,9 +471,10 @@ func TestWebhookWorker_MoveToDLQ(t *testing.T) {
 
 	// Create worker
 	worker, err := workers.NewWebhookWorker(&workers.Config{
-		RedisClient: rdb,
-		Logger:      zaptest.NewLogger(t),
-		WorkerCount: 1,
+		RedisClient:          rdb,
+		Logger:               zaptest.NewLogger(t),
+		AllowPrivateNetworks: true,
+		WorkerCount:          1,
 	})
 	require.NoError(t, err)
 
@@ -512,9 +518,10 @@ func TestWebhookWorker_CreateConsumerGroup(t *testing.T) {
 	}()
 
 	worker, err := workers.NewWebhookWorker(&workers.Config{
-		RedisClient: rdb,
-		Logger:      zaptest.NewLogger(t),
-		WorkerCount: 1,
+		RedisClient:          rdb,
+		Logger:               zaptest.NewLogger(t),
+		AllowPrivateNetworks: true,
+		WorkerCount:          1,
 	})
 	require.NoError(t, err)
 
@@ -543,9 +550,10 @@ func TestWebhookWorker_AcknowledgeMessage(t *testing.T) {
 	}()
 
 	worker, err := workers.NewWebhookWorker(&workers.Config{
-		RedisClient: rdb,
-		Logger:      zaptest.NewLogger(t),
-		WorkerCount: 1,
+		RedisClient:          rdb,
+		Logger:               zaptest.NewLogger(t),
+		AllowPrivateNetworks: true,
+		WorkerCount:          1,
 	})
 	require.NoError(t, err)
 
@@ -596,10 +604,11 @@ func TestWebhookWorker_HandleMessage(t *testing.T) {
 	defer server.Close()
 
 	worker, err := workers.NewWebhookWorker(&workers.Config{
-		RedisClient: rdb,
-		Logger:      zaptest.NewLogger(t),
-		WorkerCount: 1,
-		MaxRetries:  1,
+		RedisClient:          rdb,
+		Logger:               zaptest.NewLogger(t),
+		AllowPrivateNetworks: true,
+		WorkerCount:          1,
+		MaxRetries:           1,
 	})
 	require.NoError(t, err)
 
@@ -721,9 +730,10 @@ func TestWebhookWorker_ProcessNextEvent(t *testing.T) {
 	defer server.Close()
 
 	worker, err := workers.NewWebhookWorker(&workers.Config{
-		RedisClient: rdb,
-		Logger:      zaptest.NewLogger(t),
-		WorkerCount: 1,
+		RedisClient:          rdb,
+		Logger:               zaptest.NewLogger(t),
+		AllowPrivateNetworks: true,
+		WorkerCount:          1,
 	})
 	require.NoError(t, err)
 
@@ -774,9 +784,10 @@ func TestWebhookWorker_StartStop(t *testing.T) {
 	}()
 
 	worker, err := workers.NewWebhookWorker(&workers.Config{
-		RedisClient: rdb,
-		Logger:      zaptest.NewLogger(t),
-		WorkerCount: 2,
+		RedisClient:          rdb,
+		Logger:               zaptest.NewLogger(t),
+		AllowPrivateNetworks: true,
+		WorkerCount:          2,
 	})
 	require.NoError(t, err)
 
@@ -812,9 +823,10 @@ func TestWebhookWorker_Stop(t *testing.T) {
 	}()
 
 	worker, err := workers.NewWebhookWorker(&workers.Config{
-		RedisClient: rdb,
-		Logger:      zaptest.NewLogger(t),
-		WorkerCount: 1,
+		RedisClient:          rdb,
+		Logger:               zaptest.NewLogger(t),
+		AllowPrivateNetworks: true,
+		WorkerCount:          1,
 	})
 	require.NoError(t, err)
 
@@ -843,9 +855,10 @@ func TestWebhookWorker_DeliverWebhook_BackendIDHeader(t *testing.T) {
 		defer server.Close()
 
 		worker, err := workers.NewWebhookWorker(&workers.Config{
-			RedisClient: rdb,
-			Logger:      zaptest.NewLogger(t),
-			WorkerCount: 1,
+			RedisClient:          rdb,
+			Logger:               zaptest.NewLogger(t),
+			AllowPrivateNetworks: true,
+			WorkerCount:          1,
 		})
 		require.NoError(t, err)
 
@@ -877,9 +890,10 @@ func TestWebhookWorker_DeliverWebhook_BackendIDHeader(t *testing.T) {
 		defer server.Close()
 
 		worker, err := workers.NewWebhookWorker(&workers.Config{
-			RedisClient: rdb,
-			Logger:      zaptest.NewLogger(t),
-			WorkerCount: 1,
+			RedisClient:          rdb,
+			Logger:               zaptest.NewLogger(t),
+			AllowPrivateNetworks: true,
+			WorkerCount:          1,
 		})
 		require.NoError(t, err)
 
@@ -1034,11 +1048,12 @@ func TestWebhookWorker_TenantFiltering(t *testing.T) {
 			}
 
 			worker, err := workers.NewWebhookWorker(&workers.Config{
-				RedisClient:       rdb,
-				Logger:            zaptest.NewLogger(t),
-				WorkerCount:       1,
-				MaxRetries:        1,
-				SubscriptionStore: subStore,
+				RedisClient:          rdb,
+				Logger:               zaptest.NewLogger(t),
+				WorkerCount:          1,
+				MaxRetries:           1,
+				SubscriptionStore:    subStore,
+				AllowPrivateNetworks: true,
 			})
 			require.NoError(t, err)
 
@@ -1099,9 +1114,10 @@ func TestWebhookWorker_EventTenantFields(t *testing.T) {
 	defer server.Close()
 
 	worker, err := workers.NewWebhookWorker(&workers.Config{
-		RedisClient: rdb,
-		Logger:      zaptest.NewLogger(t),
-		WorkerCount: 1,
+		RedisClient:          rdb,
+		Logger:               zaptest.NewLogger(t),
+		AllowPrivateNetworks: true,
+		WorkerCount:          1,
 	})
 	require.NoError(t, err)
 

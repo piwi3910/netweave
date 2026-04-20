@@ -18,7 +18,7 @@ import (
 )
 
 func TestNewWebhookNotifier_NilLogger(t *testing.T) {
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	tracker := &mockDeliveryTracker{}
 
 	_, err := events.NewWebhookNotifier(cfg, tracker, nil)
@@ -28,7 +28,7 @@ func TestNewWebhookNotifier_NilLogger(t *testing.T) {
 
 func TestNewWebhookNotifier_InsecureSkipVerify(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	cfg.InsecureSkipVerify = true
 	tracker := &mockDeliveryTracker{}
 
@@ -71,7 +71,7 @@ func TestNewWebhookNotifier_InvalidMTLSCerts(t *testing.T) {
 
 func TestWebhookNotifier_Notify_NilInputs(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	tracker := &mockDeliveryTracker{}
 
 	notifier, err := events.NewWebhookNotifier(cfg, tracker, logger)
@@ -96,7 +96,7 @@ func TestWebhookNotifier_Notify_NilInputs(t *testing.T) {
 
 func TestWebhookNotifier_NotifyWithRetry_NilInputs(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	tracker := &mockDeliveryTracker{}
 
 	notifier, err := events.NewWebhookNotifier(cfg, tracker, logger)
@@ -122,9 +122,10 @@ func TestWebhookNotifier_NotifyWithRetry_NilInputs(t *testing.T) {
 func TestWebhookNotifier_NotifyWithRetry_AllRetriesFail(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	cfg := &events.NotifierConfig{
-		HTTPTimeout:        2 * time.Second,
-		MaxRetries:         2,
-		InsecureSkipVerify: true,
+		HTTPTimeout:          2 * time.Second,
+		MaxRetries:           2,
+		InsecureSkipVerify:   true,
+		AllowPrivateNetworks: true,
 	}
 	tracker := &mockDeliveryTracker{}
 
@@ -164,9 +165,10 @@ func TestWebhookNotifier_NotifyWithRetry_AllRetriesFail(t *testing.T) {
 func TestWebhookNotifier_NotifyWithRetry_ContextCanceled(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	cfg := &events.NotifierConfig{
-		HTTPTimeout:        2 * time.Second,
-		MaxRetries:         3,
-		InsecureSkipVerify: true,
+		HTTPTimeout:          2 * time.Second,
+		MaxRetries:           3,
+		InsecureSkipVerify:   true,
+		AllowPrivateNetworks: true,
 	}
 	tracker := &mockDeliveryTracker{}
 
@@ -205,9 +207,10 @@ func TestWebhookNotifier_NotifyWithRetry_ContextCanceled(t *testing.T) {
 func TestWebhookNotifier_NotifyWithRetry_NilTracker(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	cfg := &events.NotifierConfig{
-		HTTPTimeout:        2 * time.Second,
-		MaxRetries:         1,
-		InsecureSkipVerify: true,
+		HTTPTimeout:          2 * time.Second,
+		MaxRetries:           1,
+		InsecureSkipVerify:   true,
+		AllowPrivateNetworks: true,
 	}
 
 	// Create notifier without a delivery tracker (nil tracker)
@@ -239,7 +242,7 @@ func TestWebhookNotifier_NotifyWithRetry_NilTracker(t *testing.T) {
 
 func TestWebhookNotifier_Notify_InvalidURL(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	cfg.InsecureSkipVerify = true
 	tracker := &mockDeliveryTracker{}
 
@@ -265,9 +268,10 @@ func TestWebhookNotifier_Notify_InvalidURL(t *testing.T) {
 func TestWebhookNotifier_GetCircuitBreaker_Reuse(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	cfg := &events.NotifierConfig{
-		HTTPTimeout:        2 * time.Second,
-		MaxRetries:         2,
-		InsecureSkipVerify: true,
+		HTTPTimeout:          2 * time.Second,
+		MaxRetries:           2,
+		InsecureSkipVerify:   true,
+		AllowPrivateNetworks: true,
 	}
 	tracker := &mockDeliveryTracker{}
 
@@ -345,9 +349,10 @@ func (t *trackingDeliveryTracker) ListFailed(_ context.Context) ([]*events.Notif
 func TestWebhookNotifier_NotifyWithRetry_TrackerError(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	cfg := &events.NotifierConfig{
-		HTTPTimeout:        2 * time.Second,
-		MaxRetries:         1,
-		InsecureSkipVerify: true,
+		HTTPTimeout:          2 * time.Second,
+		MaxRetries:           1,
+		InsecureSkipVerify:   true,
+		AllowPrivateNetworks: true,
 	}
 
 	tracker := &trackingDeliveryTracker{
@@ -383,7 +388,7 @@ func TestWebhookNotifier_NotifyWithRetry_TrackerError(t *testing.T) {
 
 func TestWebhookNotifier_Notify_NonSuccessStatus(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	cfg := events.DefaultNotifierConfig()
+	cfg := testNotifierConfig()
 	cfg.InsecureSkipVerify = true
 
 	tests := []struct {
