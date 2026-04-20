@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1206,54 +1205,10 @@ func (c *Config) validateProductionRules() error {
 		return fmt.Errorf("insecure (HTTP) webhook callbacks must not be allowed in production")
 	}
 
-	// Rate limiter fail-open is unsafe for write endpoints in production.
-	// Reject any configuration that declares fail_mode: open on a write method.
-	if err := c.validateRateLimitFailMode(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// validateRateLimitFailMode enforces issue #479: fail_mode "open" is never
-// acceptable on write endpoints (POST/PUT/PATCH/DELETE) in production.
-// A top-level rate_limit.fail_mode=open is also rejected because it would
-// apply to every write path.
-func (c *Config) validateRateLimitFailMode() error {
-	switch c.Security.RateLimit.FailMode {
-	case "", "open", "closed":
-	default:
-		return fmt.Errorf(
-			"invalid rate_limit.fail_mode %q (must be 'open', 'closed', or empty)",
-			c.Security.RateLimit.FailMode,
-		)
-	}
-
-	if c.Security.RateLimit.FailMode == "open" {
-		return fmt.Errorf(
-			"rate_limit.fail_mode=open is not permitted in production; use 'closed' for writes",
-		)
-	}
-
-	for _, ep := range c.Security.RateLimit.PerEndpoint {
-		switch ep.FailMode {
-		case "", "open", "closed":
-		default:
-			return fmt.Errorf(
-				"invalid rate_limit.endpoints[%s %s].fail_mode %q (must be 'open', 'closed', or empty)",
-				ep.Method, ep.Path, ep.FailMode,
-			)
-		}
-		if ep.FailMode != "open" {
-			continue
-		}
-		method := strings.ToUpper(ep.Method)
-		if method == http.MethodPost || method == http.MethodPut ||
-			method == http.MethodPatch || method == http.MethodDelete {
-			return fmt.Errorf(
-				"rate_limit.endpoints[%s %s].fail_mode=open is not permitted in production for write methods",
-				ep.Method, ep.Path,
-			)
+	// Postgres must not fall through to plaintext in production.
+	if c.StorageMode == "postgres" || c.StorageMode == "dual" {
+		if err := c.Postgres.ValidateForProduction(); err != nil {
+			return fmt.Errorf("postgres config invalid for production: %w", err)
 		}
 	}
 
