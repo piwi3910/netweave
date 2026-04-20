@@ -6,6 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/httpx"
 )
 
 // Handler provides HTTP endpoints for certificate lifecycle queries.
@@ -56,9 +58,7 @@ func (h *Handler) listCertificates(c *gin.Context) {
 	if err != nil {
 		h.logger.Error("failed to list certificates",
 			zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to list certificates",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "failed to list certificates")
 		return
 	}
 
@@ -76,9 +76,7 @@ func (h *Handler) monitoringStats(c *gin.Context) {
 	if err != nil {
 		h.logger.Error("failed to get monitoring stats",
 			zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to get monitoring stats",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "failed to get monitoring stats")
 		return
 	}
 
@@ -95,17 +93,13 @@ func (h *Handler) getCertificate(c *gin.Context) {
 	meta, err := h.store.Get(ctx, serial)
 	if err != nil {
 		if errors.Is(err, ErrCertificateNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "certificate not found",
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "certificate not found")
 			return
 		}
 		h.logger.Error("failed to get certificate",
 			zap.String("serial", serial),
 			zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to get certificate",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "failed to get certificate")
 		return
 	}
 

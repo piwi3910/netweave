@@ -179,7 +179,8 @@ func TestHandler_GetCertificate_NotFound(t *testing.T) {
 	var resp map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, "certificate not found", resp["error"])
+	assert.Equal(t, "NotFound", resp["error"])
+	assert.Equal(t, "certificate not found", resp["message"])
 }
 
 func TestHandler_MonitoringStats(t *testing.T) {

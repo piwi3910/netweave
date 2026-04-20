@@ -30,6 +30,7 @@ import (
 	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
 	dmsstorage "github.com/piwi3910/netweave/internal/dms/storage"
 	"github.com/piwi3910/netweave/internal/handlers"
+	"github.com/piwi3910/netweave/internal/httpx"
 	"github.com/piwi3910/netweave/internal/middleware"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/smo"
@@ -1080,9 +1081,7 @@ func (s *Server) RecoveryMiddleware() gin.HandlerFunc {
 					zap.String("client_ip", c.ClientIP()),
 				)
 
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"error": "Internal server error",
-				})
+				httpx.AbortWithError(c, http.StatusInternalServerError, "InternalError", "Internal server error")
 			}
 		}()
 		c.Next()

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/piwi3910/netweave/internal/httpx"
 )
 
 // APIVersion represents an API version configuration.
@@ -72,12 +74,7 @@ func VersioningMiddleware(config *VersionConfig) gin.HandlerFunc {
 
 		versionInfo, exists := config.Versions[version]
 		if !exists {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "API version not found: " + version,
-				"code":    http.StatusNotFound,
-			})
-			c.Abort()
+			httpx.AbortWithError(c, http.StatusNotFound, "NotFound", "API version not found: "+version)
 			return
 		}
 
@@ -98,12 +95,12 @@ func VersioningMiddleware(config *VersionConfig) gin.HandlerFunc {
 
 		// Handle sunset versions (completely removed)
 		if versionInfo.Status == VersionStatusSunset {
-			c.JSON(http.StatusGone, gin.H{
-				"error":   "Gone",
-				"message": "API version " + version + " has been removed. Please upgrade to a newer version.",
-				"code":    http.StatusGone,
-			})
-			c.Abort()
+			httpx.AbortWithError(
+				c,
+				http.StatusGone,
+				"Gone",
+				"API version "+version+" has been removed. Please upgrade to a newer version.",
+			)
 			return
 		}
 
@@ -200,12 +197,12 @@ func RequireVersion(minVersion string) gin.HandlerFunc {
 		}
 
 		if !IsVersionAtLeast(currentVersion, minVersion) {
-			c.JSON(http.StatusNotImplemented, gin.H{
-				"error":   "NotImplemented",
-				"message": "This feature requires API version " + minVersion + " or higher",
-				"code":    http.StatusNotImplemented,
-			})
-			c.Abort()
+			httpx.AbortWithError(
+				c,
+				http.StatusNotImplemented,
+				"NotImplemented",
+				"This feature requires API version "+minVersion+" or higher",
+			)
 			return
 		}
 

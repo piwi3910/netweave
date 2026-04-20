@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/piwi3910/netweave/internal/config"
 	"github.com/piwi3910/netweave/internal/handlers"
+	"github.com/piwi3910/netweave/internal/httpx"
 )
 
 // ErrPluginNotFound is returned when a plugin name is not recognized.
@@ -211,10 +212,7 @@ func PluginGuard(registry *FrontendPluginRegistry, pluginName string) gin.Handle
 		}
 
 		if !registry.IsEnabled(pluginName) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": fmt.Sprintf("The %s API is not enabled. Contact your platform administrator.", pluginName),
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("The %s API is not enabled. Contact your platform administrator.", pluginName))
 			c.Abort()
 			return
 		}
