@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/models"
+	"github.com/piwi3910/netweave/internal/security/urlredact"
 	"github.com/piwi3910/netweave/internal/storage"
 	"github.com/piwi3910/netweave/internal/webhook"
 )
@@ -295,7 +296,7 @@ func (n *WebhookNotifier) handleDeliverySuccess(
 	n.logger.Info("notification delivered successfully",
 		zap.String("delivery_id", delivery.ID),
 		zap.String("subscription_id", subscription.ID),
-		zap.String("callback", subscription.Callback),
+		zap.String("callback", urlredact.Redact(subscription.Callback)),
 		zap.Int("attempts", attempt),
 		zap.Int64("response_time_ms", delivery.ResponseTime),
 	)
@@ -328,7 +329,7 @@ func (n *WebhookNotifier) handleFinalFailure(
 	n.logger.Error("notification delivery failed after all retries",
 		zap.String("delivery_id", delivery.ID),
 		zap.String("subscription_id", subscription.ID),
-		zap.String("callback", subscription.Callback),
+		zap.String("callback", urlredact.Redact(subscription.Callback)),
 		zap.Int("attempts", attempt),
 		zap.Error(err),
 	)
@@ -358,7 +359,7 @@ func (n *WebhookNotifier) prepareRetry(
 	n.logger.Warn("notification delivery failed",
 		zap.String("delivery_id", delivery.ID),
 		zap.String("subscription_id", subscription.ID),
-		zap.String("callback", subscription.Callback),
+		zap.String("callback", urlredact.Redact(subscription.Callback)),
 		zap.Int("attempt", attempt),
 		zap.Int("max_attempts", n.config.MaxRetries),
 		zap.Error(err),
@@ -493,7 +494,7 @@ func (n *WebhookNotifier) getCircuitBreaker(callbackURL string) *gobreaker.Circu
 		},
 		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
 			n.logger.Info("circuit breaker state changed",
-				zap.String("callback", name),
+				zap.String("callback", urlredact.Redact(name)),
 				zap.String("from", from.String()),
 				zap.String("to", to.String()),
 			)
@@ -534,7 +535,7 @@ func (n *WebhookNotifier) evictOldestLocked() {
 		delete(n.circuitBreakers, oldestURL)
 		delete(n.cbLastUsed, oldestURL)
 		n.logger.Debug("evicted stale circuit breaker",
-			zap.String("callback", oldestURL),
+			zap.String("callback", urlredact.Redact(oldestURL)),
 			zap.Time("last_used", oldestTime),
 			zap.Int("remaining", len(n.circuitBreakers)),
 		)

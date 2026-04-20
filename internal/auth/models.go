@@ -3,6 +3,8 @@
 package auth
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -543,6 +545,67 @@ type AuditEvent struct {
 
 	// Timestamp is when the event occurred.
 	Timestamp time.Time `json:"timestamp"`
+
+	// PrevHash is the entry_hash of the previous audit event in the chain,
+	// or the empty string for the genesis entry. Populated by the audit store.
+	PrevHash string `json:"prevHash,omitempty"`
+
+	// EntryHash is the hex-encoded SHA-256 digest of this event's canonical
+	// representation including PrevHash. Populated by the audit store.
+	EntryHash string `json:"entryHash,omitempty"`
+}
+
+// ComputeEntryHash returns the hex-encoded SHA-256 digest of this event's
+// canonical representation. The supplied prevHash is mixed into the digest to
+// link this entry to the previous one. The computed value does not include the
+// existing EntryHash or PrevHash fields of the receiver.
+func (e *AuditEvent) ComputeEntryHash(prevHash string) string {
+	payload := auditHashPayload{
+		ID:           e.ID,
+		Type:         string(e.Type),
+		TenantID:     e.TenantID,
+		UserID:       e.UserID,
+		Subject:      e.Subject,
+		ResourceType: e.ResourceType,
+		ResourceID:   e.ResourceID,
+		Action:       e.Action,
+		Details:      e.Details,
+		ClientIP:     e.ClientIP,
+		UserAgent:    e.UserAgent,
+		TimestampUTC: e.Timestamp.UTC().Format(time.RFC3339Nano),
+		PrevHash:     prevHash,
+	}
+	// json.Marshal is deterministic for the fixed field order of a struct and
+	// sorts map keys lexicographically, giving a stable canonical form.
+	buf, err := json.Marshal(payload)
+	if err != nil {
+		// Every field is a primitive string or a string map, so Marshal cannot
+		// fail in practice; fall back to a non-empty hash so we never insert
+		// an empty EntryHash.
+		sum := sha256.Sum256([]byte(e.ID + prevHash))
+		return hex.EncodeToString(sum[:])
+	}
+	sum := sha256.Sum256(buf)
+	return hex.EncodeToString(sum[:])
+}
+
+// auditHashPayload is the canonical serialization form used to compute
+// AuditEvent.EntryHash. It omits EntryHash/PrevHash of the receiver because
+// PrevHash is provided explicitly and EntryHash is the output.
+type auditHashPayload struct {
+	ID           string            `json:"id"`
+	Type         string            `json:"type"`
+	TenantID     string            `json:"tenant_id"`
+	UserID       string            `json:"user_id"`
+	Subject      string            `json:"subject"`
+	ResourceType string            `json:"resource_type"`
+	ResourceID   string            `json:"resource_id"`
+	Action       string            `json:"action"`
+	Details      map[string]string `json:"details"`
+	ClientIP     string            `json:"client_ip"`
+	UserAgent    string            `json:"user_agent"`
+	TimestampUTC string            `json:"timestamp_utc"`
+	PrevHash     string            `json:"prev_hash"`
 }
 
 // MarshalBinary implements encoding.BinaryMarshaler for Redis storage.

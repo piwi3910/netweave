@@ -182,7 +182,7 @@ func roleRow(r *dbsqlc.Role) []interface{} {
 
 // auditEventRow returns a slice of interface{} matching the AuditEvent scan order:
 // id, type, tenant_id, user_id, subject, resource_type, resource_id,
-// action, details, client_ip, user_agent, timestamp.
+// action, details, client_ip, user_agent, timestamp, prev_hash, entry_hash.
 func auditEventRow(e *dbsqlc.AuditEvent) []interface{} {
 	return []interface{}{
 		e.ID,
@@ -197,6 +197,8 @@ func auditEventRow(e *dbsqlc.AuditEvent) []interface{} {
 		e.ClientIp,
 		e.UserAgent,
 		e.Timestamp,
+		e.PrevHash,
+		e.EntryHash,
 	}
 }
 

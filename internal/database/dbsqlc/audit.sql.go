@@ -24,12 +24,27 @@ func (q *Queries) CleanupOldAuditEvents(ctx context.Context, days int32) (int64,
 	return result.RowsAffected(), nil
 }
 
+const getLatestAuditHash = `-- name: GetLatestAuditHash :one
+SELECT entry_hash
+FROM audit_events
+ORDER BY timestamp DESC, id DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestAuditHash(ctx context.Context) (string, error) {
+	row := q.db.QueryRow(ctx, getLatestAuditHash)
+	var entry_hash string
+	err := row.Scan(&entry_hash)
+	return entry_hash, err
+}
+
 const insertAuditEvent = `-- name: InsertAuditEvent :exec
 INSERT INTO audit_events (
     id, type, tenant_id, user_id, subject,
     resource_type, resource_id, action, details,
-    client_ip, user_agent, timestamp
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    client_ip, user_agent, timestamp,
+    prev_hash, entry_hash
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 `
 
 type InsertAuditEventParams struct {
@@ -45,6 +60,8 @@ type InsertAuditEventParams struct {
 	ClientIp     string          `json:"client_ip"`
 	UserAgent    string          `json:"user_agent"`
 	Timestamp    time.Time       `json:"timestamp"`
+	PrevHash     string          `json:"prev_hash"`
+	EntryHash    string          `json:"entry_hash"`
 }
 
 func (q *Queries) InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error {
@@ -61,12 +78,14 @@ func (q *Queries) InsertAuditEvent(ctx context.Context, arg InsertAuditEventPara
 		arg.ClientIp,
 		arg.UserAgent,
 		arg.Timestamp,
+		arg.PrevHash,
+		arg.EntryHash,
 	)
 	return err
 }
 
 const listAuditEvents = `-- name: ListAuditEvents :many
-SELECT id, type, tenant_id, user_id, subject, resource_type, resource_id, action, details, client_ip, user_agent, timestamp FROM audit_events
+SELECT id, type, tenant_id, user_id, subject, resource_type, resource_id, action, details, client_ip, user_agent, timestamp, prev_hash, entry_hash FROM audit_events
 WHERE ($3::text = '' OR tenant_id = $3::text)
 ORDER BY timestamp DESC
 LIMIT $1 OFFSET $2
@@ -100,6 +119,8 @@ func (q *Queries) ListAuditEvents(ctx context.Context, arg ListAuditEventsParams
 			&i.ClientIp,
 			&i.UserAgent,
 			&i.Timestamp,
+			&i.PrevHash,
+			&i.EntryHash,
 		); err != nil {
 			return nil, err
 		}
@@ -112,7 +133,7 @@ func (q *Queries) ListAuditEvents(ctx context.Context, arg ListAuditEventsParams
 }
 
 const listAuditEventsByType = `-- name: ListAuditEventsByType :many
-SELECT id, type, tenant_id, user_id, subject, resource_type, resource_id, action, details, client_ip, user_agent, timestamp FROM audit_events
+SELECT id, type, tenant_id, user_id, subject, resource_type, resource_id, action, details, client_ip, user_agent, timestamp, prev_hash, entry_hash FROM audit_events
 WHERE type = $1
 ORDER BY timestamp DESC
 LIMIT $2
@@ -145,6 +166,8 @@ func (q *Queries) ListAuditEventsByType(ctx context.Context, arg ListAuditEvents
 			&i.ClientIp,
 			&i.UserAgent,
 			&i.Timestamp,
+			&i.PrevHash,
+			&i.EntryHash,
 		); err != nil {
 			return nil, err
 		}
@@ -157,7 +180,7 @@ func (q *Queries) ListAuditEventsByType(ctx context.Context, arg ListAuditEvents
 }
 
 const listAuditEventsByUser = `-- name: ListAuditEventsByUser :many
-SELECT id, type, tenant_id, user_id, subject, resource_type, resource_id, action, details, client_ip, user_agent, timestamp FROM audit_events
+SELECT id, type, tenant_id, user_id, subject, resource_type, resource_id, action, details, client_ip, user_agent, timestamp, prev_hash, entry_hash FROM audit_events
 WHERE user_id = $1
 ORDER BY timestamp DESC
 LIMIT $2
@@ -189,6 +212,52 @@ func (q *Queries) ListAuditEventsByUser(ctx context.Context, arg ListAuditEvents
 			&i.Details,
 			&i.ClientIp,
 			&i.UserAgent,
+			&i.Timestamp,
+			&i.PrevHash,
+			&i.EntryHash,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAuditEventsForVerification = `-- name: ListAuditEventsForVerification :many
+SELECT id, prev_hash, entry_hash, timestamp
+FROM audit_events
+ORDER BY timestamp ASC, id ASC
+LIMIT $1 OFFSET $2
+`
+
+type ListAuditEventsForVerificationParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type ListAuditEventsForVerificationRow struct {
+	ID        string    `json:"id"`
+	PrevHash  string    `json:"prev_hash"`
+	EntryHash string    `json:"entry_hash"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+func (q *Queries) ListAuditEventsForVerification(ctx context.Context, arg ListAuditEventsForVerificationParams) ([]ListAuditEventsForVerificationRow, error) {
+	rows, err := q.db.Query(ctx, listAuditEventsForVerification, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAuditEventsForVerificationRow{}
+	for rows.Next() {
+		var i ListAuditEventsForVerificationRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PrevHash,
+			&i.EntryHash,
 			&i.Timestamp,
 		); err != nil {
 			return nil, err

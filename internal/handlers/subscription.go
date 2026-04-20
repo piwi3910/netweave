@@ -15,6 +15,7 @@ import (
 	"github.com/piwi3910/netweave/internal/auth"
 	internalmodels "github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/o2ims/models"
+	"github.com/piwi3910/netweave/internal/security/urlredact"
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
@@ -226,7 +227,7 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 
 	h.logger.Info("subscription created",
 		zap.String("subscription_id", subscriptionID),
-		zap.String("callback", sub.Callback),
+		zap.String("callback", urlredact.Redact(sub.Callback)),
 	)
 
 	c.JSON(http.StatusCreated, response)
@@ -269,7 +270,7 @@ func (h *SubscriptionHandler) validateCallbackURL(c *gin.Context, callback strin
 	callbackURL, err := url.Parse(callback)
 	if err != nil || (callbackURL.Scheme != "http" && callbackURL.Scheme != "https") {
 		h.logger.Warn("invalid callback URL",
-			zap.String("callback", callback),
+			zap.String("callback", urlredact.Redact(callback)),
 			zap.Error(err),
 		)
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{

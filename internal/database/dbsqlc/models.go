@@ -24,6 +24,8 @@ type AuditEvent struct {
 	ClientIp     string          `json:"client_ip"`
 	UserAgent    string          `json:"user_agent"`
 	Timestamp    time.Time       `json:"timestamp"`
+	PrevHash     string          `json:"prev_hash"`
+	EntryHash    string          `json:"entry_hash"`
 }
 
 type BackendAccess struct {

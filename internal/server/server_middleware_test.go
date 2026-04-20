@@ -408,30 +408,36 @@ func TestHandleRoot_NoSkip(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "O2-IMS Gateway")
-	assert.Contains(t, w.Body.String(), "health")
-	assert.Contains(t, w.Body.String(), "endpoints")
+	// Unauthenticated banner: only minimal fields — no build/commit info, no
+	// endpoint map, no product name that aids reconnaissance.
+	assert.Contains(t, w.Body.String(), "\"service\":\"netweave\"")
+	assert.Contains(t, w.Body.String(), "\"api\":\"o2ims\"")
+	assert.Contains(t, w.Body.String(), "\"status\":\"ok\"")
+	assert.NotContains(t, w.Body.String(), "version")
+	assert.NotContains(t, w.Body.String(), "endpoints")
 }
 
 func TestHandleAPIInfo_NoSkip(t *testing.T) {
 	srv := setupMinimalTestServer(t)
 	router := srv.Router()
 
-	t.Run("from /o2ims path", func(t *testing.T) {
+	t.Run("from /o2ims path returns minimal banner", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/o2ims", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
 		require.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Body.String(), "subscriptions")
-		assert.Contains(t, w.Body.String(), "resourcePools")
-		assert.Contains(t, w.Body.String(), "features")
+		// /o2ims is unauthenticated on the admin router: only minimal fields.
+		assert.Contains(t, w.Body.String(), "\"service\":\"netweave\"")
+		assert.NotContains(t, w.Body.String(), "features")
+		assert.NotContains(t, w.Body.String(), "subscriptions")
 	})
 
-	t.Run("from v1 base path", func(t *testing.T) {
+	t.Run("from v1 base path returns detailed info on O2 router", func(t *testing.T) {
+		// The detailed descriptor lives on the O2 (mTLS) router now.
 		req := httptest.NewRequest(http.MethodGet, "/o2ims-infrastructureInventory/v1", nil)
 		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		srv.O2Router().ServeHTTP(w, req)
 
 		require.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), "api_version")
@@ -476,10 +482,11 @@ func TestHandleCreateSubscription_NoSkip(t *testing.T) {
 			wantBody:   "BadRequest",
 		},
 		{
-			name:       "missing callback URL",
-			body:       `{"consumerSubscriptionId":"test-sub"}`,
+			name: "missing callback URL",
+			body: `{"consumerSubscriptionId":"test-sub"}`,
+			// #499: client sees the generic "invalid callback URL" form.
 			wantStatus: http.StatusBadRequest,
-			wantBody:   "callback URL is required",
+			wantBody:   "invalid callback URL",
 		},
 	}
 
@@ -1234,16 +1241,17 @@ func TestValidateCallback_NoSkip(t *testing.T) {
 			wantErr:  false,
 		},
 		{
+			// #499: client sees a generic form; detailed reason stays in logs.
 			name:     "empty callback",
 			callback: "",
 			wantErr:  true,
-			errMsg:   "callback URL is required",
+			errMsg:   "invalid callback URL",
 		},
 		{
 			name:     "invalid scheme",
 			callback: "ftp://example.com/notify",
 			wantErr:  true,
-			errMsg:   "http or https",
+			errMsg:   "invalid callback URL",
 		},
 	}
 

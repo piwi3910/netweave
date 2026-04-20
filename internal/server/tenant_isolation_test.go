@@ -220,7 +220,7 @@ func TestTenantIsolation_GetSubscription(t *testing.T) {
 				})
 			},
 			expectedStatus:   http.StatusNotFound,
-			expectedErrorMsg: "Subscription not found",
+			expectedErrorMsg: "subscription not found",
 		},
 		{
 			name:            "platform admin can access any subscription",
@@ -314,7 +314,7 @@ func TestTenantIsolation_DeleteSubscription(t *testing.T) {
 				})
 			},
 			expectedStatus:   http.StatusNotFound,
-			expectedErrorMsg: "Subscription not found",
+			expectedErrorMsg: "subscription not found",
 		},
 	}
 
@@ -396,7 +396,7 @@ func TestTenantIsolation_UpdateSubscription(t *testing.T) {
 			},
 			requestBody:      `{"callback": "https://malicious.example.com/callback"}`,
 			expectedStatus:   http.StatusNotFound,
-			expectedErrorMsg: "Subscription not found",
+			expectedErrorMsg: "subscription not found",
 		},
 	}
 
@@ -720,7 +720,7 @@ func TestTenantIsolation_GetResourcePool(t *testing.T) {
 				var response map[string]interface{}
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
-				assert.Contains(t, response["message"], "Resource pool not found")
+				assert.Contains(t, response["message"], "resource pool not found")
 			}
 		})
 	}
@@ -821,7 +821,7 @@ func TestTenantIsolation_GetResource(t *testing.T) {
 				var response map[string]interface{}
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
-				assert.Contains(t, response["message"], "Resource not found")
+				assert.Contains(t, response["message"], "resource not found")
 			}
 		})
 	}
@@ -1036,7 +1036,7 @@ func TestTenantIsolation_DeleteResourcePool(t *testing.T) {
 				var response map[string]interface{}
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
-				assert.Contains(t, response["message"], "Resource pool not found")
+				assert.Contains(t, response["message"], "resource pool not found")
 			}
 		})
 	}
@@ -1126,7 +1126,7 @@ func TestTenantIsolation_DeleteResource(t *testing.T) {
 				var response map[string]interface{}
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
-				assert.Contains(t, response["message"], "Resource not found")
+				assert.Contains(t, response["message"], "resource not found")
 			}
 		})
 	}

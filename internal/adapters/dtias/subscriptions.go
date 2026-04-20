@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/security/urlredact"
 )
 
 // CreateSubscription creates a new event subscription.
@@ -23,7 +24,7 @@ func (a *Adapter) CreateSubscription(
 	sub *adapter.Subscription,
 ) (*adapter.Subscription, error) {
 	a.logger.Debug("CreateSubscription called",
-		zap.String("callback", sub.Callback))
+		zap.String("callback", urlredact.Redact(sub.Callback)))
 
 	// Validate required fields
 	if sub.Callback == "" {
@@ -54,8 +55,8 @@ func (a *Adapter) CreateSubscription(
 	a.SubscriptionsMu.Unlock()
 
 	a.logger.Info("subscription created (polling-based)",
-		zap.String("subscription_id", subscriptionID),
-		zap.String("callback", sub.Callback))
+		zap.String("subscriptionId", subscriptionID),
+		zap.String("callback", urlredact.Redact(sub.Callback)))
 
 	return newSub, nil
 }

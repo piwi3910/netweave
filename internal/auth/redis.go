@@ -40,6 +40,7 @@ const (
 	auditTenantIndex      = "audit:tenant:"
 	auditUserIndex        = "audit:user:"
 	auditTypeIndex        = "audit:type:"
+	auditChainHeadKey     = "audit:chain:head" // latest entry_hash; empty before genesis.
 	usageKeyPrefix        = "usage:"
 
 	// Default TTL for audit events (30 days).
@@ -1056,7 +1057,9 @@ func (r *RedisStore) InitializeDefaultRoles(ctx context.Context) error {
 }
 
 // LogEvent creates a new audit event.
-// Uses sorted sets with timestamp scores for consistent TTL behavior.
+// Uses sorted sets with timestamp scores for consistent TTL behavior, and
+// maintains a WATCH-protected hash chain so the log is tamper-evident: each
+// entry's prev_hash is the previous entry's entry_hash.
 func (r *RedisStore) LogEvent(ctx context.Context, event *AuditEvent) error {
 	if event.ID == "" {
 		return fmt.Errorf("event ID is required")
@@ -1066,45 +1069,60 @@ func (r *RedisStore) LogEvent(ctx context.Context, event *AuditEvent) error {
 		event.Timestamp = time.Now().UTC()
 	}
 
-	data, err := json.Marshal(event)
-	if err != nil {
-		return fmt.Errorf("failed to marshal audit event: %w", err)
+	// Optimistic hash-chain update: WATCH the head, compute the new hash
+	// against the observed head, and persist everything in a single MULTI/EXEC
+	// so a concurrent writer cannot splice off-chain entries.
+	txf := func(tx *redis.Tx) error {
+		prevHash, err := tx.Get(ctx, auditChainHeadKey).Result()
+		if err != nil && !errors.Is(err, redis.Nil) {
+			return fmt.Errorf("failed to read audit chain head: %w", err)
+		}
+
+		entryHash := event.ComputeEntryHash(prevHash)
+		event.PrevHash = prevHash
+		event.EntryHash = entryHash
+
+		data, err := json.Marshal(event)
+		if err != nil {
+			return fmt.Errorf("failed to marshal audit event: %w", err)
+		}
+
+		key := auditKeyPrefix + event.ID
+		score := float64(event.Timestamp.UnixNano())
+		expirationCutoff := float64(time.Now().Add(-auditEventTTL).UnixNano())
+
+		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+			pipe.Set(ctx, key, data, auditEventTTL)
+			pipe.ZAdd(ctx, auditListKey, redis.Z{Score: score, Member: event.ID})
+			pipe.ZRemRangeByScore(ctx, auditListKey, "-inf", fmt.Sprintf("%f", expirationCutoff))
+			if event.TenantID != "" {
+				pipe.ZAdd(ctx, auditTenantIndex+event.TenantID, redis.Z{Score: score, Member: event.ID})
+				pipe.ZRemRangeByScore(ctx, auditTenantIndex+event.TenantID, "-inf", fmt.Sprintf("%f", expirationCutoff))
+			}
+			if event.UserID != "" {
+				pipe.ZAdd(ctx, auditUserIndex+event.UserID, redis.Z{Score: score, Member: event.ID})
+				pipe.ZRemRangeByScore(ctx, auditUserIndex+event.UserID, "-inf", fmt.Sprintf("%f", expirationCutoff))
+			}
+			pipe.ZAdd(ctx, auditTypeIndex+string(event.Type), redis.Z{Score: score, Member: event.ID})
+			pipe.ZRemRangeByScore(ctx, auditTypeIndex+string(event.Type), "-inf", fmt.Sprintf("%f", expirationCutoff))
+			pipe.Set(ctx, auditChainHeadKey, entryHash, 0)
+			return nil
+		})
+		return err
 	}
 
-	key := auditKeyPrefix + event.ID
-	score := float64(event.Timestamp.UnixNano())
-	// Calculate expiration cutoff for cleanup (events older than TTL).
-	expirationCutoff := float64(time.Now().Add(-auditEventTTL).UnixNano())
-
-	pipe := r.client.TxPipeline()
-
-	// Store the event with TTL.
-	pipe.Set(ctx, key, data, auditEventTTL)
-
-	// Use sorted sets with timestamp scores for better time-based queries.
-	pipe.ZAdd(ctx, auditListKey, redis.Z{Score: score, Member: event.ID})
-
-	// Cleanup old entries from sorted sets (older than TTL).
-	pipe.ZRemRangeByScore(ctx, auditListKey, "-inf", fmt.Sprintf("%f", expirationCutoff))
-
-	if event.TenantID != "" {
-		pipe.ZAdd(ctx, auditTenantIndex+event.TenantID, redis.Z{Score: score, Member: event.ID})
-		pipe.ZRemRangeByScore(ctx, auditTenantIndex+event.TenantID, "-inf", fmt.Sprintf("%f", expirationCutoff))
-	}
-
-	if event.UserID != "" {
-		pipe.ZAdd(ctx, auditUserIndex+event.UserID, redis.Z{Score: score, Member: event.ID})
-		pipe.ZRemRangeByScore(ctx, auditUserIndex+event.UserID, "-inf", fmt.Sprintf("%f", expirationCutoff))
-	}
-
-	pipe.ZAdd(ctx, auditTypeIndex+string(event.Type), redis.Z{Score: score, Member: event.ID})
-	pipe.ZRemRangeByScore(ctx, auditTypeIndex+string(event.Type), "-inf", fmt.Sprintf("%f", expirationCutoff))
-
-	if _, err := pipe.Exec(ctx); err != nil {
+	// Retry on WATCH conflict a bounded number of times.
+	for i := 0; i < 5; i++ {
+		err := r.client.Watch(ctx, txf, auditChainHeadKey)
+		if err == nil {
+			return nil
+		}
+		if errors.Is(err, redis.TxFailedErr) {
+			continue
+		}
 		return fmt.Errorf("failed to log audit event: %w", err)
 	}
-
-	return nil
+	return fmt.Errorf("failed to log audit event: chain head contended")
 }
 
 // ListEvents retrieves audit events with optional filtering.

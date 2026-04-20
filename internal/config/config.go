@@ -4,6 +4,7 @@
 package config
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log"
@@ -506,7 +507,9 @@ type TLSConfig struct {
 	// MinVersion is the minimum TLS version ("1.2", "1.3")
 	MinVersion string `mapstructure:"min_version"`
 
-	// CipherSuites is a list of enabled cipher suites (optional)
+	// CipherSuites is a list of enabled cipher suites (optional).
+	// Names must match Go's crypto/tls names exactly (see tls.CipherSuites()).
+	// Only honoured for TLS 1.2; TLS 1.3 cipher suites are fixed by Go.
 	CipherSuites []string `mapstructure:"cipher_suites"`
 }
 
@@ -1312,6 +1315,33 @@ func (c *Config) validateTLS() error {
 
 	if c.TLS.MinVersion != "1.2" && c.TLS.MinVersion != "1.3" {
 		return fmt.Errorf("invalid tls min_version: %s (must be 1.2 or 1.3)", c.TLS.MinVersion)
+	}
+
+	if err := c.validateTLSCipherSuites(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateTLSCipherSuites validates any configured TLS cipher suite names
+// against Go's list of safe suites (tls.CipherSuites()). Unknown or insecure
+// names are rejected. Note: TLS 1.3 cipher suites are fixed by Go and cannot
+// be configured; the validation checks names are well-formed regardless.
+func (c *Config) validateTLSCipherSuites() error {
+	if len(c.TLS.CipherSuites) == 0 {
+		return nil
+	}
+
+	allowed := make(map[string]struct{}, len(tls.CipherSuites()))
+	for _, s := range tls.CipherSuites() {
+		allowed[s.Name] = struct{}{}
+	}
+
+	for _, name := range c.TLS.CipherSuites {
+		if _, ok := allowed[name]; !ok {
+			return fmt.Errorf("invalid tls cipher_suites entry: %q is not a known safe cipher suite (see Go tls.CipherSuites())", name)
+		}
 	}
 
 	return nil
