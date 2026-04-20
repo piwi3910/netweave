@@ -20,9 +20,9 @@ import (
 
 // SubscriptionHandler handles Subscription API endpoints.
 type SubscriptionHandler struct {
-	Store     storage.Store // Exported for testing
-	AuthStore auth.Store    // Exported for testing
-	Logger    *zap.Logger   // Exported for testing
+	store     storage.Store
+	authStore auth.Store
+	logger    *zap.Logger
 }
 
 // NewSubscriptionHandler creates a new SubscriptionHandler.
@@ -39,9 +39,9 @@ func NewSubscriptionHandler(store storage.Store, authStore auth.Store, logger *z
 	}
 
 	return &SubscriptionHandler{
-		Store:     store,
-		AuthStore: authStore,
-		Logger:    logger,
+		store:     store,
+		authStore: authStore,
+		logger:    logger,
 	}
 }
 
@@ -60,7 +60,7 @@ func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
 	// Extract tenant ID from authenticated context
 	tenantID := auth.TenantIDFromContext(ctx)
 
-	h.Logger.Info("listing subscriptions",
+	h.logger.Info("listing subscriptions",
 		zap.String("request_id", c.GetString("request_id")),
 		zap.String("tenant_id", tenantID),
 	)
@@ -72,14 +72,14 @@ func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
 	var storageSubs []*storage.Subscription
 	var err error
 	if tenantID != "" {
-		storageSubs, err = h.Store.ListByTenant(ctx, tenantID)
+		storageSubs, err = h.store.ListByTenant(ctx, tenantID)
 	} else {
 		// For backward compatibility: if no tenant context, list all
 		// This allows non-multi-tenant deployments to work
-		storageSubs, err = h.Store.List(ctx)
+		storageSubs, err = h.store.List(ctx)
 	}
 	if err != nil {
-		h.Logger.Error("failed to list subscriptions",
+		h.logger.Error("failed to list subscriptions",
 			zap.Error(err),
 		)
 
@@ -140,7 +140,7 @@ func (h *SubscriptionHandler) ListSubscriptions(c *gin.Context) {
 		TotalCount: totalCount,
 	}
 
-	h.Logger.Info("subscriptions retrieved",
+	h.logger.Info("subscriptions retrieved",
 		zap.Int("count", len(pagedSubscriptions)),
 		zap.Int("total", totalCount),
 	)
@@ -164,7 +164,7 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 	// Extract tenant ID from authenticated context
 	tenantID := auth.TenantIDFromContext(ctx)
 
-	h.Logger.Info("creating subscription",
+	h.logger.Info("creating subscription",
 		zap.String("request_id", c.GetString("request_id")),
 		zap.String("tenant_id", tenantID),
 	)
@@ -176,10 +176,10 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 	}
 
 	// Check tenant quota before creating subscription
-	if tenantID != "" && h.AuthStore != nil {
-		if err := h.AuthStore.IncrementUsage(ctx, tenantID, "subscriptions"); err != nil {
+	if tenantID != "" && h.authStore != nil {
+		if err := h.authStore.IncrementUsage(ctx, tenantID, "subscriptions"); err != nil {
 			if errors.Is(err, auth.ErrQuotaExceeded) {
-				h.Logger.Warn("subscription quota exceeded",
+				h.logger.Warn("subscription quota exceeded",
 					zap.String("tenant_id", tenantID),
 				)
 				c.JSON(http.StatusTooManyRequests, models.ErrorResponse{
@@ -189,7 +189,7 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 				})
 				return
 			}
-			h.Logger.Error("failed to check subscription quota",
+			h.logger.Error("failed to check subscription quota",
 				zap.String("tenant_id", tenantID),
 				zap.Error(err),
 			)
@@ -208,9 +208,9 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 
 	if err := h.StoreSubscription(ctx, c, storageSub); err != nil {
 		// Rollback quota increment on failure
-		if tenantID != "" && h.AuthStore != nil {
-			if decErr := h.AuthStore.DecrementUsage(ctx, tenantID, "subscriptions"); decErr != nil {
-				h.Logger.Error("CRITICAL: quota rollback failed - tenant quota leaked",
+		if tenantID != "" && h.authStore != nil {
+			if decErr := h.authStore.DecrementUsage(ctx, tenantID, "subscriptions"); decErr != nil {
+				h.logger.Error("CRITICAL: quota rollback failed - tenant quota leaked",
 					zap.String("tenant_id", tenantID),
 					zap.String("subscription_id", subscriptionID),
 					zap.Error(decErr),
@@ -224,7 +224,7 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 	// Build and send response
 	response := h.buildSubscriptionResponse(subscriptionID, storageSub)
 
-	h.Logger.Info("subscription created",
+	h.logger.Info("subscription created",
 		zap.String("subscription_id", subscriptionID),
 		zap.String("callback", sub.Callback),
 	)
@@ -238,7 +238,7 @@ func (h *SubscriptionHandler) parseAndValidateRequest(c *gin.Context) (*models.S
 
 	// Parse request body
 	if err := c.ShouldBindJSON(&sub); err != nil {
-		h.Logger.Warn("invalid request body", zap.Error(err))
+		h.logger.Warn("invalid request body", zap.Error(err))
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "BadRequest",
 			Message: "Invalid request body: " + err.Error(),
@@ -268,7 +268,7 @@ func (h *SubscriptionHandler) validateCallbackURL(c *gin.Context, callback strin
 
 	callbackURL, err := url.Parse(callback)
 	if err != nil || (callbackURL.Scheme != "http" && callbackURL.Scheme != "https") {
-		h.Logger.Warn("invalid callback URL",
+		h.logger.Warn("invalid callback URL",
 			zap.String("callback", callback),
 			zap.Error(err),
 		)
@@ -316,10 +316,10 @@ func (h *SubscriptionHandler) StoreSubscription(
 	c *gin.Context,
 	storageSub *storage.Subscription,
 ) error {
-	err := h.Store.Create(ctx, storageSub)
+	err := h.store.Create(ctx, storageSub)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionExists) {
-			h.Logger.Warn("subscription already exists",
+			h.logger.Warn("subscription already exists",
 				zap.String("consumer_subscription_id", storageSub.ConsumerSubscriptionID),
 			)
 			c.JSON(http.StatusConflict, models.ErrorResponse{
@@ -330,7 +330,7 @@ func (h *SubscriptionHandler) StoreSubscription(
 			return fmt.Errorf("subscription already exists: %w", err)
 		}
 
-		h.Logger.Error("failed to create subscription", zap.Error(err))
+		h.logger.Error("failed to create subscription", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 			Error:   "InternalError",
 			Message: "Failed to create subscription",
@@ -377,7 +377,7 @@ func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
 	// Extract tenant ID from authenticated context
 	tenantID := auth.TenantIDFromContext(ctx)
 
-	h.Logger.Info("getting subscription",
+	h.logger.Info("getting subscription",
 		zap.String("subscription_id", subscriptionID),
 		zap.String("request_id", c.GetString("request_id")),
 		zap.String("tenant_id", tenantID),
@@ -394,10 +394,10 @@ func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
 	}
 
 	// Get subscription from storage
-	storageSub, err := h.Store.Get(ctx, subscriptionID)
+	storageSub, err := h.store.Get(ctx, subscriptionID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
-			h.Logger.Warn("subscription not found",
+			h.logger.Warn("subscription not found",
 				zap.String("subscription_id", subscriptionID),
 			)
 
@@ -409,7 +409,7 @@ func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
 			return
 		}
 
-		h.Logger.Error("failed to get subscription",
+		h.logger.Error("failed to get subscription",
 			zap.String("subscription_id", subscriptionID),
 			zap.Error(err),
 		)
@@ -424,7 +424,7 @@ func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
 
 	// Verify tenant ownership (return 404 to avoid information disclosure)
 	if tenantID != "" && storageSub.TenantID != tenantID {
-		h.Logger.Warn("tenant mismatch - subscription not found for this tenant",
+		h.logger.Warn("tenant mismatch - subscription not found for this tenant",
 			zap.String("subscription_id", subscriptionID),
 			zap.String("tenant_id", tenantID),
 			zap.String("subscription_tenant_id", storageSub.TenantID),
@@ -451,7 +451,7 @@ func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
 		CreatedAt: storageSub.CreatedAt,
 	}
 
-	h.Logger.Info("subscription retrieved",
+	h.logger.Info("subscription retrieved",
 		zap.String("subscription_id", subscriptionID),
 	)
 
@@ -475,7 +475,7 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 	// Extract tenant ID from authenticated context
 	tenantID := auth.TenantIDFromContext(ctx)
 
-	h.Logger.Info("deleting subscription",
+	h.logger.Info("deleting subscription",
 		zap.String("subscription_id", subscriptionID),
 		zap.String("request_id", c.GetString("request_id")),
 		zap.String("tenant_id", tenantID),
@@ -493,10 +493,10 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 
 	// First, verify tenant ownership by getting the subscription
 	if tenantID != "" {
-		storageSub, err := h.Store.Get(ctx, subscriptionID)
+		storageSub, err := h.store.Get(ctx, subscriptionID)
 		if err != nil {
 			if errors.Is(err, storage.ErrSubscriptionNotFound) {
-				h.Logger.Warn("subscription not found",
+				h.logger.Warn("subscription not found",
 					zap.String("subscription_id", subscriptionID),
 				)
 
@@ -508,7 +508,7 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 				return
 			}
 
-			h.Logger.Error("failed to get subscription for tenant verification",
+			h.logger.Error("failed to get subscription for tenant verification",
 				zap.String("subscription_id", subscriptionID),
 				zap.Error(err),
 			)
@@ -523,7 +523,7 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 
 		// Verify tenant ownership (return 404 to avoid information disclosure)
 		if storageSub.TenantID != tenantID {
-			h.Logger.Warn("tenant mismatch - cannot delete subscription from different tenant",
+			h.logger.Warn("tenant mismatch - cannot delete subscription from different tenant",
 				zap.String("subscription_id", subscriptionID),
 				zap.String("tenant_id", tenantID),
 				zap.String("subscription_tenant_id", storageSub.TenantID),
@@ -539,10 +539,10 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 	}
 
 	// Delete subscription from storage
-	err := h.Store.Delete(ctx, subscriptionID)
+	err := h.store.Delete(ctx, subscriptionID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
-			h.Logger.Warn("subscription not found",
+			h.logger.Warn("subscription not found",
 				zap.String("subscription_id", subscriptionID),
 			)
 
@@ -554,7 +554,7 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 			return
 		}
 
-		h.Logger.Error("failed to delete subscription",
+		h.logger.Error("failed to delete subscription",
 			zap.String("subscription_id", subscriptionID),
 			zap.Error(err),
 		)
@@ -568,9 +568,9 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 	}
 
 	// Decrement tenant quota after successful deletion
-	if tenantID != "" && h.AuthStore != nil {
-		if err := h.AuthStore.DecrementUsage(ctx, tenantID, "subscriptions"); err != nil {
-			h.Logger.Error("CRITICAL: quota decrement failed after deletion - tenant quota leaked",
+	if tenantID != "" && h.authStore != nil {
+		if err := h.authStore.DecrementUsage(ctx, tenantID, "subscriptions"); err != nil {
+			h.logger.Error("CRITICAL: quota decrement failed after deletion - tenant quota leaked",
 				zap.String("tenant_id", tenantID),
 				zap.String("subscription_id", subscriptionID),
 				zap.Error(err),
@@ -579,7 +579,7 @@ func (h *SubscriptionHandler) DeleteSubscription(c *gin.Context) {
 		}
 	}
 
-	h.Logger.Info("subscription deleted",
+	h.logger.Info("subscription deleted",
 		zap.String("subscription_id", subscriptionID),
 	)
 

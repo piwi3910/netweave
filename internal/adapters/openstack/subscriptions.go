@@ -75,7 +75,7 @@ func (a *Adapter) CreateSubscription(
 	ctx context.Context,
 	sub *adapter.Subscription,
 ) (*adapter.Subscription, error) {
-	a.Logger.Debug("CreateSubscription called",
+	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback))
 
 	if sub.Callback == "" {
@@ -98,23 +98,23 @@ func (a *Adapter) CreateSubscription(
 
 	// Store subscription in memory
 	subscriptionMu.Lock()
-	a.Subscriptions[subscriptionID] = subscription
+	a.subscriptions[subscriptionID] = subscription
 	subscriptionMu.Unlock()
 
 	// Start polling for this subscription
 	if err := a.startPolling(ctx, subscription); err != nil {
-		a.Logger.Error("failed to start polling",
-			zap.String("subscriptionID", subscriptionID),
+		a.logger.Error("failed to start polling",
+			zap.String("subscription_id", subscriptionID),
 			zap.Error(err))
 		// Clean up subscription on failure
 		subscriptionMu.Lock()
-		delete(a.Subscriptions, subscriptionID)
+		delete(a.subscriptions, subscriptionID)
 		subscriptionMu.Unlock()
 		return nil, fmt.Errorf("failed to start polling: %w", err)
 	}
 
-	a.Logger.Info("created subscription with polling",
-		zap.String("subscriptionID", subscriptionID),
+	a.logger.Info("created subscription with polling",
+		zap.String("subscription_id", subscriptionID),
 		zap.String("callback", sub.Callback))
 
 	return subscription, nil
@@ -122,20 +122,20 @@ func (a *Adapter) CreateSubscription(
 
 // GetSubscription retrieves a specific subscription by ID.
 func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
-	a.Logger.Debug("GetSubscription called",
+	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
 	// Retrieve subscription from memory
 	subscriptionMu.RLock()
-	subscription, exists := a.Subscriptions[id]
+	subscription, exists := a.subscriptions[id]
 	subscriptionMu.RUnlock()
 
 	if !exists {
 		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
-	a.Logger.Debug("retrieved subscription",
-		zap.String("subscriptionID", subscription.SubscriptionID))
+	a.logger.Debug("retrieved subscription",
+		zap.String("subscription_id", subscription.SubscriptionID))
 
 	return subscription, nil
 }
@@ -151,7 +151,7 @@ func (a *Adapter) UpdateSubscription(
 	var err error
 	defer func() { adapter.ObserveOperation("openstack", "UpdateSubscription", start, err) }()
 
-	a.Logger.Debug("UpdateSubscription called",
+	a.logger.Debug("UpdateSubscription called",
 		zap.String("id", id),
 		zap.String("callback", sub.Callback))
 
@@ -163,7 +163,7 @@ func (a *Adapter) UpdateSubscription(
 
 	// Check if subscription exists and get existing config
 	subscriptionMu.Lock()
-	existing, exists := a.Subscriptions[id]
+	existing, exists := a.subscriptions[id]
 	if !exists {
 		subscriptionMu.Unlock()
 		err = fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
@@ -181,8 +181,8 @@ func (a *Adapter) UpdateSubscription(
 	// Stop old polling goroutine before updating (prevents race with polling reads)
 	subscriptionMu.Unlock()
 	if stopErr := a.stopPolling(id); stopErr != nil {
-		a.Logger.Warn("failed to stop old polling",
-			zap.String("subscriptionID", id),
+		a.logger.Warn("failed to stop old polling",
+			zap.String("subscription_id", id),
 			zap.Error(stopErr))
 	}
 
@@ -191,75 +191,75 @@ func (a *Adapter) UpdateSubscription(
 	defer subscriptionMu.Unlock()
 
 	// Update in memory
-	a.Subscriptions[id] = updated
+	a.subscriptions[id] = updated
 
 	// Start new polling with updated configuration
 	if err = a.startPolling(ctx, updated); err != nil {
-		a.Logger.Error("failed to restart polling",
-			zap.String("subscriptionID", id),
+		a.logger.Error("failed to restart polling",
+			zap.String("subscription_id", id),
 			zap.Error(err))
 
 		// Rollback to existing subscription on failure
-		a.Subscriptions[id] = existing
+		a.subscriptions[id] = existing
 
 		// Best-effort attempt to restart old polling
 		if restartErr := a.startPolling(ctx, existing); restartErr != nil {
-			a.Logger.Error("failed to rollback to old subscription",
-				zap.String("subscriptionID", id),
+			a.logger.Error("failed to rollback to old subscription",
+				zap.String("subscription_id", id),
 				zap.Error(restartErr))
 		}
 
 		return nil, fmt.Errorf("failed to restart polling: %w", err)
 	}
 
-	a.Logger.Info("updated subscription",
-		zap.String("subscriptionID", id),
-		zap.String("oldCallback", existing.Callback),
-		zap.String("newCallback", sub.Callback))
+	a.logger.Info("updated subscription",
+		zap.String("subscription_id", id),
+		zap.String("old_callback", existing.Callback),
+		zap.String("new_callback", sub.Callback))
 
 	return updated, nil
 }
 
 // DeleteSubscription deletes a subscription by ID and stops its polling goroutine.
 func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
-	a.Logger.Debug("DeleteSubscription called",
+	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
 	// Remove subscription from memory
 	subscriptionMu.Lock()
-	_, exists := a.Subscriptions[id]
+	_, exists := a.subscriptions[id]
 	if !exists {
 		subscriptionMu.Unlock()
 		return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
-	delete(a.Subscriptions, id)
+	delete(a.subscriptions, id)
 	subscriptionMu.Unlock()
 
 	// Stop polling for this subscription
 	if err := a.stopPolling(id); err != nil {
-		a.Logger.Warn("failed to stop polling",
-			zap.String("subscriptionID", id),
+		a.logger.Warn("failed to stop polling",
+			zap.String("subscription_id", id),
 			zap.Error(err))
 	}
 
-	a.Logger.Info("deleted subscription",
-		zap.String("subscriptionID", id))
+	a.logger.Info("deleted subscription",
+		zap.String("subscription_id", id))
 
 	return nil
 }
 
 // ListSubscriptions retrieves all active subscriptions.
 func (a *Adapter) ListSubscriptions(_ context.Context) ([]*adapter.Subscription, error) {
-	a.Logger.Debug("ListSubscriptions called")
+	a.logger.Debug("ListSubscriptions called")
 
 	subscriptionMu.RLock()
-	subscriptions := make([]*adapter.Subscription, 0, len(a.Subscriptions))
-	for _, sub := range a.Subscriptions {
+	subscriptions := make([]*adapter.Subscription, 0, len(a.subscriptions))
+	for _, sub := range a.subscriptions {
 		subscriptions = append(subscriptions, sub)
 	}
 	subscriptionMu.RUnlock()
 
-	a.Logger.Debug("listed subscriptions",
+	a.logger.Debug("listed subscriptions",
 		zap.Int("count", len(subscriptions)))
 
 	return subscriptions, nil
@@ -271,12 +271,12 @@ func (a *Adapter) startPolling(ctx context.Context, sub *adapter.Subscription) e
 	defer pollingStateMu.Unlock()
 
 	// Initialize polling states map if needed
-	if a.PollingStates == nil {
-		a.PollingStates = make(map[string]*SubscriptionState)
+	if a.pollingStates == nil {
+		a.pollingStates = make(map[string]*SubscriptionState)
 	}
 
 	// Check if already polling
-	if _, exists := a.PollingStates[sub.SubscriptionID]; exists {
+	if _, exists := a.pollingStates[sub.SubscriptionID]; exists {
 		return fmt.Errorf("subscription already polling: %s", sub.SubscriptionID)
 	}
 
@@ -295,7 +295,7 @@ func (a *Adapter) startPolling(ctx context.Context, sub *adapter.Subscription) e
 		stopCh:           make(chan struct{}),
 	}
 
-	a.PollingStates[sub.SubscriptionID] = state
+	a.pollingStates[sub.SubscriptionID] = state
 
 	// Start polling goroutine
 	state.wg.Add(1)
@@ -307,12 +307,12 @@ func (a *Adapter) startPolling(ctx context.Context, sub *adapter.Subscription) e
 // stopPolling stops the polling goroutine for a subscription.
 func (a *Adapter) stopPolling(subscriptionID string) error {
 	pollingStateMu.Lock()
-	state, exists := a.PollingStates[subscriptionID]
+	state, exists := a.pollingStates[subscriptionID]
 	if !exists {
 		pollingStateMu.Unlock()
 		return fmt.Errorf("no polling state found for subscription: %s", subscriptionID)
 	}
-	delete(a.PollingStates, subscriptionID)
+	delete(a.pollingStates, subscriptionID)
 	pollingStateMu.Unlock()
 
 	// Signal stop and wait for goroutine
@@ -327,26 +327,26 @@ func (a *Adapter) stopPolling(subscriptionID string) error {
 func (a *Adapter) pollResourceChanges(ctx context.Context, state *SubscriptionState) {
 	defer state.wg.Done()
 
-	a.Logger.Info("started polling for subscription",
-		zap.String("subscriptionID", state.subscription.SubscriptionID),
+	a.logger.Info("started polling for subscription",
+		zap.String("subscription_id", state.subscription.SubscriptionID),
 		zap.Duration("interval", defaultPollingInterval))
 
 	for {
 		select {
 		case <-ctx.Done():
-			a.Logger.Info("context canceled, stopping polling",
-				zap.String("subscriptionID", state.subscription.SubscriptionID))
+			a.logger.Info("context canceled, stopping polling",
+				zap.String("subscription_id", state.subscription.SubscriptionID))
 			return
 
 		case <-state.stopCh:
-			a.Logger.Info("stopped polling for subscription",
-				zap.String("subscriptionID", state.subscription.SubscriptionID))
+			a.logger.Info("stopped polling for subscription",
+				zap.String("subscription_id", state.subscription.SubscriptionID))
 			return
 
 		case <-state.ticker.C:
 			if err := a.detectAndNotifyChanges(ctx, state); err != nil {
-				a.Logger.Error("error detecting changes",
-					zap.String("subscriptionID", state.subscription.SubscriptionID),
+				a.logger.Error("error detecting changes",
+					zap.String("subscription_id", state.subscription.SubscriptionID),
 					zap.Error(err))
 			}
 			state.lastPollTime = time.Now()
@@ -369,10 +369,10 @@ func (a *Adapter) detectAndNotifyChanges(ctx context.Context, state *Subscriptio
 	for _, change := range changes {
 		if a.matchesFilter(state.subscription, change) {
 			if webhookErr := a.sendWebhookNotification(ctx, state.subscription, change); webhookErr != nil {
-				a.Logger.Error("failed to send webhook notification",
-					zap.String("subscriptionID", state.subscription.SubscriptionID),
-					zap.String("resourceID", change.ResourceID),
-					zap.String("eventType", change.EventType),
+				a.logger.Error("failed to send webhook notification",
+					zap.String("subscription_id", state.subscription.SubscriptionID),
+					zap.String("resource_id", change.ResourceID),
+					zap.String("event_type", change.EventType),
 					zap.Error(webhookErr))
 			}
 		}
@@ -490,8 +490,8 @@ func (a *Adapter) sendWebhookNotification(
 	if change.EventType != string(models.EventTypeResourceDeleted) {
 		resource, err := a.getResourceDetails(ctx, change.ResourceID)
 		if err != nil {
-			a.Logger.Warn("failed to fetch resource details",
-				zap.String("resourceID", change.ResourceID),
+			a.logger.Warn("failed to fetch resource details",
+				zap.String("resource_id", change.ResourceID),
 				zap.Error(err))
 			resourceData = map[string]string{"resourceId": change.ResourceID}
 		} else {
@@ -540,7 +540,7 @@ func (a *Adapter) deliverWebhookWithRetries(
 			case <-time.After(delay):
 			}
 
-			a.Logger.Debug("retrying webhook delivery",
+			a.logger.Debug("retrying webhook delivery",
 				zap.String("callback", callbackURL),
 				zap.Int("attempt", attempt))
 		}
@@ -554,23 +554,23 @@ func (a *Adapter) deliverWebhookWithRetries(
 		metrics.RecordWebhookDelivery(duration, statusCode, err)
 
 		if err == nil && statusCode >= 200 && statusCode < 300 {
-			a.Logger.Debug("webhook delivered successfully",
+			a.logger.Debug("webhook delivered successfully",
 				zap.String("callback", callbackURL),
-				zap.Int("statusCode", statusCode),
+				zap.Int("status_code", statusCode),
 				zap.Duration("duration", duration))
 			return nil
 		}
 
 		lastErr = err
 		if err != nil {
-			a.Logger.Warn("webhook delivery failed",
+			a.logger.Warn("webhook delivery failed",
 				zap.String("callback", callbackURL),
 				zap.Int("attempt", attempt),
 				zap.Error(err))
 		} else {
-			a.Logger.Warn("webhook returned non-2xx status",
+			a.logger.Warn("webhook returned non-2xx status",
 				zap.String("callback", callbackURL),
-				zap.Int("statusCode", statusCode),
+				zap.Int("status_code", statusCode),
 				zap.Int("attempt", attempt))
 			lastErr = fmt.Errorf("HTTP %d", statusCode)
 		}
@@ -600,7 +600,7 @@ func (a *Adapter) deliverWebhook(
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			a.Logger.Warn("failed to close response body", zap.Error(closeErr))
+			a.logger.Warn("failed to close response body", zap.Error(closeErr))
 		}
 	}()
 
@@ -635,13 +635,13 @@ func generateServerResourceID(server *servers.Server) string {
 // StopAllPolling stops all active polling goroutines (called during shutdown).
 func (a *Adapter) StopAllPolling() {
 	pollingStateMu.Lock()
-	states := make([]*SubscriptionState, 0, len(a.PollingStates))
-	for _, state := range a.PollingStates {
+	states := make([]*SubscriptionState, 0, len(a.pollingStates))
+	for _, state := range a.pollingStates {
 		states = append(states, state)
 	}
 	pollingStateMu.Unlock()
 
-	a.Logger.Info("stopping all polling goroutines",
+	a.logger.Info("stopping all polling goroutines",
 		zap.Int("count", len(states)))
 
 	// Stop all polling goroutines
@@ -655,5 +655,5 @@ func (a *Adapter) StopAllPolling() {
 		state.wg.Wait()
 	}
 
-	a.Logger.Info("all polling goroutines stopped")
+	a.logger.Info("all polling goroutines stopped")
 }

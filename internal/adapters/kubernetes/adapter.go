@@ -138,10 +138,10 @@ func New(cfg *Config) (*Adapter, error) {
 	}
 
 	logger.Info("Kubernetes adapter initialized",
-		zap.String("oCloudId", cfg.OCloudID),
-		zap.String("deploymentManagerId", cfg.DeploymentManagerID),
+		zap.String("ocloud_id", cfg.OCloudID),
+		zap.String("deployment_manager_id", cfg.DeploymentManagerID),
 		zap.String("namespace", namespace),
-		zap.Bool("subscriptionsEnabled", cfg.Store != nil))
+		zap.Bool("subscriptions_enabled", cfg.Store != nil))
 
 	return adapter, nil
 }
@@ -186,7 +186,7 @@ func (a *Adapter) CreateSubscription(
 ) (*adapter.Subscription, error) {
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback),
-		zap.String("subscriptionId", sub.SubscriptionID))
+		zap.String("subscription_id", sub.SubscriptionID))
 
 	if a.store == nil {
 		a.logger.Warn("subscription storage not configured")
@@ -213,13 +213,13 @@ func (a *Adapter) CreateSubscription(
 	// Store subscription in Redis
 	if err := a.store.Create(ctx, storageSub); err != nil {
 		a.logger.Error("failed to store subscription",
-			zap.String("subscriptionId", sub.SubscriptionID),
+			zap.String("subscription_id", sub.SubscriptionID),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to store subscription: %w", err)
 	}
 
 	a.logger.Info("subscription created",
-		zap.String("subscriptionId", sub.SubscriptionID),
+		zap.String("subscription_id", sub.SubscriptionID),
 		zap.String("callback", sub.Callback))
 
 	return sub, nil
@@ -240,11 +240,11 @@ func (a *Adapter) GetSubscription(ctx context.Context, id string) (*adapter.Subs
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			a.logger.Debug("subscription not found",
-				zap.String("subscriptionId", id))
+				zap.String("subscription_id", id))
 			return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 		}
 		a.logger.Error("failed to retrieve subscription",
-			zap.String("subscriptionId", id),
+			zap.String("subscription_id", id),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to retrieve subscription: %w", err)
 	}
@@ -310,9 +310,9 @@ func (a *Adapter) UpdateSubscription(
 	}
 
 	a.logger.Info("subscription updated",
-		zap.String("subscriptionId", id),
-		zap.String("oldCallback", existingSub.Callback),
-		zap.String("newCallback", sub.Callback))
+		zap.String("subscription_id", id),
+		zap.String("old_callback", existingSub.Callback),
+		zap.String("new_callback", sub.Callback))
 
 	// Return updated subscription
 	return a.convertToAdapterSubscription(id, storageSub), nil
@@ -326,11 +326,11 @@ func (a *Adapter) getExistingSubscription(ctx context.Context, id string) (*stor
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			a.logger.Debug("subscription not found",
-				zap.String("subscriptionId", id))
+				zap.String("subscription_id", id))
 			return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 		}
 		a.logger.Error("failed to retrieve existing subscription",
-			zap.String("subscriptionId", id),
+			zap.String("subscription_id", id),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to retrieve subscription: %w", err)
 	}
@@ -368,11 +368,11 @@ func (a *Adapter) updateSubscriptionInStore(
 	if err := a.store.Update(ctx, storageSub); err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			a.logger.Debug("subscription not found",
-				zap.String("subscriptionId", id))
+				zap.String("subscription_id", id))
 			return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 		}
 		a.logger.Error("failed to update subscription",
-			zap.String("subscriptionId", id),
+			zap.String("subscription_id", id),
 			zap.Error(err))
 		return fmt.Errorf("failed to update subscription: %w", err)
 	}
@@ -419,17 +419,17 @@ func (a *Adapter) DeleteSubscription(ctx context.Context, id string) error {
 	if err := a.store.Delete(ctx, id); err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
 			a.logger.Debug("subscription not found for deletion",
-				zap.String("subscriptionId", id))
+				zap.String("subscription_id", id))
 			return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 		}
 		a.logger.Error("failed to delete subscription",
-			zap.String("subscriptionId", id),
+			zap.String("subscription_id", id),
 			zap.Error(err))
 		return fmt.Errorf("failed to delete subscription: %w", err)
 	}
 
 	a.logger.Info("subscription deleted",
-		zap.String("subscriptionId", id))
+		zap.String("subscription_id", id))
 
 	return nil
 }

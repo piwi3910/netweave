@@ -313,7 +313,7 @@ func (c *SDNCClient) processSDNCResponse(resp *http.Response, operation string) 
 
 	c.logger.Info("SDNC operation completed successfully",
 		zap.String("operation", operation),
-		zap.String("responseCode", response.Output.ResponseCode),
+		zap.String("response_code", response.Output.ResponseCode),
 	)
 
 	return &response, nil

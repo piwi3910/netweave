@@ -173,8 +173,8 @@ func (ws *WebhookServer) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	ws.logger.Info("Received webhook event",
 		zap.String("id", event.ID),
 		zap.String("type", event.Type),
-		zap.String("resourceType", event.ResourceType),
-		zap.String("resourceId", event.ResourceID),
+		zap.String("resource_type", event.ResourceType),
+		zap.String("resource_id", event.ResourceID),
 	)
 
 	// Store event

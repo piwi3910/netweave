@@ -85,7 +85,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 			resourceType := a.createResourceTypeFromNode(node, resourceTypeID)
 
 			a.logger.Info("retrieved resource type",
-				zap.String("resourceTypeID", resourceType.ResourceTypeID),
+				zap.String("resource_type_id", resourceType.ResourceTypeID),
 				zap.String("name", resourceType.Name))
 
 			return resourceType, nil

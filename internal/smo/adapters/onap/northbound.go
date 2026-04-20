@@ -26,10 +26,10 @@ func (p *Plugin) SyncInfrastructureInventory(ctx context.Context, inventory *smo
 	}
 
 	p.logger.Info("Syncing infrastructure inventory to ONAP A&AI",
-		zap.Int("deploymentManagers", len(inventory.DeploymentManagers)),
-		zap.Int("resourcePools", len(inventory.ResourcePools)),
+		zap.Int("deployment_managers", len(inventory.DeploymentManagers)),
+		zap.Int("resource_pools", len(inventory.ResourcePools)),
 		zap.Int("resources", len(inventory.Resources)),
-		zap.Int("resourceTypes", len(inventory.ResourceTypes)),
+		zap.Int("resource_types", len(inventory.ResourceTypes)),
 	)
 
 	aaiInventory := p.transformToAAIInventory(inventory)
@@ -39,7 +39,7 @@ func (p *Plugin) SyncInfrastructureInventory(ctx context.Context, inventory *smo
 	}
 
 	p.logger.Info("Successfully synced infrastructure inventory to ONAP A&AI",
-		zap.Int("cloudRegions", len(aaiInventory.CloudRegions)),
+		zap.Int("cloud_regions", len(aaiInventory.CloudRegions)),
 		zap.Int("tenants", len(aaiInventory.Tenants)),
 		zap.Int("pnfs", len(aaiInventory.PNFs)),
 		zap.Int("vnfs", len(aaiInventory.VNFs)),
@@ -81,12 +81,12 @@ func (p *Plugin) syncCloudRegions(ctx context.Context, cloudRegions []*CloudRegi
 	for _, cloudRegion := range cloudRegions {
 		if err := p.aaiClient.CreateOrUpdateCloudRegion(ctx, cloudRegion); err != nil {
 			p.logger.Error("Failed to sync cloud region to A&AI",
-				zap.String("cloudRegionId", cloudRegion.CloudRegionID),
+				zap.String("cloud_region_id", cloudRegion.CloudRegionID),
 				zap.Error(err),
 			)
 			return fmt.Errorf("failed to sync cloud region %s: %w", cloudRegion.CloudRegionID, err)
 		}
-		p.logger.Debug("Synced cloud region to A&AI", zap.String("cloudRegionId", cloudRegion.CloudRegionID))
+		p.logger.Debug("Synced cloud region to A&AI", zap.String("cloud_region_id", cloudRegion.CloudRegionID))
 	}
 	return nil
 }
@@ -96,12 +96,12 @@ func (p *Plugin) syncTenants(ctx context.Context, tenants []*Tenant) error {
 	for _, tenant := range tenants {
 		if err := p.aaiClient.CreateOrUpdateTenant(ctx, tenant); err != nil {
 			p.logger.Error("Failed to sync tenant to A&AI",
-				zap.String("tenantId", tenant.TenantID),
+				zap.String("tenant_id", tenant.TenantID),
 				zap.Error(err),
 			)
 			return fmt.Errorf("failed to sync tenant %s: %w", tenant.TenantID, err)
 		}
-		p.logger.Debug("Synced tenant to A&AI", zap.String("tenantId", tenant.TenantID))
+		p.logger.Debug("Synced tenant to A&AI", zap.String("tenant_id", tenant.TenantID))
 	}
 	return nil
 }
@@ -111,12 +111,12 @@ func (p *Plugin) syncPNFs(ctx context.Context, pnfs []*PNF) error {
 	for _, pnf := range pnfs {
 		if err := p.aaiClient.CreateOrUpdatePNF(ctx, pnf); err != nil {
 			p.logger.Error("Failed to sync PNF to A&AI",
-				zap.String("pnfName", pnf.PNFName),
+				zap.String("pnf_name", pnf.PNFName),
 				zap.Error(err),
 			)
 			return fmt.Errorf("failed to sync PNF %s: %w", pnf.PNFName, err)
 		}
-		p.logger.Debug("Synced PNF to A&AI", zap.String("pnfName", pnf.PNFName))
+		p.logger.Debug("Synced PNF to A&AI", zap.String("pnf_name", pnf.PNFName))
 	}
 	return nil
 }
@@ -126,12 +126,12 @@ func (p *Plugin) syncVNFs(ctx context.Context, vnfs []*VNF) error {
 	for _, vnf := range vnfs {
 		if err := p.aaiClient.CreateOrUpdateVNF(ctx, vnf); err != nil {
 			p.logger.Error("Failed to sync VNF to A&AI",
-				zap.String("vnfId", vnf.VNFID),
+				zap.String("vnf_id", vnf.VNFID),
 				zap.Error(err),
 			)
 			return fmt.Errorf("failed to sync VNF %s: %w", vnf.VNFID, err)
 		}
-		p.logger.Debug("Synced VNF to A&AI", zap.String("vnfId", vnf.VNFID))
+		p.logger.Debug("Synced VNF to A&AI", zap.String("vnf_id", vnf.VNFID))
 	}
 	return nil
 }
@@ -165,19 +165,19 @@ func (p *Plugin) SyncDeploymentInventory(ctx context.Context, inventory *smo.Dep
 
 		if err := p.aaiClient.CreateOrUpdateServiceInstance(ctx, serviceInstance); err != nil {
 			p.logger.Error("Failed to sync service instance to A&AI",
-				zap.String("serviceInstanceId", serviceInstance.ServiceInstanceID),
+				zap.String("service_instance_id", serviceInstance.ServiceInstanceID),
 				zap.Error(err),
 			)
 			return fmt.Errorf("failed to sync service instance %s: %w", serviceInstance.ServiceInstanceID, err)
 		}
 
 		p.logger.Debug("Synced service instance to A&AI",
-			zap.String("serviceInstanceId", serviceInstance.ServiceInstanceID),
+			zap.String("service_instance_id", serviceInstance.ServiceInstanceID),
 		)
 	}
 
 	p.logger.Info("Successfully synced deployment inventory to ONAP A&AI",
-		zap.Int("serviceInstances", len(inventory.Deployments)),
+		zap.Int("service_instances", len(inventory.Deployments)),
 	)
 
 	return nil
@@ -202,10 +202,10 @@ func (p *Plugin) PublishInfrastructureEvent(ctx context.Context, event *smo.Infr
 	}
 
 	p.logger.Debug("Publishing infrastructure event to DMaaP",
-		zap.String("eventId", event.EventID),
-		zap.String("eventType", event.EventType),
-		zap.String("resourceType", event.ResourceType),
-		zap.String("resourceId", event.ResourceID),
+		zap.String("event_id", event.EventID),
+		zap.String("event_type", event.EventType),
+		zap.String("resource_type", event.ResourceType),
+		zap.String("resource_id", event.ResourceID),
 	)
 
 	// Transform to VES (Virtual Event Streaming) format
@@ -217,7 +217,7 @@ func (p *Plugin) PublishInfrastructureEvent(ctx context.Context, event *smo.Infr
 	// Publish to DMaaP
 	if err := p.dmaapClient.PublishEvent(ctx, topic, vesEvent); err != nil {
 		p.logger.Error("Failed to publish infrastructure event to DMaaP",
-			zap.String("eventId", event.EventID),
+			zap.String("event_id", event.EventID),
 			zap.String("topic", topic),
 			zap.Error(err),
 		)
@@ -225,7 +225,7 @@ func (p *Plugin) PublishInfrastructureEvent(ctx context.Context, event *smo.Infr
 	}
 
 	p.logger.Info("Successfully published infrastructure event to DMaaP",
-		zap.String("eventId", event.EventID),
+		zap.String("event_id", event.EventID),
 		zap.String("topic", topic),
 	)
 
@@ -251,9 +251,9 @@ func (p *Plugin) PublishDeploymentEvent(ctx context.Context, event *smo.Deployme
 	}
 
 	p.logger.Debug("Publishing deployment event to DMaaP",
-		zap.String("eventId", event.EventID),
-		zap.String("eventType", event.EventType),
-		zap.String("deploymentId", event.DeploymentID),
+		zap.String("event_id", event.EventID),
+		zap.String("event_type", event.EventType),
+		zap.String("deployment_id", event.DeploymentID),
 	)
 
 	// Transform to VES format
@@ -264,7 +264,7 @@ func (p *Plugin) PublishDeploymentEvent(ctx context.Context, event *smo.Deployme
 
 	if err := p.dmaapClient.PublishEvent(ctx, topic, vesEvent); err != nil {
 		p.logger.Error("Failed to publish deployment event to DMaaP",
-			zap.String("eventId", event.EventID),
+			zap.String("event_id", event.EventID),
 			zap.String("topic", topic),
 			zap.Error(err),
 		)
@@ -272,7 +272,7 @@ func (p *Plugin) PublishDeploymentEvent(ctx context.Context, event *smo.Deployme
 	}
 
 	p.logger.Info("Successfully published deployment event to DMaaP",
-		zap.String("eventId", event.EventID),
+		zap.String("event_id", event.EventID),
 		zap.String("topic", topic),
 	)
 

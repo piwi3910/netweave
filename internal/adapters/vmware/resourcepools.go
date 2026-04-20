@@ -22,9 +22,9 @@ func (a *Adapter) ListResourcePools(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "ListResourcePools", start, err) }()
 
-	a.Logger.Debug("ListResourcePools called",
+	a.logger.Debug("ListResourcePools called",
 		zap.Any("filter", filter),
-		zap.String("poolMode", a.poolMode))
+		zap.String("pool_mode", a.poolMode))
 
 	if a.poolMode == "pool" {
 		pools, err := a.listVSpherePools(ctx, filter)
@@ -55,7 +55,7 @@ func (a *Adapter) listClusterPools(ctx context.Context, filter *adapter.Filter) 
 		var clusterMo mo.ClusterComputeResource
 		err := cluster.Properties(ctx, cluster.Reference(), []string{"summary", "host", "datastore"}, &clusterMo)
 		if err != nil {
-			a.Logger.Warn("failed to get cluster properties",
+			a.logger.Warn("failed to get cluster properties",
 				zap.String("cluster", clusterName),
 				zap.Error(err))
 			continue
@@ -97,7 +97,7 @@ func (a *Adapter) listClusterPools(ctx context.Context, filter *adapter.Filter) 
 		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resource pools (cluster mode)",
+	a.logger.Info("listed resource pools (cluster mode)",
 		zap.Int("count", len(pools)))
 
 	return pools, nil
@@ -128,7 +128,7 @@ func (a *Adapter) listVSpherePools(ctx context.Context, filter *adapter.Filter) 
 		var rpMo mo.ResourcePool
 		err := rp.Properties(ctx, rp.Reference(), []string{"summary", "config"}, &rpMo)
 		if err != nil {
-			a.Logger.Warn("failed to get resource pool properties",
+			a.logger.Warn("failed to get resource pool properties",
 				zap.String("pool", poolName),
 				zap.Error(err))
 			continue
@@ -170,7 +170,7 @@ func (a *Adapter) listVSpherePools(ctx context.Context, filter *adapter.Filter) 
 		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resource pools (resource pool mode)",
+	a.logger.Info("listed resource pools (resource pool mode)",
 		zap.Int("count", len(pools)))
 
 	return pools, nil
@@ -182,7 +182,7 @@ func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.Reso
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "GetResourcePool", start, err) }()
 
-	a.Logger.Debug("GetResourcePool called",
+	a.logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
 	pools, err := a.ListResourcePools(ctx, nil)
@@ -208,7 +208,7 @@ func (a *Adapter) CreateResourcePool(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "CreateResourcePool", start, err) }()
 
-	a.Logger.Debug("CreateResourcePool called",
+	a.logger.Debug("CreateResourcePool called",
 		zap.String("name", pool.Name))
 
 	// Creating vSphere resource pools/clusters requires additional vSphere configuration
@@ -226,7 +226,7 @@ func (a *Adapter) UpdateResourcePool(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "UpdateResourcePool", start, err) }()
 
-	a.Logger.Debug("UpdateResourcePool called",
+	a.logger.Debug("UpdateResourcePool called",
 		zap.String("id", id),
 		zap.String("name", pool.Name))
 
@@ -240,7 +240,7 @@ func (a *Adapter) DeleteResourcePool(_ context.Context, id string) error {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "DeleteResourcePool", start, err) }()
 
-	a.Logger.Debug("DeleteResourcePool called",
+	a.logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 
 	return fmt.Errorf("deleting vSphere resource pools is not yet implemented")

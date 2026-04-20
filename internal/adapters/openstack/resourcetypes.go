@@ -16,7 +16,7 @@ func (a *Adapter) ListResourceTypes(
 	_ context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.ResourceType, error) {
-	a.Logger.Debug("ListResourceTypes called",
+	a.logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
 	// Query all flavors from Nova
@@ -26,19 +26,19 @@ func (a *Adapter) ListResourceTypes(
 
 	allPages, err := flavors.ListDetail(a.compute, listOpts).AllPages()
 	if err != nil {
-		a.Logger.Error("failed to list flavors",
+		a.logger.Error("failed to list flavors",
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to list OpenStack flavors: %w", err)
 	}
 
 	osFlavors, err := flavors.ExtractFlavors(allPages)
 	if err != nil {
-		a.Logger.Error("failed to extract flavors",
+		a.logger.Error("failed to extract flavors",
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to extract flavors: %w", err)
 	}
 
-	a.Logger.Debug("retrieved flavors from OpenStack",
+	a.logger.Debug("retrieved flavors from OpenStack",
 		zap.Int("count", len(osFlavors)))
 
 	// Transform OpenStack flavors to O2-IMS Resource Types
@@ -56,7 +56,7 @@ func (a *Adapter) ListResourceTypes(
 		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resource types",
+	a.logger.Info("listed resource types",
 		zap.Int("count", len(resourceTypes)))
 
 	return resourceTypes, nil

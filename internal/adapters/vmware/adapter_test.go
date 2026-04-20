@@ -11,7 +11,6 @@ import (
 	"github.com/piwi3910/netweave/internal/adapters/vmware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 // TestNew tests the creation of a new VMwareAdapter.
@@ -127,9 +126,7 @@ func TestMetadata(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adp := &vmware.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adp := vmware.NewTestAdapter()
 
 	t.Run("Name", func(t *testing.T) {
 		assert.Equal(t, "vmware", adp.Name())
@@ -235,10 +232,7 @@ func TestSubscriptions(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adp := &vmware.Adapter{
-		Logger:        zap.NewNop(),
-		Subscriptions: make(map[string]*adapter.Subscription),
-	}
+	adp := vmware.NewTestAdapter()
 	ctx := context.Background()
 
 	t.Run("CreateSubscription", func(t *testing.T) {
@@ -314,9 +308,7 @@ func TestCreateResourceType(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adp := &vmware.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adp := vmware.NewTestAdapter()
 
 	t.Run("creates valid resource type", func(t *testing.T) {
 		rt := adp.CreateResourceType(4, 8192)
@@ -337,9 +329,7 @@ func TestGetDefaultResourceTypes(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adp := &vmware.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adp := vmware.NewTestAdapter()
 
 	rts := adp.GetDefaultResourceTypes()
 
@@ -504,7 +494,7 @@ func TestValidateVMResourceID(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adp := &vmware.Adapter{Logger: zap.NewNop()}
+	adp := vmware.NewTestAdapter()
 
 	tests := []struct {
 		name    string
@@ -556,7 +546,7 @@ func TestBuildVMAnnotation(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adp := &vmware.Adapter{Logger: zap.NewNop()}
+	adp := vmware.NewTestAdapter()
 
 	tests := []struct {
 		name     string
@@ -646,7 +636,7 @@ func TestExtractCustomAttributes(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adp := &vmware.Adapter{Logger: zap.NewNop()}
+	adp := vmware.NewTestAdapter()
 
 	tests := []struct {
 		name       string
@@ -719,7 +709,7 @@ func TestGetVMDescription(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	adp := &vmware.Adapter{Logger: zap.NewNop()}
+	adp := vmware.NewTestAdapter()
 
 	tests := []struct {
 		name       string

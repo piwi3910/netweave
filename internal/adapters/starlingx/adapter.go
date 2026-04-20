@@ -120,8 +120,8 @@ func New(cfg *Config) (*Adapter, error) {
 	logger.Info("starlingx adapter initialized",
 		zap.String("endpoint", cfg.Endpoint),
 		zap.String("username", cfg.Username),
-		zap.String("oCloudID", cfg.OCloudID),
-		zap.String("deploymentManagerID", cfg.DeploymentManagerID),
+		zap.String("ocloud_id", cfg.OCloudID),
+		zap.String("deployment_manager_id", cfg.DeploymentManagerID),
 	)
 
 	return adapter, nil

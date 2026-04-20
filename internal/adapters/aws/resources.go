@@ -23,7 +23,7 @@ func (a *Adapter) ListResources(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "ListResources", start, err) }()
 
-	a.Logger.Debug("ListResources called",
+	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
 	// Build EC2 filters
@@ -90,7 +90,7 @@ func (a *Adapter) ListResources(
 		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resources",
+	a.logger.Info("listed resources",
 		zap.Int("count", len(resources)))
 
 	return resources, nil
@@ -105,7 +105,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetResource", start, err) }()
 
-	a.Logger.Debug("GetResource called",
+	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
 	// Extract the actual EC2 instance ID from the O2-IMS resource ID
@@ -130,8 +130,8 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 		&output.Reservations[0].Instances[0],
 	)
 
-	a.Logger.Info("retrieved resource",
-		zap.String("resourceId", resource.ResourceID))
+	a.logger.Info("retrieved resource",
+		zap.String("resource_id", resource.ResourceID))
 
 	return resource, nil
 }
@@ -145,8 +145,8 @@ func (a *Adapter) CreateResource(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "CreateResource", start, err) }()
 
-	a.Logger.Debug("CreateResource called",
-		zap.String("resourceTypeId", resource.ResourceTypeID))
+	a.logger.Debug("CreateResource called",
+		zap.String("resource_type_id", resource.ResourceTypeID))
 
 	// Extract instance type and validate required parameters
 	instanceType := extractInstanceType(resource.ResourceTypeID)
@@ -173,9 +173,9 @@ func (a *Adapter) CreateResource(
 		&output.Instances[0],
 	)
 
-	a.Logger.Info("created resource",
-		zap.String("resourceId", created.ResourceID),
-		zap.String("instanceId", aws.ToString(output.Instances[0].InstanceId)))
+	a.logger.Info("created resource",
+		zap.String("resource_id", created.ResourceID),
+		zap.String("instance_id", aws.ToString(output.Instances[0].InstanceId)))
 
 	return created, nil
 }
@@ -192,8 +192,8 @@ func (a *Adapter) UpdateResource(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "UpdateResource", start, err) }()
 
-	a.Logger.Debug("UpdateResource called",
-		zap.String("resourceId", id))
+	a.logger.Debug("UpdateResource called",
+		zap.String("resource_id", id))
 
 	// Extract the actual EC2 instance ID
 	instanceID := extractInstanceID(id)
@@ -211,9 +211,9 @@ func (a *Adapter) UpdateResource(
 			return nil, fmt.Errorf("failed to update instance tags: %w", err)
 		}
 
-		a.Logger.Info("updated instance tags",
-			zap.String("instanceId", instanceID),
-			zap.Int("tagCount", len(tags)))
+		a.logger.Info("updated instance tags",
+			zap.String("instance_id", instanceID),
+			zap.Int("tag_count", len(tags)))
 	}
 
 	// Fetch and return the updated resource
@@ -351,7 +351,7 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "DeleteResource", start, err) }()
 
-	a.Logger.Debug("DeleteResource called",
+	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
 	// Extract the actual EC2 instance ID from the O2-IMS resource ID
@@ -367,9 +367,9 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to terminate instance: %w", err)
 	}
 
-	a.Logger.Info("deleted resource",
-		zap.String("resourceId", id),
-		zap.String("instanceId", instanceID))
+	a.logger.Info("deleted resource",
+		zap.String("resource_id", id),
+		zap.String("instance_id", instanceID))
 
 	return nil
 }
@@ -457,7 +457,7 @@ func (a *Adapter) instanceToResource(instance *ec2Types.Instance) *adapter.Resou
 		TenantID:       tenantID,
 		ResourceTypeID: resourceTypeID,
 		ResourcePoolID: resourcePoolID,
-		GlobalAssetID:  fmt.Sprintf("urn:aws:ec2:%s:%s", a.Region, instanceID),
+		GlobalAssetID:  fmt.Sprintf("urn:aws:ec2:%s:%s", a.region, instanceID),
 		Description:    name,
 		Extensions:     extensions,
 	}

@@ -183,8 +183,8 @@ func TestNewResourceHandler(t *testing.T) {
 
 	handler := handlers.NewResourceHandler(adp, logger)
 	assert.NotNil(t, handler)
-	assert.Equal(t, adp, handler.Adapter)
-	assert.Equal(t, logger, handler.Logger)
+	assert.Equal(t, adp, handler.ExportAdapter())
+	assert.Equal(t, logger, handler.ExportLogger())
 }
 
 func TestNewResourceHandler_Panics(t *testing.T) {

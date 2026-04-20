@@ -334,7 +334,7 @@ func registerONAPLCMAdapter(
 		return fmt.Errorf("failed to register ONAP-LCM adapter: %w", err)
 	}
 
-	logger.Info("ONAP-LCM adapter registered", zap.String("apiURL", config.ONAPURL))
+	logger.Info("ONAP-LCM adapter registered", zap.String("api_url", config.ONAPURL))
 	return nil
 }
 
@@ -365,6 +365,6 @@ func registerOSMLCMAdapter(
 		return fmt.Errorf("failed to register OSM-LCM adapter: %w", err)
 	}
 
-	logger.Info("OSM-LCM adapter registered", zap.String("apiURL", config.OSMURL))
+	logger.Info("OSM-LCM adapter registered", zap.String("api_url", config.OSMURL))
 	return nil
 }

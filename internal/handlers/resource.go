@@ -15,8 +15,8 @@ import (
 
 // ResourceHandler handles Resource API endpoints.
 type ResourceHandler struct {
-	Adapter adapter.Adapter // Exported for testing
-	Logger  *zap.Logger     // Exported for testing
+	adapter adapter.Adapter
+	logger  *zap.Logger
 }
 
 // NewResourceHandler creates a new ResourceHandler.
@@ -30,8 +30,8 @@ func NewResourceHandler(adp adapter.Adapter, logger *zap.Logger) *ResourceHandle
 	}
 
 	return &ResourceHandler{
-		Adapter: adp,
-		Logger:  logger,
+		adapter: adp,
+		logger:  logger,
 	}
 }
 
@@ -69,7 +69,7 @@ func (h *ResourceHandler) ListResources(c *gin.Context) {
 	// Extract tenant ID from authenticated context
 	tenantID := auth.TenantIDFromContext(ctx)
 
-	h.Logger.Info("listing resources",
+	h.logger.Info("listing resources",
 		zap.String("request_id", c.GetString("request_id")),
 		zap.String("tenant_id", tenantID),
 	)
@@ -90,9 +90,9 @@ func (h *ResourceHandler) ListResources(c *gin.Context) {
 	}
 
 	// Get resources from adapter
-	resources, err := h.Adapter.ListResources(ctx, adapterFilter)
+	resources, err := h.adapter.ListResources(ctx, adapterFilter)
 	if err != nil {
-		h.Logger.Error("failed to list resources",
+		h.logger.Error("failed to list resources",
 			zap.Error(err),
 		)
 
@@ -123,7 +123,7 @@ func (h *ResourceHandler) ListResources(c *gin.Context) {
 		TotalCount: len(resourceList),
 	}
 
-	h.Logger.Info("resources retrieved",
+	h.logger.Info("resources retrieved",
 		zap.Int("count", len(resourceList)),
 	)
 
@@ -146,7 +146,7 @@ func (h *ResourceHandler) ListResourcesV2(c *gin.Context) {
 	// Extract tenant ID from authenticated context
 	tenantID := auth.TenantIDFromContext(ctx)
 
-	h.Logger.Info("listing resources with v2 filtering",
+	h.logger.Info("listing resources with v2 filtering",
 		zap.String("request_id", c.GetString("request_id")),
 		zap.String("tenant_id", tenantID),
 	)
@@ -154,7 +154,7 @@ func (h *ResourceHandler) ListResourcesV2(c *gin.Context) {
 	// Parse advanced filter parameters
 	advancedFilter, err := internalmodels.ParseAdvancedFilter(c.Request.URL.Query())
 	if err != nil {
-		h.Logger.Warn("invalid filter parameters",
+		h.logger.Warn("invalid filter parameters",
 			zap.Error(err),
 		)
 
@@ -174,9 +174,9 @@ func (h *ResourceHandler) ListResourcesV2(c *gin.Context) {
 	}
 
 	// Get resources from adapter
-	resources, err := h.Adapter.ListResources(ctx, adapterFilter)
+	resources, err := h.adapter.ListResources(ctx, adapterFilter)
 	if err != nil {
-		h.Logger.Error("failed to list resources",
+		h.logger.Error("failed to list resources",
 			zap.Error(err),
 		)
 
@@ -269,7 +269,7 @@ func (h *ResourceHandler) ListResourcesV2(c *gin.Context) {
 		}
 	}
 
-	h.Logger.Info("resources retrieved",
+	h.logger.Info("resources retrieved",
 		zap.Int("total", len(filteredResources)),
 		zap.Int("returned", len(paginatedResources)),
 	)
@@ -294,7 +294,7 @@ func (h *ResourceHandler) GetResource(c *gin.Context) {
 	// Extract tenant ID from authenticated context
 	tenantID := auth.TenantIDFromContext(ctx)
 
-	h.Logger.Info("getting resource",
+	h.logger.Info("getting resource",
 		zap.String("resource_id", resourceID),
 		zap.String("tenant_id", tenantID),
 	)
@@ -308,7 +308,7 @@ func (h *ResourceHandler) GetResource(c *gin.Context) {
 		return
 	}
 
-	resource, err := h.Adapter.GetResource(ctx, resourceID)
+	resource, err := h.adapter.GetResource(ctx, resourceID)
 	if err != nil {
 		handleGetError(c, err, "Resource", resourceID)
 		return
@@ -316,7 +316,7 @@ func (h *ResourceHandler) GetResource(c *gin.Context) {
 
 	// Verify tenant ownership (return 404 to avoid information disclosure)
 	if tenantID != "" && resource.TenantID != tenantID {
-		h.Logger.Warn("tenant mismatch - resource not found for this tenant",
+		h.logger.Warn("tenant mismatch - resource not found for this tenant",
 			zap.String("resource_id", resourceID),
 			zap.String("tenant_id", tenantID),
 			zap.String("resource_tenant_id", resource.TenantID),

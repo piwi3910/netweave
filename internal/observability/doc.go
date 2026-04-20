@@ -14,7 +14,7 @@
 // Use structured logging throughout the application:
 //
 //	logger.Info("processing subscription",
-//	    zap.String("subscriptionID", subID),
+//	    zap.String("subscription_id", subID),
 //	    zap.String("callback", callbackURL),
 //	)
 //

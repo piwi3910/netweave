@@ -11,7 +11,7 @@ import (
 // GetDeploymentManager retrieves metadata about the vSphere deployment manager.
 // It provides information about the vCenter and datacenter.
 func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
-	a.Logger.Debug("GetDeploymentManager called",
+	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
 	// Accept "default" and "" as aliases for the configured DM ID,
@@ -61,8 +61,8 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 		},
 	}
 
-	a.Logger.Info("retrieved deployment manager",
-		zap.String("deploymentManagerID", dm.DeploymentManagerID),
+	a.logger.Info("retrieved deployment manager",
+		zap.String("deployment_manager_id", dm.DeploymentManagerID),
 		zap.String("datacenter", a.datacenterName))
 
 	return dm, nil
@@ -71,7 +71,7 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 // ListDeploymentManagers retrieves all deployment managers.
 // VMware has a single deployment manager per adapter instance.
 func (a *Adapter) ListDeploymentManagers(ctx context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
-	a.Logger.Debug("ListDeploymentManagers called")
+	a.logger.Debug("ListDeploymentManagers called")
 
 	dm, err := a.GetDeploymentManager(ctx, a.deploymentManagerID)
 	if err != nil {

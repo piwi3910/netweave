@@ -13,9 +13,7 @@ import (
 
 // TestTransformFlavorToResourceType tests the transformation from OpenStack flavor to O2-IMS resource type.
 func TestTransformFlavorToResourceType(t *testing.T) {
-	adapter := &openstack.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adapter := openstack.NewTestAdapter(zap.NewNop())
 
 	osFlavor := &flavors.Flavor{
 		ID:         "m1.small",
@@ -62,9 +60,7 @@ func TestTransformFlavorToResourceType(t *testing.T) {
 
 // TestTransformFlavorToResourceTypeMinimal tests transformation with minimal data.
 func TestTransformFlavorToResourceTypeMinimal(t *testing.T) {
-	adapter := &openstack.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adapter := openstack.NewTestAdapter(zap.NewNop())
 
 	osFlavor := &flavors.Flavor{
 		ID:   "minimal-flavor",
@@ -81,9 +77,7 @@ func TestTransformFlavorToResourceTypeMinimal(t *testing.T) {
 
 // TestTransformFlavorToResourceTypeStorageClass tests resource class determination.
 func TestTransformFlavorToResourceTypeStorageClass(t *testing.T) {
-	adapter := &openstack.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adapter := openstack.NewTestAdapter(zap.NewNop())
 
 	tests := []struct {
 		name      string
@@ -217,9 +211,7 @@ func TestResourceTypeIDParsing(t *testing.T) {
 
 // TestFlavorDescriptionGeneration tests description generation.
 func TestFlavorDescriptionGeneration(t *testing.T) {
-	adapter := &openstack.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adapter := openstack.NewTestAdapter(zap.NewNop())
 
 	tests := []struct {
 		name   string
@@ -257,9 +249,7 @@ func TestFlavorDescriptionGeneration(t *testing.T) {
 
 // TestFlavorExtraSpecs tests extra specs handling.
 func TestFlavorExtraSpecs(t *testing.T) {
-	adapter := &openstack.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adapter := openstack.NewTestAdapter(zap.NewNop())
 
 	t.Run("flavor with extra specs", func(t *testing.T) {
 		flavor := &flavors.Flavor{
@@ -312,10 +302,7 @@ func TestFlavorExtraSpecs(t *testing.T) {
 
 // BenchmarkTransformFlavorToResourceType benchmarks the transformation.
 func BenchmarkTransformFlavorToResourceType(b *testing.B) {
-	adp := &openstack.Adapter{
-		OCloudID: "ocloud-test",
-		Logger:   zap.NewNop(),
-	}
+	adp := openstack.NewTestAdapterForPool(zap.NewNop(), "ocloud-test")
 
 	osFlavor := &flavors.Flavor{
 		ID:         "m1.small",

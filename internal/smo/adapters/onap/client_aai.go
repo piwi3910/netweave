@@ -194,7 +194,7 @@ func (c *AAIClient) putResource(ctx context.Context, url string, resource interf
 // waitBeforeRetry implements exponential backoff for retries.
 func (c *AAIClient) waitBeforeRetry(attempt int, resourceType string) {
 	c.logger.Debug("Retrying A&AI request",
-		zap.String("resourceType", resourceType),
+		zap.String("resource_type", resourceType),
 		zap.Int("attempt", attempt),
 	)
 	time.Sleep(time.Duration(attempt) * time.Second)
@@ -240,8 +240,8 @@ func (c *AAIClient) setRequestHeaders(req *http.Request) {
 func (c *AAIClient) handlePutResponse(resp *http.Response, resourceType string) error {
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
 		c.logger.Debug("Successfully created/updated resource in A&AI",
-			zap.String("resourceType", resourceType),
-			zap.Int("statusCode", resp.StatusCode),
+			zap.String("resource_type", resourceType),
+			zap.Int("status_code", resp.StatusCode),
 		)
 		return nil
 	}

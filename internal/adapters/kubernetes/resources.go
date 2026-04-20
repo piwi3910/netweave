@@ -121,8 +121,8 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 	})
 
 	a.logger.Info("retrieved resource",
-		zap.String("resourceID", resource.ResourceID),
-		zap.String("resourceTypeID", resource.ResourceTypeID))
+		zap.String("resource_id", resource.ResourceID),
+		zap.String("resource_type_id", resource.ResourceTypeID))
 
 	return resource, nil
 }
@@ -135,7 +135,7 @@ func (a *Adapter) CreateResource(
 	resource *adapter.Resource,
 ) (*adapter.Resource, error) {
 	a.logger.Debug("CreateResource called",
-		zap.String("resourceTypeID", resource.ResourceTypeID))
+		zap.String("resource_type_id", resource.ResourceTypeID))
 
 	// Creating nodes directly is not a standard Kubernetes operation
 	// Nodes are typically registered by kubelet when they join the cluster
@@ -154,7 +154,7 @@ func (a *Adapter) UpdateResource(
 	resource *adapter.Resource,
 ) (*adapter.Resource, error) {
 	a.logger.Debug("UpdateResource called",
-		zap.String("resourceID", resource.ResourceID))
+		zap.String("resource_id", resource.ResourceID))
 
 	// Updating nodes directly is not a standard Kubernetes operation
 	// Nodes are managed by kubelet and controllers

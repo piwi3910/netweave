@@ -219,7 +219,7 @@ func setupKeycloakContainer(t *testing.T, logger *zap.Logger) *keycloakContainer
 
 	baseURL := "http://" + net.JoinHostPort(host, port.Port())
 
-	logger.Info("Keycloak container started", zap.String("baseURL", baseURL))
+	logger.Info("Keycloak container started", zap.String("base_url", baseURL))
 
 	return &keycloakContainer{
 		container: container,

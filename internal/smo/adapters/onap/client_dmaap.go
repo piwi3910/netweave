@@ -104,7 +104,7 @@ func (c *DMaaPClient) PublishEvents(ctx context.Context, topic string, events []
 
 	c.logger.Debug("Publishing events to DMaaP",
 		zap.String("topic", topic),
-		zap.Int("eventCount", len(events)),
+		zap.Int("event_count", len(events)),
 	)
 
 	body, err := json.Marshal(events)
@@ -187,8 +187,8 @@ func (c *DMaaPClient) handlePublishResponse(resp *http.Response, topic string, e
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusAccepted {
 		c.logger.Info("Successfully published events to DMaaP",
 			zap.String("topic", topic),
-			zap.Int("eventCount", eventCount),
-			zap.Int("statusCode", resp.StatusCode),
+			zap.Int("event_count", eventCount),
+			zap.Int("status_code", resp.StatusCode),
 		)
 		return nil
 	}
@@ -252,7 +252,7 @@ func (c *DMaaPClient) SubscribeTopic(
 
 	c.logger.Debug("Consumed messages from DMaaP",
 		zap.String("topic", topic),
-		zap.Int("messageCount", len(messages)),
+		zap.Int("message_count", len(messages)),
 	)
 
 	return messages, nil
@@ -306,7 +306,7 @@ func (c *DMaaPClient) CreateTopic(ctx context.Context, topic string, partitions,
 	c.logger.Info("Successfully created DMaaP topic",
 		zap.String("topic", topic),
 		zap.Int("partitions", partitions),
-		zap.Int("replicationFactor", replicationFactor),
+		zap.Int("replication_factor", replicationFactor),
 	)
 
 	return nil

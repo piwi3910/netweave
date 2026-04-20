@@ -100,8 +100,8 @@ func TestNewSubscriptionHandler(t *testing.T) {
 
 	handler := handlers.NewSubscriptionHandler(store, &mockAuthStore{}, logger)
 	assert.NotNil(t, handler)
-	assert.Equal(t, store, handler.Store)
-	assert.Equal(t, logger, handler.Logger)
+	assert.Equal(t, store, handler.ExportStore())
+	assert.Equal(t, logger, handler.ExportLogger())
 }
 
 func TestNewSubscriptionHandler_Panics(t *testing.T) {

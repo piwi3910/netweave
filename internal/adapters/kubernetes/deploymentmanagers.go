@@ -65,7 +65,7 @@ func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.D
 	}
 
 	a.logger.Info("retrieved deployment manager",
-		zap.String("deploymentManagerID", dm.DeploymentManagerID),
+		zap.String("deployment_manager_id", dm.DeploymentManagerID),
 		zap.String("name", dm.Name))
 
 	return dm, nil
@@ -168,7 +168,7 @@ func (a *Adapter) GetOCloudInfrastructure(ctx context.Context) (map[string]inter
 	infrastructure["deploymentManagers"] = []string{a.deploymentManagerID}
 
 	a.logger.Info("retrieved O-Cloud infrastructure",
-		zap.String("oCloudId", a.oCloudID),
+		zap.String("ocloud_id", a.oCloudID),
 		zap.String("version", version.GitVersion))
 
 	return infrastructure, nil

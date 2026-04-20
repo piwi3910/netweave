@@ -16,25 +16,25 @@ func (a *Adapter) ListResourcePools(
 	_ context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.ResourcePool, error) {
-	a.Logger.Debug("ListResourcePools called",
+	a.logger.Debug("ListResourcePools called",
 		zap.Any("filter", filter))
 
 	// Query all host aggregates from Nova
 	allPages, err := aggregates.List(a.compute).AllPages()
 	if err != nil {
-		a.Logger.Error("failed to list host aggregates",
+		a.logger.Error("failed to list host aggregates",
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to list OpenStack host aggregates: %w", err)
 	}
 
 	osAggregates, err := aggregates.ExtractAggregates(allPages)
 	if err != nil {
-		a.Logger.Error("failed to extract host aggregates",
+		a.logger.Error("failed to extract host aggregates",
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to extract host aggregates: %w", err)
 	}
 
-	a.Logger.Debug("retrieved host aggregates from OpenStack",
+	a.logger.Debug("retrieved host aggregates from OpenStack",
 		zap.Int("count", len(osAggregates)))
 
 	// Transform OpenStack host aggregates to O2-IMS Resource Pools
@@ -53,7 +53,7 @@ func (a *Adapter) ListResourcePools(
 		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resource pools",
+	a.logger.Info("listed resource pools",
 		zap.Int("count", len(pools)))
 
 	return pools, nil
@@ -77,7 +77,7 @@ func (a *Adapter) CreateResourcePool(
 	_ context.Context,
 	pool *adapter.ResourcePool,
 ) (*adapter.ResourcePool, error) {
-	a.Logger.Debug("CreateResourcePool called",
+	a.logger.Debug("CreateResourcePool called",
 		zap.String("name", pool.Name))
 
 	if pool.Name == "" {
@@ -98,7 +98,7 @@ func (a *Adapter) CreateResourcePool(
 
 	osAggregate, err := aggregates.Create(a.compute, createOpts).Extract()
 	if err != nil {
-		a.Logger.Error("failed to create host aggregate",
+		a.logger.Error("failed to create host aggregate",
 			zap.String("name", pool.Name),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to create OpenStack host aggregate: %w", err)
@@ -117,8 +117,8 @@ func (a *Adapter) CreateResourcePool(
 
 		osAggregate, err = aggregates.SetMetadata(a.compute, osAggregate.ID, setMetadataOpts).Extract()
 		if err != nil {
-			a.Logger.Warn("failed to set host aggregate metadata",
-				zap.Int("aggregateID", osAggregate.ID),
+			a.logger.Warn("failed to set host aggregate metadata",
+				zap.Int("aggregate_id", osAggregate.ID),
 				zap.Error(err))
 			// Non-fatal: continue with aggregate creation
 		}
@@ -127,10 +127,10 @@ func (a *Adapter) CreateResourcePool(
 	// Transform back to O2-IMS Resource Pool
 	createdPool := a.TransformHostAggregateToResourcePool(osAggregate)
 
-	a.Logger.Info("created resource pool",
-		zap.String("resourcePoolID", createdPool.ResourcePoolID),
+	a.logger.Info("created resource pool",
+		zap.String("resource_pool_id", createdPool.ResourcePoolID),
 		zap.String("name", createdPool.Name),
-		zap.Int("aggregateID", osAggregate.ID))
+		zap.Int("aggregate_id", osAggregate.ID))
 
 	return createdPool, nil
 }
@@ -142,7 +142,7 @@ func (a *Adapter) UpdateResourcePool(
 	id string,
 	pool *adapter.ResourcePool,
 ) (*adapter.ResourcePool, error) {
-	a.Logger.Debug("UpdateResourcePool called",
+	a.logger.Debug("UpdateResourcePool called",
 		zap.String("id", id),
 		zap.String("name", pool.Name))
 
@@ -156,8 +156,8 @@ func (a *Adapter) UpdateResourcePool(
 	// Get existing host aggregate
 	osAggregate, err := aggregates.Get(a.compute, aggregateID).Extract()
 	if err != nil {
-		a.Logger.Error("failed to get host aggregate",
-			zap.Int("aggregateID", aggregateID),
+		a.logger.Error("failed to get host aggregate",
+			zap.Int("aggregate_id", aggregateID),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to get OpenStack host aggregate %d: %w", aggregateID, err)
 	}
@@ -175,8 +175,8 @@ func (a *Adapter) UpdateResourcePool(
 
 		osAggregate, err = aggregates.SetMetadata(a.compute, aggregateID, setMetadataOpts).Extract()
 		if err != nil {
-			a.Logger.Error("failed to update host aggregate metadata",
-				zap.Int("aggregateID", aggregateID),
+			a.logger.Error("failed to update host aggregate metadata",
+				zap.Int("aggregate_id", aggregateID),
 				zap.Error(err))
 			return nil, fmt.Errorf("failed to update OpenStack host aggregate metadata: %w", err)
 		}
@@ -185,8 +185,8 @@ func (a *Adapter) UpdateResourcePool(
 	// Transform back to O2-IMS Resource Pool
 	updatedPool := a.TransformHostAggregateToResourcePool(osAggregate)
 
-	a.Logger.Info("updated resource pool",
-		zap.String("resourcePoolID", updatedPool.ResourcePoolID),
+	a.logger.Info("updated resource pool",
+		zap.String("resource_pool_id", updatedPool.ResourcePoolID),
 		zap.String("name", updatedPool.Name))
 
 	return updatedPool, nil
@@ -194,7 +194,7 @@ func (a *Adapter) UpdateResourcePool(
 
 // DeleteResourcePool deletes an OpenStack host aggregate.
 func (a *Adapter) DeleteResourcePool(_ context.Context, id string) error {
-	a.Logger.Debug("DeleteResourcePool called",
+	a.logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 
 	// Parse resource pool ID to extract OpenStack aggregate ID
@@ -207,15 +207,15 @@ func (a *Adapter) DeleteResourcePool(_ context.Context, id string) error {
 	// Delete host aggregate from OpenStack
 	err = aggregates.Delete(a.compute, aggregateID).ExtractErr()
 	if err != nil {
-		a.Logger.Error("failed to delete host aggregate",
-			zap.Int("aggregateID", aggregateID),
+		a.logger.Error("failed to delete host aggregate",
+			zap.Int("aggregate_id", aggregateID),
 			zap.Error(err))
 		return fmt.Errorf("failed to delete OpenStack host aggregate %d: %w", aggregateID, err)
 	}
 
-	a.Logger.Info("deleted resource pool",
-		zap.String("resourcePoolID", id),
-		zap.Int("aggregateID", aggregateID))
+	a.logger.Info("deleted resource pool",
+		zap.String("resource_pool_id", id),
+		zap.Int("aggregate_id", aggregateID))
 
 	return nil
 }
@@ -229,7 +229,7 @@ func (a *Adapter) TransformHostAggregateToResourcePool(agg *aggregates.Aggregate
 		Name:             agg.Name,
 		Description:      fmt.Sprintf("OpenStack host aggregate: %s", agg.Name),
 		Location:         agg.AvailabilityZone,
-		OCloudID:         a.OCloudID,
+		OCloudID:         a.oCloudID,
 		GlobalLocationID: "", // Not provided by OpenStack
 		Extensions: map[string]interface{}{
 			"openstack.aggregateId":      agg.ID,

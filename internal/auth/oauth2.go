@@ -98,7 +98,7 @@ func (a *OAuth2Authenticator) Authenticate(
 	tokenClaims, err := a.keycloakClient.VerifyToken(ctx, token)
 	if err != nil {
 		a.logger.Warn("OAuth2 token verification failed",
-			zap.String("requestID", requestID),
+			zap.String("request_id", requestID),
 			zap.Error(err),
 		)
 		return nil, nil, nil, fmt.Errorf("invalid token: %w", err)
@@ -270,10 +270,10 @@ func (a *OAuth2Authenticator) linkExistingUserByEmail(
 	}
 
 	a.logger.Info("Linked OAuth2 subject to existing user",
-		zap.String("requestID", requestID),
-		zap.String("userID", user.ID),
+		zap.String("request_id", requestID),
+		zap.String("user_id", user.ID),
 		zap.String("email", claims.Email),
-		zap.String("oauthSubject", claims.Subject),
+		zap.String("oauth_subject", claims.Subject),
 	)
 
 	return user, nil
@@ -309,10 +309,10 @@ func (a *OAuth2Authenticator) provisionUser(
 	}
 
 	a.logger.Info("Auto-provisioned OAuth2 user",
-		zap.String("requestID", requestID),
-		zap.String("userID", user.ID),
-		zap.String("tenantID", tenantID),
-		zap.String("oauthSubject", claims.Subject),
+		zap.String("request_id", requestID),
+		zap.String("user_id", user.ID),
+		zap.String("tenant_id", tenantID),
+		zap.String("oauth_subject", claims.Subject),
 		zap.String("email", claims.Email),
 	)
 
@@ -387,8 +387,8 @@ func (a *OAuth2Authenticator) determineRole(
 			if err == nil {
 				a.logger.Debug("Mapped OAuth group to role",
 					zap.String("group", group),
-					zap.String("roleID", roleID),
-					zap.String("roleName", string(role.Name)),
+					zap.String("role_id", roleID),
+					zap.String("role_name", string(role.Name)),
 				)
 				return roleID, nil
 			}
@@ -401,8 +401,8 @@ func (a *OAuth2Authenticator) determineRole(
 		role, err := a.store.GetRole(ctx, a.config.DefaultRole)
 		if err == nil {
 			a.logger.Debug("Using default role for OAuth user",
-				zap.String("roleID", a.config.DefaultRole),
-				zap.String("roleName", string(role.Name)),
+				zap.String("role_id", a.config.DefaultRole),
+				zap.String("role_name", string(role.Name)),
 			)
 			return a.config.DefaultRole, nil
 		}

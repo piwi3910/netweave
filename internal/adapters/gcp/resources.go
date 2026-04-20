@@ -23,7 +23,7 @@ func (a *Adapter) ListResources(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "ListResources", start, err) }()
 
-	a.Logger.Debug("ListResources called",
+	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
 	// List instances across all zones in the region
@@ -37,7 +37,7 @@ func (a *Adapter) ListResources(
 		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resources",
+	a.logger.Info("listed resources",
 		zap.Int("count", len(resources)))
 
 	return resources, nil
@@ -132,7 +132,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "GetResource", start, err) }()
 
-	a.Logger.Debug("GetResource called",
+	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
 	// Parse zone and instance name from the ID
@@ -171,8 +171,8 @@ func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) 
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "CreateResource", start, err) }()
 
-	a.Logger.Debug("CreateResource called",
-		zap.String("resourceTypeId", resource.ResourceTypeID))
+	a.logger.Debug("CreateResource called",
+		zap.String("resource_type_id", resource.ResourceTypeID))
 
 	// Creating GCP instances requires extensive configuration
 	return nil, fmt.Errorf(
@@ -193,8 +193,8 @@ func (a *Adapter) UpdateResource(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "UpdateResource", start, err) }()
 
-	a.Logger.Debug("UpdateResource called",
-		zap.String("resourceID", id))
+	a.logger.Debug("UpdateResource called",
+		zap.String("resource_id", id))
 
 	// Get current resource to extract zone and instance name
 	currentResource, err := a.GetResource(ctx, id)
@@ -241,10 +241,10 @@ func (a *Adapter) UpdateResource(
 			return nil, fmt.Errorf("failed to wait for label update: %w", err)
 		}
 
-		a.Logger.Info("updated instance labels",
+		a.logger.Info("updated instance labels",
 			zap.String("zone", zone),
-			zap.String("instanceName", instanceName),
-			zap.Int("labelCount", len(labels)))
+			zap.String("instance_name", instanceName),
+			zap.Int("label_count", len(labels)))
 	}
 
 	// Fetch and return the updated resource
@@ -307,7 +307,7 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "DeleteResource", start, err) }()
 
-	a.Logger.Debug("DeleteResource called",
+	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
 	// Find the instance to get zone and name
@@ -342,8 +342,8 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to wait for instance deletion: %w", err)
 	}
 
-	a.Logger.Info("deleted resource",
-		zap.String("resourceId", id))
+	a.logger.Info("deleted resource",
+		zap.String("resource_id", id))
 
 	return nil
 }

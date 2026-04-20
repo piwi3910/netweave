@@ -23,7 +23,7 @@ func (a *Adapter) ListResourceTypes(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("gcp", "ListResourceTypes", start, err) }()
 
-	a.Logger.Debug("ListResourceTypes called",
+	a.logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
 	// Get the first zone in the region
@@ -43,7 +43,7 @@ func (a *Adapter) ListResourceTypes(
 		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resource types",
+	a.logger.Info("listed resource types",
 		zap.Int("count", len(resourceTypes)))
 
 	return resourceTypes, nil
@@ -122,7 +122,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 	var err error
 	defer func() { adapter.ObserveOperation("gcp", "GetResourceType", start, err) }()
 
-	a.Logger.Debug("GetResourceType called",
+	a.logger.Debug("GetResourceType called",
 		zap.String("id", id))
 
 	// Extract machine type name from the ID

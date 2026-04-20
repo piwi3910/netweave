@@ -142,16 +142,14 @@ func TestNewWithDefaults(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, adapter.Close()) })
 
 	// Check defaults
-	assert.Equal(t, "test-ocloud", adapter.OCloudID)
-	assert.NotEmpty(t, adapter.DeploymentManagerID)
-	assert.Contains(t, adapter.DeploymentManagerID, "ocloud-openstack-")
+	assert.Equal(t, "test-ocloud", adapter.ExportOCloudID())
+	assert.NotEmpty(t, adapter.ExportDeploymentManagerID())
+	assert.Contains(t, adapter.ExportDeploymentManagerID(), "ocloud-openstack-")
 }
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	a := &openstack.Adapter{
-		Logger: zap.NewNop(),
-	}
+	a := openstack.NewTestAdapter(zap.NewNop())
 
 	t.Run("Name", func(t *testing.T) {
 		assert.Equal(t, "openstack", a.Name())
@@ -207,9 +205,7 @@ func TestGenerateFlavorID(t *testing.T) {
 
 // TestClose tests adapter cleanup.
 func TestClose(t *testing.T) {
-	adapter := &openstack.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adapter := openstack.NewTestAdapter(zap.NewNop())
 
 	err := adapter.Close()
 	assert.NoError(t, err)

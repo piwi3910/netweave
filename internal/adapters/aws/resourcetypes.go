@@ -23,7 +23,7 @@ func (a *Adapter) ListResourceTypes(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "ListResourceTypes", start, err) }()
 
-	a.Logger.Debug("ListResourceTypes called",
+	a.logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
 	// Get EC2 instance types
@@ -54,7 +54,7 @@ func (a *Adapter) ListResourceTypes(
 		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resource types",
+	a.logger.Info("listed resource types",
 		zap.Int("count", len(resourceTypes)))
 
 	return resourceTypes, nil
@@ -69,7 +69,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetResourceType", start, err) }()
 
-	a.Logger.Debug("GetResourceType called",
+	a.logger.Debug("GetResourceType called",
 		zap.String("id", id))
 
 	// Extract the actual instance type from the O2-IMS resource type ID
@@ -91,8 +91,8 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 
 	resourceType = a.instanceTypeToResourceType(&output.InstanceTypes[0])
 
-	a.Logger.Info("retrieved resource type",
-		zap.String("resourceTypeId", resourceType.ResourceTypeID))
+	a.logger.Info("retrieved resource type",
+		zap.String("resource_type_id", resourceType.ResourceTypeID))
 
 	return resourceType, nil
 }

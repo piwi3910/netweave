@@ -20,9 +20,9 @@ func (a *Adapter) ListResourcePools(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "ListResourcePools", start, err) }()
 
-	a.Logger.Debug("ListResourcePools called",
+	a.logger.Debug("ListResourcePools called",
 		zap.Any("filter", filter),
-		zap.String("poolMode", a.poolMode))
+		zap.String("pool_mode", a.poolMode))
 
 	if a.poolMode == "az" {
 		pools := a.listAZPools(ctx, filter)
@@ -86,7 +86,7 @@ func (a *Adapter) listRGPools(ctx context.Context, filter *adapter.Filter) ([]*a
 		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resource pools (RG mode)",
+	a.logger.Info("listed resource pools (RG mode)",
 		zap.Int("count", len(pools)))
 
 	return pools, nil
@@ -129,7 +129,7 @@ func (a *Adapter) listAZPools(_ context.Context, filter *adapter.Filter) []*adap
 		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resource pools (AZ mode)",
+	a.logger.Info("listed resource pools (AZ mode)",
 		zap.Int("count", len(pools)))
 
 	return pools
@@ -141,7 +141,7 @@ func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.Reso
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetResourcePool", start, err) }()
 
-	a.Logger.Debug("GetResourcePool called",
+	a.logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
 	if a.poolMode == "az" {
@@ -190,7 +190,7 @@ func (a *Adapter) CreateResourcePool(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "CreateResourcePool", start, err) }()
 
-	a.Logger.Debug("CreateResourcePool called",
+	a.logger.Debug("CreateResourcePool called",
 		zap.String("name", pool.Name))
 
 	if a.poolMode == "az" {
@@ -217,7 +217,7 @@ func (a *Adapter) UpdateResourcePool(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "UpdateResourcePool", start, err) }()
 
-	a.Logger.Debug("UpdateResourcePool called",
+	a.logger.Debug("UpdateResourcePool called",
 		zap.String("id", id),
 		zap.String("name", pool.Name))
 
@@ -236,7 +236,7 @@ func (a *Adapter) DeleteResourcePool(_ context.Context, id string) error {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "DeleteResourcePool", start, err) }()
 
-	a.Logger.Debug("DeleteResourcePool called",
+	a.logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 
 	if a.poolMode == "az" {

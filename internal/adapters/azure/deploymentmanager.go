@@ -11,7 +11,7 @@ import (
 // GetDeploymentManager retrieves metadata about the Azure deployment manager.
 // It provides information about the Azure subscription and region.
 func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
-	a.Logger.Debug("GetDeploymentManager called",
+	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
 	// Accept "default" and "" as aliases for the configured DM ID,
@@ -53,8 +53,8 @@ func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.D
 		},
 	}
 
-	a.Logger.Info("retrieved deployment manager",
-		zap.String("deploymentManagerID", dm.DeploymentManagerID),
+	a.logger.Info("retrieved deployment manager",
+		zap.String("deployment_manager_id", dm.DeploymentManagerID),
 		zap.String("location", a.location))
 
 	return dm, nil
@@ -63,7 +63,7 @@ func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.D
 // ListDeploymentManagers retrieves all deployment managers.
 // Azure has a single deployment manager per adapter instance.
 func (a *Adapter) ListDeploymentManagers(ctx context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
-	a.Logger.Debug("ListDeploymentManagers called")
+	a.logger.Debug("ListDeploymentManagers called")
 
 	dm, err := a.GetDeploymentManager(ctx, a.deploymentManagerID)
 	if err != nil {

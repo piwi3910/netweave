@@ -132,7 +132,7 @@ func (r *Registry) Register(ctx context.Context, name string, plugin Plugin, isD
 	r.logger.Info("registered SMO plugin",
 		zap.String("name", name),
 		zap.String("version", metadata.Version),
-		zap.Bool("isDefault", isDefault),
+		zap.Bool("is_default", isDefault),
 		zap.Bool("healthy", health.Healthy),
 	)
 

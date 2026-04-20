@@ -40,13 +40,13 @@ func ExportNewFakeAdapter(computeMux, identityMux, placementMux *http.ServeMux) 
 		compute:             computeClient,
 		identity:            identityClient,
 		placement:           placementClient,
-		Logger:              zap.NewNop(),
-		OCloudID:            "test-ocloud",
-		DeploymentManagerID: "test-dm-openstack",
-		Region:              "TestRegion",
+		logger:              zap.NewNop(),
+		oCloudID:            "test-ocloud",
+		deploymentManagerID: "test-dm-openstack",
+		region:              "TestRegion",
 		projectName:         "test-project",
-		Subscriptions:       make(map[string]*adapter.Subscription),
-		PollingStates:       make(map[string]*SubscriptionState),
+		subscriptions:       make(map[string]*adapter.Subscription),
+		pollingStates:       make(map[string]*SubscriptionState),
 	}
 }
 
@@ -63,16 +63,78 @@ func ExportNewFakeAdapterWithCompute(handler http.Handler) (*Adapter, *httptest.
 	adp := &Adapter{
 		provider:            provider,
 		compute:             computeClient,
-		Logger:              zap.NewNop(),
-		OCloudID:            "test-ocloud",
-		DeploymentManagerID: "test-dm-openstack",
-		Region:              "TestRegion",
+		logger:              zap.NewNop(),
+		oCloudID:            "test-ocloud",
+		deploymentManagerID: "test-dm-openstack",
+		region:              "TestRegion",
 		projectName:         "test-project",
-		Subscriptions:       make(map[string]*adapter.Subscription),
-		PollingStates:       make(map[string]*SubscriptionState),
+		subscriptions:       make(map[string]*adapter.Subscription),
+		pollingStates:       make(map[string]*SubscriptionState),
 	}
 
 	return adp, server
+}
+
+// ExportOCloudID exposes the oCloudID field for tests.
+func (a *Adapter) ExportOCloudID() string { return a.oCloudID }
+
+// ExportDeploymentManagerID exposes the deploymentManagerID field for tests.
+func (a *Adapter) ExportDeploymentManagerID() string { return a.deploymentManagerID }
+
+// ExportRegion exposes the region field for tests.
+func (a *Adapter) ExportRegion() string { return a.region }
+
+// ExportSubscriptions exposes the subscriptions map for tests.
+func (a *Adapter) ExportSubscriptions() map[string]*adapter.Subscription { return a.subscriptions }
+
+// ExportPollingStates exposes the pollingStates map for tests.
+func (a *Adapter) ExportPollingStates() map[string]*SubscriptionState { return a.pollingStates }
+
+// NewTestAdapter creates an Adapter for testing with preset logger and subscription map.
+func NewTestAdapter(logger *zap.Logger) *Adapter {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	return &Adapter{
+		logger:        logger,
+		subscriptions: make(map[string]*adapter.Subscription),
+		pollingStates: make(map[string]*SubscriptionState),
+	}
+}
+
+// NewTestAdapterForPool creates an Adapter configured for resource-pool tests.
+func NewTestAdapterForPool(logger *zap.Logger, oCloudID string) *Adapter {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	return &Adapter{
+		logger:   logger,
+		oCloudID: oCloudID,
+	}
+}
+
+// NewTestAdapterFull creates an Adapter with all common test fields populated.
+// This is used by unit tests that don't need real service clients.
+func NewTestAdapterFull(
+	logger *zap.Logger,
+	oCloudID, deploymentManagerID, region string,
+) *Adapter {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	return &Adapter{
+		logger:              logger,
+		oCloudID:            oCloudID,
+		deploymentManagerID: deploymentManagerID,
+		region:              region,
+		subscriptions:       make(map[string]*adapter.Subscription),
+		pollingStates:       make(map[string]*SubscriptionState),
+	}
+}
+
+// ExportSetPollingStates sets the pollingStates map, for tests.
+func (a *Adapter) ExportSetPollingStates(states map[string]*SubscriptionState) {
+	a.pollingStates = states
 }
 
 // ResourceChange exposes the internal resourceChange type for testing.

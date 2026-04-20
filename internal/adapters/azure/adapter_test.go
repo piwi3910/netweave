@@ -10,7 +10,6 @@ import (
 	azadapter "github.com/piwi3910/netweave/internal/adapters/azure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 // TestNew tests the creation of a new AzureAdapter.
@@ -128,9 +127,7 @@ func TestNew(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	adp := &azadapter.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adp := azadapter.NewTestAdapter()
 
 	t.Run("Name", func(t *testing.T) {
 		assert.Equal(t, "azure", adp.Name())
@@ -331,10 +328,7 @@ func TestTagsToMap(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
-	adp := &azadapter.Adapter{
-		Logger:        zap.NewNop(),
-		Subscriptions: make(map[string]*adapter.Subscription),
-	}
+	adp := azadapter.NewTestAdapter()
 	ctx := context.Background()
 
 	t.Run("CreateSubscription", func(t *testing.T) {
@@ -406,20 +400,17 @@ func TestSubscriptions(t *testing.T) {
 
 // TestClose tests adapter cleanup.
 func TestClose(t *testing.T) {
-	adp := &azadapter.Adapter{
-		Logger:        zap.NewNop(),
-		Subscriptions: make(map[string]*adapter.Subscription),
-	}
+	adp := azadapter.NewTestAdapter()
 
 	// Add some subscriptions
-	adp.Subscriptions["sub-1"] = &adapter.Subscription{SubscriptionID: "sub-1"}
-	adp.Subscriptions["sub-2"] = &adapter.Subscription{SubscriptionID: "sub-2"}
+	adp.ExportSubscriptions()["sub-1"] = &adapter.Subscription{SubscriptionID: "sub-1"}
+	adp.ExportSubscriptions()["sub-2"] = &adapter.Subscription{SubscriptionID: "sub-2"}
 
 	err := adp.Close()
 	assert.NoError(t, err)
 
 	// Verify subscriptions are cleared
-	assert.Empty(t, adp.Subscriptions)
+	assert.Empty(t, adp.ExportSubscriptions())
 }
 
 // TestPtrHelpers tests pointer helper functions.
@@ -553,7 +544,7 @@ func TestAzureAdapter_GetDeploymentManager(t *testing.T) {
 
 // TestBuildAzureTags tests Azure tag building from resource fields.
 func TestBuildAzureTags(t *testing.T) {
-	adp := &azadapter.Adapter{Logger: zap.NewNop()}
+	adp := azadapter.NewTestAdapter()
 
 	tests := []struct {
 		name     string
@@ -670,7 +661,7 @@ func TestStringPtr(t *testing.T) {
 
 // TestExtractVMSize tests VM size extraction.
 func TestExtractVMSize(t *testing.T) {
-	adp := &azadapter.Adapter{Logger: zap.NewNop()}
+	adp := azadapter.NewTestAdapter()
 
 	vmSize := armcompute.VirtualMachineSizeTypes("Standard_D2s_v3")
 
@@ -765,9 +756,7 @@ func TestDetermineResourcePoolID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp := &azadapter.Adapter{
-				Logger: zap.NewNop(),
-			}
+			adp := azadapter.NewTestAdapter()
 			adp.TestSetPoolMode(tt.poolMode)
 			got := adp.TestDetermineResourcePoolID(tt.vm, tt.location, tt.resourceGroup)
 			assert.Equal(t, tt.want, got)
@@ -839,7 +828,7 @@ func TestBuildVMExtensions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp := &azadapter.Adapter{Logger: zap.NewNop()}
+			adp := azadapter.NewTestAdapter()
 			got := adp.TestBuildVMExtensions(tt.vm, tt.vmName, tt.location, tt.resourceGroup, tt.vmSize)
 			require.NotNil(t, got)
 			if tt.checkExts != nil {

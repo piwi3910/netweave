@@ -21,7 +21,7 @@ func (a *Adapter) CreateSubscription(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "CreateSubscription", start, err) }()
 
-	a.Logger.Debug("CreateSubscription called",
+	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", sub.Callback))
 
 	// Validate callback URL
@@ -45,16 +45,16 @@ func (a *Adapter) CreateSubscription(
 	}
 
 	// Store in memory
-	a.SubscriptionsMu.Lock()
-	a.Subscriptions[subscriptionID] = newSub
-	subscriptionCount := len(a.Subscriptions)
-	a.SubscriptionsMu.Unlock()
+	a.subscriptionsMu.Lock()
+	a.subscriptions[subscriptionID] = newSub
+	subscriptionCount := len(a.subscriptions)
+	a.subscriptionsMu.Unlock()
 
 	// Update subscription count metric
 	adapter.UpdateSubscriptionCount("aws", subscriptionCount)
 
-	a.Logger.Info("created subscription",
-		zap.String("subscriptionId", subscriptionID),
+	a.logger.Info("created subscription",
+		zap.String("subscription_id", subscriptionID),
 		zap.String("callback", sub.Callback))
 
 	return newSub, nil
@@ -69,12 +69,12 @@ func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscr
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetSubscription", start, err) }()
 
-	a.Logger.Debug("GetSubscription called",
+	a.logger.Debug("GetSubscription called",
 		zap.String("id", id))
 
-	a.SubscriptionsMu.RLock()
-	sub, exists := a.Subscriptions[id]
-	a.SubscriptionsMu.RUnlock()
+	a.subscriptionsMu.RLock()
+	sub, exists := a.subscriptions[id]
+	a.subscriptionsMu.RUnlock()
 
 	if !exists {
 		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
@@ -96,7 +96,7 @@ func (a *Adapter) UpdateSubscription(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "UpdateSubscription", start, err) }()
 
-	a.Logger.Debug("UpdateSubscription called",
+	a.logger.Debug("UpdateSubscription called",
 		zap.String("id", id),
 		zap.String("callback", sub.Callback))
 
@@ -105,11 +105,11 @@ func (a *Adapter) UpdateSubscription(
 		return nil, fmt.Errorf("callback URL is required")
 	}
 
-	a.SubscriptionsMu.Lock()
-	defer a.SubscriptionsMu.Unlock()
+	a.subscriptionsMu.Lock()
+	defer a.subscriptionsMu.Unlock()
 
 	// Check if subscription exists
-	existing, exists := a.Subscriptions[id]
+	existing, exists := a.subscriptions[id]
 	if !exists {
 		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
@@ -123,12 +123,12 @@ func (a *Adapter) UpdateSubscription(
 	}
 
 	// Store updated subscription
-	a.Subscriptions[id] = result
+	a.subscriptions[id] = result
 
-	a.Logger.Info("updated subscription",
-		zap.String("subscriptionId", id),
-		zap.String("oldCallback", existing.Callback),
-		zap.String("newCallback", sub.Callback))
+	a.logger.Info("updated subscription",
+		zap.String("subscription_id", id),
+		zap.String("old_callback", existing.Callback),
+		zap.String("new_callback", sub.Callback))
 
 	return result, nil
 }
@@ -139,24 +139,24 @@ func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "DeleteSubscription", start, err) }()
 
-	a.Logger.Debug("DeleteSubscription called",
+	a.logger.Debug("DeleteSubscription called",
 		zap.String("id", id))
 
-	a.SubscriptionsMu.Lock()
-	if _, exists := a.Subscriptions[id]; !exists {
-		a.SubscriptionsMu.Unlock()
+	a.subscriptionsMu.Lock()
+	if _, exists := a.subscriptions[id]; !exists {
+		a.subscriptionsMu.Unlock()
 		return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
-	delete(a.Subscriptions, id)
-	subscriptionCount := len(a.Subscriptions)
-	a.SubscriptionsMu.Unlock()
+	delete(a.subscriptions, id)
+	subscriptionCount := len(a.subscriptions)
+	a.subscriptionsMu.Unlock()
 
 	// Update subscription count metric
 	adapter.UpdateSubscriptionCount("aws", subscriptionCount)
 
-	a.Logger.Info("deleted subscription",
-		zap.String("subscriptionId", id))
+	a.logger.Info("deleted subscription",
+		zap.String("subscription_id", id))
 
 	return nil
 }
@@ -164,11 +164,11 @@ func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
 // ListSubscriptions returns all active subscriptions.
 // This is a helper method not part of the Adapter interface.
 func (a *Adapter) ListSubscriptions() []*adapter.Subscription {
-	a.SubscriptionsMu.RLock()
-	defer a.SubscriptionsMu.RUnlock()
+	a.subscriptionsMu.RLock()
+	defer a.subscriptionsMu.RUnlock()
 
-	subs := make([]*adapter.Subscription, 0, len(a.Subscriptions))
-	for _, sub := range a.Subscriptions {
+	subs := make([]*adapter.Subscription, 0, len(a.subscriptions))
+	for _, sub := range a.subscriptions {
 		subs = append(subs, sub)
 	}
 

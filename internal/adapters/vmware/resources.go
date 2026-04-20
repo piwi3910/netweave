@@ -22,7 +22,7 @@ func (a *Adapter) ListResources(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "ListResources", start, err) }()
 
-	a.Logger.Debug("ListResources called",
+	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
 	// Find all VMs in the datacenter
@@ -46,7 +46,7 @@ func (a *Adapter) ListResources(
 			"resourcePool",
 		}, &vmMo)
 		if err != nil {
-			a.Logger.Warn("failed to get VM properties",
+			a.logger.Warn("failed to get VM properties",
 				zap.String("vm", vmName),
 				zap.Error(err))
 			continue
@@ -75,7 +75,7 @@ func (a *Adapter) ListResources(
 		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resources",
+	a.logger.Info("listed resources",
 		zap.Int("count", len(resources)))
 
 	return resources, nil
@@ -87,7 +87,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "GetResource", start, err) }()
 
-	a.Logger.Debug("GetResource called",
+	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
 	// Extract VM name from the ID
@@ -117,8 +117,8 @@ func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) 
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "CreateResource", start, err) }()
 
-	a.Logger.Debug("CreateResource called",
-		zap.String("resourceTypeId", resource.ResourceTypeID))
+	a.logger.Debug("CreateResource called",
+		zap.String("resource_type_id", resource.ResourceTypeID))
 
 	// Creating VMs requires extensive configuration not available in the O2-IMS model
 	return nil, fmt.Errorf("creating vSphere VMs requires additional configuration: use vCenter or vSphere CLI")
@@ -136,8 +136,8 @@ func (a *Adapter) UpdateResource(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "UpdateResource", start, err) }()
 
-	a.Logger.Debug("UpdateResource called",
-		zap.String("resourceID", id))
+	a.logger.Debug("UpdateResource called",
+		zap.String("resource_id", id))
 
 	// Validate resource ID format
 	if err = validateVMResourceID(id); err != nil {
@@ -215,9 +215,9 @@ func (a *Adapter) applyVMUpdates(
 		return fmt.Errorf("failed to wait for VM reconfiguration: %w", err)
 	}
 
-	a.Logger.Info("updated VM annotation",
-		zap.String("vmName", vmName),
-		zap.String("resourceID", resourceID))
+	a.logger.Info("updated VM annotation",
+		zap.String("vm_name", vmName),
+		zap.String("resource_id", resourceID))
 
 	return nil
 }
@@ -258,7 +258,7 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("vmware", "DeleteResource", start, err) }()
 
-	a.Logger.Debug("DeleteResource called",
+	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
 	// Find the VM
@@ -305,9 +305,9 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to wait for VM deletion: %w", err)
 	}
 
-	a.Logger.Info("deleted resource",
-		zap.String("resourceId", id),
-		zap.String("vmName", vmName))
+	a.logger.Info("deleted resource",
+		zap.String("resource_id", id),
+		zap.String("vm_name", vmName))
 
 	return nil
 }

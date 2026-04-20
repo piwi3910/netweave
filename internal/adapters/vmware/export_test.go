@@ -38,14 +38,28 @@ func ExportNewSimulatorAdapter(ctx context.Context, c *vim25.Client, datacenterN
 		client:              gc,
 		finder:              f,
 		datacenter:          dc,
-		Logger:              zap.NewNop(),
+		logger:              zap.NewNop(),
 		oCloudID:            "test-ocloud",
 		deploymentManagerID: "test-dm-vmware",
 		vcenterURL:          "https://vcenter.test/sdk",
 		datacenterName:      datacenterName,
-		Subscriptions:       make(map[string]*adapter.Subscription),
+		subscriptions:       make(map[string]*adapter.Subscription),
 		poolMode:            poolMode,
 	}, nil
+}
+
+// NewTestAdapter creates a VMware Adapter for testing with a no-op logger.
+func NewTestAdapter() *Adapter {
+	return &Adapter{
+		logger:        zap.NewNop(),
+		subscriptions: make(map[string]*adapter.Subscription),
+	}
+}
+
+// ExportSubscriptions exposes the subscriptions map for tests.
+// Callers must not access it concurrently with adapter operations.
+func (a *Adapter) ExportSubscriptions() map[string]*adapter.Subscription {
+	return a.subscriptions
 }
 
 // ExportFinder returns the adapter's finder for testing.

@@ -157,9 +157,9 @@ func NewTestFramework(opts *FrameworkOptions) (*TestFramework, error) {
 	fw.AddCleanup(webhookServer.Stop)
 
 	logger.Info("Test framework initialized",
-		zap.String("gatewayURL", gatewayURL),
+		zap.String("gateway_url", gatewayURL),
 		zap.String("namespace", opts.Namespace),
-		zap.String("webhookURL", webhookServer.URL()),
+		zap.String("webhook_url", webhookServer.URL()),
 	)
 
 	return fw, nil
