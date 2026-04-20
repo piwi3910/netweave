@@ -9,6 +9,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -597,42 +598,19 @@ func (s *Server) Start() error {
 	// Channel to listen for errors from any server
 	serverErrors := make(chan error, 4)
 
-	// Start all 4 servers
-	s.startListener("admin", s.httpServer, serverErrors)
-	s.startListener("o2", s.o2Server, serverErrors)
-	s.startListener("tmf", s.tmfServer, serverErrors)
-	s.startListener("graphql", s.graphqlServer, serverErrors)
-
-	// Brief grace period for port binding failures to surface.
-	// ListenAndServe returns immediately on bind errors (e.g. port in use),
-	// so 200ms is enough to detect them before entering the main loop.
-	time.Sleep(200 * time.Millisecond)
-
-	// Drain any startup errors that arrived during the grace period.
-	var startupErrs []error
-	for {
-		select {
-		case err := <-serverErrors:
-			startupErrs = append(startupErrs, err)
-		default:
-			goto doneCheck
-		}
+	// Bind all four listeners synchronously so port-in-use / permission
+	// errors surface immediately rather than racing against a sleep.
+	listeners, bindErr := s.bindAllListeners(host)
+	if bindErr != nil {
+		return bindErr
 	}
-doneCheck:
-	if len(startupErrs) > 0 {
-		s.logger.Error("server startup failed, shutting down all listeners",
-			zap.Int("failed_count", len(startupErrs)),
-		)
-		// Best-effort cleanup: startup already failed, so we surface the
-		// original startup error and only log any secondary shutdown error
-		// rather than overwriting it.
-		if shutdownErr := s.Shutdown(); shutdownErr != nil {
-			s.logger.Warn("shutdown after startup failure also errored",
-				zap.Error(shutdownErr),
-			)
-		}
-		return fmt.Errorf("server startup failed: %w", errors.Join(startupErrs...))
-	}
+
+	// Hand each bound listener off to its server goroutine. Serve / ServeTLS
+	// take an already-listening net.Listener, so no further bind can fail.
+	s.startListener("admin", s.httpServer, listeners.admin, serverErrors)
+	s.startListener("o2", s.o2Server, listeners.o2, serverErrors)
+	s.startListener("tmf", s.tmfServer, listeners.tmf, serverErrors)
+	s.startListener("graphql", s.graphqlServer, listeners.graphql, serverErrors)
 
 	s.logger.Info("all servers started successfully")
 
@@ -668,8 +646,66 @@ func (s *Server) newHTTPServer(addr string, handler http.Handler, tlsCfg *tls.Co
 	return srv
 }
 
-// startListener starts an HTTP/HTTPS server in a goroutine.
-func (s *Server) startListener(name string, srv *http.Server, errCh chan<- error) {
+// boundListeners holds the four pre-bound net.Listener instances so that
+// serve goroutines never race with a bind operation.
+type boundListeners struct {
+	admin   net.Listener
+	o2      net.Listener
+	tmf     net.Listener
+	graphql net.Listener
+}
+
+// bindAllListeners binds all four server ports synchronously. Any bind
+// failure (e.g. EADDRINUSE) is reported before any serve goroutine is
+// spawned, so callers no longer need to race against a sleep.
+//
+// On failure, any already-opened listeners are closed before returning
+// so the caller does not leak file descriptors.
+func (s *Server) bindAllListeners(host string) (*boundListeners, error) {
+	targets := []struct {
+		name string
+		port int
+	}{
+		{"admin", s.config.Server.Port},
+		{"o2", s.config.Server.O2Port},
+		{"tmf", s.config.Server.TMFPort},
+		{"graphql", s.config.Server.GraphQLPort},
+	}
+
+	opened := make([]net.Listener, 0, len(targets))
+	result := &boundListeners{}
+	setters := []func(net.Listener){
+		func(l net.Listener) { result.admin = l },
+		func(l net.Listener) { result.o2 = l },
+		func(l net.Listener) { result.tmf = l },
+		func(l net.Listener) { result.graphql = l },
+	}
+
+	for i, t := range targets {
+		addr := fmt.Sprintf("%s:%d", host, t.port)
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			// Close every listener we already opened before returning.
+			for _, prev := range opened {
+				if closeErr := prev.Close(); closeErr != nil {
+					s.logger.Warn("failed to close listener after bind failure",
+						zap.Error(closeErr),
+					)
+				}
+			}
+			return nil, fmt.Errorf("bind %s (%s): %w", t.name, addr, err)
+		}
+		opened = append(opened, ln)
+		setters[i](ln)
+	}
+
+	return result, nil
+}
+
+// startListener runs an HTTP/HTTPS server on an already-bound listener in
+// a goroutine. Because the listener is bound up-front, only transient
+// serve errors (not bind errors) can surface here.
+func (s *Server) startListener(name string, srv *http.Server, ln net.Listener, errCh chan<- error) {
 	go func() {
 		s.logger.Info("starting HTTP server",
 			zap.String("name", name),
@@ -678,12 +714,9 @@ func (s *Server) startListener(name string, srv *http.Server, errCh chan<- error
 
 		var err error
 		if s.config.TLS.Enabled {
-			err = srv.ListenAndServeTLS(
-				s.config.TLS.CertFile,
-				s.config.TLS.KeyFile,
-			)
+			err = srv.ServeTLS(ln, s.config.TLS.CertFile, s.config.TLS.KeyFile)
 		} else {
-			err = srv.ListenAndServe()
+			err = srv.Serve(ln)
 		}
 
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {

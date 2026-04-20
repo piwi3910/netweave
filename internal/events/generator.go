@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,15 +21,25 @@ import (
 // K8sEventGenerator implements the Generator interface for Kubernetes resources.
 // It watches for Node, MachineSet, and other resource changes and generates O2-IMS events.
 type K8sEventGenerator struct {
-	clientset    *kubernetes.Clientset
+	clientset    kubernetes.Interface
 	adapter      adapter.Adapter
 	logger       *zap.Logger
 	eventChannel chan *Event
 	stopChannel  chan struct{}
+
+	// wg tracks watcher goroutines so Stop can wait for them to finish
+	// writing to eventChannel before it is closed. Without this, Stop()
+	// could close eventChannel while a goroutine was still sending,
+	// producing a panic ("send on closed channel").
+	wg sync.WaitGroup
+
+	// stopOnce guards stopChannel to make Stop idempotent and safe to
+	// call concurrently.
+	stopOnce sync.Once
 }
 
 // NewK8sEventGenerator creates a new K8sEventGenerator instance.
-func NewK8sEventGenerator(clientset *kubernetes.Clientset, adp adapter.Adapter, logger *zap.Logger) *K8sEventGenerator {
+func NewK8sEventGenerator(clientset kubernetes.Interface, adp adapter.Adapter, logger *zap.Logger) *K8sEventGenerator {
 	if clientset == nil {
 		panic("Kubernetes clientset cannot be nil")
 	}
@@ -52,8 +63,13 @@ func NewK8sEventGenerator(clientset *kubernetes.Clientset, adp adapter.Adapter, 
 func (g *K8sEventGenerator) Start(ctx context.Context) (<-chan *Event, error) {
 	g.logger.Info("starting K8s event generator")
 
-	// Start watching nodes
-	go g.watchNodes(ctx)
+	// Start watching nodes under the WaitGroup so Stop can wait for the
+	// goroutine to return before closing the event channel.
+	g.wg.Add(1)
+	go func() {
+		defer g.wg.Done()
+		g.watchNodes(ctx)
+	}()
 
 	// Additional watchers can be added here:
 	// - MachineSets
@@ -65,10 +81,20 @@ func (g *K8sEventGenerator) Start(ctx context.Context) (<-chan *Event, error) {
 }
 
 // Stop stops the event generator and releases resources.
+//
+// The ordering is important: stopChannel is closed first to signal
+// watchers to exit, wg.Wait() then blocks until every watcher has
+// returned (guaranteeing none is still attempting to send), and only
+// then is eventChannel closed. Reversing this order can race with a
+// watcher's send and panic with "send on closed channel". Stop is
+// idempotent and safe to call more than once.
 func (g *K8sEventGenerator) Stop() error {
 	g.logger.Info("stopping K8s event generator")
-	close(g.stopChannel)
-	close(g.eventChannel)
+	g.stopOnce.Do(func() {
+		close(g.stopChannel)
+		g.wg.Wait()
+		close(g.eventChannel)
+	})
 	return nil
 }
 

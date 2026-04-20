@@ -82,6 +82,10 @@ type ResourceEvent struct {
 	BackendID string `json:"backendId,omitempty"`
 }
 
+// HandlerTimeout bounds each informer event handler's work so shutdown can
+// reclaim in-flight goroutines promptly.
+const HandlerTimeout = 30 * time.Second
+
 // SubscriptionController watches Kubernetes resources and delivers webhook notifications.
 type SubscriptionController struct {
 	// k8sClient is the Kubernetes client for API operations.
@@ -107,6 +111,16 @@ type SubscriptionController struct {
 
 	// wg tracks running goroutines.
 	wg sync.WaitGroup
+
+	// ctxMu guards ctx and cancel.
+	ctxMu sync.RWMutex
+
+	// ctx is the controller-scoped context. Informer callbacks derive
+	// bounded child contexts from it so in-flight work unwinds on Stop.
+	ctx context.Context
+
+	// cancel cancels ctx; set by Start, invoked by Stop.
+	cancel context.CancelFunc
 }
 
 // Config holds configuration for creating a SubscriptionController.
@@ -162,8 +176,18 @@ func NewSubscriptionController(cfg *Config) (*SubscriptionController, error) {
 }
 
 // Start starts the subscription controller and begins watching resources.
+// The provided context scopes all informer callback work so that cancellation
+// propagates to in-flight event processing.
 func (c *SubscriptionController) Start(ctx context.Context) error {
 	c.Logger.Info("starting subscription controller")
+
+	// Derive a controller-scoped context so informer callbacks can honor
+	// cancellation. The cancel func is invoked from Stop.
+	controllerCtx, cancel := context.WithCancel(ctx)
+	c.ctxMu.Lock()
+	c.ctx = controllerCtx
+	c.cancel = cancel
+	c.ctxMu.Unlock()
 
 	// Set up Kubernetes informers for watched resources
 	if err := c.setupInformers(); err != nil {
@@ -195,14 +219,41 @@ func (c *SubscriptionController) Start(ctx context.Context) error {
 func (c *SubscriptionController) Stop() error {
 	c.Logger.Info("stopping subscription controller")
 
-	// Signal shutdown
-	close(c.stopCh)
+	// Cancel controller-scoped context so in-flight handler work unwinds.
+	c.ctxMu.Lock()
+	if c.cancel != nil {
+		c.cancel()
+	}
+	c.ctxMu.Unlock()
+
+	// Signal shutdown to informers.
+	select {
+	case <-c.stopCh:
+		// Already closed; Stop is idempotent.
+	default:
+		close(c.stopCh)
+	}
 
 	// Wait for all goroutines to finish
 	c.wg.Wait()
 
 	c.Logger.Info("subscription controller stopped")
 	return nil
+}
+
+// handlerContext derives a timeout-bounded context from the controller-scoped
+// context so informer callbacks both respect shutdown and cannot run forever.
+// When Start has not been called, it falls back to a detached context with the
+// same bound so stand-alone handler invocations (e.g. in tests) still work.
+func (c *SubscriptionController) handlerContext() (context.Context, context.CancelFunc) {
+	c.ctxMu.RLock()
+	parent := c.ctx
+	c.ctxMu.RUnlock()
+
+	if parent == nil {
+		parent = context.Background()
+	}
+	return context.WithTimeout(parent, HandlerTimeout)
 }
 
 // setupInformers configures event handlers for Kubernetes resources.
@@ -241,7 +292,8 @@ func (c *SubscriptionController) handleNodeAdd(obj interface{}) {
 	c.Logger.Debug("node created",
 		zap.String("node", node.Name))
 
-	ctx := context.Background()
+	ctx, cancel := c.handlerContext()
+	defer cancel()
 	c.ProcessNodeEvent(ctx, node, EventTypeCreated)
 }
 
@@ -267,7 +319,8 @@ func (c *SubscriptionController) handleNodeUpdate(oldObj, newObj interface{}) {
 	c.Logger.Debug("node updated",
 		zap.String("node", newNode.Name))
 
-	ctx := context.Background()
+	ctx, cancel := c.handlerContext()
+	defer cancel()
 	c.ProcessNodeEvent(ctx, newNode, EventTypeUpdated)
 }
 
@@ -291,7 +344,8 @@ func (c *SubscriptionController) handleNodeDelete(obj interface{}) {
 	c.Logger.Debug("node deleted",
 		zap.String("node", node.Name))
 
-	ctx := context.Background()
+	ctx, cancel := c.handlerContext()
+	defer cancel()
 	c.ProcessNodeEvent(ctx, node, EventTypeDeleted)
 }
 
@@ -306,7 +360,8 @@ func (c *SubscriptionController) handleNamespaceAdd(obj interface{}) {
 	c.Logger.Debug("namespace created",
 		zap.String("namespace", ns.Name))
 
-	ctx := context.Background()
+	ctx, cancel := c.handlerContext()
+	defer cancel()
 	c.ProcessNamespaceEvent(ctx, ns, EventTypeCreated)
 }
 
@@ -332,7 +387,8 @@ func (c *SubscriptionController) handleNamespaceUpdate(oldObj, newObj interface{
 	c.Logger.Debug("namespace updated",
 		zap.String("namespace", newNs.Name))
 
-	ctx := context.Background()
+	ctx, cancel := c.handlerContext()
+	defer cancel()
 	c.ProcessNamespaceEvent(ctx, newNs, EventTypeUpdated)
 }
 
@@ -356,7 +412,8 @@ func (c *SubscriptionController) handleNamespaceDelete(obj interface{}) {
 	c.Logger.Debug("namespace deleted",
 		zap.String("namespace", ns.Name))
 
-	ctx := context.Background()
+	ctx, cancel := c.handlerContext()
+	defer cancel()
 	c.ProcessNamespaceEvent(ctx, ns, EventTypeDeleted)
 }
 
@@ -384,6 +441,13 @@ func (c *SubscriptionController) ProcessNodeEvent(ctx context.Context, node *cor
 
 	// Find matching subscriptions and queue events
 	for _, sub := range subs {
+		// Honor controller shutdown: stop processing if the context is done.
+		if err := ctx.Err(); err != nil {
+			c.Logger.Debug("node event processing interrupted",
+				zap.Error(err),
+				zap.String("node", node.Name))
+			return
+		}
 		if c.MatchesFilter(sub, "k8s-node", resourcePoolID, node.Name) {
 			event := &ResourceEvent{
 				SubscriptionID:   sub.ID,
@@ -429,6 +493,13 @@ func (c *SubscriptionController) ProcessNamespaceEvent(ctx context.Context, ns *
 
 	// Find matching subscriptions and queue events
 	for _, sub := range subs {
+		// Honor controller shutdown: stop processing if the context is done.
+		if err := ctx.Err(); err != nil {
+			c.Logger.Debug("namespace event processing interrupted",
+				zap.Error(err),
+				zap.String("namespace", ns.Name))
+			return
+		}
 		if c.MatchesFilter(sub, "k8s-namespace", "", ns.Name) {
 			event := &ResourceEvent{
 				SubscriptionID:   sub.ID,
