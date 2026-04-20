@@ -19,6 +19,7 @@ func TestSecurityHeaders(t *testing.T) {
 	tests := []struct {
 		name           string
 		config         *middleware.SecurityHeadersConfig
+		forwardedProto string // X-Forwarded-Proto header on the request
 		expectedHeader map[string]string
 		notExpected    []string
 	}{
@@ -34,13 +35,12 @@ func TestSecurityHeaders(t *testing.T) {
 				"Cache-Control":           "no-store",
 				"Permissions-Policy":      "geolocation=(), microphone=(), camera=()",
 			},
-			notExpected: []string{"Strict-Transport-Security"}, // TLS not enabled
+			notExpected: []string{"Strict-Transport-Security"}, // plain HTTP request
 		},
 		{
-			name: "HSTS header added when TLS enabled",
+			name: "HSTS header added when request is forwarded as HTTPS",
 			config: &middleware.SecurityHeadersConfig{
 				Enabled:               true,
-				TLSEnabled:            true,
 				HSTSMaxAge:            31536000,
 				HSTSIncludeSubDomains: true,
 				HSTSPreload:           false,
@@ -48,6 +48,7 @@ func TestSecurityHeaders(t *testing.T) {
 				FrameOptions:          "DENY",
 				ReferrerPolicy:        "strict-origin-when-cross-origin",
 			},
+			forwardedProto: "https",
 			expectedHeader: map[string]string{
 				"X-Content-Type-Options":    "nosniff",
 				"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
@@ -57,7 +58,6 @@ func TestSecurityHeaders(t *testing.T) {
 			name: "HSTS header with preload",
 			config: &middleware.SecurityHeadersConfig{
 				Enabled:               true,
-				TLSEnabled:            true,
 				HSTSMaxAge:            63072000, // 2 years
 				HSTSIncludeSubDomains: true,
 				HSTSPreload:           true,
@@ -65,9 +65,20 @@ func TestSecurityHeaders(t *testing.T) {
 				FrameOptions:          "DENY",
 				ReferrerPolicy:        "strict-origin-when-cross-origin",
 			},
+			forwardedProto: "https",
 			expectedHeader: map[string]string{
 				"Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
 			},
+		},
+		{
+			name: "HSTS header omitted for plain HTTP even when TLSEnabled flag set",
+			config: &middleware.SecurityHeadersConfig{
+				Enabled:               true,
+				TLSEnabled:            true, // legacy flag: must NOT drive HSTS
+				HSTSMaxAge:            31536000,
+				HSTSIncludeSubDomains: true,
+			},
+			notExpected: []string{"Strict-Transport-Security"},
 		},
 		{
 			name: "custom frame options",
@@ -109,6 +120,9 @@ func TestSecurityHeaders(t *testing.T) {
 			w := httptest.NewRecorder()
 			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 			require.NoError(t, err)
+			if tt.forwardedProto != "" {
+				req.Header.Set("X-Forwarded-Proto", tt.forwardedProto)
+			}
 
 			router.ServeHTTP(w, req)
 

@@ -3,6 +3,7 @@ package middleware
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -89,8 +90,16 @@ func SecurityHeaders(config *SecurityHeadersConfig) gin.HandlerFunc {
 		// Content Security Policy - restrict resource loading
 		c.Header("Content-Security-Policy", config.ContentSecurityPolicy)
 
-		// HSTS - only set if TLS is enabled
-		if config.TLSEnabled && config.HSTSMaxAge > 0 {
+		// HSTS is emitted based on the actual transport of this request, not
+		// just the static TLSEnabled config flag (see issue #502). When the
+		// gateway sits behind an L7 load balancer that terminates TLS, the
+		// direct connection to the gateway is cleartext even though the
+		// client reached the LB over HTTPS. We honor the standard forwarded
+		// header so HSTS is sent on those requests.
+		//
+		// NOTE: trusted_proxies must be configured so X-Forwarded-Proto
+		// cannot be spoofed by untrusted clients.
+		if config.HSTSMaxAge > 0 && isHTTPSRequest(c) {
 			hstsValue := BuildHSTSValue(config)
 			c.Header("Strict-Transport-Security", hstsValue)
 		}
@@ -121,4 +130,35 @@ func BuildHSTSValue(config *SecurityHeadersConfig) string {
 		value += "; preload"
 	}
 	return value
+}
+
+// isHTTPSRequest returns true when the incoming request was made over TLS,
+// either directly (native TLS) or through a trusted TLS-terminating proxy
+// that forwarded the transport via the X-Forwarded-Proto header.
+func isHTTPSRequest(c *gin.Context) bool {
+	if c.Request.TLS != nil {
+		return true
+	}
+	// X-Forwarded-Proto is case-insensitive and may contain a comma-separated
+	// list (e.g. "https, http") when multiple proxies are involved; the
+	// left-most value is the client-facing one.
+	proto := c.GetHeader("X-Forwarded-Proto")
+	if proto == "" {
+		return false
+	}
+	if idx := indexComma(proto); idx >= 0 {
+		proto = proto[:idx]
+	}
+	return strings.EqualFold(strings.TrimSpace(proto), "https")
+}
+
+// indexComma returns the index of the first comma in s, or -1 if none.
+// Kept local to avoid a strings import just for IndexByte.
+func indexComma(s string) int {
+	for i := 0; i < len(s); i++ {
+		if s[i] == ',' {
+			return i
+		}
+	}
+	return -1
 }

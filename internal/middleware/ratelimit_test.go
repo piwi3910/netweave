@@ -345,3 +345,84 @@ func TestGlobalLimitConfig_BurstSize(t *testing.T) {
 		assert.Equal(t, 2000, config.BurstSize())
 	})
 }
+
+// TestRateLimiterFailClosed verifies that when the Redis backend is
+// unavailable the limiter denies write methods with 503 (issue #479).
+func TestRateLimiterFailClosed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mr := miniredis.RunT(t)
+	redisClient := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+
+	cfg := &middleware.RateLimitConfig{
+		Enabled: true,
+		PerTenant: middleware.TenantLimitConfig{
+			RequestsPerSecond: 1,
+			BurstSize:         1,
+		},
+		RedisClient: redisClient,
+	}
+	rl, err := middleware.NewRateLimiter(cfg, zap.NewNop())
+	require.NoError(t, err)
+
+	// Kill the Redis backend to force every Eval to fail. Closing the
+	// client too guarantees no pooled connection survives across tests.
+	mr.Close()
+	_ = redisClient.Close()
+
+	router := gin.New()
+	router.Use(rl.Middleware())
+	router.POST("/write", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	router.GET("/read", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+
+	t.Run("POST fails closed with 503", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/write", nil))
+		assert.Equal(t, http.StatusServiceUnavailable, w.Code,
+			"POST must fail closed when Redis is down")
+	})
+
+	t.Run("GET fails open", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/read", nil))
+		assert.Equal(t, http.StatusOK, w.Code,
+			"GET must fail open when Redis is down")
+	})
+}
+
+// TestRateLimiterFailModeOverride verifies that an endpoint-level FailMode
+// overrides the method-based default.
+func TestRateLimiterFailModeOverride(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mr := miniredis.RunT(t)
+	redisClient := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+
+	cfg := &middleware.RateLimitConfig{
+		Enabled: true,
+		PerEndpoint: []middleware.EndpointLimitConfig{
+			{
+				Path:              "/read",
+				Method:            http.MethodGet,
+				RequestsPerSecond: 1,
+				BurstSize:         1,
+				FailMode:          middleware.FailModeClosed,
+			},
+		},
+		RedisClient: redisClient,
+	}
+	rl, err := middleware.NewRateLimiter(cfg, zap.NewNop())
+	require.NoError(t, err)
+
+	mr.Close()
+	_ = redisClient.Close()
+
+	router := gin.New()
+	router.Use(rl.Middleware())
+	router.GET("/read", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/read", nil))
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code,
+		"endpoint-level FailModeClosed must override the GET default")
+}
