@@ -19,6 +19,7 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/piwi3910/netweave/internal/backend"
+	"github.com/piwi3910/netweave/internal/httpx"
 	"github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/storage"
 )
@@ -128,10 +129,7 @@ func (s *Server) resolveAdapter(c *gin.Context) adapter.Adapter {
 		if s.adapter != nil {
 			return s.adapter
 		}
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error":   "ServiceUnavailable",
-			"message": "No backend adapters configured. Create backend instances via the admin API.",
-		})
+		httpx.WriteError(c, http.StatusServiceUnavailable, "ServiceUnavailable", "No backend adapters configured. Create backend instances via the admin API.")
 		return nil
 	}
 
@@ -140,10 +138,7 @@ func (s *Server) resolveAdapter(c *gin.Context) adapter.Adapter {
 	if backendID != "" && auth.IsPlatformAdminFromContext(ctx) {
 		adp, err := s.adapterRegistry.GetAdapter(backendID)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": fmt.Sprintf("Backend %q not found in registry", backendID),
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Backend %q not found in registry", backendID))
 			return nil
 		}
 		return adp
@@ -154,52 +149,34 @@ func (s *Server) resolveAdapter(c *gin.Context) adapter.Adapter {
 	if tenantID == "" {
 		// Platform admins must specify X-Backend-ID
 		if auth.IsPlatformAdminFromContext(ctx) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":   "BadRequest",
-				"message": "Platform admins must specify X-Backend-ID header to select a backend",
-			})
+			httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Platform admins must specify X-Backend-ID header to select a backend")
 			return nil
 		}
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":   "Unauthorized",
-			"message": "No tenant context available",
-		})
+		httpx.WriteError(c, http.StatusUnauthorized, "Unauthorized", "No tenant context available")
 		return nil
 	}
 
 	// Platform admins without X-Backend-ID header
 	if auth.IsPlatformAdminFromContext(ctx) {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Platform admins must specify X-Backend-ID header to select a backend",
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Platform admins must specify X-Backend-ID header to select a backend")
 		return nil
 	}
 
 	adp, err := s.adapterRegistry.GetAdapterForTenant(ctx, tenantID, s.backendStore)
 	if err != nil {
 		if errors.Is(err, backend.ErrNoBackendAccess) {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error":   "Forbidden",
-				"message": "No backend access configured for this tenant",
-			})
+			httpx.WriteError(c, http.StatusForbidden, "Forbidden", "No backend access configured for this tenant")
 			return nil
 		}
 		if errors.Is(err, backend.ErrAdapterNotFound) {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error":   "ServiceUnavailable",
-				"message": "Assigned backend is not currently available",
-			})
+			httpx.WriteError(c, http.StatusServiceUnavailable, "ServiceUnavailable", "Assigned backend is not currently available")
 			return nil
 		}
 		s.logger.Warn("failed to resolve adapter for tenant",
 			zap.String("tenant_id", tenantID),
 			zap.Error(err),
 		)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalServerError",
-			"message": "Failed to resolve backend adapter",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalServerError", "Failed to resolve backend adapter")
 		return nil
 	}
 
@@ -493,11 +470,7 @@ func (s *Server) handleListSubscriptions(c *gin.Context) {
 
 	if err != nil {
 		s.logger.Error("failed to list subscriptions", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to retrieve subscriptions",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve subscriptions")
 		return
 	}
 
@@ -535,21 +508,13 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 
 	var req adapter.Subscription
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
 		return
 	}
 
 	// Validate callback URL early for fast failure (SSRF protection)
 	if err := s.ValidateCallback(ctx, &req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
 		return
 	}
 
@@ -559,21 +524,13 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 			if errors.Is(err, auth.ErrQuotaExceeded) {
 				s.logger.Warn("subscription quota exceeded",
 					zap.String("tenant_id", tenantID))
-				c.JSON(http.StatusTooManyRequests, gin.H{
-					"error":   "QuotaExceeded",
-					"message": "Subscription quota exceeded for tenant",
-					"code":    http.StatusTooManyRequests,
-				})
+				httpx.WriteError(c, http.StatusTooManyRequests, "QuotaExceeded", "Subscription quota exceeded for tenant")
 				return
 			}
 			s.logger.Error("failed to check subscription quota",
 				zap.String("tenant_id", tenantID),
 				zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Failed to check subscription quota",
-				"code":    http.StatusInternalServerError,
-			})
+			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to check subscription quota")
 			return
 		}
 	}
@@ -617,20 +574,12 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 
 		// Check for conflict error (subscription already exists)
 		if errors.Is(err, adapter.ErrSubscriptionExists) {
-			c.JSON(http.StatusConflict, gin.H{
-				"error":   "Conflict",
-				"message": "Subscription already exists",
-				"code":    http.StatusConflict,
-			})
+			httpx.WriteError(c, http.StatusConflict, "Conflict", "Subscription already exists")
 			return
 		}
 
 		s.logger.Error("failed to create subscription", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to create subscription",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to create subscription")
 		return
 	}
 
@@ -661,11 +610,7 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 					zap.Error(decErr))
 			}
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to store subscription",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to store subscription")
 		return
 	}
 
@@ -709,20 +654,12 @@ func (s *Server) handleGetSubscription(c *gin.Context) {
 	sub, err := s.store.Get(ctx, subscriptionID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Subscription not found: " + subscriptionID,
-				"code":    http.StatusNotFound,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
 			return
 		}
 
 		s.logger.Error("failed to get subscription", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to retrieve subscription",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve subscription")
 		return
 	}
 
@@ -733,11 +670,7 @@ func (s *Server) handleGetSubscription(c *gin.Context) {
 			zap.String("tenant_id", tenantID),
 			zap.String("subscription_tenant_id", sub.TenantID),
 			zap.String("subscription_id", subscriptionID))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Subscription not found: " + subscriptionID,
-			"code":    http.StatusNotFound,
-		})
+		httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
 		return
 	}
 
@@ -776,19 +709,11 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 		sub, err := s.store.Get(ctx, subscriptionID)
 		if err != nil {
 			if errors.Is(err, storage.ErrSubscriptionNotFound) {
-				c.JSON(http.StatusNotFound, gin.H{
-					"error":   "NotFound",
-					"message": "Subscription not found: " + subscriptionID,
-					"code":    http.StatusNotFound,
-				})
+				httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
 				return
 			}
 			s.logger.Error("failed to get subscription for tenant check", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Failed to verify subscription ownership",
-				"code":    http.StatusInternalServerError,
-			})
+			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to verify subscription ownership")
 			return
 		}
 
@@ -799,32 +724,20 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 				zap.String("tenant_id", tenantID),
 				zap.String("subscription_tenant_id", sub.TenantID),
 				zap.String("subscription_id", subscriptionID))
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Subscription not found: " + subscriptionID,
-				"code":    http.StatusNotFound,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
 			return
 		}
 	}
 
 	var req adapter.Subscription
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
 		return
 	}
 
 	// Validate callback URL early for fast failure
 	if err := s.ValidateCallback(ctx, &req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
 		return
 	}
 
@@ -840,20 +753,12 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 	if err != nil {
 		// Check for not found error using sentinel error
 		if errors.Is(err, adapter.ErrSubscriptionNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Subscription not found: " + subscriptionID,
-				"code":    http.StatusNotFound,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
 			return
 		}
 
 		s.logger.Error("failed to update subscription", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to update subscription",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to update subscription")
 		return
 	}
 
@@ -904,19 +809,11 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 					zap.String("tenant_id", tenantID),
 					zap.String("subscription_tenant_id", sub.TenantID),
 					zap.String("subscription_id", subscriptionID))
-				c.JSON(http.StatusNotFound, gin.H{
-					"error":   "NotFound",
-					"message": "Subscription not found: " + subscriptionID,
-					"code":    http.StatusNotFound,
-				})
+				httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
 				return
 			}
 		} else if errors.Is(err, storage.ErrSubscriptionNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Subscription not found: " + subscriptionID,
-				"code":    http.StatusNotFound,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
 			return
 		}
 	}
@@ -946,11 +843,7 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 		}
 
 		s.logger.Error("failed to delete subscription from adapter", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to delete subscription",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to delete subscription")
 		return
 	}
 
@@ -973,20 +866,12 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 		}
 
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Subscription not found: " + subscriptionID,
-				"code":    http.StatusNotFound,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
 			return
 		}
 
 		s.logger.Error("failed to delete subscription from storage", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to delete subscription",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to delete subscription")
 		return
 	}
 
@@ -1075,11 +960,7 @@ func (s *Server) handleListResourcePools(c *gin.Context) {
 	filter, err := s.parseFilterFromRequest(c)
 	if err != nil {
 		s.logger.Error("failed to parse filter", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "InvalidParameter",
-			"message": err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "InvalidParameter", err.Error())
 		return
 	}
 
@@ -1093,11 +974,7 @@ func (s *Server) handleListResourcePools(c *gin.Context) {
 	pools, err := adp.ListResourcePools(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resource pools", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to retrieve resource pools",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resource pools")
 		return
 	}
 
@@ -1123,11 +1000,7 @@ func (s *Server) handleGetResourcePool(c *gin.Context) {
 	pool, err := adp.GetResourcePool(c.Request.Context(), resourcePoolID)
 	if err != nil {
 		s.logger.Error("failed to get resource pool", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Resource pool not found: " + resourcePoolID,
-			"code":    http.StatusNotFound,
-		})
+		httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource pool not found: "+resourcePoolID)
 		return
 	}
 
@@ -1143,11 +1016,7 @@ func (s *Server) handleGetResourcePool(c *gin.Context) {
 			zap.String("tenant_id", auth.TenantIDFromContext(ctx)),
 			zap.String("pool_tenant_id", pool.TenantID),
 			zap.String("resource_pool_id", resourcePoolID))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Resource pool not found: " + resourcePoolID,
-			"code":    http.StatusNotFound,
-		})
+		httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource pool not found: "+resourcePoolID)
 		return
 	}
 
@@ -1182,11 +1051,7 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 	resources, err := adp.ListResources(ctx, filter)
 	if err != nil {
 		s.logger.Error("failed to list resources in pool", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to retrieve resources",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resources")
 		return
 	}
 
@@ -1331,21 +1196,13 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 
 	var req adapter.ResourcePool
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
 		return
 	}
 
 	// Validate resource pool fields
 	if err := ValidateResourcePoolFields(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
 		return
 	}
 
@@ -1357,21 +1214,13 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 			if errors.Is(err, auth.ErrQuotaExceeded) {
 				s.logger.Warn("resource pool quota exceeded",
 					zap.String("tenant_id", tenantID))
-				c.JSON(http.StatusTooManyRequests, gin.H{
-					"error":   "QuotaExceeded",
-					"message": "Resource pool quota exceeded for tenant",
-					"code":    http.StatusTooManyRequests,
-				})
+				httpx.WriteError(c, http.StatusTooManyRequests, "QuotaExceeded", "Resource pool quota exceeded for tenant")
 				return
 			}
 			s.logger.Error("failed to check resource pool quota",
 				zap.String("tenant_id", tenantID),
 				zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Failed to check resource pool quota",
-				"code":    http.StatusInternalServerError,
-			})
+			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to check resource pool quota")
 			return
 		}
 	}
@@ -1438,20 +1287,12 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 
 		// Check for duplicate resource pool using sentinel error
 		if errors.Is(err, adapter.ErrResourcePoolExists) {
-			c.JSON(http.StatusConflict, gin.H{
-				"error":   "Conflict",
-				"message": "Resource pool with ID " + SanitizeForLogging(req.ResourcePoolID) + " already exists",
-				"code":    http.StatusConflict,
-			})
+			httpx.WriteError(c, http.StatusConflict, "Conflict", "Resource pool with ID "+SanitizeForLogging(req.ResourcePoolID)+" already exists")
 			return
 		}
 
 		s.logger.Error("failed to create resource pool", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to create resource pool",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to create resource pool")
 		return
 	}
 
@@ -1488,21 +1329,13 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 
 	var req adapter.ResourcePool
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
 		return
 	}
 
 	// Validate field constraints
 	if err := ValidateResourcePoolFields(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
 		return
 	}
 
@@ -1571,20 +1404,12 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 
 		// Check for not found error using sentinel error
 		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Resource pool not found: " + resourcePoolID,
-				"code":    http.StatusNotFound,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource pool not found: "+resourcePoolID)
 			return
 		}
 
 		s.logger.Error("failed to update resource pool", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to update resource pool",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to update resource pool")
 		return
 	}
 
@@ -1636,23 +1461,11 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 	if user := auth.UserFromContext(ctx); user != nil && !user.IsPlatformAdmin {
 		pool, err := adp.GetResourcePool(ctx, resourcePoolID)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Resource pool not found: " + resourcePoolID,
-				"code":    http.StatusNotFound,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource pool not found: "+resourcePoolID)
 			return
 		}
-		if !auth.AuthorizeTenantResource(ctx, pool.TenantID) {
-			s.logger.Warn("tenant attempting to delete resource pool from different tenant",
-				zap.String("tenant_id", tenantID),
-				zap.String("pool_tenant_id", pool.TenantID),
-				zap.String("resource_pool_id", resourcePoolID))
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Resource pool not found: " + resourcePoolID,
-				"code":    http.StatusNotFound,
-			})
+		if pool.TenantID != "" && pool.TenantID != tenantID {
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource pool not found: "+resourcePoolID)
 			return
 		}
 	}
@@ -1675,19 +1488,11 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 		}
 
 		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Resource pool not found: " + resourcePoolID,
-				"code":    http.StatusNotFound,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource pool not found: "+resourcePoolID)
 			return
 		}
 		s.logger.Error("failed to delete resource pool", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to delete resource pool",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to delete resource pool")
 		return
 	}
 
@@ -1833,11 +1638,7 @@ func (s *Server) handleListResources(c *gin.Context) {
 	filter, err := s.parseFilterFromRequest(c)
 	if err != nil {
 		s.logger.Error("failed to parse filter", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "InvalidParameter",
-			"message": err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "InvalidParameter", err.Error())
 		return
 	}
 
@@ -1851,11 +1652,7 @@ func (s *Server) handleListResources(c *gin.Context) {
 	resources, err := adp.ListResources(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resources", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to retrieve resources",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resources")
 		return
 	}
 
@@ -1882,20 +1679,12 @@ func (s *Server) handleGetResource(c *gin.Context) {
 	if err != nil {
 		// Use sentinel error for better error detection
 		if errors.Is(err, adapter.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Resource not found: " + resourceID,
-				"code":    http.StatusNotFound,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource not found: "+resourceID)
 			return
 		}
 
 		s.logger.Error("failed to get resource", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to retrieve resource",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resource")
 		return
 	}
 
@@ -1907,11 +1696,7 @@ func (s *Server) handleGetResource(c *gin.Context) {
 			zap.String("tenant_id", auth.TenantIDFromContext(ctx)),
 			zap.String("resource_tenant_id", resource.TenantID),
 			zap.String("resource_id", resourceID))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Resource not found: " + resourceID,
-			"code":    http.StatusNotFound,
-		})
+		httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource not found: "+resourceID)
 		return
 	}
 
@@ -1938,21 +1723,13 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 
 	var req adapter.Resource
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
 		return
 	}
 
 	// Validate required fields and constraints
 	if err := validateCreateRequest(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
 		return
 	}
 
@@ -1964,21 +1741,13 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 			if errors.Is(err, auth.ErrQuotaExceeded) {
 				s.logger.Warn("resource quota exceeded",
 					zap.String("tenant_id", tenantID))
-				c.JSON(http.StatusTooManyRequests, gin.H{
-					"error":   "QuotaExceeded",
-					"message": "Resource quota exceeded for tenant",
-					"code":    http.StatusTooManyRequests,
-				})
+				httpx.WriteError(c, http.StatusTooManyRequests, "QuotaExceeded", "Resource quota exceeded for tenant")
 				return
 			}
 			s.logger.Error("failed to check resource quota",
 				zap.String("tenant_id", tenantID),
 				zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Failed to check resource quota",
-				"code":    http.StatusInternalServerError,
-			})
+			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to check resource quota")
 			return
 		}
 	}
@@ -1997,11 +1766,7 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 		if _, err := uuid.Parse(req.ResourceID); err != nil {
 			s.logger.Warn("invalid resource ID format",
 				zap.String("resource_id", SanitizeForLogging(req.ResourceID)))
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":   "BadRequest",
-				"message": "resourceId must be a valid UUID",
-				"code":    http.StatusBadRequest,
-			})
+			httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "resourceId must be a valid UUID")
 			return
 		}
 	}
@@ -2042,20 +1807,12 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 
 		// Check if error indicates duplicate resource
 		if errors.Is(err, adapter.ErrResourceExists) {
-			c.JSON(http.StatusConflict, gin.H{
-				"error":   "Conflict",
-				"message": "Resource with ID " + SanitizeForLogging(req.ResourceID) + " already exists",
-				"code":    http.StatusConflict,
-			})
+			httpx.WriteError(c, http.StatusConflict, "Conflict", "Resource with ID "+SanitizeForLogging(req.ResourceID)+" already exists")
 			return
 		}
 
 		s.logger.Error("failed to create resource", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to create resource",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to create resource")
 		return
 	}
 
@@ -2092,11 +1849,7 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 
 	var req adapter.Resource
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
 		return
 	}
 
@@ -2166,23 +1919,11 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 	// (dev/test) continue to work.
 	if user := auth.UserFromContext(ctx); user != nil && !user.IsPlatformAdmin {
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Resource not found: " + resourceID,
-				"code":    http.StatusNotFound,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource not found: "+resourceID)
 			return
 		}
-		if !auth.AuthorizeTenantResource(ctx, existing.TenantID) {
-			s.logger.Warn("tenant attempting to delete resource from different tenant",
-				zap.String("tenant_id", tenantID),
-				zap.String("resource_tenant_id", existing.TenantID),
-				zap.String("resource_id", resourceID))
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Resource not found: " + resourceID,
-				"code":    http.StatusNotFound,
-			})
+		if existing.TenantID != "" && existing.TenantID != tenantID {
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource not found: "+resourceID)
 			return
 		}
 	}
@@ -2205,19 +1946,11 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 		}
 
 		if errors.Is(err, adapter.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Resource not found: " + resourceID,
-				"code":    http.StatusNotFound,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource not found: "+resourceID)
 			return
 		}
 		s.logger.Error("failed to delete resource", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to delete resource",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to delete resource")
 		return
 	}
 
@@ -2257,20 +1990,12 @@ func (s *Server) getExistingResource(c *gin.Context, resourceID string) (*adapte
 	existing, err := adp.GetResource(c.Request.Context(), resourceID)
 	if err != nil {
 		if errors.Is(err, adapter.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Resource not found: " + resourceID,
-				"code":    http.StatusNotFound,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource not found: "+resourceID)
 			return nil, fmt.Errorf("failed to get resource %s: %w", resourceID, err)
 		}
 
 		s.logger.Error("failed to get resource", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to retrieve resource",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resource")
 		return nil, fmt.Errorf("failed to get resource %s: %w", resourceID, err)
 	}
 	return existing, nil
@@ -2280,21 +2005,13 @@ func (s *Server) getExistingResource(c *gin.Context, resourceID string) (*adapte
 func (s *Server) validateUpdateRequest(c *gin.Context, req, existing *adapter.Resource) error {
 	// Validate field constraints
 	if err := validateResourceFields(req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
 		return err
 	}
 
 	// Check immutable fields
 	if err := checkImmutableFields(req, existing); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
 		return err
 	}
 
@@ -2349,11 +2066,7 @@ func (s *Server) applyResourceUpdate(c *gin.Context, resourceID string, req, exi
 		}
 
 		s.logger.Error("failed to update resource", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to update resource",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to update resource")
 		return
 	}
 
@@ -2391,11 +2104,7 @@ func (s *Server) handleListResourceTypes(c *gin.Context) {
 	filter, err := s.parseFilterFromRequest(c)
 	if err != nil {
 		s.logger.Error("failed to parse filter", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "InvalidParameter",
-			"message": err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "InvalidParameter", err.Error())
 		return
 	}
 
@@ -2409,11 +2118,7 @@ func (s *Server) handleListResourceTypes(c *gin.Context) {
 	types, err := adp.ListResourceTypes(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resource types", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to retrieve resource types",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resource types")
 		return
 	}
 
@@ -2439,11 +2144,7 @@ func (s *Server) handleGetResourceType(c *gin.Context) {
 	resType, err := adp.GetResourceType(c.Request.Context(), resourceTypeID)
 	if err != nil {
 		s.logger.Error("failed to get resource type", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Resource type not found: " + resourceTypeID,
-			"code":    http.StatusNotFound,
-		})
+		httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource type not found: "+resourceTypeID)
 		return
 	}
 
@@ -2465,11 +2166,7 @@ func (s *Server) handleListDeploymentManagers(c *gin.Context) {
 	dms, err := adp.ListDeploymentManagers(c.Request.Context(), nil)
 	if err != nil {
 		s.logger.Error("failed to list deployment managers", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to retrieve deployment managers",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve deployment managers")
 		return
 	}
 
@@ -2495,11 +2192,7 @@ func (s *Server) handleGetDeploymentManager(c *gin.Context) {
 	dm, err := adp.GetDeploymentManager(c.Request.Context(), deploymentManagerID)
 	if err != nil {
 		s.logger.Error("failed to get deployment manager", zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Deployment manager not found: " + deploymentManagerID,
-			"code":    http.StatusNotFound,
-		})
+		httpx.WriteError(c, http.StatusNotFound, "NotFound", "Deployment manager not found: "+deploymentManagerID)
 		return
 	}
 
@@ -2523,21 +2216,13 @@ func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 	dms, err := adp.ListDeploymentManagers(c.Request.Context(), nil)
 	if err != nil {
 		s.logger.Error("failed to list deployment managers for O-Cloud info", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to retrieve O-Cloud information",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve O-Cloud information")
 		return
 	}
 
 	if len(dms) == 0 {
 		s.logger.Error("no deployment managers registered")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "No deployment managers available",
-			"code":    http.StatusInternalServerError,
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "No deployment managers available")
 		return
 	}
 
@@ -2588,11 +2273,7 @@ func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body: " + err.Error(),
-			"code":    http.StatusBadRequest,
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
 		return
 	}
 

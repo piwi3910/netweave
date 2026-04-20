@@ -7,6 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
+
+	"github.com/piwi3910/netweave/internal/httpx"
 )
 
 // Swagger UI version and CDN configuration with SRI hashes for security.
@@ -61,11 +63,7 @@ func (s *Server) SetupDocsRoutes() {
 // are removed from the spec before serving.
 func (s *Server) HandleOpenAPIYAML(c *gin.Context) {
 	if len(s.openAPISpec) == 0 {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "OpenAPI specification not loaded",
-			"code":    http.StatusNotFound,
-		})
+		httpx.WriteError(c, http.StatusNotFound, "NotFound", "OpenAPI specification not loaded")
 		return
 	}
 

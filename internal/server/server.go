@@ -30,6 +30,7 @@ import (
 	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
 	dmsstorage "github.com/piwi3910/netweave/internal/dms/storage"
 	"github.com/piwi3910/netweave/internal/handlers"
+	"github.com/piwi3910/netweave/internal/httpx"
 	"github.com/piwi3910/netweave/internal/middleware"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/smo"
@@ -598,11 +599,38 @@ func (s *Server) Start() error {
 	// Channel to listen for errors from any server
 	serverErrors := make(chan error, 4)
 
-	// Bind all four listeners synchronously so port-in-use / permission
-	// errors surface immediately rather than racing against a sleep.
-	listeners, bindErr := s.bindAllListeners(host)
-	if bindErr != nil {
-		return bindErr
+	// Start all 4 servers
+	s.startListener("admin", s.httpServer, serverErrors)
+	s.startListener("o2", s.o2Server, serverErrors)
+	s.startListener("tmf", s.tmfServer, serverErrors)
+	s.startListener("graphql", s.graphqlServer, serverErrors)
+
+	// Brief grace period for port binding failures to surface.
+	// ListenAndServe returns immediately on bind errors (e.g. port in use),
+	// so 200ms is enough to detect them before entering the main loop.
+	time.Sleep(200 * time.Millisecond)
+
+	// Drain any startup errors that arrived during the grace period.
+	var startupErrs []error
+	for {
+		select {
+		case err := <-serverErrors:
+			startupErrs = append(startupErrs, err)
+		default:
+			goto doneCheck
+		}
+	}
+doneCheck:
+	if len(startupErrs) > 0 {
+		s.logger.Error("server startup failed, shutting down all listeners",
+			zap.Int("failed_count", len(startupErrs)),
+		)
+		if shutdownErr := s.Shutdown(); shutdownErr != nil {
+			s.logger.Error("shutdown after failed startup reported an error",
+				zap.Error(shutdownErr),
+			)
+		}
+		return fmt.Errorf("server startup failed: %w", errors.Join(startupErrs...))
 	}
 
 	// Hand each bound listener off to its server goroutine. Serve / ServeTLS
@@ -1080,9 +1108,7 @@ func (s *Server) RecoveryMiddleware() gin.HandlerFunc {
 					zap.String("client_ip", c.ClientIP()),
 				)
 
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"error": "Internal server error",
-				})
+				httpx.AbortWithError(c, http.StatusInternalServerError, "InternalError", "Internal server error")
 			}
 		}()
 		c.Next()

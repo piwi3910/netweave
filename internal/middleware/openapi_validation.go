@@ -18,6 +18,8 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/httpx"
 )
 
 // DefaultMaxBodySize is the default maximum request body size (1MB).
@@ -254,11 +256,7 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 				zap.Int64("content_length", c.Request.ContentLength),
 				zap.Int64("max_body_size", maxBodySize),
 			)
-			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{
-				"error":   "RequestEntityTooLarge",
-				"message": fmt.Sprintf("Request body exceeds maximum size of %d bytes", maxBodySize),
-				"code":    http.StatusRequestEntityTooLarge,
-			})
+			httpx.AbortWithError(c, http.StatusRequestEntityTooLarge, "RequestEntityTooLarge", fmt.Sprintf("Request body exceeds maximum size of %d bytes", maxBodySize))
 			return fmt.Errorf("request body too large: %d > %d", c.Request.ContentLength, maxBodySize)
 		}
 
@@ -272,19 +270,11 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 				v.logger.Warn("request body too large",
 					zap.Int64("max_body_size", maxBodySize),
 				)
-				c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{
-					"error":   "RequestEntityTooLarge",
-					"message": fmt.Sprintf("Request body exceeds maximum size of %d bytes", maxBodySize),
-					"code":    http.StatusRequestEntityTooLarge,
-				})
+				httpx.AbortWithError(c, http.StatusRequestEntityTooLarge, "RequestEntityTooLarge", fmt.Sprintf("Request body exceeds maximum size of %d bytes", maxBodySize))
 				return fmt.Errorf("request body too large: limit %d", maxBodySize)
 			}
 			v.logger.Error("failed to read request body", zap.Error(err))
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Failed to read request body",
-				"code":    http.StatusInternalServerError,
-			})
+			httpx.AbortWithError(c, http.StatusInternalServerError, "InternalError", "Failed to read request body")
 			return fmt.Errorf("failed to read request body: %w", err)
 		}
 
@@ -300,11 +290,7 @@ func (v *OpenAPIValidator) validateRequest(c *gin.Context) error {
 		)
 
 		errorMessage := FormatValidationError(err)
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error":   "ValidationError",
-			"message": errorMessage,
-			"code":    http.StatusBadRequest,
-		})
+		httpx.AbortWithError(c, http.StatusBadRequest, "ValidationError", errorMessage)
 		return fmt.Errorf("request validation failed: %w", err)
 	}
 

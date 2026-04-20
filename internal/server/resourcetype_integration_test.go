@@ -146,7 +146,8 @@ func TestResourceTypeHandler_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Contains(t, response, "error")
-		assert.Contains(t, response["error"], "not found")
+		assert.Equal(t, "NotFound", response["error"])
+		assert.Contains(t, response["message"], "not found")
 	})
 
 	t.Run("list_with_invalid_pagination", func(t *testing.T) {
