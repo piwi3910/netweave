@@ -2611,22 +2611,19 @@ func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
 	})
 }
 
-// ValidateCallback validates a subscription callback URL.
-// It performs early validation to provide fast failure before calling the adapter.
-// Includes SSRF protection to prevent callbacks to localhost and private IP ranges.
+// ValidateCallback validates a subscription callback URL at registration time.
+// It performs early validation to provide fast failure before calling the
+// adapter. Includes SSRF protection to prevent callbacks to localhost and
+// private IP ranges.
 //
-// SECURITY NOTE: DNS Rebinding Time-of-Check-Time-of-Use (TOCTOU) Vulnerability
-// This validation only checks the callback URL at registration time. An attacker could:
-// 1. Register a callback URL pointing to a legitimate public server
-// 2. Pass this validation
-// 3. Change DNS records to point the hostname to localhost/private IPs
-// 4. Receive webhooks at the new (malicious) destination
-//
-// Mitigation strategies for production deployments:
-// - Re-validate callback URLs before EACH webhook delivery attempt
-// - Cache DNS results with short TTL and re-validate on changes
-// - Implement webhook delivery through a dedicated egress proxy that enforces policies
-// - Consider additional authentication mechanisms for webhooks (HMAC signatures, mTLS).
+// Defense-in-depth at delivery time: the DNS-rebinding TOCTOU gap between
+// this check and the actual webhook delivery is closed by the SSRF-safe
+// DialContext installed on the shared HTTP client — see
+// internal/webhook.NewSSRFSafeDialContext. That dialer re-resolves the
+// hostname on every delivery attempt, rejects the connect if any resolved
+// IP falls into the banned set (loopback, private, link-local, cloud
+// metadata), and pins the TCP connect to the allow-listed IP so the OS
+// does not re-resolve between the check and the handshake.
 func (s *Server) ValidateCallback(ctx context.Context, sub *adapter.Subscription) error {
 	if sub == nil {
 		return fmt.Errorf("subscription cannot be nil")
