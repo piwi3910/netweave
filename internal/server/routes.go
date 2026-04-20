@@ -46,6 +46,73 @@ func (s *Server) withPermission(permission string, handler gin.HandlerFunc) gin.
 	}
 }
 
+// withPlatformAdmin wraps a handler with permission-based authorization AND
+// a platform-admin-only check. This is used for endpoints that are inherently
+// cross-tenant (e.g., listing all tenants, creating a tenant) and therefore
+// must never be reachable by non-admin callers even if they hold a matching
+// permission string.
+func (s *Server) withPlatformAdmin(permission string, handler gin.HandlerFunc) gin.HandlerFunc {
+	if s.authMw == nil {
+		// Auth not configured — match existing withPermission semantics and
+		// skip the check. Production deployments are expected to always
+		// configure auth middleware.
+		return handler
+	}
+
+	return func(c *gin.Context) {
+		s.authMw.RequirePermission(permission)(c)
+		if c.IsAborted() {
+			return
+		}
+
+		s.authMw.RequirePlatformAdmin()(c)
+		if c.IsAborted() {
+			return
+		}
+
+		handler(c)
+	}
+}
+
+// withTenantAccess wraps a handler with both permission-based authorization and
+// tenant ownership enforcement. The caller must (a) hold the required permission
+// and (b) either be a platform admin or be acting on their own tenant (as
+// identified by the URL path parameter named by tenantIDParam).
+//
+// This prevents privilege escalation where a role with tenants:* permissions
+// (for example role-tenant-admin) can access an arbitrary tenant's resources by
+// sending requests scoped to a tenant they do not own.
+func (s *Server) withTenantAccess(
+	permission, tenantIDParam string,
+	handler gin.HandlerFunc,
+) gin.HandlerFunc {
+	if s.authMw == nil {
+		// Auth not configured — still enforce tenant ownership at the handler level
+		// by performing an inline check using the authenticated user context.
+		// Since no auth middleware is configured, skip the check entirely to match
+		// existing withPermission semantics for non-authenticated deployments.
+		return handler
+	}
+
+	return func(c *gin.Context) {
+		// Apply permission middleware first so that 401/403 on missing credentials
+		// takes precedence over tenant ownership checks.
+		s.authMw.RequirePermission(permission)(c)
+		if c.IsAborted() {
+			return
+		}
+
+		// Apply tenant access middleware: platform admins pass through; other
+		// users must be acting on their own tenant.
+		s.authMw.RequireTenantAccess(tenantIDParam)(c)
+		if c.IsAborted() {
+			return
+		}
+
+		handler(c)
+	}
+}
+
 // resolveAdapter determines which adapter to use for the current request.
 // Returns nil and writes an error response if no adapter can be resolved.
 //
@@ -260,17 +327,34 @@ func (s *Server) setupV1Routes(v1 *gin.RouterGroup) {
 		batch.POST("/resources/update", s.withPermission("resources:update", s.batchHandler.BatchUpdateResources))
 	}
 
-	// Tenant Management (only if multi-tenancy enabled)
+	// Tenant Management (only if multi-tenancy enabled).
+	//
+	// Security: cross-tenant access is enforced via withTenantAccess, which
+	// requires the authenticated caller to either be a platform admin OR to
+	// match the :tenantId path parameter. A tenant-admin user for tenant A
+	// must NOT be able to read/update/delete tenant B.
+	//
+	// - ListTenants / CreateTenant are inherently cross-tenant and must be
+	//   restricted to platform admins via RequirePlatformAdmin (tenants:read /
+	//   tenants:create permissions alone are insufficient because tenant-scoped
+	//   roles could otherwise enumerate or create arbitrary tenants).
 	if s.tenantHandler != nil {
 		tenants := v1.Group("/tenants")
 		{
-			tenants.GET("", s.withPermission("tenants:read", s.tenantHandler.ListTenants))
-			tenants.POST("", s.withPermission("tenants:create", s.tenantHandler.CreateTenant))
-			tenants.GET("/:tenantId", s.withPermission("tenants:read", s.tenantHandler.GetTenant))
-			tenants.PUT("/:tenantId", s.withPermission("tenants:update", s.tenantHandler.UpdateTenant))
-			tenants.DELETE("/:tenantId", s.withPermission("tenants:delete", s.tenantHandler.DeleteTenant))
-			tenants.GET("/:tenantId/quotas", s.withPermission("tenants:read", s.handleGetTenantQuotas))
-			tenants.PUT("/:tenantId/quotas", s.withPermission("tenants:update", s.handleUpdateTenantQuotas))
+			tenants.GET("",
+				s.withPlatformAdmin("tenants:read", s.tenantHandler.ListTenants))
+			tenants.POST("",
+				s.withPlatformAdmin("tenants:create", s.tenantHandler.CreateTenant))
+			tenants.GET("/:tenantId",
+				s.withTenantAccess("tenants:read", "tenantId", s.tenantHandler.GetTenant))
+			tenants.PUT("/:tenantId",
+				s.withTenantAccess("tenants:update", "tenantId", s.tenantHandler.UpdateTenant))
+			tenants.DELETE("/:tenantId",
+				s.withTenantAccess("tenants:delete", "tenantId", s.tenantHandler.DeleteTenant))
+			tenants.GET("/:tenantId/quotas",
+				s.withTenantAccess("tenants:read", "tenantId", s.handleGetTenantQuotas))
+			tenants.PUT("/:tenantId/quotas",
+				s.withTenantAccess("tenants:update", "tenantId", s.handleUpdateTenantQuotas))
 		}
 	}
 
@@ -632,8 +716,9 @@ func (s *Server) handleGetSubscription(c *gin.Context) {
 		return
 	}
 
-	// Tenant isolation: verify subscription belongs to tenant (unless platform admin)
-	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) && sub.TenantID != tenantID {
+	// Tenant isolation: verify subscription belongs to tenant (unless platform admin).
+	// SECURITY: fail-closed via auth.AuthorizeTenantResource — see issue #470.
+	if !auth.AuthorizeTenantResource(ctx, sub.TenantID) {
 		s.logger.Warn("tenant attempting to access subscription from different tenant",
 			zap.String("tenant_id", tenantID),
 			zap.String("subscription_tenant_id", sub.TenantID),
@@ -697,8 +782,9 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 			return
 		}
 
-		// Verify subscription belongs to tenant (unless platform admin)
-		if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) && sub.TenantID != tenantID {
+		// Verify subscription belongs to tenant (unless platform admin).
+		// SECURITY: fail-closed via auth.AuthorizeTenantResource — see issue #470.
+		if !auth.AuthorizeTenantResource(ctx, sub.TenantID) {
 			s.logger.Warn("tenant attempting to update subscription from different tenant",
 				zap.String("tenant_id", tenantID),
 				zap.String("subscription_tenant_id", sub.TenantID),
@@ -801,8 +887,9 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 		if err == nil {
 			storedTenantID = sub.TenantID
 
-			// Tenant isolation: verify subscription belongs to tenant (unless platform admin)
-			if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) && sub.TenantID != tenantID {
+			// Tenant isolation: verify subscription belongs to tenant (unless platform admin).
+			// SECURITY: fail-closed via auth.AuthorizeTenantResource — see issue #470.
+			if !auth.AuthorizeTenantResource(ctx, sub.TenantID) {
 				s.logger.Warn("tenant attempting to delete subscription from different tenant",
 					zap.String("tenant_id", tenantID),
 					zap.String("subscription_tenant_id", sub.TenantID),
@@ -926,13 +1013,23 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 // parseFilterFromRequest parses filter parameters from the request context.
 // It detects the API version and uses AdvancedFilter parsing for v2+ endpoints.
 // Returns an adapter.Filter with tenant context applied.
+//
+// SECURITY: platform admins receive an empty tenant filter so they can see
+// every tenant's resources. Non-admin authenticated callers are pinned to
+// their own tenant. Unauthenticated callers (auth disabled) get no tenant
+// filter — they rely on other controls (e.g., network isolation).
 func (s *Server) parseFilterFromRequest(c *gin.Context) (*adapter.Filter, error) {
 	// Detect API version from request path.
 	path := c.Request.URL.Path
 	isV2OrHigher := strings.Contains(path, "/v2/") || strings.Contains(path, "/v3/")
 
-	// Extract tenant ID if present (v3+ with multi-tenancy).
-	tenantID := auth.TenantIDFromContext(c.Request.Context())
+	// Extract tenant ID if present (v3+ with multi-tenancy). Platform admins
+	// bypass the tenant filter so they see resources across tenants.
+	ctx := c.Request.Context()
+	var tenantID string
+	if !auth.IsPlatformAdminFromContext(ctx) {
+		tenantID = auth.TenantIDFromContext(ctx)
+	}
 
 	if isV2OrHigher {
 		// Parse advanced filter for v2+ endpoints.
@@ -1024,12 +1121,16 @@ func (s *Server) handleGetResourcePool(c *gin.Context) {
 		return
 	}
 
-	// Tenant isolation: verify pool belongs to tenant (unless platform admin)
+	// Tenant isolation: verify pool belongs to tenant (unless platform admin).
+	// SECURITY: fail-closed via auth.AuthorizeTenantResource — a pool with
+	// empty TenantID is treated as inaccessible to non-platform-admin
+	// callers. Previously the check short-circuited on `pool.TenantID != ""`,
+	// which let adapters or legacy data without a tenant stamp bypass
+	// isolation entirely (see issue #470).
 	ctx := c.Request.Context()
-	tenantID := auth.TenantIDFromContext(ctx)
-	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) && pool.TenantID != "" && pool.TenantID != tenantID {
+	if !auth.AuthorizeTenantResource(ctx, pool.TenantID) {
 		s.logger.Warn("tenant attempting to access resource pool from different tenant",
-			zap.String("tenant_id", tenantID),
+			zap.String("tenant_id", auth.TenantIDFromContext(ctx)),
 			zap.String("pool_tenant_id", pool.TenantID),
 			zap.String("resource_pool_id", resourcePoolID))
 		c.JSON(http.StatusNotFound, gin.H{
@@ -1395,11 +1496,48 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 		return
 	}
 
-	// Update resource pool via adapter
+	// Update resource pool via adapter.
 
 	adp := s.resolveAdapter(c)
 	if adp == nil {
 		return
+	}
+
+	ctx := c.Request.Context()
+	// SECURITY: verify tenant ownership before update. Without this check a
+	// non-platform-admin caller with resourcePools:update could modify any
+	// tenant's pool. Fail-closed via auth.AuthorizeTenantResource so that
+	// pools with empty TenantID cannot be reached by non-admin callers
+	// (see issue #470 / issue #482).
+	//
+	// The check is gated on the presence of an authenticated user: when auth
+	// middleware is not configured (local dev / tests), tenant enforcement
+	// is deferred to deployment-level controls.
+	if user := auth.UserFromContext(ctx); user != nil && !user.IsPlatformAdmin {
+		existing, getErr := adp.GetResourcePool(ctx, resourcePoolID)
+		if getErr != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource pool not found: " + resourcePoolID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		if !auth.AuthorizeTenantResource(ctx, existing.TenantID) {
+			s.logger.Warn("tenant attempting to update resource pool from different tenant",
+				zap.String("tenant_id", user.TenantID),
+				zap.String("pool_tenant_id", existing.TenantID),
+				zap.String("resource_pool_id", resourcePoolID))
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource pool not found: " + resourcePoolID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		// Preserve the existing tenant stamp; clients cannot move a pool
+		// between tenants via update.
+		req.TenantID = existing.TenantID
 	}
 
 	updated, err := adp.UpdateResourcePool(c.Request.Context(), resourcePoolID, &req)
@@ -1470,14 +1608,22 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 	ctx := c.Request.Context()
 	tenantID := auth.TenantIDFromContext(ctx)
 
-	// Verify tenant ownership before deletion
+	// Verify tenant ownership before deletion.
 
 	adp := s.resolveAdapter(c)
 	if adp == nil {
 		return
 	}
 
-	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) {
+	// SECURITY: fail-closed tenant ownership check. A pool with empty
+	// TenantID is inaccessible to non-platform-admin callers. This prevents
+	// the bypass described in issue #470 (C7) where adapters or legacy
+	// data without a tenant stamp could be deleted from any tenant context.
+	//
+	// Gated on the presence of an authenticated user so that non-auth
+	// deployments (e.g., dev/test) continue to work — production must
+	// always configure auth middleware upstream.
+	if user := auth.UserFromContext(ctx); user != nil && !user.IsPlatformAdmin {
 		pool, err := adp.GetResourcePool(ctx, resourcePoolID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -1487,7 +1633,11 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 			})
 			return
 		}
-		if pool.TenantID != "" && pool.TenantID != tenantID {
+		if !auth.AuthorizeTenantResource(ctx, pool.TenantID) {
+			s.logger.Warn("tenant attempting to delete resource pool from different tenant",
+				zap.String("tenant_id", tenantID),
+				zap.String("pool_tenant_id", pool.TenantID),
+				zap.String("resource_pool_id", resourcePoolID))
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
 				"message": "Resource pool not found: " + resourcePoolID,
@@ -1739,12 +1889,12 @@ func (s *Server) handleGetResource(c *gin.Context) {
 		return
 	}
 
-	// Tenant isolation: verify resource belongs to tenant (unless platform admin)
+	// Tenant isolation: verify resource belongs to tenant (unless platform admin).
+	// SECURITY: fail-closed via auth.AuthorizeTenantResource — see issue #470.
 	ctx := c.Request.Context()
-	tenantID := auth.TenantIDFromContext(ctx)
-	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) && resource.TenantID != "" && resource.TenantID != tenantID {
+	if !auth.AuthorizeTenantResource(ctx, resource.TenantID) {
 		s.logger.Warn("tenant attempting to access resource from different tenant",
-			zap.String("tenant_id", tenantID),
+			zap.String("tenant_id", auth.TenantIDFromContext(ctx)),
 			zap.String("resource_tenant_id", resource.TenantID),
 			zap.String("resource_id", resourceID))
 		c.JSON(http.StatusNotFound, gin.H{
@@ -1946,6 +2096,33 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 		return // Response already sent
 	}
 
+	// SECURITY: verify tenant ownership before update. Without this check a
+	// non-platform-admin caller with resources:update could modify any
+	// tenant's resource. Fail-closed via auth.AuthorizeTenantResource so that
+	// resources with empty TenantID cannot be reached by non-admin callers
+	// (see issue #470 / issue #482).
+	//
+	// Gated on the presence of an authenticated user so that non-auth
+	// deployments (dev/test) continue to work.
+	ctx := c.Request.Context()
+	if user := auth.UserFromContext(ctx); user != nil && !user.IsPlatformAdmin {
+		if !auth.AuthorizeTenantResource(ctx, existing.TenantID) {
+			s.logger.Warn("tenant attempting to update resource from different tenant",
+				zap.String("tenant_id", user.TenantID),
+				zap.String("resource_tenant_id", existing.TenantID),
+				zap.String("resource_id", resourceID))
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": "Resource not found: " + resourceID,
+				"code":    http.StatusNotFound,
+			})
+			return
+		}
+		// Preserve existing tenant stamp; clients cannot move a resource
+		// between tenants via update.
+		req.TenantID = existing.TenantID
+	}
+
 	// Validate request
 	if err := s.validateUpdateRequest(c, &req, existing); err != nil {
 		return // Response already sent
@@ -1973,8 +2150,11 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 		resourceTypeID = existing.ResourceTypeID
 	}
 
-	// Verify tenant ownership before deletion
-	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) {
+	// Verify tenant ownership before deletion.
+	// SECURITY: fail-closed via auth.AuthorizeTenantResource — see issue #470.
+	// Gated on presence of authenticated user so that non-auth deployments
+	// (dev/test) continue to work.
+	if user := auth.UserFromContext(ctx); user != nil && !user.IsPlatformAdmin {
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
@@ -1983,7 +2163,11 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 			})
 			return
 		}
-		if existing.TenantID != "" && existing.TenantID != tenantID {
+		if !auth.AuthorizeTenantResource(ctx, existing.TenantID) {
+			s.logger.Warn("tenant attempting to delete resource from different tenant",
+				zap.String("tenant_id", tenantID),
+				zap.String("resource_tenant_id", existing.TenantID),
+				zap.String("resource_id", resourceID))
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "NotFound",
 				"message": "Resource not found: " + resourceID,

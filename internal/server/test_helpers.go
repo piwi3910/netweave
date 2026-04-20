@@ -85,6 +85,51 @@ func NewTestServerWithMetrics(
 	return srv, registry
 }
 
+// NewTestServerWithAuth creates a Server with both the tenant handler and an
+// auth middleware wired up, so that route-level security checks
+// (RequirePermission, RequireTenantAccess, RequirePlatformAdmin) are actually
+// exercised. This is essential for testing cross-tenant access prevention on
+// the /admin/tenants/:tenantId endpoints (issue #469).
+func NewTestServerWithAuth(
+	cfg *config.Config,
+	logger *zap.Logger,
+	adp adapter.Adapter,
+	store storage.Store,
+	authStore AuthStore,
+	authMw AuthMiddleware,
+	tenantHandler *handlers.TenantHandler,
+) (*Server, *prometheus.Registry) {
+	registry := prometheus.NewRegistry()
+	globalMetrics := observability.InitMetricsWithRegistry("o2ims_test", registry)
+
+	gin.SetMode(cfg.Server.GinMode)
+
+	router := gin.New()
+
+	batchHandler := handlers.NewBatchHandler(adp, store, logger, globalMetrics)
+
+	srv := &Server{
+		config:        cfg,
+		logger:        logger,
+		adminRouter:   router,
+		o2Router:      router,
+		tmfRouter:     router,
+		graphqlRouter: router,
+		router:        router,
+		adapter:       adp,
+		store:         store,
+		metrics:       nil,
+		batchHandler:  batchHandler,
+		AuthStore:     authStore,
+		authMw:        authMw,
+		tenantHandler: tenantHandler,
+	}
+
+	srv.setupRoutes()
+
+	return srv, registry
+}
+
 // Getter methods for testing - these expose internal fields for test assertions.
 // These should only be used in tests.
 

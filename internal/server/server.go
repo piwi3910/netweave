@@ -136,6 +136,11 @@ type AuthMiddleware interface {
 	AuthenticationMiddleware() gin.HandlerFunc
 	RequirePermission(permission string) gin.HandlerFunc
 	RequirePlatformAdmin() gin.HandlerFunc
+	// RequireTenantAccess ensures the authenticated caller is a platform admin
+	// or that their TenantID matches the value of the URL parameter named by
+	// tenantIDParam. Used to enforce tenant ownership on tenant-admin routes
+	// (see issue #469).
+	RequireTenantAccess(tenantIDParam string) gin.HandlerFunc
 }
 
 // Metrics holds Prometheus metrics for the server.
