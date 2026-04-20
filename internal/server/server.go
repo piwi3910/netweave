@@ -623,8 +623,11 @@ doneCheck:
 		s.logger.Error("server startup failed, shutting down all listeners",
 			zap.Int("failed_count", len(startupErrs)),
 		)
+		// Best-effort cleanup: startup already failed, so we surface the
+		// original startup error and only log any secondary shutdown error
+		// rather than overwriting it.
 		if shutdownErr := s.Shutdown(); shutdownErr != nil {
-			s.logger.Error("shutdown after failed startup reported an error",
+			s.logger.Warn("shutdown after startup failure also errored",
 				zap.Error(shutdownErr),
 			)
 		}
