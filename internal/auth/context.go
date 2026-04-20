@@ -90,3 +90,36 @@ func HasPermissionFromContext(ctx context.Context, perm Permission) bool {
 	}
 	return user.HasPermission(perm)
 }
+
+// AuthorizeTenantResource implements the fail-closed tenant ownership check
+// used by every handler that returns a tenant-owned resource.
+//
+// It returns true iff the caller is authorized to access a resource whose
+// stored TenantID is resourceTenantID. The authorization rules are:
+//
+//  1. Callers with no authenticated user in context (auth disabled or public
+//     route) bypass the check — backwards compatible with non-multi-tenant
+//     deployments where tenant filtering is not applicable.
+//  2. Platform admins can access any resource regardless of resourceTenantID.
+//  3. All other authenticated callers can only access resources whose
+//     resourceTenantID exactly matches their own TenantID.
+//
+// CRITICAL SECURITY PROPERTY: a resource with an empty resourceTenantID is
+// NOT accessible to non-platform-admin callers. This closes the bypass
+// described in issue #470 (C7) where a short-circuit on
+// `resource.TenantID != ""` allowed any caller to access resources that
+// adapters or legacy data left without a tenant stamp.
+func AuthorizeTenantResource(ctx context.Context, resourceTenantID string) bool {
+	user := UserFromContext(ctx)
+	if user == nil {
+		// No authenticated user — auth middleware is not configured. We
+		// cannot enforce tenant isolation without a caller identity, so we
+		// fall through. Production deployments that require multi-tenancy
+		// must configure auth middleware upstream of these handlers.
+		return true
+	}
+	if user.IsPlatformAdmin {
+		return true
+	}
+	return resourceTenantID != "" && resourceTenantID == user.TenantID
+}

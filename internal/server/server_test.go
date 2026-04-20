@@ -201,6 +201,12 @@ func (m *mockAuthMiddleware) RequirePlatformAdmin() gin.HandlerFunc {
 	}
 }
 
+func (m *mockAuthMiddleware) RequireTenantAccess(_ string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+	}
+}
+
 func TestNew(t *testing.T) {
 	t.Skip("Skipping - Prometheus metrics registry conflict - see issue #204")
 	gin.SetMode(gin.TestMode)

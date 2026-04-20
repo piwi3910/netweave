@@ -4439,6 +4439,12 @@ func (m *mockAbortingAuthMiddleware) RequirePlatformAdmin() gin.HandlerFunc {
 	}
 }
 
+func (m *mockAbortingAuthMiddleware) RequireTenantAccess(_ string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "cross-tenant"})
+	}
+}
+
 type mockAdapterWithDMs struct{ mockAdapter }
 
 func (m *mockAdapterWithDMs) ListDeploymentManagers(_ context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
@@ -4642,6 +4648,12 @@ func (m *mockTenantInjectingMiddleware) RequirePermission(_ string) gin.HandlerF
 }
 
 func (m *mockTenantInjectingMiddleware) RequirePlatformAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+	}
+}
+
+func (m *mockTenantInjectingMiddleware) RequireTenantAccess(_ string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 	}
@@ -4980,6 +4992,12 @@ func (m *mockUserInjectingMiddleware) RequirePermission(_ string) gin.HandlerFun
 }
 
 func (m *mockUserInjectingMiddleware) RequirePlatformAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+	}
+}
+
+func (m *mockUserInjectingMiddleware) RequireTenantAccess(_ string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 	}

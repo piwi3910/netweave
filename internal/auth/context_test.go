@@ -228,6 +228,96 @@ func TestHasPermissionFromContext(t *testing.T) {
 	}
 }
 
+// TestAuthorizeTenantResource_FailClosed covers the fail-closed tenant
+// ownership helper introduced to fix issue #470 (C7). Each test case asserts
+// that the authorization predicate cannot be bypassed by supplying an empty
+// resourceTenantID, which was the root cause of the historical bypass.
+func TestAuthorizeTenantResource_FailClosed(t *testing.T) {
+	platformAdmin := &auth.AuthenticatedUser{
+		UserID:          "admin-1",
+		TenantID:        "platform",
+		IsPlatformAdmin: true,
+	}
+	tenantAUser := &auth.AuthenticatedUser{
+		UserID:   "user-a",
+		TenantID: "tenant-a",
+	}
+	emptyTenantUser := &auth.AuthenticatedUser{
+		UserID:   "user-orphan",
+		TenantID: "",
+	}
+
+	tests := []struct {
+		name             string
+		user             *auth.AuthenticatedUser
+		resourceTenantID string
+		expectAllowed    bool
+		reason           string
+	}{
+		{
+			name:             "platform admin accesses resource in any tenant",
+			user:             platformAdmin,
+			resourceTenantID: "tenant-b",
+			expectAllowed:    true,
+			reason:           "platform admin bypasses tenant filtering",
+		},
+		{
+			name:             "platform admin accesses resource with empty tenant",
+			user:             platformAdmin,
+			resourceTenantID: "",
+			expectAllowed:    true,
+			reason:           "platform admin bypasses tenant filtering even for untagged resources",
+		},
+		{
+			name:             "tenant user accesses own resource",
+			user:             tenantAUser,
+			resourceTenantID: "tenant-a",
+			expectAllowed:    true,
+			reason:           "matching tenant IDs are allowed",
+		},
+		{
+			name:             "tenant user accesses other tenant resource is denied",
+			user:             tenantAUser,
+			resourceTenantID: "tenant-b",
+			expectAllowed:    false,
+			reason:           "cross-tenant access must be denied",
+		},
+		{
+			name:             "tenant user accesses empty-tenant resource is denied (fail-closed)",
+			user:             tenantAUser,
+			resourceTenantID: "",
+			expectAllowed:    false,
+			reason:           "ISSUE #470: resource with empty TenantID MUST NOT be accessible",
+		},
+		{
+			name:             "user with empty tenantID cannot read empty-tenant resource (fail-closed)",
+			user:             emptyTenantUser,
+			resourceTenantID: "",
+			expectAllowed:    false,
+			reason:           "empty-to-empty match is not sufficient — must be explicit",
+		},
+		{
+			name:             "no authenticated user falls through",
+			user:             nil,
+			resourceTenantID: "tenant-a",
+			expectAllowed:    true,
+			reason:           "auth middleware not configured — deferred to deployment controls",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			if tt.user != nil {
+				ctx = auth.ContextWithUser(ctx, tt.user)
+			}
+
+			got := auth.AuthorizeTenantResource(ctx, tt.resourceTenantID)
+			assert.Equal(t, tt.expectAllowed, got, tt.reason)
+		})
+	}
+}
+
 func TestContextChaining(t *testing.T) {
 	// Test that multiple values can be stored in context.
 	user := &auth.AuthenticatedUser{
