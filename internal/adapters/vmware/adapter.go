@@ -49,7 +49,7 @@ type Adapter struct {
 	datacenter *object.Datacenter
 
 	// logger provides structured logging.
-	Logger *zap.Logger
+	logger *zap.Logger
 
 	// oCloudID is the identifier of the parent O-Cloud.
 	oCloudID string
@@ -66,10 +66,10 @@ type Adapter struct {
 	// subscriptions holds active O2-IMS subscriptions (polling-based fallback).
 	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
 	// For production use, consider implementing persistent storage via Redis.
-	Subscriptions map[string]*adapter.Subscription
+	subscriptions map[string]*adapter.Subscription
 
 	// subscriptionsMu protects the subscriptions map.
-	SubscriptionsMu sync.RWMutex
+	subscriptionsMu sync.RWMutex
 
 	// poolMode determines how resource pools are mapped.
 	// "cluster" maps to Clusters, "pool" maps to Resource Pools.
@@ -139,10 +139,10 @@ func New(cfg *Config) (*Adapter, error) {
 	}
 
 	logger.Info("initializing VMware adapter",
-		zap.String("vCenterURL", cfg.VCenterURL),
+		zap.String("vcenter_url", cfg.VCenterURL),
 		zap.String("datacenter", cfg.Datacenter),
-		zap.String("oCloudID", cfg.OCloudID),
-		zap.String("poolMode", poolMode))
+		zap.String("ocloud_id", cfg.OCloudID),
+		zap.String("pool_mode", poolMode))
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -165,12 +165,12 @@ func New(cfg *Config) (*Adapter, error) {
 		client:              client,
 		finder:              finder,
 		datacenter:          dc,
-		Logger:              logger,
+		logger:              logger,
 		oCloudID:            cfg.OCloudID,
 		deploymentManagerID: deploymentManagerID,
 		vcenterURL:          cfg.VCenterURL,
 		datacenterName:      cfg.Datacenter,
-		Subscriptions:       make(map[string]*adapter.Subscription),
+		subscriptions:       make(map[string]*adapter.Subscription),
 		poolMode:            poolMode,
 	}, nil
 }
@@ -259,7 +259,7 @@ func createVMwareClient(ctx context.Context, cfg *Config, logger *zap.Logger) (*
 		SessionManager: session.NewManager(c),
 	}
 
-	logger.Info("connected to vCenter", zap.String("vCenterURL", cfg.VCenterURL))
+	logger.Info("connected to vCenter", zap.String("vcenter_url", cfg.VCenterURL))
 	return client, nil
 }
 
@@ -314,7 +314,7 @@ func (a *Adapter) Health(ctx context.Context) error {
 	start := time.Now()
 	defer func() { adapter.ObserveHealthCheck("vmware", start, err) }()
 
-	a.Logger.Debug("health check called")
+	a.logger.Debug("health check called")
 
 	// Use a timeout to prevent indefinite blocking
 	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -323,11 +323,11 @@ func (a *Adapter) Health(ctx context.Context) error {
 	// Check if we can retrieve the datacenter
 	_, err = a.finder.Datacenter(healthCtx, a.datacenterName)
 	if err != nil {
-		a.Logger.Error("vSphere health check failed", zap.Error(err))
+		a.logger.Error("vSphere health check failed", zap.Error(err))
 		return fmt.Errorf("vcenter API unreachable: %w", err)
 	}
 
-	a.Logger.Debug("health check passed")
+	a.logger.Debug("health check passed")
 	return nil
 }
 
@@ -355,24 +355,24 @@ func (a *Adapter) TestGetVMDescription(vmName, annotation string) string {
 
 // Close cleanly shuts down the adapter and releases resources.
 func (a *Adapter) Close() error {
-	a.Logger.Info("closing VMware adapter")
+	a.logger.Info("closing VMware adapter")
 
 	// Clear subscriptions
-	a.SubscriptionsMu.Lock()
-	a.Subscriptions = make(map[string]*adapter.Subscription)
-	a.SubscriptionsMu.Unlock()
+	a.subscriptionsMu.Lock()
+	a.subscriptions = make(map[string]*adapter.Subscription)
+	a.subscriptionsMu.Unlock()
 
 	// Logout from vCenter
 	if a.client != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := a.client.Logout(ctx); err != nil {
-			a.Logger.Warn("failed to logout from vCenter", zap.Error(err))
+			a.logger.Warn("failed to logout from vCenter", zap.Error(err))
 		}
 	}
 
 	// Sync logger before shutdown
-	if err := a.Logger.Sync(); err != nil {
+	if err := a.logger.Sync(); err != nil {
 		// Ignore sync errors on stderr/stdout
 		return nil
 	}

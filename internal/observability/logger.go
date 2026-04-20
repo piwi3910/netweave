@@ -118,13 +118,13 @@ func ExtractContextFields(_ context.Context) []zap.Field {
 
 	// Example: Extract request ID if available
 	// if requestID := ctx.Value("requestID"); requestID != nil {
-	//     fields = append(fields, zap.String("requestID", requestID.(string)))
+	//     fields = append(fields, zap.String("request_id", requestID.(string)))
 	// }
 
 	// Example: Extract trace ID from OpenTelemetry context
 	// if span := trace.SpanFromContext(ctx); span.SpanContext().IsValid() {
-	//     fields = append(fields, zap.String("traceID", span.SpanContext().TraceID().String()))
-	//     fields = append(fields, zap.String("spanID", span.SpanContext().SpanID().String()))
+	//     fields = append(fields, zap.String("trace_id", span.SpanContext().TraceID().String()))
+	//     fields = append(fields, zap.String("span_id", span.SpanContext().SpanID().String()))
 	// }
 
 	return fields
@@ -157,14 +157,14 @@ func (l *Logger) LogAdapterOperation(operation, adapterType string, resourceID s
 		l.Error("adapter operation failed",
 			zap.String("operation", operation),
 			zap.String("adapter", adapterType),
-			zap.String("resourceID", resourceID),
+			zap.String("resource_id", resourceID),
 			zap.Error(err),
 		)
 	} else {
 		l.Info("adapter operation completed",
 			zap.String("operation", operation),
 			zap.String("adapter", adapterType),
-			zap.String("resourceID", resourceID),
+			zap.String("resource_id", resourceID),
 		)
 	}
 }
@@ -173,7 +173,7 @@ func (l *Logger) LogAdapterOperation(operation, adapterType string, resourceID s
 func (l *Logger) LogSubscriptionEvent(eventType, subscriptionID string, details map[string]interface{}) {
 	fields := []zap.Field{
 		zap.String("event", eventType),
-		zap.String("subscriptionID", subscriptionID),
+		zap.String("subscription_id", subscriptionID),
 	}
 
 	// Add additional details as fields

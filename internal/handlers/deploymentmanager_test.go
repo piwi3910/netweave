@@ -52,8 +52,8 @@ func TestNewDeploymentManagerHandler(t *testing.T) {
 	t.Run("valid creation", func(t *testing.T) {
 		handler := handlers.NewDeploymentManagerHandler(mockAdapter, logger)
 		assert.NotNil(t, handler)
-		assert.Equal(t, mockAdapter, handler.Adapter)
-		assert.Equal(t, logger, handler.Logger)
+		assert.Equal(t, mockAdapter, handler.ExportAdapter())
+		assert.Equal(t, logger, handler.ExportLogger())
 	})
 
 	t.Run("nil adapter panics", func(t *testing.T) {

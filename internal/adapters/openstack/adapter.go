@@ -40,25 +40,25 @@ type Adapter struct {
 	identity *gophercloud.ServiceClient
 
 	// logger provides structured logging.
-	Logger *zap.Logger
+	logger *zap.Logger
 
 	// oCloudID is the identifier of the parent O-Cloud.
-	OCloudID string
+	oCloudID string
 
 	// deploymentManagerID is the identifier for this deployment manager.
-	DeploymentManagerID string
+	deploymentManagerID string
 
 	// region is the OpenStack region this adapter manages.
-	Region string
+	region string
 
 	// projectName is the OpenStack project (tenant) name.
 	projectName string
 
 	// subscriptions holds active subscriptions (polling-based).
-	Subscriptions map[string]*adapter.Subscription
+	subscriptions map[string]*adapter.Subscription
 
 	// pollingStates tracks the polling state for each active subscription.
-	PollingStates map[string]*SubscriptionState
+	pollingStates map[string]*SubscriptionState
 }
 
 // Config holds configuration for creating an OpenStackAdapter.
@@ -138,17 +138,17 @@ func New(cfg *Config) (*Adapter, error) {
 		compute:             clients.compute,
 		placement:           clients.placement,
 		identity:            clients.identity,
-		Logger:              logger,
-		OCloudID:            cfg.OCloudID,
-		DeploymentManagerID: deploymentManagerID,
-		Region:              cfg.Region,
+		logger:              logger,
+		oCloudID:            cfg.OCloudID,
+		deploymentManagerID: deploymentManagerID,
+		region:              cfg.Region,
 		projectName:         cfg.ProjectName,
-		Subscriptions:       make(map[string]*adapter.Subscription),
+		subscriptions:       make(map[string]*adapter.Subscription),
 	}
 
 	logger.Info("OpenStack adapter initialized successfully",
-		zap.String("oCloudID", cfg.OCloudID),
-		zap.String("deploymentManagerID", deploymentManagerID),
+		zap.String("ocloud_id", cfg.OCloudID),
+		zap.String("deployment_manager_id", deploymentManagerID),
 		zap.String("region", cfg.Region))
 
 	return adp, nil
@@ -216,12 +216,12 @@ func authenticateOpenStack(
 	logger *zap.Logger,
 ) (*gophercloud.ProviderClient, error) {
 	logger.Info("initializing OpenStack adapter",
-		zap.String("authURL", cfg.AuthURL),
+		zap.String("auth_url", cfg.AuthURL),
 		zap.String("username", cfg.Username),
-		zap.String("projectName", cfg.ProjectName),
-		zap.String("domainName", domainName),
+		zap.String("project_name", cfg.ProjectName),
+		zap.String("domain_name", domainName),
 		zap.String("region", cfg.Region),
-		zap.String("oCloudID", cfg.OCloudID))
+		zap.String("ocloud_id", cfg.OCloudID))
 
 	authOpts := gophercloud.AuthOptions{
 		IdentityEndpoint: cfg.AuthURL,
@@ -240,7 +240,7 @@ func authenticateOpenStack(
 	provider.HTTPClient.Timeout = timeout
 
 	logger.Info("authenticated with OpenStack",
-		zap.String("projectName", cfg.ProjectName))
+		zap.String("project_name", cfg.ProjectName))
 
 	return provider, nil
 }
@@ -312,12 +312,12 @@ func (a *Adapter) Capabilities() []adapter.Capability {
 // GetDeploymentManager retrieves metadata about the OpenStack deployment manager.
 // It queries the Keystone region information to construct the deployment manager metadata.
 func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.DeploymentManager, error) {
-	a.Logger.Debug("GetDeploymentManager called",
+	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
 	// Accept "default" and "" as aliases for the configured DM ID,
 	// matching the behavior used by routes.go and handlers.
-	if id != a.DeploymentManagerID && id != "default" && id != "" {
+	if id != a.deploymentManagerID && id != "default" && id != "" {
 		return nil, fmt.Errorf("deployment manager %s: %w", id, adapter.ErrDeploymentManagerNotFound)
 	}
 
@@ -335,24 +335,24 @@ func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.D
 	// Find the current region
 	var currentRegion *regions.Region
 	for _, r := range regionList {
-		if r.ID == a.Region {
+		if r.ID == a.region {
 			currentRegion = &r
 			break
 		}
 	}
 
 	if currentRegion == nil {
-		return nil, fmt.Errorf("region not found: %s", a.Region)
+		return nil, fmt.Errorf("region not found: %s", a.region)
 	}
 
 	// Construct deployment manager metadata
 	dm := &adapter.DeploymentManager{
-		DeploymentManagerID: a.DeploymentManagerID,
-		Name:                fmt.Sprintf("OpenStack %s", a.Region),
-		Description:         fmt.Sprintf("OpenStack NFVi deployment in region %s", a.Region),
-		OCloudID:            a.OCloudID,
+		DeploymentManagerID: a.deploymentManagerID,
+		Name:                fmt.Sprintf("OpenStack %s", a.region),
+		Description:         fmt.Sprintf("OpenStack NFVi deployment in region %s", a.region),
+		OCloudID:            a.oCloudID,
 		ServiceURI:          a.provider.IdentityEndpoint,
-		SupportedLocations:  []string{a.Region},
+		SupportedLocations:  []string{a.region},
 		Capabilities: []string{
 			"resource-pools",
 			"resources",
@@ -368,9 +368,9 @@ func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.D
 		},
 	}
 
-	a.Logger.Info("retrieved deployment manager",
-		zap.String("deploymentManagerID", dm.DeploymentManagerID),
-		zap.String("region", a.Region))
+	a.logger.Info("retrieved deployment manager",
+		zap.String("deployment_manager_id", dm.DeploymentManagerID),
+		zap.String("region", a.region))
 
 	return dm, nil
 }
@@ -378,9 +378,9 @@ func (a *Adapter) GetDeploymentManager(_ context.Context, id string) (*adapter.D
 // ListDeploymentManagers retrieves all deployment managers.
 // OpenStack has a single deployment manager per adapter instance.
 func (a *Adapter) ListDeploymentManagers(ctx context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
-	a.Logger.Debug("ListDeploymentManagers called")
+	a.logger.Debug("ListDeploymentManagers called")
 
-	dm, err := a.GetDeploymentManager(ctx, a.DeploymentManagerID)
+	dm, err := a.GetDeploymentManager(ctx, a.deploymentManagerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list deployment managers: %w", err)
 	}
@@ -391,27 +391,27 @@ func (a *Adapter) ListDeploymentManagers(ctx context.Context, _ *adapter.Filter)
 // Health performs a health check on the OpenStack backend.
 // It verifies connectivity to Nova, Placement, and Keystone services.
 func (a *Adapter) Health(ctx context.Context) error {
-	a.Logger.Debug("health check called")
+	a.logger.Debug("health check called")
 
 	// Check Nova compute service
 	if err := a.checkNovaHealth(ctx); err != nil {
-		a.Logger.Error("Nova health check failed", zap.Error(err))
+		a.logger.Error("Nova health check failed", zap.Error(err))
 		return fmt.Errorf("nova API unreachable: %w", err)
 	}
 
 	// Check Placement service
 	if err := a.checkPlacementHealth(ctx); err != nil {
-		a.Logger.Error("Placement health check failed", zap.Error(err))
+		a.logger.Error("Placement health check failed", zap.Error(err))
 		return fmt.Errorf("placement API unreachable: %w", err)
 	}
 
 	// Check Keystone identity service
 	if err := a.checkKeystoneHealth(ctx); err != nil {
-		a.Logger.Error("Keystone health check failed", zap.Error(err))
+		a.logger.Error("Keystone health check failed", zap.Error(err))
 		return fmt.Errorf("keystone API unreachable: %w", err)
 	}
 
-	a.Logger.Debug("health check passed")
+	a.logger.Debug("health check passed")
 	return nil
 }
 
@@ -454,14 +454,14 @@ func (a *Adapter) checkKeystoneHealth(_ context.Context) error {
 
 // Close cleanly shuts down the adapter and releases resources.
 func (a *Adapter) Close() error {
-	a.Logger.Info("closing OpenStack adapter")
+	a.logger.Info("closing OpenStack adapter")
 
 	// Stop all polling goroutines
 	a.StopAllPolling()
 
 	// Sync logger before shutdown
 	// Sync errors on stderr/stdout are expected and can be ignored
-	return a.Logger.Sync()
+	return a.logger.Sync()
 }
 
 // NOTE: Filter matching and pagination use shared helpers from internal/adapter/helpers.go

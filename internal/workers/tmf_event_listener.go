@@ -188,7 +188,7 @@ func (l *TMFEventListener) consumeEvents(ctx context.Context) {
 				for _, message := range stream.Messages {
 					if err := l.processMessage(ctx, message); err != nil {
 						l.logger.Error("failed to process message",
-							zap.String("messageId", message.ID),
+							zap.String("message_id", message.ID),
 							zap.Error(err))
 					}
 				}
@@ -206,8 +206,8 @@ func (l *TMFEventListener) processMessage(ctx context.Context, message redis.XMe
 	}
 
 	l.logger.Debug("processing event",
-		zap.String("eventType", event.EventType),
-		zap.String("resourceId", event.GlobalResourceID))
+		zap.String("event_type", event.EventType),
+		zap.String("resource_id", event.GlobalResourceID))
 
 	// Find matching hubs for this event
 	matchingHubs, err := l.findMatchingHubs(ctx, event)
@@ -218,7 +218,7 @@ func (l *TMFEventListener) processMessage(ctx context.Context, message redis.XMe
 	// If no matching hubs, acknowledge and return
 	if len(matchingHubs) == 0 {
 		l.logger.Debug("no matching hubs for event",
-			zap.String("resourceId", event.GlobalResourceID))
+			zap.String("resource_id", event.GlobalResourceID))
 		return l.acknowledgeMessage(ctx, message.ID)
 	}
 
@@ -279,9 +279,9 @@ func (l *TMFEventListener) publishToHubs(
 	matchingHubs []*storage.HubRegistration,
 ) error {
 	l.logger.Info("publishing event to matching hubs",
-		zap.String("eventType", event.EventType),
-		zap.String("resourceId", event.GlobalResourceID),
-		zap.Int("hubCount", len(matchingHubs)))
+		zap.String("event_type", event.EventType),
+		zap.String("resource_id", event.GlobalResourceID),
+		zap.Int("hub_count", len(matchingHubs)))
 
 	// Transform event to TMF688 format
 	tmfEvent := handlers.TransformResourceEventToTMF688(event, l.baseURL)
@@ -322,9 +322,9 @@ func (l *TMFEventListener) logPublishResults(
 	successCount := len(matchingHubs) - len(errors)
 	if successCount > 0 {
 		l.logger.Info("event published successfully",
-			zap.String("eventId", eventID),
-			zap.Int("successCount", successCount),
-			zap.Int("failureCount", len(errors)))
+			zap.String("event_id", eventID),
+			zap.Int("success_count", successCount),
+			zap.Int("failure_count", len(errors)))
 	}
 }
 

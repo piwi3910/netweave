@@ -121,17 +121,15 @@ func TestNewWithDefaults(t *testing.T) {
 	defer func() { _ = adp.Close() }()
 
 	// Check defaults
-	assert.Equal(t, "test-ocloud", adp.OCloudID)
-	assert.Equal(t, "ocloud-aws-us-east-1", adp.DeploymentManagerID)
-	assert.Equal(t, "az", adp.PoolMode)
-	assert.Equal(t, "us-east-1", adp.Region)
+	assert.Equal(t, "test-ocloud", adp.ExportOCloudID())
+	assert.Equal(t, "ocloud-aws-us-east-1", adp.ExportDeploymentManagerID())
+	assert.Equal(t, "az", adp.ExportPoolMode())
+	assert.Equal(t, "us-east-1", adp.ExportRegion())
 }
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	adp := &awsadapter.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adp := awsadapter.NewTestAdapterWithSubs(zap.NewNop(), nil)
 
 	t.Run("Name", func(t *testing.T) {
 		assert.Equal(t, "aws", adp.Name())
@@ -228,10 +226,7 @@ func TestGenerateIDs(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
-	adp := &awsadapter.Adapter{
-		Logger:        zap.NewNop(),
-		Subscriptions: make(map[string]*adapter.Subscription),
-	}
+	adp := awsadapter.NewTestAdapterWithSubs(zap.NewNop(), nil)
 	ctx := context.Background()
 
 	t.Run("CreateSubscription", func(t *testing.T) {
@@ -344,20 +339,17 @@ func TestSubscriptions(t *testing.T) {
 
 // TestClose tests adapter cleanup.
 func TestClose(t *testing.T) {
-	adp := &awsadapter.Adapter{
-		Logger:        zap.NewNop(),
-		Subscriptions: make(map[string]*adapter.Subscription),
-	}
+	adp := awsadapter.NewTestAdapterWithSubs(zap.NewNop(), nil)
 
 	// Add some subscriptions
-	adp.Subscriptions["sub-1"] = &adapter.Subscription{SubscriptionID: "sub-1"}
-	adp.Subscriptions["sub-2"] = &adapter.Subscription{SubscriptionID: "sub-2"}
+	adp.ExportSubscriptions()["sub-1"] = &adapter.Subscription{SubscriptionID: "sub-1"}
+	adp.ExportSubscriptions()["sub-2"] = &adapter.Subscription{SubscriptionID: "sub-2"}
 
 	err := adp.Close()
 	assert.NoError(t, err)
 
 	// Verify subscriptions are cleared
-	assert.Empty(t, adp.Subscriptions)
+	assert.Empty(t, adp.ExportSubscriptions())
 }
 
 // TestConfigValidation tests configuration validation.
@@ -382,8 +374,8 @@ func TestConfigValidation(t *testing.T) {
 		require.NotNil(t, adp)
 		defer func() { _ = adp.Close() }()
 
-		assert.Equal(t, "dm-test", adp.DeploymentManagerID)
-		assert.Equal(t, "asg", adp.PoolMode)
+		assert.Equal(t, "dm-test", adp.ExportDeploymentManagerID())
+		assert.Equal(t, "asg", adp.ExportPoolMode())
 	})
 
 	t.Run("valid config with minimal fields", func(t *testing.T) {
@@ -399,8 +391,8 @@ func TestConfigValidation(t *testing.T) {
 		defer func() { _ = adp.Close() }()
 
 		// Check defaults are applied
-		assert.Equal(t, "ocloud-aws-us-west-2", adp.DeploymentManagerID)
-		assert.Equal(t, "az", adp.PoolMode)
+		assert.Equal(t, "ocloud-aws-us-west-2", adp.ExportDeploymentManagerID())
+		assert.Equal(t, "az", adp.ExportPoolMode())
 	})
 }
 
@@ -700,7 +692,7 @@ func TestGetLaunchTemplateName(t *testing.T) {
 
 // TestExtractInstanceType tests instance type extraction from resource type ID.
 func TestExtractInstanceType(t *testing.T) {
-	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+	adp := awsadapter.NewTestAdapterWithSubs(zap.NewNop(), nil)
 
 	tests := []struct {
 		name           string
@@ -739,7 +731,7 @@ func TestExtractInstanceType(t *testing.T) {
 
 // TestGetRequiredAMI tests AMI ID extraction and validation.
 func TestGetRequiredAMI(t *testing.T) {
-	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+	adp := awsadapter.NewTestAdapterWithSubs(zap.NewNop(), nil)
 
 	tests := []struct {
 		name       string
@@ -803,7 +795,7 @@ func TestGetRequiredAMI(t *testing.T) {
 
 // TestBuildResourceTags tests EC2 tag building from resource fields.
 func TestBuildResourceTags(t *testing.T) {
-	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+	adp := awsadapter.NewTestAdapterWithSubs(zap.NewNop(), nil)
 
 	tests := []struct {
 		name     string
@@ -895,7 +887,7 @@ func TestBuildResourceTags(t *testing.T) {
 
 // TestBuildRunInstanceInput tests RunInstances input building.
 func TestBuildRunInstanceInput(t *testing.T) {
-	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+	adp := awsadapter.NewTestAdapterWithSubs(zap.NewNop(), nil)
 
 	tests := []struct {
 		name       string
@@ -968,7 +960,7 @@ func TestBuildRunInstanceInput(t *testing.T) {
 
 // TestDetermineResourceKind tests resource kind determination.
 func TestDetermineResourceKind(t *testing.T) {
-	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+	adp := awsadapter.NewTestAdapterWithSubs(zap.NewNop(), nil)
 
 	tests := []struct {
 		name         string
@@ -1006,7 +998,7 @@ func TestDetermineResourceKind(t *testing.T) {
 
 // TestParseInstanceType tests instance type parsing.
 func TestParseInstanceType(t *testing.T) {
-	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+	adp := awsadapter.NewTestAdapterWithSubs(zap.NewNop(), nil)
 
 	tests := []struct {
 		name       string
@@ -1057,7 +1049,7 @@ func TestParseInstanceType(t *testing.T) {
 
 // TestBuildInstanceTypeExtensions tests extensions building for instance types.
 func TestBuildInstanceTypeExtensions(t *testing.T) {
-	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+	adp := awsadapter.NewTestAdapterWithSubs(zap.NewNop(), nil)
 
 	tests := []struct {
 		name         string
@@ -1195,7 +1187,7 @@ func TestBuildInstanceTypeExtensions(t *testing.T) {
 
 // TestBuildInstanceTypeDescription tests description building.
 func TestBuildInstanceTypeDescription(t *testing.T) {
-	adp := &awsadapter.Adapter{Logger: zap.NewNop()}
+	adp := awsadapter.NewTestAdapterWithSubs(zap.NewNop(), nil)
 
 	tests := []struct {
 		name         string

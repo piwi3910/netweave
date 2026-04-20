@@ -476,7 +476,7 @@ func (rl *ResourceRateLimiter) checkResourceLimit(
 
 		rl.Logger.Warn("resource rate limit exceeded",
 			zap.String("tenant", tenantID),
-			zap.String("resourceType", string(resourceType)),
+			zap.String("resource_type", string(resourceType)),
 			zap.String("operation", string(operation)),
 			zap.String("method", c.Request.Method),
 			zap.String("path", c.FullPath()),

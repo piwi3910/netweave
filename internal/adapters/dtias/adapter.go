@@ -140,8 +140,8 @@ func New(cfg *Config) (*Adapter, error) {
 
 	logger.Info("DTIAS adapter initialized",
 		zap.String("endpoint", cfg.Endpoint),
-		zap.String("oCloudId", cfg.OCloudID),
-		zap.String("deploymentManagerId", cfg.DeploymentManagerID),
+		zap.String("ocloud_id", cfg.OCloudID),
+		zap.String("deployment_manager_id", cfg.DeploymentManagerID),
 		zap.String("datacenter", cfg.Datacenter))
 
 	return adp, nil

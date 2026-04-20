@@ -642,7 +642,7 @@ func (h *BatchHandler) updateSingleSubscription(
 	}
 
 	h.logger.Info("subscription updated",
-		zap.String("subscriptionID", id))
+		zap.String("subscription_id", id))
 
 	return BatchResult{
 		Status:  http.StatusOK,
@@ -688,7 +688,7 @@ func (h *BatchHandler) makeSubscriptionNotFoundResult(
 	err error,
 ) BatchResult {
 	h.logger.Error("failed to get subscription for update",
-		zap.String("subscriptionID", id),
+		zap.String("subscription_id", id),
 		zap.Error(err))
 	return BatchResult{
 		Status:  http.StatusNotFound,
@@ -707,7 +707,7 @@ func (h *BatchHandler) makeSubscriptionUpdateFailedResult(
 	err error,
 ) BatchResult {
 	h.logger.Error("failed to update subscription",
-		zap.String("subscriptionID", id),
+		zap.String("subscription_id", id),
 		zap.Error(err))
 	return BatchResult{
 		Status:  http.StatusInternalServerError,
@@ -886,7 +886,7 @@ func (h *BatchHandler) updateSingleResourcePool(
 	existing, err := h.adapter.GetResourcePool(ctx, id)
 	if err != nil {
 		h.logger.Error("failed to get resource pool for update",
-			zap.String("resourcePoolID", id),
+			zap.String("resource_pool_id", id),
 			zap.Error(err))
 		return BatchResult{
 			Status:  http.StatusNotFound,
@@ -917,7 +917,7 @@ func (h *BatchHandler) updateSingleResourcePool(
 	updatedPool, err := h.adapter.UpdateResourcePool(ctx, id, existing)
 	if err != nil {
 		h.logger.Error("failed to update resource pool",
-			zap.String("resourcePoolID", id),
+			zap.String("resource_pool_id", id),
 			zap.Error(err))
 		return BatchResult{
 			Status:  http.StatusInternalServerError,
@@ -931,7 +931,7 @@ func (h *BatchHandler) updateSingleResourcePool(
 	}
 
 	h.logger.Info("resource pool updated",
-		zap.String("resourcePoolID", id))
+		zap.String("resource_pool_id", id))
 
 	return BatchResult{
 		Status:  http.StatusOK,
@@ -1395,7 +1395,7 @@ func (h *BatchHandler) updateSingleResource(
 	existing, err := h.adapter.GetResource(ctx, id)
 	if err != nil {
 		h.logger.Error("failed to get resource for update",
-			zap.String("resourceID", id),
+			zap.String("resource_id", id),
 			zap.Error(err))
 		return BatchResult{
 			Status:  http.StatusNotFound,
@@ -1423,7 +1423,7 @@ func (h *BatchHandler) updateSingleResource(
 	updatedResource, err := h.adapter.UpdateResource(ctx, id, existing)
 	if err != nil {
 		h.logger.Error("failed to update resource",
-			zap.String("resourceID", id),
+			zap.String("resource_id", id),
 			zap.Error(err))
 		return BatchResult{
 			Status:  http.StatusInternalServerError,
@@ -1437,7 +1437,7 @@ func (h *BatchHandler) updateSingleResource(
 	}
 
 	h.logger.Info("resource updated",
-		zap.String("resourceID", id))
+		zap.String("resource_id", id))
 
 	return BatchResult{
 		Status:  http.StatusOK,

@@ -21,7 +21,7 @@ func (a *Adapter) ListResourceTypes(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "ListResourceTypes", start, err) }()
 
-	a.Logger.Debug("ListResourceTypes called",
+	a.logger.Debug("ListResourceTypes called",
 		zap.Any("filter", filter))
 
 	// List VM sizes for the configured location
@@ -51,7 +51,7 @@ func (a *Adapter) ListResourceTypes(
 		resourceTypes = adapter.ApplyPagination(resourceTypes, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resource types",
+	a.logger.Info("listed resource types",
 		zap.Int("count", len(resourceTypes)))
 
 	return resourceTypes, nil
@@ -63,7 +63,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetResourceType", start, err) }()
 
-	a.Logger.Debug("GetResourceType called",
+	a.logger.Debug("GetResourceType called",
 		zap.String("id", id))
 
 	// Extract VM size name from the ID

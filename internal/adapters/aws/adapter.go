@@ -44,28 +44,28 @@ type Adapter struct {
 	asgClient *autoscaling.Client
 
 	// logger provides structured logging.
-	Logger *zap.Logger
+	logger *zap.Logger
 
 	// oCloudID is the identifier of the parent O-Cloud.
-	OCloudID string
+	oCloudID string
 
 	// deploymentManagerID is the identifier for this deployment manager.
-	DeploymentManagerID string
+	deploymentManagerID string
 
 	// region is the AWS region this adapter manages.
-	Region string
+	region string
 
 	// subscriptions holds active subscriptions (polling-based fallback).
 	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
 	// For production use, consider implementing persistent storage via Redis.
-	Subscriptions map[string]*adapter.Subscription
+	subscriptions map[string]*adapter.Subscription
 
 	// subscriptionsMu protects the subscriptions map.
-	SubscriptionsMu sync.RWMutex
+	subscriptionsMu sync.RWMutex
 
 	// poolMode determines how resource pools are mapped.
 	// "az" maps to Availability Zones, "asg" maps to Auto Scaling Groups.
-	PoolMode string
+	poolMode string
 }
 
 // Config holds configuration for creating an AWSAdapter.
@@ -133,8 +133,8 @@ func New(cfg *Config) (*Adapter, error) {
 
 	logger.Info("initializing AWS adapter",
 		zap.String("region", cfg.Region),
-		zap.String("oCloudID", cfg.OCloudID),
-		zap.String("poolMode", poolMode))
+		zap.String("ocloud_id", cfg.OCloudID),
+		zap.String("pool_mode", poolMode))
 
 	awsCfgOpts := buildAWSConfigOptions(cfg, logger)
 
@@ -149,12 +149,12 @@ func New(cfg *Config) (*Adapter, error) {
 	return &Adapter{
 		ec2Client:           ec2.NewFromConfig(awsCfg),
 		asgClient:           autoscaling.NewFromConfig(awsCfg),
-		Logger:              logger,
-		OCloudID:            cfg.OCloudID,
-		DeploymentManagerID: deploymentManagerID,
-		Region:              cfg.Region,
-		Subscriptions:       make(map[string]*adapter.Subscription),
-		PoolMode:            poolMode,
+		logger:              logger,
+		oCloudID:            cfg.OCloudID,
+		deploymentManagerID: deploymentManagerID,
+		region:              cfg.Region,
+		subscriptions:       make(map[string]*adapter.Subscription),
+		poolMode:            poolMode,
 	}, nil
 }
 
@@ -264,7 +264,7 @@ func (a *Adapter) Health(ctx context.Context) error {
 	var err error
 	defer func() { adapter.ObserveHealthCheck("aws", start, err) }()
 
-	a.Logger.Debug("health check called")
+	a.logger.Debug("health check called")
 
 	// Use a timeout to prevent indefinite blocking
 	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -272,10 +272,10 @@ func (a *Adapter) Health(ctx context.Context) error {
 
 	// Check EC2 service by describing regions
 	_, err = a.ec2Client.DescribeRegions(healthCtx, &ec2.DescribeRegionsInput{
-		RegionNames: []string{a.Region},
+		RegionNames: []string{a.region},
 	})
 	if err != nil {
-		a.Logger.Error("EC2 health check failed", zap.Error(err))
+		a.logger.Error("EC2 health check failed", zap.Error(err))
 		err = fmt.Errorf("ec2 API unreachable: %w", err)
 		return err
 	}
@@ -283,12 +283,12 @@ func (a *Adapter) Health(ctx context.Context) error {
 	// Check Auto Scaling service by describing account limits
 	_, err = a.asgClient.DescribeAccountLimits(healthCtx, &autoscaling.DescribeAccountLimitsInput{})
 	if err != nil {
-		a.Logger.Error("Auto Scaling health check failed", zap.Error(err))
+		a.logger.Error("Auto Scaling health check failed", zap.Error(err))
 		err = fmt.Errorf("auto scaling API unreachable: %w", err)
 		return err
 	}
 
-	a.Logger.Debug("health check passed")
+	a.logger.Debug("health check passed")
 	return nil
 }
 
@@ -323,7 +323,7 @@ func (a *Adapter) TestBuildRunInstanceInput(resource interface{}) *ec2.RunInstan
 	instanceType := extractInstanceType(r.ResourceTypeID)
 	amiID, err := getRequiredAMI(r.Extensions)
 	if err != nil {
-		a.Logger.Warn("failed to get AMI", zap.Error(err))
+		a.logger.Warn("failed to get AMI", zap.Error(err))
 	}
 	return buildRunInstanceInput(r, instanceType, amiID)
 }
@@ -353,16 +353,16 @@ func (a *Adapter) TestBuildInstanceTypeDescription(instanceType *ec2Types.Instan
 
 // Close cleanly shuts down the adapter and releases resources.
 func (a *Adapter) Close() error {
-	a.Logger.Info("closing AWS adapter")
+	a.logger.Info("closing AWS adapter")
 
 	// Clear subscriptions
-	a.SubscriptionsMu.Lock()
-	a.Subscriptions = make(map[string]*adapter.Subscription)
-	a.SubscriptionsMu.Unlock()
+	a.subscriptionsMu.Lock()
+	a.subscriptions = make(map[string]*adapter.Subscription)
+	a.subscriptionsMu.Unlock()
 
 	// Sync logger before shutdown
 	// Sync errors on stderr/stdout are expected and can be ignored
-	if err := a.Logger.Sync(); err != nil {
+	if err := a.logger.Sync(); err != nil {
 		return fmt.Errorf("failed to sync logger: %w", err)
 	}
 	return nil

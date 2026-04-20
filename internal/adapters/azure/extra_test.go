@@ -17,12 +17,12 @@ func newTestAdapter(poolMode string) *Adapter {
 		poolMode = "rg"
 	}
 	return &Adapter{
-		Logger:              zap.NewNop(),
+		logger:              zap.NewNop(),
 		oCloudID:            "test-ocloud",
 		deploymentManagerID: "ocloud-azure-eastus",
 		subscriptionID:      "sub-123",
 		location:            "eastus",
-		Subscriptions:       make(map[string]*adapter.Subscription),
+		subscriptions:       make(map[string]*adapter.Subscription),
 		poolMode:            poolMode,
 	}
 }
@@ -662,7 +662,7 @@ func TestUpdateSubscription_Internal(t *testing.T) {
 		SubscriptionID: "sub-1",
 		Callback:       "https://example.com/old",
 	}
-	adp.Subscriptions["sub-1"] = initial
+	adp.subscriptions["sub-1"] = initial
 
 	t.Run("success", func(t *testing.T) {
 		updated, err := adp.UpdateSubscription(context.Background(), "sub-1", &adapter.Subscription{

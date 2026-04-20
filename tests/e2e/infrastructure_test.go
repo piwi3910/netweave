@@ -116,7 +116,7 @@ func TestInfrastructureDiscovery(t *testing.T) {
 		assert.Contains(t, pool, "name")
 		assert.Contains(t, pool, "description")
 
-		fw.Logger.Info("Successfully retrieved resource pool", zap.String("poolId", poolID), zap.Any("name", pool["name"]))
+		fw.Logger.Info("Successfully retrieved resource pool", zap.String("pool_id", poolID), zap.Any("name", pool["name"]))
 	})
 
 	t.Run("list resources in pool", func(t *testing.T) {
@@ -126,7 +126,7 @@ func TestInfrastructureDiscovery(t *testing.T) {
 		var resources []map[string]any
 		statusCode := doHTTPGet(t, fw, url, &resources)
 		assert.Equal(t, http.StatusOK, statusCode)
-		fw.Logger.Info("Listed resources in pool", zap.String("poolId", poolID), zap.Int("count", len(resources)))
+		fw.Logger.Info("Listed resources in pool", zap.String("pool_id", poolID), zap.Int("count", len(resources)))
 
 		if len(resources) > 0 {
 			resource := resources[0]
@@ -150,9 +150,9 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 		fw.Logger.Info(
 			"Successfully retrieved resource",
-			zap.String("poolId", poolID),
-			zap.String("resourceId", resourceID),
-			zap.Any("resourceType", resource["resourceType"]),
+			zap.String("pool_id", poolID),
+			zap.String("resource_id", resourceID),
+			zap.Any("resource_type", resource["resourceType"]),
 		)
 	})
 
@@ -169,7 +169,7 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 		fw.Logger.Info(
 			"Successfully filtered resources by type",
-			zap.String("poolId", poolID),
+			zap.String("pool_id", poolID),
 			zap.String("filter", "resourceType==Node"),
 			zap.Int("count", len(resources)),
 		)
@@ -186,7 +186,7 @@ func TestInfrastructureDiscovery(t *testing.T) {
 
 		fw.Logger.Info(
 			"Successfully tested pagination",
-			zap.String("poolId", poolID),
+			zap.String("pool_id", poolID),
 			zap.Int("limit", 5),
 			zap.Int("returned", len(resources)),
 		)
@@ -217,6 +217,6 @@ func TestErrorHandling(t *testing.T) {
 		url := fw.GatewayURL + e2e.APIPathResourcePools + "?filter=invalid syntax here"
 		statusCode := doHTTPGet(t, fw, url, nil)
 		assert.True(t, statusCode >= 400, "Expected error status code")
-		fw.Logger.Info("Successfully handled invalid filter syntax", zap.Int("statusCode", statusCode))
+		fw.Logger.Info("Successfully handled invalid filter syntax", zap.Int("status_code", statusCode))
 	})
 }

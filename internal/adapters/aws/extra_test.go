@@ -364,12 +364,12 @@ func createTestAdapter(t *testing.T, mockURL string) *Adapter {
 	return &Adapter{
 		ec2Client:           ec2.NewFromConfig(cfg),
 		asgClient:           autoscaling.NewFromConfig(cfg),
-		Logger:              zap.NewNop(),
-		OCloudID:            "test-ocloud",
-		DeploymentManagerID: "ocloud-aws-us-east-1",
-		Region:              "us-east-1",
-		Subscriptions:       make(map[string]*adapter.Subscription),
-		PoolMode:            "az",
+		logger:              zap.NewNop(),
+		oCloudID:            "test-ocloud",
+		deploymentManagerID: "ocloud-aws-us-east-1",
+		region:              "us-east-1",
+		subscriptions:       make(map[string]*adapter.Subscription),
+		poolMode:            "az",
 	}
 }
 
@@ -517,7 +517,7 @@ func TestAdapter_ListResourcePools_ASGMode(t *testing.T) {
 	defer mock.close()
 
 	adp := createTestAdapter(t, mock.server.URL)
-	adp.PoolMode = poolModeASG
+	adp.poolMode = poolModeASG
 
 	pools, err := adp.ListResourcePools(context.Background(), nil)
 	require.NoError(t, err)
@@ -550,7 +550,7 @@ func TestAdapter_GetResourcePool_ASGMode(t *testing.T) {
 	defer mock.close()
 
 	adp := createTestAdapter(t, mock.server.URL)
-	adp.PoolMode = poolModeASG
+	adp.poolMode = poolModeASG
 
 	_, err := adp.GetResourcePool(context.Background(), "aws-asg-my-asg")
 	require.Error(t, err)
@@ -570,7 +570,7 @@ func TestAdapter_CreateResourcePool_Modes(t *testing.T) {
 
 	t.Run("ASG mode not supported", func(t *testing.T) {
 		adp := createTestAdapter(t, mock.server.URL)
-		adp.PoolMode = poolModeASG
+		adp.poolMode = poolModeASG
 		_, err := adp.CreateResourcePool(context.Background(), &adapter.ResourcePool{Name: "test"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "creating Auto Scaling Groups requires additional configuration")
@@ -590,7 +590,7 @@ func TestAdapter_UpdateResourcePool_Modes(t *testing.T) {
 
 	t.Run("ASG mode invalid pool ID", func(t *testing.T) {
 		adp := createTestAdapter(t, mock.server.URL)
-		adp.PoolMode = poolModeASG
+		adp.poolMode = poolModeASG
 		_, err := adp.UpdateResourcePool(context.Background(), "bad-id", &adapter.ResourcePool{Name: "up"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid resource pool ID format")
@@ -610,7 +610,7 @@ func TestAdapter_DeleteResourcePool_Modes(t *testing.T) {
 
 	t.Run("ASG mode invalid pool ID", func(t *testing.T) {
 		adp := createTestAdapter(t, mock.server.URL)
-		adp.PoolMode = poolModeASG
+		adp.poolMode = poolModeASG
 		err := adp.DeleteResourcePool(context.Background(), "bad-id")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid resource pool ID format")
@@ -845,10 +845,10 @@ func TestAdapter_GetResourceType_WithMock(t *testing.T) {
 
 func TestAdapter_InstanceToResource(t *testing.T) {
 	adp := &Adapter{
-		Logger:   zap.NewNop(),
-		OCloudID: "test-ocloud",
-		Region:   "us-east-1",
-		PoolMode: "az",
+		logger:   zap.NewNop(),
+		oCloudID: "test-ocloud",
+		region:   "us-east-1",
+		poolMode: "az",
 	}
 
 	launchTime := time.Now()
@@ -912,7 +912,7 @@ func TestAdapter_InstanceToResource(t *testing.T) {
 // --- Tests for instanceTypeToResourceType ---
 
 func TestAdapter_InstanceTypeToResourceType(t *testing.T) {
-	adp := &Adapter{Logger: zap.NewNop()}
+	adp := &Adapter{logger: zap.NewNop()}
 
 	t.Run("standard", func(t *testing.T) {
 		rt := adp.instanceTypeToResourceType(&ec2Types.InstanceTypeInfo{

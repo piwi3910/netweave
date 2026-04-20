@@ -101,10 +101,24 @@ fmt-check: ## Check if code is formatted
 	@test -z "$$($(GOFMT) -s -l . | tee /dev/stderr)" || { echo "$(COLOR_RED)✗ Code not formatted. Run: make fmt$(COLOR_RESET)"; exit 1; }
 	@echo "$(COLOR_GREEN)✓ Code formatting OK$(COLOR_RESET)"
 
-lint: fmt-check ## Run all linters (MUST pass before commit)
+lint: fmt-check lint-log-fields ## Run all linters (MUST pass before commit)
 	@echo "$(COLOR_YELLOW)Running linters...$(COLOR_RESET)"
 	@$(GOLINT) run --config=.golangci.yml --timeout=5m
 	@echo "$(COLOR_GREEN)✓ Linting passed$(COLOR_RESET)"
+
+lint-log-fields: ## Enforce snake_case log field names (zap structured logging)
+	@echo "$(COLOR_YELLOW)Checking log field naming (snake_case required)...$(COLOR_RESET)"
+	@OFFENDERS=$$(grep -rn 'zap\.\(String\|Int\|Int64\|Bool\|Any\|Float64\|Duration\|Error\)("[a-z][a-zA-Z0-9]*[A-Z]' \
+		--include='*.go' \
+		--exclude-dir=vendor \
+		--exclude-dir=third_party \
+		. || true); \
+	if [ -n "$$OFFENDERS" ]; then \
+		echo "$(COLOR_RED)✗ camelCase log field names detected (use snake_case):$(COLOR_RESET)"; \
+		echo "$$OFFENDERS"; \
+		exit 1; \
+	fi
+	@echo "$(COLOR_GREEN)✓ Log field naming OK$(COLOR_RESET)"
 
 lint-fix: ## Auto-fix linting issues where possible
 	@echo "$(COLOR_YELLOW)Auto-fixing linting issues...$(COLOR_RESET)"

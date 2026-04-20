@@ -149,8 +149,8 @@ func (c *SOClient) GetOrchestrationStatus(ctx context.Context, requestID string)
 	}
 
 	c.logger.Debug("Retrieved orchestration status",
-		zap.String("requestId", requestID),
-		zap.String("requestState", orchestrationStatus.RequestState),
+		zap.String("request_id", requestID),
+		zap.String("request_state", orchestrationStatus.RequestState),
 		zap.Int("progress", orchestrationStatus.PercentProgress),
 	)
 
@@ -190,7 +190,7 @@ func (c *SOClient) CancelOrchestration(ctx context.Context, requestID string) er
 	}
 
 	c.logger.Info("Successfully canceled orchestration",
-		zap.String("requestId", requestID),
+		zap.String("request_id", requestID),
 	)
 
 	return nil
@@ -258,8 +258,8 @@ func (c *SOClient) ExecuteWorkflow(
 	}
 
 	c.logger.Info("Successfully started workflow execution",
-		zap.String("workflowName", workflowName),
-		zap.String("processInstanceId", workflowResponse.ProcessInstanceID),
+		zap.String("workflow_name", workflowName),
+		zap.String("process_instance_id", workflowResponse.ProcessInstanceID),
 	)
 
 	return workflowResponse.ProcessInstanceID, nil
@@ -304,8 +304,8 @@ func (c *SOClient) RegisterServiceModel(ctx context.Context, model *ServiceModel
 	}
 
 	c.logger.Info("Successfully registered service model",
-		zap.String("modelId", model.ModelInvariantID),
-		zap.String("modelName", model.ModelName),
+		zap.String("model_id", model.ModelInvariantID),
+		zap.String("model_name", model.ModelName),
 	)
 
 	return nil
@@ -439,8 +439,8 @@ func (c *SOClient) serviceInstanceOperation(
 
 	c.logger.Info("SO service instance operation completed",
 		zap.String("operation", operation),
-		zap.String("requestId", response.RequestID),
-		zap.String("serviceInstanceId", response.ServiceInstanceID),
+		zap.String("request_id", response.RequestID),
+		zap.String("service_instance_id", response.ServiceInstanceID),
 	)
 
 	return &response, nil

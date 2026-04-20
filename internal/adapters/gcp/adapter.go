@@ -50,7 +50,7 @@ type Adapter struct {
 	instanceGroupsClient *compute.InstanceGroupsClient
 
 	// logger provides structured logging.
-	Logger *zap.Logger
+	logger *zap.Logger
 
 	// oCloudID is the identifier of the parent O-Cloud.
 	oCloudID string
@@ -67,10 +67,10 @@ type Adapter struct {
 	// subscriptions holds active O2-IMS subscriptions (polling-based fallback).
 	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
 	// For production use, consider implementing persistent storage via Redis.
-	Subscriptions map[string]*adapter.Subscription
+	subscriptions map[string]*adapter.Subscription
 
 	// subscriptionsMu protects the subscriptions map.
-	SubscriptionsMu sync.RWMutex
+	subscriptionsMu sync.RWMutex
 
 	// poolMode determines how resource pools are mapped.
 	// "zone" maps to Zones, "ig" maps to Instance Groups.
@@ -137,10 +137,10 @@ func New(cfg *Config) (*Adapter, error) {
 	}
 
 	logger.Info("initializing GCP adapter",
-		zap.String("projectID", cfg.ProjectID),
+		zap.String("project_id", cfg.ProjectID),
 		zap.String("region", cfg.Region),
-		zap.String("oCloudID", cfg.OCloudID),
-		zap.String("poolMode", poolMode))
+		zap.String("ocloud_id", cfg.OCloudID),
+		zap.String("pool_mode", poolMode))
 
 	opts := buildGCPClientOptions(cfg, logger)
 	clients, err := createGCPClients(context.Background(), opts, logger)
@@ -154,12 +154,12 @@ func New(cfg *Config) (*Adapter, error) {
 		zonesClient:          clients.zonesClient,
 		regionsClient:        clients.regionsClient,
 		instanceGroupsClient: clients.instanceGroupsClient,
-		Logger:               logger,
+		logger:               logger,
 		oCloudID:             cfg.OCloudID,
 		deploymentManagerID:  deploymentManagerID,
 		projectID:            cfg.ProjectID,
 		region:               cfg.Region,
-		Subscriptions:        make(map[string]*adapter.Subscription),
+		subscriptions:        make(map[string]*adapter.Subscription),
 		poolMode:             poolMode,
 	}, nil
 }
@@ -224,7 +224,7 @@ func buildGCPClientOptions(cfg *Config, logger *zap.Logger) []option.ClientOptio
 	case cfg.CredentialsFile != "":
 		opts = append(opts, option.WithCredentialsFile(cfg.CredentialsFile))
 		logger.Info("using credentials file for authentication",
-			zap.String("credentialsFile", cfg.CredentialsFile))
+			zap.String("credentials_file", cfg.CredentialsFile))
 	default:
 		logger.Info("using default GCP credentials (ADC)")
 	}
@@ -326,7 +326,7 @@ func (a *Adapter) Health(ctx context.Context) error {
 	start := time.Now()
 	defer func() { adapter.ObserveHealthCheck("gcp", start, err) }()
 
-	a.Logger.Debug("health check called")
+	a.logger.Debug("health check called")
 
 	// Use a timeout to prevent indefinite blocking
 	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -338,11 +338,11 @@ func (a *Adapter) Health(ctx context.Context) error {
 		Region:  a.region,
 	})
 	if err != nil {
-		a.Logger.Error("GCP health check failed", zap.Error(err))
+		a.logger.Error("GCP health check failed", zap.Error(err))
 		return fmt.Errorf("gcp API unreachable: %w", err)
 	}
 
-	a.Logger.Debug("health check passed")
+	a.logger.Debug("health check passed")
 	return nil
 }
 
@@ -381,12 +381,12 @@ func (a *Adapter) TestSetPoolMode(mode string) {
 
 // Close cleanly shuts down the adapter and releases resources.
 func (a *Adapter) Close() error {
-	a.Logger.Info("closing GCP adapter")
+	a.logger.Info("closing GCP adapter")
 
 	// Clear subscriptions
-	a.SubscriptionsMu.Lock()
-	a.Subscriptions = make(map[string]*adapter.Subscription)
-	a.SubscriptionsMu.Unlock()
+	a.subscriptionsMu.Lock()
+	a.subscriptions = make(map[string]*adapter.Subscription)
+	a.subscriptionsMu.Unlock()
 
 	// Close all clients
 	var errs []error
@@ -412,7 +412,7 @@ func (a *Adapter) Close() error {
 
 	// Sync logger before shutdown
 	// Sync errors on stderr/stdout are expected and can be ignored
-	if err := a.Logger.Sync(); err != nil {
+	if err := a.logger.Sync(); err != nil {
 		return fmt.Errorf("failed to sync logger: %w", err)
 	}
 	return nil

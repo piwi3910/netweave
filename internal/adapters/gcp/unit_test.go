@@ -19,10 +19,7 @@ import (
 
 // newTestGCPAdapter creates a GCP adapter suitable for unit testing.
 func newTestGCPAdapter() *gcp.Adapter {
-	return &gcp.Adapter{
-		Logger:        zap.NewNop(),
-		Subscriptions: make(map[string]*adapter.Subscription),
-	}
+	return gcp.NewTestAdapter()
 }
 
 // --- Subscription CRUD with Full Lifecycle ---

@@ -54,7 +54,7 @@ func (a *Adapter) CreateSubscription(
 	a.SubscriptionsMu.Unlock()
 
 	a.logger.Info("subscription created (polling-based)",
-		zap.String("subscriptionId", subscriptionID),
+		zap.String("subscription_id", subscriptionID),
 		zap.String("callback", sub.Callback))
 
 	return newSub, nil
@@ -111,9 +111,9 @@ func (a *Adapter) UpdateSubscription(
 	a.Subscriptions[id] = updated
 
 	a.logger.Info("subscription updated",
-		zap.String("subscriptionId", id),
-		zap.String("oldCallback", existing.Callback),
-		zap.String("newCallback", sub.Callback))
+		zap.String("subscription_id", id),
+		zap.String("old_callback", existing.Callback),
+		zap.String("new_callback", sub.Callback))
 
 	return updated, nil
 }
@@ -133,7 +133,7 @@ func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
 	delete(a.Subscriptions, id)
 
 	a.logger.Info("subscription deleted",
-		zap.String("subscriptionId", id))
+		zap.String("subscription_id", id))
 
 	return nil
 }

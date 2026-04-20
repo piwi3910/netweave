@@ -116,14 +116,28 @@ func ExportNewFakeGCPAdapter(ctx context.Context, endpoint string) (*Adapter, er
 		zonesClient:          zonesClient,
 		regionsClient:        regionsClient,
 		instanceGroupsClient: instanceGroupsClient,
-		Logger:               zap.NewNop(),
+		logger:               zap.NewNop(),
 		oCloudID:             "test-ocloud",
 		deploymentManagerID:  "test-dm-gcp",
 		projectID:            "test-project",
 		region:               "us-central1",
-		Subscriptions:        make(map[string]*adapter.Subscription),
+		subscriptions:        make(map[string]*adapter.Subscription),
 		poolMode:             poolModeZone,
 	}, nil
+}
+
+// NewTestAdapter creates a GCP Adapter for testing with a no-op logger.
+func NewTestAdapter() *Adapter {
+	return &Adapter{
+		logger:        zap.NewNop(),
+		subscriptions: make(map[string]*adapter.Subscription),
+	}
+}
+
+// ExportSubscriptions exposes the subscriptions map for tests.
+// Callers must not access it concurrently with adapter operations.
+func (a *Adapter) ExportSubscriptions() map[string]*adapter.Subscription {
+	return a.subscriptions
 }
 
 // ExportCloseAdapter closes all clients on the adapter.

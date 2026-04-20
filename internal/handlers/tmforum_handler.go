@@ -166,7 +166,7 @@ func (h *TMForumHandler) GetTMF639Resource(c *gin.Context) {
 		}
 
 		h.logger.Error("failed to get resource",
-			zap.String("resourceId", resourceID),
+			zap.String("resource_id", resourceID),
 			zap.Error(err),
 		)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -282,7 +282,7 @@ func (h *TMForumHandler) UpdateTMF639Resource(c *gin.Context) {
 		updatedPool, err := adp.UpdateResourcePool(ctx, resourceID, pool)
 		if err != nil {
 			h.logger.Error("failed to update resource pool",
-				zap.String("categoryResourcePoolId", resourceID),
+				zap.String("category_resource_pool_id", resourceID),
 				zap.Error(err),
 			)
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -330,7 +330,7 @@ func (h *TMForumHandler) DeleteTMF639Resource(c *gin.Context) {
 		}
 
 		h.logger.Error("failed to delete resource",
-			zap.String("resourceId", resourceID),
+			zap.String("resource_id", resourceID),
 			zap.Error(err),
 		)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -821,13 +821,13 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 	// Store hub registration
 	if err := h.hubStore.Create(ctx, registration); err != nil {
 		h.logger.Error("failed to save hub registration",
-			zap.String("hubId", hubID),
+			zap.String("hub_id", hubID),
 			zap.Error(err))
 
 		// Cleanup: Delete O2-IMS subscription
 		if delErr := adp.DeleteSubscription(ctx, createdSub.SubscriptionID); delErr != nil {
 			h.logger.Warn("failed to cleanup O2-IMS subscription after hub store error",
-				zap.String("subscriptionId", createdSub.SubscriptionID),
+				zap.String("subscription_id", createdSub.SubscriptionID),
 				zap.Error(delErr))
 		}
 
@@ -839,8 +839,8 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 	}
 
 	h.logger.Info("registered event hub",
-		zap.String("hubId", hubID),
-		zap.String("subscriptionId", createdSub.SubscriptionID),
+		zap.String("hub_id", hubID),
+		zap.String("subscription_id", createdSub.SubscriptionID),
 		zap.String("callback", hubReq.Callback),
 		zap.String("query", hubReq.Query))
 
@@ -872,7 +872,7 @@ func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
 			})
 		} else {
 			h.logger.Error("failed to retrieve hub registration",
-				zap.String("hubId", hubID),
+				zap.String("hub_id", hubID),
 				zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error":   "InternalError",
@@ -885,8 +885,8 @@ func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
 	// Delete O2-IMS subscription
 	if err := adp.DeleteSubscription(ctx, registration.SubscriptionID); err != nil {
 		h.logger.Warn("failed to delete O2-IMS subscription",
-			zap.String("hubId", hubID),
-			zap.String("subscriptionId", registration.SubscriptionID),
+			zap.String("hub_id", hubID),
+			zap.String("subscription_id", registration.SubscriptionID),
 			zap.Error(err))
 		// Continue with hub deletion even if subscription deletion fails
 	}
@@ -894,7 +894,7 @@ func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
 	// Delete hub registration
 	if err := h.hubStore.Delete(ctx, hubID); err != nil {
 		h.logger.Error("failed to delete hub registration",
-			zap.String("hubId", hubID),
+			zap.String("hub_id", hubID),
 			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
@@ -904,8 +904,8 @@ func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
 	}
 
 	h.logger.Info("unregistered event hub",
-		zap.String("hubId", hubID),
-		zap.String("subscriptionId", registration.SubscriptionID))
+		zap.String("hub_id", hubID),
+		zap.String("subscription_id", registration.SubscriptionID))
 
 	c.Status(http.StatusNoContent)
 }
@@ -961,7 +961,7 @@ func (h *TMForumHandler) AcknowledgeTMF642Alarm(c *gin.Context) {
 	}
 
 	h.logger.Info("acknowledging alarm",
-		zap.String("alarmId", alarmID),
+		zap.String("alarm_id", alarmID),
 		zap.String("state", updateReq.State),
 	)
 
@@ -977,7 +977,7 @@ func (h *TMForumHandler) ClearTMF642Alarm(c *gin.Context) {
 	alarmID := c.Param("id")
 
 	h.logger.Info("clearing alarm",
-		zap.String("alarmId", alarmID),
+		zap.String("alarm_id", alarmID),
 	)
 
 	c.Status(http.StatusNoContent)

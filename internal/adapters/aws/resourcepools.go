@@ -25,12 +25,12 @@ func (a *Adapter) ListResourcePools(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "ListResourcePools", start, err) }()
 
-	a.Logger.Debug("ListResourcePools called",
+	a.logger.Debug("ListResourcePools called",
 		zap.Any("filter", filter),
-		zap.String("poolMode", a.PoolMode))
+		zap.String("pool_mode", a.poolMode))
 
 	var pools []*adapter.ResourcePool
-	if a.PoolMode == "asg" {
+	if a.poolMode == "asg" {
 		pools, err = a.listASGPools(ctx, filter)
 		return pools, err
 	}
@@ -45,7 +45,7 @@ func (a *Adapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([]*a
 		Filters: []ec2Types.Filter{
 			{
 				Name:   aws.String("region-name"),
-				Values: []string{a.Region},
+				Values: []string{a.region},
 			},
 			{
 				Name:   aws.String("state"),
@@ -72,7 +72,7 @@ func (a *Adapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([]*a
 			Name:           aws.ToString(az.ZoneName),
 			Description:    fmt.Sprintf("AWS Availability Zone %s", aws.ToString(az.ZoneName)),
 			Location:       location,
-			OCloudID:       a.OCloudID,
+			OCloudID:       a.oCloudID,
 			Extensions: map[string]interface{}{
 				"aws.zoneId":   aws.ToString(az.ZoneId),
 				"aws.zoneType": aws.ToString(az.ZoneType),
@@ -89,7 +89,7 @@ func (a *Adapter) listAZPools(ctx context.Context, filter *adapter.Filter) ([]*a
 		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resource pools (AZ mode)",
+	a.logger.Info("listed resource pools (AZ mode)",
 		zap.Int("count", len(pools)))
 
 	return pools, nil
@@ -138,7 +138,7 @@ func (a *Adapter) listASGPools(
 				Name:           aws.ToString(asg.AutoScalingGroupName),
 				Description:    fmt.Sprintf("AWS Auto Scaling Group %s", aws.ToString(asg.AutoScalingGroupName)),
 				Location:       location,
-				OCloudID:       a.OCloudID,
+				OCloudID:       a.oCloudID,
 				Extensions: map[string]interface{}{
 					"aws.asgArn":              aws.ToString(asg.AutoScalingGroupARN),
 					"aws.desiredCapacity":     aws.ToInt32(asg.DesiredCapacity),
@@ -163,7 +163,7 @@ func (a *Adapter) listASGPools(
 		pools = adapter.ApplyPagination(pools, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resource pools (ASG mode)",
+	a.logger.Info("listed resource pools (ASG mode)",
 		zap.Int("count", len(pools)))
 
 	return pools, nil
@@ -175,10 +175,10 @@ func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.Reso
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "GetResourcePool", start, err) }()
 
-	a.Logger.Debug("GetResourcePool called",
+	a.logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
-	if a.PoolMode == "asg" {
+	if a.poolMode == "asg" {
 		return a.getASGPool(ctx, id)
 	}
 	return a.getAZPool(ctx, id)
@@ -234,10 +234,10 @@ func (a *Adapter) CreateResourcePool(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "CreateResourcePool", start, err) }()
 
-	a.Logger.Debug("CreateResourcePool called",
+	a.logger.Debug("CreateResourcePool called",
 		zap.String("name", pool.Name))
 
-	if a.PoolMode == "az" {
+	if a.poolMode == "az" {
 		err = fmt.Errorf(
 			"cannot create resource pools in 'az' mode: " +
 				"availability zones are AWS-managed",
@@ -263,11 +263,11 @@ func (a *Adapter) UpdateResourcePool(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "UpdateResourcePool", start, err) }()
 
-	a.Logger.Debug("UpdateResourcePool called",
+	a.logger.Debug("UpdateResourcePool called",
 		zap.String("id", id),
 		zap.String("name", pool.Name))
 
-	if a.PoolMode == "az" {
+	if a.poolMode == "az" {
 		err = fmt.Errorf("cannot update resource pools in 'az' mode: availability zones are AWS-managed")
 		return nil, err
 	}
@@ -294,14 +294,14 @@ func (a *Adapter) UpdateResourcePool(
 	// Update the Auto Scaling Group
 	_, err = a.asgClient.UpdateAutoScalingGroup(ctx, updateInput)
 	if err != nil {
-		a.Logger.Error("failed to update auto scaling group",
-			zap.String("asgName", asgName),
+		a.logger.Error("failed to update auto scaling group",
+			zap.String("asg_name", asgName),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to update Auto Scaling Group %s: %w", asgName, err)
 	}
 
-	a.Logger.Info("updated auto scaling group",
-		zap.String("asgName", asgName))
+	a.logger.Info("updated auto scaling group",
+		zap.String("asg_name", asgName))
 
 	// Retrieve and return the updated pool
 	return a.getASGPool(ctx, id)
@@ -316,10 +316,10 @@ func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("aws", "DeleteResourcePool", start, err) }()
 
-	a.Logger.Debug("DeleteResourcePool called",
+	a.logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 
-	if a.PoolMode == "az" {
+	if a.poolMode == "az" {
 		return fmt.Errorf("cannot delete resource pools in 'az' mode: availability zones are AWS-managed")
 	}
 
@@ -338,14 +338,14 @@ func (a *Adapter) DeleteResourcePool(ctx context.Context, id string) error {
 
 	_, err = a.asgClient.DeleteAutoScalingGroup(ctx, deleteInput)
 	if err != nil {
-		a.Logger.Error("failed to delete auto scaling group",
-			zap.String("asgName", asgName),
+		a.logger.Error("failed to delete auto scaling group",
+			zap.String("asg_name", asgName),
 			zap.Error(err))
 		return fmt.Errorf("failed to delete Auto Scaling Group %s: %w", asgName, err)
 	}
 
-	a.Logger.Info("deleted auto scaling group",
-		zap.String("asgName", asgName))
+	a.logger.Info("deleted auto scaling group",
+		zap.String("asg_name", asgName))
 
 	return nil
 }

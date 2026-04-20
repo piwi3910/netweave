@@ -32,14 +32,12 @@ func TestMain(m *testing.M) {
 
 // newTestOpenStackAdapter creates an OpenStack adapter suitable for unit testing.
 func newTestOpenStackAdapter() *openstack.Adapter {
-	return &openstack.Adapter{
-		Logger:              zap.NewNop(),
-		OCloudID:            "ocloud-test",
-		DeploymentManagerID: "ocloud-openstack-RegionOne",
-		Region:              "RegionOne",
-		Subscriptions:       make(map[string]*adapter.Subscription),
-		PollingStates:       make(map[string]*openstack.SubscriptionState),
-	}
+	return openstack.NewTestAdapterFull(
+		zap.NewNop(),
+		"ocloud-test",
+		"ocloud-openstack-RegionOne",
+		"RegionOne",
+	)
 }
 
 // --- UpdateSubscription Tests ---
@@ -294,7 +292,7 @@ func TestStopAllPolling(t *testing.T) {
 
 	t.Run("stop with empty polling states map", func(t *testing.T) {
 		adp := newTestOpenStackAdapter()
-		adp.PollingStates = make(map[string]*openstack.SubscriptionState)
+		adp.ExportSetPollingStates(make(map[string]*openstack.SubscriptionState))
 		adp.StopAllPolling()
 	})
 }

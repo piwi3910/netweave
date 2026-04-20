@@ -15,8 +15,8 @@ import (
 
 // DeploymentManagerHandler handles Deployment Manager API endpoints.
 type DeploymentManagerHandler struct {
-	Adapter adapter.Adapter // Exported for testing
-	Logger  *zap.Logger     // Exported for testing
+	adapter adapter.Adapter
+	logger  *zap.Logger
 }
 
 // NewDeploymentManagerHandler creates a new DeploymentManagerHandler.
@@ -30,8 +30,8 @@ func NewDeploymentManagerHandler(adp adapter.Adapter, logger *zap.Logger) *Deplo
 	}
 
 	return &DeploymentManagerHandler{
-		Adapter: adp,
-		Logger:  logger,
+		adapter: adp,
+		logger:  logger,
 	}
 }
 
@@ -47,7 +47,7 @@ func NewDeploymentManagerHandler(adp adapter.Adapter, logger *zap.Logger) *Deplo
 func (h *DeploymentManagerHandler) ListDeploymentManagers(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	h.Logger.Info("listing deployment managers",
+	h.logger.Info("listing deployment managers",
 		zap.String("request_id", c.GetString("request_id")),
 	)
 
@@ -63,9 +63,9 @@ func (h *DeploymentManagerHandler) ListDeploymentManagers(c *gin.Context) {
 	}
 
 	// List all registered deployment managers via the adapter
-	dms, err := h.Adapter.ListDeploymentManagers(ctx, adapterFilter)
+	dms, err := h.adapter.ListDeploymentManagers(ctx, adapterFilter)
 	if err != nil {
-		h.Logger.Error("failed to list deployment managers",
+		h.logger.Error("failed to list deployment managers",
 			zap.Error(err),
 		)
 
@@ -111,7 +111,7 @@ func (h *DeploymentManagerHandler) ListDeploymentManagers(c *gin.Context) {
 		TotalCount: totalCount,
 	}
 
-	h.Logger.Info("deployment managers retrieved",
+	h.logger.Info("deployment managers retrieved",
 		zap.Int("count", len(pagedManagers)),
 		zap.Int("total", totalCount),
 	)
@@ -133,7 +133,7 @@ func (h *DeploymentManagerHandler) GetDeploymentManager(c *gin.Context) {
 	ctx := c.Request.Context()
 	deploymentManagerID := c.Param("deploymentManagerId")
 
-	h.Logger.Info("getting deployment manager",
+	h.logger.Info("getting deployment manager",
 		zap.String("deployment_manager_id", deploymentManagerID),
 		zap.String("request_id", c.GetString("request_id")),
 	)
@@ -149,11 +149,11 @@ func (h *DeploymentManagerHandler) GetDeploymentManager(c *gin.Context) {
 	}
 
 	// Get deployment manager from adapter
-	dm, err := h.Adapter.GetDeploymentManager(ctx, deploymentManagerID)
+	dm, err := h.adapter.GetDeploymentManager(ctx, deploymentManagerID)
 	if err != nil {
 		// Check if it's a "not found" error
 		if errors.Is(err, adapter.ErrDeploymentManagerNotFound) {
-			h.Logger.Warn("deployment manager not found",
+			h.logger.Warn("deployment manager not found",
 				zap.String("deployment_manager_id", deploymentManagerID),
 			)
 
@@ -165,7 +165,7 @@ func (h *DeploymentManagerHandler) GetDeploymentManager(c *gin.Context) {
 			return
 		}
 
-		h.Logger.Error("failed to get deployment manager",
+		h.logger.Error("failed to get deployment manager",
 			zap.String("deployment_manager_id", deploymentManagerID),
 			zap.Error(err),
 		)
@@ -190,7 +190,7 @@ func (h *DeploymentManagerHandler) GetDeploymentManager(c *gin.Context) {
 		Extensions:          dm.Extensions,
 	}
 
-	h.Logger.Info("deployment manager retrieved",
+	h.logger.Info("deployment manager retrieved",
 		zap.String("deployment_manager_id", deploymentManagerID),
 	)
 

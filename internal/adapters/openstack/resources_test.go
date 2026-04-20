@@ -17,11 +17,7 @@ import (
 
 // TestTransformServerToResource tests the transformation from OpenStack server to O2-IMS resource.
 func TestTransformServerToResource(t *testing.T) {
-	adp := &openstack.Adapter{
-		OCloudID: "ocloud-test",
-		Region:   "RegionOne",
-		Logger:   zap.NewNop(),
-	}
+	adp := openstack.NewTestAdapterFull(zap.NewNop(), "ocloud-test", "", "RegionOne")
 
 	now := time.Now()
 	osServer := &servers.Server{
@@ -92,11 +88,7 @@ func TestTransformServerToResource(t *testing.T) {
 
 // TestTransformServerToResourceMinimal tests transformation with minimal data.
 func TestTransformServerToResourceMinimal(t *testing.T) {
-	adp := &openstack.Adapter{
-		OCloudID: "ocloud-test",
-		Region:   "RegionOne",
-		Logger:   zap.NewNop(),
-	}
+	adp := openstack.NewTestAdapterFull(zap.NewNop(), "ocloud-test", "", "RegionOne")
 
 	osServer := &servers.Server{
 		ID:     "minimal-server-id",
@@ -167,11 +159,7 @@ func TestResourceIDParsing(t *testing.T) {
 
 // TestListResourcesFilter tests filtering logic for ListResources.
 func TestListResourcesFilter(t *testing.T) {
-	adp := &openstack.Adapter{
-		OCloudID: "ocloud-test",
-		Region:   "RegionOne",
-		Logger:   zap.NewNop(),
-	}
+	adp := openstack.NewTestAdapterFull(zap.NewNop(), "ocloud-test", "", "RegionOne")
 
 	// Create test servers
 	servers := []*servers.Server{
@@ -279,9 +267,7 @@ func TestResourcePoolFiltering(t *testing.T) {
 
 // TestCreateResourceValidation tests validation for CreateResource.
 func TestCreateResourceValidation(t *testing.T) {
-	adp := &openstack.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adp := openstack.NewTestAdapter(zap.NewNop())
 
 	ctx := context.Background()
 
@@ -333,9 +319,7 @@ func TestCreateResourceValidation(t *testing.T) {
 
 // TestGetResourcePoolIDFromServer tests resource pool ID derivation.
 func TestGetResourcePoolIDFromServer(t *testing.T) {
-	adp := &openstack.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adp := openstack.NewTestAdapter(zap.NewNop())
 
 	tests := []struct {
 		name   string
@@ -528,11 +512,7 @@ func TestExtractServerID(t *testing.T) {
 
 // BenchmarkTransformServerToResource benchmarks the transformation.
 func BenchmarkTransformServerToResource(b *testing.B) {
-	adp := &openstack.Adapter{
-		OCloudID: "ocloud-test",
-		Region:   "RegionOne",
-		Logger:   zap.NewNop(),
-	}
+	adp := openstack.NewTestAdapterFull(zap.NewNop(), "ocloud-test", "", "RegionOne")
 
 	now := time.Now()
 	osServer := &servers.Server{

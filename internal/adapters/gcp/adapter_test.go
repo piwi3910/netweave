@@ -10,7 +10,6 @@ import (
 	"github.com/piwi3910/netweave/internal/adapters/gcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 // TestNew_Validation tests config validation without requiring GCP credentials.
@@ -88,9 +87,7 @@ func TestNew_Validation(t *testing.T) {
 
 // TestMetadata tests metadata methods.
 func TestMetadata(t *testing.T) {
-	adp := &gcp.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adp := gcp.NewTestAdapter()
 
 	t.Run("Name", func(t *testing.T) {
 		assert.Equal(t, "gcp", adp.Name())
@@ -265,10 +262,7 @@ func TestExtractZoneName(t *testing.T) {
 
 // TestSubscriptions tests subscription CRUD operations.
 func TestSubscriptions(t *testing.T) {
-	adp := &gcp.Adapter{
-		Logger:        zap.NewNop(),
-		Subscriptions: make(map[string]*adapter.Subscription),
-	}
+	adp := gcp.NewTestAdapter()
 	ctx := context.Background()
 
 	t.Run("CreateSubscription", func(t *testing.T) {
@@ -506,7 +500,7 @@ func TestGCPAdapter_GetDeploymentManager(t *testing.T) {
 
 // TestBuildInstanceLabels tests label building logic for GCP instances.
 func TestBuildInstanceLabels(t *testing.T) {
-	adp := &gcp.Adapter{Logger: zap.NewNop()}
+	adp := gcp.NewTestAdapter()
 
 	tests := []struct {
 		name     string
@@ -628,7 +622,7 @@ func TestDetermineResourcePoolID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp := &gcp.Adapter{Logger: zap.NewNop()}
+			adp := gcp.NewTestAdapter()
 			adp.TestSetPoolMode(tt.poolMode)
 			got := adp.TestDetermineResourcePoolID(tt.zone)
 			assert.Equal(t, tt.want, got)
@@ -638,7 +632,7 @@ func TestDetermineResourcePoolID(t *testing.T) {
 
 // TestBuildInstanceExtensions tests GCP instance extensions building.
 func TestBuildInstanceExtensions(t *testing.T) {
-	adp := &gcp.Adapter{Logger: zap.NewNop()}
+	adp := gcp.NewTestAdapter()
 
 	instName := "test-vm"
 	instName2 := "minimal-vm"
@@ -781,10 +775,7 @@ func TestBuildInstanceExtensions(t *testing.T) {
 
 // TestSubscriptions_UpdateAndEdgeCases tests subscription update and additional edge cases.
 func TestSubscriptions_UpdateAndEdgeCases(t *testing.T) {
-	adp := &gcp.Adapter{
-		Logger:        zap.NewNop(),
-		Subscriptions: make(map[string]*adapter.Subscription),
-	}
+	adp := gcp.NewTestAdapter()
 	ctx := context.Background()
 
 	// Create a subscription first
@@ -856,9 +847,7 @@ func TestSubscriptions_UpdateAndEdgeCases(t *testing.T) {
 
 // TestResourcePoolOperations_ZoneMode tests resource pool operations in zone mode (all return errors).
 func TestResourcePoolOperations_ZoneMode(t *testing.T) {
-	adp := &gcp.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adp := gcp.NewTestAdapter()
 	adp.TestSetPoolMode("zone")
 
 	ctx := context.Background()
@@ -894,9 +883,7 @@ func TestResourcePoolOperations_ZoneMode(t *testing.T) {
 
 // TestResourcePoolOperations_IGMode tests resource pool operations in IG mode.
 func TestResourcePoolOperations_IGMode(t *testing.T) {
-	adp := &gcp.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adp := gcp.NewTestAdapter()
 	adp.TestSetPoolMode("ig")
 
 	ctx := context.Background()
@@ -929,9 +916,7 @@ func TestResourcePoolOperations_IGMode(t *testing.T) {
 
 // TestCreateResource_ReturnsError tests that CreateResource always returns error.
 func TestCreateResource_ReturnsError(t *testing.T) {
-	adp := &gcp.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adp := gcp.NewTestAdapter()
 
 	ctx := context.Background()
 	result, err := adp.CreateResource(ctx, &adapter.Resource{
@@ -945,9 +930,7 @@ func TestCreateResource_ReturnsError(t *testing.T) {
 
 // TestGetResource_InvalidFormat tests GetResource with invalid ID formats.
 func TestGetResource_InvalidFormat(t *testing.T) {
-	adp := &gcp.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adp := gcp.NewTestAdapter()
 
 	ctx := context.Background()
 
@@ -980,7 +963,7 @@ func TestGetResource_InvalidFormat(t *testing.T) {
 
 // TestExtractZoneAndName_Exported tests the extractZoneAndName function via test helper.
 func TestExtractZoneAndName_Exported(t *testing.T) {
-	adp := &gcp.Adapter{Logger: zap.NewNop()}
+	adp := gcp.NewTestAdapter()
 
 	tests := []struct {
 		name         string

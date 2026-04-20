@@ -35,7 +35,7 @@ func (p *Plugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequ
 	}
 
 	p.logger.Info("Executing ONAP workflow",
-		zap.String("workflowName", workflow.WorkflowName),
+		zap.String("workflow_name", workflow.WorkflowName),
 		zap.Duration("timeout", workflow.Timeout),
 	)
 
@@ -46,7 +46,7 @@ func (p *Plugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequ
 	processInstanceID, err := p.soClient.ExecuteWorkflow(ctx, workflow.WorkflowName, workflow.Parameters)
 	if err != nil {
 		p.logger.Error("Failed to execute ONAP workflow",
-			zap.String("workflowName", workflow.WorkflowName),
+			zap.String("workflow_name", workflow.WorkflowName),
 			zap.Error(err),
 		)
 		return nil, fmt.Errorf("failed to execute workflow: %w", err)
@@ -65,8 +65,8 @@ func (p *Plugin) ExecuteWorkflow(ctx context.Context, workflow *smo.WorkflowRequ
 	}
 
 	p.logger.Info("Successfully started ONAP workflow execution",
-		zap.String("executionId", executionID),
-		zap.String("processInstanceId", processInstanceID),
+		zap.String("execution_id", executionID),
+		zap.String("process_instance_id", processInstanceID),
 	)
 
 	return execution, nil
@@ -91,14 +91,14 @@ func (p *Plugin) GetWorkflowStatus(ctx context.Context, executionID string) (*sm
 	}
 
 	p.logger.Debug("Retrieving ONAP workflow status",
-		zap.String("executionId", executionID),
+		zap.String("execution_id", executionID),
 	)
 
 	// Query SO for orchestration status
 	orchestrationStatus, err := p.soClient.GetOrchestrationStatus(ctx, executionID)
 	if err != nil {
 		p.logger.Error("Failed to get ONAP workflow status",
-			zap.String("executionId", executionID),
+			zap.String("execution_id", executionID),
 			zap.Error(err),
 		)
 		return nil, fmt.Errorf("failed to get workflow status: %w", err)
@@ -133,7 +133,7 @@ func (p *Plugin) GetWorkflowStatus(ctx context.Context, executionID string) (*sm
 	}
 
 	p.logger.Debug("Retrieved ONAP workflow status",
-		zap.String("executionId", executionID),
+		zap.String("execution_id", executionID),
 		zap.String("status", status.Status),
 		zap.Int("progress", status.Progress),
 	)
@@ -160,19 +160,19 @@ func (p *Plugin) CancelWorkflow(ctx context.Context, executionID string) error {
 	}
 
 	p.logger.Info("Canceling ONAP workflow",
-		zap.String("executionId", executionID),
+		zap.String("execution_id", executionID),
 	)
 
 	if err := p.soClient.CancelOrchestration(ctx, executionID); err != nil {
 		p.logger.Error("Failed to cancel ONAP workflow",
-			zap.String("executionId", executionID),
+			zap.String("execution_id", executionID),
 			zap.Error(err),
 		)
 		return fmt.Errorf("failed to cancel workflow: %w", err)
 	}
 
 	p.logger.Info("Successfully canceled ONAP workflow",
-		zap.String("executionId", executionID),
+		zap.String("execution_id", executionID),
 	)
 
 	return nil
@@ -197,8 +197,8 @@ func (p *Plugin) RegisterServiceModel(ctx context.Context, model *smo.ServiceMod
 	}
 
 	p.logger.Info("Registering service model with ONAP",
-		zap.String("modelId", model.ID),
-		zap.String("modelName", model.Name),
+		zap.String("model_id", model.ID),
+		zap.String("model_name", model.Name),
 		zap.String("version", model.Version),
 	)
 
@@ -216,14 +216,14 @@ func (p *Plugin) RegisterServiceModel(ctx context.Context, model *smo.ServiceMod
 
 	if err := p.soClient.RegisterServiceModel(ctx, onapModel); err != nil {
 		p.logger.Error("Failed to register service model with ONAP",
-			zap.String("modelId", model.ID),
+			zap.String("model_id", model.ID),
 			zap.Error(err),
 		)
 		return fmt.Errorf("failed to register service model: %w", err)
 	}
 
 	p.logger.Info("Successfully registered service model with ONAP",
-		zap.String("modelId", model.ID),
+		zap.String("model_id", model.ID),
 	)
 
 	return nil
@@ -247,13 +247,13 @@ func (p *Plugin) GetServiceModel(ctx context.Context, id string) (*smo.ServiceMo
 	}
 
 	p.logger.Debug("Retrieving service model from ONAP",
-		zap.String("modelId", id),
+		zap.String("model_id", id),
 	)
 
 	onapModel, err := p.soClient.GetServiceModel(ctx, id)
 	if err != nil {
 		p.logger.Error("Failed to retrieve service model from ONAP",
-			zap.String("modelId", id),
+			zap.String("model_id", id),
 			zap.Error(err),
 		)
 		return nil, fmt.Errorf("failed to get service model: %w", err)
@@ -273,7 +273,7 @@ func (p *Plugin) GetServiceModel(ctx context.Context, id string) (*smo.ServiceMo
 	}
 
 	p.logger.Debug("Retrieved service model from ONAP",
-		zap.String("modelId", id),
+		zap.String("model_id", id),
 	)
 
 	return model, nil
@@ -337,8 +337,8 @@ func (p *Plugin) ApplyPolicy(_ context.Context, policy *smo.Policy) error {
 	}
 
 	p.logger.Info("Applying policy through ONAP Policy Framework",
-		zap.String("policyId", policy.PolicyID),
-		zap.String("policyType", policy.PolicyType),
+		zap.String("policy_id", policy.PolicyID),
+		zap.String("policy_type", policy.PolicyType),
 	)
 
 	// Note: ONAP Policy Framework integration would be implemented here
@@ -349,7 +349,7 @@ func (p *Plugin) ApplyPolicy(_ context.Context, policy *smo.Policy) error {
 	// Example fields would be: PolicyID, PolicyName, PolicyType, Scope, Rules, Enabled
 
 	p.logger.Info("Successfully applied policy through ONAP",
-		zap.String("policyId", policy.PolicyID),
+		zap.String("policy_id", policy.PolicyID),
 	)
 
 	return nil
@@ -365,7 +365,7 @@ func (p *Plugin) GetPolicyStatus(_ context.Context, policyID string) (*smo.Polic
 	}
 
 	p.logger.Debug("Retrieving policy status from ONAP",
-		zap.String("policyId", policyID),
+		zap.String("policy_id", policyID),
 	)
 
 	// Note: ONAP Policy Framework integration would be implemented here
@@ -385,7 +385,7 @@ func (p *Plugin) GetPolicyStatus(_ context.Context, policyID string) (*smo.Polic
 	}
 
 	p.logger.Debug("Retrieved policy status from ONAP",
-		zap.String("policyId", policyID),
+		zap.String("policy_id", policyID),
 		zap.String("status", status.Status),
 	)
 

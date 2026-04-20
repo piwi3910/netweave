@@ -125,7 +125,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 		subscriptionID = subID
 
 		fw.Logger.Info("Successfully created subscription",
-			zap.String("subscriptionId", subscriptionID),
+			zap.String("subscription_id", subscriptionID),
 		)
 	})
 
@@ -192,7 +192,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 		assert.Equal(t, fw.WebhookServer.URL(), sub["callback"])
 
 		fw.Logger.Info("Successfully retrieved subscription",
-			zap.String("subscriptionId", subscriptionID),
+			zap.String("subscription_id", subscriptionID),
 		)
 	})
 
@@ -212,7 +212,7 @@ func TestSubscriptionWorkflow(t *testing.T) {
 		assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 
 		fw.Logger.Info("Successfully deleted subscription",
-			zap.String("subscriptionId", subscriptionID),
+			zap.String("subscription_id", subscriptionID),
 		)
 
 		// Verify it's gone
@@ -275,8 +275,8 @@ func TestSubscriptionNotifications(t *testing.T) {
 	if err == nil {
 		assert.Equal(t, resourceTypeNamespace, event.ResourceType)
 		fw.Logger.Info("Received webhook notification",
-			zap.String("eventId", event.ID),
-			zap.String("resourceType", event.ResourceType),
+			zap.String("event_id", event.ID),
+			zap.String("resource_type", event.ResourceType),
 		)
 	}
 }
@@ -311,8 +311,8 @@ func TestSubscriptionFiltering(t *testing.T) {
 	}()
 
 	fw.Logger.Info("Created webhook servers",
-		zap.String("webhook1URL", webhook1.URL()),
-		zap.String("webhook2URL", webhook2.URL()),
+		zap.String("webhook1_url", webhook1.URL()),
+		zap.String("webhook2_url", webhook2.URL()),
 	)
 
 	// Subscription 1: Filter for Node resources
@@ -370,7 +370,7 @@ func TestSubscriptionFiltering(t *testing.T) {
 				t.Logf("Failed to cleanup pod: %v", delErr)
 			}
 		}()
-		fw.Logger.Info("Created test pod", zap.String("podName", pod.Name))
+		fw.Logger.Info("Created test pod", zap.String("pod_name", pod.Name))
 	}
 
 	// Create a Namespace (should trigger webhook2)
@@ -420,8 +420,8 @@ func TestSubscriptionFiltering(t *testing.T) {
 	}
 
 	fw.Logger.Info("Subscription filtering test completed",
-		zap.Int("webhook1Events", len(webhook1Events)),
-		zap.Int("webhook2Events", len(webhook2Events)),
+		zap.Int("webhook1_events", len(webhook1Events)),
+		zap.Int("webhook2_events", len(webhook2Events)),
 	)
 }
 
@@ -465,7 +465,7 @@ func createConcurrentSubscription(
 
 	fw.Logger.Info("Created subscription",
 		zap.Int("index", idx),
-		zap.String("subscriptionId", subID),
+		zap.String("subscription_id", subID),
 	)
 }
 
@@ -617,8 +617,8 @@ func TestSubscriptionInvalidCallback(t *testing.T) {
 				"Expected status %d for invalid callback %q", tt.expectStatus, tt.callback)
 
 			fw.Logger.Info("Invalid callback test passed",
-				zap.String("testCase", tt.name),
-				zap.Int("statusCode", resp.StatusCode),
+				zap.String("test_case", tt.name),
+				zap.Int("status_code", resp.StatusCode),
 			)
 		})
 	}
@@ -716,7 +716,7 @@ func TestWebhookRetryLogic(t *testing.T) {
 
 		fw.Logger.Info("Webhook delivery attempt",
 			zap.Int("attempt", currentAttempt),
-			zap.Int("failUntil", failAttempts),
+			zap.Int("fail_until", failAttempts),
 		)
 
 		if currentAttempt <= failAttempts {
@@ -763,7 +763,7 @@ func TestWebhookRetryLogic(t *testing.T) {
 	subscriptionID := extractSubscriptionID(t, createdSub)
 
 	fw.Logger.Info("Created subscription with failing webhook",
-		zap.String("subscriptionId", subscriptionID),
+		zap.String("subscription_id", subscriptionID),
 		zap.String("callback", failingServer.URL),
 	)
 
@@ -782,8 +782,8 @@ func TestWebhookRetryLogic(t *testing.T) {
 		"Should have retried at least %d times", failAttempts+1)
 
 	fw.Logger.Info("Webhook retry test completed",
-		zap.Int("totalAttempts", finalAttempts),
-		zap.Int("failedAttempts", failAttempts),
+		zap.Int("total_attempts", finalAttempts),
+		zap.Int("failed_attempts", failAttempts),
 	)
 }
 
@@ -834,7 +834,7 @@ func TestResourceLifecycleEvents(t *testing.T) {
 	subscriptionID := extractSubscriptionID(t, createdSub)
 
 	fw.Logger.Info("Created subscription for lifecycle events",
-		zap.String("subscriptionId", subscriptionID),
+		zap.String("subscription_id", subscriptionID),
 	)
 
 	// Event 1 - Create a Kubernetes Namespace
@@ -856,7 +856,7 @@ func TestResourceLifecycleEvents(t *testing.T) {
 	if err == nil {
 		assert.Equal(t, "resource.created", createEvent.Type)
 		assert.Equal(t, subscriptionID, createEvent.SubscriptionID)
-		fw.Logger.Info("Received create event", zap.String("eventId", createEvent.ID))
+		fw.Logger.Info("Received create event", zap.String("event_id", createEvent.ID))
 	} else {
 		t.Logf("Warning: Did not receive create event within timeout: %v", err)
 	}
@@ -872,7 +872,7 @@ func TestResourceLifecycleEvents(t *testing.T) {
 	if err == nil {
 		assert.Equal(t, "resource.updated", updateEvent.Type)
 		assert.Equal(t, subscriptionID, updateEvent.SubscriptionID)
-		fw.Logger.Info("Received update event", zap.String("eventId", updateEvent.ID))
+		fw.Logger.Info("Received update event", zap.String("event_id", updateEvent.ID))
 	} else {
 		t.Logf("No update event received (this is expected for some adapters)")
 	}
@@ -890,7 +890,7 @@ func TestResourceLifecycleEvents(t *testing.T) {
 	if err == nil {
 		assert.Equal(t, "resource.deleted", deleteEvent.Type)
 		assert.Equal(t, subscriptionID, deleteEvent.SubscriptionID)
-		fw.Logger.Info("Received delete event", zap.String("eventId", deleteEvent.ID))
+		fw.Logger.Info("Received delete event", zap.String("event_id", deleteEvent.ID))
 	} else {
 		t.Logf("Warning: Did not receive delete event within timeout: %v", err)
 	}
@@ -899,7 +899,7 @@ func TestResourceLifecycleEvents(t *testing.T) {
 	allEvents := fw.WebhookServer.GetReceivedEvents()
 	if len(allEvents) > 0 {
 		fw.Logger.Info("Resource lifecycle test completed",
-			zap.Int("eventsReceived", len(allEvents)),
+			zap.Int("events_received", len(allEvents)),
 		)
 		// At minimum, expect create and delete events
 		assert.GreaterOrEqual(t, len(allEvents), 2, "Should receive at least create and delete events")
@@ -1019,7 +1019,7 @@ func TestSubscriptionFilterByResourcePool(t *testing.T) {
 
 	fw.Logger.Info("Created test namespace for pool filtering",
 		zap.String("namespace", ns.Name),
-		zap.String("poolId", poolID),
+		zap.String("pool_id", poolID),
 	)
 
 	// Wait for events to be delivered
@@ -1037,8 +1037,8 @@ func TestSubscriptionFilterByResourcePool(t *testing.T) {
 		fw.Logger.Debug("Webhook1 received event",
 			zap.Int("index", i),
 			zap.String("type", evt.Type),
-			zap.String("resourceType", evt.ResourceType),
-			zap.String("resourceId", evt.ResourceID),
+			zap.String("resource_type", evt.ResourceType),
+			zap.String("resource_id", evt.ResourceID),
 		)
 	}
 
@@ -1047,8 +1047,8 @@ func TestSubscriptionFilterByResourcePool(t *testing.T) {
 	}
 
 	fw.Logger.Info("Resource pool filtering test completed",
-		zap.Int("webhook1Events", len(events1)),
-		zap.Int("webhook2Events", len(events2)),
-		zap.String("filteredPoolId", poolID),
+		zap.Int("webhook1_events", len(events1)),
+		zap.Int("webhook2_events", len(events2)),
+		zap.String("filtered_pool_id", poolID),
 	)
 }

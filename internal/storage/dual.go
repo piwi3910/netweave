@@ -53,7 +53,7 @@ func (d *DualStore) Create(ctx context.Context, sub *Subscription) error {
 	}
 	if err := d.secondary.Create(ctx, sub); err != nil {
 		d.logger.Warn("secondary store create failed",
-			zap.String("subscriptionID", sub.ID),
+			zap.String("subscription_id", sub.ID),
 			zap.Error(err),
 		)
 	}
@@ -74,7 +74,7 @@ func (d *DualStore) Update(ctx context.Context, sub *Subscription) error {
 	}
 	if err := d.secondary.Update(ctx, sub); err != nil {
 		d.logger.Warn("secondary store update failed",
-			zap.String("subscriptionID", sub.ID),
+			zap.String("subscription_id", sub.ID),
 			zap.Error(err),
 		)
 	}
@@ -90,7 +90,7 @@ func (d *DualStore) Delete(ctx context.Context, id string) error {
 	}
 	if err := d.secondary.Delete(ctx, id); err != nil {
 		d.logger.Warn("secondary store delete failed",
-			zap.String("subscriptionID", id),
+			zap.String("subscription_id", id),
 			zap.Error(err),
 		)
 	}

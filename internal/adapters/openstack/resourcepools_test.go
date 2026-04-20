@@ -18,10 +18,7 @@ import (
 // TestTransformHostAggregateToResourcePool tests the transformation from
 // OpenStack host aggregate to O2-IMS resource pool.
 func TestTransformHostAggregateToResourcePool(t *testing.T) {
-	adp := &openstack.Adapter{
-		OCloudID: "ocloud-test",
-		Logger:   zap.NewNop(),
-	}
+	adp := openstack.NewTestAdapterForPool(zap.NewNop(), "ocloud-test")
 
 	now := time.Now()
 	osAggregate := &aggregates.Aggregate{
@@ -67,10 +64,7 @@ func TestTransformHostAggregateToResourcePool(t *testing.T) {
 
 // TestTransformHostAggregateToResourcePoolEmpty tests transformation with minimal data.
 func TestTransformHostAggregateToResourcePoolEmpty(t *testing.T) {
-	adp := &openstack.Adapter{
-		OCloudID: "ocloud-test",
-		Logger:   zap.NewNop(),
-	}
+	adp := openstack.NewTestAdapterForPool(zap.NewNop(), "ocloud-test")
 
 	osAggregate := &aggregates.Aggregate{
 		ID:               1,
@@ -147,10 +141,7 @@ func TestResourcePoolIDParsing(t *testing.T) {
 
 // TestListResourcePoolsFilter tests filtering logic for ListResourcePools.
 func TestListResourcePoolsFilter(t *testing.T) {
-	adp := &openstack.Adapter{
-		OCloudID: "ocloud-test",
-		Logger:   zap.NewNop(),
-	}
+	adp := openstack.NewTestAdapterForPool(zap.NewNop(), "ocloud-test")
 
 	// Create test aggregates
 	aggregates := []*aggregates.Aggregate{
@@ -272,9 +263,7 @@ func TestListResourcePoolsPagination(t *testing.T) {
 
 // TestCreateResourcePoolValidation tests validation for CreateResourcePool.
 func TestCreateResourcePoolValidation(t *testing.T) {
-	adp := &openstack.Adapter{
-		Logger: zap.NewNop(),
-	}
+	adp := openstack.NewTestAdapter(zap.NewNop())
 
 	ctx := context.Background()
 
@@ -291,10 +280,7 @@ func TestCreateResourcePoolValidation(t *testing.T) {
 
 // BenchmarkTransformHostAggregateToResourcePool benchmarks the transformation.
 func BenchmarkTransformHostAggregateToResourcePool(b *testing.B) {
-	adp := &openstack.Adapter{
-		OCloudID: "ocloud-test",
-		Logger:   zap.NewNop(),
-	}
+	adp := openstack.NewTestAdapterForPool(zap.NewNop(), "ocloud-test")
 
 	now := time.Now()
 	osAggregate := &aggregates.Aggregate{

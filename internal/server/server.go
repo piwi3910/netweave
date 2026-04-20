@@ -621,7 +621,7 @@ func (s *Server) Start() error {
 doneCheck:
 	if len(startupErrs) > 0 {
 		s.logger.Error("server startup failed, shutting down all listeners",
-			zap.Int("failedCount", len(startupErrs)),
+			zap.Int("failed_count", len(startupErrs)),
 		)
 		if shutdownErr := s.Shutdown(); shutdownErr != nil {
 			s.logger.Error("shutdown after failed startup reported an error",

@@ -81,7 +81,7 @@ func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.Reso
 	pool := a.transformNamespaceToResourcePool(namespace)
 
 	a.logger.Info("retrieved resource pool",
-		zap.String("resourcePoolID", pool.ResourcePoolID),
+		zap.String("resource_pool_id", pool.ResourcePoolID),
 		zap.String("name", pool.Name))
 
 	return pool, nil
@@ -136,7 +136,7 @@ func (a *Adapter) CreateResourcePool(
 	result := a.transformNamespaceToResourcePool(created)
 
 	a.logger.Info("created resource pool",
-		zap.String("resourcePoolID", result.ResourcePoolID),
+		zap.String("resource_pool_id", result.ResourcePoolID),
 		zap.String("name", result.Name))
 
 	return result, nil
@@ -200,7 +200,7 @@ func (a *Adapter) UpdateResourcePool(
 	result := a.transformNamespaceToResourcePool(updated)
 
 	a.logger.Info("updated resource pool",
-		zap.String("resourcePoolID", result.ResourcePoolID),
+		zap.String("resource_pool_id", result.ResourcePoolID),
 		zap.String("name", result.Name))
 
 	return result, nil

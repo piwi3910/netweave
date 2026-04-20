@@ -152,7 +152,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 // Maps an O2-IMS Resource to a DTIAS server provisioning request.
 func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
 	a.logger.Debug("CreateResource called",
-		zap.String("resourceTypeId", resource.ResourceTypeID))
+		zap.String("resource_type_id", resource.ResourceTypeID))
 
 	// Transform O2-IMS resource to DTIAS server provisioning request
 	provisionReq := ServerProvisionRequest{
@@ -209,7 +209,7 @@ func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource
 	a.logger.Info("provisioned resource",
 		zap.String("id", createdResource.ResourceID),
 		zap.String("hostname", server.Hostname),
-		zap.String("serverType", server.Type))
+		zap.String("server_type", server.Type))
 
 	return createdResource, nil
 }
@@ -223,7 +223,7 @@ func (a *Adapter) UpdateResource(
 	resource *adapter.Resource,
 ) (*adapter.Resource, error) {
 	a.logger.Debug("UpdateResource called",
-		zap.String("resourceID", id))
+		zap.String("resource_id", id))
 
 	// Prepare update request with only updatable fields
 	updateReq := ServerUpdateRequest{
@@ -434,7 +434,7 @@ func (a *Adapter) matchesResourceFilter(resource *adapter.Resource, filter *adap
 // This is a DTIAS-specific operation not directly mapped to O2-IMS.
 func (a *Adapter) PowerControl(ctx context.Context, serverID string, operation ServerPowerOperation) error {
 	a.logger.Debug("PowerControl called",
-		zap.String("serverId", serverID),
+		zap.String("server_id", serverID),
 		zap.String("operation", string(operation)))
 
 	// Power control via DTIAS API
@@ -453,7 +453,7 @@ func (a *Adapter) PowerControl(ctx context.Context, serverID string, operation S
 	_ = resp.Body.Close()
 
 	a.logger.Info("executed power control",
-		zap.String("serverId", serverID),
+		zap.String("server_id", serverID),
 		zap.String("operation", string(operation)))
 
 	return nil
@@ -463,7 +463,7 @@ func (a *Adapter) PowerControl(ctx context.Context, serverID string, operation S
 // This is a DTIAS-specific operation for monitoring server health.
 func (a *Adapter) GetHealthMetrics(ctx context.Context, serverID string) (*HealthMetrics, error) {
 	a.logger.Debug("GetHealthMetrics called",
-		zap.String("serverId", serverID))
+		zap.String("server_id", serverID))
 
 	// Query health metrics via DTIAS API
 	// Note: DTIAS v2.4.0 doesn't have a direct health metrics endpoint
@@ -486,9 +486,9 @@ func (a *Adapter) GetHealthMetrics(ctx context.Context, serverID string) (*Healt
 	}
 
 	a.logger.Debug("retrieved health metrics",
-		zap.String("serverId", serverID),
-		zap.Float64("cpuUtilization", metrics.CPUUtilization),
-		zap.Float64("memoryUtilization", metrics.MemoryUtilization))
+		zap.String("server_id", serverID),
+		zap.Float64("cpu_utilization", metrics.CPUUtilization),
+		zap.Float64("memory_utilization", metrics.MemoryUtilization))
 
 	return &metrics, nil
 }

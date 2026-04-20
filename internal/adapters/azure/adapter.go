@@ -45,7 +45,7 @@ type Adapter struct {
 	credential azcore.TokenCredential
 
 	// logger provides structured logging.
-	Logger *zap.Logger
+	logger *zap.Logger
 
 	// oCloudID is the identifier of the parent O-Cloud.
 	oCloudID string
@@ -62,10 +62,10 @@ type Adapter struct {
 	// subscriptions holds active O2-IMS subscriptions (polling-based fallback).
 	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
 	// For production use, consider implementing persistent storage via Redis.
-	Subscriptions map[string]*adapter.Subscription
+	subscriptions map[string]*adapter.Subscription
 
 	// subscriptionsMu protects the subscriptions map.
-	SubscriptionsMu sync.RWMutex
+	subscriptionsMu sync.RWMutex
 
 	// poolMode determines how resource pools are mapped.
 	// "rg" maps to Resource Groups, "az" maps to Availability Zones.
@@ -139,11 +139,11 @@ func New(cfg *Config) (*Adapter, error) {
 	}
 
 	logger.Info("initializing Azure adapter",
-		zap.String("subscriptionID", cfg.SubscriptionID),
+		zap.String("subscription_id", cfg.SubscriptionID),
 		zap.String("location", cfg.Location),
-		zap.String("oCloudID", cfg.OCloudID),
-		zap.String("poolMode", poolMode),
-		zap.Bool("useManagedIdentity", cfg.UseManagedIdentity))
+		zap.String("ocloud_id", cfg.OCloudID),
+		zap.String("pool_mode", poolMode),
+		zap.Bool("use_managed_identity", cfg.UseManagedIdentity))
 
 	// Create Azure credential based on configuration
 	var cred azcore.TokenCredential
@@ -165,8 +165,8 @@ func New(cfg *Config) (*Adapter, error) {
 			return nil, fmt.Errorf("failed to create service principal credential: %w", credErr)
 		}
 		logger.Info("using Azure Service Principal for authentication",
-			zap.String("tenantID", cfg.TenantID),
-			zap.String("clientID", cfg.ClientID))
+			zap.String("tenant_id", cfg.TenantID),
+			zap.String("client_id", cfg.ClientID))
 		cred = clientSecretCred
 	}
 
@@ -180,20 +180,20 @@ func New(cfg *Config) (*Adapter, error) {
 		vmSizeClient:        clients.vmSizeClient,
 		resourceGroupClient: clients.resourceGroupClient,
 		credential:          cred,
-		Logger:              logger,
+		logger:              logger,
 		oCloudID:            cfg.OCloudID,
 		deploymentManagerID: deploymentManagerID,
 		subscriptionID:      cfg.SubscriptionID,
 		location:            cfg.Location,
-		Subscriptions:       make(map[string]*adapter.Subscription),
+		subscriptions:       make(map[string]*adapter.Subscription),
 		poolMode:            poolMode,
 	}
 
 	logger.Info("Azure adapter initialized successfully",
-		zap.String("oCloudID", cfg.OCloudID),
-		zap.String("deploymentManagerID", deploymentManagerID),
+		zap.String("ocloud_id", cfg.OCloudID),
+		zap.String("deployment_manager_id", deploymentManagerID),
 		zap.String("location", cfg.Location),
-		zap.String("poolMode", poolMode))
+		zap.String("pool_mode", poolMode))
 
 	return adp, nil
 }
@@ -333,7 +333,7 @@ func (a *Adapter) Health(ctx context.Context) error {
 	start := time.Now()
 	defer func() { adapter.ObserveHealthCheck("azure", start, err) }()
 
-	a.Logger.Debug("health check called")
+	a.logger.Debug("health check called")
 
 	// Use a timeout to prevent indefinite blocking
 	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -343,11 +343,11 @@ func (a *Adapter) Health(ctx context.Context) error {
 	pager := a.vmSizeClient.NewListPager(a.location, nil)
 	_, err = pager.NextPage(healthCtx)
 	if err != nil {
-		a.Logger.Error("Azure health check failed", zap.Error(err))
+		a.logger.Error("Azure health check failed", zap.Error(err))
 		return fmt.Errorf("azure API unreachable: %w", err)
 	}
 
-	a.Logger.Debug("health check passed")
+	a.logger.Debug("health check passed")
 	return nil
 }
 
@@ -397,16 +397,16 @@ func (a *Adapter) TestSetPoolMode(mode string) {
 
 // Close cleanly shuts down the adapter and releases resources.
 func (a *Adapter) Close() error {
-	a.Logger.Info("closing Azure adapter")
+	a.logger.Info("closing Azure adapter")
 
 	// Clear subscriptions
-	a.SubscriptionsMu.Lock()
-	a.Subscriptions = make(map[string]*adapter.Subscription)
-	a.SubscriptionsMu.Unlock()
+	a.subscriptionsMu.Lock()
+	a.subscriptions = make(map[string]*adapter.Subscription)
+	a.subscriptionsMu.Unlock()
 
 	// Sync logger before shutdown
 	// Sync errors on stderr/stdout are expected and can be ignored
-	if err := a.Logger.Sync(); err != nil {
+	if err := a.logger.Sync(); err != nil {
 		return fmt.Errorf("failed to sync logger: %w", err)
 	}
 	return nil

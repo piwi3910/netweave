@@ -20,10 +20,7 @@ import (
 // newTestVMwareAdapter creates a VMware adapter suitable for unit testing.
 // It uses direct struct construction with a nop logger and empty subscription map.
 func newTestVMwareAdapter() *vmware.Adapter {
-	return &vmware.Adapter{
-		Logger:        zap.NewNop(),
-		Subscriptions: make(map[string]*adapter.Subscription),
-	}
+	return vmware.NewTestAdapter()
 }
 
 // --- Config Validation Tests ---
@@ -822,14 +819,14 @@ func TestVMwareAdapter_Close(t *testing.T) {
 		adp := newTestVMwareAdapter()
 
 		// Add some subscriptions that should be cleared
-		adp.Subscriptions["sub-1"] = &adapter.Subscription{SubscriptionID: "sub-1"}
-		adp.Subscriptions["sub-2"] = &adapter.Subscription{SubscriptionID: "sub-2"}
+		adp.ExportSubscriptions()["sub-1"] = &adapter.Subscription{SubscriptionID: "sub-1"}
+		adp.ExportSubscriptions()["sub-2"] = &adapter.Subscription{SubscriptionID: "sub-2"}
 
 		err := adp.Close()
 		assert.NoError(t, err)
 
 		// Verify subscriptions are cleared
-		assert.Empty(t, adp.Subscriptions)
+		assert.Empty(t, adp.ExportSubscriptions())
 	})
 }
 
@@ -1212,10 +1209,7 @@ func TestExportBuildVMExtensions(t *testing.T) {
 // TestExportDetermineVMResourcePoolID tests pool ID determination.
 func TestExportDetermineVMResourcePoolID(t *testing.T) {
 	t.Run("cluster mode returns cluster pool ID", func(t *testing.T) {
-		adp := &vmware.Adapter{
-			Logger:        zap.NewNop(),
-			Subscriptions: make(map[string]*adapter.Subscription),
-		}
+		adp := vmware.NewTestAdapter()
 		// Set pool mode to cluster via Config defaults
 		// Since poolMode is unexported, use the adapter as-is (defaults to "")
 		// The Export function should handle this
@@ -1229,10 +1223,7 @@ func TestExportDetermineVMResourcePoolID(t *testing.T) {
 	})
 
 	t.Run("with resource pool reference", func(t *testing.T) {
-		adp := &vmware.Adapter{
-			Logger:        zap.NewNop(),
-			Subscriptions: make(map[string]*adapter.Subscription),
-		}
+		adp := vmware.NewTestAdapter()
 
 		rpRef := types.ManagedObjectReference{Value: "resgroup-42"}
 		vm := &mo.VirtualMachine{

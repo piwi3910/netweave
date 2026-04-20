@@ -13,7 +13,7 @@ import (
 // ListResources retrieves all OpenStack Nova instances and transforms them to O2-IMS Resources.
 // Nova instances (VMs) are the fundamental compute resources in OpenStack.
 func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]*adapter.Resource, error) {
-	a.Logger.Debug("ListResources called",
+	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
 	// Build list options with server-side filters
@@ -31,7 +31,7 @@ func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]
 	// Apply pagination
 	resources = a.applyPaginationIfNeeded(resources, filter)
 
-	a.Logger.Info("listed resources",
+	a.logger.Info("listed resources",
 		zap.Int("count", len(resources)))
 
 	return resources, nil
@@ -51,8 +51,8 @@ func (a *Adapter) buildListOptions(ctx context.Context, filter *adapter.Filter) 
 	availabilityZone := a.getAvailabilityZoneFromFilter(ctx, filter)
 	if availabilityZone != "" {
 		listOpts.AvailabilityZone = availabilityZone
-		a.Logger.Debug("filtering servers by availability zone",
-			zap.String("availabilityZone", availabilityZone))
+		a.logger.Debug("filtering servers by availability zone",
+			zap.String("availability_zone", availabilityZone))
 	}
 
 	return listOpts
@@ -69,8 +69,8 @@ func (a *Adapter) getAvailabilityZoneFromFilter(ctx context.Context, filter *ada
 	if filter.ResourcePoolID != "" {
 		pool, err := a.GetResourcePool(ctx, filter.ResourcePoolID)
 		if err != nil {
-			a.Logger.Warn("failed to get resource pool for filtering, will filter in memory",
-				zap.String("resourcePoolID", filter.ResourcePoolID),
+			a.logger.Warn("failed to get resource pool for filtering, will filter in memory",
+				zap.String("resource_pool_id", filter.ResourcePoolID),
 				zap.Error(err))
 			return ""
 		}
@@ -84,19 +84,19 @@ func (a *Adapter) getAvailabilityZoneFromFilter(ctx context.Context, filter *ada
 func (a *Adapter) queryOpenStackServers(listOpts servers.ListOpts) ([]servers.Server, error) {
 	allPages, err := servers.List(a.compute, listOpts).AllPages()
 	if err != nil {
-		a.Logger.Error("failed to list servers",
+		a.logger.Error("failed to list servers",
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to list OpenStack servers: %w", err)
 	}
 
 	osServers, err := servers.ExtractServers(allPages)
 	if err != nil {
-		a.Logger.Error("failed to extract servers",
+		a.logger.Error("failed to extract servers",
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to extract servers: %w", err)
 	}
 
-	a.Logger.Debug("retrieved servers from OpenStack",
+	a.logger.Debug("retrieved servers from OpenStack",
 		zap.Int("count", len(osServers)))
 
 	return osServers, nil
@@ -163,8 +163,8 @@ func (a *Adapter) GetResource(_ context.Context, id string) (*adapter.Resource, 
 
 // CreateResource creates a new OpenStack Nova instance from an O2-IMS Resource.
 func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
-	a.Logger.Debug("CreateResource called",
-		zap.String("resourceTypeID", resource.ResourceTypeID))
+	a.logger.Debug("CreateResource called",
+		zap.String("resource_type_id", resource.ResourceTypeID))
 
 	// Extract and validate required parameters
 	flavorID, imageID, err := a.extractRequiredParams(resource)
@@ -184,9 +184,9 @@ func (a *Adapter) CreateResource(ctx context.Context, resource *adapter.Resource
 	// Transform back to O2-IMS Resource
 	createdResource := a.TransformServerToResource(osServer)
 
-	a.Logger.Info("created resource",
-		zap.String("resourceID", createdResource.ResourceID),
-		zap.String("serverID", osServer.ID),
+	a.logger.Info("created resource",
+		zap.String("resource_id", createdResource.ResourceID),
+		zap.String("server_id", osServer.ID),
 		zap.String("name", osServer.Name))
 
 	return createdResource, nil
@@ -254,8 +254,8 @@ func (a *Adapter) getAvailabilityZone(ctx context.Context, resourcePoolID string
 
 	pool, err := a.GetResourcePool(ctx, resourcePoolID)
 	if err != nil {
-		a.Logger.Warn("failed to get resource pool for availability zone",
-			zap.String("resourcePoolID", resourcePoolID),
+		a.logger.Warn("failed to get resource pool for availability zone",
+			zap.String("resource_pool_id", resourcePoolID),
 			zap.Error(err))
 		return ""
 	}
@@ -289,9 +289,9 @@ func (a *Adapter) addSecurityGroups(opts *servers.CreateOpts, extensions map[str
 func (a *Adapter) createOpenStackServer(createOpts servers.CreateOpts) (*servers.Server, error) {
 	osServer, err := servers.Create(a.compute, createOpts).Extract()
 	if err != nil {
-		a.Logger.Error("failed to create server",
+		a.logger.Error("failed to create server",
 			zap.String("name", createOpts.Name),
-			zap.String("flavorID", createOpts.FlavorRef),
+			zap.String("flavor_id", createOpts.FlavorRef),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to create OpenStack server: %w", err)
 	}
@@ -306,8 +306,8 @@ func (a *Adapter) UpdateResource(
 	id string,
 	resource *adapter.Resource,
 ) (*adapter.Resource, error) {
-	a.Logger.Debug("UpdateResource called",
-		zap.String("resourceID", id))
+	a.logger.Debug("UpdateResource called",
+		zap.String("resource_id", id))
 
 	// Extract server ID from resource ID
 	serverID, err := extractServerID(id)
@@ -324,15 +324,15 @@ func (a *Adapter) UpdateResource(
 
 		_, updateErr := servers.UpdateMetadata(a.compute, serverID, updateOpts).Extract()
 		if updateErr != nil {
-			a.Logger.Error("failed to update server metadata",
-				zap.String("serverID", serverID),
+			a.logger.Error("failed to update server metadata",
+				zap.String("server_id", serverID),
 				zap.Error(updateErr))
 			return nil, fmt.Errorf("failed to update server metadata: %w", updateErr)
 		}
 
-		a.Logger.Info("updated server metadata",
-			zap.String("serverID", serverID),
-			zap.Int("metadataCount", len(metadata)))
+		a.logger.Info("updated server metadata",
+			zap.String("server_id", serverID),
+			zap.Int("metadata_count", len(metadata)))
 	}
 
 	// Fetch and return the updated resource
@@ -381,7 +381,7 @@ func buildServerMetadata(resource *adapter.Resource) map[string]string {
 
 // DeleteResource deletes an OpenStack Nova instance.
 func (a *Adapter) DeleteResource(_ context.Context, id string) error {
-	a.Logger.Debug("DeleteResource called",
+	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
 	// Parse resource ID to extract OpenStack server ID
@@ -394,15 +394,15 @@ func (a *Adapter) DeleteResource(_ context.Context, id string) error {
 	// Delete server from OpenStack
 	err = servers.Delete(a.compute, serverID).ExtractErr()
 	if err != nil {
-		a.Logger.Error("failed to delete server",
-			zap.String("serverID", serverID),
+		a.logger.Error("failed to delete server",
+			zap.String("server_id", serverID),
 			zap.Error(err))
 		return fmt.Errorf("failed to delete OpenStack server %s: %w", serverID, err)
 	}
 
-	a.Logger.Info("deleted resource",
-		zap.String("resourceID", id),
-		zap.String("serverID", serverID))
+	a.logger.Info("deleted resource",
+		zap.String("resource_id", id),
+		zap.String("server_id", serverID))
 
 	return nil
 }
@@ -462,7 +462,7 @@ func (a *Adapter) TransformServerToResource(server *servers.Server) *adapter.Res
 		TenantID:       tenantID,
 		ResourceTypeID: resourceTypeID,
 		ResourcePoolID: resourcePoolID,
-		GlobalAssetID:  fmt.Sprintf("urn:openstack:server:%s:%s", a.Region, server.ID),
+		GlobalAssetID:  fmt.Sprintf("urn:openstack:server:%s:%s", a.region, server.ID),
 		Description:    description,
 		Extensions:     extensions,
 	}

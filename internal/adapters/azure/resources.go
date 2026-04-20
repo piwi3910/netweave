@@ -25,7 +25,7 @@ func (a *Adapter) ListResources(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "ListResources", start, err) }()
 
-	a.Logger.Debug("ListResources called",
+	a.logger.Debug("ListResources called",
 		zap.Any("filter", filter))
 
 	// List all VMs in the subscription
@@ -71,7 +71,7 @@ func (a *Adapter) ListResources(
 		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
-	a.Logger.Info("listed resources",
+	a.logger.Info("listed resources",
 		zap.Int("count", len(resources)))
 
 	return resources, nil
@@ -86,7 +86,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "GetResource", start, err) }()
 
-	a.Logger.Debug("GetResource called",
+	a.logger.Debug("GetResource called",
 		zap.String("id", id))
 
 	// Parse resource group and VM name from the ID
@@ -111,8 +111,8 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 
 	resource = a.vmToResource(&vm.VirtualMachine)
 
-	a.Logger.Info("retrieved resource",
-		zap.String("resourceId", resource.ResourceID))
+	a.logger.Info("retrieved resource",
+		zap.String("resource_id", resource.ResourceID))
 
 	return resource, nil
 }
@@ -123,8 +123,8 @@ func (a *Adapter) CreateResource(_ context.Context, resource *adapter.Resource) 
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "CreateResource", start, err) }()
 
-	a.Logger.Debug("CreateResource called",
-		zap.String("resourceTypeId", resource.ResourceTypeID))
+	a.logger.Debug("CreateResource called",
+		zap.String("resource_type_id", resource.ResourceTypeID))
 
 	// Creating Azure VMs requires extensive configuration not available in the O2-IMS model
 	return nil, fmt.Errorf(
@@ -145,8 +145,8 @@ func (a *Adapter) UpdateResource(
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "UpdateResource", start, err) }()
 
-	a.Logger.Debug("UpdateResource called",
-		zap.String("resourceID", id))
+	a.logger.Debug("UpdateResource called",
+		zap.String("resource_id", id))
 
 	// Extract resource group and VM name from ID
 	resourceGroup, vmName, err := parseAzureResourceID(id)
@@ -174,10 +174,10 @@ func (a *Adapter) UpdateResource(
 			return nil, fmt.Errorf("failed to update VM tags: %w", err)
 		}
 
-		a.Logger.Info("updated VM tags",
-			zap.String("resourceGroup", resourceGroup),
-			zap.String("vmName", vmName),
-			zap.Int("tagCount", len(tags)))
+		a.logger.Info("updated VM tags",
+			zap.String("resource_group", resourceGroup),
+			zap.String("vm_name", vmName),
+			zap.Int("tag_count", len(tags)))
 	}
 
 	// Fetch and return the updated resource
@@ -241,7 +241,7 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 	start := time.Now()
 	defer func() { adapter.ObserveOperation("azure", "DeleteResource", start, err) }()
 
-	a.Logger.Debug("DeleteResource called",
+	a.logger.Debug("DeleteResource called",
 		zap.String("id", id))
 
 	// Parse resource group and VM name from the ID
@@ -269,8 +269,8 @@ func (a *Adapter) DeleteResource(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to delete VM: %w", err)
 	}
 
-	a.Logger.Info("deleted resource",
-		zap.String("resourceId", id))
+	a.logger.Info("deleted resource",
+		zap.String("resource_id", id))
 
 	return nil
 }

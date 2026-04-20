@@ -186,14 +186,14 @@ func (p *Plugin) parseAndValidateConfig(config map[string]interface{}) (*Config,
 // logInitialization logs the plugin initialization details.
 func (p *Plugin) logInitialization(cfg *Config) {
 	p.logger.Info("Initializing ONAP plugin",
-		zap.String("aaiUrl", cfg.AAIURL),
-		zap.String("dmaapUrl", cfg.DMaaPURL),
-		zap.String("soUrl", cfg.SOURL),
-		zap.String("sdncUrl", cfg.SDNCURL),
-		zap.Bool("enableInventorySync", cfg.EnableInventorySync),
-		zap.Bool("enableEventPublishing", cfg.EnableEventPublishing),
-		zap.Bool("enableDmsBackend", cfg.EnableDMSBackend),
-		zap.Bool("enableSdnc", cfg.EnableSDNC),
+		zap.String("aai_url", cfg.AAIURL),
+		zap.String("dmaap_url", cfg.DMaaPURL),
+		zap.String("so_url", cfg.SOURL),
+		zap.String("sdnc_url", cfg.SDNCURL),
+		zap.Bool("enable_inventory_sync", cfg.EnableInventorySync),
+		zap.Bool("enable_event_publishing", cfg.EnableEventPublishing),
+		zap.Bool("enable_dms_backend", cfg.EnableDMSBackend),
+		zap.Bool("enable_sdnc", cfg.EnableSDNC),
 	)
 }
 
@@ -354,14 +354,14 @@ func (p *Plugin) checkComponentHealth(
 		p.logger.Warn("ONAP component unhealthy",
 			zap.String("component", name),
 			zap.Error(err),
-			zap.Duration("responseTime", responseTime),
+			zap.Duration("response_time", responseTime),
 		)
 	} else {
 		health.Healthy = true
 		health.Message = "healthy"
 		p.logger.Debug("ONAP component healthy",
 			zap.String("component", name),
-			zap.Duration("responseTime", responseTime),
+			zap.Duration("response_time", responseTime),
 		)
 	}
 

@@ -12,7 +12,7 @@ import (
 // GetDeploymentManager retrieves metadata about the GCP deployment manager.
 // It provides information about the GCP project and region.
 func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter.DeploymentManager, error) {
-	a.Logger.Debug("GetDeploymentManager called",
+	a.logger.Debug("GetDeploymentManager called",
 		zap.String("id", id))
 
 	// Accept "default" and "" as aliases for the configured DM ID,
@@ -65,8 +65,8 @@ func (a *Adapter) GetDeploymentManager(ctx context.Context, id string) (*adapter
 		},
 	}
 
-	a.Logger.Info("retrieved deployment manager",
-		zap.String("deploymentManagerID", dm.DeploymentManagerID),
+	a.logger.Info("retrieved deployment manager",
+		zap.String("deployment_manager_id", dm.DeploymentManagerID),
 		zap.String("region", a.region))
 
 	return dm, nil
@@ -87,7 +87,7 @@ func ExtractZoneName(zoneURL string) string {
 // ListDeploymentManagers retrieves all deployment managers.
 // GCP has a single deployment manager per adapter instance.
 func (a *Adapter) ListDeploymentManagers(ctx context.Context, _ *adapter.Filter) ([]*adapter.DeploymentManager, error) {
-	a.Logger.Debug("ListDeploymentManagers called")
+	a.logger.Debug("ListDeploymentManagers called")
 
 	dm, err := a.GetDeploymentManager(ctx, a.deploymentManagerID)
 	if err != nil {
