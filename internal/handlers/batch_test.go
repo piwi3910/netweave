@@ -61,7 +61,7 @@ func (m *mockBatchAdapter) GetResourcePool(_ context.Context, id string) (*adapt
 			return pool, nil
 		}
 	}
-	return nil, errors.New("resource pool not found")
+	return nil, adapter.ErrResourcePoolNotFound
 }
 
 func (m *mockBatchAdapter) CreateResourcePool(
@@ -100,7 +100,7 @@ func (m *mockBatchAdapter) DeleteResourcePool(_ context.Context, id string) erro
 			return nil
 		}
 	}
-	return errors.New("resource pool not found")
+	return adapter.ErrResourcePoolNotFound
 }
 
 func (m *mockBatchAdapter) Name() string {
@@ -136,7 +136,7 @@ func (m *mockBatchAdapter) GetResource(_ context.Context, id string) (*adapter.R
 			return r, nil
 		}
 	}
-	return nil, errors.New("resource not found")
+	return nil, adapter.ErrResourceNotFound
 }
 
 func (m *mockBatchAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
@@ -165,7 +165,7 @@ func (m *mockBatchAdapter) UpdateResource(_ context.Context, id string, resource
 			return resource, nil
 		}
 	}
-	return nil, errors.New("resource not found")
+	return nil, adapter.ErrResourceNotFound
 }
 
 func (m *mockBatchAdapter) DeleteResource(_ context.Context, id string) error {
@@ -180,7 +180,7 @@ func (m *mockBatchAdapter) DeleteResource(_ context.Context, id string) error {
 			return nil
 		}
 	}
-	return errors.New("resource not found")
+	return adapter.ErrResourceNotFound
 }
 
 func (m *mockBatchAdapter) ListResourceTypes(_ context.Context, _ *adapter.Filter) ([]*adapter.ResourceType, error) {

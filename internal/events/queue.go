@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	redis "github.com/redis/go-redis/v9"
@@ -251,7 +252,15 @@ func (q *RedisQueue) Close() error {
 	return nil
 }
 
-// isConsumerGroupExistsError checks if the error is due to consumer group already existing.
+// busyGroupPrefix is the Redis error prefix returned by XGROUP CREATE when
+// the consumer group already exists. Matching on the prefix avoids
+// brittleness against future Redis server message changes.
+const busyGroupPrefix = "BUSYGROUP"
+
+// isConsumerGroupExistsError checks if the error is due to a consumer group
+// that already exists (Redis XGROUP CREATE returns "BUSYGROUP ..." in that
+// case). We match on the prefix rather than exact equality so minor Redis
+// server wording changes do not silently break the check.
 func isConsumerGroupExistsError(err error) bool {
-	return err != nil && err.Error() == "BUSYGROUP Consumer Group name already exists"
+	return err != nil && strings.HasPrefix(err.Error(), busyGroupPrefix)
 }

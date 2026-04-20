@@ -93,7 +93,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 	}
 
 	// Resource type not found
-	return nil, fmt.Errorf("resource type %s not found", id)
+	return nil, fmt.Errorf("%w: %s", adapter.ErrResourceTypeNotFound, id)
 }
 
 // createResourceTypeFromNode creates a ResourceType from a Kubernetes node.

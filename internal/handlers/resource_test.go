@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/adapter"
@@ -60,7 +62,7 @@ func (m *mockResourceAdapter) GetResourcePool(_ context.Context, poolID string) 
 			return pool, nil
 		}
 	}
-	return nil, errors.New("not found")
+	return nil, adapter.ErrResourcePoolNotFound
 }
 
 func (m *mockResourceAdapter) CreateResourcePool(
@@ -99,7 +101,7 @@ func (m *mockResourceAdapter) GetResource(_ context.Context, resourceID string) 
 			return resource, nil
 		}
 	}
-	return nil, errors.New("not found")
+	return nil, adapter.ErrResourceNotFound
 }
 
 func (m *mockResourceAdapter) CreateResource(_ context.Context, resource *adapter.Resource) (*adapter.Resource, error) {
@@ -122,7 +124,7 @@ func (m *mockResourceAdapter) UpdateResource(
 			return resource, nil
 		}
 	}
-	return nil, errors.New("resource not found")
+	return nil, adapter.ErrResourceNotFound
 }
 
 func (m *mockResourceAdapter) DeleteResource(_ context.Context, _ string) error {
@@ -142,7 +144,7 @@ func (m *mockResourceAdapter) GetResourceType(_ context.Context, typeID string) 
 			return rt, nil
 		}
 	}
-	return nil, errors.New("not found")
+	return nil, adapter.ErrResourceTypeNotFound
 }
 
 func (m *mockResourceAdapter) CreateSubscription(
@@ -400,4 +402,48 @@ func TestGetResource_AdapterError(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 	assert.Equal(t, "InternalError", response.Error)
+}
+
+// TestGetResource_SentinelPropagation verifies that the adapter-layer
+// ErrResourceNotFound sentinel (wrapped with fmt.Errorf("%w: ...")) is
+// correctly detected by the handler via errors.Is, not by string matching.
+// This guards against the C9 regression where handlers used
+// strings.Contains(err.Error(), "not found") and would return 500 if the
+// upstream error message changed.
+func TestGetResource_SentinelPropagation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("unwrapped lookalike string does NOT match", func(t *testing.T) {
+		adp := &mockResourceAdapter{
+			// Looks like the old "not found" message but does not wrap the
+			// sentinel. The handler must NOT treat this as a 404.
+			getErr: errors.New("resource not found: something"),
+		}
+		handler := handlers.NewResourceHandler(adp, zap.NewNop())
+		router := gin.New()
+		router.GET("/o2ims/v1/resources/:resourceId", handler.GetResource)
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/o2ims/v1/resources/res-1", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code,
+			"handler must NOT fall back to string matching; string-only error must be 500")
+	})
+
+	t.Run("properly wrapped sentinel returns 404", func(t *testing.T) {
+		adp := &mockResourceAdapter{
+			getErr: fmt.Errorf("%w: res-1", adapter.ErrResourceNotFound),
+		}
+		handler := handlers.NewResourceHandler(adp, zap.NewNop())
+		router := gin.New()
+		router.GET("/o2ims/v1/resources/:resourceId", handler.GetResource)
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/o2ims/v1/resources/res-1", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+
+		var response models.ErrorResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		assert.Equal(t, "NotFound", response.Error)
+		assert.Contains(t, response.Message, "res-1")
+	})
 }

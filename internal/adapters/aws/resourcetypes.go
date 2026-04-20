@@ -86,7 +86,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 	}
 
 	if len(output.InstanceTypes) == 0 {
-		return nil, fmt.Errorf("resource type not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrResourceTypeNotFound, id)
 	}
 
 	resourceType = a.instanceTypeToResourceType(&output.InstanceTypes[0])

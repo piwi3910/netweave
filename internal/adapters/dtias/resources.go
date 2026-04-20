@@ -129,7 +129,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 
 	// Should return exactly one server
 	if len(servers) == 0 {
-		return nil, fmt.Errorf("server not found: %s", id)
+		return nil, fmt.Errorf("%w: server %s", adapter.ErrResourceNotFound, id)
 	}
 	if len(servers) > 1 {
 		a.logger.Warn("multiple servers returned for ID filter",

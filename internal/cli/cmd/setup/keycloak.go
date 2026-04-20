@@ -3,6 +3,7 @@ package setup
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -130,7 +131,7 @@ func runKeycloakSetup(
 			MaxRequestsPerMinute: 1000,
 		},
 	}); err != nil {
-		if !strings.Contains(err.Error(), "already exists") {
+		if !errors.Is(err, auth.ErrTenantExists) {
 			return fmt.Errorf("failed to create default tenant: %w", err)
 		}
 		cmd.Printer.Verbosef("Default tenant already exists, skipping")
@@ -408,7 +409,7 @@ func createAdminUser(ctx context.Context, client *keycloak.Client, store *keyclo
 	}
 
 	if err := store.CreateUser(ctx, adminUser); err != nil {
-		if strings.Contains(err.Error(), "already exists") {
+		if errors.Is(err, auth.ErrUserExists) {
 			cmd.Printer.Verbosef("Admin user already exists, skipping")
 			return nil
 		}

@@ -46,7 +46,7 @@ func (c *Client) CreateRealmRole(ctx context.Context, role *Role) error {
 	}()
 
 	if resp.StatusCode == http.StatusConflict {
-		return fmt.Errorf("role already exists")
+		return ErrRoleExists
 	}
 
 	if resp.StatusCode != http.StatusCreated {
@@ -73,7 +73,7 @@ func (c *Client) GetRealmRole(ctx context.Context, roleName string) (*Role, erro
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("role not found")
+		return nil, ErrRoleNotFound
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -110,7 +110,7 @@ func (c *Client) UpdateRealmRole(ctx context.Context, roleName string, role *Rol
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("role not found")
+		return ErrRoleNotFound
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
@@ -137,7 +137,7 @@ func (c *Client) DeleteRealmRole(ctx context.Context, roleName string) error {
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("role not found")
+		return ErrRoleNotFound
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
@@ -195,7 +195,7 @@ func (c *Client) CreateClientRole(ctx context.Context, clientID string, role *Ro
 	}()
 
 	if resp.StatusCode == http.StatusConflict {
-		return fmt.Errorf("client role already exists")
+		return ErrClientRoleExists
 	}
 
 	if resp.StatusCode != http.StatusCreated {
@@ -225,7 +225,7 @@ func (c *Client) GetClientRole(ctx context.Context, clientID, roleName string) (
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("client role not found")
+		return nil, ErrClientRoleNotFound
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -285,7 +285,7 @@ func (c *Client) GetUserRoleMappings(ctx context.Context, userID string) (*RoleM
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("user not found")
+		return nil, ErrUserNotFound
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -325,7 +325,7 @@ func (c *Client) AddRealmRolesToUser(ctx context.Context, userID string, roles [
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("user not found")
+		return ErrUserNotFound
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
@@ -360,7 +360,7 @@ func (c *Client) RemoveRealmRolesFromUser(ctx context.Context, userID string, ro
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("user not found")
+		return ErrUserNotFound
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
@@ -398,7 +398,7 @@ func (c *Client) AddClientRolesToUser(ctx context.Context, userID, clientID stri
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("user or client not found")
+		return ErrUserNotFound
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
@@ -436,7 +436,7 @@ func (c *Client) RemoveClientRolesFromUser(ctx context.Context, userID, clientID
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("user or client not found")
+		return ErrUserNotFound
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
@@ -481,5 +481,5 @@ func (c *Client) GetClientID(ctx context.Context, clientID string) (string, erro
 		}
 	}
 
-	return "", fmt.Errorf("client not found")
+	return "", ErrClientNotFound
 }

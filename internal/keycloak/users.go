@@ -52,7 +52,7 @@ func (c *Client) CreateUser(ctx context.Context, user *User) (string, error) {
 	}()
 
 	if resp.StatusCode == http.StatusConflict {
-		return "", fmt.Errorf("user already exists")
+		return "", ErrUserExists
 	}
 
 	if resp.StatusCode != http.StatusCreated {
@@ -96,7 +96,7 @@ func (c *Client) GetUser(ctx context.Context, userID string) (*User, error) {
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("user not found")
+		return nil, ErrUserNotFound
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -142,7 +142,7 @@ func (c *Client) GetUserByUsername(ctx context.Context, username string) (*User,
 	}
 
 	if len(users) == 0 {
-		return nil, fmt.Errorf("user not found")
+		return nil, ErrUserNotFound
 	}
 
 	return &users[0], nil
@@ -169,7 +169,7 @@ func (c *Client) UpdateUser(ctx context.Context, user *User) error {
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("user not found")
+		return ErrUserNotFound
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
@@ -196,7 +196,7 @@ func (c *Client) DeleteUser(ctx context.Context, userID string) error {
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("user not found")
+		return ErrUserNotFound
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
@@ -269,7 +269,7 @@ func (c *Client) SetUserPassword(ctx context.Context, userID, password string, t
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("user not found")
+		return ErrUserNotFound
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
@@ -289,12 +289,12 @@ func (c *Client) GetUserAttribute(ctx context.Context, userID, attributeName str
 	}
 
 	if user.Attributes == nil {
-		return "", fmt.Errorf("attribute not found")
+		return "", ErrAttributeNotFound
 	}
 
 	values, ok := user.Attributes[attributeName]
 	if !ok || len(values) == 0 {
-		return "", fmt.Errorf("attribute not found")
+		return "", ErrAttributeNotFound
 	}
 
 	return values[0], nil

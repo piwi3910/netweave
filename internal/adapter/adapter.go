@@ -53,6 +53,10 @@ var (
 	// ErrResourcePoolExists indicates a resource pool with the given ID already exists.
 	ErrResourcePoolExists = errors.New("resource pool already exists")
 
+	// ErrResourcePoolHasActiveResources indicates the resource pool cannot be
+	// deleted because it still contains active resources.
+	ErrResourcePoolHasActiveResources = errors.New("resource pool has active resources")
+
 	// ErrResourceTypeNotFound is returned when a resource type does not exist.
 	ErrResourceTypeNotFound = errors.New("resource type not found")
 

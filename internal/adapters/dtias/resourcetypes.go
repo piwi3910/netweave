@@ -88,7 +88,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 
 	// The response contains an array, get the first (and should be only) item
 	if len(dtiasResp.ResourceTypes) == 0 {
-		return nil, fmt.Errorf("server type not found: %s", id)
+		return nil, fmt.Errorf("%w: server type %s", adapter.ErrResourceTypeNotFound, id)
 	}
 	serverType := dtiasResp.ResourceTypes[0]
 

@@ -764,7 +764,7 @@ func TestClient_AddClientRolesToUser(t *testing.T) {
 			roles:      []Role{{Name: "admin"}},
 			statusCode: http.StatusNotFound,
 			wantErr:    true,
-			errMsg:     "user or client not found",
+			errMsg:     "user not found",
 		},
 		{
 			name:     "empty userID",
@@ -851,7 +851,7 @@ func TestClient_RemoveClientRolesFromUser(t *testing.T) {
 			roles:      []Role{{Name: "admin"}},
 			statusCode: http.StatusNotFound,
 			wantErr:    true,
-			errMsg:     "user or client not found",
+			errMsg:     "user not found",
 		},
 		{
 			name:     "empty userID",

@@ -41,7 +41,7 @@ func (m *mockAdapter) GetResourcePool(ctx context.Context, id string) (*adapter.
 	if m.getResourcePoolFunc != nil {
 		return m.getResourcePoolFunc(ctx, id)
 	}
-	return nil, errors.New("not found")
+	return nil, adapter.ErrResourcePoolNotFound
 }
 
 func (m *mockAdapter) CreateResourcePool(
@@ -63,14 +63,14 @@ func (m *mockAdapter) UpdateResourcePool(
 	if m.updateResourcePoolFunc != nil {
 		return m.updateResourcePoolFunc(ctx, pool)
 	}
-	return nil, errors.New("not found")
+	return nil, adapter.ErrResourcePoolNotFound
 }
 
 func (m *mockAdapter) DeleteResourcePool(ctx context.Context, id string) error {
 	if m.deleteResourcePoolFunc != nil {
 		return m.deleteResourcePoolFunc(ctx, id)
 	}
-	return errors.New("not found")
+	return adapter.ErrResourcePoolNotFound
 }
 
 // errNotImplemented is returned by stub methods that are not used in tests.

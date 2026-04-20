@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -35,21 +36,82 @@ func NewResourceHandler(adp adapter.Adapter, logger *zap.Logger) *ResourceHandle
 	}
 }
 
-// handleGetError handles errors in Get* endpoints with standard error responses.
+// isNotFoundError reports whether err is any of the known "not found" sentinel
+// errors from the adapter layer. It uses errors.Is so that wrapped errors are
+// correctly detected — handlers MUST NOT rely on string matching.
+func isNotFoundError(err error) bool {
+	return errors.Is(err, adapter.ErrResourceNotFound) ||
+		errors.Is(err, adapter.ErrResourcePoolNotFound) ||
+		errors.Is(err, adapter.ErrResourceTypeNotFound) ||
+		errors.Is(err, adapter.ErrSubscriptionNotFound) ||
+		errors.Is(err, adapter.ErrDeploymentManagerNotFound)
+}
+
+// isAlreadyExistsError reports whether err is any of the known "already exists"
+// sentinel errors from the adapter layer.
+func isAlreadyExistsError(err error) bool {
+	return errors.Is(err, adapter.ErrResourceExists) ||
+		errors.Is(err, adapter.ErrResourcePoolExists) ||
+		errors.Is(err, adapter.ErrSubscriptionExists)
+}
+
+// handleGetError handles errors from Get* endpoints with standard error
+// responses. It emits a 404 for not-found sentinels and a 500 for anything
+// else. This is the single centralized helper — all handlers SHOULD use it
+// rather than matching error strings.
 func handleGetError(c *gin.Context, err error, entityType, entityID string) {
-	if strings.Contains(err.Error(), "not found") {
+	if isNotFoundError(err) {
 		c.JSON(http.StatusNotFound, models.ErrorResponse{
 			Error:   "NotFound",
 			Message: entityType + " not found: " + entityID,
 			Code:    http.StatusNotFound,
 		})
-	} else {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "InternalError",
-			Message: "Failed to retrieve " + entityType,
-			Code:    http.StatusInternalServerError,
-		})
+		return
 	}
+
+	c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+		Error:   "InternalError",
+		Message: "Failed to retrieve " + entityType,
+		Code:    http.StatusInternalServerError,
+	})
+}
+
+// handleCreateError handles errors from Create* endpoints. It emits a 409 for
+// already-exists sentinels and a 500 for anything else.
+func handleCreateError(c *gin.Context, err error, entityType string) {
+	if isAlreadyExistsError(err) {
+		c.JSON(http.StatusConflict, models.ErrorResponse{
+			Error:   "Conflict",
+			Message: entityType + " already exists",
+			Code:    http.StatusConflict,
+		})
+		return
+	}
+
+	c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+		Error:   "InternalError",
+		Message: "Failed to create " + entityType,
+		Code:    http.StatusInternalServerError,
+	})
+}
+
+// handleMutationError handles errors from Update* and Delete* endpoints.
+// It emits a 404 for not-found sentinels and a 500 for anything else.
+func handleMutationError(c *gin.Context, err error, action, entityType, entityID string) {
+	if isNotFoundError(err) {
+		c.JSON(http.StatusNotFound, models.ErrorResponse{
+			Error:   "NotFound",
+			Message: entityType + " not found: " + entityID,
+			Code:    http.StatusNotFound,
+		})
+		return
+	}
+
+	c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+		Error:   "InternalError",
+		Message: "Failed to " + action + " " + entityType,
+		Code:    http.StatusInternalServerError,
+	})
 }
 
 // ListResources handles GET /o2ims/v1/resources.

@@ -1708,7 +1708,7 @@ func TestGCPFakeAPI_GetResourceType(t *testing.T) {
 	t.Run("get resource type not found returns error", func(t *testing.T) {
 		_, err := adp.GetResourceType(ctx, "gcp-machine-type-nonexistent-type")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "machine type not found")
+		assert.Contains(t, err.Error(), "resource type not found")
 	})
 }
 

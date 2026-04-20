@@ -166,7 +166,7 @@ func TestGetResourceType(t *testing.T) {
 			resourceID:  "nonexistent",
 			serverTypes: []dtias.ServerType{},
 			expectErr:   true,
-			errContains: "server type not found",
+			errContains: "resource type not found",
 		},
 	}
 
