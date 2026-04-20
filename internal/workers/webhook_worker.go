@@ -339,8 +339,10 @@ func (w *WebhookWorker) HandleMessage(ctx context.Context, _ string, msg redis.X
 			zap.String("subscription", event.SubscriptionID),
 			zap.Error(err))
 
-		// Track failed delivery
-		WebhookDeliveriesTotal.WithLabelValues(event.SubscriptionID, "failed").Inc()
+		// Track failed delivery. The subscription ID is hashed to a bounded
+		// 16-bit bucket before being used as a label value; see #497.
+		bucket := SubscriptionBucket(event.SubscriptionID)
+		WebhookDeliveriesTotal.WithLabelValues(bucket, "failed").Inc()
 
 		// Move to dead letter queue
 		if err := w.MoveToDLQ(ctx, &event, msg.ID); err != nil {
@@ -350,8 +352,9 @@ func (w *WebhookWorker) HandleMessage(ctx context.Context, _ string, msg redis.X
 	} else {
 		// Track successful delivery and latency
 		duration := time.Since(startTime).Seconds()
-		WebhookDeliveriesTotal.WithLabelValues(event.SubscriptionID, "success").Inc()
-		WebhookLatency.WithLabelValues(event.SubscriptionID).Observe(duration)
+		bucket := SubscriptionBucket(event.SubscriptionID)
+		WebhookDeliveriesTotal.WithLabelValues(bucket, "success").Inc()
+		WebhookLatency.WithLabelValues(bucket).Observe(duration)
 	}
 
 	// Acknowledge message
@@ -416,8 +419,9 @@ func (w *WebhookWorker) DeliverWithRetries(ctx context.Context, event *controlle
 				zap.Int("attempt", attempt),
 				zap.Duration("backoff", backoff))
 
-			// Track retry
-			WebhookRetriesTotal.WithLabelValues(event.SubscriptionID, fmt.Sprintf("%d", attempt)).Inc()
+			// Track retry. The subscription ID is hashed to a bounded 16-bit bucket.
+			bucket := SubscriptionBucket(event.SubscriptionID)
+			WebhookRetriesTotal.WithLabelValues(bucket, fmt.Sprintf("%d", attempt)).Inc()
 
 			select {
 			case <-time.After(backoff):
@@ -547,8 +551,8 @@ func (w *WebhookWorker) MoveToDLQ(ctx context.Context, event *controllers.Resour
 		zap.String("subscription", event.SubscriptionID),
 		zap.String("message_id", messageID))
 
-	// Track DLQ event
-	DeadLetterQueueTotal.WithLabelValues(event.SubscriptionID).Inc()
+	// Track DLQ event. The subscription ID is hashed to a bounded 16-bit bucket.
+	DeadLetterQueueTotal.WithLabelValues(SubscriptionBucket(event.SubscriptionID)).Inc()
 
 	return nil
 }

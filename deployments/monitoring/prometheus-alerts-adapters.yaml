@@ -13,7 +13,7 @@ groups:
       - alert: AdapterOperationP95LatencyHigh
         expr: |
           histogram_quantile(0.95,
-            sum(rate(o2ims_adapter_operation_duration_seconds_bucket[5m]))
+            sum(rate(netweave_adapter_operation_duration_seconds_bucket[5m]))
             by (adapter, operation, le)
           ) > 0.1
         for: 5m
@@ -30,7 +30,7 @@ groups:
       - alert: AdapterOperationP99LatencyCritical
         expr: |
           histogram_quantile(0.99,
-            sum(rate(o2ims_adapter_operation_duration_seconds_bucket[5m]))
+            sum(rate(netweave_adapter_operation_duration_seconds_bucket[5m]))
             by (adapter, operation, le)
           ) > 0.5
         for: 5m
@@ -47,9 +47,9 @@ groups:
       - alert: AdapterErrorRateHigh
         expr: |
           (
-            sum(rate(o2ims_adapter_operations_total{status="error"}[5m])) by (adapter, operation)
+            sum(rate(netweave_adapter_operations_total{status="error"}[5m])) by (adapter, operation)
             /
-            sum(rate(o2ims_adapter_operations_total[5m])) by (adapter, operation)
+            sum(rate(netweave_adapter_operations_total[5m])) by (adapter, operation)
           ) * 100 > 5
         for: 5m
         labels:
@@ -65,9 +65,9 @@ groups:
       - alert: AdapterErrorRateCritical
         expr: |
           (
-            sum(rate(o2ims_adapter_operations_total{status="error"}[5m])) by (adapter, operation)
+            sum(rate(netweave_adapter_operations_total{status="error"}[5m])) by (adapter, operation)
             /
-            sum(rate(o2ims_adapter_operations_total[5m])) by (adapter, operation)
+            sum(rate(netweave_adapter_operations_total[5m])) by (adapter, operation)
           ) * 100 > 10
         for: 5m
         labels:
@@ -83,12 +83,12 @@ groups:
       - alert: AdapterCacheHitRatioLow
         expr: |
           (
-            sum(rate(o2ims_adapter_cache_hits_total[5m])) by (adapter, operation)
+            sum(rate(netweave_adapter_cache_hits_total[5m])) by (adapter, operation)
             /
             (
-              sum(rate(o2ims_adapter_cache_hits_total[5m])) by (adapter, operation)
+              sum(rate(netweave_adapter_cache_hits_total[5m])) by (adapter, operation)
               +
-              sum(rate(o2ims_adapter_cache_misses_total[5m])) by (adapter, operation)
+              sum(rate(netweave_adapter_cache_misses_total[5m])) by (adapter, operation)
             )
           ) * 100 < 90
         for: 10m
@@ -105,7 +105,7 @@ groups:
       - alert: AdapterBackendLatencyHigh
         expr: |
           histogram_quantile(0.95,
-            sum(rate(o2ims_adapter_backend_latency_seconds_bucket[5m]))
+            sum(rate(netweave_adapter_backend_latency_seconds_bucket[5m]))
             by (adapter, endpoint, method, le)
           ) > 0.5
         for: 5m
@@ -121,7 +121,7 @@ groups:
       # Alert: Backend API errors
       - alert: AdapterBackendErrorsHigh
         expr: |
-          sum(rate(o2ims_adapter_backend_errors_total[5m])) by (adapter, endpoint, error_type) > 0.1
+          sum(rate(netweave_adapter_backend_errors_total[5m])) by (adapter, endpoint, error_type) > 0.1
         for: 5m
         labels:
           severity: warning
@@ -133,7 +133,7 @@ groups:
 
       # Alert: Adapter health check failing
       - alert: AdapterUnhealthy
-        expr: o2ims_adapter_health_check_status == 0
+        expr: netweave_adapter_health_check_status == 0
         for: 2m
         labels:
           severity: critical
@@ -146,7 +146,7 @@ groups:
       # Alert: No operations in last 5 minutes (adapter might be stuck)
       - alert: AdapterNoOperations
         expr: |
-          sum(rate(o2ims_adapter_operations_total[5m])) by (adapter) == 0
+          sum(rate(netweave_adapter_operations_total[5m])) by (adapter) == 0
         for: 5m
         labels:
           severity: warning
@@ -163,10 +163,10 @@ groups:
       - alert: AdapterResourcePoolCountDrop
         expr: |
           (
-            o2ims_adapter_resource_pools_total
+            netweave_adapter_resource_pools
             -
-            o2ims_adapter_resource_pools_total offset 10m
-          ) / o2ims_adapter_resource_pools_total offset 10m * 100 < -20
+            netweave_adapter_resource_pools offset 10m
+          ) / netweave_adapter_resource_pools offset 10m * 100 < -20
         for: 5m
         labels:
           severity: warning
@@ -180,10 +180,10 @@ groups:
       - alert: AdapterResourceCountDrop
         expr: |
           (
-            sum(o2ims_adapter_resources_total) by (adapter, resource_type)
+            sum(netweave_adapter_resources) by (adapter, resource_type)
             -
-            sum(o2ims_adapter_resources_total offset 10m) by (adapter, resource_type)
-          ) / sum(o2ims_adapter_resources_total offset 10m) by (adapter, resource_type) * 100 < -20
+            sum(netweave_adapter_resources offset 10m) by (adapter, resource_type)
+          ) / sum(netweave_adapter_resources offset 10m) by (adapter, resource_type) * 100 < -20
         for: 5m
         labels:
           severity: warning
@@ -198,7 +198,7 @@ groups:
     rules:
       # Alert: No active subscriptions (might indicate sync issue)
       - alert: AdapterNoActiveSubscriptions
-        expr: o2ims_adapter_subscriptions_active == 0
+        expr: netweave_adapter_subscriptions_active == 0
         for: 10m
         labels:
           severity: info

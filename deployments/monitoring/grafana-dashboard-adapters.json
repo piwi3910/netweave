@@ -2,7 +2,7 @@
   "dashboard": {
     "title": "O2-IMS Adapter Observability",
     "description": "Comprehensive observability dashboard for O2-IMS adapter operations, performance, and health",
-    "tags": ["o2ims", "adapters", "observability"],
+    "tags": ["netweave", "adapters", "observability"],
     "timezone": "browser",
     "editable": true,
     "fiscalYearStartMonth": 0,
@@ -15,7 +15,7 @@
         "title": "Adapter Operation Rate",
         "targets": [
           {
-            "expr": "sum(rate(o2ims_adapter_operations_total[5m])) by (adapter, operation)",
+            "expr": "sum(rate(netweave_adapter_operations_total[5m])) by (adapter, operation)",
             "legendFormat": "{{adapter}}/{{operation}}"
           }
         ],
@@ -32,11 +32,11 @@
         "title": "Adapter Operation Latency (p95, p99)",
         "targets": [
           {
-            "expr": "histogram_quantile(0.95, sum(rate(o2ims_adapter_operation_duration_seconds_bucket[5m])) by (adapter, operation, le))",
+            "expr": "histogram_quantile(0.95, sum(rate(netweave_adapter_operation_duration_seconds_bucket[5m])) by (adapter, operation, le))",
             "legendFormat": "{{adapter}}/{{operation}} p95"
           },
           {
-            "expr": "histogram_quantile(0.99, sum(rate(o2ims_adapter_operation_duration_seconds_bucket[5m])) by (adapter, operation, le))",
+            "expr": "histogram_quantile(0.99, sum(rate(netweave_adapter_operation_duration_seconds_bucket[5m])) by (adapter, operation, le))",
             "legendFormat": "{{adapter}}/{{operation}} p99"
           }
         ],
@@ -73,7 +73,7 @@
         "title": "Adapter Error Rate",
         "targets": [
           {
-            "expr": "sum(rate(o2ims_adapter_operations_total{status=\"error\"}[5m])) by (adapter, operation)",
+            "expr": "sum(rate(netweave_adapter_operations_total{status=\"error\"}[5m])) by (adapter, operation)",
             "legendFormat": "{{adapter}}/{{operation}} errors"
           }
         ],
@@ -96,7 +96,7 @@
         "title": "Adapter Success Rate (%)",
         "targets": [
           {
-            "expr": "sum(rate(o2ims_adapter_operations_total{status=\"success\"}[5m])) by (adapter) / sum(rate(o2ims_adapter_operations_total[5m])) by (adapter) * 100",
+            "expr": "sum(rate(netweave_adapter_operations_total{status=\"success\"}[5m])) by (adapter) / sum(rate(netweave_adapter_operations_total[5m])) by (adapter) * 100",
             "legendFormat": "{{adapter}}"
           }
         ],
@@ -115,7 +115,7 @@
         "title": "Cache Hit Ratio",
         "targets": [
           {
-            "expr": "sum(rate(o2ims_adapter_cache_hits_total[5m])) by (adapter, operation) / (sum(rate(o2ims_adapter_cache_hits_total[5m])) by (adapter, operation) + sum(rate(o2ims_adapter_cache_misses_total[5m])) by (adapter, operation)) * 100",
+            "expr": "sum(rate(netweave_adapter_cache_hits_total[5m])) by (adapter, operation) / (sum(rate(netweave_adapter_cache_hits_total[5m])) by (adapter, operation) + sum(rate(netweave_adapter_cache_misses_total[5m])) by (adapter, operation)) * 100",
             "legendFormat": "{{adapter}}/{{operation}}"
           }
         ],
@@ -151,7 +151,7 @@
         "title": "Active Resources by Adapter",
         "targets": [
           {
-            "expr": "sum(o2ims_adapter_resources_total) by (adapter, resource_type)",
+            "expr": "sum(netweave_adapter_resources) by (adapter, resource_type)",
             "legendFormat": "{{adapter}}/{{resource_type}}"
           }
         ],
@@ -180,7 +180,7 @@
         "title": "Backend API Latency by Endpoint",
         "targets": [
           {
-            "expr": "histogram_quantile(0.95, sum(rate(o2ims_adapter_backend_latency_seconds_bucket[5m])) by (adapter, endpoint, le))",
+            "expr": "histogram_quantile(0.95, sum(rate(netweave_adapter_backend_latency_seconds_bucket[5m])) by (adapter, endpoint, le))",
             "legendFormat": "{{adapter}}/{{endpoint}} p95"
           }
         ],
@@ -196,7 +196,7 @@
         "title": "Backend API Error Rate",
         "targets": [
           {
-            "expr": "sum(rate(o2ims_adapter_backend_errors_total[5m])) by (adapter, endpoint, error_type)",
+            "expr": "sum(rate(netweave_adapter_backend_errors_total[5m])) by (adapter, endpoint, error_type)",
             "legendFormat": "{{adapter}}/{{endpoint}}: {{error_type}}"
           }
         ],
@@ -212,7 +212,7 @@
         "title": "Health Check Status",
         "targets": [
           {
-            "expr": "o2ims_adapter_health_check_status",
+            "expr": "netweave_adapter_health_check_status",
             "legendFormat": "{{adapter}}"
           }
         ],
@@ -244,7 +244,7 @@
         "title": "Active Subscriptions by Adapter",
         "targets": [
           {
-            "expr": "o2ims_adapter_subscriptions_active",
+            "expr": "netweave_adapter_subscriptions_active",
             "legendFormat": "{{adapter}}"
           }
         ],
@@ -261,7 +261,7 @@
         "title": "Adapter Operation Statistics (5m)",
         "targets": [
           {
-            "expr": "topk(20, sum(rate(o2ims_adapter_operations_total[5m])) by (adapter, operation, status))",
+            "expr": "topk(20, sum(rate(netweave_adapter_operations_total[5m])) by (adapter, operation, status))",
             "format": "table",
             "instant": true
           }

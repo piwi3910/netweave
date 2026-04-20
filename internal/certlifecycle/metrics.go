@@ -9,7 +9,7 @@ var (
 	// IssuancesTotal tracks total certificate issuances.
 	IssuancesTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "certificates",
 			Name:      "issuances_total",
 			Help:      "Total number of certificate issuances",
@@ -20,7 +20,7 @@ var (
 	// RevocationsTotal tracks total certificate revocations.
 	RevocationsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "certificates",
 			Name:      "revocations_total",
 			Help:      "Total number of certificate revocations",
@@ -31,7 +31,7 @@ var (
 	// RenewalsTotal tracks total certificate renewals by outcome.
 	RenewalsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "certificates",
 			Name:      "renewals_total",
 			Help:      "Total number of certificate renewals",
@@ -42,7 +42,7 @@ var (
 	// ByStatusGauge tracks the current number of certificates per status.
 	ByStatusGauge = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "certificates",
 			Name:      "by_status",
 			Help:      "Current number of certificates by lifecycle status",
@@ -53,7 +53,7 @@ var (
 	// LifetimeSeconds tracks the observed lifetime of certificates.
 	LifetimeSeconds = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "certificates",
 			Name:      "lifetime_seconds",
 			Help:      "Certificate lifetime from issuance to expiry in seconds",
@@ -65,7 +65,7 @@ var (
 	// RenewalAttempts tracks the number of renewal attempts per certificate.
 	RenewalAttempts = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "certificates",
 			Name:      "renewal_attempts",
 			Help:      "Number of renewal attempts per certificate",
@@ -77,7 +77,7 @@ var (
 	// MonitorLoopDuration tracks the duration of each monitor scan loop.
 	MonitorLoopDuration = promauto.NewHistogram(
 		prometheus.HistogramOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "certificates",
 			Name:      "monitor_loop_duration_seconds",
 			Help:      "Duration of each certificate monitor scan loop in seconds",

@@ -27,11 +27,50 @@
 //
 // Initialize metrics once at application startup:
 //
-//	metrics := observability.InitMetrics("o2ims")
+//	metrics := observability.InitMetrics("netweave")
 //
 // Record HTTP request metrics:
 //
 //	metrics.RecordHTTPRequest("GET", "/api/v1/subscriptions", 200, duration, responseSize)
+//
+// # Metric Naming Rule (MANDATORY)
+//
+// All Prometheus metrics emitted by any package in this repository MUST use:
+//
+//	prometheus.CounterOpts{
+//	    Namespace: "netweave",
+//	    Subsystem: "<component>",   // e.g. "auth", "adapter", "webhook", "k8s"
+//	    Name:      "<metric_name>", // lowercase, snake_case, no prefix duplication
+//	    ...
+//	}
+//
+// The resulting exported series name is `netweave_<component>_<metric_name>`.
+//
+// Prohibited:
+//   - Flat names like `Name: "o2ims_webhook_deliveries_total"` without Namespace/Subsystem.
+//   - Unprefixed names like `Name: "api_request_duration_seconds"`.
+//   - Any namespace other than "netweave" in production code.
+//
+// Rationale: a single namespace lets operators query every series with
+// `{__name__=~"netweave_.*"}`, dashboards stay consistent, and naming
+// collisions with third-party exporters are avoided.
+//
+// # Label Cardinality Policy (MANDATORY)
+//
+// Attacker-controlled or high-cardinality values MUST NOT be used as label
+// values. Specifically:
+//
+//   - Subscription IDs → hash to a 16-bit bucket (see events.subscriptionBucket
+//     / workers.SubscriptionBucket / controllers.SubscriptionBucket). Bounded
+//     to 65536 series max per metric.
+//   - Callback URLs → reduce to host portion only (see events.callbackHost).
+//     Path tokens may embed customer identifiers; never expose them via /metrics.
+//   - Tenant IDs → acceptable only where already bounded by authorization
+//     (e.g., small operator-provisioned tenant pool). Avoid for public endpoints.
+//   - Free-form user input (names, URLs, emails) → always reject, hash, or drop.
+//
+// Rationale: Prometheus series are permanent; unbounded label cardinality is
+// both a DoS vector (metrics stack OOM) and a PII leak (public /metrics scrape).
 //
 // Record adapter operations:
 //
@@ -77,7 +116,7 @@
 //	    }
 //	    defer logger.Sync()
 //
-//	    metrics := observability.InitMetrics("o2ims")
+//	    metrics := observability.InitMetrics("netweave")
 //
 //	    healthChecker := observability.NewHealthChecker("v1.0.0")
 //	    healthChecker.RegisterReadinessCheck("redis", observability.RedisHealthCheck(pingRedis))

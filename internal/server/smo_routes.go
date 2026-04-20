@@ -24,7 +24,7 @@ var identifierPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,255}$`)
 var (
 	smoWorkflowExecutions = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "smo",
 			Name:      "workflow_executions_total",
 			Help:      "Total number of workflow execution requests",
@@ -34,7 +34,7 @@ var (
 
 	smoAPIRequestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "smo",
 			Name:      "api_request_duration_seconds",
 			Help:      "Duration of SMO API requests in seconds",
@@ -45,7 +45,7 @@ var (
 
 	smoPluginHealth = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "smo",
 			Name:      "plugin_health",
 			Help:      "Health status of SMO plugins (1=healthy, 0=unhealthy)",
@@ -55,7 +55,7 @@ var (
 
 	smoPluginsRegistered = promauto.NewGauge(
 		prometheus.GaugeOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "smo",
 			Name:      "plugins_registered",
 			Help:      "Number of registered SMO plugins",

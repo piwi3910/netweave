@@ -35,26 +35,26 @@ curl -X POST http://prometheus:9090/-/reload
 ## Metrics Available
 
 ### Adapter Operations
-- `o2ims_adapter_operations_total` - Total operations by adapter/operation/status
-- `o2ims_adapter_operation_duration_seconds` - Operation latency distribution
-- `o2ims_adapter_operation_errors_total` - Error counts by type
+- `netweave_adapter_operations_total` - Total operations by adapter/operation/status
+- `netweave_adapter_operation_duration_seconds` - Operation latency distribution
+- `netweave_adapter_operation_errors_total` - Error counts by type
 
 ### Cache Metrics
-- `o2ims_adapter_cache_hits_total` - Cache hits by adapter/operation
-- `o2ims_adapter_cache_misses_total` - Cache misses by adapter/operation
+- `netweave_adapter_cache_hits_total` - Cache hits by adapter/operation
+- `netweave_adapter_cache_misses_total` - Cache misses by adapter/operation
 
 ### Resource Metrics
-- `o2ims_adapter_resources_total` - Resource counts by adapter/type
-- `o2ims_adapter_resource_pools_total` - Resource pool counts
+- `netweave_adapter_resources` - Resource counts by adapter/type
+- `netweave_adapter_resource_pools` - Resource pool counts
 
 ### Backend API Metrics
-- `o2ims_adapter_backend_requests_total` - Backend API requests
-- `o2ims_adapter_backend_latency_seconds` - Backend API latency
-- `o2ims_adapter_backend_errors_total` - Backend API errors
+- `netweave_adapter_backend_requests_total` - Backend API requests
+- `netweave_adapter_backend_latency_seconds` - Backend API latency
+- `netweave_adapter_backend_errors_total` - Backend API errors
 
 ### Health Metrics
-- `o2ims_adapter_health_check_status` - Health status (1=healthy, 0=unhealthy)
-- `o2ims_adapter_health_check_duration_seconds` - Health check duration
+- `netweave_adapter_health_check_status` - Health status (1=healthy, 0=unhealthy)
+- `netweave_adapter_health_check_duration_seconds` - Health check duration
 
 ## SLO Targets
 
