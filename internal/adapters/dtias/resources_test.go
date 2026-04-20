@@ -464,7 +464,7 @@ func TestGetResource(t *testing.T) {
 			resourceID:  "nonexistent",
 			servers:     []dtias.Server{},
 			expectErr:   true,
-			errContains: "server not found",
+			errContains: "resource not found",
 		},
 	}
 

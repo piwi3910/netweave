@@ -88,7 +88,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 		}
 	}
 
-	return nil, fmt.Errorf("resource type not found: %s", id)
+	return nil, fmt.Errorf("%w: %s", adapter.ErrResourceTypeNotFound, id)
 }
 
 // vmSizeToResourceType converts an Azure VM size to an O2-IMS ResourceType.

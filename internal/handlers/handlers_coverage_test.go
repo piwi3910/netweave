@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -313,7 +314,7 @@ func TestResourcePool_UpdateAdapterNotFoundError(t *testing.T) {
 			return &adapter.ResourcePool{ResourcePoolID: "pool-1"}, nil
 		},
 		updateResourcePoolFunc: func(_ context.Context, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
-			return nil, errors.New("resource pool not found")
+			return nil, adapter.ErrResourcePoolNotFound
 		},
 	}
 	router := setupResourcePoolRouter(t, adp)
@@ -392,7 +393,7 @@ func TestResourcePool_DeleteConflictError(t *testing.T) {
 			return &adapter.ResourcePool{ResourcePoolID: "pool-1"}, nil
 		},
 		deleteResourcePoolFunc: func(_ context.Context, _ string) error {
-			return errors.New("has active resources")
+			return adapter.ErrResourcePoolHasActiveResources
 		},
 	}
 	router := setupResourcePoolRouter(t, adp)
@@ -410,7 +411,7 @@ func TestResourcePool_DeleteAdapterNotFoundError(t *testing.T) {
 			return &adapter.ResourcePool{ResourcePoolID: "pool-1"}, nil
 		},
 		deleteResourcePoolFunc: func(_ context.Context, _ string) error {
-			return errors.New("resource pool not found after check")
+			return adapter.ErrResourcePoolNotFound
 		},
 	}
 	router := setupResourcePoolRouter(t, adp)
@@ -443,7 +444,7 @@ func TestResourcePool_DeleteInternalError(t *testing.T) {
 func TestResourcePool_CreateAlreadyExists(t *testing.T) {
 	adp := &mockAdapter{
 		createResourcePoolFunc: func(_ context.Context, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
-			return nil, errors.New("resource pool already exists")
+			return nil, adapter.ErrResourcePoolExists
 		},
 	}
 	router := setupResourcePoolRouter(t, adp)
@@ -455,6 +456,54 @@ func TestResourcePool_CreateAlreadyExists(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
+// TestResourcePool_CreateWrappedSentinelReturnsConflict verifies that the
+// handler detects adapter.ErrResourcePoolExists via errors.Is even when the
+// adapter wraps the sentinel with additional context. Regression guard for
+// C9: previously the handler used strings.Contains and would silently break
+// if the wrapping changed the message.
+func TestResourcePool_CreateWrappedSentinelReturnsConflict(t *testing.T) {
+	adp := &mockAdapter{
+		createResourcePoolFunc: func(_ context.Context, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+			return nil, fmt.Errorf("%w: pool-xyz in tenant T1", adapter.ErrResourcePoolExists)
+		},
+	}
+	router := setupResourcePoolRouter(t, adp)
+
+	body, _ := json.Marshal(models.ResourcePool{Name: "Test Pool"})
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/o2ims/v1/resourcePools", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var resp models.ErrorResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "Conflict", resp.Error)
+}
+
+// TestResourcePool_CreateLookalikeStringReturns500 proves the handler does
+// NOT fall back to string matching. A plain errors.New("resource pool
+// already exists") looks like the old sentinel-message but does not wrap
+// it, so the handler must return 500 instead of 409.
+func TestResourcePool_CreateLookalikeStringReturns500(t *testing.T) {
+	adp := &mockAdapter{
+		createResourcePoolFunc: func(_ context.Context, _ *adapter.ResourcePool) (*adapter.ResourcePool, error) {
+			return nil, errors.New("resource pool already exists")
+		},
+	}
+	router := setupResourcePoolRouter(t, adp)
+
+	body, _ := json.Marshal(models.ResourcePool{Name: "Test Pool"})
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/o2ims/v1/resourcePools", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code,
+		"handler must NOT match on error strings; only wrapped sentinels count")
 }
 
 func TestResourcePool_CreateInternalError(t *testing.T) {

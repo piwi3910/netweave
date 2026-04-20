@@ -200,7 +200,7 @@ func (a *Adapter) getZonePool(ctx context.Context, id string) (*adapter.Resource
 		}
 	}
 
-	return nil, fmt.Errorf("resource pool not found: %s", id)
+	return nil, fmt.Errorf("%w: %s", adapter.ErrResourcePoolNotFound, id)
 }
 
 // getIGPool retrieves an Instance Group as a resource pool.
@@ -216,7 +216,7 @@ func (a *Adapter) getIGPool(ctx context.Context, id string) (*adapter.ResourcePo
 		}
 	}
 
-	return nil, fmt.Errorf("resource pool not found: %s", id)
+	return nil, fmt.Errorf("%w: %s", adapter.ErrResourcePoolNotFound, id)
 }
 
 // CreateResourcePool creates a new resource pool.

@@ -707,7 +707,7 @@ func (s *Store) CreateUser(ctx context.Context, user *auth.TenantUser) error {
 	// Create user in Keycloak
 	userID, err := s.client.CreateUser(ctx, kcUser)
 	if err != nil {
-		if strings.Contains(err.Error(), "already exists") {
+		if errors.Is(err, ErrUserExists) {
 			return auth.ErrUserExists
 		}
 		return fmt.Errorf("failed to create user in keycloak: %w", err)
@@ -731,7 +731,7 @@ func (s *Store) GetUser(ctx context.Context, id string) (*auth.TenantUser, error
 
 	kcUser, err := s.client.GetUser(ctx, id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, ErrUserNotFound) {
 			return nil, auth.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to get user from keycloak: %w", err)
@@ -831,7 +831,7 @@ func (s *Store) UpdateUser(ctx context.Context, user *auth.TenantUser) error {
 
 	// Update user in Keycloak
 	if err := s.client.UpdateUser(ctx, kcUser); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, ErrUserNotFound) {
 			return auth.ErrUserNotFound
 		}
 		return fmt.Errorf("failed to update user in keycloak: %w", err)
@@ -848,7 +848,7 @@ func (s *Store) DeleteUser(ctx context.Context, id string) error {
 	}
 
 	if err := s.client.DeleteUser(ctx, id); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, ErrUserNotFound) {
 			return auth.ErrUserNotFound
 		}
 		return fmt.Errorf("failed to delete user from keycloak: %w", err)
@@ -922,7 +922,7 @@ func (s *Store) CreateRole(ctx context.Context, role *auth.Role) error {
 
 	// Create role in Keycloak
 	if err := s.client.CreateRealmRole(ctx, kcRole); err != nil {
-		if strings.Contains(err.Error(), "already exists") {
+		if errors.Is(err, ErrRoleExists) {
 			return auth.ErrRoleExists
 		}
 		return fmt.Errorf("failed to create role in keycloak: %w", err)
@@ -972,7 +972,7 @@ func (s *Store) GetRoleByName(ctx context.Context, name auth.RoleName) (*auth.Ro
 
 	kcRole, err := s.client.GetRealmRole(ctx, string(name))
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, ErrRoleNotFound) {
 			return nil, auth.ErrRoleNotFound
 		}
 		return nil, fmt.Errorf("failed to get role from keycloak: %w", err)
@@ -1000,7 +1000,7 @@ func (s *Store) UpdateRole(ctx context.Context, role *auth.Role) error {
 
 	// Update role in Keycloak
 	if err := s.client.UpdateRealmRole(ctx, string(role.Name), kcRole); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, ErrRoleNotFound) {
 			return auth.ErrRoleNotFound
 		}
 		return fmt.Errorf("failed to update role in keycloak: %w", err)
@@ -1024,7 +1024,7 @@ func (s *Store) DeleteRole(ctx context.Context, id string) error {
 
 	// Delete role by name
 	if err := s.client.DeleteRealmRole(ctx, string(role.Name)); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, ErrRoleNotFound) {
 			return auth.ErrRoleNotFound
 		}
 		return fmt.Errorf("failed to delete role from keycloak: %w", err)

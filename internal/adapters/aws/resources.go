@@ -123,7 +123,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 	}
 
 	if len(output.Reservations) == 0 || len(output.Reservations[0].Instances) == 0 {
-		return nil, fmt.Errorf("resource not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrResourceNotFound, id)
 	}
 
 	resource = a.instanceToResource(

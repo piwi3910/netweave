@@ -108,7 +108,7 @@ func (a *Adapter) GetResource(ctx context.Context, id string) (*adapter.Resource
 		}
 	}
 
-	return nil, fmt.Errorf("resource not found: %s", id)
+	return nil, fmt.Errorf("%w: %s", adapter.ErrResourceNotFound, id)
 }
 
 // CreateResource creates a new resource (VM).

@@ -163,7 +163,7 @@ func (a *Adapter) getRGPool(ctx context.Context, id string) (*adapter.ResourcePo
 		}
 	}
 
-	return nil, fmt.Errorf("resource pool not found: %s", id)
+	return nil, fmt.Errorf("%w: %s", adapter.ErrResourcePoolNotFound, id)
 }
 
 // getAZPool retrieves an Availability Zone as a resource pool.
@@ -176,7 +176,7 @@ func (a *Adapter) getAZPool(ctx context.Context, id string) (*adapter.ResourcePo
 		}
 	}
 
-	return nil, fmt.Errorf("resource pool not found: %s", id)
+	return nil, fmt.Errorf("%w: %s", adapter.ErrResourcePoolNotFound, id)
 }
 
 // CreateResourcePool creates a new resource pool.

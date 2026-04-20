@@ -117,7 +117,7 @@ func (m *MockAdapter) GetResourcePool(_ context.Context, id string) (*adapter.Re
 
 	pool, exists := m.resourcePools[id]
 	if !exists {
-		return nil, fmt.Errorf("resource pool not found")
+		return nil, adapter.ErrResourcePoolNotFound
 	}
 
 	return pool, nil
@@ -135,7 +135,7 @@ func (m *MockAdapter) CreateResourcePool(_ context.Context, pool *adapter.Resour
 
 	// Check for duplicate
 	if _, exists := m.resourcePools[pool.ResourcePoolID]; exists {
-		return nil, fmt.Errorf("resource pool already exists")
+		return nil, adapter.ErrResourcePoolExists
 	}
 
 	// Store pool
@@ -155,7 +155,7 @@ func (m *MockAdapter) UpdateResourcePool(
 
 	// Check if exists
 	if _, exists := m.resourcePools[id]; !exists {
-		return nil, fmt.Errorf("resource pool not found")
+		return nil, adapter.ErrResourcePoolNotFound
 	}
 
 	// Preserve ID
@@ -173,7 +173,7 @@ func (m *MockAdapter) DeleteResourcePool(_ context.Context, id string) error {
 	defer m.mu.Unlock()
 
 	if _, exists := m.resourcePools[id]; !exists {
-		return fmt.Errorf("resource pool not found")
+		return adapter.ErrResourcePoolNotFound
 	}
 
 	delete(m.resourcePools, id)
@@ -209,7 +209,7 @@ func (m *MockAdapter) GetResource(_ context.Context, id string) (*adapter.Resour
 
 	resource, exists := m.resources[id]
 	if !exists {
-		return nil, fmt.Errorf("resource not found")
+		return nil, adapter.ErrResourceNotFound
 	}
 
 	return resource, nil
@@ -227,7 +227,7 @@ func (m *MockAdapter) CreateResource(_ context.Context, resource *adapter.Resour
 
 	// Check for duplicate
 	if _, exists := m.resources[resource.ResourceID]; exists {
-		return nil, fmt.Errorf("resource already exists")
+		return nil, adapter.ErrResourceExists
 	}
 
 	// Store resource
@@ -247,7 +247,7 @@ func (m *MockAdapter) UpdateResource(
 
 	// Check if exists
 	if _, exists := m.resources[id]; !exists {
-		return nil, fmt.Errorf("resource not found")
+		return nil, adapter.ErrResourceNotFound
 	}
 
 	// Preserve ID
@@ -265,7 +265,7 @@ func (m *MockAdapter) DeleteResource(_ context.Context, id string) error {
 	defer m.mu.Unlock()
 
 	if _, exists := m.resources[id]; !exists {
-		return fmt.Errorf("resource not found")
+		return adapter.ErrResourceNotFound
 	}
 
 	delete(m.resources, id)
@@ -292,7 +292,7 @@ func (m *MockAdapter) GetResourceType(_ context.Context, id string) (*adapter.Re
 
 	rt, exists := m.resourceTypes[id]
 	if !exists {
-		return nil, fmt.Errorf("resource type not found")
+		return nil, adapter.ErrResourceTypeNotFound
 	}
 
 	return rt, nil
@@ -321,7 +321,7 @@ func (m *MockAdapter) GetSubscription(_ context.Context, id string) (*adapter.Su
 
 	sub, exists := m.subscriptions[id]
 	if !exists {
-		return nil, fmt.Errorf("subscription not found")
+		return nil, adapter.ErrSubscriptionNotFound
 	}
 
 	return sub, nil
@@ -338,7 +338,7 @@ func (m *MockAdapter) UpdateSubscription(
 
 	// Check if exists
 	if _, exists := m.subscriptions[id]; !exists {
-		return nil, fmt.Errorf("subscription not found")
+		return nil, adapter.ErrSubscriptionNotFound
 	}
 
 	// Preserve ID
@@ -356,7 +356,7 @@ func (m *MockAdapter) DeleteSubscription(_ context.Context, id string) error {
 	defer m.mu.Unlock()
 
 	if _, exists := m.subscriptions[id]; !exists {
-		return fmt.Errorf("subscription not found")
+		return adapter.ErrSubscriptionNotFound
 	}
 
 	delete(m.subscriptions, id)

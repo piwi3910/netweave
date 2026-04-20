@@ -164,7 +164,7 @@ func (a *Adapter) GetResourceType(ctx context.Context, id string) (*adapter.Reso
 		MachineType: machineTypeName,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("machine type not found: %w", err)
+		return nil, fmt.Errorf("%w: machine type %s (%v)", adapter.ErrResourceTypeNotFound, machineTypeName, err)
 	}
 
 	return a.machineTypeToResourceType(mt), nil

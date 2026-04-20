@@ -351,7 +351,7 @@ func (a *Adapter) GetResourcePool(_ context.Context, id string) (*adapter.Resour
 
 	pool, ok := a.resourcePools[id]
 	if !ok {
-		return nil, fmt.Errorf("resource pool not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrResourcePoolNotFound, id)
 	}
 
 	return pool, nil
@@ -384,7 +384,7 @@ func (a *Adapter) UpdateResourcePool(
 	defer a.mu.Unlock()
 
 	if _, ok := a.resourcePools[id]; !ok {
-		return nil, fmt.Errorf("resource pool not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrResourcePoolNotFound, id)
 	}
 
 	pool.ResourcePoolID = id
@@ -398,13 +398,13 @@ func (a *Adapter) DeleteResourcePool(_ context.Context, id string) error {
 	defer a.mu.Unlock()
 
 	if _, ok := a.resourcePools[id]; !ok {
-		return fmt.Errorf("resource pool not found: %s", id)
+		return fmt.Errorf("%w: %s", adapter.ErrResourcePoolNotFound, id)
 	}
 
 	// Check for dependent resources
 	for _, resource := range a.resources {
 		if resource.ResourcePoolID == id {
-			return fmt.Errorf("cannot delete pool with existing resources")
+			return fmt.Errorf("%w: pool %s", adapter.ErrResourcePoolHasActiveResources, id)
 		}
 	}
 
@@ -436,7 +436,7 @@ func (a *Adapter) GetResource(_ context.Context, id string) (*adapter.Resource, 
 
 	resource, ok := a.resources[id]
 	if !ok {
-		return nil, fmt.Errorf("resource not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrResourceNotFound, id)
 	}
 
 	return resource, nil
@@ -465,7 +465,7 @@ func (a *Adapter) UpdateResource(_ context.Context, id string, resource *adapter
 	defer a.mu.Unlock()
 
 	if _, ok := a.resources[id]; !ok {
-		return nil, fmt.Errorf("resource not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrResourceNotFound, id)
 	}
 
 	resource.ResourceID = id
@@ -479,7 +479,7 @@ func (a *Adapter) DeleteResource(_ context.Context, id string) error {
 	defer a.mu.Unlock()
 
 	if _, ok := a.resources[id]; !ok {
-		return fmt.Errorf("resource not found: %s", id)
+		return fmt.Errorf("%w: %s", adapter.ErrResourceNotFound, id)
 	}
 
 	delete(a.resources, id)
@@ -508,7 +508,7 @@ func (a *Adapter) GetResourceType(_ context.Context, id string) (*adapter.Resour
 
 	rt, ok := a.resourceTypes[id]
 	if !ok {
-		return nil, fmt.Errorf("resource type not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrResourceTypeNotFound, id)
 	}
 
 	return rt, nil
@@ -536,7 +536,7 @@ func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscr
 
 	sub, ok := a.subscriptions[id]
 	if !ok {
-		return nil, fmt.Errorf("subscription not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
 	return sub, nil
@@ -568,7 +568,7 @@ func (a *Adapter) UpdateSubscription(
 	defer a.mu.Unlock()
 
 	if _, ok := a.subscriptions[id]; !ok {
-		return nil, fmt.Errorf("subscription not found: %s", id)
+		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
 	sub.SubscriptionID = id
@@ -582,7 +582,7 @@ func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
 	defer a.mu.Unlock()
 
 	if _, ok := a.subscriptions[id]; !ok {
-		return fmt.Errorf("subscription not found: %s", id)
+		return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
 	}
 
 	delete(a.subscriptions, id)

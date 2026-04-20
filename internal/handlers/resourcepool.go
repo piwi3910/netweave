@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -380,29 +381,17 @@ func (h *ResourcePoolHandler) CreateResourcePool(c *gin.Context) {
 	// Create resource pool via adapter
 	createdPool, err := h.adapter.CreateResourcePool(ctx, adapterPool)
 	if err != nil {
-		if strings.Contains(err.Error(), "already exists") {
+		if errors.Is(err, adapter.ErrResourcePoolExists) {
 			h.logger.Warn("resource pool already exists",
 				zap.String("name", pool.Name),
 			)
-
-			c.JSON(http.StatusConflict, models.ErrorResponse{
-				Error:   "Conflict",
-				Message: "Resource pool already exists",
-				Code:    http.StatusConflict,
-			})
-			return
+		} else {
+			h.logger.Error("failed to create resource pool",
+				zap.String("name", pool.Name),
+				zap.Error(err),
+			)
 		}
-
-		h.logger.Error("failed to create resource pool",
-			zap.String("name", pool.Name),
-			zap.Error(err),
-		)
-
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "InternalError",
-			Message: "Failed to create resource pool",
-			Code:    http.StatusInternalServerError,
-		})
+		handleCreateError(c, err, "Resource pool")
 		return
 	}
 
@@ -477,29 +466,17 @@ func (h *ResourcePoolHandler) UpdateResourcePool(c *gin.Context) {
 	// First verify tenant ownership
 	existingPool, err := h.adapter.GetResourcePool(ctx, resourcePoolID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
 			h.logger.Warn("resource pool not found",
 				zap.String("resource_pool_id", resourcePoolID),
 			)
-
-			c.JSON(http.StatusNotFound, models.ErrorResponse{
-				Error:   "NotFound",
-				Message: "Resource pool not found: " + resourcePoolID,
-				Code:    http.StatusNotFound,
-			})
-			return
+		} else {
+			h.logger.Error("failed to get resource pool for tenant verification",
+				zap.String("resource_pool_id", resourcePoolID),
+				zap.Error(err),
+			)
 		}
-
-		h.logger.Error("failed to get resource pool for tenant verification",
-			zap.String("resource_pool_id", resourcePoolID),
-			zap.Error(err),
-		)
-
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "InternalError",
-			Message: "Failed to update resource pool",
-			Code:    http.StatusInternalServerError,
-		})
+		handleMutationError(c, err, "update", "Resource pool", resourcePoolID)
 		return
 	}
 
@@ -534,29 +511,17 @@ func (h *ResourcePoolHandler) UpdateResourcePool(c *gin.Context) {
 	// Update resource pool via adapter
 	updatedPool, err := h.adapter.UpdateResourcePool(ctx, resourcePoolID, adapterPool)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
 			h.logger.Warn("resource pool not found",
 				zap.String("resource_pool_id", resourcePoolID),
 			)
-
-			c.JSON(http.StatusNotFound, models.ErrorResponse{
-				Error:   "NotFound",
-				Message: "Resource pool not found: " + resourcePoolID,
-				Code:    http.StatusNotFound,
-			})
-			return
+		} else {
+			h.logger.Error("failed to update resource pool",
+				zap.String("resource_pool_id", resourcePoolID),
+				zap.Error(err),
+			)
 		}
-
-		h.logger.Error("failed to update resource pool",
-			zap.String("resource_pool_id", resourcePoolID),
-			zap.Error(err),
-		)
-
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "InternalError",
-			Message: "Failed to update resource pool",
-			Code:    http.StatusInternalServerError,
-		})
+		handleMutationError(c, err, "update", "Resource pool", resourcePoolID)
 		return
 	}
 
@@ -614,29 +579,17 @@ func (h *ResourcePoolHandler) DeleteResourcePool(c *gin.Context) {
 	// First verify tenant ownership
 	existingPool, err := h.adapter.GetResourcePool(ctx, resourcePoolID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
 			h.logger.Warn("resource pool not found",
 				zap.String("resource_pool_id", resourcePoolID),
 			)
-
-			c.JSON(http.StatusNotFound, models.ErrorResponse{
-				Error:   "NotFound",
-				Message: "Resource pool not found: " + resourcePoolID,
-				Code:    http.StatusNotFound,
-			})
-			return
+		} else {
+			h.logger.Error("failed to get resource pool for tenant verification",
+				zap.String("resource_pool_id", resourcePoolID),
+				zap.Error(err),
+			)
 		}
-
-		h.logger.Error("failed to get resource pool for tenant verification",
-			zap.String("resource_pool_id", resourcePoolID),
-			zap.Error(err),
-		)
-
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "InternalError",
-			Message: "Failed to delete resource pool",
-			Code:    http.StatusInternalServerError,
-		})
+		handleMutationError(c, err, "delete", "Resource pool", resourcePoolID)
 		return
 	}
 
@@ -659,7 +612,7 @@ func (h *ResourcePoolHandler) DeleteResourcePool(c *gin.Context) {
 	// Delete resource pool via adapter
 	err = h.adapter.DeleteResourcePool(ctx, resourcePoolID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
 			h.logger.Warn("resource pool not found",
 				zap.String("resource_pool_id", resourcePoolID),
 			)
@@ -672,7 +625,7 @@ func (h *ResourcePoolHandler) DeleteResourcePool(c *gin.Context) {
 			return
 		}
 
-		if strings.Contains(err.Error(), "has active resources") || strings.Contains(err.Error(), "conflict") {
+		if errors.Is(err, adapter.ErrResourcePoolHasActiveResources) {
 			h.logger.Warn("resource pool has active resources",
 				zap.String("resource_pool_id", resourcePoolID),
 			)
