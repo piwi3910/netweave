@@ -595,7 +595,11 @@ doneCheck:
 		s.logger.Error("server startup failed, shutting down all listeners",
 			zap.Int("failedCount", len(startupErrs)),
 		)
-		s.Shutdown()
+		if shutdownErr := s.Shutdown(); shutdownErr != nil {
+			s.logger.Error("shutdown after failed startup reported an error",
+				zap.Error(shutdownErr),
+			)
+		}
 		return fmt.Errorf("server startup failed: %w", errors.Join(startupErrs...))
 	}
 
