@@ -65,10 +65,10 @@ if err := ctrl.Start(ctx); err != nil {
 
 ## Metrics
 
-- `o2ims_subscription_events_processed_total`: Total events processed
-- `o2ims_subscription_events_queued_total`: Total events queued for delivery
-- `o2ims_active_subscriptions`: Current number of active subscriptions
-- `o2ims_informer_sync_duration_seconds`: Informer cache sync duration
+- `netweave_controller_events_processed_total`: Total events processed
+- `netweave_controller_events_queued_total{subscription_bucket,resource_type}`: Total events queued for delivery
+- `netweave_controller_active_subscriptions`: Current number of active subscriptions
+- `netweave_controller_informer_sync_duration_seconds`: Informer cache sync duration
 
 ## Configuration
 

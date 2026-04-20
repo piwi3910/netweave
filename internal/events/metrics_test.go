@@ -95,26 +95,39 @@ func TestRecordQueueDepth(t *testing.T) {
 }
 
 // TestRecordNotificationDelivered tests the events.RecordNotificationDelivered function.
+// The second label is a bounded 16-bit bucket hash of the subscription ID (see #497);
+// tests assert against hash stability rather than raw IDs.
 func TestRecordNotificationDelivered(t *testing.T) {
 	events.NotificationsDeliveredTotal.Reset()
 
+	sub123Bucket := events.SubscriptionBucketForTest("sub-123")
+	sub456Bucket := events.SubscriptionBucketForTest("sub-456")
+
 	t.Run("records successful delivery", func(t *testing.T) {
 		events.RecordNotificationDelivered("success", "sub-123", 0.5, 1)
-		count := testutil.ToFloat64(events.NotificationsDeliveredTotal.WithLabelValues("success", "sub-123"))
+		count := testutil.ToFloat64(events.NotificationsDeliveredTotal.WithLabelValues("success", sub123Bucket))
 		require.Equal(t, 1.0, count)
 	})
 
 	t.Run("records failed delivery", func(t *testing.T) {
 		events.RecordNotificationDelivered("failed", "sub-123", 1.2, 3)
-		count := testutil.ToFloat64(events.NotificationsDeliveredTotal.WithLabelValues("failed", "sub-123"))
+		count := testutil.ToFloat64(events.NotificationsDeliveredTotal.WithLabelValues("failed", sub123Bucket))
 		require.Equal(t, 1.0, count)
 	})
 
 	t.Run("records multiple deliveries", func(t *testing.T) {
 		events.RecordNotificationDelivered("success", "sub-456", 0.3, 1)
 		events.RecordNotificationDelivered("success", "sub-456", 0.4, 1)
-		count := testutil.ToFloat64(events.NotificationsDeliveredTotal.WithLabelValues("success", "sub-456"))
+		count := testutil.ToFloat64(events.NotificationsDeliveredTotal.WithLabelValues("success", sub456Bucket))
 		require.Equal(t, 2.0, count)
+	})
+
+	t.Run("bucket is deterministic and 16-bit bounded", func(t *testing.T) {
+		// Bucket must be the same for the same input and always 4 hex chars.
+		b1 := events.SubscriptionBucketForTest("sub-stable-id")
+		b2 := events.SubscriptionBucketForTest("sub-stable-id")
+		require.Equal(t, b1, b2)
+		require.Len(t, b1, 4)
 	})
 }
 
@@ -135,34 +148,47 @@ func TestRecordNotificationResponseTime(t *testing.T) {
 }
 
 // TestRecordCircuitBreakerState tests the RecordCircuitBreakerState function.
+// The label is now the host portion of the callback URL (see #497), so URLs
+// sharing a host collapse to a single series while paths (which may embed
+// customer identifiers) are dropped.
 func TestRecordCircuitBreakerState(t *testing.T) {
 	t.Run("records closed state", func(t *testing.T) {
 		events.RecordCircuitBreakerState("http://example.com/callback", 0.0)
-		state := testutil.ToFloat64(events.CircuitBreakerState.WithLabelValues("http://example.com/callback"))
+		state := testutil.ToFloat64(events.CircuitBreakerState.WithLabelValues("example.com"))
 		assert.Equal(t, 0.0, state)
 	})
 
 	t.Run("records half-open state", func(t *testing.T) {
 		events.RecordCircuitBreakerState("http://example.com/callback", 1.0)
-		state := testutil.ToFloat64(events.CircuitBreakerState.WithLabelValues("http://example.com/callback"))
+		state := testutil.ToFloat64(events.CircuitBreakerState.WithLabelValues("example.com"))
 		assert.Equal(t, 1.0, state)
 	})
 
 	t.Run("records open state", func(t *testing.T) {
 		events.RecordCircuitBreakerState("http://example.com/callback", 2.0)
-		state := testutil.ToFloat64(events.CircuitBreakerState.WithLabelValues("http://example.com/callback"))
+		state := testutil.ToFloat64(events.CircuitBreakerState.WithLabelValues("example.com"))
 		assert.Equal(t, 2.0, state)
 	})
 
-	t.Run("tracks multiple callbacks", func(t *testing.T) {
-		events.RecordCircuitBreakerState("http://example.com/callback1", 0.0)
-		events.RecordCircuitBreakerState("http://example.com/callback2", 2.0)
+	t.Run("callbacks with same host collapse to one series", func(t *testing.T) {
+		events.RecordCircuitBreakerState("http://host-a.example.com/callback1", 0.0)
+		events.RecordCircuitBreakerState("http://host-a.example.com/callback2", 2.0)
 
-		state1 := testutil.ToFloat64(events.CircuitBreakerState.WithLabelValues("http://example.com/callback1"))
-		assert.Equal(t, 0.0, state1)
+		// Only one series should exist for host-a.example.com; the second call
+		// overwrites the gauge value set by the first.
+		state := testutil.ToFloat64(events.CircuitBreakerState.WithLabelValues("host-a.example.com"))
+		assert.Equal(t, 2.0, state)
+	})
 
-		state2 := testutil.ToFloat64(events.CircuitBreakerState.WithLabelValues("http://example.com/callback2"))
-		assert.Equal(t, 2.0, state2)
+	t.Run("different hosts produce different series", func(t *testing.T) {
+		events.RecordCircuitBreakerState("http://host-b.example.com/callback", 1.0)
+		events.RecordCircuitBreakerState("http://host-c.example.com/callback", 2.0)
+
+		stateB := testutil.ToFloat64(events.CircuitBreakerState.WithLabelValues("host-b.example.com"))
+		assert.Equal(t, 1.0, stateB)
+
+		stateC := testutil.ToFloat64(events.CircuitBreakerState.WithLabelValues("host-c.example.com"))
+		assert.Equal(t, 2.0, stateC)
 	})
 }
 

@@ -2,6 +2,107 @@
 
 This document tracks breaking changes in the O2-IMS Gateway implementation.
 
+## Unify Prometheus Metric Namespace to `netweave_*` (2026-04-20)
+
+Resolves #490 (H17: metric naming unification) and #497 (I6: bound label cardinality).
+
+### Summary
+
+All Prometheus metrics emitted by the gateway now use the canonical
+`Namespace: "netweave"` with a meaningful `Subsystem` label. Previously the
+codebase emitted metrics under **four different** schemes (`netweave_*`,
+`o2ims_*` via Namespace, flat `o2ims_*` via Name, and unprefixed
+`api_request_duration_seconds`). Operators can now query every series with a
+single `{__name__=~"netweave_.*"}` filter.
+
+In the same change, label cardinality on notification delivery metrics has
+been bounded: raw `subscription_id` values are hashed to a 16-bit bucket, and
+`callback_url` is reduced to its host portion.
+
+### Breaking Change Details
+
+**Metric name renames** (non-exhaustive — every `o2ims_*` series is affected):
+
+| Old series name                                 | New series name                                    |
+| ----------------------------------------------- | -------------------------------------------------- |
+| `o2ims_adapter_operations_total`                | `netweave_adapter_operations_total`                |
+| `o2ims_adapter_operation_duration_seconds`      | `netweave_adapter_operation_duration_seconds`      |
+| `o2ims_adapter_backend_latency_seconds`         | `netweave_adapter_backend_latency_seconds`         |
+| `o2ims_adapter_health_check_status`             | `netweave_adapter_health_check_status`             |
+| `o2ims_events_generated_total`                  | `netweave_events_generated_total`                  |
+| `o2ims_events_queue_depth`                      | `netweave_events_queue_depth`                      |
+| `o2ims_notifications_delivered_total`           | `netweave_notifications_delivered_total`           |
+| `o2ims_notifications_circuit_breaker_state`     | `netweave_notifications_circuit_breaker_state`    |
+| `o2ims_certificates_issuances_total`            | `netweave_certificates_issuances_total`            |
+| `o2ims_webhook_deliveries_total`                | `netweave_webhook_deliveries_total`                |
+| `o2ims_webhook_latency_seconds`                 | `netweave_webhook_latency_seconds`                 |
+| `o2ims_webhook_dlq_total`                       | `netweave_webhook_dlq_total`                       |
+| `o2ims_active_webhook_workers`                  | `netweave_webhook_active_workers`                  |
+| `o2ims_event_stream_length`                     | `netweave_events_stream_length`                    |
+| `o2ims_subscription_events_processed_total`     | `netweave_controller_events_processed_total`       |
+| `o2ims_subscription_events_queued_total`        | `netweave_controller_events_queued_total`          |
+| `o2ims_active_subscriptions`                    | `netweave_controller_active_subscriptions`         |
+| `o2ims_informer_sync_duration_seconds`          | `netweave_controller_informer_sync_duration_seconds` |
+| `o2ims_resource_rate_limit_hits_total`          | `netweave_ratelimit_resource_hits_total`           |
+| `o2ims_resource_rate_limit_fail_open_total`     | `netweave_ratelimit_resource_fail_open_total`      |
+| `o2ims_smo_api_request_duration_seconds`        | `netweave_smo_api_request_duration_seconds`        |
+| `o2ims_smo_workflow_executions_total`           | `netweave_smo_workflow_executions_total`           |
+| `o2ims_http_requests_total`                     | `netweave_http_requests_total`                     |
+| `o2ims_http_request_duration_seconds`           | `netweave_http_request_duration_seconds`           |
+| `o2ims_redis_operations_total`                  | `netweave_redis_operations_total`                  |
+| `o2ims_k8s_operations_total`                    | `netweave_k8s_operations_total`                    |
+| `o2ims_batch_operations_total`                  | `netweave_batch_operations_total`                  |
+
+**Label changes (cardinality bound):**
+
+| Metric                                         | Old label(s)                         | New label(s)                     |
+| ---------------------------------------------- | ------------------------------------ | -------------------------------- |
+| `netweave_notifications_delivered_total`       | `status`, `subscription_id`          | `status`, `subscription_bucket` |
+| `netweave_notifications_delivery_duration_seconds` | `status`, `subscription_id`     | `status`                         |
+| `netweave_notifications_attempts`              | `status`, `subscription_id`          | `status`                         |
+| `netweave_notifications_response_time_seconds` | `subscription_id`, `http_status`     | `http_status`                    |
+| `netweave_notifications_circuit_breaker_state` | `callback_url`                       | `callback_host`                  |
+| `netweave_webhook_deliveries_total`            | `subscription_id`, `status`          | `subscription_bucket`, `status` |
+| `netweave_webhook_latency_seconds`             | `subscription_id`                    | `subscription_bucket`            |
+| `netweave_webhook_retries_total`               | `subscription_id`, `attempt`         | `subscription_bucket`, `attempt`|
+| `netweave_webhook_dlq_total`                   | `subscription_id`                    | `subscription_bucket`            |
+| `netweave_controller_events_queued_total`      | `subscription_id`, `resource_type`   | `subscription_bucket`, `resource_type` |
+
+`subscription_bucket` is a deterministic 4-char lowercase hex value (SHA-256
+of the subscription ID, first 16 bits), bounding cardinality to 65536 series
+max per metric regardless of how many subscriptions exist.
+
+`callback_host` is the host-and-port portion of the callback URL; unparseable
+URLs fall back to a stable 8-char hash prefix (`hash:<xxxxxxxx>`).
+
+### Impact
+
+**Affected consumers:**
+- Prometheus recording rules and alert expressions matching `o2ims_*`.
+- Grafana dashboards with `o2ims_*` queries.
+- Downstream tooling scraping `/metrics` and matching by name or label.
+- Any operator tooling grouping by `subscription_id` or `callback_url`.
+
+### Migration
+
+1. Update PromQL in your recording rules, alerts, and dashboards:
+   `o2ims_` → `netweave_`. The canonical in-repo dashboard
+   (`deployments/monitoring/grafana-dashboard-adapters.json`) and alert rules
+   (`deployments/monitoring/prometheus-alerts-adapters.yaml`) have been
+   updated to the new names.
+2. If you group by `subscription_id` to identify a specific subscription,
+   switch to grouping by `subscription_bucket` (you can still correlate
+   individual subscriptions back to buckets offline via
+   `sha256(id)[:4] & 0xffff`, but the metrics will no longer expose raw IDs
+   for DoS-hardening and privacy reasons — see #497).
+3. If you group by `callback_url`, switch to `callback_host`. Path tokens
+   (which may have embedded tenant or customer identifiers) are no longer
+   exposed.
+
+There is no Prometheus-native rename: the old series names will simply stop
+being emitted after upgrade and new series names will start. Plan a
+maintenance window and update all consumers atomically with the deployment.
+
 ## PR #194: Resource ID Format Change (2026-01-12)
 
 ### Summary

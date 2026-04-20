@@ -145,8 +145,10 @@ type ResourceRateLimitMetrics struct {
 // ResourceRateLimitHits tracks the total number of resource rate limit hits.
 var ResourceRateLimitHits = promauto.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: "o2ims_resource_rate_limit_hits_total",
-		Help: "Total number of resource rate limit hits",
+		Namespace: "netweave",
+		Subsystem: "ratelimit",
+		Name:      "resource_hits_total",
+		Help:      "Total number of resource rate limit hits",
 	},
 	[]string{"resource_type", "operation", "tenant"},
 )
@@ -154,8 +156,10 @@ var ResourceRateLimitHits = promauto.NewCounterVec(
 // ResourceRateLimitFailOpen tracks when rate limiting fails open due to Redis errors.
 var ResourceRateLimitFailOpen = promauto.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: "o2ims_resource_rate_limit_fail_open_total",
-		Help: "Total number of requests allowed due to rate limit check failures (fail-open behavior)",
+		Namespace: "netweave",
+		Subsystem: "ratelimit",
+		Name:      "resource_fail_open_total",
+		Help:      "Total number of requests allowed due to rate limit check failures (fail-open behavior)",
 	},
 	[]string{"resource_type", "operation", "tenant"},
 )

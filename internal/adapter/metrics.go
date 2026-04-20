@@ -54,7 +54,7 @@ var Metrics = struct {
 }{
 	OperationDuration: promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "adapter",
 			Name:      "operation_duration_seconds",
 			Help:      "Duration of adapter operations in seconds",
@@ -65,7 +65,7 @@ var Metrics = struct {
 
 	OperationTotal: promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "adapter",
 			Name:      "operations_total",
 			Help:      "Total number of adapter operations",
@@ -75,7 +75,7 @@ var Metrics = struct {
 
 	OperationErrors: promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "adapter",
 			Name:      "operation_errors_total",
 			Help:      "Total number of adapter operation errors",
@@ -85,7 +85,7 @@ var Metrics = struct {
 
 	HealthCheckDuration: promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "adapter",
 			Name:      "health_check_duration_seconds",
 			Help:      "Duration of adapter health checks in seconds",
@@ -96,7 +96,7 @@ var Metrics = struct {
 
 	HealthCheckStatus: promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "adapter",
 			Name:      "health_check_status",
 			Help:      "Status of adapter health check (1 = healthy, 0 = unhealthy)",
@@ -106,7 +106,7 @@ var Metrics = struct {
 
 	SubscriptionCount: promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "adapter",
 			Name:      "subscriptions_active",
 			Help:      "Number of active subscriptions per adapter",
@@ -116,7 +116,7 @@ var Metrics = struct {
 
 	CacheHits: promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "adapter",
 			Name:      "cache_hits_total",
 			Help:      "Total number of cache hits",
@@ -126,7 +126,7 @@ var Metrics = struct {
 
 	CacheMisses: promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "adapter",
 			Name:      "cache_misses_total",
 			Help:      "Total number of cache misses",
@@ -136,7 +136,7 @@ var Metrics = struct {
 
 	ResourcesTotal: promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "adapter",
 			Name:      "resources",
 			Help:      "Current number of resources managed by adapter",
@@ -146,7 +146,7 @@ var Metrics = struct {
 
 	ResourcePoolsTotal: promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "adapter",
 			Name:      "resource_pools",
 			Help:      "Current number of resource pools per adapter",
@@ -156,7 +156,7 @@ var Metrics = struct {
 
 	BackendRequestsTotal: promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "adapter",
 			Name:      "backend_requests_total",
 			Help:      "Total number of backend API requests",
@@ -166,7 +166,7 @@ var Metrics = struct {
 
 	BackendLatency: promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "adapter",
 			Name:      "backend_latency_seconds",
 			Help:      "Backend API latency in seconds",
@@ -177,7 +177,7 @@ var Metrics = struct {
 
 	BackendErrors: promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "o2ims",
+			Namespace: "netweave",
 			Subsystem: "adapter",
 			Name:      "backend_errors_total",
 			Help:      "Total number of backend API errors",

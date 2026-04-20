@@ -31,37 +31,37 @@ logger.Info("operation completed",
 Comprehensive metrics for monitoring all gateway operations:
 
 #### HTTP Metrics
-- `o2ims_http_requests_total` - Total HTTP requests by method, path, status
-- `o2ims_http_request_duration_seconds` - Request latency histogram
-- `o2ims_http_requests_in_flight` - Current in-flight requests
-- `o2ims_http_response_size_bytes` - Response size distribution
+- `netweave_http_requests_total` - Total HTTP requests by method, path, status
+- `netweave_http_request_duration_seconds` - Request latency histogram
+- `netweave_http_requests_in_flight` - Current in-flight requests
+- `netweave_http_response_size_bytes` - Response size distribution
 
 #### Adapter Metrics
-- `o2ims_adapter_operations_total` - Total adapter operations by type and status
-- `o2ims_adapter_operation_duration_seconds` - Adapter operation latency
-- `o2ims_adapter_errors_total` - Adapter errors by type
+- `netweave_adapter_operations_total` - Total adapter operations by type and status
+- `netweave_adapter_operation_duration_seconds` - Adapter operation latency
+- `netweave_adapter_errors_total` - Adapter errors by type
 
 #### Subscription Metrics
-- `o2ims_subscriptions_total` - Current active subscriptions (gauge)
-- `o2ims_subscription_events_total` - Subscription events generated
-- `o2ims_webhook_delivery_duration_seconds` - Webhook delivery latency
-- `o2ims_webhook_delivery_total` - Webhook delivery attempts
+- `netweave_subscriptions_total` - Current active subscriptions (gauge)
+- `netweave_subscription_events_total` - Subscription events generated
+- `netweave_webhook_delivery_duration_seconds` - Webhook delivery latency
+- `netweave_webhook_delivery_total` - Webhook delivery attempts
 
 #### Redis Metrics
-- `o2ims_redis_operations_total` - Redis operations by command and status
-- `o2ims_redis_operation_duration_seconds` - Redis operation latency
-- `o2ims_redis_connections_active` - Active Redis connections
-- `o2ims_redis_errors_total` - Redis errors by type
+- `netweave_redis_operations_total` - Redis operations by command and status
+- `netweave_redis_operation_duration_seconds` - Redis operation latency
+- `netweave_redis_connections_active` - Active Redis connections
+- `netweave_redis_errors_total` - Redis errors by type
 
 #### Kubernetes Metrics
-- `o2ims_k8s_operations_total` - Kubernetes API operations
-- `o2ims_k8s_operation_duration_seconds` - K8s API latency
-- `o2ims_k8s_resource_cache_size` - Cached resource counts
-- `o2ims_k8s_errors_total` - K8s API errors
+- `netweave_k8s_operations_total` - Kubernetes API operations
+- `netweave_k8s_operation_duration_seconds` - K8s API latency
+- `netweave_k8s_resource_cache_size` - Cached resource counts
+- `netweave_k8s_errors_total` - K8s API errors
 
 **Usage:**
 ```go
-metrics := observability.InitMetrics("o2ims")
+metrics := observability.InitMetrics("netweave")
 
 // Record HTTP request
 metrics.RecordHTTPRequest("GET", "/api/v1/subscriptions", 200, duration, responseSize)
@@ -161,7 +161,7 @@ func main() {
     }
     defer logger.Sync()
 
-    metrics := observability.InitMetrics("o2ims")
+    metrics := observability.InitMetrics("netweave")
 
     healthChecker := observability.NewHealthChecker(version)
     healthChecker.RegisterReadinessCheck("redis", observability.RedisHealthCheck(pingRedis))

@@ -84,11 +84,15 @@ func InitMetricsWithRegistry(namespace string, registerer prometheus.Registerer)
 
 // NewMetrics creates a new Metrics instance with a custom Prometheus registry.
 // This allows tests to create isolated metrics instances without conflicts.
-// The namespace parameter defaults to "o2ims" if empty.
+// The namespace parameter defaults to "netweave" if empty.
 // The registerer parameter should be a prometheus.Registry for tests or prometheus.DefaultRegisterer for production.
+//
+// All metrics constructed here use a meaningful Subsystem so that the final
+// series name is `<namespace>_<subsystem>_<name>` — see
+// internal/observability/doc.go for the project-wide naming rule.
 func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 	if namespace == "" {
-		namespace = "o2ims"
+		namespace = "netweave"
 	}
 
 	factory := promauto.With(registerer)
@@ -98,7 +102,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		HTTPRequestsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
-				Name:      "http_requests_total",
+				Subsystem: "http",
+				Name:      "requests_total",
 				Help:      "Total number of HTTP requests",
 			},
 			[]string{"method", "path", "status"},
@@ -107,7 +112,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		HTTPRequestDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
-				Name:      "http_request_duration_seconds",
+				Subsystem: "http",
+				Name:      "request_duration_seconds",
 				Help:      "HTTP request latency in seconds",
 				Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 			},
@@ -117,7 +123,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		HTTPRequestsInFlight: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
-				Name:      "http_requests_in_flight",
+				Subsystem: "http",
+				Name:      "requests_in_flight",
 				Help:      "Number of HTTP requests currently being processed",
 			},
 		),
@@ -125,7 +132,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		HTTPResponseSizeBytes: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
-				Name:      "http_response_size_bytes",
+				Subsystem: "http",
+				Name:      "response_size_bytes",
 				Help:      "HTTP response size in bytes",
 				Buckets:   prometheus.ExponentialBuckets(100, 10, 8),
 			},
@@ -136,7 +144,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		AdapterOperationsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
-				Name:      "adapter_operations_total",
+				Subsystem: "adapter",
+				Name:      "operations_total",
 				Help:      "Total number of adapter operations",
 			},
 			[]string{"adapter", "operation", "status"},
@@ -145,7 +154,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		AdapterOperationDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
-				Name:      "adapter_operation_duration_seconds",
+				Subsystem: "adapter",
+				Name:      "operation_duration_seconds",
 				Help:      "Adapter operation duration in seconds",
 				Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5},
 			},
@@ -155,7 +165,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		AdapterErrorsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
-				Name:      "adapter_errors_total",
+				Subsystem: "adapter",
+				Name:      "errors_total",
 				Help:      "Total number of adapter errors",
 			},
 			[]string{"adapter", "operation", "error_type"},
@@ -165,7 +176,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		SubscriptionsTotal: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
-				Name:      "subscriptions_total",
+				Subsystem: "subscriptions",
+				Name:      "total",
 				Help:      "Current number of active subscriptions",
 			},
 		),
@@ -173,7 +185,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		SubscriptionEventsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
-				Name:      "subscription_events_total",
+				Subsystem: "subscriptions",
+				Name:      "events_total",
 				Help:      "Total number of subscription events generated",
 			},
 			[]string{"event_type", "resource_type"},
@@ -182,7 +195,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		WebhookDeliveryDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
-				Name:      "webhook_delivery_duration_seconds",
+				Subsystem: "webhook",
+				Name:      "delivery_duration_seconds",
 				Help:      "Webhook delivery latency in seconds",
 				Buckets:   []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 30},
 			},
@@ -192,7 +206,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		WebhookDeliveryTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
-				Name:      "webhook_delivery_total",
+				Subsystem: "webhook",
+				Name:      "delivery_total",
 				Help:      "Total number of webhook delivery attempts",
 			},
 			[]string{"status", "http_status"},
@@ -202,7 +217,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		RedisOperationsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
-				Name:      "redis_operations_total",
+				Subsystem: "redis",
+				Name:      "operations_total",
 				Help:      "Total number of Redis operations",
 			},
 			[]string{"operation", "status"},
@@ -211,7 +227,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		RedisOperationDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
-				Name:      "redis_operation_duration_seconds",
+				Subsystem: "redis",
+				Name:      "operation_duration_seconds",
 				Help:      "Redis operation duration in seconds",
 				Buckets:   []float64{.0001, .0005, .001, .005, .01, .025, .05, .1, .25},
 			},
@@ -221,7 +238,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		RedisConnectionsActive: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
-				Name:      "redis_connections_active",
+				Subsystem: "redis",
+				Name:      "connections_active",
 				Help:      "Number of active Redis connections",
 			},
 		),
@@ -229,7 +247,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		RedisErrorsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
-				Name:      "redis_errors_total",
+				Subsystem: "redis",
+				Name:      "errors_total",
 				Help:      "Total number of Redis errors",
 			},
 			[]string{"operation", "error_type"},
@@ -239,7 +258,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		K8sOperationsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
-				Name:      "k8s_operations_total",
+				Subsystem: "k8s",
+				Name:      "operations_total",
 				Help:      "Total number of Kubernetes API operations",
 			},
 			[]string{"operation", "resource", "status"},
@@ -248,7 +268,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		K8sOperationDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
-				Name:      "k8s_operation_duration_seconds",
+				Subsystem: "k8s",
+				Name:      "operation_duration_seconds",
 				Help:      "Kubernetes API operation duration in seconds",
 				Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5},
 			},
@@ -258,7 +279,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		K8sResourceCacheSize: factory.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
-				Name:      "k8s_resource_cache_size",
+				Subsystem: "k8s",
+				Name:      "resource_cache_size",
 				Help:      "Number of Kubernetes resources cached",
 			},
 			[]string{"resource_type"},
@@ -267,7 +289,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		K8sErrorsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
-				Name:      "k8s_errors_total",
+				Subsystem: "k8s",
+				Name:      "errors_total",
 				Help:      "Total number of Kubernetes API errors",
 			},
 			[]string{"operation", "resource", "error_type"},
@@ -277,7 +300,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		BatchOperationsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
-				Name:      "batch_operations_total",
+				Subsystem: "batch",
+				Name:      "operations_total",
 				Help:      "Total number of batch operations",
 			},
 			[]string{"operation", "atomic", "status"},
@@ -286,7 +310,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		BatchOperationDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
-				Name:      "batch_operation_duration_seconds",
+				Subsystem: "batch",
+				Name:      "operation_duration_seconds",
 				Help:      "Batch operation duration in seconds",
 				Buckets:   []float64{.1, .25, .5, 1, 2.5, 5, 10, 30, 60},
 			},
@@ -296,7 +321,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		BatchItemsProcessed: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
-				Name:      "batch_items_processed_total",
+				Subsystem: "batch",
+				Name:      "items_processed_total",
 				Help:      "Total number of items processed in batch operations",
 			},
 			[]string{"operation", "status"},
@@ -305,7 +331,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		BatchRollbacksTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
-				Name:      "batch_rollbacks_total",
+				Subsystem: "batch",
+				Name:      "rollbacks_total",
 				Help:      "Total number of batch rollbacks",
 			},
 			[]string{"operation", "reason"},
@@ -314,7 +341,8 @@ func NewMetrics(namespace string, registerer prometheus.Registerer) *Metrics {
 		BatchConcurrentWorkers: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
-				Name:      "batch_concurrent_workers",
+				Subsystem: "batch",
+				Name:      "concurrent_workers",
 				Help:      "Number of concurrent workers processing batch items",
 			},
 		),

@@ -30,7 +30,7 @@ func TestInitMetrics(t *testing.T) {
 func TestInitMetricsDefaultNamespace(t *testing.T) {
 	t.Skip("Skipping TestInitMetricsDefaultNamespace - Prometheus registry conflicts with other tests")
 
-	// Note: This demonstrates that empty namespace defaults to "o2ims"
+	// Note: This demonstrates that empty namespace defaults to "netweave"
 	// metrics := observability.InitMetrics("")
 	// require.NotNil(t, metrics)
 	// assert.NotNil(t, metrics.HTTPRequestsTotal)

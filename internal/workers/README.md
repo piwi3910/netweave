@@ -117,12 +117,15 @@ Failed events are stored in Redis Stream `o2ims:dlq` with:
 
 ## Metrics
 
-- `o2ims_webhook_deliveries_total{subscription_id,status}`: Delivery attempts
-- `o2ims_webhook_latency_seconds{subscription_id}`: Delivery latency
-- `o2ims_webhook_retries_total{subscription_id,attempt}`: Retry count
-- `o2ims_webhook_dlq_total{subscription_id}`: DLQ entries
-- `o2ims_event_stream_length`: Event queue length
-- `o2ims_active_webhook_workers`: Active worker count
+- `netweave_webhook_deliveries_total{subscription_bucket,status}`: Delivery attempts
+- `netweave_webhook_latency_seconds{subscription_bucket}`: Delivery latency
+- `netweave_webhook_retries_total{subscription_bucket,attempt}`: Retry count
+- `netweave_webhook_dlq_total{subscription_bucket}`: DLQ entries
+- `netweave_events_stream_length`: Event queue length
+- `netweave_webhook_active_workers`: Active worker count
+
+`subscription_bucket` is a bounded 16-bit hash of the subscription ID (4
+lowercase hex chars). See `internal/observability/doc.go` for the rationale.
 
 ## HMAC Signature Verification
 

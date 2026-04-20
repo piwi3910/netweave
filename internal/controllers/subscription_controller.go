@@ -404,8 +404,8 @@ func (c *SubscriptionController) ProcessNodeEvent(ctx context.Context, node *cor
 					zap.Error(err),
 					zap.String("subscription", sub.ID))
 			} else {
-				// Track queued event
-				EventsQueuedTotal.WithLabelValues(sub.ID, "k8s-node").Inc()
+				// Track queued event. Subscription ID is hashed to a bounded bucket (#497).
+				EventsQueuedTotal.WithLabelValues(SubscriptionBucket(sub.ID), "k8s-node").Inc()
 			}
 		}
 	}
@@ -448,8 +448,8 @@ func (c *SubscriptionController) ProcessNamespaceEvent(ctx context.Context, ns *
 					zap.Error(err),
 					zap.String("subscription", sub.ID))
 			} else {
-				// Track queued event
-				EventsQueuedTotal.WithLabelValues(sub.ID, "k8s-namespace").Inc()
+				// Track queued event. Subscription ID is hashed to a bounded bucket (#497).
+				EventsQueuedTotal.WithLabelValues(SubscriptionBucket(sub.ID), "k8s-namespace").Inc()
 			}
 		}
 	}
