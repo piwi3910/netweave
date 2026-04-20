@@ -39,7 +39,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     ./cmd/gateway
 
 # Stage 2: Runtime stage
-FROM alpine:3.23.3
+FROM alpine:3.23.4
 
 # Redeclare build args for labels
 ARG VERSION=dev
