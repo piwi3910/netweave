@@ -223,7 +223,17 @@ func (s *Server) setupRoutes() {
 		s.adminRouter.GET(s.config.Observability.Metrics.Path, s.handleMetrics)
 	}
 
+	// /o2ims serves API metadata. It was previously opened up via a
+	// SkipPaths entry that did exact-match on "/o2ims", which would silently
+	// allow future siblings like "/o2ims/<child>" if anyone switched to
+	// prefix matching. Mark the exact (method, path) public at the handler
+	// level instead so that sibling routes remain authenticated.
 	s.adminRouter.GET("/o2ims", s.handleAPIInfo)
+	if s.authMw != nil {
+		if mw, ok := s.authMw.(*auth.Middleware); ok {
+			mw.MarkPublicRoute(http.MethodGet, "/o2ims")
+		}
+	}
 	s.adminRouter.GET("/", s.handleRoot)
 
 	// Documentation endpoints on admin router

@@ -1001,6 +1001,7 @@ func TestOAuth2Authenticator_Authenticate_Integration(t *testing.T) {
 					OAuthProvider: "keycloak",
 					Email:         "user@example.com",
 					RoleID:        "role-admin",
+					IsActive:      true,
 				}
 				s.roles["role-admin"] = &Role{
 					ID:   "role-admin",

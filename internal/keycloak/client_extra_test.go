@@ -175,7 +175,7 @@ func TestClient_GetUserInfo_Unit(t *testing.T) {
 	}
 }
 
-func TestClient_ExchangePasswordCredentials_Unit(t *testing.T) {
+func TestClient_DevExchangePasswordCredentials_Unit(t *testing.T) {
 	tests := []struct {
 		name       string
 		username   string
@@ -235,7 +235,7 @@ func TestClient_ExchangePasswordCredentials_Unit(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			result, err := client.ExchangePasswordCredentials(context.Background(), tt.username, tt.password)
+			result, err := client.DevExchangePasswordCredentials(context.Background(), tt.username, tt.password)
 
 			if tt.wantErr {
 				require.Error(t, err)

@@ -11,7 +11,10 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -58,11 +61,19 @@ func DefaultConfig() *Config {
 }
 
 // Client provides access to Keycloak's APIs.
+//
+// The admin access token cache (accessToken / tokenExpiry) is guarded by
+// tokenMu. Concurrent refreshes are coalesced via tokenGroup so at most one
+// admin-credentials grant is ever in flight, preventing Keycloak's
+// brute-force detector from locking the master realm under burst load.
 type Client struct {
-	config      *Config
-	httpClient  *http.Client
+	config     *Config
+	httpClient *http.Client
+
+	tokenMu     sync.RWMutex
 	accessToken string
 	tokenExpiry time.Time
+	tokenGroup  singleflight.Group
 }
 
 // NewClient creates a new Keycloak client.
@@ -117,8 +128,19 @@ type TokenResponse struct {
 	Scope            string `json:"scope"`
 }
 
-// VerifyToken verifies and validates an OAuth2 access token.
-// Returns the decoded token claims if valid.
+// VerifyToken verifies an OAuth2 access token via Keycloak's introspection
+// endpoint and returns the decoded claims map when the token is active.
+//
+// SECURITY: VerifyToken only asserts that the token is active from Keycloak's
+// perspective. It does NOT verify the "aud", "iss", or "client_id" claims,
+// because those checks are policy decisions owned by the calling gateway
+// (the client_id / realm URL that we trust may differ per deployment).
+//
+// Callers MUST additionally enforce audience, issuer, and client_id bindings
+// before accepting the returned claims — see auth.OAuth2Authenticator which
+// pins these via OAuth2Config.ExpectedAudience / ExpectedIssuer /
+// AllowedClientIDs. Accepting any active token would otherwise let a
+// compromised client in the same Keycloak instance replay tokens here.
 func (c *Client) VerifyToken(ctx context.Context, token string) (map[string]interface{}, error) {
 	introspectURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token/introspect",
 		c.config.BaseURL, c.config.Realm)
@@ -192,9 +214,24 @@ func (c *Client) GetUserInfo(ctx context.Context, accessToken string) (map[strin
 	return userInfo, nil
 }
 
-// ExchangePasswordCredentials exchanges username/password for an access token.
-// This is used for password grant flow (not recommended for production).
-func (c *Client) ExchangePasswordCredentials(ctx context.Context, username, password string) (*TokenResponse, error) {
+// DevExchangePasswordCredentials exchanges username/password for an access token
+// using the OAuth2 Resource Owner Password Credentials (ROPC) grant.
+//
+// FOR INTERNAL TOOLING AND DEVELOPMENT ONLY — DO NOT EXPOSE OVER HTTP.
+//
+// The ROPC grant is deprecated by OAuth 2.1 and insecure for any resource
+// server that shares a codebase with IdP credentials. It exists here solely
+// to support local development scripts and integration tests that need to
+// acquire a bearer token without driving a browser. Production callers MUST
+// use the authorization code flow with PKCE and pass the resulting bearer
+// token through the normal Authorization header path.
+//
+// The function's name is prefixed with Dev to make its scope obvious in call
+// sites and to steer reviewers toward richer flows (see docs/security/).
+func (c *Client) DevExchangePasswordCredentials(
+	ctx context.Context,
+	username, password string,
+) (*TokenResponse, error) {
 	tokenURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token",
 		c.config.BaseURL, c.config.Realm)
 
@@ -233,12 +270,49 @@ func (c *Client) ExchangePasswordCredentials(ctx context.Context, username, pass
 }
 
 // getAdminToken obtains an admin access token for making admin API calls.
-// Tokens are cached and automatically refreshed when expired.
+// Tokens are cached and automatically refreshed when expired. Concurrent
+// callers share a single in-flight refresh via singleflight, so the master
+// realm sees at most one admin-credentials grant per refresh cycle.
 func (c *Client) getAdminToken(ctx context.Context) (string, error) {
-	if c.accessToken != "" && time.Now().Before(c.tokenExpiry) {
-		return c.accessToken, nil
+	// Fast path: RLock-only cache hit.
+	c.tokenMu.RLock()
+	cachedToken := c.accessToken
+	cachedExpiry := c.tokenExpiry
+	c.tokenMu.RUnlock()
+	if cachedToken != "" && time.Now().Before(cachedExpiry) {
+		return cachedToken, nil
 	}
 
+	// Slow path: collapse concurrent refreshes into one HTTP call.
+	v, err, _ := c.tokenGroup.Do("admin-token", func() (interface{}, error) {
+		// Re-check after acquiring the singleflight slot — another goroutine
+		// may have refreshed the cache while we were queued.
+		c.tokenMu.RLock()
+		token := c.accessToken
+		expiry := c.tokenExpiry
+		c.tokenMu.RUnlock()
+		if token != "" && time.Now().Before(expiry) {
+			return token, nil
+		}
+		return c.refreshAdminToken(ctx)
+	})
+	if err != nil {
+		// refreshAdminToken already wraps its HTTP/decoding errors with a
+		// descriptive prefix; re-wrap here so the singleflight layer is
+		// visible in stack traces.
+		return "", fmt.Errorf("admin token refresh failed: %w", err)
+	}
+	token, ok := v.(string)
+	if !ok {
+		return "", fmt.Errorf("singleflight returned non-string token of type %T", v)
+	}
+	return token, nil
+}
+
+// refreshAdminToken performs the admin-credentials grant against Keycloak
+// and atomically populates the cached token/expiry. Callers must route
+// through getAdminToken so the refresh is serialized via singleflight.
+func (c *Client) refreshAdminToken(ctx context.Context) (string, error) {
 	tokenURL := fmt.Sprintf("%s/realms/master/protocol/openid-connect/token", c.config.BaseURL)
 
 	data := url.Values{}
@@ -271,10 +345,14 @@ func (c *Client) getAdminToken(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to decode admin token response: %w", err)
 	}
 
-	c.accessToken = tokenResp.AccessToken
-	c.tokenExpiry = time.Now().Add(time.Duration(tokenResp.ExpiresIn-60) * time.Second)
+	expiry := time.Now().Add(time.Duration(tokenResp.ExpiresIn-60) * time.Second)
 
-	return c.accessToken, nil
+	c.tokenMu.Lock()
+	c.accessToken = tokenResp.AccessToken
+	c.tokenExpiry = expiry
+	c.tokenMu.Unlock()
+
+	return tokenResp.AccessToken, nil
 }
 
 // doAdminRequest executes an authenticated request to the Keycloak Admin API.

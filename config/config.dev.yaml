@@ -156,6 +156,8 @@ multi_tenancy:
   require_mtls: false
   initialize_default_roles: false
   audit_log_retention_days: 7
+  # /o2ims is marked public at the handler level (see routes.go) — do not
+  # re-add it here or sibling routes like /o2ims/<child> may inherit skips.
   skip_auth_paths:
     - /health
     - /healthz
@@ -163,7 +165,6 @@ multi_tenancy:
     - /readyz
     - /metrics
     - /
-    - /o2ims
   default_tenant_quota:
     max_subscriptions: 100
     max_resource_pools: 50
