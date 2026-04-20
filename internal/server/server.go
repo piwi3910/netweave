@@ -452,10 +452,17 @@ func (s *Server) setupMiddleware() {
 	allRouters := []*gin.Engine{s.adminRouter, s.o2Router, s.tmfRouter, s.graphqlRouter}
 
 	// Apply shared middleware to all routers
+	bodyLimitMw := s.bodyLimitMiddleware()
 	for _, r := range allRouters {
 		r.Use(s.RecoveryMiddleware())
 		r.Use(s.securityHeadersMiddleware())
 		r.Use(s.LoggingMiddleware())
+
+		// Enforce request-body size cap on every router before we read the
+		// body anywhere (OpenAPI validator, GraphQL handler, etc.). This
+		// ensures GraphQL/TMForum/admin routes that are not covered by the
+		// OpenAPI spec still have a hard body limit (issue #494).
+		r.Use(bodyLimitMw)
 
 		if s.config.Observability.Metrics.Enabled {
 			r.Use(s.MetricsMiddleware())
@@ -525,6 +532,22 @@ func (s *Server) securityHeadersMiddleware() gin.HandlerFunc {
 	}
 
 	return middleware.SecurityHeaders(config)
+}
+
+// bodyLimitMiddleware returns a global middleware that caps request body
+// size on every router (admin, O2, TMF, GraphQL). The default cap is
+// controlled by validation.max_body_size in config with a 1 MiB fallback.
+// Individual routes may register larger caps via middleware.BodyLimitConfig.PerRoute
+// when this function is extended in the future.
+func (s *Server) bodyLimitMiddleware() gin.HandlerFunc {
+	cfg := middleware.BodyLimitConfig{
+		Default: s.config.Validation.MaxBodySize,
+		Logger:  s.logger,
+	}
+	if cfg.Default <= 0 {
+		cfg.Default = middleware.DefaultBodyLimit
+	}
+	return middleware.BodyLimit(cfg)
 }
 
 // Start starts the HTTP server and blocks until the server is shut down.
@@ -1104,30 +1127,64 @@ func (s *Server) MetricsMiddleware() gin.HandlerFunc {
 }
 
 // corsMiddleware adds CORS headers to responses.
+//
+// Security model (issue #495):
+//
+//   - An empty AllowedOrigins list means "deny all cross-origin requests",
+//     NOT "allow all". A common prior bug was to reflect any Origin alongside
+//     Access-Control-Allow-Credentials: true, which completely defeats CORS.
+//   - Wildcard "*" is honored but MUST NOT be combined with credentials:
+//     when "*" is listed, the middleware emits Access-Control-Allow-Origin: *
+//     and omits the credentials header.
+//   - An exact origin match mirrors the request Origin and allows credentials.
 func (s *Server) corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
+		allowedOrigins := s.config.Security.AllowedOrigins
 
-		// Check if origin is allowed
-		allowed := false
-		if len(s.config.Security.AllowedOrigins) == 0 {
-			allowed = true // Allow all if not specified
-		} else {
-			for _, allowedOrigin := range s.config.Security.AllowedOrigins {
-				if allowedOrigin == "*" || allowedOrigin == origin {
-					allowed = true
-					break
-				}
+		// Empty list: deny-all. Do not emit any CORS headers, but still
+		// shortcut preflight so downstream handlers don't see the OPTIONS.
+		if len(allowedOrigins) == 0 {
+			if c.Request.Method == http.MethodOptions {
+				c.AbortWithStatus(http.StatusNoContent)
+				return
+			}
+			c.Next()
+			return
+		}
+
+		wildcard := false
+		exactMatch := false
+		for _, allowedOrigin := range allowedOrigins {
+			if allowedOrigin == "*" {
+				wildcard = true
+				continue
+			}
+			if allowedOrigin == origin && origin != "" {
+				exactMatch = true
+				break
 			}
 		}
 
-		if allowed {
+		switch {
+		case exactMatch:
+			// Exact origin allow-list match. Safe to combine with credentials.
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			c.Writer.Header().Set("Vary", "Origin")
 			c.Writer.Header().Set("Access-Control-Allow-Headers",
 				JoinStrings(s.config.Security.AllowedHeaders, ", "))
 			c.Writer.Header().Set("Access-Control-Allow-Methods",
 				JoinStrings(s.config.Security.AllowedMethods, ", "))
+		case wildcard:
+			// Wildcard: never reflect the request origin with credentials=true.
+			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+			c.Writer.Header().Set("Access-Control-Allow-Headers",
+				JoinStrings(s.config.Security.AllowedHeaders, ", "))
+			c.Writer.Header().Set("Access-Control-Allow-Methods",
+				JoinStrings(s.config.Security.AllowedMethods, ", "))
+		default:
+			// Origin not allow-listed: emit no CORS headers at all.
 		}
 
 		// Handle preflight requests
@@ -1163,6 +1220,7 @@ func (s *Server) rateLimitMiddleware() gin.HandlerFunc {
 			RequestsPerSecond:     s.config.Security.RateLimit.Global.RequestsPerSecond,
 			MaxConcurrentRequests: s.config.Security.RateLimit.Global.MaxConcurrentRequests,
 		},
+		DefaultFailMode: middleware.FailMode(s.config.Security.RateLimit.FailMode),
 	}
 
 	// Convert endpoint configs
@@ -1172,6 +1230,7 @@ func (s *Server) rateLimitMiddleware() gin.HandlerFunc {
 			Method:            ep.Method,
 			RequestsPerSecond: ep.RequestsPerSecond,
 			BurstSize:         ep.BurstSize,
+			FailMode:          middleware.FailMode(ep.FailMode),
 		})
 	}
 

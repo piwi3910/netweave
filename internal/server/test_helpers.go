@@ -183,3 +183,13 @@ func (s *Server) PluginRegistry() *FrontendPluginRegistry {
 func (s *Server) SetPluginRegistry(registry *FrontendPluginRegistry) {
 	s.pluginRegistry = registry
 }
+
+// CORSMiddleware exposes corsMiddleware for testing the CORS policy.
+func (s *Server) CORSMiddleware() gin.HandlerFunc {
+	return s.corsMiddleware()
+}
+
+// BodyLimitMiddleware exposes bodyLimitMiddleware for testing.
+func (s *Server) BodyLimitMiddleware() gin.HandlerFunc {
+	return s.bodyLimitMiddleware()
+}

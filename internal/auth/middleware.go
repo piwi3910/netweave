@@ -102,6 +102,14 @@ func NewMiddleware(
 	}
 }
 
+// OAuth2Authenticator exposes the authenticator attached to this middleware,
+// allowing non-HTTP transports (e.g. GraphQL WebSocket connection_init) to
+// validate tokens through the same code path as REST authentication.
+// Returns nil when only mTLS authentication is configured.
+func (m *Middleware) OAuth2Authenticator() *OAuth2Authenticator {
+	return m.oauth2Authenticator
+}
+
 // AuthenticationMiddleware extracts user identity from the request.
 // It parses mTLS client certificates and looks up the user in the database.
 //

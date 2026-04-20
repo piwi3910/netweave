@@ -2,6 +2,8 @@ package server
 
 import (
 	"github.com/gin-gonic/gin"
+
+	"github.com/piwi3910/netweave/internal/auth"
 	gqlserver "github.com/piwi3910/netweave/internal/graphql"
 	"github.com/piwi3910/netweave/internal/graphql/resolvers"
 )
@@ -38,8 +40,25 @@ func (s *Server) setupGraphQLRoutes() {
 		s.logger,
 	)
 
-	// Create GraphQL server with resolver.
-	gqlSrv := gqlserver.NewServer(resolver)
+	// Create GraphQL server with resolver. Introspection and the WebSocket
+	// transport are hardened here: introspection is only registered outside
+	// release mode (issue #492), and the WebSocket transport validates the
+	// connection_init payload via the shared OAuth2 authenticator (issue #493).
+	var wsAuth *auth.OAuth2Authenticator
+	// Type-assert to the concrete auth middleware to obtain the OAuth2
+	// authenticator. The AuthMiddleware interface intentionally remains
+	// narrow to simplify mocking in tests; authentication of WebSocket
+	// init frames is a GraphQL-specific concern plumbed through here.
+	if concrete, ok := s.authMw.(interface {
+		OAuth2Authenticator() *auth.OAuth2Authenticator
+	}); ok {
+		wsAuth = concrete.OAuth2Authenticator()
+	}
+	gqlSrv := gqlserver.NewServer(resolver, gqlserver.ServerOptions{
+		GinMode:                s.config.Server.GinMode,
+		WebSocketAuthenticator: wsAuth,
+		WebSocketRequireAuth:   wsAuth != nil,
+	})
 
 	gqlGuard := PluginGuard(s.pluginRegistry, "graphql")
 
