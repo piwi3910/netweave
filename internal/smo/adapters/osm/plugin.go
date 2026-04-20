@@ -42,27 +42,30 @@ type Plugin struct {
 }
 
 // Config holds the configuration for the OSM plugin.
+// Tags use `mapstructure` so Viper's UnmarshalKey can decode YAML/JSON/env
+// sources consistently — see internal/smo/adapters/onap/plugin.go for the
+// reference convention.
 type Config struct {
 	// OSM NBI (Northbound Interface) configuration
-	NBIURL   string `yaml:"nbiUrl"`   // OSM NBI API endpoint (e.g., https://osm.example.com:9999)
-	Username string `yaml:"username"` // OSM username
-	Password string `yaml:"password"` // OSM password
-	Project  string `yaml:"project"`  // OSM project/tenant (default: "admin")
+	NBIURL   string `mapstructure:"nbiUrl"`   // OSM NBI API endpoint (e.g., https://osm.example.com:9999)
+	Username string `mapstructure:"username"` // OSM username
+	Password string `mapstructure:"password"` // OSM password
+	Project  string `mapstructure:"project"`  // OSM project/tenant (default: "admin")
 
 	// Timeouts and intervals
-	RequestTimeout        time.Duration `yaml:"requestTimeout"`        // HTTP request timeout (default: 30s)
-	InventorySyncInterval time.Duration `yaml:"inventorySyncInterval"` // Inventory sync interval (default: 5m)
-	LCMPollingInterval    time.Duration `yaml:"lcmPollingInterval"`    // LCM operation polling interval (default: 10s)
+	RequestTimeout        time.Duration `mapstructure:"requestTimeout"`        // HTTP request timeout (default: 30s)
+	InventorySyncInterval time.Duration `mapstructure:"inventorySyncInterval"` // Inventory sync interval (default: 5m)
+	LCMPollingInterval    time.Duration `mapstructure:"lcmPollingInterval"`    // LCM polling interval (default: 10s)
 
 	// Retry configuration
-	MaxRetries      int           `yaml:"maxRetries"`      // Maximum number of retries (default: 3)
-	RetryDelay      time.Duration `yaml:"retryDelay"`      // Initial retry delay (default: 1s)
-	RetryMaxDelay   time.Duration `yaml:"retryMaxDelay"`   // Maximum retry delay (default: 30s)
-	RetryMultiplier float64       `yaml:"retryMultiplier"` // Retry delay multiplier (default: 2.0)
+	MaxRetries      int           `mapstructure:"maxRetries"`      // Maximum number of retries (default: 3)
+	RetryDelay      time.Duration `mapstructure:"retryDelay"`      // Initial retry delay (default: 1s)
+	RetryMaxDelay   time.Duration `mapstructure:"retryMaxDelay"`   // Maximum retry delay (default: 30s)
+	RetryMultiplier float64       `mapstructure:"retryMultiplier"` // Retry delay multiplier (default: 2.0)
 
 	// Feature flags
-	EnableInventorySync bool `yaml:"enableInventorySync"` // Enable automatic inventory sync (default: true)
-	EnableEventPublish  bool `yaml:"enableEventPublish"`  // Enable event publishing to OSM (default: true)
+	EnableInventorySync bool `mapstructure:"enableInventorySync"` // Enable automatic inventory sync (default: true)
+	EnableEventPublish  bool `mapstructure:"enableEventPublish"`  // Enable event publishing to OSM (default: true)
 }
 
 // DefaultConfig returns a Config with sensible defaults.
