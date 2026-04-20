@@ -52,43 +52,46 @@ type Adapter struct {
 }
 
 // Config holds configuration for creating a DTIASAdapter.
+// Tags use `mapstructure` so Viper's UnmarshalKey can decode YAML/JSON/env
+// sources consistently — see internal/smo/adapters/onap/plugin.go for the
+// reference convention.
 type Config struct {
 	// Endpoint is the DTIAS API endpoint URL (e.g., "https://dtias.dell.com/api/v1")
-	Endpoint string `yaml:"endpoint"`
+	Endpoint string `mapstructure:"endpoint"`
 
 	// APIKey is the authentication API key for DTIAS
-	APIKey string `yaml:"apiKey"`
+	APIKey string `mapstructure:"apiKey"`
 
 	// ClientCert is the path to the client certificate for mTLS (optional)
-	ClientCert string `yaml:"clientCert"`
+	ClientCert string `mapstructure:"clientCert"`
 
 	// ClientKey is the path to the client key for mTLS (optional)
-	ClientKey string `yaml:"clientKey"`
+	ClientKey string `mapstructure:"clientKey"`
 
 	// CACert is the path to the CA certificate for server verification (optional)
 	// If not provided, system root CAs are used for certificate validation
-	CACert string `yaml:"caCert"`
+	CACert string `mapstructure:"caCert"`
 
 	// Timeout is the HTTP client timeout
-	Timeout time.Duration `yaml:"timeout"`
+	Timeout time.Duration `mapstructure:"timeout"`
 
 	// OCloudID is the identifier of the parent O-Cloud
-	OCloudID string `yaml:"ocloudId"`
+	OCloudID string `mapstructure:"ocloudId"`
 
 	// DeploymentManagerID is the identifier for this deployment manager
-	DeploymentManagerID string `yaml:"deploymentManagerId"`
+	DeploymentManagerID string `mapstructure:"deploymentManagerId"`
 
 	// Datacenter is the DTIAS datacenter identifier
-	Datacenter string `yaml:"datacenter"`
+	Datacenter string `mapstructure:"datacenter"`
 
 	// RetryAttempts is the number of retry attempts for failed API calls
-	RetryAttempts int `yaml:"retryAttempts"`
+	RetryAttempts int `mapstructure:"retryAttempts"`
 
 	// RetryDelay is the delay between retry attempts
-	RetryDelay time.Duration `yaml:"retryDelay"`
+	RetryDelay time.Duration `mapstructure:"retryDelay"`
 
 	// Logger is the logger to use. If nil, a default logger will be created.
-	Logger *zap.Logger `yaml:"-"`
+	Logger *zap.Logger `mapstructure:"-"`
 }
 
 // New creates a new DTIASAdapter with the provided configuration.

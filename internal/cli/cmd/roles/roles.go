@@ -2,7 +2,6 @@
 package roles
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -11,13 +10,6 @@ import (
 	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/piwi3910/netweave/internal/cli/cmd"
 	"github.com/piwi3910/netweave/internal/cli/output"
-	"github.com/piwi3910/netweave/internal/cli/service"
-)
-
-const (
-	defaultRealm         = "netweave"
-	defaultAdminUser     = "admin"
-	defaultAdminPassword = "admin"
 )
 
 // NewRolesCmd creates the parent "roles" command.
@@ -37,21 +29,6 @@ func NewRolesCmd() *cobra.Command {
 	return parent
 }
 
-func connectKeycloak(ctx context.Context) (*service.KeycloakConnection, error) {
-	kc, err := service.ConnectKeycloak(
-		ctx,
-		cmd.Global.Kubeconfig,
-		cmd.Global.Namespace,
-		defaultRealm,
-		defaultAdminUser,
-		defaultAdminPassword,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to keycloak: %w", err)
-	}
-	return kc, nil
-}
-
 func newListCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
@@ -59,7 +36,7 @@ func newListCmd() *cobra.Command {
 		RunE: func(c *cobra.Command, _ []string) error {
 			ctx := c.Context()
 
-			kc, err := connectKeycloak(ctx)
+			kc, err := cmd.ConnectKeycloakDefaults(ctx)
 			if err != nil {
 				return err
 			}
@@ -98,7 +75,7 @@ func newGetCmd() *cobra.Command {
 				return fmt.Errorf("--name flag is required")
 			}
 
-			kc, err := connectKeycloak(ctx)
+			kc, err := cmd.ConnectKeycloakDefaults(ctx)
 			if err != nil {
 				return err
 			}
@@ -151,7 +128,7 @@ func newCreateCmd() *cobra.Command {
 				return fmt.Errorf("--type must be 'platform' or 'tenant'")
 			}
 
-			kc, err := connectKeycloak(ctx)
+			kc, err := cmd.ConnectKeycloakDefaults(ctx)
 			if err != nil {
 				return err
 			}
@@ -203,7 +180,7 @@ func newUpdateCmd() *cobra.Command {
 				return fmt.Errorf("--name flag is required")
 			}
 
-			kc, err := connectKeycloak(ctx)
+			kc, err := cmd.ConnectKeycloakDefaults(ctx)
 			if err != nil {
 				return err
 			}
@@ -253,7 +230,7 @@ func newDeleteCmd() *cobra.Command {
 				return fmt.Errorf("--name flag is required")
 			}
 
-			kc, err := connectKeycloak(ctx)
+			kc, err := cmd.ConnectKeycloakDefaults(ctx)
 			if err != nil {
 				return err
 			}
