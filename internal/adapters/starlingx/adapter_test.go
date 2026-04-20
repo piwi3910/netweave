@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	dmsadapter "github.com/piwi3910/netweave/internal/adapter"
+	imsadapter "github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/adapters/starlingx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -133,11 +133,11 @@ func TestNew(t *testing.T) {
 
 				// Verify capabilities
 				caps := adp.Capabilities()
-				assert.Contains(t, caps, dmsadapter.CapabilityResourcePools)
-				assert.Contains(t, caps, dmsadapter.CapabilityResources)
-				assert.Contains(t, caps, dmsadapter.CapabilityResourceTypes)
-				assert.Contains(t, caps, dmsadapter.CapabilityDeploymentManagers)
-				assert.Contains(t, caps, dmsadapter.CapabilityHealthChecks)
+				assert.Contains(t, caps, imsadapter.CapabilityResourcePools)
+				assert.Contains(t, caps, imsadapter.CapabilityResources)
+				assert.Contains(t, caps, imsadapter.CapabilityResourceTypes)
+				assert.Contains(t, caps, imsadapter.CapabilityDeploymentManagers)
+				assert.Contains(t, caps, imsadapter.CapabilityHealthChecks)
 
 				// Clean up
 				err = adp.Close()
@@ -177,12 +177,12 @@ func TestAdapter_Metadata(t *testing.T) {
 	t.Run("Capabilities without store", func(t *testing.T) {
 		caps := adp.Capabilities()
 		assert.Len(t, caps, 5)
-		assert.Contains(t, caps, dmsadapter.CapabilityResourcePools)
-		assert.Contains(t, caps, dmsadapter.CapabilityResources)
-		assert.Contains(t, caps, dmsadapter.CapabilityResourceTypes)
-		assert.Contains(t, caps, dmsadapter.CapabilityDeploymentManagers)
-		assert.Contains(t, caps, dmsadapter.CapabilityHealthChecks)
-		assert.NotContains(t, caps, dmsadapter.CapabilitySubscriptions)
+		assert.Contains(t, caps, imsadapter.CapabilityResourcePools)
+		assert.Contains(t, caps, imsadapter.CapabilityResources)
+		assert.Contains(t, caps, imsadapter.CapabilityResourceTypes)
+		assert.Contains(t, caps, imsadapter.CapabilityDeploymentManagers)
+		assert.Contains(t, caps, imsadapter.CapabilityHealthChecks)
+		assert.NotContains(t, caps, imsadapter.CapabilitySubscriptions)
 	})
 }
 

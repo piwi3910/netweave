@@ -108,28 +108,28 @@ func NewAdapter(config *Config) (*Adapter, error) {
 
 // Initialize performs lazy initialization of the HTTP client.
 // Initialize performs lazy initialization of the adapter. Exported for testing.
-func (o *Adapter) Initialize() error {
-	o.initOnce.Do(func() {
-		o.httpClient = &http.Client{
-			Timeout: o.Config.Timeout,
+func (a *Adapter) Initialize() error {
+	a.initOnce.Do(func() {
+		a.httpClient = &http.Client{
+			Timeout: a.Config.Timeout,
 		}
 	})
 
-	return o.initErr
+	return a.initErr
 }
 
 // Name returns the adapter name.
-func (o *Adapter) Name() string {
+func (a *Adapter) Name() string {
 	return AdapterName
 }
 
 // Version returns the ONAP SO API version supported by this adapter.
-func (o *Adapter) Version() string {
+func (a *Adapter) Version() string {
 	return AdapterVersion
 }
 
 // Capabilities returns the capabilities supported by the ONAP-LCM adapter.
-func (o *Adapter) Capabilities() []adapter.Capability {
+func (a *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityPackageManagement,
 		adapter.CapabilityDeploymentLifecycle,
@@ -139,7 +139,7 @@ func (o *Adapter) Capabilities() []adapter.Capability {
 }
 
 // ListDeploymentPackages retrieves all available VNF/CNF packages.
-func (o *Adapter) ListDeploymentPackages(
+func (a *Adapter) ListDeploymentPackages(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.DeploymentPackage, error) {
@@ -147,28 +147,28 @@ func (o *Adapter) ListDeploymentPackages(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	o.mu.RLock()
-	defer o.mu.RUnlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 
-	packages := make([]*adapter.DeploymentPackage, 0, len(o.Packages))
-	for _, pkg := range o.Packages {
+	packages := make([]*adapter.DeploymentPackage, 0, len(a.Packages))
+	for _, pkg := range a.Packages {
 		packages = append(packages, pkg)
 	}
 
 	// Apply pagination
 	if filter != nil && (filter.Limit > 0 || filter.Offset > 0) {
-		packages = o.applyPackagePagination(packages, filter.Limit, filter.Offset)
+		packages = a.applyPackagePagination(packages, filter.Limit, filter.Offset)
 	}
 
 	return packages, nil
 }
 
 // GetDeploymentPackage retrieves a specific VNF/CNF package by ID.
-func (o *Adapter) GetDeploymentPackage(
+func (a *Adapter) GetDeploymentPackage(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentPackage, error) {
@@ -176,14 +176,14 @@ func (o *Adapter) GetDeploymentPackage(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	o.mu.RLock()
-	defer o.mu.RUnlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 
-	pkg, exists := o.Packages[id]
+	pkg, exists := a.Packages[id]
 	if !exists {
 		return nil, fmt.Errorf("package %s: %w", id, ErrPackageNotFound)
 	}
@@ -192,7 +192,7 @@ func (o *Adapter) GetDeploymentPackage(
 }
 
 // UploadDeploymentPackage registers a new VNF/CNF package.
-func (o *Adapter) UploadDeploymentPackage(
+func (a *Adapter) UploadDeploymentPackage(
 	ctx context.Context,
 	pkg *adapter.DeploymentPackageUpload,
 ) (*adapter.DeploymentPackage, error) {
@@ -204,7 +204,7 @@ func (o *Adapter) UploadDeploymentPackage(
 		return nil, fmt.Errorf("package cannot be nil")
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -232,15 +232,15 @@ func (o *Adapter) UploadDeploymentPackage(
 		},
 	}
 
-	o.mu.Lock()
-	o.Packages[vnfDescriptorID] = deploymentPkg
-	o.mu.Unlock()
+	a.mu.Lock()
+	a.Packages[vnfDescriptorID] = deploymentPkg
+	a.mu.Unlock()
 
 	return deploymentPkg, nil
 }
 
 // DeleteDeploymentPackage removes a VNF/CNF package.
-func (o *Adapter) DeleteDeploymentPackage(
+func (a *Adapter) DeleteDeploymentPackage(
 	ctx context.Context,
 	id string,
 ) error {
@@ -248,23 +248,23 @@ func (o *Adapter) DeleteDeploymentPackage(
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return err
 	}
 
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
-	if _, exists := o.Packages[id]; !exists {
+	if _, exists := a.Packages[id]; !exists {
 		return fmt.Errorf("package %s: %w", id, ErrPackageNotFound)
 	}
 
-	delete(o.Packages, id)
+	delete(a.Packages, id)
 	return nil
 }
 
 // ListDeployments retrieves all VNF/CNF instances.
-func (o *Adapter) ListDeployments(
+func (a *Adapter) ListDeployments(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.Deployment, error) {
@@ -272,15 +272,15 @@ func (o *Adapter) ListDeployments(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	o.mu.RLock()
-	defer o.mu.RUnlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 
-	deployments := make([]*adapter.Deployment, 0, len(o.Deployments))
-	for _, dep := range o.Deployments {
+	deployments := make([]*adapter.Deployment, 0, len(a.Deployments))
+	for _, dep := range a.Deployments {
 		// Apply status filter
 		if filter != nil && filter.Status != "" && dep.Status != filter.Status {
 			continue
@@ -290,14 +290,14 @@ func (o *Adapter) ListDeployments(
 
 	// Apply pagination
 	if filter != nil {
-		deployments = o.ApplyPagination(deployments, filter.Limit, filter.Offset)
+		deployments = a.ApplyPagination(deployments, filter.Limit, filter.Offset)
 	}
 
 	return deployments, nil
 }
 
 // GetDeployment retrieves a specific VNF/CNF instance by ID.
-func (o *Adapter) GetDeployment(
+func (a *Adapter) GetDeployment(
 	ctx context.Context,
 	id string,
 ) (*adapter.Deployment, error) {
@@ -305,14 +305,14 @@ func (o *Adapter) GetDeployment(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	o.mu.RLock()
-	defer o.mu.RUnlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 
-	dep, exists := o.Deployments[id]
+	dep, exists := a.Deployments[id]
 	if !exists {
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -321,7 +321,7 @@ func (o *Adapter) GetDeployment(
 }
 
 // CreateDeployment instantiates a new VNF/CNF.
-func (o *Adapter) CreateDeployment(
+func (a *Adapter) CreateDeployment(
 	ctx context.Context,
 	req *adapter.DeploymentRequest,
 ) (*adapter.Deployment, error) {
@@ -339,7 +339,7 @@ func (o *Adapter) CreateDeployment(
 		return nil, err
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -364,15 +364,15 @@ func (o *Adapter) CreateDeployment(
 		},
 	}
 
-	o.mu.Lock()
-	o.Deployments[vnfInstanceID] = deployment
-	o.mu.Unlock()
+	a.mu.Lock()
+	a.Deployments[vnfInstanceID] = deployment
+	a.mu.Unlock()
 
 	return deployment, nil
 }
 
 // UpdateDeployment updates a VNF/CNF instance.
-func (o *Adapter) UpdateDeployment(
+func (a *Adapter) UpdateDeployment(
 	ctx context.Context,
 	id string,
 	update *adapter.DeploymentUpdate,
@@ -385,14 +385,14 @@ func (o *Adapter) UpdateDeployment(
 		return nil, fmt.Errorf("update cannot be nil")
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
-	dep, exists := o.Deployments[id]
+	dep, exists := a.Deployments[id]
 	if !exists {
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -408,7 +408,7 @@ func (o *Adapter) UpdateDeployment(
 }
 
 // DeleteDeployment terminates a VNF/CNF instance.
-func (o *Adapter) DeleteDeployment(
+func (a *Adapter) DeleteDeployment(
 	ctx context.Context,
 	id string,
 ) error {
@@ -416,23 +416,23 @@ func (o *Adapter) DeleteDeployment(
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return err
 	}
 
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
-	if _, exists := o.Deployments[id]; !exists {
+	if _, exists := a.Deployments[id]; !exists {
 		return fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
 
-	delete(o.Deployments, id)
+	delete(a.Deployments, id)
 	return nil
 }
 
 // ScaleDeployment scales a VNF/CNF instance.
-func (o *Adapter) ScaleDeployment(
+func (a *Adapter) ScaleDeployment(
 	ctx context.Context,
 	id string,
 	replicas int,
@@ -445,14 +445,14 @@ func (o *Adapter) ScaleDeployment(
 		return fmt.Errorf("replicas must be non-negative")
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return err
 	}
 
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
-	dep, exists := o.Deployments[id]
+	dep, exists := a.Deployments[id]
 	if !exists {
 		return fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -468,7 +468,7 @@ func (o *Adapter) ScaleDeployment(
 }
 
 // RollbackDeployment is not directly supported by ONAP SO.
-func (o *Adapter) RollbackDeployment(
+func (a *Adapter) RollbackDeployment(
 	ctx context.Context,
 	_ string,
 	revision int,
@@ -485,7 +485,7 @@ func (o *Adapter) RollbackDeployment(
 }
 
 // GetDeploymentStatus retrieves detailed status for a VNF/CNF instance.
-func (o *Adapter) GetDeploymentStatus(
+func (a *Adapter) GetDeploymentStatus(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentStatusDetail, error) {
@@ -493,11 +493,11 @@ func (o *Adapter) GetDeploymentStatus(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	deployment, err := o.GetDeployment(ctx, id)
+	deployment, err := a.GetDeployment(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -506,13 +506,13 @@ func (o *Adapter) GetDeploymentStatus(
 		DeploymentID: deployment.ID,
 		Status:       deployment.Status,
 		Message:      deployment.Description,
-		Progress:     o.CalculateProgress(deployment.Status),
+		Progress:     a.CalculateProgress(deployment.Status),
 		UpdatedAt:    deployment.UpdatedAt,
 		Conditions: []adapter.DeploymentCondition{
 			{
 				Type:               "Ready",
-				Status:             o.conditionStatus(deployment.Status),
-				Reason:             o.conditionReason(deployment.Status),
+				Status:             a.conditionStatus(deployment.Status),
+				Reason:             a.conditionReason(deployment.Status),
 				Message:            deployment.Description,
 				LastTransitionTime: deployment.UpdatedAt,
 			},
@@ -522,7 +522,7 @@ func (o *Adapter) GetDeploymentStatus(
 }
 
 // GetDeploymentHistory retrieves the revision history for a VNF/CNF instance.
-func (o *Adapter) GetDeploymentHistory(
+func (a *Adapter) GetDeploymentHistory(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentHistory, error) {
@@ -530,11 +530,11 @@ func (o *Adapter) GetDeploymentHistory(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	deployment, err := o.GetDeployment(ctx, id)
+	deployment, err := a.GetDeployment(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -554,7 +554,7 @@ func (o *Adapter) GetDeploymentHistory(
 }
 
 // GetDeploymentLogs retrieves logs for a VNF/CNF instance.
-func (o *Adapter) GetDeploymentLogs(
+func (a *Adapter) GetDeploymentLogs(
 	ctx context.Context,
 	id string,
 	_ *adapter.LogOptions,
@@ -563,11 +563,11 @@ func (o *Adapter) GetDeploymentLogs(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	deployment, err := o.GetDeployment(ctx, id)
+	deployment, err := a.GetDeployment(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -590,42 +590,42 @@ func (o *Adapter) GetDeploymentLogs(
 }
 
 // SupportsRollback returns false as ONAP SO doesn't support direct rollback.
-func (o *Adapter) SupportsRollback() bool {
+func (a *Adapter) SupportsRollback() bool {
 	return false
 }
 
 // SupportsScaling returns true as ONAP SO supports VNF scaling.
-func (o *Adapter) SupportsScaling() bool {
+func (a *Adapter) SupportsScaling() bool {
 	return true
 }
 
 // SupportsGitOps returns false as ONAP SO uses API-driven orchestration.
-func (o *Adapter) SupportsGitOps() bool {
+func (a *Adapter) SupportsGitOps() bool {
 	return false
 }
 
 // Health performs a health check on the ONAP SO endpoint.
-func (o *Adapter) Health(ctx context.Context) error {
+func (a *Adapter) Health(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return fmt.Errorf("onap-lcm adapter not healthy: %w", err)
 	}
 
 	// If no endpoint configured, just verify initialization
-	if o.Config.SOEndpoint == "" {
+	if a.Config.SOEndpoint == "" {
 		return nil
 	}
 
 	// Try to reach the ONAP SO health endpoint
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.Config.SOEndpoint+"/manage/health", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.Config.SOEndpoint+"/manage/health", nil)
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}
 
-	resp, err := o.httpClient.Do(req)
+	resp, err := a.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", ErrConnectionFailed)
 	}
@@ -639,20 +639,20 @@ func (o *Adapter) Health(ctx context.Context) error {
 }
 
 // Close cleanly shuts down the adapter.
-func (o *Adapter) Close() error {
-	o.httpClient = nil
+func (a *Adapter) Close() error {
+	a.httpClient = nil
 	return nil
 }
 
 // HTTPClient returns the HTTP client. Exported for testing.
-func (o *Adapter) HTTPClient() *http.Client {
-	return o.httpClient
+func (a *Adapter) HTTPClient() *http.Client {
+	return a.httpClient
 }
 
 // Helper functions
 
 // CalculateProgress calculates deployment progress percentage. Exported for testing.
-func (o *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
+func (a *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return 100
@@ -671,14 +671,14 @@ func (o *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	}
 }
 
-func (o *Adapter) conditionStatus(status adapter.DeploymentStatus) string {
+func (a *Adapter) conditionStatus(status adapter.DeploymentStatus) string {
 	if status == adapter.DeploymentStatusDeployed {
 		return "True"
 	}
 	return "False"
 }
 
-func (o *Adapter) conditionReason(status adapter.DeploymentStatus) string {
+func (a *Adapter) conditionReason(status adapter.DeploymentStatus) string {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return "InstantiationSucceeded"
@@ -698,7 +698,7 @@ func (o *Adapter) conditionReason(status adapter.DeploymentStatus) string {
 }
 
 // ApplyPagination applies pagination to deployment list. Exported for testing.
-func (o *Adapter) ApplyPagination(
+func (a *Adapter) ApplyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
 ) []*adapter.Deployment {
@@ -716,7 +716,7 @@ func (o *Adapter) ApplyPagination(
 	return deployments[start:end]
 }
 
-func (o *Adapter) applyPackagePagination(
+func (a *Adapter) applyPackagePagination(
 	packages []*adapter.DeploymentPackage,
 	limit, offset int,
 ) []*adapter.DeploymentPackage {

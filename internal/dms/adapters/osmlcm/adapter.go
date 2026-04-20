@@ -109,28 +109,28 @@ func NewAdapter(config *Config) (*Adapter, error) {
 }
 
 // Initialize performs lazy initialization of the HTTP client. Exported for testing.
-func (o *Adapter) Initialize() error {
-	o.initOnce.Do(func() {
-		o.httpClient = &http.Client{
-			Timeout: o.Config.Timeout,
+func (a *Adapter) Initialize() error {
+	a.initOnce.Do(func() {
+		a.httpClient = &http.Client{
+			Timeout: a.Config.Timeout,
 		}
 	})
 
-	return o.initErr
+	return a.initErr
 }
 
 // Name returns the adapter name.
-func (o *Adapter) Name() string {
+func (a *Adapter) Name() string {
 	return AdapterName
 }
 
 // Version returns the OSM NBI API version supported by this adapter.
-func (o *Adapter) Version() string {
+func (a *Adapter) Version() string {
 	return AdapterVersion
 }
 
 // Capabilities returns the capabilities supported by the OSM-LCM adapter.
-func (o *Adapter) Capabilities() []adapter.Capability {
+func (a *Adapter) Capabilities() []adapter.Capability {
 	return []adapter.Capability{
 		adapter.CapabilityPackageManagement,
 		adapter.CapabilityDeploymentLifecycle,
@@ -140,7 +140,7 @@ func (o *Adapter) Capabilities() []adapter.Capability {
 }
 
 // ListDeploymentPackages retrieves all available VNF/NS packages.
-func (o *Adapter) ListDeploymentPackages(
+func (a *Adapter) ListDeploymentPackages(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.DeploymentPackage, error) {
@@ -148,28 +148,28 @@ func (o *Adapter) ListDeploymentPackages(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	o.mu.RLock()
-	defer o.mu.RUnlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 
-	packages := make([]*adapter.DeploymentPackage, 0, len(o.Packages))
-	for _, pkg := range o.Packages {
+	packages := make([]*adapter.DeploymentPackage, 0, len(a.Packages))
+	for _, pkg := range a.Packages {
 		packages = append(packages, pkg)
 	}
 
 	// Apply pagination
 	if filter != nil && (filter.Limit > 0 || filter.Offset > 0) {
-		packages = o.ApplyPackagePagination(packages, filter.Limit, filter.Offset)
+		packages = a.ApplyPackagePagination(packages, filter.Limit, filter.Offset)
 	}
 
 	return packages, nil
 }
 
 // GetDeploymentPackage retrieves a specific VNF/NS package by ID.
-func (o *Adapter) GetDeploymentPackage(
+func (a *Adapter) GetDeploymentPackage(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentPackage, error) {
@@ -177,14 +177,14 @@ func (o *Adapter) GetDeploymentPackage(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	o.mu.RLock()
-	defer o.mu.RUnlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 
-	pkg, exists := o.Packages[id]
+	pkg, exists := a.Packages[id]
 	if !exists {
 		return nil, fmt.Errorf("package %s: %w", id, ErrPackageNotFound)
 	}
@@ -193,7 +193,7 @@ func (o *Adapter) GetDeploymentPackage(
 }
 
 // UploadDeploymentPackage registers a new VNF/NS package.
-func (o *Adapter) UploadDeploymentPackage(
+func (a *Adapter) UploadDeploymentPackage(
 	ctx context.Context,
 	pkg *adapter.DeploymentPackageUpload,
 ) (*adapter.DeploymentPackage, error) {
@@ -205,7 +205,7 @@ func (o *Adapter) UploadDeploymentPackage(
 		return nil, fmt.Errorf("package cannot be nil")
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -229,19 +229,19 @@ func (o *Adapter) UploadDeploymentPackage(
 		UploadedAt:  time.Now(),
 		Extensions: map[string]interface{}{
 			"osm.packageType": pkgType,
-			"osm.project":     o.Config.Project,
+			"osm.project":     a.Config.Project,
 		},
 	}
 
-	o.mu.Lock()
-	o.Packages[pkgID] = deploymentPkg
-	o.mu.Unlock()
+	a.mu.Lock()
+	a.Packages[pkgID] = deploymentPkg
+	a.mu.Unlock()
 
 	return deploymentPkg, nil
 }
 
 // DeleteDeploymentPackage removes a VNF/NS package.
-func (o *Adapter) DeleteDeploymentPackage(
+func (a *Adapter) DeleteDeploymentPackage(
 	ctx context.Context,
 	id string,
 ) error {
@@ -249,23 +249,23 @@ func (o *Adapter) DeleteDeploymentPackage(
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return err
 	}
 
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
-	if _, exists := o.Packages[id]; !exists {
+	if _, exists := a.Packages[id]; !exists {
 		return fmt.Errorf("package %s: %w", id, ErrPackageNotFound)
 	}
 
-	delete(o.Packages, id)
+	delete(a.Packages, id)
 	return nil
 }
 
 // ListDeployments retrieves all NS/VNF instances.
-func (o *Adapter) ListDeployments(
+func (a *Adapter) ListDeployments(
 	ctx context.Context,
 	filter *adapter.Filter,
 ) ([]*adapter.Deployment, error) {
@@ -273,15 +273,15 @@ func (o *Adapter) ListDeployments(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	o.mu.RLock()
-	defer o.mu.RUnlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 
-	deployments := make([]*adapter.Deployment, 0, len(o.Deployments))
-	for _, dep := range o.Deployments {
+	deployments := make([]*adapter.Deployment, 0, len(a.Deployments))
+	for _, dep := range a.Deployments {
 		// Apply status filter
 		if filter != nil && filter.Status != "" && dep.Status != filter.Status {
 			continue
@@ -291,14 +291,14 @@ func (o *Adapter) ListDeployments(
 
 	// Apply pagination
 	if filter != nil {
-		deployments = o.ApplyPagination(deployments, filter.Limit, filter.Offset)
+		deployments = a.ApplyPagination(deployments, filter.Limit, filter.Offset)
 	}
 
 	return deployments, nil
 }
 
 // GetDeployment retrieves a specific NS/VNF instance by ID.
-func (o *Adapter) GetDeployment(
+func (a *Adapter) GetDeployment(
 	ctx context.Context,
 	id string,
 ) (*adapter.Deployment, error) {
@@ -306,14 +306,14 @@ func (o *Adapter) GetDeployment(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	o.mu.RLock()
-	defer o.mu.RUnlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 
-	dep, exists := o.Deployments[id]
+	dep, exists := a.Deployments[id]
 	if !exists {
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -322,7 +322,7 @@ func (o *Adapter) GetDeployment(
 }
 
 // CreateDeployment instantiates a new NS/VNF.
-func (o *Adapter) CreateDeployment(
+func (a *Adapter) CreateDeployment(
 	ctx context.Context,
 	req *adapter.DeploymentRequest,
 ) (*adapter.Deployment, error) {
@@ -340,7 +340,7 @@ func (o *Adapter) CreateDeployment(
 		return nil, err
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
@@ -370,19 +370,19 @@ func (o *Adapter) CreateDeployment(
 			"osm.nsInstanceId": nsInstanceID,
 			"osm.nsdId":        req.PackageID,
 			"osm.vimAccount":   vimAccount,
-			"osm.project":      o.Config.Project,
+			"osm.project":      a.Config.Project,
 		},
 	}
 
-	o.mu.Lock()
-	o.Deployments[nsInstanceID] = deployment
-	o.mu.Unlock()
+	a.mu.Lock()
+	a.Deployments[nsInstanceID] = deployment
+	a.mu.Unlock()
 
 	return deployment, nil
 }
 
 // UpdateDeployment updates an NS/VNF instance.
-func (o *Adapter) UpdateDeployment(
+func (a *Adapter) UpdateDeployment(
 	ctx context.Context,
 	id string,
 	update *adapter.DeploymentUpdate,
@@ -395,14 +395,14 @@ func (o *Adapter) UpdateDeployment(
 		return nil, fmt.Errorf("update cannot be nil")
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
-	dep, exists := o.Deployments[id]
+	dep, exists := a.Deployments[id]
 	if !exists {
 		return nil, fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -418,7 +418,7 @@ func (o *Adapter) UpdateDeployment(
 }
 
 // DeleteDeployment terminates an NS/VNF instance.
-func (o *Adapter) DeleteDeployment(
+func (a *Adapter) DeleteDeployment(
 	ctx context.Context,
 	id string,
 ) error {
@@ -426,23 +426,23 @@ func (o *Adapter) DeleteDeployment(
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return err
 	}
 
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
-	if _, exists := o.Deployments[id]; !exists {
+	if _, exists := a.Deployments[id]; !exists {
 		return fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
 
-	delete(o.Deployments, id)
+	delete(a.Deployments, id)
 	return nil
 }
 
 // ScaleDeployment scales an NS/VNF instance.
-func (o *Adapter) ScaleDeployment(
+func (a *Adapter) ScaleDeployment(
 	ctx context.Context,
 	id string,
 	replicas int,
@@ -455,14 +455,14 @@ func (o *Adapter) ScaleDeployment(
 		return fmt.Errorf("replicas must be non-negative")
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return err
 	}
 
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
-	dep, exists := o.Deployments[id]
+	dep, exists := a.Deployments[id]
 	if !exists {
 		return fmt.Errorf("deployment %s: %w", id, ErrDeploymentNotFound)
 	}
@@ -478,7 +478,7 @@ func (o *Adapter) ScaleDeployment(
 }
 
 // RollbackDeployment is not directly supported by OSM.
-func (o *Adapter) RollbackDeployment(
+func (a *Adapter) RollbackDeployment(
 	ctx context.Context,
 	_ string,
 	revision int,
@@ -495,7 +495,7 @@ func (o *Adapter) RollbackDeployment(
 }
 
 // GetDeploymentStatus retrieves detailed status for an NS/VNF instance.
-func (o *Adapter) GetDeploymentStatus(
+func (a *Adapter) GetDeploymentStatus(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentStatusDetail, error) {
@@ -503,11 +503,11 @@ func (o *Adapter) GetDeploymentStatus(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	deployment, err := o.GetDeployment(ctx, id)
+	deployment, err := a.GetDeployment(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -516,13 +516,13 @@ func (o *Adapter) GetDeploymentStatus(
 		DeploymentID: deployment.ID,
 		Status:       deployment.Status,
 		Message:      deployment.Description,
-		Progress:     o.CalculateProgress(deployment.Status),
+		Progress:     a.CalculateProgress(deployment.Status),
 		UpdatedAt:    deployment.UpdatedAt,
 		Conditions: []adapter.DeploymentCondition{
 			{
 				Type:               "Ready",
-				Status:             o.ConditionStatus(deployment.Status),
-				Reason:             o.ConditionReason(deployment.Status),
+				Status:             a.ConditionStatus(deployment.Status),
+				Reason:             a.ConditionReason(deployment.Status),
 				Message:            deployment.Description,
 				LastTransitionTime: deployment.UpdatedAt,
 			},
@@ -532,7 +532,7 @@ func (o *Adapter) GetDeploymentStatus(
 }
 
 // GetDeploymentHistory retrieves the revision history for an NS/VNF instance.
-func (o *Adapter) GetDeploymentHistory(
+func (a *Adapter) GetDeploymentHistory(
 	ctx context.Context,
 	id string,
 ) (*adapter.DeploymentHistory, error) {
@@ -540,11 +540,11 @@ func (o *Adapter) GetDeploymentHistory(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	deployment, err := o.GetDeployment(ctx, id)
+	deployment, err := a.GetDeployment(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -564,7 +564,7 @@ func (o *Adapter) GetDeploymentHistory(
 }
 
 // GetDeploymentLogs retrieves logs for an NS/VNF instance.
-func (o *Adapter) GetDeploymentLogs(
+func (a *Adapter) GetDeploymentLogs(
 	ctx context.Context,
 	id string,
 	_ *adapter.LogOptions,
@@ -573,11 +573,11 @@ func (o *Adapter) GetDeploymentLogs(
 		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return nil, err
 	}
 
-	deployment, err := o.GetDeployment(ctx, id)
+	deployment, err := a.GetDeployment(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -600,42 +600,42 @@ func (o *Adapter) GetDeploymentLogs(
 }
 
 // SupportsRollback returns false as OSM doesn't support direct rollback.
-func (o *Adapter) SupportsRollback() bool {
+func (a *Adapter) SupportsRollback() bool {
 	return false
 }
 
 // SupportsScaling returns true as OSM supports NS scaling.
-func (o *Adapter) SupportsScaling() bool {
+func (a *Adapter) SupportsScaling() bool {
 	return true
 }
 
 // SupportsGitOps returns false as OSM uses API-driven orchestration.
-func (o *Adapter) SupportsGitOps() bool {
+func (a *Adapter) SupportsGitOps() bool {
 	return false
 }
 
 // Health performs a health check on the OSM NBI endpoint.
-func (o *Adapter) Health(ctx context.Context) error {
+func (a *Adapter) Health(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context cancelled: %w", err)
 	}
 
-	if err := o.Initialize(); err != nil {
+	if err := a.Initialize(); err != nil {
 		return fmt.Errorf("osm-lcm adapter not healthy: %w", err)
 	}
 
 	// If no endpoint configured, just verify initialization
-	if o.Config.NBIEndpoint == "" {
+	if a.Config.NBIEndpoint == "" {
 		return nil
 	}
 
 	// Try to reach the OSM NBI health endpoint
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.Config.NBIEndpoint+"/version", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.Config.NBIEndpoint+"/version", nil)
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}
 
-	resp, err := o.httpClient.Do(req)
+	resp, err := a.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", ErrConnectionFailed)
 	}
@@ -649,14 +649,14 @@ func (o *Adapter) Health(ctx context.Context) error {
 }
 
 // Close cleanly shuts down the adapter.
-func (o *Adapter) Close() error {
-	o.httpClient = nil
+func (a *Adapter) Close() error {
+	a.httpClient = nil
 	return nil
 }
 
 // HTTPClient returns the HTTP client. Exported for testing.
-func (o *Adapter) HTTPClient() *http.Client {
-	return o.httpClient
+func (a *Adapter) HTTPClient() *http.Client {
+	return a.httpClient
 }
 
 // DoRequest performs an HTTP request to the OSM NBI API.
@@ -664,7 +664,7 @@ func (o *Adapter) HTTPClient() *http.Client {
 // (maps, structs) that are marshaled to JSON - this flexibility is required
 // to support different OSM NBI endpoints with varying request schemas.
 // Used only in tests for testing HTTP request handling.
-func (o *Adapter) DoRequest(
+func (a *Adapter) DoRequest(
 	ctx context.Context,
 	method string,
 	body interface{},
@@ -679,7 +679,7 @@ func (o *Adapter) DoRequest(
 		reqBody = bytes.NewReader(jsonBody)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, o.Config.NBIEndpoint+path, reqBody)
+	req, err := http.NewRequestWithContext(ctx, method, a.Config.NBIEndpoint+path, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -689,11 +689,11 @@ func (o *Adapter) DoRequest(
 	req.Header.Set("Accept", "application/json")
 
 	// Set basic auth
-	if o.Config.Username != "" {
-		req.SetBasicAuth(o.Config.Username, o.Config.Password)
+	if a.Config.Username != "" {
+		req.SetBasicAuth(a.Config.Username, a.Config.Password)
 	}
 
-	resp, err := o.httpClient.Do(req)
+	resp, err := a.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -714,7 +714,7 @@ func (o *Adapter) DoRequest(
 // Helper functions
 
 // CalculateProgress calculates deployment progress percentage based on status.
-func (o *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
+func (a *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return 100
@@ -734,7 +734,7 @@ func (o *Adapter) CalculateProgress(status adapter.DeploymentStatus) int {
 }
 
 // ConditionStatus returns the status of deployment conditions.
-func (o *Adapter) ConditionStatus(status adapter.DeploymentStatus) string {
+func (a *Adapter) ConditionStatus(status adapter.DeploymentStatus) string {
 	if status == adapter.DeploymentStatusDeployed {
 		return "True"
 	}
@@ -742,7 +742,7 @@ func (o *Adapter) ConditionStatus(status adapter.DeploymentStatus) string {
 }
 
 // ConditionReason returns the reason for deployment condition status.
-func (o *Adapter) ConditionReason(status adapter.DeploymentStatus) string {
+func (a *Adapter) ConditionReason(status adapter.DeploymentStatus) string {
 	switch status {
 	case adapter.DeploymentStatusDeployed:
 		return "InstantiationSucceeded"
@@ -762,7 +762,7 @@ func (o *Adapter) ConditionReason(status adapter.DeploymentStatus) string {
 }
 
 // ApplyPagination applies pagination to a list of deployments.
-func (o *Adapter) ApplyPagination(
+func (a *Adapter) ApplyPagination(
 	deployments []*adapter.Deployment,
 	limit, offset int,
 ) []*adapter.Deployment {
@@ -781,7 +781,7 @@ func (o *Adapter) ApplyPagination(
 }
 
 // ApplyPackagePagination applies pagination to a list of deployment packages.
-func (o *Adapter) ApplyPackagePagination(
+func (a *Adapter) ApplyPackagePagination(
 	packages []*adapter.DeploymentPackage,
 	limit, offset int,
 ) []*adapter.DeploymentPackage {
