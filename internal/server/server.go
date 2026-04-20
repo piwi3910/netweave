@@ -254,11 +254,17 @@ func New(
 			}
 			o2AuthMw = auth.NewMiddleware(authStoreTyped, o2MwConfig, logger, nil, nil)
 
-			// Initialize audit logger with the same auth store
+			// Initialize audit logger with the same auth store. A failure here
+			// is fatal: audit events are a compliance requirement and must be
+			// persisted. We log.Fatal because Server.New() does not return
+			// an error; a nil store indicates programmer error elsewhere and
+			// silent degradation would drop security-relevant events.
 			var err error
 			auditLogger, err = auth.NewAuditLogger(authStoreTyped, logger)
 			if err != nil {
-				logger.Warn("failed to initialize audit logger", zap.Error(err))
+				logger.Fatal("failed to initialize audit logger; refusing to start without audit storage",
+					zap.Error(err),
+				)
 			}
 
 			// Initialize tenant handler
@@ -623,11 +629,8 @@ doneCheck:
 		s.logger.Error("server startup failed, shutting down all listeners",
 			zap.Int("failed_count", len(startupErrs)),
 		)
-		// Best-effort cleanup: startup already failed, so we surface the
-		// original startup error and only log any secondary shutdown error
-		// rather than overwriting it.
 		if shutdownErr := s.Shutdown(); shutdownErr != nil {
-			s.logger.Warn("shutdown after startup failure also errored",
+			s.logger.Error("shutdown after failed startup reported an error",
 				zap.Error(shutdownErr),
 			)
 		}
@@ -693,7 +696,10 @@ func (s *Server) startListener(name string, srv *http.Server, errCh chan<- error
 }
 
 // buildBaseTLSConfig creates a base TLS config with minimum version setting.
-func (s *Server) buildBaseTLSConfig() *tls.Config {
+// Cipher suites are applied for TLS 1.2 only. TLS 1.3 cipher suites are fixed
+// by Go's crypto/tls package and cannot be configured; the field is ignored
+// in that case to match Go's documented behavior.
+func (s *Server) buildBaseTLSConfig() (*tls.Config, error) {
 	tlsCfg := &tls.Config{
 		MinVersion: tls.VersionTLS13,
 	}
@@ -705,7 +711,43 @@ func (s *Server) buildBaseTLSConfig() *tls.Config {
 		tlsCfg.MinVersion = tls.VersionTLS13
 	}
 
-	return tlsCfg
+	if len(s.config.TLS.CipherSuites) > 0 {
+		suites, err := resolveCipherSuites(s.config.TLS.CipherSuites)
+		if err != nil {
+			return nil, err
+		}
+		// Only TLS 1.2 accepts configurable cipher suites. Warn if configured
+		// for TLS 1.3 so the operator is not misled.
+		if tlsCfg.MinVersion == tls.VersionTLS13 {
+			s.logger.Warn("cipher_suites configured but MinVersion is TLS 1.3; Go ignores cipher_suites for TLS 1.3",
+				zap.Strings("cipher_suites", s.config.TLS.CipherSuites),
+			)
+		}
+		tlsCfg.CipherSuites = suites
+	}
+
+	return tlsCfg, nil
+}
+
+// resolveCipherSuites maps cipher suite names (as emitted by Go's
+// tls.CipherSuites()) to their numeric IDs. Names must match exactly and must
+// be in the allow-list of suites Go considers safe (insecure suites are
+// rejected). Returns an error on any unknown or insecure name.
+func resolveCipherSuites(names []string) ([]uint16, error) {
+	allowed := make(map[string]uint16, len(tls.CipherSuites()))
+	for _, s := range tls.CipherSuites() {
+		allowed[s.Name] = s.ID
+	}
+
+	ids := make([]uint16, 0, len(names))
+	for _, name := range names {
+		id, ok := allowed[name]
+		if !ok {
+			return nil, fmt.Errorf("unknown or insecure TLS cipher suite: %q", name)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 // loadClientCAs loads the CA certificate pool for client verification.
@@ -729,7 +771,10 @@ func (s *Server) loadClientCAs() (*x509.CertPool, error) {
 // buildStandardTLSConfig creates TLS config for admin, TMF, and GraphQL servers.
 // No client certificate is required (NoClientCert).
 func (s *Server) buildStandardTLSConfig() (*tls.Config, error) {
-	tlsCfg := s.buildBaseTLSConfig()
+	tlsCfg, err := s.buildBaseTLSConfig()
+	if err != nil {
+		return nil, err
+	}
 	tlsCfg.ClientAuth = tls.NoClientCert
 
 	s.logger.Info("standard TLS configuration built (no client auth)",
@@ -742,7 +787,10 @@ func (s *Server) buildStandardTLSConfig() (*tls.Config, error) {
 // buildO2TLSConfig creates TLS config for the O2 mTLS server.
 // Client certificate authentication is configured based on the config's ClientAuth setting.
 func (s *Server) buildO2TLSConfig() (*tls.Config, error) {
-	tlsCfg := s.buildBaseTLSConfig()
+	tlsCfg, err := s.buildBaseTLSConfig()
+	if err != nil {
+		return nil, err
+	}
 
 	// Configure client certificate authentication from config
 	switch s.config.TLS.ClientAuth {

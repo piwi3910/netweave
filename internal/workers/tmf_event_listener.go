@@ -14,6 +14,7 @@ import (
 
 	"github.com/piwi3910/netweave/internal/controllers"
 	"github.com/piwi3910/netweave/internal/handlers"
+	"github.com/piwi3910/netweave/internal/security/urlredact"
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
@@ -314,7 +315,7 @@ func (l *TMFEventListener) logPublishResults(
 	// Log any publishing errors
 	for callback, err := range errors {
 		l.logger.Error("failed to publish to hub",
-			zap.String("callback", callback),
+			zap.String("callback", urlredact.Redact(callback)),
 			zap.Error(err))
 	}
 

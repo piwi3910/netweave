@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/security/urlredact"
 	"go.uber.org/zap"
 )
 
@@ -18,8 +19,8 @@ func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscriptio
 	var err error
 	defer func() { adapter.ObserveOperation("gcp", "CreateSubscription", start, err) }()
 
-	a.logger.Debug("CreateSubscription called",
-		zap.String("callback", sub.Callback))
+	a.Logger.Debug("CreateSubscription called",
+		zap.String("callback", urlredact.Redact(sub.Callback)))
 
 	// Validate callback URL
 	if sub.Callback == "" {
@@ -49,9 +50,9 @@ func (a *Adapter) CreateSubscription(_ context.Context, sub *adapter.Subscriptio
 	// Update subscription count metric
 	adapter.UpdateSubscriptionCount("gcp", count)
 
-	a.logger.Info("created subscription",
-		zap.String("subscription_id", subscriptionID),
-		zap.String("callback", sub.Callback))
+	a.Logger.Info("created subscription",
+		zap.String("subscriptionId", subscriptionID),
+		zap.String("callback", urlredact.Redact(sub.Callback)))
 
 	return newSub, nil
 }
@@ -88,7 +89,7 @@ func (a *Adapter) UpdateSubscription(
 
 	a.logger.Debug("UpdateSubscription called",
 		zap.String("id", id),
-		zap.String("callback", sub.Callback))
+		zap.String("callback", urlredact.Redact(sub.Callback)))
 
 	// Validate callback URL
 	if sub.Callback == "" {

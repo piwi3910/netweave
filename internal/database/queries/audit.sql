@@ -2,8 +2,21 @@
 INSERT INTO audit_events (
     id, type, tenant_id, user_id, subject,
     resource_type, resource_id, action, details,
-    client_ip, user_agent, timestamp
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
+    client_ip, user_agent, timestamp,
+    prev_hash, entry_hash
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
+
+-- name: GetLatestAuditHash :one
+SELECT entry_hash
+FROM audit_events
+ORDER BY timestamp DESC, id DESC
+LIMIT 1;
+
+-- name: ListAuditEventsForVerification :many
+SELECT id, prev_hash, entry_hash, timestamp
+FROM audit_events
+ORDER BY timestamp ASC, id ASC
+LIMIT $1 OFFSET $2;
 
 -- name: ListAuditEvents :many
 SELECT * FROM audit_events

@@ -13,28 +13,41 @@ import (
 )
 
 func TestNewAuditLogger(t *testing.T) {
+	store := setupTestRedis(t)
+	defer func() { _ = store.Close() }()
+
 	tests := []struct {
 		name    string
+		store   auth.Store
 		logger  *zap.Logger
 		wantErr bool
 		errType error
 	}{
 		{
-			name:    "valid logger with nil store",
+			name:    "valid logger and store",
+			store:   store,
 			logger:  zap.NewNop(),
 			wantErr: false,
 		},
 		{
 			name:    "nil logger returns error",
+			store:   store,
 			logger:  nil,
 			wantErr: true,
 			errType: auth.ErrNilLogger,
+		},
+		{
+			name:    "nil store returns error",
+			store:   nil,
+			logger:  zap.NewNop(),
+			wantErr: true,
+			errType: auth.ErrNilAuditStore,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			al, err := auth.NewAuditLogger(nil, tt.logger)
+			al, err := auth.NewAuditLogger(tt.store, tt.logger)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -112,13 +125,10 @@ func TestAuditLogger_LogResourceOperation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var al *auth.AuditLogger
-			var err error
-			if tt.useStore {
-				al, err = auth.NewAuditLogger(store, logger)
-			} else {
-				al, err = auth.NewAuditLogger(nil, logger)
-			}
+			// Store is always required by NewAuditLogger; useStore is retained
+			// only for readability of the table. Passing nil would now error.
+			_ = tt.useStore
+			al, err := auth.NewAuditLogger(store, logger)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -128,8 +138,21 @@ func TestAuditLogger_LogResourceOperation(t *testing.T) {
 	}
 }
 
+// newTestAuditLogger is a convenience helper that sets up a miniredis-backed
+// audit store and returns a ready-to-use AuditLogger for tests which do not
+// need to inspect the persisted events.
+func newTestAuditLogger(t *testing.T) (*auth.AuditLogger, func()) {
+	t.Helper()
+	store := setupTestRedis(t)
+	al, err := auth.NewAuditLogger(store, zaptest.NewLogger(t))
+	require.NoError(t, err)
+	return al, func() { _ = store.Close() }
+}
+
 func TestAuditLogger_LogSubscriptionOperation(t *testing.T) {
 	logger := zaptest.NewLogger(t)
+	store := setupTestRedis(t)
+	defer func() { _ = store.Close() }()
 
 	tests := []struct {
 		name     string
@@ -156,7 +179,7 @@ func TestAuditLogger_LogSubscriptionOperation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			al, err := auth.NewAuditLogger(nil, logger)
+			al, err := auth.NewAuditLogger(store, logger)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -166,9 +189,8 @@ func TestAuditLogger_LogSubscriptionOperation(t *testing.T) {
 }
 
 func TestAuditLogger_LogConfigurationChange(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-	al, err := auth.NewAuditLogger(nil, logger)
-	require.NoError(t, err)
+	al, cleanup := newTestAuditLogger(t)
+	defer cleanup()
 
 	user := &auth.AuthenticatedUser{
 		UserID:   "admin-1",
@@ -180,9 +202,8 @@ func TestAuditLogger_LogConfigurationChange(t *testing.T) {
 }
 
 func TestAuditLogger_LogAdminOperation(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-	al, err := auth.NewAuditLogger(nil, logger)
-	require.NoError(t, err)
+	al, cleanup := newTestAuditLogger(t)
+	defer cleanup()
 
 	tests := []struct {
 		name    string
@@ -225,18 +246,16 @@ func TestAuditLogger_LogWebhookFailure(t *testing.T) {
 }
 
 func TestAuditLogger_LogSignatureVerificationFailure(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-	al, err := auth.NewAuditLogger(nil, logger)
-	require.NoError(t, err)
+	al, cleanup := newTestAuditLogger(t)
+	defer cleanup()
 
 	ctx := context.Background()
 	al.LogSignatureVerificationFailure(ctx, "sub-1", "192.168.1.100", "invalid HMAC signature")
 }
 
 func TestAuditLogger_LogTenantStatusChange(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-	al, err := auth.NewAuditLogger(nil, logger)
-	require.NoError(t, err)
+	al, cleanup := newTestAuditLogger(t)
+	defer cleanup()
 
 	user := &auth.AuthenticatedUser{
 		UserID:   "admin-1",
@@ -279,9 +298,8 @@ func TestAuditLogger_LogTenantStatusChange(t *testing.T) {
 }
 
 func TestAuditLogger_LogUserStatusChange(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-	al, err := auth.NewAuditLogger(nil, logger)
-	require.NoError(t, err)
+	al, cleanup := newTestAuditLogger(t)
+	defer cleanup()
 
 	actor := &auth.AuthenticatedUser{
 		UserID:   "admin-1",
@@ -311,9 +329,8 @@ func TestAuditLogger_LogUserStatusChange(t *testing.T) {
 }
 
 func TestAuditLogger_LogQuotaUpdate(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-	al, err := auth.NewAuditLogger(nil, logger)
-	require.NoError(t, err)
+	al, cleanup := newTestAuditLogger(t)
+	defer cleanup()
 
 	user := &auth.AuthenticatedUser{
 		UserID:   "admin-1",
@@ -325,9 +342,8 @@ func TestAuditLogger_LogQuotaUpdate(t *testing.T) {
 }
 
 func TestAuditLogger_LogBulkOperation(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-	al, err := auth.NewAuditLogger(nil, logger)
-	require.NoError(t, err)
+	al, cleanup := newTestAuditLogger(t)
+	defer cleanup()
 
 	tests := []struct {
 		name    string

@@ -231,10 +231,12 @@ func TestCreateSubscription_WithFilter(t *testing.T) {
 			wantBody:   "example.com",
 		},
 		{
-			name:       "invalid scheme ftp",
-			body:       `{"callback":"ftp://example.com/notify"}`,
+			name: "invalid scheme ftp",
+			body: `{"callback":"ftp://example.com/notify"}`,
+			// #499: client-facing message is the generic form. The detailed
+			// "http or https" reason is in the operator log only.
 			wantStatus: http.StatusBadRequest,
-			wantBody:   "http or https",
+			wantBody:   "invalid callback URL",
 		},
 	}
 
@@ -881,7 +883,10 @@ func TestHandleCreateResourcePool_InvalidJSON(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-// TestHandleAPIInfo_Coverage tests the /o2ims API info endpoint.
+// TestHandleAPIInfo_Coverage tests the /o2ims unauthenticated banner.
+// Since #521, /o2ims on the admin router returns a minimal banner only;
+// the detailed descriptor lives behind the authenticated O2 router at
+// /o2ims-infrastructureInventory/v1.
 func TestHandleAPIInfo_Coverage(t *testing.T) {
 	srv := setupMinimalTestServer(t)
 	router := srv.Router()
@@ -891,7 +896,8 @@ func TestHandleAPIInfo_Coverage(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "version")
+	assert.Contains(t, w.Body.String(), "\"service\":\"netweave\"")
+	assert.Contains(t, w.Body.String(), "\"status\":\"ok\"")
 }
 
 // TestHandleBatchCreateSubscriptions_EmptyBody tests batch create with empty array.

@@ -11,6 +11,7 @@ import (
 	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
 	"github.com/piwi3910/netweave/internal/dms/registry"
 	"github.com/piwi3910/netweave/internal/models"
+	"github.com/piwi3910/netweave/internal/security/urlredact"
 	"github.com/piwi3910/netweave/internal/storage"
 	"go.uber.org/zap"
 )
@@ -797,7 +798,7 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 	createdSub, err := adp.CreateSubscription(ctx, subscription)
 	if err != nil {
 		h.logger.Error("failed to create O2-IMS subscription",
-			zap.String("callback", hubReq.Callback),
+			zap.String("callback", urlredact.Redact(hubReq.Callback)),
 			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "InternalError",
@@ -839,9 +840,9 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 	}
 
 	h.logger.Info("registered event hub",
-		zap.String("hub_id", hubID),
-		zap.String("subscription_id", createdSub.SubscriptionID),
-		zap.String("callback", hubReq.Callback),
+		zap.String("hubId", hubID),
+		zap.String("subscriptionId", createdSub.SubscriptionID),
+		zap.String("callback", urlredact.Redact(hubReq.Callback)),
 		zap.String("query", hubReq.Query))
 
 	// Return hub response

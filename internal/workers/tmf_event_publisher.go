@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/models"
+	"github.com/piwi3910/netweave/internal/security/urlredact"
 )
 
 // TMFEventPublisher publishes TMF688 events to registered webhooks.
@@ -93,10 +94,10 @@ func (p *TMFEventPublisher) PublishEvent(ctx context.Context, callback string, e
 	}
 
 	p.logger.Debug("published TMF688 event",
-		zap.String("callback", callback),
-		zap.String("event_id", event.ID),
-		zap.String("event_type", event.EventType),
-		zap.Int("status_code", resp.StatusCode))
+		zap.String("callback", urlredact.Redact(callback)),
+		zap.String("eventId", event.ID),
+		zap.String("eventType", event.EventType),
+		zap.Int("statusCode", resp.StatusCode))
 
 	return nil
 }
@@ -123,9 +124,9 @@ func (p *TMFEventPublisher) PublishEventWithRetry(
 			// Success
 			if attempt > 0 {
 				p.logger.Info("published TMF688 event after retries",
-					zap.String("callback", callback),
-					zap.String("event_id", event.ID),
-					zap.String("event_type", event.EventType),
+					zap.String("callback", urlredact.Redact(callback)),
+					zap.String("eventId", event.ID),
+					zap.String("eventType", event.EventType),
 					zap.Int("attempts", attempt+1))
 			}
 			return nil
@@ -140,8 +141,8 @@ func (p *TMFEventPublisher) PublishEventWithRetry(
 
 		// Log retry attempt
 		p.logger.Warn("failed to publish TMF688 event, retrying",
-			zap.String("callback", callback),
-			zap.String("event_id", event.ID),
+			zap.String("callback", urlredact.Redact(callback)),
+			zap.String("eventId", event.ID),
 			zap.Int("attempt", attempt+1),
 			zap.Int("max_retries", maxRetries),
 			zap.Error(err))
@@ -166,9 +167,9 @@ func (p *TMFEventPublisher) PublishEventWithRetry(
 
 	// All retries failed
 	p.logger.Error("failed to publish TMF688 event after all retries",
-		zap.String("callback", callback),
-		zap.String("event_id", event.ID),
-		zap.String("event_type", event.EventType),
+		zap.String("callback", urlredact.Redact(callback)),
+		zap.String("eventId", event.ID),
+		zap.String("eventType", event.EventType),
 		zap.Int("attempts", maxRetries+1),
 		zap.Error(lastErr))
 
