@@ -217,6 +217,20 @@ type OAuth2Config struct {
 
 	// RequireTenantClaim requires the tenant_id claim to be present in tokens.
 	RequireTenantClaim bool `mapstructure:"require_tenant_claim"`
+
+	// ExpectedAudience pins the "aud" claim on incoming tokens. Leave empty
+	// to disable audience enforcement (not recommended for production).
+	ExpectedAudience string `mapstructure:"expected_audience"`
+
+	// ExpectedIssuer pins the "iss" claim. Typically the Keycloak realm URL
+	// (for example https://keycloak.example.com/realms/netweave). Leave
+	// empty to disable issuer enforcement (not recommended for production).
+	ExpectedIssuer string `mapstructure:"expected_issuer"`
+
+	// AllowedClientIDs is the set of OAuth2 client_ids whose tokens may
+	// authenticate against this gateway. Leave empty to disable client_id
+	// pinning (not recommended for production).
+	AllowedClientIDs []string `mapstructure:"allowed_client_ids"`
 }
 
 // MultiTenancyConfig contains multi-tenancy and RBAC configuration.

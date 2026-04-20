@@ -1309,6 +1309,9 @@ func initializeOAuth2(
 		DefaultRole:        cfg.OAuth2.DefaultRole,
 		GroupRoleMapping:   cfg.OAuth2.GroupRoleMapping,
 		RequireTenantClaim: cfg.OAuth2.RequireTenantClaim,
+		ExpectedAudience:   cfg.OAuth2.ExpectedAudience,
+		ExpectedIssuer:     cfg.OAuth2.ExpectedIssuer,
+		AllowedClientIDs:   cfg.OAuth2.AllowedClientIDs,
 	}
 
 	// Create OAuth2 authenticator.

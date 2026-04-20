@@ -291,7 +291,7 @@ func TestClient_SetUserPassword(t *testing.T) {
 	err = client.SetUserPassword(ctx, userID, "permanent456", false)
 	require.NoError(t, err)
 
-	tokenResp, err := client.ExchangePasswordCredentials(ctx, user.Email, "permanent456")
+	tokenResp, err := client.DevExchangePasswordCredentials(ctx, user.Email, "permanent456")
 	require.NoError(t, err)
 	assert.NotNil(t, tokenResp)
 	assert.NotEmpty(t, tokenResp.AccessToken)

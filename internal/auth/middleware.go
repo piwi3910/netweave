@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -27,6 +28,9 @@ type MiddlewareConfig struct {
 	Enabled bool
 
 	// SkipPaths is a list of paths that should skip authentication.
+	// Prefer MarkPublicRoute at the handler level for any route that is
+	// not a truly platform-level endpoint (health, metrics, root); path-
+	// based skips silently expand if route prefixes drift.
 	SkipPaths []string
 
 	// RequireMTLS requires client certificates for authentication.
@@ -34,6 +38,10 @@ type MiddlewareConfig struct {
 }
 
 // DefaultMiddlewareConfig returns a MiddlewareConfig with sensible defaults.
+// Note: "/o2ims" was historically in SkipPaths but has been removed — the
+// handleAPIInfo endpoint that serves "/o2ims" now opts out of auth explicitly
+// via Middleware.MarkPublicRoute, so that registering any "/o2ims/<child>"
+// route does not accidentally inherit the public behaviour.
 func DefaultMiddlewareConfig() *MiddlewareConfig {
 	return &MiddlewareConfig{
 		Enabled: true,
@@ -44,7 +52,6 @@ func DefaultMiddlewareConfig() *MiddlewareConfig {
 			"/readyz",
 			"/metrics",
 			"/",
-			"/o2ims",
 		},
 		RequireMTLS: true,
 	}
@@ -58,6 +65,16 @@ type Middleware struct {
 	compiledPatterns    []*regexp.Regexp     // Pre-compiled regex patterns for skip paths
 	oauth2Authenticator *OAuth2Authenticator // OAuth2 authentication handler
 	oauth2Config        *OAuth2Config        // OAuth2 configuration
+
+	// publicRoutesMu guards publicRoutes. Routes are typically registered
+	// once at startup, but the map supports concurrent reads during request
+	// handling without races.
+	publicRoutesMu sync.RWMutex
+
+	// publicRoutes is the explicit allowlist of (method, path) tuples that
+	// bypass authentication. Populated via MarkPublicRoute — the preferred
+	// alternative to string-based SkipPaths for non-platform endpoints.
+	publicRoutes map[string]struct{}
 }
 
 // NewMiddleware creates a new authentication middleware.
@@ -99,15 +116,37 @@ func NewMiddleware(
 		compiledPatterns:    compiledPatterns,
 		oauth2Authenticator: oauth2Authenticator,
 		oauth2Config:        oauth2Config,
+		publicRoutes:        make(map[string]struct{}),
 	}
 }
 
-// OAuth2Authenticator exposes the authenticator attached to this middleware,
-// allowing non-HTTP transports (e.g. GraphQL WebSocket connection_init) to
-// validate tokens through the same code path as REST authentication.
-// Returns nil when only mTLS authentication is configured.
-func (m *Middleware) OAuth2Authenticator() *OAuth2Authenticator {
-	return m.oauth2Authenticator
+// MarkPublicRoute opts a specific (method, path) tuple out of authentication.
+// Prefer this over SkipPaths for any non-platform endpoint — it does not
+// expand to sibling paths and is explicit at call sites so reviewers can see
+// which routes are intentionally unauthenticated.
+//
+// Method is normalized to upper-case; path must match exactly what Gin
+// produces for c.Request.URL.Path (no trailing slash, no query string).
+func (m *Middleware) MarkPublicRoute(method, path string) {
+	key := publicRouteKey(method, path)
+	m.publicRoutesMu.Lock()
+	m.publicRoutes[key] = struct{}{}
+	m.publicRoutesMu.Unlock()
+}
+
+// isPublicRoute reports whether the (method, path) pair was previously
+// marked public via MarkPublicRoute.
+func (m *Middleware) isPublicRoute(method, path string) bool {
+	key := publicRouteKey(method, path)
+	m.publicRoutesMu.RLock()
+	_, ok := m.publicRoutes[key]
+	m.publicRoutesMu.RUnlock()
+	return ok
+}
+
+// publicRouteKey builds the map key used for public-route lookups.
+func publicRouteKey(method, path string) string {
+	return strings.ToUpper(method) + " " + path
 }
 
 // AuthenticationMiddleware extracts user identity from the request.
@@ -126,7 +165,8 @@ func (m *Middleware) AuthenticationMiddleware() gin.HandlerFunc {
 		ctx := ContextWithRequestID(c.Request.Context(), requestID)
 		c.Request = c.Request.WithContext(ctx)
 
-		if m.ShouldSkipAuth(c.Request.URL.Path) || !m.Config.Enabled {
+		if m.ShouldSkipAuth(c.Request.URL.Path) || !m.Config.Enabled ||
+			m.isPublicRoute(c.Request.Method, c.Request.URL.Path) {
 			c.Next()
 			return
 		}

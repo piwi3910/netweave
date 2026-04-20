@@ -175,7 +175,7 @@ func TestClient_Ping(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestClient_ExchangePasswordCredentials(t *testing.T) {
+func TestClient_DevExchangePasswordCredentials(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -234,7 +234,7 @@ func TestClient_ExchangePasswordCredentials(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tokenResp, err := client.ExchangePasswordCredentials(ctx, tt.username, tt.password)
+			tokenResp, err := client.DevExchangePasswordCredentials(ctx, tt.username, tt.password)
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Nil(t, tokenResp)
@@ -268,7 +268,7 @@ func TestClient_VerifyToken(t *testing.T) {
 
 	ctx := context.Background()
 
-	tokenResp, err := client.ExchangePasswordCredentials(ctx, "operator@example.com", "operator")
+	tokenResp, err := client.DevExchangePasswordCredentials(ctx, "operator@example.com", "operator")
 	require.NoError(t, err)
 	require.NotNil(t, tokenResp)
 
@@ -302,7 +302,7 @@ func TestClient_GetUserInfo(t *testing.T) {
 
 	ctx := context.Background()
 
-	tokenResp, err := client.ExchangePasswordCredentials(ctx, "operator@example.com", "operator")
+	tokenResp, err := client.DevExchangePasswordCredentials(ctx, "operator@example.com", "operator")
 	require.NoError(t, err)
 	require.NotNil(t, tokenResp)
 

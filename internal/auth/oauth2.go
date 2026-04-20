@@ -22,6 +22,7 @@ type OAuth2Authenticator struct {
 	store          Store
 	config         *OAuth2Config
 	logger         *zap.Logger
+	denylist       JTIDenylist
 }
 
 // OAuth2Config contains configuration for OAuth2 authentication.
@@ -43,6 +44,21 @@ type OAuth2Config struct {
 
 	// RequireTenantClaim requires the tenant_id claim to be present in tokens.
 	RequireTenantClaim bool
+
+	// ExpectedAudience is the audience value that incoming tokens must carry
+	// in their "aud" claim. When empty, audience enforcement is skipped
+	// (not recommended for production).
+	ExpectedAudience string
+
+	// ExpectedIssuer is the issuer value that incoming tokens must carry in
+	// their "iss" claim. When empty, issuer enforcement is skipped
+	// (not recommended for production).
+	ExpectedIssuer string
+
+	// AllowedClientIDs is the set of Keycloak client IDs whose tokens are
+	// accepted by this gateway. When empty, client_id enforcement is skipped
+	// (not recommended for production).
+	AllowedClientIDs []string
 }
 
 // OAuth2Claims represents structured claims from an OAuth2/OIDC token.
@@ -64,6 +80,25 @@ type OAuth2Claims struct {
 
 	// TenantID is a custom "tenant_id" claim for tenant association.
 	TenantID string
+
+	// JTI is the "jti" (JWT ID) claim used for per-token revocation.
+	JTI string
+
+	// Audience is the "aud" claim. OAuth2 tokens may carry either a string
+	// or an array of strings; we preserve all values here.
+	Audience []string
+
+	// Issuer is the "iss" claim used to confirm the token was minted by the
+	// expected Keycloak realm.
+	Issuer string
+
+	// ClientID is the "client_id" (or "azp") claim identifying the OAuth2
+	// client that obtained the token.
+	ClientID string
+
+	// ExpiresAt is the "exp" claim in seconds since the Unix epoch. Used to
+	// size JTI denylist TTLs so revocations cover the natural token lifetime.
+	ExpiresAt int64
 }
 
 // NewOAuth2Authenticator creates a new OAuth2 authenticator.
@@ -81,6 +116,14 @@ func NewOAuth2Authenticator(
 	}
 }
 
+// WithDenylist attaches a JTI denylist to the authenticator.
+// The denylist is consulted on every authentication and a token whose jti is
+// present is rejected with ErrTokenRevoked.
+func (a *OAuth2Authenticator) WithDenylist(denylist JTIDenylist) *OAuth2Authenticator {
+	a.denylist = denylist
+	return a
+}
+
 // Authenticate performs OAuth2 authentication for an incoming request.
 // Returns the authenticated user, role, and tenant on success.
 func (a *OAuth2Authenticator) Authenticate(
@@ -88,30 +131,21 @@ func (a *OAuth2Authenticator) Authenticate(
 	c *gin.Context,
 	requestID string,
 ) (*TenantUser, *Role, *Tenant, error) {
-	// Extract Bearer token from Authorization header
-	token, err := a.extractBearerToken(c)
+	claims, err := a.verifyAndExtractClaims(ctx, c, requestID)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to extract bearer token: %w", err)
+		return nil, nil, nil, err
 	}
 
-	// Verify token with Keycloak
-	tokenClaims, err := a.keycloakClient.VerifyToken(ctx, token)
-	if err != nil {
-		a.logger.Warn("OAuth2 token verification failed",
-			zap.String("request_id", requestID),
-			zap.Error(err),
-		)
-		return nil, nil, nil, fmt.Errorf("invalid token: %w", err)
+	// Defence-in-depth: verify audience, issuer, and client_id in addition to
+	// the introspection "active" check. Prevents cross-client/realm token
+	// replay when the Keycloak instance hosts multiple trust domains.
+	if err := a.verifyTokenBinding(claims); err != nil {
+		return nil, nil, nil, err
 	}
 
-	// Extract structured claims from token
-	claims, err := a.extractClaims(tokenClaims)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to extract claims: %w", err)
-	}
-
-	// Validate required claims
-	if err := a.validateClaims(claims); err != nil {
+	// Check the Redis-backed denylist so revocations propagate within the
+	// remaining lifetime of a token, even before its natural expiry.
+	if err := a.checkRevocation(ctx, claims); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -119,6 +153,16 @@ func (a *OAuth2Authenticator) Authenticate(
 	user, err := a.getOrCreateUser(ctx, claims, requestID)
 	if err != nil {
 		return nil, nil, nil, err
+	}
+
+	// Reject disabled users even if their Keycloak session is still active.
+	// This mirrors the mTLS branch in Middleware.authenticateAndLoadContext.
+	if !user.IsActive {
+		a.logger.Warn("inactive user attempted OAuth2 access",
+			zap.String("requestID", requestID),
+			zap.String("userID", user.ID),
+		)
+		return nil, nil, nil, ErrAccountDisabled
 	}
 
 	// Load user's role
@@ -133,10 +177,110 @@ func (a *OAuth2Authenticator) Authenticate(
 		return nil, nil, nil, fmt.Errorf("failed to load tenant: %w", err)
 	}
 
+	// Tenant must also be active; otherwise deny access on parity with mTLS.
+	if !tenant.IsActive() {
+		a.logger.Warn("OAuth2 access denied for suspended tenant",
+			zap.String("requestID", requestID),
+			zap.String("userID", user.ID),
+			zap.String("tenantID", tenant.ID),
+		)
+		return nil, nil, nil, ErrTenantSuspended
+	}
+
 	// Update last login timestamp
 	_ = a.store.UpdateLastLogin(ctx, user.ID)
 
 	return user, role, tenant, nil
+}
+
+// verifyAndExtractClaims performs token extraction, introspection, and
+// structured claim parsing. Extracted to keep Authenticate concise.
+func (a *OAuth2Authenticator) verifyAndExtractClaims(
+	ctx context.Context,
+	c *gin.Context,
+	requestID string,
+) (*OAuth2Claims, error) {
+	token, err := a.extractBearerToken(c)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract bearer token: %w", err)
+	}
+
+	tokenClaims, err := a.keycloakClient.VerifyToken(ctx, token)
+	if err != nil {
+		a.logger.Warn("OAuth2 token verification failed",
+			zap.String("requestID", requestID),
+			zap.Error(err),
+		)
+		return nil, fmt.Errorf("invalid token: %w", err)
+	}
+
+	claims, err := a.extractClaims(tokenClaims)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract claims: %w", err)
+	}
+
+	if err := a.validateClaims(claims); err != nil {
+		return nil, err
+	}
+
+	return claims, nil
+}
+
+// verifyTokenBinding validates aud, iss, and client_id against configured
+// allowlists. Checks are skipped only when the corresponding config field is
+// empty (opt-in enforcement to remain backwards-compatible for tests).
+func (a *OAuth2Authenticator) verifyTokenBinding(claims *OAuth2Claims) error {
+	if a.config.ExpectedAudience != "" {
+		if !containsString(claims.Audience, a.config.ExpectedAudience) {
+			return fmt.Errorf("token audience mismatch: expected %q", a.config.ExpectedAudience)
+		}
+	}
+
+	if a.config.ExpectedIssuer != "" && claims.Issuer != a.config.ExpectedIssuer {
+		return fmt.Errorf("token issuer mismatch: expected %q, got %q",
+			a.config.ExpectedIssuer, claims.Issuer)
+	}
+
+	if len(a.config.AllowedClientIDs) > 0 {
+		if !containsString(a.config.AllowedClientIDs, claims.ClientID) {
+			return fmt.Errorf("token client_id %q is not on the allowlist", claims.ClientID)
+		}
+	}
+
+	return nil
+}
+
+// checkRevocation consults the optional JTI denylist. Empty jti claims are
+// tolerated unless enforcement is desired at the config layer.
+func (a *OAuth2Authenticator) checkRevocation(ctx context.Context, claims *OAuth2Claims) error {
+	if a.denylist == nil || claims.JTI == "" {
+		return nil
+	}
+	revoked, err := a.denylist.IsRevoked(ctx, claims.JTI)
+	if err != nil {
+		// Log and fail closed. Revocation is a security-critical check; if
+		// the backing store is unavailable we'd rather reject the request
+		// than risk accepting a revoked token.
+		a.logger.Error("JTI denylist lookup failed",
+			zap.String("jti", claims.JTI),
+			zap.Error(err),
+		)
+		return fmt.Errorf("token revocation check failed: %w", err)
+	}
+	if revoked {
+		return ErrTokenRevoked
+	}
+	return nil
+}
+
+// containsString reports whether needle is present in haystack.
+func containsString(haystack []string, needle string) bool {
+	for _, v := range haystack {
+		if v == needle {
+			return true
+		}
+	}
+	return false
 }
 
 // extractBearerToken extracts the Bearer token from the Authorization header.
@@ -181,21 +325,86 @@ func (a *OAuth2Authenticator) extractClaims(tokenClaims map[string]interface{}) 
 		claims.Name = name
 	}
 
-	// Optional: groups (array of strings)
-	if groupsRaw, ok := tokenClaims["groups"].([]interface{}); ok {
-		for _, g := range groupsRaw {
-			if groupStr, ok := g.(string); ok {
-				claims.Groups = append(claims.Groups, groupStr)
-			}
-		}
-	}
+	claims.Groups = extractGroupsClaim(tokenClaims)
 
 	// Optional: tenant_id (custom claim)
 	if tenantID, ok := tokenClaims["tenant_id"].(string); ok {
 		claims.TenantID = tenantID
 	}
 
+	// Security-relevant claims for audience/issuer/client_id pinning and
+	// revocation. All are optional at extraction time; enforcement happens
+	// in verifyTokenBinding / checkRevocation based on configuration.
+	if jti, ok := tokenClaims["jti"].(string); ok {
+		claims.JTI = jti
+	}
+	claims.Audience = extractAudienceClaim(tokenClaims)
+	if iss, ok := tokenClaims["iss"].(string); ok {
+		claims.Issuer = iss
+	}
+	claims.ClientID = extractClientIDClaim(tokenClaims)
+	if exp, ok := tokenClaims["exp"].(float64); ok {
+		claims.ExpiresAt = int64(exp)
+	}
+
 	return claims, nil
+}
+
+// extractGroupsClaim returns string entries from the "groups" claim.
+// Non-string entries are dropped silently.
+func extractGroupsClaim(tokenClaims map[string]interface{}) []string {
+	raw, ok := tokenClaims["groups"].([]interface{})
+	if !ok {
+		return nil
+	}
+	var groups []string
+	for _, g := range raw {
+		if s, ok := g.(string); ok {
+			groups = append(groups, s)
+		}
+	}
+	return groups
+}
+
+// extractAudienceClaim accepts both a single string and a []string/[]interface{}
+// shape for the "aud" claim, per RFC 7519 section 4.1.3.
+func extractAudienceClaim(tokenClaims map[string]interface{}) []string {
+	raw, ok := tokenClaims["aud"]
+	if !ok {
+		return nil
+	}
+	switch v := raw.(type) {
+	case string:
+		if v == "" {
+			return nil
+		}
+		return []string{v}
+	case []interface{}:
+		audiences := make([]string, 0, len(v))
+		for _, entry := range v {
+			if s, ok := entry.(string); ok && s != "" {
+				audiences = append(audiences, s)
+			}
+		}
+		return audiences
+	case []string:
+		return v
+	default:
+		return nil
+	}
+}
+
+// extractClientIDClaim reads the client identifier from the token.
+// Keycloak introspection exposes this as "client_id"; id-tokens use "azp".
+// We prefer "client_id" but fall back to "azp" for compatibility.
+func extractClientIDClaim(tokenClaims map[string]interface{}) string {
+	if cid, ok := tokenClaims["client_id"].(string); ok && cid != "" {
+		return cid
+	}
+	if azp, ok := tokenClaims["azp"].(string); ok {
+		return azp
+	}
+	return ""
 }
 
 // validateClaims validates that required claims are present.
