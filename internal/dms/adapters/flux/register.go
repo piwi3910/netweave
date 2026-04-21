@@ -1,0 +1,22 @@
+package flux
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/piwi3910/netweave/internal/backend"
+	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
+)
+
+// init registers the Flux DMS adapter constructor with the backend factory.
+func init() {
+	backend.RegisterDMSAdapter("flux", func(inst *backend.Instance) (dmsadapter.DMSAdapter, error) {
+		var cfg Config
+		if len(inst.Config) > 0 {
+			if err := json.Unmarshal(inst.Config, &cfg); err != nil {
+				return nil, fmt.Errorf("flux adapter config: %w", err)
+			}
+		}
+		return New(&cfg)
+	})
+}

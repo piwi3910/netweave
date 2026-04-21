@@ -308,6 +308,9 @@ linters:
           - gochecknoinits
         path: internal/backend/adapter_factory\.go
       - linters:
+          - gochecknoinits
+        path: internal/(adapters|dms/adapters|smo/adapters)/[^/]+/register\.go
+      - linters:
           - revive
         path: internal/adapters/
         text: unused-parameter.*ctx

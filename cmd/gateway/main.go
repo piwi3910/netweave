@@ -51,12 +51,32 @@ import (
 	"github.com/piwi3910/netweave/internal/database"
 	"github.com/piwi3910/netweave/internal/dms/adapters/helm"
 	dmsmock "github.com/piwi3910/netweave/internal/dms/adapters/mock"
+
+	// Blank imports: each adapter package registers itself with the backend
+	// factory in its init() function. Without these imports the factory cannot
+	// resolve adapter_type strings like "aws" at runtime (see issue #464).
+	_ "github.com/piwi3910/netweave/internal/adapters/aws"
+	_ "github.com/piwi3910/netweave/internal/adapters/azure"
+	_ "github.com/piwi3910/netweave/internal/adapters/dtias"
+	_ "github.com/piwi3910/netweave/internal/adapters/gcp"
+	_ "github.com/piwi3910/netweave/internal/adapters/kubernetes"
+	_ "github.com/piwi3910/netweave/internal/adapters/openstack"
+	_ "github.com/piwi3910/netweave/internal/adapters/starlingx"
+	_ "github.com/piwi3910/netweave/internal/adapters/vmware"
+	_ "github.com/piwi3910/netweave/internal/dms/adapters/argocd"
+	_ "github.com/piwi3910/netweave/internal/dms/adapters/crossplane"
+	_ "github.com/piwi3910/netweave/internal/dms/adapters/flux"
+	_ "github.com/piwi3910/netweave/internal/dms/adapters/kustomize"
+	_ "github.com/piwi3910/netweave/internal/dms/adapters/onaplcm"
+	_ "github.com/piwi3910/netweave/internal/dms/adapters/osmlcm"
 	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
 	"github.com/piwi3910/netweave/internal/encryption"
 	"github.com/piwi3910/netweave/internal/handlers"
 	"github.com/piwi3910/netweave/internal/keycloak"
 	"github.com/piwi3910/netweave/internal/observability"
 	"github.com/piwi3910/netweave/internal/server"
+	_ "github.com/piwi3910/netweave/internal/smo/adapters/onap"
+	_ "github.com/piwi3910/netweave/internal/smo/adapters/osm"
 	"github.com/piwi3910/netweave/internal/storage"
 	vaultpkg "github.com/piwi3910/netweave/internal/vault"
 )
