@@ -75,6 +75,7 @@ type Config struct {
 	StorageMode     string                  `mapstructure:"storage_mode"`
 	FrontendPlugins FrontendPlugins         `mapstructure:"frontend_plugins"`
 	CertLifecycle   CertLifecycleConfig     `mapstructure:"cert_lifecycle"`
+	Events          EventsConfig            `mapstructure:"events"`
 
 	// Environment stores the detected environment (dev/staging/prod)
 	// This field is set automatically during Load() and used for validation
@@ -126,6 +127,36 @@ type CertLifecycleConfig struct {
 
 	// KeycloakSync enables Keycloak user attribute synchronization.
 	KeycloakSync bool `mapstructure:"keycloak_sync"`
+}
+
+// EventsConfig configures the event notification pipeline
+// (subscription → filter → queue → notifier → delivery).
+// When enabled, the gateway runs a webhook worker that consumes events
+// from the Redis Stream and delivers them to subscriber callback URLs.
+type EventsConfig struct {
+	// Enabled controls whether the event pipeline workers are started.
+	// When false, subscriptions can still be created but no events will
+	// be delivered. Default: true.
+	Enabled bool `mapstructure:"enabled"`
+
+	// WebhookWorkers is the number of concurrent webhook delivery worker
+	// goroutines. Higher values improve parallel delivery throughput at
+	// the cost of memory and outbound connections. Default: 10.
+	WebhookWorkers int `mapstructure:"webhook_workers"`
+
+	// WebhookTimeout bounds each individual webhook HTTP request.
+	// Default: 10s.
+	WebhookTimeout time.Duration `mapstructure:"webhook_timeout"`
+
+	// WebhookMaxRetries is the maximum number of delivery retry
+	// attempts per event before it is moved to the dead letter queue.
+	// Default: 3.
+	WebhookMaxRetries int `mapstructure:"webhook_max_retries"`
+
+	// HMACSecretEnvVar is the environment variable containing the HMAC
+	// signing secret used to authenticate webhook payloads to
+	// subscribers. If empty, requests are sent unsigned.
+	HMACSecretEnvVar string `mapstructure:"hmac_secret_env_var"`
 }
 
 // AuthConfig contains authentication backend configuration.
@@ -1121,6 +1152,14 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("cert_lifecycle.max_renewal_retries", 3)
 	v.SetDefault("cert_lifecycle.renewal_retry_interval", "1h")
 	v.SetDefault("cert_lifecycle.vault_pki_path", "pki_int")
+
+	// Event pipeline defaults. The pipeline is enabled by default so that
+	// subscriptions actually deliver events out of the box; set
+	// events.enabled=false to disable all webhook delivery workers.
+	v.SetDefault("events.enabled", true)
+	v.SetDefault("events.webhook_workers", 10)
+	v.SetDefault("events.webhook_timeout", "10s")
+	v.SetDefault("events.webhook_max_retries", 3)
 
 	// PostgreSQL defaults
 	v.SetDefault("postgres.host", "localhost")

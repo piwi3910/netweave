@@ -33,14 +33,14 @@ func (a *raceRunnerAdapter) GetResource(_ context.Context, id string) (*adapter.
 // and then stopping the generator in a tight loop must not panic with
 // "send on closed channel" nor produce a data race. Run with `go test -race`
 // to detect the regression.
-func TestK8sEventGeneratorStartStopNoRace(t *testing.T) {
+func TestK8sEventGenerator_StartStopNoRace(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	adp := &raceRunnerAdapter{}
 
 	// The race is in the generator's goroutine lifecycle, not in fake
 	// client behavior. A fresh fake clientset + empty node set is enough
 	// to drive watchNodes without emitting events.
-	const iterations = 20
+	const iterations = 100
 	for i := 0; i < iterations; i++ {
 		clientset := fake.NewClientset()
 		gen := events.NewK8sEventGenerator(clientset, adp, logger)
@@ -78,7 +78,7 @@ func TestK8sEventGeneratorStartStopNoRace(t *testing.T) {
 
 // TestK8sEventGeneratorStopIsIdempotent verifies Stop can safely be called
 // more than once (covers the sync.Once guard around channel closes).
-func TestK8sEventGeneratorStopIsIdempotent(t *testing.T) {
+func TestK8sEventGenerator_StopIsIdempotent(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	adp := &raceRunnerAdapter{}
 	clientset := fake.NewClientset()
