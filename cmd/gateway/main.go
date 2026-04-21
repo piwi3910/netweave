@@ -285,6 +285,8 @@ func initializePostgres(cfg *config.Config, logger *zap.Logger) (*database.DB, e
 }
 
 // selectSubscriptionStore sets dest to the appropriate subscription store based on storage mode.
+// When cfg.Security.TenantIsolationEnforced is true (the default), the resulting store is wrapped
+// in a TenantEnforcedStore which makes cross-tenant reads/writes at the storage layer impossible.
 func selectSubscriptionStore(
 	dest *storage.Store,
 	cfg *config.Config,
@@ -292,19 +294,28 @@ func selectSubscriptionStore(
 	pgDB *database.DB,
 	logger *zap.Logger,
 ) {
+	var inner storage.Store
 	switch cfg.StorageMode {
 	case "postgres":
 		logger.Info("using PostgreSQL as subscription store")
-		*dest = storage.NewPostgresStore(pgDB, cfg.Security.AllowInsecureCallbacks)
+		inner = storage.NewPostgresStore(pgDB, cfg.Security.AllowInsecureCallbacks)
 
 	case "dual":
 		pgStore := storage.NewPostgresStore(pgDB, cfg.Security.AllowInsecureCallbacks)
 		logger.Info("using dual store (primary=redis, secondary=postgres)")
-		*dest = storage.NewDualStore(redisStore, pgStore, logger)
+		inner = storage.NewDualStore(redisStore, pgStore, logger)
 
 	default: // "redis"
 		logger.Info("using Redis as subscription store")
-		*dest = redisStore
+		inner = redisStore
+	}
+
+	if cfg.Security.TenantIsolationEnforced {
+		logger.Info("wrapping subscription store with tenant isolation enforcer")
+		*dest = storage.NewTenantEnforcedStore(inner)
+	} else {
+		logger.Warn("tenant isolation enforcement DISABLED — handlers are solely responsible for tenant filtering")
+		*dest = inner
 	}
 }
 

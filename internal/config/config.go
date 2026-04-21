@@ -683,6 +683,14 @@ type SecurityConfig struct {
 
 	// SecurityHeaders contains configuration for security headers middleware
 	SecurityHeaders SecurityHeadersConfig `mapstructure:"security_headers"`
+
+	// TenantIsolationEnforced toggles the storage-layer tenant isolation
+	// enforcer. When true (default), every subscription storage call must
+	// carry a tenant identity in context; cross-tenant reads/writes are
+	// refused by the store. When false, the store behaves as before and
+	// handlers are solely responsible for tenant filtering — use ONLY for
+	// one-off migrations of legacy data, and re-enable immediately.
+	TenantIsolationEnforced bool `mapstructure:"tenant_isolation_enforced"`
 }
 
 // SecurityHeadersConfig contains configuration for HTTP security headers.
@@ -1110,6 +1118,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("security.rate_limit.global.requests_per_second", 10000)
 	v.SetDefault("security.rate_limit.global.max_concurrent_requests", 1000)
 	v.SetDefault("security.allow_insecure_callbacks", false)
+	v.SetDefault("security.tenant_isolation_enforced", true)
 
 	// Validation defaults
 	v.SetDefault("validation.enabled", true)
