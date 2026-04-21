@@ -554,6 +554,17 @@ func runServerWithShutdown(cfg *config.Config, logger *zap.Logger, components *A
 		}
 	}
 
+	// Start the event notification pipeline (C3). Without this, callers
+	// can create subscriptions but never receive events. The pipeline is
+	// stopped during graceful shutdown below.
+	pipeline, pipelineErr := startEventPipeline(
+		ctx, cfg, components.redisStore, components.store, logger,
+	)
+	if pipelineErr != nil {
+		logger.Error("failed to start event pipeline", zap.Error(pipelineErr))
+		return fmt.Errorf("failed to start event pipeline: %w", pipelineErr)
+	}
+
 	// Setup signal handling
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
@@ -571,7 +582,16 @@ func runServerWithShutdown(cfg *config.Config, logger *zap.Logger, components *A
 	}()
 
 	// Wait for shutdown signal or error
-	return handleShutdown(ctx, cancel, components.server, cfg, logger, shutdown, serverErrors)
+	shutdownErr := handleShutdown(ctx, cancel, components.server, cfg, logger, shutdown, serverErrors)
+
+	// Stop the event pipeline after the HTTP server has drained. Doing
+	// this after handleShutdown ensures in-flight webhook deliveries
+	// finish (bounded by ctx timeout) before worker goroutines exit.
+	if stopErr := pipeline.Stop(); stopErr != nil {
+		logger.Warn("failed to stop event pipeline cleanly", zap.Error(stopErr))
+	}
+
+	return shutdownErr
 }
 
 // handleShutdown waits for shutdown signals or errors and performs graceful shutdown.
