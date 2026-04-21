@@ -19,7 +19,7 @@ import (
 // reservePort opens a TCP listener on a free local port, returns the port
 // number, and keeps the listener open so the port stays occupied until the
 // test cleans up. The returned cleanup closes the listener.
-func reservePort(t *testing.T) (port int, cleanup func()) {
+func reservePort(t *testing.T) (int, func()) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)

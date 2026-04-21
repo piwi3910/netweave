@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 )
 
 // cancelBlockingStore is a storage.Store whose List blocks until its own
-// context is cancelled. It exposes channels so tests can synchronize on
+// context is canceled. It exposes channels so tests can synchronize on
 // "in-flight work started" and "work released".
 type cancelBlockingStore struct {
 	entered  chan struct{}
@@ -53,7 +54,7 @@ func (b *cancelBlockingStore) List(ctx context.Context) ([]*storage.Subscription
 	case <-ctx.Done():
 		b.listErr = ctx.Err()
 		close(b.released)
-		return nil, ctx.Err()
+		return nil, fmt.Errorf("cancelBlockingStore List: %w", ctx.Err())
 	case <-time.After(10 * time.Second):
 		// Safety net: if cancellation never arrives we still return so
 		// the test fails deterministically rather than hangs.
@@ -78,7 +79,7 @@ func (b *cancelBlockingStore) Close() error { return nil }
 
 func (b *cancelBlockingStore) Ping(_ context.Context) error { return nil }
 
-// TestHandleNodeAddUnwindsOnCancel verifies the fix for H14: cancelling the
+// TestHandleNodeAddUnwindsOnCancel verifies the fix for H14: canceling the
 // controller-scoped context unwinds in-flight informer-handler work promptly
 // instead of blocking until pod termination.
 func TestHandleNodeAddUnwindsOnCancel(t *testing.T) {
@@ -114,7 +115,7 @@ func TestHandleNodeAddUnwindsOnCancel(t *testing.T) {
 
 	// Kick off the informer handler. It derives a bounded child of the
 	// controller ctx and calls Store.List, which blocks until ctx is
-	// cancelled.
+	// canceled.
 	handlerDone := make(chan struct{})
 	go func() {
 		ctrl.handleNodeAdd(&corev1.Node{

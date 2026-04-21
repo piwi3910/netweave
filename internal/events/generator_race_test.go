@@ -57,7 +57,7 @@ func TestK8sEventGeneratorStartStopNoRace(t *testing.T) {
 		// the pre-fix race would panic on close.
 		time.Sleep(5 * time.Millisecond)
 
-		// Stop before cancelling the ctx. This is the critical order
+		// Stop before canceling the ctx. This is the critical order
 		// for the regression: Stop must wait for the goroutine to exit
 		// before closing eventChannel.
 		if err := gen.Stop(); err != nil {
