@@ -66,7 +66,10 @@ var o2imsOpenAPISpec []byte
 //	    log.Fatal(err)
 //	}
 type Server struct {
-	config *config.Config
+	// config exposes only the sections server actually reads, via the
+	// narrow ServerConfigProvider contract (H10, interface-segregation).
+	// *config.Config satisfies this interface; tests may supply a stub.
+	config ServerConfigProvider
 	logger *zap.Logger
 
 	// Multi-port routers: each port gets its own Gin engine with appropriate auth.
@@ -507,25 +510,25 @@ func (s *Server) setupMiddleware() {
 		// OpenAPI spec still have a hard body limit (issue #494).
 		r.Use(bodyLimitMw)
 
-		if s.config.Observability.Metrics.Enabled {
+		if s.config.ObservabilityCfg().Metrics.Enabled {
 			r.Use(s.MetricsMiddleware())
 		}
 
-		if s.config.Security.EnableCORS {
+		if s.config.SecurityCfg().EnableCORS {
 			r.Use(s.corsMiddleware())
 		}
 
-		if s.config.Security.RateLimitEnabled {
+		if s.config.SecurityCfg().RateLimitEnabled {
 			r.Use(s.rateLimitMiddleware())
 		}
 
-		if s.config.Security.RateLimit.PerResource.Enabled {
+		if s.config.SecurityCfg().RateLimit.PerResource.Enabled {
 			r.Use(s.resourceRateLimitMiddleware())
 		}
 	}
 
 	// OpenAPI validation only on admin and O2 routers (O2-IMS spec applies there)
-	if s.openAPIValidator != nil && s.config.Validation.Enabled {
+	if s.openAPIValidator != nil && s.config.ValidationCfg().Enabled {
 		s.adminRouter.Use(s.openAPIValidator.Middleware())
 		s.o2Router.Use(s.openAPIValidator.Middleware())
 		s.logger.Info("OpenAPI request validation enabled")
@@ -550,14 +553,14 @@ func (s *Server) setupMiddleware() {
 // securityHeadersMiddleware returns the security headers middleware.
 func (s *Server) securityHeadersMiddleware() gin.HandlerFunc {
 	config := &middleware.SecurityHeadersConfig{
-		Enabled:               s.config.Security.SecurityHeaders.Enabled,
-		HSTSMaxAge:            s.config.Security.SecurityHeaders.HSTSMaxAge,
-		HSTSIncludeSubDomains: s.config.Security.SecurityHeaders.HSTSIncludeSubDomains,
-		HSTSPreload:           s.config.Security.SecurityHeaders.HSTSPreload,
-		ContentSecurityPolicy: s.config.Security.SecurityHeaders.ContentSecurityPolicy,
-		FrameOptions:          s.config.Security.SecurityHeaders.FrameOptions,
-		ReferrerPolicy:        s.config.Security.SecurityHeaders.ReferrerPolicy,
-		TLSEnabled:            s.config.TLS.Enabled,
+		Enabled:               s.config.SecurityCfg().SecurityHeaders.Enabled,
+		HSTSMaxAge:            s.config.SecurityCfg().SecurityHeaders.HSTSMaxAge,
+		HSTSIncludeSubDomains: s.config.SecurityCfg().SecurityHeaders.HSTSIncludeSubDomains,
+		HSTSPreload:           s.config.SecurityCfg().SecurityHeaders.HSTSPreload,
+		ContentSecurityPolicy: s.config.SecurityCfg().SecurityHeaders.ContentSecurityPolicy,
+		FrameOptions:          s.config.SecurityCfg().SecurityHeaders.FrameOptions,
+		ReferrerPolicy:        s.config.SecurityCfg().SecurityHeaders.ReferrerPolicy,
+		TLSEnabled:            s.config.TLSCfg().Enabled,
 	}
 
 	// Apply defaults if not configured
@@ -584,7 +587,7 @@ func (s *Server) securityHeadersMiddleware() gin.HandlerFunc {
 // when this function is extended in the future.
 func (s *Server) bodyLimitMiddleware() gin.HandlerFunc {
 	cfg := middleware.BodyLimitConfig{
-		Default: s.config.Validation.MaxBodySize,
+		Default: s.config.ValidationCfg().MaxBodySize,
 		Logger:  s.logger,
 	}
 	if cfg.Default <= 0 {
@@ -605,11 +608,11 @@ func (s *Server) bodyLimitMiddleware() gin.HandlerFunc {
 //	    log.Fatalf("Server failed: %v", err)
 //	}
 func (s *Server) Start() error {
-	host := s.config.Server.Host
+	host := s.config.ServerCfg().Host
 
 	// Build TLS configs if TLS is enabled
 	var standardTLS, o2TLS *tls.Config
-	if s.config.TLS.Enabled {
+	if s.config.TLSCfg().Enabled {
 		var err error
 		standardTLS, err = s.buildStandardTLSConfig()
 		if err != nil {
@@ -622,19 +625,19 @@ func (s *Server) Start() error {
 	}
 
 	// Create admin server (port 8080)
-	adminAddr := fmt.Sprintf("%s:%d", host, s.config.Server.Port)
+	adminAddr := fmt.Sprintf("%s:%d", host, s.config.ServerCfg().Port)
 	s.httpServer = s.newHTTPServer(adminAddr, s.adminRouter, standardTLS)
 
 	// Create O2 mTLS server (port 8443)
-	o2Addr := fmt.Sprintf("%s:%d", host, s.config.Server.O2Port)
+	o2Addr := fmt.Sprintf("%s:%d", host, s.config.ServerCfg().O2Port)
 	s.o2Server = s.newHTTPServer(o2Addr, s.o2Router, o2TLS)
 
 	// Create TMForum server (port 8444)
-	tmfAddr := fmt.Sprintf("%s:%d", host, s.config.Server.TMFPort)
+	tmfAddr := fmt.Sprintf("%s:%d", host, s.config.ServerCfg().TMFPort)
 	s.tmfServer = s.newHTTPServer(tmfAddr, s.tmfRouter, standardTLS)
 
 	// Create GraphQL server (port 8445)
-	gqlAddr := fmt.Sprintf("%s:%d", host, s.config.Server.GraphQLPort)
+	gqlAddr := fmt.Sprintf("%s:%d", host, s.config.ServerCfg().GraphQLPort)
 	s.graphqlServer = s.newHTTPServer(gqlAddr, s.graphqlRouter, standardTLS)
 
 	// Channel to listen for errors from any server
@@ -677,10 +680,10 @@ func (s *Server) newHTTPServer(addr string, handler http.Handler, tlsCfg *tls.Co
 	srv := &http.Server{
 		Addr:           addr,
 		Handler:        handler,
-		ReadTimeout:    s.config.Server.ReadTimeout,
-		WriteTimeout:   s.config.Server.WriteTimeout,
-		IdleTimeout:    s.config.Server.IdleTimeout,
-		MaxHeaderBytes: s.config.Server.MaxHeaderBytes,
+		ReadTimeout:    s.config.ServerCfg().ReadTimeout,
+		WriteTimeout:   s.config.ServerCfg().WriteTimeout,
+		IdleTimeout:    s.config.ServerCfg().IdleTimeout,
+		MaxHeaderBytes: s.config.ServerCfg().MaxHeaderBytes,
 	}
 	if tlsCfg != nil {
 		srv.TLSConfig = tlsCfg
@@ -708,10 +711,10 @@ func (s *Server) bindAllListeners(host string) (*boundListeners, error) {
 		name string
 		port int
 	}{
-		{"admin", s.config.Server.Port},
-		{"o2", s.config.Server.O2Port},
-		{"tmf", s.config.Server.TMFPort},
-		{"graphql", s.config.Server.GraphQLPort},
+		{"admin", s.config.ServerCfg().Port},
+		{"o2", s.config.ServerCfg().O2Port},
+		{"tmf", s.config.ServerCfg().TMFPort},
+		{"graphql", s.config.ServerCfg().GraphQLPort},
 	}
 
 	opened := make([]net.Listener, 0, len(targets))
@@ -755,8 +758,8 @@ func (s *Server) startListener(name string, srv *http.Server, ln net.Listener, e
 		)
 
 		var err error
-		if s.config.TLS.Enabled {
-			err = srv.ServeTLS(ln, s.config.TLS.CertFile, s.config.TLS.KeyFile)
+		if s.config.TLSCfg().Enabled {
+			err = srv.ServeTLS(ln, s.config.TLSCfg().CertFile, s.config.TLSCfg().KeyFile)
 		} else {
 			err = srv.Serve(ln)
 		}
@@ -776,15 +779,15 @@ func (s *Server) buildBaseTLSConfig() (*tls.Config, error) {
 		MinVersion: tls.VersionTLS13,
 	}
 
-	switch s.config.TLS.MinVersion {
+	switch s.config.TLSCfg().MinVersion {
 	case "1.2":
 		tlsCfg.MinVersion = tls.VersionTLS12
 	case "1.3", "":
 		tlsCfg.MinVersion = tls.VersionTLS13
 	}
 
-	if len(s.config.TLS.CipherSuites) > 0 {
-		suites, err := resolveCipherSuites(s.config.TLS.CipherSuites)
+	if len(s.config.TLSCfg().CipherSuites) > 0 {
+		suites, err := resolveCipherSuites(s.config.TLSCfg().CipherSuites)
 		if err != nil {
 			return nil, err
 		}
@@ -792,7 +795,7 @@ func (s *Server) buildBaseTLSConfig() (*tls.Config, error) {
 		// for TLS 1.3 so the operator is not misled.
 		if tlsCfg.MinVersion == tls.VersionTLS13 {
 			s.logger.Warn("cipher_suites configured but MinVersion is TLS 1.3; Go ignores cipher_suites for TLS 1.3",
-				zap.Strings("cipher_suites", s.config.TLS.CipherSuites),
+				zap.Strings("cipher_suites", s.config.TLSCfg().CipherSuites),
 			)
 		}
 		tlsCfg.CipherSuites = suites
@@ -824,19 +827,19 @@ func resolveCipherSuites(names []string) ([]uint16, error) {
 
 // loadClientCAs loads the CA certificate pool for client verification.
 func (s *Server) loadClientCAs() (*x509.CertPool, error) {
-	if s.config.TLS.CAFile == "" {
+	if s.config.TLSCfg().CAFile == "" {
 		return nil, nil
 	}
 
-	caCert, err := os.ReadFile(s.config.TLS.CAFile)
+	caCert, err := os.ReadFile(s.config.TLSCfg().CAFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read CA certificate %s: %w", s.config.TLS.CAFile, err)
+		return nil, fmt.Errorf("failed to read CA certificate %s: %w", s.config.TLSCfg().CAFile, err)
 	}
 	caCertPool := x509.NewCertPool()
 	if !caCertPool.AppendCertsFromPEM(caCert) {
-		return nil, fmt.Errorf("failed to parse CA certificate from %s", s.config.TLS.CAFile)
+		return nil, fmt.Errorf("failed to parse CA certificate from %s", s.config.TLSCfg().CAFile)
 	}
-	s.logger.Info("client CA certificate loaded", zap.String("ca_file", s.config.TLS.CAFile))
+	s.logger.Info("client CA certificate loaded", zap.String("ca_file", s.config.TLSCfg().CAFile))
 	return caCertPool, nil
 }
 
@@ -850,7 +853,7 @@ func (s *Server) buildStandardTLSConfig() (*tls.Config, error) {
 	tlsCfg.ClientAuth = tls.NoClientCert
 
 	s.logger.Info("standard TLS configuration built (no client auth)",
-		zap.String("min_version", s.config.TLS.MinVersion),
+		zap.String("min_version", s.config.TLSCfg().MinVersion),
 	)
 
 	return tlsCfg, nil
@@ -865,7 +868,7 @@ func (s *Server) buildO2TLSConfig() (*tls.Config, error) {
 	}
 
 	// Configure client certificate authentication from config
-	switch s.config.TLS.ClientAuth {
+	switch s.config.TLSCfg().ClientAuth {
 	case "require-and-verify":
 		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
 	case "require":
@@ -881,8 +884,8 @@ func (s *Server) buildO2TLSConfig() (*tls.Config, error) {
 	// Validate that CA file is provided when client verification is required
 	if tlsCfg.ClientAuth == tls.RequireAndVerifyClientCert ||
 		tlsCfg.ClientAuth == tls.VerifyClientCertIfGiven {
-		if s.config.TLS.CAFile == "" {
-			return nil, fmt.Errorf("CA certificate file required when client_auth is %q", s.config.TLS.ClientAuth)
+		if s.config.TLSCfg().CAFile == "" {
+			return nil, fmt.Errorf("CA certificate file required when client_auth is %q", s.config.TLSCfg().ClientAuth)
 		}
 	}
 
@@ -904,8 +907,8 @@ func (s *Server) buildO2TLSConfig() (*tls.Config, error) {
 	}
 
 	s.logger.Info("O2 mTLS configuration built",
-		zap.String("min_version", s.config.TLS.MinVersion),
-		zap.String("client_auth", s.config.TLS.ClientAuth),
+		zap.String("min_version", s.config.TLSCfg().MinVersion),
+		zap.String("client_auth", s.config.TLSCfg().ClientAuth),
 		zap.Bool("crl_enabled", s.crlVerifier != nil),
 	)
 
@@ -943,7 +946,7 @@ func (s *Server) Shutdown() error {
 	// Create shutdown context with timeout
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
-		s.config.Server.ShutdownTimeout,
+		s.config.ServerCfg().ShutdownTimeout,
 	)
 	defer cancel()
 
@@ -957,7 +960,7 @@ func (s *Server) shutdownWithContext(ctx context.Context) error {
 
 	s.shutdownOnce.Do(func() {
 		s.logger.Info("initiating graceful shutdown",
-			zap.Duration("timeout", s.config.Server.ShutdownTimeout),
+			zap.Duration("timeout", s.config.ServerCfg().ShutdownTimeout),
 		)
 
 		// Stop SMO health checks and close registry
@@ -1291,7 +1294,7 @@ func (s *Server) MetricsMiddleware() gin.HandlerFunc {
 func (s *Server) corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
-		allowedOrigins := s.config.Security.AllowedOrigins
+		allowedOrigins := s.config.SecurityCfg().AllowedOrigins
 
 		// Empty list: deny-all. Do not emit any CORS headers, but still
 		// shortcut preflight so downstream handlers don't see the OPTIONS.
@@ -1324,16 +1327,16 @@ func (s *Server) corsMiddleware() gin.HandlerFunc {
 			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 			c.Writer.Header().Set("Vary", "Origin")
 			c.Writer.Header().Set("Access-Control-Allow-Headers",
-				JoinStrings(s.config.Security.AllowedHeaders, ", "))
+				JoinStrings(s.config.SecurityCfg().AllowedHeaders, ", "))
 			c.Writer.Header().Set("Access-Control-Allow-Methods",
-				JoinStrings(s.config.Security.AllowedMethods, ", "))
+				JoinStrings(s.config.SecurityCfg().AllowedMethods, ", "))
 		case wildcard:
 			// Wildcard: never reflect the request origin with credentials=true.
 			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 			c.Writer.Header().Set("Access-Control-Allow-Headers",
-				JoinStrings(s.config.Security.AllowedHeaders, ", "))
+				JoinStrings(s.config.SecurityCfg().AllowedHeaders, ", "))
 			c.Writer.Header().Set("Access-Control-Allow-Methods",
-				JoinStrings(s.config.Security.AllowedMethods, ", "))
+				JoinStrings(s.config.SecurityCfg().AllowedMethods, ", "))
 		default:
 			// Origin not allow-listed: emit no CORS headers at all.
 		}
@@ -1361,21 +1364,21 @@ func (s *Server) rateLimitMiddleware() gin.HandlerFunc {
 
 	// Convert config types to middleware types
 	rateLimitConfig := &middleware.RateLimitConfig{
-		Enabled:     s.config.Security.RateLimitEnabled,
+		Enabled:     s.config.SecurityCfg().RateLimitEnabled,
 		RedisClient: redisStore.Client,
 		PerTenant: middleware.TenantLimitConfig{
-			RequestsPerSecond: s.config.Security.RateLimit.PerTenant.RequestsPerSecond,
-			BurstSize:         s.config.Security.RateLimit.PerTenant.BurstSize,
+			RequestsPerSecond: s.config.SecurityCfg().RateLimit.PerTenant.RequestsPerSecond,
+			BurstSize:         s.config.SecurityCfg().RateLimit.PerTenant.BurstSize,
 		},
 		Global: middleware.GlobalLimitConfig{
-			RequestsPerSecond:     s.config.Security.RateLimit.Global.RequestsPerSecond,
-			MaxConcurrentRequests: s.config.Security.RateLimit.Global.MaxConcurrentRequests,
+			RequestsPerSecond:     s.config.SecurityCfg().RateLimit.Global.RequestsPerSecond,
+			MaxConcurrentRequests: s.config.SecurityCfg().RateLimit.Global.MaxConcurrentRequests,
 		},
-		DefaultFailMode: middleware.FailMode(s.config.Security.RateLimit.FailMode),
+		DefaultFailMode: middleware.FailMode(s.config.SecurityCfg().RateLimit.FailMode),
 	}
 
 	// Convert endpoint configs
-	for _, ep := range s.config.Security.RateLimit.PerEndpoint {
+	for _, ep := range s.config.SecurityCfg().RateLimit.PerEndpoint {
 		rateLimitConfig.PerEndpoint = append(rateLimitConfig.PerEndpoint, middleware.EndpointLimitConfig{
 			Path:              ep.Path,
 			Method:            ep.Method,
@@ -1413,32 +1416,32 @@ func (s *Server) resourceRateLimitMiddleware() gin.HandlerFunc {
 
 	// Convert config types to middleware types
 	resourceConfig := &middleware.ResourceRateLimitConfig{
-		Enabled:     s.config.Security.RateLimit.PerResource.Enabled,
+		Enabled:     s.config.SecurityCfg().RateLimit.PerResource.Enabled,
 		RedisClient: redisStore.Client,
 		DeploymentManagers: middleware.ResourceTypeLimits{
-			ReadsPerMinute:  s.config.Security.RateLimit.PerResource.DeploymentManagers.ReadsPerMinute,
-			WritesPerMinute: s.config.Security.RateLimit.PerResource.DeploymentManagers.WritesPerMinute,
-			ListPageSizeMax: s.config.Security.RateLimit.PerResource.DeploymentManagers.ListPageSizeMax,
+			ReadsPerMinute:  s.config.SecurityCfg().RateLimit.PerResource.DeploymentManagers.ReadsPerMinute,
+			WritesPerMinute: s.config.SecurityCfg().RateLimit.PerResource.DeploymentManagers.WritesPerMinute,
+			ListPageSizeMax: s.config.SecurityCfg().RateLimit.PerResource.DeploymentManagers.ListPageSizeMax,
 		},
 		ResourcePools: middleware.ResourceTypeLimits{
-			ReadsPerMinute:  s.config.Security.RateLimit.PerResource.ResourcePools.ReadsPerMinute,
-			WritesPerMinute: s.config.Security.RateLimit.PerResource.ResourcePools.WritesPerMinute,
-			ListPageSizeMax: s.config.Security.RateLimit.PerResource.ResourcePools.ListPageSizeMax,
+			ReadsPerMinute:  s.config.SecurityCfg().RateLimit.PerResource.ResourcePools.ReadsPerMinute,
+			WritesPerMinute: s.config.SecurityCfg().RateLimit.PerResource.ResourcePools.WritesPerMinute,
+			ListPageSizeMax: s.config.SecurityCfg().RateLimit.PerResource.ResourcePools.ListPageSizeMax,
 		},
 		Resources: middleware.ResourceTypeLimits{
-			ReadsPerMinute:  s.config.Security.RateLimit.PerResource.Resources.ReadsPerMinute,
-			WritesPerMinute: s.config.Security.RateLimit.PerResource.Resources.WritesPerMinute,
-			ListPageSizeMax: s.config.Security.RateLimit.PerResource.Resources.ListPageSizeMax,
+			ReadsPerMinute:  s.config.SecurityCfg().RateLimit.PerResource.Resources.ReadsPerMinute,
+			WritesPerMinute: s.config.SecurityCfg().RateLimit.PerResource.Resources.WritesPerMinute,
+			ListPageSizeMax: s.config.SecurityCfg().RateLimit.PerResource.Resources.ListPageSizeMax,
 		},
 		ResourceTypes: middleware.ResourceTypeLimits{
-			ReadsPerMinute:  s.config.Security.RateLimit.PerResource.ResourceTypes.ReadsPerMinute,
-			WritesPerMinute: s.config.Security.RateLimit.PerResource.ResourceTypes.WritesPerMinute,
-			ListPageSizeMax: s.config.Security.RateLimit.PerResource.ResourceTypes.ListPageSizeMax,
+			ReadsPerMinute:  s.config.SecurityCfg().RateLimit.PerResource.ResourceTypes.ReadsPerMinute,
+			WritesPerMinute: s.config.SecurityCfg().RateLimit.PerResource.ResourceTypes.WritesPerMinute,
+			ListPageSizeMax: s.config.SecurityCfg().RateLimit.PerResource.ResourceTypes.ListPageSizeMax,
 		},
 		Subscriptions: middleware.SubscriptionLimits{
-			CreatesPerHour: s.config.Security.RateLimit.PerResource.Subscriptions.CreatesPerHour,
-			MaxActive:      s.config.Security.RateLimit.PerResource.Subscriptions.MaxActive,
-			ReadsPerMinute: s.config.Security.RateLimit.PerResource.Subscriptions.ReadsPerMinute,
+			CreatesPerHour: s.config.SecurityCfg().RateLimit.PerResource.Subscriptions.CreatesPerHour,
+			MaxActive:      s.config.SecurityCfg().RateLimit.PerResource.Subscriptions.MaxActive,
+			ReadsPerMinute: s.config.SecurityCfg().RateLimit.PerResource.Subscriptions.ReadsPerMinute,
 		},
 	}
 

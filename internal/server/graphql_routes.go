@@ -55,7 +55,7 @@ func (s *Server) setupGraphQLRoutes() {
 		wsAuth = concrete.OAuth2Authenticator()
 	}
 	gqlSrv := gqlserver.NewServer(resolver, gqlserver.ServerOptions{
-		GinMode:                s.config.Server.GinMode,
+		GinMode:                s.config.ServerCfg().GinMode,
 		WebSocketAuthenticator: wsAuth,
 		WebSocketRequireAuth:   wsAuth != nil,
 	})
@@ -70,7 +70,7 @@ func (s *Server) setupGraphQLRoutes() {
 	// GraphQL playground UI (GET /graphql).
 	// Only enabled in development mode for security.
 	// Provides interactive IDE for exploring the GraphQL schema.
-	if s.config.Server.GinMode != "release" {
+	if s.config.ServerCfg().GinMode != "release" {
 		s.graphqlRouter.GET("/graphql", gqlGuard, gqlserver.PlaygroundHandler("/graphql"))
 		s.logger.Info("GraphQL playground enabled at /graphql")
 	}
