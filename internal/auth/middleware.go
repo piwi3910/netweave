@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/httpx"
+	tenantctx "github.com/piwi3910/netweave/internal/tenant"
 )
 
 // MaxDNLength is the maximum allowed length for a DN string.
@@ -487,6 +488,17 @@ func (m *Middleware) finalizeAuthentication(
 
 	ctx = ContextWithUser(ctx, authUser)
 	ctx = ContextWithTenant(ctx, tenant)
+
+	// Stamp tenant identity into ctx for the storage-layer tenant enforcer.
+	// Platform admins get the all-tenants bypass sentinel; everyone else is
+	// scoped strictly to their own tenant. This is the ONLY place tenant
+	// identity is put into ctx for storage — handlers that bypass middleware
+	// must either call tenantctx.WithID explicitly or be refused by storage.
+	if authUser.IsPlatformAdmin {
+		ctx = tenantctx.WithAll(ctx)
+	} else {
+		ctx = tenantctx.WithID(ctx, user.TenantID)
+	}
 	c.Request = c.Request.WithContext(ctx)
 
 	// Update last login asynchronously
