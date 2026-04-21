@@ -1,0 +1,10 @@
+{
+  "resourceId": "node-worker-1a-abc123",
+  "resourceTypeId": "compute-node",
+  "resourcePoolId": "pool-compute-highmem",
+  "globalAssetId": "urn:o-ran:node:abc123",
+  "description": "Compute node for RAN workloads",
+  "extensions": {
+    "status": "Ready"
+  }
+}

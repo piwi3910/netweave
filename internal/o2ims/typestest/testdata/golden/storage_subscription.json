@@ -1,0 +1,13 @@
+{
+  "subscriptionId": "550e8400-e29b-41d4-a716-446655440000",
+  "tenantId": "tenant-acme",
+  "backendId": "backend-k8s-prod",
+  "callback": "https://smo.example.com/notifications",
+  "consumerSubscriptionId": "smo-sub-123",
+  "filter": {
+    "resourcePoolId": "pool-compute-highmem",
+    "resourceTypeId": "compute-node"
+  },
+  "createdAt": "2026-04-21T12:00:00Z",
+  "updatedAt": "2026-04-21T12:00:00Z"
+}

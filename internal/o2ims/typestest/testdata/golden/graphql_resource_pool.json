@@ -1,0 +1,11 @@
+{
+  "resourcePoolId": "pool-compute-highmem",
+  "name": "High Memory Compute Pool",
+  "description": "Nodes with 128GB+ RAM",
+  "location": "us-east-1a",
+  "oCloudId": "ocloud-1",
+  "globalLocationId": "geo:37.7749,-122.4194",
+  "extensions": {
+    "machineType": "m5.4xlarge"
+  }
+}

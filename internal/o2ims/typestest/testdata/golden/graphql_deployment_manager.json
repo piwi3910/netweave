@@ -1,0 +1,24 @@
+{
+  "deploymentManagerId": "dm-prod-us-east",
+  "name": "Production Kubernetes Cluster",
+  "description": "Main production cluster in US East",
+  "oCloudId": "ocloud-1",
+  "serviceUri": "https://api.o2ims.example.com/o2ims/v1",
+  "supportedLocations": [
+    "us-east-1a",
+    "us-east-1b"
+  ],
+  "capabilities": [
+    "ProvisioningRequest",
+    "Inventory"
+  ],
+  "capacity": {
+    "totalCpu": 256,
+    "totalMemoryMb": 1048576,
+    "availableCpu": 128,
+    "availableMemoryMb": 524288
+  },
+  "extensions": {
+    "kubernetesVersion": "1.30.2"
+  }
+}
