@@ -2,7 +2,6 @@ package gcp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -136,12 +135,5 @@ func (a *Adapter) DeleteSubscription(ctx context.Context, id string) error {
 // ListSubscriptions returns all active subscriptions.
 // This is a helper method not part of the Adapter interface.
 func (a *Adapter) ListSubscriptions() []*adapter.Subscription {
-	subs, err := a.subs.List(context.Background(), nil)
-	if err != nil {
-		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			a.logger.Warn("listing subscriptions returned unexpected error", zap.Error(err))
-		}
-		return nil
-	}
-	return subs
+	return a.subs.Snapshot()
 }

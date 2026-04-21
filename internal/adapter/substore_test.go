@@ -280,7 +280,11 @@ func newFakeBackend() *fakeBackend {
 	return &fakeBackend{subs: make(map[string]*adapter.Subscription)}
 }
 
-func (f *fakeBackend) Create(_ context.Context, id, consumerID, callback string, filter *adapter.SubscriptionFilter) error {
+func (f *fakeBackend) Create(
+	_ context.Context,
+	id, consumerID, callback string,
+	filter *adapter.SubscriptionFilter,
+) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.createCalls++
@@ -307,7 +311,11 @@ func (f *fakeBackend) Get(_ context.Context, id string) (*adapter.Subscription, 
 	return sub, nil
 }
 
-func (f *fakeBackend) Update(_ context.Context, id, consumerID, callback string, filter *adapter.SubscriptionFilter) error {
+func (f *fakeBackend) Update(
+	_ context.Context,
+	id, consumerID, callback string,
+	filter *adapter.SubscriptionFilter,
+) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.updateCalls++

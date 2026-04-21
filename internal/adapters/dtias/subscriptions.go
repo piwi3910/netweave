@@ -2,7 +2,6 @@ package dtias
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -112,14 +111,7 @@ func (a *Adapter) DeleteSubscription(ctx context.Context, id string) error {
 // ListSubscriptions returns all active subscriptions.
 // This is useful for the polling mechanism to know which subscriptions need notifications.
 func (a *Adapter) ListSubscriptions() []*adapter.Subscription {
-	subs, err := a.Subs.List(context.Background(), nil)
-	if err != nil {
-		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			a.logger.Warn("listing subscriptions returned unexpected error", zap.Error(err))
-		}
-		return nil
-	}
-	return subs
+	return a.Subs.Snapshot()
 }
 
 // PollingRecommendation provides guidance for implementing subscription-like functionality

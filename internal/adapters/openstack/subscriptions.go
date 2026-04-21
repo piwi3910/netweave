@@ -105,7 +105,7 @@ func (a *Adapter) CreateSubscription(
 			zap.String("subscription_id", subscriptionID),
 			zap.Error(err))
 		// Roll back the subscription on polling-start failure.
-		if deleteErr := a.subs.Delete(context.Background(), subscriptionID); deleteErr != nil {
+		if deleteErr := a.subs.Delete(context.WithoutCancel(ctx), subscriptionID); deleteErr != nil {
 			a.logger.Warn("failed to roll back subscription after polling start failure",
 				zap.String("subscription_id", subscriptionID),
 				zap.Error(deleteErr))
@@ -184,7 +184,7 @@ func (a *Adapter) UpdateSubscription(
 			zap.Error(err))
 
 		// Rollback to existing subscription on failure.
-		if rollbackErr := a.subs.Update(context.Background(), id, existing); rollbackErr != nil {
+		if rollbackErr := a.subs.Update(context.WithoutCancel(ctx), id, existing); rollbackErr != nil {
 			a.logger.Error("failed to rollback subscription record",
 				zap.String("subscription_id", id),
 				zap.Error(rollbackErr))

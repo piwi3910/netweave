@@ -156,6 +156,20 @@ func (s *InMemorySubscriptionStore) Reset() {
 	s.subs = make(map[string]*Subscription)
 }
 
+// Snapshot returns a slice copy of all subscriptions. Unlike List, it does not
+// take a context and is intended for callers that expose legacy non-ctx
+// signatures (e.g., adapter-local helpers) where threading a context would be
+// a breaking change.
+func (s *InMemorySubscriptionStore) Snapshot() []*Subscription {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make([]*Subscription, 0, len(s.subs))
+	for _, sub := range s.subs {
+		result = append(result, sub)
+	}
+	return result
+}
+
 // RawMap returns the underlying map.
 //
 // This exists solely to preserve legacy test hooks (ExportSubscriptions) that
@@ -274,7 +288,10 @@ func (s *StorageBackedSubscriptionStore) Delete(ctx context.Context, id string) 
 }
 
 // List returns all subscriptions matching filter.
-func (s *StorageBackedSubscriptionStore) List(ctx context.Context, filter *SubscriptionFilter) ([]*Subscription, error) {
+func (s *StorageBackedSubscriptionStore) List(
+	ctx context.Context,
+	filter *SubscriptionFilter,
+) ([]*Subscription, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
