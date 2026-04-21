@@ -212,7 +212,11 @@ func New(
 		)
 	}
 
-	// Initialize batch handler
+	// Initialize batch handler. We attach the per-request adapter resolver
+	// after the *Server is constructed so that batch endpoints route to
+	// the tenant's configured backend. Without this, batch endpoints
+	// would NPE on multi-tenant deployments where adp is nil
+	// (issue #480 / H7).
 	batchHandler := handlers.NewBatchHandler(adp, store, logger, globalMetrics)
 
 	// Initialize auth middleware and tenant handler if auth store is provided
@@ -300,6 +304,12 @@ func New(
 		auditLogger:      auditLogger,
 		pluginRegistry:   pluginReg,
 	}
+
+	// Wire per-request adapter resolution into the batch handler so batch
+	// endpoints honour each tenant's configured backend. When an adapter
+	// registry is later installed via SetAdapterRegistry, the resolver
+	// dispatches through it automatically.
+	srv.batchHandler.SetAdapterResolver(srv.resolveAdapter)
 
 	// Setup middleware on all routers
 	srv.setupMiddleware()

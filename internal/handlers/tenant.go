@@ -52,6 +52,48 @@ func validateEmail(email string) error {
 	return nil
 }
 
+// enforceTenantOwnership is a defense-in-depth check that rejects any
+// caller whose authenticated tenant does not match the URL path
+// parameter. It is intentionally redundant with the
+// RequireTenantAccess route middleware so that a misconfigured route
+// registration cannot silently leak cross-tenant access (issue #469 /
+// C6). Returns true when the caller is authorised to operate on the
+// given tenantID and false when a response has been written.
+//
+// The response uses 404 rather than 403 to avoid leaking the existence
+// of the competitor tenant.
+func (h *TenantHandler) enforceTenantOwnership(c *gin.Context, tenantID string) bool {
+	user := auth.UserFromContext(c.Request.Context())
+	// If no authenticated user context exists, the surrounding auth
+	// middleware is responsible for rejecting the request; in an
+	// auth-disabled deployment (tests) there is no tenant to enforce
+	// against, so fall through.
+	if user == nil {
+		return true
+	}
+	if user.IsPlatformAdmin {
+		return true
+	}
+	if user.TenantID == tenantID {
+		return true
+	}
+
+	h.logger.Warn("cross-tenant access denied at handler guard",
+		zap.String("user_id", user.UserID),
+		zap.String("user_tenant", user.TenantID),
+		zap.String("target_tenant", tenantID),
+		zap.String("path", c.Request.URL.Path),
+		zap.String("request_id", c.GetString("request_id")),
+	)
+
+	c.AbortWithStatusJSON(http.StatusNotFound, models.ErrorResponse{
+		Error:   "NotFound",
+		Message: "Tenant not found",
+		Code:    http.StatusNotFound,
+	})
+	return false
+}
+
 // NewTenantHandler creates a new TenantHandler.
 func NewTenantHandler(store auth.Store, logger *zap.Logger) *TenantHandler {
 	if store == nil {
@@ -213,6 +255,12 @@ func (h *TenantHandler) GetTenant(c *gin.Context) {
 		return
 	}
 
+	// Defense in depth: re-enforce tenant ownership at the handler
+	// level so a future routing mistake cannot bypass the middleware.
+	if !h.enforceTenantOwnership(c, tenantID) {
+		return
+	}
+
 	tenant, err := h.store.GetTenant(ctx, tenantID)
 	if err != nil {
 		if errors.Is(err, auth.ErrTenantNotFound) {
@@ -327,6 +375,12 @@ func (h *TenantHandler) UpdateTenant(c *gin.Context) {
 		return
 	}
 
+	// Defense in depth: re-enforce tenant ownership at the handler
+	// level so a future routing mistake cannot bypass the middleware.
+	if !h.enforceTenantOwnership(c, tenantID) {
+		return
+	}
+
 	var req UpdateTenantRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Warn("invalid request body", zap.Error(err))
@@ -384,6 +438,12 @@ func (h *TenantHandler) DeleteTenant(c *gin.Context) {
 			Message: "Tenant ID is required",
 			Code:    http.StatusBadRequest,
 		})
+		return
+	}
+
+	// Defense in depth: re-enforce tenant ownership at the handler
+	// level so a future routing mistake cannot bypass the middleware.
+	if !h.enforceTenantOwnership(c, tenantID) {
 		return
 	}
 
