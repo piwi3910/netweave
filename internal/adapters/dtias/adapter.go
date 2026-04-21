@@ -12,7 +12,6 @@ package dtias
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -42,13 +41,13 @@ type Adapter struct {
 	// deploymentManagerID is the identifier for this deployment manager
 	DeploymentManagerID string
 
-	// subscriptions holds active subscriptions for polling-based change detection.
+	// Subs holds active subscriptions for polling-based change detection.
 	// Since DTIAS has no native event system, subscriptions are stored locally
 	// and the gateway layer implements polling to detect changes.
-	Subscriptions map[string]*adapter.Subscription
-
-	// subscriptionsMu protects the subscriptions map.
-	SubscriptionsMu sync.RWMutex
+	//
+	// The default store is in-memory. For durable storage, wire in a
+	// StorageBackedSubscriptionStore.
+	Subs *adapter.InMemorySubscriptionStore
 }
 
 // Config holds configuration for creating a DTIASAdapter.
@@ -135,7 +134,7 @@ func New(cfg *Config) (*Adapter, error) {
 		Config:              cfg,
 		OCloudID:            cfg.OCloudID,
 		DeploymentManagerID: cfg.DeploymentManagerID,
-		Subscriptions:       make(map[string]*adapter.Subscription),
+		Subs:                adapter.NewInMemorySubscriptionStore(),
 	}
 
 	logger.Info("DTIAS adapter initialized",
@@ -258,9 +257,7 @@ func (a *Adapter) Close() error {
 	a.logger.Info("closing DTIAS adapter")
 
 	// Clear subscriptions
-	a.SubscriptionsMu.Lock()
-	a.Subscriptions = make(map[string]*adapter.Subscription)
-	a.SubscriptionsMu.Unlock()
+	a.Subs.Reset()
 
 	// Close client connections
 	if err := a.client.Close(); err != nil {

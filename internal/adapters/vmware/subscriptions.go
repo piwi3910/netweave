@@ -6,38 +6,39 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
+
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/security/urlredact"
-	"go.uber.org/zap"
 )
+
+// adapterName is used for metrics labels.
+const adapterName = "vmware"
 
 // CreateSubscription creates a new event subscription.
 // VMware adapter uses polling-based subscriptions since vSphere Event
 // integration would require additional configuration.
 func (a *Adapter) CreateSubscription(
-	_ context.Context,
+	ctx context.Context,
 	sub *adapter.Subscription,
 ) (*adapter.Subscription, error) {
 	var err error
 	start := time.Now()
-	defer func() { adapter.ObserveOperation("vmware", "CreateSubscription", start, err) }()
+	defer func() { adapter.ObserveOperation(adapterName, "CreateSubscription", start, err) }()
 
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", urlredact.Redact(sub.Callback)))
 
-	// Validate callback URL
 	if sub.Callback == "" {
 		err = fmt.Errorf("callback URL is required")
 		return nil, err
 	}
 
-	// Generate subscription ID if not provided
 	subscriptionID := sub.SubscriptionID
 	if subscriptionID == "" {
 		subscriptionID = fmt.Sprintf("vmware-sub-%s", uuid.New().String())
 	}
 
-	// Create the subscription
 	newSub := &adapter.Subscription{
 		SubscriptionID:         subscriptionID,
 		Callback:               sub.Callback,
@@ -45,14 +46,11 @@ func (a *Adapter) CreateSubscription(
 		Filter:                 sub.Filter,
 	}
 
-	// Store in memory
-	a.subscriptionsMu.Lock()
-	a.subscriptions[subscriptionID] = newSub
-	count := len(a.subscriptions)
-	a.subscriptionsMu.Unlock()
+	if err = a.subs.Create(ctx, newSub); err != nil {
+		return nil, err
+	}
 
-	// Update subscription count metric
-	adapter.UpdateSubscriptionCount("vmware", count)
+	adapter.UpdateSubscriptionCount(adapterName, a.subs.Len())
 
 	a.logger.Info("created subscription",
 		zap.String("subscriptionId", subscriptionID),
@@ -62,114 +60,83 @@ func (a *Adapter) CreateSubscription(
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
+func (a *Adapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
 	start := time.Now()
 	var err error
-	defer func() { adapter.ObserveOperation("vmware", "GetSubscription", start, err) }()
+	defer func() { adapter.ObserveOperation(adapterName, "GetSubscription", start, err) }()
 
-	a.logger.Debug("GetSubscription called",
-		zap.String("id", id))
+	a.logger.Debug("GetSubscription called", zap.String("id", id))
 
-	a.subscriptionsMu.RLock()
-	subscription, exists := a.subscriptions[id]
-	a.subscriptionsMu.RUnlock()
-
-	if !exists {
-		err = fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+	sub, err := a.subs.Get(ctx, id)
+	if err != nil {
 		return nil, err
 	}
-
-	return subscription, nil
+	return sub, nil
 }
 
 // UpdateSubscription updates an existing subscription.
 func (a *Adapter) UpdateSubscription(
-	_ context.Context,
+	ctx context.Context,
 	id string,
 	sub *adapter.Subscription,
 ) (*adapter.Subscription, error) {
 	var err error
 	start := time.Now()
-	defer func() { adapter.ObserveOperation("vmware", "UpdateSubscription", start, err) }()
+	defer func() { adapter.ObserveOperation(adapterName, "UpdateSubscription", start, err) }()
 
 	a.logger.Debug("UpdateSubscription called",
 		zap.String("id", id),
 		zap.String("callback", urlredact.Redact(sub.Callback)))
 
-	// Validate callback URL
 	if sub.Callback == "" {
 		err = fmt.Errorf("callback URL is required")
 		return nil, err
 	}
 
-	a.subscriptionsMu.Lock()
-	defer a.subscriptionsMu.Unlock()
-
-	// Check if subscription exists
-	existing, exists := a.subscriptions[id]
-	if !exists {
-		err = fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+	existing, err := a.subs.Get(ctx, id)
+	if err != nil {
 		return nil, err
 	}
 
-	// Create updated subscription preserving the ID
-	updatedSub := &adapter.Subscription{
+	updated := &adapter.Subscription{
 		SubscriptionID:         id,
 		Callback:               sub.Callback,
 		ConsumerSubscriptionID: sub.ConsumerSubscriptionID,
 		Filter:                 sub.Filter,
 	}
 
-	// Store updated subscription
-	a.subscriptions[id] = updatedSub
+	if err = a.subs.Update(ctx, id, updated); err != nil {
+		return nil, err
+	}
 
 	a.logger.Info("updated subscription",
 		zap.String("subscription_id", id),
 		zap.String("old_callback", existing.Callback),
 		zap.String("new_callback", sub.Callback))
 
-	return updatedSub, nil
+	return updated, nil
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
-	start := time.Now()
+func (a *Adapter) DeleteSubscription(ctx context.Context, id string) error {
 	var err error
-	defer func() { adapter.ObserveOperation("vmware", "DeleteSubscription", start, err) }()
+	start := time.Now()
+	defer func() { adapter.ObserveOperation(adapterName, "DeleteSubscription", start, err) }()
 
-	a.logger.Debug("DeleteSubscription called",
-		zap.String("id", id))
+	a.logger.Debug("DeleteSubscription called", zap.String("id", id))
 
-	a.subscriptionsMu.Lock()
-	if _, exists := a.subscriptions[id]; !exists {
-		a.subscriptionsMu.Unlock()
-		err = fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+	if err = a.subs.Delete(ctx, id); err != nil {
 		return err
 	}
 
-	delete(a.subscriptions, id)
-	count := len(a.subscriptions)
-	a.subscriptionsMu.Unlock()
+	adapter.UpdateSubscriptionCount(adapterName, a.subs.Len())
 
-	// Update subscription count metric
-	adapter.UpdateSubscriptionCount("vmware", count)
-
-	a.logger.Info("deleted subscription",
-		zap.String("subscription_id", id))
-
+	a.logger.Info("deleted subscription", zap.String("subscription_id", id))
 	return nil
 }
 
 // ListSubscriptions returns all active subscriptions.
 // This is a helper method not part of the Adapter interface.
 func (a *Adapter) ListSubscriptions() []*adapter.Subscription {
-	a.subscriptionsMu.RLock()
-	defer a.subscriptionsMu.RUnlock()
-
-	subs := make([]*adapter.Subscription, 0, len(a.subscriptions))
-	for _, sub := range a.subscriptions {
-		subs = append(subs, sub)
-	}
-
-	return subs
+	return a.subs.Snapshot()
 }

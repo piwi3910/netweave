@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -44,9 +45,9 @@ type SubscriptionState struct {
 	wg               sync.WaitGroup
 }
 
-// subscriptionStore is a thread-safe in-memory store for subscriptions.
+// Global state for polling machinery. Subscription CRUD is handled by the
+// shared adapter.InMemorySubscriptionStore on a.subs.
 var (
-	subscriptionMu      sync.RWMutex
 	pollingStateMu      sync.RWMutex
 	webhookClientMu     sync.Mutex
 	sharedWebhookClient *http.Client
@@ -83,13 +84,11 @@ func (a *Adapter) CreateSubscription(
 		return nil, fmt.Errorf("callback URL is required")
 	}
 
-	// Generate subscription ID if not provided
 	subscriptionID := sub.SubscriptionID
 	if subscriptionID == "" {
 		subscriptionID = fmt.Sprintf("openstack-sub-%s", uuid.New().String())
 	}
 
-	// Create subscription object
 	subscription := &adapter.Subscription{
 		SubscriptionID:         subscriptionID,
 		Callback:               sub.Callback,
@@ -97,20 +96,20 @@ func (a *Adapter) CreateSubscription(
 		Filter:                 sub.Filter,
 	}
 
-	// Store subscription in memory
-	subscriptionMu.Lock()
-	a.subscriptions[subscriptionID] = subscription
-	subscriptionMu.Unlock()
+	if err := a.subs.Create(ctx, subscription); err != nil {
+		return nil, err
+	}
 
-	// Start polling for this subscription
 	if err := a.startPolling(ctx, subscription); err != nil {
 		a.logger.Error("failed to start polling",
 			zap.String("subscription_id", subscriptionID),
 			zap.Error(err))
-		// Clean up subscription on failure
-		subscriptionMu.Lock()
-		delete(a.subscriptions, subscriptionID)
-		subscriptionMu.Unlock()
+		// Roll back the subscription on polling-start failure.
+		if deleteErr := a.subs.Delete(context.WithoutCancel(ctx), subscriptionID); deleteErr != nil {
+			a.logger.Warn("failed to roll back subscription after polling start failure",
+				zap.String("subscription_id", subscriptionID),
+				zap.Error(deleteErr))
+		}
 		return nil, fmt.Errorf("failed to start polling: %w", err)
 	}
 
@@ -122,22 +121,16 @@ func (a *Adapter) CreateSubscription(
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
-	a.logger.Debug("GetSubscription called",
-		zap.String("id", id))
+func (a *Adapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
+	a.logger.Debug("GetSubscription called", zap.String("id", id))
 
-	// Retrieve subscription from memory
-	subscriptionMu.RLock()
-	subscription, exists := a.subscriptions[id]
-	subscriptionMu.RUnlock()
-
-	if !exists {
-		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+	subscription, err := a.subs.Get(ctx, id)
+	if err != nil {
+		return nil, err
 	}
 
 	a.logger.Debug("retrieved subscription",
 		zap.String("subscription_id", subscription.SubscriptionID))
-
 	return subscription, nil
 }
 
@@ -156,22 +149,16 @@ func (a *Adapter) UpdateSubscription(
 		zap.String("id", id),
 		zap.String("callback", urlredact.Redact(sub.Callback)))
 
-	// Validate callback URL (defense-in-depth: server validates HTTP input, adapter validates programmatic calls)
 	if sub.Callback == "" {
 		err = fmt.Errorf("callback URL is required")
 		return nil, err
 	}
 
-	// Check if subscription exists and get existing config
-	subscriptionMu.Lock()
-	existing, exists := a.subscriptions[id]
-	if !exists {
-		subscriptionMu.Unlock()
-		err = fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+	existing, err := a.subs.Get(ctx, id)
+	if err != nil {
 		return nil, err
 	}
 
-	// Create updated subscription preserving the ID
 	updated := &adapter.Subscription{
 		SubscriptionID:         id,
 		Callback:               sub.Callback,
@@ -179,31 +166,30 @@ func (a *Adapter) UpdateSubscription(
 		Filter:                 sub.Filter,
 	}
 
-	// Stop old polling goroutine before updating (prevents race with polling reads)
-	subscriptionMu.Unlock()
+	// Stop old polling goroutine before updating (prevents races with polling reads).
 	if stopErr := a.stopPolling(id); stopErr != nil {
 		a.logger.Warn("failed to stop old polling",
 			zap.String("subscription_id", id),
 			zap.Error(stopErr))
 	}
 
-	// Hold lock from here until polling successfully starts to prevent races
-	subscriptionMu.Lock()
-	defer subscriptionMu.Unlock()
+	if err = a.subs.Update(ctx, id, updated); err != nil {
+		return nil, err
+	}
 
-	// Update in memory
-	a.subscriptions[id] = updated
-
-	// Start new polling with updated configuration
+	// Start new polling with updated configuration.
 	if err = a.startPolling(ctx, updated); err != nil {
 		a.logger.Error("failed to restart polling",
 			zap.String("subscription_id", id),
 			zap.Error(err))
 
-		// Rollback to existing subscription on failure
-		a.subscriptions[id] = existing
-
-		// Best-effort attempt to restart old polling
+		// Rollback to existing subscription on failure.
+		if rollbackErr := a.subs.Update(context.WithoutCancel(ctx), id, existing); rollbackErr != nil {
+			a.logger.Error("failed to rollback subscription record",
+				zap.String("subscription_id", id),
+				zap.Error(rollbackErr))
+		}
+		// Best-effort attempt to restart old polling.
 		if restartErr := a.startPolling(ctx, existing); restartErr != nil {
 			a.logger.Error("failed to rollback to old subscription",
 				zap.String("subscription_id", id),
@@ -222,47 +208,37 @@ func (a *Adapter) UpdateSubscription(
 }
 
 // DeleteSubscription deletes a subscription by ID and stops its polling goroutine.
-func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
-	a.logger.Debug("DeleteSubscription called",
-		zap.String("id", id))
+func (a *Adapter) DeleteSubscription(ctx context.Context, id string) error {
+	a.logger.Debug("DeleteSubscription called", zap.String("id", id))
 
-	// Remove subscription from memory
-	subscriptionMu.Lock()
-	_, exists := a.subscriptions[id]
-	if !exists {
-		subscriptionMu.Unlock()
-		return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+	if err := a.subs.Delete(ctx, id); err != nil {
+		return err
 	}
-	delete(a.subscriptions, id)
-	subscriptionMu.Unlock()
 
-	// Stop polling for this subscription
 	if err := a.stopPolling(id); err != nil {
 		a.logger.Warn("failed to stop polling",
 			zap.String("subscription_id", id),
 			zap.Error(err))
 	}
 
-	a.logger.Info("deleted subscription",
-		zap.String("subscription_id", id))
-
+	a.logger.Info("deleted subscription", zap.String("subscription_id", id))
 	return nil
 }
 
 // ListSubscriptions retrieves all active subscriptions.
-func (a *Adapter) ListSubscriptions(_ context.Context) ([]*adapter.Subscription, error) {
+func (a *Adapter) ListSubscriptions(ctx context.Context) ([]*adapter.Subscription, error) {
 	a.logger.Debug("ListSubscriptions called")
 
-	subscriptionMu.RLock()
-	subscriptions := make([]*adapter.Subscription, 0, len(a.subscriptions))
-	for _, sub := range a.subscriptions {
-		subscriptions = append(subscriptions, sub)
+	subscriptions, err := a.subs.List(ctx, nil)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
+		a.logger.Warn("listing subscriptions returned unexpected error", zap.Error(err))
+		return nil, err
 	}
-	subscriptionMu.RUnlock()
 
-	a.logger.Debug("listed subscriptions",
-		zap.Int("count", len(subscriptions)))
-
+	a.logger.Debug("listed subscriptions", zap.Int("count", len(subscriptions)))
 	return subscriptions, nil
 }
 

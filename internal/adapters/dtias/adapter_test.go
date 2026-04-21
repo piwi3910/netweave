@@ -436,5 +436,5 @@ func TestCloseWithSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify subscriptions are cleared
-	assert.Empty(t, adp.Subscriptions)
+	assert.Equal(t, 0, adp.Subs.Len())
 }

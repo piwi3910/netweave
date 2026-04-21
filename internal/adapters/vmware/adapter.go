@@ -13,7 +13,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/piwi3910/netweave/internal/adapter"
@@ -63,13 +62,10 @@ type Adapter struct {
 	// datacenterName is the vSphere datacenter name.
 	datacenterName string
 
-	// subscriptions holds active O2-IMS subscriptions (polling-based fallback).
-	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
-	// For production use, consider implementing persistent storage via Redis.
-	subscriptions map[string]*adapter.Subscription
-
-	// subscriptionsMu protects the subscriptions map.
-	subscriptionsMu sync.RWMutex
+	// subs holds active O2-IMS subscriptions (polling-based fallback).
+	// Note: The default store is in-memory and will be lost on adapter restart.
+	// For durable storage, wire in a StorageBackedSubscriptionStore.
+	subs *adapter.InMemorySubscriptionStore
 
 	// poolMode determines how resource pools are mapped.
 	// "cluster" maps to Clusters, "pool" maps to Resource Pools.
@@ -170,7 +166,7 @@ func New(cfg *Config) (*Adapter, error) {
 		deploymentManagerID: deploymentManagerID,
 		vcenterURL:          cfg.VCenterURL,
 		datacenterName:      cfg.Datacenter,
-		subscriptions:       make(map[string]*adapter.Subscription),
+		subs:                adapter.NewInMemorySubscriptionStore(),
 		poolMode:            poolMode,
 	}, nil
 }
@@ -358,9 +354,7 @@ func (a *Adapter) Close() error {
 	a.logger.Info("closing VMware adapter")
 
 	// Clear subscriptions
-	a.subscriptionsMu.Lock()
-	a.subscriptions = make(map[string]*adapter.Subscription)
-	a.subscriptionsMu.Unlock()
+	a.subs.Reset()
 
 	// Logout from vCenter
 	if a.client != nil {

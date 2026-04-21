@@ -368,7 +368,7 @@ func createTestAdapter(t *testing.T, mockURL string) *Adapter {
 		oCloudID:            "test-ocloud",
 		deploymentManagerID: "ocloud-aws-us-east-1",
 		region:              "us-east-1",
-		subscriptions:       make(map[string]*adapter.Subscription),
+		subs:                adapter.NewInMemorySubscriptionStore(),
 		poolMode:            "az",
 	}
 }

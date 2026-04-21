@@ -32,7 +32,7 @@ func setupDTIASTestServer(t *testing.T, handlers map[string]http.HandlerFunc) (*
 	}
 	adp.OCloudID = "ocloud-test"
 	adp.DeploymentManagerID = "dm-test"
-	adp.Subscriptions = make(map[string]*adapter.Subscription)
+	adp.Subs = adapter.NewInMemorySubscriptionStore()
 
 	return server, adp
 }
