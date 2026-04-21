@@ -757,7 +757,7 @@ components:
           type: string
           format: uri
           description: Base URI for the deployment manager API
-          example: https://api.o2ims.example.com/o2ims/v1
+          example: https://api.o2ims.example.com/o2ims-infrastructureInventory/v1
         supportedLocations:
           type: array
           items:
