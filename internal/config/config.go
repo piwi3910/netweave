@@ -35,6 +35,12 @@ const (
 	DefaultConfigPath = "config/config.yaml"
 )
 
+// Storage mode identifiers.
+const (
+	storageModePostgres = "postgres"
+	storageModeDual     = "dual"
+)
+
 // Config represents the complete configuration for the O2-IMS Gateway.
 // It includes server settings, Redis configuration, Kubernetes client config,
 // TLS/mTLS settings, and observability options.
@@ -1206,7 +1212,7 @@ func (c *Config) validateProductionRules() error {
 	}
 
 	// Postgres must not fall through to plaintext in production.
-	if c.StorageMode == "postgres" || c.StorageMode == "dual" {
+	if c.StorageMode == storageModePostgres || c.StorageMode == storageModeDual {
 		if err := c.Postgres.ValidateForProduction(); err != nil {
 			return fmt.Errorf("postgres config invalid for production: %w", err)
 		}
@@ -1514,7 +1520,7 @@ func (c *Config) validateStorageMode() error {
 		return fmt.Errorf("storage_mode: '%s' (must be 'redis', 'postgres', or 'dual')", c.StorageMode)
 	}
 
-	if c.StorageMode == "postgres" || c.StorageMode == "dual" {
+	if c.StorageMode == storageModePostgres || c.StorageMode == storageModeDual {
 		if err := c.Postgres.Validate(); err != nil {
 			return fmt.Errorf("postgres config: %w", err)
 		}

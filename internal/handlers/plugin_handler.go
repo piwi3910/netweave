@@ -6,6 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/httpx"
 )
 
 // FrontendPluginInfo represents a frontend plugin for API responses.
@@ -56,10 +58,7 @@ func (h *PluginHandler) GetPlugin(c *gin.Context) {
 
 	plugin, err := h.registry.Get(name)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "NotFound",
-			"message": "Plugin not found: " + name,
-		})
+		httpx.WriteError(c, http.StatusNotFound, "NotFound", "Plugin not found: "+name)
 		return
 	}
 
@@ -78,28 +77,19 @@ func (h *PluginHandler) UpdatePlugin(c *gin.Context) {
 
 	var req pluginUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Invalid request body",
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body")
 		return
 	}
 
 	if req.Enabled {
 		if err := h.registry.Enable(name); err != nil {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Plugin not found: " + name,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Plugin not found: "+name)
 			return
 		}
 		h.logger.Info("frontend plugin enabled", zap.String("plugin", name))
 	} else {
 		if err := h.registry.Disable(name); err != nil {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": "Plugin not found: " + name,
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Plugin not found: "+name)
 			return
 		}
 		h.logger.Info("frontend plugin disabled", zap.String("plugin", name))
@@ -108,10 +98,7 @@ func (h *PluginHandler) UpdatePlugin(c *gin.Context) {
 	// Return the updated plugin state.
 	plugin, err := h.registry.Get(name)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to retrieve plugin after update",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve plugin after update")
 		return
 	}
 

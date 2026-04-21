@@ -1250,12 +1250,12 @@ func buildTenantAdminRouter(t *testing.T, user *auth.AuthenticatedUser, seeded m
 	// the full redis-backed store for determinism; miniredis is already set
 	// up by setupTestStore.
 	authStore := auth.NewRedisStore(&auth.RedisConfig{
-		Addr:      mr.Addr(),
-		MaxRetries: 1,
-		DialTimeout: 1 * time.Second,
-		ReadTimeout: 1 * time.Second,
+		Addr:         mr.Addr(),
+		MaxRetries:   1,
+		DialTimeout:  1 * time.Second,
+		ReadTimeout:  1 * time.Second,
 		WriteTimeout: 1 * time.Second,
-		PoolSize: 5,
+		PoolSize:     5,
 	})
 
 	for _, tenant := range seeded {
@@ -1670,26 +1670,16 @@ func TestTenantOwnedRoutes_CoveredByIsolationTests(t *testing.T) {
 	// tenant-owned route is added to tenantOwnedRoutes, append the test
 	// function name here. The architectural test is a compile-time reminder.
 	isolationTestsByRoute := map[string]string{
-		"GET /o2ims-infrastructureInventory/v1/subscriptions/:subscriptionId":
-			"TestTenantIsolation_GetSubscription",
-		"PUT /o2ims-infrastructureInventory/v1/subscriptions/:subscriptionId":
-			"TestTenantIsolation_UpdateSubscription",
-		"DELETE /o2ims-infrastructureInventory/v1/subscriptions/:subscriptionId":
-			"TestTenantIsolation_DeleteSubscription",
-		"GET /o2ims-infrastructureInventory/v1/resourcePools/:resourcePoolId":
-			"TestTenantIsolation_GetResourcePool",
-		"DELETE /o2ims-infrastructureInventory/v1/resourcePools/:resourcePoolId":
-			"TestTenantIsolation_DeleteResourcePool",
-		"GET /o2ims-infrastructureInventory/v1/resources/:resourceId":
-			"TestTenantIsolation_GetResource",
-		"DELETE /o2ims-infrastructureInventory/v1/resources/:resourceId":
-			"TestTenantIsolation_DeleteResource",
-		"GET /o2ims-infrastructureInventory/v1/tenants/:tenantId":
-			"TestTenantIsolation_AdminRoutes_CrossTenantRejected",
-		"PUT /o2ims-infrastructureInventory/v1/tenants/:tenantId":
-			"TestTenantIsolation_AdminRoutes_CrossTenantRejected",
-		"DELETE /o2ims-infrastructureInventory/v1/tenants/:tenantId":
-			"TestTenantIsolation_AdminRoutes_CrossTenantRejected",
+		"GET /o2ims-infrastructureInventory/v1/subscriptions/:subscriptionId":    "TestTenantIsolation_GetSubscription",
+		"PUT /o2ims-infrastructureInventory/v1/subscriptions/:subscriptionId":    "TestTenantIsolation_UpdateSubscription",
+		"DELETE /o2ims-infrastructureInventory/v1/subscriptions/:subscriptionId": "TestTenantIsolation_DeleteSubscription",
+		"GET /o2ims-infrastructureInventory/v1/resourcePools/:resourcePoolId":    "TestTenantIsolation_GetResourcePool",
+		"DELETE /o2ims-infrastructureInventory/v1/resourcePools/:resourcePoolId": "TestTenantIsolation_DeleteResourcePool",
+		"GET /o2ims-infrastructureInventory/v1/resources/:resourceId":            "TestTenantIsolation_GetResource",
+		"DELETE /o2ims-infrastructureInventory/v1/resources/:resourceId":         "TestTenantIsolation_DeleteResource",
+		"GET /o2ims-infrastructureInventory/v1/tenants/:tenantId":                "TestTenantIsolation_AdminRoutes_CrossTenantRejected",
+		"PUT /o2ims-infrastructureInventory/v1/tenants/:tenantId":                "TestTenantIsolation_AdminRoutes_CrossTenantRejected",
+		"DELETE /o2ims-infrastructureInventory/v1/tenants/:tenantId":             "TestTenantIsolation_AdminRoutes_CrossTenantRejected",
 	}
 
 	// Assert every tenant-owned route has at least one associated isolation

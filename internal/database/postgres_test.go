@@ -223,7 +223,7 @@ func TestConnectionString(t *testing.T) {
 				User:     "admin",
 			},
 			password: "pw",
-			want:     "postgres://admin:pw@localhost:5432/netweave?sslmode=prefer",
+			want:     "postgres://admin:pw@localhost:5432/netweave?sslmode=verify-full",
 		},
 	}
 

@@ -13,6 +13,7 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/auth"
 	dmsregistry "github.com/piwi3910/netweave/internal/dms/registry"
+	"github.com/piwi3910/netweave/internal/httpx"
 	"github.com/piwi3910/netweave/internal/smo"
 )
 
@@ -200,8 +201,5 @@ func SMORegistryFromContext(c *gin.Context) *smo.Registry {
 // handleAdapterUnavailable sends a 503 response when no adapter could be resolved.
 // Used by handlers that require an adapter and cannot proceed without one.
 func handleAdapterUnavailable(c *gin.Context) {
-	c.JSON(http.StatusServiceUnavailable, gin.H{
-		"error":   "ServiceUnavailable",
-		"message": "No backend adapter available for this request. Ensure backend instances are configured.",
-	})
+	httpx.WriteError(c, http.StatusServiceUnavailable, "ServiceUnavailable", "No backend adapter available for this request. Ensure backend instances are configured.")
 }

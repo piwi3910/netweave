@@ -14,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"github.com/piwi3910/netweave/internal/httpx"
 )
 
 // MaxDNLength is the maximum allowed length for a DN string.
@@ -286,11 +288,7 @@ func (m *Middleware) handleOAuth2AuthenticationFailure(
 	RecordAuthenticationAttempt("failed", "oauth2")
 	RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
 
-	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-		"error":   "Unauthorized",
-		"message": "Invalid or expired OAuth2 token",
-		"code":    http.StatusUnauthorized,
-	})
+	httpx.AbortWithError(c, http.StatusUnauthorized, "Unauthorized", "Invalid or expired OAuth2 token")
 }
 
 // handleNoAuthMethod handles cases where no valid authentication method was detected.
@@ -304,11 +302,7 @@ func (m *Middleware) handleNoAuthMethod(c *gin.Context, requestID string, authSt
 	RecordAuthenticationAttempt("failed", "none")
 	RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
 
-	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-		"error":   "Unauthorized",
-		"message": "Authentication required (mTLS certificate or OAuth2 Bearer token)",
-		"code":    http.StatusUnauthorized,
-	})
+	httpx.AbortWithError(c, http.StatusUnauthorized, "Unauthorized", "Authentication required (mTLS certificate or OAuth2 Bearer token)")
 }
 
 func (m *Middleware) handleMissingCertificate(c *gin.Context, requestID string, authStart time.Time) {
@@ -325,11 +319,7 @@ func (m *Middleware) handleMissingCertificate(c *gin.Context, requestID string, 
 	m.logAuthFailure(c.Request.Context(), c, "", "no client certificate")
 	RecordAuthenticationAttempt("failed", "mtls")
 	RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
-	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-		"error":   "Unauthorized",
-		"message": "Client certificate required",
-		"code":    http.StatusUnauthorized,
-	})
+	httpx.AbortWithError(c, http.StatusUnauthorized, "Unauthorized", "Client certificate required")
 }
 
 func (m *Middleware) authenticateAndLoadContext(
@@ -384,9 +374,7 @@ func (m *Middleware) handleAuthenticationError(
 	var aErr *authError
 	if !errors.As(err, &aErr) {
 		RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-			"error": "InternalError", "message": "Authentication failed", "code": http.StatusInternalServerError,
-		})
+		httpx.AbortWithError(c, http.StatusInternalServerError, "InternalError", "Authentication failed")
 		return
 	}
 
@@ -401,10 +389,7 @@ func (m *Middleware) handleAuthenticationError(
 			m.logAuthFailure(c.Request.Context(), c, subject, "user not found")
 			RecordAuthenticationAttempt("failed", "mtls")
 			RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
-			c.AbortWithStatusJSON(
-				http.StatusForbidden,
-				gin.H{"error": "Forbidden", "message": "Authentication failed", "code": http.StatusForbidden},
-			)
+			httpx.AbortWithError(c, http.StatusForbidden, "Forbidden", "Authentication failed")
 		} else {
 			m.Logger.Error("failed to lookup user",
 				zap.String("subject", SanitizeForLogging(subject, 200)),
@@ -412,10 +397,7 @@ func (m *Middleware) handleAuthenticationError(
 				zap.String("request_id", requestID),
 			)
 			RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
-			c.AbortWithStatusJSON(
-				http.StatusInternalServerError,
-				gin.H{"error": "InternalError", "message": "Authentication failed", "code": http.StatusInternalServerError},
-			)
+			httpx.AbortWithError(c, http.StatusInternalServerError, "InternalError", "Authentication failed")
 		}
 	case "user_inactive":
 		m.Logger.Warn("inactive user attempted access",
@@ -426,10 +408,7 @@ func (m *Middleware) handleAuthenticationError(
 		m.logAuthFailure(c.Request.Context(), c, subject, "user inactive")
 		RecordAuthenticationAttempt("failed", "mtls")
 		RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
-		c.AbortWithStatusJSON(
-			http.StatusForbidden,
-			gin.H{"error": "Forbidden", "message": "Authentication failed", "code": http.StatusForbidden},
-		)
+		httpx.AbortWithError(c, http.StatusForbidden, "Forbidden", "Authentication failed")
 	case "role_lookup":
 		m.Logger.Error("failed to get user role",
 			zap.String("user_id", aErr.userID),
@@ -438,13 +417,11 @@ func (m *Middleware) handleAuthenticationError(
 			zap.String("request_id", requestID),
 		)
 		RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
-		c.AbortWithStatusJSON(
+		httpx.AbortWithError(
+			c,
 			http.StatusInternalServerError,
-			gin.H{
-				"error":   "InternalError",
-				"message": "Authentication service temporarily unavailable",
-				"code":    http.StatusInternalServerError,
-			},
+			"InternalError",
+			"Authentication service temporarily unavailable",
 		)
 	case "tenant_lookup":
 		if errors.Is(aErr.err, ErrTenantNotFound) {
@@ -455,10 +432,7 @@ func (m *Middleware) handleAuthenticationError(
 			)
 			RecordAuthenticationAttempt("failed", "mtls")
 			RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
-			c.AbortWithStatusJSON(
-				http.StatusForbidden,
-				gin.H{"error": "Forbidden", "message": "Authentication failed", "code": http.StatusForbidden},
-			)
+			httpx.AbortWithError(c, http.StatusForbidden, "Forbidden", "Authentication failed")
 		} else {
 			m.Logger.Error("failed to get tenant",
 				zap.String("tenant_id", aErr.tenantID),
@@ -466,13 +440,11 @@ func (m *Middleware) handleAuthenticationError(
 				zap.String("request_id", requestID),
 			)
 			RecordAuthenticationDuration("error", time.Since(authStart).Seconds())
-			c.AbortWithStatusJSON(
+			httpx.AbortWithError(
+				c,
 				http.StatusInternalServerError,
-				gin.H{
-					"error":   "InternalError",
-					"message": "Authentication service temporarily unavailable",
-					"code":    http.StatusInternalServerError,
-				},
+				"InternalError",
+				"Authentication service temporarily unavailable",
 			)
 		}
 	case "tenant_inactive":
@@ -484,10 +456,7 @@ func (m *Middleware) handleAuthenticationError(
 		m.logAuthFailure(c.Request.Context(), c, subject, "tenant suspended")
 		RecordAuthenticationAttempt("failed", "mtls")
 		RecordAuthenticationDuration("failed", time.Since(authStart).Seconds())
-		c.AbortWithStatusJSON(
-			http.StatusForbidden,
-			gin.H{"error": "Forbidden", "message": "Tenant is suspended", "code": http.StatusForbidden},
-		)
+		httpx.AbortWithError(c, http.StatusForbidden, "Forbidden", "Tenant is suspended")
 	}
 }
 
@@ -556,11 +525,7 @@ func (m *Middleware) RequirePermission(permission string) gin.HandlerFunc {
 				zap.String("path", c.Request.URL.Path),
 				zap.String("request_id", requestID),
 			)
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error":   "Unauthorized",
-				"message": "Authentication required",
-				"code":    http.StatusUnauthorized,
-			})
+			httpx.AbortWithError(c, http.StatusUnauthorized, "Unauthorized", "Authentication required")
 			return
 		}
 
@@ -576,11 +541,7 @@ func (m *Middleware) RequirePermission(permission string) gin.HandlerFunc {
 
 			m.logAccessDenied(ctx, c, user, Permission(permission))
 			RecordAuthorizationCheck("denied", Permission(permission))
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error":   "Forbidden",
-				"message": "Insufficient permissions for this operation",
-				"code":    http.StatusForbidden,
-			})
+			httpx.AbortWithError(c, http.StatusForbidden, "Forbidden", "Insufficient permissions for this operation")
 			return
 		}
 
@@ -597,11 +558,7 @@ func (m *Middleware) RequireAnyPermission(permissions ...Permission) gin.Handler
 
 		user := UserFromContext(c.Request.Context())
 		if user == nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error":   "Unauthorized",
-				"message": "Authentication required",
-				"code":    http.StatusUnauthorized,
-			})
+			httpx.AbortWithError(c, http.StatusUnauthorized, "Unauthorized", "Authentication required")
 			return
 		}
 
@@ -619,11 +576,7 @@ func (m *Middleware) RequireAnyPermission(permissions ...Permission) gin.Handler
 			zap.String("request_id", requestID),
 		)
 
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"error":   "Forbidden",
-			"message": "Insufficient permissions",
-			"code":    http.StatusForbidden,
-		})
+		httpx.AbortWithError(c, http.StatusForbidden, "Forbidden", "Insufficient permissions")
 	}
 }
 
@@ -634,11 +587,7 @@ func (m *Middleware) RequirePlatformAdmin() gin.HandlerFunc {
 
 		user := UserFromContext(c.Request.Context())
 		if user == nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error":   "Unauthorized",
-				"message": "Authentication required",
-				"code":    http.StatusUnauthorized,
-			})
+			httpx.AbortWithError(c, http.StatusUnauthorized, "Unauthorized", "Authentication required")
 			return
 		}
 
@@ -650,11 +599,7 @@ func (m *Middleware) RequirePlatformAdmin() gin.HandlerFunc {
 				zap.String("request_id", requestID),
 			)
 
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error":   "Forbidden",
-				"message": "Platform administrator access required",
-				"code":    http.StatusForbidden,
-			})
+			httpx.AbortWithError(c, http.StatusForbidden, "Forbidden", "Platform administrator access required")
 			return
 		}
 
@@ -671,11 +616,7 @@ func (m *Middleware) RequireTenantAccess(tenantIDParam string) gin.HandlerFunc {
 
 		user := UserFromContext(c.Request.Context())
 		if user == nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error":   "Unauthorized",
-				"message": "Authentication required",
-				"code":    http.StatusUnauthorized,
-			})
+			httpx.AbortWithError(c, http.StatusUnauthorized, "Unauthorized", "Authentication required")
 			return
 		}
 
@@ -695,11 +636,7 @@ func (m *Middleware) RequireTenantAccess(tenantIDParam string) gin.HandlerFunc {
 				zap.String("request_id", requestID),
 			)
 
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error":   "Forbidden",
-				"message": "Access to other tenants is not allowed",
-				"code":    http.StatusForbidden,
-			})
+			httpx.AbortWithError(c, http.StatusForbidden, "Forbidden", "Access to other tenants is not allowed")
 			return
 		}
 

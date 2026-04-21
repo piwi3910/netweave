@@ -10,6 +10,7 @@ import (
 	imsadapter "github.com/piwi3910/netweave/internal/adapter"
 	dmsadapter "github.com/piwi3910/netweave/internal/dms/adapter"
 	"github.com/piwi3910/netweave/internal/dms/registry"
+	"github.com/piwi3910/netweave/internal/httpx"
 	"github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/storage"
 	"go.uber.org/zap"
@@ -101,10 +102,7 @@ func (h *TMForumHandler) ListTMF639Resources(c *gin.Context) {
 			h.logger.Error("failed to list resource pools",
 				zap.Error(err),
 			)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Failed to retrieve resource pools",
-			})
+			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resource pools")
 			return
 		}
 
@@ -121,10 +119,7 @@ func (h *TMForumHandler) ListTMF639Resources(c *gin.Context) {
 			h.logger.Error("failed to list resources",
 				zap.Error(err),
 			)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Failed to retrieve resources",
-			})
+			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resources")
 			return
 		}
 
@@ -158,10 +153,7 @@ func (h *TMForumHandler) GetTMF639Resource(c *gin.Context) {
 	resource, err := adp.GetResource(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, imsadapter.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": fmt.Sprintf("Resource with ID '%s' not found", resourceID),
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Resource with ID '%s' not found", resourceID))
 			return
 		}
 
@@ -169,10 +161,7 @@ func (h *TMForumHandler) GetTMF639Resource(c *gin.Context) {
 			zap.String("resource_id", resourceID),
 			zap.Error(err),
 		)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to retrieve resource",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resource")
 		return
 	}
 
@@ -188,10 +177,7 @@ func (h *TMForumHandler) CreateTMF639Resource(c *gin.Context) {
 
 	var createReq models.TMF639ResourceCreate
 	if err := c.ShouldBindJSON(&createReq); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": fmt.Sprintf("Invalid request body: %v", err),
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
 
@@ -226,10 +212,7 @@ func (h *TMForumHandler) CreateTMF639Resource(c *gin.Context) {
 			h.logger.Error("failed to create resource pool",
 				zap.Error(err),
 			)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Failed to create resource pool",
-			})
+			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to create resource pool")
 			return
 		}
 
@@ -244,10 +227,7 @@ func (h *TMForumHandler) CreateTMF639Resource(c *gin.Context) {
 			h.logger.Error("failed to create resource",
 				zap.Error(err),
 			)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Failed to create resource",
-			})
+			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to create resource")
 			return
 		}
 
@@ -265,10 +245,7 @@ func (h *TMForumHandler) UpdateTMF639Resource(c *gin.Context) {
 
 	var updateReq models.TMF639ResourceUpdate
 	if err := c.ShouldBindJSON(&updateReq); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": fmt.Sprintf("Invalid request body: %v", err),
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
 
@@ -285,10 +262,7 @@ func (h *TMForumHandler) UpdateTMF639Resource(c *gin.Context) {
 				zap.String("category_resource_pool_id", resourceID),
 				zap.Error(err),
 			)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Failed to update resource pool",
-			})
+			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to update resource pool")
 			return
 		}
 
@@ -298,10 +272,7 @@ func (h *TMForumHandler) UpdateTMF639Resource(c *gin.Context) {
 	}
 
 	// Resource pool not found, return 404
-	c.JSON(http.StatusNotFound, gin.H{
-		"error":   "NotFound",
-		"message": fmt.Sprintf("Resource with ID '%s' not found", resourceID),
-	})
+	httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Resource with ID '%s' not found", resourceID))
 }
 
 // DeleteTMF639Resource deletes a TMF639 resource.
@@ -322,10 +293,7 @@ func (h *TMForumHandler) DeleteTMF639Resource(c *gin.Context) {
 	err = adp.DeleteResource(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, imsadapter.ErrResourceNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": fmt.Sprintf("Resource with ID '%s' not found", resourceID),
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Resource with ID '%s' not found", resourceID))
 			return
 		}
 
@@ -333,10 +301,7 @@ func (h *TMForumHandler) DeleteTMF639Resource(c *gin.Context) {
 			zap.String("resource_id", resourceID),
 			zap.Error(err),
 		)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to delete resource",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to delete resource")
 		return
 	}
 
@@ -398,10 +363,7 @@ func (h *TMForumHandler) GetTMF638Service(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{
-		"error":   "NotFound",
-		"message": fmt.Sprintf("Service with ID '%s' not found", serviceID),
-	})
+	httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Service with ID '%s' not found", serviceID))
 }
 
 // CreateTMF638Service creates a new TMF638 service (deploys via O2-DMS).
@@ -412,10 +374,7 @@ func (h *TMForumHandler) CreateTMF638Service(c *gin.Context) {
 
 	var createReq models.TMF638ServiceCreate
 	if err := c.ShouldBindJSON(&createReq); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": fmt.Sprintf("Invalid request body: %v", err),
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
 
@@ -428,10 +387,7 @@ func (h *TMForumHandler) CreateTMF638Service(c *gin.Context) {
 	dmsAdapter := dmsReg.GetDefault()
 	if dmsAdapter == nil {
 		h.logger.Error("no default DMS adapter available")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "No DMS adapter available for deployment",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "No DMS adapter available for deployment")
 		return
 	}
 
@@ -440,10 +396,7 @@ func (h *TMForumHandler) CreateTMF638Service(c *gin.Context) {
 		h.logger.Error("failed to create deployment",
 			zap.Error(err),
 		)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to create service",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to create service")
 		return
 	}
 
@@ -460,10 +413,7 @@ func (h *TMForumHandler) UpdateTMF638Service(c *gin.Context) {
 
 	var updateReq models.TMF638ServiceUpdate
 	if err := c.ShouldBindJSON(&updateReq); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": fmt.Sprintf("Invalid request body: %v", err),
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
 
@@ -488,10 +438,7 @@ func (h *TMForumHandler) UpdateTMF638Service(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{
-		"error":   "NotFound",
-		"message": fmt.Sprintf("Service with ID '%s' not found", serviceID),
-	})
+	httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Service with ID '%s' not found", serviceID))
 }
 
 // DeleteTMF638Service deletes a TMF638 service (undeploys via O2-DMS).
@@ -511,10 +458,7 @@ func (h *TMForumHandler) DeleteTMF638Service(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{
-		"error":   "NotFound",
-		"message": fmt.Sprintf("Service with ID '%s' not found", serviceID),
-	})
+	httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Service with ID '%s' not found", serviceID))
 }
 
 // ========================================
@@ -585,10 +529,7 @@ func (h *TMForumHandler) GetTMF641ServiceOrder(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{
-		"error":   "NotFound",
-		"message": fmt.Sprintf("Service order with ID '%s' not found", orderID),
-	})
+	httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Service order with ID '%s' not found", orderID))
 }
 
 // CreateTMF641ServiceOrder creates a new TMF641 service order.
@@ -599,10 +540,7 @@ func (h *TMForumHandler) CreateTMF641ServiceOrder(c *gin.Context) {
 
 	var createReq models.TMF641ServiceOrderCreate
 	if err := c.ShouldBindJSON(&createReq); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": fmt.Sprintf("Invalid request body: %v", err),
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
 
@@ -610,10 +548,7 @@ func (h *TMForumHandler) CreateTMF641ServiceOrder(c *gin.Context) {
 
 	// Validate service order items
 	if len(createReq.ServiceOrderItem) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": "Service order must contain at least one item",
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Service order must contain at least one item")
 		return
 	}
 
@@ -621,10 +556,7 @@ func (h *TMForumHandler) CreateTMF641ServiceOrder(c *gin.Context) {
 	dmsAdapter := dmsReg.GetDefault()
 	if dmsAdapter == nil {
 		h.logger.Error("no default DMS adapter available")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "No DMS adapter available for service ordering",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "No DMS adapter available for service ordering")
 		return
 	}
 
@@ -639,10 +571,7 @@ func (h *TMForumHandler) CreateTMF641ServiceOrder(c *gin.Context) {
 		h.logger.Error("failed to create deployment for service order",
 			zap.Error(err),
 		)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to create service order",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to create service order")
 		return
 	}
 
@@ -659,10 +588,7 @@ func (h *TMForumHandler) UpdateTMF641ServiceOrder(c *gin.Context) {
 
 	var updateReq models.TMF641ServiceOrderUpdate
 	if err := c.ShouldBindJSON(&updateReq); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": fmt.Sprintf("Invalid request body: %v", err),
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
 
@@ -685,10 +611,7 @@ func (h *TMForumHandler) UpdateTMF641ServiceOrder(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{
-		"error":   "NotFound",
-		"message": fmt.Sprintf("Service order with ID '%s' not found", orderID),
-	})
+	httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Service order with ID '%s' not found", orderID))
 }
 
 // DeleteTMF641ServiceOrder deletes (cancels) a TMF641 service order.
@@ -708,10 +631,7 @@ func (h *TMForumHandler) DeleteTMF641ServiceOrder(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{
-		"error":   "NotFound",
-		"message": fmt.Sprintf("Service order with ID '%s' not found", orderID),
-	})
+	httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Service order with ID '%s' not found", orderID))
 }
 
 // ========================================
@@ -733,10 +653,7 @@ func (h *TMForumHandler) GetTMF688Event(c *gin.Context) {
 	eventID := c.Param("id")
 
 	// Events are typically not stored
-	c.JSON(http.StatusNotFound, gin.H{
-		"error":   "NotFound",
-		"message": fmt.Sprintf("Event with ID '%s' not found", eventID),
-	})
+	httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Event with ID '%s' not found", eventID))
 }
 
 // CreateTMF688Event creates a new TMF688 event (typically for testing).
@@ -744,19 +661,13 @@ func (h *TMForumHandler) GetTMF688Event(c *gin.Context) {
 func (h *TMForumHandler) CreateTMF688Event(c *gin.Context) {
 	var createReq models.TMF688EventCreate
 	if err := c.ShouldBindJSON(&createReq); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": fmt.Sprintf("Invalid request body: %v", err),
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
 
 	// In a real implementation, this would publish the event to subscribers
 	// For now, return 501 Not Implemented
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error":   "NotImplemented",
-		"message": "Event creation not yet implemented",
-	})
+	httpx.WriteError(c, http.StatusNotImplemented, "NotImplemented", "Event creation not yet implemented")
 }
 
 // RegisterTMF688Hub registers a hub for event notifications.
@@ -767,10 +678,7 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 
 	var hubReq models.TMF688HubCreate
 	if err := c.ShouldBindJSON(&hubReq); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": fmt.Sprintf("Invalid request body: %v", err),
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
 
@@ -780,10 +688,7 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 		h.logger.Warn("invalid TMF688 query",
 			zap.String("query", hubReq.Query),
 			zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": fmt.Sprintf("Invalid query format: %v", err),
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", fmt.Sprintf("Invalid query format: %v", err))
 		return
 	}
 
@@ -799,10 +704,7 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 		h.logger.Error("failed to create O2-IMS subscription",
 			zap.String("callback", hubReq.Callback),
 			zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to create subscription",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to create subscription")
 		return
 	}
 
@@ -831,10 +733,7 @@ func (h *TMForumHandler) RegisterTMF688Hub(c *gin.Context) {
 				zap.Error(delErr))
 		}
 
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to save hub registration",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to save hub registration")
 		return
 	}
 
@@ -866,18 +765,12 @@ func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
 	registration, err := h.hubStore.Get(ctx, hubID)
 	if err != nil {
 		if errors.Is(err, storage.ErrHubNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "NotFound",
-				"message": fmt.Sprintf("Hub with ID '%s' not found", hubID),
-			})
+			httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Hub with ID '%s' not found", hubID))
 		} else {
 			h.logger.Error("failed to retrieve hub registration",
 				zap.String("hub_id", hubID),
 				zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "InternalError",
-				"message": "Failed to retrieve hub registration",
-			})
+			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve hub registration")
 		}
 		return
 	}
@@ -896,10 +789,7 @@ func (h *TMForumHandler) UnregisterTMF688Hub(c *gin.Context) {
 		h.logger.Error("failed to delete hub registration",
 			zap.String("hub_id", hubID),
 			zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "InternalError",
-			"message": "Failed to delete hub registration",
-		})
+		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to delete hub registration")
 		return
 	}
 
@@ -938,10 +828,7 @@ func (h *TMForumHandler) GetTMF642Alarm(c *gin.Context) {
 	alarmID := c.Param("id")
 
 	// In a real implementation, this would fetch the alarm from monitoring
-	c.JSON(http.StatusNotFound, gin.H{
-		"error":   "NotFound",
-		"message": fmt.Sprintf("Alarm with ID '%s' not found", alarmID),
-	})
+	httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Alarm with ID '%s' not found", alarmID))
 }
 
 // AcknowledgeTMF642Alarm acknowledges an alarm.
@@ -953,10 +840,7 @@ func (h *TMForumHandler) AcknowledgeTMF642Alarm(c *gin.Context) {
 		State string `json:"state"`
 	}
 	if err := c.ShouldBindJSON(&updateReq); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "BadRequest",
-			"message": fmt.Sprintf("Invalid request body: %v", err),
-		})
+		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
 
@@ -965,10 +849,7 @@ func (h *TMForumHandler) AcknowledgeTMF642Alarm(c *gin.Context) {
 		zap.String("state", updateReq.State),
 	)
 
-	c.JSON(http.StatusNotFound, gin.H{
-		"error":   "NotFound",
-		"message": fmt.Sprintf("Alarm with ID '%s' not found", alarmID),
-	})
+	httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Alarm with ID '%s' not found", alarmID))
 }
 
 // ClearTMF642Alarm clears an alarm.
@@ -1038,19 +919,13 @@ func (h *TMForumHandler) GetTMF640ServiceActivation(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{
-		"error":   "NotFound",
-		"message": fmt.Sprintf("Service activation with ID '%s' not found", activationID),
-	})
+	httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Service activation with ID '%s' not found", activationID))
 }
 
 // CreateTMF640ServiceActivation creates a new service activation request.
 // POST /tmf-api/serviceActivation/v4/serviceActivation.
 func (h *TMForumHandler) CreateTMF640ServiceActivation(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error":   "NotImplemented",
-		"message": "Service activation creation not yet implemented",
-	})
+	httpx.WriteError(c, http.StatusNotImplemented, "NotImplemented", "Service activation creation not yet implemented")
 }
 
 // ========================================
@@ -1108,10 +983,7 @@ func (h *TMForumHandler) GetTMF620ProductOffering(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{
-		"error":   "NotFound",
-		"message": fmt.Sprintf("Product offering with ID '%s' not found", offeringID),
-	})
+	httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Product offering with ID '%s' not found", offeringID))
 }
 
 // ========================================

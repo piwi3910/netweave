@@ -30,7 +30,8 @@ const DefaultSSLMode = SSLModeVerifyFull
 // Both modes allow the client to fall through to a plaintext connection, which
 // is unacceptable for production data.
 var ErrInsecureSSLModeInProduction = errors.New(
-	"postgres sslmode 'disable' and 'prefer' are not permitted in production; use 'require', 'verify-ca', or 'verify-full'",
+	"postgres sslmode 'disable' and 'prefer' are not permitted in production; " +
+		"use 'require', 'verify-ca', or 'verify-full'",
 )
 
 // PostgresConfig holds PostgreSQL connection parameters.

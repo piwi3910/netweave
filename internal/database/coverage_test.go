@@ -96,9 +96,9 @@ func TestConnectionString_AllDefaults(t *testing.T) {
 		Database: "mydb",
 		User:     "myuser",
 	}
-	// Port defaults to 5432, SSLMode defaults to "prefer".
+	// Port defaults to 5432, SSLMode defaults to "verify-full".
 	result := cfg.ConnectionString("pw")
-	assert.Equal(t, "postgres://myuser:pw@myhost:5432/mydb?sslmode=prefer", result)
+	assert.Equal(t, "postgres://myuser:pw@myhost:5432/mydb?sslmode=verify-full", result)
 }
 
 // TestConnectionString_CustomPort tests ConnectionString with a custom port.

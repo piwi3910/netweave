@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/piwi3910/netweave/internal/auth"
+	"github.com/piwi3910/netweave/internal/httpx"
 )
 
 const (
@@ -105,11 +106,12 @@ func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 				zap.Int("limit", limit),
 				zap.Int("current", currentCount))
 
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error":   "RateLimitExceeded",
-				"message": "Rate limit exceeded. Try again later.",
-				"code":    http.StatusTooManyRequests,
-			})
+			httpx.AbortWithError(
+				c,
+				http.StatusTooManyRequests,
+				"RateLimitExceeded",
+				"Rate limit exceeded. Try again later.",
+			)
 			return
 		}
 

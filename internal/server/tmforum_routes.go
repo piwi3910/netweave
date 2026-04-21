@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/piwi3910/netweave/internal/handlers"
+	"github.com/piwi3910/netweave/internal/httpx"
 )
 
 // setupTMForumRoutesEarly configures TMForum API route structure during server initialization.
@@ -192,10 +193,7 @@ func (s *Server) setupTMForumRoutesEarly() {
 func (s *Server) tmfHandlerOrUnavailable(getHandler func(*handlers.TMForumHandler) gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if s.tmfHandler == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error":   "TMForum API not available",
-				"message": "DMS subsystem not initialized",
-			})
+			httpx.WriteError(c, http.StatusServiceUnavailable, "TMForum API not available", "DMS subsystem not initialized")
 			return
 		}
 
