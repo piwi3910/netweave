@@ -509,7 +509,7 @@ type TLSConfig struct {
 
 	// CipherSuites is a list of enabled cipher suites (optional).
 	// Names must match Go's crypto/tls names exactly (see tls.CipherSuites()).
-	// Only honoured for TLS 1.2; TLS 1.3 cipher suites are fixed by Go.
+	// Only honored for TLS 1.2; TLS 1.3 cipher suites are fixed by Go.
 	CipherSuites []string `mapstructure:"cipher_suites"`
 }
 
@@ -1340,7 +1340,10 @@ func (c *Config) validateTLSCipherSuites() error {
 
 	for _, name := range c.TLS.CipherSuites {
 		if _, ok := allowed[name]; !ok {
-			return fmt.Errorf("invalid tls cipher_suites entry: %q is not a known safe cipher suite (see Go tls.CipherSuites())", name)
+			return fmt.Errorf(
+				"invalid tls cipher_suites entry: %q is not a known safe cipher suite (see Go tls.CipherSuites())",
+				name,
+			)
 		}
 	}
 
