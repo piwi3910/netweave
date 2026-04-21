@@ -389,7 +389,7 @@ func (h *SMOHandler) HandleGetPlugin(c *gin.Context) {
 	reg := h.getActiveRegistry(c)
 	h.logger.Info("getting SMO plugin", zap.String("plugin_id", pluginID))
 
-plugin := reg.Get(pluginID)
+	plugin := reg.Get(pluginID)
 	exists := plugin != nil
 	var err error
 	if !exists {

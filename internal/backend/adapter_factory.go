@@ -27,10 +27,10 @@ type DMSAdapterConstructor func(instance *Instance) (dmsadapter.DMSAdapter, erro
 type SMOAdapterConstructor func(instance *Instance) (smo.Plugin, error)
 
 var (
-	registryMu          sync.RWMutex
-	imsConstructors     = map[string]AdapterConstructor{}
-	dmsConstructors     = map[string]DMSAdapterConstructor{}
-	smoConstructors     = map[string]SMOAdapterConstructor{}
+	registryMu      sync.RWMutex
+	imsConstructors = map[string]AdapterConstructor{}
+	dmsConstructors = map[string]DMSAdapterConstructor{}
+	smoConstructors = map[string]SMOAdapterConstructor{}
 )
 
 // RegisterIMSAdapter registers a factory constructor for an IMS adapter type.

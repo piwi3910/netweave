@@ -168,6 +168,7 @@ type Metrics struct {
 //	authStore := auth.NewRedisStore(&auth.RedisConfig{...})
 //	srv := server.New(cfg, logger, adapter, store, authStore)
 //	srv := server.New(cfg, logger, adapter, store, authStore, authMw) // with pre-configured auth middleware
+//
 // ServerOption configures a Server during construction. Use the With* helpers
 // (e.g. WithAuthMiddleware) to produce options.
 type ServerOption func(*serverOptions)
