@@ -28,18 +28,41 @@ const (
 	MaxBatchSize = 100
 )
 
+// AdapterResolver resolves the adapter to use for a given request.
+// It is invoked per-request so that multi-tenant deployments can route
+// batch operations to each tenant's configured backend.
+//
+// Implementations MUST write an error response to the *gin.Context and
+// return nil when they cannot resolve an adapter (for example because
+// the tenant has no backend access configured). Returning nil without
+// writing a response is a programming error.
+type AdapterResolver func(c *gin.Context) adapter.Adapter
+
 // BatchHandler handles batch operation API endpoints.
+//
+// The handler resolves the backend adapter on every request. When a
+// resolver is configured (via SetAdapterResolver), each batch call
+// routes to the per-tenant adapter returned by the resolver. When no
+// resolver is set, the handler falls back to the static adapter
+// supplied to NewBatchHandler (used by unit tests and single-backend
+// deployments).
 type BatchHandler struct {
-	adapter adapter.Adapter
-	store   storage.Store
-	logger  *zap.Logger
-	metrics *observability.Metrics
+	adapter  adapter.Adapter
+	resolver AdapterResolver
+	store    storage.Store
+	logger   *zap.Logger
+	metrics  *observability.Metrics
 }
 
 // NewBatchHandler creates a new BatchHandler.
-// It requires an adapter for backend operations, a store for subscription persistence,
+// It accepts an optional static adapter (used as a fallback when no
+// AdapterResolver is configured), a store for subscription persistence,
 // a logger for structured logging, and metrics for observability.
 // If metrics is nil, the global metrics instance will be used.
+//
+// The static adapter MAY be nil. In that case, call SetAdapterResolver
+// before the first batch request to configure per-tenant adapter
+// resolution; otherwise batch endpoints will return 503.
 func NewBatchHandler(
 	adp adapter.Adapter,
 	store storage.Store,
@@ -70,6 +93,35 @@ func NewBatchHandler(
 		logger:  logger,
 		metrics: metrics,
 	}
+}
+
+// SetAdapterResolver configures per-request adapter resolution. When set,
+// the resolver is invoked on every batch call to obtain the adapter for
+// the current tenant. This is how the server wires each tenant's
+// assigned backend into the batch endpoints.
+func (h *BatchHandler) SetAdapterResolver(resolver AdapterResolver) {
+	h.resolver = resolver
+}
+
+// resolveAdapter returns the adapter to use for the given request.
+// If a resolver is configured it is invoked (and is responsible for
+// writing any error response). Otherwise the static adapter from
+// NewBatchHandler is returned. If no adapter is available a 503
+// response is written and nil is returned; callers must check for nil
+// and return without further processing.
+func (h *BatchHandler) resolveAdapter(c *gin.Context) adapter.Adapter {
+	if h.resolver != nil {
+		return h.resolver(c)
+	}
+	if h.adapter != nil {
+		return h.adapter
+	}
+	c.JSON(http.StatusServiceUnavailable, models.ErrorResponse{
+		Error:   "ServiceUnavailable",
+		Message: "No backend adapter configured for batch operations",
+		Code:    http.StatusServiceUnavailable,
+	})
+	return nil
 }
 
 // BatchRequest represents a batch operation request.
@@ -782,6 +834,11 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 		return
 	}
 
+	adp := h.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
 	config := batchConfig{
 		operationName: "create_resource_pools",
 		atomic:        req.Atomic,
@@ -790,18 +847,23 @@ func (h *BatchHandler) BatchCreateResourcePools(c *gin.Context) {
 	}
 
 	operation := func(ctx context.Context, idx int) (BatchResult, string) {
-		return h.executeResourcePoolCreate(ctx, req.ResourcePools[idx])
+		return h.executeResourcePoolCreate(ctx, adp, req.ResourcePools[idx])
 	}
 
-	h.executeBatch(c, config, operation, h.rollbackResourcePools)
+	rollback := func(ctx context.Context, ids []string) int {
+		return h.rollbackResourcePools(ctx, adp, ids)
+	}
+
+	h.executeBatch(c, config, operation, rollback)
 }
 
 // executeResourcePoolCreate processes a single resource pool creation.
 func (h *BatchHandler) executeResourcePoolCreate(
 	ctx context.Context,
+	adp adapter.Adapter,
 	pool models.ResourcePool,
 ) (BatchResult, string) {
-	result := h.createSingleResourcePool(ctx, pool)
+	result := h.createSingleResourcePool(ctx, adp, pool)
 	var createdID string
 	if result.Success {
 		if pool, ok := result.Data.(*models.ResourcePool); ok {
@@ -820,8 +882,13 @@ func (h *BatchHandler) BatchDeleteResourcePools(c *gin.Context) {
 		return
 	}
 
+	adp := h.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
 	// Pre-validation for atomic operations
-	if req.Atomic && !h.validateResourcePoolsExist(c, req.ResourcePoolIDs) {
+	if req.Atomic && !h.validateResourcePoolsExist(c, adp, req.ResourcePoolIDs) {
 		return
 	}
 
@@ -833,7 +900,7 @@ func (h *BatchHandler) BatchDeleteResourcePools(c *gin.Context) {
 	}
 
 	operation := func(ctx context.Context, idx int) (BatchResult, string) {
-		return h.deleteResourcePool(ctx, req.ResourcePoolIDs[idx])
+		return h.deleteResourcePool(ctx, adp, req.ResourcePoolIDs[idx])
 	}
 
 	h.executeBatch(c, config, operation, nil)
@@ -848,8 +915,13 @@ func (h *BatchHandler) BatchUpdateResourcePools(c *gin.Context) {
 		return
 	}
 
+	adp := h.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
 	// Pre-validation for atomic operations
-	if req.Atomic && !h.validateResourcePoolUpdatesExist(c, req.Updates) {
+	if req.Atomic && !h.validateResourcePoolUpdatesExist(c, adp, req.Updates) {
 		return
 	}
 
@@ -861,7 +933,7 @@ func (h *BatchHandler) BatchUpdateResourcePools(c *gin.Context) {
 	}
 
 	operation := func(ctx context.Context, idx int) (BatchResult, string) {
-		return h.executeResourcePoolUpdate(ctx, req.Updates[idx])
+		return h.executeResourcePoolUpdate(ctx, adp, req.Updates[idx])
 	}
 
 	h.executeBatch(c, config, operation, nil)
@@ -870,20 +942,22 @@ func (h *BatchHandler) BatchUpdateResourcePools(c *gin.Context) {
 // executeResourcePoolUpdate processes a single resource pool update.
 func (h *BatchHandler) executeResourcePoolUpdate(
 	ctx context.Context,
+	adp adapter.Adapter,
 	item ResourcePoolUpdateItem,
 ) (BatchResult, string) {
-	result := h.updateSingleResourcePool(ctx, item.ResourcePoolID, item.Update)
+	result := h.updateSingleResourcePool(ctx, adp, item.ResourcePoolID, item.Update)
 	return result, ""
 }
 
 // updateSingleResourcePool updates a single resource pool.
 func (h *BatchHandler) updateSingleResourcePool(
 	ctx context.Context,
+	adp adapter.Adapter,
 	id string,
 	update models.ResourcePool,
 ) BatchResult {
 	// Get existing resource pool
-	existing, err := h.adapter.GetResourcePool(ctx, id)
+	existing, err := adp.GetResourcePool(ctx, id)
 	if err != nil {
 		h.logger.Error("failed to get resource pool for update",
 			zap.String("resource_pool_id", id),
@@ -914,7 +988,7 @@ func (h *BatchHandler) updateSingleResourcePool(
 	}
 
 	// Update via adapter
-	updatedPool, err := h.adapter.UpdateResourcePool(ctx, id, existing)
+	updatedPool, err := adp.UpdateResourcePool(ctx, id, existing)
 	if err != nil {
 		h.logger.Error("failed to update resource pool",
 			zap.String("resource_pool_id", id),
@@ -943,11 +1017,12 @@ func (h *BatchHandler) updateSingleResourcePool(
 // validateResourcePoolUpdatesExist validates all resource pools exist for atomic operations.
 func (h *BatchHandler) validateResourcePoolUpdatesExist(
 	c *gin.Context,
+	adp adapter.Adapter,
 	updates []ResourcePoolUpdateItem,
 ) bool {
 	ctx := c.Request.Context()
 	for _, item := range updates {
-		if _, err := h.adapter.GetResourcePool(ctx, item.ResourcePoolID); err != nil {
+		if _, err := adp.GetResourcePool(ctx, item.ResourcePoolID); err != nil {
 			h.sendAtomicValidationFailure(c, len(updates), "some resource pools not found")
 			return false
 		}
@@ -958,11 +1033,12 @@ func (h *BatchHandler) validateResourcePoolUpdatesExist(
 // validateResourcePoolsExist validates all resource pools exist for atomic operations.
 func (h *BatchHandler) validateResourcePoolsExist(
 	c *gin.Context,
+	adp adapter.Adapter,
 	ids []string,
 ) bool {
 	ctx := c.Request.Context()
 	for _, id := range ids {
-		if _, err := h.adapter.GetResourcePool(ctx, id); err != nil {
+		if _, err := adp.GetResourcePool(ctx, id); err != nil {
 			h.sendAtomicValidationFailure(c, len(ids), "some resource pools not found")
 			return false
 		}
@@ -973,9 +1049,10 @@ func (h *BatchHandler) validateResourcePoolsExist(
 // deleteResourcePool deletes a single resource pool.
 func (h *BatchHandler) deleteResourcePool(
 	ctx context.Context,
+	adp adapter.Adapter,
 	id string,
 ) (BatchResult, string) {
-	err := h.adapter.DeleteResourcePool(ctx, id)
+	err := adp.DeleteResourcePool(ctx, id)
 	if err != nil {
 		return BatchResult{
 			Status:  http.StatusNotFound,
@@ -1075,6 +1152,7 @@ func (h *BatchHandler) createSingleSubscription(
 // createSingleResourcePool creates a single resource pool and returns the result.
 func (h *BatchHandler) createSingleResourcePool(
 	ctx context.Context,
+	adp adapter.Adapter,
 	pool models.ResourcePool,
 ) BatchResult {
 	adapterPool := &adapter.ResourcePool{
@@ -1087,7 +1165,7 @@ func (h *BatchHandler) createSingleResourcePool(
 		Extensions:       pool.Extensions,
 	}
 
-	createdPool, err := h.adapter.CreateResourcePool(ctx, adapterPool)
+	createdPool, err := adp.CreateResourcePool(ctx, adapterPool)
 	if err != nil {
 		h.logger.Error("failed to create resource pool",
 			zap.String("resource_pool_id", pool.ResourcePoolID),
@@ -1145,10 +1223,10 @@ func (h *BatchHandler) rollbackSubscriptions(ctx context.Context, ids []string) 
 
 // rollbackResourcePools deletes the given resource pool IDs.
 // Returns the number of failed rollback operations.
-func (h *BatchHandler) rollbackResourcePools(ctx context.Context, ids []string) int {
+func (h *BatchHandler) rollbackResourcePools(ctx context.Context, adp adapter.Adapter, ids []string) int {
 	var rollbackFailures int
 	for _, id := range ids {
-		if err := h.adapter.DeleteResourcePool(ctx, id); err != nil {
+		if err := adp.DeleteResourcePool(ctx, id); err != nil {
 			rollbackFailures++
 			h.logger.Error("failed to rollback resource pool",
 				zap.String("resource_pool_id", id),
@@ -1206,6 +1284,11 @@ func (h *BatchHandler) BatchCreateResources(c *gin.Context) {
 		return
 	}
 
+	adp := h.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
 	config := batchConfig{
 		operationName: "create_resources",
 		atomic:        req.Atomic,
@@ -1214,18 +1297,23 @@ func (h *BatchHandler) BatchCreateResources(c *gin.Context) {
 	}
 
 	operation := func(ctx context.Context, idx int) (BatchResult, string) {
-		return h.executeResourceCreate(ctx, req.Resources[idx])
+		return h.executeResourceCreate(ctx, adp, req.Resources[idx])
 	}
 
-	h.executeBatch(c, config, operation, h.rollbackResources)
+	rollback := func(ctx context.Context, ids []string) int {
+		return h.rollbackResources(ctx, adp, ids)
+	}
+
+	h.executeBatch(c, config, operation, rollback)
 }
 
 // executeResourceCreate processes a single resource creation.
 func (h *BatchHandler) executeResourceCreate(
 	ctx context.Context,
+	adp adapter.Adapter,
 	resource models.Resource,
 ) (BatchResult, string) {
-	result := h.createSingleResource(ctx, resource)
+	result := h.createSingleResource(ctx, adp, resource)
 	var createdID string
 	if result.Success {
 		if res, ok := result.Data.(*models.Resource); ok {
@@ -1238,6 +1326,7 @@ func (h *BatchHandler) executeResourceCreate(
 // createSingleResource creates a single resource and returns the result.
 func (h *BatchHandler) createSingleResource(
 	ctx context.Context,
+	adp adapter.Adapter,
 	resource models.Resource,
 ) BatchResult {
 	adapterResource := &adapter.Resource{
@@ -1249,7 +1338,7 @@ func (h *BatchHandler) createSingleResource(
 		Extensions:     resource.Extensions,
 	}
 
-	createdResource, err := h.adapter.CreateResource(ctx, adapterResource)
+	createdResource, err := adp.CreateResource(ctx, adapterResource)
 	if err != nil {
 		h.logger.Error("failed to create resource",
 			zap.String("resource_id", resource.ResourceID),
@@ -1291,8 +1380,13 @@ func (h *BatchHandler) BatchDeleteResources(c *gin.Context) {
 		return
 	}
 
+	adp := h.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
 	// Pre-validation for atomic operations
-	if req.Atomic && !h.validateResourcesExist(c, req.ResourceIDs) {
+	if req.Atomic && !h.validateResourcesExist(c, adp, req.ResourceIDs) {
 		return
 	}
 
@@ -1304,7 +1398,7 @@ func (h *BatchHandler) BatchDeleteResources(c *gin.Context) {
 	}
 
 	operation := func(ctx context.Context, idx int) (BatchResult, string) {
-		return h.deleteResource(ctx, req.ResourceIDs[idx])
+		return h.deleteResource(ctx, adp, req.ResourceIDs[idx])
 	}
 
 	h.executeBatch(c, config, operation, nil)
@@ -1313,9 +1407,10 @@ func (h *BatchHandler) BatchDeleteResources(c *gin.Context) {
 // deleteResource deletes a single resource.
 func (h *BatchHandler) deleteResource(
 	ctx context.Context,
+	adp adapter.Adapter,
 	id string,
 ) (BatchResult, string) {
-	err := h.adapter.DeleteResource(ctx, id)
+	err := adp.DeleteResource(ctx, id)
 	if err != nil {
 		return BatchResult{
 			Status:  http.StatusNotFound,
@@ -1336,11 +1431,12 @@ func (h *BatchHandler) deleteResource(
 // validateResourcesExist validates all resources exist for atomic operations.
 func (h *BatchHandler) validateResourcesExist(
 	c *gin.Context,
+	adp adapter.Adapter,
 	ids []string,
 ) bool {
 	ctx := c.Request.Context()
 	for _, id := range ids {
-		if _, err := h.adapter.GetResource(ctx, id); err != nil {
+		if _, err := adp.GetResource(ctx, id); err != nil {
 			h.sendAtomicValidationFailure(c, len(ids), "some resources not found")
 			return false
 		}
@@ -1357,8 +1453,13 @@ func (h *BatchHandler) BatchUpdateResources(c *gin.Context) {
 		return
 	}
 
+	adp := h.resolveAdapter(c)
+	if adp == nil {
+		return
+	}
+
 	// Pre-validation for atomic operations
-	if req.Atomic && !h.validateResourceUpdatesExist(c, req.Updates) {
+	if req.Atomic && !h.validateResourceUpdatesExist(c, adp, req.Updates) {
 		return
 	}
 
@@ -1370,7 +1471,7 @@ func (h *BatchHandler) BatchUpdateResources(c *gin.Context) {
 	}
 
 	operation := func(ctx context.Context, idx int) (BatchResult, string) {
-		return h.executeResourceUpdate(ctx, req.Updates[idx])
+		return h.executeResourceUpdate(ctx, adp, req.Updates[idx])
 	}
 
 	h.executeBatch(c, config, operation, nil)
@@ -1379,20 +1480,22 @@ func (h *BatchHandler) BatchUpdateResources(c *gin.Context) {
 // executeResourceUpdate processes a single resource update.
 func (h *BatchHandler) executeResourceUpdate(
 	ctx context.Context,
+	adp adapter.Adapter,
 	item ResourceUpdateItem,
 ) (BatchResult, string) {
-	result := h.updateSingleResource(ctx, item.ResourceID, item.Update)
+	result := h.updateSingleResource(ctx, adp, item.ResourceID, item.Update)
 	return result, ""
 }
 
 // updateSingleResource updates a single resource.
 func (h *BatchHandler) updateSingleResource(
 	ctx context.Context,
+	adp adapter.Adapter,
 	id string,
 	update models.Resource,
 ) BatchResult {
 	// Get existing resource
-	existing, err := h.adapter.GetResource(ctx, id)
+	existing, err := adp.GetResource(ctx, id)
 	if err != nil {
 		h.logger.Error("failed to get resource for update",
 			zap.String("resource_id", id),
@@ -1420,7 +1523,7 @@ func (h *BatchHandler) updateSingleResource(
 	}
 
 	// Update via adapter
-	updatedResource, err := h.adapter.UpdateResource(ctx, id, existing)
+	updatedResource, err := adp.UpdateResource(ctx, id, existing)
 	if err != nil {
 		h.logger.Error("failed to update resource",
 			zap.String("resource_id", id),
@@ -1449,11 +1552,12 @@ func (h *BatchHandler) updateSingleResource(
 // validateResourceUpdatesExist validates all resources exist for atomic operations.
 func (h *BatchHandler) validateResourceUpdatesExist(
 	c *gin.Context,
+	adp adapter.Adapter,
 	updates []ResourceUpdateItem,
 ) bool {
 	ctx := c.Request.Context()
 	for _, item := range updates {
-		if _, err := h.adapter.GetResource(ctx, item.ResourceID); err != nil {
+		if _, err := adp.GetResource(ctx, item.ResourceID); err != nil {
 			h.sendAtomicValidationFailure(c, len(updates), "some resources not found")
 			return false
 		}
@@ -1463,10 +1567,10 @@ func (h *BatchHandler) validateResourceUpdatesExist(
 
 // rollbackResources deletes the given resource IDs.
 // Returns the number of failed rollback operations.
-func (h *BatchHandler) rollbackResources(ctx context.Context, ids []string) int {
+func (h *BatchHandler) rollbackResources(ctx context.Context, adp adapter.Adapter, ids []string) int {
 	var rollbackFailures int
 	for _, id := range ids {
-		if err := h.adapter.DeleteResource(ctx, id); err != nil {
+		if err := adp.DeleteResource(ctx, id); err != nil {
 			rollbackFailures++
 			h.logger.Error("failed to rollback resource",
 				zap.String("resource_id", id),

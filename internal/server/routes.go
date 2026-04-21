@@ -114,6 +114,48 @@ func (s *Server) withTenantAccess(
 	}
 }
 
+// enforceTenantOwnershipInline is a defense-in-depth guard used by
+// quota handlers to re-enforce tenant ownership at the handler level.
+// It is intentionally redundant with the RequireTenantAccess route
+// middleware so that a misconfigured route registration cannot
+// silently leak cross-tenant access (issue #469 / C6). Returns true
+// when the caller is authorised and false when a response has
+// already been written.
+//
+// The response uses 404 rather than 403 to avoid leaking the
+// existence of the target tenant to a non-owning caller.
+func (s *Server) enforceTenantOwnershipInline(c *gin.Context, tenantID string) bool {
+	user := auth.UserFromContext(c.Request.Context())
+	// If no authenticated user context exists, the surrounding auth
+	// middleware is responsible for rejecting the request; in an
+	// auth-disabled deployment (tests) there is no tenant to enforce
+	// against, so fall through.
+	if user == nil {
+		return true
+	}
+	if user.IsPlatformAdmin {
+		return true
+	}
+	if user.TenantID == tenantID {
+		return true
+	}
+
+	s.logger.Warn("cross-tenant access denied at handler guard",
+		zap.String("user_id", user.UserID),
+		zap.String("user_tenant", user.TenantID),
+		zap.String("target_tenant", tenantID),
+		zap.String("path", c.Request.URL.Path),
+		zap.String("request_id", c.GetString("request_id")),
+	)
+
+	c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+		"error":   "NotFound",
+		"message": "Tenant not found",
+		"code":    http.StatusNotFound,
+	})
+	return false
+}
+
 // resolveAdapter determines which adapter to use for the current request.
 // Returns nil and writes an error response if no adapter can be resolved.
 //
@@ -2527,6 +2569,14 @@ func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 // GET /o2ims/v3/tenants/:tenantId/quotas.
 func (s *Server) handleGetTenantQuotas(c *gin.Context) {
 	tenantID := c.Param("tenantId")
+
+	// Defense in depth: re-enforce tenant ownership at the handler
+	// level so a future routing mistake cannot bypass the middleware
+	// (issue #469 / C6). Returns 404 to avoid leaking tenant existence.
+	if !s.enforceTenantOwnershipInline(c, tenantID) {
+		return
+	}
+
 	s.logger.Info("getting tenant quotas", zap.String("tenant_id", tenantID))
 
 	c.JSON(http.StatusOK, gin.H{
@@ -2547,6 +2597,14 @@ func (s *Server) handleGetTenantQuotas(c *gin.Context) {
 func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
 	ctx := c.Request.Context()
 	tenantID := c.Param("tenantId")
+
+	// Defense in depth: re-enforce tenant ownership at the handler
+	// level so a future routing mistake cannot bypass the middleware
+	// (issue #469 / C6). Returns 404 to avoid leaking tenant existence.
+	if !s.enforceTenantOwnershipInline(c, tenantID) {
+		return
+	}
+
 	s.logger.Info("updating tenant quotas", zap.String("tenant_id", tenantID))
 
 	var req struct {
