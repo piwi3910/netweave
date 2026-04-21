@@ -19,8 +19,8 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/piwi3910/netweave/internal/backend"
-	"github.com/piwi3910/netweave/internal/httpx"
 	"github.com/piwi3910/netweave/internal/models"
+	"github.com/piwi3910/netweave/internal/security/urlredact"
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
@@ -129,7 +129,10 @@ func (s *Server) resolveAdapter(c *gin.Context) adapter.Adapter {
 		if s.adapter != nil {
 			return s.adapter
 		}
-		httpx.WriteError(c, http.StatusServiceUnavailable, "ServiceUnavailable", "No backend adapters configured. Create backend instances via the admin API.")
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error":   "ServiceUnavailable",
+			"message": "No backend adapters configured. Create backend instances via the admin API.",
+		})
 		return nil
 	}
 
@@ -138,7 +141,10 @@ func (s *Server) resolveAdapter(c *gin.Context) adapter.Adapter {
 	if backendID != "" && auth.IsPlatformAdminFromContext(ctx) {
 		adp, err := s.adapterRegistry.GetAdapter(backendID)
 		if err != nil {
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", fmt.Sprintf("Backend %q not found in registry", backendID))
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "NotFound",
+				"message": fmt.Sprintf("Backend %q not found in registry", backendID),
+			})
 			return nil
 		}
 		return adp
@@ -149,34 +155,52 @@ func (s *Server) resolveAdapter(c *gin.Context) adapter.Adapter {
 	if tenantID == "" {
 		// Platform admins must specify X-Backend-ID
 		if auth.IsPlatformAdminFromContext(ctx) {
-			httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Platform admins must specify X-Backend-ID header to select a backend")
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "BadRequest",
+				"message": "Platform admins must specify X-Backend-ID header to select a backend",
+			})
 			return nil
 		}
-		httpx.WriteError(c, http.StatusUnauthorized, "Unauthorized", "No tenant context available")
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   "Unauthorized",
+			"message": "No tenant context available",
+		})
 		return nil
 	}
 
 	// Platform admins without X-Backend-ID header
 	if auth.IsPlatformAdminFromContext(ctx) {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Platform admins must specify X-Backend-ID header to select a backend")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": "Platform admins must specify X-Backend-ID header to select a backend",
+		})
 		return nil
 	}
 
 	adp, err := s.adapterRegistry.GetAdapterForTenant(ctx, tenantID, s.backendStore)
 	if err != nil {
 		if errors.Is(err, backend.ErrNoBackendAccess) {
-			httpx.WriteError(c, http.StatusForbidden, "Forbidden", "No backend access configured for this tenant")
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":   "Forbidden",
+				"message": "No backend access configured for this tenant",
+			})
 			return nil
 		}
 		if errors.Is(err, backend.ErrAdapterNotFound) {
-			httpx.WriteError(c, http.StatusServiceUnavailable, "ServiceUnavailable", "Assigned backend is not currently available")
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error":   "ServiceUnavailable",
+				"message": "Assigned backend is not currently available",
+			})
 			return nil
 		}
 		s.logger.Warn("failed to resolve adapter for tenant",
 			zap.String("tenant_id", tenantID),
 			zap.Error(err),
 		)
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalServerError", "Failed to resolve backend adapter")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalServerError",
+			"message": "Failed to resolve backend adapter",
+		})
 		return nil
 	}
 
@@ -345,8 +369,9 @@ func (s *Server) setupV1Routes(v1 *gin.RouterGroup) {
 		}
 	}
 
-	// API version endpoint (no auth required)
-	v1.GET("", s.handleAPIInfo)
+	// API version endpoint — served from the authenticated O2 router, so the
+	// detailed descriptor is scoped to callers that have established mTLS.
+	v1.GET("", s.handleAPIInfoDetailed)
 }
 
 // Health check handlers
@@ -385,28 +410,34 @@ func (s *Server) handleMetrics(c *gin.Context) {
 
 // API information handlers
 
-// handleRoot returns basic API information.
+// handleRoot returns a minimal unauthenticated banner.
+//
+// Detailed version / build / feature information is not emitted here: the
+// admin router is reachable without authentication and anything returned is
+// accessible to anonymous scanners. Operators can obtain the full banner
+// from the authenticated O2 /o2ims endpoint (see handleAPIInfoDetailed).
 func (s *Server) handleRoot(c *gin.Context) {
-	endpoints := gin.H{
-		"health":     "/health",
-		"ready":      "/ready",
-		"metrics":    s.config.Observability.Metrics.Path,
-		"o2ims_base": "/o2ims-infrastructureInventory/v1",
-		"o2dms_base": "/o2dms/v1",
-		"o2smo_base": "/o2smo/v1",
-	}
-
 	c.JSON(http.StatusOK, gin.H{
-		"name":        "O2-IMS Gateway",
-		"version":     "1.0.0",
-		"description": "ORAN O2-IMS, O2-DMS, and O2-SMO compliant API gateway for Kubernetes",
-		"api_version": "v1",
-		"endpoints":   endpoints,
+		"service": "netweave",
+		"api":     "o2ims",
+		"status":  "ok",
 	})
 }
 
-// handleAPIInfo returns O2-IMS API information.
+// handleAPIInfo returns a minimal unauthenticated banner for /o2ims.
+// See handleRoot for rationale.
 func (s *Server) handleAPIInfo(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"service": "netweave",
+		"api":     "o2ims",
+		"status":  "ok",
+	})
+}
+
+// handleAPIInfoDetailed returns the full O2-IMS API descriptor. It is mounted
+// on the authenticated O2 router so operators/SMO clients can discover
+// supported resources without leaking metadata to anonymous callers.
+func (s *Server) handleAPIInfoDetailed(c *gin.Context) {
 	resources := []string{
 		"subscriptions",
 		"resourcePools",
@@ -417,7 +448,6 @@ func (s *Server) handleAPIInfo(c *gin.Context) {
 		"batch",
 	}
 
-	// Add tenants to resources list if multi-tenancy is enabled
 	if s.tenantHandler != nil {
 		resources = append(resources, "tenants")
 	}
@@ -429,8 +459,6 @@ func (s *Server) handleAPIInfo(c *gin.Context) {
 		"Field selection to optimize API responses",
 		"Cursor-based pagination",
 	}
-
-	// Add multi-tenancy feature if enabled
 	if s.tenantHandler != nil {
 		features = append(features, "Multi-tenancy support with tenant isolation and quotas")
 	}
@@ -470,7 +498,11 @@ func (s *Server) handleListSubscriptions(c *gin.Context) {
 
 	if err != nil {
 		s.logger.Error("failed to list subscriptions", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve subscriptions")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve subscriptions",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
@@ -508,13 +540,23 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 
 	var req adapter.Subscription
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
+		s.writeClientError(c, http.StatusBadRequest, "BadRequest",
+			"invalid request body",
+			"failed to parse subscription request body",
+			zap.Error(err),
+		)
 		return
 	}
 
-	// Validate callback URL early for fast failure (SSRF protection)
+	// Validate callback URL early for fast failure (SSRF protection).
+	// Validator errors can include URL details — keep them out of the
+	// client response and log them with the request_id for operators.
 	if err := s.ValidateCallback(ctx, &req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
+		s.writeClientError(c, http.StatusBadRequest, "BadRequest",
+			"invalid callback URL",
+			"callback URL validation failed",
+			zap.Error(err),
+		)
 		return
 	}
 
@@ -524,13 +566,21 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 			if errors.Is(err, auth.ErrQuotaExceeded) {
 				s.logger.Warn("subscription quota exceeded",
 					zap.String("tenant_id", tenantID))
-				httpx.WriteError(c, http.StatusTooManyRequests, "QuotaExceeded", "Subscription quota exceeded for tenant")
+				c.JSON(http.StatusTooManyRequests, gin.H{
+					"error":   "QuotaExceeded",
+					"message": "Subscription quota exceeded for tenant",
+					"code":    http.StatusTooManyRequests,
+				})
 				return
 			}
 			s.logger.Error("failed to check subscription quota",
 				zap.String("tenant_id", tenantID),
 				zap.Error(err))
-			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to check subscription quota")
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "InternalError",
+				"message": "Failed to check subscription quota",
+				"code":    http.StatusInternalServerError,
+			})
 			return
 		}
 	}
@@ -574,12 +624,20 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 
 		// Check for conflict error (subscription already exists)
 		if errors.Is(err, adapter.ErrSubscriptionExists) {
-			httpx.WriteError(c, http.StatusConflict, "Conflict", "Subscription already exists")
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "Conflict",
+				"message": "Subscription already exists",
+				"code":    http.StatusConflict,
+			})
 			return
 		}
 
 		s.logger.Error("failed to create subscription", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to create subscription")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to create subscription",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
@@ -610,13 +668,17 @@ func (s *Server) handleCreateSubscription(c *gin.Context) {
 					zap.Error(decErr))
 			}
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to store subscription")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to store subscription",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
 	s.logger.Info("subscription created",
 		zap.String("subscription_id", created.SubscriptionID),
-		zap.String("callback", created.Callback))
+		zap.String("callback", urlredact.Redact(created.Callback)))
 
 	// Audit log the successful creation
 	if s.auditLogger != nil {
@@ -650,27 +712,37 @@ func (s *Server) handleGetSubscription(c *gin.Context) {
 		zap.String("subscription_id", subscriptionID),
 		zap.String("tenant_id", tenantID))
 
-	// Get subscription from storage
+	// Get subscription from storage. Both "not found" and "forbidden
+	// (different tenant)" must return the same shape so the caller cannot
+	// use response variance as a cross-tenant ID oracle.
 	sub, err := s.store.Get(ctx, subscriptionID)
 	if err != nil {
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
+			s.writeNotFoundOrForbidden(c, "subscription",
+				"subscription lookup returned not-found",
+				zap.String("subscription_id", subscriptionID),
+				zap.String("tenant_id", tenantID),
+			)
 			return
 		}
 
-		s.logger.Error("failed to get subscription", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve subscription")
+		s.writeClientError(c, http.StatusInternalServerError, "InternalError",
+			"failed to retrieve subscription",
+			"failed to get subscription from storage",
+			zap.String("subscription_id", subscriptionID),
+			zap.Error(err),
+		)
 		return
 	}
 
 	// Tenant isolation: verify subscription belongs to tenant (unless platform admin).
-	// SECURITY: fail-closed via auth.AuthorizeTenantResource — see issue #470.
-	if !auth.AuthorizeTenantResource(ctx, sub.TenantID) {
-		s.logger.Warn("tenant attempting to access subscription from different tenant",
+	if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) && sub.TenantID != tenantID {
+		s.writeNotFoundOrForbidden(c, "subscription",
+			"tenant attempting to access subscription from different tenant",
 			zap.String("tenant_id", tenantID),
 			zap.String("subscription_tenant_id", sub.TenantID),
-			zap.String("subscription_id", subscriptionID))
-		httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
+			zap.String("subscription_id", subscriptionID),
+		)
 		return
 	}
 
@@ -704,45 +776,60 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 		zap.String("subscription_id", subscriptionID),
 		zap.String("tenant_id", tenantID))
 
-	// Tenant isolation: verify subscription belongs to tenant before update
+	// Tenant isolation: verify subscription belongs to tenant before update.
+	// Any "wrong tenant" or "missing" case returns the same not-found shape
+	// so the caller cannot enumerate sibling tenants' IDs.
 	if s.store != nil {
 		sub, err := s.store.Get(ctx, subscriptionID)
 		if err != nil {
 			if errors.Is(err, storage.ErrSubscriptionNotFound) {
-				httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
+				s.writeNotFoundOrForbidden(c, "subscription",
+					"subscription lookup returned not-found during update",
+					zap.String("subscription_id", subscriptionID),
+					zap.String("tenant_id", tenantID),
+				)
 				return
 			}
-			s.logger.Error("failed to get subscription for tenant check", zap.Error(err))
-			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to verify subscription ownership")
+			s.writeClientError(c, http.StatusInternalServerError, "InternalError",
+				"failed to verify subscription ownership",
+				"failed to get subscription for tenant check",
+				zap.String("subscription_id", subscriptionID),
+				zap.Error(err),
+			)
 			return
 		}
 
-		// Verify subscription belongs to tenant (unless platform admin).
-		// SECURITY: fail-closed via auth.AuthorizeTenantResource — see issue #470.
-		if !auth.AuthorizeTenantResource(ctx, sub.TenantID) {
-			s.logger.Warn("tenant attempting to update subscription from different tenant",
+		if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) && sub.TenantID != tenantID {
+			s.writeNotFoundOrForbidden(c, "subscription",
+				"tenant attempting to update subscription from different tenant",
 				zap.String("tenant_id", tenantID),
 				zap.String("subscription_tenant_id", sub.TenantID),
-				zap.String("subscription_id", subscriptionID))
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
+				zap.String("subscription_id", subscriptionID),
+			)
 			return
 		}
 	}
 
 	var req adapter.Subscription
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
+		s.writeClientError(c, http.StatusBadRequest, "BadRequest",
+			"invalid request body",
+			"failed to parse subscription update body",
+			zap.Error(err),
+		)
 		return
 	}
 
-	// Validate callback URL early for fast failure
 	if err := s.ValidateCallback(ctx, &req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
+		s.writeClientError(c, http.StatusBadRequest, "BadRequest",
+			"invalid callback URL",
+			"callback URL validation failed during update",
+			zap.Error(err),
+		)
 		return
 	}
 
-	// Update subscription via adapter
-	// The adapter handles validation and persistence to its backend storage
+	// Update subscription via adapter.
 
 	adp := s.resolveAdapter(c)
 	if adp == nil {
@@ -751,20 +838,26 @@ func (s *Server) handleUpdateSubscription(c *gin.Context) {
 
 	updated, err := adp.UpdateSubscription(c.Request.Context(), subscriptionID, &req)
 	if err != nil {
-		// Check for not found error using sentinel error
 		if errors.Is(err, adapter.ErrSubscriptionNotFound) {
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
+			s.writeNotFoundOrForbidden(c, "subscription",
+				"adapter reported subscription not found during update",
+				zap.String("subscription_id", subscriptionID),
+			)
 			return
 		}
 
-		s.logger.Error("failed to update subscription", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to update subscription")
+		s.writeClientError(c, http.StatusInternalServerError, "InternalError",
+			"failed to update subscription",
+			"adapter failed to update subscription",
+			zap.String("subscription_id", subscriptionID),
+			zap.Error(err),
+		)
 		return
 	}
 
 	s.logger.Info("subscription updated",
 		zap.String("subscription_id", subscriptionID),
-		zap.String("callback", updated.Callback))
+		zap.String("callback", urlredact.Redact(updated.Callback)))
 
 	// Log audit event for subscription update
 	s.logAuditEvent(
@@ -802,18 +895,21 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 		if err == nil {
 			storedTenantID = sub.TenantID
 
-			// Tenant isolation: verify subscription belongs to tenant (unless platform admin).
-			// SECURITY: fail-closed via auth.AuthorizeTenantResource — see issue #470.
-			if !auth.AuthorizeTenantResource(ctx, sub.TenantID) {
-				s.logger.Warn("tenant attempting to delete subscription from different tenant",
+			// Tenant isolation: identical shape for "not found" and "wrong tenant".
+			if tenantID != "" && !auth.IsPlatformAdminFromContext(ctx) && sub.TenantID != tenantID {
+				s.writeNotFoundOrForbidden(c, "subscription",
+					"tenant attempting to delete subscription from different tenant",
 					zap.String("tenant_id", tenantID),
 					zap.String("subscription_tenant_id", sub.TenantID),
-					zap.String("subscription_id", subscriptionID))
-				httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
+					zap.String("subscription_id", subscriptionID),
+				)
 				return
 			}
 		} else if errors.Is(err, storage.ErrSubscriptionNotFound) {
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
+			s.writeNotFoundOrForbidden(c, "subscription",
+				"subscription lookup returned not-found during delete",
+				zap.String("subscription_id", subscriptionID),
+			)
 			return
 		}
 	}
@@ -842,14 +938,17 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 			)
 		}
 
-		s.logger.Error("failed to delete subscription from adapter", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to delete subscription")
+		s.writeClientError(c, http.StatusInternalServerError, "InternalError",
+			"failed to delete subscription",
+			"adapter failed to delete subscription",
+			zap.String("subscription_id", subscriptionID),
+			zap.Error(err),
+		)
 		return
 	}
 
-	// Delete from storage
+	// Delete from storage.
 	if err := s.store.Delete(ctx, subscriptionID); err != nil {
-		// Audit log the failure
 		if s.auditLogger != nil {
 			user := auth.UserFromContext(ctx)
 			s.auditLogger.LogSubscriptionOperation(
@@ -866,12 +965,19 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 		}
 
 		if errors.Is(err, storage.ErrSubscriptionNotFound) {
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Subscription not found: "+subscriptionID)
+			s.writeNotFoundOrForbidden(c, "subscription",
+				"storage reported subscription not found during delete",
+				zap.String("subscription_id", subscriptionID),
+			)
 			return
 		}
 
-		s.logger.Error("failed to delete subscription from storage", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to delete subscription")
+		s.writeClientError(c, http.StatusInternalServerError, "InternalError",
+			"failed to delete subscription",
+			"storage failed to delete subscription",
+			zap.String("subscription_id", subscriptionID),
+			zap.Error(err),
+		)
 		return
 	}
 
@@ -960,7 +1066,11 @@ func (s *Server) handleListResourcePools(c *gin.Context) {
 	filter, err := s.parseFilterFromRequest(c)
 	if err != nil {
 		s.logger.Error("failed to parse filter", zap.Error(err))
-		httpx.WriteError(c, http.StatusBadRequest, "InvalidParameter", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "InvalidParameter",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -974,7 +1084,11 @@ func (s *Server) handleListResourcePools(c *gin.Context) {
 	pools, err := adp.ListResourcePools(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resource pools", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resource pools")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve resource pools",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
@@ -999,24 +1113,25 @@ func (s *Server) handleGetResourcePool(c *gin.Context) {
 
 	pool, err := adp.GetResourcePool(c.Request.Context(), resourcePoolID)
 	if err != nil {
-		s.logger.Error("failed to get resource pool", zap.Error(err))
-		httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource pool not found: "+resourcePoolID)
+		s.writeNotFoundOrForbidden(c, "resource pool",
+			"adapter failed to fetch resource pool",
+			zap.String("resource_pool_id", resourcePoolID),
+			zap.Error(err),
+		)
 		return
 	}
 
 	// Tenant isolation: verify pool belongs to tenant (unless platform admin).
 	// SECURITY: fail-closed via auth.AuthorizeTenantResource — a pool with
-	// empty TenantID is treated as inaccessible to non-platform-admin
-	// callers. Previously the check short-circuited on `pool.TenantID != ""`,
-	// which let adapters or legacy data without a tenant stamp bypass
-	// isolation entirely (see issue #470).
+	// empty TenantID is inaccessible to non-platform-admin callers (issue #470).
 	ctx := c.Request.Context()
 	if !auth.AuthorizeTenantResource(ctx, pool.TenantID) {
-		s.logger.Warn("tenant attempting to access resource pool from different tenant",
+		s.writeNotFoundOrForbidden(c, "resource pool",
+			"tenant attempting to access resource pool from different tenant",
 			zap.String("tenant_id", auth.TenantIDFromContext(ctx)),
 			zap.String("pool_tenant_id", pool.TenantID),
-			zap.String("resource_pool_id", resourcePoolID))
-		httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource pool not found: "+resourcePoolID)
+			zap.String("resource_pool_id", resourcePoolID),
+		)
 		return
 	}
 
@@ -1051,7 +1166,11 @@ func (s *Server) handleListResourcesInPool(c *gin.Context) {
 	resources, err := adp.ListResources(ctx, filter)
 	if err != nil {
 		s.logger.Error("failed to list resources in pool", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resources")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve resources",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
@@ -1196,13 +1315,21 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 
 	var req adapter.ResourcePool
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
+		s.writeClientError(c, http.StatusBadRequest, "BadRequest",
+			"invalid request body",
+			"failed to parse request body",
+			zap.Error(err),
+		)
 		return
 	}
 
 	// Validate resource pool fields
 	if err := ValidateResourcePoolFields(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -1214,13 +1341,21 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 			if errors.Is(err, auth.ErrQuotaExceeded) {
 				s.logger.Warn("resource pool quota exceeded",
 					zap.String("tenant_id", tenantID))
-				httpx.WriteError(c, http.StatusTooManyRequests, "QuotaExceeded", "Resource pool quota exceeded for tenant")
+				c.JSON(http.StatusTooManyRequests, gin.H{
+					"error":   "QuotaExceeded",
+					"message": "Resource pool quota exceeded for tenant",
+					"code":    http.StatusTooManyRequests,
+				})
 				return
 			}
 			s.logger.Error("failed to check resource pool quota",
 				zap.String("tenant_id", tenantID),
 				zap.Error(err))
-			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to check resource pool quota")
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "InternalError",
+				"message": "Failed to check resource pool quota",
+				"code":    http.StatusInternalServerError,
+			})
 			return
 		}
 	}
@@ -1287,12 +1422,20 @@ func (s *Server) handleCreateResourcePool(c *gin.Context) {
 
 		// Check for duplicate resource pool using sentinel error
 		if errors.Is(err, adapter.ErrResourcePoolExists) {
-			httpx.WriteError(c, http.StatusConflict, "Conflict", "Resource pool with ID "+SanitizeForLogging(req.ResourcePoolID)+" already exists")
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "Conflict",
+				"message": "Resource pool with ID " + SanitizeForLogging(req.ResourcePoolID) + " already exists",
+				"code":    http.StatusConflict,
+			})
 			return
 		}
 
 		s.logger.Error("failed to create resource pool", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to create resource pool")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to create resource pool",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
@@ -1329,13 +1472,21 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 
 	var req adapter.ResourcePool
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
+		s.writeClientError(c, http.StatusBadRequest, "BadRequest",
+			"invalid request body",
+			"failed to parse request body",
+			zap.Error(err),
+		)
 		return
 	}
 
 	// Validate field constraints
 	if err := ValidateResourcePoolFields(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -1402,14 +1553,20 @@ func (s *Server) handleUpdateResourcePool(c *gin.Context) {
 			)
 		}
 
-		// Check for not found error using sentinel error
 		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource pool not found: "+resourcePoolID)
+			s.writeNotFoundOrForbidden(c, "resource pool",
+				"adapter reported resource pool not found during update",
+				zap.String("resource_pool_id", resourcePoolID),
+			)
 			return
 		}
 
-		s.logger.Error("failed to update resource pool", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to update resource pool")
+		s.writeClientError(c, http.StatusInternalServerError, "InternalError",
+			"failed to update resource pool",
+			"adapter failed to update resource pool",
+			zap.String("resource_pool_id", resourcePoolID),
+			zap.Error(err),
+		)
 		return
 	}
 
@@ -1461,15 +1618,21 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 	if user := auth.UserFromContext(ctx); user != nil && !user.IsPlatformAdmin {
 		pool, err := adp.GetResourcePool(ctx, resourcePoolID)
 		if err != nil {
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource pool not found: "+resourcePoolID)
+			s.writeNotFoundOrForbidden(c, "resource pool",
+				"resource pool lookup failed during delete authorization",
+				zap.String("resource_pool_id", resourcePoolID),
+				zap.String("tenant_id", tenantID),
+				zap.Error(err),
+			)
 			return
 		}
 		if !auth.AuthorizeTenantResource(ctx, pool.TenantID) {
-			s.logger.Warn("tenant attempting to delete resource pool from different tenant",
+			s.writeNotFoundOrForbidden(c, "resource pool",
+				"tenant attempting to delete resource pool from different tenant",
+				zap.String("resource_pool_id", resourcePoolID),
 				zap.String("tenant_id", tenantID),
 				zap.String("pool_tenant_id", pool.TenantID),
-				zap.String("resource_pool_id", resourcePoolID))
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource pool not found: "+resourcePoolID)
+			)
 			return
 		}
 	}
@@ -1492,11 +1655,18 @@ func (s *Server) handleDeleteResourcePool(c *gin.Context) {
 		}
 
 		if errors.Is(err, adapter.ErrResourcePoolNotFound) {
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource pool not found: "+resourcePoolID)
+			s.writeNotFoundOrForbidden(c, "resource pool",
+				"adapter reported resource pool not found during delete",
+				zap.String("resource_pool_id", resourcePoolID),
+			)
 			return
 		}
-		s.logger.Error("failed to delete resource pool", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to delete resource pool")
+		s.writeClientError(c, http.StatusInternalServerError, "InternalError",
+			"failed to delete resource pool",
+			"adapter failed to delete resource pool",
+			zap.String("resource_pool_id", resourcePoolID),
+			zap.Error(err),
+		)
 		return
 	}
 
@@ -1642,7 +1812,11 @@ func (s *Server) handleListResources(c *gin.Context) {
 	filter, err := s.parseFilterFromRequest(c)
 	if err != nil {
 		s.logger.Error("failed to parse filter", zap.Error(err))
-		httpx.WriteError(c, http.StatusBadRequest, "InvalidParameter", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "InvalidParameter",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -1656,7 +1830,11 @@ func (s *Server) handleListResources(c *gin.Context) {
 	resources, err := adp.ListResources(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resources", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resources")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve resources",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
@@ -1681,26 +1859,34 @@ func (s *Server) handleGetResource(c *gin.Context) {
 
 	resource, err := adp.GetResource(c.Request.Context(), resourceID)
 	if err != nil {
-		// Use sentinel error for better error detection
 		if errors.Is(err, adapter.ErrResourceNotFound) {
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource not found: "+resourceID)
+			s.writeNotFoundOrForbidden(c, "resource",
+				"adapter reported resource not found",
+				zap.String("resource_id", resourceID),
+			)
 			return
 		}
 
-		s.logger.Error("failed to get resource", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resource")
+		s.writeClientError(c, http.StatusInternalServerError, "InternalError",
+			"failed to retrieve resource",
+			"adapter failed to fetch resource",
+			zap.String("resource_id", resourceID),
+			zap.Error(err),
+		)
 		return
 	}
 
 	// Tenant isolation: verify resource belongs to tenant (unless platform admin).
-	// SECURITY: fail-closed via auth.AuthorizeTenantResource — see issue #470.
+	// SECURITY: fail-closed via auth.AuthorizeTenantResource — a resource with
+	// empty TenantID is inaccessible to non-platform-admin callers (issue #470).
 	ctx := c.Request.Context()
 	if !auth.AuthorizeTenantResource(ctx, resource.TenantID) {
-		s.logger.Warn("tenant attempting to access resource from different tenant",
+		s.writeNotFoundOrForbidden(c, "resource",
+			"tenant attempting to access resource from different tenant",
 			zap.String("tenant_id", auth.TenantIDFromContext(ctx)),
 			zap.String("resource_tenant_id", resource.TenantID),
-			zap.String("resource_id", resourceID))
-		httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource not found: "+resourceID)
+			zap.String("resource_id", resourceID),
+		)
 		return
 	}
 
@@ -1727,13 +1913,21 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 
 	var req adapter.Resource
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
+		s.writeClientError(c, http.StatusBadRequest, "BadRequest",
+			"invalid request body",
+			"failed to parse request body",
+			zap.Error(err),
+		)
 		return
 	}
 
 	// Validate required fields and constraints
 	if err := validateCreateRequest(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -1745,13 +1939,21 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 			if errors.Is(err, auth.ErrQuotaExceeded) {
 				s.logger.Warn("resource quota exceeded",
 					zap.String("tenant_id", tenantID))
-				httpx.WriteError(c, http.StatusTooManyRequests, "QuotaExceeded", "Resource quota exceeded for tenant")
+				c.JSON(http.StatusTooManyRequests, gin.H{
+					"error":   "QuotaExceeded",
+					"message": "Resource quota exceeded for tenant",
+					"code":    http.StatusTooManyRequests,
+				})
 				return
 			}
 			s.logger.Error("failed to check resource quota",
 				zap.String("tenant_id", tenantID),
 				zap.Error(err))
-			httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to check resource quota")
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "InternalError",
+				"message": "Failed to check resource quota",
+				"code":    http.StatusInternalServerError,
+			})
 			return
 		}
 	}
@@ -1770,7 +1972,11 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 		if _, err := uuid.Parse(req.ResourceID); err != nil {
 			s.logger.Warn("invalid resource ID format",
 				zap.String("resource_id", SanitizeForLogging(req.ResourceID)))
-			httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "resourceId must be a valid UUID")
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "BadRequest",
+				"message": "resourceId must be a valid UUID",
+				"code":    http.StatusBadRequest,
+			})
 			return
 		}
 	}
@@ -1811,12 +2017,20 @@ func (s *Server) handleCreateResource(c *gin.Context) {
 
 		// Check if error indicates duplicate resource
 		if errors.Is(err, adapter.ErrResourceExists) {
-			httpx.WriteError(c, http.StatusConflict, "Conflict", "Resource with ID "+SanitizeForLogging(req.ResourceID)+" already exists")
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "Conflict",
+				"message": "Resource with ID " + SanitizeForLogging(req.ResourceID) + " already exists",
+				"code":    http.StatusConflict,
+			})
 			return
 		}
 
 		s.logger.Error("failed to create resource", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to create resource")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to create resource",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
@@ -1853,7 +2067,11 @@ func (s *Server) handleUpdateResource(c *gin.Context) {
 
 	var req adapter.Resource
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
+		s.writeClientError(c, http.StatusBadRequest, "BadRequest",
+			"invalid request body",
+			"failed to parse request body",
+			zap.Error(err),
+		)
 		return
 	}
 
@@ -1917,27 +2135,30 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 		resourceTypeID = existing.ResourceTypeID
 	}
 
-	// Verify tenant ownership before deletion.
-	// SECURITY: fail-closed via auth.AuthorizeTenantResource — see issue #470.
-	// Gated on presence of authenticated user so that non-auth deployments
-	// (dev/test) continue to work.
+	// Verify tenant ownership before deletion. Identical shape is returned
+	// for "not found" vs "wrong tenant" to prevent enumeration.
 	if user := auth.UserFromContext(ctx); user != nil && !user.IsPlatformAdmin {
 		if err != nil {
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource not found: "+resourceID)
+			s.writeNotFoundOrForbidden(c, "resource",
+				"resource lookup failed during delete authorization",
+				zap.String("resource_id", resourceID),
+				zap.String("tenant_id", tenantID),
+				zap.Error(err),
+			)
 			return
 		}
 		if !auth.AuthorizeTenantResource(ctx, existing.TenantID) {
-			s.logger.Warn("tenant attempting to delete resource from different tenant",
+			s.writeNotFoundOrForbidden(c, "resource",
+				"tenant attempting to delete resource from different tenant",
+				zap.String("resource_id", resourceID),
 				zap.String("tenant_id", tenantID),
 				zap.String("resource_tenant_id", existing.TenantID),
-				zap.String("resource_id", resourceID))
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource not found: "+resourceID)
+			)
 			return
 		}
 	}
 
 	if err := adp.DeleteResource(ctx, resourceID); err != nil {
-		// Audit log the failure
 		if s.auditLogger != nil {
 			user := auth.UserFromContext(ctx)
 			s.auditLogger.LogResourceOperation(
@@ -1954,11 +2175,18 @@ func (s *Server) handleDeleteResource(c *gin.Context) {
 		}
 
 		if errors.Is(err, adapter.ErrResourceNotFound) {
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource not found: "+resourceID)
+			s.writeNotFoundOrForbidden(c, "resource",
+				"adapter reported resource not found during delete",
+				zap.String("resource_id", resourceID),
+			)
 			return
 		}
-		s.logger.Error("failed to delete resource", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to delete resource")
+		s.writeClientError(c, http.StatusInternalServerError, "InternalError",
+			"failed to delete resource",
+			"adapter failed to delete resource",
+			zap.String("resource_id", resourceID),
+			zap.Error(err),
+		)
 		return
 	}
 
@@ -1998,12 +2226,19 @@ func (s *Server) getExistingResource(c *gin.Context, resourceID string) (*adapte
 	existing, err := adp.GetResource(c.Request.Context(), resourceID)
 	if err != nil {
 		if errors.Is(err, adapter.ErrResourceNotFound) {
-			httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource not found: "+resourceID)
+			s.writeNotFoundOrForbidden(c, "resource",
+				"adapter reported resource not found",
+				zap.String("resource_id", resourceID),
+			)
 			return nil, fmt.Errorf("failed to get resource %s: %w", resourceID, err)
 		}
 
-		s.logger.Error("failed to get resource", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resource")
+		s.writeClientError(c, http.StatusInternalServerError, "InternalError",
+			"failed to retrieve resource",
+			"adapter failed to fetch resource",
+			zap.String("resource_id", resourceID),
+			zap.Error(err),
+		)
 		return nil, fmt.Errorf("failed to get resource %s: %w", resourceID, err)
 	}
 	return existing, nil
@@ -2013,13 +2248,21 @@ func (s *Server) getExistingResource(c *gin.Context, resourceID string) (*adapte
 func (s *Server) validateUpdateRequest(c *gin.Context, req, existing *adapter.Resource) error {
 	// Validate field constraints
 	if err := validateResourceFields(req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
 		return err
 	}
 
 	// Check immutable fields
 	if err := checkImmutableFields(req, existing); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "BadRequest",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
 		return err
 	}
 
@@ -2074,7 +2317,11 @@ func (s *Server) applyResourceUpdate(c *gin.Context, resourceID string, req, exi
 		}
 
 		s.logger.Error("failed to update resource", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to update resource")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to update resource",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
@@ -2112,7 +2359,11 @@ func (s *Server) handleListResourceTypes(c *gin.Context) {
 	filter, err := s.parseFilterFromRequest(c)
 	if err != nil {
 		s.logger.Error("failed to parse filter", zap.Error(err))
-		httpx.WriteError(c, http.StatusBadRequest, "InvalidParameter", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "InvalidParameter",
+			"message": err.Error(),
+			"code":    http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -2126,7 +2377,11 @@ func (s *Server) handleListResourceTypes(c *gin.Context) {
 	types, err := adp.ListResourceTypes(c.Request.Context(), filter)
 	if err != nil {
 		s.logger.Error("failed to list resource types", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve resource types")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve resource types",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
@@ -2152,7 +2407,11 @@ func (s *Server) handleGetResourceType(c *gin.Context) {
 	resType, err := adp.GetResourceType(c.Request.Context(), resourceTypeID)
 	if err != nil {
 		s.logger.Error("failed to get resource type", zap.Error(err))
-		httpx.WriteError(c, http.StatusNotFound, "NotFound", "Resource type not found: "+resourceTypeID)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "NotFound",
+			"message": "Resource type not found: " + resourceTypeID,
+			"code":    http.StatusNotFound,
+		})
 		return
 	}
 
@@ -2174,7 +2433,11 @@ func (s *Server) handleListDeploymentManagers(c *gin.Context) {
 	dms, err := adp.ListDeploymentManagers(c.Request.Context(), nil)
 	if err != nil {
 		s.logger.Error("failed to list deployment managers", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve deployment managers")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve deployment managers",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
@@ -2200,7 +2463,11 @@ func (s *Server) handleGetDeploymentManager(c *gin.Context) {
 	dm, err := adp.GetDeploymentManager(c.Request.Context(), deploymentManagerID)
 	if err != nil {
 		s.logger.Error("failed to get deployment manager", zap.Error(err))
-		httpx.WriteError(c, http.StatusNotFound, "NotFound", "Deployment manager not found: "+deploymentManagerID)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "NotFound",
+			"message": "Deployment manager not found: " + deploymentManagerID,
+			"code":    http.StatusNotFound,
+		})
 		return
 	}
 
@@ -2224,13 +2491,21 @@ func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 	dms, err := adp.ListDeploymentManagers(c.Request.Context(), nil)
 	if err != nil {
 		s.logger.Error("failed to list deployment managers for O-Cloud info", zap.Error(err))
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "Failed to retrieve O-Cloud information")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "Failed to retrieve O-Cloud information",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
 	if len(dms) == 0 {
 		s.logger.Error("no deployment managers registered")
-		httpx.WriteError(c, http.StatusInternalServerError, "InternalError", "No deployment managers available")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "InternalError",
+			"message": "No deployment managers available",
+			"code":    http.StatusInternalServerError,
+		})
 		return
 	}
 
@@ -2281,7 +2556,11 @@ func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "BadRequest", "Invalid request body: "+err.Error())
+		s.writeClientError(c, http.StatusBadRequest, "BadRequest",
+			"invalid request body",
+			"failed to parse request body",
+			zap.Error(err),
+		)
 		return
 	}
 

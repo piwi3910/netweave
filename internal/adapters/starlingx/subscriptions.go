@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/security/urlredact"
 	"github.com/piwi3910/netweave/internal/storage"
 	"go.uber.org/zap"
 )
@@ -32,7 +33,7 @@ func (a *Adapter) CreateSubscription(ctx context.Context, sub *adapter.Subscript
 
 	a.logger.Info("created subscription",
 		zap.String("subscription_id", sub.SubscriptionID),
-		zap.String("callback", sub.Callback),
+		zap.String("callback", urlredact.Redact(sub.Callback)),
 	)
 
 	return sub, nil

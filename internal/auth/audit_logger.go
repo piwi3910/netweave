@@ -19,11 +19,22 @@ type AuditLogger struct {
 // ErrNilLogger is returned when a nil logger is passed to NewAuditLogger.
 var ErrNilLogger = errors.New("logger cannot be nil")
 
+// ErrNilAuditStore is returned when a nil store is passed to NewAuditLogger.
+// Audit events must always be persistable; dropping them silently is a
+// security gap for regulated workloads.
+var ErrNilAuditStore = errors.New("audit store cannot be nil")
+
 // NewAuditLogger creates a new AuditLogger.
-// Returns an error if logger is nil. Store can be nil (events will only be logged, not persisted).
+// Returns an error if logger or store is nil. Persisted audit logging is a
+// hard requirement — callers that genuinely do not need persistence (e.g.,
+// in-memory tests) should use NewAuditLoggerForTest, which wires a no-op
+// store.
 func NewAuditLogger(store Store, logger *zap.Logger) (*AuditLogger, error) {
 	if logger == nil {
 		return nil, ErrNilLogger
+	}
+	if store == nil {
+		return nil, ErrNilAuditStore
 	}
 	return &AuditLogger{
 		store:  store,
@@ -309,14 +320,12 @@ func (a *AuditLogger) logEvent(ctx context.Context, event *AuditEvent) {
 		zap.String("client_ip", event.ClientIP),
 	)
 
-	// Store in Redis for persistence and querying
-	if a.store != nil {
-		if err := a.store.LogEvent(ctx, event); err != nil {
-			a.logger.Error("failed to store audit event",
-				zap.String("event_id", event.ID),
-				zap.Error(err),
-			)
-		}
+	// Store for persistence and querying. Store is required by NewAuditLogger.
+	if err := a.store.LogEvent(ctx, event); err != nil {
+		a.logger.Error("failed to store audit event",
+			zap.String("event_id", event.ID),
+			zap.Error(err),
+		)
 	}
 }
 

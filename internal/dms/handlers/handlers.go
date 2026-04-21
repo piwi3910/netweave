@@ -19,6 +19,7 @@ import (
 	"github.com/piwi3910/netweave/internal/dms/models"
 	"github.com/piwi3910/netweave/internal/dms/registry"
 	"github.com/piwi3910/netweave/internal/dms/storage"
+	"github.com/piwi3910/netweave/internal/security/urlredact"
 	"go.uber.org/zap"
 )
 
@@ -294,20 +295,11 @@ func isIPInBlocks(ip net.IP, blocks []string) bool {
 }
 
 // RedactURL redacts sensitive parts of a URL for logging.
+//
+// Deprecated: use internal/security/urlredact.Redact. This wrapper remains
+// only so existing DMS callers and tests do not change shape.
 func RedactURL(rawURL string) string {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return "[invalid-url]"
-	}
-
-	// Remove query parameters (may contain secrets).
-	parsed.RawQuery = ""
-	parsed.Fragment = ""
-
-	// Remove user info if present.
-	parsed.User = nil
-
-	return parsed.String()
+	return urlredact.Redact(rawURL)
 }
 
 // ValidatePaginationLimit validates and normalizes the pagination limit.

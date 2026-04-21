@@ -601,7 +601,13 @@ func (s *PostgresStore) InitializeDefaultRoles(ctx context.Context) error {
 
 // --- AuditStore ---
 
-// LogEvent creates a new audit event.
+// LogEvent creates a new audit event with a linked hash chain.
+//
+// Each event's entry_hash is SHA-256(canonical(event || prev_hash)), where
+// prev_hash is the entry_hash of the most recent event at the time of insert.
+// The read-then-insert sequence is wrapped in a serializable transaction so
+// concurrent writers cannot splice off-chain entries, and the verification
+// query in VerifyAuditChain can walk the log end-to-end to detect tampering.
 func (s *PostgresStore) LogEvent(ctx context.Context, event *AuditEvent) error {
 	detailsJSON, err := marshalStringMap(event.Details)
 	if err != nil {
@@ -612,7 +618,25 @@ func (s *PostgresStore) LogEvent(ctx context.Context, event *AuditEvent) error {
 		event.Timestamp = time.Now().UTC()
 	}
 
-	err = s.queries.InsertAuditEvent(ctx, dbsqlc.InsertAuditEventParams{
+	tx, err := s.db.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	if err != nil {
+		return fmt.Errorf("failed to begin audit tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	qtx := s.queries.WithTx(tx)
+
+	prevHash, err := qtx.GetLatestAuditHash(ctx)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("failed to read previous audit hash: %w", err)
+	}
+	// Genesis case: no rows yet → prevHash == "".
+
+	entryHash := event.ComputeEntryHash(prevHash)
+	event.PrevHash = prevHash
+	event.EntryHash = entryHash
+
+	if err := qtx.InsertAuditEvent(ctx, dbsqlc.InsertAuditEventParams{
 		ID:           event.ID,
 		Type:         string(event.Type),
 		TenantID:     event.TenantID,
@@ -625,12 +649,74 @@ func (s *PostgresStore) LogEvent(ctx context.Context, event *AuditEvent) error {
 		ClientIp:     event.ClientIP,
 		UserAgent:    event.UserAgent,
 		Timestamp:    event.Timestamp,
-	})
-	if err != nil {
+		PrevHash:     prevHash,
+		EntryHash:    entryHash,
+	}); err != nil {
 		return fmt.Errorf("failed to log audit event: %w", err)
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit audit tx: %w", err)
+	}
+
 	return nil
+}
+
+// AuditChainVerification is the result of walking the audit-event hash chain.
+// If Valid is true the chain is intact; otherwise FirstBreakID identifies the
+// first event whose prev_hash does not match the previous entry_hash (or
+// whose own entry_hash fails recomputation from scratch).
+type AuditChainVerification struct {
+	Valid         bool
+	Checked       int
+	FirstBreakID  string
+	FirstBreakMsg string
+}
+
+// VerifyAuditChain walks the audit log in insert order and checks that every
+// entry's prev_hash matches the previous entry's entry_hash. It does NOT
+// recompute entry_hash from the event body (that would require re-loading
+// every field); for a full integrity check run an external verifier with the
+// same ComputeEntryHash canonicalization.
+func (s *PostgresStore) VerifyAuditChain(ctx context.Context, batchSize int) (*AuditChainVerification, error) {
+	if batchSize <= 0 {
+		batchSize = 1000
+	}
+
+	result := &AuditChainVerification{Valid: true}
+	var offset int32
+	var expectedPrev string
+
+	for {
+		rows, err := s.queries.ListAuditEventsForVerification(ctx, dbsqlc.ListAuditEventsForVerificationParams{
+			Limit:  safeIntToInt32(batchSize),
+			Offset: offset,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to load audit chain: %w", err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+
+		for _, row := range rows {
+			result.Checked++
+			if row.PrevHash != expectedPrev {
+				result.Valid = false
+				result.FirstBreakID = row.ID
+				result.FirstBreakMsg = fmt.Sprintf("prev_hash mismatch: expected %q got %q", expectedPrev, row.PrevHash)
+				return result, nil
+			}
+			expectedPrev = row.EntryHash
+		}
+
+		if len(rows) < batchSize {
+			break
+		}
+		offset += safeIntToInt32(len(rows))
+	}
+
+	return result, nil
 }
 
 // ListEvents retrieves audit events with optional filtering.

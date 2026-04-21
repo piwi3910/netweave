@@ -17,6 +17,7 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/observability"
+	"github.com/piwi3910/netweave/internal/security/urlredact"
 )
 
 const (
@@ -76,7 +77,7 @@ func (a *Adapter) CreateSubscription(
 	sub *adapter.Subscription,
 ) (*adapter.Subscription, error) {
 	a.logger.Debug("CreateSubscription called",
-		zap.String("callback", sub.Callback))
+		zap.String("callback", urlredact.Redact(sub.Callback)))
 
 	if sub.Callback == "" {
 		return nil, fmt.Errorf("callback URL is required")
@@ -114,8 +115,8 @@ func (a *Adapter) CreateSubscription(
 	}
 
 	a.logger.Info("created subscription with polling",
-		zap.String("subscription_id", subscriptionID),
-		zap.String("callback", sub.Callback))
+		zap.String("subscriptionID", subscriptionID),
+		zap.String("callback", urlredact.Redact(sub.Callback)))
 
 	return subscription, nil
 }
@@ -153,7 +154,7 @@ func (a *Adapter) UpdateSubscription(
 
 	a.logger.Debug("UpdateSubscription called",
 		zap.String("id", id),
-		zap.String("callback", sub.Callback))
+		zap.String("callback", urlredact.Redact(sub.Callback)))
 
 	// Validate callback URL (defense-in-depth: server validates HTTP input, adapter validates programmatic calls)
 	if sub.Callback == "" {
@@ -541,7 +542,7 @@ func (a *Adapter) deliverWebhookWithRetries(
 			}
 
 			a.logger.Debug("retrying webhook delivery",
-				zap.String("callback", callbackURL),
+				zap.String("callback", urlredact.Redact(callbackURL)),
 				zap.Int("attempt", attempt))
 		}
 
@@ -555,8 +556,8 @@ func (a *Adapter) deliverWebhookWithRetries(
 
 		if err == nil && statusCode >= 200 && statusCode < 300 {
 			a.logger.Debug("webhook delivered successfully",
-				zap.String("callback", callbackURL),
-				zap.Int("status_code", statusCode),
+				zap.String("callback", urlredact.Redact(callbackURL)),
+				zap.Int("statusCode", statusCode),
 				zap.Duration("duration", duration))
 			return nil
 		}
@@ -564,13 +565,13 @@ func (a *Adapter) deliverWebhookWithRetries(
 		lastErr = err
 		if err != nil {
 			a.logger.Warn("webhook delivery failed",
-				zap.String("callback", callbackURL),
+				zap.String("callback", urlredact.Redact(callbackURL)),
 				zap.Int("attempt", attempt),
 				zap.Error(err))
 		} else {
 			a.logger.Warn("webhook returned non-2xx status",
-				zap.String("callback", callbackURL),
-				zap.Int("status_code", statusCode),
+				zap.String("callback", urlredact.Redact(callbackURL)),
+				zap.Int("statusCode", statusCode),
 				zap.Int("attempt", attempt))
 			lastErr = fmt.Errorf("HTTP %d", statusCode)
 		}

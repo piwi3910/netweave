@@ -372,7 +372,10 @@ func TestResourceUpdateInvalidJSON(t *testing.T) {
 	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
-	assert.Contains(t, resp.Body.String(), "Invalid request body")
+	// #499: client-facing error is the generic form plus a request_id;
+	// the detailed parser error is only in the operator log.
+	assert.Contains(t, resp.Body.String(), "invalid request body")
+	assert.Contains(t, resp.Body.String(), "request_id")
 }
 
 func TestResourceUpdateResourceNotFound(t *testing.T) {
@@ -397,7 +400,10 @@ func TestResourceUpdateResourceNotFound(t *testing.T) {
 	srv.Router().ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusNotFound, resp.Code)
-	assert.Contains(t, resp.Body.String(), "Resource not found")
+	// #499: 404 body no longer echoes the resource ID and is identical to
+	// the "forbidden/cross-tenant" case.
+	assert.Contains(t, resp.Body.String(), "resource not found")
+	assert.NotContains(t, resp.Body.String(), "nonexistent-res")
 }
 
 func TestResourceUpdatePreserveImmutableFields(t *testing.T) {

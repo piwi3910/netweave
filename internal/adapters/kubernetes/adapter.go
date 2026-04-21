@@ -15,6 +15,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/security/urlredact"
 	"github.com/piwi3910/netweave/internal/storage"
 )
 
@@ -185,8 +186,8 @@ func (a *Adapter) CreateSubscription(
 	sub *adapter.Subscription,
 ) (*adapter.Subscription, error) {
 	a.logger.Debug("CreateSubscription called",
-		zap.String("callback", sub.Callback),
-		zap.String("subscription_id", sub.SubscriptionID))
+		zap.String("callback", urlredact.Redact(sub.Callback)),
+		zap.String("subscriptionId", sub.SubscriptionID))
 
 	if a.store == nil {
 		a.logger.Warn("subscription storage not configured")
@@ -219,8 +220,8 @@ func (a *Adapter) CreateSubscription(
 	}
 
 	a.logger.Info("subscription created",
-		zap.String("subscription_id", sub.SubscriptionID),
-		zap.String("callback", sub.Callback))
+		zap.String("subscriptionId", sub.SubscriptionID),
+		zap.String("callback", urlredact.Redact(sub.Callback)))
 
 	return sub, nil
 }
@@ -285,7 +286,7 @@ func (a *Adapter) UpdateSubscription(
 
 	a.logger.Debug("UpdateSubscription called",
 		zap.String("id", id),
-		zap.String("callback", sub.Callback))
+		zap.String("callback", urlredact.Redact(sub.Callback)))
 
 	if a.store == nil {
 		a.logger.Warn("subscription storage not configured")
