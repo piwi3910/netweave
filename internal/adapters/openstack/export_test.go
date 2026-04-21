@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
@@ -254,9 +255,15 @@ func (a *Adapter) ExportBuildCreateOptions(ctx context.Context, resource *adapte
 	return a.buildCreateOptions(ctx, resource, flavorID, imageID)
 }
 
-// ExportDeliverWebhook exports deliverWebhook for testing.
+// ExportDeliverWebhook exports deliverWebhook for testing. It parses the
+// raw URL string (as tests supply) and passes the parsed *url.URL through,
+// matching production's callbackurl.ValidateAndParse flow.
 func (a *Adapter) ExportDeliverWebhook(ctx context.Context, client *http.Client, callbackURL string, payload []byte) (int, error) {
-	return a.deliverWebhook(ctx, client, callbackURL, payload)
+	parsed, err := url.Parse(callbackURL)
+	if err != nil {
+		return 0, err
+	}
+	return a.deliverWebhook(ctx, client, parsed, payload)
 }
 
 // ExportDeliverWebhookWithRetries exports deliverWebhookWithRetries for testing.

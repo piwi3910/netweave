@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -523,14 +525,17 @@ func (a *Adapter) deliverWebhookWithRetries(
 	callbackURL string,
 	payload []byte,
 ) error {
-	// Defense in depth: re-validate the stored callback URL at delivery time.
-	// The subscription store could contain a previously valid URL that now
-	// resolves to an internal IP (DNS drift, attacker-controlled record, or
-	// restore of an old subscription). Rejecting here before the HTTP request
-	// is built closes the CodeQL "uncontrolled data used in network request"
-	// finding at the source. The SSRF-safe DialContext on the shared webhook
-	// client provides the additional connect-time guarantee.
-	if err := a.validateCallback(ctx, callbackURL); err != nil {
+	// Defense in depth: parse and validate the stored callback URL at
+	// delivery time. The subscription store could contain a previously valid
+	// URL that now resolves to an internal IP (DNS drift, attacker-controlled
+	// record, or restore of an old subscription). Rejecting here before the
+	// HTTP request is built closes the CodeQL "uncontrolled data used in
+	// network request" finding: the downstream request is constructed from
+	// the validated *url.URL, not from the caller-supplied string.
+	validatedURL, err := callbackurl.ValidateAndParse(ctx, callbackURL, callbackurl.Options{
+		AllowPrivateNetworks: a.allowPrivateWebhookTargets,
+	})
+	if err != nil {
 		return fmt.Errorf("refusing to deliver webhook: %w", err)
 	}
 
@@ -554,7 +559,7 @@ func (a *Adapter) deliverWebhookWithRetries(
 		}
 
 		startTime := time.Now()
-		statusCode, err := a.deliverWebhook(ctx, client, callbackURL, payload)
+		statusCode, err := a.deliverWebhook(ctx, client, validatedURL, payload)
 		duration := time.Since(startTime)
 
 		// Record metrics
@@ -587,36 +592,41 @@ func (a *Adapter) deliverWebhookWithRetries(
 	return fmt.Errorf("webhook delivery failed after %d attempts: %w", defaultMaxRetries+1, lastErr)
 }
 
-// deliverWebhook performs a single webhook delivery attempt.
+// deliverWebhook performs a single webhook delivery attempt against a URL
+// that the caller has already validated via callbackurl.ValidateAndParse.
+// Accepting *url.URL (not a raw string) makes the pre-validation explicit in
+// the type signature and terminates the SSRF taint flow at the validator —
+// the *url.URL value is constructed inside callbackurl.ValidateAndParse only
+// after the hostname has been rejected against the loopback/private/
+// link-local/metadata/CGNAT/multicast bans.
 //
-// The caller guarantees callbackURL has already been validated by
-// callbackurl.Validate, and the *http.Client is built with
-// webhook.NewHTTPClient, whose DialContext re-resolves the hostname at
-// connect time and refuses to dial any IP in the SSRF-banned set. Both
-// guarantees are prerequisites for the security posture of this function.
+// The *http.Client is built via webhook.NewHTTPClient, whose DialContext
+// re-resolves the host at connect time and refuses to dial any IP in the
+// SSRF-banned set. Both guarantees together close the DNS-rebinding TOCTOU
+// window.
 func (a *Adapter) deliverWebhook(
 	ctx context.Context,
 	client *http.Client,
-	callbackURL string,
+	validatedURL *url.URL,
 	payload []byte,
 ) (int, error) {
-	// Re-validate immediately before building the request to keep the
-	// tainted-data flow short and analyzable by SAST tooling. The returned
-	// *url.URL is the validated, trusted form of the caller-supplied string.
-	parsed, err := callbackurl.ValidateAndParse(ctx, callbackURL, callbackurl.Options{
-		AllowPrivateNetworks: a.allowPrivateWebhookTargets,
-	})
-	if err != nil {
-		return 0, fmt.Errorf("refusing to deliver webhook: %w", err)
+	// Construct the request directly from the validated URL struct. The
+	// string form is never reconstructed from the original user input; it is
+	// produced here by net/http using the *url.URL fields populated by
+	// callbackurl.ValidateAndParse.
+	body := bytes.NewReader(payload)
+	req := &http.Request{
+		Method:        http.MethodPost,
+		URL:           validatedURL,
+		Proto:         "HTTP/1.1",
+		ProtoMajor:    1,
+		ProtoMinor:    1,
+		Header:        make(http.Header),
+		Body:          io.NopCloser(body),
+		ContentLength: int64(len(payload)),
+		Host:          validatedURL.Host,
 	}
-
-	// Build the request from the parsed URL so the taint flow terminates at
-	// the validation boundary above.
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, parsed.String(), bytes.NewReader(payload))
-	if err != nil {
-		return 0, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.URL = parsed
+	req = req.WithContext(ctx)
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "o2ims-gateway/1.0")
