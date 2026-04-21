@@ -133,9 +133,18 @@ func NewTestServerWithAuth(
 // Getter methods for testing - these expose internal fields for test assertions.
 // These should only be used in tests.
 
-// Config returns the server configuration for testing.
+// Config returns the concrete server configuration for testing.
+// Production code reads config through the narrow ServerConfigProvider
+// interface (see Server.config), but tests need to mutate fields like
+// Security.DisableSSRFProtection directly, so this helper unwraps the
+// interface to the concrete *config.Config. Panics if a non-*config.Config
+// provider was installed (tests should always use a real Config).
 func (s *Server) Config() *config.Config {
-	return s.config
+	cfg, ok := s.config.(*config.Config)
+	if !ok {
+		panic("server.Config(): underlying provider is not *config.Config; tests must supply a real config")
+	}
+	return cfg
 }
 
 // Logger returns the server logger for testing.

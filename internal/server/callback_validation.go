@@ -49,7 +49,7 @@ func (s *Server) ValidateCallback(ctx context.Context, sub *adapter.Subscription
 
 	// SSRF Protection: Block localhost and private IP ranges
 	// Skip SSRF protection if disabled in config (for testing only)
-	if !s.config.Security.DisableSSRFProtection {
+	if !s.config.SecurityCfg().DisableSSRFProtection {
 		if err := ValidateCallbackHost(ctx, parsedURL.Hostname()); err != nil {
 			return err
 		}

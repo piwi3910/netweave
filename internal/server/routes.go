@@ -251,8 +251,8 @@ func (s *Server) setupRoutes() {
 	s.adminRouter.GET("/ready", s.handleReadiness)
 	s.adminRouter.GET("/readyz", s.handleReadiness)
 
-	if s.config.Observability.Metrics.Enabled {
-		s.adminRouter.GET(s.config.Observability.Metrics.Path, s.handleMetrics)
+	if s.config.ObservabilityCfg().Metrics.Enabled {
+		s.adminRouter.GET(s.config.ObservabilityCfg().Metrics.Path, s.handleMetrics)
 	}
 
 	// /o2ims serves API metadata. It was previously opened up via a
