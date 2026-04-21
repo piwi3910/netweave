@@ -53,8 +53,8 @@ type policyState struct {
 	Violations int
 }
 
-// NewPlugin creates a new mock SMO plugin.
-func NewPlugin() *Plugin {
+// New creates a new mock SMO plugin.
+func New() *Plugin {
 	return &Plugin{
 		workflows:     make(map[string]*workflowExecution),
 		serviceModels: make(map[string]*smo.ServiceModel),

@@ -426,7 +426,7 @@ func createTestPlugin(t *testing.T, serverURL string) *osm.Plugin {
 		EnableEventPublish:  true,
 	}
 
-	plugin, err := osm.NewPlugin(config)
+	plugin, err := osm.New(config)
 	if err != nil {
 		t.Fatalf("Failed to create test plugin: %v", err)
 	}

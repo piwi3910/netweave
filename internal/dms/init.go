@@ -171,7 +171,7 @@ func registerHelmAdapter(
 		RepositoryURL: config.RepositoryURL,
 	}
 
-	adapter, err := helm.NewAdapter(helmConfig)
+	adapter, err := helm.New(helmConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create Helm adapter: %w", err)
 	}
@@ -201,7 +201,7 @@ func registerArgoCDAdapter(
 		Namespace:  config.Namespace,
 	}
 
-	adapter, err := argocd.NewAdapter(argoCDConfig)
+	adapter, err := argocd.New(argoCDConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create ArgoCD adapter: %w", err)
 	}
@@ -230,7 +230,7 @@ func registerFluxAdapter(
 		Namespace:  config.Namespace,
 	}
 
-	adapter, err := flux.NewAdapter(fluxConfig)
+	adapter, err := flux.New(fluxConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create Flux adapter: %w", err)
 	}
@@ -260,7 +260,7 @@ func registerKustomizeAdapter(
 		BaseURL:    config.BaseURL,
 	}
 
-	adapter, err := kustomize.NewAdapter(kustomizeConfig)
+	adapter, err := kustomize.New(kustomizeConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create Kustomize adapter: %w", err)
 	}
@@ -290,7 +290,7 @@ func registerCrossplaneAdapter(
 		Namespace:  config.Namespace,
 	}
 
-	adapter, err := crossplane.NewAdapter(crossplaneConfig)
+	adapter, err := crossplane.New(crossplaneConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create Crossplane adapter: %w", err)
 	}
@@ -320,7 +320,7 @@ func registerONAPLCMAdapter(
 		Password:   config.Password,
 	}
 
-	adapter, err := onaplcm.NewAdapter(onapConfig)
+	adapter, err := onaplcm.New(onapConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create ONAP-LCM adapter: %w", err)
 	}
@@ -351,7 +351,7 @@ func registerOSMLCMAdapter(
 		Password:    config.Password,
 	}
 
-	adapter, err := osmlcm.NewAdapter(osmConfig)
+	adapter, err := osmlcm.New(osmConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create OSM-LCM adapter: %w", err)
 	}

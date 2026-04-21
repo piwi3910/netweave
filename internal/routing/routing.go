@@ -172,9 +172,7 @@ func (r *Router) collectMatchingAdapters(routingCtx *Context) []adapter.DMSAdapt
 			continue
 		}
 
-		r.Registry.Mu.RLock()
-		plugin := r.Registry.Plugins[rule.AdapterName]
-		r.Registry.Mu.RUnlock()
+		plugin := r.Registry.Get(rule.AdapterName)
 
 		adapters = append(adapters, plugin)
 		seen[rule.AdapterName] = true
@@ -190,9 +188,7 @@ func (r *Router) collectMatchingAdapters(routingCtx *Context) []adapter.DMSAdapt
 
 // isAdapterValid checks if an adapter exists and meets requirements.
 func (r *Router) isAdapterValid(name string, requiredCaps []adapter.Capability) bool {
-	r.Registry.Mu.RLock()
-	plugin := r.Registry.Plugins[name]
-	r.Registry.Mu.RUnlock()
+	plugin := r.Registry.Get(name)
 
 	if plugin == nil {
 		return false
@@ -208,10 +204,8 @@ func (r *Router) isAdapterValid(name string, requiredCaps []adapter.Capability) 
 
 // addDefaultAdapter adds the default adapter to the list if available.
 func (r *Router) addDefaultAdapter(adapters *[]adapter.DMSAdapter) {
-	r.Registry.Mu.RLock()
-	defaultName := r.Registry.DefaultPlugin
-	defaultPlugin := r.Registry.Plugins[defaultName]
-	r.Registry.Mu.RUnlock()
+	defaultName := r.Registry.GetDefaultName()
+	defaultPlugin := r.Registry.GetDefault()
 
 	if defaultName != "" && defaultPlugin != nil {
 		*adapters = append(*adapters, defaultPlugin)

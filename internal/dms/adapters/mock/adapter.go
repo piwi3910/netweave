@@ -27,9 +27,9 @@ type Adapter struct {
 	history     map[string]*adapter.DeploymentHistory
 }
 
-// NewAdapter creates a new mock DMS adapter with sample data.
+// New creates a new mock DMS adapter with sample data.
 // Pass populateSampleData=true to pre-populate with realistic test packages.
-func NewAdapter(populateSampleData bool) *Adapter {
+func New(populateSampleData bool) *Adapter {
 	a := &Adapter{
 		packages:    make(map[string]*adapter.DeploymentPackage),
 		deployments: make(map[string]*adapter.Deployment),

@@ -64,7 +64,7 @@ func TestHelmAdapter_ListDeploymentPackages_WithMockRepo(t *testing.T) {
 	mockRepo := createMockHelmRepo()
 	defer mockRepo.Close()
 
-	adp, err := helm.NewAdapter(&helm.Config{
+	adp, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: mockRepo.URL,
 	})
@@ -144,7 +144,7 @@ func TestHelmAdapter_GetDeploymentPackage_WithMockRepo(t *testing.T) {
 	mockRepo := createMockHelmRepo()
 	defer mockRepo.Close()
 
-	adp, err := helm.NewAdapter(&helm.Config{
+	adp, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: mockRepo.URL,
 	})
@@ -262,7 +262,7 @@ generated: "`+time.Now().Format(time.RFC3339)+`"
 	}))
 	defer mockRepo.Close()
 
-	adp, err := helm.NewAdapter(&helm.Config{
+	adp, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: mockRepo.URL,
 	})
@@ -291,7 +291,7 @@ func TestHelmAdapter_DeleteDeploymentPackage_WithMockRepo(t *testing.T) {
 	mockRepo := createMockHelmRepo()
 	defer mockRepo.Close()
 
-	adp, err := helm.NewAdapter(&helm.Config{
+	adp, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: mockRepo.URL,
 	})
@@ -323,7 +323,7 @@ func TestHelmAdapter_UploadDeploymentPackage_Complete(t *testing.T) {
 	mockRepo := createMockHelmRepo()
 	defer mockRepo.Close()
 
-	adp, err := helm.NewAdapter(&helm.Config{
+	adp, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: mockRepo.URL,
 	})

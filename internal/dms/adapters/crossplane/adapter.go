@@ -114,8 +114,8 @@ type Config struct {
 	ProviderConfig string
 }
 
-// NewAdapter creates a new Crossplane adapter instance.
-func NewAdapter(config *Config) (*Adapter, error) {
+// New creates a new Crossplane adapter instance.
+func New(config *Config) (*Adapter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}

@@ -88,8 +88,8 @@ type Config struct {
 	RequestID string
 }
 
-// NewAdapter creates a new ONAP-LCM adapter instance.
-func NewAdapter(config *Config) (*Adapter, error) {
+// New creates a new ONAP-LCM adapter instance.
+func New(config *Config) (*Adapter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}

@@ -177,9 +177,29 @@ func (r *Registry) Unregister(name string) error {
 	return nil
 }
 
-// Get retrieves a plugin by name.
+// Get retrieves a plugin by name. Returns nil if the plugin is not registered.
+func (r *Registry) Get(name string) Plugin {
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
+	return r.Plugins[name]
+}
 
-// GetDefault retrieves the default plugin.
+// GetDefault retrieves the default plugin. Returns nil if no default is set.
+func (r *Registry) GetDefault() Plugin {
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
+	if r.DefaultPlugin == "" {
+		return nil
+	}
+	return r.Plugins[r.DefaultPlugin]
+}
+
+// DefaultName returns the name of the default plugin, or empty string if none is set.
+func (r *Registry) DefaultName() string {
+	r.Mu.RLock()
+	defer r.Mu.RUnlock()
+	return r.DefaultPlugin
+}
 
 // SetDefault sets the default plugin by name.
 func (r *Registry) SetDefault(name string) error {

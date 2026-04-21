@@ -41,6 +41,11 @@ type Plugin struct {
 
 // Config defines the configuration for the ONAP plugin.
 type Config struct {
+	// Logger is an optional zap.Logger to use for plugin logging. If nil, a
+	// no-op logger is installed. Tagged `mapstructure:"-"` so Viper does not
+	// attempt to decode it from configuration files.
+	Logger *zap.Logger `mapstructure:"-"`
+
 	// Northbound Configuration (netweave → ONAP)
 	AAIURL   string `mapstructure:"aaiUrl"`
 	DMaaPURL string `mapstructure:"dmaapUrl"`
@@ -89,14 +94,26 @@ func DefaultConfig() *Config {
 	}
 }
 
-// NewPlugin creates a new ONAP plugin instance with the provided logger.
-// The plugin is not initialized until Initialize() is called.
-func NewPlugin(logger *zap.Logger) *Plugin {
+// New creates a new ONAP plugin instance from the provided configuration.
+// The plugin is not fully initialized until Initialize() is called with a
+// configuration map; New only installs the logger and records metadata so that
+// the Plugin satisfies smo.Plugin before Initialize runs.
+//
+// Passing a nil cfg is equivalent to &Config{} (no-op logger, no connections).
+// The returned error is reserved for future use (signature alignment with OSM).
+func New(cfg *Config) (*Plugin, error) {
+	if cfg == nil {
+		cfg = &Config{}
+	}
+	logger := cfg.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	return &Plugin{
 		Name:    "onap",
 		Version: "1.0.0",
 		logger:  logger,
-	}
+	}, nil
 }
 
 // Metadata returns the plugin's identifying information.

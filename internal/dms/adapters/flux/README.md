@@ -57,7 +57,7 @@ config := &flux.Config{
     TargetNamespace: "default",
 }
 
-adapter, err := flux.NewAdapter(config)
+adapter, err := flux.New(config)
 if err != nil {
     log.Fatal(err)
 }

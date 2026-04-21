@@ -53,7 +53,7 @@ func TestNewAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := helm.NewAdapter(tt.config)
+			adapter, err := helm.New(tt.config)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -78,7 +78,7 @@ func TestNewAdapter(t *testing.T) {
 }
 
 func TestHelmAdapter_Metadata(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -102,7 +102,7 @@ func TestHelmAdapter_Metadata(t *testing.T) {
 }
 
 func TestHelmAdapter_CapabilityChecks(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -121,7 +121,7 @@ func TestHelmAdapter_CapabilityChecks(t *testing.T) {
 }
 
 func TestHelmAdapter_TransformHelmStatus(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestHelmAdapter_TransformHelmStatus(t *testing.T) {
 }
 
 func TestHelmAdapter_CalculateProgress(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -228,7 +228,7 @@ func TestHelmAdapter_CalculateProgress(t *testing.T) {
 }
 
 func TestHelmAdapter_TransformReleaseToDeployment(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -273,7 +273,7 @@ func TestHelmAdapter_TransformReleaseToDeployment(t *testing.T) {
 }
 
 func TestHelmAdapter_TransformReleaseToStatus(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -306,7 +306,7 @@ func TestHelmAdapter_TransformReleaseToStatus(t *testing.T) {
 }
 
 func TestHelmAdapter_BuildConditions(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -358,7 +358,7 @@ func TestHelmAdapter_BuildConditions(t *testing.T) {
 }
 
 func TestHelmAdapter_ApplyPagination(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -435,7 +435,7 @@ func TestHelmAdapter_ApplyPagination(t *testing.T) {
 }
 
 func TestHelmAdapter_UploadDeploymentPackage(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: "https://charts.example.com",
 	})
@@ -486,7 +486,7 @@ func TestHelmAdapter_UploadDeploymentPackage(t *testing.T) {
 }
 
 func TestHelmAdapter_ScaleDeployment_Validation(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -501,7 +501,7 @@ func TestHelmAdapter_ScaleDeployment_Validation(t *testing.T) {
 }
 
 func TestHelmAdapter_RollbackDeployment_Validation(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -516,7 +516,7 @@ func TestHelmAdapter_RollbackDeployment_Validation(t *testing.T) {
 }
 
 func TestHelmAdapter_Close(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -571,7 +571,7 @@ func TestConfig_Defaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := helm.NewAdapter(tt.input)
+			adapter, err := helm.New(tt.input)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantNamespace, adapter.Config.Namespace)
@@ -583,7 +583,7 @@ func TestConfig_Defaults(t *testing.T) {
 
 // Benchmark tests.
 func BenchmarkHelmAdapter_TransformReleaseToDeployment(b *testing.B) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(b, err)
@@ -613,7 +613,7 @@ func BenchmarkHelmAdapter_TransformReleaseToDeployment(b *testing.B) {
 }
 
 func BenchmarkHelmAdapter_ApplyPagination(b *testing.B) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(b, err)
@@ -634,7 +634,7 @@ func BenchmarkHelmAdapter_ApplyPagination(b *testing.B) {
 
 // TestHelmAdapter_ListDeploymentPackages tests listing packages from repository.
 func TestHelmAdapter_ListDeploymentPackages(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: "https://charts.example.com",
 	})
@@ -687,7 +687,7 @@ func TestHelmAdapter_ListDeploymentPackages(t *testing.T) {
 
 // TestHelmAdapter_GetDeploymentPackage tests getting a specific package.
 func TestHelmAdapter_GetDeploymentPackage(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: "https://charts.example.com",
 	})
@@ -762,7 +762,7 @@ func TestHelmAdapter_GetDeploymentPackage_ErrorPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := helm.NewAdapter(&helm.Config{
+			adapter, err := helm.New(&helm.Config{
 				Namespace:     "test",
 				RepositoryURL: "https://charts.example.com",
 			})
@@ -786,7 +786,7 @@ func TestHelmAdapter_GetDeploymentPackage_ErrorPaths(t *testing.T) {
 
 // TestHelmAdapter_DeleteDeploymentPackage tests package deletion.
 func TestHelmAdapter_DeleteDeploymentPackage(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: "https://charts.example.com",
 	})
@@ -840,7 +840,7 @@ func TestHelmAdapter_LoadRepositoryIndex(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := helm.NewAdapter(&helm.Config{
+			adapter, err := helm.New(&helm.Config{
 				Namespace:     "test",
 				RepositoryURL: tt.repoURL,
 			})
@@ -884,7 +884,7 @@ func TestHelmAdapter_DeleteDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := helm.NewAdapter(&helm.Config{
+			adapter, err := helm.New(&helm.Config{
 				Namespace: "test",
 				Timeout:   5 * time.Second,
 			})
@@ -930,7 +930,7 @@ func TestHelmAdapter_GetDeploymentStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := helm.NewAdapter(&helm.Config{
+			adapter, err := helm.New(&helm.Config{
 				Namespace: "test",
 			})
 			require.NoError(t, err)
@@ -980,7 +980,7 @@ func TestHelmAdapter_GetDeploymentHistory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := helm.NewAdapter(&helm.Config{
+			adapter, err := helm.New(&helm.Config{
 				Namespace:  "test",
 				MaxHistory: 10,
 			})
@@ -1053,7 +1053,7 @@ func TestHelmAdapter_GetDeploymentLogs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := helm.NewAdapter(&helm.Config{
+			adapter, err := helm.New(&helm.Config{
 				Namespace: "test",
 			})
 			require.NoError(t, err)
@@ -1079,7 +1079,7 @@ func TestHelmAdapter_GetDeploymentLogs(t *testing.T) {
 }
 
 func TestHelmAdapter_GetDeploymentLogs_AdditionalOptions(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -1182,7 +1182,7 @@ func TestHelmAdapter_Health(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := helm.NewAdapter(&helm.Config{
+			adapter, err := helm.New(&helm.Config{
 				Namespace: "test",
 			})
 			require.NoError(t, err)
@@ -1207,7 +1207,7 @@ func TestHelmAdapter_Health(t *testing.T) {
 
 // TestHelmAdapter_ListDeployments tests the ListDeployments function.
 func TestHelmAdapter_ListDeployments(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 		Timeout:   5 * time.Second,
 	})
@@ -1225,7 +1225,7 @@ func TestHelmAdapter_ListDeployments(t *testing.T) {
 
 // TestHelmAdapter_GetDeployment tests the GetDeployment function.
 func TestHelmAdapter_GetDeployment(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 		Timeout:   5 * time.Second,
 	})
@@ -1243,7 +1243,7 @@ func TestHelmAdapter_GetDeployment(t *testing.T) {
 
 // TestHelmAdapter_CreateDeployment tests the CreateDeployment function.
 func TestHelmAdapter_CreateDeployment(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 		Timeout:   5 * time.Second,
 	})
@@ -1268,7 +1268,7 @@ func TestHelmAdapter_CreateDeployment(t *testing.T) {
 
 // TestHelmAdapter_UpdateDeployment tests the UpdateDeployment function.
 func TestHelmAdapter_UpdateDeployment(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 		Timeout:   5 * time.Second,
 	})
@@ -1291,7 +1291,7 @@ func TestHelmAdapter_UpdateDeployment(t *testing.T) {
 
 // TestHelmAdapter_CreateDeployment_Validation tests CreateDeployment validation.
 func TestHelmAdapter_CreateDeployment_Validation(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -1341,7 +1341,7 @@ func TestHelmAdapter_CreateDeployment_Validation(t *testing.T) {
 
 // TestHelmAdapter_UpdateDeployment_Validation tests UpdateDeployment validation.
 func TestHelmAdapter_UpdateDeployment_Validation(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -1357,7 +1357,7 @@ func TestHelmAdapter_UpdateDeployment_Validation(t *testing.T) {
 
 // TestHelmAdapter_MatchesDeploymentFilter tests the filter matching logic.
 func TestHelmAdapter_MatchesDeploymentFilter(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -1451,7 +1451,7 @@ func TestHelmAdapter_MatchesDeploymentFilter(t *testing.T) {
 
 // TestHelmAdapter_FilterAndTransformReleases tests filtering and transformation.
 func TestHelmAdapter_FilterAndTransformReleases(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -1553,7 +1553,7 @@ func TestHelmAdapter_FilterAndTransformReleases(t *testing.T) {
 
 // TestHelmAdapter_TransformHelmStatus_AllStatuses tests all Helm status transformations.
 func TestHelmAdapter_TransformHelmStatus_AllStatuses(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -1577,7 +1577,7 @@ func TestHelmAdapter_TransformHelmStatus_AllStatuses(t *testing.T) {
 
 // TestHelmAdapter_CalculateProgress_AllStatuses tests all progress calculations.
 func TestHelmAdapter_CalculateProgress_AllStatuses(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -1609,7 +1609,7 @@ func TestHelmAdapter_CalculateProgress_AllStatuses(t *testing.T) {
 // TestHelmAdapter_Initialize tests initialization behavior.
 func TestHelmAdapter_Initialize(t *testing.T) {
 	t.Run("already initialized", func(t *testing.T) {
-		adapter, err := helm.NewAdapter(&helm.Config{
+		adapter, err := helm.New(&helm.Config{
 			Namespace: "test",
 		})
 		require.NoError(t, err)
@@ -1625,7 +1625,7 @@ func TestHelmAdapter_Initialize(t *testing.T) {
 	})
 
 	t.Run("initialization without kubeconfig", func(t *testing.T) {
-		adapter, err := helm.NewAdapter(&helm.Config{
+		adapter, err := helm.New(&helm.Config{
 			Namespace: "test",
 			Debug:     true, // Enable debug for coverage
 		})
@@ -1642,7 +1642,7 @@ func TestHelmAdapter_Initialize(t *testing.T) {
 
 // TestHelmAdapter_BuildConditions_EdgeCases tests condition building edge cases.
 func TestHelmAdapter_BuildConditions_EdgeCases(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -1674,7 +1674,7 @@ func TestHelmAdapter_BuildConditions_EdgeCases(t *testing.T) {
 
 // TestHelmAdapter_ScaleDeployment_ZeroReplicas tests scaling to zero.
 func TestHelmAdapter_ScaleDeployment_ZeroReplicas(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -1695,7 +1695,7 @@ func TestHelmAdapter_ScaleDeployment_ZeroReplicas(t *testing.T) {
 }
 
 func TestHelmAdapter_ScaleDeployment_AdditionalValidation(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -1751,7 +1751,7 @@ func TestHelmAdapter_ScaleDeployment_AdditionalValidation(t *testing.T) {
 
 // TestHelmAdapter_RollbackDeployment_ZeroRevision tests rollback to revision 0.
 func TestHelmAdapter_RollbackDeployment_ZeroRevision(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -1795,7 +1795,7 @@ func TestHelmAdapter_Settings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := helm.NewAdapter(&helm.Config{
+			adapter, err := helm.New(&helm.Config{
 				Kubeconfig: tt.kubeconfig,
 				Namespace:  tt.namespace,
 				Debug:      tt.debug,
@@ -2155,7 +2155,7 @@ func TestHelmAdapter_TestBuildPackage(t *testing.T) {
 
 // TestHelmAdapter_LoadRepositoryIndex_Success tests successful repository index loading.
 func TestHelmAdapter_LoadRepositoryIndex_Success(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: "https://charts.bitnami.com/bitnami",
 	})
@@ -2173,7 +2173,7 @@ func TestHelmAdapter_LoadRepositoryIndex_Success(t *testing.T) {
 
 	t.Run("cached load", func(t *testing.T) {
 		// Test that calling LoadRepositoryIndex twice doesn't re-download
-		adapter, err := helm.NewAdapter(&helm.Config{
+		adapter, err := helm.New(&helm.Config{
 			Namespace:     "test",
 			RepositoryURL: "https://charts.bitnami.com/bitnami",
 		})
@@ -2194,7 +2194,7 @@ func TestHelmAdapter_LoadRepositoryIndex_Success(t *testing.T) {
 	})
 
 	t.Run("with authentication", func(t *testing.T) {
-		adapter, err := helm.NewAdapter(&helm.Config{
+		adapter, err := helm.New(&helm.Config{
 			Namespace:          "test",
 			RepositoryURL:      "https://private.charts.example.com",
 			RepositoryUsername: "testuser",
@@ -2213,7 +2213,7 @@ func TestHelmAdapter_LoadRepositoryIndex_Success(t *testing.T) {
 // TestHelmAdapter_GetRepositoryIndex tests the getRepositoryIndex helper.
 func TestHelmAdapter_GetRepositoryIndex(t *testing.T) {
 	t.Run("index not loaded", func(t *testing.T) {
-		adapter, err := helm.NewAdapter(&helm.Config{
+		adapter, err := helm.New(&helm.Config{
 			Namespace:     "test",
 			RepositoryURL: "https://charts.example.com",
 		})
@@ -2227,7 +2227,7 @@ func TestHelmAdapter_GetRepositoryIndex(t *testing.T) {
 
 // TestHelmAdapter_ListDeployments_WithFilter tests listing deployments with various filters.
 func TestHelmAdapter_ListDeployments_WithFilter(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -2285,7 +2285,7 @@ func TestHelmAdapter_ListDeployments_WithFilter(t *testing.T) {
 
 // TestHelmAdapter_ScaleDeployment_Complete tests the full scaling flow.
 func TestHelmAdapter_ScaleDeployment_Complete(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:  "test",
 		Timeout:    30 * time.Second,
 		MaxHistory: 5,
@@ -2329,7 +2329,7 @@ func TestHelmAdapter_ScaleDeployment_Complete(t *testing.T) {
 
 // TestHelmAdapter_GetDeploymentHistory_Complete tests the full history retrieval.
 func TestHelmAdapter_GetDeploymentHistory_Complete(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:  "test",
 		MaxHistory: 20,
 	})
@@ -2368,7 +2368,7 @@ func TestHelmAdapter_GetDeploymentHistory_Complete(t *testing.T) {
 
 // TestHelmAdapter_DeleteDeploymentPackage_Complete tests package deletion scenarios.
 func TestHelmAdapter_DeleteDeploymentPackage_Complete(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: "https://charts.example.com",
 	})
@@ -2406,7 +2406,7 @@ func TestHelmAdapter_DeleteDeploymentPackage_Complete(t *testing.T) {
 
 // TestHelmAdapter_RollbackDeployment_Complete tests rollback scenarios.
 func TestHelmAdapter_RollbackDeployment_Complete(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 		Timeout:   30 * time.Second,
 	})
@@ -2449,7 +2449,7 @@ func TestHelmAdapter_RollbackDeployment_Complete(t *testing.T) {
 
 // TestHelmAdapter_GetDeploymentStatus_Complete tests status retrieval.
 func TestHelmAdapter_GetDeploymentStatus_Complete(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -2490,7 +2490,7 @@ func TestHelmAdapter_GetDeploymentStatus_Complete(t *testing.T) {
 
 // TestHelmAdapter_TestBuildPodLogOptions tests the buildPodLogOptions helper function.
 func TestHelmAdapter_TestBuildPodLogOptions(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -2592,7 +2592,7 @@ func TestHelmAdapter_TestBuildPodLogOptions(t *testing.T) {
 
 // TestHelmAdapter_Initialize_DebugMode tests initialization with debug enabled.
 func TestHelmAdapter_Initialize_DebugMode(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 		Debug:     true,
 	})
@@ -2608,7 +2608,7 @@ func TestHelmAdapter_Initialize_DebugMode(t *testing.T) {
 
 // TestHelmAdapter_TransformHelmStatus_DefaultCase tests the default status case.
 func TestHelmAdapter_TransformHelmStatus_DefaultCase(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -2621,7 +2621,7 @@ func TestHelmAdapter_TransformHelmStatus_DefaultCase(t *testing.T) {
 
 // TestHelmAdapter_CalculateProgress_DefaultCase tests the default progress case.
 func TestHelmAdapter_CalculateProgress_DefaultCase(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)

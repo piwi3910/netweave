@@ -24,6 +24,14 @@ import (
 	"go.uber.org/zap"
 )
 
+// Pool mode constants for Azure resource pool mapping.
+const (
+	// PoolModeResourceGroup maps O2-IMS resource pools to Azure Resource Groups.
+	PoolModeResourceGroup = "rg"
+	// PoolModeAvailabilityZone maps O2-IMS resource pools to Azure Availability Zones.
+	PoolModeAvailabilityZone = "az"
+)
+
 // Adapter implements the adapter.Adapter interface for Azure backends.
 // It provides O2-IMS functionality by mapping O2-IMS resources to Azure resources:
 //   - Resource Pools → Resource Groups or Availability Zones
@@ -218,8 +226,9 @@ func validateAzureConfig(cfg *Config) error {
 	}
 
 	// Validate poolMode if provided
-	if cfg.PoolMode != "" && cfg.PoolMode != "rg" && cfg.PoolMode != "az" {
-		return fmt.Errorf("poolMode must be 'rg' or 'az', got %q", cfg.PoolMode)
+	if cfg.PoolMode != "" && cfg.PoolMode != PoolModeResourceGroup && cfg.PoolMode != PoolModeAvailabilityZone {
+		return fmt.Errorf("poolMode must be '%s' or '%s', got %q",
+			PoolModeResourceGroup, PoolModeAvailabilityZone, cfg.PoolMode)
 	}
 
 	return nil
@@ -253,7 +262,7 @@ func applyAzureDefaults(cfg *Config) (string, string) {
 
 	poolMode := cfg.PoolMode
 	if poolMode == "" {
-		poolMode = "rg"
+		poolMode = PoolModeResourceGroup
 	}
 
 	return deploymentManagerID, poolMode

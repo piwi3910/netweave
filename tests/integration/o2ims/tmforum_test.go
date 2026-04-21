@@ -63,7 +63,7 @@ func setupTMFTestServer(t *testing.T) *helpers.TestServer {
 	dmsRegistry := registry.NewRegistry(logger, nil)
 
 	// Register mock DMS adapter (with sample data for testing)
-	mockDMS := mock.NewAdapter(true) // true = populate sample data
+	mockDMS := mock.New(true) // true = populate sample data
 
 	err := dmsRegistry.Register(ctx, "mock-dms", "mock", mockDMS, nil, true)
 	require.NoError(t, err)

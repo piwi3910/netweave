@@ -77,7 +77,7 @@ func TestNewPlugin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			plugin, err := osm.NewPlugin(tt.config)
+			plugin, err := osm.New(tt.config)
 
 			if tt.wantErr {
 				validateExpectedError(t, err, tt.errMsg)
@@ -94,11 +94,11 @@ func validateExpectedError(t *testing.T, err error, errMsg string) {
 	t.Helper()
 
 	if err == nil {
-		t.Error("osm.NewPlugin() expected error but got none")
+		t.Error("osm.New() expected error but got none")
 		return
 	}
 	if errMsg != "" && err.Error() != errMsg {
-		t.Errorf("osm.NewPlugin() error = %v, want %v", err.Error(), errMsg)
+		t.Errorf("osm.New() error = %v, want %v", err.Error(), errMsg)
 	}
 }
 
@@ -107,12 +107,12 @@ func validatePluginCreation(t *testing.T, plugin *osm.Plugin, err error) {
 	t.Helper()
 
 	if err != nil {
-		t.Errorf("osm.NewPlugin() unexpected error: %v", err)
+		t.Errorf("osm.New() unexpected error: %v", err)
 		return
 	}
 
 	if plugin == nil {
-		t.Error("osm.NewPlugin() returned nil plugin")
+		t.Error("osm.New() returned nil plugin")
 		return
 	}
 
@@ -161,9 +161,9 @@ func TestPluginMetadata(t *testing.T) {
 		Password: "secret",
 	}
 
-	plugin, err := osm.NewPlugin(config)
+	plugin, err := osm.New(config)
 	if err != nil {
-		t.Fatalf("osm.NewPlugin() failed: %v", err)
+		t.Fatalf("osm.New() failed: %v", err)
 	}
 
 	// Test Name
@@ -212,9 +212,9 @@ func TestPluginCapabilityChecks(t *testing.T) {
 		Password: "secret",
 	}
 
-	plugin, err := osm.NewPlugin(config)
+	plugin, err := osm.New(config)
 	if err != nil {
-		t.Fatalf("osm.NewPlugin() failed: %v", err)
+		t.Fatalf("osm.New() failed: %v", err)
 	}
 
 	tests := []struct {
@@ -274,9 +274,9 @@ func TestPluginLifecycle(t *testing.T) {
 		EnableInventorySync: false,
 	}
 
-	plugin, err := osm.NewPlugin(config)
+	plugin, err := osm.New(config)
 	if err != nil {
-		t.Fatalf("osm.NewPlugin() failed: %v", err)
+		t.Fatalf("osm.New() failed: %v", err)
 	}
 
 	// Test Health before initialization (should fail)
@@ -345,9 +345,9 @@ func TestMapOSMStatus(t *testing.T) {
 		Password: "secret",
 	}
 
-	plugin, err := osm.NewPlugin(config)
+	plugin, err := osm.New(config)
 	if err != nil {
-		t.Fatalf("osm.NewPlugin() failed: %v", err)
+		t.Fatalf("osm.New() failed: %v", err)
 	}
 
 	tests := []struct {

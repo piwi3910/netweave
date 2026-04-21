@@ -24,7 +24,7 @@ func (a *Adapter) ListResourcePools(
 		zap.Any("filter", filter),
 		zap.String("pool_mode", a.poolMode))
 
-	if a.poolMode == "az" {
+	if a.poolMode == PoolModeAvailabilityZone {
 		pools := a.listAZPools(ctx, filter)
 		return pools, nil
 	}
@@ -144,7 +144,7 @@ func (a *Adapter) GetResourcePool(ctx context.Context, id string) (*adapter.Reso
 	a.logger.Debug("GetResourcePool called",
 		zap.String("id", id))
 
-	if a.poolMode == "az" {
+	if a.poolMode == PoolModeAvailabilityZone {
 		return a.getAZPool(ctx, id)
 	}
 	return a.getRGPool(ctx, id)
@@ -193,7 +193,7 @@ func (a *Adapter) CreateResourcePool(
 	a.logger.Debug("CreateResourcePool called",
 		zap.String("name", pool.Name))
 
-	if a.poolMode == "az" {
+	if a.poolMode == PoolModeAvailabilityZone {
 		err = fmt.Errorf(
 			"cannot create resource pools in 'az' mode: " +
 				"availability zones are Azure-managed",
@@ -221,7 +221,7 @@ func (a *Adapter) UpdateResourcePool(
 		zap.String("id", id),
 		zap.String("name", pool.Name))
 
-	if a.poolMode == "az" {
+	if a.poolMode == PoolModeAvailabilityZone {
 		err = fmt.Errorf("cannot update resource pools in 'az' mode: availability zones are Azure-managed")
 		return nil, err
 	}
@@ -239,7 +239,7 @@ func (a *Adapter) DeleteResourcePool(_ context.Context, id string) error {
 	a.logger.Debug("DeleteResourcePool called",
 		zap.String("id", id))
 
-	if a.poolMode == "az" {
+	if a.poolMode == PoolModeAvailabilityZone {
 		return fmt.Errorf("cannot delete resource pools in 'az' mode: availability zones are Azure-managed")
 	}
 

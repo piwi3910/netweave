@@ -173,13 +173,32 @@ type Metrics struct {
 //	authStore := auth.NewRedisStore(&auth.RedisConfig{...})
 //	srv := server.New(cfg, logger, adapter, store, authStore)
 //	srv := server.New(cfg, logger, adapter, store, authStore, authMw) // with pre-configured auth middleware
+//
+// ServerOption configures a Server during construction. Use the With* helpers
+// (e.g. WithAuthMiddleware) to produce options.
+type ServerOption func(*serverOptions)
+
+// serverOptions holds resolved option values. It is an implementation detail.
+type serverOptions struct {
+	authMiddleware *auth.Middleware
+}
+
+// WithAuthMiddleware supplies a pre-configured auth middleware for the admin,
+// TMF, and GraphQL routers. If not provided, the server constructs its own
+// OAuth2-only middleware when an auth store is supplied.
+func WithAuthMiddleware(mw *auth.Middleware) ServerOption {
+	return func(o *serverOptions) {
+		o.authMiddleware = mw
+	}
+}
+
 func New(
 	cfg *config.Config,
 	logger *zap.Logger,
 	adp adapter.Adapter,
 	store storage.Store,
 	authStore AuthStore,
-	opts ...interface{},
+	opts ...ServerOption,
 ) *Server {
 	if cfg == nil {
 		panic("config cannot be nil")
@@ -230,13 +249,14 @@ func New(
 	var auditLogger *auth.AuditLogger
 	var tenantHandler *handlers.TenantHandler
 
-	// Check if a pre-configured auth middleware was passed via opts
-	var preConfiguredMw *auth.Middleware
+	// Resolve functional options (I16).
+	resolvedOpts := serverOptions{}
 	for _, opt := range opts {
-		if mw, ok := opt.(*auth.Middleware); ok && mw != nil {
-			preConfiguredMw = mw
+		if opt != nil {
+			opt(&resolvedOpts)
 		}
 	}
+	preConfiguredMw := resolvedOpts.authMiddleware
 
 	if authStore != nil {
 		// Type assert authStore to auth.Store for middleware initialization

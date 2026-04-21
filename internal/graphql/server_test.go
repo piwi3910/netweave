@@ -18,7 +18,7 @@ import (
 )
 
 func TestNewServer(t *testing.T) {
-	adp := mockadapter.NewAdapter(false)
+	adp := mockadapter.New(&mockadapter.Config{})
 	logger := zap.NewNop()
 	resolver := resolvers.NewResolver(adp, nil, nil, logger)
 
@@ -43,7 +43,7 @@ func TestPlaygroundHandler(t *testing.T) {
 }
 
 func TestGinHandler(t *testing.T) {
-	adp := mockadapter.NewAdapter(false)
+	adp := mockadapter.New(&mockadapter.Config{})
 	logger := zap.NewNop()
 	resolver := resolvers.NewResolver(adp, nil, nil, logger)
 	srv := NewServer(resolver, ServerOptions{
@@ -96,7 +96,7 @@ func TestNewServer_IntrospectionGating(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			adp := mockadapter.NewAdapter(false)
+			adp := mockadapter.New(&mockadapter.Config{})
 			resolver := resolvers.NewResolver(adp, nil, nil, logger)
 			srv := NewServer(resolver, ServerOptions{
 				GinMode:              tc.mode,

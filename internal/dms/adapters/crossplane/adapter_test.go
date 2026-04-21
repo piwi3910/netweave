@@ -59,7 +59,7 @@ func TestNewAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := crossplane.NewAdapter(tt.config)
+			adp, err := crossplane.New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -82,7 +82,7 @@ func TestNewAdapter(t *testing.T) {
 
 // TestAdapterMetadata tests adapter metadata methods.
 func TestAdapterMetadata(t *testing.T) {
-	adp, err := crossplane.NewAdapter(&crossplane.Config{})
+	adp, err := crossplane.New(&crossplane.Config{})
 	require.NoError(t, err)
 
 	t.Run("Name", func(t *testing.T) {
@@ -177,7 +177,7 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *crossplane.Adap
 	// Create fake dynamic client
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adp, err := crossplane.NewAdapter(&crossplane.Config{
+	adp, err := crossplane.New(&crossplane.Config{
 		Namespace: "default",
 	})
 	require.NoError(t, err)
@@ -903,7 +903,7 @@ func TestValidateName(t *testing.T) {
 
 // TestCalculateProgress tests progress calculation.
 func TestCalculateProgress(t *testing.T) {
-	adp, _ := crossplane.NewAdapter(&crossplane.Config{})
+	adp, _ := crossplane.New(&crossplane.Config{})
 
 	tests := []struct {
 		name   string
@@ -926,7 +926,7 @@ func TestCalculateProgress(t *testing.T) {
 
 // TestApplyPagination tests pagination logic.
 func TestApplyPagination(t *testing.T) {
-	adp, _ := crossplane.NewAdapter(&crossplane.Config{})
+	adp, _ := crossplane.New(&crossplane.Config{})
 
 	deployments := []*dmsadapter.Deployment{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
@@ -1064,7 +1064,7 @@ func BenchmarkListDeployments(b *testing.B) {
 
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adp, _ := crossplane.NewAdapter(&crossplane.Config{Namespace: "default"})
+	adp, _ := crossplane.New(&crossplane.Config{Namespace: "default"})
 	adp.DynamicClient = client
 
 	ctx := context.Background()

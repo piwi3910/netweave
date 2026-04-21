@@ -78,9 +78,9 @@ type Config struct {
 	Debug bool
 }
 
-// NewAdapter creates a new Helm adapter instance.
+// New creates a new Helm adapter instance.
 // Returns an error if the adapter cannot be initialized.
-func NewAdapter(config *Config) (*Adapter, error) {
+func New(config *Config) (*Adapter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}

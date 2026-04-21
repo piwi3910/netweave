@@ -16,7 +16,7 @@ import (
 
 func TestNewPlugin(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	assert.NotNil(t, plugin)
 	assert.Equal(t, "onap", plugin.Name)
@@ -26,7 +26,7 @@ func TestNewPlugin(t *testing.T) {
 
 func TestPluginMetadata(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	metadata := plugin.Metadata()
 
@@ -90,7 +90,7 @@ func TestPluginCapabilities(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := zaptest.NewLogger(t)
-			plugin := onap.NewPlugin(logger)
+			plugin := newTestONAP(logger)
 			plugin.Config = tt.config
 
 			capabilities := plugin.Capabilities()
@@ -292,7 +292,7 @@ func TestParseConfig(t *testing.T) {
 
 func TestPluginClose(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 	plugin.Config = onap.DefaultConfig()
 
 	// Close once
@@ -307,7 +307,7 @@ func TestPluginClose(t *testing.T) {
 
 func TestPluginHealthClosedState(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 	plugin.Closed = true
 
 	health := plugin.Health(context.Background())
@@ -318,7 +318,7 @@ func TestPluginHealthClosedState(t *testing.T) {
 
 func TestMapDeploymentStatusToOrchestrationStatus(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	tests := []struct {
 		input    string
@@ -344,7 +344,7 @@ func TestMapDeploymentStatusToOrchestrationStatus(t *testing.T) {
 
 func TestMapONAPRequestStateToStatus(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	tests := []struct {
 		input    string
@@ -370,7 +370,7 @@ func TestMapONAPRequestStateToStatus(t *testing.T) {
 
 func TestGetDMaaPTopic(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	tests := []struct {
 		eventType     string
@@ -394,7 +394,7 @@ func TestGetDMaaPTopic(t *testing.T) {
 // TestPlugin_Initialize tests the Initialize function.
 func TestPlugin_Initialize(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -411,7 +411,7 @@ func TestPlugin_Initialize(t *testing.T) {
 // TestPlugin_Health tests the Health function.
 func TestPlugin_Health(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -436,7 +436,7 @@ func TestPlugin_Health(t *testing.T) {
 // TestPlugin_SyncInfrastructureInventory tests the SyncInfrastructureInventory function.
 func TestPlugin_SyncInfrastructureInventory(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -467,7 +467,7 @@ func TestPlugin_SyncInfrastructureInventory(t *testing.T) {
 // TestPlugin_SyncDeploymentInventory tests the SyncDeploymentInventory function.
 func TestPlugin_SyncDeploymentInventory(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -498,7 +498,7 @@ func TestPlugin_SyncDeploymentInventory(t *testing.T) {
 // TestPlugin_PublishInfrastructureEvent tests the PublishInfrastructureEvent function.
 func TestPlugin_PublishInfrastructureEvent(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -530,7 +530,7 @@ func TestPlugin_PublishInfrastructureEvent(t *testing.T) {
 // TestPlugin_PublishDeploymentEvent tests the PublishDeploymentEvent function.
 func TestPlugin_PublishDeploymentEvent(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -562,7 +562,7 @@ func TestPlugin_PublishDeploymentEvent(t *testing.T) {
 // TestPlugin_ExecuteWorkflow tests the ExecuteWorkflow function.
 func TestPlugin_ExecuteWorkflow(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -595,7 +595,7 @@ func TestPlugin_ExecuteWorkflow(t *testing.T) {
 // TestPlugin_GetWorkflowStatus tests the GetWorkflowStatus function.
 func TestPlugin_GetWorkflowStatus(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	config := map[string]interface{}{
 		"endpoint":   "https://onap.example.com",
@@ -623,7 +623,7 @@ func TestPlugin_GetWorkflowStatus(t *testing.T) {
 // TestPlugin_Close tests the Close function.
 func TestPlugin_Close(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := onap.NewPlugin(logger)
+	plugin := newTestONAP(logger)
 
 	// Close without initialization should not error
 	err := plugin.Close()

@@ -32,16 +32,27 @@ type Adapter struct {
 // DefaultOCloudID is the default O-Cloud identifier used by mock adapters.
 const DefaultOCloudID = "mock-ocloud-01"
 
-// NewAdapter creates a new mock adapter with sample data.
-// Pass populateSampleData=true to pre-populate with realistic test data.
-func NewAdapter(populateSampleData bool) *Adapter {
-	return NewAdapterWithOCloudID(DefaultOCloudID, populateSampleData)
+// Config holds configuration for the mock IMS adapter.
+// Use mapstructure tags so Viper's UnmarshalKey decodes YAML/JSON/env uniformly.
+type Config struct {
+	// OCloudID overrides the default O-Cloud identifier for this mock instance.
+	// Leave empty to use DefaultOCloudID. Instances with distinct OCloudIDs
+	// produce distinct sample data, allowing multi-tenant testing.
+	OCloudID string `mapstructure:"ocloudId"`
+
+	// PopulateSampleData, when true, pre-populates the adapter with realistic
+	// resource pools, resources, and resource types for tests and demos.
+	PopulateSampleData bool `mapstructure:"populateSampleData"`
 }
 
-// NewAdapterWithOCloudID creates a new mock adapter with a custom O-Cloud ID.
-// Each instance gets distinct sample data prefixed with its ocloudID, ensuring
-// different tenants see different O-Clouds with unique resources.
-func NewAdapterWithOCloudID(ocloudID string, populateSampleData bool) *Adapter {
+// New creates a new mock IMS adapter from the provided configuration.
+// Passing a nil cfg is equivalent to &Config{} (empty OCloudID, no sample data).
+func New(cfg *Config) *Adapter {
+	if cfg == nil {
+		cfg = &Config{}
+	}
+
+	ocloudID := cfg.OCloudID
 	if ocloudID == "" {
 		ocloudID = DefaultOCloudID
 	}
@@ -55,7 +66,7 @@ func NewAdapterWithOCloudID(ocloudID string, populateSampleData bool) *Adapter {
 	}
 	a.deploymentManager = a.createDeploymentManager()
 
-	if populateSampleData {
+	if cfg.PopulateSampleData {
 		a.populateSampleData()
 	}
 

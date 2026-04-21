@@ -181,9 +181,9 @@ type Config struct {
 	TargetNamespace string
 }
 
-// NewAdapter creates a new Flux adapter instance.
+// New creates a new Flux adapter instance.
 // Returns an error if the adapter cannot be initialized.
-func NewAdapter(config *Config) (*Adapter, error) {
+func New(config *Config) (*Adapter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
