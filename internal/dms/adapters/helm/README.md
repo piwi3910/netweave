@@ -93,7 +93,7 @@ import (
 
 func main() {
     // Create Helm adapter
-    helmAdapter, err := helm.NewAdapter(&helm.Config{
+    helmAdapter, err := helm.New(&helm.Config{
         Namespace:          "production",
         RepositoryURL:      "https://charts.example.com",
         RepositoryUsername: "admin",

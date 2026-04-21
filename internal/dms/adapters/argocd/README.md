@@ -35,7 +35,7 @@ config := &argocd.Config{
 }
 
 // Create the adapter
-adapter, err := argocd.NewAdapter(config)
+adapter, err := argocd.New(config)
 if err != nil {
     log.Fatal(err)
 }

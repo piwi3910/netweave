@@ -160,18 +160,14 @@ func (h *SMOHandler) publishEvent(c *gin.Context, publishFn func(context.Context
 	var err error
 
 	if pluginName != "" {
-		reg.Mu.RLock()
-		plugin = reg.Plugins[pluginName]
-		reg.Mu.RUnlock()
+		plugin = reg.Get(pluginName)
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
-		reg.Mu.RLock()
-		defaultName := reg.DefaultPlugin
-		plugin = reg.Plugins[defaultName]
-		reg.Mu.RUnlock()
+		defaultName := reg.DefaultName()
+		plugin = reg.Get(defaultName)
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -233,9 +229,7 @@ func (h *SMOHandler) getPluginFromQuery(c *gin.Context) (smo.Plugin, error) {
 	var plugin smo.Plugin
 
 	if pluginName != "" {
-		reg.Mu.RLock()
-		plugin = reg.Plugins[pluginName]
-		reg.Mu.RUnlock()
+		plugin = reg.Get(pluginName)
 
 		if plugin == nil {
 			return nil, fmt.Errorf("plugin %s not found", pluginName)
@@ -244,10 +238,8 @@ func (h *SMOHandler) getPluginFromQuery(c *gin.Context) (smo.Plugin, error) {
 	}
 
 	// Use default plugin
-	reg.Mu.RLock()
-	defaultName := reg.DefaultPlugin
-	plugin = reg.Plugins[defaultName]
-	reg.Mu.RUnlock()
+	defaultName := reg.DefaultName()
+	plugin = reg.Get(defaultName)
 
 	if defaultName == "" {
 		return nil, fmt.Errorf("no default plugin configured")
@@ -397,10 +389,8 @@ func (h *SMOHandler) HandleGetPlugin(c *gin.Context) {
 	reg := h.getActiveRegistry(c)
 	h.logger.Info("getting SMO plugin", zap.String("plugin_id", pluginID))
 
-	reg.Mu.RLock()
-	var exists bool
-	plugin, exists := reg.Plugins[pluginID]
-	reg.Mu.RUnlock()
+plugin := reg.Get(pluginID)
+	exists := plugin != nil
 	var err error
 	if !exists {
 		err = fmt.Errorf("plugin %s not found", pluginID)
@@ -453,9 +443,7 @@ func (h *SMOHandler) HandleExecuteWorkflow(c *gin.Context) {
 	var err error
 
 	if req.PluginName != "" {
-		reg.Mu.RLock()
-		plugin = reg.Plugins[req.PluginName]
-		reg.Mu.RUnlock()
+		plugin = reg.Get(req.PluginName)
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", req.PluginName)
 			h.respondWithNotFound(c, err)
@@ -464,10 +452,8 @@ func (h *SMOHandler) HandleExecuteWorkflow(c *gin.Context) {
 		}
 		pluginName = req.PluginName
 	} else {
-		reg.Mu.RLock()
-		defaultName := reg.DefaultPlugin
-		plugin = reg.Plugins[defaultName]
-		reg.Mu.RUnlock()
+		defaultName := reg.DefaultName()
+		plugin = reg.Get(defaultName)
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -561,18 +547,14 @@ func (h *SMOHandler) HandleCancelWorkflow(c *gin.Context) {
 	var err error
 	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
-		reg.Mu.RLock()
-		plugin = reg.Plugins[pluginName]
-		reg.Mu.RUnlock()
+		plugin = reg.Get(pluginName)
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
-		reg.Mu.RLock()
-		defaultName := reg.DefaultPlugin
-		plugin = reg.Plugins[defaultName]
-		reg.Mu.RUnlock()
+		defaultName := reg.DefaultName()
+		plugin = reg.Get(defaultName)
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -621,18 +603,14 @@ func (h *SMOHandler) HandleListServiceModels(c *gin.Context) {
 	var err error
 	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
-		reg.Mu.RLock()
-		plugin = reg.Plugins[pluginName]
-		reg.Mu.RUnlock()
+		plugin = reg.Get(pluginName)
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
-		reg.Mu.RLock()
-		defaultName := reg.DefaultPlugin
-		plugin = reg.Plugins[defaultName]
-		reg.Mu.RUnlock()
+		defaultName := reg.DefaultName()
+		plugin = reg.Get(defaultName)
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -676,18 +654,14 @@ func (h *SMOHandler) HandleCreateServiceModel(c *gin.Context) {
 	var err error
 	// Get plugin inline (avoid ireturn linter)
 	if req.PluginName != "" {
-		reg.Mu.RLock()
-		plugin = reg.Plugins[req.PluginName]
-		reg.Mu.RUnlock()
+		plugin = reg.Get(req.PluginName)
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", req.PluginName)
 		}
 	} else {
-		reg.Mu.RLock()
-		defaultName := reg.DefaultPlugin
-		plugin = reg.Plugins[defaultName]
-		reg.Mu.RUnlock()
+		defaultName := reg.DefaultName()
+		plugin = reg.Get(defaultName)
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -798,18 +772,14 @@ func (h *SMOHandler) HandleApplyPolicy(c *gin.Context) {
 	var err error
 	// Get plugin inline (avoid ireturn linter)
 	if req.PluginName != "" {
-		reg.Mu.RLock()
-		plugin = reg.Plugins[req.PluginName]
-		reg.Mu.RUnlock()
+		plugin = reg.Get(req.PluginName)
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", req.PluginName)
 		}
 	} else {
-		reg.Mu.RLock()
-		defaultName := reg.DefaultPlugin
-		plugin = reg.Plugins[defaultName]
-		reg.Mu.RUnlock()
+		defaultName := reg.DefaultName()
+		plugin = reg.Get(defaultName)
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -893,18 +863,14 @@ func (h *SMOHandler) HandleSyncInfrastructure(c *gin.Context) {
 	var err error
 	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
-		reg.Mu.RLock()
-		plugin = reg.Plugins[pluginName]
-		reg.Mu.RUnlock()
+		plugin = reg.Get(pluginName)
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
-		reg.Mu.RLock()
-		defaultName := reg.DefaultPlugin
-		plugin = reg.Plugins[defaultName]
-		reg.Mu.RUnlock()
+		defaultName := reg.DefaultName()
+		plugin = reg.Get(defaultName)
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")
@@ -954,18 +920,14 @@ func (h *SMOHandler) HandleSyncDeployments(c *gin.Context) {
 	var err error
 	// Get plugin inline (avoid ireturn linter)
 	if pluginName != "" {
-		reg.Mu.RLock()
-		plugin = reg.Plugins[pluginName]
-		reg.Mu.RUnlock()
+		plugin = reg.Get(pluginName)
 
 		if plugin == nil {
 			err = fmt.Errorf("plugin %s not found", pluginName)
 		}
 	} else {
-		reg.Mu.RLock()
-		defaultName := reg.DefaultPlugin
-		plugin = reg.Plugins[defaultName]
-		reg.Mu.RUnlock()
+		defaultName := reg.DefaultName()
+		plugin = reg.Get(defaultName)
 
 		if defaultName == "" {
 			err = fmt.Errorf("no default plugin configured")

@@ -44,7 +44,7 @@ func initializeDMS(
         Timeout:    30 * time.Second,
     }
 
-    helmAdapter, err := helm.NewAdapter(helmConfig)
+    helmAdapter, err := helm.New(helmConfig)
     if err != nil {
         return fmt.Errorf("failed to create Helm adapter: %w", err)
     }

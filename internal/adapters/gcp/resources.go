@@ -37,7 +37,7 @@ func (a *Adapter) ListResources(
 		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
-	a.logger.Info("listed resources",
+	a.logger.Debug("listed resources",
 		zap.Int("count", len(resources)))
 
 	return resources, nil

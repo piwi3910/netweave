@@ -71,7 +71,7 @@ func (a *Adapter) ListResources(
 		resources = adapter.ApplyPagination(resources, filter.Limit, filter.Offset)
 	}
 
-	a.logger.Info("listed resources",
+	a.logger.Debug("listed resources",
 		zap.Int("count", len(resources)))
 
 	return resources, nil
@@ -311,7 +311,7 @@ func (a *Adapter) extractVMSize(vm *armcompute.VirtualMachine) string {
 }
 
 func (a *Adapter) determineResourcePoolID(vm *armcompute.VirtualMachine, location, resourceGroup string) string {
-	if a.poolMode == "rg" {
+	if a.poolMode == PoolModeResourceGroup {
 		return GenerateRGPoolID(resourceGroup)
 	}
 

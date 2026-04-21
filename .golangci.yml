@@ -301,6 +301,13 @@ linters:
         path: internal/backend/adapter_(factory|registry)\.go
         text: returns interface
       - linters:
+          - ireturn
+        path: internal/smo/registry\.go
+        text: returns interface
+      - linters:
+          - gochecknoinits
+        path: internal/backend/adapter_factory\.go
+      - linters:
           - revive
         path: internal/adapters/
         text: unused-parameter.*ctx

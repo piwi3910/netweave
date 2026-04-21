@@ -69,7 +69,7 @@ func setupPluginWithServers(t *testing.T, aaiH, dmaapH, soH, sdncH http.HandlerF
 		EnableSDNC:            true,
 	}
 
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = cfg
 
 	// Create clients pointing at test servers, directly setting unexported fields
@@ -168,7 +168,7 @@ func TestSyncInfrastructureInventory_Success(t *testing.T) {
 
 func TestSyncInfrastructureInventory_Closed(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 	plugin.Config = testConfig()
 
@@ -179,7 +179,7 @@ func TestSyncInfrastructureInventory_Closed(t *testing.T) {
 
 func TestSyncInfrastructureInventory_Disabled(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	cfg := testConfig()
 	cfg.EnableInventorySync = false
 	plugin.Config = cfg
@@ -191,7 +191,7 @@ func TestSyncInfrastructureInventory_Disabled(t *testing.T) {
 
 func TestSyncInfrastructureInventory_NoAAIClient(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	err := plugin.SyncInfrastructureInventory(context.Background(), &smo.InfrastructureInventory{})
@@ -249,7 +249,7 @@ func TestSyncDeploymentInventory_Success(t *testing.T) {
 
 func TestSyncDeploymentInventory_Closed(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 	plugin.Config = testConfig()
 
@@ -260,7 +260,7 @@ func TestSyncDeploymentInventory_Closed(t *testing.T) {
 
 func TestSyncDeploymentInventory_Disabled(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	cfg := testConfig()
 	cfg.EnableInventorySync = false
 	plugin.Config = cfg
@@ -272,7 +272,7 @@ func TestSyncDeploymentInventory_Disabled(t *testing.T) {
 
 func TestSyncDeploymentInventory_NoAAIClient(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	err := plugin.SyncDeploymentInventory(context.Background(), &smo.DeploymentInventory{})
@@ -331,7 +331,7 @@ func TestPublishInfrastructureEvent_Success(t *testing.T) {
 
 func TestPublishInfrastructureEvent_Closed(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 	plugin.Config = testConfig()
 
@@ -342,7 +342,7 @@ func TestPublishInfrastructureEvent_Closed(t *testing.T) {
 
 func TestPublishInfrastructureEvent_Disabled(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	cfg := testConfig()
 	cfg.EnableEventPublishing = false
 	plugin.Config = cfg
@@ -354,7 +354,7 @@ func TestPublishInfrastructureEvent_Disabled(t *testing.T) {
 
 func TestPublishInfrastructureEvent_NoDMaaPClient(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	err := plugin.PublishInfrastructureEvent(context.Background(), &smo.InfrastructureEvent{})
@@ -407,7 +407,7 @@ func TestPublishDeploymentEvent_Success(t *testing.T) {
 
 func TestPublishDeploymentEvent_Closed(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 	plugin.Config = testConfig()
 
@@ -418,7 +418,7 @@ func TestPublishDeploymentEvent_Closed(t *testing.T) {
 
 func TestPublishDeploymentEvent_Disabled(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	cfg := testConfig()
 	cfg.EnableEventPublishing = false
 	plugin.Config = cfg
@@ -430,7 +430,7 @@ func TestPublishDeploymentEvent_Disabled(t *testing.T) {
 
 func TestPublishDeploymentEvent_NoDMaaPClient(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	err := plugin.PublishDeploymentEvent(context.Background(), &smo.DeploymentEvent{})
@@ -486,7 +486,7 @@ func TestHealth_SomeUnhealthy(t *testing.T) {
 
 func TestHealth_NoClients(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	health := plugin.Health(context.Background())
@@ -495,7 +495,7 @@ func TestHealth_NoClients(t *testing.T) {
 
 func TestHealth_ClosedPlugin(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 
 	health := plugin.Health(context.Background())
@@ -507,7 +507,7 @@ func TestHealth_ClosedPlugin(t *testing.T) {
 
 func TestInitialize_Closed(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 
 	err := plugin.Initialize(context.Background(), map[string]interface{}{})
@@ -517,7 +517,7 @@ func TestInitialize_Closed(t *testing.T) {
 
 func TestInitialize_InvalidConfig(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 
 	config := map[string]interface{}{
 		"enableInventorySync": true,
@@ -562,7 +562,7 @@ func TestExecuteWorkflow_Success(t *testing.T) {
 
 func TestExecuteWorkflow_Closed(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 	plugin.Config = testConfig()
 
@@ -573,7 +573,7 @@ func TestExecuteWorkflow_Closed(t *testing.T) {
 
 func TestExecuteWorkflow_Disabled(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	cfg := testConfig()
 	cfg.EnableDMSBackend = false
 	plugin.Config = cfg
@@ -585,7 +585,7 @@ func TestExecuteWorkflow_Disabled(t *testing.T) {
 
 func TestExecuteWorkflow_NoSOClient(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	_, err := plugin.ExecuteWorkflow(context.Background(), &smo.WorkflowRequest{WorkflowName: "test"})
@@ -666,7 +666,7 @@ func TestGetWorkflowStatus_Failed(t *testing.T) {
 
 func TestGetWorkflowStatus_Closed(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 	plugin.Config = testConfig()
 
@@ -677,7 +677,7 @@ func TestGetWorkflowStatus_Closed(t *testing.T) {
 
 func TestGetWorkflowStatus_Disabled(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	cfg := testConfig()
 	cfg.EnableDMSBackend = false
 	plugin.Config = cfg
@@ -689,7 +689,7 @@ func TestGetWorkflowStatus_Disabled(t *testing.T) {
 
 func TestGetWorkflowStatus_NoSOClient(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	_, err := plugin.GetWorkflowStatus(context.Background(), "exec-123")
@@ -713,7 +713,7 @@ func TestCancelWorkflow_Success(t *testing.T) {
 
 func TestCancelWorkflow_Closed(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 	plugin.Config = testConfig()
 
@@ -724,7 +724,7 @@ func TestCancelWorkflow_Closed(t *testing.T) {
 
 func TestCancelWorkflow_Disabled(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	cfg := testConfig()
 	cfg.EnableDMSBackend = false
 	plugin.Config = cfg
@@ -736,7 +736,7 @@ func TestCancelWorkflow_Disabled(t *testing.T) {
 
 func TestCancelWorkflow_NoSOClient(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	err := plugin.CancelWorkflow(context.Background(), "exec-123")
@@ -767,7 +767,7 @@ func TestRegisterServiceModel_Success(t *testing.T) {
 
 func TestRegisterServiceModel_Closed(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 	plugin.Config = testConfig()
 
@@ -778,7 +778,7 @@ func TestRegisterServiceModel_Closed(t *testing.T) {
 
 func TestRegisterServiceModel_Disabled(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	cfg := testConfig()
 	cfg.EnableDMSBackend = false
 	plugin.Config = cfg
@@ -790,7 +790,7 @@ func TestRegisterServiceModel_Disabled(t *testing.T) {
 
 func TestRegisterServiceModel_NoSOClient(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	err := plugin.RegisterServiceModel(context.Background(), &smo.ServiceModel{ID: "m1"})
@@ -826,7 +826,7 @@ func TestGetServiceModel_Success(t *testing.T) {
 
 func TestGetServiceModel_Closed(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 	plugin.Config = testConfig()
 
@@ -837,7 +837,7 @@ func TestGetServiceModel_Closed(t *testing.T) {
 
 func TestGetServiceModel_Disabled(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	cfg := testConfig()
 	cfg.EnableDMSBackend = false
 	plugin.Config = cfg
@@ -849,7 +849,7 @@ func TestGetServiceModel_Disabled(t *testing.T) {
 
 func TestGetServiceModel_NoSOClient(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	_, err := plugin.GetServiceModel(context.Background(), "model-1")
@@ -891,7 +891,7 @@ func TestListServiceModels_Success(t *testing.T) {
 
 func TestListServiceModels_Closed(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 	plugin.Config = testConfig()
 
@@ -904,7 +904,7 @@ func TestListServiceModels_Closed(t *testing.T) {
 
 func TestApplyPolicy_Success(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	policy := &smo.Policy{
@@ -918,7 +918,7 @@ func TestApplyPolicy_Success(t *testing.T) {
 
 func TestApplyPolicy_Closed(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 	plugin.Config = testConfig()
 
@@ -931,7 +931,7 @@ func TestApplyPolicy_Closed(t *testing.T) {
 
 func TestGetPolicyStatus_Success(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	status, err := plugin.GetPolicyStatus(context.Background(), "policy-1")
@@ -943,7 +943,7 @@ func TestGetPolicyStatus_Success(t *testing.T) {
 
 func TestGetPolicyStatus_Closed(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Closed = true
 	plugin.Config = testConfig()
 
@@ -970,7 +970,7 @@ func TestClose_WithClients(t *testing.T) {
 
 func TestCapabilities_NilConfig(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 
 	caps := plugin.Capabilities()
 	assert.Empty(t, caps)
@@ -1080,7 +1080,7 @@ func TestIsNilInterface(t *testing.T) {
 
 func TestTransformToAAIInventory(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	inventory := &smo.InfrastructureInventory{
@@ -1148,7 +1148,7 @@ func TestTransformToAAIInventory(t *testing.T) {
 
 func TestTransformDeploymentToServiceInstance(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	now := time.Now()
@@ -1171,7 +1171,7 @@ func TestTransformDeploymentToServiceInstance(t *testing.T) {
 
 func TestTransformToVESEvent(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	now := time.Now()
@@ -1192,7 +1192,7 @@ func TestTransformToVESEvent(t *testing.T) {
 
 func TestTransformDeploymentEventToVES(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	plugin := NewPlugin(logger)
+	plugin := newTestONAPInPkg(logger)
 	plugin.Config = testConfig()
 
 	now := time.Now()

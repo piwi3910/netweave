@@ -65,7 +65,7 @@ func TestNewAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := flux.NewAdapter(tt.config)
+			adp, err := flux.New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -91,7 +91,7 @@ func TestNewAdapter(t *testing.T) {
 
 // TestAdapterMetadata tests adapter metadata methods.
 func TestAdapterMetadata(t *testing.T) {
-	adp, err := flux.NewAdapter(&flux.Config{})
+	adp, err := flux.New(&flux.Config{})
 	require.NoError(t, err)
 
 	t.Run("Name", func(t *testing.T) {
@@ -205,7 +205,7 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *flux.Adapter {
 	// Create fake dynamic client
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adp, err := flux.NewAdapter(&flux.Config{
+	adp, err := flux.New(&flux.Config{
 		Namespace:       "flux.flux-system",
 		SourceNamespace: "flux.flux-system",
 	})
@@ -1174,7 +1174,7 @@ func TestClose(t *testing.T) {
 
 // TestExtractFluxStatus tests status extraction from conditions.
 func TestExtractFluxStatus(t *testing.T) {
-	adp, _ := flux.NewAdapter(&flux.Config{})
+	adp, _ := flux.New(&flux.Config{})
 
 	tests := []struct {
 		name       string
@@ -1234,7 +1234,7 @@ func TestExtractFluxStatus(t *testing.T) {
 
 // TestCalculateProgress tests progress calculation.
 func TestCalculateProgress(t *testing.T) {
-	adp, _ := flux.NewAdapter(&flux.Config{})
+	adp, _ := flux.New(&flux.Config{})
 
 	tests := []struct {
 		name   string
@@ -1316,7 +1316,7 @@ func TestBuildLabelSelector(t *testing.T) {
 
 // TestApplyPagination tests pagination logic.
 func TestApplyPagination(t *testing.T) {
-	adp, _ := flux.NewAdapter(&flux.Config{})
+	adp, _ := flux.New(&flux.Config{})
 
 	deployments := []*dmsadapter.Deployment{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
@@ -1476,7 +1476,7 @@ func BenchmarkListDeployments(b *testing.B) {
 
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adp, _ := flux.NewAdapter(&flux.Config{Namespace: "flux.flux-system"})
+	adp, _ := flux.New(&flux.Config{Namespace: "flux.flux-system"})
 	adp.DynamicClient = client
 
 	ctx := context.Background()

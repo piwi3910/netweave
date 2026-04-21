@@ -31,7 +31,7 @@ func (a *Adapter) ListResources(ctx context.Context, filter *adapter.Filter) ([]
 	// Apply pagination
 	resources = a.applyPaginationIfNeeded(resources, filter)
 
-	a.logger.Info("listed resources",
+	a.logger.Debug("listed resources",
 		zap.Int("count", len(resources)))
 
 	return resources, nil

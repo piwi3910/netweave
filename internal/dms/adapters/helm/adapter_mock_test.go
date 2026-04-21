@@ -13,7 +13,7 @@ import (
 
 // TestHelmAdapter_Health_NoK8s tests Health without Kubernetes.
 func TestHelmAdapter_Health_NoK8s(t *testing.T) {
-	adp, err := helm.NewAdapter(&helm.Config{
+	adp, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -31,7 +31,7 @@ func TestHelmAdapter_Health_NoK8s(t *testing.T) {
 
 // TestHelmAdapter_DeleteDeployment_NoK8s tests DeleteDeployment without Kubernetes.
 func TestHelmAdapter_DeleteDeployment_NoK8s(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -63,7 +63,7 @@ func TestHelmAdapter_DeleteDeployment_NoK8s(t *testing.T) {
 
 // TestHelmAdapter_GetDeploymentLogs_NoK8s tests GetDeploymentLogs without Kubernetes.
 func TestHelmAdapter_GetDeploymentLogs_NoK8s(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -101,7 +101,7 @@ func TestHelmAdapter_GetDeploymentLogs_NoK8s(t *testing.T) {
 
 // TestHelmAdapter_ScaleDeployment_NoK8s tests ScaleDeployment without Kubernetes.
 func TestHelmAdapter_ScaleDeployment_NoK8s(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -136,7 +136,7 @@ func TestHelmAdapter_ScaleDeployment_NoK8s(t *testing.T) {
 
 // TestHelmAdapter_GetDeploymentPackage_EmptyID tests GetDeploymentPackage with empty ID.
 func TestHelmAdapter_GetDeploymentPackage_EmptyID(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: "https://charts.example.com",
 	})
@@ -150,7 +150,7 @@ func TestHelmAdapter_GetDeploymentPackage_EmptyID(t *testing.T) {
 
 // TestHelmAdapter_ListDeploymentPackages_WithFilters tests ListDeploymentPackages with various filters.
 func TestHelmAdapter_ListDeploymentPackages_WithFilters(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: "https://charts.example.com",
 	})
@@ -205,7 +205,7 @@ func TestHelmAdapter_ListDeploymentPackages_WithFilters(t *testing.T) {
 
 // TestHelmAdapter_CreateDeployment_CompleteFlow tests CreateDeployment end-to-end.
 func TestHelmAdapter_CreateDeployment_CompleteFlow(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -253,7 +253,7 @@ func TestHelmAdapter_CreateDeployment_CompleteFlow(t *testing.T) {
 
 // TestHelmAdapter_UpdateDeployment_CompleteFlow tests UpdateDeployment end-to-end.
 func TestHelmAdapter_UpdateDeployment_CompleteFlow(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -300,7 +300,7 @@ func TestHelmAdapter_UpdateDeployment_CompleteFlow(t *testing.T) {
 
 // TestHelmAdapter_GetDeployment_CompleteFlow tests GetDeployment end-to-end.
 func TestHelmAdapter_GetDeployment_CompleteFlow(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -337,7 +337,7 @@ func TestHelmAdapter_GetDeployment_CompleteFlow(t *testing.T) {
 
 // TestHelmAdapter_GetDeploymentHistory_CompleteFlow tests GetDeploymentHistory end-to-end.
 func TestHelmAdapter_GetDeploymentHistory_CompleteFlow(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:  "test",
 		MaxHistory: 15,
 	})
@@ -375,7 +375,7 @@ func TestHelmAdapter_GetDeploymentHistory_CompleteFlow(t *testing.T) {
 
 // TestHelmAdapter_ListDeployments_CompleteFlow tests ListDeployments end-to-end.
 func TestHelmAdapter_ListDeployments_CompleteFlow(t *testing.T) {
-	adp, err := helm.NewAdapter(&helm.Config{
+	adp, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -426,7 +426,7 @@ func TestHelmAdapter_ListDeployments_CompleteFlow(t *testing.T) {
 
 // TestHelmAdapter_ScaleDeployment_GetReleaseFails tests ScaleDeployment when get release fails.
 func TestHelmAdapter_ScaleDeployment_GetReleaseFails(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -440,7 +440,7 @@ func TestHelmAdapter_ScaleDeployment_GetReleaseFails(t *testing.T) {
 
 // TestHelmAdapter_GetDeploymentPackage_NonExistentChart tests GetDeploymentPackage with non-existent chart.
 func TestHelmAdapter_GetDeploymentPackage_NonExistentChart(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: "https://charts.example.com",
 	})
@@ -473,7 +473,7 @@ func TestHelmAdapter_GetDeploymentPackage_NonExistentChart(t *testing.T) {
 
 // TestHelmAdapter_DeleteDeploymentPackage_CacheInvalidation tests that cache is cleared on delete.
 func TestHelmAdapter_DeleteDeploymentPackage_CacheInvalidation(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: "https://charts.example.com",
 	})
@@ -489,7 +489,7 @@ func TestHelmAdapter_DeleteDeploymentPackage_CacheInvalidation(t *testing.T) {
 
 // TestHelmAdapter_LoadRepositoryIndex_EmptyURL tests LoadRepositoryIndex with empty URL.
 func TestHelmAdapter_LoadRepositoryIndex_EmptyURL(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:     "test",
 		RepositoryURL: "",
 	})
@@ -503,7 +503,7 @@ func TestHelmAdapter_LoadRepositoryIndex_EmptyURL(t *testing.T) {
 
 // TestHelmAdapter_Initialize_AlreadyInitialized tests Initialize when already initialized.
 func TestHelmAdapter_Initialize_AlreadyInitialized(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -519,7 +519,7 @@ func TestHelmAdapter_Initialize_AlreadyInitialized(t *testing.T) {
 
 // TestHelmAdapter_GetDeploymentStatus_Error tests GetDeploymentStatus error path.
 func TestHelmAdapter_GetDeploymentStatus_Error(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -532,7 +532,7 @@ func TestHelmAdapter_GetDeploymentStatus_Error(t *testing.T) {
 
 // TestHelmAdapter_RollbackDeployment_Error tests RollbackDeployment error path.
 func TestHelmAdapter_RollbackDeployment_Error(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -544,7 +544,7 @@ func TestHelmAdapter_RollbackDeployment_Error(t *testing.T) {
 
 // TestHelmAdapter_GetDeploymentHistory_Error tests GetDeploymentHistory error path.
 func TestHelmAdapter_GetDeploymentHistory_Error(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace:  "test",
 		MaxHistory: 10,
 	})
@@ -558,7 +558,7 @@ func TestHelmAdapter_GetDeploymentHistory_Error(t *testing.T) {
 
 // TestHelmAdapter_CreateDeployment_NamespaceDefaults tests CreateDeployment namespace defaults.
 func TestHelmAdapter_CreateDeployment_NamespaceDefaults(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "default-namespace",
 	})
 	require.NoError(t, err)
@@ -578,7 +578,7 @@ func TestHelmAdapter_CreateDeployment_NamespaceDefaults(t *testing.T) {
 
 // TestHelmAdapter_UpdateDeployment_Error tests UpdateDeployment error path.
 func TestHelmAdapter_UpdateDeployment_Error(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)
@@ -597,7 +597,7 @@ func TestHelmAdapter_UpdateDeployment_Error(t *testing.T) {
 
 // TestHelmAdapter_DeleteDeployment_Error tests DeleteDeployment error path.
 func TestHelmAdapter_DeleteDeployment_Error(t *testing.T) {
-	adapter, err := helm.NewAdapter(&helm.Config{
+	adapter, err := helm.New(&helm.Config{
 		Namespace: "test",
 	})
 	require.NoError(t, err)

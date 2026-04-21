@@ -71,7 +71,7 @@ func TestNewAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := osmlcm.NewAdapter(tt.config)
+			adp, err := osmlcm.New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -94,7 +94,7 @@ func TestNewAdapter(t *testing.T) {
 
 // TestAdapterMetadata tests adapter metadata methods.
 func TestAdapterMetadata(t *testing.T) {
-	adp, err := osmlcm.NewAdapter(&osmlcm.Config{})
+	adp, err := osmlcm.New(&osmlcm.Config{})
 	require.NoError(t, err)
 
 	t.Run("Name", func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestAdapterMetadata(t *testing.T) {
 func createTestAdapter(t *testing.T) *osmlcm.Adapter {
 	t.Helper()
 
-	adp, err := osmlcm.NewAdapter(&osmlcm.Config{
+	adp, err := osmlcm.New(&osmlcm.Config{
 		NBIEndpoint: "http://localhost:9999",
 		Timeout:     5 * time.Second,
 	})
@@ -680,7 +680,7 @@ func TestGetDeploymentLogs(t *testing.T) {
 // TestHealth tests health check functionality.
 func TestHealth(t *testing.T) {
 	t.Run("healthy without endpoint", func(t *testing.T) {
-		adp, err := osmlcm.NewAdapter(&osmlcm.Config{})
+		adp, err := osmlcm.New(&osmlcm.Config{})
 		require.NoError(t, err)
 
 		err = adp.Health(context.Background())
@@ -693,7 +693,7 @@ func TestHealth(t *testing.T) {
 		}))
 		defer server.Close()
 
-		adp, err := osmlcm.NewAdapter(&osmlcm.Config{
+		adp, err := osmlcm.New(&osmlcm.Config{
 			NBIEndpoint: server.URL,
 		})
 		require.NoError(t, err)
@@ -708,7 +708,7 @@ func TestHealth(t *testing.T) {
 		}))
 		defer server.Close()
 
-		adp, err := osmlcm.NewAdapter(&osmlcm.Config{
+		adp, err := osmlcm.New(&osmlcm.Config{
 			NBIEndpoint: server.URL,
 		})
 		require.NoError(t, err)
@@ -762,7 +762,7 @@ func TestValidateName(t *testing.T) {
 
 // TestCalculateProgress tests progress calculation.
 func TestCalculateProgress(t *testing.T) {
-	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{})
+	adp, _ := osmlcm.New(&osmlcm.Config{})
 
 	tests := []struct {
 		name   string
@@ -786,7 +786,7 @@ func TestCalculateProgress(t *testing.T) {
 
 // TestConditionStatus tests condition status helper.
 func TestConditionStatus(t *testing.T) {
-	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{})
+	adp, _ := osmlcm.New(&osmlcm.Config{})
 
 	t.Run("deployed returns True", func(t *testing.T) {
 		assert.Equal(t, "True", adp.ConditionStatus(dmsadapter.DeploymentStatusDeployed))
@@ -800,7 +800,7 @@ func TestConditionStatus(t *testing.T) {
 
 // TestConditionReason tests condition reason helper.
 func TestConditionReason(t *testing.T) {
-	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{})
+	adp, _ := osmlcm.New(&osmlcm.Config{})
 
 	tests := []struct {
 		status dmsadapter.DeploymentStatus
@@ -950,7 +950,7 @@ func TestContextCancellation(t *testing.T) {
 
 // TestApplyPagination tests pagination logic.
 func TestApplyPagination(t *testing.T) {
-	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{})
+	adp, _ := osmlcm.New(&osmlcm.Config{})
 
 	deployments := []*dmsadapter.Deployment{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
@@ -984,7 +984,7 @@ func TestApplyPagination(t *testing.T) {
 
 // TestApplyPackagePagination tests package pagination logic.
 func TestApplyPackagePagination(t *testing.T) {
-	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{})
+	adp, _ := osmlcm.New(&osmlcm.Config{})
 
 	pkgs := []*dmsadapter.DeploymentPackage{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
@@ -1032,7 +1032,7 @@ func TestDoRequest(t *testing.T) {
 		}))
 		defer server.Close()
 
-		adp, err := osmlcm.NewAdapter(&osmlcm.Config{
+		adp, err := osmlcm.New(&osmlcm.Config{
 			NBIEndpoint: server.URL,
 		})
 		require.NoError(t, err)
@@ -1053,7 +1053,7 @@ func TestDoRequest(t *testing.T) {
 		}))
 		defer server.Close()
 
-		adp, err := osmlcm.NewAdapter(&osmlcm.Config{
+		adp, err := osmlcm.New(&osmlcm.Config{
 			NBIEndpoint: server.URL,
 			Username:    testUsername,
 			Password:    testSecretData,
@@ -1072,7 +1072,7 @@ func TestDoRequest(t *testing.T) {
 		}))
 		defer server.Close()
 
-		adp, err := osmlcm.NewAdapter(&osmlcm.Config{
+		adp, err := osmlcm.New(&osmlcm.Config{
 			NBIEndpoint: server.URL,
 		})
 		require.NoError(t, err)
@@ -1090,7 +1090,7 @@ func TestDoRequest(t *testing.T) {
 		}))
 		defer server.Close()
 
-		adp, err := osmlcm.NewAdapter(&osmlcm.Config{
+		adp, err := osmlcm.New(&osmlcm.Config{
 			NBIEndpoint: server.URL,
 		})
 		require.NoError(t, err)
@@ -1106,7 +1106,7 @@ func TestDoRequest(t *testing.T) {
 
 // BenchmarkCreateDeployment benchmarks deployment creation.
 func BenchmarkCreateDeployment(b *testing.B) {
-	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{
+	adp, _ := osmlcm.New(&osmlcm.Config{
 		NBIEndpoint: "http://localhost:9999",
 	})
 	_ = adp.Initialize()
@@ -1125,7 +1125,7 @@ func BenchmarkCreateDeployment(b *testing.B) {
 
 // BenchmarkListDeployments benchmarks deployment listing.
 func BenchmarkListDeployments(b *testing.B) {
-	adp, _ := osmlcm.NewAdapter(&osmlcm.Config{
+	adp, _ := osmlcm.New(&osmlcm.Config{
 		NBIEndpoint: "http://localhost:9999",
 	})
 	_ = adp.Initialize()

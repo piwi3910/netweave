@@ -33,6 +33,24 @@
 //
 //	metrics.RecordHTTPRequest("GET", "/api/v1/subscriptions", 200, duration, responseSize)
 //
+// # Log Level Policy (MANDATORY)
+//
+// All packages (especially adapters) MUST follow this log-level convention to
+// keep production log volume predictable and signal-to-noise high:
+//
+//   - Debug: routine get/list operations, cache hits, internal state dumps.
+//     These fire on every read and would flood production logs at Info.
+//   - Info:  state transitions — create/update/delete operations, adapter
+//     initialization, subscription registration, graceful start/stop events.
+//   - Warn:  retryable failures — transient backend errors, fallbacks, degraded
+//     modes that the caller may recover from.
+//   - Error: non-retryable failures — configuration errors, auth failures,
+//     unrecoverable backend errors, audit-log write failures.
+//
+// Rationale: Info-level "listed N items" statements from every adapter on
+// every poll interval drown out real state-transition events. Keep reads at
+// Debug; reserve Info for things an operator wants to see once per event.
+//
 // # Metric Naming Rule (MANDATORY)
 //
 // All Prometheus metrics emitted by any package in this repository MUST use:

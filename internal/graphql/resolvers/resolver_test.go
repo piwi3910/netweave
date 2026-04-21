@@ -11,7 +11,7 @@ import (
 )
 
 func TestNewResolver(t *testing.T) {
-	adp := mockadapter.NewAdapter(false)
+	adp := mockadapter.New(&mockadapter.Config{})
 	logger := zap.NewNop()
 
 	r := NewResolver(adp, nil, nil, logger)
@@ -21,7 +21,7 @@ func TestNewResolver(t *testing.T) {
 }
 
 func TestGetActiveAdapter_FallbackToDefault(t *testing.T) {
-	adp := mockadapter.NewAdapter(false)
+	adp := mockadapter.New(&mockadapter.Config{})
 	logger := zap.NewNop()
 	r := NewResolver(adp, nil, nil, logger)
 
@@ -32,8 +32,8 @@ func TestGetActiveAdapter_FallbackToDefault(t *testing.T) {
 }
 
 func TestGetActiveAdapter_UsesContextAdapter(t *testing.T) {
-	defaultAdp := mockadapter.NewAdapter(false)
-	contextAdp := mockadapter.NewAdapterWithOCloudID("context-ocloud", false)
+	defaultAdp := mockadapter.New(&mockadapter.Config{})
+	contextAdp := mockadapter.New(&mockadapter.Config{OCloudID: "context-ocloud"})
 	logger := zap.NewNop()
 	r := NewResolver(defaultAdp, nil, nil, logger)
 
@@ -44,7 +44,7 @@ func TestGetActiveAdapter_UsesContextAdapter(t *testing.T) {
 }
 
 func TestGetActiveAdapter_NilContextValue(t *testing.T) {
-	defaultAdp := mockadapter.NewAdapter(false)
+	defaultAdp := mockadapter.New(&mockadapter.Config{})
 	logger := zap.NewNop()
 	r := NewResolver(defaultAdp, nil, nil, logger)
 
@@ -55,7 +55,7 @@ func TestGetActiveAdapter_NilContextValue(t *testing.T) {
 }
 
 func TestWithAdapter(t *testing.T) {
-	adp := mockadapter.NewAdapter(false)
+	adp := mockadapter.New(&mockadapter.Config{})
 	ctx := context.Background()
 
 	newCtx := WithAdapter(ctx, adp)

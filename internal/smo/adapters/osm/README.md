@@ -150,7 +150,7 @@ config := &osm.Config{
     Project:  "admin",
 }
 
-plugin, err := osm.NewPlugin(config)
+plugin, err := osm.New(config)
 if err != nil {
     log.Fatalf("Failed to create OSM plugin: %v", err)
 }

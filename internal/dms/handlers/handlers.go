@@ -74,9 +74,7 @@ func (h *Handler) getAdapterFromQuery(c *gin.Context) (adapter.DMSAdapter, error
 	reg := h.getActiveRegistry(c)
 
 	if adapterName != "" {
-		reg.Mu.RLock()
-		adp = reg.Plugins[adapterName]
-		reg.Mu.RUnlock()
+		adp = reg.Get(adapterName)
 
 		if adp == nil {
 			return nil, fmt.Errorf("adapter not found: %s", adapterName)
@@ -85,11 +83,7 @@ func (h *Handler) getAdapterFromQuery(c *gin.Context) (adapter.DMSAdapter, error
 	}
 
 	// Use default adapter
-	reg.Mu.RLock()
-	if reg.DefaultPlugin != "" {
-		adp = reg.Plugins[reg.DefaultPlugin]
-	}
-	reg.Mu.RUnlock()
+	adp = reg.GetDefault()
 
 	if adp == nil {
 		return nil, fmt.Errorf("no default DMS adapter configured")
@@ -967,12 +961,7 @@ func (h *Handler) GetDeploymentLifecycleInfo(c *gin.Context) {
 
 // Health returns the health status of the DMS subsystem.
 func (h *Handler) Health(ctx context.Context) error {
-	var adp adapter.DMSAdapter
-	h.registry.Mu.RLock()
-	if h.registry.DefaultPlugin != "" {
-		adp = h.registry.Plugins[h.registry.DefaultPlugin]
-	}
-	h.registry.Mu.RUnlock()
+	adp := h.registry.GetDefault()
 	if adp == nil {
 		return errors.New("no DMS adapter available")
 	}

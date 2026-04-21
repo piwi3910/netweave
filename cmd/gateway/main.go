@@ -509,7 +509,7 @@ func createHTTPServer(
 	authMw *auth.Middleware,
 ) (*server.Server, error) {
 	// Create server (no static adapter — adapters are loaded dynamically via registry)
-	srv := server.New(cfg, logger, nil, store, authStore, authMw)
+	srv := server.New(cfg, logger, nil, store, authStore, server.WithAuthMiddleware(authMw))
 
 	logger.Info("HTTP server created",
 		zap.String("host", cfg.Server.Host),
@@ -884,7 +884,7 @@ func initializeDMS(
 // registerMockDMSAdapter registers the mock DMS adapter.
 func registerMockDMSAdapter(ctx context.Context, dmsReg *dmsregistry.Registry, logger *zap.Logger) error {
 	logger.Info("initializing mock DMS adapter")
-	mockDMSAdapter := dmsmock.NewAdapter(true) // Pre-populate with sample data
+	mockDMSAdapter := dmsmock.New(true) // Pre-populate with sample data
 	if initErr := mockDMSAdapter.Initialize(ctx); initErr != nil {
 		return fmt.Errorf("failed to initialize mock DMS adapter: %w", initErr)
 	}
@@ -921,7 +921,7 @@ func registerHelmDMSAdapter(
 		Timeout:    30 * time.Second,
 	}
 
-	helmAdapter, createErr := helm.NewAdapter(helmConfig)
+	helmAdapter, createErr := helm.New(helmConfig)
 	if createErr != nil {
 		return fmt.Errorf("failed to create Helm adapter: %w", createErr)
 	}

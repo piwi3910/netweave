@@ -59,7 +59,7 @@ func TestNewAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adp, err := kustomize.NewAdapter(tt.config)
+			adp, err := kustomize.New(tt.config)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -82,7 +82,7 @@ func TestNewAdapter(t *testing.T) {
 
 // TestAdapterMetadata tests adapter metadata methods.
 func TestAdapterMetadata(t *testing.T) {
-	adp, err := kustomize.NewAdapter(&kustomize.Config{})
+	adp, err := kustomize.New(&kustomize.Config{})
 	require.NoError(t, err)
 
 	t.Run("Name", func(t *testing.T) {
@@ -156,7 +156,7 @@ func createFakeAdapter(t *testing.T, objects ...runtime.Object) *kustomize.Adapt
 	// Create fake dynamic client
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adp, err := kustomize.NewAdapter(&kustomize.Config{
+	adp, err := kustomize.New(&kustomize.Config{
 		Namespace: "default",
 		BaseURL:   "https://github.com/example/kustomize-repo",
 	})
@@ -883,7 +883,7 @@ func TestValidatePath(t *testing.T) {
 
 // TestCalculateProgress tests progress calculation.
 func TestCalculateProgress(t *testing.T) {
-	adp, _ := kustomize.NewAdapter(&kustomize.Config{})
+	adp, _ := kustomize.New(&kustomize.Config{})
 
 	tests := []struct {
 		name   string
@@ -906,7 +906,7 @@ func TestCalculateProgress(t *testing.T) {
 
 // TestApplyPagination tests pagination logic.
 func TestApplyPagination(t *testing.T) {
-	adp, _ := kustomize.NewAdapter(&kustomize.Config{})
+	adp, _ := kustomize.New(&kustomize.Config{})
 
 	deployments := []*dmsadapter.Deployment{
 		{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"},
@@ -1037,7 +1037,7 @@ func BenchmarkListDeployments(b *testing.B) {
 
 	client := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
-	adp, _ := kustomize.NewAdapter(&kustomize.Config{Namespace: "default"})
+	adp, _ := kustomize.New(&kustomize.Config{Namespace: "default"})
 	adp.DynamicClient = client
 
 	ctx := context.Background()

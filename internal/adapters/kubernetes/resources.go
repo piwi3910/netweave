@@ -84,7 +84,7 @@ func (a *Adapter) ListResources(
 		"filtered":       filter != nil,
 	})
 
-	a.logger.Info("listed resources",
+	a.logger.Debug("listed resources",
 		zap.Int("count", len(resources)))
 
 	return resources, nil

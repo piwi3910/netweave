@@ -84,9 +84,9 @@ func DefaultConfig() *Config {
 	}
 }
 
-// NewPlugin creates a new OSM plugin instance with the provided configuration.
+// New creates a new OSM plugin instance with the provided configuration.
 // It initializes the OSM NBI client and validates the configuration.
-func NewPlugin(config *Config) (*Plugin, error) {
+func New(config *Config) (*Plugin, error) {
 	if config == nil {
 		config = DefaultConfig()
 	}

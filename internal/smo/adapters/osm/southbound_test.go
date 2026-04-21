@@ -20,7 +20,7 @@ func TestPlugin_Metadata(t *testing.T) {
 		Password: "secret",
 		Project:  "admin",
 	}
-	plugin, err := osm.NewPlugin(cfg)
+	plugin, err := osm.New(cfg)
 	require.NoError(t, err)
 
 	metadata := plugin.Metadata()
@@ -39,7 +39,7 @@ func TestNewSMOPluginAdapter(t *testing.T) {
 		Password: "secret",
 		Project:  "admin",
 	}
-	plugin, err := osm.NewPlugin(cfg)
+	plugin, err := osm.New(cfg)
 	require.NoError(t, err)
 
 	adapter := osm.NewSMOPluginAdapter(plugin)
@@ -56,7 +56,7 @@ func TestSMOPluginAdapter_Capabilities(t *testing.T) {
 		Password: "secret",
 		Project:  "admin",
 	}
-	plugin, err := osm.NewPlugin(cfg)
+	plugin, err := osm.New(cfg)
 	require.NoError(t, err)
 
 	adapter := osm.NewSMOPluginAdapter(plugin)
@@ -99,7 +99,7 @@ func TestSMOPluginAdapter_Initialize(t *testing.T) {
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := osm.NewPlugin(cfg)
+			plugin, err := osm.New(cfg)
 			require.NoError(t, err)
 
 			adapter := osm.NewSMOPluginAdapter(plugin)
@@ -134,7 +134,7 @@ func TestSMOPluginAdapter_Health(t *testing.T) {
 					Password: "secret",
 					Project:  "admin",
 				}
-				plugin, _ := osm.NewPlugin(cfg)
+				plugin, _ := osm.New(cfg)
 				return plugin
 			},
 			expectHealthy: false, // Will be unhealthy as we can't connect to real OSM
@@ -231,7 +231,7 @@ func TestPlugin_SyncInfrastructureInventory(t *testing.T) {
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := osm.NewPlugin(cfg)
+			plugin, err := osm.New(cfg)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -294,7 +294,7 @@ func TestPlugin_SyncDeploymentInventory(t *testing.T) {
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := osm.NewPlugin(cfg)
+			plugin, err := osm.New(cfg)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -363,7 +363,7 @@ func TestPlugin_PublishInfrastructureEvent(t *testing.T) {
 				Project:            "admin",
 				EnableEventPublish: tt.enabled,
 			}
-			plugin, err := osm.NewPlugin(cfg)
+			plugin, err := osm.New(cfg)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -415,7 +415,7 @@ func TestPlugin_PublishDeploymentEvent(t *testing.T) {
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := osm.NewPlugin(cfg)
+			plugin, err := osm.New(cfg)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -557,7 +557,7 @@ func TestPlugin_ExecuteWorkflow(t *testing.T) {
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := osm.NewPlugin(cfg)
+			plugin, err := osm.New(cfg)
 			require.NoError(t, err)
 
 			// Initialize plugin for workflow execution
@@ -612,7 +612,7 @@ func TestPlugin_GetWorkflowStatus(t *testing.T) {
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := osm.NewPlugin(cfg)
+			plugin, err := osm.New(cfg)
 			require.NoError(t, err)
 
 			// Initialize plugin
@@ -667,7 +667,7 @@ func TestPlugin_CancelWorkflow(t *testing.T) {
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := osm.NewPlugin(cfg)
+			plugin, err := osm.New(cfg)
 			require.NoError(t, err)
 
 			// Initialize plugin
@@ -743,7 +743,7 @@ func TestPlugin_RegisterServiceModel(t *testing.T) {
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := osm.NewPlugin(cfg)
+			plugin, err := osm.New(cfg)
 			require.NoError(t, err)
 
 			// Initialize plugin
@@ -793,7 +793,7 @@ func TestPlugin_GetServiceModel(t *testing.T) {
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := osm.NewPlugin(cfg)
+			plugin, err := osm.New(cfg)
 			require.NoError(t, err)
 
 			// Initialize plugin
@@ -825,7 +825,7 @@ func TestPlugin_ListServiceModels(t *testing.T) {
 		Password: "secret",
 		Project:  "admin",
 	}
-	plugin, err := osm.NewPlugin(cfg)
+	plugin, err := osm.New(cfg)
 	require.NoError(t, err)
 
 	// Initialize plugin
@@ -868,7 +868,7 @@ func TestPlugin_DeleteServiceModel(t *testing.T) {
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := osm.NewPlugin(cfg)
+			plugin, err := osm.New(cfg)
 			require.NoError(t, err)
 
 			// Initialize plugin
@@ -924,7 +924,7 @@ func TestPlugin_ApplyPolicy(t *testing.T) {
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := osm.NewPlugin(cfg)
+			plugin, err := osm.New(cfg)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -972,7 +972,7 @@ func TestPlugin_GetPolicyStatus(t *testing.T) {
 				Password: "secret",
 				Project:  "admin",
 			}
-			plugin, err := osm.NewPlugin(cfg)
+			plugin, err := osm.New(cfg)
 			require.NoError(t, err)
 
 			ctx := context.Background()
