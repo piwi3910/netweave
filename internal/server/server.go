@@ -121,6 +121,11 @@ type Server struct {
 	o2AuthMw     AuthMiddleware    // mTLS-only auth middleware for O2 router
 	auditLogger  *auth.AuditLogger // Audit logging for security events
 	shutdownOnce sync.Once         // Ensures shutdown logic runs only once
+
+	// crlVerifier performs Vault-backed CRL checking on TLS peer
+	// certificates. It is optional: when nil or disabled, peer
+	// verification is unchanged from the pre-CRL behaviour.
+	crlVerifier *CRLVerifier
 }
 
 // AuthStore defines the interface for auth storage operations.
@@ -860,12 +865,36 @@ func (s *Server) buildO2TLSConfig() (*tls.Config, error) {
 		tlsCfg.ClientCAs = caCertPool
 	}
 
+	// Attach Vault-backed CRL verification when configured. This runs in
+	// addition to Go's built-in chain verification and rejects peers
+	// whose certificate serial appears in the CRL or whose verifier is
+	// in a stale fail-closed state (see issue #496 / I5).
+	if s.crlVerifier != nil && tlsCfg.ClientAuth != tls.NoClientCert {
+		tlsCfg.VerifyPeerCertificate = s.crlVerifier.VerifyPeerCertificate()
+	}
+
 	s.logger.Info("O2 mTLS configuration built",
 		zap.String("min_version", s.config.TLS.MinVersion),
 		zap.String("client_auth", s.config.TLS.ClientAuth),
+		zap.Bool("crl_enabled", s.crlVerifier != nil),
 	)
 
 	return tlsCfg, nil
+}
+
+// SetupCRLVerifier attaches a Vault-backed CRL verifier to the server so
+// that buildO2TLSConfig wires a VerifyPeerCertificate callback into the
+// resulting tls.Config. It must be called before Start.
+//
+// Passing a nil verifier disables CRL checking. The caller retains
+// ownership of the verifier's lifecycle: Shutdown will stop it.
+func (s *Server) SetupCRLVerifier(v *CRLVerifier) {
+	s.crlVerifier = v
+	if v == nil {
+		s.logger.Info("CRL verifier not configured; mTLS peer verification will not consult a CRL")
+		return
+	}
+	s.logger.Info("CRL verifier attached to server")
 }
 
 // buildTLSConfig is kept for backward compatibility with tests.
@@ -907,6 +936,12 @@ func (s *Server) shutdownWithContext(ctx context.Context) error {
 			if err := s.smoRegistry.Close(); err != nil {
 				s.logger.Warn("error closing SMO registry", zap.Error(err))
 			}
+		}
+
+		// Stop the CRL verifier refresh goroutine, if any.
+		if s.crlVerifier != nil {
+			s.logger.Info("stopping CRL verifier")
+			s.crlVerifier.Stop()
 		}
 
 		// Shutdown all HTTP servers, collecting all errors
