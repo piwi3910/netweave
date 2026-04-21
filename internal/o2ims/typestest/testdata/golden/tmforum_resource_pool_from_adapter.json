@@ -1,0 +1,24 @@
+{
+  "id": "pool-compute-highmem",
+  "href": "https://gateway.example.com/tmf-api/resourceInventoryManagement/v4/resource/pool-compute-highmem",
+  "name": "High Memory Compute Pool",
+  "description": "Nodes with 128GB+ RAM",
+  "category": "compute",
+  "resourceCharacteristic": [
+    {
+      "name": "machineType",
+      "value": "m5.4xlarge"
+    }
+  ],
+  "resourceStatus": "available",
+  "operationalState": "enable",
+  "usageState": "idle",
+  "place": [
+    {
+      "id": "us-east-1a",
+      "name": "us-east-1a",
+      "role": "location"
+    }
+  ],
+  "@type": "ResourcePool"
+}

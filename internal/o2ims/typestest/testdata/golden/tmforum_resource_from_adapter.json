@@ -1,0 +1,32 @@
+{
+  "id": "node-worker-1a-abc123",
+  "href": "https://gateway.example.com/tmf-api/resourceInventoryManagement/v4/resource/node-worker-1a-abc123",
+  "name": "worker-1a-abc123",
+  "description": "Compute node for RAN workloads",
+  "category": "compute-node",
+  "resourceCharacteristic": [
+    {
+      "name": "name",
+      "value": "worker-1a-abc123"
+    },
+    {
+      "name": "location",
+      "value": "us-east-1a"
+    },
+    {
+      "name": "status",
+      "value": "Ready"
+    }
+  ],
+  "resourceStatus": "available",
+  "operationalState": "enable",
+  "usageState": "active",
+  "place": [
+    {
+      "id": "us-east-1a",
+      "name": "us-east-1a",
+      "role": "location"
+    }
+  ],
+  "@type": "Resource"
+}
