@@ -38,8 +38,8 @@ info:
     url: https://www.apache.org/licenses/LICENSE-2.0
 
 servers:
-  - url: /o2ims/v1
-    description: O2-IMS API v1
+  - url: /o2ims-infrastructureInventory/v1
+    description: O2-IMS Infrastructure Inventory API v1
 
 tags:
   - name: Subscriptions
@@ -621,7 +621,7 @@ paths:
                     name: "Primary Deployment Manager"
                     description: "Main O-Cloud deployment manager"
                     oCloudId: "ocloud-001"
-                    serviceUri: "https://o2ims.example.com/o2ims/v1"
+                    serviceUri: "https://o2ims.example.com/o2ims-infrastructureInventory/v1"
                     supportedLocations:
                       - "us-east-1"
                       - "us-west-2"
@@ -672,7 +672,7 @@ paths:
                 oCloudId: "ocloud-001"
                 name: "Primary O-Cloud"
                 description: "Main O-Cloud infrastructure"
-                serviceUri: "https://o2ims.example.com/o2ims/v1"
+                serviceUri: "https://o2ims.example.com/o2ims-infrastructureInventory/v1"
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1387,7 +1387,7 @@ components:
           type: string
           format: uri
           description: API endpoint for O2-IMS services
-          example: "https://o2ims.example.com/o2ims/v1"
+          example: "https://o2ims.example.com/o2ims-infrastructureInventory/v1"
         supportedLocations:
           type: array
           items:
@@ -1440,7 +1440,7 @@ components:
           type: string
           format: uri
           description: API endpoint for O2-IMS services
-          example: "https://o2ims.example.com/o2ims/v1"
+          example: "https://o2ims.example.com/o2ims-infrastructureInventory/v1"
 
     ErrorResponse:
       type: object
