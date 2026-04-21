@@ -3,7 +3,7 @@
 // The pipeline terminates in workers.WebhookWorker, which consumes events
 // from the Redis Stream "o2ims:events" and delivers HTTP webhook
 // notifications to subscriber callback URLs. Events are produced by
-// upstream components such as controllers.SubscriptionController and the
+// upstream components such as the TMF event listener and the
 // various adapter event generators; without this worker, subscriptions
 // would accept 201 Created but never deliver anything.
 package main
