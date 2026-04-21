@@ -6,6 +6,8 @@ package openstack
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
@@ -61,6 +63,17 @@ type Adapter struct {
 
 	// pollingStates tracks the polling state for each active subscription.
 	pollingStates map[string]*SubscriptionState
+
+	// allowPrivateWebhookTargets disables the SSRF callback-URL guard. Set
+	// only by unit tests that point webhook delivery at httptest.NewServer
+	// (which listens on loopback). Production must leave this false.
+	allowPrivateWebhookTargets bool
+
+	// webhookClient is the lazily-constructed SSRF-safe HTTP client used to
+	// deliver subscription notifications. Access is serialized via
+	// webhookClientMu.
+	webhookClientMu sync.Mutex
+	webhookClient   *http.Client
 }
 
 // Config holds configuration for creating an OpenStackAdapter.

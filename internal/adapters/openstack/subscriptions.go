@@ -18,7 +18,9 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/observability"
+	"github.com/piwi3910/netweave/internal/security/callbackurl"
 	"github.com/piwi3910/netweave/internal/security/urlredact"
+	"github.com/piwi3910/netweave/internal/webhook"
 )
 
 const (
@@ -48,27 +50,45 @@ type SubscriptionState struct {
 // Global state for polling machinery. Subscription CRUD is handled by the
 // shared adapter.InMemorySubscriptionStore on a.subs.
 var (
-	pollingStateMu      sync.RWMutex
-	webhookClientMu     sync.Mutex
-	sharedWebhookClient *http.Client
+	pollingStateMu sync.RWMutex
 )
 
-// initWebhookClient initializes the shared HTTP client for webhook delivery.
-func initWebhookClient() *http.Client {
-	webhookClientMu.Lock()
-	defer webhookClientMu.Unlock()
+// validateCallback runs the shared callback-URL SSRF validator, honoring the
+// adapter's test-only allow-private-networks escape hatch.
+func (a *Adapter) validateCallback(ctx context.Context, rawURL string) error {
+	return callbackurl.Validate(ctx, rawURL, callbackurl.Options{
+		AllowPrivateNetworks: a.allowPrivateWebhookTargets,
+	})
+}
 
-	if sharedWebhookClient == nil {
-		sharedWebhookClient = &http.Client{
-			Timeout: defaultWebhookTimeout,
-			Transport: &http.Transport{
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: 10,
-				IdleConnTimeout:     90 * time.Second,
-			},
-		}
+// initWebhookClient returns (and lazily constructs) the per-adapter HTTP
+// client for webhook delivery. The client uses the SSRF-safe transport from
+// internal/webhook: every connect re-resolves the hostname and refuses to
+// dial any IP in the banned set (loopback, RFC1918 private space, link-local
+// including cloud metadata 169.254.169.254, CGNAT, multicast, IPv6
+// equivalents). A construction failure is logged and a best-effort minimal
+// client is returned so polling does not panic; the delivery-time
+// callbackurl.Validate call still rejects SSRF targets before the request is
+// dispatched.
+func (a *Adapter) initWebhookClient() *http.Client {
+	a.webhookClientMu.Lock()
+	defer a.webhookClientMu.Unlock()
+
+	if a.webhookClient != nil {
+		return a.webhookClient
 	}
-	return sharedWebhookClient
+
+	client, err := webhook.NewHTTPClient(&webhook.ClientConfig{
+		Timeout:              defaultWebhookTimeout,
+		AllowPrivateNetworks: a.allowPrivateWebhookTargets,
+	})
+	if err != nil {
+		a.logger.Error("failed to construct SSRF-safe webhook client, falling back to minimal client",
+			zap.Error(err))
+		client = &http.Client{Timeout: defaultWebhookTimeout}
+	}
+	a.webhookClient = client
+	return a.webhookClient
 }
 
 // CreateSubscription creates a new event subscription for OpenStack resources.
@@ -80,8 +100,8 @@ func (a *Adapter) CreateSubscription(
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", urlredact.Redact(sub.Callback)))
 
-	if sub.Callback == "" {
-		return nil, fmt.Errorf("callback URL is required")
+	if err := a.validateCallback(ctx, sub.Callback); err != nil {
+		return nil, fmt.Errorf("invalid callback URL: %w", err)
 	}
 
 	subscriptionID := sub.SubscriptionID
@@ -149,8 +169,8 @@ func (a *Adapter) UpdateSubscription(
 		zap.String("id", id),
 		zap.String("callback", urlredact.Redact(sub.Callback)))
 
-	if sub.Callback == "" {
-		err = fmt.Errorf("callback URL is required")
+	if validateErr := a.validateCallback(ctx, sub.Callback); validateErr != nil {
+		err = fmt.Errorf("invalid callback URL: %w", validateErr)
 		return nil, err
 	}
 
@@ -503,7 +523,18 @@ func (a *Adapter) deliverWebhookWithRetries(
 	callbackURL string,
 	payload []byte,
 ) error {
-	client := initWebhookClient()
+	// Defense in depth: re-validate the stored callback URL at delivery time.
+	// The subscription store could contain a previously valid URL that now
+	// resolves to an internal IP (DNS drift, attacker-controlled record, or
+	// restore of an old subscription). Rejecting here before the HTTP request
+	// is built closes the CodeQL "uncontrolled data used in network request"
+	// finding at the source. The SSRF-safe DialContext on the shared webhook
+	// client provides the additional connect-time guarantee.
+	if err := a.validateCallback(ctx, callbackURL); err != nil {
+		return fmt.Errorf("refusing to deliver webhook: %w", err)
+	}
+
+	client := a.initWebhookClient()
 
 	var lastErr error
 	for attempt := 0; attempt <= defaultMaxRetries; attempt++ {
@@ -557,16 +588,35 @@ func (a *Adapter) deliverWebhookWithRetries(
 }
 
 // deliverWebhook performs a single webhook delivery attempt.
+//
+// The caller guarantees callbackURL has already been validated by
+// callbackurl.Validate, and the *http.Client is built with
+// webhook.NewHTTPClient, whose DialContext re-resolves the hostname at
+// connect time and refuses to dial any IP in the SSRF-banned set. Both
+// guarantees are prerequisites for the security posture of this function.
 func (a *Adapter) deliverWebhook(
 	ctx context.Context,
 	client *http.Client,
 	callbackURL string,
 	payload []byte,
 ) (int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, callbackURL, bytes.NewReader(payload))
+	// Re-validate immediately before building the request to keep the
+	// tainted-data flow short and analyzable by SAST tooling. The returned
+	// *url.URL is the validated, trusted form of the caller-supplied string.
+	parsed, err := callbackurl.ValidateAndParse(ctx, callbackURL, callbackurl.Options{
+		AllowPrivateNetworks: a.allowPrivateWebhookTargets,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("refusing to deliver webhook: %w", err)
+	}
+
+	// Build the request from the parsed URL so the taint flow terminates at
+	// the validation boundary above.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, parsed.String(), bytes.NewReader(payload))
 	if err != nil {
 		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
+	req.URL = parsed
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "o2ims-gateway/1.0")

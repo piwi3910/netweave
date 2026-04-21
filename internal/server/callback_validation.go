@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/url"
 
 	"github.com/piwi3910/netweave/internal/adapter"
+	"github.com/piwi3910/netweave/internal/security/callbackurl"
 )
 
 // ValidateCallback validates a subscription callback URL at registration time.
@@ -27,32 +27,13 @@ func (s *Server) ValidateCallback(ctx context.Context, sub *adapter.Subscription
 		return fmt.Errorf("subscription cannot be nil")
 	}
 
-	if sub.Callback == "" {
-		return fmt.Errorf("callback URL is required")
+	// Delegate to the shared validator so every site that accepts a callback
+	// URL (server handlers, adapters) enforces an identical SSRF policy.
+	opts := callbackurl.Options{
+		AllowPrivateNetworks: s.config.SecurityCfg().DisableSSRFProtection,
 	}
-
-	// Parse URL to validate format
-	parsedURL, err := url.Parse(sub.Callback)
-	if err != nil {
-		return fmt.Errorf("invalid callback URL format: %w", err)
-	}
-
-	// Validate scheme
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return fmt.Errorf("callback URL must use http or https scheme")
-	}
-
-	// Validate host
-	if parsedURL.Host == "" {
-		return fmt.Errorf("callback URL must have a valid host")
-	}
-
-	// SSRF Protection: Block localhost and private IP ranges
-	// Skip SSRF protection if disabled in config (for testing only)
-	if !s.config.SecurityCfg().DisableSSRFProtection {
-		if err := ValidateCallbackHost(ctx, parsedURL.Hostname()); err != nil {
-			return err
-		}
+	if err := callbackurl.Validate(ctx, sub.Callback, opts); err != nil {
+		return err
 	}
 
 	return nil

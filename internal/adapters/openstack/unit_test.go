@@ -383,13 +383,15 @@ func TestOpenStackAdapter_CreateResourcePool_Unit(t *testing.T) {
 
 func TestInitWebhookClient(t *testing.T) {
 	t.Run("returns non-nil client", func(t *testing.T) {
-		client := openstack.ExportInitWebhookClient()
+		adp := openstack.NewTestAdapter(zap.NewNop())
+		client := adp.ExportInitWebhookClient()
 		assert.NotNil(t, client)
 	})
 
 	t.Run("returns same client on multiple calls", func(t *testing.T) {
-		client1 := openstack.ExportInitWebhookClient()
-		client2 := openstack.ExportInitWebhookClient()
+		adp := openstack.NewTestAdapter(zap.NewNop())
+		client1 := adp.ExportInitWebhookClient()
+		client2 := adp.ExportInitWebhookClient()
 		assert.NotNil(t, client1)
 		assert.NotNil(t, client2)
 	})

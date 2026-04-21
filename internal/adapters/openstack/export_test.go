@@ -36,17 +36,18 @@ func ExportNewFakeAdapter(computeMux, identityMux, placementMux *http.ServeMux) 
 	}
 
 	return &Adapter{
-		provider:            provider,
-		compute:             computeClient,
-		identity:            identityClient,
-		placement:           placementClient,
-		logger:              zap.NewNop(),
-		oCloudID:            "test-ocloud",
-		deploymentManagerID: "test-dm-openstack",
-		region:              "TestRegion",
-		projectName:         "test-project",
-		subs:                adapter.NewInMemorySubscriptionStore(),
-		pollingStates:       make(map[string]*SubscriptionState),
+		provider:                   provider,
+		compute:                    computeClient,
+		identity:                   identityClient,
+		placement:                  placementClient,
+		logger:                     zap.NewNop(),
+		oCloudID:                   "test-ocloud",
+		deploymentManagerID:        "test-dm-openstack",
+		region:                     "TestRegion",
+		projectName:                "test-project",
+		subs:                       adapter.NewInMemorySubscriptionStore(),
+		pollingStates:              make(map[string]*SubscriptionState),
+		allowPrivateWebhookTargets: true,
 	}
 }
 
@@ -61,15 +62,16 @@ func ExportNewFakeAdapterWithCompute(handler http.Handler) (*Adapter, *httptest.
 	}
 
 	adp := &Adapter{
-		provider:            provider,
-		compute:             computeClient,
-		logger:              zap.NewNop(),
-		oCloudID:            "test-ocloud",
-		deploymentManagerID: "test-dm-openstack",
-		region:              "TestRegion",
-		projectName:         "test-project",
-		subs:                adapter.NewInMemorySubscriptionStore(),
-		pollingStates:       make(map[string]*SubscriptionState),
+		provider:                   provider,
+		compute:                    computeClient,
+		logger:                     zap.NewNop(),
+		oCloudID:                   "test-ocloud",
+		deploymentManagerID:        "test-dm-openstack",
+		region:                     "TestRegion",
+		projectName:                "test-project",
+		subs:                       adapter.NewInMemorySubscriptionStore(),
+		pollingStates:              make(map[string]*SubscriptionState),
+		allowPrivateWebhookTargets: true,
 	}
 
 	return adp, server
@@ -96,9 +98,10 @@ func NewTestAdapter(logger *zap.Logger) *Adapter {
 		logger = zap.NewNop()
 	}
 	return &Adapter{
-		logger:        logger,
-		subs:          adapter.NewInMemorySubscriptionStore(),
-		pollingStates: make(map[string]*SubscriptionState),
+		logger:                     logger,
+		subs:                       adapter.NewInMemorySubscriptionStore(),
+		pollingStates:              make(map[string]*SubscriptionState),
+		allowPrivateWebhookTargets: true,
 	}
 }
 
@@ -123,12 +126,13 @@ func NewTestAdapterFull(
 		logger = zap.NewNop()
 	}
 	return &Adapter{
-		logger:              logger,
-		oCloudID:            oCloudID,
-		deploymentManagerID: deploymentManagerID,
-		region:              region,
-		subs:                adapter.NewInMemorySubscriptionStore(),
-		pollingStates:       make(map[string]*SubscriptionState),
+		logger:                     logger,
+		oCloudID:                   oCloudID,
+		deploymentManagerID:        deploymentManagerID,
+		region:                     region,
+		subs:                       adapter.NewInMemorySubscriptionStore(),
+		pollingStates:              make(map[string]*SubscriptionState),
+		allowPrivateWebhookTargets: true,
 	}
 }
 
@@ -160,8 +164,8 @@ func ExportComputeResourceHash(resource any) string {
 }
 
 // ExportInitWebhookClient exports initWebhookClient for testing.
-func ExportInitWebhookClient() *http.Client {
-	return initWebhookClient()
+func (a *Adapter) ExportInitWebhookClient() *http.Client {
+	return a.initWebhookClient()
 }
 
 // ExportValidateConfig exports validateConfig for testing.
