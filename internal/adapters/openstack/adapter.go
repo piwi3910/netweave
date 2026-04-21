@@ -54,8 +54,10 @@ type Adapter struct {
 	// projectName is the OpenStack project (tenant) name.
 	projectName string
 
-	// subscriptions holds active subscriptions (polling-based).
-	subscriptions map[string]*adapter.Subscription
+	// subs holds active subscriptions (polling-based).
+	// The default store is in-memory. For durable storage, wire in a
+	// StorageBackedSubscriptionStore.
+	subs *adapter.InMemorySubscriptionStore
 
 	// pollingStates tracks the polling state for each active subscription.
 	pollingStates map[string]*SubscriptionState
@@ -143,7 +145,7 @@ func New(cfg *Config) (*Adapter, error) {
 		deploymentManagerID: deploymentManagerID,
 		region:              cfg.Region,
 		projectName:         cfg.ProjectName,
-		subscriptions:       make(map[string]*adapter.Subscription),
+		subs:                adapter.NewInMemorySubscriptionStore(),
 	}
 
 	logger.Info("OpenStack adapter initialized successfully",

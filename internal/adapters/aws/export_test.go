@@ -21,7 +21,7 @@ func NewTestAdapter(
 		deploymentManagerID: deploymentManagerID,
 		region:              region,
 		poolMode:            poolMode,
-		subscriptions:       make(map[string]*adapter.Subscription),
+		subs:                adapter.NewInMemorySubscriptionStore(),
 	}
 }
 
@@ -33,12 +33,13 @@ func NewTestAdapterWithSubs(
 	if logger == nil {
 		logger = zap.NewNop()
 	}
-	if subscriptions == nil {
-		subscriptions = make(map[string]*adapter.Subscription)
+	store := adapter.NewInMemorySubscriptionStore()
+	for k, v := range subscriptions {
+		store.RawMap()[k] = v
 	}
 	return &Adapter{
-		logger:        logger,
-		subscriptions: subscriptions,
+		logger: logger,
+		subs:   store,
 	}
 }
 
@@ -57,9 +58,9 @@ func (a *Adapter) ExportPoolMode() string { return a.poolMode }
 // ExportSetPoolMode sets the poolMode field for tests.
 func (a *Adapter) ExportSetPoolMode(mode string) { a.poolMode = mode }
 
-// ExportSubscriptions exposes the subscriptions map for tests.
+// ExportSubscriptions exposes the underlying subscriptions map for tests.
 // The returned map is the same map the adapter uses, so it can be read and written
 // in tests, but callers must not access it concurrently with adapter operations.
 func (a *Adapter) ExportSubscriptions() map[string]*adapter.Subscription {
-	return a.subscriptions
+	return a.subs.RawMap()
 }

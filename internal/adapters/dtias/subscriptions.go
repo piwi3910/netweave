@@ -2,6 +2,7 @@ package dtias
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -20,24 +21,21 @@ import (
 //  3. Match changes against subscription filters
 //  4. Send webhook notifications to matching subscription callbacks
 func (a *Adapter) CreateSubscription(
-	_ context.Context,
+	ctx context.Context,
 	sub *adapter.Subscription,
 ) (*adapter.Subscription, error) {
 	a.logger.Debug("CreateSubscription called",
 		zap.String("callback", urlredact.Redact(sub.Callback)))
 
-	// Validate required fields
 	if sub.Callback == "" {
 		return nil, fmt.Errorf("callback URL is required")
 	}
 
-	// Generate subscription ID if not provided
 	subscriptionID := sub.SubscriptionID
 	if subscriptionID == "" {
 		subscriptionID = uuid.New().String()
 	}
 
-	// Create the subscription
 	newSub := &adapter.Subscription{
 		SubscriptionID:         subscriptionID,
 		Callback:               sub.Callback,
@@ -45,14 +43,9 @@ func (a *Adapter) CreateSubscription(
 		Filter:                 sub.Filter,
 	}
 
-	// Store the subscription atomically with existence check
-	a.SubscriptionsMu.Lock()
-	if _, exists := a.Subscriptions[subscriptionID]; exists {
-		a.SubscriptionsMu.Unlock()
-		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionExists, subscriptionID)
+	if err := a.Subs.Create(ctx, newSub); err != nil {
+		return nil, err
 	}
-	a.Subscriptions[subscriptionID] = newSub
-	a.SubscriptionsMu.Unlock()
 
 	a.logger.Info("subscription created (polling-based)",
 		zap.String("subscriptionId", subscriptionID),
@@ -62,46 +55,29 @@ func (a *Adapter) CreateSubscription(
 }
 
 // GetSubscription retrieves a specific subscription by ID.
-func (a *Adapter) GetSubscription(_ context.Context, id string) (*adapter.Subscription, error) {
-	a.logger.Debug("GetSubscription called",
-		zap.String("id", id))
-
-	a.SubscriptionsMu.RLock()
-	sub, ok := a.Subscriptions[id]
-	a.SubscriptionsMu.RUnlock()
-
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
-	}
-
-	return sub, nil
+func (a *Adapter) GetSubscription(ctx context.Context, id string) (*adapter.Subscription, error) {
+	a.logger.Debug("GetSubscription called", zap.String("id", id))
+	return a.Subs.Get(ctx, id)
 }
 
 // UpdateSubscription updates an existing subscription.
 // Returns the updated subscription or an error if not found.
 func (a *Adapter) UpdateSubscription(
-	_ context.Context,
+	ctx context.Context,
 	id string,
 	sub *adapter.Subscription,
 ) (*adapter.Subscription, error) {
-	a.logger.Debug("UpdateSubscription called",
-		zap.String("id", id))
+	a.logger.Debug("UpdateSubscription called", zap.String("id", id))
 
-	// Validate required fields
 	if sub.Callback == "" {
 		return nil, fmt.Errorf("callback URL is required")
 	}
 
-	// Update the subscription atomically with existence check
-	a.SubscriptionsMu.Lock()
-	defer a.SubscriptionsMu.Unlock()
-
-	existing, ok := a.Subscriptions[id]
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+	existing, err := a.Subs.Get(ctx, id)
+	if err != nil {
+		return nil, err
 	}
 
-	// Create updated subscription preserving the ID
 	updated := &adapter.Subscription{
 		SubscriptionID:         id,
 		Callback:               sub.Callback,
@@ -109,7 +85,9 @@ func (a *Adapter) UpdateSubscription(
 		Filter:                 sub.Filter,
 	}
 
-	a.Subscriptions[id] = updated
+	if err := a.Subs.Update(ctx, id, updated); err != nil {
+		return nil, err
+	}
 
 	a.logger.Info("subscription updated",
 		zap.String("subscription_id", id),
@@ -120,36 +98,27 @@ func (a *Adapter) UpdateSubscription(
 }
 
 // DeleteSubscription deletes a subscription by ID.
-func (a *Adapter) DeleteSubscription(_ context.Context, id string) error {
-	a.logger.Debug("DeleteSubscription called",
-		zap.String("id", id))
+func (a *Adapter) DeleteSubscription(ctx context.Context, id string) error {
+	a.logger.Debug("DeleteSubscription called", zap.String("id", id))
 
-	a.SubscriptionsMu.Lock()
-	defer a.SubscriptionsMu.Unlock()
-
-	if _, ok := a.Subscriptions[id]; !ok {
-		return fmt.Errorf("%w: %s", adapter.ErrSubscriptionNotFound, id)
+	if err := a.Subs.Delete(ctx, id); err != nil {
+		return err
 	}
 
-	delete(a.Subscriptions, id)
-
-	a.logger.Info("subscription deleted",
-		zap.String("subscription_id", id))
-
+	a.logger.Info("subscription deleted", zap.String("subscription_id", id))
 	return nil
 }
 
 // ListSubscriptions returns all active subscriptions.
 // This is useful for the polling mechanism to know which subscriptions need notifications.
 func (a *Adapter) ListSubscriptions() []*adapter.Subscription {
-	a.SubscriptionsMu.RLock()
-	defer a.SubscriptionsMu.RUnlock()
-
-	subs := make([]*adapter.Subscription, 0, len(a.Subscriptions))
-	for _, sub := range a.Subscriptions {
-		subs = append(subs, sub)
+	subs, err := a.Subs.List(context.Background(), nil)
+	if err != nil {
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			a.logger.Warn("listing subscriptions returned unexpected error", zap.Error(err))
+		}
+		return nil
 	}
-
 	return subs
 }
 

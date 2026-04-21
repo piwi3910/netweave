@@ -45,7 +45,7 @@ func ExportNewFakeAdapter(computeMux, identityMux, placementMux *http.ServeMux) 
 		deploymentManagerID: "test-dm-openstack",
 		region:              "TestRegion",
 		projectName:         "test-project",
-		subscriptions:       make(map[string]*adapter.Subscription),
+		subs:                adapter.NewInMemorySubscriptionStore(),
 		pollingStates:       make(map[string]*SubscriptionState),
 	}
 }
@@ -68,7 +68,7 @@ func ExportNewFakeAdapterWithCompute(handler http.Handler) (*Adapter, *httptest.
 		deploymentManagerID: "test-dm-openstack",
 		region:              "TestRegion",
 		projectName:         "test-project",
-		subscriptions:       make(map[string]*adapter.Subscription),
+		subs:                adapter.NewInMemorySubscriptionStore(),
 		pollingStates:       make(map[string]*SubscriptionState),
 	}
 
@@ -85,7 +85,7 @@ func (a *Adapter) ExportDeploymentManagerID() string { return a.deploymentManage
 func (a *Adapter) ExportRegion() string { return a.region }
 
 // ExportSubscriptions exposes the subscriptions map for tests.
-func (a *Adapter) ExportSubscriptions() map[string]*adapter.Subscription { return a.subscriptions }
+func (a *Adapter) ExportSubscriptions() map[string]*adapter.Subscription { return a.subs.RawMap() }
 
 // ExportPollingStates exposes the pollingStates map for tests.
 func (a *Adapter) ExportPollingStates() map[string]*SubscriptionState { return a.pollingStates }
@@ -97,7 +97,7 @@ func NewTestAdapter(logger *zap.Logger) *Adapter {
 	}
 	return &Adapter{
 		logger:        logger,
-		subscriptions: make(map[string]*adapter.Subscription),
+		subs:          adapter.NewInMemorySubscriptionStore(),
 		pollingStates: make(map[string]*SubscriptionState),
 	}
 }
@@ -127,7 +127,7 @@ func NewTestAdapterFull(
 		oCloudID:            oCloudID,
 		deploymentManagerID: deploymentManagerID,
 		region:              region,
-		subscriptions:       make(map[string]*adapter.Subscription),
+		subs:                adapter.NewInMemorySubscriptionStore(),
 		pollingStates:       make(map[string]*SubscriptionState),
 	}
 }

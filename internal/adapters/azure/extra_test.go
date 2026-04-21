@@ -22,7 +22,7 @@ func newTestAdapter(poolMode string) *Adapter {
 		deploymentManagerID: "ocloud-azure-eastus",
 		subscriptionID:      "sub-123",
 		location:            "eastus",
-		subscriptions:       make(map[string]*adapter.Subscription),
+		subs:                adapter.NewInMemorySubscriptionStore(),
 		poolMode:            poolMode,
 	}
 }
@@ -662,7 +662,7 @@ func TestUpdateSubscription_Internal(t *testing.T) {
 		SubscriptionID: "sub-1",
 		Callback:       "https://example.com/old",
 	}
-	adp.subscriptions["sub-1"] = initial
+	adp.subs.RawMap()["sub-1"] = initial
 
 	t.Run("success", func(t *testing.T) {
 		updated, err := adp.UpdateSubscription(context.Background(), "sub-1", &adapter.Subscription{

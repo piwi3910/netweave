@@ -12,7 +12,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -55,13 +54,11 @@ type Adapter struct {
 	// region is the AWS region this adapter manages.
 	region string
 
-	// subscriptions holds active subscriptions (polling-based fallback).
-	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
-	// For production use, consider implementing persistent storage via Redis.
-	subscriptions map[string]*adapter.Subscription
-
-	// subscriptionsMu protects the subscriptions map.
-	subscriptionsMu sync.RWMutex
+	// subs holds active subscriptions (polling-based fallback).
+	// Note: The default store is in-memory and will be lost on adapter restart.
+	// For durable storage, construct a StorageBackedSubscriptionStore and inject
+	// it here; subscriptions.go delegates CRUD through the stored methods.
+	subs *adapter.InMemorySubscriptionStore
 
 	// poolMode determines how resource pools are mapped.
 	// "az" maps to Availability Zones, "asg" maps to Auto Scaling Groups.
@@ -153,7 +150,7 @@ func New(cfg *Config) (*Adapter, error) {
 		oCloudID:            cfg.OCloudID,
 		deploymentManagerID: deploymentManagerID,
 		region:              cfg.Region,
-		subscriptions:       make(map[string]*adapter.Subscription),
+		subs:                adapter.NewInMemorySubscriptionStore(),
 		poolMode:            poolMode,
 	}, nil
 }
@@ -356,9 +353,7 @@ func (a *Adapter) Close() error {
 	a.logger.Info("closing AWS adapter")
 
 	// Clear subscriptions
-	a.subscriptionsMu.Lock()
-	a.subscriptions = make(map[string]*adapter.Subscription)
-	a.subscriptionsMu.Unlock()
+	a.subs.Reset()
 
 	// Sync logger before shutdown
 	// Sync errors on stderr/stdout are expected and can be ignored

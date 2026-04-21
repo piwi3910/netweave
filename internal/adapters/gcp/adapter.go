@@ -12,7 +12,6 @@ package gcp
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	compute "cloud.google.com/go/compute/apiv1"
@@ -64,13 +63,10 @@ type Adapter struct {
 	// region is the GCP region (e.g., "us-central1").
 	region string
 
-	// subscriptions holds active O2-IMS subscriptions (polling-based fallback).
-	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
-	// For production use, consider implementing persistent storage via Redis.
-	subscriptions map[string]*adapter.Subscription
-
-	// subscriptionsMu protects the subscriptions map.
-	subscriptionsMu sync.RWMutex
+	// subs holds active O2-IMS subscriptions (polling-based fallback).
+	// Note: The default store is in-memory and will be lost on adapter restart.
+	// For durable storage, wire in a StorageBackedSubscriptionStore.
+	subs *adapter.InMemorySubscriptionStore
 
 	// poolMode determines how resource pools are mapped.
 	// "zone" maps to Zones, "ig" maps to Instance Groups.
@@ -159,7 +155,7 @@ func New(cfg *Config) (*Adapter, error) {
 		deploymentManagerID:  deploymentManagerID,
 		projectID:            cfg.ProjectID,
 		region:               cfg.Region,
-		subscriptions:        make(map[string]*adapter.Subscription),
+		subs:                 adapter.NewInMemorySubscriptionStore(),
 		poolMode:             poolMode,
 	}, nil
 }
@@ -384,9 +380,7 @@ func (a *Adapter) Close() error {
 	a.logger.Info("closing GCP adapter")
 
 	// Clear subscriptions
-	a.subscriptionsMu.Lock()
-	a.subscriptions = make(map[string]*adapter.Subscription)
-	a.subscriptionsMu.Unlock()
+	a.subs.Reset()
 
 	// Close all clients
 	var errs []error

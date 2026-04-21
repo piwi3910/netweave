@@ -12,7 +12,6 @@ package azure
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -59,13 +58,10 @@ type Adapter struct {
 	// location is the Azure region/location.
 	location string
 
-	// subscriptions holds active O2-IMS subscriptions (polling-based fallback).
-	// Note: Subscriptions are stored in-memory and will be lost on adapter restart.
-	// For production use, consider implementing persistent storage via Redis.
-	subscriptions map[string]*adapter.Subscription
-
-	// subscriptionsMu protects the subscriptions map.
-	subscriptionsMu sync.RWMutex
+	// subs holds active O2-IMS subscriptions (polling-based fallback).
+	// Note: The default store is in-memory and will be lost on adapter restart.
+	// For durable storage, wire in a StorageBackedSubscriptionStore.
+	subs *adapter.InMemorySubscriptionStore
 
 	// poolMode determines how resource pools are mapped.
 	// "rg" maps to Resource Groups, "az" maps to Availability Zones.
@@ -185,7 +181,7 @@ func New(cfg *Config) (*Adapter, error) {
 		deploymentManagerID: deploymentManagerID,
 		subscriptionID:      cfg.SubscriptionID,
 		location:            cfg.Location,
-		subscriptions:       make(map[string]*adapter.Subscription),
+		subs:                adapter.NewInMemorySubscriptionStore(),
 		poolMode:            poolMode,
 	}
 
@@ -400,9 +396,7 @@ func (a *Adapter) Close() error {
 	a.logger.Info("closing Azure adapter")
 
 	// Clear subscriptions
-	a.subscriptionsMu.Lock()
-	a.subscriptions = make(map[string]*adapter.Subscription)
-	a.subscriptionsMu.Unlock()
+	a.subs.Reset()
 
 	// Sync logger before shutdown
 	// Sync errors on stderr/stdout are expected and can be ignored
