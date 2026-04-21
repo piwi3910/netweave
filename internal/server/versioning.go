@@ -13,7 +13,7 @@ import (
 
 // APIVersion represents an API version configuration.
 type APIVersion struct {
-	// Version is the version string (e.g., "v1", "v2", "v3").
+	// Version is the version string (e.g., "v1").
 	Version string
 	// Status indicates the version status (stable, deprecated, sunset).
 	Status string
@@ -37,23 +37,13 @@ type VersionConfig struct {
 }
 
 // NewVersionConfig creates a new version configuration with default settings.
+// Only v1 is registered; v2/v3 route groups do not exist in the gateway, so
+// advertising them as stable would be misleading.
 func NewVersionConfig() *VersionConfig {
 	return &VersionConfig{
 		Versions: map[string]*APIVersion{
 			"v1": {
 				Version:            "v1",
-				Status:             VersionStatusStable,
-				SunsetDate:         nil,
-				DeprecationMessage: "",
-			},
-			"v2": {
-				Version:            "v2",
-				Status:             VersionStatusStable,
-				SunsetDate:         nil,
-				DeprecationMessage: "",
-			},
-			"v3": {
-				Version:            "v3",
 				Status:             VersionStatusStable,
 				SunsetDate:         nil,
 				DeprecationMessage: "",
@@ -139,123 +129,4 @@ func IsNumeric(s string) bool {
 		}
 	}
 	return true
-}
-
-// V2Features contains feature flags for v2 API enhancements.
-type V2Features struct {
-	// EnhancedFiltering enables advanced query parameter filtering.
-	EnhancedFiltering bool
-	// FieldSelection enables selecting specific fields in responses.
-	FieldSelection bool
-	// BatchOperations enables batch create/update/delete endpoints.
-	BatchOperations bool
-	// CursorPagination enables cursor-based pagination.
-	CursorPagination bool
-}
-
-// V3Features contains feature flags for v3 API with multi-tenancy.
-type V3Features struct {
-	// V2Features includes all v2 features.
-	V2Features
-	// MultiTenancy enables tenant isolation and management.
-	MultiTenancy bool
-	// TenantQuotas enables per-tenant resource quotas.
-	TenantQuotas bool
-	// CrossTenantSharing enables resource sharing between tenants.
-	CrossTenantSharing bool
-	// AuditLogging enables detailed audit trail for tenant operations.
-	AuditLogging bool
-}
-
-// GetV2Features returns the v2 feature configuration.
-func GetV2Features() V2Features {
-	return V2Features{
-		EnhancedFiltering: true,
-		FieldSelection:    true,
-		BatchOperations:   true,
-		CursorPagination:  true,
-	}
-}
-
-// GetV3Features returns the v3 feature configuration.
-func GetV3Features() V3Features {
-	return V3Features{
-		V2Features:         GetV2Features(),
-		MultiTenancy:       true,
-		TenantQuotas:       true,
-		CrossTenantSharing: true,
-		AuditLogging:       true,
-	}
-}
-
-// RequireVersion creates middleware that requires a minimum API version.
-func RequireVersion(minVersion string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		currentVersion := c.GetString("api_version")
-		if currentVersion == "" {
-			currentVersion = "v1"
-		}
-
-		if !IsVersionAtLeast(currentVersion, minVersion) {
-			httpx.AbortWithError(
-				c,
-				http.StatusNotImplemented,
-				"NotImplemented",
-				"This feature requires API version "+minVersion+" or higher",
-			)
-			return
-		}
-
-		c.Next()
-	}
-}
-
-// IsVersionAtLeast checks if currentVersion is at least minVersion.
-func IsVersionAtLeast(current, minimum string) bool {
-	currentNum := ExtractVersionNumber(current)
-	minNum := ExtractVersionNumber(minimum)
-	return currentNum >= minNum
-}
-
-// ExtractVersionNumber extracts the numeric version from a version string.
-func ExtractVersionNumber(version string) int {
-	version = strings.TrimPrefix(version, "v")
-	num := 0
-	for _, c := range version {
-		if c >= '0' && c <= '9' {
-			num = num*10 + int(c-'0')
-		}
-	}
-	return num
-}
-
-// TenantMiddleware extracts tenant information for v3 multi-tenancy support.
-func TenantMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Check if we're using v3 API
-		version := c.GetString("api_version")
-		if version != "v3" {
-			c.Next()
-			return
-		}
-
-		// Extract tenant from header or path
-		tenantID := c.GetHeader("X-Tenant-ID")
-		if tenantID == "" {
-			tenantID = c.Query("tenantId")
-		}
-
-		if tenantID == "" {
-			// Default tenant for backward compatibility
-			tenantID = "default"
-		}
-
-		// Store tenant in context
-		c.Set("tenant_id", tenantID)
-
-		// Add tenant to response headers
-		c.Header("X-Tenant-ID", tenantID)
-
-		c.Next()
-	}
 }

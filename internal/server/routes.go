@@ -19,7 +19,6 @@ import (
 	"github.com/piwi3910/netweave/internal/adapter"
 	"github.com/piwi3910/netweave/internal/auth"
 	"github.com/piwi3910/netweave/internal/backend"
-	"github.com/piwi3910/netweave/internal/models"
 	"github.com/piwi3910/netweave/internal/security/urlredact"
 	"github.com/piwi3910/netweave/internal/storage"
 )
@@ -288,10 +287,6 @@ func (s *Server) setupRoutes() {
 	v1 := s.o2Router.Group("/o2ims-infrastructureInventory/v1")
 	v1.Use(PluginGuard(s.pluginRegistry, "o2ims"))
 	v1.Use(VersioningMiddleware(versionConfig))
-
-	if s.tenantHandler != nil {
-		v1.Use(TenantMiddleware())
-	}
 
 	s.setupV1Routes(v1)
 
@@ -1054,7 +1049,6 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 }
 
 // parseFilterFromRequest parses filter parameters from the request context.
-// It detects the API version and uses AdvancedFilter parsing for v2+ endpoints.
 // Returns an adapter.Filter with tenant context applied.
 //
 // SECURITY: platform admins receive an empty tenant filter so they can see
@@ -1062,35 +1056,13 @@ func (s *Server) handleDeleteSubscription(c *gin.Context) {
 // their own tenant. Unauthenticated callers (auth disabled) get no tenant
 // filter — they rely on other controls (e.g., network isolation).
 func (s *Server) parseFilterFromRequest(c *gin.Context) (*adapter.Filter, error) {
-	// Detect API version from request path.
-	path := c.Request.URL.Path
-	isV2OrHigher := strings.Contains(path, "/v2/") || strings.Contains(path, "/v3/")
-
-	// Extract tenant ID if present (v3+ with multi-tenancy). Platform admins
-	// bypass the tenant filter so they see resources across tenants.
 	ctx := c.Request.Context()
 	var tenantID string
 	if !auth.IsPlatformAdminFromContext(ctx) {
 		tenantID = auth.TenantIDFromContext(ctx)
 	}
 
-	if isV2OrHigher {
-		// Parse advanced filter for v2+ endpoints.
-		advFilter, err := models.ParseAdvancedFilter(c.Request.URL.Query())
-		if err != nil {
-			return nil, fmt.Errorf("invalid filter parameters: %w", err)
-		}
-
-		// Create adapter filter with advanced filtering support.
-		return &adapter.Filter{
-			TenantID:       tenantID,
-			Limit:          advFilter.Limit,
-			Offset:         advFilter.Offset,
-			AdvancedFilter: advFilter,
-		}, nil
-	}
-
-	// For v1, create basic filter (no advanced features).
+	// Only v1 routes are registered, so advanced filtering is not available.
 	return &adapter.Filter{
 		TenantID: tenantID,
 		Limit:    100, // Default limit for v1.
@@ -1100,7 +1072,7 @@ func (s *Server) parseFilterFromRequest(c *gin.Context) (*adapter.Filter, error)
 // Resource Pool handlers
 
 // handleListResourcePools lists all resource pools.
-// GET /o2ims/v1/resourcePools, /v2/resourcePools, /v3/resourcePools.
+// GET /o2ims/v1/resourcePools.
 func (s *Server) handleListResourcePools(c *gin.Context) {
 	s.logger.Info("listing resource pools")
 
@@ -2562,11 +2534,11 @@ func (s *Server) handleGetOCloudInfrastructure(c *gin.Context) {
 	})
 }
 
-// Tenant quota handlers (v3)
+// Tenant quota handlers
 // These remain as placeholders until quota management is fully implemented
 
 // handleGetTenantQuotas retrieves tenant quotas.
-// GET /o2ims/v3/tenants/:tenantId/quotas.
+// GET /o2ims/v1/tenants/:tenantId/quotas.
 func (s *Server) handleGetTenantQuotas(c *gin.Context) {
 	tenantID := c.Param("tenantId")
 
@@ -2593,7 +2565,7 @@ func (s *Server) handleGetTenantQuotas(c *gin.Context) {
 }
 
 // handleUpdateTenantQuotas updates tenant quotas.
-// PUT /o2ims/v3/tenants/:tenantId/quotas.
+// PUT /o2ims/v1/tenants/:tenantId/quotas.
 func (s *Server) handleUpdateTenantQuotas(c *gin.Context) {
 	ctx := c.Request.Context()
 	tenantID := c.Param("tenantId")

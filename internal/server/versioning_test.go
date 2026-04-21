@@ -25,27 +25,17 @@ func TestNewVersionConfig(t *testing.T) {
 		t.Errorf("DefaultVersion = %s, want v1", config.DefaultVersion)
 	}
 
-	// Verify all versions are defined
-	versions := []string{"v1", "v2", "v3"}
-	for _, v := range versions {
-		if _, exists := config.Versions[v]; !exists {
-			t.Errorf("Version %s not found in config", v)
-		}
+	// Only v1 should be registered; v2/v3 route groups do not exist.
+	if _, exists := config.Versions["v1"]; !exists {
+		t.Error("v1 not found in config")
+	}
+	if len(config.Versions) != 1 {
+		t.Errorf("Versions count = %d, want 1", len(config.Versions))
 	}
 
 	// Verify v1 is stable
 	if config.Versions["v1"].Status != server.VersionStatusStable {
 		t.Errorf("v1 Status = %s, want %s", config.Versions["v1"].Status, server.VersionStatusStable)
-	}
-
-	// Verify v2 is stable
-	if config.Versions["v2"].Status != server.VersionStatusStable {
-		t.Errorf("v2 Status = %s, want %s", config.Versions["v2"].Status, server.VersionStatusStable)
-	}
-
-	// Verify v3 is stable
-	if config.Versions["v3"].Status != server.VersionStatusStable {
-		t.Errorf("v3 Status = %s, want %s", config.Versions["v3"].Status, server.VersionStatusStable)
 	}
 }
 
@@ -65,16 +55,10 @@ func TestVersioningMiddleware(t *testing.T) {
 			expectedHeader: "v1",
 		},
 		{
-			name:           "v2 path sets version header",
+			name:           "unregistered version returns 404",
 			path:           "/o2ims-infrastructureInventory/v2/resources",
-			expectedStatus: http.StatusOK,
-			expectedHeader: "v2",
-		},
-		{
-			name:           "v3 path sets version header",
-			path:           "/o2ims-infrastructureInventory/v3/resources",
-			expectedStatus: http.StatusOK,
-			expectedHeader: "v3",
+			expectedStatus: http.StatusNotFound,
+			expectedHeader: "",
 		},
 		{
 			name:           "non-existent version returns 404",
@@ -188,16 +172,6 @@ func TestExtractVersionFromPath(t *testing.T) {
 			expected: "v1",
 		},
 		{
-			name:     "v2 version",
-			path:     "/o2ims-infrastructureInventory/v2/subscriptions",
-			expected: "v2",
-		},
-		{
-			name:     "v3 version",
-			path:     "/o2ims-infrastructureInventory/v3/tenants",
-			expected: "v3",
-		},
-		{
 			name:     "v10 version",
 			path:     "/api/v10/resources",
 			expected: "v10",
@@ -271,221 +245,5 @@ func TestIsNumeric(t *testing.T) {
 				t.Errorf("server.IsNumeric(%q) = %v, want %v", tt.input, result, tt.expected)
 			}
 		})
-	}
-}
-
-func TestIsVersionAtLeast(t *testing.T) {
-	tests := []struct {
-		current  string
-		min      string
-		expected bool
-	}{
-		{"v1", "v1", true},
-		{"v2", "v1", true},
-		{"v1", "v2", false},
-		{"v3", "v2", true},
-		{"v10", "v9", true},
-		{"v1", "v10", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.current+">="+tt.min, func(t *testing.T) {
-			result := server.IsVersionAtLeast(tt.current, tt.min)
-			if result != tt.expected {
-				t.Errorf("server.IsVersionAtLeast(%q, %q) = %v, want %v", tt.current, tt.min, result, tt.expected)
-			}
-		})
-	}
-}
-
-func TestExtractVersionNumber(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected int
-	}{
-		{"v1", 1},
-		{"v2", 2},
-		{"v10", 10},
-		{"1", 1},
-		{"v123", 123},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			result := server.ExtractVersionNumber(tt.input)
-			if result != tt.expected {
-				t.Errorf("server.ExtractVersionNumber(%q) = %d, want %d", tt.input, result, tt.expected)
-			}
-		})
-	}
-}
-
-func TestRequireVersion(t *testing.T) {
-	router := gin.New()
-
-	// Simulate version being set in context
-	router.Use(func(c *gin.Context) {
-		c.Set("api_version", "v1")
-		c.Next()
-	})
-	router.Use(server.RequireVersion("v2"))
-	router.GET("/feature", func(c *gin.Context) {
-		c.Status(http.StatusOK)
-	})
-
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/feature", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// Should return 501 Not Implemented
-	if w.Code != http.StatusNotImplemented {
-		t.Errorf("Status = %d, want %d", w.Code, http.StatusNotImplemented)
-	}
-}
-
-func TestRequireVersion_Satisfied(t *testing.T) {
-	router := gin.New()
-
-	// Simulate version being set in context
-	router.Use(func(c *gin.Context) {
-		c.Set("api_version", "v3")
-		c.Next()
-	})
-	router.Use(server.RequireVersion("v2"))
-	router.GET("/feature", func(c *gin.Context) {
-		c.Status(http.StatusOK)
-	})
-
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/feature", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// Should return 200 OK
-	if w.Code != http.StatusOK {
-		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
-	}
-}
-
-func TestTenantMiddleware(t *testing.T) {
-	tests := []struct {
-		name             string
-		version          string
-		tenantHeader     string
-		tenantQuery      string
-		expectedTenantID string
-	}{
-		{
-			name:             "v1 should not set tenant",
-			version:          "v1",
-			tenantHeader:     "tenant-123",
-			expectedTenantID: "",
-		},
-		{
-			name:             "v3 with header",
-			version:          "v3",
-			tenantHeader:     "tenant-123",
-			expectedTenantID: "tenant-123",
-		},
-		{
-			name:             "v3 with query param",
-			version:          "v3",
-			tenantQuery:      "tenant-456",
-			expectedTenantID: "tenant-456",
-		},
-		{
-			name:             "v3 without tenant uses default",
-			version:          "v3",
-			expectedTenantID: "default",
-		},
-		{
-			name:             "v3 header takes precedence over query",
-			version:          "v3",
-			tenantHeader:     "tenant-header",
-			tenantQuery:      "tenant-query",
-			expectedTenantID: "tenant-header",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var capturedTenant string
-
-			router := gin.New()
-			router.Use(func(c *gin.Context) {
-				c.Set("api_version", tt.version)
-				c.Next()
-			})
-			router.Use(server.TenantMiddleware())
-			router.GET("/test", func(c *gin.Context) {
-				capturedTenant = c.GetString("tenant_id")
-				c.Status(http.StatusOK)
-			})
-
-			path := "/test"
-			if tt.tenantQuery != "" {
-				path += "?tenantId=" + tt.tenantQuery
-			}
-
-			req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, path, nil)
-			if tt.tenantHeader != "" {
-				req.Header.Set("X-Tenant-ID", tt.tenantHeader)
-			}
-
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, req)
-
-			if capturedTenant != tt.expectedTenantID {
-				t.Errorf("tenant_id = %q, want %q", capturedTenant, tt.expectedTenantID)
-			}
-		})
-	}
-}
-
-func TestGetV2Features(t *testing.T) {
-	features := server.GetV2Features()
-
-	if !features.EnhancedFiltering {
-		t.Error("V2 EnhancedFiltering should be true")
-	}
-	if !features.FieldSelection {
-		t.Error("V2 FieldSelection should be true")
-	}
-	if !features.BatchOperations {
-		t.Error("V2 BatchOperations should be true")
-	}
-	if !features.CursorPagination {
-		t.Error("V2 CursorPagination should be true")
-	}
-}
-
-func TestGetV3Features(t *testing.T) {
-	features := server.GetV3Features()
-
-	// Should include all V2 features
-	if !features.EnhancedFiltering {
-		t.Error("V3 EnhancedFiltering should be true")
-	}
-	if !features.FieldSelection {
-		t.Error("V3 FieldSelection should be true")
-	}
-	if !features.BatchOperations {
-		t.Error("V3 BatchOperations should be true")
-	}
-	if !features.CursorPagination {
-		t.Error("V3 CursorPagination should be true")
-	}
-
-	// V3 specific features
-	if !features.MultiTenancy {
-		t.Error("V3 MultiTenancy should be true")
-	}
-	if !features.TenantQuotas {
-		t.Error("V3 TenantQuotas should be true")
-	}
-	if !features.CrossTenantSharing {
-		t.Error("V3 CrossTenantSharing should be true")
-	}
-	if !features.AuditLogging {
-		t.Error("V3 AuditLogging should be true")
 	}
 }
