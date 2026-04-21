@@ -511,6 +511,33 @@ type TLSConfig struct {
 	// Names must match Go's crypto/tls names exactly (see tls.CipherSuites()).
 	// Only honored for TLS 1.2; TLS 1.3 cipher suites are fixed by Go.
 	CipherSuites []string `mapstructure:"cipher_suites"`
+
+	// CRL configures periodic Certificate Revocation List checking for
+	// mTLS peer verification. When enabled and a Vault client is
+	// configured, the server fetches the CRL from Vault at
+	// RefreshInterval and rejects peers whose certificate serial
+	// appears in the list. After MaxFailures consecutive refresh
+	// errors the verifier fails closed and rejects all peers.
+	CRL CRLConfig `mapstructure:"crl"`
+}
+
+// CRLConfig configures Vault-backed CRL checking for mTLS peer verification.
+// See issue #496 (I5).
+type CRLConfig struct {
+	// Enabled turns CRL verification on. When a Vault client is available
+	// and this is true, the server attaches a VerifyPeerCertificate
+	// callback to every TLS listener that performs client auth.
+	// Defaults to true (enforced by viper defaults).
+	Enabled bool `mapstructure:"enabled"`
+
+	// RefreshInterval controls how often the CRL is fetched from Vault.
+	// Defaults to 5 minutes.
+	RefreshInterval time.Duration `mapstructure:"refresh_interval"`
+
+	// MaxFailures is the number of consecutive refresh errors that will
+	// cause the verifier to enter a fail-closed "stale" state in which
+	// every TLS peer is rejected. Defaults to 3.
+	MaxFailures int `mapstructure:"max_failures"`
 }
 
 // ObservabilityConfig contains logging, metrics, and tracing configuration.
@@ -1013,6 +1040,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("tls.enabled", false)
 	v.SetDefault("tls.client_auth", "none")
 	v.SetDefault("tls.min_version", "1.3")
+	v.SetDefault("tls.crl.enabled", true)
+	v.SetDefault("tls.crl.refresh_interval", "5m")
+	v.SetDefault("tls.crl.max_failures", 3)
 
 	// Logging defaults
 	v.SetDefault("observability.logging.level", "info")

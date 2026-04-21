@@ -967,6 +967,24 @@ func initializeCertLifecycle(
 			return nil, fmt.Errorf("failed to create vault client: %w", vaultErr)
 		}
 		vaultPKI = vaultClient
+
+		// Wire Vault-backed CRL verification into mTLS peer checking
+		// (issue #496 / I5). The verifier is disabled by default if the
+		// config flag is false; otherwise it refreshes the CRL from
+		// Vault at the configured interval and fails closed after
+		// MaxFailures consecutive errors.
+		if cfg.TLS.CRL.Enabled {
+			crlVerifier := server.NewCRLVerifier(
+				context.Background(),
+				vaultClient,
+				cfg.TLS.CRL.RefreshInterval,
+				cfg.TLS.CRL.MaxFailures,
+				logger,
+			)
+			srv.SetupCRLVerifier(crlVerifier)
+		} else {
+			logger.Info("CRL verification disabled via config")
+		}
 	}
 
 	// Resolve HMAC secret from environment.
